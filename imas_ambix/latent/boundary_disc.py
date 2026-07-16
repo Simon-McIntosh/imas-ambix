@@ -64,6 +64,13 @@ class DiscReadConfig:
     min_cells: int = 5  # smallest disc worth evaluating
     quad_ridge: float = 1e-3  # column-normalised ridge on the 3-DOF quad stage
     gate_shift_frac: float = 0.15  # accept quad iff boundary shift < frac * radius
+    # optional passive-structure (vessel eddy) stage — OFF by default.  Fitting
+    # per-slice static eddy amplitudes is under-determined (the eddy state is an
+    # L/R convolution of the current history, and no per-slice gate separates
+    # help from harm: measured cohort-neutral).  Opt in for studies; the
+    # principled treatment is time-coupled eddy evolution across slices.
+    passive_k: int = 0  # top-k whitened sensor-SVD passive modes (0 = OFF)
+    passive_ridge: float = 1.0  # strong ridge -> physical (~5-10 kA) amplitudes
 
 
 @dataclass
@@ -82,6 +89,8 @@ class DiscInversion:
     quad_shift_frac: float  # boundary shift of the quad stage / disc radius
     axis_psi: float  # flux maximum inside the boundary [Wb]
     boundary_psi: float  # push-out separatrix / wall flux [Wb]
+    passive_applied: bool = False  # True if the opt-in passive stage was accepted
+    i_passive: np.ndarray | None = None  # (P,) per-circuit eddy currents [A]
 
 
 def sensor_signature_arrays(
@@ -198,6 +207,44 @@ def ring_shift_rms(
     return float(np.sqrt(np.mean((ri - ra) ** 2)))
 
 
+def passive_coupling_matrices(
+    grid, table: GeometryTable
+) -> tuple[np.ndarray, np.ndarray]:
+    """Sensor + grid couplings of every ``inferred_passive`` circuit.
+
+    Returns ``(a_sens (S, P), g_grid (nz*nr, P))`` — per-ampere sensor
+    signatures (``table.sensor_map`` row order) and grid flux columns, the
+    finite-area cylinder Biot-Savart kernel throughout.  Pure geometry: build
+    once per campaign table and reuse across slices.
+    """
+    from imas_ambix.gs import operator as op  # noqa: PLC0415
+
+    sr, sz, sang, is_flux = sensor_signature_arrays(table)
+    ang = np.deg2rad(sang)
+    classes = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
+    passive_circuits = sorted(
+        c.circuit for c in classes if c.role == "inferred_passive"
+    )
+    by_circ: dict[int, list] = {}
+    for f in table.pf_filaments:
+        by_circ.setdefault(f.circuit, []).append(f)
+    a_cols, g_cols = [], []
+    for circ in passive_circuits:
+        a = np.zeros(sr.size)
+        g = np.zeros(grid.flat_r.size)
+        for f in by_circ[circ]:
+            w = max(abs(f.width), 0.01)
+            h = max(abs(f.height), 0.01)
+            psi_s, br_s, bz_s = hybrid_greens(sr, sz, f.r, f.z, w, h)
+            a += f.xmult * np.where(
+                is_flux, psi_s, br_s * np.cos(ang) + bz_s * np.sin(ang)
+            )
+            g += f.xmult * hybrid_greens(grid.flat_r, grid.flat_z, f.r, f.z, w, h)[0]
+        a_cols.append(a)
+        g_cols.append(g)
+    return np.column_stack(a_cols), np.column_stack(g_cols)
+
+
 def _push_boundary(psi: np.ndarray, grid, centre: tuple[float, float]):
     return lcfs_contour(
         psi,
@@ -216,8 +263,14 @@ def disc_read(
     table: GeometryTable,
     basis: PatchBasis,
     cfg: DiscReadConfig | None = None,
+    passive: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> DiscInversion | None:
-    """The full staged-disc boundary read for one slice (see module docstring)."""
+    """The full staged-disc boundary read for one slice (see module docstring).
+
+    ``passive`` optionally supplies precomputed
+    :func:`passive_coupling_matrices` (reused across a shot's slices); when
+    ``cfg.passive_k > 0`` and it is omitted, the matrices are built here.
+    """
     cfg = cfg or DiscReadConfig()
     r0, z0 = fit_current_centroid(payload, table, basis, cfg)
     ip = float(payload.ip_amperes)
@@ -281,7 +334,49 @@ def disc_read(
     n_keep = max(int(keep.sum()), 1)
     misfit0 = float(np.sum((w * resid)[keep] ** 2) / n_keep)
 
-    # stage 4: quadrupole on the residual (skip dipole — centroid already fixed)
+    def ridge_solve(a_fit: np.ndarray, rhs: np.ndarray, lam: float) -> np.ndarray:
+        aw = a_fit * w[:, None]
+        col_norm = np.linalg.norm(aw, axis=0)
+        col_norm = np.where(col_norm > 0.0, col_norm, 1.0)
+        a_n = aw / col_norm
+        return (
+            np.linalg.solve(
+                a_n.T @ a_n + lam * np.eye(a_fit.shape[1]), a_n.T @ (rhs * w)
+            )
+            / col_norm
+        )
+
+    # optional passive-structure (vessel eddy) stage — see DiscReadConfig note
+    psi_pas = np.zeros_like(psi0)
+    passive_applied = False
+    i_passive = None
+    base_lc, base_misfit = lc0, misfit0
+    if cfg.passive_k > 0:
+        a_pas, g_pas = (
+            passive if passive is not None else passive_coupling_matrices(grid, table)
+        )
+        _u, sv, vt = np.linalg.svd(a_pas * w[:, None], full_matrices=False)
+        k = min(cfg.passive_k, int(np.sum(sv > 1e-10 * max(sv[0], 1e-300))))
+        if k > 0:
+            modes = vt[:k].T  # (P, k) circuit-current patterns
+            a_modes = a_pas @ modes
+            c_pas = ridge_solve(a_modes, resid, cfg.passive_ridge)
+            i_pas = modes @ c_pas
+            psi_try = (g_pas @ i_pas).reshape(grid.nz, grid.nr)
+            lc_p = _push_boundary(psi0 + psi_try, grid, (r0, z0))
+            shift_p = (
+                ring_shift_rms(lc0.ring, lc_p.ring if lc_p.found else None, (r0, z0))
+                / radius
+            )
+            if lc_p.found and shift_p < cfg.gate_shift_frac:
+                passive_applied = True
+                i_passive = i_pas
+                psi_pas = psi_try
+                base_lc = lc_p
+                resid = resid - a_modes @ c_pas
+                base_misfit = float(np.sum((w * resid)[keep] ** 2) / n_keep)
+
+    # quadrupole stage on the (passive-consistent) residual — dipole skipped
     r_cells = np.asarray(basis.r_cells.detach().cpu().numpy(), dtype=np.float64)
     z_cells = np.asarray(basis.z_cells.detach().cpu().numpy(), dtype=np.float64)
     disc_mask = np.where(np.hypot(cell_r - r0, cell_z - z0) < radius, 1.0, 0.0)
@@ -289,21 +384,14 @@ def disc_read(
         r_cells, z_cells, disc_mask, r0, order=2, z0=z0
     )
     quad_cols = m_basis[:, 3:6]  # the degree-2 zero-sum moments {u^2, uv, v^2}
-    a = (m_sens @ quad_cols) * w[:, None]
-    col_norm = np.linalg.norm(a, axis=0)
-    col_norm = np.where(col_norm > 0.0, col_norm, 1.0)
-    a_n = a / col_norm
-    c_quad = (
-        np.linalg.solve(
-            a_n.T @ a_n + cfg.quad_ridge * np.eye(quad_cols.shape[1]),
-            a_n.T @ (resid * w),
-        )
-        / col_norm
-    )
+    c_quad = ridge_solve(m_sens @ quad_cols, resid, cfg.quad_ridge)
     ic_q = ic0 + quad_cols @ c_quad
-    psi_q, lc_q = boundary_of(ic_q)
+    psi_q_plasma, _lc_unused = boundary_of(ic_q)
+    psi_q = psi_q_plasma + psi_pas
+    lc_q = _push_boundary(psi_q, grid, (r0, z0))
     shift_frac = (
-        ring_shift_rms(lc0.ring, lc_q.ring if lc_q.found else None, (r0, z0)) / radius
+        ring_shift_rms(base_lc.ring, lc_q.ring if lc_q.found else None, (r0, z0))
+        / radius
     )
     quad_applied = bool(lc_q.found and shift_frac < cfg.gate_shift_frac)
 
@@ -312,7 +400,7 @@ def disc_read(
         resid_q = resid - (m_sens @ quad_cols) @ c_quad
         misfit = float(np.sum((w * resid_q)[keep] ** 2) / n_keep)
     else:
-        i_cell, psi_tot, lc, misfit = ic0, psi0, lc0, misfit0
+        i_cell, psi_tot, lc, misfit = ic0, psi0 + psi_pas, base_lc, base_misfit
 
     psi_plasma = np.asarray(
         basis.psi_grid_2d_np(i_cell, np.zeros_like(np.asarray(payload.i_pf))),
@@ -343,6 +431,8 @@ def disc_read(
         quad_shift_frac=float(shift_frac),
         axis_psi=axis_psi,
         boundary_psi=float(lc.psi_bnd),
+        passive_applied=passive_applied,
+        i_passive=i_passive,
     )
 
 
@@ -350,6 +440,7 @@ __all__ = [
     "DiscInversion",
     "DiscReadConfig",
     "disc_read",
+    "passive_coupling_matrices",
     "fit_current_centroid",
     "limiter_radial_extent_at_z",
     "ring_shift_rms",

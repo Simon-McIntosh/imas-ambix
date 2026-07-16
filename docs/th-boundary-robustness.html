@@ -646,6 +646,51 @@
       closure-gate default; TH retained for ablation only.
     </p>
 
+    <h2 id="s18">§18 — Passive-structure (vessel eddy) stage: trials</h2>
+    <p>
+      Lead hypothesis: the ramp-up residual is a MODELLING limitation — the coil-subtracted
+      "plasma signature" still contains the vessel eddy-current field, and the higher-order
+      shape signal must be SHARED between the plasma and the passive structure. MAST passive
+      geometry supplies the filaments: the table carries <strong>80 <code>inferred_passive</code>
+      circuits</strong> (vessel, coil cases, crowns), and all couplings use the finite-area
+      cylinder Biot-Savart kernel (<code>passive_coupling_matrices</code>). Trials
+      (<code>scripts/_passive_disc_trials.py</code>): staged passive-then-quad, joint
+      quad+passive share, passive-only; passive circuits compressed to top-k whitened
+      sensor-SVD modes; k &times; ridge swept; boundary-shift gate throughout.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/th-boundary-robustness/passive-disc-trials.png"
+           alt="Passive-augmented staged-disc trials vs EFIT across ramp-ups and flat-tops"
+           style="max-width:100%;height:auto;border:1px solid #ccc">
+      <figcaption>
+        Passive-augmented staged-disc read vs EFIT (red): V0 no-passive baseline (green),
+        V1 staged-passive (blue), V2 joint quad+passive (purple), VP passive-only (brown).
+      </figcaption>
+    </figure>
+    <ul>
+      <li><strong>Regularisation is decisive:</strong> weak ridge rails the eddy amplitudes at
+        15–20 kA (over-fit, boundary degrades); at ridge = 1.0 the amplitudes are physical
+        (~4–10 kA) and the stage helps or is neutral on the worst ramp-ups —
+        12189 10.3 → 7.7, 18504 5.2 → 3.7, 18505 6.8 → 5.1, 12143 10.0 → 8.2, 12190 8.9 → 7.7 cm.</li>
+      <li><strong>But cohort-neutral overall</strong> (mean 5.12 → 5.17 cm): the stage degrades
+        18502/18503 ramp-ups and slightly dilutes the excellent flat-tops (the passive DOF share
+        away quadrupole signal where eddies are small).</li>
+      <li><strong>No valid per-slice gate found:</strong> the boundary-shift gate passes
+        everywhere at strong ridge; sensor misfit doesn't separate (§16); and measured
+        <strong>dIp/dt does not separate either</strong> (18502/18503 hurt at +4–5 MA/s while
+        18504/18505 helped at +4–6 MA/s). Physically consistent: the eddy state is an L/R
+        convolution of the whole current history, not the instantaneous derivative — so
+        per-slice static eddy fitting is under-determined by construction.</li>
+    </ul>
+    <p class="landed-summary">
+      <strong>Disposition:</strong> the passive stage ships as <strong>opt-in</strong>
+      (<code>DiscReadConfig.passive_k</code>, default 0 = OFF, byte-identical when off;
+      ridge 1.0 default) — it is the right tool for eddy-dominated studies but not an
+      unconditional win. The principled fix is <strong>time-coupled eddy evolution</strong>
+      (consecutive slices share eddy states linked by L/R circuit dynamics — the smoothness
+      prior that makes the per-slice problem well-posed), queued as follow-on work.
+    </p>
+
   </main>
 </body>
 </html>
