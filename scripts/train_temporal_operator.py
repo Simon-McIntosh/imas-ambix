@@ -85,7 +85,7 @@ def build_sequences(shards, decoders, eigenbases) -> list[dict]:
         a = sh.arrays
         camp = sh.meta["campaign"]
         dec = decoders[camp]
-        m_sens = np.asarray(dec.basis.m_sens.numpy(), dtype=np.float64)
+        m_sens = np.asarray(dec.basis.m_sens.cpu().numpy(), dtype=np.float64)
         n = sh.n_slices
         sr, sz = a["sensor_r"], a["sensor_z"]
         sang, is_flux = a["sensor_angle_deg"], a["is_flux"]
@@ -286,8 +286,8 @@ def boundary_shift_cm(model, decoders, eigenbases, eddy_sens, seqs, device) -> f
             i_cell = dec.cell_currents(batch["i_cell0"][0], dc, columns, batch["ip"][0])
         di = (i_cell - batch["i_cell0"][0]).cpu().numpy()
         da_np = da.cpu().numpy()
-        rg = basis.grid_r.numpy()
-        zg = basis.grid_z.numpy()
+        rg = basis.grid_r.cpu().numpy()
+        zg = basis.grid_z.cpu().numpy()
         lim_r, lim_z = s["limiter"]
         kw = dict(limiter_r=lim_r, limiter_z=lim_z, clip_legs=True)
         for t in range(min(s["n"], 8)):
@@ -362,6 +362,8 @@ def main() -> int:
     logger.info("campaigns: %s", list(decoders))
 
     sequences = build_sequences(shards, decoders, eigenbases)
+    for camp in decoders:  # Green's buffers to the training device (fp64 matmuls)
+        decoders[camp] = decoders[camp].to(args.device)
     shots = sorted({s["shot"] for s in sequences})
     n_val = max(1, int(round(args.val_fraction * len(shots))))
     val_shots = set(rng.choice(shots, size=n_val, replace=False).tolist())
