@@ -90,20 +90,42 @@ def double_step(grid, basis, p, order=3, n_extra=1):
             r_cells, z_cells, mask, r0, order=order
         )
         a_sens = m_sens @ m_basis  # COLUMN-MASKED — no Green's recompute
-        c, mis, _cov = bm._fit_one(
-            m_basis, a_sens, p.measured, p.vacuum, p.mask, p.scale,
-            float(p.ip_amperes), cfg,
-        )
-        i_cell = m_basis @ c
+        # the confined moment basis is near-collinear (collinear monomials on a
+        # smaller region) — an un-regularised refit blows up into a wildly
+        # oscillating, hollow/reversed current that destroys the plasma O-point.
+        # escalate the ridge until the refit current is essentially single-signed
+        # (a physical peaked plasma), the smallest regularisation that keeps it so.
+        c = i_cell = None
+        for ridge in (1e-6, 1e-4, 1e-2, 1e-1, 1e0, 1e1, 1e2):
+            cfg_r = MomentFitConfig(order=order, ridge=ridge)
+            c, mis, _cov = bm._fit_one(
+                m_basis, a_sens, p.measured, p.vacuum, p.mask, p.scale,
+                float(p.ip_amperes), cfg_r,
+            )
+            i_cell = m_basis @ c
+            frac_neg = float(np.mean(i_cell[mask > 0] < 0.0))
+            if frac_neg < 0.05:  # single-signed -> physical plasma current
+                break
         psi = np.asarray(basis.psi_grid_2d_np(i_cell, p.i_pf), np.float64).reshape(
             grid.nz, grid.nr
         )
-        # re-centre the push origin on the new current centroid
+        # push from the plasma O-point (psi MAX inside the confined region) — the
+        # current centroid is not the flux maximum, and lcfs_contour sweeps from
+        # psi(origin), so a non-O-point origin corrupts the sweep
         wsum = float(i_cell.sum()) or 1.0
-        ctr = (
+        cen = (
             float((i_cell * r_cells).sum() / wsum),
             float((i_cell * z_cells).sum() / wsum),
         )
+        rr, zz = np.meshgrid(grid.rg, grid.zg)
+        near = (np.hypot(rr - cen[0], zz - cen[1]) < 0.5) & MplPath(
+            ring
+        ).contains_points(np.column_stack([rr.ravel(), zz.ravel()])).reshape(
+            grid.nz, grid.nr
+        )
+        psi_o = np.where(near, psi, -np.inf)
+        io = np.unravel_index(int(np.argmax(psi_o)), psi.shape)
+        ctr = (float(grid.rg[io[1]]), float(grid.zg[io[0]]))
         ring = _push(psi, grid, ctr)
         out.append((ring, float(mis)))
     return out
@@ -132,7 +154,7 @@ def main():
                 print(f"{shot} {kind}: no efit-snapped slice")
                 continue
             k, efit = by_kind[kind]
-            passes = double_step(grid, basis, pls[k], n_extra=2)
+            passes = double_step(grid, basis, pls[k], n_extra=1)
             rms = [100.0 * _rms(r, efit) for r, _m in passes]
             panels.append((f"{shot} {kind}", grid, efit, passes, rms))
             print(f"{shot} {kind}: RMS[cm] per pass = " +

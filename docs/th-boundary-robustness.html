@@ -394,47 +394,46 @@
       far better. That misfit is the ready-made gate signal for the selection (§13).
     </p>
 
-    <h2 id="s12">§12 — Double-step (confine-and-refit) moment: tested, collapses</h2>
+    <h2 id="s12">§12 — Double-step (confine-and-refit) moment: bug fixed; valid but not a robust win</h2>
     <p>
-      Tested (<code>scripts/_double_step_moment_prototype.py</code>) to cure the moment
-      over-sizing: pass 1 fills the vessel &rarr; LCFS&#8321;; mask <code>J&#966;=0</code>
+      Idea (correct): pass 1 fills the vessel &rarr; LCFS&#8321;; mask <code>J&#966;=0</code>
       outside LCFS&#8321; (a cheap COLUMN mask of the precomputed interaction matrix — no
-      Green's recompute); pass 2 refits. It <strong>collapses the read</strong> — 18502
-      flat-top 5.8 &rarr; 30 cm, the ramp-ups refit to no closed ring, and further passes run
-      away.
+      Green's recompute); pass 2 refits on the confined cohort. The first implementation had a
+      <strong>bug</strong>: at the stock ridge (1e-8) the confined moment basis (near-collinear
+      monomials on a smaller region) is ill-conditioned and the refit blows up into a wildly
+      oscillating current (&plusmn;10&nbsp;kA, 46% negative) that <em>destroys the plasma
+      O-point</em>. The push-out, given that non-physical ψ and a current-centroid origin sitting
+      in a ψ-minimum, traced a spurious floating oval — a boundary connected to neither an X-point
+      nor the limiter. That was a real defect, not a physics result.
+    </p>
+    <p>
+      <strong>Fix:</strong> escalate the ridge until the refit current is single-signed (a
+      physical peaked plasma — the smallest regularisation that keeps it so), and push from the
+      plasma O-point (ψ-max inside the confined region), not the current centroid. With that the
+      pass-2 boundaries are <strong>valid closed D-shapes that reach the limiter</strong>.
     </p>
     <figure>
       <img src="/imas-ambix/figures/th-boundary-robustness/double-step-moment.png"
-           alt="Double-step moment: pass 2/3 collapse the boundary vs pass 1"
+           alt="Double-step moment (fixed): valid pass-2 D-shapes vs pass-1 vs EFIT"
            style="max-width:100%;height:auto;border:1px solid #ccc">
       <figcaption>
-        Double-step moment: pass 1 (blue, fill vessel) vs pass 2/3 (green/purple, j=0 outside
-        LCFS then refit) vs EFIT (red). Pass 2 collapses the boundary; ramp-ups find no ring.
+        Double-step moment, regularised + O-point push: pass 1 (blue, fill vessel) vs pass 2
+        (green, j=0 outside LCFS&#8321; then refit) vs EFIT (red). Boundaries are now valid
+        (closed, reach the limiter) — the earlier floating-oval defect is gone.
       </figcaption>
     </figure>
     <p>
-      <strong>Why (measured, corrected):</strong> the pass-2 fit is not worse — it is
-      <em>better</em> (18502 sensor misfit 0.368 &rarr; 0.165, Ip preserved). But the push-out
-      boundary <em>shrinks</em> (Rout 1.38 &rarr; 1.10; verified independent of push origin and
-      basis scale). The confined current genuinely has a smaller separatrix even though it fits
-      the external sensors better. The root cause is a <strong>null-space</strong>: the plasma
-      boundary is a near-edge feature (the X-point / separatrix, set by the total field close to
-      the plasma) that the <em>far</em> external magnetics do not uniquely determine. The moment
-      read's separatrix sits at roughly the <em>extent</em> of where current is allowed to live,
-      so confining the current to inside LCFS&#8321; makes a more compact plasma with a smaller
-      separatrix — and iterating runs away. This is a <em>forward</em>-solve move applied to an
-      <em>inverse</em> read; it improves the fit but not the boundary.
-    </p>
-    <p>
-      The <strong>current-disc</strong> variant (a disc on the current centroid sized to a
-      fraction of the centroid&ndash;limiter distance) confirms it: on 18502 a large disc
-      (0.8&middot;d, ≈ vessel-filling) recovers single-pass (6.0 cm) while a small disc
-      under-sizes badly (0.4&middot;d &rarr; 55 cm); on the 12143 ramp-up <em>every</em> disc is
-      worse than single-pass (33&ndash;66 cm vs 15.3 cm). The boundary tracks the current extent,
-      and <strong>filling the vessel is exactly what puts the separatrix in the right place</strong>
-      — which is why the single-pass moment read tracks EFIT and is the well-posed version. The
-      ~15 cm ramp-up residual is a genuine information floor of a magnetics-only boundary read on a
-      poorly-diagnosed slice; the §3 force-balance interior solve is what should own those slices.
+      <strong>Result (mixed, not a robust win):</strong> pass 2 helps some slices (18505 ramp-up
+      20&rarr;13 cm, 12143 flat-top 12&rarr;10 cm) and hurts others (12189/12190 ramp-up
+      11&rarr;26/23 cm; 18502 flat-top 6&rarr;10 cm). The sweet-spot regularisation is
+      slice-dependent, and the underlying null-space remains: the plasma boundary is a near-edge
+      (X-point) feature the <em>far</em> external magnetics do not uniquely determine, so confining
+      the current trades one plausible boundary for another without new information. The
+      <strong>current-disc</strong> variant confirms the same — a large disc (≈ vessel-filling)
+      recovers single-pass (6.0 cm on 18502) while smaller discs under-size, and every disc is
+      worse than single-pass on the ramp-up. Net: the single-pass "fill the vessel" moment read is
+      the more robust choice; the ~15 cm ramp-up residual is an information floor of any
+      magnetics-only boundary read, owned by the §3 force-balance solve.
     </p>
 
     <h2 id="s13">§13 — Open decisions</h2>
