@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="learned-equilibrium-operator">
+  <meta name="plan-title"     content="Learned Equilibrium Operator — physics-embedded, time-aware, machine-agnostic">
+  <meta name="plan-summary"   content="The equilibrium-boundary-closure endgame: a learned operator raw-sensor-history + machine geometry → equilibrium (boundary, axis, ψ, profiles) that beats the frozen classical spine by carrying the information the static classical read provably cannot access — the arrow of time. The three characterised irreducibles (p′/FF′ profile split, axis-vs-centroid interior null, vessel-eddy L/R history) are ALL temporal or kinetic, not static-magnetic; a per-slice classical solve is at its external-field information ceiling. Architecture: physics components are LOAD-BEARING differentiable layers (exact thick-cylinder Green's coil/passive/plasma field operators, sensor-geometry positional encoding, L/R passive eigenmodes structuring a latent eddy state) — the network learns ONLY the physics-degenerate residuals. Labels: the frozen EFIT-independent spine (disc read + D2 solve) doubles as a label factory over the 12.6k-shot MAST corpus, and gs_solve forward mode manufactures synthetic truth (including exact p′/FF′ and eddy histories) for pretraining. Gates vs frozen baselines: beat the disc read (flat-top 1.4–2.1 cm, ramp-up 5–10 cm) and the D1 axis (5.1 cm median), EFIT referee eval-only. Transfer: geometry-conditioned, synthetic-machine sweep first, real second machine data-gated. Feeds machine-agnostic-latent-world-model.">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="XL">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S16">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="equilibrium-boundary-closure">
+  <meta name="plan-blocks"    content="equilibrium-topology-fidelity">
+  <meta name="plan-informs"   content="machine-agnostic-latent-world-model,closed-loop-latent-filter,learned-closure-current-diffusion-v0">
+  <title>Learned Equilibrium Operator | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h2 id="s1">§1 — Objective: beat the frozen classical spine where it is provably blind</h2>
+  <p><a href="/imas-ambix/equilibrium-boundary-closure.html">equilibrium-boundary-closure</a> froze
+  the classical spine (<code>closure_spine_frozen.json</code>): the staged-disc boundary read posts
+  <strong>1.4–2.1&nbsp;cm flat-top / 5–10&nbsp;cm ramp-up</strong> LCFS error vs firewalled EFIT, and
+  the disc-anchored D2 interior solve posts <strong>1.50&nbsp;cm flat-top LCFS (skill −0.209, CI
+  touching zero), axis median 5.9&nbsp;cm, reseed 0.0%</strong> — all from raw external magnetics +
+  Ip + n<sub>e</sub>, EFIT-firewalled. That spine is the baseline and the inductive bias; it is
+  <em>not</em> the ceiling of what the data contain, because the closure investigation
+  characterised exactly what a per-slice classical solve cannot recover, and every one of those
+  irreducibles is <strong>temporal or kinetic, not static-magnetic</strong>:</p>
+  <ul>
+    <li><strong>The p′/FF′ profile split.</strong> External magnetics constrain only the sum;
+    the corpus carries no Thomson T<sub>e</sub> (recorded as
+    <code>moment_priors.TE_DATA_GATE</code>), so the split is degenerate per slice. But profiles
+    <em>evolve</em> under transport with characteristic signatures (sawteeth, current diffusion,
+    L–H transitions) — the time axis carries split information a single slice does not.</li>
+    <li><strong>The magnetic axis is an interior null.</strong> Externally only Ip, the current
+    centroid, and β<sub>p</sub>+l<sub>i</sub>/2 are visible; the axis-vs-centroid offset is
+    profile-degenerate (the D2 freeze paid +0.8&nbsp;cm axis for its edge-capable profile). Same
+    story: the offset is set by the profile, and the profile is temporally constrained.</li>
+    <li><strong>Vessel-eddy currents are an L/R convolution of the current history.</strong> The
+    per-slice static passive fit is under-determined by construction (measured:
+    <a href="/imas-ambix/th-boundary-robustness.html">th-boundary-robustness</a> §18 — no static
+    gate separates help from harm); the eddy state at time t simply is not a function of the
+    sensors at time t. This is why ramp-ups sit at 5–10&nbsp;cm. It is <em>pure</em>
+    arrow-of-time information.</li>
+  </ul>
+  <p>So the learned operator is not "a neural net that fits equilibria" — it is a
+  <strong>sequence model whose job is to carry the temporal information the classical read
+  provably discards</strong>, wrapped around the same exact physics operators the spine uses. The
+  GenCast analogy is precise: GenCast did not replace the atmosphere's physics, it learned the
+  dynamics on a physically-meaningful state and beat the incumbent at its own game. Our incumbent
+  is EFIT; our referee is firewalled EFIT; our physically-meaningful state is the GS-grounded
+  equilibrium the spine already produces.</p>
+
+  <h2 id="s2">§2 — Architecture ladder: four rungs, each gated before the next</h2>
+  <p>Capability accretes on a ladder; no rung ships until its gate clears, and every rung keeps
+  the frozen classical spine as its paired baseline. The rungs are ordered by <em>where the new
+  information comes from</em>: R1 adds learning capacity on the same static information (honest
+  expectation: parity, not victory — its gate is non-inferiority plus a proven differentiable
+  stack); R2 adds the time axis (this is the load-bearing rung — the irreducibles live here);
+  R3 adds machine transfer.</p>
+
+  <figure>
+    <svg viewBox="0 0 940 360" width="100%" role="img" font-family="system-ui,-apple-system,sans-serif"
+         aria-label="Architecture ladder: R0 frozen classical baselines at the bottom; R1 static residual learner; R2 temporal operator with latent eddy state (the load-bearing rung); R3 geometry-conditioned cross-machine transfer at the top. Each rung has a gate on the arrow to the next.">
+      <defs><marker id="lad-a" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#555"/></marker></defs>
+      <!-- R0 -->
+      <rect x="16" y="284" width="700" height="60" rx="6" fill="#ffffff" stroke="#1b7837" stroke-width="1.6"/>
+      <text x="30" y="306" font-size="13" font-weight="700" fill="#14612b">R0 — frozen classical spine + referee harness (DONE)</text>
+      <text x="30" y="326" font-size="11.5" fill="#1a1a1a">disc read 1.4–2.1 cm flat-top / 5–10 cm ramp-up · D2 solve 1.50 cm, reseed 0% · n=128 paired-bootstrap gate, push-out reader</text>
+      <!-- R1 -->
+      <rect x="16" y="196" width="700" height="60" rx="6" fill="#ffffff" stroke="#c8ccd2"/>
+      <text x="30" y="218" font-size="13" font-weight="700" fill="#1a1a1a">R1 — static residual learner (plumbing rung)</text>
+      <text x="30" y="238" font-size="11.5" fill="#1a1a1a">per-slice net: calibrated sensors + geometry encoding → degenerate-DOF residuals → exact Green's layer → sensor loss + spine labels</text>
+      <!-- R2 -->
+      <rect x="16" y="108" width="700" height="60" rx="6" fill="#ffffff" stroke="#1565c0" stroke-width="2"/>
+      <text x="30" y="130" font-size="13" font-weight="700" fill="#1a4d80">R2 — temporal operator (THE load-bearing rung)</text>
+      <text x="30" y="150" font-size="11.5" fill="#1a1a1a">causal sequence model over sensor history · L/R-structured latent eddy state · targets the three temporal irreducibles</text>
+      <!-- R3 -->
+      <rect x="16" y="20" width="700" height="60" rx="6" fill="#ffffff" stroke="#c8ccd2"/>
+      <text x="30" y="42" font-size="13" font-weight="700" fill="#1a1a1a">R3 — cross-machine transfer</text>
+      <text x="30" y="62" font-size="11.5" fill="#1a1a1a">geometry-conditioned; synthetic-machine sweep (forward mode) first; real second machine data-gated</text>
+      <!-- arrows + gates -->
+      <line x1="366" y1="284" x2="366" y2="258" stroke="#555" stroke-width="1.4" marker-end="url(#lad-a)"/>
+      <line x1="366" y1="196" x2="366" y2="170" stroke="#555" stroke-width="1.4" marker-end="url(#lad-a)"/>
+      <line x1="366" y1="108" x2="366" y2="82" stroke="#555" stroke-width="1.4" marker-end="url(#lad-a)"/>
+      <text x="380" y="276" font-size="11" fill="#1a1a1a">G1: differentiable stack verified + non-inferiority vs D2</text>
+      <text x="380" y="188" font-size="11" fill="#1a1a1a">G2: beat disc flat-top AND ramp-up; axis &lt; 5.1 cm (D1)</text>
+      <text x="380" y="100" font-size="11" fill="#1a1a1a">G3: transfer to a held-out synthetic machine, CI-clear</text>
+      <!-- right margin: information source -->
+      <text x="740" y="316" font-size="11" font-weight="600" fill="#555">info: static magnetics</text>
+      <text x="740" y="228" font-size="11" font-weight="600" fill="#555">info: same (capacity only)</text>
+      <text x="740" y="140" font-size="11" font-weight="600" fill="#1a4d80">info: + the time axis</text>
+      <text x="740" y="52" font-size="11" font-weight="600" fill="#555">info: + geometry variation</text>
+    </svg>
+    <figcaption>The ladder, ordered by information source. R1 adds only capacity on the same
+    static slice (gate = non-inferiority + proven plumbing); R2 adds the time axis, where all
+    three characterised irreducibles live; R3 adds geometry variation for transfer. The frozen
+    R0 spine is the paired baseline at every rung.</figcaption>
+  </figure>
+
+  <p><strong>R1 — static residual learner.</strong> A small per-slice network (MLP / shallow
+  transformer over the sensor set) reads the absolute-calibrated sensor vector and the
+  sensor-geometry positional encoding, and emits <em>residuals on the physics-degenerate DOF
+  only</em>: profile-coefficient corrections, an axis-offset correction, a low-order boundary
+  residual. Those corrections are decoded through the <em>exact</em> differentiable Green's layer
+  to predicted sensors and ψ — the network never emits fields freehand. Losses: raw-sensor
+  reconstruction (self-supervised, firewall-clean by construction) + consistency with the spine's
+  manufactured labels (§4). Honest expectation: parity with D2 on flat-tops (same information);
+  the gate is <strong>non-inferiority + a verified differentiable physics stack</strong>
+  (gradients through the Green's layer checked against analytic derivatives) + the label factory
+  running at corpus scale. R1 exists so that R2's wins are attributable to time, not to plumbing.</p>
+
+  <p><strong>R2 — temporal operator (the thesis rung).</strong> A causal sequence model over the
+  sensor history (backbone open: SSM vs causal transformer vs GRU — see decisions) carrying a
+  <strong>physics-structured latent eddy state</strong>: the passive L/R eigenmodes from
+  <code>passive_coupling_matrices</code> (<code>boundary_disc.py</code>) seed a recurrent block
+  whose per-mode decay constants are learnable, initialised at the physical L/R times — the
+  latent is <em>forced</em> to have the structure of an eddy-current convolution, and the eddy
+  amplitudes it infers enter the field prediction as <em>more external currents through the exact
+  Green's operators</em> (the closure plan locked this composition: the boundary push-out is
+  unchanged by construction). Targets, in order of expected yield: (i) <strong>ramp-up
+  boundary</strong> (eddy-dominated, 5–10&nbsp;cm today); (ii) <strong>axis</strong> via
+  temporally-constrained profiles (sawtooth signatures pin q<sub>0</sub>≈1 epochs; current
+  diffusion constrains the profile trajectory between them); (iii) <strong>p′/FF′
+  split</strong> (scored on synthetic truth where the split is known exactly; the real-data split
+  gate stays data-gated on Thomson T<sub>e</sub>, recorded honestly).</p>
+
+  <p><strong>R3 — cross-machine transfer.</strong> All machine dependence enters through the
+  geometry inputs (sensor positions/orientations, coil/vessel filament tables, limiter contour —
+  apparatus metadata, freely usable; <code>ImasGeometryReader</code> is machine-agnostic and
+  already validated on the ITER machine description). The transfer gate does <em>not</em> wait
+  for a second machine's operational data: <code>synthetic_truth.manufacture</code> generates
+  equilibria on <em>scaled and perturbed geometries</em> (aspect ratio, elongation, coil layout,
+  sensor placement), so train-on-N-synthetic-machines / test-on-a-held-out-synthetic-machine is a
+  gate we can run now. The real-machine transfer gate (train MAST + synthetic, test on a real
+  second device) is data-gated and recorded as such.</p>
+
+  <h2 id="s3">§3 — Physics-embedded architecture: the network learns only what physics cannot pin</h2>
+  <p>The lead's directive (carried from the closure plan): physics components are
+  <strong>load-bearing inside the model</strong>, not preprocessing. Concretely:</p>
+  <ul>
+    <li><strong>Exact field operators.</strong> The thick-cylinder Green's kernels
+    (<code>hybrid_greens</code>, cylinder-sensors-v4/v5 — never point-filament, per the standing
+    directive) map any current set (coils, passive modes, plasma basis) to sensors and to ψ on
+    the grid. They are differentiable (linear in the currents) and sit <em>inside</em> the model:
+    every network output becomes a field only through them. The network cannot hallucinate a
+    field the hardware could not produce.</li>
+    <li><strong>Geometry as positional encoding.</strong> Every sensor token carries its (R, Z, φ),
+    orientation/normal, and integration geometry; the machine context (coil/vessel filaments,
+    limiter) conditions the operator. This is the machine-agnostic-latent-world-model §5
+    principle applied to the equilibrium operator — it is what makes a machine-varying sensor
+    set ingestible by one model, and what R3 transfers on.</li>
+    <li><strong>Structured latents.</strong> The eddy latent is L/R-eigenmode-structured (above).
+    The profile latent is the spine's own low-DOF closure parameterisation
+    (<code>profile_basis</code>, monomial-nonneg, edge-capable) — the network predicts
+    coefficients in the same basis the classical solve uses, so classical and learned arms are
+    directly comparable DOF-for-DOF.</li>
+    <li><strong>Classical reads as prior and baseline.</strong> The disc read (and TH annulus
+    read, retained for ablation) can be evaluated in-graph as a cheap physics feature; the frozen
+    spine is the paired baseline at every gate. If a rung cannot beat the classical arm it does
+    not ship — the physics keeps the learning honest, exactly the §12a layered-stack contract in
+    <a href="/imas-ambix/machine-agnostic-latent-world-model.html">machine-agnostic-latent-world-model</a>.</li>
+  </ul>
+
+  <figure>
+    <svg viewBox="0 0 940 330" width="100%" role="img" font-family="system-ui,-apple-system,sans-serif"
+         aria-label="Dataflow: sensor history plus geometry encoding enter the temporal network, which emits only physics-degenerate DOF (profile coefficients, eddy mode amplitudes, axis and boundary residuals); the exact Green's and GS layer turns those into predicted sensors, psi, boundary and axis; losses are raw-sensor reconstruction, spine labels, and synthetic truth. EFIT sits outside a dashed firewall as referee only.">
+      <defs><marker id="arc-a" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#555"/></marker></defs>
+      <!-- inputs -->
+      <rect x="14" y="40" width="186" height="88" rx="6" fill="#ffffff" stroke="#c8ccd2"/>
+      <text x="26" y="62" font-size="12" font-weight="700" fill="#1a1a1a">inputs (raw, per step)</text>
+      <text x="26" y="82" font-size="11" fill="#1a1a1a">sensor history (magnetics,</text>
+      <text x="26" y="98" font-size="11" fill="#1a1a1a">coil currents, Ip, n_e)</text>
+      <text x="26" y="114" font-size="11" fill="#1a1a1a">+ sensor/machine geometry</text>
+      <line x1="200" y1="84" x2="242" y2="84" stroke="#555" stroke-width="1.4" marker-end="url(#arc-a)"/>
+      <!-- network -->
+      <rect x="244" y="28" width="220" height="112" rx="6" fill="#ffffff" stroke="#1565c0" stroke-width="1.8"/>
+      <text x="256" y="50" font-size="12" font-weight="700" fill="#1a4d80">causal temporal network</text>
+      <text x="256" y="70" font-size="11" fill="#1a1a1a">geometry-encoded tokens;</text>
+      <text x="256" y="86" font-size="11" fill="#1a1a1a">latent eddy state structured</text>
+      <text x="256" y="102" font-size="11" fill="#1a1a1a">by passive L/R eigenmodes</text>
+      <text x="256" y="122" font-size="10.5" fill="#555">learns ONLY degenerate DOF ↓</text>
+      <line x1="464" y1="84" x2="506" y2="84" stroke="#555" stroke-width="1.4" marker-end="url(#arc-a)"/>
+      <!-- residual outputs -->
+      <rect x="508" y="28" width="188" height="112" rx="6" fill="#ffffff" stroke="#c8ccd2"/>
+      <text x="520" y="50" font-size="12" font-weight="700" fill="#1a1a1a">degenerate DOF</text>
+      <text x="520" y="70" font-size="11" fill="#1a1a1a">profile coeffs (p′, FF′)</text>
+      <text x="520" y="86" font-size="11" fill="#1a1a1a">eddy mode amplitudes</text>
+      <text x="520" y="102" font-size="11" fill="#1a1a1a">axis / boundary residuals</text>
+      <line x1="696" y1="84" x2="738" y2="84" stroke="#555" stroke-width="1.4" marker-end="url(#arc-a)"/>
+      <!-- physics layer -->
+      <rect x="740" y="28" width="186" height="112" rx="6" fill="#ffffff" stroke="#1b7837" stroke-width="1.8"/>
+      <text x="752" y="50" font-size="12" font-weight="700" fill="#14612b">exact physics layer</text>
+      <text x="752" y="70" font-size="11" fill="#1a1a1a">thick-cylinder Green's</text>
+      <text x="752" y="86" font-size="11" fill="#1a1a1a">(coils · passive · plasma)</text>
+      <text x="752" y="102" font-size="11" fill="#1a1a1a">→ sensors, ψ(R,Z),</text>
+      <text x="752" y="118" font-size="11" fill="#1a1a1a">boundary + axis readouts</text>
+      <!-- losses row -->
+      <rect x="244" y="184" width="682" height="66" rx="6" fill="#ffffff" stroke="#c8ccd2"/>
+      <text x="256" y="206" font-size="12" font-weight="700" fill="#1a1a1a">losses (all EFIT-free)</text>
+      <text x="256" y="226" font-size="11" fill="#1a1a1a">raw-sensor reconstruction (self-supervised) · spine-manufactured labels (disc read + D2 solve over the corpus)</text>
+      <text x="256" y="242" font-size="11" fill="#1a1a1a">· synthetic truth from gs_solve forward mode (exact p′/FF′, known eddy histories — pretraining)</text>
+      <line x1="833" y1="140" x2="833" y2="182" stroke="#555" stroke-width="1.4" marker-end="url(#arc-a)"/>
+      <!-- firewall -->
+      <rect x="244" y="272" width="682" height="46" rx="6" fill="#ffffff" stroke="#b0402f" stroke-dasharray="4 3"/>
+      <text x="256" y="292" font-size="12" font-weight="700" fill="#8a3324">EFIT — FIREWALLED: referee at evaluation only; never an input, never a training label</text>
+      <text x="256" y="308" font-size="10.5" fill="#555">the spine (not EFIT) manufactures the training labels; standing held-out shots 18502–18505 never trained on</text>
+    </svg>
+    <figcaption>The operator's dataflow. The network (blue) sees raw sensor history + geometry
+    and emits <em>only</em> the physics-degenerate DOF; the exact Green's/GS layer (green) turns
+    them into fields and readouts, so predictions are physically realisable by construction. All
+    losses are EFIT-free: self-supervised sensor reconstruction, spine-manufactured labels, and
+    synthetic forward-mode truth. EFIT (red, dashed) judges only.</figcaption>
+  </figure>
+
+  <h2 id="s4">§4 — Corpus and the label factory: the frozen spine manufactures its own training data</h2>
+  <p><strong>The key economy of the decoupled design:</strong> the frozen classical spine is
+  EFIT-independent, so its outputs are <em>firewall-clean training labels</em>. Running the disc
+  read + D2 solve over the corpus manufactures per-slice (boundary contour, ψ(R,Z), axis, profile
+  coefficients, passive amplitudes) targets at whatever scale we can afford CPU-wise — no
+  leakage, because the labels descend from raw magnetics through our own physics, and the referee
+  (EFIT) never enters.</p>
+  <ul>
+    <li><strong>Real corpus (MAST).</strong> The statespace split manifest
+    (<code>statespace_splits_dalpha_v0</code>) carries <strong>12,590 shots</strong> (10,846
+    train / 1,479 calibration / 265 OOD-regime test); the standing held-out shots
+    (18502–18505) and the closure-gate eval cohort stay untouched for scoring. At ~10–100
+    labelled slices per shot this is an O(10⁵–10⁶)-slice label pool — label-factory throughput
+    (solves/second on a <code>sun</code> CPU node) is <em>measured</em> in the first work item
+    before committing to a cohort size; the D2 solve is pure-numpy per slice and
+    embarrassingly parallel across a CPU fleet.</li>
+    <li><strong>Synthetic pretraining (where the degenerate truth is known).</strong>
+    <code>synthetic_truth.manufacture</code> (forward Picard, <code>gs_solve</code>) generates
+    equilibria with <em>exact</em> known p′/FF′, axis, and boundary — the quantities that are
+    degenerate on real data are supervised exactly on synthetic. Time-coupled synthetic
+    sequences with known eddy histories (L/R evolution driven through
+    <code>passive_coupling_matrices</code>) pretrain the temporal latent. Geometry perturbation
+    of the synthetic generator is also the R3 synthetic-transfer corpus.</li>
+    <li><strong>Cross-machine (data-gated, honest).</strong> Real second-machine operational
+    data (WEST/CEA HDF5 pipelines exist organisationally; ITER has machine description only) is
+    not in the corpus today. R3's real-transfer gate is therefore explicitly data-gated; the
+    synthetic-machine sweep is the in-hand substitute and the feasibility evidence for the
+    corpus ask.</li>
+  </ul>
+
+  <h2 id="s5">§5 — Compute footprint (H200 + CPU fleet)</h2>
+  <ul>
+    <li><strong>Label factory: CPU, not GPU.</strong> Corpus-scale disc+D2 solves shard across
+    <code>sun</code>-partition CPU nodes (SLURM array; the solve is per-slice independent).
+    First work item measures slices/node-hour and sizes the cohort to a &lt;1-day fleet run.</li>
+    <li><strong>Training: small models, modest GPU.</strong> R1 is O(1–10M) params on sensor
+    vectors — a single H200 for hours. R2 is a sequence model over ~10²-channel streams at
+    1&nbsp;kHz with O(10⁴–10⁵) training sequences — O(10–50M) params, 1–4 H200 for ≤1 day per
+    run. Neither competes with the world-model training footprint, and neither requires
+    stopping model serving (the DSv4 shutdown authorisation is narrow and is not needed here).</li>
+    <li><strong>Serving: real-time relevant.</strong> A forward pass is milliseconds per slice
+    batched — against ~seconds/slice for the classical Picard solve. A learned operator that
+    clears G2 is also a real-time equilibrium candidate; that is a bonus, not a gate.</li>
+  </ul>
+
+  <h2 id="s6">§6 — Gates, firewall, and scoring protocol</h2>
+  <p>All gates run on the closure plan's referee harness: n≥128 held-out slices, paired
+  bootstrap CIs, the push-out <code>lcfs_contour</code> reader, skill vs the train-mean
+  baseline, <strong>EFIT referee at evaluation only</strong>. The frozen baselines are pinned in
+  <code>closure_spine_frozen.json</code>.</p>
+  <ul>
+    <li><strong>G1 (R1 ships):</strong> differentiable physics stack verified (Green's-layer
+    gradients vs analytic; label round-trip); R1 non-inferior to the D2 spine on LCFS and axis
+    (Δskill CI not below −0.05); label factory demonstrated at ≥10³ slices.</li>
+    <li><strong>G2 (R2 ships — the headline gate):</strong> beat the disc read's flat-top
+    LCFS (1.4–2.1&nbsp;cm) with the CI clear, <em>and</em> materially close the ramp-up gap
+    (5–10&nbsp;cm today; target &lt;5&nbsp;cm median), <em>and</em> axis median below D1's
+    5.1&nbsp;cm. p′/FF′ split scored on synthetic truth (exact recovery bar); the real-data
+    split gate stays data-gated on Thomson T<sub>e</sub> and is recorded, not waived.</li>
+    <li><strong>G3 (R3 ships):</strong> trained on N−1 synthetic machines + MAST, CI-clear beat
+    of the classical spine on the held-out synthetic machine; the real second-machine gate
+    activates when its data lands (trigger recorded).</li>
+    <li><strong>Firewall (binding, inherited):</strong> EFIT output is never an input and never
+    a training label anywhere in the ladder; the spine manufactures the labels; standing
+    held-out shots never trained on. Sensor/machine geometry is apparatus metadata and freely
+    used — plasma geometry from other codes is not.</li>
+  </ul>
+
+  <section data-reckon="decisions" id="decisions" class="r-decisions">
+    <h2><span class="sec">§</span> Decisions</h2>
+    <div class="r-dec" data-key="physics-embedding" data-choice="load-bearing-layers" data-by="lead directive (equilibrium-boundary-closure f-ebc-11)" data-when="2026-07-16">
+      <p class="r-dec-q">How do the classical physics components enter the learned operator?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt chosen" data-value="load-bearing-layers">Load-bearing differentiable layers — exact thick-cylinder Green's operators, geometry positional encoding, and L/R-structured latents sit INSIDE the model; the network emits only physics-degenerate DOF. The spine is simultaneously the label factory and the paired baseline (locked by the lead's ship brief).</button>
+        <button class="r-opt" data-value="feature-preprocessing">Physics as preprocessing/features only — the network emits fields freehand (rejected: unphysical fields become representable, transfer loses its anchor, and the firewall guarantee weakens)</button>
+        <button class="r-opt" data-value="pure-end-to-end">Pure end-to-end sensors→boundary with no physics layer (rejected: discards exact known operators and the entire closure investigation's inductive bias)</button>
+      </p>
+      <p class="r-dec-rat">Carried from the closure plan's ship brief: physics components are LOAD-BEARING inside the model (exact Green's operators, geometry encoding) AND the label factory — both roles, explicitly designed. The network learns only what physics provably cannot pin (p′/FF′ split, axis interior null, eddy history).</p>
+    </div>
+    <div class="r-dec" data-key="residual-vs-end-to-end" data-choice="" data-by="" data-when="">
+      <p class="r-dec-q">Does the network predict residual corrections to the classical spine's DOF, or emit the full DOF set directly (physics layer retained in both)?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt" data-value="residual-first">Residual-first (recommended): R1/R2 predict corrections about the classical solution; direct-emission run as an R2 ablation arm</button>
+        <button class="r-opt" data-value="direct-dof">Direct DOF emission from the start (simpler training, loses the classical warm start)</button>
+      </p>
+      <p class="r-dec-rat"></p>
+    </div>
+    <div class="r-dec" data-key="temporal-backbone" data-choice="" data-by="" data-when="">
+      <p class="r-dec-q">Which causal sequence backbone carries the R2 temporal state?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt" data-value="ssm">State-space model (natural fit to L/R linear-decay structure; the eddy block is literally a diagonal SSM)</button>
+        <button class="r-opt" data-value="causal-transformer">Causal transformer (matches the world-model substrate; attention over geometry-encoded tokens)</button>
+        <button class="r-opt" data-value="structured-gru">GRU/recurrent with the L/R eigenmode block explicit (smallest, most interpretable)</button>
+      </p>
+      <p class="r-dec-rat"></p>
+    </div>
+  </section>
+
+  <section data-reckon="followups" id="followups" class="r-followups">
+    <h2><span class="sec">§</span> Followups</h2>
+    <article class="r-fu" data-id="f-leo-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2">
+      <h4 class="r-fu-title">R1 — differentiable physics stack + label factory + non-inferiority gate</h4>
+      <div class="r-fu-body"><p>First shippable rung. Build the differentiable Green's layer (torch wrapper over the exact cylinder kernels, gradients verified vs analytic), the corpus label factory (disc read + D2 solve as a SLURM CPU-array job; measure slices/node-hour first, then size the cohort), and the R1 static residual learner trained on sensor reconstruction + spine labels. Gate G1: non-inferiority vs the frozen D2 spine (n≥128, paired bootstrap), stack verified, ≥10³ labelled slices demonstrated. R1 exists so R2's wins are attributable to the time axis, not plumbing.</p></div>
+      <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    learned-equilibrium-operator (http://localhost:8765/imas-ambix/learned-equilibrium-operator.html)
+Section: §2 (rung R1) + §4 (label factory) + §5 (throughput measurement)
+Tier:    opus
+
+Context
+  The classical spine is frozen (closure_spine_frozen.json: disc read 1.4-2.1 cm flat-top,
+  D2 solve 1.50 cm / axis 5.9 cm, reseed 0%). R1 wraps the exact physics operators in a
+  differentiable stack and proves the training plumbing at parity; the temporal rung R2
+  (where the real wins live) builds on it. Honour the locked physics-embedding decision.
+
+State to read  (code / data — not the plan itself)
+  imas_ambix/latent/artifacts/patch_gate/closure_spine_frozen.json  (frozen config + baselines)
+  imas_ambix/latent/boundary_disc.py + gs_solve.py  (the spine to wrap; passive_coupling_matrices)
+  imas_ambix/gs/cylinder.py + operator.py  (thick-cylinder Green's kernels — the load-bearing layer)
+  imas_ambix/latent/synthetic_truth.py  (manufacture — forward-mode synthetic truth)
+  imas_ambix/latent/data.py  (corpus loaders; ANCHORED_NAMES; STANDING_HELD_OUT)
+  scripts/closure_gate_eval.py  (the referee harness to score through)
+
+Scope locks / constraints  (non-decision)
+  EFIT firewalled: referee eval-only; labels come from the spine, never EFIT. Standing held-out
+  shots 18502-18505 + the closure eval cohort never trained on. Coil couplings thick-cylinder
+  hybrid_greens (never point-filament). Label factory on sun-partition CPU nodes (SLURM array);
+  training on H200 via the debug-queue recipe. Measure label throughput BEFORE sizing the cohort.
+
+Done-when
+  1. Differentiable Green's layer with gradient checks vs analytic; label-factory job lands
+     >=1e3 spine-labelled slices with provenance (config hash, split membership) recorded
+  2. R1 residual learner trained; G1 scored held-out n>=128 paired-bootstrap vs frozen D2
+     (non-inferiority margin -0.05); verdict recorded honestly either way
+  3. Plan updated same-turn (G1 verdict + throughput numbers); followup for R2 written;
+     this followup resolved</pre>
+    </article>
+  </section>
+
+</main>
+</body>
+</html>

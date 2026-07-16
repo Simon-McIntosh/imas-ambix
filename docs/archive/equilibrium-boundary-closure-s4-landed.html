@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="equilibrium-boundary-closure-s4-landed">
+  <meta name="plan-title" content="§4–§6 landed — learned-operator spin-out, §5/§6 dispositions, plan retirement">
+  <title>§4–§6 landed — closure plan retirement record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>§4–§6 — endgame spin-out and plan retirement (landed 2026-07-16)</h1>
+  <p>Closing record for
+  <a href="/imas-ambix/equilibrium-boundary-closure.html">equilibrium-boundary-closure</a>
+  (driving followup f-ebc-11 — authoring/state session, no training runs). The plan retires
+  <strong>shipped</strong>: boundary and interior spines frozen, endgame scoped and spun out.</p>
+
+  <h2>Quick status</h2>
+  <table>
+    <thead><tr><th>Section</th><th>Disposition</th><th>Where it lives now</th></tr></thead>
+    <tbody>
+      <tr><td>§2 boundary read</td><td>✓ shipped (staged-disc)</td><td><code>boundary_disc.py</code>; flat-tops 1.4–2.1&nbsp;cm, ramp-ups 5–10&nbsp;cm</td></tr>
+      <tr><td>§3 interior spine</td><td>✓ shipped + FROZEN (D2)</td><td><code>closure_spine_frozen.json</code>; flat-top LCFS 1.50&nbsp;cm, skill −0.209 CI-touching-0, reseed 0%</td></tr>
+      <tr><td>§4 learned operator</td><td>✓ scoped → spun out</td><td><a href="/imas-ambix/learned-equilibrium-operator.html">learned-equilibrium-operator</a> (new plan, active)</td></tr>
+      <tr><td>§5 rotation Stage B/C</td><td>retired-to-trigger</td><td>data-gated: broader-CXRS cohort (B), aliasing bar (C); <code>centrifugal_gamma</code> hook stays landed</td></tr>
+      <tr><td>§6 W5 discovery loop</td><td>retired-to-trigger</td><td>promotion <em>machinery</em> landed (identifiability harness + synthetic truth); formal registry closes with the frozen classical spine</td></tr>
+    </tbody>
+  </table>
+
+  <h2>§4 — what was scoped (the learned-equilibrium-operator plan)</h2>
+  <p>The endgame plan was authored on the evidence the closure investigation produced. Its core
+  claim: the three characterised irreducibles of the classical per-slice solve — the p′/FF′
+  profile split (Te absent, <code>TE_DATA_GATE</code>), the axis-vs-centroid interior null
+  (externally only Ip, centroid, β<sub>p</sub>+l<sub>i</sub>/2 are visible), and the vessel-eddy
+  L/R history (per-slice static passive fit under-determined by construction) — are <strong>all
+  temporal or kinetic</strong>, so the learned operator is a causal sequence model wrapped around
+  load-bearing exact physics layers, not a per-slice regressor. Headline design points:</p>
+  <ul>
+    <li><strong>Architecture ladder R0–R3</strong>, each rung gated vs the frozen classical
+    baselines: R1 static residual learner (gate = non-inferiority + verified differentiable
+    Green's stack — plumbing, so R2's wins are attributable to time), R2 temporal operator with
+    an L/R-eigenmode-structured latent eddy state (the load-bearing rung; gate = beat disc
+    flat-top 1.4–2.1&nbsp;cm AND close the ramp-up 5–10&nbsp;cm gap AND axis &lt; D1's
+    5.1&nbsp;cm median), R3 geometry-conditioned transfer (synthetic-machine sweep in-hand;
+    real second machine data-gated).</li>
+    <li><strong>Physics load-bearing</strong> (locked decision, from the lead's ship brief):
+    thick-cylinder Green's operators, geometry positional encoding, and the spine's own profile
+    basis sit <em>inside</em> the model; the network emits only physics-degenerate DOF.</li>
+    <li><strong>Label factory:</strong> the frozen EFIT-independent spine (disc read + D2 solve)
+    manufactures firewall-clean labels over the 12,590-shot MAST statespace corpus (CPU fleet,
+    throughput measured before cohort sizing); <code>synthetic_truth.manufacture</code> supplies
+    exact-truth pretraining (including the real-data-degenerate p′/FF′ and eddy histories).</li>
+    <li><strong>Compute:</strong> O(1–50M)-param models, 1–4 H200 ≤1 day/run; label factory on
+    <code>sun</code> CPU nodes; serving ms/slice (a real-time candidate as a bonus, not a gate).
+    EFIT referee eval-only throughout; standing held-out shots never trained.</li>
+  </ul>
+
+  <h2>§5 — rotation ladder disposition (retired-to-trigger)</h2>
+  <p>Stage A and Stage B were null at the current error budget (measured-rotation zero-DOF test:
+  cost −1.6e−4 CI-clear, topology sub-mm; M₀² ≈ 0.10–0.24). Stage B remains <strong>data-gated on
+  a broader-CXRS cohort</strong> (only 3/8 held-out shots carried CXRS coverage); Stage C (free γ)
+  stays gated on the identifiability aliasing bar (Δβ₀ ≈ 0.02–0.03, marginal). The
+  <code>centrifugal_gamma</code> hook stays landed in <code>gs_solve.py</code> /
+  <code>structure_residual.py</code> — zero maintenance burden. <strong>Trigger to reopen:</strong>
+  a broader CXRS corpus lands, or the error floor drops enough that the rotation column's ~10%/6%
+  absorption becomes resolvable. No open followup remains on this plan; the trigger is recorded
+  here and in the f-ebc-04 resolution.</p>
+
+  <h2>§6 — W5 term-discovery loop disposition (retired-to-trigger)</h2>
+  <p>The <em>mechanism</em> of the discovery loop is landed code — the identifiability harness +
+  synthetic-truth gates (<code>identifiability_harness.py</code>, <code>synthetic_truth.py</code>)
+  are exactly the promotion gate the W5 registry was to formalise, and they gated every term this
+  programme promoted (rotation R⁴, q≥1 clamp, soft priors). With the classical spine
+  <strong>frozen</strong> (freeze criterion: boundary-faithful + attractor-stable; interior
+  fidelity explicitly not chased classically), no further classical term promotion is planned —
+  a versioned registry formalising a closed pipeline would be dead weight. <strong>Trigger to
+  reopen:</strong> classical term promotion resumes (a new candidate closure term or a new data
+  modality such as Thomson Te enters the corpus); the registry then builds on the landed harness.
+  Discovery effort flows to the learned operator (R2/R3), where the identifiability question
+  returns as ablation gates.</p>
+
+  <h2>Plan retirement</h2>
+  <ul>
+    <li>Status → <strong>shipped</strong>, impl → 1.0; §4–§6 collapsed in the evergreen.</li>
+    <li>Followups resolved this session: f-ebc-11 (driver), f-ebc-06 (superseded §4 scoping),
+    f-ebc-04 (§5/§6 disposition), f-ebc-09 (§2 refinements — channel weights owned by
+    <a href="/imas-ambix/channel-uncertainty-management.html">channel-uncertainty-management</a>;
+    classical time-coupled eddy retired-to-trigger, learned eddy treatment is R2 of the new plan).</li>
+    <li>Blocking edge handed on: <a href="/imas-ambix/learned-equilibrium-operator.html">learned-equilibrium-operator</a>
+    now carries <code>blocks: equilibrium-topology-fidelity</code> and feeds
+    machine-agnostic-latent-world-model.</li>
+  </ul>
+
+  <h2>What's next</h2>
+  <p><strong>f-leo-01</strong> on the new plan: R1 — differentiable Green's stack + corpus label
+  factory + non-inferiority gate. Run
+  <code>/reckon-ship learned-equilibrium-operator §2</code>.</p>
+</main>
+</body>
+</html>

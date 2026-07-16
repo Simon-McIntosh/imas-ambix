@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="equilibrium-boundary-closure">
   <meta name="plan-title" content="Decoupled Equilibrium Read — source-free boundary + soft-prior interior spine, toward a learned machine-agnostic operator">
   <meta name="plan-summary" content="Reframe of the equilibrium line after the force-balance-spine review: the boundary and the interior are SEPARATE low-order inverse problems, and coupling them in a free-boundary GS solve that CHASED the LCFS was an EFIT-rebuild that re-imported interior ambiguity + coil error into the near-edge field (the -3.70 LCFS bar was self-inflicted). Decouple, then couple back SOFTLY: (1) BOUNDARY = the source-free toroidal-harmonic annulus read (LANDED) from raw external magnetics + Ip + li, EFIT-firewalled, machine-agnostic — but a LOW-ORDER, cm-uncertain read (~6.7 cm LCFS, ~1-2 boundary DOF); (2) INTERIOR = a SOFT-PRIOR force-balance solve, NOT a fixed-boundary Dirichlet solve: the annulus read anchors the free-boundary fixed point through the vacuum-annulus psi-consistency penalty already in the harness (RMS 0.068-0.089), current is admitted in the confined core AND the public SOL out to soft psi_N~1.1, and force balance (GS closure jphi(psi_N)) places the EMERGENT LCFS. Fixing the low-order boundary would inject unmeasured higher-order DOF as truth; and the outboard attractor was itself the symptom of an UNANCHORED free boundary, which the soft prior now supplies (so the reseed/scout machinery dissolves as a CONSEQUENCE, tested not assumed). (3) ENDGAME = a learned geometry-conditioned operator (harmonic inductive bias, cross-machine training, EFIT-firewalled) that beats the classical baseline and transfers - the GenCast/ECMWF analogy. Also carries the rotation ladder continuation and the W5 discovery loop.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
   <meta name="plan-tier" content="opus">
@@ -22,11 +22,22 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-16">
-<meta name="plan-version" content="14">
-<meta name="plan-impl" content="0.8">
+<meta name="plan-version" content="15">
+<meta name="plan-impl" content="1.0">
 </head>
 <body>
 <main class="plan-doc">
+
+  <div style="border:1px solid #1b7837;border-left-width:4px;border-radius:6px;padding:0.8em 1em;margin:0.4em 0 1.2em">
+    <strong style="color:#14612b">✓ PLAN SHIPPED 2026-07-16 — the classical spine is frozen; the endgame is spun out.</strong>
+    §2 staged-disc boundary read (flat-tops 1.4–2.1&nbsp;cm, ramp-ups 5–10&nbsp;cm) and §3 D2
+    interior spine (flat-top LCFS 1.50&nbsp;cm, skill −0.209 CI-touching-0, reseed 0%,
+    <code>closure_spine_frozen.json</code>) are landed and frozen; §4 is scoped and spun out to
+    <a href="/imas-ambix/learned-equilibrium-operator.html"><strong>learned-equilibrium-operator</strong></a>
+    (the active continuation — R1 differentiable stack + label factory is the next session);
+    §5/§6 retired-to-trigger. Closing record:
+    <a href="archive/equilibrium-boundary-closure-s4-landed.html">§4–§6 landed</a>.
+  </div>
 
   <div style="border:1px solid #1565c0;border-left-width:4px;border-radius:6px;padding:0.8em 1em;margin:0.4em 0 1.2em">
     <strong style="color:#1a4d80">Reframe (2026-07-14) — this supersedes the LCFS-bar chase.</strong>
@@ -473,34 +484,61 @@
   currently an unimplemented config knob) so the harmonic read carries an explicit Ip/gauge tie of
   its own; that is orthogonal to the penalty design and stays with the §2 read's owner.</p>
 
-  <h2 id="s4">§4 — Endgame: a learned, machine-agnostic equilibrium operator (the GenCast analogy)</h2>
-  <p>The physics-backed reads of §2–§3 are the baseline and the inductive bias, not the destination.
-  The destination is one learned operator — raw sensors + coil/wall geometry (positional encoding)
-  + Ip + li → boundary (and interior) — trained across machines so it transfers to unseen geometry,
-  the way GenCast/ECMWF learned-weather models beat the numerical codes they were trained to
-  emulate while generalizing. It is machine-agnostic by construction (all machine dependence lives
-  in the geometry-encoding input) and never touches EFIT output (firewall). The toroidal-harmonic
-  decomposition is the natural architectural prior; the classical annulus read is the baseline it
-  must beat and the physics grounding that keeps it honest. This section is design/scoping now;
-  training follows the cross-machine corpus (feeds machine-agnostic-latent-world-model).</p>
+  <section id="s4" class="section-landed">
+    <header>
+      <span class="badge badge-shipped">✓ landed 2026-07-16</span>
+      <h2>§4 — Endgame: a learned, machine-agnostic equilibrium operator (the GenCast analogy)</h2>
+    </header>
+    <p class="landed-summary">
+      Scoped and <strong>spun out</strong> to
+      <a href="/imas-ambix/learned-equilibrium-operator.html">learned-equilibrium-operator</a>
+      (active; inherits the blocks-edge to equilibrium-topology-fidelity, feeds
+      machine-agnostic-latent-world-model). Thesis: the three characterised irreducibles of the
+      classical per-slice solve (p′/FF′ split, axis interior null, eddy L/R history) are ALL
+      temporal/kinetic → a causal sequence model around load-bearing exact physics layers
+      (thick-cylinder Green's, geometry encoding, L/R-structured eddy latent), with the FROZEN
+      spine as label factory (12.6k-shot MAST corpus) + paired baseline, gated R1→R3 vs
+      disc/D1/D2. Full record: <a href="archive/equilibrium-boundary-closure-s4-landed.html">§4–§6 landed</a>.
+    </p>
+  </section>
 
-  <h2 id="s5">§5 — Rotation ladder continuation (carried)</h2>
-  <p>Inherits the staged-measured-first decision. Stage A/B were null at the parent plan's error
-  budget; the floor is cleaner now (solenoid corrected) but still boundary-dominated. Stage B needs
-  a broader-CXRS cohort to power the stratified test (data-gated); Stage C (free γ) stays gated on
-  the identifiability aliasing bar (Δβ₀ ≈ 0.02–0.03, marginal). Unchanged in substance from the
-  parent — carried here so it is not lost.</p>
+  <section id="s5" class="section-landed">
+    <header>
+      <span class="badge badge-shipped">✓ dispositioned 2026-07-16</span>
+      <h2>§5 — Rotation ladder continuation (carried)</h2>
+    </header>
+    <p class="landed-summary">
+      <strong>Retired-to-trigger.</strong> Stage A/B null at the current error budget (cost
+      −1.6e−4 CI-clear, topology sub-mm; M₀² 0.10–0.24); Stage B data-gated on a broader-CXRS
+      cohort (3/8 held-out shots covered), Stage C on the aliasing bar (Δβ₀ ≈ 0.02–0.03). The
+      <code>centrifugal_gamma</code> hook stays landed in gs_solve/structure_residual. Reopen when
+      a broader CXRS corpus lands or the error floor drops below the rotation column's absorption.
+      Record: <a href="archive/equilibrium-boundary-closure-s4-landed.html">§4–§6 landed</a>.
+    </p>
+  </section>
 
-  <h2 id="s6">§6 — Formalize the term-discovery loop (W5, carried)</h2>
-  <p>Closes last. Versioned term-dictionary registry (candidate form, physics reference,
-  identifiability status, gate verdicts, promotion state), a trimmed repeatable promotion skill, and
-  the coefficient-evolution ↔ transport-prior tie. Accretes as terms are promoted.</p>
+  <section id="s6" class="section-landed">
+    <header>
+      <span class="badge badge-shipped">✓ dispositioned 2026-07-16</span>
+      <h2>§6 — Formalize the term-discovery loop (W5, carried)</h2>
+    </header>
+    <p class="landed-summary">
+      <strong>Retired-to-trigger.</strong> The promotion <em>mechanism</em> is landed code
+      (identifiability harness + synthetic-truth gates — they gated every promoted term); with the
+      classical spine FROZEN, no further classical term promotion is planned, so the versioned
+      registry would formalise a closed pipeline. Reopen if classical promotion resumes (new
+      closure term or new modality, e.g. Thomson Te); discovery effort flows to the learned
+      operator's ablation gates. Record: <a href="archive/equilibrium-boundary-closure-s4-landed.html">§4–§6 landed</a>.
+    </p>
+  </section>
 
   <h2 id="s7">§7 — Gates &amp; sequencing</h2>
   <ul>
-    <li><strong>Sequencing:</strong> §2 (boundary read) is <strong>landed</strong> → §3 (soft-prior
-    interior solve) is the next session → then §4 (learned operator, cross-machine). §5 is
-    data-gated; §6 closes last.</li>
+    <li><strong>Sequencing — COMPLETE (2026-07-16):</strong> §2 (staged-disc boundary read)
+    <strong>landed</strong> → §3 (soft-prior interior solve) <strong>landed + frozen (D2)</strong>
+    → §4 (learned operator) <strong>scoped and spun out</strong> to
+    <a href="/imas-ambix/learned-equilibrium-operator.html">learned-equilibrium-operator</a>.
+    §5/§6 retired-to-trigger. This plan is retired shipped.</li>
     <li><strong>Decision — boundary-route:</strong> source-free harmonic read (not a free-boundary
     GS output, not an EFIT input). The read has now posted its held-out skill (best-in-class LCFS);
     recommended and effectively taken.</li>
@@ -655,7 +693,7 @@ Done-when
   3. Plan updated with the scoped operator as a follow-on; this followup resolved.</pre>
     <p class="r-fu-outcome">Superseded by f-ebc-11 — all §4 prerequisites landed 2026-07-16 (frozen classical baselines: disc read 1.4–2.1 cm flat-tops; D2 spine 1.50 cm / LCFS −0.209 CI-touching-zero, reseed 0%; referee-grade n=128 gate harness; irreducibles characterised: p′/FF′ split, axis interior null, eddy L/R history → all need the arrow of time). The enriched scoping brief lives on f-ebc-11.</p>
     </article>
-<article class="r-fu" data-id="f-ebc-04" data-status="open" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-14" data-recommends-skill="/reckon-ship equilibrium-boundary-closure" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ebc-04" data-status="resolved" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-14" data-recommends-skill="/reckon-ship equilibrium-boundary-closure" data-resolved-at="2026-07-16T14:39:11+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">§5/§6 — Rotation Stage B/C (data-gated) and the W5 discovery-loop formalization</h4>
     <div class="r-fu-body"><p>Carried from force-balance-spine. Rotation Stage B needs a broader-CXRS cohort (data-gated); Stage C stays gated on the aliasing bar. W5 builds the versioned term-dictionary registry + trimmed promotion skill + transport-tied coefficient evolution, and closes last.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -681,6 +719,7 @@ Done-when
   1. Rotation: broader-CXRS cohort scoped; Stage B powered stratified deltas OR an explicit data
      blocker recorded. 2. W5 registry artifact + trimmed skill committed. 3. Plan updated;
      followup written + this one resolved.</pre>
+    <p class="r-fu-outcome">Dispositioned 2026-07-16, both retired-to-trigger (recorded in the evergreen §5/§6 cards + archive/equilibrium-boundary-closure-s4-landed.html). §5 rotation: Stage A/B null at the current budget; Stage B data-gated on a broader-CXRS cohort (3/8 held-out shots covered), Stage C on the aliasing bar; centrifugal_gamma hook stays landed — reopen when broader CXRS lands or the error floor drops below the rotation column's absorption. §6 W5: the promotion mechanism (identifiability harness + synthetic-truth gates) is landed code and gated every promoted term; with the classical spine FROZEN no further classical promotion is planned, so the formal registry closes — reopen if classical promotion resumes (new term or new modality, e.g. Thomson Te). Discovery effort flows to the learned operator's ablation gates.</p>
     </article>
 <article class="r-fu" data-id="f-ebc-05" data-status="resolved" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-14" data-recommends-skill="/reckon-ship equilibrium-boundary-closure" data-resolved-at="2026-07-15T10:26:46+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">§3 — Soft-prior boundary-regularized force-balance interior solve (confined + public SOL)</h4>
@@ -884,7 +923,7 @@ Done-when
      plan updated same-turn; this followup resolved.</pre>
     <p class="r-fu-outcome">Consumed. Frozen harmonic prior + gauge verdict (rank-1 offset) wired into the gs_solve annulus penalty; anchor recomputes the §2 read inline per slice using the frozen config (cohort-independent).</p>
     </article>
-<article class="r-fu" data-id="f-ebc-06" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-15" data-recommends-skill="/reckon-ship equilibrium-boundary-closure" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ebc-06" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-15" data-recommends-skill="/reckon-ship equilibrium-boundary-closure" data-resolved-at="2026-07-16T14:39:11+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">§4 — learned machine-agnostic operator: the §3 information ceiling makes it the path</h4>
     <div class="r-fu-body">§3 landed an honest negative: the classical source-free annulus read (~7 DOF) adds no independent held-out boundary skill over the free-boundary solve, though it retires the attractor. This confirms the §4 thesis — the low-order classical read is information-limited, so beating it needs a learned, geometry-conditioned cross-machine operator (harmonic inductive bias, EFIT-firewalled). Scope the architecture + cross-machine corpus + transfer gate (f-ebc-03 covers the scoping brief).</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -903,6 +942,7 @@ State to read
 Done-when
   1. Design note: architecture + harmonic inductive bias + cross-machine corpus + transfer gate (beat the classical annulus baseline held-out AND on a machine held out of training).
   2. Corpus feasibility read. 3. Plan updated; this followup resolved.</pre>
+    <p class="r-fu-outcome">Superseded by f-ebc-11 and delivered: the §4 scoping (architecture + harmonic/physics inductive bias + corpus + transfer gate) shipped as the learned-equilibrium-operator plan (2026-07-16). The corpus feasibility read: MAST statespace manifest 12,590 shots (10,846 train / 1,479 cal / 265 OOD) in-hand; ImasGeometryReader machine-agnostic (ITER MD validated); real second-machine operational data absent -> R3 real-transfer gate explicitly data-gated, synthetic-machine sweep is the in-hand substitute.</p>
     </article>
 <article class="r-fu" data-id="f-ebc-07" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-15" data-recommends-skill="/reckon-ship equilibrium-boundary-closure" data-resolved-at="2026-07-15" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">§3 CORRECTION (lead-caught) — the boundary-skill ‘negative’ was a scoring-read artifact; §3 boundary goal ACHIEVED</h4>
@@ -914,7 +954,7 @@ Done-when
     <div class="r-fu-body">Robustness investigation (th-boundary-robustness §1–§18) replaced the TH boundary read with the staged-disc read (boundary_disc.py): Ip-pinned + 2-DOF filament centroid + self-consistent uniform disc + shift-gated quadrupole. Held-out vs firewalled EFIT: flat-tops 1.4–2.1 cm, ramp-ups 5–10 cm, never catastrophic. Re-gate n=128/arm: D1 disc-anchored best on every metric (LCFS −0.360, axis −0.045, X-pt 0.507, reseed 0%); TH anchor retired (worse than free). Opt-in shift-gated passive (vessel-eddy) stage ships OFF by default; future eddy treatments fold in as more external currents — the boundary push-out is unchanged. Coil packs collapsed (v2). The robust outer half of the GS-constrained physics spine is in place.</div>
     <pre class="r-fu-prompt">done — recorded in the evergreen (§2/§3 cards), th-boundary-robustness (research), and the closure-gate artifacts closure_gate_eval-{A0d,D1,T1}.json.</pre>
     </article>
-<article class="r-fu" data-id="f-ebc-09" data-status="open" data-tier="opus" data-written-by="close-out sweep" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship channel-uncertainty-management" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ebc-09" data-status="resolved" data-tier="opus" data-written-by="close-out sweep" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship channel-uncertainty-management" data-resolved-at="2026-07-16T14:39:11+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">§2 refinements (optional): time-coupled eddy evolution + channel-level uncertainty weights</h4>
     <div class="r-fu-body">Two measured, well-scoped refinements to the staged-disc read: (1) time-coupled eddy evolution — per-slice static passive fitting is under-determined (no gate separates help from harm; dIp/dt fails; the eddy state is an L/R convolution of the current history); fit passive mode amplitudes jointly across consecutive slices with an L/R smoothness prior; infrastructure (passive_coupling_matrices, shift gate, opt-in stage) is in place. (2) channel-level uncertainty management — plan channel-uncertainty-management (projector-based per-channel down-weighting; honest-null retirement path). Neither blocks §4.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -943,13 +983,14 @@ Done-when
      without regressing flat-tops (else record the honest null)
   2. channel-weight layer per its plan&#x27;s done-when
   3. followup written into plan + this one resolved</pre>
+    <p class="r-fu-outcome">Dispositioned with the plan retirement (2026-07-16). Channel-level uncertainty weights: owned by the standing channel-uncertainty-management plan (unchanged). Classical time-coupled eddy evolution: retired-to-trigger — the learned treatment of eddy history IS rung R2 of learned-equilibrium-operator (L/R-eigenmode-structured latent, amplitudes entering as more external currents through the exact Green's operators, boundary push-out unchanged by construction); reopen the classical prototype only if ramp-up classical-read accuracy becomes blocking before R2 lands.</p>
     </article>
 <article class="r-fu" data-id="f-ebc-10" data-status="resolved" data-tier="opus" data-written-by="close-out" data-written-at="2026-07-16" data-recommends-skill="" data-resolved-at="2026-07-16" data-resolved-by="close-out">
     <h4 class="r-fu-title">§3 FROZEN — D2 spine config (boundary-bias fixed: gauge pin + w=10 + edge-capable profile)</h4>
     <div class="r-fu-body">Lead caught the anchored interior boundary sitting inside EFIT and the disc prior. Fixes: anchor gauge pinned for the absolutely-gauged disc prior; weight w=1→10 (old tune served the TH prior; Huber clip load-bearing); profile n=1→3 monomial-nonneg (edge-capable e=0.5 — the linear edge-zero starved the current extent the boundary tracks). Held-out n=128: flat-top LCFS 1.50 cm, LCFS skill −0.209 [−0.50,+0.03], reseed 0%; axis median +0.8 cm vs D1 (profile-driven — the axis is an interior null; externally only Ip, centroid, βp+li/2 are visible). Free solve with the same profile destabilises (reseed 10.2%) → the disc soft prior is load-bearing. Frozen artifact: closure_spine_frozen.json. Interior p′/FF′ fidelity intentionally not chased classically — flows to §4.</div>
     <pre class="r-fu-prompt">done — frozen config closure_spine_frozen.json; evergreen §3 freeze card; evidence doc table; th-boundary-robustness carries the full investigation.</pre>
     </article>
-<article class="r-fu" data-id="f-ebc-11" data-status="open" data-tier="opus" data-written-by="close-out" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship equilibrium-boundary-closure §4" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ebc-11" data-status="resolved" data-tier="opus" data-written-by="close-out" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship equilibrium-boundary-closure §4" data-resolved-at="2026-07-16T14:39:11+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">§4 — SHIP equilibrium-boundary-closure to completion: scope learned-equilibrium-operator, disposition §5/§6, retire the plan</h4>
     <div class="r-fu-body">Single-session completion brief. All §4 prerequisites are met (see f-ebc-03 outcome). Work: (1) reckon-create the learned-equilibrium-operator plan — architecture ladder (physics layers: exact cylinder-Green's coil/passive fields + geometry positional encoding as LOAD-BEARING differentiable components; the network learns only the physics-degenerate residuals: p′/FF′ split, axis shift, eddy history via a latent time-coupled state), corpus strategy (the FROZEN EFIT-independent spine doubles as a label factory: run disc read + D2 solve over the full cross-machine corpus to manufacture firewall-clean boundary/ψ targets; gs_solve forward mode for synthetic pretraining), H200 training/serving footprint, gates (must beat disc 1.4–2.1 cm flat-top boundary AND D1 5.1 cm axis; EFIT referee eval-only). Feeds machine-agnostic-latent-world-model. (2) Disposition §5 (rotation Stage B/C — data-gated: retire-to-trigger or spin out) and §6 (W5 loop — same). (3) Set plan status=shipped, collapse §4–§6, archive. No training runs required — authoring + state only, single session.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -982,6 +1023,7 @@ Done-when
   2. §5/§6 dispositioned (retire-to-trigger or spun out) with followups resolved
   3. equilibrium-boundary-closure status=shipped, sections collapsed, archived,
      impl=1.0; this followup resolved</pre>
+    <p class="r-fu-outcome">§4 landed + plan retired shipped. (1) learned-equilibrium-operator plan authored (active, S16/M4): architecture ladder R0–R3 (R1 static residual = plumbing/non-inferiority; R2 temporal operator with L/R-eigenmode-structured eddy latent = the load-bearing rung targeting the three temporal irreducibles; R3 geometry-conditioned transfer, synthetic-machine sweep in-hand, real second machine data-gated); physics-embedding=load-bearing-layers LOCKED per the lead brief; label factory = frozen spine over the 12,590-shot MAST statespace corpus + synthetic_truth.manufacture exact-truth pretraining; H200 footprint 1–4 GPUs <=1 day/run, label factory on sun CPU fleet; gates pinned to closure_spine_frozen.json (beat disc 1.4–2.1 cm flat-top + close 5–10 cm ramp-up + axis < D1 5.1 cm), EFIT referee eval-only. Inherits blocks: equilibrium-topology-fidelity; first followup f-leo-01 (R1 stack + label factory). (2) §5 rotation retired-to-trigger (broader CXRS / lower error floor); §6 W5 registry retired-to-trigger (classical promotion closed with the frozen spine; harness machinery already landed). (3) §4–§6 collapsed, archive/equilibrium-boundary-closure-s4-landed.html written, status=shipped, impl=1.0.</p>
     </article>
 </section>
 
