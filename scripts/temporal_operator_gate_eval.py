@@ -95,19 +95,34 @@ def lcfs_rms_cm(model: np.ndarray, ref: np.ndarray) -> np.ndarray:
 
 
 def shot_eigenbasis(payload, campaign: str, k: int):
-    """Load the campaign eigenbasis from the training cache, or build+cache."""
+    """Load the campaign eigenbasis from the training cache, or build.
+
+    A cached basis whose sensor rows disagree with THIS shot's channel set
+    (per-shot sensor availability varies within a campaign) is rebuilt for
+    the shot without touching the cache.
+    """
+    n_ch = int(payload["payloads"][0].measured.size)
     cache = EIGEN_DIR / f"eigenbasis-{campaign}-k{k}.npz"
     if cache.exists():
-        return load_eigenbasis(cache)
+        basis = load_eigenbasis(cache)
+        if basis.a_sens.shape[0] == n_ch:
+            return basis
+        logger.warning(
+            "eigenbasis %s cache rows %d != shot channels %d — per-shot rebuild",
+            campaign,
+            basis.a_sens.shape[0],
+            n_ch,
+        )
     basis = build_passive_eigenbasis(
         payload["table"],
         payload["grid"],
         sensor_scale=payload["payloads"][0].scale,
         k=k,
     )
-    cache.parent.mkdir(parents=True, exist_ok=True)
-    save_eigenbasis(cache, basis)
-    logger.info("eigenbasis %s built at eval time -> %s", campaign, cache)
+    if not cache.exists():
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        save_eigenbasis(cache, basis)
+        logger.info("eigenbasis %s built at eval time -> %s", campaign, cache)
     return basis
 
 

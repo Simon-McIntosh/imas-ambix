@@ -53,11 +53,26 @@ logger = logging.getLogger("train_temporal_operator")
 ARTIFACTS = Path("imas_ambix/latent/artifacts/temporal_operator")
 
 
-def campaign_eigenbasis(campaign: str, shot: int, *, nr, nz, scale, k, cache_dir):
-    """Load (or build + cache) the campaign's passive L/R eigenbasis."""
+def campaign_eigenbasis(
+    campaign: str, shot: int, *, nr, nz, scale, k, cache_dir, n_channels=None
+):
+    """Load (or build + cache) the campaign's passive L/R eigenbasis.
+
+    A cached basis whose sensor rows disagree with the canonical channel
+    count (built from a lean-sensor shot before the canonical was known) is
+    rebuilt from the canonical shot rather than trusted.
+    """
     cache = Path(cache_dir) / f"eigenbasis-{campaign}-k{k}.npz"
     if cache.exists():
-        return load_eigenbasis(cache)
+        basis = load_eigenbasis(cache)
+        if n_channels is None or basis.a_sens.shape[0] == int(n_channels):
+            return basis
+        logger.warning(
+            "eigenbasis %s cache has %d sensor rows, canonical %d — rebuilding",
+            campaign,
+            basis.a_sens.shape[0],
+            n_channels,
+        )
     from imas_ambix.gs.geometry import build_table_for_shot
     from imas_ambix.latent.gs_solve import EquilibriumGrid
 
@@ -412,6 +427,7 @@ def main() -> int:
             scale=sh.arrays["scale"],
             k=args.k_modes,
             cache_dir=ARTIFACTS,
+            n_channels=len(sh.meta["channels"]),
         )
     logger.info("campaigns: %s", list(decoders))
 
