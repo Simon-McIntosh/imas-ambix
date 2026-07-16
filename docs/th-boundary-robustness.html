@@ -361,7 +361,69 @@
       TH is poorly-conditioned (robust) — NOT a combined basis.
     </p>
 
-    <h2 id="s11">§11 — Open decisions</h2>
+    <h2 id="s11">§11 — Moment vs TH across the held-out cohort</h2>
+    <p>
+      Both reads are homogeneous-GS in the vacuum, but by different constructions. The
+      <strong>moment read is a particular solution</strong>: a confined low-order current
+      whose exact finite-area Biot&ndash;Savart field is source-free
+      (<code>Δ*ψ = &minus;μ&#8320;R·J&#966;</code>, and <code>J&#966;=0</code> outside the
+      plasma cells &rArr; <code>Δ*ψ=0</code> in the vacuum). The <strong>TH read is a
+      homogeneous solution</strong> — a truncated multipole
+      <code>ψ = Σ_n[a_n cos nθ + b_n sin nθ]·√(cosh η&minus;cos θ)·P¹_{n&minus;½}(cosh η)</code>
+      about a focal ring. The moment read's external signature is exactly the low-order
+      moments (Ip, centroid, elongation, triangularity) the magnetics constrain, so it has
+      no boundary null-space slack; TH's higher terms are unconstrained shape DOF.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/th-boundary-robustness/moment-vs-th-cohort.png"
+           alt="16-panel cohort: moment (blue) vs TH (orange) vs EFIT (red) across 8 held-out shots"
+           style="max-width:100%;height:auto;border:1px solid #ccc">
+      <figcaption>
+        Moment (blue) vs TH (orange) LCFS, both via the push-out reader, vs firewalled EFIT
+        (red), over the 8 held-out shots (ramp-up + flat-top each). Per-panel RMS radius
+        error in the legend. Pattern: <strong>TH wins the well-conditioned flat-tops</strong>
+        (4&ndash;5 cm), <strong>the moment read wins and is robust on the poorly-conditioned
+        ramp-ups</strong> where TH collapses to the hook (12xxx: moment 10&ndash;15 cm vs TH
+        20&ndash;29 cm). The moment read visibly OVER-SIZES (blue larger than red) — its
+        current fills the whole vessel.
+      </figcaption>
+    </figure>
+    <p>
+      The crossover tracks the TH sensor misfit almost exactly: TH misfit ≲ 0.6 &rArr; TH
+      competitive/better; TH misfit ≳ 2 (the 12xxx ramp-ups) &rArr; TH catastrophic, moment
+      far better. That misfit is the ready-made gate signal for the selection (§13).
+    </p>
+
+    <h2 id="s12">§12 — Double-step (confine-and-refit) moment: tested, collapses</h2>
+    <p>
+      Tested (<code>scripts/_double_step_moment_prototype.py</code>) to cure the moment
+      over-sizing: pass 1 fills the vessel &rarr; LCFS&#8321;; mask <code>J&#966;=0</code>
+      outside LCFS&#8321; (a cheap COLUMN mask of the precomputed interaction matrix — no
+      Green's recompute); pass 2 refits. It <strong>collapses the read</strong> — 18502
+      flat-top 5.8 &rarr; 30 cm, the ramp-ups refit to no closed ring, and further passes run
+      away.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/th-boundary-robustness/double-step-moment.png"
+           alt="Double-step moment: pass 2/3 collapse the boundary vs pass 1"
+           style="max-width:100%;height:auto;border:1px solid #ccc">
+      <figcaption>
+        Double-step moment: pass 1 (blue, fill vessel) vs pass 2/3 (green/purple, j=0 outside
+        LCFS then refit) vs EFIT (red). Pass 2 collapses the boundary; ramp-ups find no ring.
+      </figcaption>
+    </figure>
+    <p>
+      <strong>Why:</strong> the move is correct for a <em>forward</em> fixed-boundary GS
+      solve, but the moment read is an <em>inverse</em> — it infers the current from the
+      external magnetics. Restricting the current support and refitting to the same magnetics
+      <em>removes representational freedom the fit needs</em>; the inferred current shrinks to
+      match, so the boundary collapses (and runs away over passes). Support-masking adds no
+      information to a magnetics-constrained inverse. The single-pass moment read (fill the
+      vessel; low-order moments fixed by the magnetics) is already the well-posed version;
+      its over-sizing is a low-order-moment-fit property, not a fillable-support one.
+    </p>
+
+    <h2 id="s13">§13 — Open decisions</h2>
     <p>
       The well-conditioned majority is fixed. The remaining choice is how the closure
       pipeline treats poorly-conditioned slices like 12143 ramp-up. Options, for an
