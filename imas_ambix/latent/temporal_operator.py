@@ -258,6 +258,33 @@ def physical_eddy_history(
     return a, u
 
 
+def save_eigenbasis(path: Path | str, basis: PassiveEigenbasis) -> None:
+    """Persist a campaign eigenbasis (the build is minutes of kernel sums)."""
+    np.savez_compressed(
+        path,
+        tau=basis.tau,
+        v=basis.v,
+        a_sens=basis.a_sens,
+        g_grid=basis.g_grid,
+        m_coil=basis.m_coil,
+        m_cells=basis.m_cells,
+        resistivity=np.float64(basis.resistivity),
+    )
+
+
+def load_eigenbasis(path: Path | str) -> PassiveEigenbasis:
+    with np.load(path) as z:
+        return PassiveEigenbasis(
+            tau=z["tau"],
+            v=z["v"],
+            a_sens=z["a_sens"],
+            g_grid=z["g_grid"],
+            m_coil=z["m_coil"],
+            m_cells=z["m_cells"],
+            resistivity=float(z["resistivity"]),
+        )
+
+
 # ---------------------------------------------------------------------------
 # The causal temporal operator
 # ---------------------------------------------------------------------------
@@ -461,6 +488,8 @@ __all__ = [
     "TemporalOperator",
     "build_passive_eigenbasis",
     "load_checkpoint",
+    "load_eigenbasis",
     "physical_eddy_history",
     "save_checkpoint",
+    "save_eigenbasis",
 ]
