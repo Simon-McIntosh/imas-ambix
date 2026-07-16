@@ -508,6 +508,7 @@ def main() -> int:
             t0 = time.perf_counter()
             best_state, best_val, patience = None, float("inf"), 0
             epochs_run = 0
+            n_skipped = 0
             for _epoch in range(args.epochs):
                 epochs_run += 1
                 model.train()
@@ -517,6 +518,19 @@ def main() -> int:
                         model, decoders, eddy_sens, b
                     )
                     loss = misfit + leash * l2 + ridge * rd + args.clamp_weight * clamp
+                    if not torch.isfinite(loss):
+                        # a poisoned batch must not write NaN into the weights;
+                        # skip the step, keep the count as a loud health signal
+                        n_skipped += 1
+                        if n_skipped <= 5 or n_skipped % 100 == 0:
+                            logger.warning(
+                                "non-finite loss (batch shots %s) — step skipped "
+                                "(%d so far)",
+                                [s["shot"] for s in chunk],
+                                n_skipped,
+                            )
+                        opt.zero_grad()
+                        continue
                     opt.zero_grad()
                     loss.backward()
                     opt.step()
@@ -530,8 +544,8 @@ def main() -> int:
                         )
                         vm.append(float(misfit))
                         vm0.append(float(m0))
-                v, v0 = float(np.mean(vm)), float(np.mean(vm0))
-                if v < best_val - 1e-6:
+                v, v0 = float(np.nanmean(vm)), float(np.nanmean(vm0))
+                if np.isfinite(v) and v < best_val - 1e-6:
                     best_val, patience = v, 0
                     best_state = {
                         k: t.detach().clone() for k, t in model.state_dict().items()
@@ -540,6 +554,24 @@ def main() -> int:
                     patience += 1
                 if patience >= args.patience:
                     break
+            if best_state is None:
+                logger.error(
+                    "leash %.3g ridge %.3g: NO finite val epoch (skipped %d "
+                    "steps) — sweep point recorded as failed",
+                    leash,
+                    ridge,
+                    n_skipped,
+                )
+                results.append(
+                    {
+                        "leash": leash,
+                        "eddy_ridge": ridge,
+                        "failed": "no finite val epoch",
+                        "n_skipped_steps": n_skipped,
+                        "epochs_run": epochs_run,
+                    }
+                )
+                continue
             model.load_state_dict(best_state)
             model.eval()
             shift = boundary_shift_cm(
@@ -552,6 +584,7 @@ def main() -> int:
                 "val_spine_misfit": v0,
                 "val_boundary_shift_median_cm": shift,
                 "epochs_run": epochs_run,
+                "n_skipped_steps": n_skipped,
                 "train_s": time.perf_counter() - t0,
                 "tau_learned_ms": (
                     1e3 * torch.exp(model.log_tau).detach().cpu().numpy()
@@ -565,7 +598,10 @@ def main() -> int:
                 best = rec | {"state": best_state}
 
     if best is None:  # every combo drifted the boundary — keep the tightest
-        tight = max(results, key=lambda r: (r["leash"], r["eddy_ridge"]))
+        usable = [r for r in results if (r["leash"], r["eddy_ridge"]) in states]
+        if not usable:
+            raise SystemExit(f"every sweep point failed: {results}")
+        tight = max(usable, key=lambda r: (r["leash"], r["eddy_ridge"]))
         logger.warning("all sweep points exceed boundary-shift bound; keep tightest")
         best = tight | {"state": states[(tight["leash"], tight["eddy_ridge"])]}
 
