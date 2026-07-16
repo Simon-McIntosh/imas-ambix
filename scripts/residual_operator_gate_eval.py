@@ -155,7 +155,8 @@ def eval_shot(job: tuple) -> dict | None:
         if not f.scored:
             rows.append({"scored": False, "reason": f.reason, "k": int(k)})
             continue
-        warm_jphi = f.jphi_flat
+        if f.converged:  # match the frozen harness chain: strict-converged only
+            warm_jphi = f.jphi_flat
         i_cell0 = f.jphi_flat[grid.cells] * cell_area
         _t, psi_ax, psi_b = geometry_target_pushout(f.psi, grid)
         psi_n = np.clip(

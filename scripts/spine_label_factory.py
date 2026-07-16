@@ -184,7 +184,8 @@ def run_shot(shot: int, args, spine: dict, config_sha: str) -> dict | None:
         if not f.scored:
             logger.info("shot %d t=%.3fs masked (%s)", shot, p.time_s, f.reason)
             continue
-        warm_jphi = f.jphi_flat
+        if f.converged:  # match the frozen harness chain: strict-converged only
+            warm_jphi = f.jphi_flat
         i_cell = f.jphi_flat[grid.cells] * cell_area
         _t, psi_ax, psi_b = geometry_target_pushout(f.psi, grid)
         psi_n = (f.psi.ravel()[grid.cells] - psi_ax) / (psi_b - psi_ax)
