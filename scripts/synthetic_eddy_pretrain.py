@@ -352,6 +352,34 @@ def split_fraction(coeffs, psi_n_cells, r_cells, r0) -> float:
     return float(np.abs(cur[:, :3]).sum() / tot)
 
 
+def operator_split_fraction(
+    c_fit, dc, gross_col, gross_raw, psi_n_cells, r_cells, r0, s_true
+) -> tuple[float, bool]:
+    """Operator-corrected p′-group current fraction, robust to any checkpoint.
+
+    The operator's correction ``dc`` lives in the Ip-normalised column space;
+    re-express it on the raw ladder coefficients through the per-column
+    gross-current scale, clip to the non-negative-basis sign, and read the
+    split.  A checkpoint whose corrections are large enough to drive EVERY
+    profile DOF to zero yields a currentless (non-physical) profile — a state
+    the decoder's Ip renormalisation never actually emits, so it is a genuine
+    operator FAILURE for the slice, not a valid answer.  Rather than let the
+    resulting NaN poison ``np.median`` over the sequence (or silently drop the
+    slice, which would hide the failure), score the collapse at the worst
+    attainable fraction error — the valid fraction farthest from truth.
+
+    Returns ``(split_fraction, degenerate)`` where ``degenerate`` flags the
+    collapse so the caller can report how many slices the operator annihilated.
+    """
+    gross_raw = np.clip(np.asarray(gross_raw), 1e-30, None)
+    c_op = np.clip(c_fit + dc * gross_col / gross_raw, 0.0, None)
+    s_op = split_fraction(c_op, psi_n_cells, r_cells, r0)
+    if np.isfinite(s_op):
+        return s_op, False
+    # farthest valid fraction from truth (max |s_op - s_true|, s_op ∈ [0, 1])
+    return (0.0 if s_true >= 0.5 else 1.0), True
+
+
 def fit_sequence_spine(job):
     """Frozen classical ladder fit for each slice of one synthetic sequence.
 
@@ -439,7 +467,7 @@ def run_split(args) -> dict:
     grid = campaign.grid
     r_cells = grid.flat_r[grid.cells]
 
-    err_spine, err_op, n_fit = [], [], 0
+    err_spine, err_op, n_fit, n_degenerate = [], [], 0, 0
     for seq in seqs:
         rows = [r for r in seq["rows"] if r.get("fit") is not None]
         if len(rows) < 3:
@@ -478,12 +506,22 @@ def run_split(args) -> dict:
             )
             gross_raw = np.abs(images).sum(axis=0).clip(min=1e-30)
             gross_col = np.abs(cols).sum(axis=0)
-            c_op = np.clip(c_fit + dc[j] * gross_col / gross_raw, 0.0, None)
-            s_op = split_fraction(c_op, r["psi_n_fit"], r_cells, grid.r0)
+            s_op, degenerate = operator_split_fraction(
+                c_fit,
+                dc[j],
+                gross_col,
+                gross_raw,
+                r["psi_n_fit"],
+                r_cells,
+                grid.r0,
+                s_true,
+            )
+            n_degenerate += int(degenerate)
             err_spine.append(abs(s_spine - s_true))
             err_op.append(abs(s_op - s_true))
     out = {
         "n_split_slices": n_fit,
+        "operator_degenerate_slices": n_degenerate,
         "split_abs_err_spine_median": float(np.median(err_spine)),
         "split_abs_err_operator_median": float(np.median(err_op)),
         "split_abs_err_spine_mean": float(np.mean(err_spine)),
