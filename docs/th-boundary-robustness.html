@@ -470,7 +470,46 @@
       is option 1 (conditioning-gated selection) — it is the only approach that gets both the
       well-conditioned edge fidelity (TH) and the poorly-conditioned robustness (moment) —
       with option 2 (moment everywhere) as the low-risk fallback. Both settle against the
-      shipped scored LCFS numbers in the re-gate.
+      shipped scored LCFS numbers in the re-gate. But see §14 — the moment read itself has a
+      conditioning defect whose fix (a direct-moment read) may supersede this choice.
+    </p>
+
+    <h2 id="s14">§14 — Moment-read conditioning defect + the direct-moment fix</h2>
+    <p>
+      Scrutiny of the moment read exposed an implementation-level defect: it is
+      <strong>ill-conditioned</strong>, and its behaviour across order is erratic rather than
+      monotone. A single filament at the centroid should be a sane floor, yet the order sweep
+      jumps around it (RMS vs EFIT [cm]): <code>18502: filament 8.5 | o1 nan | o2 39.3 | o3 5.8</code>;
+      <code>18505 ramp-up: filament 16.9 | o1 30 | o2 nan | o3 19.6</code>. The root: the monopole
+      basis column is a <em>uniform current over the whole vessel</em>, so orders 1–2 are a giant
+      over-sized disc (no closed ring / 39 cm) and the octupoles do violent compensating work.
+    </p>
+    <p>
+      Worse, the most basic moment — the current centroid — is <strong>not reliably
+      determined</strong> by the cell-current LSQ. Its current-weighted centroid swings across
+      order and lands at nonsense:
+    </p>
+    <table>
+      <thead><tr><th>slice</th><th>EFIT centroid R</th><th>moment o1 / o2 / o3</th><th>direct filament-fit</th><th>direct error</th></tr></thead>
+      <tbody>
+        <tr><td>18502 flat-top</td><td>0.81</td><td>0.84 / 0.60 / 0.90</td><td>0.88</td><td>7 cm</td></tr>
+        <tr><td>12143 ramp-up</td><td>0.73</td><td>0.42 / −0.01 / 0.53</td><td>0.67</td><td>7 cm</td></tr>
+        <tr><td>18505 ramp-up</td><td>0.63</td><td>0.55 / 0.00 / 0.61</td><td>0.53</td><td>11 cm</td></tr>
+        <tr><td>12190 ramp-up</td><td>0.73</td><td>0.45 / −0.03 / 0.64</td><td>0.68</td><td>5 cm</td></tr>
+      </tbody>
+      <caption style="caption-side:bottom;font-size:12px">Current-centroid R [m]. The cell-current LSQ swings 0.3–0.7 m (o2 lands at R≈0); a direct 2-DOF filament-position fit is 5–11 cm from EFIT and stable.</caption>
+    </table>
+    <p>
+      <strong>Direct-moment fix (recommended experiment).</strong> Compute the moments directly
+      from the coil-subtracted magnetics rather than solving a ~5000-cell current: (1) Ip from
+      Ampère (already pinned); (2) the current centroid from a well-conditioned 2-DOF
+      filament-position fit — robust, 5–11 cm from EFIT (a single filament there already beats the
+      order-3 moment read on 18502, 5.3 vs 5.8 cm); (3) a handful of shape moments
+      (quadrupole/triangularity) fitted about that <em>fixed, correct</em> centroid to supply the
+      elongation the single filament lacks. This removes the null-space and the erratic-order
+      behaviour, and is the classic magnetic-moments boundary method. If it holds across the
+      cohort it supersedes the §13 selection (it would fix the moment read rather than gate around
+      its failures).
     </p>
 
   </main>
