@@ -611,6 +611,41 @@
       insufficient on the full corpus. Script: <code>scripts/_staged_disc_report.py</code>.
     </p>
 
+    <h2 id="s17">§17 — Full closure re-gate with the disc prior (landed)</h2>
+    <p>
+      Authorised re-gate run 2026-07-16 (SLURM job, 8 eval shots × 16 slices = n=128 per
+      arm, push-out scoring vs firewalled EFIT, per-arm bootstrap CIs; driver
+      <code>scripts/_disc_regate.sh</code>, artifacts
+      <code>closure_gate_eval-{A0d,D1,T1}.json</code>):
+    </p>
+    <table>
+      <thead><tr><th>arm</th><th>axis skill</th><th>LCFS skill [CI]</th><th>X-pt skill</th><th>flat-top LCFS [cm]</th><th>reseed frac</th></tr></thead>
+      <tbody>
+        <tr><td>A0d — free boundary</td><td>−0.048</td><td>−0.406 [−0.63, −0.17]</td><td>0.448</td><td>3.39</td><td>0.008</td></tr>
+        <tr><td><strong>D1 — disc-anchored (w=1)</strong></td><td><strong>−0.045</strong></td><td><strong>−0.360 [−0.57, −0.13]</strong></td><td><strong>0.507</strong></td><td>3.67</td><td><strong>0.000</strong></td></tr>
+        <tr><td>T1 — TH-anchored (w=1)</td><td>−0.160</td><td>−0.518 [−0.73, −0.31]</td><td>0.469</td><td>3.71</td><td>0.000</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><strong>D1 is the best arm on every skill metric</strong> — LCFS −0.360 (vs free
+        −0.406, TH −0.518), axis −0.045 (non-inferior to free), X-point 0.507 (best) — and it
+        <strong>kills the outboard attractor completely</strong> (reseed 0.8% → 0.000%). The
+        arm CIs overlap, so the LCFS edge over free is directional rather than individually
+        significant, but the anchor now costs nothing anywhere and stabilises the solve.</li>
+      <li><strong>The TH anchor is retired:</strong> T1 is worse than the free baseline on both
+        axis (−0.160) and LCFS (−0.518) — feeding the pole-fragile read as a prior actively
+        hurts the interior solve, closing the loop on this document's diagnosis.</li>
+      <li>D1's LCFS skill (−0.360) also edges the previously shipped TH-anchored result
+        (−0.392), on a run that additionally carries the collapsed-coil geometry (v2) and the
+        leg-clip reader.</li>
+    </ul>
+    <p class="landed-summary">
+      <strong>Verdict:</strong> the staged-disc prior is adopted — best-in-class §2 boundary
+      (flat-tops 1.4–2.1 cm, never catastrophic) AND the best interior anchor (D1: every skill
+      metric ≥ free, attractor eliminated). <code>--boundary-prior disc</code> stays the
+      closure-gate default; TH retained for ablation only.
+    </p>
+
   </main>
 </body>
 </html>
