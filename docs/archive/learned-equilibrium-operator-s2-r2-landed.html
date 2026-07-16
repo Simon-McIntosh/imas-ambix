@@ -234,8 +234,13 @@
     is inherited from the D2 spine (8.4 cm), not learned. Per the iteration's stop rule this is
     a <strong>sustained negative</strong>: no further training-signal iterations; the temporal
     thesis goes back to planning (followup <code>f-leo-06</code>). The split-scorer NaN of the
-    first test did not reproduce with this checkpoint (the defect is data-dependent in the
-    classical ladder refit — a separate hardening fix with a regression test is in flight).</p>
+    first test did not reproduce with this checkpoint — root cause: a checkpoint whose
+    saturated corrections drive every non-negative ladder coefficient below zero collapses the
+    re-expressed profile to all-zeros, and the undefined split fraction poisoned the sequence
+    median. Hardened in commit <code>384bf90</code>: the collapse now scores as a genuine
+    operator failure at the worst attainable fraction error with a loud
+    <code>operator_degenerate_slices</code> count (regression-tested; finite for any
+    checkpoint).</p>
 
     <h2>What's next</h2>
     <p>Re-plan the temporal thesis before any further R2-class training (followup
