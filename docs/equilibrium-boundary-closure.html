@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-16">
-<meta name="plan-version" content="13">
+<meta name="plan-version" content="14">
 <meta name="plan-impl" content="0.8">
 </head>
 <body>
@@ -627,7 +627,7 @@ Done-when
   3. Verdict recorded; plan updated; followup written + this one resolved.</pre>
     <p class="r-fu-outcome">Superseded by the soft-prior reframe (2026-07-14, lead-directed). The fixed-boundary Dirichlet pivot is REJECTED: the annulus read is low-order and cm-uncertain, so fixing it as an exact interior boundary would inject unmeasured higher-order DOF as truth. Re-scoped to a soft-prior force-balance solve in f-ebc-05 (interior-boundary-coupling = soft-prior, LOCKED).</p>
     </article>
-<article class="r-fu" data-id="f-ebc-03" data-status="open" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-14" data-recommends-skill="/reckon-edit equilibrium-boundary-closure" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ebc-03" data-status="resolved" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-14" data-recommends-skill="/reckon-edit equilibrium-boundary-closure" data-resolved-at="2026-07-16T14:10:23+00:00" data-resolved-by="close-out">
     <h4 class="r-fu-title">§4 — Scope the learned machine-agnostic equilibrium operator (the GenCast endgame)</h4>
     <div class="r-fu-body"><p>Design/scoping. A learned operator (raw sensors + geometry positional-encoding + Ip + li → boundary, then interior), trained cross-machine, harmonic decomposition as inductive bias, classical annulus read as the baseline to beat, EFIT firewalled. Specify the architecture, the cross-machine corpus, and the transfer gate (beat baseline held-out + on a held-out machine).</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -653,6 +653,7 @@ Done-when
   1. Design note: architecture, harmonic inductive bias, cross-machine corpus, transfer gate.
   2. Feasibility read on the corpus (which machines, how many equilibria, geometry coverage).
   3. Plan updated with the scoped operator as a follow-on; this followup resolved.</pre>
+    <p class="r-fu-outcome">Superseded by f-ebc-11 — all §4 prerequisites landed 2026-07-16 (frozen classical baselines: disc read 1.4–2.1 cm flat-tops; D2 spine 1.50 cm / LCFS −0.209 CI-touching-zero, reseed 0%; referee-grade n=128 gate harness; irreducibles characterised: p′/FF′ split, axis interior null, eddy L/R history → all need the arrow of time). The enriched scoping brief lives on f-ebc-11.</p>
     </article>
 <article class="r-fu" data-id="f-ebc-04" data-status="open" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-14" data-recommends-skill="/reckon-ship equilibrium-boundary-closure" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">§5/§6 — Rotation Stage B/C (data-gated) and the W5 discovery-loop formalization</h4>
@@ -947,6 +948,40 @@ Done-when
     <h4 class="r-fu-title">§3 FROZEN — D2 spine config (boundary-bias fixed: gauge pin + w=10 + edge-capable profile)</h4>
     <div class="r-fu-body">Lead caught the anchored interior boundary sitting inside EFIT and the disc prior. Fixes: anchor gauge pinned for the absolutely-gauged disc prior; weight w=1→10 (old tune served the TH prior; Huber clip load-bearing); profile n=1→3 monomial-nonneg (edge-capable e=0.5 — the linear edge-zero starved the current extent the boundary tracks). Held-out n=128: flat-top LCFS 1.50 cm, LCFS skill −0.209 [−0.50,+0.03], reseed 0%; axis median +0.8 cm vs D1 (profile-driven — the axis is an interior null; externally only Ip, centroid, βp+li/2 are visible). Free solve with the same profile destabilises (reseed 10.2%) → the disc soft prior is load-bearing. Frozen artifact: closure_spine_frozen.json. Interior p′/FF′ fidelity intentionally not chased classically — flows to §4.</div>
     <pre class="r-fu-prompt">done — frozen config closure_spine_frozen.json; evergreen §3 freeze card; evidence doc table; th-boundary-robustness carries the full investigation.</pre>
+    </article>
+<article class="r-fu" data-id="f-ebc-11" data-status="open" data-tier="opus" data-written-by="close-out" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship equilibrium-boundary-closure §4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">§4 — SHIP equilibrium-boundary-closure to completion: scope learned-equilibrium-operator, disposition §5/§6, retire the plan</h4>
+    <div class="r-fu-body">Single-session completion brief. All §4 prerequisites are met (see f-ebc-03 outcome). Work: (1) reckon-create the learned-equilibrium-operator plan — architecture ladder (physics layers: exact cylinder-Green's coil/passive fields + geometry positional encoding as LOAD-BEARING differentiable components; the network learns only the physics-degenerate residuals: p′/FF′ split, axis shift, eddy history via a latent time-coupled state), corpus strategy (the FROZEN EFIT-independent spine doubles as a label factory: run disc read + D2 solve over the full cross-machine corpus to manufacture firewall-clean boundary/ψ targets; gs_solve forward mode for synthetic pretraining), H200 training/serving footprint, gates (must beat disc 1.4–2.1 cm flat-top boundary AND D1 5.1 cm axis; EFIT referee eval-only). Feeds machine-agnostic-latent-world-model. (2) Disposition §5 (rotation Stage B/C — data-gated: retire-to-trigger or spin out) and §6 (W5 loop — same). (3) Set plan status=shipped, collapse §4–§6, archive. No training runs required — authoring + state only, single session.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    equilibrium-boundary-closure (http://localhost:8765/imas-ambix/equilibrium-boundary-closure.html)
+Section: §4 (+ §5/§6 disposition, plan retirement)
+Tier:    opus
+
+Context
+  The classical spine is FROZEN (closure_spine_frozen.json): disc boundary read
+  1.4–2.1 cm flat-tops; D2 anchored solve 1.50 cm / LCFS −0.209 (CI touching 0),
+  reseed 0%. The remaining work is authoring: scope the learned operator, close
+  the carried sections, retire the plan. No training runs in this session.
+
+State to read
+  imas_ambix/latent/artifacts/patch_gate/closure_spine_frozen.json (frozen config + gates)
+  docs/th-boundary-robustness.html (investigation record; §14 axis/centroid degeneracy)
+  docs/machine-agnostic-latent-world-model.html (the plan this feeds)
+  imas_ambix/latent/boundary_disc.py, gs_solve.py (physics components to embed)
+
+Scope locks / constraints
+  EFIT firewall: referee only — the spine (not EFIT) manufactures training labels.
+  Physics components are LOAD-BEARING inside the model (exact Green&#x27;s operators,
+  geometry encoding) AND the label factory — both roles, explicitly designed.
+  Machine-agnostic: all machine dependence enters through geometry inputs.
+  Do not start H200 training; scoping + plan authoring + state updates only.
+
+Done-when
+  1. learned-equilibrium-operator plan authored (architecture ladder, corpus/label
+     factory, H200 footprint, gates vs frozen baselines) + linked (depends_on/blocks)
+  2. §5/§6 dispositioned (retire-to-trigger or spun out) with followups resolved
+  3. equilibrium-boundary-closure status=shipped, sections collapsed, archived,
+     impl=1.0; this followup resolved</pre>
     </article>
 </section>
 

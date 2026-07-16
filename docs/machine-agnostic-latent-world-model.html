@@ -19,8 +19,8 @@
   <title>Machine-Agnostic Latent State-Space Plasma World Model | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-05">
-<meta name="plan-version" content="7">
+<meta name="plan-modified" content="2026-07-16">
+<meta name="plan-version" content="8">
 </head>
 <body>
 <main class="plan-doc">
@@ -1258,6 +1258,11 @@ Done-when
   3. Excited held-out cohort defined + leakage-audited.
   4. tests green; followup written + this one resolved.</pre>
     <p class="r-fu-outcome">Child plan evaluation-and-controllability-harness SHIPPED 2026-06-25: all five eval-spine components built + unit-tested (54 tests green) and the bars frozen on existing data — firewalled EFIT referee (boundary guard proven), absolute-magnetics oracle (skill ≈0.5–0.7, the stage-2 / f-malwm-02 bar), raw-held-out + EnKF bar (EnKF 0.225 &lt; persistence 0.719, the stage-4 / f-malwm-04 bar), powered n=10 ΔN-M latent gate (noise floor 1.001 CI[0.985,1.018]), excitation-window selector + excited held-out cohort + leakage audit. The gates for f-malwm-02 and f-malwm-04 now have their targets. Modules under imas_ambix/eval/.</p>
+    </article>
+<article class="r-fu" data-id="f-malwm-spine-unblocked" data-status="open" data-tier="opus" data-written-by="close-out" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship equilibrium-boundary-closure §4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Physics-spine dependency CLEARED — equilibrium feeder ready (frozen classical baselines + label factory)</h4>
+    <div class="r-fu-body">equilibrium-boundary-closure §1–§3 froze 2026-07-16 (closure_spine_frozen.json): staged-disc boundary read (flat-tops 1.4–2.1 cm vs firewalled EFIT, never catastrophic) + D2 disc-anchored GS solve (flat-top LCFS 1.50 cm, skill −0.209 CI-touching-zero, attractor 0%). This was the last physics dependency before this plan's equilibrium line. The spine enters the ML models in BOTH roles, by design: (1) LOAD-BEARING structural components — exact cylinder-Green's coil/passive field operators and sensor/coil geometry encodings as fixed differentiable layers + GS force-balance residual as physics loss; the network learns only the physics-degenerate residuals (p′/FF′ split, axis shift, eddy L/R history — all need the arrow of time, exactly what the latent SSM supplies); (2) LABEL FACTORY — the spine is EFIT-independent, so it manufactures firewall-clean boundary/ψ training targets over the full cross-machine corpus (+ gs_solve forward mode for synthetic pretraining); EFIT stays referee-only at eval. Next: the learned-equilibrium-operator feeder plan is scoped by equilibrium-boundary-closure f-ebc-11 (single-session authoring), then H200 training resumes on this plan's substrate.</div>
+    <pre class="r-fu-prompt">See equilibrium-boundary-closure followup f-ebc-11 — the §4 scoping brief creates the learned-equilibrium-operator feeder plan for this world-model line (architecture ladder, label factory, H200 footprint, gates vs the frozen classical baselines).</pre>
     </article>
 </section>
 
