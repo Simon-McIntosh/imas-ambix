@@ -413,14 +413,28 @@
       </figcaption>
     </figure>
     <p>
-      <strong>Why:</strong> the move is correct for a <em>forward</em> fixed-boundary GS
-      solve, but the moment read is an <em>inverse</em> — it infers the current from the
-      external magnetics. Restricting the current support and refitting to the same magnetics
-      <em>removes representational freedom the fit needs</em>; the inferred current shrinks to
-      match, so the boundary collapses (and runs away over passes). Support-masking adds no
-      information to a magnetics-constrained inverse. The single-pass moment read (fill the
-      vessel; low-order moments fixed by the magnetics) is already the well-posed version;
-      its over-sizing is a low-order-moment-fit property, not a fillable-support one.
+      <strong>Why (measured, corrected):</strong> the pass-2 fit is not worse — it is
+      <em>better</em> (18502 sensor misfit 0.368 &rarr; 0.165, Ip preserved). But the push-out
+      boundary <em>shrinks</em> (Rout 1.38 &rarr; 1.10; verified independent of push origin and
+      basis scale). The confined current genuinely has a smaller separatrix even though it fits
+      the external sensors better. The root cause is a <strong>null-space</strong>: the plasma
+      boundary is a near-edge feature (the X-point / separatrix, set by the total field close to
+      the plasma) that the <em>far</em> external magnetics do not uniquely determine. The moment
+      read's separatrix sits at roughly the <em>extent</em> of where current is allowed to live,
+      so confining the current to inside LCFS&#8321; makes a more compact plasma with a smaller
+      separatrix — and iterating runs away. This is a <em>forward</em>-solve move applied to an
+      <em>inverse</em> read; it improves the fit but not the boundary.
+    </p>
+    <p>
+      The <strong>current-disc</strong> variant (a disc on the current centroid sized to a
+      fraction of the centroid&ndash;limiter distance) confirms it: on 18502 a large disc
+      (0.8&middot;d, ≈ vessel-filling) recovers single-pass (6.0 cm) while a small disc
+      under-sizes badly (0.4&middot;d &rarr; 55 cm); on the 12143 ramp-up <em>every</em> disc is
+      worse than single-pass (33&ndash;66 cm vs 15.3 cm). The boundary tracks the current extent,
+      and <strong>filling the vessel is exactly what puts the separatrix in the right place</strong>
+      — which is why the single-pass moment read tracks EFIT and is the well-posed version. The
+      ~15 cm ramp-up residual is a genuine information floor of a magnetics-only boundary read on a
+      poorly-diagnosed slice; the §3 force-balance interior solve is what should own those slices.
     </p>
 
     <h2 id="s13">§13 — Open decisions</h2>
