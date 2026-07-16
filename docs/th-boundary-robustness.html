@@ -565,6 +565,52 @@
       <code>scripts/_dynamic_disc_prototype.py</code>, <code>scripts/_moment_vs_th_boundary_report.py</code>.
     </p>
 
+    <h2 id="s16">§16 — Staged disc read (final): skip-dipole + gated quadrupole-on-residual</h2>
+    <p>
+      The staged refinement completes the read. Fit order by order, subtracting each stage's
+      signature from the sensor signal: stage 0 is the uniform disc at the filament-fit centroid
+      (Ip pinned); <strong>degree-1 (dipole) is skipped</strong> — the position DOFs are already
+      fixed by the 2-DOF centroid fit, so dipole terms on the residual only absorb noise and
+      re-shift the position (measured: the dipole stage hurts on every slice); the
+      <strong>quadrupole is fitted to the residual</strong> (a small well-conditioned 3-DOF LSQ).
+      Two further findings: (a) with the quadrupole present the boundary is insensitive to disc
+      size (shrink factors 0.7&ndash;1.0 equivalent on flat-tops), so the disc can sit at a
+      physical fraction &lt; 1 of the minor radius; (b) TH with its pole moved to the robust
+      centroid was also tested and stays 14&ndash;67 cm — smooth but over-sized at any
+      regularisation, because a vacuum multipole carries no current-extent information; the disc
+      wins precisely because it is a physical source at the right extent.
+    </p>
+    <figure>
+      <img src="/imas-ambix/figures/th-boundary-robustness/staged-disc-cohort.png"
+           alt="16-panel cohort: uniform disc (green) vs +quadrupole (purple) vs EFIT (red)"
+           style="max-width:100%;height:auto;border:1px solid #ccc">
+      <figcaption>
+        Visual confirmation across all 16 held-out slices: the +quadrupole boundary (purple) sits
+        essentially ON the EFIT LCFS (red) on every flat-top — including the X-point corners
+        (1.4&ndash;2.1 cm) — while on the poorly-diagnosed ramp-ups the quadrupole over-fit is
+        visible (LFS pulled flat inward) and the uniform disc (green) is the right model
+        (5&ndash;10 cm). All boundaries are closed and limiter-consistent; no floating contours.
+      </figcaption>
+    </figure>
+    <p>
+      <strong>The conditioning gate is a boundary-shift test, not a misfit test.</strong> The
+      stage-0 sensor misfit does <em>not</em> separate the regimes (18505 flat-top misfit 4.2 →
+      quad helps; 18505 ramp-up misfit 0.4 → quad hurts). What separates almost perfectly is how
+      far the quadrupole <em>moves the boundary</em>: where it helps the shift is ≤ ~12% of the
+      minor radius; where it over-fits it is ≥ ~20%. Production gate: <strong>accept the
+      quadrupole only if it shifts the push-out boundary by &lt; 15% of the disc radius</strong>
+      — machine-agnostic, EFIT-free, self-contained. (Only 18502 ramp-up straddles the gate; its
+      fallback is a safe 7.4 cm uniform read.)
+    </p>
+    <p>
+      Gated cohort performance: <strong>flat-tops 1.4&ndash;7.2 cm (median ~1.8 cm), ramp-ups
+      5.2&ndash;10.3 cm, never catastrophic</strong> — versus TH's 4.3 cm best / 29 cm worst and
+      the cell-current moment's 5.8 / 20 cm. A vacuum-projection preconditioner (project the
+      plasma signature onto the source-free sensor-signature span; the rejected residual is a
+      per-slice noise meter) remains available as a refinement if the shift-gate proves
+      insufficient on the full corpus. Script: <code>scripts/_staged_disc_report.py</code>.
+    </p>
+
   </main>
 </body>
 </html>
