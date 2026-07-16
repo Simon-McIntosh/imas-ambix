@@ -172,7 +172,11 @@ class ProfileGreensDecoder(nn.Module):
             i_cell0 = i_cell0.unsqueeze(0)
         ip = torch.as_tensor(ip, dtype=i_cell0.dtype, device=i_cell0.device).reshape(-1)
         u = torch.relu(i_cell0 + torch.einsum("bnk,bk->bn", columns, dc))
-        total = u.sum(dim=-1).clamp(min=1e-30)
+        # bounded renormalisation gain: a correction that nearly annihilates
+        # the current would otherwise produce an unbounded ip/total factor
+        # whose BACKWARD explodes; any physical decode has total == ip at
+        # dc = 0, so the floor is inactive away from degenerate inputs
+        total = torch.maximum(u.sum(dim=-1), 1e-3 * ip.abs() + 1e-30)
         return u * (ip / total).unsqueeze(-1)
 
     def sensors(self, i_cell: torch.Tensor, i_pf=None) -> torch.Tensor:

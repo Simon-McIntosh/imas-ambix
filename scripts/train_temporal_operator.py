@@ -524,15 +524,41 @@ def main() -> int:
                         n_skipped += 1
                         if n_skipped <= 5 or n_skipped % 100 == 0:
                             logger.warning(
-                                "non-finite loss (batch shots %s) — step skipped "
-                                "(%d so far)",
+                                "non-finite loss (batch shots %s) — "
+                                "misfit %.4g leash %.4g ridge %.4g clamp %.4g — "
+                                "step skipped (%d so far)",
                                 [s["shot"] for s in chunk],
+                                float(misfit),
+                                float(l2),
+                                float(rd),
+                                float(clamp),
                                 n_skipped,
                             )
                         opt.zero_grad()
                         continue
                     opt.zero_grad()
                     loss.backward()
+                    # a finite loss can still carry non-finite gradients (the
+                    # Ip-renormalisation factor explodes when the clamped
+                    # current total collapses on a degenerate step) — never
+                    # let them into the weights
+                    grads_ok = all(
+                        p.grad is None or bool(torch.isfinite(p.grad).all())
+                        for p in model.parameters()
+                    )
+                    if not grads_ok:
+                        n_skipped += 1
+                        if n_skipped <= 5 or n_skipped % 100 == 0:
+                            logger.warning(
+                                "non-finite GRADIENTS (batch shots %s, loss "
+                                "%.3g) — step skipped (%d so far)",
+                                [s["shot"] for s in chunk],
+                                float(loss),
+                                n_skipped,
+                            )
+                        opt.zero_grad()
+                        continue
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), 10.0)
                     opt.step()
                 model.eval()
                 vm, vm0 = [], []
