@@ -306,12 +306,14 @@ def _harmonic_read_for_slice(
 def build_slice_soft_priors(payload, grid, table, basis, meta, spc):
     """Per-slice :class:`SoftPriors` for the anchored interior solve, or None.
 
-    The annulus boundary anchor recomputes the §2 source-free ψ INLINE for this
-    slice (via :func:`_harmonic_read_for_slice`, config frozen on train), reads
-    its own boundary/axis flux (frozen per slice), fixes the annulus point set
-    there, and targets the harmonic plasma ψ at those points (abs-ψ + rank-1
-    offset — the gauge-keeping form the measurement selected).  The soft SOL
-    edge, the q ≥ 1 sawtooth bound, and the Ip-soft prior are added from ``spc``.
+    The annulus boundary anchor recomputes the §2 boundary read INLINE for this
+    slice, reads its own boundary/axis flux (frozen per slice), fixes the
+    annulus point set there, and targets the read's plasma ψ at those points
+    (abs-ψ + rank-1 offset — the gauge-keeping form the measurement selected).
+    ``spc["boundary_prior"]`` selects the read: ``"disc"`` (default — the
+    staged-disc read, :mod:`imas_ambix.latent.boundary_disc`) or ``"th"`` (the
+    frozen toroidal-harmonic read, retained for ablation).  The soft SOL edge,
+    the q ≥ 1 sawtooth bound, and the Ip-soft prior are added from ``spc``.
     Returns ``(SoftPriors|None, anchored_bool)``.
     """
     from imas_ambix.latent.boundary_prior import (
@@ -323,10 +325,45 @@ def build_slice_soft_priors(payload, grid, table, basis, meta, spc):
     sp_kwargs: dict = {}
     anchored = False
     weight = float(spc.get("anchor_weight", 0.0))
+    prior_kind = str(spc.get("boundary_prior", "disc"))
     if weight > 0.0 and basis is not None:
-        read = _harmonic_read_for_slice(payload, grid, table, basis, meta or {})
-        if read is not None:
-            cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi, _ring = read
+        # normalise both reads to (misfit, psi_tot, axis_psi, boundary_psi,
+        # target_fn) where target_fn(flat_idx, form) -> plasma-psi target rows
+        read_norm = None
+        if prior_kind == "disc":
+            from imas_ambix.latent.boundary_disc import disc_read  # noqa: PLC0415
+
+            inv = disc_read(payload, grid, table, basis)
+            if inv is not None and inv.ring is not None:
+                psi_plasma_flat = inv.psi_plasma.ravel()
+
+                def _disc_target(flat_idx, form):
+                    if form != "abs-psi":  # pragma: no cover - guarded upstream
+                        raise ValueError(
+                            "disc boundary prior supplies abs-psi targets only"
+                        )
+                    return psi_plasma_flat[flat_idx]
+
+                read_norm = (
+                    inv.misfit,
+                    inv.psi_tot,
+                    inv.axis_psi,
+                    inv.boundary_psi,
+                    _disc_target,
+                )
+        else:
+            read = _harmonic_read_for_slice(payload, grid, table, basis, meta or {})
+            if read is not None:
+                cfg, coeffs, misfit, psi_tot, axis_psi, boundary_psi, _ring = read
+                frozen = {"cfg": cfg, "coeffs": coeffs}
+
+                def _th_target(flat_idx, form):
+                    return harmonic_annulus_target(frozen, grid, flat_idx, form)
+
+                read_norm = (misfit, psi_tot, axis_psi, boundary_psi, _th_target)
+
+        if read_norm is not None:
+            misfit, psi_tot, axis_psi, boundary_psi, target_fn = read_norm
             ann_idx = annulus_point_set(
                 grid,
                 psi_carrier=psi_tot,
@@ -339,7 +376,6 @@ def build_slice_soft_priors(payload, grid, table, basis, meta, spc):
             )
             ann_rows = ann_rows[valid]
             if ann_rows.size >= 4:
-                frozen = {"cfg": cfg, "coeffs": coeffs}
                 form = spc.get("anchor_form", "abs-psi")
                 # per-slice read uncertainty (heavy-tailed): use the fit misfit,
                 # floored, so noisier slices weigh the anchor less
@@ -352,18 +388,14 @@ def build_slice_soft_priors(payload, grid, table, basis, meta, spc):
                     anchor_uncertainty=unc,
                 )
                 if form == "grad-psi":
-                    # field-matched "virtual magnetics": the harmonic flux
-                    # GRADIENT [dΦ/dR ; dΦ/dZ] at the annulus points (gauge-free)
-                    target = harmonic_annulus_target(
-                        frozen, grid, grid.cells[ann_rows], "grad-psi"
-                    )
+                    # field-matched "virtual magnetics": the read's flux GRADIENT
+                    # [dΦ/dR ; dΦ/dZ] at the annulus points (gauge-free; TH only)
+                    target = target_fn(grid.cells[ann_rows], "grad-psi")
                     sp_kwargs.update(
                         common, anchor_grad_target=np.asarray(target, dtype=np.float64)
                     )
                 else:
-                    target = harmonic_annulus_target(
-                        frozen, grid, grid.cells[ann_rows], "abs-psi"
-                    )
+                    target = target_fn(grid.cells[ann_rows], "abs-psi")
                     sp_kwargs.update(
                         common,
                         anchor_psi_target=np.asarray(target, dtype=np.float64),
@@ -902,6 +934,7 @@ def run_gate(args) -> int:
     soft_prior_cfg = {
         "anchor_weight": args.anchor_weight,
         "anchor_form": args.anchor_form,
+        "boundary_prior": args.boundary_prior,
         "anchor_robust_clip": (
             args.anchor_robust_clip if args.anchor_robust_clip > 0 else None
         ),
@@ -1447,6 +1480,15 @@ def main() -> int:
         help="annulus ψ-consistency anchor weight (0 = OFF = free-boundary A0); "
         "the boundary read enters as a SOFT prior at this weight (abs-ψ + rank-1 "
         "gauge offset — the gauge-keeping form the measurement selected)",
+    )
+    ap.add_argument(
+        "--boundary-prior",
+        type=str,
+        default="disc",
+        choices=("disc", "th"),
+        help="§2 boundary read feeding the annulus anchor: 'disc' (staged "
+        "uniform-disc + gated quadrupole — the cohort-validated default) or "
+        "'th' (frozen toroidal-harmonic read, retained for ablation)",
     )
     ap.add_argument(
         "--anchor-form",
