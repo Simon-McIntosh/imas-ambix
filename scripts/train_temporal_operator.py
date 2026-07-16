@@ -290,7 +290,11 @@ def boundary_shift_cm(model, decoders, eigenbases, eddy_sens, seqs, device) -> f
         zg = basis.grid_z.cpu().numpy()
         lim_r, lim_z = s["limiter"]
         kw = dict(limiter_r=lim_r, limiter_z=lim_z, clip_legs=True)
-        for t in range(min(s["n"], 8)):
+        # drift is bounded where the spine is already good (quasi-flat-top);
+        # early-shot boundary movement is the operator's whole job, not drift
+        ip_seq = np.asarray(s["ip"][: s["n"]], dtype=np.float64)
+        flattopish = np.flatnonzero(ip_seq >= 0.7 * ip_seq.max())[:8]
+        for t in flattopish:
             dpsi = basis._g_pg_np @ di[t] + eb.g_grid @ da_np[t]
             psi_spine = s["psi"][t]
             axis = (float(s["target"][t][0]), float(s["target"][t][1]))
