@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-16">
 <meta name="plan-impl" content="0.67">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
 </head>
 <body>
 <main class="plan-doc">
@@ -139,7 +139,8 @@
     spine-adjacent and the temporal irreducibles stay unexploited. p′/FF′ split scorer's operator
     arm NaN (separate open defect). Full record:
     <a href="archive/learned-equilibrium-operator-s2-r2-landed.html">§2 R2 record</a>.
-    Next: one bounded iteration on the training signal (f-leo-04).</p>
+    Next: one bounded iteration on the training signal with boundary + topological terms
+    first-class (f-leo-05).</p>
   </section>
 
   <p><strong>R3 — cross-machine transfer.</strong> All machine dependence enters through the
@@ -484,7 +485,7 @@ Done-when
   3. Plan updated same-turn; R3 followup written; this followup resolved</pre>
     <p class="r-fu-outcome">R2 built + first VALID test recorded — G2 FAIL (honest negative). Temporal operator (causal transformer + L/R diagonal-SSM eddy block, taus 35.8→4.1 ms, byte-exact spine at init, 23 tests green); corpus 503 shards / 14,441 slices; synthetic pretraining R² +0.25 vs −0.27 raw. Clean training (0 skipped steps): flat-top op−disc +0.90 cm CI [−0.63,+2.33]; ramp-up 8.18 cm vs 5 cm bar; axis 6.11 vs 5.1 cm; non-inferiority vs spine FAIL (axis CI [−0.058,+0.080], X-point [−0.100,−0.004] cross the −0.05 margin). Mechanism: val sensor misfit improves 5.87→4.38 but ALL sweep points exceed the 0.75 cm flat-top drift bound (0.83–3.95 cm; tightest-regularisation fallback selected) — the self-supervised sensor signal does not buy boundary skill; selected model is spine-adjacent. p′/FF′ split operator arm NaN (separate open defect in the ladder refit). Archive: docs/archive/learned-equilibrium-operator-s2-r2-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-leo-04" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-16T22:20:00+00:00" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-leo-04" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-16T22:20:00+00:00" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="2026-07-16T20:52:26+00:00" data-resolved-by="reckon-ship (lead review)">
     <h4 class="r-fu-title">R2 iteration — put boundary fidelity into the training signal (one bounded attempt)</h4>
     <div class="r-fu-body"><p>The first valid R2 test failed G2 with a clear mechanism: the operator improves whitened sensor misfit (5.87→4.38 val) but every leash/ridge sweep point trades flat-top boundary drift past the 0.75 cm bound — nothing in the self-supervised loss rewards boundary fidelity, so selection falls back to the most-regularised, spine-adjacent model and the temporal irreducibles stay unexploited. One bounded iteration on the objective/selection: differentiable boundary-consistency term through the existing ψ decode, drift-aware selection on a skill proxy, wider leash/ridge range, the locked direct-DOF ablation arm; fix the split-path NaN so p′/FF′ can score. If flat-top Δ and ramp-up median do not move materially, record a sustained negative and re-plan the temporal thesis rather than iterating blind.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -526,6 +527,87 @@ Done-when
      honestly (PASS → queue R3 synthetic-machine transfer; FAIL with no material movement on
      flat-top Δ or ramp-up median → record sustained negative + open a re-planning followup
      for the temporal thesis, do NOT iterate again)
+  2. Split scorer operator arm returns finite numbers on the 96-slice synthetic set
+  3. Plan updated same-session: archive updated or appended, evergreen summary refreshed,
+     this followup resolved, next followup written</pre>
+    <p class="r-fu-outcome">Superseded by f-leo-05 before any work started: lead review folded topological terminator/null-integrity terms into the iteration as first-class objectives (terminator-consistency anchor at spine-trusted slices + critical-point integrity regulariser; hard class supervision banned per the emergent-class decision). No other change of intent.</p>
+    </article>
+<article class="r-fu" data-id="f-leo-05" data-status="open" data-tier="opus" data-written-by="reckon-ship (lead review 2026-07-16)" data-written-at="2026-07-16T22:35:00+00:00" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">R2 iteration — boundary + topological terms in the training signal (one bounded attempt)</h4>
+    <div class="r-fu-body"><p>Supersedes f-leo-04 (topological terms made first-class at lead review). The first valid R2 test failed G2 with a clear mechanism: sensor misfit improves 5.87→4.38 but every sweep point trades flat-top boundary drift past the 0.75 cm bound — the loss rewards sensors, not boundaries, and the X-point-set skill CI [−0.100,−0.004] shows the corrections wiggle the saddles. One bounded iteration on the objective/selection with the topology of a valid boundary (terminates at a limiter tangency OR an X-point) driving the design: (1) terminator-consistency anchor on spine-trusted slices — pointwise |∇ψ|² at the spine's X-point / limiter-tangency condition + boundary-flux softmin consistency, phrased as a penalty on the CHANGE the correction induces (frozen-ψ_N honesty), cheap via Green's rows at a few points; (2) critical-point integrity regulariser — penalise spurious interior O-points/saddles, label-free; (3) ring-drift penalty as fallback; plus skill-aware selection, wider sweep, the locked direct-DOF ablation arm, and the split-path NaN fix. Hard class supervision is BANNED (emergent-class decision). Stop rule: no material movement on flat-top Δ or ramp-up median → sustained negative, re-plan the temporal thesis.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    learned-equilibrium-operator (docs/learned-equilibrium-operator.html)
+Section: §2 (rung R2, bounded iteration) + §6 (gate G2)
+Tier:    opus
+Session budget: ~10 h wall-clock — enough for design + implementation + ONE full train/gate
+  cycle (pipeline itself runs ~15-40 min on betelgeuse) + one contingency re-run if a defect
+  (not a verdict) is found. The stop rule is scope, not time: do not spend leftover hours on
+  extra training iterations.
+
+Context (read the R2 record FIRST)
+  docs/archive/learned-equilibrium-operator-s2-r2-landed.html — the full G2 FAIL record.
+  Definitive run (job 1229626, _r2_fix_cycle_1229626.log): clean training (0 skipped steps),
+  G2 FAIL: flat-top op−disc +0.90 cm CI [−0.63,+2.33]; ramp-up 8.18 cm vs 5 cm bar; axis 6.11
+  vs 5.1 cm; non-inferiority vs spine FAIL on tail CIs — including X-point-set skill
+  [−0.100,−0.004]: the corrections wiggle the saddles. MECHANISM: val sensor misfit improves
+  5.87→4.38 but ALL sweep points exceed the 0.75 cm flat-top drift bound (0.83–3.95 cm) —
+  selection fell back to the tightest-regularised, spine-adjacent model. The training signal
+  rewards sensor reconstruction, not boundaries; the anchor terms below collapse that
+  degeneracy WITHOUT becoming the information source (wins must come from the eddy history on
+  un-anchored ramp-up slices — R1 already proved labels≠ceiling when the referee is EFIT).
+
+Topological design rationale (first-class — read before implementing)
+  The push-out reader already GUARANTEES the emitted boundary terminates at a limiter tangency
+  or a saddle (class emergent — locked by the connectivity-boundary decision; hard class
+  supervision is BANNED). The topology enters as TRAINING SIGNAL, not output validity:
+  a) Terminator-consistency anchor (spine-trusted quasi-flat-top slices only, mirroring the
+     drift bound): penalise |∇ψ|² at the spine&#x27;s X-point location (diverted slices) or the
+     tangency condition at its limiter-contact point (limited slices), plus consistency of the
+     boundary flux ψ_b = softmin(ψ_lim, ψ_X) — the either/or disjunction is differentiable as
+     a softmin over candidate terminator fluxes. Phrase it as a penalty on the CHANGE the
+     correction induces at the terminator (the decode is a frozen-ψ_N linearisation — an
+     absolute condition is not representable; the delta form keeps the approximation honest).
+     Cost: ∇ψ at 2-3 points = a few cylinder-kernel Green&#x27;s rows — build once per campaign
+     geometry and cache like the eigenbases. Spine labels carry the terminator targets
+     (xpt0/xpt1 positions in the shard targets; limiter contour in the sequence payload).
+     This is a 2-3 point anchor, NOT a ring anchor — lower-dimensional, less spine-emulation
+     pressure, and it directly targets the measured X-point-set regression.
+  b) Critical-point integrity regulariser (unconditional, label-free): penalise spurious
+     interior O-points/saddles in the corrected ψ — keep the Morse structure to one axis null
+     plus legitimate X-points. This attacks the sensor objective&#x27;s degenerate directions
+     (the grounding review&#x27;s null-space fill) with no reference to any label.
+  c) Ring-drift penalty (flat-top distance to the spine LCFS ring) ONLY as fallback if the
+     pointwise terminator form under-constrains — it carries the strongest distillation
+     pressure, keep its weight soft.
+
+Remaining iteration scope (same cycle)
+  d) Skill-aware selection: select on a composite (val misfit + drift/terminator penalty) or a
+     val-shot boundary-skill proxy — NEVER on anchor satisfaction alone (a spine emulator
+     maximises the anchor and scores exactly spine = FAIL).
+  e) Wider sweep: leash/ridge ranges bracketing the 0.75 cm drift bound from BOTH sides.
+  f) Locked ablation arm: direct-DOF emission (residual-vs-end-to-end decision).
+  g) Fix the p′/FF′ split scorer operator-arm NaN (invalid sqrt in imas_ambix/gs/operator.py
+     ladder refit when operator-corrected currents leave the valid domain) so the split
+     criterion can score. Consider synthetic-truth sequences (exact boundaries, exact eddy
+     histories) as genuinely-supervised boundary signal — ground truth there, not distillation.
+
+Scope locks / constraints
+  EFIT firewalled (referee eval-only); standing held-out 18502-18505 + eval cohort never
+  trained on; thick-cylinder hybrid_greens only; eddy amplitudes enter as EXTERNAL currents
+  through the Green&#x27;s layer; labels spine-made; warm-chain strict-converged (pinned);
+  emergent boundary class — NO class supervision, NO classifier/X-gate in the reader.
+  Training on betelgeuse H200 (scripts/_r2_fix_cycle.sh pattern: sbatch + sentinels +
+  file-redirect; reservation gpu_0003_grpA). Padded-batch contract pinned by
+  test_fully_masked_padded_tail_stays_finite_and_padding_invariant — do not regress it;
+  never test emptiness on a clamped denominator; mask by torch.where, never by multiply.
+
+Done-when
+  1. Terminator + integrity terms implemented with unit tests (pointwise ∇ψ rows vs the grid
+     field; penalty zero at dc=0 by construction); ONE full training + G2 gate cycle with the
+     revised signal/selection; verdict recorded honestly (PASS → queue R3 synthetic-machine
+     transfer; FAIL with no material movement on flat-top Δ or ramp-up median → record
+     sustained negative + open a re-planning followup for the temporal thesis, do NOT iterate
+     again)
   2. Split scorer operator arm returns finite numbers on the 96-slice synthetic set
   3. Plan updated same-session: archive updated or appended, evergreen summary refreshed,
      this followup resolved, next followup written</pre>

@@ -163,11 +163,15 @@
     </ul>
 
     <h2>What's next</h2>
-    <p>One bounded R2 iteration on the <em>training signal</em> (followup <code>f-leo-04</code>):
-    put boundary fidelity into the objective (or the selection) instead of hoping sensor
-    reconstruction implies it — candidates: differentiable boundary/flux-surface consistency term
-    through the existing ψ decode, drift-bound-aware selection on a skill proxy, wider
-    leash/ridge range, and the locked direct-DOF ablation arm. Fix the split-path NaN so the
+    <p>One bounded R2 iteration on the <em>training signal</em> (followup <code>f-leo-05</code>,
+    superseding f-leo-04 after lead review made the topological terms first-class): put boundary
+    fidelity into the objective as the <em>topology of a valid boundary</em> — a
+    terminator-consistency anchor on spine-trusted slices (pointwise |∇ψ|² at the spine's
+    X-point / limiter-tangency, boundary-flux softmin consistency, phrased as a penalty on the
+    change the correction induces) plus a label-free critical-point integrity regulariser
+    (no spurious interior nulls), with the full-ring drift penalty only as fallback — alongside
+    skill-aware selection, a wider leash/ridge sweep, and the locked direct-DOF ablation arm.
+    Hard class supervision stays banned (emergent-class decision). Fix the split-path NaN so the
     p′/FF′ criterion can score. If the iteration cannot move the flat-top Δ or the ramp-up
     median materially, the rung records a sustained negative and the plan re-plans the temporal
     thesis rather than iterating blind.</p>
