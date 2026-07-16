@@ -21,9 +21,9 @@
   <title>Decoupled Equilibrium Read | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-15">
-<meta name="plan-version" content="11">
-<meta name="plan-impl" content="0.7">
+<meta name="plan-modified" content="2026-07-16">
+<meta name="plan-version" content="12">
+<meta name="plan-impl" content="0.75">
 </head>
 <body>
 <main class="plan-doc">
@@ -133,19 +133,43 @@
     topology machinery dissolves once the boundary is soft-anchored, rather than being fixed away.</figcaption>
   </figure>
 
-  <h2 id="s2">§2 — Boundary route (LANDED): the source-free toroidal-harmonic annulus read</h2>
-  <p>Owned by <a href="/imas-ambix/toroidal-harmonic-annulus-read.html">toroidal-harmonic-annulus-read</a>
-  (a hard <code>depends_on</code>), now <strong>shipped</strong>. It fits ψ in the Δ\*-eigenfunctions
-  (order-1 half-integer Legendre ring functions) in the vacuum annulus, matched to raw external
-  magnetics + coil field + Ip + li, and reads the separatrix / X-point / LCFS + limited-vs-diverted
-  class off that smooth source-free field — no interior current, EFIT-firewalled. Held-out (n=160,
-  firewalled EFIT): <strong>best-in-class LCFS ~6.7&nbsp;cm</strong>, connectivity X-point-set −1.80,
-  and — the load-bearing number for §3 — a <strong>vacuum-annulus ψ-consistency of 0.068–0.089</strong>
-  (the interior carrier ψ vs the harmonic ψ agree in the shared annulus, confirming the source-free
-  premise). Two properties define how §3 must consume it: it is a <em>low-order</em> read (order 3;
-  order 5 aliases), and it is valid ONLY in the annulus (the axis stays with the interior carrier).
-  Both say the same thing — it is a boundary <em>prior</em>, not a boundary <em>fact</em>. It is also
-  the classical baseline the learned operator (§4) must beat.</p>
+  <h2 id="s2">§2 — Boundary route: staged-disc read <span style="color:#1b7837">✓ superseded TH 2026-07-16</span></h2>
+
+  <div style="border:1px solid #1b7837;border-left-width:4px;border-radius:6px;padding:0.7em 1em;margin:0.4em 0 1.2em">
+    <strong style="color:#14612b">§2 UPGRADED — the staged-disc read is the boundary route (the robust
+    outer half of the GS-constrained physics spine).</strong>
+    A full robustness investigation (<a href="/imas-ambix/th-boundary-robustness.html">th-boundary-robustness</a>,
+    §1–§18) replaced the toroidal-harmonic read with the <strong>staged-disc read</strong>
+    (<code>imas_ambix/latent/boundary_disc.py</code>): measured Rogowski Ip (pinned, never fit) →
+    robust 2-DOF filament-position current centroid (B-probes + flux loops; the cell-current LSQ
+    centroid swings 0.3–0.7&nbsp;m and is never used) → uniform-current disc, radius self-consistently
+    converged → quadrupole fitted to the RESIDUAL signal, accepted only if it moves the push-out
+    boundary &lt; 15% of the disc radius (the over-fit gate; sensor misfit does NOT separate over-fit
+    from real shape — measured three times) → one push-out on the gauged total flux.
+    <strong>Held-out vs firewalled EFIT: flat-tops 1.4–2.1&nbsp;cm, ramp-ups 5–10&nbsp;cm, never
+    catastrophic</strong> (TH was 4.3 best / 29&nbsp;cm worst). Key physics locked: the boundary is a
+    near-edge feature the far magnetics do not uniquely determine — the separatrix tracks the current
+    EXTENT, which a physical source carries and a vacuum multipole cannot (why TH over-sizes its
+    interior LCFS at any order/regularisation; TH remains a fine annulus field model and the §4
+    classical baseline). An opt-in, shift-gated <strong>passive (vessel-eddy) stage</strong> ships
+    with it (helps the worst ramp-ups at physical ~5–10&nbsp;kA amplitudes; cohort-neutral
+    unconditionally, so OFF by default) — and by construction, any future eddy treatment (the
+    time-coupled L/R evolution queued as follow-on) folds in as <em>more external currents</em>:
+    once their amplitudes are known they simply add to the gauged total flux and
+    <strong>the boundary push-out is unchanged</strong>. Coil geometry also hardened this pass:
+    filled rectangular packs collapse to single thick cylinders (938→139 filaments,
+    GEOMETRY_TABLE_VERSION v2, COIL_MODEL_VERSION v5).
+  </div>
+
+  <p><strong>Original TH route (retained as annulus prior + ablation).</strong> Owned by
+  <a href="/imas-ambix/toroidal-harmonic-annulus-read.html">toroidal-harmonic-annulus-read</a>.
+  It fits ψ in the Δ\*-eigenfunctions (order-1 half-integer Legendre ring functions) in the vacuum
+  annulus, matched to raw external magnetics + coil field + Ip + li. Held-out (n=160): LCFS
+  ~6.7&nbsp;cm, X-point-set −1.80, and the load-bearing <strong>vacuum-annulus ψ-consistency of
+  0.068–0.089</strong> confirming the source-free premise. It is a boundary <em>prior</em>, not a
+  boundary <em>fact</em> — and the staged-disc read now supplies both a better prior and a robust
+  boundary. TH stays available via <code>--boundary-prior th</code> for ablation and remains a
+  classical baseline the learned operator (§4) must beat.</p>
 
   <h2 id="s3">§3 — Interior spine: soft-prior force balance (NOT a fixed-boundary Dirichlet solve) <span style="color:#1b7837">✓ landed 2026-07-15</span></h2>
 
@@ -169,6 +193,20 @@
     <a href="/imas-ambix/equilibrium-boundary-closure-s3-landed.html">§3 landed</a> ·
     <a href="/imas-ambix/equilibrium-boundary-closure-evidence.html">evidence + imas-ink flux maps vs EFIT</a>.
     Design detail retained below.
+  </div>
+
+  <div style="border:1px solid #1b7837;border-left-width:4px;border-radius:6px;padding:0.7em 1em;margin:0.4em 0 1.2em">
+    <strong style="color:#14612b">§3 RE-GATE (2026-07-16) — disc prior adopted as the anchor; TH
+    anchor retired.</strong> Full re-run (n=128/arm, push-out scoring, per-arm bootstrap CIs;
+    artifacts <code>closure_gate_eval-{A0d,D1,T1}.json</code>): <strong>D1 (disc-anchored, w=1) is
+    best on every skill metric</strong> — LCFS −0.360 [−0.57,−0.13] vs free −0.406 and TH-anchored
+    −0.518; axis −0.045 (non-inferior to free); X-point 0.507 (best); <strong>reseed attractor
+    eliminated (0.8%→0.000%)</strong>. T1 (TH anchor) is WORSE than the free baseline on both axis
+    and LCFS — feeding the pole-fragile read as a prior actively hurt the solve, so it is retired
+    (<code>--boundary-prior disc</code> is the closure-gate default; th kept for ablation). D1 also
+    edges the shipped −0.392 on a run carrying the collapsed-coil geometry v2 + leg-clip reader.
+    Full investigation record:
+    <a href="/imas-ambix/th-boundary-robustness.html">th-boundary-robustness</a> §17.
   </div>
 
   <p><strong>Why not fix the boundary.</strong> The tempting move — take the §2 LCFS as an exact
@@ -851,6 +889,41 @@ Done-when
     <h4 class="r-fu-title">§3 CORRECTION (lead-caught) — the boundary-skill ‘negative’ was a scoring-read artifact; §3 boundary goal ACHIEVED</h4>
     <div class="r-fu-body">The flux-map overlay showed the interior ψ already carries the correct large closed-flux region (its push-out lcfs_contour read matches the §2 TH read and EFIT), while the scored innermost-X-point read under-sized the LCFS by ~28 cm. The closure interior arm was scored with the OLD innermost-X read while §2 uses the LANDED push-out reader — not the same reader. Added geometry_target_pushout + --boundary-read pushout. Re-scored held-out (128 slices): A0 free-boundary posts 3.35 cm LCFS (skill −0.392), BEATING the §2 read's 6.7 cm / −1.96, X-point skill +0.47. §3 boundary goal ACHIEVED (best-in-class); attractor gate MET (reseed 0.8%→0.0%). The soft anchor's value is attractor stabilisation, not a boundary gain (free solve already at the ~7-DOF external-field ceiling). Corrects the earlier honest-negative outcome recorded on f-ebc-05.</div>
     <pre class="r-fu-prompt">done — correction recorded; adopt --boundary-read pushout as the interior-arm default and pursue §4 to beat the external-field ceiling</pre>
+    </article>
+<article class="r-fu" data-id="f-ebc-08" data-status="resolved" data-tier="opus" data-written-by="close-out sweep" data-written-at="2026-07-16" data-recommends-skill="" data-resolved-at="2026-07-16" data-resolved-by="close-out sweep">
+    <h4 class="r-fu-title">§2/§3 — staged-disc boundary read adopted; disc-anchored re-gate landed; TH anchor retired</h4>
+    <div class="r-fu-body">Robustness investigation (th-boundary-robustness §1–§18) replaced the TH boundary read with the staged-disc read (boundary_disc.py): Ip-pinned + 2-DOF filament centroid + self-consistent uniform disc + shift-gated quadrupole. Held-out vs firewalled EFIT: flat-tops 1.4–2.1 cm, ramp-ups 5–10 cm, never catastrophic. Re-gate n=128/arm: D1 disc-anchored best on every metric (LCFS −0.360, axis −0.045, X-pt 0.507, reseed 0%); TH anchor retired (worse than free). Opt-in shift-gated passive (vessel-eddy) stage ships OFF by default; future eddy treatments fold in as more external currents — the boundary push-out is unchanged. Coil packs collapsed (v2). The robust outer half of the GS-constrained physics spine is in place.</div>
+    <pre class="r-fu-prompt">done — recorded in the evergreen (§2/§3 cards), th-boundary-robustness (research), and the closure-gate artifacts closure_gate_eval-{A0d,D1,T1}.json.</pre>
+    </article>
+<article class="r-fu" data-id="f-ebc-09" data-status="open" data-tier="opus" data-written-by="close-out sweep" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship channel-uncertainty-management" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">§2 refinements (optional): time-coupled eddy evolution + channel-level uncertainty weights</h4>
+    <div class="r-fu-body">Two measured, well-scoped refinements to the staged-disc read: (1) time-coupled eddy evolution — per-slice static passive fitting is under-determined (no gate separates help from harm; dIp/dt fails; the eddy state is an L/R convolution of the current history); fit passive mode amplitudes jointly across consecutive slices with an L/R smoothness prior; infrastructure (passive_coupling_matrices, shift gate, opt-in stage) is in place. (2) channel-level uncertainty management — plan channel-uncertainty-management (projector-based per-channel down-weighting; honest-null retirement path). Neither blocks §4.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    equilibrium-boundary-closure (http://localhost:8765/imas-ambix/equilibrium-boundary-closure.html)
+Section: §2 refinements
+Tier:    opus
+
+Context
+  The staged-disc boundary read is adopted and re-gated (f-ebc-08). Two optional
+  refinements were measured and queued: time-coupled eddy evolution (the per-slice
+  static passive stage is under-determined by construction) and the channel-weight
+  layer (plan channel-uncertainty-management).
+
+State to read
+  imas_ambix/latent/boundary_disc.py (opt-in passive stage, shift gate)
+  docs/th-boundary-robustness.html §18 (passive trials, structure-moment negative)
+  docs/channel-uncertainty-management.html (the weight-layer plan)
+
+Scope locks / constraints
+  Passive currents enter as MORE EXTERNAL CURRENTS added to the gauged total flux;
+  the boundary push-out stays unchanged. Uncertainty management adjusts payload.scale,
+  never signal values. Both flag-gated, OFF by default, A/B-validated vs EFIT.
+
+Done-when
+  1. time-coupled eddy prototype beats both OFF and the static opt-in on ramp-ups
+     without regressing flat-tops (else record the honest null)
+  2. channel-weight layer per its plan&#x27;s done-when
+  3. followup written into plan + this one resolved</pre>
     </article>
 </section>
 
