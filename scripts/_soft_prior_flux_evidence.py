@@ -37,12 +37,10 @@ def _th_lcfs_ring(p, grid, table, basis, meta):
     """The §2 two-pass source-free TH read's own LCFS ring for this slice
     (moderate-order + graded ridge, origin re-sited on the LCFS centroid,
     ψ_N=1 leg-clip) — the boundary the anchor targets, to overlay in green."""
-    from scripts.closure_gate_eval import _harmonic_read_for_slice
+    from imas_ambix.latent.boundary_disc import disc_read
 
-    read = _harmonic_read_for_slice(p, grid, table, basis, meta or {})
-    if read is None:
-        return None
-    return read[6]  # the final two-pass LCFS ring
+    inv = disc_read(p, grid, table, basis)
+    return None if inv is None else inv.ring
 
 
 def _pushout_lcfs_ring(psi, grid, axis):
@@ -60,7 +58,7 @@ def _pushout_lcfs_ring(psi, grid, axis):
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--anchor-weight", type=float, default=1.0)
+    ap.add_argument("--anchor-weight", type=float, default=10.0)
     ap.add_argument("--n-train", type=int, default=40)
     ap.add_argument("--n-heldout", type=int, default=8)
     ap.add_argument("--nr", type=int, default=65)
@@ -90,6 +88,8 @@ def main() -> int:
     _lookup, meta = load_frozen_lookup(FROZEN)
     spc = {
         "anchor_weight": args.anchor_weight,
+        "anchor_form": "abs-psi",
+        "boundary_prior": "disc",
         "anchor_robust_clip": 3.0,
         "sol_cap": 1.0,
         "q_bound": False,
@@ -132,8 +132,10 @@ def main() -> int:
                 convergence_limit=5e-3,
                 retry_max_iterations=160,
                 fit_mode="ladder",
-                n_p=1,
-                n_f=1,
+                n_p=3,
+                n_f=3,
+                nonneg=True,
+                smoothness=1e-2,
                 passive=None,
                 reseed_axis_r_max=1.4,
                 keep_psi=True,
@@ -176,7 +178,7 @@ def main() -> int:
                 if th_ring is not None:
                     ax0.plot(
                         th_ring[:, 0], th_ring[:, 1], "-", color="#1b9e2f",
-                        lw=2.0, label="§2 TH (two-pass)", zorder=6,
+                        lw=2.0, label="§2 disc read", zorder=6,
                     )
                 ax0.legend(fontsize=6, loc="upper right")
                 fig.suptitle(f"{shot} t={p.time_s:.3f}s ({kind}) — {tag}", fontsize=9)
