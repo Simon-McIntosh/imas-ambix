@@ -387,10 +387,13 @@ class TemporalOperator(nn.Module):
         """(B, T, S, F) sensor tokens → (B, T, 2·width) masked mean+max codes."""
         h = self.token_mlp(tokens)
         w = token_mask.to(h.dtype).unsqueeze(-1)
-        denom = w.sum(dim=2).clamp(min=1.0)
-        mean_pool = (h * w).sum(dim=2) / denom
+        n_valid = w.sum(dim=2)
+        mean_pool = (h * w).sum(dim=2) / n_valid.clamp(min=1.0)
         max_pool = torch.where(w > 0, h, h.new_full((), -1e30)).amax(dim=2)
-        max_pool = torch.where(denom > 0, max_pool, torch.zeros_like(max_pool))
+        # a fully-masked timestep (padded tail of a mixed-length batch) must
+        # emit zeros, not the -1e30 max sentinel — test on the TRUE valid
+        # count, never on a clamped denominator that is always positive
+        max_pool = torch.where(n_valid > 0, max_pool, torch.zeros_like(max_pool))
         return torch.cat([mean_pool, max_pool], dim=-1)
 
     def forward(
@@ -436,9 +439,12 @@ class TemporalOperator(nn.Module):
         )
         da = da_std * self.eddy_std
         if pad_mask is not None:
-            keep = (~pad_mask).to(da.dtype).unsqueeze(-1)
-            dc = dc * keep
-            da = da * keep
+            # select, never multiply: any non-finite value a padded position
+            # picks up would survive a multiplicative mask (NaN * 0 == NaN)
+            # and poison the batch loss
+            keep = (~pad_mask).unsqueeze(-1)
+            dc = torch.where(keep, dc, torch.zeros_like(dc))
+            da = torch.where(keep, da, torch.zeros_like(da))
         return dc, da
 
 

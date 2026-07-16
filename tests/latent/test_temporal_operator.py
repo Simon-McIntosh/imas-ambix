@@ -220,6 +220,34 @@ def test_padding_steps_emit_zero_and_do_not_disturb_valid_steps():
     assert torch.allclose(da_pad[:, :4], da_full[:, :4], atol=1e-6)
 
 
+def test_fully_masked_padded_tail_stays_finite_and_padding_invariant():
+    """Mixed-length batches pad the tail with token_mask ALL-False steps —
+    the empty-timestep pooling must emit zeros (not a max sentinel that
+    overflows downstream), outputs must stay finite everywhere, and the
+    valid prefix must match the unpadded single-sequence forward."""
+    model = _fresh_model()
+    _randomise_heads(model)
+    model.eval()
+    inputs = _model_inputs(model)
+    b, t = inputs["dt"].shape
+    n_short = 3
+    pad = torch.zeros(b, t, dtype=torch.bool)
+    pad[1, n_short:] = True
+    inputs["token_mask"][1, n_short:] = False  # as pad_batch builds it
+    inputs["token_mask"][1, :n_short] = True
+    with torch.no_grad():
+        dc_pad, da_pad = model(**inputs, pad_mask=pad)
+        dc_one, da_one = model(
+            **{k: v[1:2, :n_short] for k, v in inputs.items()}
+        )
+    assert torch.isfinite(dc_pad).all()
+    assert torch.isfinite(da_pad).all()
+    assert torch.all(dc_pad[1, n_short:] == 0.0)
+    assert torch.all(da_pad[1, n_short:] == 0.0)
+    assert torch.allclose(dc_pad[1, :n_short], dc_one[0], atol=1e-6)
+    assert torch.allclose(da_pad[1, :n_short], da_one[0], atol=1e-6)
+
+
 def test_checkpoint_round_trip_is_exact(tmp_path):
     model = _fresh_model()
     _randomise_heads(model)
