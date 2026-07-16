@@ -136,6 +136,34 @@
   treatment folds in as additional external currents on the gauged total flux — the boundary push-out
   is unchanged.</p>
 
+  <h3>Boundary-bias fix + spine FREEZE (2026-07-16, D2)</h3>
+  <p>The lead observed the anchored interior boundary sitting systematically INSIDE both EFIT and the
+  disc prior. Three causes were found and fixed: (1) the anchor's rank-1 gauge offset — right for the
+  TH read's gauge ambiguity — was discarding the ψ-level information that sets boundary size (the disc
+  ψ is absolutely gauged: offset now pinned for <code>boundary_prior=disc</code>); (2) the anchor
+  weight was tuned for the untrustworthy TH prior (w=1) — re-set to w=10 with the load-bearing Huber
+  clip; (3) the profile family was frozen at n=1 with an enforced linear edge zero — the boundary
+  tracks the current EXTENT, so the edge-starved basis under-sized broad plasmas; n_p=n_f=3
+  monomial-nonneg (sub-linear e=0.5 edge) breaks the plateau. Re-gate (n=128/arm):</p>
+  <table>
+    <thead><tr><th>arm</th><th>axis skill</th><th>axis median</th><th>LCFS skill [CI]</th><th>flat-top LCFS</th><th>reseed</th></tr></thead>
+    <tbody>
+      <tr><td>F0 free (n=3 profile)</td><td>−1.357</td><td>8.8 cm</td><td>−2.001 [−2.62, −1.34]</td><td>4.62 cm</td><td>10.2%</td></tr>
+      <tr><td>D3 disc-anchored w=3</td><td>−0.437</td><td>5.5 cm</td><td>−0.471 [−0.88, −0.12]</td><td>2.51 cm</td><td>0.0%</td></tr>
+      <tr><td><strong>D2 disc-anchored w=10 (FROZEN)</strong></td><td>−0.437</td><td>5.9 cm</td><td><strong>−0.209 [−0.50, +0.03]</strong></td><td><strong>1.50 cm</strong></td><td><strong>0.0%</strong></td></tr>
+    </tbody>
+  </table>
+  <p><strong>D2 is the frozen classical spine</strong>
+  (<code>imas_ambix/latent/artifacts/patch_gate/closure_spine_frozen.json</code>): best-ever boundary
+  — 1.50 cm flat-top LCFS, skill −0.209 with the CI touching zero — at a +0.8 cm median axis cost vs
+  D1 (5.1 → 5.9 cm). The axis cost is PROFILE-driven, not weight-driven (D2 ≡ D3 axis), and is a
+  profile-degeneracy symptom: externally only Ip, the current centroid, and βp+li/2 are observable —
+  the magnetic axis is an interior null whose offset from the centroid depends on the p′/FF′ split the
+  external magnetics cannot resolve. Interior fidelity is intentionally NOT chased classically (the
+  EFIT-rebuild guard): it flows to the §4 learned operator / dynamics. The free arm's collapse
+  (reseed 10.2%) confirms the decoupled design — the disc soft prior is load-bearing for the
+  edge-capable profile.</p>
+
   <h3>Verdict — §3 boundary goal ACHIEVED</h3>
   <p><strong>Boundary skill — MET, best-in-class.</strong> Read correctly, the force-balanced interior
   solve (A0) posts <strong>3.35 cm held-out LCFS (skill −0.392)</strong> — <em>better than the §2

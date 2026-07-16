@@ -22,8 +22,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-16">
-<meta name="plan-version" content="12">
-<meta name="plan-impl" content="0.75">
+<meta name="plan-version" content="13">
+<meta name="plan-impl" content="0.8">
 </head>
 <body>
 <main class="plan-doc">
@@ -207,6 +207,24 @@
     edges the shipped −0.392 on a run carrying the collapsed-coil geometry v2 + leg-clip reader.
     Full investigation record:
     <a href="/imas-ambix/th-boundary-robustness.html">th-boundary-robustness</a> §17.
+  </div>
+
+  <div style="border:1px solid #1b7837;border-left-width:4px;border-radius:6px;padding:0.7em 1em;margin:0.4em 0 1.2em">
+    <strong style="color:#14612b">§3 FROZEN (2026-07-16) — D2 is the classical spine endpoint.</strong>
+    The lead caught the anchored interior boundary sitting inside both EFIT and the disc prior; three
+    fixes landed: the anchor gauge pinned for the absolutely-gauged disc prior (the free rank-1 offset
+    was discarding the ψ-level that sets boundary size), anchor weight re-set w=1→10 (the old tune
+    served the untrustworthy TH prior; Huber clip kept — load-bearing), and the profile family widened
+    n=1→3 with the <em>edge-capable</em> monomial-nonneg basis (the enforced linear edge-zero starved
+    the current EXTENT the boundary tracks). Frozen config + results:
+    <code>closure_spine_frozen.json</code>. Held-out (n=128): <strong>flat-top LCFS 1.50&nbsp;cm,
+    LCFS skill −0.209 [−0.50,+0.03] (CI touching zero), reseed 0.000%</strong>, axis median 5.9&nbsp;cm
+    (+0.8&nbsp;cm vs the axis-favoring D1 ablation — the cost is profile-driven and reflects the real
+    external-magnetics degeneracy: only Ip, the current centroid, and βp+li/2 are visible from outside;
+    the axis is an interior null). The free solve with the same profile destabilises (reseed 10.2%) —
+    the disc soft prior is load-bearing, the decoupled design working as intended. <strong>Freeze
+    criterion honoured: boundary-faithful + attractor-stable; interior p′/FF′ fidelity is explicitly
+    NOT chased classically</strong> (the EFIT-rebuild guard) — it belongs to §4 / dynamics.
   </div>
 
   <p><strong>Why not fix the boundary.</strong> The tempting move — take the §2 LCFS as an exact
@@ -924,6 +942,11 @@ Done-when
      without regressing flat-tops (else record the honest null)
   2. channel-weight layer per its plan&#x27;s done-when
   3. followup written into plan + this one resolved</pre>
+    </article>
+<article class="r-fu" data-id="f-ebc-10" data-status="resolved" data-tier="opus" data-written-by="close-out" data-written-at="2026-07-16" data-recommends-skill="" data-resolved-at="2026-07-16" data-resolved-by="close-out">
+    <h4 class="r-fu-title">§3 FROZEN — D2 spine config (boundary-bias fixed: gauge pin + w=10 + edge-capable profile)</h4>
+    <div class="r-fu-body">Lead caught the anchored interior boundary sitting inside EFIT and the disc prior. Fixes: anchor gauge pinned for the absolutely-gauged disc prior; weight w=1→10 (old tune served the TH prior; Huber clip load-bearing); profile n=1→3 monomial-nonneg (edge-capable e=0.5 — the linear edge-zero starved the current extent the boundary tracks). Held-out n=128: flat-top LCFS 1.50 cm, LCFS skill −0.209 [−0.50,+0.03], reseed 0%; axis median +0.8 cm vs D1 (profile-driven — the axis is an interior null; externally only Ip, centroid, βp+li/2 are visible). Free solve with the same profile destabilises (reseed 10.2%) → the disc soft prior is load-bearing. Frozen artifact: closure_spine_frozen.json. Interior p′/FF′ fidelity intentionally not chased classically — flows to §4.</div>
+    <pre class="r-fu-prompt">done — frozen config closure_spine_frozen.json; evergreen §3 freeze card; evidence doc table; th-boundary-robustness carries the full investigation.</pre>
     </article>
 </section>
 

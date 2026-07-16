@@ -1,0 +1,51 @@
+{
+  "name": "closure-spine-D2",
+  "frozen_at": "2026-07-16",
+  "description": "Frozen classical GS spine configuration (equilibrium-boundary-closure section 3 endpoint). Boundary-faithful + attractor-stable; interior profile fidelity intentionally NOT chased classically (flows to the learned operator).",
+  "boundary_read": {
+    "kind": "staged-disc",
+    "module": "imas_ambix.latent.boundary_disc",
+    "config": "DiscReadConfig defaults (passive_k=0)"
+  },
+  "interior_solve": {
+    "fit_mode": "ladder",
+    "n_p": 3,
+    "n_f": 3,
+    "profile_kind": "monomial-nonneg",
+    "smoothness": 0.01,
+    "passive_k": 8,
+    "reseed_axis_r_max": 1.4,
+    "boundary_read_scoring": "pushout"
+  },
+  "soft_priors": {
+    "boundary_prior": "disc",
+    "anchor_weight": 10.0,
+    "anchor_form": "abs-psi",
+    "anchor_gauge_offset": false,
+    "anchor_robust_clip": 3.0,
+    "sol_cap": 1.0,
+    "q_bound": false,
+    "ip_soft_sigma": 0.0
+  },
+  "heldout_results_n128": {
+    "arm": "D2",
+    "axis_skill": -0.437,
+    "axis_median_cm": 5.9,
+    "lcfs_skill": -0.209,
+    "lcfs_skill_ci": [-0.499, 0.031],
+    "lcfs_cm_flattop": 1.499,
+    "xpt_skill": 0.320,
+    "reseed_fraction": 0.0
+  },
+  "ablations": {
+    "D1_np1_w1_freeoffset": {"axis_skill": -0.045, "lcfs_skill": -0.360, "lcfs_cm_flattop": 3.67},
+    "D3_np3_w3_absgauge": {"axis_skill": -0.437, "lcfs_skill": -0.471, "lcfs_cm_flattop": 2.51},
+    "F0_np3_free": {"axis_skill": -1.357, "lcfs_skill": -2.001, "reseed_fraction": 0.102}
+  },
+  "notes": [
+    "axis cost is PROFILE-driven not anchor-weight-driven (D2==D3 axis); median axis cost D1->D2 is +0.8 cm",
+    "the axis is an interior null: externally only Ip, centroid, and beta_p+li/2 are visible; the axis-vs-centroid offset is profile-degenerate (needs dynamics or kinetic data)",
+    "free solve with the edge-capable profile destabilises (reseed 10.2%) -> the disc soft prior is load-bearing",
+    "future eddy/passive treatments enter as additional external currents; the boundary push-out is unchanged"
+  ]
+}
