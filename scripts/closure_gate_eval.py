@@ -396,10 +396,18 @@ def build_slice_soft_priors(payload, grid, table, basis, meta, spc):
                     )
                 else:
                     target = target_fn(grid.cells[ann_rows], "abs-psi")
+                    # the rank-1 gauge offset exists for the TH read's genuine
+                    # gauge ambiguity (7.9% level bias).  The disc read's psi is
+                    # ABSOLUTELY gauged by construction (real currents + coil),
+                    # so a free offset would discard exactly the psi-LEVEL
+                    # information that sets the boundary size — pin it there.
+                    gauge_default = prior_kind != "disc"
                     sp_kwargs.update(
                         common,
                         anchor_psi_target=np.asarray(target, dtype=np.float64),
-                        anchor_gauge_offset=True,
+                        anchor_gauge_offset=bool(
+                            spc.get("anchor_gauge_offset", gauge_default)
+                        ),
                     )
                 anchored = True
 
