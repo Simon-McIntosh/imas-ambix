@@ -682,13 +682,29 @@
         convolution of the whole current history, not the instantaneous derivative — so
         per-slice static eddy fitting is under-determined by construction.</li>
     </ul>
+    <p>
+      <strong>Structure-moment basis (tested, worse).</strong> A second low-DOF
+      parameterisation was trialled: current patterns that are low-order moments of the
+      passive structure AS A WHOLE (monopole = net vessel current, dipole, quadrupole — the
+      plasma-moment construction applied to the passive filament set, 3–6 DOF). It performs
+      <em>worse</em> than the SVD observability modes: same three slices helped, larger damage
+      where wrong (12145 ramp-up 8.5 → 13.4, 18502 ramp-up 7.4 → 13.6, flat-tops regress),
+      larger boundary shifts (0.10–0.29), order 2 worse than order 1 everywhere. The physics:
+      MAST's passive set is <strong>discrete, heterogeneous conductors</strong> (coil cases,
+      support rings, endcrowns) with very different L/R constants — a globally-smooth
+      polynomial current pattern is the wrong prior and rigidly misprojects, whereas the SVD
+      modes at least concentrate on sensor-constrained combinations. Conclusion: the
+      under-determination is not a DOF-count problem (3 moment DOF and 4 SVD DOF both fail to
+      be per-slice gateable) — the missing constraint is the time dimension.
+    </p>
     <p class="landed-summary">
       <strong>Disposition:</strong> the passive stage ships as <strong>opt-in</strong>
       (<code>DiscReadConfig.passive_k</code>, default 0 = OFF, byte-identical when off;
-      ridge 1.0 default) — it is the right tool for eddy-dominated studies but not an
-      unconditional win. The principled fix is <strong>time-coupled eddy evolution</strong>
-      (consecutive slices share eddy states linked by L/R circuit dynamics — the smoothness
-      prior that makes the per-slice problem well-posed), queued as follow-on work.
+      ridge 1.0 default, SVD modes — the better of the two low-DOF parameterisations) — the
+      right tool for eddy-dominated studies but not an unconditional win. The principled fix
+      is <strong>time-coupled eddy evolution</strong> (consecutive slices share per-conductor
+      eddy states linked by L/R circuit dynamics — the constraint that distinguishes eddy
+      signal from plasma shape signal), queued as follow-on work.
     </p>
 
   </main>
