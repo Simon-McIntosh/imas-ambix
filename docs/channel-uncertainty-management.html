@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="channel-uncertainty-management">
+  <meta name="plan-title"     content="Channel-Level Uncertainty Management">
+  <meta name="plan-summary"   content="Use the solenoidal (source-free) constraint as a per-channel miscalibration detector: campaign-level channel weights from the non-representable residual, folded into the whitening — uncertainty management, not signal rewriting">
+  <meta name="plan-status"    content="draft">
+  <meta name="plan-roi"       content="mid">
+  <meta name="plan-effort"    content="M">
+  <meta name="plan-tier"      content="sonnet">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <title>Channel-Level Uncertainty Management | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Motivation &amp; evidence</h2>
+    <p>
+      The boundary-read investigation (<a href="/imas-ambix/th-boundary-robustness.html">th-boundary-robustness</a>,
+      §16) measured the vacuum-span projector on the full held-out cohort: projecting each
+      slice's coil-subtracted plasma signature onto the span of <em>all</em> interior currents
+      (rank-truncated SVD of the whitened cell→sensor matrix, rank 60–64) rejects only
+      <strong>2.5–7.8% of signal energy, roughly uniform across every slice and regime</strong>.
+      Three conclusions were locked by that measurement:
+    </p>
+    <ul>
+      <li>Sensor noise / calibration error is a small, near-constant floor — it is NOT what
+        makes ramp-up slices poorly-conditioned (that is model-form error), so the projector
+        residual is not an order gate (the boundary-shift gate owns that role).</li>
+      <li>Signal <em>rewriting</em> (de-noising sensors with Ip/li-constrained physics) is the
+        wrong route: the achievable gain is bounded by that few-% floor, and it risks
+        circularity — de-noising with the same physics we then fit. Ip is already applied
+        exactly (measured Rogowski, pinned, never fit); li here is an output, not an
+        independent measurement.</li>
+      <li>The per-channel components of the rejected residual <code>(I−P)b</code> ARE
+        informative: a channel that persistently holds signal <em>no interior current can
+        produce</em> is miscalibrated (gain/offset/geometry), and should carry less weight.
+        That is <strong>uncertainty management</strong> — adjust the whitening, never the
+        signal.</li>
+    </ul>
+
+    <h2 id="s2">§2 — Design: a campaign-level channel-weight layer</h2>
+    <p>
+      One new, flag-gated layer between the payload build and every whitened fit
+      (boundary reads, soft-prior anchor, interior LSQ):
+    </p>
+    <pre style="line-height:1.5">
+  payload build ──► channel-weight layer ──► whitened fits (reads / anchor / solve)
+                     │
+                     ├─ P  = projector onto the interior-current sensor span
+                     │      (rank-truncated SVD of W·m_sens, ONE per campaign)
+                     ├─ s_i = robust per-channel stat of |(I−P)·W·b|_i across
+                     │      MANY train-split slices (median over slices)
+                     └─ scale_i ← scale_i · f(s_i)   (inflate outliers only;
+                            f = 1 below threshold, smooth ramp above)
+    </pre>
+    <ul>
+      <li><strong>Campaign-level, not per-slice:</strong> the statistic is aggregated over many
+        train-split slices so a transient event never reweights a channel; the weights are
+        frozen per campaign (leakage-free — never computed on eval).</li>
+      <li><strong>Inflation only:</strong> weights only go down (scales inflate) for flagged
+        channels; no channel is ever up-weighted, no signal value is modified.</li>
+      <li><strong>Composes with what exists:</strong> the layer feeds the existing per-channel
+        <code>payload.scale</code>, so the Huber robust clips, the misfit-weighted anchor
+        uncertainty, and every read inherit it with zero interface change.</li>
+      <li><strong>Flag-gated, OFF by default</strong> until validated (A/B on the closure
+        gate); byte-identical results when off.</li>
+    </ul>
+
+    <h2 id="s3">§3 — Deliverables &amp; validation</h2>
+    <ol>
+      <li><code>imas_ambix/latent/channel_weights.py</code>: projector build, per-channel
+        residual statistics, weight map artifact (per campaign, JSON), scale-inflation hook;
+        unit tests (synthetic miscalibrated channel is flagged; clean channels untouched;
+        off = byte-identical).</li>
+      <li>Diagnostic figure (mandatory): per-channel non-representable residual bars across
+        the train split, flagged channels highlighted — <code>docs/figures/channel-uncertainty-management/</code>.</li>
+      <li>A/B validation: staged-disc boundary read + closure gate with weights ON vs OFF on
+        the held-out cohort (paired bootstrap). Done-when: no metric regresses, and either
+        (a) ≥1 channel is flagged with physical justification, or (b) the null result
+        (no channels flagged → layer unnecessary) is recorded and the plan retired
+        honestly.</li>
+    </ol>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="weight-form" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Down-weighting form for flagged channels?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="scale-inflation">smooth scale inflation</button>
+          <button class="r-opt" data-value="hard-mask">hard mask above threshold</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="projector-rank" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Projector rank truncation: numerical rank (1e-8 rel) or an information-motivated cut?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="numerical-rank">numerical rank</button>
+          <button class="r-opt" data-value="gcv-cut">GCV / noise-floor cut</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-cum-001" data-status="open" data-tier="sonnet"
+               data-written-by="reckon-create" data-written-at="2026-07-16">
+        <h4 class="r-fu-title">Implement the channel-weight layer (§2) + diagnostic figure</h4>
+        <div class="r-fu-body">
+          <p>Build <code>channel_weights.py</code> (projector, per-channel stats over the train
+          split, frozen weight-map artifact, scale hook, OFF-by-default flag), the per-channel
+          residual figure, and unit tests. Then queue the A/B validation (§3).</p>
+        </div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    channel-uncertainty-management (http://localhost:8765/imas-ambix/channel-uncertainty-management.html)
+Section: §2
+Tier:    sonnet
+
+Context
+  The th-boundary-robustness investigation measured a 2.5-7.8% non-representable
+  sensor-signal floor (vacuum-span projector) and selected uncertainty management
+  over signal rewriting. This section builds the campaign-level channel-weight
+  layer described in plan §2.
+
+State to read
+  imas_ambix/latent/boundary_disc.py (whitening conventions, sensor arrays)
+  imas_ambix/latent/patch_basis.py (m_sens)
+  scripts/closure_gate_eval.py (payload.scale usage, soft-prior anchor)
+  docs/th-boundary-robustness.html §16 (projector evidence)
+
+Scope locks / constraints
+  Uncertainty management only: adjust payload.scale, never signal values.
+  Campaign-level stats on the TRAIN split only (leakage-free); frozen artifact.
+  Flag-gated, OFF by default, byte-identical when off.
+  Figure under docs/figures/channel-uncertainty-management/ (project-absolute src).
+
+Done-when
+  1. channel_weights.py + unit tests green (synthetic miscalibrated channel
+     flagged; clean channels untouched; off = byte-identical)
+  2. per-channel residual figure committed
+  3. followup written into plan + this one resolved</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>
