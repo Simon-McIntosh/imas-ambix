@@ -22,8 +22,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-16">
-<meta name="plan-impl" content="0.33">
-<meta name="plan-version" content="2">
+<meta name="plan-impl" content="0.67">
+<meta name="plan-version" content="3">
 </head>
 <body>
 <main class="plan-doc">
@@ -124,20 +124,23 @@
     (commits <code>f5782d9</code>…<code>6eed4a3</code>).</p>
   </section>
 
-  <p><strong>R2 — temporal operator (the thesis rung).</strong> A causal sequence model over the
-  sensor history (backbone open: SSM vs causal transformer vs GRU — see decisions) carrying a
-  <strong>physics-structured latent eddy state</strong>: the passive L/R eigenmodes from
-  <code>passive_coupling_matrices</code> (<code>boundary_disc.py</code>) seed a recurrent block
-  whose per-mode decay constants are learnable, initialised at the physical L/R times — the
-  latent is <em>forced</em> to have the structure of an eddy-current convolution, and the eddy
-  amplitudes it infers enter the field prediction as <em>more external currents through the exact
-  Green's operators</em> (the closure plan locked this composition: the boundary push-out is
-  unchanged by construction). Targets, in order of expected yield: (i) <strong>ramp-up
-  boundary</strong> (eddy-dominated, 5–10&nbsp;cm today); (ii) <strong>axis</strong> via
-  temporally-constrained profiles (sawtooth signatures pin q<sub>0</sub>≈1 epochs; current
-  diffusion constrains the profile trajectory between them); (iii) <strong>p′/FF′
-  split</strong> (scored on synthetic truth where the split is known exactly; the real-data split
-  gate stays data-gated on Thomson T<sub>e</sub>, recorded honestly).</p>
+  <section class="section-landed">
+    <p><span class="badge badge-shipped">✗ R2 first valid test 2026-07-16 — G2 FAIL (honest negative)</span>
+    <strong>R2 — temporal operator (the thesis rung).</strong> Built and measured: causal
+    transformer + embedded L/R diagonal-SSM eddy block (taus 35.8→4.1 ms from pure geometry,
+    byte-exact spine at init), corpus scaled to 503 shards / 14,441 slices, synthetic known-eddy
+    pretraining demonstrated (recovery R² +0.25 vs −0.27 raw). A padded-batch NaN that silently
+    skipped ~99% of training steps was root-caused (empty-timestep max-pool sentinel — <em>not</em>
+    the fp64 decode) and regression-tested; the cleanly-trained operator then <strong>FAILED
+    G2</strong>: flat-top op−disc +0.90 cm CI [−0.63, +2.33], ramp-up 8.18 cm vs 5 cm bar, axis
+    6.11 vs 5.1 cm, non-inferiority vs spine FAIL on tail CIs. Mechanism: val sensor misfit
+    improves 5.87→4.38 but every sweep point trades flat-top boundary drift past the 0.75 cm
+    bound — the self-supervised signal rewards sensors, not boundaries; the selected model is
+    spine-adjacent and the temporal irreducibles stay unexploited. p′/FF′ split scorer's operator
+    arm NaN (separate open defect). Full record:
+    <a href="archive/learned-equilibrium-operator-s2-r2-landed.html">§2 R2 record</a>.
+    Next: one bounded iteration on the training signal (f-leo-04).</p>
+  </section>
 
   <p><strong>R3 — cross-machine transfer.</strong> All machine dependence enters through the
   geometry inputs (sensor positions/orientations, coil/vessel filament tables, limiter contour —
@@ -375,7 +378,7 @@ Done-when
      this followup resolved</pre>
     <p class="r-fu-outcome">§2 R1 landed — commits f5782d9…6eed4a3. Differentiable Green's stack gradient-pinned (autograd == closed form, dc=0 round-trip exact); label factory 4,301 slices / 158 train shots at 5.8 s/slice measured (~4,900 slices/node-hour @ 8 chains); G1 PASS n=128/128 vs byte-exact frozen spine — CI-clear superiority: Δaxis +0.049 [+0.023,+0.070], ΔLCFS +0.061 [+0.034,+0.088], flat-top LCFS 1.50→1.15 cm. Archive: docs/archive/learned-equilibrium-operator-s2-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-leo-03" data-status="open" data-tier="opus" data-written-by="reckon-ship (hand edit — reckon MCP down, Bash safety-classifier outage 2026-07-16)" data-written-at="2026-07-16T21:30:00+00:00" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-leo-03" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (hand edit — reckon MCP down, Bash safety-classifier outage 2026-07-16)" data-written-at="2026-07-16T21:30:00+00:00" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="2026-07-16T20:08:21+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">R2 handoff — fix-cycle job in flight; take the G2 verdict and close the §2 record</h4>
     <div class="r-fu-body"><p>Mid-flight handoff (session ended by a Bash safety-classifier outage; all state
     below). R2 is BUILT and the full measurement chain is PROVEN: temporal operator (causal transformer +
@@ -401,7 +404,7 @@ Context (what already happened — do not redo)
     Commits: 179f2d1 (module), 2364870 (drivers), 14c6d48 (flat-top-only drift bound),
     370c03b (loss guard) + channel-alignment, eigenbasis-cache-validation, warm-start-std,
     device-safety fixes; final grad-guard + bounded Ip-renormalisation gain in
-    profile_greens_decoder.py committed by the lead's launch command.
+    profile_greens_decoder.py committed by the lead&#x27;s launch command.
   - Corpus: 503 shards / 14,441 spine-labelled slices at /work/projects/imas_gpu/mast/spine_labels
     (3 campaigns; per-shot sensor sets VARY inside a campaign - 81/96/97 channels - hence the
     by-name channel alignment onto a per-campaign canonical richest set).
@@ -428,7 +431,7 @@ Done-when
   1. If the fix-cycle trained cleanly (n_skipped_steps ~0 in training_report.json): take the G2
      verdict AS RECORDED (PASS or FAIL, honestly). If steps are still being skipped, diagnose from
      the component logs (suspects if gain-bound insufficient: fp32 cast of extreme a_phys/u_drive
-     features; a specific campaign's decode) and iterate ONCE more; record whatever stands.
+     features; a specific campaign&#x27;s decode) and iterate ONCE more; record whatever stands.
   2. Record outcomes same-session: archive docs/archive/learned-equilibrium-operator-s2-r2-landed.html
      (quick-status grid, G2 numbers table incl. the crippled-run FAIL as provenance, figures with
      project-absolute src); collapse the R2 paragraph in the evergreen to a landed-summary;
@@ -438,8 +441,9 @@ Done-when
   3. Known approximations to record in the archive: label-cadence eddy integration (a_phys[0]=0),
      eval-campaign tau drift log-max 0.50 vs train, mode-identity across campaigns, G2 flat-top
      CI from n=8 shot-level paired bootstrap.</pre>
+    <p class="r-fu-outcome">Handoff premise corrected and record closed. The lead's fix-cycle sbatch never fired (classifier outage) — job 1229616 WAS the crippled run. This session committed the pending fixes (c047ab6/c424b2a/7ea857f), root-caused the real NaN (empty-timestep max-pool sentinel in padded batches, NOT the fp64 decode; NaN×0 masking spread it batch-wide; fix + regression test test_fully_masked_padded_tail_stays_finite_and_padding_invariant), and ran the definitive fix-cycle (job 1229626): 0 skipped steps at every sweep point. G2 verdict taken honestly: FAIL. Archive: docs/archive/learned-equilibrium-operator-s2-r2-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-leo-02" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-leo-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="2026-07-16T20:08:21+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">R2 — temporal operator over sensor history (the thesis rung)</h4>
     <div class="r-fu-body"><p>R1 proved the plumbing (G1 PASS, CI-clear); every remaining error mode is temporal. Build the causal sequence model over sensor history with the L/R-eigenmode-structured latent eddy state entering as external currents through the same Green's layer. First: lock the temporal-backbone decision (SSM vs causal transformer vs structured GRU — the eddy block is literally a diagonal SSM); scale the label factory toward the full corpus (throughput measured: ~4,900 slices/node-hour per node at 8 chains); pretrain the eddy latent on synthetic_truth sequences with known L/R histories. Gate G2: beat the disc read flat-top (1.4–2.1 cm) CI-clear AND ramp-up &lt;5 cm median AND axis &lt;5.1 cm; p′/FF′ split scored on synthetic truth. H200 becomes load-bearing here.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -478,6 +482,53 @@ Done-when
   2. G2 scored held-out n&gt;=128 paired bootstrap: disc flat-top beaten CI-clear, ramp-up &lt;5 cm
      median, axis median &lt;5.1 cm; p&#x27;/FF&#x27; split on synthetic truth; verdict recorded honestly
   3. Plan updated same-turn; R3 followup written; this followup resolved</pre>
+    <p class="r-fu-outcome">R2 built + first VALID test recorded — G2 FAIL (honest negative). Temporal operator (causal transformer + L/R diagonal-SSM eddy block, taus 35.8→4.1 ms, byte-exact spine at init, 23 tests green); corpus 503 shards / 14,441 slices; synthetic pretraining R² +0.25 vs −0.27 raw. Clean training (0 skipped steps): flat-top op−disc +0.90 cm CI [−0.63,+2.33]; ramp-up 8.18 cm vs 5 cm bar; axis 6.11 vs 5.1 cm; non-inferiority vs spine FAIL (axis CI [−0.058,+0.080], X-point [−0.100,−0.004] cross the −0.05 margin). Mechanism: val sensor misfit improves 5.87→4.38 but ALL sweep points exceed the 0.75 cm flat-top drift bound (0.83–3.95 cm; tightest-regularisation fallback selected) — the self-supervised sensor signal does not buy boundary skill; selected model is spine-adjacent. p′/FF′ split operator arm NaN (separate open defect in the ladder refit). Archive: docs/archive/learned-equilibrium-operator-s2-r2-landed.html</p>
+    </article>
+<article class="r-fu" data-id="f-leo-04" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-16T22:20:00+00:00" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">R2 iteration — put boundary fidelity into the training signal (one bounded attempt)</h4>
+    <div class="r-fu-body"><p>The first valid R2 test failed G2 with a clear mechanism: the operator improves whitened sensor misfit (5.87→4.38 val) but every leash/ridge sweep point trades flat-top boundary drift past the 0.75 cm bound — nothing in the self-supervised loss rewards boundary fidelity, so selection falls back to the most-regularised, spine-adjacent model and the temporal irreducibles stay unexploited. One bounded iteration on the objective/selection: differentiable boundary-consistency term through the existing ψ decode, drift-aware selection on a skill proxy, wider leash/ridge range, the locked direct-DOF ablation arm; fix the split-path NaN so p′/FF′ can score. If flat-top Δ and ramp-up median do not move materially, record a sustained negative and re-plan the temporal thesis rather than iterating blind.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    learned-equilibrium-operator (docs/learned-equilibrium-operator.html)
+Section: §2 (rung R2, bounded iteration) + §6 (gate G2)
+Tier:    opus
+
+Context (read the R2 record FIRST)
+  docs/archive/learned-equilibrium-operator-s2-r2-landed.html — the full G2 FAIL record.
+  Definitive run (job 1229626, _r2_fix_cycle_1229626.log): clean training (0 skipped steps),
+  G2 FAIL: flat-top op−disc +0.90 cm CI [−0.63,+2.33]; ramp-up 8.18 cm vs 5 cm bar; axis 6.11
+  vs 5.1 cm; non-inferiority vs spine FAIL on tail CIs. MECHANISM: val sensor misfit improves
+  5.87→4.38 but ALL sweep points exceed the 0.75 cm flat-top drift bound (0.83–3.95 cm) —
+  selection kept the tightest-regularised, spine-adjacent model. The training signal rewards
+  sensor reconstruction, not boundaries.
+
+Bounded iteration scope (pick the highest-yield subset, ONE training cycle)
+  1. Boundary-aware objective: differentiable flat-top boundary-consistency term through the
+     existing ψ decode (the spine&#x27;s own LCFS is the target where the spine is good — quasi-
+     flat-top slices only, mirroring the drift bound), weighted against sensor misfit.
+  2. Drift/skill-aware selection: select on a composite (val misfit + drift penalty) or a
+     val-shot boundary-skill proxy instead of misfit-then-bound-fallback.
+  3. Wider sweep: leash/ridge ranges that bracket the drift bound from BOTH sides.
+  4. Locked ablation arm: direct-DOF emission (residual-vs-end-to-end decision).
+  5. Fix the p′/FF′ split scorer operator-arm NaN (invalid sqrt in imas_ambix/gs/operator.py
+     ladder refit when operator-corrected currents leave the valid domain) so the split
+     criterion can score.
+
+Scope locks / constraints
+  EFIT firewalled (referee eval-only); standing held-out 18502-18505 + eval cohort never
+  trained on; thick-cylinder hybrid_greens only; eddy amplitudes enter as EXTERNAL currents
+  through the Green&#x27;s layer; labels spine-made; warm-chain strict-converged (pinned).
+  Training on betelgeuse H200 (scripts/_r2_fix_cycle.sh pattern: sentinels + file-redirect).
+  Padded-batch contract is pinned by test_fully_masked_padded_tail_stays_finite_and_padding_
+  invariant — do not regress it.
+
+Done-when
+  1. One full training + G2 gate cycle with the revised signal/selection; verdict recorded
+     honestly (PASS → queue R3 synthetic-machine transfer; FAIL with no material movement on
+     flat-top Δ or ramp-up median → record sustained negative + open a re-planning followup
+     for the temporal thesis, do NOT iterate again)
+  2. Split scorer operator arm returns finite numbers on the 96-slice synthetic set
+  3. Plan updated same-session: archive updated or appended, evergreen summary refreshed,
+     this followup resolved, next followup written</pre>
     </article>
 </section>
 

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="learned-equilibrium-operator-s2-r2-landed">
+  <meta name="plan-title" content="Learned Equilibrium Operator — §2 rung R2 record (G2 FAIL, honest negative)">
+  <meta name="plan-summary" content="The temporal rung's first valid test: causal transformer + embedded L/R diagonal-SSM eddy block over 503 shards / 14,441 spine-labelled slices. A padded-batch NaN that silently skipped ~99% of training steps was root-caused (empty-timestep max-pool sentinel, not the fp64 decode) and fixed; the cleanly-trained operator then FAILED G2: flat-top op−disc +0.90 cm CI [−0.63,+2.33], ramp-up 8.18 cm vs 5 cm bar, axis 6.11 cm vs 5.1 cm bar, non-inferiority vs spine FAIL on tail CIs. The operator improves whitened sensor misfit (5.87→4.38 val) but every sweep point trades flat-top boundary fidelity past the 0.75 cm drift bound — sensor-reconstruction gains do not convert into boundary skill under the current training signal. Landed 2026-07-16.">
+  <meta name="plan-informs" content="learned-equilibrium-operator">
+  <title>Learned Equilibrium Operator — §2 R2 record (G2 FAIL) | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>Learned Equilibrium Operator — §2 rung R2 record (G2 FAIL — honest negative)</h1>
+    <p><em>Per-stage record for
+    <a href="/imas-ambix/learned-equilibrium-operator.html">learned-equilibrium-operator</a>
+    (§2 rung R2 + §4 corpus scale-up + §6 gate G2). The temporal operator is built, the corpus
+    is scaled, the measurement chain is proven end-to-end, and the rung's first <strong>valid</strong>
+    training run fails the headline gate. The negative is recorded with its mechanism — the next
+    iteration attacks the training signal, not the plumbing. Landed 2026-07-16.</em></p>
+
+    <h2>Quick status</h2>
+    <table>
+      <thead><tr><th>Deliverable</th><th>Status</th><th>Headline</th></tr></thead>
+      <tbody>
+        <tr><td>Temporal operator module (causal transformer + L/R diagonal-SSM eddy block)</td><td>✓ shipped</td>
+            <td>vessel taus 35.8→4.1 ms from pure geometry; exact-ZOH physical eddy history as drive; byte-exact spine at init; 23 tests green</td></tr>
+        <tr><td>§4 corpus scale-up (spine label fleet)</td><td>✓ shipped</td>
+            <td>503 shards / 14,441 slices / 3 campaigns; by-name channel alignment onto per-campaign canonical sensor sets (81/96/97 ch vary per shot)</td></tr>
+        <tr><td>Synthetic known-eddy pretraining</td><td>✓ shipped</td>
+            <td>held-out eddy recovery R² median +0.25 vs −0.27 for the uncorrected physical feature; slow modes 0.30–0.70</td></tr>
+        <tr><td>Training NaN root cause (~99% steps silently skipped)</td><td>✓ found + fixed</td>
+            <td>empty-timestep max-pool sentinel in padded batches — <em>not</em> the fp64 decode; regression-tested, 0 skipped steps at corpus scale after fix</td></tr>
+        <tr><td><strong>Gate G2 (beat disc flat-top CI-clear AND ramp-up &lt;5 cm AND axis &lt;5.1 cm)</strong></td><td><strong>✗ FAIL</strong></td>
+            <td>flat-top +0.90 cm vs disc CI [−0.63, +2.33]; ramp-up 8.18 cm; axis 6.11 cm; non-inferiority vs spine FAIL (tail CIs)</td></tr>
+        <tr><td>p′/FF′ split score (synthetic truth)</td><td>✗ defective</td>
+            <td>spine arm 0.120 median; operator arm NaN — a separate numeric defect in the split-path ladder refit (open)</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Gate G2 — the numbers (definitive run, job 1229626)</h2>
+    <p>Paired evaluation on the standard held-out cohort (8 shots × 16 slices, n=128/128 scored,
+    shot-level paired bootstrap, push-out LCFS reader, EFIT referee at evaluation only). The spine
+    arm reproduces the frozen eval arrays <strong>byte-exactly</strong> (max |Δtarget| = 0.0). The
+    crippled first run (job 1229616 — model effectively untrained, ~98.6% steps skipped) is kept
+    as provenance only; it is <em>not</em> a valid R2 test.</p>
+    <table>
+      <thead><tr><th>G2 condition</th><th>bar</th><th>disc read</th><th>D2 spine</th><th>temporal op (valid)</th><th>crippled run (provenance)</th></tr></thead>
+      <tbody>
+        <tr><td>flat-top LCFS RMS, op − disc paired Δ</td><td>beat disc, CI clear</td><td>1.99 cm</td><td>3.01 cm</td>
+            <td><strong>3.01 cm; Δ +0.90 [−0.63, +2.33] → FAIL</strong></td><td>2.91 cm; Δ +0.66 [−0.68, +1.88]</td></tr>
+        <tr><td>ramp-up LCFS RMS median</td><td>&lt; 5.0 cm</td><td>11.30 cm</td><td>8.37 cm</td>
+            <td><strong>8.18 cm → FAIL</strong></td><td>7.69 cm</td></tr>
+        <tr><td>axis error median</td><td>&lt; 5.1 cm</td><td>—</td><td>6.15 cm</td>
+            <td><strong>6.11 cm → FAIL</strong></td><td>6.06 cm</td></tr>
+        <tr><td>non-inferiority vs spine (margin −0.05)</td><td>all Δskill CIs above margin</td><td>—</td><td>—</td>
+            <td><strong>FAIL</strong>: axis +0.028 [−0.058, +0.080]; LCFS +0.039 [−0.034, +0.092]; X-point −0.041 [−0.100, −0.004]</td>
+            <td>PASS (untrained ≈ identity on the spine)</td></tr>
+        <tr><td>p′/FF′ split |err| median (synthetic truth, 96 slices)</td><td>beat spine</td><td>—</td><td>0.120</td>
+            <td><strong>NaN (split-path defect, open)</strong></td><td>NaN</td></tr>
+      </tbody>
+    </table>
+    <figure>
+      <img src="/imas-ambix/figures/learned-equilibrium-operator/fig-temporal-operator-g2.png"
+           alt="G2 verdict panels: per-shot flat-top LCFS RMS bars where the temporal operator tracks the D2 spine closely and both sit above the disc read; ramp-up bars where the operator and spine sit around 8 cm against the 5 cm bar while the disc read sits at 9-13 cm; axis-error histograms where operator and spine overlap with medians at 6.1 cm against the 5.1 cm bar." style="max-width:100%">
+      <figcaption>G2 verdict, per shot. The operator (green) tracks the D2 spine (blue) almost
+      everywhere — its ramp-up advantage over the disc read is <em>inherited from the spine</em>,
+      not learned. The disc read keeps the flat-top crown.</figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/learned-equilibrium-operator/fig-temporal-operator-delta.png"
+           alt="Paired delta-skill bootstrap histograms vs the spine: axis mean +0.028 with 95% CI [-0.058,+0.080] and LCFS mean +0.039 with CI [-0.034,+0.092]; both means positive but the axis left tail crosses the -0.05 non-inferiority margin." style="max-width:100%">
+      <figcaption>Paired Δskill vs the spine: mildly positive means, but the axis tail crosses the
+      −0.05 margin — parity with wide CIs, not superiority.</figcaption>
+    </figure>
+
+    <h2>The training bug — two suspects, one root cause</h2>
+    <p>The first full pipeline silently skipped ~98.6% of training steps ("non-finite loss")
+    while unit tests, single-sequence forwards, and synthetic pretraining all ran clean. Two
+    defects were found; only the second was the root cause:</p>
+    <ul>
+      <li><strong>fp64 decode renormalisation (real, fixed, not the root cause).</strong> The
+      Ip-renormalisation in <code>profile_greens_decoder.cell_currents</code> clamped the summed
+      cell current at 1e-30, so a correction that nearly annihilates the current produced an
+      unbounded <code>ip/total</code> gain with an exploding backward. Fixed with a bounded gain
+      (floor at 1e-3·|Ip|, inactive at any physical decode) plus a finite-gradient guard and
+      grad-norm clip in the trainer — kept as defence in depth.</li>
+      <li><strong>Empty-timestep max-pool sentinel (the root cause).</strong> Mixed-length
+      batches pad the sequence tail with <code>token_mask</code> all-False steps. The token
+      pooling's emptiness test ran on a denominator already clamped to ≥ 1
+      (<code>denom &gt; 0</code> — always true), so fully-masked timesteps emitted the −1e30
+      max-pool sentinel into the trunk. The sentinel overflows fp32 downstream into NaN, and
+      because padding was masked <em>multiplicatively</em> (NaN × 0 = NaN) the poison spread
+      through attention into <em>every timestep and every loss component</em> of the batch entry.
+      This is why: single-sequence forwards were clean (no padding), synthetic pretraining was
+      clean (equal lengths), the val monitor looked finite (<code>np.nanmean</code> hid poisoned
+      val batches), and all four loss components went NaN together. A CPU repro pinned it in
+      minutes once the component-level NaN logging showed <code>leash = NaN</code> — the leash
+      term sees only the network's own output, so the NaN had to originate <em>inside</em> the
+      forward, not in the decode. Fix: pool on the true valid count and mask outputs by
+      selection (<code>torch.where</code>), with a regression test that pins finite outputs,
+      exact zeros at padded steps, and padding-invariance of the valid prefix
+      (<code>test_fully_masked_padded_tail_stays_finite_and_padding_invariant</code>). The
+      pre-existing padding test missed the bug by leaving <code>token_mask</code> random (mostly
+      True) at padded steps — the real <code>pad_batch</code> zeroes it.</li>
+    </ul>
+    <p>After the fix the definitive run trained with <strong>0 skipped steps at every sweep
+    point</strong> (503 shards, 428 train shots / 75 val shots, warm-started from the synthetic
+    checkpoint).</p>
+
+    <h2>Reading the negative — where the rung actually stands</h2>
+    <ul>
+      <li><strong>The operator learns sensors, not boundaries.</strong> Val whitened sensor
+      misfit improves 5.87 → 4.38 (best sweep point), yet <em>every</em> sweep point pushed the
+      quasi-flat-top boundary past the 0.75 cm drift bound (0.83–3.95 cm) — model selection fell
+      back to the most-regularised point (leash 10, ridge 3, val 5.16, drift 1.22 cm). Under the
+      current self-supervised signal, sensor-reconstruction gains are bought with boundary
+      drift; nothing in the loss rewards boundary fidelity directly.</li>
+      <li><strong>The selected model is spine-adjacent.</strong> Per-shot G2 panels show the
+      operator hugging the D2 spine; its headline "wins" over the disc read on ramp-up are the
+      spine's, not the time axis's. The temporal irreducibles remain unexploited.</li>
+      <li><strong>The measurement chain itself is proven.</strong> Byte-exact spine reproduction,
+      paired bootstrap, figures, split harness, synthetic pretraining, and eigenbasis handling
+      all ran end-to-end twice — the FAIL is attributable to the training signal, not the
+      harness.</li>
+      <li><strong>Open defect:</strong> the p′/FF′ split scorer's operator arm returns NaN
+      (spine arm scores 0.120) with <code>invalid value in sqrt</code> warnings from the
+      classical ladder refit (<code>imas_ambix/gs/operator.py:163</code>) — the operator-corrected
+      currents push the refit outside its valid domain. Must be fixed before the split criterion
+      can gate anything.</li>
+    </ul>
+
+    <h2>Known approximations carried by this record</h2>
+    <ul>
+      <li>Label-cadence eddy integration: the physical eddy history integrates at the label
+      cadence with <code>a_phys[0] = 0</code> — early-shot eddy state is under-resolved
+      exactly where ramp-up wins live.</li>
+      <li>Eval-campaign tau drift: log-max 0.50 between the eval campaign's eigenbasis and
+      training (<code>tau_drift_log_max</code>) — mode identity across campaigns is assumed,
+      not enforced.</li>
+      <li>G2 flat-top CI comes from an n=8 shot-level paired bootstrap — wide by construction;
+      a CI-clear win at this n demands a large effect.</li>
+      <li>Coil model cylinder-sensors-v5, geometry table amb-schema-canonical-v2, spine config
+      sha256 <code>3b50b94d…</code> — all pinned in the gate JSON.</li>
+    </ul>
+
+    <h2>Artifacts</h2>
+    <ul>
+      <li>Gate: <code>imas_ambix/latent/artifacts/patch_gate/temporal_operator_gate_eval.json</code>
+      (+ <code>_arrays.npz</code>); training: <code>imas_ambix/latent/artifacts/temporal_operator/training_report.json</code>;
+      split/pretrain: <code>synthetic_pretrain_report.json</code>; checkpoint
+      <code>temporal_operator.pt</code> (warm parent <code>temporal_operator_synthetic.pt</code>).</li>
+      <li>Definitive pipeline log: <code>_r2_fix_cycle_1229626.log</code> (crippled provenance:
+      <code>_r2_pipeline_1229616.log</code>).</li>
+      <li>Key commits: <code>179f2d1</code> (module), <code>2364870</code> (drivers),
+      <code>14c6d48</code> (flat-top-only drift bound), <code>370c03b</code> (loss guard),
+      <code>c424b2a</code> (bounded Ip gain + gradient guard), and the root-cause fix
+      "emit zeros at fully-masked padded timesteps; select-mask operator outputs".</li>
+    </ul>
+
+    <h2>What's next</h2>
+    <p>One bounded R2 iteration on the <em>training signal</em> (followup <code>f-leo-04</code>):
+    put boundary fidelity into the objective (or the selection) instead of hoping sensor
+    reconstruction implies it — candidates: differentiable boundary/flux-surface consistency term
+    through the existing ψ decode, drift-bound-aware selection on a skill proxy, wider
+    leash/ridge range, and the locked direct-DOF ablation arm. Fix the split-path NaN so the
+    p′/FF′ criterion can score. If the iteration cannot move the flat-top Δ or the ramp-up
+    median materially, the rung records a sustained negative and the plan re-plans the temporal
+    thesis rather than iterating blind.</p>
+  </main>
+</body>
+</html>
