@@ -512,6 +512,59 @@
       its failures).
     </p>
 
+    <h2 id="s15">§15 — The dynamic-sizing disc read (best-in-class, recommended)</h2>
+    <p>
+      Building §14 into a full read gives the strongest §2 boundary of the whole investigation —
+      and it is strikingly simple:
+    </p>
+    <ol>
+      <li><strong>Ip</strong> — Rogowski (pinned).</li>
+      <li><strong>Centroid</strong> — a well-conditioned 2-DOF filament-position fit to the
+        coil-subtracted sensors (B-probes AND flux loops — no extra TH layer needed for the
+        flux-loop information).</li>
+      <li><strong>Disc radius</strong> — <em>dynamically</em> sized so the uniform disc's own
+        push-out boundary minor radius is a self-consistent fixed point.</li>
+      <li><strong>Uniform Ip over the disc</strong> — no shape moments needed; the plasma
+        elongation is supplied for free by the real coil field shaping the ψ_N=1 contour around the
+        disc.</li>
+      <li><strong>Boundary</strong> — push-out of (disc ψ + coil ψ).</li>
+    </ol>
+    <figure>
+      <img src="/imas-ambix/figures/th-boundary-robustness/dynamic-disc-cohort.png"
+           alt="Dynamic-disc (green) vs cell-current moment (blue) vs EFIT (red) across 16 held-out slices"
+           style="max-width:100%;height:auto;border:1px solid #ccc">
+      <figcaption>
+        Dynamic-sizing uniform disc (green, dotted = the disc) vs cell-current moment (blue) vs
+        firewalled EFIT (red) across all 8 held-out shots (ramp-up + flat-top). The disc tracks
+        EFIT closely everywhere; the cell-current moment over-sizes/distorts.
+      </figcaption>
+    </figure>
+    <p>
+      <strong>Scored vs EFIT across the full 16-slice cohort: 4.0–10.6 cm, never catastrophic</strong>
+      — it beats the cell-current moment read on <em>every</em> slice and TH on <em>every</em>
+      ramp-up (TH was 20–29 cm there). Representative rows [cm]: 18502 flat-top disc 5.2 / moment 5.8;
+      12143 ramp-up disc 10.3 / moment 15.3 / TH 28.5; 18505 ramp-up disc 7.1 / moment 19.6; 18504
+      ramp-up disc 5.4 / moment 14.9. It has no ill-conditioning (no 5000-cell null-space, no pole),
+      no erratic-order behaviour, and no catastrophic regime.
+    </p>
+    <p>
+      <strong>Higher moments on the disc — conditioning-gated.</strong> A finite-area disc can carry
+      shape; fitting a quadrupole about the fixed centroid on the (compact, well-conditioned) disc
+      helps the <em>well-conditioned flat-tops</em> markedly (12143 flat-top 7.4 → <strong>1.8 cm</strong>;
+      18502 5.2 → 4.9) but over-fits the poorly-diagnosed ramp-ups (10.3 → 10.7, 18505 7.1 → 8.1) and
+      order 3 over-fits everywhere. So the shape moment is added only where the magnetics determine it
+      (low fit residual), uniform otherwise — the same conditioning boundary, now a clean one-knob gate
+      inside a single read.
+    </p>
+    <p class="landed-summary">
+      <strong>Recommendation (updated):</strong> adopt the <strong>dynamic-sizing disc</strong> as the
+      §2 boundary read — uniform disc for robustness, with a conditioning-gated quadrupole for
+      well-conditioned slices. It is simpler and strictly more robust than the TH read, the
+      cell-current moment read, and the §13 selection between them. Next: wire it into the §2 anchor
+      and run the full §2+§3 re-gate against EFIT. Prototypes:
+      <code>scripts/_dynamic_disc_prototype.py</code>, <code>scripts/_moment_vs_th_boundary_report.py</code>.
+    </p>
+
   </main>
 </body>
 </html>
