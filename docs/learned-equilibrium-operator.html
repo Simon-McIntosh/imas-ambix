@@ -375,6 +375,70 @@ Done-when
      this followup resolved</pre>
     <p class="r-fu-outcome">§2 R1 landed — commits f5782d9…6eed4a3. Differentiable Green's stack gradient-pinned (autograd == closed form, dc=0 round-trip exact); label factory 4,301 slices / 158 train shots at 5.8 s/slice measured (~4,900 slices/node-hour @ 8 chains); G1 PASS n=128/128 vs byte-exact frozen spine — CI-clear superiority: Δaxis +0.049 [+0.023,+0.070], ΔLCFS +0.061 [+0.034,+0.088], flat-top LCFS 1.50→1.15 cm. Archive: docs/archive/learned-equilibrium-operator-s2-landed.html</p>
     </article>
+<article class="r-fu" data-id="f-leo-03" data-status="open" data-tier="opus" data-written-by="reckon-ship (hand edit — reckon MCP down, Bash safety-classifier outage 2026-07-16)" data-written-at="2026-07-16T21:30:00+00:00" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">R2 handoff — fix-cycle job in flight; take the G2 verdict and close the §2 record</h4>
+    <div class="r-fu-body"><p>Mid-flight handoff (session ended by a Bash safety-classifier outage; all state
+    below). R2 is BUILT and the full measurement chain is PROVEN: temporal operator (causal transformer +
+    embedded L/R diagonal-SSM eddy block, taus 35.8→4.1 ms from pure geometry, byte-exact spine at init,
+    11 tests green), corpus scaled to 503 shards / 14,441 slices, synthetic known-eddy pretraining
+    demonstrated (held-out recovery R² +0.25 vs −0.27 for the uncorrected physical feature; slow modes
+    0.30–0.70), and one full pipeline (train → G2 gate → split) ran end-to-end on the H200. That first
+    training was CRIPPLED by a data-dependent non-finite forward/loss in the fp64 decode path (~98% of
+    steps skipped by the guard; model effectively untrained) — its honest G2 verdict was FAIL (flat-top
+    op−disc +0.66 cm CI [−0.68,+1.88]; ramp-up 7.69 cm vs 5 cm bar; axis 6.1 cm vs 5.1 cm bar;
+    non-inferiority vs spine TRUE) and is NOT a valid R2 test. Fixes are committed/staged and the lead
+    launched scripts/_r2_fix_cycle.sh (tests → gradient diagnostic → full warm training → G2 gate →
+    split score). Resume: read that job's log, take the verdict honestly, close the record.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    learned-equilibrium-operator (docs/learned-equilibrium-operator.html)
+Section: §2 (rung R2) + §6 (gate G2) — RESUME MID-FLIGHT from the f-leo-03 handoff
+Tier:    opus
+
+Context (what already happened — do not redo)
+  - R2 stack SHIPPED on main: imas_ambix/latent/temporal_operator.py (+ tests
+    tests/latent/test_temporal_operator.py, 11 green), scripts/train_temporal_operator.py,
+    scripts/temporal_operator_gate_eval.py, scripts/synthetic_eddy_pretrain.py.
+    Commits: 179f2d1 (module), 2364870 (drivers), 14c6d48 (flat-top-only drift bound),
+    370c03b (loss guard) + channel-alignment, eigenbasis-cache-validation, warm-start-std,
+    device-safety fixes; final grad-guard + bounded Ip-renormalisation gain in
+    profile_greens_decoder.py committed by the lead's launch command.
+  - Corpus: 503 shards / 14,441 spine-labelled slices at /work/projects/imas_gpu/mast/spine_labels
+    (3 campaigns; per-shot sensor sets VARY inside a campaign - 81/96/97 channels - hence the
+    by-name channel alignment onto a per-campaign canonical richest set).
+  - Eigenbases + synthetic checkpoint + pretrain report:
+    imas_ambix/latent/artifacts/temporal_operator/ (eigenbasis-*-k12.npz,
+    temporal_operator_synthetic.pt, synthetic_pretrain_report.json: eddy recovery R2 median
+    +0.25 vs -0.27 raw feature, slow modes 0.30-0.70).
+  - First (crippled) run artifacts: patch_gate/temporal_operator_gate_eval.json + _arrays.npz,
+    figures docs/figures/learned-equilibrium-operator/fig-temporal-operator-g2.png + -delta.png.
+    Its split score: spine split err 0.120 median; operator NaN (same numeric defect).
+  - OPEN BUG being settled by the fix-cycle: data-dependent non-finite forward/loss in the fp64
+    decode path on most full-corpus batches (weights stay finite; inputs verified finite across
+    all 503 shards - NOT a data problem, no interpolation/L2 needed). Fixes: finite-gradient
+    guard + clip, bounded ip/total gain in cell_currents, component-level NaN logging.
+
+State to read FIRST
+  _r2_fix_cycle_&lt;jobid&gt;.log (repo root; sentinels STAGE_TESTS/GRADDIAG/TRAIN/GATE/SPLIT,
+  TRAIN_EXIT/GATE_EXIT/SPLIT_EXIT/PIPELINE_DONE). The GRADDIAG stage logs name the non-finite
+  component (misfit/leash/ridge/clamp) and whether loss- or gradient-side.
+  Then: imas_ambix/latent/artifacts/patch_gate/temporal_operator_gate_eval.json (fresh verdict)
+  and imas_ambix/latent/artifacts/temporal_operator/{training_report.json,synthetic_pretrain_report.json}.
+
+Done-when
+  1. If the fix-cycle trained cleanly (n_skipped_steps ~0 in training_report.json): take the G2
+     verdict AS RECORDED (PASS or FAIL, honestly). If steps are still being skipped, diagnose from
+     the component logs (suspects if gain-bound insufficient: fp32 cast of extreme a_phys/u_drive
+     features; a specific campaign's decode) and iterate ONCE more; record whatever stands.
+  2. Record outcomes same-session: archive docs/archive/learned-equilibrium-operator-s2-r2-landed.html
+     (quick-status grid, G2 numbers table incl. the crippled-run FAIL as provenance, figures with
+     project-absolute src); collapse the R2 paragraph in the evergreen to a landed-summary;
+     edit_plan: set impl (2/3 if G2 taken), resolve f-leo-02 AND f-leo-03 with the verdict,
+     append the next followup (R3 synthetic-machine transfer if G2 PASS; else a bounded R2
+     iteration followup with the diagnosis). reckon audit-doc; commit + push.
+  3. Known approximations to record in the archive: label-cadence eddy integration (a_phys[0]=0),
+     eval-campaign tau drift log-max 0.50 vs train, mode-identity across campaigns, G2 flat-top
+     CI from n=8 shot-level paired bootstrap.</pre>
+    </article>
 <article class="r-fu" data-id="f-leo-02" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">R2 — temporal operator over sensor history (the thesis rung)</h4>
     <div class="r-fu-body"><p>R1 proved the plumbing (G1 PASS, CI-clear); every remaining error mode is temporal. Build the causal sequence model over sensor history with the L/R-eigenmode-structured latent eddy state entering as external currents through the same Green's layer. First: lock the temporal-backbone decision (SSM vs causal transformer vs structured GRU — the eddy block is literally a diagonal SSM); scale the label factory toward the full corpus (throughput measured: ~4,900 slices/node-hour per node at 8 chains); pretrain the eddy latent on synthetic_truth sequences with known L/R histories. Gate G2: beat the disc read flat-top (1.4–2.1 cm) CI-clear AND ramp-up &lt;5 cm median AND axis &lt;5.1 cm; p′/FF′ split scored on synthetic truth. H200 becomes load-bearing here.</p></div>
