@@ -7,7 +7,7 @@
   <meta name="reckon-type" content="research">
   <meta name="plan-slug" content="learned-equilibrium-operator-s2-r2-landed">
   <meta name="plan-title" content="Learned Equilibrium Operator — §2 rung R2 record (G2 FAIL, honest negative)">
-  <meta name="plan-summary" content="The temporal rung's first valid test: causal transformer + embedded L/R diagonal-SSM eddy block over 503 shards / 14,441 spine-labelled slices. A padded-batch NaN that silently skipped ~99% of training steps was root-caused (empty-timestep max-pool sentinel, not the fp64 decode) and fixed; the cleanly-trained operator then FAILED G2: flat-top op−disc +0.90 cm CI [−0.63,+2.33], ramp-up 8.18 cm vs 5 cm bar, axis 6.11 cm vs 5.1 cm bar, non-inferiority vs spine FAIL on tail CIs. The operator improves whitened sensor misfit (5.87→4.38 val) but every sweep point trades flat-top boundary fidelity past the 0.75 cm drift bound — sensor-reconstruction gains do not convert into boundary skill under the current training signal. Landed 2026-07-16.">
+  <meta name="plan-summary" content="The temporal rung's record, closed as a SUSTAINED negative after two clean tests. First valid test (2026-07-16): G2 FAIL with a clear mechanism — sensor misfit improves but every sweep point trades boundary drift past the 0.75 cm bound. Bounded iteration (2026-07-17): terminator-consistency anchor + critical-point integrity regulariser in the training signal, drift-aware composite selection, wider sweep — the anchors work exactly as designed (drift 0.70 cm IN bound at val misfit 4.62 vs spine 5.87, non-inferiority vs spine restored) yet G2 still FAILS with no material movement: flat-top op−disc +0.64 cm CI [−0.71,+1.83], ramp-up 7.87 cm vs 5 cm bar, axis 6.2 cm vs 5.1 cm. Direct-DOF ablation catastrophically worse (+11.9 cm flat-top) — residual-first locked empirically. Sensor self-supervision plus spine-anchored topology does not convert into referee-measured equilibrium skill; the temporal thesis goes back to planning.">
   <meta name="plan-informs" content="learned-equilibrium-operator">
   <title>Learned Equilibrium Operator — §2 R2 record (G2 FAIL) | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -15,13 +15,15 @@
 </head>
 <body>
   <main class="plan-doc">
-    <h1>Learned Equilibrium Operator — §2 rung R2 record (G2 FAIL — honest negative)</h1>
+    <h1>Learned Equilibrium Operator — §2 rung R2 record (G2 FAIL — sustained negative)</h1>
     <p><em>Per-stage record for
     <a href="/imas-ambix/learned-equilibrium-operator.html">learned-equilibrium-operator</a>
     (§2 rung R2 + §4 corpus scale-up + §6 gate G2). The temporal operator is built, the corpus
-    is scaled, the measurement chain is proven end-to-end, and the rung's first <strong>valid</strong>
-    training run fails the headline gate. The negative is recorded with its mechanism — the next
-    iteration attacks the training signal, not the plumbing. Landed 2026-07-16.</em></p>
+    is scaled, the measurement chain is proven end-to-end, the rung's first <strong>valid</strong>
+    training run fails the headline gate with a clear mechanism, and the bounded
+    training-signal iteration (topology terms + drift-aware selection, see below) controls that
+    mechanism yet still fails — closing the rung as a <strong>sustained negative</strong>.
+    First test landed 2026-07-16; iteration + closure 2026-07-17.</em></p>
 
     <h2>Quick status</h2>
     <table>
@@ -37,8 +39,12 @@
             <td>empty-timestep max-pool sentinel in padded batches — <em>not</em> the fp64 decode; regression-tested, 0 skipped steps at corpus scale after fix</td></tr>
         <tr><td><strong>Gate G2 (beat disc flat-top CI-clear AND ramp-up &lt;5 cm AND axis &lt;5.1 cm)</strong></td><td><strong>✗ FAIL</strong></td>
             <td>flat-top +0.90 cm vs disc CI [−0.63, +2.33]; ramp-up 8.18 cm; axis 6.11 cm; non-inferiority vs spine FAIL (tail CIs)</td></tr>
-        <tr><td>p′/FF′ split score (synthetic truth)</td><td>✗ defective</td>
-            <td>spine arm 0.120 median; operator arm NaN — a separate numeric defect in the split-path ladder refit (open)</td></tr>
+        <tr><td>p′/FF′ split score (synthetic truth)</td><td>✗ scores, loses</td>
+            <td>first test: operator arm NaN (checkpoint-dependent refit defect); iteration checkpoint: finite — operator 0.201 vs spine 0.120 median, operator LOSES</td></tr>
+        <tr><td>Topology-signal iteration (terminator anchor + integrity regulariser + composite selection)</td><td>✓ built, ✗ G2</td>
+            <td>drift 0.70 cm IN bound at val 4.62 (vs spine 5.87); non-inferiority restored; flat-top/ramp-up/axis unmoved → <strong>SUSTAINED negative</strong></td></tr>
+        <tr><td>Direct-DOF ablation arm (locked decision)</td><td>✓ run</td>
+            <td>flat-top +11.9 cm vs disc, axis 13.7 cm, non-inferiority FAIL — residual-first locked empirically</td></tr>
       </tbody>
     </table>
 
@@ -162,19 +168,86 @@
       "emit zeros at fully-masked padded timesteps; select-mask operator outputs".</li>
     </ul>
 
+    <h2>The bounded iteration — topology terms in the training signal (SUSTAINED negative, 2026-07-17)</h2>
+    <p>The f-leo-05 iteration put the topology of a valid boundary into the objective
+    (<code>imas_ambix/latent/topology_objectives.py</code>, commits <code>dbceba0</code> +
+    <code>ef44cc1</code>; pipeline job 1229633, <code>_temporal_operator_cycle_1229633.log</code>):</p>
+    <ul>
+      <li><strong>Terminator-consistency anchor</strong> on 9,819 spine-trusted quasi-flat-top
+      slices: the induced gradient change ∇δψ at the spine's X-point candidates (full
+      projector) and limiter-contact point (tangential projector), plus a softmax-weighted
+      differential-flux-consistency term across terminator candidates. Delta form through
+      interpolation rows over the exact Green's matrices — identically zero at zero correction,
+      unit-tested against the cylinder-kernel pointwise field.</li>
+      <li><strong>Critical-point integrity regulariser</strong> (label-free, unconditional):
+      penalises gradient erosion below the spine field's own capped margin — a spurious
+      interior null cannot form where the spine had a healthy gradient. Fades out at legitimate
+      nulls with no exclusion zones.</li>
+      <li><strong>Drift-aware composite selection</strong> (val misfit + drift-excess penalty,
+      never anchor satisfaction) over a widened sweep — leash {3, 10, 30} × ridge {0.3, 3} ×
+      terminator weight {1, 10} — bracketing the 0.75 cm drift bound from both sides.</li>
+    </ul>
+    <p><strong>The anchors work; the thesis doesn't move.</strong> Selected point
+    (leash 10, ridge 0.3, terminator weight 10): val sensor misfit 4.62 (spine 5.87) at
+    boundary drift <strong>0.70 cm — inside the bound</strong> for the first time (the first
+    test's fallback sat at 1.22 cm and val 5.16), 0 skipped steps, byte-exact spine
+    reproduction at eval. Non-inferiority vs the spine now <strong>PASSES</strong> (axis Δskill
+    +0.026 [−0.006, +0.044], LCFS +0.006 [−0.024, +0.040]) — the saddle-degrading corrections
+    of the first test are gone (X-point-set Δ [−0.089, −0.003] remains mildly negative but no
+    longer drags axis/LCFS). Yet the headline gate is unchanged:</p>
+    <table>
+      <thead><tr><th>G2 condition</th><th>bar</th><th>first valid test (1229626)</th><th>topology-signal iteration (1229633)</th></tr></thead>
+      <tbody>
+        <tr><td>flat-top LCFS, op − disc paired Δ</td><td>beat disc, CI clear</td>
+            <td>+0.90 cm [−0.63, +2.33] → FAIL</td><td><strong>+0.64 cm [−0.71, +1.83] → FAIL</strong></td></tr>
+        <tr><td>ramp-up LCFS RMS median</td><td>&lt; 5.0 cm</td>
+            <td>8.18 cm → FAIL</td><td><strong>7.87 cm → FAIL</strong> (spine 8.37, disc 11.30)</td></tr>
+        <tr><td>axis error median</td><td>&lt; 5.1 cm</td>
+            <td>6.11 cm → FAIL</td><td><strong>6.18 cm → FAIL</strong> (spine 6.15)</td></tr>
+        <tr><td>non-inferiority vs spine (−0.05)</td><td>all CIs above margin</td>
+            <td>FAIL (axis/X-point tails)</td><td><strong>PASS</strong></td></tr>
+        <tr><td>p′/FF′ split |err| median (synthetic, 96 slices)</td><td>beat spine 0.120</td>
+            <td>NaN (defect)</td><td><strong>0.201 — finite, operator LOSES</strong></td></tr>
+      </tbody>
+    </table>
+    <figure>
+      <img src="/imas-ambix/figures/learned-equilibrium-operator/fig-temporal-operator-g2-topology-signal.png"
+           alt="G2 verdict panels for the topology-signal iteration: per-shot flat-top LCFS bars with the temporal operator tracking the D2 spine and the disc read keeping the crown on most shots; ramp-up bars with operator and spine around 8 cm against the 5 cm bar; axis histograms with operator and spine medians overlapping at 6.2 cm." style="max-width:100%">
+      <figcaption>The topology-signal iteration, per shot. The operator (green) is now a
+      <em>safe</em> spine-adjacent model — in-bound drift, non-inferior — but its wins over the
+      disc read remain the spine's, not the time axis's.</figcaption>
+    </figure>
+    <figure>
+      <img src="/imas-ambix/figures/learned-equilibrium-operator/fig-temporal-operator-g2-directdof.png"
+           alt="Direct-DOF ablation G2 panels: flat-top offsets an order of magnitude above both baselines (op-disc +11.9 cm), ramp-up 8.9 cm, axis median 13.7 cm." style="max-width:100%">
+      <figcaption>The locked direct-DOF ablation arm (absolute coefficients about the
+      corpus-median profile, no classical warm start): flat-top +11.9 cm vs disc
+      [+9.1, +15.0], axis 13.7 cm, non-inferiority FAIL — the classical warm start is worth an
+      order of magnitude. <strong>Residual-first is locked empirically.</strong></figcaption>
+    </figure>
+    <p><strong>Reading the sustained negative.</strong> Two clean, fully-instrumented tests of
+    the temporal thesis now agree: the operator reliably converts sensor history into whitened
+    sensor-misfit gains (5.87 → 4.4–4.6 val, ~21%), and with the topology terms those gains are
+    now bought <em>without</em> boundary drift or saddle damage — but they do not convert into
+    referee-measured equilibrium skill anywhere: not flat-top boundary, not ramp-up boundary,
+    not axis, not the p′/FF′ split. The ramp-up advantage over the disc read (7.9 vs 11.3 cm)
+    is inherited from the D2 spine (8.4 cm), not learned. Per the iteration's stop rule this is
+    a <strong>sustained negative</strong>: no further training-signal iterations; the temporal
+    thesis goes back to planning (followup <code>f-leo-06</code>). The split-scorer NaN of the
+    first test did not reproduce with this checkpoint (the defect is data-dependent in the
+    classical ladder refit — a separate hardening fix with a regression test is in flight).</p>
+
     <h2>What's next</h2>
-    <p>One bounded R2 iteration on the <em>training signal</em> (followup <code>f-leo-05</code>,
-    superseding f-leo-04 after lead review made the topological terms first-class): put boundary
-    fidelity into the objective as the <em>topology of a valid boundary</em> — a
-    terminator-consistency anchor on spine-trusted slices (pointwise |∇ψ|² at the spine's
-    X-point / limiter-tangency, boundary-flux softmin consistency, phrased as a penalty on the
-    change the correction induces) plus a label-free critical-point integrity regulariser
-    (no spurious interior nulls), with the full-ring drift penalty only as fallback — alongside
-    skill-aware selection, a wider leash/ridge sweep, and the locked direct-DOF ablation arm.
-    Hard class supervision stays banned (emergent-class decision). Fix the split-path NaN so the
-    p′/FF′ criterion can score. If the iteration cannot move the flat-top Δ or the ramp-up
-    median materially, the rung records a sustained negative and the plan re-plans the temporal
-    thesis rather than iterating blind.</p>
+    <p>Re-plan the temporal thesis before any further R2-class training (followup
+    <code>f-leo-06</code>). The open question is no longer plumbing or objective degeneracy —
+    both are now controlled — but <em>where the temporal information can actually enter</em>:
+    the frozen-ψ_N linearised decode caps how far any correction can move the boundary in the
+    ramp-up regime where the spine itself is wrong; real-data boundary truth is unavailable by
+    construction (EFIT firewalled); and synthetic-truth sequences (exact boundaries, exact eddy
+    histories) remain the only genuinely supervised boundary signal. Candidate directions for
+    the re-plan: synthetic-first supervised training with domain transfer, an iterated decode
+    (re-solve ψ_N after correction), a ramp-up-scoped gate where the irreducibles provably
+    live, and an information ceiling probe on synthetic machines.</p>
   </main>
 </body>
 </html>
