@@ -78,17 +78,38 @@ def campaign_eigenbasis(campaign: str, shot: int, *, nr, nz, scale, k, cache_dir
     return basis
 
 
-def build_sequences(shards, decoders, eigenbases) -> list[dict]:
+def align_shard_channels(arrays: dict, shard_channels, canon_channels) -> dict:
+    """Re-map a shard's sensor-space arrays onto the campaign's canonical
+    channel list BY NAME (the alignment the harness applies everywhere).
+
+    Channels absent on the shard are masked out (values 0); shard channels
+    outside the canonical set are dropped.  Sensor geometry rows come from the
+    canonical shard, so tokens stay geometry-consistent with the decoder.
+    """
+    if list(shard_channels) == list(canon_channels):
+        return arrays
+    row_of = {ch: i for i, ch in enumerate(shard_channels)}
+    idx = np.array([row_of.get(ch, -1) for ch in canon_channels])
+    present = idx >= 0
+    out = dict(arrays)
+    take = np.clip(idx, 0, None)
+    for key in ("measured", "vacuum", "sens_passive"):
+        out[key] = np.where(present, arrays[key][:, take], 0.0)
+    out["mask"] = arrays["mask"][:, take] & present
+    out["scale"] = np.where(present, arrays["scale"][take], 1.0)
+    return out
+
+
+def build_sequences(shards, decoders, eigenbases, canon) -> list[dict]:
     """One training sequence per shard (numpy; tensors made at batch time)."""
     sequences = []
     for sh in shards:
-        a = sh.arrays
         camp = sh.meta["campaign"]
         dec = decoders[camp]
+        canon_channels, sr, sz, sang, is_flux = canon[camp]
+        a = align_shard_channels(sh.arrays, sh.meta.get("channels", []), canon_channels)
         m_sens = np.asarray(dec.basis.m_sens.cpu().numpy(), dtype=np.float64)
         n = sh.n_slices
-        sr, sz = a["sensor_r"], a["sensor_z"]
-        sang, is_flux = a["sensor_angle_deg"], a["is_flux"]
         scale = a["scale"]
         i_cell = a["i_cell"].astype(np.float64)
         spine_pred = i_cell @ m_sens.T + a["vacuum"] + a["sens_passive"]  # (T, S)
@@ -346,12 +367,21 @@ def main() -> int:
 
     decoders: dict[str, ProfileGreensDecoder] = {}
     eigenbases: dict = {}
+    canon: dict[str, tuple] = {}  # campaign → canonical channels + geometry
     spine_cfg = shards[0].meta["spine_config"]["interior_solve"]
     nr, nz = int(shards[0].meta["nr"]), int(shards[0].meta["nz"])
+    # canonical shard per campaign = the richest channel set (channels absent
+    # on other shards are masked; a lean canonical would DROP live channels)
+    canon_shard: dict[str, object] = {}
     for sh in shards:
         camp = sh.meta["campaign"]
-        if camp in decoders:
-            continue
+        best = canon_shard.get(camp)
+        if best is None or len(sh.meta.get("channels", [])) > len(
+            best.meta.get("channels", [])
+        ):
+            canon_shard[camp] = sh
+    for sh in canon_shard.values():
+        camp = sh.meta["campaign"]
         basis = PatchBasis.from_table(
             build_table_for_shot(sh.shot), nr=nr, nz=nz, dtype=torch.float64
         )
@@ -360,6 +390,19 @@ def main() -> int:
             n_p=int(spine_cfg["n_p"]),
             n_f=int(spine_cfg["n_f"]),
             kind=str(spine_cfg["profile_kind"]),
+        )
+        if basis.m_sens.shape[0] != len(sh.meta.get("channels", [])):
+            raise SystemExit(
+                f"campaign {camp}: decoder sensor rows "
+                f"{basis.m_sens.shape[0]} != canonical shard channels "
+                f"{len(sh.meta.get('channels', []))} (shot {sh.shot})"
+            )
+        canon[camp] = (
+            list(sh.meta["channels"]),
+            sh.arrays["sensor_r"],
+            sh.arrays["sensor_z"],
+            sh.arrays["sensor_angle_deg"],
+            sh.arrays["is_flux"],
         )
         eigenbases[camp] = campaign_eigenbasis(
             camp,
@@ -372,7 +415,7 @@ def main() -> int:
         )
     logger.info("campaigns: %s", list(decoders))
 
-    sequences = build_sequences(shards, decoders, eigenbases)
+    sequences = build_sequences(shards, decoders, eigenbases, canon)
     for camp in decoders:  # Green's buffers to the training device (fp64 matmuls)
         decoders[camp] = decoders[camp].to(args.device)
     shots = sorted({s["shot"] for s in sequences})
