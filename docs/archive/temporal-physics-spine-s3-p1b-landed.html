@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="temporal-physics-spine-s3-p1b-landed">
+  <meta name="plan-title" content="Temporal Physics Spine — §3 P1b record (vacuum-trained passive resistances, case-current holdback, re-gate)">
+  <meta name="plan-summary" content="P1b record: bounded passive-resistance multipliers fitted on the 85-shot coil-only pool with the 8 measured case-current channels HELD BACK as targets (never inputs). Held-out vacuum: whitened eddy residual 0.337→0.012; P3–P5 case transients reproduced from independent coil drives at corr 0.96–0.99 (per-circuit validation of L and R); bulk vessel R ×11–13, outboard cylinder and measured cases nominal, inboard bounding boxes driven to effective open circuit; P2 cases stay unpredictable (structured residual). Re-gate at frozen w=0.1: axis magnitude-poisoning cured (tune parity at every weight; held-out axis damage halved 6.95→6.43 cm) but the ramp-up gain halves too (−0.10 cm, CI grazing zero) — formal gate FAIL sustained; residual disagreement is structural (drive separability, 3-D paths), not R. Cases-predicted machine-agnostic arm ≡ measured arm to ~0.01 cm.">
+  <meta name="plan-informs" content="temporal-physics-spine">
+  <title>temporal-physics-spine §3 P1b — vacuum resistance discovery, landed record</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>§3 P1b — vacuum-trained passive resistances with case-current holdback (landed record)</h1>
+  <p class="lede"><strong>Verdict (2026-07-17): the resistance extraction SUCCEEDS and is
+  validated per-circuit on held-back measured case currents; the P1 re-gate still FAILS
+  formally — the attribution is revised, not rescued.</strong> Bounded resistance
+  multipliers fitted on the 85-shot coil-only pool (case channels held back as targets,
+  never inputs) cut the held-out vacuum eddy residual 0.337 → 0.012 and reproduce the
+  held-back P3–P5 case transients from independent coil drives at correlation 0.96–0.99;
+  the data demands structure — bulk vessel ×11–13, outboard cylinder and measured cases
+  nominal, inboard bounding boxes driven to effective open circuit. On the re-gate the
+  calibration cures the axis magnitude-poisoning (tune axis parity at every weight where
+  nominal R gave 9.7–19.4 cm) and halves the held-out axis damage (median 6.15 → 6.43 cm
+  vs P1's 6.95) — but it also halves the ramp-up gain (−0.10 cm, CI [−0.197, +0.0004]
+  grazing zero) and the axis leg stays inferior. The residual trajectory–data
+  disagreement is structural (unpredictable P2 cases, un-separable up/down pair drives,
+  3-D paths), not resistance magnitude. The cases-predicted machine-agnostic arm matches
+  the measured-driven arm to ~0.01 cm everywhere.</p>
+
+  <h2>The discovery model — cases become passive, measurements become targets</h2>
+  <p>The landed operator consumes the 8 measured <code>*_case_current</code> channels as
+  DRIVES (<code>known_case</code> circuits with their own G columns). For the resistance
+  discovery this inverts, per the lead's binding holdback: the circuit system is built with
+  the P2–P5 case circuits <strong>moved into the passive set</strong>
+  (<code>build_passive_circuit_system(hold_back_cases=True)</code>,
+  <code>imas_ambix/latent/temporal_operator.py</code>) — their currents are integrated
+  states driven by the 13 remaining coil channels through the geometry-exact mutual
+  couplings (k ≈ 0.85–0.94 coil↔case), and the measured case currents supervise the fit
+  purely as held-back per-circuit targets. A model that reproduces a measured case
+  transient from independent drives is validated at the per-circuit level — the strongest
+  test of both L and R the corpus offers. The frozen spine's own vacuum prediction keeps
+  its measured case drives untouched (byte-exact baseline).</p>
+  <ul>
+    <li><strong>Pool:</strong> the vetted coil-only set of the solenoid-attribution work —
+    85 shots (48 fleet −2.5 s preludes carrying the full CS precharge swing + 37 dedicated
+    vacuum shots), leading coil-only run only (post-plasma tails carry plasma-origin
+    eddies), 448k raw 1 kHz samples, two campaigns (fc1004: 146+8 passive circuits;
+    fc938: 80+8).</li>
+    <li><strong>Supervision:</strong> whitened magnetics eddy residual (measured − non-case
+    static coil prediction; per-channel offset nuisance) + the held-back case currents,
+    equal weight. The static coil calibration deliberately fit dI/dt-QUIET intervals, so
+    these transients are untouched information.</li>
+    <li><strong>DOF ladder (cross-shot, bounded ×[0.2, 64], never per-shot):</strong>
+    global → vessel/case → 4 normalised-coordinate vessel regions + case pairs → per-case;
+    each rung accepted only if 16 held-out shots improve. L stays geometry-exact
+    throughout; a candidate R is one cheap re-eigensolve of the cached circuit system
+    (<code>imas_ambix/latent/passive_resistance.py</code>; fit driver
+    <code>scripts/vacuum_passive_resistance_fit.py</code>; full 85-shot ladder ≈ 8 min on
+    one node).</li>
+  </ul>
+
+  <h2>Extraction results — held-out vacuum validation</h2>
+  <table>
+    <thead><tr><th>ladder rung</th><th>DOF</th><th>train loss</th><th>held-out loss</th><th>held-out mag / case</th></tr></thead>
+    <tbody>
+      <tr><td>nominal R (incumbent)</td><td>0</td><td>—</td><td>0.933</td><td>0.337 / 0.596</td></tr>
+      <tr><td>global scale</td><td>1</td><td>0.538</td><td>0.758</td><td>0.126 / 0.632</td></tr>
+      <tr><td>vessel | case</td><td>2</td><td>0.432</td><td>0.610</td><td>0.033 / 0.577</td></tr>
+      <tr><td>regions + case pairs</td><td>9</td><td>0.364</td><td>0.499</td><td>0.012 / 0.487</td></tr>
+      <tr><td><strong>regions + per-case (chosen)</strong></td><td>14</td><td>0.362</td><td><strong>0.495</strong></td><td>0.012 / 0.483</td></tr>
+    </tbody>
+  </table>
+  <p><strong>The resistance structure the data demands</strong> (multipliers on nominal
+  steel ring resistance at TRUE cross-sections): bulk vessel
+  <code>vessel:mid ×12.7</code>, <code>vessel:ends ×11.2</code> — the sensor-visible slow
+  modes the P1 tune sweep said were ~4–10× over-persistent; outboard cylinder
+  <code>×0.95</code> (nominal — the efm boxes are faithful there); measured cases
+  P3–P5 <code>×0.92–1.05</code> (nominal — the true-area thin-shell fix already landed the
+  case resistances, and the held-back data confirms it); P2 cases <code>×2.7 / ×6.9</code>
+  and channel-less P6 cases <code>×8.6 / ×2.5</code> (weakly constrained absorbers — see
+  residual note); inboard centre-column group (94 of 146 fc1004 circuits)
+  <strong>saturates the ×64 bound</strong>: the data drives the efm centre-column bounding
+  boxes to effective open circuit — those "conductors" are mostly not conducting paths.</p>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-vacuum-resistance-ladder.png"
+         alt="identifiability ladder losses and chosen multipliers" style="max-width:100%">
+    <figcaption>The identifiability ladder (train and held-out combined loss per rung) and
+    the chosen per-group multipliers. Every rung improves held-out; the structure — not a
+    single scale — is what the data demands.</figcaption>
+  </figure>
+
+  <h2>Held-back case currents — the per-circuit validation</h2>
+  <table>
+    <thead><tr><th>channel</th><th>rel. RMS before → after</th><th>corr before → after</th></tr></thead>
+    <tbody>
+      <tr><td>p3l / p3u</td><td>0.18 → 0.16 / 0.31 → 0.27</td><td>0.985 → 0.990 / 0.963 → 0.965</td></tr>
+      <tr><td>p4l / p4u</td><td>0.20 → 0.20 / 0.21 → 0.23</td><td>0.985 → 0.990 / 0.980 → 0.982</td></tr>
+      <tr><td>p5l / p5u</td><td>0.29 → 0.30 / 0.29 → 0.43</td><td>0.957 → 0.959 / 0.975 → 0.975</td></tr>
+      <tr><td>p2l / p2u</td><td>1.25 → 0.97 / 1.21 → 1.02</td><td>0.26 → 0.34 / −0.13 → −0.03</td></tr>
+    </tbody>
+  </table>
+  <p>Six of eight held-back case transients are reproduced from independent coil drives at
+  correlation 0.96–0.99 — the L/R circuit model validated per-circuit on measured passive
+  conductors. <strong>The P2 cases are the structured residual</strong>: essentially
+  unpredictable from the axisymmetric coil-driven model (corr ≈ 0), largely unchanged by
+  any resistance choice. Consistent with the coil-audit finding that the P2 winding pairs
+  are un-separable in operating data and sit in the divertor region; whatever drives the
+  P2 case currents is not in the 2-D drive set. Recorded as the disciplined SINDy slot
+  (missing circuits / 3-D paths) — not chased in this rung.</p>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-vacuum-case-reproduction.png"
+         alt="measured vs predicted case currents, nominal and calibrated R" style="max-width:100%">
+    <figcaption>Held-back case currents on held-out vacuum shots: measured (black) vs
+    predicted from coil drives only, at nominal (red) and calibrated (green) R.</figcaption>
+  </figure>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-vacuum-eddy-residual.png"
+         alt="whitened eddy residual per channel before/after calibration" style="max-width:100%">
+    <figcaption>Held-out coil-only whitened eddy residual per magnetics channel: nominal
+    (red) vs calibrated (green) R — pool mean square 0.337 → 0.012.</figcaption>
+  </figure>
+
+  <h2>Re-gate — the dynamic passive spine with calibrated R</h2>
+  <p>Same harness as the P1 gate (<code>scripts/dynamic_passive_gate_eval.py</code>):
+  byte-exact frozen-spine pass 1, raw-cadence trajectory, soft prior at swept weight,
+  paired bootstrap, criteria unchanged. The calibrated R enters the eigen-reduction as
+  per-circuit multipliers (<code>--resistance-artifact</code>); the slowest
+  sensor-visible modes barely move (36 → 35 ms — outboard-dominated, and the outboard
+  multiplier is ~1) while the bulk-vessel mid-range compresses, exactly the
+  over-persistent claim the tune sweep indicted. Two trajectory arms per the holdback
+  contract: cases driven by measurements (gate arm) and cases predicted
+  (machine-agnostic form, <code>--case-arm predicted</code>).</p>
+  <h3>Tune sweep (weight only, calibrated R frozen; 4 shots, 64 slices)</h3>
+  <table>
+    <thead><tr><th>w</th><th>ramp-up Δ [cm] (CI)</th><th>flat-top dyn/spine [cm]</th><th>axis dyn/spine [cm]</th><th>reseed dyn/spine</th></tr></thead>
+    <tbody>
+      <tr><td><strong>0.1</strong></td><td><strong>−0.20 [−0.27, −0.16]</strong></td><td>6.78 / 6.61</td><td><strong>4.65 / 4.80</strong></td><td><strong>0.078 / 0.078</strong></td></tr>
+      <tr><td>0.3</td><td>−0.40 [−0.44, −0.34]</td><td>6.79 / 6.61</td><td>4.74 / 4.80</td><td>0.125 / 0.078</td></tr>
+      <tr><td>1.0</td><td>−1.08 [−1.35, −0.92]</td><td>6.78 / 6.61</td><td>4.92 / 4.80</td><td>0.109 / 0.078</td></tr>
+    </tbody>
+  </table>
+  <p><strong>The axis poisoning is cured.</strong> At nominal R the tune axis blew up with
+  weight (w=0.3: 9.7 cm; w=1.0: 19.4 cm vs spine 4.8); with the calibrated R the axis
+  median stays at or better than spine parity at every weight — w=0.1 <em>improves</em> it
+  (4.65 vs 4.80) — and the tune LCFS skill delta turns CI-clear positive (+0.034
+  [+0.018, +0.047] at w=0.1, +0.84 at w=0.3). Pre-declared selection (ramp CI-clear,
+  axis/flat-top parity within 0.5 cm, reseed not degraded): only w=0.1 qualifies (0.3 and
+  1.0 degrade the reseed rate) — frozen for the single held-out run, same weight the P1
+  gate froze.</p>
+  <h3>Held-out gate (8 shots, n = 128, frozen w = 0.1, calibrated R)</h3>
+  <table>
+    <thead><tr><th>leg</th><th>P1 (nominal R)</th><th>P1b — cases measured (gate arm)</th><th>P1b — cases predicted</th></tr></thead>
+    <tbody>
+      <tr><td>spine drift vs frozen D2</td><td>0.0</td><td>0.0</td><td>0.0</td></tr>
+      <tr><td>ramp-up Δ [cm] (CI)</td><td><strong>−0.19 [−0.40, −0.03] PASS</strong></td><td>−0.10 [−0.197, +0.0004] <strong>FAIL (grazes zero)</strong></td><td>−0.11 [−0.203, −0.004] (clear)</td></tr>
+      <tr><td>LCFS Δskill (margin −0.05)</td><td>−0.005 [−0.021, +0.008] pass</td><td>−0.002 [−0.007, +0.002] pass</td><td>−0.002 [−0.007, +0.002] pass</td></tr>
+      <tr><td>axis Δskill / median [cm]</td><td>−0.30 [−1.30, −0.07]; 6.15 → 6.95 <strong>FAIL</strong></td><td>−0.18 [−0.79, −0.04]; 6.15 → 6.43 <strong>FAIL</strong></td><td>−0.18 [−0.79, −0.04]; 6.15 → 6.43</td></tr>
+      <tr><td>reseed / coverage</td><td>0/0, full</td><td>0/0, full</td><td>0/0, full</td></tr>
+    </tbody>
+  </table>
+  <p>The two case arms agree to ~0.01 cm on every metric — the predicted case currents
+  are as good as the measurements for the trajectory (the k ≈ 0.85–0.94 couplings plus
+  calibrated case R carry them), so the machine-agnostic form is free. That matters for
+  transfer: no target machine needs case-current diagnostics for this spine.</p>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-dynamic-passive-gate-eval-rcal.png"
+         alt="held-out re-gate with calibrated R" style="max-width:100%">
+    <figcaption>The held-out re-gate (cases-measured arm): per-shot ramp-up and flat-top
+    LCFS, and the constraint pull at w = 0.1.</figcaption>
+  </figure>
+
+  <h3>Verdict and what it means</h3>
+  <p><strong>Formal gate FAIL sustained; the P1 attribution is revised, not rescued.</strong>
+  The resistance magnitude WAS a real part of the axis failure — with the calibrated R the
+  tune-split axis poisoning disappears at every weight (nominal R: 9.7–19.4 cm at
+  w ≥ 0.3; calibrated: 4.7–4.9 vs spine 4.8) and the held-out axis damage halves
+  (Δmedian +0.80 → +0.28 cm). But correcting the physics also SHRINKS the trajectory's
+  claim, halving the ramp-up gain (−0.19 → −0.10 cm; CI grazing zero at the frozen
+  weight). What remains is a real, structural trajectory–data disagreement the σ-weighted
+  fit correctly refuses: the P2 case transients are unpredictable from the axisymmetric
+  drive set (corr ≈ 0 whatever R), the P2–P5 up/down pair drives are un-separable in
+  operating data (coil-audit finding — a shared-mode drive error no bounded R can absorb),
+  and 94/146 efm inboard "conductors" are bounding-box artifacts the data opens. The
+  honest conclusion for the temporal thesis: the vessel-eddy trajectory carries real but
+  SMALL referee-visible ramp-up information (−0.1…−0.2 cm), and as a fit constraint it
+  cannot clear the axis leg with the drive set as measured. The calibrated R itself is a
+  validated standalone product every later rung inherits (P2's diffusion chain, P3's
+  residual learner, the eddy features); the structural residual is the disciplined SINDy
+  slot (missing circuits / 3-D paths), recorded, not chased.</p>
+
+  <h2>Decisions honoured</h2>
+  <ul>
+    <li><code>passive-resistance-source</code> = vacuum-trained-standalone (locked): the
+    calibrated R is a standalone classical extraction the ML rungs inherit — never
+    re-learned inside the pipeline.</li>
+    <li><code>passive-constraint-form</code> = soft-prior-tight (locked): the re-gate
+    keeps the trajectory soft prior, weight re-swept on tune with R frozen.</li>
+    <li><strong>Case-current holdback (lead directive)</strong>: honoured as binding — the
+    case channels enter the discovery rung only as held-back targets; the re-gate reports
+    both trajectory arms (cases measured-driven and cases predicted), gated on the
+    measured arm.</li>
+  </ul>
+</main>
+</body>
+</html>
