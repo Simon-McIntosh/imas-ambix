@@ -1,0 +1,285 @@
+{
+  "kind": "vacuum-passive-resistance-fit",
+  "coil_model_version": "cylinder-sensors-v5",
+  "geometry_table_version": "amb-schema-canonical-v2",
+  "leakage_free": true,
+  "case_holdback": true,
+  "ip_vacuum_ka": 20.0,
+  "pool": {
+    "artifact": "imas_ambix/latent/artifacts/patch_gate/vacuum_coil_response_audit-solv4-vac.json",
+    "n_shots_prepared": 85,
+    "n_train": 69,
+    "n_held_out": 16,
+    "held_out_shots": [
+      11709,
+      11726,
+      11753,
+      11763,
+      11768,
+      11773,
+      11780,
+      11786,
+      11791,
+      11798,
+      11808,
+      11815,
+      11820,
+      11844,
+      11887,
+      12143
+    ],
+    "n_samples_total": 448472,
+    "campaigns": [
+      "mp78-fl46-fc1004-lim37-9425ae4a8bf3bc15",
+      "mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4"
+    ]
+  },
+  "ladder": [
+    {
+      "level": "global",
+      "n_dof": 1,
+      "group_names": [
+        "all"
+      ],
+      "theta": {
+        "all": 1.70772886441122
+      },
+      "train": {
+        "combined": 0.5381677565795749,
+        "mag": 0.0902952393135265,
+        "case": 0.44787251726604843
+      },
+      "held_out": {
+        "combined": 0.7579959785290452,
+        "mag": 0.12597628752446388,
+        "case": 0.6320196910045813
+      },
+      "n_obj_evals": 13,
+      "wall_s": 7.037439193576574
+    },
+    {
+      "level": "vessel-case",
+      "n_dof": 2,
+      "group_names": [
+        "case",
+        "vessel"
+      ],
+      "theta": {
+        "case": 1.301036506594251,
+        "vessel": 8.793011283720796
+      },
+      "train": {
+        "combined": 0.43219668817514645,
+        "mag": 0.019727045319079577,
+        "case": 0.41246964285606685
+      },
+      "held_out": {
+        "combined": 0.6096236879354285,
+        "mag": 0.03281157380224507,
+        "case": 0.5768121141331835
+      },
+      "n_obj_evals": 34,
+      "wall_s": 14.040461604483426
+    },
+    {
+      "level": "regions-casepairs",
+      "n_dof": 9,
+      "group_names": [
+        "case:p2",
+        "case:p3",
+        "case:p4",
+        "case:p5",
+        "case:p6",
+        "vessel:ends",
+        "vessel:inboard",
+        "vessel:mid",
+        "vessel:outboard"
+      ],
+      "theta": {
+        "case:p2": 3.4802385970094707,
+        "case:p3": 1.0306751398146525,
+        "case:p4": 0.9982272609595897,
+        "case:p5": 1.02248159230023,
+        "case:p6": 5.023213278898065,
+        "vessel:ends": 9.857306400338192,
+        "vessel:inboard": 63.99999999999998,
+        "vessel:mid": 11.670458410304654,
+        "vessel:outboard": 0.9711034305821482
+      },
+      "train": {
+        "combined": 0.36367101280578057,
+        "mag": 0.00718724013452352,
+        "case": 0.356483772671257
+      },
+      "held_out": {
+        "combined": 0.4989875255114362,
+        "mag": 0.011655632196413477,
+        "case": 0.48733189331502275
+      },
+      "n_obj_evals": 611,
+      "wall_s": 236.40942863188684
+    },
+    {
+      "level": "regions-percase",
+      "n_dof": 14,
+      "group_names": [
+        "case:p2l",
+        "case:p2u",
+        "case:p3l",
+        "case:p3u",
+        "case:p4l",
+        "case:p4u",
+        "case:p5l",
+        "case:p5u",
+        "case:p6l",
+        "case:p6u",
+        "vessel:ends",
+        "vessel:inboard",
+        "vessel:mid",
+        "vessel:outboard"
+      ],
+      "theta": {
+        "case:p2l": 2.710648505309646,
+        "case:p2u": 6.902219540930853,
+        "case:p3l": 1.042495923190497,
+        "case:p3u": 1.0198446767713054,
+        "case:p4l": 0.9985070902605333,
+        "case:p4u": 0.990691951150509,
+        "case:p5l": 1.046429051699242,
+        "case:p5u": 0.9246833037178714,
+        "case:p6l": 8.583604609495955,
+        "case:p6u": 2.533647509458468,
+        "vessel:ends": 11.234858954394515,
+        "vessel:inboard": 63.99999999999998,
+        "vessel:mid": 12.67965654941058,
+        "vessel:outboard": 0.9521074192418566
+      },
+      "train": {
+        "combined": 0.36160478828989223,
+        "mag": 0.007267945327494436,
+        "case": 0.3543368429623978
+      },
+      "held_out": {
+        "combined": 0.49518587661604074,
+        "mag": 0.01178657454150236,
+        "case": 0.4833993020745384
+      },
+      "n_obj_evals": 436,
+      "wall_s": 169.2578062126413
+    }
+  ],
+  "chosen_level": "regions-percase",
+  "group_multipliers": {
+    "case:p2l": 2.710648505309646,
+    "case:p2u": 6.902219540930853,
+    "case:p3l": 1.042495923190497,
+    "case:p3u": 1.0198446767713054,
+    "case:p4l": 0.9985070902605333,
+    "case:p4u": 0.990691951150509,
+    "case:p5l": 1.046429051699242,
+    "case:p5u": 0.9246833037178714,
+    "case:p6l": 8.583604609495955,
+    "case:p6u": 2.533647509458468,
+    "vessel:ends": 11.234858954394515,
+    "vessel:inboard": 63.99999999999998,
+    "vessel:mid": 12.67965654941058,
+    "vessel:outboard": 0.9521074192418566
+  },
+  "held_out_loss": {
+    "before": {
+      "mag": 0.3370954507914708,
+      "case": 0.5957621271268346
+    },
+    "after": {
+      "mag": 0.01178657454150236,
+      "case": 0.4833993020745384
+    }
+  },
+  "case_reproduction_held_out": {
+    "before": {
+      "p2l_case_current": {
+        "rel_rms_median": 1.2544633257336302,
+        "corr_median": 0.26041290628026165,
+        "n_shots": 16
+      },
+      "p2u_case_current": {
+        "rel_rms_median": 1.2050216620793868,
+        "corr_median": -0.1288658405212516,
+        "n_shots": 16
+      },
+      "p3l_case_current": {
+        "rel_rms_median": 0.17493104935538778,
+        "corr_median": 0.9848136184070186,
+        "n_shots": 16
+      },
+      "p3u_case_current": {
+        "rel_rms_median": 0.31051345062599855,
+        "corr_median": 0.9631774826285773,
+        "n_shots": 16
+      },
+      "p4l_case_current": {
+        "rel_rms_median": 0.19661554213187205,
+        "corr_median": 0.9846592225170512,
+        "n_shots": 16
+      },
+      "p4u_case_current": {
+        "rel_rms_median": 0.21212286717452664,
+        "corr_median": 0.9800159128587477,
+        "n_shots": 16
+      },
+      "p5l_case_current": {
+        "rel_rms_median": 0.29342210759929616,
+        "corr_median": 0.9573018750661629,
+        "n_shots": 16
+      },
+      "p5u_case_current": {
+        "rel_rms_median": 0.28578491332135536,
+        "corr_median": 0.9749719178504599,
+        "n_shots": 16
+      }
+    },
+    "after": {
+      "p2l_case_current": {
+        "rel_rms_median": 0.9649140663188336,
+        "corr_median": 0.3361374896544929,
+        "n_shots": 16
+      },
+      "p2u_case_current": {
+        "rel_rms_median": 1.0178633942855393,
+        "corr_median": -0.026963111774555695,
+        "n_shots": 16
+      },
+      "p3l_case_current": {
+        "rel_rms_median": 0.1602818092303932,
+        "corr_median": 0.990049325541531,
+        "n_shots": 16
+      },
+      "p3u_case_current": {
+        "rel_rms_median": 0.2714472098614561,
+        "corr_median": 0.9647172642401991,
+        "n_shots": 16
+      },
+      "p4l_case_current": {
+        "rel_rms_median": 0.19699462834151082,
+        "corr_median": 0.9904610087976113,
+        "n_shots": 16
+      },
+      "p4u_case_current": {
+        "rel_rms_median": 0.22540883221420577,
+        "corr_median": 0.9823311308258172,
+        "n_shots": 16
+      },
+      "p5l_case_current": {
+        "rel_rms_median": 0.29615570932123403,
+        "corr_median": 0.9591256184672573,
+        "n_shots": 16
+      },
+      "p5u_case_current": {
+        "rel_rms_median": 0.42984065467216204,
+        "corr_median": 0.9749803732963348,
+        "n_shots": 16
+      }
+    }
+  },
+  "calibration_artifact": "imas_ambix/latent/artifacts/patch_gate/passive_resistance_calibration.json"
+}
