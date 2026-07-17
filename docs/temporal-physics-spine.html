@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="temporal-physics-spine">
+  <meta name="plan-title"     content="Temporal Physics Spine — reduced-order dynamics for passive circuits and plasma current diffusion">
+  <meta name="plan-summary"   content="Give the DYNAMICS the same physics-spine treatment the statics got. The learned-equilibrium-operator R2 rung closed as a sustained negative: a causal sequence model over sensor history converts ~21% of whitened sensor misfit but zero referee-measured equilibrium skill, even with topology-safe corrections — the missing information lives in the TRANSIENTS (vessel-eddy L/R dynamics, plasma current diffusion) and a free-form learner cannot extract it through a frozen-ψ_N decode with no boundary truth. This plan builds deterministic reduced-order dynamics models driven by measured histories — P1: the existing L/R eigenmode circuit model promoted from an ML feature to a constraint inside the per-slice fit (eddy amplitudes become circuit-integrated trajectories, not per-slice static unknowns); P2: a TORAX-inspired 1D resistive current-diffusion prior linking successive profile fits, anchored by measured boundary loop voltage and Ip, with the unmeasured resistivity profile as the explicit low-DOF unknown — each gated against the frozen static spine on the standard referee harness before ML returns (P3) as a residual corrector on the DOF the dynamics provably cannot pin. Same loop as R0→R1: reduced-order physics first, learning on its residuals.">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="L">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S16">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="equilibrium-boundary-closure">
+  <meta name="plan-blocks"    content="learned-equilibrium-operator">
+  <title>Temporal Physics Spine | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h2 id="s1">§1 — Objective: the dynamics get the same treatment as the statics</h2>
+  <p>The static boundary problem was solved by building a <strong>physics spine</strong> —
+  exact thick-cylinder Biot–Savart kernels + the GS flux-function structure, fit per slice,
+  gated against frozen baselines — and only then letting a network correct its degenerate DOF.
+  The temporal problem got the opposite treatment: the
+  <a href="/imas-ambix/learned-equilibrium-operator.html">learned-equilibrium-operator</a> R2
+  rung asked a causal transformer to <em>discover</em> the dynamics from sensor history, and it
+  closed as a <strong>sustained negative</strong> after two clean tests (full record:
+  <a href="/imas-ambix/archive/learned-equilibrium-operator-s2-r2-landed.html">§2 R2 record</a>):
+  the operator converts ~21% of whitened val sensor misfit, and with the topology anchors those
+  gains come boundary-safe and spine-non-inferior — yet flat-top, ramp-up, axis, and the
+  p′/FF′ split are all unmoved. The information the referee rewards was never in reach of the
+  learner, because the two places it lives are both governed by <em>known differential
+  equations with measured drives</em>:</p>
+  <ul>
+    <li><strong>Vessel-eddy transients</strong> obey the passive circuit equation
+    <code>L·dI/dt + R·I = −dΨ_ext/dt</code> with the external flux swing computable from
+    measured coil currents and the plasma current history through the exact cylinder kernels.
+    The per-slice static passive fit is under-determined by construction (measured:
+    th-boundary-robustness §18) — this is <em>why</em> ramp-ups sit at 5–10 cm.</li>
+    <li><strong>Plasma current diffusion</strong> obeys the resistive flux-diffusion equation —
+    the jφ profile at time t is not free; it evolves from the profile at t−Δt under a
+    diffusion operator whose boundary conditions (surface loop voltage, total Ip) are
+    <em>measured</em> and whose only unknown is the resistivity profile. The per-slice fit
+    discards this entirely: successive profile coefficient fits are independent (the warm
+    chain shares only an initial guess).</li>
+  </ul>
+  <p><strong>The lead's question — "do we repeat the same loop: reduced-order model first,
+  then merge into the ML pipeline?" — is answered yes, and it is the whole plan.</strong>
+  The R0→R1 pattern (deterministic physics spine → residual learner) is the methodology, not
+  a one-off: build the reduced-order dynamics spine, drive it with measured histories, gate it
+  against the frozen static spine on the standard referee harness with <em>zero ML</em>, and
+  only then let a network correct the DOF the dynamics provably cannot pin (the resistivity
+  profile, mode-resistance scales, un-modelled 3-D effects). If the deterministic dynamic
+  spine cannot move the ramp-up gap, that is itself the decisive measurement: the temporal
+  information is not in the dynamics we can model, and the ML rung was never going to find it.</p>
+
+  <h2 id="s2">§2 — What already exists (most of P1 is built)</h2>
+  <ul>
+    <li><strong>The passive reduced-order model exists and is validated.</strong>
+    <code>build_passive_eigenbasis</code> + <code>physical_eddy_history</code>
+    (<code>imas_ambix/latent/temporal_operator.py</code>) already construct the L/R eigenmode
+    reduction from pure geometry (taus 35.8→4.1 ms, exact-ZOH integration pinned by test
+    against dense sub-stepping) and integrate it along a shot from measured coil currents +
+    the plasma current history. Today its output is only a <em>feature</em> handed to the
+    (now-closed) learned operator; the per-slice fit still solves for passive amplitudes as
+    static unknowns behind a ridge. <strong>P1 promotes the trajectory from feature to
+    constraint.</strong></li>
+    <li><strong>The per-slice fit machinery takes passive priors already.</strong>
+    <code>fit_and_read_slice</code> carries the passive sidecar (<code>passive_ridge</code>);
+    constraining the amplitudes toward a circuit-integrated trajectory is a prior-centre
+    change, not new machinery.</li>
+    <li><strong>Raw-cadence drives exist.</strong> The 1 kHz anchored streams (coil currents,
+    flux loops, Rogowski) are in the corpus (<code>load_shot_windows</code>), so the circuit
+    ODE can integrate on the raw cadence between labelled slices — removing the
+    label-cadence approximation (<code>a_phys[0] = 0</code>, eddy state under-resolved
+    exactly where ramp-up wins live) recorded in the R2 archive.</li>
+    <li><strong>Synthetic truth generates exact temporal sequences.</strong>
+    <code>synthetic_truth.manufacture</code> + the known-eddy sequence generator produce
+    time-coupled equilibria with exact eddy histories and exact profiles — the P1/P2
+    verification substrate and P2's exact-recovery gate for the p′/FF′ split.</li>
+    <li><strong>The referee harness is proven.</strong> n≥128 paired bootstrap, push-out
+    reader, byte-exact frozen-spine reproduction, EFIT eval-only — two R2 gate evals ran it
+    end-to-end without a defect.</li>
+  </ul>
+
+  <h2 id="s3">§3 — Rung ladder: two physics rungs, then the merge</h2>
+
+  <figure>
+    <svg viewBox="0 0 940 300" width="100%" role="img" font-family="system-ui,-apple-system,sans-serif"
+         aria-label="Ladder with three rungs. P1 dynamic passive spine and P2 current-diffusion prior are physics rungs driven by measured histories; P3 merges ML back as a residual corrector on the dynamic spine. Gates sit on the arrows between rungs.">
+      <defs><marker id="tps-a" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#555"/></marker></defs>
+      <!-- P1 -->
+      <rect x="16" y="212" width="700" height="64" rx="6" fill="#ffffff" stroke="#1b7837" stroke-width="1.8"/>
+      <text x="30" y="236" font-size="13" font-weight="700" fill="#14612b">P1 — dynamic passive spine (circuit-constrained eddies, zero ML)</text>
+      <text x="30" y="256" font-size="11.5" fill="#1a1a1a">L/R eigenmode ODE driven by measured coil + plasma current histories at raw cadence · eddy amplitudes become trajectories, not per-slice unknowns</text>
+      <!-- P2 -->
+      <rect x="16" y="118" width="700" height="64" rx="6" fill="#ffffff" stroke="#1b7837" stroke-width="1.8"/>
+      <text x="30" y="142" font-size="13" font-weight="700" fill="#14612b">P2 — current-diffusion temporal prior (TORAX-inspired, in-house)</text>
+      <text x="30" y="162" font-size="11.5" fill="#1a1a1a">1D resistive ψ diffusion links successive profile fits · anchored by measured loop voltage + Ip · η(ψ_N) low-DOF unknown by design</text>
+      <!-- P3 -->
+      <rect x="16" y="24" width="700" height="64" rx="6" fill="#ffffff" stroke="#1565c0" stroke-width="1.8"/>
+      <text x="30" y="48" font-size="13" font-weight="700" fill="#1a4d80">P3 — merge into the ML pipeline (residual learner on the DYNAMIC spine)</text>
+      <text x="30" y="68" font-size="11.5" fill="#1a1a1a">network corrects only what the dynamics cannot pin: η profile, mode-resistance scales, un-modelled 3-D effects · R1 pattern, re-baselined gates</text>
+      <!-- arrows + gates -->
+      <line x1="366" y1="212" x2="366" y2="186" stroke="#555" stroke-width="1.4" marker-end="url(#tps-a)"/>
+      <line x1="366" y1="118" x2="366" y2="92" stroke="#555" stroke-width="1.4" marker-end="url(#tps-a)"/>
+      <text x="380" y="204" font-size="11" fill="#1a1a1a">gate P1: ramp-up LCFS beats frozen spine CI-clear; flat-top non-inferior</text>
+      <text x="380" y="110" font-size="11" fill="#1a1a1a">gate P2: synthetic split/axis exact-recovery; real flat-top non-inferior</text>
+      <!-- info column -->
+      <text x="740" y="248" font-size="11" font-weight="600" fill="#14612b">info: + measured drive histories</text>
+      <text x="740" y="154" font-size="11" font-weight="600" fill="#14612b">info: + flux-consumption budget</text>
+      <text x="740" y="60" font-size="11" font-weight="600" fill="#555">info: residual capacity only</text>
+    </svg>
+    <figcaption>The ladder. P1 and P2 (green) are deterministic physics rungs whose new
+    information is <em>measured drive histories</em> entering through known ODEs — no learning,
+    each gated against the frozen static spine. Only then does ML return (P3, blue) as a
+    residual corrector on the dynamic spine — the exact R0→R1 loop, repeated for time.</figcaption>
+  </figure>
+
+  <h3>P1 — dynamic passive spine (the highest-yield rung; attacks ramp-up directly)</h3>
+  <p>Replace the per-slice static passive fit with circuit-integrated eddy trajectories.
+  Two-pass structure per shot: <strong>pass 1</strong> = the frozen spine as-is (static
+  passive ridge) to obtain a plasma-current history; <strong>pass 2</strong> = integrate the
+  L/R eigenmode ODE at raw cadence, driven by measured coil currents and the pass-1 plasma
+  history, then refit every slice with the passive amplitudes constrained to the trajectory
+  (form per the open <code>passive-constraint-form</code> decision: tight soft prior vs hard
+  pin); iterate once if the plasma history moves materially. Free DOF, deliberately few and
+  physical: a bounded per-mode-group resistance scale (the eigenbasis is built at nominal
+  steel resistivity — cross-shot calibratable, mirroring the k_sol precedent) and the initial
+  mode state at the Ip threshold. <strong>Gate P1</strong> on the standard harness: ramp-up
+  LCFS median beats the frozen D2 spine (8.37 cm) with the paired CI clear, flat-top
+  non-inferiority (−0.05 skill margin), reseed rate not degraded. The 5 cm G2 ramp-up bar is
+  the aspiration, not the P1 gate — P1's job is a CI-clear improvement attributable to the
+  circuit dynamics.</p>
+
+  <h3>P2 — current-diffusion temporal prior (TORAX-inspired, right-sized)</h3>
+  <p>Between labelled slices, evolve the profile-coefficient state under a 1D
+  flux-surface-averaged resistive diffusion operator on the spine's own ψ_N ladder basis:
+  the diffusion structure, the measured surface loop voltage (flux loops), and the Rogowski
+  Ip are exact physics and data; the resistivity profile η(ψ_N) is unmeasured (Thomson
+  T<sub>e</sub> is gated — <code>moment_priors.TE_DATA_GATE</code>) and enters as the
+  explicit low-DOF unknown — a bounded parametric profile, NOT a hidden nuisance. The prior
+  enters the per-slice fit as a <em>soft temporal consistency term</em> on coefficient
+  evolution (precedent: the locked soft-prior interior-boundary coupling — hard pinning
+  injects model error as truth). What this buys that no static fit can: the flux-consumption
+  budget (∫V_loop dt) constrains the p′/FF′ partition's evolution, and axis motion is tied
+  to profile diffusion rather than free per-slice. <strong>Gate P2</strong>: on synthetic
+  truth (exact η, exact profiles) the diffusion-constrained chain recovers the p′/FF′ split
+  materially better than the independent-slice spine (bar: beat 0.120 median |err|); on real
+  data, flat-top non-inferiority and axis median not degraded.</p>
+
+  <h3>P3 — merge into the ML pipeline</h3>
+  <p>Only after P1/P2 verdicts. The residual learner returns exactly as in R1: zero-initialised
+  heads about the <em>dynamic</em> spine, corrections decoded through the same exact Green's
+  layers, topology anchors retained (they are now proven degeneracy control), G2-class gates
+  re-baselined against the dynamic spine. The network's target DOF are the ones P1/P2
+  deliberately left free: η(ψ_N), mode-resistance scales, and whatever structured residual the
+  physics rungs' error analysis exposes. If P1/P2 both fail their gates, P3 does not run —
+  the plan records that the modelled dynamics do not carry the missing information and the
+  temporal thesis fails at the physics level, which is a far cleaner negative than R2's.</p>
+
+  <h2 id="s4">§4 — TORAX: what to take, what not to take</h2>
+  <p><a href="https://github.com/google-deepmind/torax">TORAX</a> (cloned at
+  <code>~/Code/torax</code>, v1.0.x) is a JAX differentiable 1D core-transport simulator:
+  coupled heat/particle/current-diffusion PDEs, FVM discretisation, Sauter neoclassical
+  conductivity + bootstrap, poloidal-flux BCs from total current or LCFS loop voltage,
+  geometry from external equilibria (CHEASE/FBT/EQDSK), explicitly designed for
+  ML-surrogate coupling. It validates this plan's thesis twice over: current diffusion is
+  tractable as a reduced 1D model layered on an equilibrium, and differentiability through
+  it is a solved problem.</p>
+  <ul>
+    <li><strong>Take:</strong> the current-diffusion formulation and its discretisation
+    (<code>torax/_src/physics/psi_calculations.py</code>, the FVM ψ solve), the Sauter
+    conductivity/bootstrap structure as the η(ψ_N) parameterisation template
+    (<code>torax/_src/neoclassical/conductivity/sauter.py</code>), the loop-voltage/Ip
+    boundary-condition pattern, and — later — TORAX as an independent cross-check and a
+    synthetic-truth generator for P2's exact-recovery gate.</li>
+    <li><strong>Do not take (locked below):</strong> TORAX as a runtime dependency. Its
+    scope is the full core-transport system needing T<sub>e</sub>/n<sub>e</sub> profiles and
+    flux-surface geometry per time step — exactly what MAST's EFIT-free corpus does not
+    provide — and it is JAX inside a torch/fp64 pipeline. P2 needs one equation with one
+    unknown profile on a basis we already own; an in-house torch implementation is
+    right-sized, keeps the differentiable-decode contract, and uses TORAX as the reference
+    implementation to verify against.</li>
+  </ul>
+
+  <h2 id="s5">§5 — Gates, firewall, compute</h2>
+  <ul>
+    <li><strong>Referee protocol unchanged and inherited:</strong> n≥128 held-out slices,
+    8-shot cohort, paired bootstrap, push-out <code>lcfs_contour</code> reader, EFIT referee
+    at evaluation only, frozen baselines from <code>closure_spine_frozen.json</code>
+    (D2 flat-top 1.50 cm / ramp-up 8.37 cm / axis 6.15 cm; disc read 1.99 / 11.30 cm).
+    Standing held-out shots 18502–18505 + the eval cohort never fit against.</li>
+    <li><strong>Firewall:</strong> all drives are raw measurements (coil currents, flux
+    loops, Rogowski, n<sub>e</sub>); all couplings thick-cylinder <code>hybrid_greens</code>;
+    labels remain spine-made; EFIT never enters a fit or a prior.</li>
+    <li><strong>Compute:</strong> P1/P2 are CPU work (per-slice refits ~5.8 s/slice, the
+    same sun-partition fleet economics as the label factory; the eval cohort re-scores in
+    minutes). No GPU until P3.</li>
+  </ul>
+
+  <section data-reckon="decisions" id="decisions" class="r-decisions">
+    <h2><span class="sec">§</span> Decisions</h2>
+    <div class="r-dec" data-key="current-diffusion-substrate" data-choice="in-house-torax-informed" data-by="lead directive (f-leo-06 re-plan, 2026-07-17)" data-when="2026-07-17">
+      <p class="r-dec-q">What implements the P2 current-diffusion prior?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt chosen" data-value="in-house-torax-informed">In-house torch 1D diffusion operator on the spine's own ψ_N ladder basis, with TORAX as the formulation reference and verification target (and later a synthetic-truth generator) — right-sized to one equation + one unknown profile, stays inside the torch/fp64 differentiable-decode contract</button>
+        <button class="r-opt" data-value="torax-coupled">Couple TORAX directly as the diffusion engine (rejected for now: JAX runtime inside the torch pipeline; full core-transport scope needs Te/ne profiles and per-step flux-surface geometry the EFIT-free corpus cannot supply)</button>
+        <button class="r-opt" data-value="torax-reference-only">Use TORAX only as literature — no verification coupling (rejected: an independent numerical cross-check of our reduced operator is cheap and catches formulation errors)</button>
+      </p>
+      <p class="r-dec-rat">Lead direction at the f-leo-06 re-plan: "look at the TORAX code for inspiration" — take the formulation (FVM ψ diffusion, Sauter-style η parameterisation, loop-voltage/Ip BCs) and the differentiability precedent, not the dependency. TORAX's own scope (full transport, given geometry, Te-driven conductivity) mismatches the MAST EFIT-free constraint; the in-house operator is one equation on a basis we own, verifiable against TORAX on shared test cases.</p>
+    </div>
+    <div class="r-dec" data-key="passive-constraint-form" data-choice="" data-by="" data-when="">
+      <p class="r-dec-q">How does the circuit-integrated eddy trajectory constrain the per-slice fit in P1?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt" data-value="soft-prior-tight">Tight soft prior centred on the trajectory (recommended: mirrors the locked soft-prior interior-boundary precedent — the reduced model's own error, mode truncation and resistivity uncertainty stay absorbable; weight swept and gated)</button>
+        <button class="r-opt" data-value="hard-pin">Hard pin: amplitudes = trajectory, no per-slice freedom (maximum information transfer; risks injecting circuit-model error as truth exactly where the sensors disagree)</button>
+        <button class="r-opt" data-value="both-arms-measured">Run both as arms in the P1 sweep and let the gate decide (costs one extra refit pass over the eval cohort)</button>
+      </p>
+      <p class="r-dec-rat"></p>
+    </div>
+  </section>
+
+  <section data-reckon="research" id="research" class="r-research-list">
+    <h2><span class="sec">§</span> Research</h2>
+    <div class="r-research" data-id="r1" data-type="code" data-url="https://github.com/google-deepmind/torax">
+      <span class="r-research-title">TORAX — differentiable tokamak core transport simulator (JAX); local clone at ~/Code/torax; formulation reference for P2 (FVM ψ diffusion, Sauter conductivity, loop-voltage/Ip BCs)</span>
+    </div>
+  </section>
+
+  <section data-reckon="followups" id="followups" class="r-followups">
+    <h2><span class="sec">§</span> Followups</h2>
+    <article class="r-fu" data-id="f-tps-01" data-status="open" data-tier="opus" data-written-by="reckon-create (f-leo-06 re-plan)" data-written-at="2026-07-17" data-recommends-skill="/reckon-ship temporal-physics-spine §3">
+      <h4 class="r-fu-title">P1 — dynamic passive spine: circuit-constrained eddies in the per-slice fit</h4>
+      <div class="r-fu-body"><p>The highest-yield rung and mostly built: promote the validated L/R eigenmode reduced model from an ML feature to a constraint inside the classical per-slice fit, with raw-cadence integration of the circuit ODE from measured drives. Two-pass fit → integrate → refit per shot; free DOF limited to bounded per-mode-group resistance scales + initial state. Gate on the standard harness: ramp-up LCFS beats the frozen D2 spine CI-clear, flat-top non-inferior. Resolves the <code>passive-constraint-form</code> decision with measured arms if the cheap option is taken.</p></div>
+      <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    temporal-physics-spine (http://localhost:8765/imas-ambix/temporal-physics-spine.html)
+Section: §3 (rung P1) + §5 (gate)
+Tier:    opus
+
+Context
+  The learned-equilibrium-operator R2 rung closed as a sustained negative (read
+  docs/archive/learned-equilibrium-operator-s2-r2-landed.html FIRST) — the temporal
+  information must enter through physics, not a free-form learner. P1 is the highest-yield
+  rung: the vessel-eddy L/R reduced model already exists and is test-pinned; the per-slice
+  static passive fit it replaces is the measured cause of the 5-10 cm ramp-up gap.
+  (Honour the Locked / surface the Open decisions shown live above — do not re-list.)
+
+State to read  (code / data — not the plan itself)
+  imas_ambix/latent/temporal_operator.py       (build_passive_eigenbasis, physical_eddy_history
+                                                — exact-ZOH mode ODE, the model to promote)
+  scripts/closure_gate_eval.py                 (fit_and_read_slice passive sidecar + ridge path
+                                                — where the constraint enters)
+  imas_ambix/latent/boundary_disc.py           (passive_coupling_matrices)
+  imas_ambix/latent/data.py                    (load_shot_windows — 1 kHz raw drives: coil
+                                                currents, flux loops, Rogowski)
+  imas_ambix/latent/artifacts/patch_gate/closure_spine_frozen.json  (frozen baselines)
+  scripts/temporal_operator_gate_eval.py       (harness pattern: byte-exact spine arm, paired
+                                                bootstrap, per-regime designators)
+
+Design constraints (non-decision)
+  - Two-pass per shot: pass 1 = frozen spine unchanged (provides the plasma-current history);
+    pass 2 = integrate the mode ODE at RAW cadence (not label cadence — the a_phys[0]=0
+    approximation is recorded as a known defect) driven by measured coil currents + pass-1
+    i_cell history; refit slices with amplitudes constrained per the passive-constraint-form
+    decision; iterate once if the plasma history shifts materially.
+  - Free DOF: bounded per-mode-group resistance scale (init 1.0, the eigenbasis is built at
+    nominal steel resistivity; calibrate cross-shot, never per-slice) + initial mode state.
+  - EFIT firewalled; standing held-out 18502-18505 + eval cohort untouched; hybrid_greens
+    only; the frozen spine arm must stay byte-exact as the paired baseline.
+  - CPU work: sun_debug fleet for refits; no GPU.
+
+Done-when
+  1. Dynamic-passive fit path implemented + unit-tested (trajectory reproduces
+     physical_eddy_history exactly at label cadence; raw-cadence integration pinned against
+     dense sub-stepping; constrained refit reduces to the frozen spine when the constraint
+     weight is zero)
+  2. Gate scored on the standard harness (n>=128 paired bootstrap): ramp-up LCFS median vs
+     frozen D2 spine (8.37 cm) with CI; flat-top non-inferiority (-0.05 margin); reseed rate;
+     verdict recorded honestly either way
+  3. Plan updated same-session: outcome + archive record, passive-constraint-form decision
+     resolved from evidence, P2 followup written, this followup resolved</pre>
+    </article>
+  </section>
+
+</main>
+</body>
+</html>

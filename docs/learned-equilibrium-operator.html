@@ -15,7 +15,7 @@
   <meta name="plan-milestone" content="M4">
   <meta name="plan-sprint" content="S16">
   <meta name="plan-owner" content="Simon McIntosh">
-  <meta name="plan-depends-on" content="equilibrium-boundary-closure">
+  <meta name="plan-depends-on" content="equilibrium-boundary-closure,temporal-physics-spine">
   <meta name="plan-blocks" content="equilibrium-topology-fidelity">
   <meta name="plan-informs" content="machine-agnostic-latent-world-model,closed-loop-latent-filter,learned-closure-current-diffusion-v0">
   <title>Learned Equilibrium Operator | imas-ambix</title>
@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-17">
 <meta name="plan-impl" content="0.67">
-<meta name="plan-version" content="5">
+<meta name="plan-version" content="6">
 </head>
 <body>
 <main class="plan-doc">
@@ -145,6 +145,24 @@
     (commits <code>dbceba0</code>, <code>ef44cc1</code>; jobs 1229626, 1229633).
     Next: re-plan the temporal thesis before any further R2-class training (f-leo-06).</p>
   </section>
+
+  <h3>Re-plan (2026-07-17) — the time axis enters through physics, not a free-form learner</h3>
+  <p>The f-leo-06 re-plan re-founded the temporal thesis on the lead's directive: the missing
+  information lives in the <em>transients</em> — the passive structure's L/R dynamics and the
+  plasma's current diffusion — both governed by known differential equations with measured
+  drives. The statics won by building a physics spine before learning; the dynamics now get
+  the same treatment in the dedicated plan
+  <a href="/imas-ambix/temporal-physics-spine.html">temporal-physics-spine</a> (this plan now
+  depends on it): <strong>P1</strong> promotes the validated L/R eigenmode circuit model from
+  an ML feature to a constraint inside the per-slice fit (raw-cadence integration from
+  measured coil + plasma current histories — attacks the 5–10 cm ramp-up gap directly, zero
+  ML); <strong>P2</strong> adds a TORAX-informed 1D resistive current-diffusion prior linking
+  successive profile fits (measured loop-voltage/Ip anchors; unmeasured η(ψ_N) as the
+  explicit low-DOF unknown); <strong>P3</strong> merges the ML pipeline back as a residual
+  corrector on the dynamic spine — the R0→R1 loop repeated for time. Decision
+  <code>temporal-information-entry</code> locked <code>physics-dynamics-spine-first</code>;
+  R2′-class training here is deferred behind the P1/P2 physics gates, and the topology
+  anchors from the closed R2 iteration carry forward as proven degeneracy control.</p>
 
   <p><strong>R3 — cross-machine transfer.</strong> All machine dependence enters through the
   geometry inputs (sensor positions/orientations, coil/vessel filament tables, limiter contour —
@@ -340,6 +358,15 @@
       <button class="r-opt" data-value="structured-gru">GRU/recurrent with the L/R eigenmode block explicit (smallest, most interpretable)</button>
       </p>
     <p class="r-dec-rat">Transformer trunk + MANDATORY embedded L/R diagonal-SSM eddy block (the plan&#x27;s structured-latent mandate — per-mode learnable decays initialised at physical L/R times), so the SSM option&#x27;s physics content is fully retained inside the trunk. Trunk choice driven by: alignment with the world-model substrate (space-time transformer prior) and shared tooling; attention over geometry-encoded sensor tokens is the natural generalisation of the landed R1 token encoder and what R3&#x27;s machine-varying sensor sets transfer on; lead preference for forward capability. Insurance: if long-horizon ramp-up training underperforms, a structured-GRU/SSM-trunk arm runs as a bounded G2 ablation, not a redesign.</p>
+    </div>
+<div class="r-dec" data-key="temporal-information-entry" data-choice="physics-dynamics-spine-first" data-by="lead directive (2026-07-17)" data-when="2026-07-17T03:41:02+00:00">
+    <p class="r-dec-q">After the R2 sustained negative: where does temporal information enter the equilibrium?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="physics-dynamics-spine-first">Build a reduced-order temporal PHYSICS spine first — passive-circuit L/R dynamics and plasma current diffusion as deterministic models driven by measured histories, gated against the frozen static spine with zero ML — then merge ML back as a residual corrector on its provably-degenerate DOF (the R0→R1 loop repeated for time). Scoped as the new plan temporal-physics-spine.</button>
+      <button class="r-opt" data-value="learned-sequence-iterate">Keep iterating the learned sequence model&#x27;s objective/architecture (rejected: two clean G2 FAILs with the objective degeneracy controlled — the stop rule fired; blind iteration is what the sustained-negative verdict forbids)</button>
+      <button class="r-opt" data-value="ceiling-probe-first">Run a synthetic-machine information-ceiling probe before building anything (folded in, not chosen as the frame: the temporal-physics-spine rungs ARE the ceiling probe in deterministic form — if the modelled dynamics cannot move ramp-up, the information is not there)</button>
+      </p>
+    <p class="r-dec-rat">Lead directive at the f-leo-06 re-plan (2026-07-17): the missing information lies in the transients of the passive structure and the plasma current diffusion — both governed by known ODEs with measured drives. The static boundary won by building a physics spine (Biot–Savart + GS) before learning; the dynamics get the same treatment: reduced-order models first (P1 circuit-constrained eddies, P2 TORAX-informed current-diffusion prior), each gated with zero ML, then the ML pipeline merges back on the dynamic spine&#x27;s residuals. Scope exceeded an in-plan update — executed as the linked plan temporal-physics-spine, which now blocks this plan&#x27;s temporal rungs.</p>
     </div>
 </section>
 
@@ -616,7 +643,7 @@ Done-when
      this followup resolved, next followup written</pre>
     <p class="r-fu-outcome">Iteration executed in full (commits dbceba0/ef44cc1, pipeline job 1229633) — G2 FAIL SUSTAINED. Terminator-consistency anchor (9,819 spine-trusted slices, delta form, unit-tested vs the cylinder-kernel pointwise field) + label-free critical-point integrity regulariser + drift-aware composite selection over leash{3,10,30}×ridge{0.3,3}×tw{1,10}. The anchors work as designed: selected model (leash 10/ridge 0.3/tw 10) holds drift 0.70 cm IN bound at val misfit 4.62 vs spine 5.87, non-inferiority vs spine RESTORED (axis +0.026 [−0.006,+0.044], LCFS +0.006 [−0.024,+0.040]), 0 skipped steps, byte-exact spine at eval. Headline gate unmoved: flat-top op−disc +0.64 cm CI [−0.71,+1.83]; ramp-up 7.87 cm vs 5 cm bar (spine 8.37); axis 6.18 vs 5.1 cm. Split scorer finite with this checkpoint: operator 0.201 vs spine 0.120 — LOSES. Direct-DOF ablation: flat-top +11.9 cm, axis 13.7 cm — residual-first locked empirically. Per the stop rule: sustained negative recorded, no further training-signal iterations; re-planning followup f-leo-06 opened. Archive: docs/archive/learned-equilibrium-operator-s2-r2-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-leo-06" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-17T00:30:00+00:00" data-recommends-skill="/reckon-edit learned-equilibrium-operator" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-leo-06" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-17T00:30:00+00:00" data-recommends-skill="/reckon-edit learned-equilibrium-operator" data-resolved-at="2026-07-17T03:41:02+00:00" data-resolved-by="reckon-edit">
     <h4 class="r-fu-title">Re-plan the temporal thesis — where can the time axis actually enter the equilibrium?</h4>
     <div class="r-fu-body"><p>R2 is closed as a SUSTAINED negative after two clean, fully-instrumented tests: the operator reliably converts sensor history into ~21% whitened sensor-misfit gains, and with the topology terms those gains come without boundary drift, saddle damage, or spine regression — yet none of it converts into referee-measured skill (flat-top, ramp-up, axis, p′/FF′ split all unmoved; the ramp-up advantage over the disc read is inherited from the D2 spine). Objective degeneracy and plumbing are now controlled and are NOT the bottleneck. The re-plan must decide where temporal information can enter at all: (a) the frozen-ψ_N linearised decode caps boundary movement exactly where the spine is wrong (ramp-up) — an iterated/self-consistent decode may be required; (b) real-data boundary truth is unavailable by construction (EFIT firewalled) — synthetic-truth sequences with exact boundaries/eddies may need to become the PRIMARY supervised signal with domain transfer, not a pretrainer; (c) an information-ceiling probe on synthetic machines (can ANY function of sensor history beat the per-slice solve at a known-truth referee?) would test the thesis directly before more training; (d) the gate could re-scope to ramp-up where the irreducibles provably live. Lead decision needed on direction before any further R2-class training.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -664,6 +691,7 @@ Done-when
   2. A new R2&#x27; (or ceiling-probe) followup with a concrete §05 prompt and honest gates
   3. Plan state consistent same-session: decision locked or explicitly left open for the lead,
      audit-doc clean, committed + pushed</pre>
+    <p class="r-fu-outcome">Re-plan executed 2026-07-17 per lead directive: the temporal thesis is re-founded on a reduced-order PHYSICS spine for the dynamics — passive-circuit L/R transients + plasma current diffusion (TORAX-informed, in-house torch substrate) — built and gated with zero ML before the ML pipeline merges back as a residual corrector (the R0→R1 loop repeated for time). Scope exceeded an in-plan update, so it landed as the NEW linked plan temporal-physics-spine (this plan now depends on it; decision temporal-information-entry locked physics-dynamics-spine-first; TORAX cloned to ~/Code/torax as formulation reference). First rung queued there: f-tps-01 — P1 dynamic passive spine (circuit-constrained eddies, raw-cadence drives), gate = ramp-up CI-clear vs the frozen D2 spine. R2'-class ML training in THIS plan is deferred behind the P1/P2 physics gates.</p>
     </article>
 </section>
 
