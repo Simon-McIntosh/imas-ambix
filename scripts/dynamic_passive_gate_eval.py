@@ -65,10 +65,12 @@ from imas_ambix.latent.data import (
     read_split_shot_lists,
     schema_group_offsets,
 )
+from imas_ambix.latent.passive_resistance import load_calibration
 from imas_ambix.latent.temporal_operator import (
-    build_passive_eigenbasis,
+    build_passive_circuit_system,
     load_eigenbasis,
     raw_eddy_trajectory,
+    reduce_passive_system,
     save_eigenbasis,
 )
 from scripts.closure_gate_eval import _shot_passive_sidecar, fit_and_read_slice
@@ -129,15 +131,31 @@ def raw_drive_streams(
     return np.asarray(times, dtype=np.float64), i_pf_raw, ip_raw
 
 
-def shot_eigenbasis_sectionavg(payload, campaign: str, k: int):
+def shot_eigenbasis_sectionavg(
+    payload,
+    campaign: str,
+    k: int,
+    *,
+    calibration=None,
+    case_arm: str = "measured",
+):
     """The section-averaged-linkage eigenbasis, cached per campaign.
 
     Distinct cache from the centroid-linked basis the (closed) temporal
     operator rung used — the L matrix here integrates the flux linkage over
-    both source and observer sections.
+    both source and observer sections.  ``calibration`` applies the
+    vacuum-trained resistance multipliers; ``case_arm='predicted'`` moves the
+    measured-case circuits into the passive set (machine-agnostic drive form
+    — the case channels leave the ``m_coil`` columns).  Both select their own
+    cache so the nominal basis is never clobbered.
     """
     n_ch = int(payload["payloads"][0].measured.size)
-    cache = EIGEN_DIR / f"eigenbasis-sectionavg-{campaign}-k{k}.npz"
+    tag = ""
+    if case_arm == "predicted":
+        tag += "-casepred"
+    if calibration is not None:
+        tag += f"-rcal-{calibration.level}"
+    cache = EIGEN_DIR / f"eigenbasis-sectionavg-{campaign}-k{k}{tag}.npz"
     if cache.exists():
         basis = load_eigenbasis(cache)
         if basis.a_sens.shape[0] == n_ch:
@@ -148,11 +166,22 @@ def shot_eigenbasis_sectionavg(payload, campaign: str, k: int):
             basis.a_sens.shape[0],
             n_ch,
         )
-    basis = build_passive_eigenbasis(
+    system = build_passive_circuit_system(
         payload["table"],
+        payload["grid"],
+        hold_back_cases=(case_arm == "predicted"),
+    )
+    r_mult = (
+        calibration.per_circuit(system.circuits, system.centroid_r, system.centroid_z)
+        if calibration is not None
+        else None
+    )
+    basis = reduce_passive_system(
+        system,
         payload["grid"],
         sensor_scale=payload["payloads"][0].scale,
         k=k,
+        r_multipliers=r_mult,
     )
     if not cache.exists():
         # atomic publish: concurrent same-campaign workers race on this path;
@@ -165,6 +194,32 @@ def shot_eigenbasis_sectionavg(payload, campaign: str, k: int):
     return basis
 
 
+def _case_holdback_maps(table) -> tuple[np.ndarray, np.ndarray]:
+    """(drive column selector, inferred-passive row mask) for the predicted-
+    cases arm.
+
+    The holdback basis drives on the sorted known channels MINUS the case
+    channels, and its passive axis interleaves the case circuits among the
+    inferred ones (sorted circuit ids) — the sidecar's circuit axis is the
+    inferred set only, so the trajectory rows must be masked before the
+    sidecar projection.
+    """
+    from imas_ambix.gs import operator as op  # noqa: PLC0415
+
+    classes = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
+    known = sorted(
+        {c.amc_channel for c in classes if c.role in op._KNOWN_ROLES}  # noqa: SLF001
+    )
+    noncase = sorted({c.amc_channel for c in classes if c.role == "known_pf"})
+    drive_cols = np.array([known.index(ch) for ch in noncase], dtype=np.int64)
+    passive_all = sorted(
+        c.circuit for c in classes if c.role in ("inferred_passive", "known_case")
+    )
+    case_ids = {c.circuit for c in classes if c.role == "known_case"}
+    inferred_mask = np.array([c not in case_ids for c in passive_all], dtype=bool)
+    return drive_cols, inferred_mask
+
+
 def _trajectory_centers(
     eigen,
     modes: np.ndarray,
@@ -172,6 +227,8 @@ def _trajectory_centers(
     label_times: np.ndarray,
     i_cell_labels: np.ndarray,
     tau_scale: float,
+    drive_cols: np.ndarray | None = None,
+    circuit_mask: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Sidecar-coordinate trajectory centers at the labelled slices.
 
@@ -180,8 +237,17 @@ def _trajectory_centers(
     whitened observable modes (least squares — components invisible to the
     magnetics are dropped, exactly the DOF the fit does not carry).
     Returns ``(centers (T_lab, kp), i_circ (T_lab, n_passive))``.
+
+    Predicted-cases arm: ``drive_cols`` selects the non-case columns of the
+    raw drives (the holdback basis has no case drive columns) and
+    ``circuit_mask`` keeps only the inferred-passive trajectory rows for the
+    sidecar projection — the per-slice fit consumes the MEASURED case
+    currents through its vacuum term, so the predicted case currents must
+    not be double-counted in the constraint.
     """
     raw_times, i_pf_raw, ip_raw = raw
+    if drive_cols is not None:
+        i_pf_raw = i_pf_raw[:, drive_cols]
     a_lab, _a_raw = raw_eddy_trajectory(
         eigen,
         raw_times,
@@ -192,7 +258,8 @@ def _trajectory_centers(
         tau_scale=tau_scale,
     )
     i_circ = a_lab @ eigen.v.T  # (T_lab, n_passive) circuit-space currents [A]
-    centers, *_ = np.linalg.lstsq(modes, i_circ.T, rcond=None)
+    i_proj = i_circ if circuit_mask is None else i_circ[:, circuit_mask]
+    centers, *_ = np.linalg.lstsq(modes, i_proj.T, rcond=None)
     return centers.T, i_circ
 
 
@@ -224,7 +291,22 @@ def eval_shot(job: tuple) -> dict | None:
     if raw is None:
         logger.warning("shot %s: no raw drive streams — skipped", shot)
         return None
-    eigen = shot_eigenbasis_sectionavg(payload, campaign, int(args_d["n_modes"]))
+    calibration = (
+        load_calibration(args_d["resistance_artifact"])
+        if args_d.get("resistance_artifact")
+        else None
+    )
+    case_arm = str(args_d.get("case_arm", "measured"))
+    eigen = shot_eigenbasis_sectionavg(
+        payload,
+        campaign,
+        int(args_d["n_modes"]),
+        calibration=calibration,
+        case_arm=case_arm,
+    )
+    drive_cols = circuit_mask = None
+    if case_arm == "predicted":
+        drive_cols, circuit_mask = _case_holdback_maps(table)
 
     fit_kw = dict(
         beta0_grid=(0.5,),
@@ -285,7 +367,14 @@ def eval_shot(job: tuple) -> dict | None:
     # ---- pass 2 (+ optional single iteration on a material history shift) --
     def constrained_pass(i_cell_seq: np.ndarray) -> tuple[list[dict], np.ndarray]:
         centers, i_circ = _trajectory_centers(
-            eigen, modes, raw, label_times, i_cell_seq, tau_scale
+            eigen,
+            modes,
+            raw,
+            label_times,
+            i_cell_seq,
+            tau_scale,
+            drive_cols=drive_cols,
+            circuit_mask=circuit_mask,
         )
         rows = []
         for j, s in enumerate(slices):
@@ -323,6 +412,7 @@ def eval_shot(job: tuple) -> dict | None:
             logger.info(
                 "shot %s: plasma-history shift %.3f — re-iterating", shot, shift
             )
+
             # accept the re-iterated pass only if the fits did not degrade:
             # a constrained pass that got WORSE means the prior distorted the
             # plasma history, and re-driving the trajectory from a distorted
@@ -399,6 +489,21 @@ def main() -> int:
     ap.add_argument("--split", choices=("tune", "eval"), default="eval")
     ap.add_argument("--prior-weight", type=float, default=0.3)
     ap.add_argument("--tau-scale", type=float, default=1.0)
+    ap.add_argument(
+        "--resistance-artifact",
+        type=str,
+        default="",
+        help="vacuum-trained passive-resistance calibration JSON (empty = "
+        "nominal steel R)",
+    )
+    ap.add_argument(
+        "--case-arm",
+        choices=("measured", "predicted"),
+        default="measured",
+        help="trajectory case treatment: 'measured' drives the case circuits "
+        "with their measured currents (max information — the gate arm); "
+        "'predicted' moves them into the passive set (machine-agnostic form)",
+    )
     ap.add_argument("--iterate", type=int, default=1)
     ap.add_argument("--iterate-threshold", type=float, default=0.01)
     ap.add_argument("--n-modes", type=int, default=12)
@@ -436,11 +541,14 @@ def main() -> int:
     args_d = vars(args) | {"split": payload_split}
     jobs = [(int(s), args_d) for s in eval_shots]
     logger.info(
-        "dynamic passive gate: split=%s shots=%s w=%.3g tau_scale=%.3g",
+        "dynamic passive gate: split=%s shots=%s w=%.3g tau_scale=%.3g "
+        "case_arm=%s rcal=%s",
         args.split,
         list(eval_shots),
         args.prior_weight,
         args.tau_scale,
+        args.case_arm,
+        args.resistance_artifact or "nominal",
     )
     ctx = multiprocessing.get_context("fork")
     if args.workers > 1 and len(jobs) > 1:
@@ -568,6 +676,8 @@ def main() -> int:
         "split": args.split,
         "prior_weight": args.prior_weight,
         "tau_scale": args.tau_scale,
+        "resistance_artifact": args.resistance_artifact,
+        "case_arm": args.case_arm,
         "iterate": args.iterate,
         "n_modes": args.n_modes,
         "spine_config_sha256": shot_results[0]["config_sha"],

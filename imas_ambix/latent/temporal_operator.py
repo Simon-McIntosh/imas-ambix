@@ -94,6 +94,204 @@ def _passive_circuit_filaments(table: GeometryTable) -> list[list]:
     return [by_circ[c] for c in passive]
 
 
+@dataclass
+class PassiveCircuitSystem:
+    """Circuit-space L/R system of the passive set, before eigen-reduction.
+
+    The resistance DOF live HERE: ``r_diag`` is diagonal in circuit space
+    (toroidal rings share no conductor path), so a candidate resistance model
+    is a per-circuit multiplier vector applied to ``r_diag`` followed by one
+    cheap generalised eigensolve — the geometry-exact ``lmat`` and all
+    couplings never change.  ``case_channel_row`` is non-empty only when the
+    measured-case circuits were moved INTO the passive set (their measured
+    ``*_case_current`` channels then supply held-back per-circuit targets,
+    never drives — ``coil_channels`` excludes them).
+    """
+
+    circuits: np.ndarray  # (P,) sorted circuit ids
+    centroid_r: np.ndarray  # (P,) xmult-weighted circuit centroids [m]
+    centroid_z: np.ndarray  # (P,)
+    lmat: np.ndarray  # (P, P) SPD-guarded two-section flux linkage [Wb/A]
+    r_diag: np.ndarray  # (P,) nominal toroidal-ring resistances [Ω]
+    a_circ: np.ndarray  # (S, P) per-ampere sensor couplings
+    g_circ: np.ndarray  # (nz·nr, P) per-ampere grid flux couplings
+    m_coil_circ: np.ndarray  # (P, C) coil-channel flux linkage [Wb/A]
+    coil_channels: list[str]  # C driven channel names (sorted)
+    case_channel_row: dict[str, int]  # held-back case channel -> circuit row
+    resistivity: float
+
+    @property
+    def n_circuits(self) -> int:
+        return int(self.circuits.size)
+
+
+def build_passive_circuit_system(
+    table: GeometryTable,
+    grid: EquilibriumGrid,
+    *,
+    resistivity: float = STEEL_RESISTIVITY,
+    section_scale_frac: float = 1.0,
+    section_n_max: int = 6,
+    hold_back_cases: bool = False,
+) -> PassiveCircuitSystem:
+    """Circuit-space L, R, and couplings of the passive set — pure geometry.
+
+    Inductance and resistance exactly as :func:`build_passive_eigenbasis`
+    documents (two-section gridded linkage, true-area ring resistance).  With
+    ``hold_back_cases`` the measured-case circuits (``known_case`` role) are
+    re-classified into the passive set: their currents become STATE predicted
+    from the remaining drives through the mutual couplings, their measured
+    channels leave ``coil_channels``, and ``case_channel_row`` records which
+    circuit row each held-back channel measures.
+    """
+    from imas_ambix.gs import operator as op  # noqa: PLC0415
+    from imas_ambix.gs.cylinder import hybrid_greens  # noqa: PLC0415
+    from imas_ambix.latent.boundary_disc import (  # noqa: PLC0415
+        passive_coupling_matrices,
+    )
+
+    classes = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
+    passive_roles = (
+        ("inferred_passive", "known_case") if hold_back_cases else ("inferred_passive",)
+    )
+    passive = sorted(c.circuit for c in classes if c.role in passive_roles)
+    if not passive:
+        raise ValueError("table has no passive circuits under the selected roles")
+    by_circ: dict[int, list] = {}
+    for f in table.pf_filaments:
+        by_circ.setdefault(f.circuit, []).append(f)
+    groups = [by_circ[c] for c in passive]
+    n_pass = len(groups)
+
+    case_channel_row = {
+        c.amc_channel: passive.index(c.circuit)
+        for c in classes
+        if hold_back_cases and c.role == "known_case"
+    }
+    class_of = {c.circuit: c for c in classes}
+    centroid_r = np.array([class_of[c].centroid_r for c in passive])
+    centroid_z = np.array([class_of[c].centroid_z for c in passive])
+
+    section_delta = section_scale_frac * _median_section_scale(groups)
+    pr, pz, wt, owner = _section_grid(groups, section_delta, section_n_max)
+    lmat = np.zeros((n_pass, n_pass))
+    for j, gj in enumerate(groups):
+        lmat[:, j] = _linked_flux_columns(gj, pr, pz, wt, owner, n_pass, hybrid_greens)
+    # the analytic source + quadrature observer linkage is symmetric up to
+    # observer-quadrature error — symmetrise, then guard SPD (physical L is)
+    lmat = 0.5 * (lmat + lmat.T)
+    w0, u0 = np.linalg.eigh(lmat)
+    lmat = (u0 * np.clip(w0, 1e-4 * w0.max(), None)) @ u0.T
+
+    r_diag = np.array(
+        [
+            sum(
+                2.0
+                * np.pi
+                * f.r
+                * resistivity
+                / max(abs(f.width) * abs(f.height), 1e-8)
+                * f.xmult**2
+                for f in g
+            )
+            for g in groups
+        ]
+    )
+
+    a_circ, g_circ = passive_coupling_matrices(grid, table, circuits=passive)
+
+    # coil channel → circuit flux linkage, mirroring build_operator's channel
+    # merge (average same-channel circuits; solenoid response scale applied);
+    # held-back case channels never become drive columns
+    pf_by_chan: dict[str, list[int]] = {}
+    for cc in classes:
+        if cc.role in op._KNOWN_ROLES:  # noqa: SLF001 — canonical role list
+            if hold_back_cases and cc.role == "known_case":
+                continue
+            pf_by_chan.setdefault(cc.amc_channel, []).append(cc.circuit)
+    coil_channels = sorted(pf_by_chan)
+    m_coil_circ = np.zeros((n_pass, len(coil_channels)))
+    for c_idx, chan in enumerate(coil_channels):
+        cols = []
+        for circ in sorted(pf_by_chan[chan]):
+            cols.append(
+                _linked_flux_columns(
+                    by_circ[circ], pr, pz, wt, owner, n_pass, hybrid_greens
+                )
+            )
+        col = np.mean(np.asarray(cols), axis=0)
+        if chan == "sol_current":
+            col = col * op.SOLENOID_RESPONSE_SCALE
+        m_coil_circ[:, c_idx] = col
+
+    return PassiveCircuitSystem(
+        circuits=np.asarray(passive, dtype=np.int64),
+        centroid_r=centroid_r,
+        centroid_z=centroid_z,
+        lmat=lmat,
+        r_diag=r_diag,
+        a_circ=a_circ,
+        g_circ=g_circ,
+        m_coil_circ=m_coil_circ,
+        coil_channels=coil_channels,
+        case_channel_row=case_channel_row,
+        resistivity=float(resistivity),
+    )
+
+
+def reduce_passive_system(
+    system: PassiveCircuitSystem,
+    grid: EquilibriumGrid,
+    *,
+    sensor_scale: np.ndarray,
+    k: int = 12,
+    r_multipliers: np.ndarray | None = None,
+) -> PassiveEigenbasis:
+    """Eigen-reduce a circuit system to the k most history-relevant modes.
+
+    ``r_multipliers`` (P,) scales the diagonal circuit resistances — the
+    calibrated-resistance hook: the geometry-exact L and every coupling stay
+    fixed while the data-led resistance model reshapes the eigenmodes.  With
+    ``None`` (nominal R) this reproduces :func:`build_passive_eigenbasis`
+    exactly.
+    """
+    from scipy.linalg import eigh  # noqa: PLC0415
+
+    r_diag = system.r_diag
+    if r_multipliers is not None:
+        mult = np.asarray(r_multipliers, dtype=np.float64)
+        if mult.shape != r_diag.shape:
+            raise ValueError(
+                f"r_multipliers shape {mult.shape} != circuits {r_diag.shape}"
+            )
+        if np.any(~np.isfinite(mult)) or np.any(mult <= 0):
+            raise ValueError("r_multipliers must be finite and positive")
+        r_diag = r_diag * mult
+    w, v = eigh(np.diag(r_diag), system.lmat)  # R v = (1/τ) L v ; v L-orthonormal
+    tau = 1.0 / np.clip(w, 1e-12, None)
+
+    a_modes = system.a_circ @ v  # (S, n_pass)
+    scale = np.clip(np.asarray(sensor_scale, dtype=np.float64), 1e-12, None)
+    relevance = tau * np.linalg.norm(a_modes / scale[:, np.newaxis], axis=0)
+    keep = np.argsort(relevance)[::-1][: int(k)]
+    keep = keep[np.argsort(tau[keep])[::-1]]  # slowest-first for readability
+
+    v_k = v[:, keep]
+    g_modes = system.g_circ @ v_k
+    m_cells = g_modes[grid.cells, :].T  # reciprocity: (k, n_cells)
+    m_coil = v_k.T @ system.m_coil_circ  # (k, C)
+
+    return PassiveEigenbasis(
+        tau=tau[keep],
+        v=v_k,
+        a_sens=a_modes[:, keep],
+        g_grid=g_modes,
+        m_coil=m_coil,
+        m_cells=m_cells,
+        resistivity=float(system.resistivity),
+    )
+
+
 def _median_section_scale(groups: list[list]) -> float:
     """Median cross-section scale ``sqrt(w·h)`` of a conductor set [m].
 
@@ -207,6 +405,8 @@ def build_passive_eigenbasis(
     resistivity: float = STEEL_RESISTIVITY,
     section_scale_frac: float = 1.0,
     section_n_max: int = 6,
+    r_multipliers: np.ndarray | None = None,
+    hold_back_cases: bool = False,
 ) -> PassiveEigenbasis:
     """L/R eigenmode reduction of the passive set — pure geometry, per campaign.
 
@@ -233,92 +433,23 @@ def build_passive_eigenbasis(
     exactly a mode whose history the static fit cannot absorb.  Drive
     couplings by reciprocity: ``m_cells = g_grid[cells].T`` (flux a mode links
     per ampere of plasma cell current == flux the cell sees per mode ampere).
+
+    ``r_multipliers`` (per passive circuit, sorted-circuit order) applies a
+    calibrated resistance model on top of the nominal ring resistances —
+    see :func:`reduce_passive_system`.  ``hold_back_cases`` moves the
+    measured-case circuits into the passive set (their channels leave the
+    ``m_coil`` drive columns) — see :func:`build_passive_circuit_system`.
     """
-    from scipy.linalg import eigh  # noqa: PLC0415
-
-    from imas_ambix.gs import operator as op  # noqa: PLC0415
-    from imas_ambix.gs.cylinder import hybrid_greens  # noqa: PLC0415
-    from imas_ambix.latent.boundary_disc import (  # noqa: PLC0415
-        passive_coupling_matrices,
+    system = build_passive_circuit_system(
+        table,
+        grid,
+        resistivity=resistivity,
+        section_scale_frac=section_scale_frac,
+        section_n_max=section_n_max,
+        hold_back_cases=hold_back_cases,
     )
-
-    groups = _passive_circuit_filaments(table)
-    n_pass = len(groups)
-    if n_pass == 0:
-        raise ValueError("table has no inferred_passive circuits")
-
-    section_delta = section_scale_frac * _median_section_scale(groups)
-    pr, pz, wt, owner = _section_grid(groups, section_delta, section_n_max)
-    lmat = np.zeros((n_pass, n_pass))
-    for j, gj in enumerate(groups):
-        lmat[:, j] = _linked_flux_columns(gj, pr, pz, wt, owner, n_pass, hybrid_greens)
-    # the analytic source + quadrature observer linkage is symmetric up to
-    # observer-quadrature error — symmetrise, then guard SPD (physical L is)
-    lmat = 0.5 * (lmat + lmat.T)
-    w0, u0 = np.linalg.eigh(lmat)
-    lmat = (u0 * np.clip(w0, 1e-4 * w0.max(), None)) @ u0.T
-
-    r_diag = np.array(
-        [
-            sum(
-                2.0
-                * np.pi
-                * f.r
-                * resistivity
-                / max(abs(f.width) * abs(f.height), 1e-8)
-                * f.xmult**2
-                for f in g
-            )
-            for g in groups
-        ]
-    )
-    w, v = eigh(np.diag(r_diag), lmat)  # R v = (1/τ) L v ; v L-orthonormal
-    tau = 1.0 / np.clip(w, 1e-12, None)
-
-    a_circ, g_circ = passive_coupling_matrices(grid, table)
-    a_modes = a_circ @ v  # (S, n_pass)
-    scale = np.clip(np.asarray(sensor_scale, dtype=np.float64), 1e-12, None)
-    relevance = tau * np.linalg.norm(a_modes / scale[:, np.newaxis], axis=0)
-    keep = np.argsort(relevance)[::-1][: int(k)]
-    keep = keep[np.argsort(tau[keep])[::-1]]  # slowest-first for readability
-
-    v_k = v[:, keep]
-    g_modes = g_circ @ v_k
-    m_cells = g_modes[grid.cells, :].T  # reciprocity: (k, n_cells)
-
-    # coil channel → mode flux linkage, mirroring build_operator's channel
-    # merge (average same-channel circuits; solenoid response scale applied)
-    classes = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
-    by_circ: dict[int, list] = {}
-    for f in table.pf_filaments:
-        by_circ.setdefault(f.circuit, []).append(f)
-    pf_by_chan: dict[str, list[int]] = {}
-    for cc in classes:
-        if cc.role in op._KNOWN_ROLES:  # noqa: SLF001 — canonical role list
-            pf_by_chan.setdefault(cc.amc_channel, []).append(cc.circuit)
-    m_coil_circ = np.zeros((n_pass, len(pf_by_chan)))
-    for c_idx, chan in enumerate(sorted(pf_by_chan)):
-        cols = []
-        for circ in sorted(pf_by_chan[chan]):
-            cols.append(
-                _linked_flux_columns(
-                    by_circ[circ], pr, pz, wt, owner, n_pass, hybrid_greens
-                )
-            )
-        col = np.mean(np.asarray(cols), axis=0)
-        if chan == "sol_current":
-            col = col * op.SOLENOID_RESPONSE_SCALE
-        m_coil_circ[:, c_idx] = col
-    m_coil = v_k.T @ m_coil_circ  # (k, C)
-
-    return PassiveEigenbasis(
-        tau=tau[keep],
-        v=v_k,
-        a_sens=a_modes[:, keep],
-        g_grid=g_modes,
-        m_coil=m_coil,
-        m_cells=m_cells,
-        resistivity=float(resistivity),
+    return reduce_passive_system(
+        system, grid, sensor_scale=sensor_scale, k=k, r_multipliers=r_multipliers
     )
 
 
@@ -448,6 +579,50 @@ def raw_eddy_trajectory(
     for m in range(basis.n_modes):
         a_labels[:, m] = np.interp(label_times, raw_times, a_raw[:, m])
     return a_labels, a_raw
+
+
+def save_circuit_system(path: Path | str, system: PassiveCircuitSystem) -> None:
+    """Persist a campaign circuit system (the L build is minutes of kernels)."""
+    import json  # noqa: PLC0415
+
+    np.savez_compressed(
+        path,
+        circuits=system.circuits,
+        centroid_r=system.centroid_r,
+        centroid_z=system.centroid_z,
+        lmat=system.lmat,
+        r_diag=system.r_diag,
+        a_circ=system.a_circ,
+        g_circ=system.g_circ,
+        m_coil_circ=system.m_coil_circ,
+        coil_channels=np.array(system.coil_channels),
+        case_channel_row=np.frombuffer(
+            json.dumps(system.case_channel_row).encode(), dtype=np.uint8
+        ),
+        resistivity=np.float64(system.resistivity),
+    )
+
+
+def load_circuit_system(path: Path | str) -> PassiveCircuitSystem:
+    import json  # noqa: PLC0415
+
+    with np.load(path) as z:
+        return PassiveCircuitSystem(
+            circuits=z["circuits"],
+            centroid_r=z["centroid_r"],
+            centroid_z=z["centroid_z"],
+            lmat=z["lmat"],
+            r_diag=z["r_diag"],
+            a_circ=z["a_circ"],
+            g_circ=z["g_circ"],
+            m_coil_circ=z["m_coil_circ"],
+            coil_channels=[str(c) for c in z["coil_channels"]],
+            case_channel_row={
+                k: int(v)
+                for k, v in json.loads(z["case_channel_row"].tobytes()).items()
+            },
+            resistivity=float(z["resistivity"]),
+        )
 
 
 def save_eigenbasis(path: Path | str, basis: PassiveEigenbasis) -> None:
@@ -682,12 +857,17 @@ def load_checkpoint(path: Path | str) -> tuple[TemporalOperator, dict]:
 
 __all__ = [
     "STEEL_RESISTIVITY",
+    "PassiveCircuitSystem",
     "PassiveEigenbasis",
     "TemporalOperator",
+    "build_passive_circuit_system",
     "build_passive_eigenbasis",
     "integrate_eddy_ode",
+    "reduce_passive_system",
     "load_checkpoint",
+    "load_circuit_system",
     "load_eigenbasis",
+    "save_circuit_system",
     "physical_eddy_history",
     "raw_eddy_trajectory",
     "save_checkpoint",

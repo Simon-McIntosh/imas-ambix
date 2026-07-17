@@ -208,22 +208,27 @@ def ring_shift_rms(
 
 
 def passive_coupling_matrices(
-    grid, table: GeometryTable
+    grid, table: GeometryTable, *, circuits: list[int] | None = None
 ) -> tuple[np.ndarray, np.ndarray]:
     """Sensor + grid couplings of every ``inferred_passive`` circuit.
 
     Returns ``(a_sens (S, P), g_grid (nz*nr, P))`` — per-ampere sensor
     signatures (``table.sensor_map`` row order) and grid flux columns, the
     finite-area cylinder Biot-Savart kernel throughout.  Pure geometry: build
-    once per campaign table and reuse across slices.
+    once per campaign table and reuse across slices.  ``circuits`` overrides
+    the circuit selection (column order follows the given list) — used when
+    the passive set is extended beyond the ``inferred_passive`` role, e.g.
+    measured-case circuits held back as prediction targets.
     """
     from imas_ambix.gs import operator as op  # noqa: PLC0415
 
     sr, sz, sang, is_flux = sensor_signature_arrays(table)
     ang = np.deg2rad(sang)
     classes = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
-    passive_circuits = sorted(
-        c.circuit for c in classes if c.role == "inferred_passive"
+    passive_circuits = (
+        list(circuits)
+        if circuits is not None
+        else sorted(c.circuit for c in classes if c.role == "inferred_passive")
     )
     by_circ: dict[int, list] = {}
     for f in table.pf_filaments:
