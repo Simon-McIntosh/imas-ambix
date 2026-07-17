@@ -66,12 +66,17 @@ def _wpol_li3(geo) -> float:
     return 4.0 * wpol / (MU0 * geo.ip_amperes**2 * geo.r0)
 
 
-def shot_ledger(shot: int, args_d: dict, eta: EtaProfile) -> dict | None:
+def shot_ledger(
+    shot: int, args_d: dict, eta: EtaProfile, materials: dict | None = None
+) -> dict | None:
     """Chain the budget-inferred internal flux along one shot."""
-    out = eval_shot((int(shot), args_d))
-    if out is None:
-        return None
-    m = out["materials"]
+    if materials is None:
+        out = eval_shot((int(shot), args_d))
+        if out is None:
+            return None
+        m = out["materials"]
+    else:
+        m = materials
     geos = m["geos"]
     times = m["times"]
     spine, _ = frozen_spine_config()
@@ -162,6 +167,13 @@ def main() -> int:
     ap.add_argument("--convergence-limit", type=float, default=5e-3)
     ap.add_argument("--retry-max-iterations", type=int, default=160)
     ap.add_argument("--prior-weight", type=float, default=0.0)
+    ap.add_argument(
+        "--fit-eta",
+        action="store_true",
+        help="fit eta(psi_N) to CLOSE the ledger (pooled closure RMS over the "
+        "split's shots) before reporting — the time-series identification "
+        "that does not conflate per-slice fit jitter with profile relaxation",
+    )
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--out-suffix", type=str, default="")
     args = ap.parse_args()
@@ -180,12 +192,58 @@ def main() -> int:
         "eta_vector": eta_vec,
     }
     ctx = multiprocessing.get_context("fork")
-    jobs = [(int(s), args_d, eta) for s in shots]
-    if args.workers > 1 and len(jobs) > 1:
-        with ProcessPoolExecutor(max_workers=args.workers, mp_context=ctx) as pool:
-            results = [r for r in pool.map(_worker, jobs) if r is not None]
-    else:
-        results = [r for r in map(_worker, jobs) if r is not None]
+    # pass 1 chains once per shot (the expensive part); ledgers re-run cheaply
+    with ProcessPoolExecutor(max_workers=args.workers, mp_context=ctx) as pool:
+        mats = {
+            int(s): r["materials"]
+            for s, r in zip(
+                shots,
+                pool.map(eval_shot, [(int(s), args_d) for s in shots]),
+                strict=True,
+            )
+            if r is not None
+        }
+    if not mats:
+        raise SystemExit("no shots produced pass-1 materials")
+
+    eta_fit_record = None
+    if args.fit_eta:
+        from scipy import optimize  # noqa: PLC0415
+
+        def closure_objective(x: np.ndarray) -> float:
+            cand = EtaProfile.from_vector(x)
+            errs = []
+            for s, m in mats.items():
+                led = shot_ledger(s, args_d, cand, materials=m)
+                if led is None:
+                    errs.append(1.0)
+                    continue
+                errs.append(led["closure_rms_wb"] ** 2)
+            return float(np.mean(errs))
+
+        x0 = np.asarray(eta_vec, dtype=np.float64)
+        res = optimize.minimize(
+            closure_objective,
+            x0,
+            method="Nelder-Mead",
+            options={"maxfev": 100, "xatol": 2e-2},
+        )
+        eta = EtaProfile.from_vector(res.x)
+        eta_fit_record = {
+            "eta_params": [float(v) for v in res.x],
+            "eta0_ohm_m": eta.eta0,
+            "contrast": eta.contrast,
+            "shape": eta.shape,
+            "closure_rms_pooled_wb": float(np.sqrt(res.fun)),
+            "closure_rms_pooled_wb_at_x0": float(np.sqrt(closure_objective(x0))),
+        }
+        logger.info("closure-fit eta: %s", eta_fit_record)
+
+    results = [
+        r
+        for r in (shot_ledger(s, args_d, eta, materials=m) for s, m in mats.items())
+        if r is not None
+    ]
     if not results:
         raise SystemExit("no shots produced a ledger")
 
@@ -201,6 +259,7 @@ def main() -> int:
             str(r["shot"]): r["span_drift_budget_wb"] for r in results
         },
         "li3_median": {str(r["shot"]): r["li3_median"] for r in results},
+        "eta_closure_fit": eta_fit_record,
         "per_shot": {str(r["shot"]): r["rows"] for r in results},
     }
     tag = f"-{args.out_suffix}" if args.out_suffix else ""

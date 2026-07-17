@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="temporal-physics-spine-s3-p2-landed">
+  <meta name="plan-title" content="Temporal Physics Spine — §3 P2 record (current-diffusion temporal prior)">
+  <meta name="plan-summary" content="P2 record: the in-house TORAX-informed 1D resistive ψ-diffusion operator is built, unit-pinned analytically and against TORAX to 0.2%, and gated. Both flux-consumption channels are carried explicitly (resistive = axis flux drift via Ohm's law; inductive = internal storage) and the Ejima coefficient reads out per shot. Held-out verdict (n=128, spine byte-exact): flat-top LCFS NON-INFERIOR (Δskill +0.005, CI within margin) but the axis leg FAILS (median 6.15→6.47 cm) — formal gate FAIL. Synthetic exact-recovery: the diffusion chain clears the 0.120 bar but does NOT materially beat the spine (0.043 vs 0.044 disengaged; 0.068 vs 0.044 engaged) — per-interval split transfer is O(dt/τ_res) ≈ 1–3% at MAST label cadence. With P1 and P2 both formally failed, P3 is a NO-GO per the plan's pre-declared rule. The productive discovery is the SHOT-INTEGRATED route (lead directive): the flux ledger backs the internal flux content out of the measured surface swing minus modelled resistive consumption; closure-fitting η lands at the physical Spitzer scale (7.1e-8 Ω·m) and one tune shot closes to 68 mWb.">
+  <meta name="plan-informs" content="temporal-physics-spine">
+  <title>temporal-physics-spine §3 P2 — current-diffusion prior, landed record</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>§3 P2 — current-diffusion temporal prior (landed record)</h1>
+  <p class="lede"><strong>Verdict (2026-07-17): the operator is built and verified —
+  analytic pins + TORAX cross-check to 0.2% — but the formal gate FAILS: flat-top
+  LCFS is non-inferior on held-out (Δskill +0.005, CI [−0.001, +0.011], margin
+  −0.05) while the axis leg degrades (median 6.15 → 6.47 cm; Δskill −0.16,
+  CI [−0.72, −0.04]), and the synthetic exact-recovery shows the per-interval
+  diffusion prior does NOT materially recover the p′/FF′ split.</strong>
+  With P1 and P2 both formally failed, rung P3 is a NO-GO under the plan's
+  pre-declared rule — the temporal thesis closes at the physics level.
+  The rung's durable products: a TORAX-verified differentiable ψ-diffusion
+  operator, a cross-shot η(ψ_N) calibration that lands at the physical Spitzer
+  scale when identified through the flux-budget closure, the explicit
+  inductive/resistive consumption ledger with a windowed Ejima readout, and —
+  from the lead's integrated-metrics directive — a shot-integrated route that
+  backs the INTERNAL flux content out of external measurements, the opening
+  the follow-up carries.</p>
+
+  <h2>What was built</h2>
+  <ul>
+    <li><strong>The operator</strong> (<code>imas_ambix/latent/current_diffusion.py</code>,
+    torch/fp64): 1D flux-surface-averaged resistive ψ-diffusion on a uniform
+    normalised-toroidal-flux grid, TORAX FVM formulation
+    (<code>toc·∂ψ/∂t = ∂/∂ρ̂[(g2·g3/ρ̂)·∂ψ/∂ρ̂]</code>, total-flux Wb convention),
+    implicit θ-scheme with vertex-centred half-cell boundary balances: axis
+    regularity + the measured Rogowski Ip as the edge gradient BC.
+    η(ψ_N) = bounded 3-parameter monotone family (Spitzer/Sauter-informed,
+    finite at the separatrix), cross-shot, never per-slice.</li>
+    <li><strong>Flux-surface geometry from the spine's own equilibria</strong>:
+    cumulative volume-integral (coarea) metrics binned on ψ_N — integrate-then-
+    differentiate, robust where ring line-integrals of 1/|∇Φ| are not; F(ψ_N)
+    integrated from the fitted FF′ family; the initial ψ(ρ̂) constructed
+    identity-consistently from the fit's own current profile so the t = 0
+    round trip carries no resampling innovation.</li>
+    <li><strong>Both consumption channels explicit</strong> (user directive):
+    the surface swing decomposes structurally as
+    <code>ΔΨ_bdry = ΔΨ_internal (inductive) + ΔΨ_axis (resistive)</code> —
+    Ohm's law at the axis makes the axis drift purely resistive; the ledger
+    reports both per interval and per shot, and
+    <code>C_E = |ΔΨ_res|/(μ0·R0·|ΔIp|)</code> reads out wherever the covered
+    window genuinely spans a ramp.</li>
+    <li><strong>Split-sensitive projection</strong>: the evolved state predicts
+    BOTH the toroidal current profile (dI/dS) and the ohmic parallel current
+    (⟨J·B⟩ = σ∥·⟨E·B⟩); per unit coefficient the two families weight these
+    differently (F·φ/R0 vs ⟨B²⟩·R0·φ/F), so the non-negative projection of the
+    pair carries p′/FF′ information no single-slice magnetics fit has.</li>
+    <li><strong>The prior in the fit</strong>:
+    <code>SoftPriors.coeff_prior_center/weight</code> — identity rows on the
+    ladder-coefficient block, weight RELATIVE to the data Gram (the smoothness
+    convention), weight 0 byte-identical (test-pinned).  Harness:
+    <code>scripts/current_diffusion_gate_eval.py</code> (P1-pattern: byte-exact
+    spine pass 1 → per-interval geometry + diffusion prediction → constrained
+    pass 2 → paired bootstrap), synthetic gate
+    <code>scripts/current_diffusion_synthetic_gate.py</code>, ledger report
+    <code>scripts/current_diffusion_flux_ledger_report.py</code>.</li>
+    <li><strong>Verification</strong>: 11 unit tests — Bessel eigenmode decay at
+    the analytic cylinder rate (3%), ramping-Ip BC holds the enclosed current,
+    late-time rigid consumption at the analytic ring voltage, Ampère closure of
+    the extracted metrics on a solved equilibrium, projection round trip,
+    flux-budget identity, zero-weight byte-identity, tight-prior pinning, and a
+    <strong>TORAX cross-check</strong>: on a shared circular case (1→1.4 MA ramp,
+    Sauter σ) the operator reproduces TORAX's ψ evolution to
+    <strong>0.2% RMS</strong> (<code>scripts/torax_crosscheck_reference.py</code>;
+    reference NPZ committed under <code>tests/data/</code>).</li>
+  </ul>
+
+  <h2>Defects found by the verification ladder (all fixed, test-pinned)</h2>
+  <ul>
+    <li><strong>Unstable current read-back</strong>: a pointwise (telescoping)
+    gradient inversion was exact for the constructed initial state but amplified
+    odd-even components of EVOLVED states into 6.7× RMS current-profile
+    corruption on real geometry — replaced by the scheme's own stable midpoint
+    fluxes.</li>
+    <li><strong>Flux-sign error in the ohmic target</strong>: on MAST-sign
+    equilibria (ψ_axis &gt; ψ_bdry) ψ̇ &lt; 0 during consumption, flipping the
+    ⟨J·B⟩ target's sign so the non-negative projection could only reach it by
+    annihilating the profile — fixed with the sign-invariant form
+    ⟨E·B⟩ = flux_sign·ψ̇·F·⟨1/R²⟩/2π.</li>
+    <li><strong>Invisible prior weight</strong>: the coefficient columns are
+    Ip-normalised with whitened data curvature ~10⁴–10⁵ per unit coefficient,
+    so an absolute O(1) weight did nothing (the first tune sweep was
+    weight-flat) — made relative to the data Gram's mean diagonal.</li>
+  </ul>
+
+  <h2>η(ψ_N) calibration — two identifications, one physical answer</h2>
+  <table>
+    <thead><tr><th>objective</th><th>η0 [Ω·m]</th><th>shape</th><th>note</th></tr></thead>
+    <tbody>
+      <tr><td>per-interval coefficient prediction (+0.3 budget)</td><td>4.6×10⁻⁷</td><td>flat</td>
+      <td>obj 0.252→0.019 (RMS coeff err ~0.14/interval); biased HIGH — the
+      objective conflates per-slice fit jitter with profile relaxation;
+      insensitive to 10× budget re-weighting</td></tr>
+      <tr><td><strong>flux-budget closure (time-series)</strong></td><td><strong>7.1×10⁻⁸</strong></td><td>flat</td>
+      <td>pooled closure RMS 0.57→0.38 Wb; at the physical Spitzer scale for
+      MAST flat-top (~0.4–1 keV with neoclassical enhancement)</td></tr>
+    </tbody>
+  </table>
+  <p>The 6.5× disagreement is itself a finding: slice-to-slice coefficient
+  variance reads as fast profile evolution to a per-interval objective, while
+  the integrated budget sees through it.  Consistently, the ledgers at the
+  coefficient-fit η over-consume (predicted surface swing 1.3–3× the measured;
+  V_res 3.3–4.2 V vs ~1 V typical) — the recorded reason the raw windowed
+  C_E (below) is biased high.  Neglected non-inductive current (bootstrap/NBI,
+  ~10–30% on MAST) also biases any effective η upward; recorded, not chased.</p>
+
+  <h2>Synthetic exact-recovery gate — the split leg</h2>
+  <p>New diffusion-consistent truth sequences (truth coefficients EVOLVE under
+  the operator at fine discretisation with known η; ramping Ip; exact ledger →
+  known true C_E ≈ 0.72–1.09 per sequence).  96 slices, 8 sequences, oracle-η
+  recovery arms:</p>
+  <table>
+    <thead><tr><th>arm</th><th>median |split − truth|</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr><td>independent-slice spine (same sequences)</td><td>0.044</td><td>the paired baseline</td></tr>
+      <tr><td>diffusion chain, absolute w 0.3–10 (disengaged)</td><td>0.042–0.043</td><td>parity</td></tr>
+      <tr><td>diffusion chain, sequential accumulation w 1–3</td><td>0.043</td><td>parity — no compounding</td></tr>
+      <tr><td>diffusion chain, ENGAGED relative w 0.1</td><td>0.068</td><td><strong>worse than the spine</strong></td></tr>
+    </tbody>
+  </table>
+  <p><strong>The plan's bar (beat 0.120 median |err|) is formally cleared by
+  every arm, but the bar is not the discriminating quantity</strong> — it was
+  recorded on random-walk truth sequences where the spine scores 0.120; on
+  physically-evolving truths the spine already sits at 0.044 and the diffusion
+  chain never materially beats it.  The mechanism measurement: per label
+  interval (~18 ms) the prior transfers O(dt/τ_res) ≈ 1–3% of split
+  information (τ_res ~ seconds), and when the prior is made stiff enough to
+  actually move the fit, it transplants the PREVIOUS slice's split error and
+  degrades recovery.  The per-interval temporal-consistency form does not
+  recover the split.</p>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-current-diffusion-synth-gate-rel-w0.1.png"
+         alt="synthetic split recovery, engaged prior" style="max-width:100%">
+    <figcaption>The engaged-prior synthetic arm: recovered vs true p′ fraction
+    (right) and the |split − truth| distributions (left).</figcaption>
+  </figure>
+
+  <h2>Real-data gate</h2>
+  <h3>Tune (4 shots, 64 slices; weight-only sweep at the fitted η)</h3>
+  <table>
+    <thead><tr><th>w (relative)</th><th>flat-top dyn/spine [cm]</th><th>axis dyn/spine [cm]</th><th>LCFS Δskill (CI)</th><th>coeff pull</th></tr></thead>
+    <tbody>
+      <tr><td>0.01</td><td>6.77 / 6.61</td><td>4.61 / 4.80</td><td>+0.003 [+0.002, +0.005]</td><td>0.225</td></tr>
+      <tr><td><strong>0.1 (frozen)</strong></td><td>6.77 / 6.61</td><td>4.63 / 4.80</td><td>+0.006 [+0.002, +0.013]</td><td>0.137</td></tr>
+      <tr><td>1.0</td><td>6.91 / 6.61</td><td>4.66 / 4.80</td><td>+0.015 [+0.001, +0.053]</td><td>0.067</td></tr>
+    </tbody>
+  </table>
+  <h3>Held-out (8 shots, n = 128, frozen w = 0.1, fitted η; spine byte-exact, drift ≤ 3×10⁻¹²)</h3>
+  <table>
+    <thead><tr><th>leg</th><th>result</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr><td>flat-top LCFS non-inferiority (margin −0.05)</td>
+      <td>3.04 vs 3.01 cm; Δskill +0.005, CI [−0.001, +0.011]</td><td><strong>PASS</strong></td></tr>
+      <tr><td>axis median not degraded</td>
+      <td>6.15 → 6.47 cm; Δskill −0.16, CI [−0.72, −0.04]</td><td><strong>FAIL</strong></td></tr>
+      <tr><td>reseed / coverage</td><td>0/0, full (0 masked, 0 geometry-skipped)</td><td>pass</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Formal gate P2: FAIL through the axis leg.</strong>  The tune-split
+  axis improvement (4.63 vs 4.80 cm) did not transfer to held-out — the same
+  tune→eval axis flip P1 recorded.  The pattern is now measured twice: a
+  temporal prior that biases the interior even mildly pays on the axis (the
+  interior null), while the boundary-anchored LCFS tolerates it.  The cost
+  moved 1.018 → 1.023 (the prior is honest — it does not fight the sensors).</p>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-current-diffusion-gate-eval.png"
+         alt="held-out gate: flat-top LCFS, axis medians, flux ledger" style="max-width:100%">
+    <figcaption>The held-out gate: per-shot flat-top LCFS and axis medians, and
+    the per-shot flux-consumption ledger (resistive + inductive vs measured).</figcaption>
+  </figure>
+
+  <h2>The integrated-metrics route and the Ejima readout (lead directive)</h2>
+  <p>The lead's directive mid-rung — <em>"if we have a good model for resistive
+  flux consumption we can compare to the boundary flux gauged from external
+  measurements and back out internals"</em> — is implemented as the flux-ledger
+  report: chain <code>Ψ_int(t) = Ψ_int(t₀) + [ΔΨ_bdry(measured) −
+  ΔΨ_res(model)]</code> along the shot and validate against every later
+  slice's own fitted flux content (an independent per-slice read).  This is
+  the shot-integrated identification: the resistive signal grows with the
+  window (~0.5–1 Wb) while per-interval read noise averages down — exactly
+  where the per-interval prior is weakest.  Results at the closure-fitted η:
+  one tune shot closes to <strong>68 mWb</strong>; three retain ~0.43 Wb of
+  shot-structured residual that η alone cannot close (candidates: boundary-flux
+  read drift, non-inductive drive, the flat-η restriction) — the quantified
+  target the follow-up carries.  li₃ from the 1D state's Wpol integral is
+  implemented; the βp/li separation (ledger-li + the existing βp+li/2 moment
+  rows → a DIRECT p′-amplitude constraint) is the concrete next mechanism.</p>
+  <p><strong>Ejima coefficient</strong>: the covered windows span the late ramp
+  (ΔIp ≈ 0.2–0.35·Ip_max), so the readout is the WINDOWED, incremental C_E.
+  At the coefficient-fit η: held-out median 2.65 (range 0.59–2.91) — biased
+  high by the same η overestimate the ledger closure exposes (V_res 3.3–4.2 V
+  vs ~1 V typical; predicted surface swing 1.3–3× measured).  Scaling by the
+  closure-fit η (6.5× lower) puts the implied full-consumption coefficient in
+  the ~0.4–0.5 literature band, but the honest statement is: <strong>a credible
+  C_E requires the closure-identified η and early-ramp coverage (the corpus
+  labels start at Ip ≥ 300 kA)</strong> — recorded as the condition, not
+  claimed as a result.</p>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-current-diffusion-flux-ledger-tune-closurefit.png"
+         alt="flux ledger closure at the closure-fitted eta" style="max-width:100%">
+    <figcaption>The integrated ledger at the closure-fitted η: budget-inferred
+    internal flux (red) vs each slice's own fitted flux content (blue), per
+    tune shot.</figcaption>
+  </figure>
+
+  <h2>P3 go/no-go — the pre-declared rule fires</h2>
+  <p>The plan pre-declared: <em>"If P1/P2 both fail their gates, P3 does not
+  run — the plan records that the modelled dynamics do not carry the missing
+  information and the temporal thesis fails at the physics level."</em>
+  P1 closed FAIL (sustained through the resistance calibration and the
+  structure discovery; ramp-up signal real but −0.1…−0.2 cm small).  P2
+  closes FAIL (flat-top non-inferior; axis degraded; no material split
+  recovery).  <strong>P3 is a NO-GO.</strong>  The clean negative: at MAST
+  label cadence the modelled axisymmetric dynamics — vessel eddies (P1) and
+  resistive current diffusion (P2) — carry real but referee-marginal
+  information, and both bias the interior null (the axis) when promoted to
+  fit constraints.  What survives is the integrated route: the flux ledger's
+  shot-scale resistive budget is measurable, η-identifiable at physical
+  values, and opens the βp/li separation — a fundamentally different
+  information channel from per-slice or per-interval priors.</p>
+
+  <h2>Artifacts and provenance</h2>
+  <ul>
+    <li>Code: <code>imas_ambix/latent/current_diffusion.py</code> (operator,
+    geometry, ledger, Ejima), <code>SoftPriors.coeff_prior_*</code> +
+    <code>coeff_prior</code> passthrough (gs_solve / closure_gate_eval),
+    harnesses + TORAX reference generator under <code>scripts/</code>,
+    tests in <code>tests/latent/test_current_diffusion.py</code> (11) +
+    <code>tests/data/torax_circular_psi_reference.npz</code>.
+    Commits <code>7849f06</code>, <code>09d8320</code>, <code>bac8880</code>,
+    <code>3559ff7</code>, <code>a18e7e3</code>.</li>
+    <li>Calibrations: <code>current_diffusion_eta_calibration.json</code>
+    (coefficient-fit, the gate's frozen η), <code>-budget3.json</code>
+    (budget-weight sensitivity — same optimum), closure-fit record inside
+    <code>current_diffusion_flux_ledger-tune-closurefit.json</code>.</li>
+    <li>Gate artifacts: <code>current_diffusion_gate_eval-tune2-w*.json</code>,
+    <code>current_diffusion_gate_eval-eval.json</code> (+ arrays NPZ),
+    <code>current_diffusion_synth_gate-*.json</code> (weights, sequential,
+    engaged arms), <code>current_diffusion_flux_ledger-tune*.json</code>.</li>
+    <li>Recorded approximations: frozen geometry/η per label interval;
+    bootstrap/NBI current drive neglected (biases effective η up); Φ_b_dot
+    term dropped over an interval; b_phi0 = 0.55 T nominal (per-shot
+    tf_current not consumed); labels start at Ip ≥ 300 kA (no breakdown-phase
+    coverage).</li>
+  </ul>
+
+  <h2>Decisions honoured</h2>
+  <ul>
+    <li><code>current-diffusion-substrate</code> = in-house-torax-informed
+    (locked): torch/fp64 in-house operator; TORAX used as formulation
+    reference and numerical cross-check (0.2%), never a runtime dependency.</li>
+    <li>Soft-prior precedent (locked): the prior entered as a soft
+    temporal-consistency term; weight swept on tune only; zero-weight
+    byte-identity test-pinned.</li>
+    <li>Structure artifact inheritance: the vessel-eddy model was not in this
+    rung's fit path (the diffusion prior acts on the profile block); the
+    frozen spine baseline — byte-exact throughout — carries the standing
+    passive treatment unchanged.</li>
+  </ul>
+</main>
+</body>
+</html>

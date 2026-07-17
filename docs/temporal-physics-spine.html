@@ -21,8 +21,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-17">
-<meta name="plan-version" content="8">
-<meta name="plan-impl" content="0.6">
+<meta name="plan-version" content="9">
+<meta name="plan-impl" content="1.0">
 </head>
 <body>
 <main class="plan-doc">
@@ -181,31 +181,44 @@
   landed</a> (structure artifact <code>passive_structure_calibration.json</code>,
   inherited by all later rungs via <code>--structure-artifact</code>).</p>
 
-  <h3>P2 — current-diffusion temporal prior (TORAX-inspired, right-sized)</h3>
-  <p>Between labelled slices, evolve the profile-coefficient state under a 1D
-  flux-surface-averaged resistive diffusion operator on the spine's own ψ_N ladder basis:
-  the diffusion structure, the measured surface loop voltage (flux loops), and the Rogowski
-  Ip are exact physics and data; the resistivity profile η(ψ_N) is unmeasured (Thomson
-  T<sub>e</sub> is gated — <code>moment_priors.TE_DATA_GATE</code>) and enters as the
-  explicit low-DOF unknown — a bounded parametric profile, NOT a hidden nuisance. The prior
-  enters the per-slice fit as a <em>soft temporal consistency term</em> on coefficient
-  evolution (precedent: the locked soft-prior interior-boundary coupling — hard pinning
-  injects model error as truth). What this buys that no static fit can: the flux-consumption
-  budget (∫V_loop dt) constrains the p′/FF′ partition's evolution, and axis motion is tied
-  to profile diffusion rather than free per-slice. <strong>Gate P2</strong>: on synthetic
-  truth (exact η, exact profiles) the diffusion-constrained chain recovers the p′/FF′ split
-  materially better than the independent-slice spine (bar: beat 0.120 median |err|); on real
-  data, flat-top non-inferiority and axis median not degraded.</p>
+  <h3>P2 — current-diffusion temporal prior (TORAX-inspired, right-sized)
+    <span class="badge badge-shipped">✓ landed 2026-07-17 — operator verified; formal gate FAIL</span></h3>
+  <p class="landed-summary">
+  Built, TORAX-verified, and gated: in-house torch/fp64 1D resistive ψ-diffusion
+  on the spine's own equilibria (11 unit pins; matches TORAX to <strong>0.2%
+  RMS</strong> on a shared circular case), with BOTH consumption channels
+  explicit (resistive = axis flux drift, inductive = internal storage) and a
+  windowed Ejima readout. Held-out n=128, spine byte-exact: <strong>flat-top
+  LCFS non-inferior</strong> (Δskill +0.005, CI [−0.001, +0.011]) but the
+  <strong>axis leg FAILS</strong> (median 6.15 → 6.47 cm) — the tune-split axis
+  gain did not transfer, the same interior-null pattern P1 measured. Synthetic
+  exact-recovery: clears the 0.120 bar but never materially beats the
+  independent-slice spine (0.043 vs 0.044; engaged prior 0.068 — worse): the
+  per-interval split transfer is O(dt/τ_res) ≈ 1–3% at 18 ms cadence.
+  η(ψ_N) identified two ways — per-interval coefficient fit (4.6×10⁻⁷ Ω·m,
+  jitter-biased) vs <strong>flux-budget closure (7.1×10⁻⁸ Ω·m — physical
+  Spitzer scale)</strong>. Full record:
+  <a href="archive/temporal-physics-spine-s3-p2-landed.html">§3 P2 landed</a>
+  (commits <code>7849f06</code>…<code>a18e7e3</code>).</p>
 
-  <h3>P3 — merge into the ML pipeline</h3>
-  <p>Only after P1/P2 verdicts. The residual learner returns exactly as in R1: zero-initialised
-  heads about the <em>dynamic</em> spine, corrections decoded through the same exact Green's
-  layers, topology anchors retained (they are now proven degeneracy control), G2-class gates
-  re-baselined against the dynamic spine. The network's target DOF are the ones P1/P2
-  deliberately left free: η(ψ_N), mode-resistance scales, and whatever structured residual the
-  physics rungs' error analysis exposes. If P1/P2 both fail their gates, P3 does not run —
-  the plan records that the modelled dynamics do not carry the missing information and the
-  temporal thesis fails at the physics level, which is a far cleaner negative than R2's.</p>
+  <h3>P3 — merge into the ML pipeline
+    <span class="badge">NO-GO 2026-07-17 — pre-declared rule fired</span></h3>
+  <p>The plan pre-declared: if P1/P2 both fail their gates, P3 does not run.
+  <strong>Both failed</strong> (P1: axis leg, sustained through the resistance
+  calibration and structure discovery; P2: axis leg, flat-top non-inferior) —
+  the modelled axisymmetric dynamics carry real but referee-marginal
+  information at label cadence, and both bias the interior null when promoted
+  to fit constraints. The temporal thesis closes at the physics level — the
+  clean negative the plan wanted. <strong>What survives is the
+  SHOT-INTEGRATED route</strong> (lead directive, recorded in the P2 archive):
+  the flux-consumption ledger backs the internal flux content out of the
+  measured surface swing minus modelled resistive consumption
+  (closure-fitted η at the physical Spitzer scale; one tune shot closes to
+  68 mWb, three carry ~0.43 Wb shot-structured residual), and ledger-li
+  combined with the standing βp+li/2 moment separates βp — a DIRECT
+  p′-amplitude constraint from external data. That βp/li separation is the
+  queued follow-up; it is a different information channel from per-interval
+  priors, not a P3 revival.</p>
 
   <h2 id="s4">§4 — TORAX: what to take, what not to take</h2>
   <p><a href="https://github.com/google-deepmind/torax">TORAX</a> (cloned at
@@ -709,7 +722,7 @@ Done-when
      or the plasma-drive suspect recorded, this followup resolved</pre>
     <p class="r-fu-outcome">§3 P1c landed (commits 1cfafbc, aae1202, 4a68323, 32b7e85, 1f06d22, d5998b2) — discovery SUCCEEDS: tier A closes exactly (feeds = coil/N turns duplicates; plain = coil + case to 2e-7 — the case is metered inside the coil's supply circuit); tier B2 galvanic case wiring ACCEPTED (held-out 0.495→0.260; r_w·i_coil per case, g_v fits to zero — exact L already carried the inductive part), held-back P2 cases cured corr +0.34/−0.03 → +0.85/+0.84; B1 series and B3 pair drive gains rejected; C adjacency marginal (+4e-5). RE-GATE: formal FAIL sustained, structure gate-neutral to ≤0.01 cm vs the P1b arms (ramp −0.103 CI grazing zero; axis 6.43 vs 6.15) — the vacuum-identifiable passive structure is EXHAUSTED; plasma-era drive term d(M(t)·Ip)/dt recorded as next suspect per the pre-declared honest scope. P2 re-queued (f-tps-06) with the structure artifact inherited. Record: docs/archive/temporal-physics-spine-s3-p1c-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-tps-06" data-status="open" data-tier="opus" data-written-by="reckon-ship (P2 re-queue after P1c verdict)" data-written-at="2026-07-17" data-recommends-skill="/reckon-ship temporal-physics-spine §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-tps-06" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (P2 re-queue after P1c verdict)" data-written-at="2026-07-17" data-recommends-skill="/reckon-ship temporal-physics-spine §3" data-resolved-at="2026-07-17T15:04:34+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">P2 — in-house current-diffusion temporal prior (TORAX-informed), gated on synthetic exact-recovery + real non-inferiority</h4>
     <div class="r-fu-body"><p>The f-tps-04 prompt re-queued behind the P1c verdict, as its outcome promised. P1c exhausted the vacuum-identifiable passive structure (galvanic case wiring found and validated; re-gate FAIL sustained, gate-neutral) and recorded the plasma-era drive term d(M(t)·Ip)/dt as the next suspect — exactly the physics P2 models: the 1D flux-surface-averaged resistive ψ-diffusion prior linking successive profile fits through measured loop voltage and Rogowski Ip, with η(ψ_N) the explicit bounded low-DOF unknown. Wherever the eddy model enters, inherit the passive structure artifact (passive_structure_calibration.json via --structure-artifact — it supersedes the bare resistance calibration).</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -768,6 +781,52 @@ Done-when
      not degraded, n&gt;=128 paired bootstrap
   3. Plan updated same-session: outcome + archive record, P3 go/no-go framed from the
      P1+P2 verdicts, this followup resolved</pre>
+    <p class="r-fu-outcome">§3 P2 landed (commits 7849f06, 09d8320, bac8880, 3559ff7, a18e7e3) — operator built and VERIFIED (11 unit pins; TORAX cross-check 0.2% RMS on a shared circular case; both flux-consumption channels explicit; windowed Ejima readout). FORMAL GATE FAIL: held-out n=128 spine-byte-exact, flat-top LCFS non-inferior (Δskill +0.005 CI [−0.001,+0.011]) but axis degraded (6.15→6.47 cm, Δskill −0.16 CI [−0.72,−0.04]); synthetic exact-recovery clears the 0.120 bar but never materially beats the spine (0.043 vs 0.044; engaged prior 0.068 worse) — per-interval split transfer is O(dt/τ_res)≈1–3% at label cadence. η identified at the physical Spitzer scale by FLUX-BUDGET CLOSURE (7.1e-8 Ω·m vs 4.6e-7 from the jitter-biased coefficient objective). P1+P2 both failed → P3 NO-GO per the pre-declared rule; the temporal thesis closes at the physics level. The shot-integrated ledger route (lead directive) survives and is queued (f-tps-07). Record: docs/archive/temporal-physics-spine-s3-p2-landed.html</p>
+    </article>
+<article class="r-fu" data-id="f-tps-07" data-status="open" data-tier="opus" data-written-by="reckon-ship (P2 verdict + lead integrated-metrics directive)" data-written-at="2026-07-17" data-recommends-skill="/reckon-ship temporal-physics-spine §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Integrated flux-ledger βp/li separation — back the interior out of external measurements</h4>
+    <div class="r-fu-body"><p>P2's durable discovery (lead directive): the shot-integrated flux ledger backs the internal flux content Ψ_int out of the measured surface swing minus modelled resistive consumption, with η identified by CLOSURE against the per-slice fits' own flux contents (lands at the physical Spitzer scale, 7.1e-8 Ω·m; one tune shot closes to 68 mWb, three carry ~0.43 Wb shot-structured residual). Ledger-li combined with the standing βp+li/2 magnetics moment separates βp — a DIRECT p′-family amplitude constraint from external data, a fundamentally different channel from the per-interval priors that failed the P1/P2 gates. Work: (1) close the residual (boundary-flux read drift vs non-inductive drive vs flat-η restriction — the three recorded candidates); (2) wire ledger-li + moment rows as the βp separation soft prior; (3) gate on the standard harness (split recovery on synthetic + axis/flat-top on real). A credible full-ramp Ejima readout falls out once early-ramp coverage (Ip < 300 kA labels) is added.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    temporal-physics-spine (http://localhost:8765/imas-ambix/temporal-physics-spine.html)
+Section: §3 (post-P2 integrated route) + §6
+Tier:    opus
+
+Context
+  Read docs/archive/temporal-physics-spine-s3-p2-landed.html FIRST. P1/P2 both
+  failed their formal gates (axis leg) and P3 is a NO-GO per the pre-declared
+  rule. The surviving route is SHOT-INTEGRATED: the flux-consumption ledger
+  (scripts/current_diffusion_flux_ledger_report.py) backs Ψ_int out of the
+  measured surface swing minus modelled resistive consumption; closure-fitting
+  η lands at the physical Spitzer scale. Ledger-li + the βp+li/2 moment
+  (moment_priors.moment_consistency_rows) separates βp externally.
+
+State to read
+  imas_ambix/latent/current_diffusion.py            (operator, ledger, li3 readout)
+  scripts/current_diffusion_flux_ledger_report.py   (closure fit; per-shot residuals)
+  imas_ambix/latent/artifacts/patch_gate/current_diffusion_flux_ledger-tune-closurefit.json
+  imas_ambix/latent/moment_priors.py                (beta_li rows — the separation partner)
+  docs/archive/temporal-physics-spine-s3-p2-landed.html (recorded approximations)
+
+Design constraints (non-decision)
+  - Close the ledger residual FIRST (0.43 Wb on 3/4 tune shots): test the three
+    recorded candidates — per-slice boundary-flux read drift (compare against a
+    raw-cadence fl-loop-anchored surface flux), neglected non-inductive drive
+    (bounded fraction as one extra DOF), and the flat-η restriction (let the
+    bounded shape DOF engage under the closure objective).
+  - βp separation enters as SOFT rows only (locked precedent); EFIT firewalled;
+    frozen spine byte-exact baseline; standing held-out cohort untouched.
+  - Gate: synthetic split recovery (paired vs spine on diffusion-consistent
+    truths — the 0.044 spine baseline) + real flat-top non-inferiority and
+    axis not degraded, n&gt;=128.
+  - Ejima: report windowed C_E at the closure-fitted η; a full-ramp C_E claim
+    requires early-ramp label coverage (currently Ip &gt;= 300 kA) — extend the
+    slice window for the ledger pass only if cheap, else record.
+
+Done-when
+  1. Ledger closure residual attributed (which of the three candidates) with
+     the fix landed + validated on held-out vacuum-free tune shots
+  2. βp/li separation wired and gated; verdict recorded honestly either way
+  3. Plan updated same-session: outcome + archive record, this followup resolved</pre>
     </article>
 </section>
 
