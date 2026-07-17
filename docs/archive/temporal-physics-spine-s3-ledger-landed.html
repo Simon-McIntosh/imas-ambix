@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="temporal-physics-spine-s3-ledger-landed">
+  <meta name="plan-title" content="Temporal Physics Spine — §3 record: integrated flux-ledger βp/li separation">
+  <meta name="plan-summary" content="Integrated-route record: the 0.43 Wb ledger residual is ATTRIBUTED — the chain gauge was poisoned by fast-early-ramp fit pathologies (li3 reads 2–3 at 450–500 kA); a sane-li3 gauge closes every tune shot to 55–67 mWb (read noise). Non-inductive drive and the flat-η restriction are rejected; the boundary-read drift is secondary and non-accumulating. The βp/li separation (ledger-li + Shafranov moment) is the FIRST mechanism to beat the spine on synthetic split recovery (0.044 → 0.029 median |split−truth|), but the held-out real-data gate FAILS on the axis leg (6.15 → 6.39 cm, Δskill −0.157 CI-clear) with the moment-only ablation IDENTICAL — on held-out data the ledger channel is gate-neutral and the axis toll is the moment row itself biasing the interior null: the third measurement of the tune→eval axis flip, now attributed to the diagnostic-set information floor, not to any specific temporal mechanism. Early-ramp label study: the magnetics are never noise-limited above ~12 kA; the pre-label window carries only ~5% of the wall flux swing; extending labels below 300 kA buys fast-ramp reconstruction pathologies and unmodellable burn-through physics, not information.">
+  <meta name="plan-informs" content="temporal-physics-spine">
+  <title>temporal-physics-spine §3 — integrated flux-ledger record</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>§3 — integrated flux-ledger βp/li separation (landed record)</h1>
+  <p class="lede"><strong>Verdict (2026-07-17): the ledger closes at read noise once
+  its gauge is protected from early-ramp fit pathologies; the βp/li separation
+  is the first mechanism in the plan to genuinely recover split information on
+  synthetic truths (0.044 → 0.029); and the held-out real-data gate still FAILS
+  on the axis leg — with the moment-only ablation numerically identical, the
+  failure is attributed to the diagnostic-set information floor at the interior
+  null, not to the ledger mechanism.</strong>  The temporal-physics-spine plan
+  closes: three independent temporal channels (vessel eddies, per-interval
+  diffusion, shot-integrated ledger + moment) all convert real physics into
+  real but referee-marginal information, and all pay the same CI-clear axis
+  toll (Δskill −0.16) when promoted to fit constraints at any useful weight.</p>
+
+  <h2>1 — Ledger residual attribution: the gauge, not the physics</h2>
+  <p>The P2 record left a 0.43 Wb shot-structured closure residual on three of
+  four tune shots with three candidates. The attribution arm suite
+  (<code>scripts/current_diffusion_flux_ledger_report.py --attribution</code>,
+  each arm with its own multi-start closure-fitted η) settles it:</p>
+  <table>
+    <thead><tr><th>arm</th><th>pooled RMS</th><th>per-shot (sane) [mWb]</th><th>η0 [Ω·m]</th></tr></thead>
+    <tbody>
+      <tr><td>baseline (landed form)</td><td>380 mWb</td><td>431 / 68 / 436 / 443</td><td>7.1×10⁻⁸</td></tr>
+      <tr><td><strong>sane-li3 gauge (≤1.5)</strong></td><td><strong>60 mWb</strong></td><td><strong>63 / 61 / 59 / 58</strong></td><td>9.0×10⁻⁸</td></tr>
+      <tr><td>+ flux-loop swing anchor</td><td>60 mWb</td><td>60 / 67 / 55 / 56</td><td>1.6×10⁻⁷</td></tr>
+      <tr><td>+ non-inductive fraction</td><td>60 mWb</td><td>60 / 66 / 55 / 57</td><td>1.9×10⁻⁷ (f_ni 0.16)</td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li><strong>Attributed: early-slice fit pathology.</strong> The first 2–3
+    labelled slices of the non-closing shots (t ≈ 0.05–0.09 s, still 450–500 kA
+    — <em>after</em> the first, sane label) fit with unphysical interiors (their
+    own li3 reads 2–3, span swings ±0.7 Wb between 18 ms slices) and both gauge
+    and metric inherited the corruption — the measured closure_corr ≈ −0.97
+    anti-correlation signature. Excluding insane-li3 slices from gauge and
+    metric closes <em>every</em> shot at the level of the one shot that always
+    closed (68 mWb).</li>
+    <li><strong>Secondary: boundary-flux read drift is real but does not
+    accumulate.</strong> The fits' flux-loop residual (per-slice sensor
+    prediction reconstructed byte-exactly from retained pieces, rel. err ≤
+    2×10⁻¹⁶) drifts ~0.2 Wb in range but ends ~0.02 Wb from where it started;
+    re-anchoring the surface swing to the measured loops buys ~5 mWb on the
+    drifting shots.</li>
+    <li><strong>Rejected: non-inductive drive</strong> (fits f_ni = 0.16 with
+    zero closure gain — unidentifiable at the 60 mWb floor) <strong>and the
+    flat-η restriction</strong> (contrast fits to 0 under multi-start in every
+    arm).</li>
+    <li><strong>η stays physical but is now weakly identified:</strong>
+    0.9–1.9×10⁻⁷ Ω·m across arms at the same pooled RMS — the closure identifies
+    the Spitzer scale, not a third digit. The windowed Ejima at the closure η
+    reads C_E ≈ 1.0 (held-out median, late-ramp windows) vs 2.65 at the
+    jitter-biased coefficient-fit η.</li>
+  </ul>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-current-diffusion-ledger-attribution-attr.png"
+         alt="ledger attribution arms" style="max-width:100%">
+    <figcaption>Attribution: per-shot span traces (fit vs baseline vs
+    fl-anchored budget) and the fl-residual drift diagnostic.</figcaption>
+  </figure>
+
+  <h2>2 — βp/li separation: mechanism works, synthetic gate passes, real axis leg fails</h2>
+  <p>Wiring: the budget chain (fl-loop-anchored swing, sane gauge) backs
+  Ψ_int out of external measurements per slice; li_ledger = li3_fit ·
+  Ψ_int_budget/Ψ_int_fit (linear map through the slice's own operating point);
+  the firewall-safe Shafranov moment m = βp + li/2 (boundary-field asymmetry of
+  the pass-1 iterate) then gives <code>βp_target = m − li_ledger/2</code>,
+  entering pass 2 as ONE whitened moment row on the p′-family amplitude
+  (∂βp/∂coeffs exact and linear at fixed geometry —
+  <code>beta_p_coeff_sensitivity</code>, convention pin-tested; σ propagates the
+  chain's own closure error; weight swept on tune only).</p>
+  <h3>Synthetic exact-recovery (8 diffusion-consistent sequences, 96 slices, oracle η)</h3>
+  <table>
+    <thead><tr><th>arm</th><th>median |split − truth|</th><th>note</th></tr></thead>
+    <tbody>
+      <tr><td>independent-slice spine</td><td>0.044</td><td>paired baseline (reproduces the P2 record)</td></tr>
+      <tr><td>P2 per-interval coefficient prior (record)</td><td>0.043–0.068</td><td>parity, or worse when engaged</td></tr>
+      <tr><td>βp/li separation, w = 1</td><td>0.040</td><td>first arm to beat the spine</td></tr>
+      <tr><td>βp/li separation, w = 3</td><td><strong>0.029</strong></td><td>−34% — the channel genuinely carries split information</td></tr>
+      <tr><td>exact-target oracle, w = 3</td><td>0.033</td><td>ledger-quality targets already saturate the channel</td></tr>
+    </tbody>
+  </table>
+  <h3>Real data — tune sweep (4 shots, n=64) and held-out (8 shots, n=128, spine byte-exact)</h3>
+  <table>
+    <thead><tr><th>arm</th><th>flat-top LCFS</th><th>axis</th><th>ramp paired</th></tr></thead>
+    <tbody>
+      <tr><td>tune w 0.3 <strong>(frozen)</strong></td><td>6.77 vs 6.61 — non-inf</td><td><strong>4.59 vs 4.80 ✓</strong></td><td>+0.51 cm</td></tr>
+      <tr><td>tune w 1.0</td><td>non-inf</td><td>4.61 ✓</td><td>+2.22 cm</td></tr>
+      <tr><td>tune w 3.0</td><td>FAIL</td><td>4.66 ✓</td><td>+3.03 cm</td></tr>
+      <tr><td><strong>held-out w 0.3</strong></td><td>3.04 vs 3.01; Δskill +0.006 CI [+0.001, +0.011] — <strong>PASS</strong></td>
+          <td>6.15 → 6.39 cm; Δskill −0.157 CI [−0.723, −0.037] — <strong>FAIL</strong></td>
+          <td>−0.007 cm CI [−0.022, +0.012] — neutral</td></tr>
+      <tr><td>held-out moment-only ablation</td><td>identical</td><td>6.39 — <strong>identical</strong></td><td>+0.005 — neutral</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Attribution of the failure:</strong> the moment-only arm (li from
+  the fit itself — no ledger) posts the identical held-out axis number, so the
+  ledger channel is gate-neutral on real held-out data and the axis toll is the
+  βp+li/2 moment row itself biasing the interior null. This is the THIRD
+  measurement of the tune→eval axis flip (P1: −0.30; P2: −0.16; here: −0.157 —
+  the same CI to two digits as P2 despite a completely different mechanism).
+  The interior null charges a fixed toll to <em>any</em> prior that touches it
+  at any useful weight; what differs between mechanisms is only what they buy
+  elsewhere (here: genuine synthetic split recovery, flat-top CI-clear
+  non-inferiority, ramp neutrality).</p>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-current-diffusion-synth-gate-betasep-real-w3.png"
+         alt="synthetic split recovery, beta-sep w=3" style="max-width:100%">
+    <figcaption>Synthetic split recovery, βp/li arm at w = 3: the first
+    distribution to sit clearly left of the spine's.</figcaption>
+  </figure>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-current-diffusion-gate-betasep-eval-w0.3.png"
+         alt="held-out gate, beta-sep w=0.3" style="max-width:100%">
+    <figcaption>Held-out gate at the frozen weight: flat-top and ramp legs
+    clean; the axis leg pays the interior-null toll.</figcaption>
+  </figure>
+
+  <h2>3 — Early-ramp labels: not needed, and not the fix (lead's question answered)</h2>
+  <p>Dedicated audit (<code>scripts/early_ramp_label_audit.py</code>, 8
+  label-reaching train shots):</p>
+  <ul>
+    <li><strong>The magnetics are never noise-limited near the label floor.</strong>
+    Plasma-attributable SNR (vacuum-map residual method) crosses 10 at
+    ~12 kA and holds 75–200 across the operating range; the channel noise floor
+    is ~2% of the spine's whitening scales. The 300 kA floor is 25× above the
+    SNR-10 point.</li>
+    <li><strong>The pre-label window is small.</strong> From the physical
+    density-onset marker, the unlabelled early window spans ~3–4 ms and carries
+    4–7% (median 5.6%) of the shot's wall flux swing — a bound that mixes
+    inductive and resistive consumption.</li>
+    <li><strong>Burn-through is safely below the floor.</strong> Density onset
+    and the dIp/dt knee sit at t ≈ 3–4 ms and tens of kA; the first 300 kA
+    crossing is ~3 ms later; the first actual label (~450 kA, t ≈ 33 ms) is
+    SANE (li3 ≈ 0.89). The pathological slices are the NEXT two labels — a
+    fast-early-ramp <em>reconstruction</em> pathology at 450–500 kA, not a
+    breakdown-physics or noise problem.</li>
+    <li><strong>Answer to the lead's resistivity question:</strong> yes — a
+    model-based resistive backout through breakdown/burn-through would require
+    η physics (few-eV, radiation/impurity-dominated, non-Maxwellian) we cannot
+    model, and no η(ψ_N) family in the operator's bracket covers it. But the
+    ledger never needs it: the chain GAUGES at the first sane labelled slice by
+    construction and only integrates the modelled resistive term where the
+    plasma is well past burn-through. Extending labels below 300 kA would add
+    more fast-ramp reconstruction pathologies plus an unmodellable window —
+    cost, not information. <strong>Policy locked into the machinery: keep the
+    300 kA label floor, gauge at the first li3-sane slice.</strong> Only an
+    absolute breakdown-referenced Ejima claim would need the early window, and
+    that claim is out of reach honestly — the windowed, incremental C_E is the
+    honest readout.</li>
+  </ul>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-early-ramp-snr-vs-ip.png"
+         alt="SNR vs Ip" style="max-width:100%">
+    <figcaption>Plasma-attributable SNR vs Ip per magnetics group; the 300 kA
+    label floor and the SNR-based floor (~12 kA) marked.</figcaption>
+  </figure>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-early-ramp-prelabel-window.png"
+         alt="pre-label window cost" style="max-width:100%">
+    <figcaption>Per-shot Ip(t) and integrated wall V_loop with the pre-label
+    window shaded: ~5% of the shot's flux swing.</figcaption>
+  </figure>
+
+  <h2>4 — What this says about the temporal thesis and the ML question</h2>
+  <p>The lead's framing — <em>"we have a time-dynamics model but seem to lack
+  the diagnostic set to tune it; if the physics spine can't, an ML operator
+  will struggle too"</em> — is now a measured statement, not a hypothesis:</p>
+  <ul>
+    <li>The dynamics models themselves are NOT the problem: the eddy circuit
+    model is validated per-circuit at corr 0.96–0.99 on held-back case
+    currents; the diffusion operator matches TORAX to 0.2%; the ledger closes
+    at 60 mWb with η at the Spitzer scale.</li>
+    <li>What the external diagnostic set can see of the interior is: Ip,
+    the current centroid, βp + li/2 (Shafranov), and now the shot-integrated
+    li (ledger, σ_li ~ 0.1–0.2 through the moment/ledger precision). Every
+    temporal channel converts its physics into exactly these observables and
+    no further — and the axis sits in the null of all of them.</li>
+    <li>Consequently any constraint that biases the interior null — however
+    physical — pays the measured −0.16 axis toll on held-out, while genuinely
+    new split information (synthetic 0.044 → 0.029) drowns in that same null on
+    real data. An ML operator consuming the same 73 magnetics + Rogowski + fl
+    loops inherits the same null: R2 measured exactly this (21% sensor-misfit
+    conversion, zero referee skill). The missing tuning information is
+    kinetic/interior (Thomson T_e — corpus-gated; MSE — 99% NaN), not
+    algorithmic.</li>
+  </ul>
+
+  <h2>Artifacts and provenance</h2>
+  <ul>
+    <li>Commits: <code>2336183</code> (attribution + fl-anchor + sensitivity
+    machinery + pins), <code>526313c</code> (beta-sep arms in both gates),
+    <code>24469b5</code> (synthetic + tune artifacts), <code>58166a5</code>
+    (held-out evals), <code>4cf3e4e</code> (early-ramp audit, worker).</li>
+    <li>Attribution: <code>current_diffusion_flux_ledger_attribution-attr.json</code>;
+    gates: <code>current_diffusion_synth_gate-betasep-*.json</code>,
+    <code>current_diffusion_gate_eval-betasep-tune-w*.json</code>,
+    <code>current_diffusion_gate_eval-beta{sep,mom}-eval-w0.3.json</code>;
+    audit: <code>early_ramp_label_audit.json</code> (all under
+    <code>imas_ambix/latent/artifacts/patch_gate/</code>).</li>
+    <li>Tests: 14 pins in <code>tests/latent/test_current_diffusion.py</code>
+    (ledger swing/gauge/f_ni algebra; βp sensitivity convention + linearity;
+    the standing operator pins).</li>
+    <li>Recorded limits: η identified to scale only (0.9–1.9×10⁻⁷ Ω·m at the
+    60 mWb floor); ledger-li map is first-order through the fit's operating
+    point; the moment row linearises about the pass-1 iterate; C_E is windowed
+    (never breakdown-referenced).</li>
+  </ul>
+
+  <h2>Decisions honoured</h2>
+  <ul>
+    <li>Soft-prior precedent (locked): βp separation entered as soft rows only;
+    weight swept on tune; frozen before the single held-out eval; spine
+    byte-exact throughout (drift 0.0).</li>
+    <li>EFIT firewall: referee-only; all ledger inputs are raw measurements or
+    the spine's own fits; standing held-out cohort untouched by any tuning.</li>
+    <li><code>current-diffusion-substrate</code> (locked): the in-house operator
+    carried unchanged; TORAX untouched.</li>
+  </ul>
+</main>
+</body>
+</html>

@@ -220,6 +220,30 @@
   queued follow-up; it is a different information channel from per-interval
   priors, not a P3 revival.</p>
 
+  <h3>Integrated flux-ledger βp/li separation (post-P2 route)
+    <span class="badge badge-shipped">✓ landed 2026-07-17 — ledger closed at read noise; synthetic split win; held-out axis leg FAIL</span></h3>
+  <p class="landed-summary">
+  Residual ATTRIBUTED: the 0.43 Wb ledger residual was the chain gauge poisoned
+  by fast-early-ramp fit pathologies (li3 reads 2–3 at 450–500 kA, slices 2–3 of
+  each shot); a sane-li3 gauge closes every tune shot to <strong>55–67 mWb</strong>
+  (read noise) — non-inductive drive and the flat-η restriction rejected,
+  boundary-read drift secondary (~0.2 Wb range, non-accumulating, fl-loop
+  anchor landed). η identified to SCALE only (0.9–1.9×10⁻⁷ Ω·m); windowed C_E
+  ≈ 1.0 at the closure η. The βp/li separation (ledger-li + Shafranov moment →
+  one soft p′-amplitude row) is the <strong>first mechanism to beat the spine on
+  synthetic split recovery</strong> (0.044 → 0.029 at w = 3; oracle 0.033 —
+  channel saturated) but the held-out gate <strong>FAILS on the axis leg</strong>
+  (6.15 → 6.39 cm, Δskill −0.157 CI [−0.723, −0.037]; flat-top non-inferior
+  CI-clear; ramp neutral) with the moment-only ablation IDENTICAL — the third
+  measurement of the tune→eval axis flip, now attributed to the diagnostic-set
+  information floor at the interior null, not to any temporal mechanism.
+  Early-ramp labels: NOT needed and not the fix (SNR-10 at ~12 kA; pre-label
+  window ~5% of the flux swing; 300 kA floor sits after burn-through; policy =
+  keep the floor, gauge at the first sane slice). Full record:
+  <a href="archive/temporal-physics-spine-s3-ledger-landed.html">§3 ledger
+  landed</a> (commits <code>2336183</code>…<code>58166a5</code>,
+  <code>4cf3e4e</code>).</p>
+
   <h2 id="s4">§4 — TORAX: what to take, what not to take</h2>
   <p><a href="https://github.com/google-deepmind/torax">TORAX</a> (cloned at
   <code>~/Code/torax</code>, v1.0.x) is a JAX differentiable 1D core-transport simulator:
