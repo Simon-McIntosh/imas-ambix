@@ -1141,6 +1141,7 @@ def _assemble_soft_prior_rows(
     kp: int,
     passive_br: np.ndarray | None = None,
     passive_bz: np.ndarray | None = None,
+    data_gram_scale: float = 1.0,
 ) -> tuple[np.ndarray, np.ndarray, int]:
     """Build the stacked soft-prior design rows for one Picard sweep.
 
@@ -1333,14 +1334,17 @@ def _assemble_soft_prior_rows(
     # centre the ladder coefficients on the diffusion-evolved prediction from
     # the previous slice.  Coefficients are the solve's normalised O(1)
     # convention on both sides, so the rows are the identity on the coeff
-    # block; sqrt-weight scaling makes the penalty weight·‖c − center‖².
+    # block.  The weight is RELATIVE to the data Gram's mean diagonal (the
+    # smoothness-knob convention): the Ip-normalised profile columns carry
+    # whitened curvature ~10⁴–10⁵ per unit coefficient, so an absolute O(1)
+    # weight is invisible — the penalty is weight·gram_scale·‖c − center‖².
     if sp.coeff_prior_center is not None and sp.coeff_prior_weight > 0.0:
         center = np.asarray(sp.coeff_prior_center, dtype=np.float64)
         if center.size != k_dof:
             raise ValueError(
                 f"coeff_prior_center size {center.size} != profile DOF {k_dof}"
             )
-        w_sq = np.sqrt(float(sp.coeff_prior_weight))
+        w_sq = np.sqrt(float(sp.coeff_prior_weight) * max(data_gram_scale, 1e-30))
         row = np.zeros((k_dof, n_var))
         row[:, :k_dof] = w_sq * np.eye(k_dof)
         rows.append(_pad(row))
@@ -1709,6 +1713,7 @@ def solve_equilibrium_lsq(
                         ip_amperes=ip_amperes,
                         k_dof=k_dof,
                         kp=kp,
+                        data_gram_scale=mean_diag,
                         passive_br=(
                             np.asarray(passive["br_cols"], dtype=np.float64)
                             if kp and "br_cols" in passive

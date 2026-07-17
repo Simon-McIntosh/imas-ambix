@@ -398,6 +398,13 @@ def eval_shot(job: tuple) -> dict | None:
     ramp = [b for b in budgets if b["d_ip"] > 0]
     d_psi_res = sum(b["d_psi_axis"] for b in ramp)
     d_ip_ramp = sum(b["d_ip"] for b in ramp)
+    ip_max = max(abs(s["ip"]) for s in slices)
+    span_s = sum(b["t1"] - b["t0"] for b in budgets)
+    # the Ejima normalisation is only meaningful when the covered window
+    # actually spans a ramp — on a flat-top window ΔIp is fluctuation-scale
+    # while the resistive consumption keeps integrating, and the ratio
+    # diverges; report the resistive loop voltage instead there
+    ramp_covered = d_ip_ramp >= 0.2 * ip_max
     ledger = {
         "n_intervals": len(budgets),
         "d_psi_res_ramp": float(d_psi_res),
@@ -407,8 +414,15 @@ def eval_shot(job: tuple) -> dict | None:
             np.nansum([b["d_psi_bdry_meas"] for b in ramp]) if ramp else 0.0
         ),
         "d_ip_ramp": float(d_ip_ramp),
+        "ip_max": float(ip_max),
+        "ramp_covered": bool(ramp_covered),
+        "v_res_mean": (
+            float(abs(sum(b["d_psi_axis"] for b in budgets)) / span_s)
+            if span_s > 0
+            else None
+        ),
         "ejima_windowed": (
-            ejima_coefficient(d_psi_res, d_ip_ramp, grid.r0) if d_ip_ramp > 0 else None
+            ejima_coefficient(d_psi_res, d_ip_ramp, grid.r0) if ramp_covered else None
         ),
     }
     return {
@@ -748,8 +762,10 @@ def main() -> int:
     ru_ci = [float(np.percentile(boot, 2.5)), float(np.percentile(boot, 97.5))]
 
     # ---- gate P2 (real-data leg) ----
+    # the n >= 128 power requirement applies to the HELD-OUT eval (the tune
+    # split has 64 slices by construction — its verdict is selection-only)
     gate_flattop_noninf = bool(
-        n_scored >= 128
+        (args.split == "tune" or n_scored >= 128)
         and delta["lcfs_skill_delta_ci"][0] is not None
         and delta["lcfs_skill_delta_ci"][0] >= -args.margin
     )
