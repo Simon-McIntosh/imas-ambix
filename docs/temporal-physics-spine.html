@@ -208,6 +208,78 @@
     minutes). No GPU until P3.</li>
   </ul>
 
+  <h2 id="s6">§6 — Circuit matrices, state-estimation framing, dynamics data, SINDy</h2>
+
+  <h3>The L and R matrices — what is exact, what is calibratable, where the plasma enters</h3>
+  <p><strong>L is known exactly from geometry and is computed as the two-section
+  thick-cylinder flux linkage</strong> (lead directive): the finite-area cylinder kernel
+  integrates the source cross-section analytically, and the observer cross-section is
+  averaged over a midpoint sub-grid — the nova <code>biot.Inductance</code> scheme (grid
+  source and target, integrate the linkage out), applied where it matters: the large vessel
+  elements (up to 0.24 × 0.42 m) whose flux varies materially across the section; small
+  sections stay centroid-linked. The full mutual matrix couples all 146 inferred-passive
+  circuits; R is diagonal per circuit (toroidal rings share no conductor path), combining
+  per-filament ring resistance with the <code>xmult²</code> current-share weights, at nominal
+  steel resistivity with ONE bounded cross-shot scale as the calibratable unknown (the k_sol
+  precedent). These are known priors an ML need not — and now cannot — re-learn.</p>
+  <p><strong>The plasma enters the passive system twice, and the split matters.</strong>
+  As a <em>column</em> (drive), the mode flux is <code>Ψ_m(t) = m_coil·i_pf(t) +
+  m_cells·i_cell(t)</code> with <code>i_cell(t)</code> the spine's full time-varying
+  cell-current distribution — so the drive is <code>d(M(t)·I_p(t))/dt</code>, never the
+  fixed-mutual approximation <code>M·dI_p/dt</code>: the changing internal inductance, shape,
+  and position are carried by the cell-history at full grid resolution. As a <em>row</em>
+  (the plasma's own circuit equation, <code>d(L_p(t)·I_p)/dt + R_p·I_p = V</code>, with
+  li(t) inside the time-varying self-inductance), the radially-resolved form IS the P2
+  flux-diffusion equation — P1 deliberately keeps the plasma row measured (Rogowski + fitted
+  history) and P2 models it.</p>
+
+  <h3>State-estimation framing (the ML-Kalman lens)</h3>
+  <p>P1's two-pass scheme is one iteration of a fixed-interval smoother: the raw-cadence
+  circuit integration is the <em>predict</em> step (exact-ZOH linear process model, measured
+  drives), and the constrained per-slice refit is the <em>update</em> (whitened magnetics
+  likelihood + trajectory prior). The soft-prior weight w is exactly the process/observation
+  noise ratio — swept on the tune split rather than assumed. The upgrade path, if P1 gates
+  positive but leaves structured residuals, is the full joint smoother over (eddy modes,
+  profile DOF) with learned noise covariances — the principled form of "ML Kalman filter":
+  the network parameterises covariances and closures, never the known dynamics.</p>
+
+  <h3>Dynamics data audit (drives, observations, available-unused)</h3>
+  <ul>
+    <li><strong>Drives (1 kHz raw, full shot):</strong> 42 amc current channels — P2–P6
+    coil / case / feed currents, solenoid (k_sol 1.0825 response scale applied), TF, and the
+    Rogowski <code>plasma_current</code> (pre-label amplitude-following of the plasma flux
+    pattern). Interior NaN dropouts interpolated per channel so a dropped sample never
+    fabricates a flux step. Known limitation: P2–P5 up/down pairs are un-separable in
+    operating data (coil-audit finding) — a shared-mode drive error the bounded resistance
+    scale cannot absorb; it lands in the trajectory-prior residual by design.</li>
+    <li><strong>Observations (per labelled slice):</strong> 78 magnetic probes + 46 flux
+    loops (campaign mp78-fl46), whitened by the robust channel scales (the observation
+    covariance), frozen static calibration applied.</li>
+    <li><strong>Available but unused — the P2 on-ramp:</strong> the 46 flux loops at raw
+    cadence give the measured surface loop voltage (V_loop = dΨ_loop/dt) — the
+    current-diffusion boundary condition; <code>ane/density</code> (line-integrated n_e) is
+    loaded per slice and unused by the fit; <code>ama</code> n=2 / n-odd mode amplitude,
+    frequency and signal (6 channels) are an MHD-activity flag no rung consumes yet; Thomson
+    T<sub>e</sub> stays gated (<code>moment_priors.TE_DATA_GATE</code>) — η(ψ_N) remains the
+    explicit low-DOF unknown in P2.</li>
+  </ul>
+
+  <h3>SINDy — where sparse identification is complementary, and where it is not</h3>
+  <p><strong>Not at P1.</strong> The passive circuit dynamics are linear with structure known
+  exactly from geometry; SINDy would re-identify from noisy data a state matrix we can
+  compute, with worse conditioning and blurred gate attribution (the P1 verdict must credit
+  the physics, not a fitted surrogate). <strong>Complementary from P2 onward, three
+  slots:</strong> (1) the η(ψ_N) closure in P2 is a sparse model-selection problem — a
+  SINDy-style sparse regression over a library of resistivity parameterisations, fitted
+  cross-shot against the flux-consumption data, is a disciplined alternative to a fixed
+  parametric form; (2) post-gate <em>residual-dynamics discovery</em>: sparse regression of
+  the constrained-fit residuals against a physics library (mode amplitudes, drives, Ip) can
+  expose compact unmodelled terms (3-D effects, halo paths) as interpretable candidates for
+  P3, gated by cross-shot coefficient stability on the same referee harness; (3) structured
+  discrepancy in R — the bounded resistance scale is the 1-DOF version; sparse selection
+  generalises it only if the residuals demand it. SINDy is therefore scheduled as a P2/P3
+  instrument, not a P1 arm.</p>
+
   <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="current-diffusion-substrate" data-choice="in-house-torax-informed" data-by="lead directive (f-leo-06 re-plan, 2026-07-17)" data-when="2026-07-17">

@@ -46,6 +46,7 @@ import argparse
 import json
 import logging
 import multiprocessing
+import os
 import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -154,8 +155,12 @@ def shot_eigenbasis_sectionavg(payload, campaign: str, k: int):
         k=k,
     )
     if not cache.exists():
+        # atomic publish: concurrent same-campaign workers race on this path;
+        # a half-written npz must never be loadable
         cache.parent.mkdir(parents=True, exist_ok=True)
-        save_eigenbasis(cache, basis)
+        tmp = cache.with_suffix(f".pid{os.getpid()}.npz")
+        save_eigenbasis(tmp, basis)
+        tmp.replace(cache)
         logger.info("section-averaged eigenbasis %s built -> %s", campaign, cache)
     return basis
 
