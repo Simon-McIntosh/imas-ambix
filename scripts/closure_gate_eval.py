@@ -546,6 +546,7 @@ def fit_and_read_slice(
     nonneg: bool = False,
     passive: dict | None = None,
     passive_ridge: float = 1.0,
+    passive_prior: tuple[np.ndarray, float] | None = None,
     maxfev: int = 60,
     warm_x0: tuple[float, ...] | None = None,
     warm_jphi: np.ndarray | None = None,
@@ -643,6 +644,16 @@ def fit_and_read_slice(
             sp_slice, _anchored = build_slice_soft_priors(
                 payload, grid, table, basis, meta or {}, soft_prior_cfg
             )
+        # circuit-integrated eddy trajectory as a soft prior on the passive
+        # amplitudes (sidecar whitened coordinates); weight 0 leaves the solve
+        # byte-identical to the frozen spine
+        if passive_prior is not None and passive is not None:
+            center, prior_weight = passive_prior
+            if float(prior_weight) > 0.0:
+                if sp_slice is None:
+                    sp_slice = SoftPriors()
+                sp_slice.passive_prior_center = np.asarray(center, dtype=np.float64)
+                sp_slice.passive_prior_weight = float(prior_weight)
         if sp_slice is not None:
             kw["soft_priors"] = sp_slice
         lf = fit_profile_ladder(grid, table, **kw)

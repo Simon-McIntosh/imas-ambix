@@ -94,21 +94,89 @@ def _passive_circuit_filaments(table: GeometryTable) -> list[list]:
     return [by_circ[c] for c in passive]
 
 
-def _flux_at_filaments(obs_filaments: list, src_filaments: list, greens) -> float:
-    """Mutual flux linkage [Wb/A] between two filament groups (xmult-weighted)."""
-    acc = 0.0
-    for fo in obs_filaments:
-        for fs in src_filaments:
-            psi, _br, _bz = greens(
-                np.array([fo.r]),
-                np.array([fo.z]),
-                float(fs.r),
-                float(fs.z),
-                max(abs(fs.width), 0.01),
-                max(abs(fs.height), 0.01),
+def _section_points(
+    r: float, z: float, width: float, height: float, delta: float, n_max: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Midpoint sub-grid of a rectangular cross-section, equal-area weighted.
+
+    Sections smaller than ``delta`` in a dimension stay unsubdivided there
+    (small elements see uniform flux — centroid linking is exact enough); a
+    larger section is split so sub-cells are ≤ ``delta``, capped at ``n_max``
+    per dimension.  Weights are the uniform current shares ``1/n``.
+    """
+    w = max(abs(width), 0.01)
+    h = max(abs(height), 0.01)
+    nw = max(1, min(int(np.ceil(w / delta)), n_max))
+    nh = max(1, min(int(np.ceil(h / delta)), n_max))
+    rr = r + w * ((np.arange(nw) + 0.5) / nw - 0.5)
+    zz = z + h * ((np.arange(nh) + 0.5) / nh - 0.5)
+    rg, zg = np.meshgrid(rr, zz)
+    return rg.ravel(), zg.ravel(), np.full(rg.size, 1.0 / rg.size)
+
+
+def _section_grid(
+    groups: list[list], delta: float, n_max: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Concatenated cross-section sub-points of every filament group.
+
+    Returns ``(r, z, weight, owner)`` — the weight folds each filament's
+    ``xmult`` current share with its section quadrature weight; ``owner``
+    maps each point back to its group index (for :func:`numpy.bincount`
+    reduction).
+    """
+    pr: list[np.ndarray] = []
+    pz: list[np.ndarray] = []
+    wt: list[np.ndarray] = []
+    owner: list[np.ndarray] = []
+    for gi, g in enumerate(groups):
+        for f in g:
+            r_pts, z_pts, w_pts = _section_points(
+                f.r, f.z, f.width, f.height, delta, n_max
             )
-            acc += fo.xmult * fs.xmult * float(psi[0])
-    return acc
+            pr.append(r_pts)
+            pz.append(z_pts)
+            wt.append(f.xmult * w_pts)
+            owner.append(np.full(r_pts.size, gi, dtype=np.int64))
+    return (
+        np.concatenate(pr),
+        np.concatenate(pz),
+        np.concatenate(wt),
+        np.concatenate(owner),
+    )
+
+
+def _linked_flux_columns(
+    src_filaments: list,
+    pr: np.ndarray,
+    pz: np.ndarray,
+    wt: np.ndarray,
+    owner: np.ndarray,
+    n_groups: int,
+    greens,
+) -> np.ndarray:
+    """Flux linkage [Wb/A] of one source group into every observer group.
+
+    The finite-area cylinder kernel integrates the SOURCE cross-section
+    exactly; the observer side is the section-averaged flux over each
+    filament's sub-grid (the two-section flux linkage the nova inductance
+    solver computes by gridding source and target and integrating the linkage
+    out — necessary for the larger vessel elements where the flux varies
+    materially across the section).
+    """
+    col = np.zeros(n_groups)
+    for fs in src_filaments:
+        psi, _br, _bz = greens(
+            pr,
+            pz,
+            float(fs.r),
+            float(fs.z),
+            max(abs(fs.width), 0.01),
+            max(abs(fs.height), 0.01),
+        )
+        col += float(fs.xmult) * np.bincount(
+            owner, weights=wt * psi, minlength=n_groups
+        )
+    return col
 
 
 def build_passive_eigenbasis(
@@ -118,15 +186,22 @@ def build_passive_eigenbasis(
     sensor_scale: np.ndarray,
     k: int = 12,
     resistivity: float = STEEL_RESISTIVITY,
+    section_delta: float = 0.05,
+    section_n_max: int = 6,
 ) -> PassiveEigenbasis:
     """L/R eigenmode reduction of the passive set — pure geometry, per campaign.
 
-    Inductance: mutual flux linkage between passive circuits through the
-    finite-area cylinder kernel (centroid-linked; the tiny negative spectral
-    tail of that approximation is clamped — L is SPD physically).  Resistance:
-    toroidal-ring resistance ``2πR·ρ/(w·h)`` per filament at the nominal steel
-    resistivity (initialisation scale only — decays are learnable downstream).
-    Generalised eigenproblem ``R v = (1/τ) L v`` with L-orthonormal ``v``.
+    Inductance: two-section mutual flux linkage between passive circuits —
+    the finite-area cylinder kernel integrates the source section exactly and
+    the observer section is averaged over a midpoint sub-grid
+    (``section_delta`` / ``section_n_max``, the nova gridded source+target
+    linkage; small sections stay centroid-linked).  L is known EXACTLY from
+    geometry — it is a prior no learner should re-fit.  Resistance:
+    toroidal-ring resistance ``2πR·ρ/(w·h)`` per filament, combined with the
+    ``xmult²`` current-share weights (parallel paths at fixed shares), at the
+    nominal steel resistivity (a bounded cross-shot scale is the calibratable
+    unknown).  Generalised eigenproblem ``R v = (1/τ) L v`` with
+    L-orthonormal ``v``.
 
     Mode selection keeps the ``k`` modes with the largest history-relevance
     ``τ_m · ||a_sens_m / scale||`` — a slow mode the sensors can see is
@@ -147,14 +222,13 @@ def build_passive_eigenbasis(
     if n_pass == 0:
         raise ValueError("table has no inferred_passive circuits")
 
+    pr, pz, wt, owner = _section_grid(groups, section_delta, section_n_max)
     lmat = np.zeros((n_pass, n_pass))
-    for i, gi in enumerate(groups):
-        for j in range(i, n_pass):
-            m = _flux_at_filaments(gi, groups[j], hybrid_greens)
-            lmat[i, j] = m
-            lmat[j, i] = m
-    # SPD clamp: the centroid-linked kernel leaves a tiny negative tail
-    # (measured ~1e-3 of the leading eigenvalue); inductance is SPD physically
+    for j, gj in enumerate(groups):
+        lmat[:, j] = _linked_flux_columns(gj, pr, pz, wt, owner, n_pass, hybrid_greens)
+    # the analytic source + quadrature observer linkage is symmetric up to
+    # observer-quadrature error — symmetrise, then guard SPD (physical L is)
+    lmat = 0.5 * (lmat + lmat.T)
     w0, u0 = np.linalg.eigh(lmat)
     lmat = (u0 * np.clip(w0, 1e-4 * w0.max(), None)) @ u0.T
 
@@ -166,9 +240,9 @@ def build_passive_eigenbasis(
                 * f.r
                 * resistivity
                 / (max(abs(f.width), 0.01) * max(abs(f.height), 0.01))
+                * f.xmult**2
                 for f in g
             )
-            / max(len(g), 1) ** 2
             for g in groups
         ]
     )
@@ -201,7 +275,9 @@ def build_passive_eigenbasis(
         cols = []
         for circ in sorted(pf_by_chan[chan]):
             cols.append(
-                [_flux_at_filaments(g, by_circ[circ], hybrid_greens) for g in groups]
+                _linked_flux_columns(
+                    by_circ[circ], pr, pz, wt, owner, n_pass, hybrid_greens
+                )
             )
         col = np.mean(np.asarray(cols), axis=0)
         if chan == "sol_current":
@@ -220,6 +296,40 @@ def build_passive_eigenbasis(
     )
 
 
+def integrate_eddy_ode(
+    tau: np.ndarray,
+    times: np.ndarray,
+    psi_m: np.ndarray,
+    a0: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Exact-ZOH integration of ``da/dt + a/τ = −dΨ/dt`` along a time series.
+
+    ``psi_m`` (T, k) is the external flux each mode links, taken
+    piecewise-linear between samples, for which the per-step update is exact::
+
+        a_k = e^{−Δt/τ} a_{k−1} − (τ/Δt)(1 − e^{−Δt/τ}) ΔΨ
+
+    Returns ``(a (T, k), u (T, k))`` — the mode state and the per-step flux
+    swing ``−ΔΨ``.  ``a[0] = a0`` (zeros when None).
+    """
+    tau = np.asarray(tau, dtype=np.float64)
+    times = np.asarray(times, dtype=np.float64)
+    psi_m = np.asarray(psi_m, dtype=np.float64)
+    n_t, k = psi_m.shape
+    a = np.zeros((n_t, k))
+    u = np.zeros((n_t, k))
+    if a0 is not None:
+        a[0] = np.asarray(a0, dtype=np.float64)
+    for t in range(1, n_t):
+        dt = max(float(times[t] - times[t - 1]), 1e-6)
+        decay = np.exp(-dt / tau)
+        coeff = tau / dt * (1.0 - decay)
+        dpsi = psi_m[t] - psi_m[t - 1]
+        u[t] = -dpsi
+        a[t] = decay * a[t - 1] + coeff * u[t]
+    return a, u
+
+
 def physical_eddy_history(
     basis: PassiveEigenbasis,
     times: np.ndarray,
@@ -230,32 +340,88 @@ def physical_eddy_history(
 
     Mode dynamics (L-orthonormal coordinates): ``da/dt + a/τ = −dΨ/dt`` with
     ``Ψ_m(t) = m_coil_m · i_pf(t) + m_cells_m · i_cell(t)`` the external flux
-    the mode links.  With Ψ piecewise-linear between labelled slices the update
-    is exact::
-
-        a_k = e^{−Δt/τ} a_{k−1} − (τ/Δt)(1 − e^{−Δt/τ}) ΔΨ
-
-    Returns ``(a_phys (T, k), u_drive (T, k))`` — the physical eddy state and
-    the per-step flux swing ``−ΔΨ`` (the drive feature).  ``a_phys[0] = 0``:
-    the first labelled slice is taken as the eddy reference (label sequences
-    start above the Ip threshold; earlier transients are unobserved here).
+    the mode links.  Returns ``(a_phys (T, k), u_drive (T, k))`` — the
+    physical eddy state and the per-step flux swing ``−ΔΨ`` (the drive
+    feature).  ``a_phys[0] = 0``: the first labelled slice is taken as the
+    eddy reference (label sequences start above the Ip threshold; earlier
+    transients are unobserved here — :func:`raw_eddy_trajectory` removes this
+    approximation by integrating the raw-cadence drives from the stream
+    start).
     """
-    times = np.asarray(times, dtype=np.float64)
     psi_m = (
         np.asarray(i_pf, dtype=np.float64) @ basis.m_coil.T
         + np.asarray(i_cell, dtype=np.float64) @ basis.m_cells.T
     )  # (T, k)
-    n_t, k = psi_m.shape
-    a = np.zeros((n_t, k))
-    u = np.zeros((n_t, k))
-    for t in range(1, n_t):
-        dt = max(float(times[t] - times[t - 1]), 1e-6)
-        decay = np.exp(-dt / basis.tau)
-        coeff = basis.tau / dt * (1.0 - decay)
-        dpsi = psi_m[t] - psi_m[t - 1]
-        u[t] = -dpsi
-        a[t] = decay * a[t - 1] + coeff * u[t]
-    return a, u
+    return integrate_eddy_ode(basis.tau, times, psi_m)
+
+
+def raw_eddy_trajectory(
+    basis: PassiveEigenbasis,
+    raw_times: np.ndarray,
+    i_pf_raw: np.ndarray,
+    label_times: np.ndarray,
+    i_cell_labels: np.ndarray,
+    *,
+    ip_raw: np.ndarray | None = None,
+    tau_scale: float | np.ndarray = 1.0,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Mode eddy state at the labelled slices from RAW-cadence integration.
+
+    The mode flux is assembled at the raw cadence and the ODE integrated from
+    the raw stream start with ``a = 0`` (the pre-drive machine is quiescent),
+    so the labelled sequence inherits the full drive history — solenoid
+    precharge, breakdown flux swing — instead of the ``a[0] = 0``
+    label-cadence approximation.
+
+    Coil term: ``m_coil · i_pf_raw(t)`` per raw sample (measured drives).
+    Plasma term: the exact per-label mode flux ``m_cells · i_cell(t_label)``
+    — the FULL time-varying current distribution, so the changing plasma
+    shape / position / internal inductance enters the flux swing as
+    ``d(M(t)·I_p(t))/dt``, never the fixed-mutual approximation
+    ``M·dI_p/dt`` — linearly interpolated to the raw cadence (interpolation
+    commutes with the fixed linear map ``m_cells``).  Before the first label
+    the first label's flux pattern is amplitude-followed with the measured
+    plasma current (``ip_raw``, same raw grid; shape-frozen); with no
+    ``ip_raw`` the plasma term is zero-ramped from the raw start.
+
+    ``tau_scale`` is the bounded resistance-scale DOF: a UNIFORM scalar leaves
+    the L/R eigenvectors invariant and maps every τ → τ/scale exactly; a
+    per-mode array is the diagonal-in-eigenbasis approximation to a structured
+    resistivity change (bounded, calibrated cross-shot, never per-slice).
+
+    Returns ``(a_labels (T_lab, k), a_raw (T_raw, k))`` in the L-orthonormal
+    mode coordinates.
+    """
+    raw_times = np.asarray(raw_times, dtype=np.float64)
+    label_times = np.asarray(label_times, dtype=np.float64)
+    psi_coil = np.asarray(i_pf_raw, dtype=np.float64) @ basis.m_coil.T  # (T_raw, k)
+
+    psi_cell_lab = (
+        np.asarray(i_cell_labels, dtype=np.float64) @ basis.m_cells.T
+    )  # (T_lab, k)
+    psi_cell_raw = np.empty_like(psi_coil)
+    for m in range(psi_coil.shape[1]):
+        psi_cell_raw[:, m] = np.interp(
+            raw_times, label_times, psi_cell_lab[:, m]
+        )  # constant-extrapolates outside the label span
+    before = raw_times < label_times[0]
+    if np.any(before):
+        if ip_raw is not None:
+            ip_raw = np.asarray(ip_raw, dtype=np.float64)
+            ip0 = float(np.interp(label_times[0], raw_times, ip_raw))
+            frac = np.zeros(int(before.sum()))
+            if abs(ip0) > 1e-12:
+                frac = np.clip(ip_raw[before] / ip0, 0.0, 1.0)
+            psi_cell_raw[before] = frac[:, np.newaxis] * psi_cell_lab[0]
+        else:
+            psi_cell_raw[before] = 0.0
+
+    tau_eff = basis.tau / np.asarray(tau_scale, dtype=np.float64)
+    a_raw, _u = integrate_eddy_ode(tau_eff, raw_times, psi_coil + psi_cell_raw)
+    a_labels = np.empty((label_times.size, basis.n_modes))
+    for m in range(basis.n_modes):
+        a_labels[:, m] = np.interp(label_times, raw_times, a_raw[:, m])
+    return a_labels, a_raw
 
 
 def save_eigenbasis(path: Path | str, basis: PassiveEigenbasis) -> None:
@@ -493,9 +659,11 @@ __all__ = [
     "PassiveEigenbasis",
     "TemporalOperator",
     "build_passive_eigenbasis",
+    "integrate_eddy_ode",
     "load_checkpoint",
     "load_eigenbasis",
     "physical_eddy_history",
+    "raw_eddy_trajectory",
     "save_checkpoint",
     "save_eigenbasis",
 ]

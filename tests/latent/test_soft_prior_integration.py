@@ -130,6 +130,109 @@ def test_grad_psi_anchor_is_gauge_free_and_runs():
     assert b_extra.shape == (2 * ann_rows.size,)
 
 
+def test_passive_trajectory_prior_zero_weight_is_byte_identical():
+    """The circuit-trajectory prior at weight 0 (or center None) leaves the
+    sidecar-augmented solve byte-identical — the frozen-spine reduction
+    contract for the dynamic passive arm."""
+    from imas_ambix.gs.operator import build_operator
+    from imas_ambix.latent.gs_solve import build_passive_sidecar, fit_profile_ladder
+
+    from .test_gs_solve import _confining_table
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    fwd = build_operator(table)
+    ip = 4.0e5
+    rng = np.random.default_rng(3)
+    meas = rng.normal(0.0, 1e-3, size=fwd.g_passive.shape[0])
+    scale = np.abs(meas) + 1e-9
+    sidecar = build_passive_sidecar(
+        table, grid, g_passive=fwd.g_passive, sensor_scale=scale, k=2
+    )
+    kw = dict(
+        i_pf=np.zeros(0),
+        ip_amperes=ip,
+        measured=meas,
+        vacuum_prediction=np.zeros_like(meas),
+        sensor_scale=scale,
+        sensor_mask=np.ones(meas.size, dtype=bool),
+        n_p=1,
+        n_f=1,
+        passive=sidecar,
+        passive_ridge=1e-3,
+    )
+    base = fit_profile_ladder(grid, table, **kw)
+    off_w = fit_profile_ladder(
+        grid,
+        table,
+        soft_priors=SoftPriors(
+            passive_prior_center=np.ones(2), passive_prior_weight=0.0
+        ),
+        **kw,
+    )
+    off_c = fit_profile_ladder(
+        grid, table, soft_priors=SoftPriors(passive_prior_weight=5.0), **kw
+    )
+    np.testing.assert_array_equal(base.result.psi, off_w.result.psi)
+    np.testing.assert_array_equal(base.result.psi, off_c.result.psi)
+
+
+def test_passive_trajectory_prior_tight_pins_amplitudes():
+    """A tight trajectory prior pins the fitted passive amplitudes to the
+    circuit-integrated center (sidecar whitened coordinates), in both the
+    free-sign and the sign-constrained (frozen-spine) profile arms."""
+    from imas_ambix.gs.operator import build_operator
+    from imas_ambix.latent.gs_solve import build_passive_sidecar, fit_profile_ladder
+
+    from .test_gs_solve import _confining_table, _synthetic_confining_slice
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    fwd = build_operator(table)
+    ip = 4.0e5
+    i_pf = np.zeros(0)
+    # magnetics from a known confined equilibrium (no true passive signal —
+    # the prior must IMPOSE the trajectory against silent data)
+    meas, vac, _res = _synthetic_confining_slice(
+        grid, table, np.array([-6.0e4, -6.0e4]), ip, 0.7, 1.0
+    )
+    # the fixture's two circuits are the passive set; their vacuum field is
+    # re-labelled here as measured+vacuum so the passive columns are free
+    scale = np.abs(meas) + 1e-9
+    sidecar = build_passive_sidecar(
+        table, grid, g_passive=fwd.g_passive, sensor_scale=scale, k=2
+    )
+    modes = np.asarray(sidecar["modes"])  # (2 circuits, 2 modes)
+    i_circ_target = np.array([-4.0e3, 3.0e3])  # circuit-space trajectory [A]
+    center, *_ = np.linalg.lstsq(modes, i_circ_target, rcond=None)
+    for nonneg in (False, True):
+        fit = fit_profile_ladder(
+            grid,
+            table,
+            i_pf=i_pf,
+            ip_amperes=ip,
+            measured=meas,
+            vacuum_prediction=vac,
+            sensor_scale=scale,
+            sensor_mask=np.ones(meas.size, dtype=bool),
+            n_p=1,
+            n_f=1,
+            nonneg=nonneg,
+            passive=sidecar,
+            passive_ridge=1e-3,
+            soft_priors=SoftPriors(
+                passive_prior_center=center, passive_prior_weight=1e4
+            ),
+        )
+        assert fit.passive_amplitudes is not None
+        (
+            np.testing.assert_allclose(
+                fit.passive_amplitudes, i_circ_target, rtol=0.05
+            ),
+            f"nonneg={nonneg}",
+        )
+
+
 def test_assemble_q_bound_is_active_set():
     k_dof, kp = 2, 0
     _, grid, *_ = _slice(nr=33, nz=45)

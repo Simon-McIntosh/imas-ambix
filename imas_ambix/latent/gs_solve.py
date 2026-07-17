@@ -1088,6 +1088,13 @@ class SoftPriors:
     pprime_basis: np.ndarray | None = None  # (n_samp, n_p) p'-family at samples
     pprime_sigma: float = 1.0
 
+    # passive trajectory prior (dynamic passive spine): centre the passive
+    # eddy amplitudes on a circuit-integrated trajectory instead of zero.
+    # ``passive_prior_center`` is in the SIDECAR's whitened mode coordinates
+    # (same variables as ``a_pass``); weight 0 / None is byte-identical OFF.
+    passive_prior_center: np.ndarray | None = None
+    passive_prior_weight: float = 0.0
+
     @property
     def sol_active(self) -> bool:
         return self.sol_cap > 1.0
@@ -1100,6 +1107,10 @@ class SoftPriors:
             or self.ip_soft_sigma is not None
             or self.beta_li_target is not None
             or self.pprime_target is not None
+            or (
+                self.passive_prior_center is not None
+                and self.passive_prior_weight > 0.0
+            )
         )
 
 
@@ -1284,6 +1295,28 @@ def _assemble_soft_prior_rows(
         )
         rows.append(_pad(prows))
         rhs.append(prhs)
+
+    # --- passive trajectory prior: centre the eddy amplitudes on the
+    # circuit-integrated trajectory (the L/R mode ODE driven by measured coil
+    # and plasma current histories).  The sidecar coordinates are already
+    # whitened (unit mode amplitude == unit-norm whitened sensor signal), so
+    # the rows are the identity on the a_pass block; sqrt-weight scaling makes
+    # the penalty weight·‖a_pass − center‖² in the stacked least squares.
+    if (
+        sp.passive_prior_center is not None
+        and sp.passive_prior_weight > 0.0
+        and kp
+    ):
+        center = np.asarray(sp.passive_prior_center, dtype=np.float64)
+        if center.size != kp:
+            raise ValueError(
+                f"passive_prior_center size {center.size} != sidecar rank {kp}"
+            )
+        w_sq = np.sqrt(float(sp.passive_prior_weight))
+        row = np.zeros((kp, n_var))
+        row[:, k_dof : k_dof + kp] = w_sq * np.eye(kp)
+        rows.append(_pad(row))
+        rhs.append(w_sq * center)
 
     if not rows:
         return np.zeros((0, n_var + n_gauge)), np.zeros(0), n_gauge
