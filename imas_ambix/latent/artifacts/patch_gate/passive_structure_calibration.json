@@ -1,0 +1,180 @@
+{
+  "kind": "vacuum-passive-structure-calibration",
+  "case_series_pairs": [],
+  "case_wiring": {
+    "p2l_case_current": {
+      "parents": [
+        "p2il_coil_current",
+        "p2ol_coil_current"
+      ],
+      "g_v": -4.39693706686933e-06,
+      "r_w": 5.665476655951494e-05
+    },
+    "p2u_case_current": {
+      "parents": [
+        "p2iu_coil_current",
+        "p2ou_coil_current"
+      ],
+      "g_v": -6.893765641444963e-07,
+      "r_w": 0.00021132045531834905
+    },
+    "p3l_case_current": {
+      "parents": [
+        "p3l_coil_current"
+      ],
+      "g_v": -1.484096996402431e-06,
+      "r_w": 1.6033868200791452e-05
+    },
+    "p3u_case_current": {
+      "parents": [
+        "p3u_coil_current"
+      ],
+      "g_v": -1.4339300332008581e-06,
+      "r_w": 3.335745661295355e-05
+    },
+    "p4l_case_current": {
+      "parents": [
+        "p4l_coil_current"
+      ],
+      "g_v": 4.95844367296822e-07,
+      "r_w": -3.2155818872783382e-06
+    },
+    "p4u_case_current": {
+      "parents": [
+        "p4u_coil_current"
+      ],
+      "g_v": 5.666510166814339e-07,
+      "r_w": -9.480113554843462e-06
+    },
+    "p5l_case_current": {
+      "parents": [
+        "p5l_coil_current"
+      ],
+      "g_v": -3.8062655088277797e-07,
+      "r_w": 2.6606953369345182e-05
+    },
+    "p5u_case_current": {
+      "parents": [
+        "p5u_coil_current"
+      ],
+      "g_v": 8.645903233531165e-07,
+      "r_w": -0.00015668611682323927
+    }
+  },
+  "pair_drive_gains": [],
+  "adjacency": {
+    "mp78-fl46-fc1004-lim37-9425ae4a8bf3bc15": [
+      {
+        "i": 75,
+        "j": 76,
+        "r_couple": 0.0030000000000027435
+      },
+      {
+        "i": 63,
+        "j": 76,
+        "r_couple": 0.0030000000000046834
+      },
+      {
+        "i": 62,
+        "j": 76,
+        "r_couple": 0.0030000000000034014
+      },
+      {
+        "i": 74,
+        "j": 76,
+        "r_couple": 0.0030000000000025514
+      },
+      {
+        "i": 86,
+        "j": 87,
+        "r_couple": 0.002999999999999165
+      },
+      {
+        "i": 68,
+        "j": 87,
+        "r_couple": 0.003000000000001358
+      },
+      {
+        "i": 69,
+        "j": 87,
+        "r_couple": 0.002999999999999474
+      },
+      {
+        "i": 85,
+        "j": 87,
+        "r_couple": 0.003000000000000609
+      },
+      {
+        "i": 36,
+        "j": 37,
+        "r_couple": 0.0029999999999984137
+      },
+      {
+        "i": 107,
+        "j": 146,
+        "r_couple": 0.002999999999998941
+      },
+      {
+        "i": 70,
+        "j": 130,
+        "r_couple": 0.002999999999998856
+      },
+      {
+        "i": 122,
+        "j": 130,
+        "r_couple": 0.003000000000000407
+      }
+    ]
+  },
+  "neighbour_rule": {
+    "factor": 1.5,
+    "metric": "centroid distance <= factor * pair-mean sqrt(sum w*h)"
+  },
+  "r_level": "regions-percase",
+  "r_group_multipliers": {
+    "case:p2l": 2.710647057693968,
+    "case:p2u": 6.902208836242496,
+    "case:p3l": 1.0424959017490938,
+    "case:p3u": 1.019844607442428,
+    "case:p4l": 0.9985073117660352,
+    "case:p4u": 0.9906921746007703,
+    "case:p5l": 1.0464299780413555,
+    "case:p5u": 0.9246826357130097,
+    "case:p6l": 8.583604621630801,
+    "case:p6u": 2.533647517406999,
+    "vessel:ends": 11.23485898015913,
+    "vessel:inboard": 63.99999999994058,
+    "vessel:mid": 12.679656580430319,
+    "vessel:outboard": 0.9521076659216545
+  },
+  "provenance": {
+    "fitted": "2026-07-17",
+    "coil_model_version": "cylinder-sensors-v5",
+    "geometry_table_version": "amb-schema-canonical-v2",
+    "pool_artifact": "imas_ambix/latent/artifacts/patch_gate/vacuum_coil_response_audit-solv4-vac.json",
+    "baseline_calibration": "imas_ambix/latent/artifacts/patch_gate/passive_resistance_calibration.json",
+    "n_train_shots": 69,
+    "n_held_out_shots": 16,
+    "held_out_shots": [
+      11709,
+      11726,
+      11753,
+      11763,
+      11768,
+      11773,
+      11780,
+      11786,
+      11791,
+      11798,
+      11808,
+      11815,
+      11820,
+      11844,
+      11887,
+      12143
+    ],
+    "joint_refit": "resistance multipliers refit jointly at every stage",
+    "case_holdback": true,
+    "wiring_model_note": "case terminal-voltage drive keeps measured drives only; the winding's linkage of passive-state currents is dropped (symmetric eigenproblem preserved) \u2014 recorded approximation"
+  }
+}
