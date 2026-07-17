@@ -218,11 +218,34 @@
   averaged over a midpoint sub-grid — the nova <code>biot.Inductance</code> scheme (grid
   source and target, integrate the linkage out), applied where it matters: the large vessel
   elements (up to 0.24 × 0.42 m) whose flux varies materially across the section; small
-  sections stay centroid-linked. The full mutual matrix couples all 146 inferred-passive
-  circuits; R is diagonal per circuit (toroidal rings share no conductor path), combining
-  per-filament ring resistance with the <code>xmult²</code> current-share weights, at nominal
-  steel resistivity with ONE bounded cross-shot scale as the calibratable unknown (the k_sol
-  precedent). These are known priors an ML need not — and now cannot — re-learn.</p>
+  sections stay centroid-linked. The subdivision criterion is <strong>machine-agnostic</strong>
+  (lead directive, 2026-07-17): sub-cells are sized as a fraction of the passive set's median
+  section scale <code>median(√(w·h))</code> — on MAST 0.0491 m, reproducing the previously
+  hand-picked 0.05 m, and transferring to any machine with no metre-level lock-in. The full
+  mutual matrix couples all 146 inferred-passive circuits; R is diagonal per circuit
+  (toroidal rings share no conductor path), combining per-filament ring resistance at the
+  <strong>TRUE cross-section</strong> (the 0.01 m kernel floor guards only the source-side
+  flux integration — it was inflating the conducting area of thin shells up to 3.3× on 40 of
+  146 passive circuits, exactly the fast shield paths) with the <code>xmult²</code>
+  current-share weights, at nominal steel resistivity with ONE bounded cross-shot scale as
+  the calibratable unknown (the k_sol precedent). These are known priors an ML need not —
+  and now cannot — re-learn.</p>
+  <p><strong>Coil-case shielding is verified, not assumed.</strong> The cases are modeled as
+  boxes of 3 mm plates enclosing their winding packs (4–8 filaments each, perimeter
+  current-share <code>xmult</code>); the two-section kernel handles the enclosing-observer
+  configuration with no special-casing (the finite-area kernel is smooth inside conductors,
+  and the case plates sit outside the winding section). Measured on the real P2–P5 pairs:
+  coupling coefficients k = M/√(L_coil·L_case) = 0.854–0.936, all strictly below unity,
+  reciprocity to ~10⁻³ — the strong EM shielding of coil by case (and vice versa) is carried
+  by the mutual matrix. P2–P5 cases are DRIVEN circuits (measured <code>*_case_current</code>
+  channels, own G columns); the P6 cases are channel-less, constrained-zero → they live in
+  the passive set with the now-correct thin-wall resistance. Test-pinned
+  (<code>test_coil_case_coupling_is_strong_but_below_unity</code>,
+  <code>test_thin_shell_resistance_uses_true_cross_section</code>). Re-gating the frozen P1
+  config on tune with the corrected physics reproduces the verdict within noise (ramp-up
+  −0.97 cm CI [−1.37, −0.76] vs −0.95; reseed 0.047; axis/cost unchanged) — the kept
+  sensor-visible modes are bulk-vessel dominated, so the vacuum resistance extraction below
+  remains the binding attack on the magnitude.</p>
   <p><strong>The plasma enters the passive system twice, and the split matters.</strong>
   As a <em>column</em> (drive), the mode flux is <code>Ψ_m(t) = m_coil·i_pf(t) +
   m_cells·i_cell(t)</code> with <code>i_cell(t)</code> the spine's full time-varying
