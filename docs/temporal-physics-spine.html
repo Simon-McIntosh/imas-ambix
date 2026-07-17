@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="temporal-physics-spine">
   <meta name="plan-title" content="Temporal Physics Spine — reduced-order dynamics for passive circuits and plasma current diffusion">
   <meta name="plan-summary" content="Give the DYNAMICS the same physics-spine treatment the statics got. The learned-equilibrium-operator R2 rung closed as a sustained negative: a causal sequence model over sensor history converts ~21% of whitened sensor misfit but zero referee-measured equilibrium skill, even with topology-safe corrections — the missing information lives in the TRANSIENTS (vessel-eddy L/R dynamics, plasma current diffusion) and a free-form learner cannot extract it through a frozen-ψ_N decode with no boundary truth. This plan builds deterministic reduced-order dynamics models driven by measured histories — P1: the existing L/R eigenmode circuit model promoted from an ML feature to a constraint inside the per-slice fit (eddy amplitudes become circuit-integrated trajectories, not per-slice static unknowns); P2: a TORAX-inspired 1D resistive current-diffusion prior linking successive profile fits, anchored by measured boundary loop voltage and Ip, with the unmeasured resistivity profile as the explicit low-DOF unknown — each gated against the frozen static spine on the standard referee harness before ML returns (P3) as a residual corrector on the DOF the dynamics provably cannot pin. Same loop as R0→R1: reduced-order physics first, learning on its residuals.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
   <meta name="plan-tier" content="opus">
@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-17">
-<meta name="plan-version" content="9">
+<meta name="plan-version" content="10">
 <meta name="plan-impl" content="1.0">
 </head>
 <body>
@@ -243,6 +243,23 @@
   <a href="archive/temporal-physics-spine-s3-ledger-landed.html">§3 ledger
   landed</a> (commits <code>2336183</code>…<code>58166a5</code>,
   <code>4cf3e4e</code>).</p>
+
+  <h3>Limited-phase boundary fidelity — the reopened puzzle, answered
+    <span class="badge badge-shipped">✓ landed 2026-07-17 — representation deficit; SNR/reader/eddies rejected; classical basis swap unavailable</span></h3>
+  <p class="landed-summary">
+  With passive currents exonerated (P1 ladder: −0.16 cm of a ~5.5 cm gap), the
+  dedicated audit attributes the ramp-up LCFS gap to an <strong>interior-profile +
+  static-shape representation deficit</strong>: boundary error tracks the fit's own
+  misfit (Spearman 0.77 within ramp), PEAKS in the limited→diverted transition
+  band (12.5 cm at Ip-frac 0.75–0.85) not at lowest Ip (SNR floor REJECTED —
+  lowest-Ip slices are the best), and decomposes as signed elongation (~5.7 cm)
+  + inboard-shift (~4.1 cm) harmonics 4–6× flat-top. Topology reader and
+  referee legs minor. The classical escape is CLOSED: the signed hollow-capable
+  basis converges on 0/16 ramp slices (non-negativity is load-bearing) — the
+  fix is ramp-capable profile/shape freedom with stabilised convergence, the
+  learned-operator territory, now with a measured target signature. Full
+  record: <a href="archive/temporal-physics-spine-s3-ledger-landed.html">§3
+  ledger landed, part 4</a> (commit <code>4ab66ad</code>).</p>
 
   <h2 id="s4">§4 — TORAX: what to take, what not to take</h2>
   <p><a href="https://github.com/google-deepmind/torax">TORAX</a> (cloned at
@@ -807,9 +824,9 @@ Done-when
      P1+P2 verdicts, this followup resolved</pre>
     <p class="r-fu-outcome">§3 P2 landed (commits 7849f06, 09d8320, bac8880, 3559ff7, a18e7e3) — operator built and VERIFIED (11 unit pins; TORAX cross-check 0.2% RMS on a shared circular case; both flux-consumption channels explicit; windowed Ejima readout). FORMAL GATE FAIL: held-out n=128 spine-byte-exact, flat-top LCFS non-inferior (Δskill +0.005 CI [−0.001,+0.011]) but axis degraded (6.15→6.47 cm, Δskill −0.16 CI [−0.72,−0.04]); synthetic exact-recovery clears the 0.120 bar but never materially beats the spine (0.043 vs 0.044; engaged prior 0.068 worse) — per-interval split transfer is O(dt/τ_res)≈1–3% at label cadence. η identified at the physical Spitzer scale by FLUX-BUDGET CLOSURE (7.1e-8 Ω·m vs 4.6e-7 from the jitter-biased coefficient objective). P1+P2 both failed → P3 NO-GO per the pre-declared rule; the temporal thesis closes at the physics level. The shot-integrated ledger route (lead directive) survives and is queued (f-tps-07). Record: docs/archive/temporal-physics-spine-s3-p2-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-tps-07" data-status="open" data-tier="opus" data-written-by="reckon-ship (P2 verdict + lead integrated-metrics directive)" data-written-at="2026-07-17" data-recommends-skill="/reckon-ship temporal-physics-spine §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-tps-07" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (P2 verdict + lead integrated-metrics directive)" data-written-at="2026-07-17" data-recommends-skill="/reckon-ship temporal-physics-spine §3" data-resolved-at="2026-07-17T20:32:10+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Integrated flux-ledger βp/li separation — back the interior out of external measurements</h4>
-    <div class="r-fu-body"><p>P2's durable discovery (lead directive): the shot-integrated flux ledger backs the internal flux content Ψ_int out of the measured surface swing minus modelled resistive consumption, with η identified by CLOSURE against the per-slice fits' own flux contents (lands at the physical Spitzer scale, 7.1e-8 Ω·m; one tune shot closes to 68 mWb, three carry ~0.43 Wb shot-structured residual). Ledger-li combined with the standing βp+li/2 magnetics moment separates βp — a DIRECT p′-family amplitude constraint from external data, a fundamentally different channel from the per-interval priors that failed the P1/P2 gates. Work: (1) close the residual (boundary-flux read drift vs non-inductive drive vs flat-η restriction — the three recorded candidates); (2) wire ledger-li + moment rows as the βp separation soft prior; (3) gate on the standard harness (split recovery on synthetic + axis/flat-top on real). A credible full-ramp Ejima readout falls out once early-ramp coverage (Ip < 300 kA labels) is added.</p></div>
+    <div class="r-fu-body"><p>P2's durable discovery (lead directive): the shot-integrated flux ledger backs the internal flux content Ψ_int out of the measured surface swing minus modelled resistive consumption, with η identified by CLOSURE against the per-slice fits' own flux contents (lands at the physical Spitzer scale, 7.1e-8 Ω·m; one tune shot closes to 68 mWb, three carry ~0.43 Wb shot-structured residual). Ledger-li combined with the standing βp+li/2 magnetics moment separates βp — a DIRECT p′-family amplitude constraint from external data, a fundamentally different channel from the per-interval priors that failed the P1/P2 gates. Work: (1) close the residual (boundary-flux read drift vs non-inductive drive vs flat-η restriction — the three recorded candidates); (2) wire ledger-li + moment rows as the βp separation soft prior; (3) gate on the standard harness (split recovery on synthetic + axis/flat-top on real). A credible full-ramp Ejima readout falls out once early-ramp coverage (Ip &lt; 300 kA labels) is added.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    temporal-physics-spine (http://localhost:8765/imas-ambix/temporal-physics-spine.html)
 Section: §3 (post-P2 integrated route) + §6
@@ -851,6 +868,42 @@ Done-when
      the fix landed + validated on held-out vacuum-free tune shots
   2. βp/li separation wired and gated; verdict recorded honestly either way
   3. Plan updated same-session: outcome + archive record, this followup resolved</pre>
+    <p class="r-fu-outcome">§3 integrated route landed (commits 2336183, 526313c, 24469b5, 58166a5 + workers 4cf3e4e, 4ab66ad) — residual ATTRIBUTED: early-slice gauge poisoning (li3 2-3 fast-ramp fit pathologies), sane-li3 gauge closes all tune shots to 55-67 mWb; non-inductive + flat-eta rejected; fl-loop swing anchor landed (drift real, non-accumulating). Beta_p/li separation wired + gated: FIRST mechanism to beat the spine on synthetic split recovery (0.044→0.029 at w=3; oracle 0.033) but held-out gate FAIL on the axis leg (6.15→6.39 cm, Δskill −0.157 CI [−0.723, −0.037]; flat-top non-inferior CI-clear; ramp neutral) with the moment-only ablation IDENTICAL — third tune→eval axis flip, attributed to the diagnostic-set information floor at the interior null. Early-ramp study: labels below 300 kA NOT needed and not usable (SNR floor ~12 kA is not the limiter; pathology is fast-ramp reconstruction; policy = keep floor + sane gauge). Limited-phase puzzle ANSWERED: representation deficit (elongation + inboard-shift harmonics 4-6× flat-top, peaks in the limited→diverted transition), SNR/reader/eddies rejected, hollow-capable classical basis converges 0/16 (non-negativity load-bearing). Record: docs/archive/temporal-physics-spine-s3-ledger-landed.html</p>
+    </article>
+<article class="r-fu" data-id="f-tps-08" data-status="open" data-tier="opus" data-written-by="reckon-ship (plan closure)" data-written-at="2026-07-17" data-recommends-skill="/reckon-edit learned-equilibrium-operator" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Carry the closed temporal thesis into the learned-equilibrium-operator re-plan (ramp representation + measured information floor)</h4>
+    <div class="r-fu-body"><p>The temporal-physics-spine plan is COMPLETE: three independent temporal channels (vessel eddies, per-interval diffusion, shot-integrated ledger+moment) all convert real physics into referee-marginal information and all pay the same ~−0.16 axis toll at the interior null; the ramp-up boundary gap is now attributed to a REPRESENTATION deficit (skin-current profile + forming shape; classical hollow-capable basis unavailable — 0/16 convergence), and the external information floor is measured (Ip, centroid, βp+li/2, ledger-li at σ~0.1–0.2). This plan blocks learned-equilibrium-operator: re-plan that thread with these constraints as PREMISES — ramp-phase profile/shape freedom with stabilised convergence as the learner's residual DOF, the measured transition-band error signature (elongation + inboard-shift) as the supervision target, and no expectation of axis gains from external data alone (kinetic/interior data or nothing).</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    learned-equilibrium-operator (re-plan) — informed by temporal-physics-spine closure
+Tier:    opus
+
+Context
+  Read docs/archive/temporal-physics-spine-s3-ledger-landed.html FIRST (all five parts),
+  then docs/archive/learned-equilibrium-operator-s2-r2-landed.html. The temporal thesis
+  is closed at the physics level: eddies (P1), per-interval diffusion (P2) and the
+  shot-integrated ledger+moment channel (post-P2) each carry real, validated physics and
+  each fails the same held-out axis leg (Δskill ≈ −0.16 CI-clear, three independent
+  mechanisms). The ramp-up boundary gap is a REPRESENTATION deficit: error tracks the
+  fit&#x27;s own misfit (Spearman 0.77 in ramp), peaks in the limited→diverted transition
+  band, decomposes as elongation (~5.7 cm) + inboard shift (~4.1 cm), and the classical
+  hollow-capable (signed) basis cannot converge (0/16, non-negativity load-bearing).
+
+Work
+  1. Re-frame the learned-operator thread with the measured constraints as premises:
+     (a) the referee-visible interior observables from external data are EXHAUSTED
+     (Ip, centroid, βp+li/2, ledger-li at σ~0.1–0.2; axis in the null of all);
+     (b) the ramp deficit is representational — the win condition is ramp/transition
+     LCFS, not axis; (c) any learner output that biases the interior null pays −0.16.
+  2. Decide the route: learned ramp-phase profile/shape correction on the spine
+     (boundary-supervised, interior-null-protected), vs synthetic-primary supervision,
+     vs kinetic-data acquisition (Thomson Te corpus work) as the only genuine axis lever.
+  3. Lock decisions + queue the first rung with gates on the standard harness
+     (transition-band LCFS as the primary leg; axis non-degradation as a guard).
+
+Done-when
+  1. learned-equilibrium-operator plan re-planned with the closure evidence linked
+  2. First rung followup queued with a full §05 prompt
+  3. temporal-physics-spine f-tps-08 resolved with the re-plan outcome</pre>
     </article>
 </section>
 

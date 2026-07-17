@@ -177,7 +177,61 @@
     window shaded: ~5% of the shot's flux swing.</figcaption>
   </figure>
 
-  <h2>4 — What this says about the temporal thesis and the ML question</h2>
+  <h2>4 — The limited-phase boundary puzzle, reopened and answered</h2>
+  <p>The 5–10 cm ramp-up (limiter-phase) LCFS gap was long attributed to
+  under-determined passive currents; P1/P1b/P1c killed that explanation
+  (fully-corrected eddy physics is worth −0.16 cm of the ~5.5 cm gap). The
+  dedicated diagnosis (<code>scripts/limiter_phase_fidelity_audit.py</code>,
+  eval-array mining + one paired train-ramp refit) now attributes it:</p>
+  <ul>
+    <li><strong>Primary — interior-profile + static-shape representation
+    deficit (H1, strong).</strong> The boundary error tracks the fit's own
+    whitened magnetics misfit (Spearman 0.77 within ramp) and PEAKS in the
+    limited→diverted transition band (Ip-frac 0.75–0.85: 12.5 cm), not at
+    lowest Ip. The residual is a signed broad-band shape+position bias —
+    elongation harmonic ~5.7 cm and inboard-shift ~4.1 cm, 4–6× the flat-top
+    level: the static peaked (non-negative-monomial) basis + fixed disc prior
+    can satisfy the sensors while implying a too-round, mis-centred interior,
+    and the boundary pays. The same pathology reads li3 2–3 on the fast-ramp
+    slices that poisoned the ledger gauge.</li>
+    <li><strong>Rejected — SNR/information floor (H2):</strong> the LOWEST-Ip
+    slices have the lowest error (6.2 cm) and lowest cost; the error is a
+    signed bias, not scatter. <strong>Rejected — reader/topology bug (H3):</strong>
+    spine and referee agree the slices are limited; the under-formed X-point in
+    the transition band is a symptom of the same too-round boundary.
+    <strong>Minor — referee quality (H4):</strong> EFIT LCFS slew is ~8× higher
+    on ramp but ~1 cm/step against a 5.5 cm gap.</li>
+    <li><strong>The classical escape route is CLOSED.</strong> The paired refit
+    of 16 ramp slices with the signed (hollow-capable) basis — the only
+    classical route to a skin-current jφ — converged to a force-balanced
+    equilibrium on 0/16 slices even warm-started (frozen non-negative basis:
+    16/16; reproduced on flat-top, so it is solver stiffness, not a ramp
+    effect). Non-negativity is load-bearing for convergence; a basis swap is
+    not an available fix.</li>
+  </ul>
+  <p><strong>Answer to the lead's question ("how do we explain the poor
+  limited-phase fits?"):</strong> a fast-evolving skin-current profile and a
+  rapidly forming shape that the static spine's representation cannot track —
+  not passive eddies, not the noise floor, not the reader, and only marginally
+  the referee. Closing it needs ramp-capable profile/shape freedom with
+  stabilised convergence — exactly the residual-DOF territory the learned
+  operator was scoped for, now with a measured target signature (elongation +
+  inboard-shift harmonics in the transition band) instead of a vague gap.</p>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-limiter-lcfs-vs-current.png"
+         alt="LCFS error vs Ip fraction by regime" style="max-width:100%">
+    <figcaption>LCFS error vs current fraction: the gap peaks in the
+    limited→diverted transition band, not at lowest Ip — representation, not
+    SNR.</figcaption>
+  </figure>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-limiter-shape-decomposition.png"
+         alt="shape decomposition of the ramp LCFS error" style="max-width:100%">
+    <figcaption>Error-signature decomposition: elongation and inboard-shift
+    harmonics 4–6× the flat-top level on ramp slices.</figcaption>
+  </figure>
+
+  <h2>5 — What this says about the temporal thesis and the ML question</h2>
   <p>The lead's framing — <em>"we have a time-dynamics model but seem to lack
   the diagnostic set to tune it; if the physics spine can't, an ML operator
   will struggle too"</em> — is now a measured statement, not a hypothesis:</p>
@@ -206,7 +260,8 @@
     <li>Commits: <code>2336183</code> (attribution + fl-anchor + sensitivity
     machinery + pins), <code>526313c</code> (beta-sep arms in both gates),
     <code>24469b5</code> (synthetic + tune artifacts), <code>58166a5</code>
-    (held-out evals), <code>4cf3e4e</code> (early-ramp audit, worker).</li>
+    (held-out evals), <code>4cf3e4e</code> (early-ramp audit, worker),
+    <code>4ab66ad</code> (limited-phase fidelity audit, worker).</li>
     <li>Attribution: <code>current_diffusion_flux_ledger_attribution-attr.json</code>;
     gates: <code>current_diffusion_synth_gate-betasep-*.json</code>,
     <code>current_diffusion_gate_eval-betasep-tune-w*.json</code>,
