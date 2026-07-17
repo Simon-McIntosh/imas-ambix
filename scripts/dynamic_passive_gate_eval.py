@@ -65,8 +65,13 @@ from imas_ambix.latent.data import (
     read_split_shot_lists,
     schema_group_offsets,
 )
-from imas_ambix.latent.passive_resistance import load_calibration
+from imas_ambix.latent.passive_resistance import (
+    load_calibration,
+    load_structure,
+    structured_reduced_basis,
+)
 from imas_ambix.latent.temporal_operator import (
+    build_drive_linkage,
     build_passive_circuit_system,
     load_eigenbasis,
     raw_eddy_trajectory,
@@ -131,12 +136,28 @@ def raw_drive_streams(
     return np.asarray(times, dtype=np.float64), i_pf_raw, ip_raw
 
 
+def _campaign_drive_linkage(table, campaign: str):
+    """The drive-circuit self/mutual linkage, cached per campaign."""
+    cache = EIGEN_DIR / f"drive-linkage-{campaign}.npz"
+    if cache.exists():
+        with np.load(cache) as z:
+            return [str(c) for c in z["channels"]], z["lam"]
+    linkage = build_drive_linkage(table)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    tmp = cache.with_suffix(f".pid{os.getpid()}.npz")
+    np.savez_compressed(tmp, channels=np.array(linkage[0]), lam=linkage[1])
+    tmp.replace(cache)
+    logger.info("drive linkage %s built -> %s", campaign, cache)
+    return linkage
+
+
 def shot_eigenbasis_sectionavg(
     payload,
     campaign: str,
     k: int,
     *,
     calibration=None,
+    structure=None,
     case_arm: str = "measured",
 ):
     """The section-averaged-linkage eigenbasis, cached per campaign.
@@ -144,16 +165,22 @@ def shot_eigenbasis_sectionavg(
     Distinct cache from the centroid-linked basis the (closed) temporal
     operator rung used — the L matrix here integrates the flux linkage over
     both source and observer sections.  ``calibration`` applies the
-    vacuum-trained resistance multipliers; ``case_arm='predicted'`` moves the
+    vacuum-trained resistance multipliers; ``structure`` applies the full
+    discovered conductor topology (its own multipliers INCLUDED — it
+    supersedes ``calibration``); ``case_arm='predicted'`` moves the
     measured-case circuits into the passive set (machine-agnostic drive form
-    — the case channels leave the ``m_coil`` columns).  Both select their own
-    cache so the nominal basis is never clobbered.
+    — the case channels leave the ``m_coil`` columns).  Structure elements
+    that need the cases as state (galvanic wiring, series pairs) apply only
+    to the predicted arm; adjacency couplings, pair drive gains and the
+    multipliers apply to both.  Each variant selects its own cache.
     """
     n_ch = int(payload["payloads"][0].measured.size)
     tag = ""
     if case_arm == "predicted":
         tag += "-casepred"
-    if calibration is not None:
+    if structure is not None:
+        tag += "-struct"
+    elif calibration is not None:
         tag += f"-rcal-{calibration.level}"
     cache = EIGEN_DIR / f"eigenbasis-sectionavg-{campaign}-k{k}{tag}.npz"
     if cache.exists():
@@ -171,6 +198,28 @@ def shot_eigenbasis_sectionavg(
         payload["grid"],
         hold_back_cases=(case_arm == "predicted"),
     )
+    if structure is not None:
+        linkage = (
+            _campaign_drive_linkage(payload["table"], campaign)
+            if system.case_channel_row
+            else None
+        )
+        basis = structured_reduced_basis(
+            system,
+            structure,
+            sensor_scale=payload["payloads"][0].scale,
+            k=k,
+            cells=payload["grid"].cells,
+            campaign=campaign,
+            drive_linkage=linkage,
+        )
+        if not cache.exists():
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            tmp = cache.with_suffix(f".pid{os.getpid()}.npz")
+            save_eigenbasis(tmp, basis)
+            tmp.replace(cache)
+            logger.info("structured eigenbasis %s built -> %s", campaign, cache)
+        return basis
     r_mult = (
         calibration.per_circuit(system.circuits, system.centroid_r, system.centroid_z)
         if calibration is not None
@@ -248,6 +297,11 @@ def _trajectory_centers(
     raw_times, i_pf_raw, ip_raw = raw
     if drive_cols is not None:
         i_pf_raw = i_pf_raw[:, drive_cols]
+    volt_m_raw = None
+    if eigen.volt_coil is not None:
+        # discovered galvanic case wiring: voltage-type mode drive from the
+        # same measured currents (columns already in the basis drive order)
+        volt_m_raw = i_pf_raw @ eigen.volt_coil.T
     a_lab, _a_raw = raw_eddy_trajectory(
         eigen,
         raw_times,
@@ -256,6 +310,7 @@ def _trajectory_centers(
         i_cell_labels,
         ip_raw=ip_raw,
         tau_scale=tau_scale,
+        volt_m_raw=volt_m_raw,
     )
     i_circ = a_lab @ eigen.v.T  # (T_lab, n_passive) circuit-space currents [A]
     i_proj = i_circ if circuit_mask is None else i_circ[:, circuit_mask]
@@ -296,12 +351,18 @@ def eval_shot(job: tuple) -> dict | None:
         if args_d.get("resistance_artifact")
         else None
     )
+    structure = (
+        load_structure(args_d["structure_artifact"])
+        if args_d.get("structure_artifact")
+        else None
+    )
     case_arm = str(args_d.get("case_arm", "measured"))
     eigen = shot_eigenbasis_sectionavg(
         payload,
         campaign,
         int(args_d["n_modes"]),
         calibration=calibration,
+        structure=structure,
         case_arm=case_arm,
     )
     drive_cols = circuit_mask = None
@@ -497,6 +558,13 @@ def main() -> int:
         "nominal steel R)",
     )
     ap.add_argument(
+        "--structure-artifact",
+        type=str,
+        default="",
+        help="vacuum-trained passive-structure calibration JSON (carries its "
+        "own resistance multipliers — supersedes --resistance-artifact)",
+    )
+    ap.add_argument(
         "--case-arm",
         choices=("measured", "predicted"),
         default="measured",
@@ -542,13 +610,14 @@ def main() -> int:
     jobs = [(int(s), args_d) for s in eval_shots]
     logger.info(
         "dynamic passive gate: split=%s shots=%s w=%.3g tau_scale=%.3g "
-        "case_arm=%s rcal=%s",
+        "case_arm=%s rcal=%s struct=%s",
         args.split,
         list(eval_shots),
         args.prior_weight,
         args.tau_scale,
         args.case_arm,
         args.resistance_artifact or "nominal",
+        args.structure_artifact or "none",
     )
     ctx = multiprocessing.get_context("fork")
     if args.workers > 1 and len(jobs) > 1:
@@ -677,6 +746,7 @@ def main() -> int:
         "prior_weight": args.prior_weight,
         "tau_scale": args.tau_scale,
         "resistance_artifact": args.resistance_artifact,
+        "structure_artifact": args.structure_artifact,
         "case_arm": args.case_arm,
         "iterate": args.iterate,
         "n_modes": args.n_modes,

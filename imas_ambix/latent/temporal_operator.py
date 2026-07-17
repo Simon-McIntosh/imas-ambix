@@ -76,6 +76,10 @@ class PassiveEigenbasis:
     m_coil: np.ndarray
     m_cells: np.ndarray
     resistivity: float
+    #: (k, C) voltage-drive couplings [Ω] — the galvanic case-wiring EMF per
+    #: ampere of drive channel current (``volt_m = i_pf @ volt_coil.T``);
+    #: None when the basis carries no discovered galvanic terms
+    volt_coil: np.ndarray | None = None
 
     @property
     def n_modes(self) -> int:
@@ -719,6 +723,7 @@ def load_circuit_system(path: Path | str) -> PassiveCircuitSystem:
 
 def save_eigenbasis(path: Path | str, basis: PassiveEigenbasis) -> None:
     """Persist a campaign eigenbasis (the build is minutes of kernel sums)."""
+    extra = {"volt_coil": basis.volt_coil} if basis.volt_coil is not None else {}
     np.savez_compressed(
         path,
         tau=basis.tau,
@@ -728,6 +733,7 @@ def save_eigenbasis(path: Path | str, basis: PassiveEigenbasis) -> None:
         m_coil=basis.m_coil,
         m_cells=basis.m_cells,
         resistivity=np.float64(basis.resistivity),
+        **extra,
     )
 
 
@@ -741,6 +747,7 @@ def load_eigenbasis(path: Path | str) -> PassiveEigenbasis:
             m_coil=z["m_coil"],
             m_cells=z["m_cells"],
             resistivity=float(z["resistivity"]),
+            volt_coil=(z["volt_coil"] if "volt_coil" in z.files else None),
         )
 
 

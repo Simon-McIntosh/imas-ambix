@@ -479,6 +479,84 @@ def test_series_constrained_case_pair_predicts_both_channels_equal():
     np.testing.assert_allclose(pred[:, 0], pred[:, 1], rtol=1e-12)
 
 
+def test_structured_reduced_basis_matches_diagonal_reduction():
+    """Empty structure → byte-comparable to reduce_passive_system; wiring →
+    volt_coil present and the flux columns carry the g_v edit."""
+    from imas_ambix.latent.passive_resistance import (
+        structure_hypothesis_parts,
+        structured_reduced_basis,
+    )
+    from imas_ambix.latent.temporal_operator import reduce_passive_system
+
+    class _Grid:
+        cells = np.array([3, 7, 11])
+
+    system = _toy_system3()
+    empty = PassiveStructure(
+        case_series_pairs=[],
+        case_wiring={},
+        pair_drive_gains=[],
+        adjacency={},
+        neighbour_rule={},
+        r_level="regions-percase",
+        r_group_multipliers={
+            # circuit id 14 hits the real machine's case metadata (p2u), so
+            # both case groups appear in the toy's label set
+            "case:p2u": 1.3,
+            "case:p4u": 1.3,
+            "vessel:inboard": 2.0,
+            "vessel:outboard": 4.0,
+            "vessel:mid": 8.0,
+            "vessel:ends": 16.0,
+        },
+        provenance={},
+    )
+    scale = np.full(5, 1e-5)
+    hyp, parts = structure_hypothesis_parts(system, empty)
+    ref = reduce_passive_system(
+        system, _Grid, sensor_scale=scale, k=2, r_multipliers=parts["multipliers"]
+    )
+    got = structured_reduced_basis(
+        system, empty, sensor_scale=scale, k=2, cells=_Grid.cells
+    )
+    np.testing.assert_allclose(got.tau, ref.tau, rtol=1e-12)
+    np.testing.assert_allclose(np.abs(got.v), np.abs(ref.v), rtol=1e-9)
+    np.testing.assert_allclose(np.abs(got.m_coil), np.abs(ref.m_coil), rtol=1e-9)
+    np.testing.assert_allclose(np.abs(got.m_cells), np.abs(ref.m_cells), rtol=1e-9)
+    assert got.volt_coil is None
+
+    wired = PassiveStructure(
+        case_series_pairs=[],
+        case_wiring={
+            "p4u_case_current": {
+                "parents": ["p4u_coil_current"],
+                "g_v": 5.0,
+                "r_w": 2e-3,
+            }
+        },
+        pair_drive_gains=[],
+        adjacency={},
+        neighbour_rule={},
+        r_level=empty.r_level,
+        r_group_multipliers=empty.r_group_multipliers,
+        provenance={},
+    )
+    lam = np.array([[5.0, 1.0, 0.3], [1.0, 4.0, 0.2], [0.3, 0.2, 8.0]]) * 1e-5
+    got_w = structured_reduced_basis(
+        system,
+        wired,
+        sensor_scale=scale,
+        k=3,
+        cells=_Grid.cells,
+        drive_linkage=(list(system.coil_channels), lam),
+    )
+    assert got_w.volt_coil is not None and got_w.volt_coil.shape == (3, 3)
+    with pytest.raises(ValueError, match="drive_linkage"):
+        structured_reduced_basis(
+            system, wired, sensor_scale=scale, k=2, cells=_Grid.cells
+        )
+
+
 def test_structure_roundtrip(tmp_path):
     s = PassiveStructure(
         case_series_pairs=[

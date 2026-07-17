@@ -217,9 +217,77 @@ def prep_shot(job: tuple) -> dict | None:
             meas_resid=meas_resid,
             sigma=sigma,
             case_meas=case_meas,
+            i_drive=i_drive,  # already amperes (assemble_pf_currents converts)
         ),
         "n_samples": t_end,
+        "sibling_audit": _sibling_identity_audit(amc, amc_names),
     }
+
+
+def _sibling_identity_audit(amc: np.ndarray, amc_names: list[str]) -> dict:
+    """Exact-identity residuals of the unconsumed amc siblings, one shot.
+
+    Tier A of the structure discovery: are the ``*_feed_current`` and plain
+    ``*_current`` siblings NEW measured drives, or linear combinations of
+    channels already consumed?  Tested per coil on the coil-only run:
+    ``coil = N·feed`` (turns-scaled duplicate) and ``plain = Σ coils + case``
+    (the case current metered inside the coil's supply circuit — a plain
+    channel therefore LEAKS the held-back case measurement and is
+    inadmissible as a discovery input).  Relative RMS residuals ≈ 0 confirm
+    redundancy; the identities themselves are the wiring evidence tier B
+    consumes.
+    """
+    cols = {ch: amc[:, j] for j, ch in enumerate(amc_names)}
+
+    def _rel(target: np.ndarray, pred: np.ndarray) -> float | None:
+        ok = np.isfinite(target) & np.isfinite(pred)
+        if ok.sum() < 200:
+            return None
+        t, p = target[ok], pred[ok]
+        denom = float(np.std(t))
+        if denom < 1e-9:
+            return None
+        return float(np.sqrt(np.mean(((t - t.mean()) - (p - p.mean())) ** 2)) / denom)
+
+    out: dict[str, dict] = {"feed": {}, "plain": {}}
+    for ch in amc_names:
+        if not ch.endswith("_feed_current"):
+            continue
+        base = ch[: -len("_feed_current")]
+        coil = cols.get(f"{base}_coil_current")
+        feed = cols[ch]
+        if coil is None:
+            continue
+        ok = np.isfinite(coil) & np.isfinite(feed) & (np.abs(feed) > 1e-6)
+        if ok.sum() < 200:
+            continue
+        turns = float(np.round(np.median(coil[ok] / feed[ok])))
+        rel = _rel(coil, turns * feed)
+        if rel is not None:
+            out["feed"][base] = {"turns": turns, "rel_resid": rel}
+    for ch in amc_names:
+        if not ch.endswith("_case_current"):
+            continue
+        base = ch[: -len("_case_current")]
+        plain = cols.get(f"{base}_current")
+        if plain is None:
+            continue
+        family, pos = base[:-1], base[-1]
+        coil_sum = np.zeros(amc.shape[0])
+        n_parents = 0
+        for cc in amc_names:
+            if not cc.endswith("_coil_current"):
+                continue
+            b = cc.split("_")[0]
+            if b.startswith(family) and b.endswith(pos):
+                coil_sum = coil_sum + np.nan_to_num(cols[cc])
+                n_parents += 1
+        if n_parents == 0:
+            continue
+        rel = _rel(plain, coil_sum + np.nan_to_num(cols[ch]))
+        if rel is not None:
+            out["plain"][base] = {"n_parent_coils": n_parents, "rel_resid": rel}
+    return out
 
 
 # --- parallel objective ------------------------------------------------

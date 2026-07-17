@@ -774,6 +774,133 @@ def structured_shot_loss(
     return ss_mag, n_mag, ss_case, n_case
 
 
+def structure_hypothesis_parts(
+    system: PassiveCircuitSystem,
+    structure: PassiveStructure,
+    *,
+    campaign: str | None = None,
+    drive_linkage: tuple[list[str], np.ndarray] | None = None,
+) -> tuple[StructureHypothesis, dict]:
+    """Instantiate a saved structure artifact on one circuit system.
+
+    Elements that do not apply to the system are dropped automatically —
+    the measured-cases-as-drives system (``hold_back_cases=False``) has no
+    case circuits in its passive set, so the case wiring and series pairs
+    apply only to the holdback form while the adjacency couplings, pair
+    drive gains and resistance multipliers apply to both.  Returns the
+    frozen hypothesis plus the fitted θ-part arrays ready for
+    :func:`structured_mode_maps`.
+    """
+    case_series = [
+        (p["channels"][0], p["channels"][1], int(p["sign"]))
+        for p in structure.case_series_pairs
+        if all(ch in system.case_channel_row for ch in p["channels"])
+    ]
+    wiring_cases = sorted(
+        ch for ch in structure.case_wiring if ch in system.case_channel_row
+    )
+    if wiring_cases and drive_linkage is None:
+        raise ValueError(
+            "structure carries case wiring for this system — pass drive_linkage"
+        )
+    pair_channels = [
+        (p["channels"][0], p["channels"][1])
+        for p in structure.pair_drive_gains
+        if all(ch in system.coil_channels for ch in p["channels"])
+    ]
+    row_of = {int(c): i for i, c in enumerate(system.circuits)}
+    edges: list[tuple[int, int]] = []
+    edge_r: list[float] = []
+    for rec in structure.adjacency.get(campaign or "", []):
+        if int(rec["i"]) in row_of and int(rec["j"]) in row_of:
+            edges.append((row_of[int(rec["i"])], row_of[int(rec["j"])]))
+            edge_r.append(float(rec["r_couple"]))
+
+    cal = ResistanceCalibration(
+        level=structure.r_level,
+        group_multipliers=structure.r_group_multipliers,
+        provenance={},
+    )
+    multipliers = cal.per_circuit(system.circuits, system.centroid_r, system.centroid_z)
+
+    hyp = build_structure_hypothesis(
+        system,
+        np.zeros(system.n_circuits, dtype=np.int64),
+        case_series=case_series,
+        wiring_cases=wiring_cases,
+        drive_linkage=drive_linkage if wiring_cases else None,
+        pair_channels=pair_channels,
+        edges=edges,
+    )
+    parts: dict = {"multipliers": multipliers}
+    if wiring_cases:
+        parts["g_v"] = np.array(
+            [structure.case_wiring[ch]["g_v"] for ch in wiring_cases]
+        )
+        parts["r_w"] = np.array(
+            [structure.case_wiring[ch]["r_w"] for ch in wiring_cases]
+        )
+    if pair_channels:
+        parts["pair_gains"] = np.array(
+            [
+                (p["common"], p["differential"])
+                for p in structure.pair_drive_gains
+                if all(ch in system.coil_channels for ch in p["channels"])
+            ]
+        ).reshape(-1, 2)
+    if edges:
+        parts["edge_r"] = np.array(edge_r)
+    return hyp, parts
+
+
+def structured_reduced_basis(
+    system: PassiveCircuitSystem,
+    structure: PassiveStructure,
+    *,
+    sensor_scale: np.ndarray,
+    k: int,
+    cells: np.ndarray,
+    campaign: str | None = None,
+    drive_linkage: tuple[list[str], np.ndarray] | None = None,
+):
+    """Mode-reduced eigenbasis of a structured system (the re-gate hook).
+
+    Same k-mode history-relevance selection as
+    :func:`~imas_ambix.latent.temporal_operator.reduce_passive_system`
+    (``τ·‖a_sens/scale‖``, slowest-first), computed over the STRUCTURED
+    eigenmodes; drive couplings carry the wiring flux edits and pair gains,
+    and ``volt_coil`` carries the galvanic terms for the raw trajectory.
+    """
+    from imas_ambix.latent.temporal_operator import (  # noqa: PLC0415
+        PassiveEigenbasis,
+    )
+
+    hyp, parts = structure_hypothesis_parts(
+        system, structure, campaign=campaign, drive_linkage=drive_linkage
+    )
+    smaps = structured_mode_maps(hyp, **parts)
+    scale = np.clip(np.asarray(sensor_scale, dtype=np.float64), 1e-12, None)
+    relevance = smaps.tau * np.linalg.norm(
+        smaps.a_sens_modes / scale[:, np.newaxis], axis=0
+    )
+    keep = np.argsort(relevance)[::-1][: int(k)]
+    keep = keep[np.argsort(smaps.tau[keep])[::-1]]  # slowest-first
+    g_modes = system.g_circ @ smaps.v_phys[:, keep]
+    volt = None
+    if smaps.drive_volt is not None and np.any(smaps.drive_volt):
+        volt = smaps.drive_volt[keep]
+    return PassiveEigenbasis(
+        tau=smaps.tau[keep],
+        v=smaps.v_phys[:, keep],
+        a_sens=smaps.a_sens_modes[:, keep],
+        g_grid=g_modes,
+        m_coil=smaps.drive_flux[keep],
+        m_cells=g_modes[np.asarray(cells)].T,
+        resistivity=float(system.resistivity),
+        volt_coil=volt,
+    )
+
+
 __all__ = [
     "LADDER_LEVELS",
     "MULTIPLIER_BOUNDS",
@@ -797,7 +924,9 @@ __all__ = [
     "save_structure",
     "series_reduction",
     "shot_loss_terms",
+    "structure_hypothesis_parts",
     "structured_mode_maps",
+    "structured_reduced_basis",
     "structured_shot_loss",
     "zoh_mode_response",
 ]
