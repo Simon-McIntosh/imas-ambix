@@ -179,7 +179,24 @@ def shot_eigenbasis_sectionavg(
     if case_arm == "predicted":
         tag += "-casepred"
     if structure is not None:
-        tag += "-struct"
+        # key the cache to the artifact CONTENT — two structure fits must
+        # never share a cached basis
+        import hashlib  # noqa: PLC0415
+        import json as _json  # noqa: PLC0415
+
+        digest = hashlib.sha256(
+            _json.dumps(
+                {
+                    "wiring": structure.case_wiring,
+                    "series": structure.case_series_pairs,
+                    "pair": structure.pair_drive_gains,
+                    "adjacency": structure.adjacency,
+                    "mult": structure.r_group_multipliers,
+                },
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()[:10]
+        tag += f"-struct-{digest}"
     elif calibration is not None:
         tag += f"-rcal-{calibration.level}"
     cache = EIGEN_DIR / f"eigenbasis-sectionavg-{campaign}-k{k}{tag}.npz"
