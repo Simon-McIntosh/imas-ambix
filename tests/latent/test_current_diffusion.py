@@ -405,3 +405,86 @@ def test_coeff_prior_zero_weight_is_byte_identical_and_tight_prior_pins():
     assert tight.scored
     c_t = np.asarray(tight.coeffs)
     assert np.linalg.norm(c_t - center) < 0.05 * np.linalg.norm(center)
+
+
+def test_torax_crosscheck_circular_psi_evolution():
+    """The in-house operator matches TORAX on the shared circular case.
+
+    ``scripts/torax_crosscheck_reference.py`` (run under the TORAX
+    environment) evolved pure ohmic current diffusion on the built-in
+    circular geometry with a ramping prescribed Ip and a Sauter σ from
+    prescribed profiles.  Here the SAME metrics, σ, initial ψ and Ip trace
+    drive ``diffuse_psi`` in chunks (σ refreshed per chunk — TORAX\'s Sauter
+    σ evolves with q as ψ diffuses, mirroring the production frozen-per-
+    interval contract), pinning the SOLVER formulation (toc coefficient,
+    Ip-BC normalisation, θ-scheme) against the reference implementation to
+    0.2%.  The metric extraction is pinned separately (the Ampère test), so
+    the diffusion face coefficient here is TORAX\'s own g2g3/ρ̂ array.
+    """
+    from pathlib import Path
+
+    ref_path = (
+        Path(__file__).resolve().parents[1]
+        / "data"
+        / "torax_circular_psi_reference.npz"
+    )
+    z = np.load(ref_path)
+    rf = np.asarray(z["rho_face_norm"], dtype=np.float64)
+    rc_mid = 0.5 * (rf[:-1] + rf[1:])
+    grid50 = np.concatenate([[0.0], np.asarray(z["rho_cell_norm"]), [1.0]])
+    times = np.asarray(z["times"], dtype=np.float64)
+    n_rho = rf.size - 1
+    # d_face == TORAX\'s own array: g2 re-expressed so g2·g3/ρ̂ matches theirs
+    g2_adj = np.zeros_like(rf)
+    g2_adj[1:] = z["g2g3_over_rhon_face"][1:] * rf[1:] / z["g3_face"][1:]
+
+    def _geo(psi0: np.ndarray) -> FluxSurfaceGeometry:
+        return FluxSurfaceGeometry(
+            rho_face=rf,
+            rho_cell=rc_mid,
+            psi_face=psi0,
+            psi_n_face=rf,  # dummy monotone map — the σ table is keyed to ρ̂
+            psi_n_cell=rc_mid,
+            vpr_face=np.asarray(z["vpr_face"], dtype=np.float64),
+            vpr_cell=np.interp(rc_mid, rf, z["vpr_face"]),
+            g2_face=g2_adj,
+            g3_face=np.asarray(z["g3_face"], dtype=np.float64),
+            g3_cell=np.interp(rc_mid, rf, z["g3_face"]),
+            f_face=np.asarray(z["F_face"], dtype=np.float64),
+            f_cell=np.interp(rc_mid, rf, z["F_face"]),
+            b2_cell=np.ones(n_rho),
+            inv_r_cell=np.full(n_rho, 1.0 / float(z["R_major"])),
+            phi_b=float(z["Phi_b"]),
+            r0=float(z["R_major"]),
+            ip_amperes=float(z["ip"][0]),
+            axis_psi=float(psi0[0]),
+            boundary_psi=float(psi0[-1]),
+            volume=float(np.trapezoid(z["vpr_face"], rf)),
+            q_face=np.ones(rf.size),
+            flux_sign=1.0,
+        )
+
+    psi = np.interp(rf, grid50, z["psi"][0])
+    psi_start = psi.copy()
+    bounds = np.linspace(0, times.size - 1, 16).astype(int)
+    for a, b in zip(bounds[:-1], bounds[1:], strict=True):
+        sig_now = np.asarray(z["sigma_parallel"][a], dtype=np.float64)
+
+        class _SigmaTable:
+            def __call__(self, pn, _s=sig_now):
+                return 1.0 / np.interp(np.asarray(pn), grid50, _s)
+
+        out = diffuse_psi(
+            _geo(psi),
+            _SigmaTable(),
+            t_grid=times[a : b + 1],
+            ip_of_t=np.asarray(z["ip"][a : b + 1]),
+        )
+        psi = out["psi_face"][-1]
+
+    d_ours = psi - psi_start
+    d_torax = np.interp(rf, grid50, z["psi"][-1]) - psi_start
+    rms = float(np.sqrt(np.mean((d_ours - d_torax) ** 2)))
+    scale = float(np.sqrt(np.mean(d_torax**2)))
+    assert scale > 0
+    assert rms / scale < 0.01  # solver-formulation agreement vs TORAX
