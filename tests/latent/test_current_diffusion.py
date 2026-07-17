@@ -1,0 +1,407 @@
+"""Tests for the 1D resistive current-diffusion temporal prior.
+
+Correctness is pinned analytically and against the solver's own equilibria —
+no EFIT, no data dependency:
+
+* the CIRCULAR large-aspect limit of the ψ-diffusion reduces to the classical
+  cylinder equation ∂ψ/∂t = (η/μ0)·(1/r)∂/∂r(r ∂ψ/∂r): a Bessel eigenmode
+  perturbation must decay at its analytic rate, the prescribed-Ip edge BC
+  must hold the enclosed current, and the late-time state must consume flux
+  rigidly (spatially uniform loop voltage at the analytic ring value);
+* the flux-surface geometry extracted from a solved synthetic equilibrium
+  must close Ampère's law (enclosed current from the contour metrics equals
+  the prescribed Ip) and reproduce the plasma volume;
+* the (j_tor, ⟨J·B⟩) → coefficient projection must round-trip a known
+  coefficient vector;
+* the flux budget must decompose exactly (surface = axis + internal), which
+  is the inductive/resistive consumption ledger;
+* the coefficient prior at weight 0 must be byte-identical to the frozen
+  solve, and a tight prior must pin the coefficients to its centre.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+
+from imas_ambix.latent.current_diffusion import (
+    EtaProfile,
+    FluxSurfaceGeometry,
+    basis_projection_images,
+    diffuse_psi,
+    ejima_coefficient,
+    flux_budget,
+    flux_surface_geometry,
+    predicted_current,
+    project_coefficients,
+)
+from imas_ambix.latent.gs_solve import MU0, EquilibriumGrid
+
+from .test_gs_solve import _confining_table, _synthetic_confining_slice
+
+
+def _circular_geometry(
+    *,
+    a: float = 0.5,
+    r0: float = 3.0,
+    b0: float = 2.0,
+    ip: float = 5.0e5,
+    n_rho: int = 48,
+) -> FluxSurfaceGeometry:
+    """Exact circular large-aspect metrics (the analytic verification rig).
+
+    V = 2π²·R0·r², Φ_tor = π r² B0, ρ̂ = r/a, F = R0·B0, ⟨1/R²⟩ = 1/R0²,
+    g2 = ⟨(∇V)²/R²⟩ = 16π⁴r².  The initial ψ carries a uniform current
+    density (ψ' ∝ ρ̂² edge-matched to Ip through the Ampère identity).
+    """
+    rho_face = np.linspace(0.0, 1.0, n_rho + 1)
+    rho_cell = 0.5 * (rho_face[:-1] + rho_face[1:])
+    r_face = a * rho_face
+    phi_b = np.pi * a * a * b0
+    f_face = np.full(n_rho + 1, r0 * b0)
+    g2_face = 16.0 * np.pi**4 * r_face**2
+    g3_face = np.full(n_rho + 1, 1.0 / r0**2)
+    vpr_face = 4.0 * np.pi**2 * r0 * a * a * rho_face
+    # uniform-j initial flux: ψ(ρ̂) with I(ρ̂) = Ip·ρ̂² through the BC identity
+    d_face = np.zeros(n_rho + 1)
+    d_face[1:] = g2_face[1:] * g3_face[1:] / rho_face[1:]
+    grad = np.zeros(n_rho + 1)
+    grad[1:] = (
+        ip
+        * rho_face[1:] ** 2
+        * (16.0 * np.pi**3 * MU0 * phi_b)
+        / (d_face[1:] * f_face[1:])
+    )
+    psi_face = np.concatenate(
+        [[0.0], np.cumsum(0.5 * (grad[1:] + grad[:-1]) * np.diff(rho_face))]
+    )
+    return FluxSurfaceGeometry(
+        rho_face=rho_face,
+        rho_cell=rho_cell,
+        psi_face=psi_face,
+        psi_n_face=rho_face**2,
+        psi_n_cell=rho_cell**2,
+        vpr_face=vpr_face,
+        vpr_cell=0.5 * (vpr_face[:-1] + vpr_face[1:]),
+        g2_face=g2_face,
+        g3_face=g3_face,
+        g3_cell=np.full(n_rho, 1.0 / r0**2),
+        f_face=f_face,
+        f_cell=np.full(n_rho, r0 * b0),
+        b2_cell=np.full(n_rho, b0 * b0),
+        inv_r_cell=np.full(n_rho, 1.0 / r0),
+        phi_b=phi_b,
+        r0=r0,
+        ip_amperes=ip,
+        axis_psi=0.0,
+        boundary_psi=float(psi_face[-1]),
+        volume=2.0 * np.pi**2 * r0 * a * a,
+        q_face=np.ones(n_rho + 1),
+    )
+
+
+def test_bessel_mode_decays_at_the_analytic_rate():
+    """A J0 Neumann eigenmode decays at λ = (η/μ0)·(j'₁/a)² in the circular
+    limit — the diffusion operator against the classical cylinder solution."""
+    from scipy.special import j0, j1, jn_zeros
+
+    a = 0.5
+    eta0 = 1.0e-6
+    geo = _circular_geometry(a=a)
+    eta = EtaProfile(eta0=eta0, contrast=0.0, shape=1.0)
+    k1 = float(jn_zeros(1, 1)[0])  # first zero of J1 → Neumann mode of J0
+    assert abs(j1(k1)) < 1e-12
+    eps = 1.0e-3 * float(np.ptp(geo.psi_face))
+    mode = j0(k1 * geo.rho_face)
+    lam_true = (eta0 / MU0) * (k1 / a) ** 2
+
+    t_end = 0.2 / lam_true
+    t = np.linspace(0.0, t_end, 400)
+    ip_t = np.full(t.size, geo.ip_amperes)
+    base = diffuse_psi(geo, eta, t_grid=t, ip_of_t=ip_t)
+    pert = diffuse_psi(
+        geo, eta, t_grid=t, ip_of_t=ip_t, psi0_face=geo.psi_face + eps * mode
+    )
+    dev = pert["psi_face"] - base["psi_face"]
+    # remove the neutral constant mode (conserved under pure Neumann BCs)
+    dev = dev - dev.mean(axis=1, keepdims=True)
+    mode0 = mode - mode.mean()
+    amp = dev @ mode0 / (mode0 @ mode0)
+    # fit the decay rate over the window (skip the first step: BE transient)
+    lam_fit = -np.polyfit(t[1:], np.log(np.abs(amp[1:])), 1)[0]
+    assert abs(lam_fit - lam_true) / lam_true < 0.03
+
+
+def test_ip_boundary_condition_holds_enclosed_current():
+    """The edge-gradient BC carries the prescribed (ramping) Ip: the Ampère
+    identity read back from the evolved flux matches the drive."""
+    geo = _circular_geometry()
+    eta = EtaProfile(eta0=1.0e-7, contrast=0.0, shape=1.0)
+    t = np.linspace(0.0, 0.05, 201)
+    ip_t = geo.ip_amperes * (1.0 + 0.5 * t / t[-1])  # 50% ramp
+    out = diffuse_psi(geo, eta, t_grid=t, ip_of_t=ip_t)
+    i_edge = geo.enclosed_current(out["psi_face"][-1])[-1]
+    # transient skin-layer states carry an O(Δρ̂) scheme-consistency gap in
+    # the read-back; the BC itself is exact (see the steady/identity tests)
+    assert abs(i_edge - ip_t[-1]) / ip_t[-1] < 2e-2
+
+
+def test_late_time_flux_consumption_is_rigid_and_ohmic():
+    """With constant Ip and uniform η the state relaxes to rigid flux
+    consumption: spatially uniform loop voltage at the analytic ring value
+    V = 2π R0 η Ip / (π a²) — the resistive channel of the budget."""
+    a, r0 = 0.5, 3.0
+    eta0 = 1.0e-6
+    geo = _circular_geometry(a=a, r0=r0)
+    eta = EtaProfile(eta0=eta0, contrast=0.0, shape=1.0)
+    tau = MU0 * a * a / eta0  # resistive time scale
+    t = np.linspace(0.0, 3.0 * tau, 600)
+    ip_t = np.full(t.size, geo.ip_amperes)
+    out = diffuse_psi(geo, eta, t_grid=t, ip_of_t=ip_t)
+    v_axis, v_bdry = out["v_axis"][-1], out["v_bdry"][-1]
+    v_ring = 2.0 * np.pi * r0 * eta0 * geo.ip_amperes / (np.pi * a * a)
+    assert abs(v_axis - v_bdry) < 0.05 * abs(v_ring)  # rigid consumption
+    assert abs(abs(v_bdry) - v_ring) / v_ring < 0.05  # ohmic magnitude
+    # the budget ledger decomposes exactly: surface = resistive + inductive
+    budget = flux_budget(out, geo)
+    assert np.isclose(
+        budget["d_psi_bdry"], budget["d_psi_axis"] + budget["d_psi_internal"]
+    )
+    # constant Ip, relaxed profile → consumption is (almost) all resistive
+    assert abs(budget["d_psi_internal"]) < 0.2 * abs(budget["d_psi_axis"])
+
+
+def test_ejima_coefficient_normalisation():
+    """C_E = |ΔΨ_res|/(μ0·R0·|ΔIp|) — the definitional check."""
+    assert np.isclose(ejima_coefficient(MU0 * 0.85 * 5.0e5 * 0.45, 5.0e5, 0.85), 0.45)
+
+
+def test_eta_profile_family_is_bounded_and_monotone():
+    eta = EtaProfile(eta0=3.0e-8, contrast=3.0, shape=1.5)
+    pn = np.linspace(0.0, 1.0, 50)
+    vals = eta(pn)
+    assert np.all(np.diff(vals) >= 0.0)  # monotone toward the cold edge
+    assert np.isclose(vals[0], 3.0e-8) and np.isclose(vals[-1], 3.0e-8 * np.exp(3.0))
+    rt = EtaProfile.from_vector(eta.as_vector())
+    assert np.isclose(rt.eta0, eta.eta0) and np.isclose(rt.contrast, eta.contrast)
+    lo, hi = zip(*EtaProfile.BOUNDS, strict=True)
+    clipped = EtaProfile.from_vector(np.array([0.0, 99.0, 99.0]))
+    assert clipped.eta0 <= hi[0] and clipped.contrast <= hi[1]
+    assert clipped.shape <= hi[2]
+
+
+def _interior_limiter_fixture():
+    """A genuinely confined synthetic machine: limiter interior to the grid.
+
+    ``_confining_table``'s plasma is a wall-supported blob (its flux surfaces
+    leave through the grid edge, which doubles as the limiter), so no nested
+    surfaces exist to trace.  Here the limiter box sits well inside a wider
+    solve domain and a VF coil pair outside it holds a confined branch —
+    nested closed surfaces out to ψ_N ≈ 0.9, the configuration the
+    flux-surface extraction actually meets on real spine equilibria.
+    """
+    from imas_ambix.gs import geometry as gsg
+    from imas_ambix.gs.cylinder import hybrid_greens
+
+    lim_r = [0.9, 1.7, 1.7, 0.9, 0.9]
+    lim_z = [-0.55, -0.55, 0.55, 0.55, -0.55]
+    rg = np.linspace(0.4, 2.2, 61)
+    zg = np.linspace(-1.1, 1.1, 73)
+    coils = [(1.3, 0.9), (1.3, -0.9)]
+    mesh_r, mesh_z = np.meshgrid(rg, zg)
+    fr, fz = mesh_r.ravel(), mesh_z.ravel()
+    cols = [hybrid_greens(fr, fz, cr, cz, 0.06, 0.06)[0] for cr, cz in coils]
+    rects = np.array([[cr - 0.03, cr + 0.03, cz - 0.03, cz + 0.03] for cr, cz in coils])
+    grid = EquilibriumGrid(
+        rg=rg,
+        zg=zg,
+        limiter_r=np.array(lim_r),
+        limiter_z=np.array(lim_z),
+        coil_psi_columns=np.column_stack(cols),
+        r0=1.3,
+        conductor_rects=rects,
+    )
+    probes = [
+        gsg.BProbe(index=i, r=1.95, z=-0.6 + 0.3 * i, angle_deg=90.0, length=0.02)
+        for i in range(5)
+    ]
+    smap = [
+        gsg.SensorMapping(f"obv{i:02d}", "b_probe", i, p.r, p.z, p.angle_deg, 0.001, "")
+        for i, p in enumerate(probes)
+    ]
+    table = gsg.GeometryTable(
+        signature=gsg.SetupSignature(
+            n_bprobe=5, n_fluxloop=0, n_pf_filament=2, n_limiter=5, digest="feed0004"
+        ),
+        shots=[1],
+        b_probes=probes,
+        flux_loops=[],
+        pf_filaments=[
+            gsg.PFFilament(
+                r=cr, z=cz, turns=1.0, width=0.06, height=0.06, circuit=k + 1, xmult=1.0
+            )
+            for k, (cr, cz) in enumerate(coils)
+        ],
+        limiter_r=lim_r,
+        limiter_z=lim_z,
+        sensor_map=smap,
+        passive_structures=[],
+        amc_current_channels=[],
+        unmatched_amb=[],
+    )
+    return grid, table
+
+
+def _ladder_slice(grid, table, i_pf, ip):
+    """A converged ladder fit of a synthetic confining slice (K = 2)."""
+    from imas_ambix.gs.operator import greens_bz_br
+    from imas_ambix.latent.gs_solve import (
+        solve_equilibrium_bootstrapped,
+        solve_equilibrium_lsq,
+    )
+
+    res = solve_equilibrium_bootstrapped(grid, i_pf, ip, beta0=0.6, alpha=1.0)
+    assert res.converged
+    g_sens, channels = grid.sensor_greens(table)
+    vac = np.zeros(len(channels))
+    for k, m in enumerate(table.sensor_map):
+        ang = np.deg2rad(m.angle_deg if m.angle_deg is not None else 90.0)
+        for f, cur in zip(table.pf_filaments, i_pf, strict=True):
+            bz, br = greens_bz_br(np.array([m.r]), np.array([m.z]), f.r, f.z)
+            vac[k] += cur * (br[0] * np.cos(ang) + bz[0] * np.sin(ang))
+    meas = vac + g_sens @ res.cell_currents
+    lf = solve_equilibrium_lsq(
+        grid,
+        table,
+        i_pf,
+        ip,
+        measured=meas,
+        vacuum_prediction=vac,
+        sensor_scale=np.abs(meas) + 1e-9,
+        sensor_mask=np.ones(meas.size, dtype=bool),
+        n_p=1,
+        n_f=1,
+        nonneg=True,
+    )
+    assert lf.result.converged
+    return lf, meas, vac
+
+
+def test_flux_surface_geometry_closes_ampere_and_volume():
+    """Contour metrics from a solved equilibrium must close Ampère's law
+    (enclosed current at the edge = Ip) and reproduce the core volume."""
+    grid, table = _interior_limiter_fixture()
+    ip = 4.0e5
+    i_pf = np.array([-8.0e4, -8.0e4])
+    lf, _, _ = _ladder_slice(grid, table, i_pf, ip)
+    geo = flux_surface_geometry(
+        lf.result.psi,
+        grid,
+        coeffs=lf.coeffs,
+        ip_amperes=ip,
+        n_p=1,
+        n_f=1,
+        nonneg=True,
+        b_phi0=1.0,
+    )
+    assert geo is not None
+    i_edge = geo.enclosed_current(geo.psi_face)[-1]
+    assert abs(i_edge - ip) / ip < 0.08  # 49×65 grid + contour discretisation
+    # volume vs the direct core-cell sum ∑ 2πR dA
+    core = lf.result.core_mask.ravel()
+    v_cells = float((2.0 * np.pi * grid.flat_r[core]).sum() * grid.dr * grid.dz)
+    assert abs(geo.volume - v_cells) / v_cells < 0.12
+    # metric sanity: q positive-finite, F near vacuum, monotone ψ_N map
+    assert np.all(np.isfinite(geo.q_face)) and np.all(geo.q_face > 0)
+    assert np.all(np.diff(geo.psi_n_face) >= -1e-12)
+
+
+def test_projection_round_trips_known_coefficients():
+    """(j_tor, ⟨J·B⟩) built FROM a coefficient vector must project back to it."""
+    grid, table = _interior_limiter_fixture()
+    ip = 4.0e5
+    i_pf = np.array([-8.0e4, -8.0e4])
+    lf, _, _ = _ladder_slice(grid, table, i_pf, ip)
+    geo = flux_surface_geometry(
+        lf.result.psi,
+        grid,
+        coeffs=lf.coeffs,
+        ip_amperes=ip,
+        n_p=1,
+        n_f=1,
+        nonneg=True,
+        b_phi0=1.0,
+    )
+    assert geo is not None
+    from imas_ambix.latent.current_diffusion import reconstruct_profile_scales
+
+    rec = reconstruct_profile_scales(lf.result.psi, grid, ip, n_p=1, n_f=1, nonneg=True)
+    images = basis_projection_images(geo, rec["s_k"], n_p=1, n_f=1, nonneg=True)
+    c_true = np.asarray(lf.coeffs, dtype=np.float64)
+    j_tor = images["a_tor"] @ c_true
+    j_par = images["a_par"] @ c_true
+    c_rec = project_coefficients(geo, images, j_tor, j_par, nonneg=True)
+    assert c_rec is not None
+    assert np.allclose(c_rec, c_true, rtol=1e-4, atol=1e-6 * max(c_true.max(), 1.0))
+
+
+def test_predicted_current_integrates_to_ip():
+    """The predicted j_tot profile integrates back to the enclosed current."""
+    geo = _circular_geometry()
+    eta = EtaProfile(eta0=1.0e-7, contrast=0.0, shape=1.0)
+    t = np.linspace(0.0, 0.02, 101)
+    ip_t = np.full(t.size, geo.ip_amperes)
+    out = diffuse_psi(geo, eta, t_grid=t, ip_of_t=ip_t)
+    pred = predicted_current(geo, out["psi_face"][-1], out["psidot_face"], eta)
+    # ∫ j_tot dS = Σ j_tot·spr·dρ̂ must equal the edge enclosed current
+    spr = geo.vpr_cell * geo.inv_r_cell / (2.0 * np.pi)
+    i_from_j = float(np.sum(pred["j_tor"] * spr * np.diff(geo.rho_face)))
+    assert abs(i_from_j - pred["i_face"][-1]) / geo.ip_amperes < 1e-9
+    assert abs(pred["i_face"][-1] - geo.ip_amperes) / geo.ip_amperes < 2e-2
+
+
+def test_coeff_prior_zero_weight_is_byte_identical_and_tight_prior_pins():
+    """The gate contract: weight 0 leaves the frozen solve byte-identical;
+    a tight prior pins the fitted coefficients to its centre."""
+    from imas_ambix.latent.patch_inverse import SlicePayload
+    from scripts.closure_gate_eval import fit_and_read_slice
+
+    table = _confining_table()
+    grid = EquilibriumGrid.from_table(table, nr=49, nz=65)
+    ip = 4.0e5
+    i_pf = np.array([-6.0e4, -6.0e4])
+    meas, vac, _ = _synthetic_confining_slice(grid, table, i_pf, ip, 0.6, 1.0)
+    payload = SlicePayload(
+        measured=meas,
+        vacuum=vac,
+        mask=np.ones(meas.size, dtype=bool),
+        scale=np.abs(meas) + 1e-9,
+        i_pf=i_pf,
+        ip_amperes=ip,
+        shot=1,
+        t_index=0,
+        time_s=0.0,
+    )
+    kw = dict(
+        beta0_grid=(0.5,),
+        alpha_grid=(1.0,),
+        cost_limit=float("inf"),
+        convergence_limit=5e-3,
+        retry_max_iterations=None,
+        fit_mode="ladder",
+        n_p=1,
+        n_f=1,
+        nonneg=True,
+    )
+    base = fit_and_read_slice(grid, table, payload, **kw)
+    center = np.array([0.9, 0.1])
+    zero_w = fit_and_read_slice(grid, table, payload, coeff_prior=(center, 0.0), **kw)
+    assert base.scored and zero_w.scored
+    # 14-D geometry targets carry NaN where a leg is absent (equal_nan compare)
+    assert np.array_equal(
+        np.asarray(base.target), np.asarray(zero_w.target), equal_nan=True
+    )
+    assert np.array_equal(np.asarray(base.coeffs), np.asarray(zero_w.coeffs))
+    tight = fit_and_read_slice(grid, table, payload, coeff_prior=(center, 1.0e4), **kw)
+    assert tight.scored
+    c_t = np.asarray(tight.coeffs)
+    assert np.linalg.norm(c_t - center) < 0.05 * np.linalg.norm(center)

@@ -1095,6 +1095,14 @@ class SoftPriors:
     passive_prior_center: np.ndarray | None = None
     passive_prior_weight: float = 0.0
 
+    # profile-coefficient temporal-consistency prior (current diffusion):
+    # centre the ladder coefficients on the diffusion-evolved prediction from
+    # the previous slice.  ``coeff_prior_center`` is in the solve's normalised
+    # coefficient convention (O(1), same variables as ``coeffs``); weight 0 /
+    # None is byte-identical OFF.
+    coeff_prior_center: np.ndarray | None = None
+    coeff_prior_weight: float = 0.0
+
     @property
     def sol_active(self) -> bool:
         return self.sol_cap > 1.0
@@ -1110,6 +1118,9 @@ class SoftPriors:
             or (
                 self.passive_prior_center is not None
                 and self.passive_prior_weight > 0.0
+            )
+            or (
+                self.coeff_prior_center is not None and self.coeff_prior_weight > 0.0
             )
         )
 
@@ -1315,6 +1326,23 @@ def _assemble_soft_prior_rows(
         w_sq = np.sqrt(float(sp.passive_prior_weight))
         row = np.zeros((kp, n_var))
         row[:, k_dof : k_dof + kp] = w_sq * np.eye(kp)
+        rows.append(_pad(row))
+        rhs.append(w_sq * center)
+
+    # --- profile-coefficient temporal-consistency prior (current diffusion):
+    # centre the ladder coefficients on the diffusion-evolved prediction from
+    # the previous slice.  Coefficients are the solve's normalised O(1)
+    # convention on both sides, so the rows are the identity on the coeff
+    # block; sqrt-weight scaling makes the penalty weight·‖c − center‖².
+    if sp.coeff_prior_center is not None and sp.coeff_prior_weight > 0.0:
+        center = np.asarray(sp.coeff_prior_center, dtype=np.float64)
+        if center.size != k_dof:
+            raise ValueError(
+                f"coeff_prior_center size {center.size} != profile DOF {k_dof}"
+            )
+        w_sq = np.sqrt(float(sp.coeff_prior_weight))
+        row = np.zeros((k_dof, n_var))
+        row[:, :k_dof] = w_sq * np.eye(k_dof)
         rows.append(_pad(row))
         rhs.append(w_sq * center)
 

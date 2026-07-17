@@ -547,6 +547,7 @@ def fit_and_read_slice(
     passive: dict | None = None,
     passive_ridge: float = 1.0,
     passive_prior: tuple[np.ndarray, float] | None = None,
+    coeff_prior: tuple[np.ndarray, float] | None = None,
     maxfev: int = 60,
     warm_x0: tuple[float, ...] | None = None,
     warm_jphi: np.ndarray | None = None,
@@ -654,6 +655,16 @@ def fit_and_read_slice(
                     sp_slice = SoftPriors()
                 sp_slice.passive_prior_center = np.asarray(center, dtype=np.float64)
                 sp_slice.passive_prior_weight = float(prior_weight)
+        # diffusion-evolved profile-coefficient prediction as a soft temporal-
+        # consistency prior on the ladder coefficients; weight 0 leaves the
+        # solve byte-identical to the frozen spine
+        if coeff_prior is not None:
+            c_center, c_weight = coeff_prior
+            if c_center is not None and float(c_weight) > 0.0:
+                if sp_slice is None:
+                    sp_slice = SoftPriors()
+                sp_slice.coeff_prior_center = np.asarray(c_center, dtype=np.float64)
+                sp_slice.coeff_prior_weight = float(c_weight)
         if sp_slice is not None:
             kw["soft_priors"] = sp_slice
         lf = fit_profile_ladder(grid, table, **kw)
