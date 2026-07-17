@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="temporal-physics-spine-s3-p1c-landed">
+  <meta name="plan-title" content="Temporal Physics Spine — §3 P1c record (passive drive & coupling structure discovery, re-gate)">
+  <meta name="plan-summary" content="P1c record: the structured hypothesis library over the 85-shot coil-only pool, case channels held back throughout. Tier A closes exactly — feeds are turns-scaled duplicates and the plain channels equal coil+case (they meter the case inside the coil's supply circuit — the wiring evidence itself). Tier B2 galvanic case wiring ACCEPTED: a resistive term r_w·i_coil per case cures the held-back P2 case reproduction (corr +0.34/−0.03 → +0.85/+0.84; held-out loss 0.495 → 0.260); the winding-flux gain fits to zero — exact L already carried the inductive part. Series pairs, pair drive gains rejected; adjacency marginal. RE-GATE: formal FAIL sustained and the structure is gate-neutral (≤0.01 cm vs the calibrated-R arms) — the vacuum-identifiable passive structure is exhausted; the plasma-era drive term d(M(t)·Ip)/dt is the recorded next suspect, which is what P2 models.">
+  <meta name="plan-informs" content="temporal-physics-spine">
+  <title>temporal-physics-spine §3 P1c — passive structure discovery, landed record</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>§3 P1c — passive drive &amp; coupling structure discovery (landed record)</h1>
+  <p class="lede"><strong>Verdict (2026-07-17): the discovery SUCCEEDS — the P2-case
+  structured residual is cured by a single physical mechanism, galvanic case–coil
+  wiring — and the P1 re-gate FAIL is SUSTAINED with the structure gate-neutral to
+  ≤0.01&nbsp;cm.</strong> The structured library ran over the same 85-shot coil-only
+  pool as P1b (69 train / 16 held-out, the measured case channels held back as
+  targets throughout, resistance multipliers refit jointly at every stage). What the
+  vacuum data can identify in the passive layer is now identified and exhausted: the
+  remaining ramp-up/axis deficit of the dynamic passive spine is NOT attributable to
+  the vacuum-visible passive structure. The plasma-era drive term
+  <code>d(M(t)·I_p(t))/dt</code> — which no vacuum shot can test — is the recorded
+  next suspect, and it is exactly the term the P2 current-diffusion rung models.</p>
+
+  <h2>Tier A — missing measured drives: a clean, exact negative</h2>
+  <p>The unconsumed amc siblings were tested as linear identities against the
+  consumed channels on every pool shot (worst-case relative residual
+  <strong>1.9×10⁻⁷</strong> — machine precision of the plant data stream):</p>
+  <ul>
+    <li><strong><code>*_feed_current</code> = <code>*_coil_current</code> / N</strong>
+    with N the integer turns count (P2 inner 12, P2 outer / P3 8, P4 / P5 23) —
+    turns-scaled duplicates carrying zero new drive information.</li>
+    <li><strong><code>&lt;coil&gt;_current</code> (plain) = Σ
+    <code>*_coil_current</code> + <code>*_case_current</code></strong> exactly
+    (for P2: <code>p2l_current = p2il_coil + p2ol_coil + p2l_case</code>). The plain
+    channels therefore CONTAIN the held-back case measurement — inadmissible as
+    discovery inputs under the binding holdback — and nothing else new.</li>
+  </ul>
+  <p><strong>The second identity is itself the discovery:</strong> the plant meters
+  the case current as part of the coil's supply circuit. The case is not an isolated
+  flux-driven ring — it shares the feed circuit galvanically. That converts tier A's
+  negative directly into tier B's sharpest hypothesis.</p>
+
+  <h2>Tier B — pair wiring: the galvanic case drive is accepted, everything else rejected</h2>
+  <p>The case-coil wiring hypothesis gives each measured case a terminal-voltage
+  drive <code>V_t = g_v·dΛ_w/dt + r_w·i_coil</code> (Λ_w the winding's geometric
+  flux from all measured drives; the winding's linkage of passive-state currents is
+  dropped — recorded approximation preserving the symmetric eigenproblem). Ladder
+  results on the SAME held-out shots (combined mean whitened square; case component
+  in parentheses):</p>
+  <table>
+    <thead><tr><th>stage</th><th>DOF</th><th>held-out</th><th>held-back P2 corr (l/u)</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr><td>baseline (P1b calibrated R)</td><td>14</td><td>0.495 (case 0.483)</td><td>+0.34 / −0.03</td><td>incumbent</td></tr>
+      <tr><td>B1 series/anti-series case pairs (×4)</td><td>14</td><td>0.496–0.499</td><td>unchanged</td><td>all rejected</td></tr>
+      <tr><td>B2 galvanic wiring, per pair</td><td>22</td><td>0.381 (0.369)</td><td>+0.79 / +0.95</td><td><strong>ACCEPT</strong></td></tr>
+      <tr><td><strong>B2 galvanic wiring, per case</strong></td><td>30</td><td><strong>0.260 (0.249)</strong></td><td><strong>+0.85 / +0.84</strong></td><td><strong>ACCEPT</strong></td></tr>
+      <tr><td>B3 coil-pair drive gains</td><td>42</td><td>0.260</td><td>unchanged</td><td>rejected</td></tr>
+      <tr><td>C adjacency (12 stable inboard edges)</td><td>42</td><td>0.260 (−4×10⁻⁵)</td><td>unchanged</td><td>accepted, marginal</td></tr>
+    </tbody>
+  </table>
+  <p><strong>The fitted mechanism is one clean physical story.</strong> The
+  winding-flux gain fits to exactly zero at every case — the geometry-exact mutual
+  inductance already carries the inductive coupling (k ≈ 0.85–0.94). What the
+  diagonal isolated-ring model could never produce is the RESISTIVE term: at low
+  frequency an isolated ring carries zero current, but a case wired across its
+  winding carries <code>I_case ∝ (R_w/R_case)·I_w</code> — a DC-coupled
+  supply-path component following the winding current. That is precisely why the P2
+  cases (large, slow drives; corr ≈ 0 at any R in P1b) were unpredictable while
+  P3–P5 (transient-dominated) validated at 0.96–0.99. Fitted <code>r_w</code>:
+  p2u 2.1×10⁻⁴, p2l 5.7×10⁻⁵, p3/p5 ~2–3×10⁻⁵, p4 ~10⁻⁶ Ω per A·turn — largest
+  exactly where the flux-only model failed. Held-back P2 case rel-RMS improves
+  1.0 → 0.58 (corr +0.85); P3–P5 stay at 0.96–0.99. Series constraints reject
+  because the pair correlation (0.92–0.99) is common DRIVE, not shared conductor —
+  an exact-equality reduction only degrades held-out.</p>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-structure-ladder.png"
+         alt="discovery ladder held-out losses and case-reproduction bars" style="max-width:100%">
+    <figcaption>The discovery ladder (held-out loss per stage, ✓ accepted) and the
+    held-back case reproduction, baseline vs discovered structure.</figcaption>
+  </figure>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-structure-p2-case.png"
+         alt="held-back P2 case currents measured vs predicted" style="max-width:100%">
+    <figcaption>Held-back P2 case currents on held-out vacuum shots: measured
+    (black) vs predicted, baseline (red) and with the galvanic wiring (green).</figcaption>
+  </figure>
+
+  <h2>Tier C — adjacency: present but marginal</h2>
+  <p>158 candidate edges from the machine-agnostic neighbour rule (centroid
+  distance ≤ 1.5 × pair-mean section scale, case rows excluded). 110 showed
+  single-edge probe gain; 12 inboard centre-column edges survived the cross-shot
+  stability folds and the joint refit — but the held-out gain is +4×10⁻⁵, three
+  orders below tier B2's. The welded-shell coupling is physically real and the
+  machinery now exists, but at this sensor set it is not load-bearing; the inboard
+  bounding-box artifact (94/146 circuits driven to open) remains dominated by the
+  ×64-saturated multipliers, recorded unresolved.</p>
+
+  <h2>Re-gate — the structure is real physics but gate-neutral</h2>
+  <p>Same harness, P1 criteria unchanged: byte-exact frozen-spine pass (drift 0.0),
+  tune weight-only sweep with the structure frozen (only w = 0.1 passes the
+  pre-declared selection — reseed parity 0.078, ramp CI-clear −0.20, axis at parity
+  4.65 vs 4.80 — the same weight P1 and P1b froze), single held-out eval, both case
+  arms.</p>
+  <table>
+    <thead><tr><th>leg (held-out, n = 128)</th><th>P1b (calibrated R)</th><th>P1c — cases measured (gate arm)</th><th>P1c — cases predicted</th></tr></thead>
+    <tbody>
+      <tr><td>ramp-up Δ [cm] (CI)</td><td>−0.103 [−0.197, +0.0004] FAIL</td><td>−0.103 [−0.198, +0.0002] <strong>FAIL (grazes zero)</strong></td><td>−0.110 [−0.205, −0.004] (clear)</td></tr>
+      <tr><td>LCFS Δskill (margin −0.05)</td><td>−0.002 [−0.007, +0.002] pass</td><td>−0.002 [−0.007, +0.002] pass</td><td>−0.002 [−0.007, +0.002] pass</td></tr>
+      <tr><td>axis Δskill / median [cm]</td><td>−0.176 [−0.788, −0.041]; 6.15 → 6.43 FAIL</td><td>−0.176 [−0.789, −0.041]; 6.15 → 6.43 <strong>FAIL</strong></td><td>−0.177 [−0.792, −0.041]; 6.15 → 6.43</td></tr>
+      <tr><td>reseed / coverage</td><td>0/0, full</td><td>0/0, full</td><td>0/0, full</td></tr>
+    </tbody>
+  </table>
+  <p>Every number matches the P1b arms to ≤0.01 cm. This is the expected shape of a
+  TRUE discovery that is gate-irrelevant: the gate arm already consumed the measured
+  case currents as drives, so predicting them better adds nothing there; and the
+  sensor-visible vessel modes were already governed by the calibrated bulk-vessel R.
+  The machine-agnostic cases-predicted arm keeps its free equivalence (and its
+  ramp-up CI is nominally clear of zero, as in P1b — the gate is scored on the
+  measured arm, honestly FAIL).</p>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-dynamic-passive-gate-eval-struct.png"
+         alt="held-out re-gate with discovered structure" style="max-width:100%">
+    <figcaption>The held-out re-gate (cases-measured arm) with the discovered
+    structure: per-shot ramp-up and flat-top LCFS, constraint pull at w = 0.1.</figcaption>
+  </figure>
+
+  <h2>What this closes, and the recorded next suspect</h2>
+  <p><strong>The vacuum-identifiable passive structure is exhausted.</strong> The
+  ladder tested every admissible structured hypothesis the locked
+  <code>passive-structure-discovery-scope</code> decision names — missing drives
+  (exact negative), pair wiring (galvanic case drive accepted; series and drive-gain
+  forms rejected), adjacency (marginal) — each on held-out vacuum shots with the
+  case channels held back. The passive layer no longer carries KNOWN structural
+  error: its measured states are reproduced per-circuit (P3–P5 at 0.96–0.99, P2 at
+  0.85 — residual P2 rel-RMS 0.58 and the open-circuit inboard boxes recorded as
+  what bounding-box geometry cannot express). The P1 gate deficit survives a
+  successful discovery, so per this rung's pre-declared honest scope the suspicion
+  moves to what vacuum data CANNOT see: the plasma-era drive term
+  <code>d(M(t)·I_p(t))/dt</code> — the spine's own fitted cell-current history and
+  the un-separable shared-mode P2–P5 drives during plasma. That term is exactly
+  what P2's current-diffusion prior constrains with measured loop voltage and Ip;
+  P2 (f-tps-04 prompt) re-queues with the structure artifact inherited.</p>
+
+  <h2>Artifacts and provenance</h2>
+  <ul>
+    <li><code>imas_ambix/latent/artifacts/patch_gate/passive_structure_calibration.json</code>
+    — the structure every later rung inherits (<code>--structure-artifact</code>;
+    supersedes the bare resistance calibration: it carries the same multipliers plus
+    the wiring). Machinery: <code>imas_ambix/latent/passive_resistance.py</code>
+    (constraint reductions, SPD adjacency stamps, galvanic drives, structured
+    eigen-reduction), <code>scripts/vacuum_passive_structure_discovery.py</code>
+    (the ladder driver), gate hook in
+    <code>scripts/dynamic_passive_gate_eval.py</code>.</li>
+    <li><code>vacuum_passive_structure_discovery.json</code> — full per-tier record
+    (tier A identities, ladder losses, per-channel case reproduction).</li>
+    <li>Re-gate artifacts: <code>dynamic_passive_gate_eval-tune-struct-w*.json</code>,
+    <code>dynamic_passive_gate_eval-eval-struct[-casepred].json</code>.</li>
+    <li>Recorded approximations: the winding terminal-voltage drive keeps measured
+    drives only (passive-state linkage dropped — symmetric eigenproblem preserved);
+    adjacency edge orientation fixed to the opposing-traversal stamp.</li>
+  </ul>
+
+  <h2>Decisions honoured</h2>
+  <ul>
+    <li><code>passive-structure-discovery-scope</code> = structured-library
+    (locked): tiers A/B/C exactly as scoped; never a free P×P fit; case channels
+    held back as targets throughout.</li>
+    <li><code>passive-resistance-source</code> = vacuum-trained-standalone (locked):
+    the multipliers were refit jointly at every stage and came back unchanged — the
+    P1b calibration is stable under the discovered structure.</li>
+    <li><code>passive-constraint-form</code> = soft-prior-tight (locked): re-gate
+    kept the trajectory soft prior, weight re-swept on tune with structure frozen.</li>
+  </ul>
+</main>
+</body>
+</html>

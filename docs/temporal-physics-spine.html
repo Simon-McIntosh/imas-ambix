@@ -21,8 +21,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-17">
-<meta name="plan-version" content="7">
-<meta name="plan-impl" content="0.5">
+<meta name="plan-version" content="8">
+<meta name="plan-impl" content="0.6">
 </head>
 <body>
 <main class="plan-doc">
@@ -161,50 +161,25 @@
   (calibration artifact <code>passive_resistance_calibration.json</code>, inherited by
   all later rungs).</p>
 
-  <h3>P1c — data-led discovery of the passive drive &amp; coupling structure (the SINDy rung)</h3>
-  <p><strong>Inserted ahead of P2 (lead directive, 2026-07-17): the gate does not advance
-  while the passive layer carries known structural error.</strong> The P1b residuals fired
-  this plan's own SINDy trigger (§6), and the discovery substrate is uniquely good right
-  now — the coil-only pool, the held-back measured case states, and the calibrated R
-  baseline. The model's two structural idealisations become the explicit discovery
-  targets:</p>
-  <ul>
-    <li><strong>The drive set.</strong> The operator consumes the coil and case channels
-    but ignores their measured <code>*_feed_current</code> siblings (listed as unmapped
-    amc siblings in the operator summary), and the P2–P5 up/down pairs enter as
-    independent columns although operating data never separates them. The audit's
-    measured coupled sets (|corr| &gt; 0.98) include the <em>P3 case pair itself</em> —
-    two measured passive currents moving as one is direct evidence of case WIRING, not
-    field coupling.</li>
-    <li><strong>The R-diagonal assumption.</strong> "Toroidal rings share no conductor
-    path" is the axisymmetric-ring idealisation; the physical vessel is a continuous
-    welded shell, so ADJACENT elements share conductor galvanically. Series / anti-series
-    / parallel wiring and neighbour current-sharing are exactly what a diagonal-R model
-    cannot represent — and the inboard bound-saturation (94/146 elements driven to open
-    circuit) is what such mis-structure looks like when only a resistance scale is free.
-    The magnetic mutuals in L are exact and untouched; the discovery is about conductor
-    topology.</li>
-  </ul>
-  <p><strong>Identifiability ladder</strong> (each stage gated on held-out vacuum shots;
-  the case channels stay held back as targets throughout):
-  <strong>A — missing measured drives:</strong> add the unconsumed feed channels to the
-  drive set; a linear re-fit, no new machinery; acceptance = held-back P2-case
-  reproduction moves toward the 0.96+ the other cases already show (feeds are measured at
-  1 kHz through the plasma era, so this discovery provably transfers to the gate
-  trajectory). <strong>B — pair-wiring hypotheses:</strong> series (I_i = I_j),
-  anti-series (I_i = −I_j) and parallel as constraint REDUCTIONS of the circuit system —
-  tested directly on the measured case pairs, and as common/differential drive modes for
-  the un-separable coil pairs (a per-row fit over independent columns can never find
-  these; the pair terms must be in the library). <strong>C — adjacency-structured sparse
-  discovery:</strong> galvanic/current-sharing couplings restricted to a
-  nearest-neighbour graph over the passive set (neighbours by section-scale-normalised
-  distance — the machine-agnostic rule), sparse regression with cross-shot stability
-  selection, sensor-space + case-state supervision. NEVER a free P×P interaction fit —
-  unidentifiable from 73 sensors + 8 measured states. <strong>Honest scope:</strong>
-  vacuum data cannot see errors in the plasma drive term <code>d(M(t)·I_p(t))/dt</code>;
-  if the re-gate deficit survives a successful discovery, the plasma-era drive is the
-  next, separately-measurable suspect. Then RE-GATE P1 unchanged; P2 re-queues behind the
-  verdict.</p>
+  <h3>P1c — data-led discovery of the passive drive &amp; coupling structure (the SINDy rung)
+    <span class="badge badge-shipped">✓ landed 2026-07-17 — discovery succeeds; re-gate FAIL sustained, structure gate-neutral</span></h3>
+  <p class="landed-summary">
+  Ran the structured library over the 85-shot coil-only pool, case channels held back
+  throughout. <strong>Tier A closes exactly</strong>: feeds = coil/N (turns duplicates);
+  plain = coil + case to 2×10⁻⁷ — the case is metered INSIDE the coil's supply circuit,
+  the wiring evidence itself. <strong>Tier B2 galvanic case wiring ACCEPTED</strong>
+  (held-out 0.495 → 0.260): a resistive term r_w·i_coil per case — the DC-coupled
+  supply-path current an isolated flux-driven ring cannot carry — cures the held-back
+  P2 cases (corr +0.34/−0.03 → <strong>+0.85/+0.84</strong>); the winding-flux gain
+  fits to zero (exact L already carried the inductive part). Series pairs and pair
+  drive gains rejected; adjacency accepted but marginal (+4×10⁻⁵, 12 inboard edges).
+  <strong>Re-gate: formal FAIL sustained, structure gate-neutral to ≤0.01 cm</strong>
+  (ramp −0.103 CI grazing zero; axis 6.43 vs 6.15 cm; spine byte-exact) — the
+  vacuum-identifiable passive structure is EXHAUSTED; the plasma-era drive term
+  <code>d(M(t)·I_p)/dt</code> is the recorded next suspect — exactly what P2 models.
+  Full record: <a href="archive/temporal-physics-spine-s3-p1c-landed.html">§3 P1c
+  landed</a> (structure artifact <code>passive_structure_calibration.json</code>,
+  inherited by all later rungs via <code>--structure-artifact</code>).</p>
 
   <h3>P2 — current-diffusion temporal prior (TORAX-inspired, right-sized)</h3>
   <p>Between labelled slices, evolve the profile-coefficient state under a 1D
@@ -372,7 +347,9 @@
   shared-mode drive error.</p>
 
   <h3>SINDy — where sparse identification is complementary, and where it is not</h3>
-  <p><strong>Trigger FIRED (2026-07-17) — now running as rung P1c (§3).</strong> P1 kept
+  <p><strong>Trigger FIRED (2026-07-17) — ran and LANDED as rung P1c (§3): the
+  wiring/adjacency library found the galvanic case-coil drive; the vacuum-visible
+  slots are closed.</strong> P1 kept
   SINDy out on the premise that the passive structure was known exactly from geometry;
   the P1b evidence overturned that premise in specific, localised places (P2 cases
   unpredictable at any R; the measured P3 case pair moving as one circuit; inboard
@@ -665,7 +642,7 @@ Done-when
      P1+P2 verdicts, this followup resolved</pre>
     <p class="r-fu-outcome">Re-sequenced, not executed: the lead holds the ladder at the failed P1 gate and inserts P1c (data-led discovery of the passive drive/coupling structure, f-tps-05) ahead of P2. This P2 prompt remains valid and re-queues verbatim once the P1c verdict lands.</p>
     </article>
-<article class="r-fu" data-id="f-tps-05" data-status="open" data-tier="opus" data-written-by="reckon-ship (lead directive: pair wiring + adjacency)" data-written-at="2026-07-17" data-recommends-skill="/reckon-ship temporal-physics-spine §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-tps-05" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (lead directive: pair wiring + adjacency)" data-written-at="2026-07-17" data-recommends-skill="/reckon-ship temporal-physics-spine §3" data-resolved-at="2026-07-17T11:11:05+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">P1c — discover the passive drive &amp; coupling structure (feed drives, pair wiring, adjacency), then re-gate</h4>
     <div class="r-fu-body"><p>The P1b residuals fired the plan's SINDy trigger and the lead holds the ladder: no advance to P2 on a failed gate. Discover what the coil-only pool can identify — (A) missing measured drives (unconsumed *_feed_current siblings), (B) pair-wiring hypotheses: series / anti-series / parallel as constraint reductions, tested directly on measured case pairs (the P3 case pair already moves as one circuit) and as common/differential drive modes for the un-separable coil pairs, (C) adjacency-restricted galvanic couplings over the passive set (nearest-neighbour graph, section-scale-normalised — the welded-shell physics the diagonal-R idealisation forbids). Validate every tier on held-out vacuum shots with the case channels held back; acceptance = held-back P2-case reproduction moves toward the 0.96+ of P3–P5. Then re-gate P1 unchanged and re-queue P2 (f-tps-04).</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -730,6 +707,67 @@ Done-when
   3. P1 re-gate verdict recorded honestly; structure artifact committed with provenance
   4. Plan updated same-session: outcome + archive record, P2 (f-tps-04 prompt) re-queued
      or the plasma-drive suspect recorded, this followup resolved</pre>
+    <p class="r-fu-outcome">§3 P1c landed (commits 1cfafbc, aae1202, 4a68323, 32b7e85, 1f06d22, d5998b2) — discovery SUCCEEDS: tier A closes exactly (feeds = coil/N turns duplicates; plain = coil + case to 2e-7 — the case is metered inside the coil's supply circuit); tier B2 galvanic case wiring ACCEPTED (held-out 0.495→0.260; r_w·i_coil per case, g_v fits to zero — exact L already carried the inductive part), held-back P2 cases cured corr +0.34/−0.03 → +0.85/+0.84; B1 series and B3 pair drive gains rejected; C adjacency marginal (+4e-5). RE-GATE: formal FAIL sustained, structure gate-neutral to ≤0.01 cm vs the P1b arms (ramp −0.103 CI grazing zero; axis 6.43 vs 6.15) — the vacuum-identifiable passive structure is EXHAUSTED; plasma-era drive term d(M(t)·Ip)/dt recorded as next suspect per the pre-declared honest scope. P2 re-queued (f-tps-06) with the structure artifact inherited. Record: docs/archive/temporal-physics-spine-s3-p1c-landed.html</p>
+    </article>
+<article class="r-fu" data-id="f-tps-06" data-status="open" data-tier="opus" data-written-by="reckon-ship (P2 re-queue after P1c verdict)" data-written-at="2026-07-17" data-recommends-skill="/reckon-ship temporal-physics-spine §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">P2 — in-house current-diffusion temporal prior (TORAX-informed), gated on synthetic exact-recovery + real non-inferiority</h4>
+    <div class="r-fu-body"><p>The f-tps-04 prompt re-queued behind the P1c verdict, as its outcome promised. P1c exhausted the vacuum-identifiable passive structure (galvanic case wiring found and validated; re-gate FAIL sustained, gate-neutral) and recorded the plasma-era drive term d(M(t)·Ip)/dt as the next suspect — exactly the physics P2 models: the 1D flux-surface-averaged resistive ψ-diffusion prior linking successive profile fits through measured loop voltage and Rogowski Ip, with η(ψ_N) the explicit bounded low-DOF unknown. Wherever the eddy model enters, inherit the passive structure artifact (passive_structure_calibration.json via --structure-artifact — it supersedes the bare resistance calibration).</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    temporal-physics-spine (http://localhost:8765/imas-ambix/temporal-physics-spine.html)
+Section: §3 (rung P2) + §4 (TORAX guidance) + §5 (gate)
+Tier:    opus
+
+Context
+  Read docs/archive/temporal-physics-spine-s3-p1-landed.html,
+  docs/archive/temporal-physics-spine-s3-p1b-landed.html and
+  docs/archive/temporal-physics-spine-s3-p1c-landed.html FIRST. P1/P1b/P1c closed
+  with the formal gate FAIL sustained under corrected physics AND corrected
+  structure: the vessel-eddy trajectory carries real but SMALL ramp-up information
+  (−0.1…−0.2 cm), the vacuum-identifiable passive structure is exhausted (galvanic
+  case wiring found, validated per-circuit, gate-neutral), and the recorded next
+  suspect is the plasma-era drive term d(M(t)·Ip)/dt. P2 is the decisive physics
+  rung: current diffusion links successive profile fits through measured loop
+  voltage + Ip — information no static per-slice fit carries. Honour the locked
+  current-diffusion-substrate decision (in-house-torax-informed).
+
+State to read
+  imas_ambix/latent/gs_solve.py                (profile ladder basis, SoftPriors — where
+                                                the temporal-consistency prior enters)
+  scripts/closure_gate_eval.py                 (fit_and_read_slice; warm chain semantics)
+  imas_ambix/latent/synthetic_truth.py         (manufacture — exact-recovery substrate)
+  ~/Code/torax: torax/_src/physics/psi_calculations.py (FVM psi diffusion formulation),
+                torax/_src/neoclassical/conductivity/sauter.py (eta parameterisation
+                template; Te is GATED on MAST — eta(psi_N) stays the explicit unknown)
+  imas_ambix/latent/data.py                    (fl_* flux loops at raw cadence → measured
+                                                V_loop = dPsi_loop/dt; Rogowski Ip)
+  imas_ambix/latent/artifacts/patch_gate/passive_structure_calibration.json
+                                               (discovered passive structure incl. the
+                                                calibrated R — inherit wherever the eddy
+                                                model enters; --structure-artifact)
+
+Design constraints (non-decision)
+  - In-house torch/fp64 1D resistive psi-diffusion on the spine&#x27;s own psi_N ladder basis;
+    TORAX used as formulation reference and later numerical cross-check, never a runtime
+    dependency (JAX stays out of the pipeline).
+  - Boundary conditions measured: surface loop voltage from raw-cadence flux loops, total
+    Ip from the Rogowski. eta(psi_N) = bounded parametric low-DOF profile, cross-shot
+    where identifiable, never per-slice.
+  - The prior enters as a SOFT temporal-consistency term on profile-coefficient evolution
+    (locked soft-prior precedent — hard pinning injects model error as truth). Weight
+    swept on tune only.
+  - EFIT firewalled; standing held-out 18502-18505 + eval cohort untouched; frozen spine
+    arm byte-exact as the paired baseline; hybrid_greens only.
+  - Verify the operator against TORAX on shared synthetic test cases before any gate run.
+
+Done-when
+  1. Diffusion operator implemented + unit-tested (analytic/TORAX cross-check pinned;
+     zero-weight prior byte-identical to the frozen spine)
+  2. Gate P2 scored: synthetic exact-recovery — the diffusion-constrained chain recovers
+     the p&#x27;/FF&#x27; split materially better than the independent-slice spine (bar: beat 0.120
+     median |err|); real data — flat-top non-inferiority (−0.05 margin) and axis median
+     not degraded, n&gt;=128 paired bootstrap
+  3. Plan updated same-session: outcome + archive record, P3 go/no-go framed from the
+     P1+P2 verdicts, this followup resolved</pre>
     </article>
 </section>
 
