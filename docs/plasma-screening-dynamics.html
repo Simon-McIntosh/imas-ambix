@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="plasma-screening-dynamics">
+  <meta name="plan-title"     content="Plasma Screening Dynamics — the plasma as a dynamic filament circuit, closing the limited-phase representation deficit">
+  <meta name="plan-summary"   content="Treat the plasma the way the vessel was treated: a filament circuit system with exact thick-cylinder mutuals (known a priori, all in-tree) whose L/R dynamics carry the ramp-phase skin/screening current the static spine's peaked basis cannot represent — the outer plasma shields the interior exactly as the coil cases shield their windings. The filament model in the flux-surface-averaged limit IS the landed 1D ψ-diffusion operator, so the current dynamics and the flux diffusion combine in one system; filament resistances are the one unknown, closed cross-shot through the landed η(ψ_N) closure machinery now driven by the ramp transients themselves (the P1b pattern: transients calibrate resistance). Te stays firewalled out of the fit path — the closure identifies η at the physical Spitzer scale without it — entering only as an eval-side consistency check. Win condition: the ramp/transition LCFS (8.4 cm, the externally VISIBLE deficit), never the axis (interior null, measured toll −0.16 for any bias). Rungs: S0 foundations (screening eigenbasis + 1D-limit identity pins), S1 decisive synthetic skin-truth gate (reproduce the measured failure signature, recover it), S2 real-data dynamic-mode fit + η closure gated on the standard harness, S3 shape-motion upgrade.">
+  <meta name="plan-status"    content="draft">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="L">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S16">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="temporal-physics-spine">
+  <meta name="plan-blocks"    content="learned-equilibrium-operator">
+  <title>Plasma Screening Dynamics | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h2 id="s1">§1 — Assessment: the lead's shielding analogy is the right frame, and the evidence base is already in place</h2>
+  <p>The limited-phase diagnosis (temporal-physics-spine closure record,
+  <a href="/imas-ambix/archive/temporal-physics-spine-s3-ledger-landed.html">§3 ledger landed</a>)
+  attributed the 5–10 cm ramp-up boundary gap to <em>"a fast-evolving skin-current
+  profile and a rapidly forming shape that the static spine's representation cannot
+  track"</em> — with passive eddies, the noise floor, the reader, and (mostly) the
+  referee all rejected by measurement, and the classical escape closed (the signed
+  hollow-capable basis converges 0/16; non-negativity is load-bearing). The lead's
+  directive — <em>"implement a dynamic current model for the shape-evolving plasma
+  the same way we did for the passive cases of the coils: the coil cases shield the
+  interior, the outer plasma shields the interior"</em> — is physically exact:</p>
+  <ul>
+    <li><strong>The skin effect IS circuit screening.</strong> During a fast ramp the
+    external flux swing drives induced current preferentially in the outermost plasma
+    layers (largest mutual coupling to the drive), which transiently shield the core;
+    the current then penetrates inward on the local resistive time. This is the same
+    L·dI/dt + R·I physics that P1 promoted for the vessel — the plasma is just a
+    conductor whose filaments happen to also obey force balance. The static spine's
+    peaked non-negative basis structurally cannot hold this state, which is exactly
+    the measured failure signature (too-round, mis-centred interior; elongation
+    ~5.7 cm + inboard-shift ~4.1 cm harmonics; error peaking in the limited→diverted
+    transition).</li>
+    <li><strong>This attacks the externally VISIBLE half of the problem.</strong> The
+    three channels that failed their gates all tried to inform the interior null (the
+    axis), and each paid the same measured −0.16 held-out toll. A screening mode is
+    different in kind: it misplaces O(100 kA) of plasma current RADIALLY, and the
+    boundary tracks the current extent (the staged-disc finding) — the deficit it
+    corrects is the ramp/transition LCFS, which the 73 magnetics and the referee can
+    both see. The win condition of this plan is therefore the ramp LCFS —
+    <em>never</em> the axis, which the gates only guard.</li>
+    <li><strong>"Mutuals known a priori" is true and already in-tree.</strong>
+    Plasma-cell ↔ sensor couplings are the existing <code>g_sens</code> Greens;
+    coil/vessel ↔ cell couplings are <code>hybrid_greens</code> thick-cylinder
+    kernels (the locked coupling convention); cell ↔ cell coupling is the grid's own
+    Dirichlet + edge-Green machinery. For the reduced circuit the plasma region is
+    tiled into thick-cylinder patches (the patch-current machinery heritage), giving
+    a ~10²-square mutual matrix — no new kernels, no recalculation.</li>
+    <li><strong>The resistivity closure has a landed template and a new data lever.</strong>
+    Filament resistances R_j = η(ψ_N_j)·2πR_j/A_j inherit the bounded 3-parameter
+    <code>EtaProfile</code> family (cross-shot, never per-slice). The closure
+    identification landed at the physical Spitzer scale (0.9–1.9×10⁻⁷ Ω·m) without
+    any temperature input. The NEW lever: the ramp transients themselves — the decay
+    of the screening mode as seen by the magnetics at 1 kHz — constrain the
+    edge-localised η exactly the way the coil-only transients constrained the vessel
+    resistances in P1b (τ_screen ~ μ0·a·δ/η_edge). The edge-contrast DOF of the η
+    family, which the flat-η closure left disengaged, is precisely what a screening
+    layer finally makes identifiable.</li>
+    <li><strong>Honest risks, pre-registered.</strong> (i) P1 proved that correct
+    transient physics can convert to little referee skill — but vessel eddies were
+    small far-field currents, while the screening mode is misplaced plasma current of
+    the very quantity the boundary read tracks; the cheap synthetic rung (S1)
+    measures the leverage before any real-data spend. (ii) The H1b refit measured
+    that free signed bases destabilise Picard — so the representation here is the
+    frozen non-negative backbone PLUS one bounded, data-driven screening column,
+    never a free basis swap. (iii) The referee's own ramp slew (~1 cm/step) bounds
+    the measurable gain; gate margins are set accordingly. (iv) A full moving-filament
+    DAE (DINA-class free-boundary evolution) is out of scope — geometry stays
+    frozen-per-interval first (the locked P2 precedent), with sub-interval remap as
+    the S3 upgrade only if S2 earns it.</li>
+  </ul>
+
+  <h2 id="s2">§2 — Formulation: one system for current dynamics and flux diffusion</h2>
+  <p><strong>The filament circuit and the 1D diffusion operator are the same
+  physics in two representations.</strong> Discretise the plasma region into N
+  thick-cylinder filaments (patch tiling of the pass-1 core mask). The circuit
+  system is</p>
+  <p><code>M_pp·di_p/dt + M_pc·di_coil/dt + M_pv·di_vessel/dt + R_p(η)·i_p = v_motion</code></p>
+  <p>with M exact from the in-tree kernels, R_p diagonal from η(ψ_N) at the
+  filament's ψ_N, the vessel arm carrying the calibrated
+  <code>passive_structure_calibration.json</code>, and <code>v_motion</code> the
+  moving-filament EMF (zero in the frozen-geometry rungs; carried by the pass-1
+  geometry chain remap at labels, exactly as P2 chained). Flux-surface averaging
+  this system on nested surfaces reduces it to the landed
+  <code>toc·∂ψ/∂t = ∂/∂ρ̂[(g2·g3/ρ̂)·∂ψ/∂ρ̂]</code> operator — which gives S0 a
+  free, decisive identity pin: the filament model in the circular/nested limit must
+  reproduce <code>diffuse_psi</code> (itself TORAX-verified to 0.2%) to
+  discretisation error. The new content beyond P2 is exactly what P2 lacked: the
+  2D screening state (edge-localised, poloidally structured current the 1D
+  average annihilates and the ladder basis cannot hold) and its coupling to the
+  forming shape.</p>
+  <p><strong>Screening eigenbasis — the P1 reduction, applied to the plasma.</strong>
+  Whiten the filament system as in <code>build_passive_eigenbasis</code>: the
+  screening physics is low-rank (the vessel needed rank 8), so the top-k eigenmodes
+  of the plasma L/R system — with their exact-ZOH integrable time constants — form
+  the dynamic state. The mode shapes are geometry-derived (machine-agnostic); only
+  their resistive time scales carry the η unknown.</p>
+  <p><strong>Representation in the fit (the H1b-safe form).</strong> Pass 2 solves
+  the frozen non-negative ladder PLUS one (or few) screening-mode columns whose
+  amplitude is bounded and prior-centred on the circuit-integrated trajectory —
+  the same soft-prior contract as P1's eddy amplitudes (weight 0 byte-identical,
+  test-pinned). The mode column is FIXED during Picard sweeps (computed from
+  pass-1 geometry), so the convergence anchor that non-negativity provides is
+  untouched; the screening column adds the one direction the basis lacks, with
+  its amplitude told by physics and checked by the sensors.</p>
+  <p><strong>The Te question (lead): firewalled — and the assessment says it can
+  stay that way.</strong> Three reasons, one carve-out:</p>
+  <ul>
+    <li>The closure identification already lands η at the physical Spitzer scale
+    with no temperature input, and the screening rung ADDS constraint (the ramp
+    transients) rather than needing more inputs. A Te-parameterised η (Spitzer
+    η ∝ Te^{−3/2} with Te a fitted low-DOF profile) is mathematically just a
+    re-parameterisation of the same closure DOF — it adds interpretability, not
+    information.</li>
+    <li>Thomson Te is corpus-gated on MAST (<code>moment_priors.TE_DATA_GATE</code>)
+    and ~99%-NaN MSE made kinetic inputs unreliable — a Te-dependent fit path would
+    be untestable here and machine-fragile elsewhere. The machine-agnostic North
+    Star wants closures identified from external electromagnetics.</li>
+    <li>n_e (<code>ane</code>, loaded and unused) does not unlock η — Spitzer
+    resistivity depends on Te and Z_eff, with n_e entering only weakly through
+    the Coulomb logarithm. Record, don't chase.</li>
+    <li><strong>Carve-out:</strong> Te enters EVAL-ONLY, exactly like the EFIT
+    referee: where Thomson exists, cross-check the closure-identified η(ψ_N)
+    against Spitzer/Sauter η(Te) as a consistency diagnostic (report, never fit).
+    Keep the Sauter interface (already the template in
+    <code>current_diffusion.py</code>) so a machine with routine Te can swap the
+    parameterisation in — a decision for that machine, not this corpus.</li>
+  </ul>
+
+  <figure>
+    <svg viewBox="0 0 960 330" width="100%" role="img" font-family="system-ui,-apple-system,sans-serif"
+         aria-label="Left: the landed vessel treatment — coil-only transients calibrate the vessel L/R circuit whose trajectory becomes a soft prior. Right: the proposed plasma treatment — ramp transients calibrate the plasma screening circuit whose mode amplitude becomes a bounded fit column. Below: the rung ladder S0 to S3.">
+      <defs><marker id="psd-a" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#555"/></marker></defs>
+      <text x="16" y="24" font-size="14" font-weight="700" fill="#1a1a1a">The analogy, made literal</text>
+      <!-- vessel column -->
+      <rect x="16" y="40" width="440" height="110" rx="6" fill="none" stroke="#888" stroke-width="1"/>
+      <text x="28" y="62" font-size="13" font-weight="700" fill="#14612b">Vessel (landed: P1/P1b/P1c)</text>
+      <text x="28" y="84" font-size="12" fill="#1a1a1a">L exact from thick-cylinder kernels · R unknown</text>
+      <text x="28" y="103" font-size="12" fill="#1a1a1a">coil-only TRANSIENTS calibrate R (holdback-validated)</text>
+      <text x="28" y="122" font-size="12" fill="#1a1a1a">rank-8 eigenmode trajectory → soft prior on eddy amps</text>
+      <text x="28" y="141" font-size="12" fill="#555">cases shield the winding packs (k = 0.85–0.94)</text>
+      <!-- plasma column -->
+      <rect x="504" y="40" width="440" height="110" rx="6" fill="none" stroke="#1b7837" stroke-width="1.6"/>
+      <text x="516" y="62" font-size="13" font-weight="700" fill="#14612b">Plasma (this plan)</text>
+      <text x="516" y="84" font-size="12" fill="#1a1a1a">M exact from the SAME in-tree kernels · η(ψ_N) unknown</text>
+      <text x="516" y="103" font-size="12" fill="#1a1a1a">ramp TRANSIENTS calibrate η_edge (closure, cross-shot)</text>
+      <text x="516" y="122" font-size="12" fill="#1a1a1a">top-k screening modes → bounded column + trajectory prior</text>
+      <text x="516" y="141" font-size="12" fill="#555">outer plasma shields the core (the skin current)</text>
+      <line x1="456" y1="95" x2="504" y2="95" stroke="#555" stroke-width="1.4" marker-end="url(#psd-a)"/>
+      <!-- ladder -->
+      <text x="16" y="186" font-size="14" font-weight="700" fill="#1a1a1a">Rungs (each gated; pre-declared no-go rules)</text>
+      <rect x="16"  y="200" width="216" height="98" rx="6" fill="none" stroke="#1b7837" stroke-width="1.4"/>
+      <text x="26" y="220" font-size="12.5" font-weight="700" fill="#14612b">S0 — foundations</text>
+      <text x="26" y="238" font-size="11.5" fill="#1a1a1a">patch mutuals · screening</text>
+      <text x="26" y="254" font-size="11.5" fill="#1a1a1a">eigenbasis + taus · pins:</text>
+      <text x="26" y="270" font-size="11.5" fill="#1a1a1a">1D-limit ≡ diffuse_psi,</text>
+      <text x="26" y="286" font-size="11.5" fill="#1a1a1a">analytic skin time</text>
+      <rect x="256" y="200" width="216" height="98" rx="6" fill="none" stroke="#1b7837" stroke-width="1.4"/>
+      <text x="266" y="220" font-size="12.5" font-weight="700" fill="#14612b">S1 — synthetic skin gate</text>
+      <text x="266" y="238" font-size="11.5" fill="#1a1a1a">skin-current truths must</text>
+      <text x="266" y="254" font-size="11.5" fill="#1a1a1a">REPRODUCE the measured</text>
+      <text x="266" y="270" font-size="11.5" fill="#1a1a1a">failure signature; dynamic</text>
+      <text x="266" y="286" font-size="11.5" fill="#1a1a1a">mode must recover ≥ 50%</text>
+      <rect x="496" y="200" width="216" height="98" rx="6" fill="none" stroke="#1b7837" stroke-width="1.4"/>
+      <text x="506" y="220" font-size="12.5" font-weight="700" fill="#14612b">S2 — real ramps</text>
+      <text x="506" y="238" font-size="11.5" fill="#1a1a1a">two-pass fit + η closure on</text>
+      <text x="506" y="254" font-size="11.5" fill="#1a1a1a">ramp transients · PRIMARY:</text>
+      <text x="506" y="270" font-size="11.5" fill="#1a1a1a">ramp/transition LCFS beats</text>
+      <text x="506" y="286" font-size="11.5" fill="#1a1a1a">spine CI-clear · axis guarded</text>
+      <rect x="736" y="200" width="208" height="98" rx="6" fill="none" stroke="#1565c0" stroke-width="1.4"/>
+      <text x="746" y="220" font-size="12.5" font-weight="700" fill="#1a4d80">S3 — shape motion</text>
+      <text x="746" y="238" font-size="11.5" fill="#1a1a1a">sub-interval geometry</text>
+      <text x="746" y="254" font-size="11.5" fill="#1a1a1a">remap (moving filaments)</text>
+      <text x="746" y="270" font-size="11.5" fill="#1a1a1a">— only if S2 passes with</text>
+      <text x="746" y="286" font-size="11.5" fill="#1a1a1a">transition structure left</text>
+      <line x1="232" y1="249" x2="256" y2="249" stroke="#555" stroke-width="1.4" marker-end="url(#psd-a)"/>
+      <line x1="472" y1="249" x2="496" y2="249" stroke="#555" stroke-width="1.4" marker-end="url(#psd-a)"/>
+      <line x1="712" y1="249" x2="736" y2="249" stroke="#555" stroke-width="1.4" marker-end="url(#psd-a)"/>
+    </svg>
+    <figcaption>The vessel treatment (landed) and the plasma treatment (this plan)
+    are the same method applied to the two conductors of the machine; the rung
+    ladder gates each step, with the decisive cheap test (S1) placed before any
+    real-data spend.</figcaption>
+  </figure>
+
+  <h2 id="s3">§3 — Rung ladder</h2>
+  <h3>S0 — plasma screening circuit foundations</h3>
+  <p>Build the filament circuit from in-tree pieces: patch tiling of the plasma
+  region (thick-cylinder sections; the patch-current machinery pattern), mutual
+  matrix from <code>hybrid_greens</code> + the grid's own Green machinery
+  (reciprocity and energy-positivity pinned), filament resistances from
+  <code>EtaProfile</code> at the pass-1 ψ_N map, screening eigenbasis + taus by
+  the <code>build_passive_eigenbasis</code> pattern with exact-ZOH integration.
+  <strong>Verification pins (all mandatory):</strong> (1) the flux-surface-averaged
+  filament model reproduces <code>diffuse_psi</code> on a shared nested-geometry
+  case to discretisation error — the identity that makes "current dynamics +
+  flux diffusion" ONE system (and inherits the TORAX 0.2% cross-check
+  transitively); (2) analytic cylinder skin-penetration time for a step drive;
+  (3) mode trajectory reproduces dense sub-stepping (the P1 ZOH pin);
+  (4) screening-mode shapes are edge-localised and machine-agnostic (grid-rule
+  scaling, no metre lock-ins).</p>
+  <h3>S1 — synthetic skin-truth gate (decisive, cheap, pre-declared)</h3>
+  <p>Extend the synthetic-truth generator to evolve 2D circuit+GS chains with
+  known η through shape-forming ramps (skin-current truths — the state the
+  current generator cannot produce because it projects onto the peaked ladder).
+  Two legs: <strong>(a) reproduction</strong> — the frozen static spine fitted to
+  these truths must reproduce the MEASURED failure signature (elevated cost
+  correlated with boundary error; elongation + inboard-shift bias; li3
+  over-read) — this validates the diagnosis end-to-end; <strong>(b) recovery</strong>
+  — the dynamic-mode fit must recover at least half of the synthetic ramp LCFS
+  gap at oracle η, and remain better than the spine at closure-identified η.
+  <strong>Pre-declared no-go:</strong> if leg (a) fails (the truths do not
+  reproduce the signature) the diagnosis is wrong — stop and re-open the
+  attribution; if leg (b) fails at oracle η the representation is insufficient —
+  stop before real-data work and record the negative.</p>
+  <h3>S2 — real-data rung: dynamic-mode fit + η closure on ramp transients</h3>
+  <p>The P1 two-pass pattern: pass 1 frozen spine byte-exact (geometry + i_cell
+  history); raw-cadence screening-mode trajectory driven by measured coil
+  currents + calibrated vessel structure + pass-1 plasma history; pass 2 refit
+  with the screening column(s), bounded amplitude prior-centred on the
+  trajectory. η closure: cross-shot fit of the <code>EtaProfile</code> (edge
+  contrast now engaged) against the ramp-transient magnetics residuals plus the
+  standing flux-budget closure — tune split only, holdback discipline unchanged.
+  Sweep on tune: prior weight × mode count k. Single held-out n=128 eval.
+  <strong>Gate S2 (pre-declared): PRIMARY — ramp-up/transition LCFS median beats
+  the frozen spine (8.37 cm baseline) CI-clear; GUARDS — flat-top LCFS
+  non-inferior (−0.05 margin), axis median not degraded, reseed rate not
+  increased.</strong> The primary leg is the one P1 grazed (−0.10 cm CI touching
+  zero) and no rung has passed; the screening amplitude is O(the deficit), so a
+  pass here is a material result and a fail is a clean negative that bounds what
+  ANY dynamic model can extract from these sensors.</p>
+  <h3>S3 — shape-motion upgrade (conditional)</h3>
+  <p>Sub-interval geometry remap (moving filaments; the v_motion EMF carried by
+  interpolating the pass-1 geometry chain instead of freezing per interval).
+  Trigger: S2 passes its primary leg but leaves structured transition-band
+  residual attributable to shape motion. Without that evidence this rung does
+  not run — a full free-boundary evolution code is explicitly out of scope.</p>
+
+  <h2 id="s4">§4 — Gates, firewall, compute</h2>
+  <ul>
+    <li><strong>Referee protocol inherited unchanged:</strong> n≥128 held-out,
+    8-shot cohort, paired bootstrap, push-out reader, EFIT eval-only, frozen
+    baselines (<code>closure_spine_frozen.json</code>: flat-top 1.50 / ramp-up
+    8.37 / axis 6.15 cm), standing held-out 18502–18505 + eval cohort never fit
+    against. Per-regime designators report the limited→diverted transition band
+    separately (the measured 12.5 cm hotspot is the target).</li>
+    <li><strong>Firewall:</strong> drives are raw measurements; couplings
+    <code>hybrid_greens</code> only; EFIT never in a fit or prior; Thomson Te
+    eval-only (consistency diagnostic), never a fit input; n_e recorded as
+    non-unlocking for η.</li>
+    <li><strong>Interior-null protection (new, from the closure evidence):</strong>
+    the screening column is edge-localised by construction and the gates treat
+    the axis as a GUARD only; any arm that buys ramp LCFS by paying the measured
+    −0.16-class axis toll fails its gate.</li>
+    <li><strong>Compute:</strong> CPU throughout (patch mutuals + rank-k eigen
+    reduction are trivial; per-slice refits at the standard ~6 s; tune sweeps and
+    the held-out eval on sun_debug fleet allocations). No GPU.</li>
+  </ul>
+
+  <section data-reckon="decisions" id="decisions" class="r-decisions">
+    <h2><span class="sec">§</span> Decisions</h2>
+    <div class="r-dec" data-key="te-closure-role" data-choice="" data-by="" data-when="">
+      <p class="r-dec-q">Does temperature enter the resistivity closure, or does η(ψ_N) stay firewalled-external?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt" data-value="firewalled-eta-closure">η(ψ_N) stays the explicit low-DOF unknown, identified cross-shot by closure (flux budget + ramp transients); Te enters EVAL-ONLY as a Spitzer/Sauter consistency check where Thomson exists (recommended — the landed closure already finds the physical Spitzer scale without Te; Thomson is corpus-gated; machine-agnostic)</button>
+        <button class="r-opt" data-value="te-parameterised-closure">Re-parameterise the closure as Spitzer η(Te) with a fitted low-DOF Te profile (same information, adds interpretability; still no measured-Te input)</button>
+        <button class="r-opt" data-value="measured-te-input">Consume measured Thomson Te in the fit path (rejected for this corpus: TE_DATA_GATE; breaks the firewall precedent and machine-agnosticity)</button>
+      </p>
+      <p class="r-dec-rat"></p>
+    </div>
+    <div class="r-dec" data-key="screening-representation" data-choice="" data-by="" data-when="">
+      <p class="r-dec-q">How does the screening state enter the per-slice fit?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt" data-value="bounded-mode-column">Non-negative backbone + k bounded screening-mode columns, amplitudes prior-centred on the circuit trajectory, mode shapes frozen per Picard solve (recommended — the H1b-safe form: convergence anchor untouched, adds exactly the missing direction)</button>
+        <button class="r-opt" data-value="cell-space-prior">Soft prior on the full jφ cell distribution toward the evolved circuit state (maximum information; risks fighting the whitened data rows everywhere at once and blurring attribution)</button>
+        <button class="r-opt" data-value="enriched-fixed-basis">Add fixed edge-localised analytic basis functions to the ladder (no dynamics needed at fit time; rejected as primary — reintroduces the free-basis convergence risk H1b measured, without the physics telling the amplitude)</button>
+      </p>
+      <p class="r-dec-rat"></p>
+    </div>
+    <div class="r-dec" data-key="geometry-motion-order" data-choice="" data-by="" data-when="">
+      <p class="r-dec-q">When do moving-filament (shape-motion) terms enter?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt" data-value="frozen-first">Frozen geometry per label interval first (S2), sub-interval remap only on S2 evidence (recommended — the locked P2 precedent; a full free-boundary evolution DAE stays out of scope)</button>
+        <button class="r-opt" data-value="moving-from-start">Carry the motion EMF from the first real-data rung (higher fidelity in the transition band; higher build cost before the leverage is measured)</button>
+      </p>
+      <p class="r-dec-rat"></p>
+    </div>
+  </section>
+
+  <section data-reckon="followups" id="followups" class="r-followups">
+    <h2><span class="sec">§</span> Followups</h2>
+    <article class="r-fu" data-id="f-psd-01" data-status="open" data-tier="opus" data-written-by="reckon-create (lead directive: plasma screening circuit)" data-written-at="2026-07-17" data-recommends-skill="/reckon-ship plasma-screening-dynamics §3">
+      <h4 class="r-fu-title">S0 + S1 — screening circuit foundations, then the decisive synthetic skin-truth gate</h4>
+      <div class="r-fu-body"><p>Build the plasma filament circuit from in-tree kernels (patch tiling, exact mutuals, screening eigenbasis with the 1D-limit identity pin against <code>diffuse_psi</code> and the analytic skin-time pin), then run the pre-declared synthetic gate: skin-current truths must REPRODUCE the measured limited-phase failure signature (leg a) and the dynamic-mode fit must RECOVER at least half the synthetic ramp LCFS gap at oracle η (leg b). No-go rules are pre-declared in §3 — a leg-(a) fail re-opens the diagnosis, a leg-(b) fail stops before any real-data spend.</p></div>
+      <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-screening-dynamics (http://localhost:8765/imas-ambix/plasma-screening-dynamics.html)
+Section: §3 (rungs S0 + S1)
+Tier:    opus
+
+Context
+  The temporal-physics-spine plan closed with the limited-phase gap attributed to a
+  skin-current/shape representation deficit and the classical basis escape measured
+  closed (0/16 convergence). This plan treats the plasma as a dynamic filament
+  circuit — the vessel treatment applied to the plasma — and S1 is the decisive
+  cheap gate before any real-data work.
+  (Honour the Locked / surface the Open decisions shown live above — do not re-list.)
+
+State to read  (code / data — not the plan itself)
+  docs/archive/temporal-physics-spine-s3-ledger-landed.html   (closure evidence: the
+                                               failure signature to reproduce — cost-error
+                                               correlation, elongation + inboard-shift
+                                               harmonics, li3 over-read; H1b 0/16)
+  imas_ambix/latent/temporal_operator.py       (build_passive_eigenbasis — the reduction
+                                               pattern to mirror; exact-ZOH integration)
+  imas_ambix/latent/current_diffusion.py       (diffuse_psi — the 1D-limit identity target;
+                                               EtaProfile — the resistance closure family)
+  imas_ambix/latent/synthetic_truth.py         (manufacture, build_campaign — the generator
+                                               to extend with skin-current evolution)
+  imas_ambix/latent/gs_solve.py                (fit_profile_ladder + SoftPriors — where the
+                                               bounded screening column will enter in S2;
+                                               understand the Picard convergence anchor)
+  imas_ambix/gs/operator.py + boundary_disc.py (hybrid_greens couplings, patch machinery)
+  imas_ambix/latent/artifacts/patch_gate/limiter_phase_fidelity_audit.json (the measured
+                                               signature numbers, per-band)
+
+Scope locks / constraints  (non-decision)
+  - All couplings hybrid_greens / in-tree Greens — no new kernels, no point filaments.
+  - Machine-agnostic construction rules only (grid/section-scale-normalised; no metre
+    lock-ins) — the P1 subdivision-rule precedent.
+  - S0 pins are mandatory before S1 runs: 1D-limit identity vs diffuse_psi on a shared
+    nested case; analytic cylinder skin time; ZOH-vs-dense-substep trajectory pin;
+    reciprocity/energy-positivity of the patch mutual matrix.
+  - S1 no-go rules are PRE-DECLARED in §3 — record verdicts honestly either way; a
+    leg-(b) fail at oracle eta STOPS the plan before real data.
+  - EFIT firewalled; synthetic work only in this rung — the standing held-out cohort
+    and eval shots are untouched.
+  - CPU only; sun_debug allocations for fit sweeps; file-redirect + EXIT sentinels.
+
+Done-when
+  1. S0 landed: circuit + eigenbasis module with the four pins green
+  2. S1 verdicts recorded: leg (a) signature reproduction with the paired numbers vs
+     the measured audit, leg (b) recovery fraction at oracle and closure eta, with
+     figures (truth vs static-spine vs dynamic-mode boundary + profile)
+  3. Plan updated same-session: outcome + archive record, S2 followup queued (or the
+     pre-declared stop recorded), this followup resolved</pre>
+    </article>
+  </section>
+
+</main>
+</body>
+</html>
