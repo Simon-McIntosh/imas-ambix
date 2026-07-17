@@ -323,8 +323,28 @@ def eval_shot(job: tuple) -> dict | None:
             logger.info(
                 "shot %s: plasma-history shift %.3f — re-iterating", shot, shift
             )
-            dyn_rows, _ = constrained_pass(i_cell_2)
-            n_iterated = 1
+            # accept the re-iterated pass only if the fits did not degrade:
+            # a constrained pass that got WORSE means the prior distorted the
+            # plasma history, and re-driving the trajectory from a distorted
+            # history is positive feedback, not convergence (measured on the
+            # smoke shot: cost doubled, centers inflated ~10×)
+            def _median_cost(rows_):
+                cs = [r["fit"].cost for r in rows_ if r["fit"].scored]
+                return float(np.median(cs)) if cs else np.inf
+
+            cost_1 = _median_cost(dyn_rows)
+            rows_2, _ = constrained_pass(i_cell_2)
+            cost_2 = _median_cost(rows_2)
+            if cost_2 <= cost_1 * 1.02:
+                dyn_rows = rows_2
+                n_iterated = 1
+            else:
+                logger.info(
+                    "shot %s: re-iteration rejected (median cost %.3f -> %.3f)",
+                    shot,
+                    cost_1,
+                    cost_2,
+                )
 
     rows: list[dict] = []
     for s, r in zip(slices, dyn_rows, strict=True):
@@ -377,7 +397,7 @@ def eval_shot(job: tuple) -> dict | None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--split", choices=("tune", "eval"), default="eval")
-    ap.add_argument("--prior-weight", type=float, default=10.0)
+    ap.add_argument("--prior-weight", type=float, default=0.3)
     ap.add_argument("--tau-scale", type=float, default=1.0)
     ap.add_argument("--iterate", type=int, default=1)
     ap.add_argument("--iterate-threshold", type=float, default=0.01)
