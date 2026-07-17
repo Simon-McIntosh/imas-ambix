@@ -94,6 +94,22 @@ def _passive_circuit_filaments(table: GeometryTable) -> list[list]:
     return [by_circ[c] for c in passive]
 
 
+def _median_section_scale(groups: list[list]) -> float:
+    """Median cross-section scale ``sqrt(w·h)`` of a conductor set [m].
+
+    The machine-intrinsic length that normalises the observer sub-gridding:
+    a fixed metre-level cell size would bake one machine's conductor sizes
+    into the linkage accuracy, so the subdivision criterion is expressed as a
+    FRACTION of this scale and transfers across machines unchanged.
+    """
+    dims = [
+        np.sqrt(max(abs(f.width), 1e-4) * max(abs(f.height), 1e-4))
+        for g in groups
+        for f in g
+    ]
+    return float(np.median(dims))
+
+
 def _section_points(
     r: float, z: float, width: float, height: float, delta: float, n_max: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -102,10 +118,13 @@ def _section_points(
     Sections smaller than ``delta`` in a dimension stay unsubdivided there
     (small elements see uniform flux — centroid linking is exact enough); a
     larger section is split so sub-cells are ≤ ``delta``, capped at ``n_max``
-    per dimension.  Weights are the uniform current shares ``1/n``.
+    per dimension.  Weights are the uniform current shares ``1/n``.  The
+    TRUE section extents place the points (a thin 3 mm case wall's observer
+    points must not smear over the 0.01 m kernel floor — that floor guards
+    only the source-side flux integration).
     """
-    w = max(abs(width), 0.01)
-    h = max(abs(height), 0.01)
+    w = max(abs(width), 1e-4)
+    h = max(abs(height), 1e-4)
     nw = max(1, min(int(np.ceil(w / delta)), n_max))
     nh = max(1, min(int(np.ceil(h / delta)), n_max))
     rr = r + w * ((np.arange(nw) + 0.5) / nw - 0.5)
@@ -186,22 +205,28 @@ def build_passive_eigenbasis(
     sensor_scale: np.ndarray,
     k: int = 12,
     resistivity: float = STEEL_RESISTIVITY,
-    section_delta: float = 0.05,
+    section_scale_frac: float = 1.0,
     section_n_max: int = 6,
 ) -> PassiveEigenbasis:
     """L/R eigenmode reduction of the passive set — pure geometry, per campaign.
 
     Inductance: two-section mutual flux linkage between passive circuits —
     the finite-area cylinder kernel integrates the source section exactly and
-    the observer section is averaged over a midpoint sub-grid
-    (``section_delta`` / ``section_n_max``, the nova gridded source+target
-    linkage; small sections stay centroid-linked).  L is known EXACTLY from
-    geometry — it is a prior no learner should re-fit.  Resistance:
-    toroidal-ring resistance ``2πR·ρ/(w·h)`` per filament, combined with the
-    ``xmult²`` current-share weights (parallel paths at fixed shares), at the
-    nominal steel resistivity (a bounded cross-shot scale is the calibratable
-    unknown).  Generalised eigenproblem ``R v = (1/τ) L v`` with
-    L-orthonormal ``v``.
+    the observer section is averaged over a midpoint sub-grid (the nova
+    gridded source+target linkage; small sections stay centroid-linked).  The
+    subdivision criterion is MACHINE-AGNOSTIC: sub-cells are sized at
+    ``section_scale_frac`` × the passive set's median section scale
+    ``median(sqrt(w·h))`` (capped at ``section_n_max`` per dimension) — a
+    dimensionless rule that transfers to other machines, never a fixed
+    metre-level cell.  L is known EXACTLY from geometry — it is a prior no
+    learner should re-fit.  Resistance: toroidal-ring resistance
+    ``2πR·ρ/(w·h)`` per filament at the TRUE cross-section (the 0.01 m kernel
+    floor is a flux-integration guard and must never inflate a thin shell's
+    conducting area — 3 mm case walls carry 3.3× the clamped resistance),
+    combined with the ``xmult²`` current-share weights (parallel paths at
+    fixed shares), at the nominal steel resistivity (a bounded cross-shot
+    scale is the calibratable unknown).  Generalised eigenproblem
+    ``R v = (1/τ) L v`` with L-orthonormal ``v``.
 
     Mode selection keeps the ``k`` modes with the largest history-relevance
     ``τ_m · ||a_sens_m / scale||`` — a slow mode the sensors can see is
@@ -222,6 +247,7 @@ def build_passive_eigenbasis(
     if n_pass == 0:
         raise ValueError("table has no inferred_passive circuits")
 
+    section_delta = section_scale_frac * _median_section_scale(groups)
     pr, pz, wt, owner = _section_grid(groups, section_delta, section_n_max)
     lmat = np.zeros((n_pass, n_pass))
     for j, gj in enumerate(groups):
@@ -239,7 +265,7 @@ def build_passive_eigenbasis(
                 * np.pi
                 * f.r
                 * resistivity
-                / (max(abs(f.width), 0.01) * max(abs(f.height), 0.01))
+                / max(abs(f.width) * abs(f.height), 1e-8)
                 * f.xmult**2
                 for f in g
             )
