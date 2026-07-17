@@ -206,3 +206,310 @@ def test_mode_maps_case_rows_follow_sorted_channels():
     # sorted channel order: a2l first → row 0's eigen-row first
     np.testing.assert_array_equal(maps.case_v[0], maps.v[0])
     np.testing.assert_array_equal(maps.case_v[1], maps.v[1])
+
+
+# ---------------------------------------------------------------------------
+# Structure discovery
+# ---------------------------------------------------------------------------
+from imas_ambix.latent.passive_resistance import (  # noqa: E402
+    PassiveStructure,
+    build_structure_hypothesis,
+    case_parent_coil_channels,
+    coil_pair_channels,
+    load_structure,
+    neighbour_edges,
+    save_structure,
+    series_reduction,
+    structured_mode_maps,
+    structured_shot_loss,
+)
+
+
+def test_voltage_drive_zoh_matches_exact_integrator_and_steady_state():
+    tau = np.array([0.030, 0.008])
+    dt = 1e-3
+    times = np.arange(600) * dt
+    psi = np.zeros((600, 2))
+    volt = np.zeros((600, 2))
+    volt[100:] = np.array([2.0, -1.0])  # step voltage
+    a_ref, _ = integrate_eddy_ode(tau, times, psi, volt_m=volt)
+    a = zoh_mode_response(tau, dt, psi, volt_m=volt)
+    np.testing.assert_allclose(a, a_ref, rtol=1e-10, atol=1e-16)
+    # constant-voltage steady state of da/dt + a/τ = v is a = τ·v
+    np.testing.assert_allclose(a[-1], tau * volt[-1], rtol=1e-3)
+
+
+def test_voltage_drive_matches_dense_substepping():
+    tau = np.array([0.012])
+    dt = 2e-3
+    n = 200
+    rng = np.random.default_rng(3)
+    volt_coarse = np.cumsum(rng.normal(size=(n, 1)), axis=0) * 0.1
+    times = np.arange(n) * dt
+    a = zoh_mode_response(tau, dt, np.zeros((n, 1)), volt_m=volt_coarse)
+    # dense grid: linearly interpolated voltage, 50× sub-stepping
+    fine = 50
+    tf = np.arange((n - 1) * fine + 1) * (dt / fine)
+    vf = np.interp(tf, times, volt_coarse[:, 0])[:, np.newaxis]
+    a_dense = zoh_mode_response(tau, dt / fine, np.zeros_like(vf), volt_m=vf)
+    np.testing.assert_allclose(a[-1], a_dense[-1], rtol=2e-3)
+
+
+def test_series_reduction_classical_inductance_algebra():
+    lmat = np.array([[2.0, 0.6], [0.6, 1.5]])
+    c_ser = series_reduction(2, [(0, 1, +1)])
+    c_ant = series_reduction(2, [(0, 1, -1)])
+    # series: L_eff = L11 + L22 + 2M; anti-series: − 2M
+    np.testing.assert_allclose(c_ser.T @ lmat @ c_ser, [[2.0 + 1.5 + 1.2]])
+    np.testing.assert_allclose(c_ant.T @ lmat @ c_ant, [[2.0 + 1.5 - 1.2]])
+    r = np.diag([4.0, 8.0])
+    np.testing.assert_allclose(c_ser.T @ r @ c_ser, [[12.0]])
+    np.testing.assert_allclose(c_ant.T @ r @ c_ant, [[12.0]])
+    # drives sum with the wiring sign
+    u = np.array([1.0, 0.25])
+    np.testing.assert_allclose(c_ser.T @ u, [1.25])
+    np.testing.assert_allclose(c_ant.T @ u, [0.75])
+    with pytest.raises(ValueError, match="disjoint"):
+        series_reduction(3, [(0, 1, 1), (1, 2, 1)])
+
+
+def test_neighbour_edges_size_normalised_rule():
+    r = np.array([1.0, 1.0, 1.0, 2.0])
+    z = np.array([0.0, 0.1, 0.5, 0.0])
+    s = np.array([0.1, 0.1, 0.1, 0.1])
+    edges = neighbour_edges(r, z, s, factor=1.5)
+    assert (0, 1) in edges  # 0.1 apart, threshold 0.15
+    assert (0, 2) not in edges and (1, 2) not in edges
+    assert all(3 not in e for e in edges)
+    # excluding a row removes its edges
+    assert neighbour_edges(r, z, s, factor=1.5, exclude_rows={1}) == []
+
+
+def test_case_parent_and_pair_channel_rules():
+    coils = [
+        "p2il_coil_current",
+        "p2iu_coil_current",
+        "p2ol_coil_current",
+        "p2ou_coil_current",
+        "p4u_coil_current",
+        "p4l_coil_current",
+        "p6u_current",
+        "p6l_current",
+        "sol_current",
+    ]
+    assert case_parent_coil_channels("p2l_case_current", coils) == [
+        "p2il_coil_current",
+        "p2ol_coil_current",
+    ]
+    assert case_parent_coil_channels("p4u_case_current", coils) == ["p4u_coil_current"]
+    pairs = coil_pair_channels(coils)
+    assert ("p2iu_coil_current", "p2il_coil_current") in pairs
+    assert ("p4u_coil_current", "p4l_coil_current") in pairs
+    assert ("p6u_current", "p6l_current") in pairs
+    assert all("sol" not in p for pair in pairs for p in pair)
+
+
+def _toy_system3() -> PassiveCircuitSystem:
+    """Three passive circuits (row 2 is a measured case), three drives."""
+    lmat = np.array([[2.0, 0.5, 0.2], [0.5, 1.8, 0.3], [0.2, 0.3, 1.2]]) * 1e-6
+    r_diag = np.array([4.0e-5, 6.0e-5, 9.0e-5])
+    rng = np.random.default_rng(11)
+    return PassiveCircuitSystem(
+        circuits=np.array([201, 202, 14]),
+        centroid_r=np.array([1.0, 1.0, 1.4]),
+        centroid_z=np.array([0.0, 0.08, 1.0]),
+        lmat=lmat,
+        r_diag=r_diag,
+        a_circ=rng.normal(size=(5, 3)) * 1e-6,
+        g_circ=rng.normal(size=(12, 3)) * 1e-6,
+        m_coil_circ=rng.normal(size=(3, 3)) * 1e-5,
+        coil_channels=["p4l_coil_current", "p4u_coil_current", "sol_current"],
+        case_channel_row={"p4u_case_current": 2},
+        resistivity=7.2e-7,
+        section_scale=np.array([0.1, 0.1, 0.05]),
+    )
+
+
+def test_structured_maps_reduce_to_diagonal_model_when_structure_empty():
+    system = _toy_system3()
+    mult = np.array([1.5, 2.0, 0.8])
+    base = campaign_mode_maps(system, mult)
+    hyp = build_structure_hypothesis(system, np.arange(3))
+    smaps = structured_mode_maps(hyp, mult)
+    np.testing.assert_allclose(np.sort(smaps.tau), np.sort(base.tau), rtol=1e-12)
+    # identical drive response: psi_m @ decay == via base maps on a test drive
+    rng = np.random.default_rng(0)
+    i_drive = np.cumsum(rng.normal(size=(400, 3)), axis=0) * 10.0
+    psi_circ = i_drive @ system.m_coil_circ.T
+    a_base = zoh_mode_response(base.tau, 1e-3, psi_circ @ base.v)
+    pred_base = a_base @ base.a_sens_modes.T
+    a_s = zoh_mode_response(smaps.tau, 1e-3, i_drive @ smaps.drive_flux.T)
+    pred_s = a_s @ smaps.a_sens_modes.T
+    np.testing.assert_allclose(pred_s, pred_base, rtol=1e-8, atol=1e-24)
+
+
+def test_adjacency_stamp_couples_and_preserves_spd():
+    system = _toy_system3()
+    hyp = build_structure_hypothesis(system, np.arange(3), edges=[(0, 1)])
+    # strong coupling: the differential mode of the pair decays ~instantly
+    smaps = structured_mode_maps(hyp, np.ones(3), edge_r=np.array([1.0]))
+    base = campaign_mode_maps(system, np.ones(3))
+    assert np.min(smaps.tau) < np.min(base.tau) * 1e-3
+    assert np.all(smaps.tau > 0)  # SPD preserved
+    # zero coupling: byte-identical spectrum
+    smaps0 = structured_mode_maps(hyp, np.ones(3), edge_r=np.array([0.0]))
+    np.testing.assert_allclose(np.sort(smaps0.tau), np.sort(base.tau), rtol=1e-12)
+
+
+def test_wiring_flux_edit_and_voltage_term():
+    system = _toy_system3()
+    lam_channels = list(system.coil_channels)
+    lam = np.array([[5.0, 1.0, 0.3], [1.0, 4.0, 0.2], [0.3, 0.2, 8.0]]) * 1e-5
+    hyp = build_structure_hypothesis(
+        system,
+        np.arange(3),
+        wiring_cases=["p4u_case_current"],
+        drive_linkage=(lam_channels, lam),
+    )
+    # parent of p4u is the p4u winding — column 1
+    np.testing.assert_allclose(hyp.wiring_sel, [[0.0, 1.0, 0.0]])
+    np.testing.assert_allclose(hyp.wiring_lam, [lam[1]])
+    g_v, r_w = np.array([2.0]), np.array([3e-3])
+    smaps = structured_mode_maps(hyp, np.ones(3), g_v=g_v, r_w=r_w)
+    # flux edit lands only on the case row: m_eff = m − g_v·lam_parent
+    m_eff_expected = system.m_coil_circ.copy()
+    m_eff_expected[2] -= 2.0 * lam[1]
+    np.testing.assert_allclose(
+        smaps.drive_flux, smaps.v_phys.T @ m_eff_expected, rtol=1e-12
+    )
+    volt_cols = np.zeros((3, 3))
+    volt_cols[2, 1] = 3e-3
+    np.testing.assert_allclose(smaps.drive_volt, smaps.v_phys.T @ volt_cols, rtol=1e-12)
+
+
+def test_structured_loss_recovers_true_wiring_gain():
+    """Synthetic truth with a galvanic case wiring: the structured loss is
+    minimised at the true g_v — from held-back case supervision alone."""
+    system = _toy_system3()
+    lam_channels = list(system.coil_channels)
+    lam = np.array([[5.0, 1.0, 0.3], [1.0, 4.0, 0.2], [0.3, 0.2, 8.0]]) * 1e-5
+    hyp = build_structure_hypothesis(
+        system,
+        np.arange(3),
+        wiring_cases=["p4u_case_current"],
+        drive_linkage=(lam_channels, lam),
+    )
+    g_true = 3.0
+    rng = np.random.default_rng(5)
+    i_drive = np.cumsum(rng.normal(0, 30.0, size=(1500, 3)), axis=0)
+    truth = structured_mode_maps(hyp, np.ones(3), g_v=np.array([g_true]))
+    a = zoh_mode_response(truth.tau, 1e-3, i_drive @ truth.drive_flux.T)
+    case = a @ truth.case_map.T + rng.normal(0, 0.02, size=(1500, 1))
+    meas = a @ truth.a_sens_modes.T + rng.normal(0, 1e-5, size=(1500, 5))
+    data = VacuumShotData(
+        shot=1,
+        campaign="toy",
+        stratum="dedicated_vacuum",
+        dt=1e-3,
+        psi_circ=i_drive @ system.m_coil_circ.T,
+        meas_resid=meas,
+        sigma=np.full(5, 1e-5),
+        case_meas=case,
+        i_drive=i_drive,
+    )
+    sig_case = np.array([max(float(np.nanstd(case)), 1.0)])
+    losses = []
+    grid = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 6.0])
+    for g in grid:
+        m = structured_mode_maps(hyp, np.ones(3), g_v=np.array([g]))
+        sm, nm, sc, nc = structured_shot_loss(data, m, np.full(5, 1e-5), sig_case)
+        losses.append(sm / max(nm, 1) + sc / max(nc, 1))
+    assert grid[int(np.argmin(losses))] == g_true
+
+
+def test_structured_loss_requires_i_drive_and_preserves_holdback():
+    system = _toy_system3()
+    hyp = build_structure_hypothesis(system, np.arange(3))
+    smaps = structured_mode_maps(hyp, np.ones(3))
+    shot = _simulate_shot(_toy_system(), np.array([4.0, 4.0]), seed=1)
+    with pytest.raises(ValueError, match="i_drive"):
+        structured_shot_loss(shot, smaps, np.full(5, 1e-5), np.array([1.0]))
+    # corrupting the held-back case target changes the case loss ONLY —
+    # the drive assembly never reads case_meas
+    rng = np.random.default_rng(2)
+    i_drive = np.cumsum(rng.normal(size=(800, 3)), axis=0) * 20.0
+    a = zoh_mode_response(smaps.tau, 1e-3, i_drive @ smaps.drive_flux.T)
+    data = VacuumShotData(
+        shot=1,
+        campaign="toy",
+        stratum="fleet",
+        dt=1e-3,
+        psi_circ=i_drive @ system.m_coil_circ.T,
+        meas_resid=a @ smaps.a_sens_modes.T,
+        sigma=np.full(5, 1e-5),
+        case_meas=a @ smaps.case_map.T,
+        i_drive=i_drive,
+    )
+    base = structured_shot_loss(data, smaps, np.full(5, 1e-5), np.array([1.0]))
+    corrupted = VacuumShotData(
+        **{
+            **data.__dict__,
+            "case_meas": data.case_meas + 50.0 * np.sin(np.arange(800)[:, None] / 30.0),
+        }
+    )
+    hit = structured_shot_loss(corrupted, smaps, np.full(5, 1e-5), np.array([1.0]))
+    assert hit[2] > base[2] + 1.0
+    np.testing.assert_allclose(hit[0], base[0], rtol=1e-12)
+
+
+def test_series_constrained_case_pair_predicts_both_channels_equal():
+    system = _toy_system3()
+    system.case_channel_row = {"p4u_case_current": 2, "p4l_case_current": 1}
+    hyp = build_structure_hypothesis(
+        system,
+        np.arange(3),
+        case_series=[("p4l_case_current", "p4u_case_current", +1)],
+    )
+    assert hyp.c_reduce.shape == (3, 2)
+    smaps = structured_mode_maps(hyp, np.ones(3))
+    rng = np.random.default_rng(9)
+    i_drive = np.cumsum(rng.normal(size=(300, 3)), axis=0) * 15.0
+    a = zoh_mode_response(smaps.tau, 1e-3, i_drive @ smaps.drive_flux.T)
+    pred = a @ smaps.case_map.T  # sorted channels: p4l first, p4u second
+    np.testing.assert_allclose(pred[:, 0], pred[:, 1], rtol=1e-12)
+
+
+def test_structure_roundtrip(tmp_path):
+    s = PassiveStructure(
+        case_series_pairs=[
+            {"channels": ["p3l_case_current", "p3u_case_current"], "sign": 1}
+        ],
+        case_wiring={
+            "p2l_case_current": {
+                "parents": ["p2il_coil_current", "p2ol_coil_current"],
+                "g_v": 11.2,
+                "r_w": 2.4e-3,
+            }
+        },
+        pair_drive_gains=[
+            {
+                "channels": ["p4u_coil_current", "p4l_coil_current"],
+                "common": 0.02,
+                "differential": -0.01,
+            }
+        ],
+        adjacency={"fc1004": [{"i": 201, "j": 202, "r_couple": 3.0e-4}]},
+        neighbour_rule={"factor": 1.5, "metric": "pair-mean section scale"},
+        r_level="regions-percase",
+        r_group_multipliers={"vessel:mid": 12.7},
+        provenance={"pool": "unit-test"},
+    )
+    path = tmp_path / "structure.json"
+    save_structure(path, s)
+    back = load_structure(path)
+    assert back.case_wiring["p2l_case_current"]["g_v"] == 11.2
+    assert back.adjacency["fc1004"][0]["r_couple"] == 3.0e-4
+    assert back.case_series_pairs == s.case_series_pairs
+    with pytest.raises(ValueError, match="not a passive-structure"):
+        (tmp_path / "junk.json").write_text('{"kind": "other"}')
+        load_structure(tmp_path / "junk.json")

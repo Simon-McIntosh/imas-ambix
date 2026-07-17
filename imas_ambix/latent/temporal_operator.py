@@ -119,6 +119,10 @@ class PassiveCircuitSystem:
     coil_channels: list[str]  # C driven channel names (sorted)
     case_channel_row: dict[str, int]  # held-back case channel -> circuit row
     resistivity: float
+    #: (P,) per-circuit conducting cross-section scale sqrt(Σ|w·h|) [m] — the
+    #: geometric size that normalises the adjacency-neighbour rule; None on
+    #: systems cached before the field existed (rebuild the cache to use it)
+    section_scale: np.ndarray | None = None
 
     @property
     def n_circuits(self) -> int:
@@ -171,6 +175,9 @@ def build_passive_circuit_system(
     class_of = {c.circuit: c for c in classes}
     centroid_r = np.array([class_of[c].centroid_r for c in passive])
     centroid_z = np.array([class_of[c].centroid_z for c in passive])
+    circuit_scale = np.array(
+        [np.sqrt(sum(abs(f.width * f.height) for f in g)) for g in groups]
+    )
 
     section_delta = section_scale_frac * _median_section_scale(groups)
     pr, pz, wt, owner = _section_grid(groups, section_delta, section_n_max)
@@ -236,7 +243,65 @@ def build_passive_circuit_system(
         coil_channels=coil_channels,
         case_channel_row=case_channel_row,
         resistivity=float(resistivity),
+        section_scale=circuit_scale,
     )
+
+
+def build_drive_linkage(
+    table: GeometryTable,
+    *,
+    section_scale_frac: float = 1.0,
+    section_n_max: int = 6,
+) -> tuple[list[str], np.ndarray]:
+    """Flux linkage among the measured drive circuits, self terms included.
+
+    Returns ``(channels, lam)`` with ``lam[i, j]`` the flux linked by channel
+    ``i``'s circuit per ampere(-turn) of channel ``j``'s current [Wb/A] —
+    the same two-section linkage as the passive system (finite-area source,
+    section-averaged observer, machine-agnostic subdivision; the kernel is
+    smooth inside conductors so the self term needs no special-casing).
+    Same-channel redundant circuits are averaged exactly as
+    :func:`build_passive_circuit_system` merges them; the solenoid response
+    scale applies on the source side only.  The case-wiring discovery reads
+    the winding rows: the flux a coil circuit links from every measured
+    drive is the inductive part of its terminal voltage.
+    """
+    from imas_ambix.gs import operator as op  # noqa: PLC0415
+    from imas_ambix.gs.cylinder import hybrid_greens  # noqa: PLC0415
+
+    classes = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
+    by_circ: dict[int, list] = {}
+    for f in table.pf_filaments:
+        by_circ.setdefault(f.circuit, []).append(f)
+    by_chan: dict[str, list[int]] = {}
+    for cc in classes:
+        if cc.role in op._KNOWN_ROLES:  # noqa: SLF001 — canonical role list
+            by_chan.setdefault(cc.amc_channel, []).append(cc.circuit)
+    channels = sorted(by_chan)
+    groups = [
+        [f for circ in sorted(by_chan[ch]) for f in by_circ[circ]] for ch in channels
+    ]
+    delta = section_scale_frac * _median_section_scale(groups)
+    pr, pz, wt, owner = _section_grid(groups, delta, section_n_max)
+    n = len(channels)
+    lam = np.zeros((n, n))
+    for j, chan in enumerate(channels):
+        cols = []
+        for circ in sorted(by_chan[chan]):
+            cols.append(
+                _linked_flux_columns(by_circ[circ], pr, pz, wt, owner, n, hybrid_greens)
+            )
+        col = np.mean(np.asarray(cols), axis=0)
+        if chan == "sol_current":
+            col = col * op.SOLENOID_RESPONSE_SCALE
+        lam[:, j] = col
+    # merged-observer normalisation: an averaged same-channel merge must also
+    # average (not sum) on the observer side, mirroring the source merge
+    for i, chan in enumerate(channels):
+        n_merge = len(by_chan[chan])
+        if n_merge > 1:
+            lam[i, :] /= n_merge
+    return channels, lam
 
 
 def reduce_passive_system(
@@ -458,13 +523,20 @@ def integrate_eddy_ode(
     times: np.ndarray,
     psi_m: np.ndarray,
     a0: np.ndarray | None = None,
+    volt_m: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Exact-ZOH integration of ``da/dt + a/τ = −dΨ/dt`` along a time series.
+    """Exact-ZOH integration of ``da/dt + a/τ = −dΨ/dt + v`` along a series.
 
     ``psi_m`` (T, k) is the external flux each mode links, taken
     piecewise-linear between samples, for which the per-step update is exact::
 
         a_k = e^{−Δt/τ} a_{k−1} − (τ/Δt)(1 − e^{−Δt/τ}) ΔΨ
+
+    ``volt_m`` (T, k), when given, is a voltage-type mode drive (a galvanic
+    EMF that is NOT the derivative of a linked flux — e.g. the resistive term
+    of a case wired across its winding).  It is taken piecewise-constant at
+    the step midpoint value ``(v_t + v_{t−1})/2``, for which the update adds
+    ``τ(1 − e^{−Δt/τ}) v̄`` exactly.
 
     Returns ``(a (T, k), u (T, k))`` — the mode state and the per-step flux
     swing ``−ΔΨ``.  ``a[0] = a0`` (zeros when None).
@@ -477,6 +549,8 @@ def integrate_eddy_ode(
     u = np.zeros((n_t, k))
     if a0 is not None:
         a[0] = np.asarray(a0, dtype=np.float64)
+    if volt_m is not None:
+        volt_m = np.asarray(volt_m, dtype=np.float64)
     for t in range(1, n_t):
         dt = max(float(times[t] - times[t - 1]), 1e-6)
         decay = np.exp(-dt / tau)
@@ -484,6 +558,9 @@ def integrate_eddy_ode(
         dpsi = psi_m[t] - psi_m[t - 1]
         u[t] = -dpsi
         a[t] = decay * a[t - 1] + coeff * u[t]
+        if volt_m is not None:
+            vbar = 0.5 * (volt_m[t] + volt_m[t - 1])
+            a[t] = a[t] + tau * (1.0 - decay) * vbar
     return a, u
 
 
@@ -521,6 +598,7 @@ def raw_eddy_trajectory(
     *,
     ip_raw: np.ndarray | None = None,
     tau_scale: float | np.ndarray = 1.0,
+    volt_m_raw: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Mode eddy state at the labelled slices from RAW-cadence integration.
 
@@ -545,6 +623,11 @@ def raw_eddy_trajectory(
     the L/R eigenvectors invariant and maps every τ → τ/scale exactly; a
     per-mode array is the diagonal-in-eigenbasis approximation to a structured
     resistivity change (bounded, calibrated cross-shot, never per-slice).
+
+    ``volt_m_raw`` (T_raw, k) adds a voltage-type mode drive at the raw
+    cadence (see :func:`integrate_eddy_ode`) — the galvanic case-wiring term
+    the structure discovery may accept; flux-type wiring terms fold into the
+    drive columns and need no extra argument.
 
     Returns ``(a_labels (T_lab, k), a_raw (T_raw, k))`` in the L-orthonormal
     mode coordinates.
@@ -574,7 +657,9 @@ def raw_eddy_trajectory(
             psi_cell_raw[before] = 0.0
 
     tau_eff = basis.tau / np.asarray(tau_scale, dtype=np.float64)
-    a_raw, _u = integrate_eddy_ode(tau_eff, raw_times, psi_coil + psi_cell_raw)
+    a_raw, _u = integrate_eddy_ode(
+        tau_eff, raw_times, psi_coil + psi_cell_raw, volt_m=volt_m_raw
+    )
     a_labels = np.empty((label_times.size, basis.n_modes))
     for m in range(basis.n_modes):
         a_labels[:, m] = np.interp(label_times, raw_times, a_raw[:, m])
@@ -585,6 +670,11 @@ def save_circuit_system(path: Path | str, system: PassiveCircuitSystem) -> None:
     """Persist a campaign circuit system (the L build is minutes of kernels)."""
     import json  # noqa: PLC0415
 
+    extra = (
+        {"section_scale": system.section_scale}
+        if system.section_scale is not None
+        else {}
+    )
     np.savez_compressed(
         path,
         circuits=system.circuits,
@@ -600,6 +690,7 @@ def save_circuit_system(path: Path | str, system: PassiveCircuitSystem) -> None:
             json.dumps(system.case_channel_row).encode(), dtype=np.uint8
         ),
         resistivity=np.float64(system.resistivity),
+        **extra,
     )
 
 
@@ -622,6 +713,7 @@ def load_circuit_system(path: Path | str) -> PassiveCircuitSystem:
                 for k, v in json.loads(z["case_channel_row"].tobytes()).items()
             },
             resistivity=float(z["resistivity"]),
+            section_scale=(z["section_scale"] if "section_scale" in z.files else None),
         )
 
 
@@ -860,6 +952,7 @@ __all__ = [
     "PassiveCircuitSystem",
     "PassiveEigenbasis",
     "TemporalOperator",
+    "build_drive_linkage",
     "build_passive_circuit_system",
     "build_passive_eigenbasis",
     "integrate_eddy_ode",
