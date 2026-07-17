@@ -488,3 +488,49 @@ def test_torax_crosscheck_circular_psi_evolution():
     scale = float(np.sqrt(np.mean(d_torax**2)))
     assert scale > 0
     assert rms / scale < 0.01  # solver-formulation agreement vs TORAX
+
+
+def test_short_interval_prediction_is_consistent_with_the_source_fit():
+    """End-to-end (geometry → diffusion → prediction → projection) on a
+    MAST-sign equilibrium: over a short, quiet interval the predicted
+    coefficients must stay close to the source fit's own — the zero-
+    innovation contract that catches amplitude and flux-sign defects in the
+    prediction chain (both measured failure modes collapsed c_pred to ~0).
+    """
+    from imas_ambix.latent.current_diffusion import (
+        basis_projection_images,
+        diffuse_psi,
+        predicted_current,
+        project_coefficients,
+    )
+
+    grid, table = _interior_limiter_fixture()
+    ip = 4.0e5
+    i_pf = np.array([-8.0e4, -8.0e4])
+    lf, _, _ = _ladder_slice(grid, table, i_pf, ip)
+    geo = flux_surface_geometry(
+        lf.result.psi,
+        grid,
+        coeffs=lf.coeffs,
+        ip_amperes=ip,
+        n_p=1,
+        n_f=1,
+        nonneg=True,
+        b_phi0=1.0,
+    )
+    assert geo is not None and geo.flux_sign == -1.0  # the MAST-sign branch
+    eta = EtaProfile(eta0=5.0e-8, contrast=1.5, shape=1.5)
+    t = np.linspace(0.0, 0.02, 24)
+    out = diffuse_psi(geo, eta, t_grid=t, ip_of_t=np.full(t.size, ip))
+    pred = predicted_current(geo, out["psi_face"][-1], out["psidot_face"], eta)
+    # the dissipative parallel channel must be positive where current flows
+    assert float(np.median(np.sign(pred["j_par_b"]))) > 0
+    images = basis_projection_images(geo, geo.s_k, n_p=1, n_f=1, nonneg=True)
+    c_pred = project_coefficients(
+        geo, images, pred["j_tor"], pred["j_par_b"], nonneg=True
+    )
+    assert c_pred is not None
+    c_fit = np.asarray(lf.coeffs, dtype=np.float64)
+    # 20 ms at constant Ip barely moves the profile — the prediction must
+    # carry the fit's own amplitude (not collapse toward zero)
+    assert abs(c_pred.sum() - c_fit.sum()) < 0.35 * c_fit.sum()

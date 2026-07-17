@@ -192,27 +192,31 @@ class FluxSurfaceGeometry:
     def enclosed_current(self, psi_face: np.ndarray) -> np.ndarray:
         """I(ρ̂) on faces from the flux gradient (the Ampère identity).
 
-        The gradient is recovered by the exact telescoping inverse of the
-        trapezoid rule anchored at the axis regularity (ψ′(0) = 0):
-        ψ′_{k+1} = 2(ψ_{k+1} − ψ_k)/Δ − ψ′_k.  This makes the
-        construction → evolution → read round trip exact for the identity-
-        consistent initial state (a central/one-sided difference read lags a
-        ramp-driven edge skin layer by up to ~10% of Ip).
+        Built from the SCHEME'S OWN stable discrete fluxes: the midpoint
+        gradients (ψ_{i+1} − ψ_i)/Δ with midpoint-averaged D and F give the
+        enclosed current at cell centres, averaged back onto interior faces
+        (axis exactly 0; edge linearly extrapolated).  A pointwise gradient
+        inversion (telescoping) is exact for the constructed initial state
+        but amplifies odd-even components of evolved states into current
+        oscillations (measured 6.7× RMS corruption on real geometry) — the
+        midpoint read is second-order and unconditionally stable.
         """
         psi = np.asarray(psi_face, dtype=np.float64)
         drho = float(self.rho_face[1] - self.rho_face[0])
-        grad = np.zeros_like(psi)
-        dpsi = 2.0 * np.diff(psi) / drho
-        # telescoping: grad[k+1] = dpsi[k] − grad[k], grad[0] = 0
-        signs = (-1.0) ** np.arange(dpsi.size)
-        grad[1:] = signs * np.cumsum(signs * dpsi)
-        return (
+        d_mid = 0.5 * (self.d_face[:-1] + self.d_face[1:])
+        f_mid = 0.5 * (self.f_face[:-1] + self.f_face[1:])
+        i_mid = (
             self.flux_sign
-            * grad
-            * self.d_face
-            * self.f_face
+            * d_mid
+            * (np.diff(psi) / drho)
+            * f_mid
             / (self.phi_b * _16PI3 * MU0)
         )
+        i_face = np.empty_like(psi)
+        i_face[0] = 0.0
+        i_face[1:-1] = 0.5 * (i_mid[:-1] + i_mid[1:])
+        i_face[-1] = 1.5 * i_mid[-1] - 0.5 * i_mid[-2]
+        return i_face
 
 
 def _core_mask(
@@ -639,7 +643,12 @@ def predicted_current(
 
     ``j_tor`` = dI/dS with dS = vpr·⟨1/R⟩·dρ̂/2π (the flux-surface-averaged
     toroidal current density, Felici Eq. 6.20); ``j_par_b`` = the OHMIC
-    ⟨J·B⟩ = σ∥·⟨E·B⟩, ⟨E·B⟩ = ψ̇·F·⟨1/R²⟩/2π (ψ̇ per-radian → /2π).
+    ⟨J·B⟩ = σ∥·⟨E·B⟩ with ⟨E·B⟩ = flux_sign·ψ̇·F·⟨1/R²⟩/2π — the
+    ``flux_sign`` factor makes the dissipative channel POSITIVE for a
+    positive normalised current in either flux convention (on the MAST-sign
+    equilibria ψ̇ < 0 during consumption; without the factor the ohmic
+    target flips sign and a non-negative projection can only reach it by
+    annihilating the profile — the measured collapse mode).
     """
     i_face = geo.enclosed_current(psi_face)
     spr_cell = geo.vpr_cell * geo.inv_r_cell / _TWO_PI
@@ -647,7 +656,7 @@ def predicted_current(
     j_tor = np.diff(i_face) / (drho * np.clip(spr_cell, 1e-30, None))
     psidot_cell = 0.5 * (psidot_face[:-1] + psidot_face[1:])
     sigma_cell = 1.0 / eta(geo.psi_n_cell)
-    e_dot_b = psidot_cell * geo.f_cell * geo.g3_cell / _TWO_PI
+    e_dot_b = geo.flux_sign * psidot_cell * geo.f_cell * geo.g3_cell / _TWO_PI
     j_par_b = sigma_cell * e_dot_b
     return {"i_face": i_face, "j_tor": j_tor, "j_par_b": j_par_b}
 
