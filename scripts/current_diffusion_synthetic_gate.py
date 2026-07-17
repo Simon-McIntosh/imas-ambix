@@ -216,6 +216,13 @@ def fit_sequence(job: tuple) -> dict:
             warm = f.jphi_flat
         spine_fits.append(f)
 
+    arm = str(args_d.get("arm", "coeff"))
+    if arm in ("beta-sep", "beta-sep-oracle"):
+        dyn_fits = _beta_sep_arm(
+            campaign, grid, sidecar, seq, spine_fits, eta, fit_kw, args_d, w
+        )
+        return _score_rows(seq, spine_fits, dyn_fits, grid, t0)
+
     # arm 2: diffusion-chained.  chain_mode 'pass1' evolves the PREVIOUS
     # SPINE fit (no feedback — each interval restarts from the static chain,
     # so null-direction corrections cannot accumulate); 'sequential' evolves
@@ -271,7 +278,104 @@ def fit_sequence(job: tuple) -> dict:
         )
         dyn_fits.append(f2 if f2.scored else spine_fits[j])
 
-    # score the p′-group current fraction per slice against the exact truth
+    return _score_rows(seq, spine_fits, dyn_fits, grid, t0)
+
+
+def _beta_sep_arm(
+    campaign, grid, sidecar, seq, spine_fits, eta, fit_kw, args_d, w
+) -> list:
+    """βp-separation arm: ledger-li + moment rows refit of every slice.
+
+    ``beta-sep`` emulates the full real-data pipeline on the synthetic
+    payloads (ledger chained over the SPINE fits, moment read from each
+    fit's own iterate).  ``beta-sep-oracle`` swaps the target for the exact
+    truth βp (sensitivity on the truth state) at the base σ — the channel's
+    information ceiling with a perfect ledger and moment read.
+    """
+    from imas_ambix.latent.current_diffusion import beta_p_coeff_sensitivity
+    from scripts.current_diffusion_gate_eval import _beta_separation_rows
+
+    times = np.asarray(seq["times"], dtype=np.float64)
+    ip_seq = np.asarray(seq["ip_seq"], dtype=np.float64)
+    sigma0 = float(args_d.get("beta_sep_sigma", 0.1))
+    slices_s = []
+    geos_s = []
+    for r, f in zip(seq["rows"], spine_fits, strict=True):
+        slices_s.append(
+            {"fit": f, "payload": r["truth"].to_payload(), "time_s": r["time_s"]}
+        )
+        geo = None
+        if f.scored and f.psi is not None and f.coeffs:
+            geo = flux_surface_geometry(
+                f.psi,
+                grid,
+                coeffs=np.asarray(f.coeffs, dtype=np.float64),
+                ip_amperes=abs(float(f.ip_amperes)),
+                n_p=3,
+                n_f=3,
+                nonneg=True,
+                n_rho=int(args_d["n_rho"]),
+            )
+        geos_s.append(geo)
+    beta_rows, _diag = _beta_separation_rows(
+        grid,
+        campaign.table,
+        sidecar,
+        slices_s,
+        geos_s,
+        eta,
+        raw_times=times,
+        ip_raw_amp=ip_seq,
+        n_sub=int(args_d["n_sub_steps"]),
+        par_weight=float(args_d["par_weight"]),
+        ledger_li=True,
+        swing="floop",
+        li3_sane_max=1.5,
+        f_ni=0.0,
+        sigma_moment=sigma0,
+        n_p=3,
+        n_f=3,
+        nonneg=True,
+    )
+    if str(args_d.get("arm")) == "beta-sep-oracle":
+        for j, r in enumerate(seq["rows"]):
+            if beta_rows[j] is None:
+                continue
+            truth = r["truth"]
+            sens_t = beta_p_coeff_sensitivity(
+                truth.psi,
+                grid,
+                float(np.asarray(seq["ip_seq"])[j]),
+                n_p=3,
+                n_f=3,
+                nonneg=True,
+            )
+            if sens_t is None:
+                beta_rows[j] = None
+                continue
+            t_true = float(sens_t @ np.asarray(r["coeffs_true"], dtype=np.float64))
+            _tgt, sens, _sig = beta_rows[j]
+            beta_rows[j] = (t_true, sens, sigma0)
+    dyn_fits = []
+    for j in range(len(seq["rows"])):
+        if beta_rows[j] is None or w <= 0:
+            dyn_fits.append(spine_fits[j])
+            continue
+        b_t, b_s, b_sig = beta_rows[j]
+        f2 = fit_and_read_slice(
+            grid,
+            campaign.table,
+            slices_s[j]["payload"],
+            warm_jphi=spine_fits[j].jphi_flat if spine_fits[j].scored else None,
+            beta_sep_prior=(b_t, b_s, b_sig / w),
+            **fit_kw,
+        )
+        dyn_fits.append(f2 if f2.scored else spine_fits[j])
+    return dyn_fits
+
+
+def _score_rows(seq, spine_fits, dyn_fits, grid, t0) -> dict:
+    """Score the p′-group current fraction per slice against the exact truth."""
     r_cells = grid.flat_r[grid.cells]
     out_rows = []
     for r, fs, fd in zip(seq["rows"], spine_fits, dyn_fits, strict=True):
@@ -336,6 +440,15 @@ def main() -> int:
     ap.add_argument("--n-sub-truth", type=int, default=80)
     ap.add_argument("--par-weight", type=float, default=1.0)
     ap.add_argument("--chain-mode", choices=("pass1", "sequential"), default="pass1")
+    ap.add_argument(
+        "--arm",
+        choices=("coeff", "beta-sep", "beta-sep-oracle"),
+        default="coeff",
+        help="temporal-prior arm: diffusion coefficient prior (the landed "
+        "form), ledger+moment βp separation, or its exact-target oracle "
+        "(channel information ceiling)",
+    )
+    ap.add_argument("--beta-sep-sigma", type=float, default=0.1)
     ap.add_argument("--split-bar", type=float, default=0.120)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--seed0", type=int, default=2000)
@@ -370,6 +483,8 @@ def main() -> int:
         "n_sub_steps": args.n_sub_steps,
         "par_weight": args.par_weight,
         "chain_mode": args.chain_mode,
+        "arm": args.arm,
+        "beta_sep_sigma": args.beta_sep_sigma,
     }
     with ProcessPoolExecutor(max_workers=args.workers, mp_context=ctx) as pool:
         fitted = list(pool.map(fit_sequence, [(s, args_d) for s in seqs]))
@@ -388,6 +503,8 @@ def main() -> int:
 
     result = {
         "arm": "current-diffusion-synthetic-split-recovery",
+        "prior_form": args.arm,
+        "beta_sep_sigma": args.beta_sep_sigma,
         "chain_mode": args.chain_mode,
         "eta_true": eta_true,
         "eta_arm": eta_arm,

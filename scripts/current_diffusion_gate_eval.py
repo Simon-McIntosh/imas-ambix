@@ -876,6 +876,18 @@ def main() -> int:
         help="log10(eta0 [Ohm.m]), contrast, shape — cross-shot frozen "
         "(fit on tune with scripts/current_diffusion_eta_fit.py)",
     )
+    ap.add_argument(
+        "--prior-form",
+        choices=("coeff", "beta-sep", "beta-mom"),
+        default="coeff",
+        help="pass-2 temporal prior: diffusion coefficient prior (landed "
+        "form), ledger-li + moment βp separation, or the moment-only "
+        "ablation (li from the fit itself — isolates the ledger channel)",
+    )
+    ap.add_argument("--beta-sep-sigma", type=float, default=0.1)
+    ap.add_argument("--swing", choices=("fit", "floop"), default="floop")
+    ap.add_argument("--li3-sane-max", type=float, default=1.5)
+    ap.add_argument("--f-ni", type=float, default=0.0)
     ap.add_argument("--b-phi0", type=float, default=0.55)
     ap.add_argument("--n-rho", type=int, default=24)
     ap.add_argument("--n-sub-steps", type=int, default=24)
