@@ -216,11 +216,18 @@ def fit_sequence(job: tuple) -> dict:
             warm = f.jphi_flat
         spine_fits.append(f)
 
-    # arm 2: diffusion-chained — the prior centre evolves the PREVIOUS spine
-    # fit (pass-1-driven, mirroring the real-data harness; no feedback)
+    # arm 2: diffusion-chained.  chain_mode 'pass1' evolves the PREVIOUS
+    # SPINE fit (no feedback — each interval restarts from the static chain,
+    # so null-direction corrections cannot accumulate); 'sequential' evolves
+    # the previous CONSTRAINED fit — split corrections compound along the
+    # shot, guarded per-slice by the P1 cost rule (a constrained fit that
+    # degrades the whitened cost is rejected back to the spine fit).
+    chain_mode = str(args_d.get("chain_mode", "pass1"))
     dyn_fits = [spine_fits[0]]
     for j in range(1, len(seq["rows"])):
-        f_prev = spine_fits[j - 1]
+        f_prev = dyn_fits[j - 1] if chain_mode == "sequential" else spine_fits[j - 1]
+        if not f_prev.scored:
+            f_prev = spine_fits[j - 1]
         c_pred = None
         if f_prev.scored and f_prev.psi is not None and f_prev.coeffs:
             geo = flux_surface_geometry(
@@ -328,6 +335,7 @@ def main() -> int:
     ap.add_argument("--n-rho-truth", type=int, default=40)
     ap.add_argument("--n-sub-truth", type=int, default=80)
     ap.add_argument("--par-weight", type=float, default=1.0)
+    ap.add_argument("--chain-mode", choices=("pass1", "sequential"), default="pass1")
     ap.add_argument("--split-bar", type=float, default=0.120)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--seed0", type=int, default=2000)
@@ -361,6 +369,7 @@ def main() -> int:
         "n_rho": args.n_rho,
         "n_sub_steps": args.n_sub_steps,
         "par_weight": args.par_weight,
+        "chain_mode": args.chain_mode,
     }
     with ProcessPoolExecutor(max_workers=args.workers, mp_context=ctx) as pool:
         fitted = list(pool.map(fit_sequence, [(s, args_d) for s in seqs]))
@@ -379,6 +388,7 @@ def main() -> int:
 
     result = {
         "arm": "current-diffusion-synthetic-split-recovery",
+        "chain_mode": args.chain_mode,
         "eta_true": eta_true,
         "eta_arm": eta_arm,
         "eta_arm_is_oracle": eta_arm == eta_true,

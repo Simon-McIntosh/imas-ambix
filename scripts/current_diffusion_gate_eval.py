@@ -475,6 +475,7 @@ def run_eta_fit(shot_results: list[dict], args) -> dict:
             )
             intervals.append(
                 {
+                    "shot": int(sr["shot"]),
                     "geo": geo,
                     "t0": m["times"][j],
                     "t1": m["times"][j + 1],
@@ -486,12 +487,20 @@ def run_eta_fit(shot_results: list[dict], args) -> dict:
             )
     if not intervals:
         raise SystemExit("no usable intervals for the eta fit")
-    meas_scale = np.nanmedian(
-        [abs(iv["d_psi_meas"]) for iv in intervals if np.isfinite(iv["d_psi_meas"])]
-    )
+    # the measured surface-flux anchor works at the PER-SHOT SPAN: single-
+    # interval boundary-flux differences at ~20 ms label cadence are read-
+    # noise-dominated (the fit-read flux jitters slice to slice), and letting
+    # them into the objective rails eta at the relaxed-attractor corner; the
+    # span-integrated swing rises above the read noise.
+    span_meas: dict[int, float] = {}
+    for iv in intervals:
+        if np.isfinite(iv["d_psi_meas"]):
+            span_meas[iv["shot"]] = span_meas.get(iv["shot"], 0.0) + iv["d_psi_meas"]
     meas_scale = (
-        float(meas_scale) if np.isfinite(meas_scale) and meas_scale > 0 else 1.0
+        float(np.median([abs(v) for v in span_meas.values()])) if span_meas else 1.0
     )
+    if not np.isfinite(meas_scale) or meas_scale <= 0:
+        meas_scale = 1.0
     spine, _sha = frozen_spine_config()
     isolve = spine["interior_solve"]
     n_p, n_f = int(isolve["n_p"]), int(isolve["n_f"])
@@ -502,7 +511,8 @@ def run_eta_fit(shot_results: list[dict], args) -> dict:
 
     def objective(x: np.ndarray) -> float:
         eta = EtaProfile.from_vector(x)
-        err_c, err_b = [], []
+        err_c = []
+        span_pred: dict[int, float] = {}
         for iv in intervals:
             out = predict_interval(
                 iv["geo"],
@@ -524,9 +534,14 @@ def run_eta_fit(shot_results: list[dict], args) -> dict:
             if c_pred.size == iv["c_next"].size:
                 err_c.append(float(np.mean((c_pred - iv["c_next"]) ** 2)))
             if np.isfinite(iv["d_psi_meas"]):
-                err_b.append(
-                    ((out["budget"]["d_psi_bdry"] - iv["d_psi_meas"]) / meas_scale) ** 2
+                span_pred[iv["shot"]] = (
+                    span_pred.get(iv["shot"], 0.0) + out["budget"]["d_psi_bdry"]
                 )
+        err_b = [
+            ((span_pred[k] - span_meas[k]) / meas_scale) ** 2
+            for k in span_pred
+            if k in span_meas
+        ]
         val = float(np.mean(err_c)) + bw * (float(np.mean(err_b)) if err_b else 0.0)
         trace.append({"x": [float(v) for v in x], "objective": val})
         return val
