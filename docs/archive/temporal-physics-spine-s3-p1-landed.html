@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="temporal-physics-spine-s3-p1-landed">
+  <meta name="plan-title" content="Temporal Physics Spine — §3 P1 record (dynamic passive spine)">
+  <meta name="plan-summary" content="P1 record: the dynamic passive spine is built, test-pinned, and gated. Held-out verdict (n=128, spine byte-exact): ramp-up LCFS improves CI-clear (paired −0.19 cm [−0.40, −0.03]) — the FIRST temporal signal to convert into referee-measured skill on this problem (the R2 free-form learner moved nothing); LCFS non-inferior (Δskill −0.005, CI within margin); reseed clean (0/0). Formal gate FAILS through the axis leg (Δskill −0.30, median 6.15→6.95 cm) — attributed to the uncalibrated resistance magnitude: the geometry-exact L is trustworthy but the efm bounding-box R underestimates resistance, overpredicting eddy magnitude and persistence (~10×; axis parity restored at R×4 on the tune sweep). Next: vacuum-trained passive-resistance extraction (85-shot coil-only pool), then re-gate.">
+  <meta name="plan-informs" content="temporal-physics-spine">
+  <title>temporal-physics-spine §3 P1 — dynamic passive spine, landed record</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>§3 P1 — dynamic passive spine: circuit-constrained eddies (landed record)</h1>
+  <p class="lede"><strong>Verdict (2026-07-17): mechanism PROVEN, formal gate FAIL on the
+  axis leg, failure attributed to the uncalibrated resistance magnitude.</strong> Held-out
+  n=128, frozen spine byte-exact (drift 0.0): ramp-up LCFS improves CI-clear — paired
+  per-shot −0.19 cm [−0.40, −0.03] — the first temporal information to convert into
+  referee-measured equilibrium skill on this problem (the R2 free-form learner converted
+  none). LCFS non-inferior (Δskill −0.005, CI [−0.021, +0.008], margin −0.05); reseed 0/0;
+  coverage full (0 masked). The gate fails through axis non-inferiority (Δskill −0.30 CI
+  [−1.30, −0.07]; median 6.15 → 6.95 cm) — the persistent, magnitude-overpredicted eddy
+  claim biases the interior null. Next: vacuum-trained passive-resistance extraction, then
+  re-gate.</p>
+
+  <h2>What was built</h2>
+  <ul>
+    <li><strong>Exact-by-geometry L matrix</strong> — the passive mutual inductance is now
+    the two-section flux linkage: the finite-area cylinder kernel integrates the source
+    cross-section analytically and the observer cross-section is averaged over a midpoint
+    sub-grid (<code>_section_grid</code> / <code>_linked_flux_columns</code>,
+    <code>imas_ambix/latent/temporal_operator.py</code>) — the nova
+    <code>biot.Inductance</code> gridded source+target scheme, applied where the flux varies
+    materially across the element (vessel plates up to 0.24 × 0.42 m; small sections stay
+    centroid-linked). R combines per-filament toroidal-ring resistance with the
+    <code>xmult²</code> current-share weights. τ spectrum: slowest 35.9 ms (35.8
+    centroid-linked); fast modes −5…−10%.</li>
+    <li><strong>Raw-cadence circuit integration</strong> —
+    <code>integrate_eddy_ode</code> (factored exact-ZOH) +
+    <code>raw_eddy_trajectory</code>: the mode ODE integrates the full-shot 1 kHz measured
+    drives from the raw stream start (−2.5 s: solenoid −14 A, quiescent — the initial state
+    is exact, not a free DOF), covering the full precharge. The plasma column enters as
+    <code>d(M(t)·I_p(t))/dt</code> through the spine's time-varying cell-current history;
+    before the first label the flux pattern amplitude-follows the measured Rogowski Ip.
+    The label-cadence <code>a[0] = 0</code> defect is removed: at the first labelled slice
+    the coil-driven trajectory already carries ~600 kA gross vessel current.</li>
+    <li><strong>Trajectory constraint in the classical fit</strong> —
+    <code>SoftPriors.passive_prior_center / passive_prior_weight</code>
+    (<code>gs_solve.py</code>; identity rows on the whitened sidecar amplitudes, both LSQ
+    arms) + the <code>passive_prior</code> kwarg through
+    <code>fit_and_read_slice</code>. Weight 0 is byte-identical to the frozen spine
+    (test-pinned).</li>
+    <li><strong>Gate harness</strong> — <code>scripts/dynamic_passive_gate_eval.py</code>:
+    byte-exact frozen-spine pass 1 (paired baseline + plasma history), constrained pass 2
+    warm-started per slice, guarded single re-iteration (a degraded constrained pass is
+    rejected — re-driving the trajectory from prior-distorted fits is positive feedback,
+    measured on the smoke shot), paired-bootstrap scoring, regime designators, frozen-array
+    drift check.</li>
+    <li><strong>Tests</strong> — 9 new units (label-cadence reproduction, dense sub-step
+    pin of the raw path, pre-label Ip-following, τ-scale exactness, section-grid geometry,
+    far-field/reciprocity of the gridded linkage, zero-weight byte-identity, tight-prior
+    amplitude pinning in both profile arms); 26 pass.</li>
+  </ul>
+
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-dynamic-passive-physics.png"
+         alt="tau spectrum old vs new; measured drives with precharge; coil-driven eddy trajectory"
+         style="max-width:100%">
+    <figcaption>Left: L/R eigenmode spectrum under the gridded two-section linkage vs the
+    centroid-linked build. Middle: measured drives for shot 11774 — the raw stream starts at
+    −2.5 s with the machine quiescent, so integration covers the full solenoid precharge.
+    Right: the coil-driven eddy trajectory — ~600 kA gross vessel current is already flowing
+    at the first labelled slice, the state the per-slice static fit (and the label-cadence
+    <code>a[0]=0</code> feature) discarded.</figcaption>
+  </figure>
+
+  <h2>Calibration findings — feedback guard, weight regime, resistance scale</h2>
+  <p><strong>Constrained-refit feedback.</strong> The first single-shot smoke (w = 10,
+  unguarded iteration) exposed a failure mode worth recording: the trajectory prior at tight
+  weight dragged the per-slice fits (median cost 1.09 → 2.11, axis 5.4 → 20.1 cm), the
+  distorted plasma history then re-drove the trajectory (history shift 0.669), and the
+  re-iterated centers inflated further. Fix: a re-iteration whose constrained pass degrades
+  the median cost is rejected — the trajectory drives from the unconstrained pass-1 history.</p>
+  <p><strong>Weight regime (tune sweep, 64 slices, 4 shots).</strong> At w = 0.1 the
+  ramp-up LCFS improves CI-clear (−0.95 cm [−1.36, −0.74]) with reseeds improved
+  (0.047 vs 0.078) and axis/flat-top mildly touched; by w = 1 the "gain" grows to −4.3 cm
+  but axis degrades 4.8 → 19.4 cm and cost 0.75 → 1.81 — the fit capitulating to an
+  overpredicted magnitude; w = 3 breaks convergence (24/64 masked). The trajectory
+  DIRECTION carries genuine ramp-up information; its MAGNITUDE overshoots what the
+  Ip-anchored plasma columns can shield against.</p>
+  <p><strong>Magnitude diagnosis.</strong> The trajectory's whitened sensor claim is ~475σ
+  at the ramp-up slices, decaying to ~150σ at flat-top. Large vessel currents during the Ip
+  ramp are real physics (the vessel shields the ramping plasma flux — the measured signal is
+  the partially-cancelled sum), but the claim exceeds what the anchored plasma can cancel.
+  The physically-motivated culprit is the resistance model: the efm passive elements are
+  BOUNDING BOXES, so the ring-resistance area <code>w·h</code> overestimates the true steel
+  cross-section — R underestimated, eddies too large and too persistent. The bounded
+  cross-shot resistance scale (the plan's anticipated calibratable) is the lever; swept as
+  stage 2.</p>
+
+  <h2>Gate results</h2>
+  <h3>Tune sweep (4 shots, 64 slices, leakage-free)</h3>
+  <table>
+    <thead><tr><th>w</th><th>R scale</th><th>ramp-up Δ [cm] (CI)</th><th>flat-top dyn/spine [cm]</th><th>axis dyn/spine [cm]</th><th>cost dyn/spine</th><th>reseed dyn/spine</th></tr></thead>
+    <tbody>
+      <tr><td><strong>0.1</strong></td><td><strong>1</strong></td><td><strong>−0.95 [−1.36, −0.74]</strong></td><td>6.95 / 6.61</td><td>5.1 / 4.8</td><td>0.80 / 0.75</td><td><strong>0.047 / 0.078</strong></td></tr>
+      <tr><td>0.3</td><td>1</td><td>−1.61 [−2.03, −1.39]</td><td>7.46 / 6.61</td><td>9.7 / 4.8</td><td>0.95 / 0.75</td><td>0.031 / 0.078</td></tr>
+      <tr><td>1.0</td><td>1</td><td>−4.30 [−5.04, −3.74]</td><td>8.42 / 6.61</td><td>19.4 / 4.8</td><td>1.81 / 0.75</td><td>0.000 / 0.078</td></tr>
+      <tr><td>3.0</td><td>1</td><td>+8.30 (24/64 masked)</td><td>8.31 / 6.61</td><td>15.4 / 3.5</td><td>1.57 / 0.77</td><td>0.000 / 0.125</td></tr>
+      <tr><td>0.3</td><td>2</td><td>−1.11 [−1.53, −0.89]</td><td>6.86 / 6.61</td><td>5.9 / 4.8</td><td>0.81 / 0.75</td><td>0.078 / 0.078</td></tr>
+      <tr><td>0.3</td><td>4</td><td>−0.75 [−1.15, −0.53]</td><td>6.85 / 6.61</td><td><strong>4.9 / 4.8</strong></td><td>0.79 / 0.75</td><td>0.125 / 0.078</td></tr>
+      <tr><td>0.3</td><td>8</td><td>−0.31 [−0.53, −0.19]</td><td>6.82 / 6.61</td><td>4.8 / 4.8</td><td>0.77 / 0.75</td><td>0.125 / 0.078</td></tr>
+      <tr><td>1.0</td><td>4</td><td>−0.96 [−1.39, −0.73]</td><td>6.77 / 6.61</td><td>7.2 / 4.8</td><td>0.84 / 0.75</td><td>0.125 / 0.078</td></tr>
+      <tr><td>1.0</td><td>8</td><td>−0.62 [−1.05, −0.41]</td><td>6.81 / 6.61</td><td>5.1 / 4.8</td><td>0.80 / 0.75</td><td>0.125 / 0.078</td></tr>
+    </tbody>
+  </table>
+  <p>Every configuration improves ramp-up CI-clear — the trajectory direction is real
+  information. Axis parity requires either a weak pull (w = 0.1) or a ~4× resistance scale
+  at moderate weight — the two ways of shrinking an overpredicted magnitude. (w = 0.1,
+  R×1) was the only configuration satisfying all three pre-declared gate criteria on tune
+  (ramp CI-clear, axis/flat-top near-parity, reseed not degraded) and was frozen for the
+  single held-out run.</p>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-dynamic-passive-tune-sweep.png"
+         alt="tune sweep: ramp-up delta CI per config; axis median vs config" style="max-width:100%">
+    <figcaption>The tune sweep. Left: paired ramp-up ΔLCFS with 95% CI — every config
+    improves CI-clear. Right: the axis cost of magnitude overprediction, and its two cures
+    (weak weight, or resistance ×4).</figcaption>
+  </figure>
+
+  <h3>Held-out gate (8 shots, n = 128, frozen config w = 0.1, R×1)</h3>
+  <ul>
+    <li><strong>Spine arm byte-exact</strong>: drift vs the frozen D2 eval arrays = 0.0
+    (max and median).</li>
+    <li><strong>Ramp-up: PASS</strong> — paired per-shot −0.19 cm, 95% CI [−0.40, −0.03]
+    clear of zero (dyn 8.32 vs spine 8.37 cm median).</li>
+    <li><strong>LCFS: non-inferior</strong> — Δskill −0.005, CI [−0.021, +0.008]
+    (margin −0.05); flat-top 3.12 vs 3.01 cm.</li>
+    <li><strong>Axis: FAIL</strong> — Δskill −0.30, CI [−1.30, −0.07]; median
+    6.15 → 6.95 cm. The uncalibrated persistent eddy claim biases the interior null —
+    the axis is exactly the quantity most exposed to an unresisted field bias.</li>
+    <li><strong>Reseed: PASS</strong> (0.0 / 0.0); coverage full (0 dyn-masked); cost
+    1.018 → 1.076.</li>
+  </ul>
+  <figure>
+    <img src="/imas-ambix/figures/temporal-physics-spine/fig-dynamic-passive-gate-eval.png"
+         alt="held-out gate: ramp-up and flat-top per shot, constraint pull" style="max-width:100%">
+    <figcaption>The held-out gate. Ramp-up improves CI-clear per the paired per-shot
+    bootstrap; flat-top LCFS is non-inferior; the constraint-pull panel shows the fit
+    accepting only ~9% of the trajectory's whitened magnitude — the data rejecting the
+    uncalibrated R, not the mechanism.</figcaption>
+  </figure>
+
+  <h3>Verdict and the road through</h3>
+  <p><strong>Qualified positive / formal gate FAIL.</strong> The mechanism is proven: the
+  first CI-clear referee-measured ramp-up improvement on this problem, produced by pure
+  deterministic physics with measured drives — where the R2 free-form learner converted 21%
+  of sensor misfit into zero referee skill. The formal gate fails through axis
+  non-inferiority, and the failure is attributed, not mysterious: the geometry-exact L is
+  right, the bounding-box R is not, and the data (tune sweep, constraint-pull diagnostics,
+  axis parity at R×4) points at a ~4× resistance underestimate. The road through is the
+  lead-directed vacuum-trained resistance extraction: 85 coil-only shots (48 preludes + 37
+  dedicated vacuum), pure eddy signal, L exact, drives measured, 8 measured case-current
+  channels as direct supervision — then re-gate P1 with the calibrated R.</p>
+
+  <h2>Decisions honoured</h2>
+  <ul>
+    <li><code>passive-constraint-form</code> = soft-prior-tight (locked): the trajectory
+    enters as a weighted soft prior; the weight is swept on the tune split.</li>
+    <li><code>current-diffusion-substrate</code> = in-house-torax-informed (P2; untouched
+    here).</li>
+  </ul>
+</main>
+</body>
+</html>

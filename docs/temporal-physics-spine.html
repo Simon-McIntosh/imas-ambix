@@ -21,7 +21,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-17">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
+<meta name="plan-impl" content="0.33">
 </head>
 <body>
 <main class="plan-doc">
@@ -126,21 +127,21 @@
     residual corrector on the dynamic spine — the exact R0→R1 loop, repeated for time.</figcaption>
   </figure>
 
-  <h3>P1 — dynamic passive spine (the highest-yield rung; attacks ramp-up directly)</h3>
-  <p>Replace the per-slice static passive fit with circuit-integrated eddy trajectories.
-  Two-pass structure per shot: <strong>pass 1</strong> = the frozen spine as-is (static
-  passive ridge) to obtain a plasma-current history; <strong>pass 2</strong> = integrate the
-  L/R eigenmode ODE at raw cadence, driven by measured coil currents and the pass-1 plasma
-  history, then refit every slice with the passive amplitudes constrained to the trajectory
-  (form per the open <code>passive-constraint-form</code> decision: tight soft prior vs hard
-  pin); iterate once if the plasma history moves materially. Free DOF, deliberately few and
-  physical: a bounded per-mode-group resistance scale (the eigenbasis is built at nominal
-  steel resistivity — cross-shot calibratable, mirroring the k_sol precedent) and the initial
-  mode state at the Ip threshold. <strong>Gate P1</strong> on the standard harness: ramp-up
-  LCFS median beats the frozen D2 spine (8.37 cm) with the paired CI clear, flat-top
-  non-inferiority (−0.05 skill margin), reseed rate not degraded. The 5 cm G2 ramp-up bar is
-  the aspiration, not the P1 gate — P1's job is a CI-clear improvement attributable to the
-  circuit dynamics.</p>
+  <h3>P1 — dynamic passive spine
+    <span class="badge badge-shipped">✓ landed 2026-07-17 — qualified verdict</span></h3>
+  <p class="landed-summary">
+  Built and gated: section-averaged two-section L (nova gridded linkage), raw-cadence
+  circuit integration from the −2.5 s quiescent stream start (~600 kA gross vessel current
+  already flowing at the first label — the <code>a[0]=0</code> defect removed), trajectory
+  soft prior in the classical fit (weight 0 byte-identical, test-pinned). Held-out n=128,
+  spine byte-exact: <strong>ramp-up improves CI-clear</strong> (paired −0.19 cm
+  [−0.40, −0.03]) — the first temporal information to convert into referee skill; LCFS
+  non-inferior; reseed 0/0; <strong>formal gate FAILS on axis</strong> (Δskill −0.30, median
+  6.15→6.95 cm), attributed to a ~4× resistance underestimate (efm bounding-box sections;
+  axis parity restored at R×4 on tune). Full record:
+  <a href="archive/temporal-physics-spine-s3-p1-landed.html">§3 P1 landed</a>
+  (commits <code>fb72b76</code>, <code>af2b5d8</code>, <code>7c19856</code>). Next: the
+  vacuum-trained resistance extraction (§6), then re-gate.</p>
 
   <h3>P2 — current-diffusion temporal prior (TORAX-inspired, right-sized)</h3>
   <p>Between labelled slices, evolve the profile-coefficient state under a 1D
@@ -252,17 +253,43 @@
     fabricates a flux step. Known limitation: P2–P5 up/down pairs are un-separable in
     operating data (coil-audit finding) — a shared-mode drive error the bounded resistance
     scale cannot absorb; it lands in the trajectory-prior residual by design.</li>
-    <li><strong>Observations (per labelled slice):</strong> 78 magnetic probes + 46 flux
-    loops (campaign mp78-fl46), whitened by the robust channel scales (the observation
-    covariance), frozen static calibration applied.</li>
-    <li><strong>Available but unused — the P2 on-ramp:</strong> the 46 flux loops at raw
-    cadence give the measured surface loop voltage (V_loop = dΨ_loop/dt) — the
-    current-diffusion boundary condition; <code>ane/density</code> (line-integrated n_e) is
+    <li><strong>Observations (per labelled slice):</strong> 73 measured magnetics — 59
+    B-probes (32 ccbv + 14 obr + 13 obv) + 14 fl_* flux loops — whitened by the robust
+    channel scales (the observation covariance), frozen static calibration applied.</li>
+    <li><strong>Available but unused — the calibration and P2 on-ramp:</strong> 8 measured
+    <code>*_case_current</code> channels (p2l/p2u/p3l/p3u/p4l/p4u/p5l/p5u) are DIRECT
+    time-resolved measurements of passive-structure (coil-case) currents — supervised
+    targets for the circuit model that no rung exploits dynamically; the 14 flux loops at
+    raw cadence give the measured surface loop voltage (V_loop = dΨ_loop/dt) — the
+    current-diffusion boundary condition (no measured V_loop channel exists; the ESM
+    reconstruction V_loop is firewalled); <code>ane/density</code> (line-integrated n_e) is
     loaded per slice and unused by the fit; <code>ama</code> n=2 / n-odd mode amplitude,
     frequency and signal (6 channels) are an MHD-activity flag no rung consumes yet; Thomson
-    T<sub>e</sub> stays gated (<code>moment_priors.TE_DATA_GATE</code>) — η(ψ_N) remains the
-    explicit low-DOF unknown in P2.</li>
+    T<sub>e</sub> is absent from the corpus (<code>moment_priors.TE_DATA_GATE</code>) —
+    η(ψ_N) remains the explicit low-DOF unknown in P2.</li>
   </ul>
+
+  <h3>Vacuum-trained passive resistances (data-led R discovery — lead directive)</h3>
+  <p>The tune-sweep magnitude finding (trajectory eddies overpredicted; axis parity restored
+  at a ~4× resistance scale) makes the case the lead drew: <strong>R is not knowable from
+  geometry</strong> — the vessel is a complex 3-D structure and the efm bounding boxes
+  overestimate conducting cross-sections — but it IS knowable from data, separately from the
+  ML pipeline. The training set already exists and is vetted: the coil-only pool of the
+  solenoid-attribution work — <strong>85 shots (48 fleet preludes + 37 dedicated vacuum
+  shots, ~111k coil-only slices)</strong> — where every fleet shot's −2.5 s prelude carries
+  the full CS precharge swing and the dedicated vacuum shots run whole coil programs with no
+  plasma ever formed. With no plasma, measured − coil-vacuum is PURE eddy signal; L is exact
+  from geometry; the drives are measured; the only unknowns are a few bounded resistance DOF
+  (global scale → per-mode-group → per-region resistivity, in that identifiability order).
+  The static coil calibration deliberately fit dI/dt-QUIET intervals (gains), so the
+  transient decays that encode τ = L/R are untouched information. Two supervision channels:
+  the 73 magnetics (the eddy field), and the 8 measured <code>*_case_current</code> streams
+  — direct passive-conductor current measurements the circuit model must reproduce
+  outright. This is classical bounded parameter estimation (the k_sol precedent, extended
+  from gains to dynamics) — done standalone so the ML rungs inherit a calibrated R rather
+  than re-learning it; if the post-calibration vacuum residuals still show structured
+  dynamics, that residual is the disciplined SINDy slot (missing circuits, 3-D current
+  paths).</p>
 
   <h3>SINDy — where sparse identification is complementary, and where it is not</h3>
   <p><strong>Not at P1.</strong> The passive circuit dynamics are linear with structure known
@@ -300,6 +327,16 @@
       </p>
     <p class="r-dec-rat"></p>
     </div>
+<div class="r-dec" data-key="passive-resistance-source" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Where do the passive resistances come from? (R is not knowable from geometry — 3-D vessel, bounding-box sections)</p>
+    <p class="r-dec-ctx">P1 tune+eval evidence: eddy magnitude overpredicted ~4-10×; axis parity restored at R×4; the fit accepts only ~9% of the trajectory&#x27;s whitened claim. The static coil calibration deliberately fit dI/dt-quiet intervals, so the transient decays that encode tau = L/R are untouched information.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="vacuum-trained-standalone">Standalone classical extraction from the coil-only pool (85 shots: 48 fleet preludes + 37 dedicated vacuum; pure eddy signal, L exact, drives measured, 8 measured case-current channels as direct supervision) — recommended: k_sol precedent extended from gains to dynamics; the ML rungs inherit a calibrated R instead of re-learning it</button>
+      <button class="r-opt" data-value="inside-ml-pipeline">Let P3&#x27;s residual learner absorb the resistance error (rejected as primary: blurs gate attribution and re-learns a knowable prior; stays as the safety net for what the vacuum fit cannot pin)</button>
+      <button class="r-opt" data-value="nominal-with-bounded-scale">Keep nominal steel resistivity with the single bounded cross-shot scale (the P1 fallback — measured insufficient: one scalar cannot carry the structure the tune sweep exposes)</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
 </section>
 
   <section data-reckon="research" id="research" class="r-research-list">
@@ -310,7 +347,7 @@
 
   <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-tps-01" data-status="open" data-tier="opus" data-written-by="reckon-create (f-leo-06 re-plan)" data-written-at="2026-07-17" data-recommends-skill="/reckon-ship temporal-physics-spine §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-tps-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create (f-leo-06 re-plan)" data-written-at="2026-07-17" data-recommends-skill="/reckon-ship temporal-physics-spine §3" data-resolved-at="2026-07-17T06:03:50+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">P1 — dynamic passive spine: circuit-constrained eddies in the per-slice fit</h4>
     <div class="r-fu-body"><p>The highest-yield rung and mostly built: promote the validated L/R eigenmode reduced model from an ML feature to a constraint inside the classical per-slice fit, with raw-cadence integration of the circuit ODE from measured drives. Two-pass fit → integrate → refit per shot; free DOF limited to bounded per-mode-group resistance scales + initial state. Gate on the standard harness: ramp-up LCFS beats the frozen D2 spine CI-clear, flat-top non-inferior. Resolves the <code>passive-constraint-form</code> decision with measured arms if the cheap option is taken.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -360,6 +397,59 @@ Done-when
      verdict recorded honestly either way
   3. Plan updated same-session: outcome + archive record, passive-constraint-form decision
      resolved from evidence, P2 followup written, this followup resolved</pre>
+    <p class="r-fu-outcome">§3 P1 landed (commits fb72b76, af2b5d8, 7c19856) — qualified verdict: held-out n=128 spine-byte-exact; ramp-up LCFS improves CI-clear (paired −0.19 cm [−0.40, −0.03], the first temporal signal to convert into referee skill); LCFS non-inferior; reseed 0/0; formal gate FAILS on the axis leg (Δskill −0.30, 6.15→6.95 cm) — attributed to ~4× resistance underestimate (bounding-box sections; axis parity at R×4 on tune). passive-constraint-form honoured as locked (soft prior; weight swept, w=0.1 frozen). Record: docs/archive/temporal-physics-spine-s3-p1-landed.html</p>
+    </article>
+<article class="r-fu" data-id="f-tps-02" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-17" data-recommends-skill="/reckon-ship temporal-physics-spine §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">P1b — vacuum-trained passive resistances, then re-gate the dynamic passive spine</h4>
+    <div class="r-fu-body"><p>The P1 gate failure is attributed to the resistance model, and the lead directs data-led discovery: the vessel is a complex 3-D structure whose resistances geometry cannot supply but the diagnostics can. Fit bounded resistance DOF (global → per-mode-group → per-region) on the coil-only pool (85 shots, ~111k slices: every fleet shot's −2.5 s prelude carries the full CS precharge swing; 37 dedicated vacuum shots run whole coil programs with no plasma). Supervision: 73 magnetics (measured − coil-vacuum = pure eddy signal) + the 8 measured *_case_current channels as direct passive-current targets. Then re-run the P1 gate with the calibrated R.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    temporal-physics-spine (http://localhost:8765/imas-ambix/temporal-physics-spine.html)
+Section: §3 (rung P1b — vacuum resistance extraction + re-gate) + §6
+Tier:    opus
+
+Context
+  Read docs/archive/temporal-physics-spine-s3-p1-landed.html FIRST. P1&#x27;s mechanism is
+  proven (ramp-up CI-clear) but the gate fails on axis, attributed to a ~4x resistance
+  underestimate (efm bounding-box cross-sections). Honour the passive-resistance-source
+  decision if locked; the recommended arm is the standalone vacuum-trained extraction.
+
+State to read
+  scripts/vacuum_coil_response_audit.py        (vetted coil-only pool machinery: fleet
+                                                preludes + dedicated vacuum shots, coil_only
+                                                mask, IP_VACUUM_KA; the static fit used
+                                                dI/dt-QUIET intervals — the transients are
+                                                untouched information)
+  imas_ambix/latent/artifacts/patch_gate/vacuum_coil_response_audit-solv4-vac.json
+                                               (the 85-shot pool: shots_used)
+  imas_ambix/latent/temporal_operator.py       (build_passive_eigenbasis section-averaged L;
+                                                integrate_eddy_ode / raw_eddy_trajectory —
+                                                tau_scale is the 1-DOF version of what this
+                                                rung generalises)
+  scripts/dynamic_passive_gate_eval.py         (raw_drive_streams; the re-gate harness)
+  imas_ambix/latent/data.py feature_schema     (8 *_case_current channels — direct passive
+                                                current measurements for supervision)
+
+Design constraints (non-decision)
+  - Identifiability ladder: global R scale -&gt; per-mode-group scales -&gt; per-region
+    resistivity multipliers (grouped by vessel region), each step gated by held-out vacuum
+    shots (BIC or CV) — never per-shot, never per-slice.
+  - Supervision: whitened magnetics eddy residual (measured − coil vacuum prediction) at
+    raw cadence on coil-only intervals, PLUS the measured case currents where the case
+    circuits are in the passive set (check classify_circuits roles per campaign).
+  - L stays geometry-exact (section-averaged linkage); only R DOF fit; bounded positive.
+  - Verify: post-fit vacuum residuals; if structured dynamics remain, that residual is the
+    SINDy slot (missing circuits / 3-D paths) — record, do not chase in this rung.
+  - Then RE-GATE: re-run scripts/dynamic_passive_gate_eval.py tune sweep (weight only) with
+    the calibrated R frozen; single held-out eval; the P1 gate criteria unchanged.
+
+Done-when
+  1. Resistance extraction implemented + unit-tested; calibrated R artifact committed with
+     provenance (pool, DOF ladder, held-out vacuum validation)
+  2. Vacuum held-out: eddy sensor residual and case-current reproduction reported
+     before/after calibration
+  3. P1 re-gate on the standard harness with calibrated R: verdict recorded honestly
+  4. Plan updated same-session: outcome + archive, passive-resistance-source resolved from
+     evidence, P2 followup written, this followup resolved</pre>
     </article>
 </section>
 
