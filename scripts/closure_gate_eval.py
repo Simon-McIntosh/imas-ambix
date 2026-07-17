@@ -548,6 +548,7 @@ def fit_and_read_slice(
     passive_ridge: float = 1.0,
     passive_prior: tuple[np.ndarray, float] | None = None,
     coeff_prior: tuple[np.ndarray, float] | None = None,
+    beta_sep_prior: tuple[float, np.ndarray, float] | None = None,
     maxfev: int = 60,
     warm_x0: tuple[float, ...] | None = None,
     warm_jphi: np.ndarray | None = None,
@@ -665,6 +666,18 @@ def fit_and_read_slice(
                     sp_slice = SoftPriors()
                 sp_slice.coeff_prior_center = np.asarray(c_center, dtype=np.float64)
                 sp_slice.coeff_prior_weight = float(c_weight)
+        # ledger-backed βp separation: one whitened moment row pinning the
+        # p′-family amplitude (sensitivity ∂βp/∂coeffs, FF′ entries zero) to
+        # the external target βp = (βp+li/2)_moment − li_ledger/2; an infinite
+        # or non-positive sigma leaves the solve byte-identical
+        if beta_sep_prior is not None:
+            b_target, b_sens, b_sigma = beta_sep_prior
+            if b_sens is not None and np.isfinite(b_target) and float(b_sigma) > 0.0:
+                if sp_slice is None:
+                    sp_slice = SoftPriors()
+                sp_slice.beta_li_target = float(b_target)
+                sp_slice.beta_li_sensitivity = np.asarray(b_sens, dtype=np.float64)
+                sp_slice.beta_li_sigma = float(b_sigma)
         if sp_slice is not None:
             kw["soft_priors"] = sp_slice
         lf = fit_profile_ladder(grid, table, **kw)

@@ -67,13 +67,26 @@ __all__ = [
     "FluxSurfaceGeometry",
     "flux_surface_geometry",
     "basis_projection_images",
+    "beta_p_coeff_sensitivity",
     "diffuse_psi",
     "predicted_current",
     "project_coefficients",
     "flux_budget",
     "ejima_coefficient",
     "reconstruct_profile_scales",
+    "wpol_li3",
 ]
+
+
+def wpol_li3(geo) -> float:
+    """li3 = 4·Wpol/(μ0·Ip²·R0) from the 1D state (TORAX Wpol identity)."""
+    dpsi = np.gradient(geo.psi_face, geo.rho_face, edge_order=2)
+    vpr = np.clip(geo.vpr_face, 1e-30, None)
+    bpol2 = (dpsi / (2.0 * np.pi)) ** 2 * geo.g2_face / vpr**2
+    bpol2[0] = 0.0
+    wpol = float(np.trapezoid(bpol2 * geo.vpr_face, geo.rho_face)) / (2.0 * MU0)
+    return 4.0 * wpol / (MU0 * geo.ip_amperes**2 * geo.r0)
+
 
 _TWO_PI = 2.0 * np.pi
 _16PI3 = 16.0 * np.pi**3
@@ -278,6 +291,75 @@ def reconstruct_profile_scales(
         "core": core,
         "s_k": s_k,
     }
+
+
+_NONNEG_EXPONENTS = (0.5, 1.0, 1.5, 2.0, 3.0)
+
+
+def beta_p_coeff_sensitivity(
+    psi2d: np.ndarray,
+    grid: EquilibriumGrid,
+    ip_amperes: float,
+    *,
+    n_p: int,
+    n_f: int,
+    nonneg: bool,
+) -> np.ndarray | None:
+    """∂βp/∂coeffs of the fit's normalised ladder coefficients (FF′ rows 0).
+
+    βp is LINEAR-HOMOGENEOUS in the p′-family coefficients at fixed ψ
+    geometry: per unit coefficient the physical pressure gradient is
+    p′_Φ,k(ψ_N) = ŝ_k·φ_k(ψ_N)/(2π·R0) (the solve's drive column
+    ŝ_k·(R/R0)·φ_k equals 2πR·p′_Φ in the total-flux convention), the
+    pressure integrates to p_k(ψ_N) = −span·p′-cumulative, and
+
+        βp_k = 4/(μ0·R0·Ip²) · ∫ p_k dV .
+
+    Combined with an EXTERNAL li estimate through the Shafranov moment
+    m = βp + li/2 this row is the direct p′-family amplitude constraint —
+    the split lever the magnetics alone cannot provide.  Returns None on a
+    degenerate span/core (the caller skips the prior for that slice).
+    """
+    rec = reconstruct_profile_scales(
+        psi2d, grid, ip_amperes, n_p=n_p, n_f=n_f, nonneg=nonneg
+    )
+    span = rec["boundary_psi"] - rec["axis_psi"]
+    if abs(span) < 1e-9:
+        return None
+    core = rec["core"].ravel()
+    if core.sum() < 8:
+        return None
+    psi_n = np.clip(rec["psi_n"], 0.0, 1.0)
+    s_k = rec["s_k"]
+    dvol = 2.0 * np.pi * grid.flat_r * grid.dr * grid.dz
+    sens = np.zeros(n_p + n_f, dtype=np.float64)
+    for k in range(n_p):
+        if nonneg:
+            e = _NONNEG_EXPONENTS[k]
+            cum = (1.0 - psi_n) ** (e + 1.0) / (e + 1.0)  # ∫_{ψN}^1 (1−u)^e du
+        else:
+            from numpy.polynomial import legendre  # noqa: PLC0415
+
+            u_fine = np.linspace(0.0, 1.0, 401)
+            phi = legendre.legval(2.0 * u_fine - 1.0, [0.0] * k + [1.0]) * (
+                1.0 - u_fine
+            )
+            tail = np.concatenate(
+                [
+                    np.cumsum((phi[::-1][:-1] + phi[::-1][1:]) * 0.5)[::-1]
+                    * (u_fine[1] - u_fine[0]),
+                    [0.0],
+                ]
+            )
+            cum = np.interp(psi_n, u_fine, tail)
+        p_cells = -span * (s_k[k] / (_TWO_PI * grid.r0)) * cum
+        p_cells = np.where(core, p_cells, 0.0)
+        sens[k] = (
+            4.0
+            * float(np.sum(p_cells * dvol))
+            / (MU0 * grid.r0 * max(ip_amperes**2, 1e-30))
+        )
+    return sens
 
 
 def flux_surface_geometry(

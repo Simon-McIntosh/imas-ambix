@@ -534,3 +534,148 @@ def test_short_interval_prediction_is_consistent_with_the_source_fit():
     # 20 ms at constant Ip barely moves the profile — the prediction must
     # carry the fit's own amplitude (not collapse toward zero)
     assert abs(c_pred.sum() - c_fit.sum()) < 0.35 * c_fit.sum()
+
+
+def test_ledger_floop_anchor_subtracts_exactly_the_fl_residual_drift():
+    """The flux-loop-anchored swing arm must remove exactly the drift of the
+    fit's fl residual from the budget chain — and reduce to the fit-swing arm
+    when that residual is time-constant.  A fabricated linear drift on
+    identical equilibria (true swing zero) pins the algebra."""
+    from scripts.current_diffusion_flux_ledger_report import shot_ledger
+
+    grid, table = _interior_limiter_fixture()
+    ip = 4.0e5
+    i_pf = np.array([-8.0e4, -8.0e4])
+    lf, _, _ = _ladder_slice(grid, table, i_pf, ip)
+    geo = flux_surface_geometry(
+        lf.result.psi,
+        grid,
+        coeffs=lf.coeffs,
+        ip_amperes=ip,
+        n_p=1,
+        n_f=1,
+        nonneg=True,
+        b_phi0=1.0,
+    )
+    assert geo is not None
+    times = [0.0, 0.02, 0.04, 0.06]
+    drift = 0.05  # fabricated fl-residual drift per interval [Wb]
+    raw_times = np.linspace(-0.1, 0.2, 40)
+    materials = {
+        "geos": [geo] * 4,
+        "times": times,
+        "raw_times": raw_times,
+        "ip_raw_amp": np.full(raw_times.size, ip),
+        "fl_resid_wb": [0.0, drift, 2 * drift, 3 * drift],
+    }
+    args_d = {"n_sub_steps": 8, "par_weight": 1.0}
+    eta = EtaProfile(eta0=5.0e-8, contrast=0.0, shape=2.0)
+    led_fit = shot_ledger(1, args_d, eta, materials=materials, swing="fit")
+    led_fl = shot_ledger(1, args_d, eta, materials=materials, swing="floop")
+    assert led_fit is not None and led_fl is not None
+    for r_fit, r_fl in zip(led_fit["rows"], led_fl["rows"], strict=True):
+        expected = -geo.flux_sign * (r_fl["fl_resid_wb"] - 0.0)
+        got = r_fl["span_budget_wb"] - r_fit["span_budget_wb"]
+        assert abs(got - expected) < 1e-12
+    # constant residual → identical chains
+    materials["fl_resid_wb"] = [0.7, 0.7, 0.7, 0.7]
+    led_const = shot_ledger(1, args_d, eta, materials=materials, swing="floop")
+    for r_fit, r_c in zip(led_fit["rows"], led_const["rows"], strict=True):
+        assert abs(r_c["span_budget_wb"] - r_fit["span_budget_wb"]) < 1e-12
+
+
+def test_ledger_sane_gate_and_nonind_scaling():
+    """li3 sanity gate: an impossible threshold leaves no gauge slice (None);
+    a permissive one keeps every row sane.  f_ni = 1 must zero the modelled
+    resistive term so the budget chain carries only the measured swing."""
+    from scripts.current_diffusion_flux_ledger_report import shot_ledger
+
+    grid, table = _interior_limiter_fixture()
+    ip = 4.0e5
+    i_pf = np.array([-8.0e4, -8.0e4])
+    lf, _, _ = _ladder_slice(grid, table, i_pf, ip)
+    geo = flux_surface_geometry(
+        lf.result.psi,
+        grid,
+        coeffs=lf.coeffs,
+        ip_amperes=ip,
+        n_p=1,
+        n_f=1,
+        nonneg=True,
+        b_phi0=1.0,
+    )
+    assert geo is not None
+    times = [0.0, 0.02, 0.04, 0.06]
+    raw_times = np.linspace(-0.1, 0.2, 40)
+    materials = {
+        "geos": [geo] * 4,
+        "times": times,
+        "raw_times": raw_times,
+        "ip_raw_amp": np.full(raw_times.size, ip),
+    }
+    args_d = {"n_sub_steps": 8, "par_weight": 1.0}
+    eta = EtaProfile(eta0=5.0e-8, contrast=0.0, shape=2.0)
+    assert shot_ledger(1, args_d, eta, materials=materials, li3_sane_max=1e-4) is None
+    led = shot_ledger(1, args_d, eta, materials=materials, li3_sane_max=50.0)
+    assert led is not None and led["n_sane"] == led["n_rows"] == 4
+    assert led["closure_rms_sane_wb"] is not None
+    led_ni = shot_ledger(1, args_d, eta, materials=materials, f_ni=1.0)
+    for r in led_ni["rows"]:
+        assert r["d_res_model_wb"] == 0.0
+    # identical geos → measured swing zero → the f_ni=1 budget is constant
+    buds = [r["span_budget_wb"] for r in led_ni["rows"]]
+    assert max(buds) - min(buds) < 1e-12
+
+
+def test_beta_p_sensitivity_pins_convention_and_linearity():
+    """∂βp/∂coeffs: FF′ rows exactly zero; βp positive and O(0.1–2) on the
+    fixture; and the closed-form monomial cumulative must agree with an
+    independent numeric pressure integration through beta_poloidal (catches
+    sign/mask/cumulative slips without reusing the closed form).  The flux
+    convention itself (drive ŝ(R/R0)φ = 2πR·p′_Φ) is fixed by the solve's GS
+    form, pinned elsewhere by the Ampère-closure test."""
+    from imas_ambix.latent.current_diffusion import (
+        beta_p_coeff_sensitivity,
+        reconstruct_profile_scales,
+    )
+    from imas_ambix.latent.moment_priors import beta_poloidal
+
+    grid, table = _interior_limiter_fixture()
+    ip = 4.0e5
+    i_pf = np.array([-8.0e4, -8.0e4])
+    lf, _, _ = _ladder_slice(grid, table, i_pf, ip)
+    psi2d = lf.result.psi
+    sens = beta_p_coeff_sensitivity(psi2d, grid, ip, n_p=1, n_f=1, nonneg=True)
+    assert sens is not None
+    assert sens.shape == (2,) and sens[1] == 0.0  # FF' row carries nothing
+    c = np.asarray(lf.coeffs, dtype=np.float64)
+    beta_lin = float(sens @ c)
+    assert 0.05 < beta_lin < 3.0
+    # independent numeric route: physical p′(ψ_N) sampled on a fine grid,
+    # trapezoid-integrated to pressure2d, volume-integrated by beta_poloidal
+    rec = reconstruct_profile_scales(psi2d, grid, ip, n_p=1, n_f=1, nonneg=True)
+    span = rec["boundary_psi"] - rec["axis_psi"]
+    u = np.linspace(0.0, 1.0, 801)
+    pprime = c[0] * rec["s_k"][0] * (1.0 - u) ** 0.5 / (2.0 * np.pi * grid.r0)
+    tail = np.concatenate(
+        [
+            np.cumsum((pprime[::-1][:-1] + pprime[::-1][1:]) * 0.5)[::-1]
+            * (u[1] - u[0]),
+            [0.0],
+        ]
+    )
+    p_flat = -span * np.interp(np.clip(rec["psi_n"], 0.0, 1.0), u, tail)
+    p2d = np.where(rec["core"].ravel(), p_flat, 0.0).reshape(grid.nz, grid.nr)
+    beta_num = beta_poloidal(
+        psi2d,
+        lf.result.jphi,
+        p2d,
+        grid.rg,
+        grid.zg,
+        axis_psi=rec["axis_psi"],
+        boundary_psi=rec["boundary_psi"],
+        r0=grid.r0,
+    )
+    # beta_poloidal normalises by the grid-integrated jφ current; the
+    # sensitivity uses the prescribed Ip — allow the discretisation gap
+    assert abs(beta_lin - beta_num) / beta_num < 0.1, (beta_lin, beta_num)

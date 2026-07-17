@@ -61,12 +61,14 @@ from imas_ambix.gs.operator import COIL_MODEL_VERSION
 from imas_ambix.latent.current_diffusion import (
     EtaProfile,
     basis_projection_images,
+    beta_p_coeff_sensitivity,
     diffuse_psi,
     ejima_coefficient,
     flux_budget,
     flux_surface_geometry,
     predicted_current,
     project_coefficients,
+    wpol_li3,
 )
 from imas_ambix.latent.data import (
     anchored_columns,
@@ -180,11 +182,19 @@ def predict_interval(
     nonneg: bool,
     n_sub: int,
     par_weight: float,
+    budget_only: bool = False,
 ) -> dict | None:
-    """Evolve one label interval and project the next-slice coefficients."""
+    """Evolve one label interval and project the next-slice coefficients.
+
+    ``budget_only`` skips the non-negative coefficient projection — the flux
+    ledger consumes only the budget, and the projection is the expensive part
+    of the η closure-fit inner loop.
+    """
     t_sub = np.linspace(t_start, t_end, max(2, n_sub))
     ip_sub = np.interp(t_sub, raw_times, ip_raw_amp)
     step = diffuse_psi(geo, eta, t_grid=t_sub, ip_of_t=ip_sub)
+    if budget_only:
+        return {"c_pred": None, "budget": flux_budget(step, geo), "step": step}
     pred = predicted_current(geo, step["psi_face"][-1], step["psidot_face"], eta)
     images = basis_projection_images(geo, geo.s_k, n_p=n_p, n_f=n_f, nonneg=nonneg)
     c_pred = project_coefficients(
@@ -198,6 +208,216 @@ def predict_interval(
     if c_pred is None:
         return None
     return {"c_pred": c_pred, "budget": flux_budget(step, geo), "step": step}
+
+
+def _slice_flux_loop_residuals(grid, table, sidecar, slices: list[dict]) -> dict:
+    """Per-slice fit residual on the measured flux loops [Wb].
+
+    The fit's sensor prediction is reconstructed from the retained pieces
+    (converged jφ → cell currents through the sensor Greens, plus the passive
+    sidecar contribution mapped back from circuit amplitudes) and validated
+    against the fit's own recorded whitened cost (``pred_recon_rel_err`` — a
+    reconstruction that disagrees with the fit is a bug, not a diagnostic).
+    The robust median of (predicted − measured) over the fl_* rows is the
+    fit's boundary-flux gauge relative to the MEASURED loops: a time-drift of
+    this residual means the per-slice fits' surface-flux swing disagrees with
+    what the flux loops actually measured — the ledger's swing-anchor arm
+    subtracts exactly that drift.
+    """
+    g_sens, channels = grid.sensor_greens(table)
+    fl_rows = np.array([str(c).lower().startswith("fl") for c in channels])
+    cell_area = grid.dr * grid.dz
+    modes_pinv = (
+        np.linalg.pinv(np.asarray(sidecar["modes"], dtype=np.float64))
+        if sidecar and sidecar.get("k", 0)
+        else None
+    )
+    out: dict[str, list] = {
+        "fl_resid_wb": [],
+        "fl_resid_mad_wb": [],
+        "pred_recon_rel_err": [],
+    }
+    for s in slices:
+        f, p = s["fit"], s["payload"]
+        if f.jphi_flat is None:
+            out["fl_resid_wb"].append(None)
+            out["fl_resid_mad_wb"].append(None)
+            out["pred_recon_rel_err"].append(None)
+            continue
+        i_cell = np.asarray(f.jphi_flat, dtype=np.float64)[grid.cells] * cell_area
+        pred = np.asarray(p.vacuum, dtype=np.float64) + g_sens @ i_cell
+        if modes_pinv is not None and f.passive_amp is not None:
+            a_pass = modes_pinv @ np.asarray(f.passive_amp, dtype=np.float64)
+            pred = pred + np.asarray(sidecar["g_cols"], dtype=np.float64) @ a_pass
+        mask = np.asarray(p.mask, dtype=bool) & np.isfinite(p.measured)
+        wr = (pred[mask] - p.measured[mask]) / np.clip(p.scale[mask], 1e-12, None)
+        recon = float(np.sqrt(np.mean(wr * wr))) if mask.any() else float("nan")
+        rel = (
+            abs(recon - float(f.cost)) / max(abs(float(f.cost)), 1e-12)
+            if f.cost is not None and np.isfinite(recon)
+            else None
+        )
+        fm = fl_rows & mask
+        resid = pred[fm] - np.asarray(p.measured, dtype=np.float64)[fm]
+        med = float(np.median(resid)) if resid.size else None
+        mad = float(np.median(np.abs(resid - med))) if resid.size else None
+        out["fl_resid_wb"].append(med)
+        out["fl_resid_mad_wb"].append(mad)
+        out["pred_recon_rel_err"].append(rel)
+    return out
+
+
+def _beta_separation_rows(
+    grid,
+    table,
+    sidecar,
+    slices: list[dict],
+    geos: list,
+    eta: EtaProfile,
+    *,
+    raw_times: np.ndarray,
+    ip_raw_amp: np.ndarray,
+    n_sub: int,
+    par_weight: float,
+    ledger_li: bool,
+    swing: str,
+    li3_sane_max: float | None,
+    f_ni: float,
+    sigma_moment: float,
+    n_p: int,
+    n_f: int,
+    nonneg: bool,
+) -> tuple[list, list]:
+    """Per-slice (βp target, sensitivity, σ) rows from the flux ledger + moment.
+
+    The chain backs the internal flux content out of the measured surface
+    swing minus the modelled resistive consumption (the shot-integrated
+    ledger), maps it to an li estimate through each slice's own operating
+    point (Ψ_int is linear in li at fixed Ip and boundary geometry to first
+    order: li_ledger = li3_fit · Ψ_int_budget/Ψ_int_fit), and combines it
+    with the firewall-safe Shafranov moment m = βp + li/2 read from the
+    pass-1 iterate's boundary-field asymmetry:
+
+        βp_target = m − li_ledger/2 ,   sensitivity = ∂βp/∂coeffs .
+
+    ``ledger_li=False`` (the beta-mom ablation arm) uses the fit's own li —
+    isolating what the MOMENT row alone contributes, so the gate can
+    attribute any skill to the ledger channel specifically.  σ per slice
+    combines the moment read noise with the chain's own closure error.
+    """
+    from imas_ambix.latent.gs_solve import _read_axis  # noqa: PLC0415
+    from imas_ambix.latent.moment_priors import beta_p_li_over_2  # noqa: PLC0415
+
+    n = len(slices)
+    fl_resid = (
+        _slice_flux_loop_residuals(grid, table, sidecar, slices)["fl_resid_wb"]
+        if swing == "floop"
+        else [None] * n
+    )
+    # --- the budget chain (gauged at the first sane slice) ---
+    chain: list[dict] = []
+    psi_int = None
+    prev = None
+    for j in range(n):
+        geo = geos[j]
+        if geo is None:
+            continue
+        li3_j = wpol_li3(geo)
+        span_fit = abs(geo.boundary_psi - geo.axis_psi)
+        sane = li3_sane_max is None or li3_j <= li3_sane_max
+        if psi_int is None:
+            if not sane:
+                continue
+            psi_int = span_fit
+        else:
+            pred = predict_interval(
+                geos[prev],
+                eta,
+                t_start=slices[prev]["time_s"],
+                t_end=slices[j]["time_s"],
+                raw_times=raw_times,
+                ip_raw_amp=ip_raw_amp,
+                n_p=n_p,
+                n_f=n_f,
+                nonneg=nonneg,
+                n_sub=n_sub,
+                par_weight=par_weight,
+                budget_only=True,
+            )
+            if pred is None:
+                continue
+            d_bdry = float(geo.boundary_psi - geos[prev].boundary_psi)
+            r0f, r1f = fl_resid[prev], fl_resid[j]
+            if r0f is not None and r1f is not None:
+                d_bdry = d_bdry - (float(r1f) - float(r0f))
+            v_res = (1.0 - f_ni) * pred["budget"]["d_psi_axis"]
+            psi_int = psi_int + (d_bdry - v_res) * geo.flux_sign
+        chain.append(
+            {
+                "j": j,
+                "span_fit": span_fit,
+                "span_budget": psi_int,
+                "li3": li3_j,
+                "sane": sane,
+            }
+        )
+        prev = j
+    if len(chain) < 3:
+        return [None] * n, [None] * n
+    sane_rows = [c for c in chain if c["sane"]] or chain
+    closure_rms = float(
+        np.sqrt(np.mean([(c["span_fit"] - c["span_budget"]) ** 2 for c in sane_rows]))
+    )
+
+    beta_rows: list = [None] * n
+    beta_diag: list = [None] * n
+    for c in chain:
+        j = c["j"]
+        f1 = slices[j]["fit"]
+        if f1.psi is None or f1.jphi_flat is None or not c["sane"]:
+            continue
+        psi2d = np.asarray(f1.psi, dtype=np.float64).reshape(grid.nz, grid.nr)
+        jphi2d = np.asarray(f1.jphi_flat, dtype=np.float64).reshape(grid.nz, grid.nr)
+        sign = 1.0 if f1.ip_amperes >= 0 else -1.0
+        axis, _axis_psi = _read_axis(psi2d, grid, sign)
+        geo = geos[j]
+        m = beta_p_li_over_2(
+            psi2d,
+            jphi2d,
+            grid.rg,
+            grid.zg,
+            axis=axis,
+            boundary_psi=float(geo.boundary_psi),
+            r0=grid.r0,
+            b_phi0=0.0,
+        )
+        if not np.isfinite(m):
+            continue
+        sens = beta_p_coeff_sensitivity(
+            psi2d, grid, float(f1.ip_amperes), n_p=n_p, n_f=n_f, nonneg=nonneg
+        )
+        if sens is None or not np.any(sens):
+            continue
+        li_used = (
+            c["li3"] * c["span_budget"] / max(c["span_fit"], 1e-9)
+            if ledger_li
+            else c["li3"]
+        )
+        li_err = c["li3"] * closure_rms / max(c["span_fit"], 1e-9)
+        sigma_j = float(np.hypot(sigma_moment, 0.5 * li_err if ledger_li else 0.0))
+        target = float(m - li_used / 2.0)
+        beta_rows[j] = (target, sens, sigma_j)
+        beta_diag[j] = {
+            "m_moment": float(m),
+            "li_ledger": float(li_used),
+            "li_fit": float(c["li3"]),
+            "beta_target": target,
+            "sigma": sigma_j,
+            "span_fit_wb": float(c["span_fit"]),
+            "span_budget_wb": float(c["span_budget"]),
+            "closure_rms_wb": closure_rms,
+        }
+    return beta_rows, beta_diag
 
 
 def eval_shot(job: tuple) -> dict | None:
@@ -299,6 +519,7 @@ def eval_shot(job: tuple) -> dict | None:
     if args_d.get("mode") == "eta-fit":
         # return the pass-1 materials — the η optimisation re-runs the cheap
         # diffusion predictions per candidate in the parent process
+        fl_diag = _slice_flux_loop_residuals(grid, table, sidecar, slices)
         return {
             "shot": int(shot),
             "materials": {
@@ -310,6 +531,13 @@ def eval_shot(job: tuple) -> dict | None:
                 "boundary_psi": [
                     None if g is None else float(g.boundary_psi) for g in geos
                 ],
+                "fl_resid_wb": fl_diag["fl_resid_wb"],
+                "fl_resid_mad_wb": fl_diag["fl_resid_mad_wb"],
+                "fit_cost": [
+                    None if s["fit"].cost is None else float(s["fit"].cost)
+                    for s in slices
+                ],
+                "pred_recon_rel_err": fl_diag["pred_recon_rel_err"],
             },
             "config_sha": config_sha,
             "wall_s": time.perf_counter() - t0,
@@ -353,14 +581,55 @@ def eval_shot(job: tuple) -> dict | None:
             }
         )
 
-    # ---- pass 2: refit with the diffusion coefficient prior ----
+    # ---- ledger-backed βp separation targets (beta-sep / beta-mom arms) ----
+    prior_form = str(args_d.get("prior_form", "coeff"))
+    beta_rows: list[tuple[float, np.ndarray, float] | None] = [None] * len(slices)
+    beta_diag: list[dict | None] = [None] * len(slices)
+    if prior_form in ("beta-sep", "beta-mom"):
+        beta_rows, beta_diag = _beta_separation_rows(
+            grid,
+            table,
+            sidecar,
+            slices,
+            geos,
+            eta,
+            raw_times=raw_times,
+            ip_raw_amp=ip_raw_amp,
+            n_sub=n_sub,
+            par_weight=par_weight,
+            ledger_li=prior_form == "beta-sep",
+            swing=str(args_d.get("swing", "floop")),
+            li3_sane_max=args_d.get("li3_sane_max"),
+            f_ni=float(args_d.get("f_ni", 0.0)),
+            sigma_moment=float(args_d.get("beta_sep_sigma", 0.1)),
+            n_p=n_p,
+            n_f=n_f,
+            nonneg=nonneg,
+        )
+
+    # ---- pass 2: refit with the temporal prior (coefficient or βp row) ----
     rows: list[dict] = []
     for j, s in enumerate(slices):
         f1 = s["fit"]
-        if preds[j] is None or prior_weight <= 0.0:
+        c_pred = None
+        if prior_form in ("beta-sep", "beta-mom"):
+            if beta_rows[j] is None or prior_weight <= 0.0:
+                f2 = f1
+            else:
+                b_target, b_sens, b_sigma = beta_rows[j]
+                f2 = fit_and_read_slice(
+                    grid,
+                    table,
+                    s["payload"],
+                    warm_jphi=f1.jphi_flat,
+                    keep_jphi=True,
+                    # prior_weight scales the row like 1/σ — swept on tune
+                    beta_sep_prior=(b_target, b_sens, b_sigma / prior_weight),
+                    **fit_kw,
+                )
+        elif preds[j] is None or prior_weight <= 0.0:
             # first slice / no prediction: the spine fit IS the dynamic arm
             f2 = f1
-            c_pred = None
         else:
             c_pred = preds[j]["c_pred"]
             f2 = fit_and_read_slice(
@@ -391,6 +660,7 @@ def eval_shot(job: tuple) -> dict | None:
                 "c_dyn": [float(c) for c in (f2.coeffs or [])],
                 "reseeded_spine": f1.reason == "scored-reseeded",
                 "reseeded_dyn": f2.reason == "scored-reseeded",
+                "beta_sep": beta_diag[j],
             }
         )
 
