@@ -7,8 +7,8 @@
   <meta name="reckon-type" content="plan">
   <meta name="plan-slug" content="plasma-screening-dynamics">
   <meta name="plan-title" content="Plasma Screening Dynamics — the plasma as a dynamic filament circuit, closing the limited-phase representation deficit">
-  <meta name="plan-summary" content="Treat the plasma the way the vessel was treated: a filament circuit system with exact thick-cylinder mutuals (known a priori, all in-tree) whose L/R dynamics carry the ramp-phase skin/screening current the static spine&#x27;s peaked basis cannot represent — the outer plasma shields the interior exactly as the coil cases shield their windings. The filament model in the flux-surface-averaged limit IS the landed 1D ψ-diffusion operator, so the current dynamics and the flux diffusion combine in one system; filament resistances are the one unknown, closed cross-shot through the landed η(ψ_N) closure machinery now driven by the ramp transients themselves (the P1b pattern: transients calibrate resistance). Te stays firewalled out of the fit path — the closure identifies η at the physical Spitzer scale without it — entering only as an eval-side consistency check. Win condition: the ramp/transition LCFS (8.4 cm, the externally VISIBLE deficit), never the axis (interior null, measured toll −0.16 for any bias). Rungs: S0 foundations (screening eigenbasis + 1D-limit identity pins), S1 decisive synthetic skin-truth gate (reproduce the measured failure signature, recover it), S2 real-data dynamic-mode fit + η closure gated on the standard harness, S3 shape-motion upgrade.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-summary" content="CLOSED on the S1b decisive negative (2026-07-18). The vessel treatment applied to the plasma: exact-mutual filament circuit whose L/R dynamics carry the ramp-phase skin current, pinned to diffuse_psi in the 1D limit (S0, all pins green). The S1b re-gate rebuilt the synthetic truths to the lead&#x27;s breakdown-start specification — vacuum coil ramp, settle window, catch at 5% Ip, growth through ONE coupled plasma+vessel circuit with every integral from zero and the flux ledger closing at 3e-5 (shape-remap dL/dt share explicit) — and at the closure-identified eta (the S2 operating point, oracle-free tune) the bounded-mode-column fit recovers NONE of the ramp LCFS gap: recovery -0.04, paired CI [-0.37, -0.23] clear on the wrong side; the oracle arm fails identically. S1&#x27;s 56% recovery was a property of its gentler mid-ramp-start truths, not the representation. Also measured: the limited-to-diverted transition band cannot be manufactured with this forward operator (8 probes; the real diverted coil pattern has no confined fixed point — the outboard-attractor coil-model error), and the plain Picard is vertically unstable near elongation (truth world declared Z-symmetric, branch pinned by construction). Pre-declared stop honoured: S2/S3 closed, no real-data spend. Unblock paths for any successor: coil-model attractor fix, free-boundary-evolution truth chain, or a richer representation for breakdown-accumulated hollow states.">
+  <meta name="plan-status" content="done">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
   <meta name="plan-tier" content="opus">
@@ -21,8 +21,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-18">
-<meta name="plan-version" content="4">
-<meta name="plan-impl" content="0.5">
+<meta name="plan-version" content="5">
+<meta name="plan-impl" content="1.0">
 </head>
 <body>
 <main class="plan-doc">
@@ -234,28 +234,45 @@
   honoured: no real-data rung until a transition-capable scenario + a
   closure-operating-point re-gate (S1b) pass.
   Full record: <a href="archive/plasma-screening-dynamics-s0-s1-landed.html">S0+S1 landed</a>.</p>
-  <h3>S2 — real-data rung: dynamic-mode fit + η closure on ramp transients</h3>
-  <p>The P1 two-pass pattern: pass 1 frozen spine byte-exact (geometry + i_cell
-  history); raw-cadence screening-mode trajectory driven by measured coil
-  currents + calibrated vessel structure + pass-1 plasma history; pass 2 refit
-  with the screening column(s), bounded amplitude prior-centred on the
-  trajectory. η closure: cross-shot fit of the <code>EtaProfile</code> (edge
-  contrast now engaged) against the ramp-transient magnetics residuals plus the
-  standing flux-budget closure — tune split only, holdback discipline unchanged.
-  Sweep on tune: prior weight × mode count k. Single held-out n=128 eval.
-  <strong>Gate S2 (pre-declared): PRIMARY — ramp-up/transition LCFS median beats
-  the frozen spine (8.37 cm baseline) CI-clear; GUARDS — flat-top LCFS
-  non-inferior (−0.05 margin), axis median not degraded, reseed rate not
-  increased.</strong> The primary leg is the one P1 grazed (−0.10 cm CI touching
-  zero) and no rung has passed; the screening amplitude is O(the deficit), so a
-  pass here is a material result and a fail is a clean negative that bounds what
-  ANY dynamic model can extract from these sensors.</p>
-  <h3>S3 — shape-motion upgrade (conditional)</h3>
-  <p>Sub-interval geometry remap (moving filaments; the v_motion EMF carried by
-  interpolating the pass-1 geometry chain instead of freezing per interval).
-  Trigger: S2 passes its primary leg but leaves structured transition-band
-  residual attributable to shape motion. Without that evidence this rung does
-  not run — a full free-boundary evolution code is explicitly out of scope.</p>
+  <h3>S1b — breakdown-start re-gate
+    <span class="badge badge-shipped">✗ decisive negative 2026-07-18 — plan closes</span></h3>
+  <p class="landed-summary">
+  The lead's correction implemented in full: truths now integrate from the
+  machine-quiescent state (vacuum coil ramp → settle window → breakdown catch
+  at 5% Ip → growth through ONE coupled plasma+vessel L/R system with a
+  Spitzer-motivated breakdown-η schedule), every integral term accumulates
+  from zero, and the flux ledger closes at 3×10⁻⁵ with the shape-remap
+  (dL_p/dt) share quantified (10/10 sequences; commits <code>2145b58</code>,
+  <code>e95af67</code>).  <strong>At the closure-identified η — the exact
+  operating point S2 would run, oracle-free tune — the bounded-mode-column
+  fit recovers NONE of the ramp gap: recovery −0.04, paired CI
+  [−0.37, −0.23] clear of zero on the WRONG side; the oracle arm fails
+  identically (−0.02).</strong>  S1's 56% B2 recovery was a property of its
+  gentler mid-ramp-start truths (gap 7.6 cm, a2 +7.4), not of the
+  representation: breakdown-accumulated skin (gap 10.3 cm, a2 +11.8, li3
+  over-read 3.1×) is outside the k=2 screening-column span, and both tune
+  scans froze at the edges that minimise the dynamics' influence.  Measured
+  along the way: the limited→diverted transition band CANNOT be manufactured
+  with this forward operator (8 design probes — no confined configuration
+  reads diverted; the real diverted coil pattern has no confined fixed point
+  even minus sol/cases), vacuum-ramp vessel eddies crush the breakdown plasma
+  without a settle window, and the plain Picard is vertically unstable near
+  elongation (the truth world is now declared Z-symmetric, branch pinned by
+  construction).  Full record:
+  <a href="archive/plasma-screening-dynamics-s1b-landed.html">S1b landed</a>.</p>
+  <h3>S2 — real-data rung
+    <span class="badge">closed by the pre-declared no-go</span></h3>
+  <p class="landed-summary">Does not run: the S1b leg-(b) fail at the closure
+  operating point is exactly the condition the plan pre-declared as the stop
+  before any real-data spend.  Unblock paths (a lead decision, not this
+  plan): the coil-model outboard-attractor fix (also what blocks a diverted
+  synthetic truth family), a free-boundary-evolution truth chain (carries the
+  poloidally-structured screening content the flux-function family
+  annihilates — 0.73 of the evolved state's L1), or a richer-than-k-columns
+  representation for the breakdown-accumulated hollow states.</p>
+  <h3>S3 — shape-motion upgrade
+    <span class="badge">closed by the pre-declared no-go</span></h3>
+  <p class="landed-summary">Conditional on S2; does not run.</p>
 
   <h2 id="s4">§4 — Gates, firewall, compute</h2>
   <ul>
@@ -366,7 +383,7 @@ Done-when
      pre-declared stop recorded), this followup resolved</pre>
     <p class="r-fu-outcome">S0 SHIPPED (1184c8c): plasma filament circuit + zero-net screening eigenmodes, all four pins green (1D-limit identity vs diffuse_psi to discretisation error; thin-shell tau within 8%; ZOH exact; edge-weighted modes, tau∝s²). S1 verdicts recorded (220b784 + artifacts): leg (a) FAIL on A2 (cost-error Spearman -0.41 vs measured +0.77 — scenario lacks the limited→diverted transition band) with A1/A3/A4 nearly quantitative (a2 +7.4 / a1 -4.6 cm vs measured +5.7 / -3.8; ramp/hold 2.6x; li3 over-read 2.3x); leg (b) B1 FAIL at oracle eta (recovery -0.07 CI-clear) but B2 PASS CI-clear — closure-identified eta recovers 56% of the ramp gap (10.88→6.66 cm, +4.62 [+2.71,+5.29]); flat-eta oracle-scale ablation (47%) attributes the split to the eta CONTRAST in the mode build. Pre-declared stop honoured: no real-data rung queued; S1b refinement queued instead. Record: docs/archive/plasma-screening-dynamics-s0-s1-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-psd-02" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-18" data-recommends-skill="/reckon-ship plasma-screening-dynamics §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-psd-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-18" data-recommends-skill="/reckon-ship plasma-screening-dynamics §3" data-resolved-at="2026-07-18T13:09:15+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">S1b — transition-capable scenario + closure-operating-point re-gate (resolve the S1 fails before any real-data spend)</h4>
     <div class="r-fu-body"><p>S1 recorded leg (a) FAIL on A2 only (the synthetic error peaks at lowest Ip because the scenario never forms an X-point; the real hotspot is the limited→diverted transition band) and leg (b) B1 FAIL at oracle η / B2 PASS with 56% CI-clear gap recovery at the misfit-scan-identified η — the flat-η oracle-scale ablation (47%) proves the η CONTRAST in the mode build, not the representation, breaks the oracle arm. S1b must (i) extend the scenario to form a diverted transition (X-point via a stronger/structured shaping ramp) so A2 is testable as measured, and (ii) re-declare the recovery gate at the closure-identified η as the arm's operating point (the real-data rung has no oracle — the closure IS what S2 would run), with the oracle arm retained as a diagnostic. Only a pass here unlocks S2.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -420,6 +437,45 @@ Done-when
      a fail records the negative and stops the plan (update status accordingly)
   3. Plan updated same-session: archive record extended or added, this followup
      resolved</pre>
+    <p class="r-fu-outcome">S1b run and recorded (e95af67 + artifacts): breakdown-start coupled-dynamics chain delivered in full per the lead's directive (vacuum -> 5% Ip catch -> growth from zero; C1 ledger closes 3e-5 with dL/dt share explicit; C3 all dynamics folded; C4 L_eff span 147%; 10/10 sequences). DECISIVE NEGATIVE at the re-declared PRIMARY: closure-eta recovery -0.04, paired CI [-0.37,-0.23] clear on the wrong side; oracle arm -0.02 identical; S1's 56% was the gentler truth family, not the representation. Transition scenario measured infeasible (8 probes - no confined configuration of the operator reads diverted; A2 +0.12 p=0.23 untestable as measured, C2 fail for scenario reasons). Pre-declared stop fires: plan closes, S2/S3 do not run. Basin-scout test re-pinned (b85cf43, 18/18 green). Record: docs/archive/plasma-screening-dynamics-s1b-landed.html</p>
+    </article>
+<article class="r-fu" data-id="f-psd-03" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-18" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Lead decision: unblock path after the screening-circuit negative (coil-model attractor fix / free-boundary truth chain / richer representation)</h4>
+    <div class="r-fu-body"><p>The plan closed on the S1b pre-declared stop: on breakdown-start truths the bounded screening-mode representation recovers none of the ramp gap at any η, and the tune itself pushes the dynamics off. Three measured unblocks, each a separate plan: (i) the coil-model outboard-attractor fix — it blocks BOTH real-pattern anchoring for diverted synthetic truths and (from the temporal-physics-spine evidence) may be part of the real ramp deficit; (ii) a free-boundary-evolution truth chain (S3-class) — the flux-function truth family annihilates 0.73 of the evolved poloidal structure, and the vertical instability the chain measured is exactly the physics it would carry; (iii) a richer interior representation for breakdown-accumulated hollow states — the k-column zero-net form is measured insufficient at the corpus-faithful skin severity. The breakdown-start coupled-circuit infrastructure (ledger-exact, all dynamics folded) is landed and reusable by any successor.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    plasma-screening-dynamics (CLOSED - read docs/archive/plasma-screening-dynamics-s1b-landed.html first)
+Section: successor scoping (lead decision required - do not implement)
+Tier:    opus
+
+Context
+  plasma-screening-dynamics closed on its pre-declared S1b stop: at the closure
+  operating point the bounded-mode-column screening fit is CI-clear WORSE than the
+  frozen spine on breakdown-start truths (recovery -0.04 [-0.37,-0.23]; oracle arm
+  identical), and the oracle-free tune froze at the edges that minimise the
+  dynamics&#x27; influence. The breakdown-start coupled plasma+vessel truth chain
+  (flux ledger 3e-5, dL/dt share explicit, Z-symmetric branch pin) is landed and
+  reusable.
+
+State to read
+  docs/archive/plasma-screening-dynamics-s1b-landed.html   (verdicts + probe evidence)
+  imas_ambix/latent/artifacts/patch_gate/plasma_screening_gate.json
+  imas_ambix/latent/plasma_screening.py                    (CoupledCircuit machinery)
+  scripts/plasma_screening_gate.py                         (the reusable gate harness)
+
+Work
+  Present the lead the three measured unblock paths with cost/leverage estimates:
+  (i) coil-model outboard-attractor fix (blocks diverted synthetic truths AND
+      real-pattern anchoring; candidate root of part of the real ramp deficit);
+  (ii) free-boundary-evolution truth chain (carries the 0.73 annihilated poloidal
+      structure + the measured vertical-instability physics);
+  (iii) richer interior representation for breakdown-accumulated hollow states.
+  A /reckon-create for whichever the lead picks; none of them re-runs this plan&#x27;s
+  gate unchanged.
+
+Done-when
+  1. Lead has decided the successor (or explicitly parked the thread)
+  2. A new plan exists for the chosen path (or the parking is recorded)
+  3. This followup resolved with the decision</pre>
     </article>
 </section>
 

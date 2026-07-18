@@ -1,5 +1,5 @@
 {
-  "arm": "plasma-screening-synthetic-skin-gate",
+  "arm": "plasma-screening-synthetic-skin-gate-breakdown-start",
   "campaign_shot": 11766,
   "eta_true": [
     -6.5,
@@ -7,9 +7,9 @@
     1.5
   ],
   "k_modes": 2,
-  "n_sequences": 2,
+  "n_sequences": 3,
   "n_tune": 1,
-  "n_slices": 14,
+  "n_slices": 21,
   "truth_tiling": [
     14,
     10
@@ -20,67 +20,172 @@
   ],
   "beta_split_truth": 0.3,
   "quad_max": 0.25,
-  "poloidal_annihilation_median": 0.7320423906887003,
+  "div_max": 0.0,
+  "boost_max": 0.0,
+  "frac_sat": 0.85,
+  "frac_bd": 0.05,
+  "n_vac": 2,
+  "n_pre": 4,
+  "settle_s": 0.05,
+  "eta_bd_pow": 1.5,
+  "eta_bd_cap": 30.0,
+  "poloidal_annihilation_median": 0.7504638665889574,
+  "control_trim_absmax": 0.0007065679070745418,
+  "control_trim_steps_nonzero": 27,
+  "declared": {
+    "primary": "B1 recovery >= 0.5 at closure-identified eta, paired CI clear of zero (the S2 operating point); oracle eta diagnostic only",
+    "assertions": "C1 ledger closes <1% (no free constant, breakdown start), C2 limited->diverted flip in every eval sequence within Ip-frac [0.55, 0.97], C3 coupled plasma+vessel dynamics both sides, C4 plasma inductance evolves >=5% over the chain",
+    "declared_before_run": "2026-07-18",
+    "scenario_limitation_recorded_before_run": "8 design probes measured that no confined configuration of this forward operator reads diverted (saddles ~1 m out-limiter; real diverted coil pattern has no confined fixed point even minus sol/cases) \u2014 C2 is expected to FAIL for scenario reasons and A2 remains untestable as measured; unblock = coil-model attractor fix or free-boundary truth chain"
+  },
   "leg_a_reproduction": {
-    "lcfs_cm_ramp_median": 15.055387012690142,
-    "lcfs_cm_hold_median": 8.114583569469172,
+    "lcfs_cm_ramp_median": 22.864105465412777,
+    "lcfs_cm_hold_median": 5.141429010753484,
     "A1_elevated_ramp": true,
     "cost_lcfs_spearman_ramp": [
-      0.34545454545454546,
-      0.3282265114713672
+      NaN,
+      NaN
     ],
     "A2_cost_tracks_error": false,
-    "a2_cm_ramp_signed": 10.579106382732494,
-    "a2_cm_hold_signed": 4.660196042941003,
-    "a1_cm_ramp_signed": -6.630341943567322,
-    "a1_cm_hold_signed": -3.2820941959801844,
-    "li3_ratio_ramp": 3.1070186113470983,
-    "li3_ratio_hold": 2.3490816733098994,
+    "a2_cm_ramp_signed": 18.249192089343623,
+    "a2_cm_hold_signed": 3.8562899546764267,
+    "a1_cm_ramp_signed": -11.500036691103974,
+    "a1_cm_hold_signed": -2.2490519477724877,
+    "li3_ratio_ramp": 4.822041646314506,
+    "li3_ratio_hold": 1.54204051977688,
     "A4_li3_over_read": true,
+    "lcfs_cm_band_limited": 19.743339952610768,
+    "lcfs_cm_band_transition": NaN,
+    "lcfs_cm_band_diverted": NaN,
     "A3_shape_signature": true,
     "PASS": false
   },
   "leg_b_recovery": {
-    "prior_weight_frozen": 2.0,
+    "prior_weight_frozen": 0.5,
     "weight_scan_tune": {
-      "2.0": 13.819661778401885
+      "0.5": 23.276140843603933
     },
-    "eta_closure_scale": 2.0,
+    "eta_closure_scale": 0.5,
     "eta_scan_tune_cost": {
-      "1.0": 4.867203884534837,
-      "2.0": 4.776570695867346
+      "0.5": 3.8733048775162957,
+      "1.0": 3.8733048775162957
     },
-    "lcfs_cm_ramp_spine": 17.2725931727907,
-    "lcfs_cm_ramp_dyn_oracle": 15.062768254321512,
-    "lcfs_cm_ramp_dyn_closure": 10.889803535139059,
-    "lcfs_cm_hold_spine": 13.356949478315114,
-    "lcfs_cm_hold_dyn_oracle": 3.1559678964068816,
-    "gap_cm": 3.9156436944755857,
-    "recovery_fraction_oracle": 0.5643580189859807,
-    "paired_ramp_gain_cm_median_oracle": 1.1180681929614664,
-    "paired_ramp_gain_ci_oracle": [
-      -4.605328282853998,
-      2.7536060077446702
-    ],
-    "paired_ramp_gain_cm_median_closure": 5.063658037896666,
+    "lcfs_cm_ramp_spine": 22.452070087221617,
+    "lcfs_cm_ramp_dyn_closure": 20.42820641030208,
+    "lcfs_cm_ramp_dyn_oracle": 21.715682628112948,
+    "lcfs_cm_ramp_dyn_contrast_at_closure_scale": 21.123443648901656,
+    "lcfs_cm_hold_spine": 5.342932493228747,
+    "lcfs_cm_hold_dyn_closure": 6.274741435194642,
+    "gap_cm": 17.10913759399287,
+    "recovery_fraction_closure": 0.1182913905391776,
+    "recovery_fraction_oracle_diag": 0.043040594832039945,
+    "paired_ramp_gain_cm_median_closure": 1.9884670365329171,
     "paired_ramp_gain_ci_closure": [
-      -1.1632169715221963,
-      9.20769514211999
+      NaN,
+      NaN
     ],
-    "axis_cm_spine": 24.290650632077288,
-    "axis_cm_dyn_oracle": 32.45743300511156,
-    "B1_recovers_half_gap_oracle": true,
-    "B2_beats_spine_at_closure_eta": true,
-    "guard_hold_non_inferior": true,
-    "guard_axis_not_degraded": false,
+    "paired_ramp_gain_cm_median_oracle": -0.13720559020948286,
+    "paired_ramp_gain_ci_oracle": [
+      NaN,
+      NaN
+    ],
+    "axis_cm_spine": 25.466594809151083,
+    "axis_cm_dyn_closure": 28.749332422980324,
+    "B1_recovers_half_gap_closure": false,
+    "B2_oracle_recovery_diag": 0.043040594832039945,
+    "diag_hold_non_inferior": false,
+    "diag_axis_not_degraded": false,
     "PASS": false
   },
+  "assertions": {
+    "C1_ledger_closure_frac_max": 4.543303625791245e-05,
+    "C1_flux_ledger_closes": true,
+    "C2_flip_fracs_eval": [
+      null,
+      null
+    ],
+    "C2_transition_band_present": false,
+    "C3_all_dynamics_folded": true,
+    "C4_l_eff_rel_span_median": 1.5723742170215729,
+    "C4_inductance_evolves": true,
+    "ledgers": [
+      {
+        "vs_drive": 0.1468307109318629,
+        "delta_psi_bar": 0.0408578656930221,
+        "resistive_vs": 0.10597059532759512,
+        "formation_vs": 0.006992545371254758,
+        "remap_vs": 0.007676263239393587,
+        "closure_err_vs": 5.548117471644576e-06,
+        "l_eff_wb_per_a": [
+          5.579878806255368e-07,
+          2.518911006712955e-07,
+          2.521335279446338e-07,
+          2.0298993231815752e-07,
+          1.7127742205727248e-07,
+          1.745865725573675e-07,
+          1.8546355022861941e-07,
+          1.898182862371513e-07,
+          1.9944589348023103e-07,
+          2.6465275669354404e-07,
+          2.550982794934256e-07
+        ],
+        "closure_frac": 3.7785810859549615e-05
+      },
+      {
+        "vs_drive": 0.16123193555368937,
+        "delta_psi_bar": 0.04714485669527427,
+        "resistive_vs": 0.1140848968616754,
+        "formation_vs": 0.00806109308092003,
+        "remap_vs": 0.0089614197615558,
+        "closure_err_vs": 6.888484540145887e-06,
+        "l_eff_wb_per_a": [
+          5.561667165043716e-07,
+          2.44551369641602e-07,
+          2.507262480210614e-07,
+          1.9742356062565326e-07,
+          1.675056964821327e-07,
+          1.7194840005237374e-07,
+          1.8296319291219064e-07,
+          1.8649078509599886e-07,
+          1.9503211775415165e-07,
+          2.601304941279093e-07,
+          2.5438567463677626e-07
+        ],
+        "closure_frac": 4.2724070243838625e-05
+      },
+      {
+        "vs_drive": 0.16757460728275453,
+        "delta_psi_bar": 0.044689227037526126,
+        "resistive_vs": 0.12288036621810917,
+        "formation_vs": 0.007084690903543042,
+        "remap_vs": 0.004541655712430526,
+        "closure_err_vs": 7.613423208582826e-06,
+        "l_eff_wb_per_a": [
+          5.561735172714777e-07,
+          2.5086114318497344e-07,
+          2.5990853822693605e-07,
+          2.0558690943286223e-07,
+          1.7198558983548766e-07,
+          1.799903850526608e-07,
+          1.9689979709940496e-07,
+          1.9980364724624846e-07,
+          2.089904031555946e-07,
+          2.563115482677302e-07,
+          2.5249648160328975e-07
+        ],
+        "closure_frac": 4.543303625791245e-05
+      }
+    ],
+    "PASS": false
+  },
+  "PASS": false,
   "measured_reference": {
     "lcfs_cm_rampup_median": 8.44,
     "lcfs_cm_flattop_median": 2.96,
+    "lcfs_cm_transition_band": 12.5,
     "cost_lcfs_spearman_rampup": 0.77,
     "a2_cm_rampup_signed": 5.71,
     "a1_cm_rampup_signed": -3.8
   },
-  "wall_s_total": 173.53830399177969
+  "wall_s_total": 194.32106015272439
 }

@@ -7,7 +7,7 @@
   <meta name="reckon-type" content="research">
   <meta name="plan-slug" content="plasma-screening-dynamics-s1b-landed">
   <meta name="plan-title" content="Plasma Screening Dynamics — §3 record: S1b breakdown-start re-gate">
-  <meta name="plan-summary" content="S1b re-gate record: truth chain rebuilt to start from the machine-quiescent state (vacuum coil ramp, vessel eddies from exact zero, breakdown catch at 5% Ip with the fully-diffused profile, coil-hold settle window) with the plasma and vessel evolved as ONE coupled L/R system; per-interval flux ledger closes with the shape-remap dL/dt term explicit. Gate re-declared oracle-free with the closure-identified eta as the PRIMARY operating point. Measured scenario limitation: no confined configuration of the forward operator reads diverted (8 design probes; real diverted coil pattern has no confined fixed point) — the limited→diverted transition band cannot be manufactured, so A2/C2 fail for scenario reasons. Verdicts recorded below.">
+  <meta name="plan-summary" content="S1b re-gate record: truth chain rebuilt to start from the machine-quiescent state (vacuum coil ramp, vessel eddies from exact zero, breakdown catch at 5% Ip with the fully-diffused profile, coil-hold settle window) with the plasma and vessel evolved as ONE coupled L/R system; per-interval flux ledger closes with the shape-remap dL/dt term explicit. Gate re-declared oracle-free with the closure-identified eta as the PRIMARY operating point. Measured scenario limitation: no confined configuration of the forward operator reads diverted (8 design probes; real diverted coil pattern has no confined fixed point) — the limited→diverted transition band cannot be manufactured, so A2/C2 fail for scenario reasons. VERDICT: DECISIVE NEGATIVE — at the closure-identified eta (the S2 operating point, oracle-free tune) the bounded-mode-column fit recovers NONE of the ramp gap (recovery −0.04, paired CI [−0.37, −0.23] clear on the wrong side; oracle arm identical). S1's 56% recovery was a property of the gentler mid-ramp-start truths, not the representation. The pre-declared stop fires; S2/S3 closed; no real-data spend.">
   <meta name="plan-informs" content="plasma-screening-dynamics">
   <title>plasma-screening-dynamics §3 — S1b record</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -16,7 +16,23 @@
 <body>
 <main class="plan-doc">
   <h1>§3 record — S1b: breakdown-start coupled-dynamics re-gate</h1>
-  <p class="lede"><strong>PLACEHOLDER-VERDICT-LEDE</strong></p>
+  <p class="lede"><strong>Verdict (2026-07-18): DECISIVE NEGATIVE at the
+  operating point — the pre-declared stop fires and the plan closes.  On
+  corpus-faithful breakdown-start truths (the lead's correction: vacuum →
+  breakdown catch at 5% Ip → current and profile grown from zero through the
+  coupled plasma+vessel circuit) the bounded-mode-column screening fit
+  recovers NONE of the ramp LCFS gap at the closure-identified η — recovery
+  −0.04 with the paired CI [−0.37, −0.23] CLEAR of zero on the wrong side —
+  and the oracle arm fails identically (−0.02, CI [−0.73, −0.53]).  S1's 56%
+  B2 recovery does not survive the harder truth family: it was a property of
+  the gentler mid-ramp-start truths, not of the representation.  Both tune
+  scans froze at edges pointing the same way (η at 4× the oracle — maximally
+  diffused modes; weight at 0.05 — minimal trajectory pull): the fit prefers
+  the screening dynamics OFF.  The infrastructure results are all positive
+  (ledger closes at 3×10⁻⁵ with the dL/dt share quantified; 10/10 sequences;
+  every dynamics term folded), so the negative is attributable to the
+  representation, not the chain.  No real-data spend; S2/S3 closed by the
+  pre-declared no-go.</strong></p>
 
   <h2>What S1b rebuilt (the lead's directive, honoured in full)</h2>
   <ul>
@@ -126,8 +142,113 @@
   fields to settle before initiating breakdown.  The settle window is now
   part of the scenario (<code>--settle-s</code>, default 50 ms).</p>
 
-  <h2>Gate verdicts (re-declared rules)</h2>
-  <p>PLACEHOLDER-VERDICT-TABLES</p>
+  <h2>Gate verdicts (re-declared rules; 10 sequences / 140 label slices,
+  2 tune + 8 eval; oracle-free tune)</h2>
+  <h3>Leg (a) — failure-signature reproduction: <strong>FAIL on A2 (3 of 4
+  elements reproduced, now with the signature OVERSHOT)</strong></h3>
+  <table>
+    <thead><tr><th>criterion</th><th>synthetic (breakdown-start)</th>
+    <th>measured (audit)</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr><td>A1 — elevated ramp LCFS (≥1.8× hold)</td>
+      <td>15.15 vs 4.67 cm (3.2×)</td><td>8.44 vs 2.96 cm (2.85×)</td>
+      <td><strong>PASS</strong></td></tr>
+      <tr><td>A2 — cost tracks error (Spearman ≥0.4, p&lt;0.01)</td>
+      <td>+0.12 (p=0.23)</td><td>+0.77</td>
+      <td><strong>FAIL</strong> — sign now right (S1: −0.41) but weak; the
+      transition-band hotspot the correlation lives in cannot be
+      manufactured (measured scenario limitation above)</td></tr>
+      <tr><td>A3 — shape signature (a2&gt;0, a1&lt;0, ≥2× hold)</td>
+      <td>a2 +11.8, a1 −7.2 cm</td><td>a2 +5.7, a1 −3.8 cm</td>
+      <td><strong>PASS</strong> — right structure at ~2× the measured
+      magnitude: breakdown-accumulated skin is MORE severe than the
+      mid-ramp-start family that under-shot it</td></tr>
+      <tr><td>A4 — li3 over-read (≥1.5 and ≥1.3× hold)</td>
+      <td>3.10 ramp vs 1.49 hold</td><td>2–3 on ramp</td>
+      <td><strong>PASS</strong></td></tr>
+    </tbody>
+  </table>
+  <figure>
+    <img src="/imas-ambix/figures/plasma-screening-dynamics/fig-skin-gate-signature.png"
+         alt="leg (a) signature panels" style="max-width:100%">
+    <figcaption>Leg (a): spine LCFS error vs Ip fraction, cost–error scatter
+    (A2), per-band structure, harmonic signature vs audit (A3), li3 over-read
+    (A4), and the (absent) transition-flip panel.</figcaption>
+  </figure>
+
+  <h3>Leg (b) — recovery at the closure operating point (PRIMARY):
+  <strong>FAIL, CI-clear — and every arm fails with it</strong></h3>
+  <table>
+    <thead><tr><th>arm (η for modes + trajectory)</th><th>ramp LCFS median</th>
+    <th>paired gain vs spine [cm]</th><th>gap recovery</th></tr></thead>
+    <tbody>
+      <tr><td>frozen spine</td><td>15.00 cm</td><td>—</td><td>—</td></tr>
+      <tr><td><strong>dyn @ closure η (misfit scan: 4× oracle, flat) —
+      PRIMARY</strong></td><td>15.43 cm</td>
+      <td>−0.30 CI [−0.37, −0.23]</td>
+      <td><strong>−0.04 — B1 FAIL (CI-clear worse)</strong></td></tr>
+      <tr><td>dyn @ oracle η (10^−6.5, contrast 1.5) — diagnostic</td>
+      <td>15.23 cm</td><td>−0.62 CI [−0.73, −0.53]</td><td>−0.02</td></tr>
+      <tr><td>dyn @ truth-contrast η at the closure scale — diagnostic</td>
+      <td>15.30 cm</td><td>—</td><td>−0.03</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Attribution:</strong> the S1→S1b flip is the truth family, not
+  the tune: S1's mid-ramp-start truths (gap 7.6 cm, a2 +7.4) were 56%
+  recoverable at the identified η; the breakdown-start truths carry the skin
+  the real corpus accumulates from formation (gap 10.3 cm on eval, a2 +11.8,
+  li3 over-read 3.1×) and there k=2 zero-net screening columns add nothing —
+  every η arm is CI-clear WORSE than the spine, and the tune scans both froze
+  at the edges that minimise the dynamics' influence (η 4× ⇒ fastest mode
+  decay; weight 0.05 ⇒ weakest trajectory pull).  Hold non-inferiority
+  actually PASSES (3.99 vs 4.67 cm — the columns help where the deficit is
+  small) while the axis pays the familiar interior toll (17.7 → 19.4 cm on
+  interior-degenerate truths).  The recorded 0.73 poloidal-annihilation
+  fraction bounds what ANY flux-function truth family can ask of poloidally
+  structured modes — but the columns failed on the RADIAL deficit too.</p>
+  <figure>
+    <img src="/imas-ambix/figures/plasma-screening-dynamics/fig-skin-gate-recovery.png"
+         alt="leg (b) recovery panels" style="max-width:100%">
+    <figcaption>Leg (b): paired spine-vs-dyn scatter at closure η (B1), the
+    arm error distributions, and the weight scan (frozen at its new low
+    edge).</figcaption>
+  </figure>
+
+  <h3>Completeness assertions (the lead's directive, measured)</h3>
+  <table>
+    <thead><tr><th>assertion</th><th>result</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr><td>C1 — flux ledger closes from the machine-quiescent zero
+      (&lt;1%)</td><td>max closure residual 3.2×10⁻⁵ of drive volt-seconds;
+      example split: ∫u dt 0.147 Wb = ΔΨ̄ 0.041 + ∫R·i dt 0.106, formation
+      0.007, shape-remap (dL/dt) 0.008 Wb</td>
+      <td><strong>PASS</strong></td></tr>
+      <tr><td>C2 — limited→diverted flip in every eval sequence</td>
+      <td>no flips (scenario limitation measured before the run)</td>
+      <td><strong>FAIL</strong> (scenario, not chain)</td></tr>
+      <tr><td>C3 — all dΦ/dt terms folded (coupled truth chain + vessel-driven
+      trajectory)</td><td>structural — 146 vessel circuits in one block
+      system both sides</td><td><strong>PASS</strong></td></tr>
+      <tr><td>C4 — plasma inductance evolves (dL_p/dt ≥ 5%)</td>
+      <td>patch-mean self-flux per ampere spans 147% of its mean over the
+      chain</td><td><strong>PASS</strong></td></tr>
+    </tbody>
+  </table>
+  <figure>
+    <img src="/imas-ambix/figures/plasma-screening-dynamics/fig-skin-gate-dynamics.png"
+         alt="dynamics-completeness panels" style="max-width:100%">
+    <figcaption>The dynamics made visible: per-sequence flux-ledger terms
+    (drive = ΔΨ̄ + resistive, with formation and shape-remap shares), the
+    plasma inductance evolving along the chain, and the Ip stream from the
+    machine-quiescent state through vacuum, breakdown, and ramp.</figcaption>
+  </figure>
+  <figure>
+    <img src="/imas-ambix/figures/plasma-screening-dynamics/fig-skin-gate-example.png"
+         alt="representative slice" style="max-width:100%">
+    <figcaption>A representative ramp slice: the hollow breakdown-start truth
+    profile vs the spine's peaked read, and the truth vs spine LCFS
+    rings.</figcaption>
+  </figure>
 
   <h2>Basin-scout test re-pinned (pre-existing failure resolved)</h2>
   <p>The pre-existing deterministic failure of
@@ -147,7 +268,9 @@
   <ul>
     <li>Commits: <code>2145b58</code> (coupled plasma+vessel circuit + pins),
     <code>5172d36</code> (breakdown-start gate, re-declared before running),
-    <code>b85cf43</code> (basin test re-pin), PLACEHOLDER-RUN-COMMIT.</li>
+    <code>b386934</code> (breakdown-settle window), <code>e95af67</code>
+    (Z-symmetric branch pin + growth controls), <code>b85cf43</code> (basin
+    test re-pin).</li>
     <li>Gate artifact:
     <code>imas_ambix/latent/artifacts/patch_gate/plasma_screening_gate.json</code>
     (+ <code>-smoke</code>); figures under
