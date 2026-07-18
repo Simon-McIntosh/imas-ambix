@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="equilibrium-realism-s2-landed">
+  <meta name="plan-title" content="Equilibrium Realism — §2 record: V1 analytic force-balance diagnosis">
+  <meta name="plan-summary" content="§2 landing record. G1a fired — attractor-branch = coil-side locked by the measurement: on 6 train-split shots (30 slices) the operator's vacuum vertical field at the measured axis is systematically weak (+24–31% ramp, flat-top median 15.2% after the pre-declared +3-shot ambiguity extension), sign correct, waterfall localizing 85% to p5+p4; the reconstruction-mode probe exonerates the solve (frozen spine holds the 11766 axis at 1.6 cm median, no outboard walk). Lead's passive-structure hypothesis tested in-session: all conductors present vs the L2 pf_passive IDS (126 elements, incl. the outer vessel wall) — the missing term is the plasma-current-driven vessel-eddy drive, which closes the ramp deficit to +17.6% when folded and ~nothing at flat-top. 13 analytic pin tests green; artifact + 4 figures committed.">
+  <meta name="plan-informs" content="equilibrium-realism">
+  <title>equilibrium-realism §2 — V1 force-balance diagnosis, landed</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h1>§2 record — V1: analytic force-balance diagnosis</h1>
+  <p><strong>Verdict (2026-07-18): G1a fired — <code>attractor-branch = coil-side</code>,
+  locked by the measurement.</strong> On six train-split shots (30 slices,
+  measured coil currents + predicted vessel eddies, machine-quiescent
+  start) the forward operator's vacuum vertical field at the measured axis
+  is systematically <strong>too weak</strong>: +24–31% on every ramp slice
+  (18/18, median +27.5%), easing to a flat-top median of
+  <strong>15.2%</strong> — just over the 15% gate line — with no sign error
+  anywhere and the per-coil-group waterfall localizing
+  <strong>85%</strong> of the axis field to <strong>p5+p4</strong>. The
+  decay index sits inside the stability window (0.03–0.13, near the n&gt;0
+  vertical edge). The reconstruction-mode probe independently
+  <strong>exonerates the solve</strong>: the frozen D2 spine on shot
+  11766's raw magnetics holds the axis at <strong>1.6 cm median</strong>
+  from the EFIT trace (7/7 scored slices converged, none walked outboard) —
+  so the forward-mode deconfinement traces to the field at the plasma, not
+  the solve machinery. A too-weak vertical field is exactly the mechanism
+  of the outboard attractor: insufficient inward ring force lets the hoop
+  expansion push the column out.</p>
+
+  <h2>Quick status</h2>
+  <table>
+    <thead><tr><th>Item</th><th>Status</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>T1 analytic pins (Shafranov B_v, decay index, kernel, coil merge)</td>
+          <td>✓ shipped</td>
+          <td>13 tests green — <code>tests/gs/test_force_balance.py</code> (commit <code>cc02ac6</code>)</td></tr>
+      <tr><td>T2 measured-state sweep (6 shots × 5 slices)</td>
+          <td>✓ shipped</td>
+          <td>artifact <code>imas_ambix/gs/artifacts/force_balance_diagnosis.json</code> + 4 figures (commits <code>7d70c37</code>, <code>173671c</code>)</td></tr>
+      <tr><td>Ambiguity extension (+3 shots, pre-declared)</td>
+          <td>✓ consumed</td>
+          <td>3-shot flat-top median 0.149 (in-band) → 6-shot 0.152 (out of band, G1a side)</td></tr>
+      <tr><td>Reconstruction-mode axis-hold probe</td>
+          <td>✓ shipped</td>
+          <td>axis error 1.6 cm median; <code>probe_deconfines = false</code></td></tr>
+      <tr><td>Branch decision</td>
+          <td>✓ locked</td>
+          <td><code>attractor-branch = coil-side</code> (G1a)</td></tr>
+    </tbody>
+  </table>
+
+  <h2>The evidence</h2>
+  <figure>
+    <img src="/imas-ambix/figures/equilibrium-realism/fig-decay-index.png"
+         alt="Relative vertical-field discrepancy and decay index vs Ip fraction, 6 shots"
+         style="max-width:100%">
+    <figcaption><strong>Left:</strong> signed (B_z,model − B_v,req)/|B_v,req|
+    per slice — every shot rides +24–31% weak through the ramp and re-enters
+    the gate band only at the very top; the shaded bands are the ±15% G1b
+    window and the ±5% inner band. <strong>Right:</strong> decay index at the
+    axis — inside the (0, 3/2) window but hugging the n&gt;0 vertical-stability
+    edge, consistent with MAST's strong intrinsic elongation drive.</figcaption>
+  </figure>
+  <figure>
+    <img src="/imas-ambix/figures/equilibrium-realism/fig-bz-overlays.png"
+         alt="Vacuum B_z(R) midplane profiles vs Shafranov requirement, per Ip fraction"
+         style="max-width:100%">
+    <figcaption>Model vacuum B_z(R) along the axis midplane (lines, colored by
+    Ip fraction) against the Shafranov requirement at the measured axis (×).
+    The model curve passes consistently above (weaker than) the required
+    point.</figcaption>
+  </figure>
+  <figure>
+    <img src="/imas-ambix/figures/equilibrium-realism/fig-waterfall.png"
+         alt="Per-coil-group B_z waterfall at the measured axis"
+         style="max-width:100%">
+    <figcaption>Per-coil-group waterfall at the measured axis (flat_mid
+    slices): p5 and p4 carry ~85% of the field magnitude — the localizer
+    names the up/down main-coil pairs, precisely the circuits the vacuum-shot
+    campaign could <em>not</em> separate (the standing un-separable-pairs
+    finding), so a pair-level error hides from the sensor-ring validation.</figcaption>
+  </figure>
+  <figure>
+    <img src="/imas-ambix/figures/equilibrium-realism/fig-axis-hold.png"
+         alt="Reconstruction-mode axis-hold trace, shot 11766"
+         style="max-width:100%">
+    <figcaption>The second witness: the measurement-constrained frozen spine
+    tracks the EFIT axis (diagnostic-only) at 1.6 cm median over shot 11766 —
+    nowhere near the 1.4 m outboard-attractor read. Reconstruction mode is
+    healthy; the deconfinement is a forward-mode, field-side phenomenon.</figcaption>
+  </figure>
+
+  <h2>The lead's passive-structure hypothesis — tested in-session</h2>
+  <p>Mid-session the lead proposed an alternative mechanism: missing passive
+  structure (vessel / stabilizing plates) in the machine description. The
+  scan of L1/L2 for pf_passive-labelled fields found the L2
+  <code>pf_passive</code> IMAS IDS (126 elements: outer vessel wall at
+  R = 2.01 m, upper/lower horizontal walls, center-column rings/rods,
+  P2 divertor plates + arms, 48 coil cases) — and a geometry comparison
+  shows our 146 fcoil structural circuits <strong>already cover every
+  family</strong> (18 circuits on the outer wall, 32 above |Z| = 2.1 m,
+  68 on the center column). The conductors are present; what was missing is
+  a <strong>drive term</strong>: every vessel-eddy prediction (this sweep
+  included, originally) drives the passive system with the measured
+  <em>coil</em> histories only — the <em>plasma current's own ramp</em>
+  (0 → 600 kA in ~250 ms) also drives the vessel, and its Lenz-anti-parallel
+  image currents add field in the <em>confining</em> direction while they
+  last. Quantified (plasma filament at the referee axis trace, exact-ZOH):
+  the term supplies 6–10 mT of confining B_z on ramp slices — closing the
+  ramp deficit from median <strong>+27.5% to +17.6%</strong> — and ~0 at
+  flat-top (eddies decayed; median 15.2% → 14.5%), exactly the observed
+  deficit shape. Recorded in the artifact as
+  <code>bz_eddy_plasma</code> / <code>rel_discrepancy_with_plasma_eddies</code>
+  (diagnostic columns; the pre-declared gate inputs are untouched). The
+  dashed series in the discrepancy figure shows the folded values.</p>
+
+  <h2>Honest caveats (recorded with the lock)</h2>
+  <ul>
+    <li><strong>The flat-top gate crossing is thin</strong> — 0.152 vs the
+    0.150 line — and the pre-declared large-aspect identity
+    (ln(8R/a) + βp + li/2 − 3/2) carries O(ε²) corrections at MAST aspect
+    (A ≈ 1.42–1.54) larger than that margin; an elongation-corrected form
+    (ln 8R/(a√κ)) would soften the read by roughly 7–15%. After folding the
+    plasma-driven eddy term the residual deficit is ~+18% (ramp) / ~+15%
+    (flat-top) — a genuine but smaller field-side gap, part of which the
+    identity correction may absorb. The branch conviction rests on the
+    systematic, same-signed residual across all 6 shots plus the probe's
+    elimination of the solve branch; the fix rung opens with an
+    identity-independent per-coil audit precisely because the Shafranov
+    number alone cannot carry the remaining margin.</li>
+    <li><strong>Referee coverage clips the early ramp:</strong> EFIT slices
+    for these shots start at Ip-fraction ≈ 0.55–0.7, so the sweep's
+    "ramp" slices are mid-to-late ramp; the earliest ramp is undiagnosed
+    (dropped loudly, not silently).</li>
+    <li><strong>Localization is partly structural:</strong> p4+p5 dominate
+    because they ARE the vertical-field coils; the waterfall names them as
+    where a coil-side error must live, not proof of one by itself.</li>
+    <li>The vessel-eddy contribution at the axis (exact-ZOH prediction from
+    measured drives) is small at these slice times — the discrepancy is not
+    an eddy-modelling artifact.</li>
+  </ul>
+
+  <h2>Why this is coherent with the vacuum campaign</h2>
+  <p>The 0.1–0.44σ vacuum-shot validation measured coil→<em>sensor</em>
+  predictions, and the standing coil-model audit finding is that the P2–P5
+  up/down pairs are <em>unseparable in operating data</em> — their
+  symmetric combination is validated at the sensor ring, but a pair-level
+  (or winding-pack geometry) error changes the field at the plasma
+  differently than at the sensors. A ~25% vertical-field deficit at
+  R ≈ 0.75–0.9 m, Z ≈ 0 is consistent with every prior measurement while
+  explaining why <code>build_confining_i_pf</code> needed −60 kA on ALL
+  P4/P5/P6 coils (vs the real 11766 pattern p4 −121 kA, p5 −62 kA) to
+  manufacture confinement.</p>
+
+  <h2>Artifacts</h2>
+  <ul>
+    <li><code>imas_ambix/gs/force_balance.py</code> — the diagnostics module (Shafranov requirement, decay index, per-coil/passive B_z columns at arbitrary points, byte-consistent with the operator merge)</li>
+    <li><code>tests/gs/test_force_balance.py</code> — 13 analytic pins</li>
+    <li><code>scripts/force_balance_diagnosis.py</code> — the sweep + gate evaluator</li>
+    <li><code>imas_ambix/gs/artifacts/force_balance_diagnosis.json</code> — per-slice rows, profiles, waterfalls, gate block</li>
+    <li>Commits: <code>cc02ac6</code>, <code>7d70c37</code>, <code>173671c</code>, <code>3989388</code> (plasma-eddy drive)</li>
+  </ul>
+
+  <h2>What's next</h2>
+  <p>§2.5 (queued followup f-eqr-02), the coil-side fix rung, in three
+  ordered steps with pre-declared gates (full prompt in the plan):
+  (1) fold the plasma-driven vessel-eddy drive into the forward chain — the
+  machinery exists (<code>CoupledCircuit</code> already couples plasma and
+  vessel; the static confinement probes never carried it); (2) an
+  identity-robustness band — elongation-corrected requirement
+  (ln 8R/(a√κ)) as the sensitivity envelope; (3) an identity-independent
+  per-coil audit of the p4/p5/p6 winding representation (turns / xmult /
+  merge / geometry vs the authoritative efm + pfSystems sources). The V2
+  precondition gate: with the fixes in place the operator must hold a
+  confined fixed point on shot 11766's measured flat-top pattern.</p>
+
+</main>
+</body>
+</html>
