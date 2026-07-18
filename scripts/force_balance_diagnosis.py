@@ -113,14 +113,25 @@ def _interp_ref(ref: dict[str, np.ndarray], key: str, t: float) -> float:
     return float(np.interp(t, tt[ok], yy[ok]))
 
 
-def _vessel_currents(table, grid, i_pf_full, channels, times):
-    """Vessel circuit currents from the measured coil drives, quiescent start.
+def _vessel_currents(
+    table, grid, i_pf_full, channels, times, ip_amperes=None, axis_rz=None
+):
+    """Vessel circuit currents from the measured drives, quiescent start.
 
     Exact-ZOH eigenmode integration of the passive circuit system driven by
     the full measured coil history — the same prediction the screening gate
-    folds into its truth chain.  Returns ``(circuits, i_vessel (T, P))``.
+    folds into its truth chain.  When ``ip_amperes`` (T,) and ``axis_rz``
+    (T, 2) are given, the PLASMA current's own flux swing drives the vessel
+    too (a filament at the referee axis trace): the Lenz-anti-parallel image
+    currents this induces during the fast Ip ramp contribute confining
+    vertical field at the plasma — a term absent from coil-only predictions
+    (lead hypothesis, quantified by this sweep).  Returns ``(circuits,
+    i_vessel_coil (T, P), i_vessel_full (T, P))`` — coil-only and
+    coil+plasma-driven states (identical when the plasma drive is omitted).
     """
     from scipy.linalg import eigh  # noqa: PLC0415
+
+    from imas_ambix.gs.operator import greens_psi  # noqa: PLC0415
 
     vsys = build_passive_circuit_system(table, grid)
     chan_idx = {ch: j for j, ch in enumerate(vsys.coil_channels)}
@@ -130,9 +141,40 @@ def _vessel_currents(table, grid, i_pf_full, channels, times):
             m_vc[:, j] = vsys.m_coil_circ[:, chan_idx[chan]]
     w, vv = eigh(np.diag(vsys.r_diag), vsys.lmat)
     tau = 1.0 / np.clip(w, 1e-12, None)
-    psi_m = (i_pf_full @ m_vc.T) @ vv
-    a, _u = integrate_eddy_ode(tau, times, psi_m)
-    return vsys.circuits, a @ vv.T
+    psi_coil = i_pf_full @ m_vc.T
+    a_coil, _u = integrate_eddy_ode(tau, times, psi_coil @ vv)
+    i_coil = a_coil @ vv.T
+    if ip_amperes is None or axis_rz is None:
+        return vsys.circuits, i_coil, i_coil
+
+    # plasma→circuit linkage per slice: xmult-weighted ψ per ampere of a
+    # loop at the (time-varying) axis, vectorised over all passive filaments
+    by_circ: dict[int, list] = {}
+    for f in table.pf_filaments:
+        by_circ.setdefault(f.circuit, []).append(f)
+    fr, fz, fw, ci = [], [], [], []
+    for i, c in enumerate(vsys.circuits):
+        for f in by_circ[int(c)]:
+            fr.append(f.r)
+            fz.append(f.z)
+            fw.append(f.xmult)
+            ci.append(i)
+    fr = np.array(fr)
+    fz = np.array(fz)
+    fw = np.array(fw)
+    ci = np.array(ci)
+    psi_plasma = np.zeros((times.size, vsys.n_circuits))
+    for t in range(times.size):
+        if ip_amperes[t] == 0.0 or not np.all(np.isfinite(axis_rz[t])):
+            continue
+        psi = np.atleast_1d(
+            greens_psi(fr, fz, float(axis_rz[t, 0]), float(axis_rz[t, 1]))
+        )
+        psi_plasma[t] = np.bincount(
+            ci, weights=fw * psi, minlength=vsys.n_circuits
+        ) * float(ip_amperes[t])
+    a_full, _u = integrate_eddy_ode(tau, times, (psi_coil + psi_plasma) @ vv)
+    return vsys.circuits, i_coil, a_full @ vv.T
 
 
 def _select_slices(
@@ -206,9 +248,6 @@ def diagnose_shot(shot: int) -> dict | None:
         }
         i_pf[t] = fwd.assemble_pf_currents(vals)
 
-    grid = EquilibriumGrid.from_table(table, nr=65, nz=97)
-    circuits, i_vessel = _vessel_currents(table, grid, i_pf, fwd.pf_amc_channels, times)
-
     ip_ka = x[:, ip_col]
     tt = ref["time"]
     ok = np.isfinite(tt) & np.isfinite(ref["magnetic_axis_r"])
@@ -216,6 +255,22 @@ def diagnose_shot(shot: int) -> dict | None:
         (times >= tt[ok][0]) & (times <= tt[ok][-1])
         if ok.sum() >= 2
         else np.zeros_like(plasma_on)
+    )
+
+    # plasma filament trace for the vessel drive: measured Ip at the referee
+    # axis (np.interp clamps outside coverage — the early-ramp linkage is then
+    # approximate, but those eddies decay on the vessel τ ≤ 35 ms)
+    ip_amp_t = np.where(np.isfinite(ip_ka), ip_ka, 0.0) * 1e3
+    okz = np.isfinite(tt) & np.isfinite(ref["magnetic_axis_z"])
+    axis_rz = np.column_stack(
+        [
+            np.interp(times, tt[ok], ref["magnetic_axis_r"][ok]),
+            np.interp(times, tt[okz], ref["magnetic_axis_z"][okz]),
+        ]
+    )
+    grid = EquilibriumGrid.from_table(table, nr=65, nz=97)
+    circuits, i_vessel, i_vessel_full = _vessel_currents(
+        table, grid, i_pf, fwd.pf_amc_channels, times, ip_amp_t, axis_rz
     )
     picks = _select_slices(ip_ka, plasma_on, covered)
     usable = plasma_on & covered
@@ -248,6 +303,10 @@ def diagnose_shot(shot: int) -> dict | None:
             groups[g] = groups.get(g, 0.0) + float(c)
         groups["vessel"] = float(pas_line[j_ax] @ i_vessel[k])
         bz_axis = float(sum(groups.values()))
+        # the plasma-driven eddy share, reported ALONGSIDE the gate columns —
+        # the pre-declared gates read rel_discrepancy (coil + coil-driven
+        # eddies) unchanged; this column quantifies the missing-drive term
+        bz_eddy_plasma = float(pas_line[j_ax] @ (i_vessel_full[k] - i_vessel[k]))
 
         betap_li2 = (
             betap + 0.5 * li
@@ -279,6 +338,12 @@ def diagnose_shot(shot: int) -> dict | None:
                 "bz_model_axis": bz_axis,
                 "bv_required": bv_req,
                 "rel_discrepancy": rel,
+                "bz_eddy_plasma": bz_eddy_plasma,
+                "rel_discrepancy_with_plasma_eddies": (
+                    (bz_axis + bz_eddy_plasma - bv_req) / abs(bv_req)
+                    if np.isfinite(bv_req)
+                    else float("nan")
+                ),
                 "sign_error": bool(np.isfinite(bv_req) and bz_axis * bv_req < 0.0),
                 "decay_index_axis": float(n_line[j_ax]),
                 "waterfall": {g: float(groups[g]) for g in GROUP_ORDER},
@@ -431,9 +496,29 @@ def evaluate_gates(shot_results: list[dict], probe_rows: list[dict]) -> dict:
         verdict = "coil-side"
     elif g1b:
         verdict = "solve-side"
+    ramp = [
+        r
+        for s in shot_results
+        for r in s["rows"]
+        if r["tag"].startswith("ramp") and np.isfinite(r["rel_discrepancy"])
+    ]
+
+    def _med(rows_, key):
+        vals = [r[key] for r in rows_ if np.isfinite(r.get(key, float("nan")))]
+        return float(np.median(vals)) if vals else float("nan")
+
     return {
         "flat_top_slices": len(flat),
         "median_abs_rel_discrepancy": med_abs_rel,
+        # reported diagnostics (NOT gate inputs): the missing plasma-driven
+        # vessel-eddy term folded in
+        "median_rel_ramp": _med(ramp, "rel_discrepancy"),
+        "median_rel_ramp_with_plasma_eddies": _med(
+            ramp, "rel_discrepancy_with_plasma_eddies"
+        ),
+        "median_rel_flat_with_plasma_eddies": _med(
+            flat, "rel_discrepancy_with_plasma_eddies"
+        ),
         "sign_error_any": sign,
         "median_top2_share": float(np.median(top2)) if top2.size else float("nan"),
         "waterfall_localizes": localizes,
@@ -473,7 +558,7 @@ def make_figures(shot_results: list[dict], probe_rows: list[dict]) -> None:
     # (2) relative discrepancy + decay index vs Ip fraction
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11.5, 4.2))
     marker = {"11766": "o", "11772": "s", "11767": "^"}
-    for s in shot_results:
+    for si, s in enumerate(shot_results):
         rr = [r for r in s["rows"] if np.isfinite(r["rel_discrepancy"])]
         ax1.plot(
             [r["ip_frac"] for r in rr],
@@ -482,6 +567,16 @@ def make_figures(shot_results: list[dict], probe_rows: list[dict]) -> None:
             ls="-",
             ms=5,
             label=f"shot {s['shot']}",
+        )
+        ax1.plot(
+            [r["ip_frac"] for r in rr],
+            [r["rel_discrepancy_with_plasma_eddies"] for r in rr],
+            marker.get(str(s["shot"]), "o"),
+            ls="--",
+            ms=5,
+            mfc="none",
+            color=f"C{si}",
+            label="+ plasma-driven eddies" if si == 0 else None,
         )
         ax2.plot(
             [r["ip_frac"] for r in s["rows"]],
@@ -575,11 +670,12 @@ def main() -> int:
             shot_results.append(r)
             for row in r["rows"]:
                 logger.info(
-                    "%d %s Ip=%.0fkA rel=%+.3f n=%.2f top2=%.2f (%s)",
+                    "%d %s Ip=%.0fkA rel=%+.3f rel+eddy=%+.3f n=%.2f top2=%.2f (%s)",
                     row["shot"],
                     row["tag"],
                     row["ip_amperes"] / 1e3,
                     row["rel_discrepancy"],
+                    row["rel_discrepancy_with_plasma_eddies"],
                     row["decay_index_axis"],
                     row["top2_share"],
                     "+".join(row["top2_groups"]),
