@@ -1092,8 +1092,11 @@ class SoftPriors:
     # eddy amplitudes on a circuit-integrated trajectory instead of zero.
     # ``passive_prior_center`` is in the SIDECAR's whitened mode coordinates
     # (same variables as ``a_pass``); weight 0 / None is byte-identical OFF.
+    # The weight may be a PER-MODE vector (kp,) so heterogeneous sidecar
+    # blocks (e.g. vessel modes at 0 + plasma screening modes at w) can carry
+    # different prior strengths in one solve; a scalar applies uniformly.
     passive_prior_center: np.ndarray | None = None
-    passive_prior_weight: float = 0.0
+    passive_prior_weight: float | np.ndarray = 0.0
 
     # profile-coefficient temporal-consistency prior (current diffusion):
     # centre the ladder coefficients on the diffusion-evolved prediction from
@@ -1117,11 +1120,9 @@ class SoftPriors:
             or self.pprime_target is not None
             or (
                 self.passive_prior_center is not None
-                and self.passive_prior_weight > 0.0
+                and bool(np.any(np.asarray(self.passive_prior_weight) > 0.0))
             )
-            or (
-                self.coeff_prior_center is not None and self.coeff_prior_weight > 0.0
-            )
+            or (self.coeff_prior_center is not None and self.coeff_prior_weight > 0.0)
         )
 
 
@@ -1316,7 +1317,7 @@ def _assemble_soft_prior_rows(
     # the penalty weight·‖a_pass − center‖² in the stacked least squares.
     if (
         sp.passive_prior_center is not None
-        and sp.passive_prior_weight > 0.0
+        and bool(np.any(np.asarray(sp.passive_prior_weight) > 0.0))
         and kp
     ):
         center = np.asarray(sp.passive_prior_center, dtype=np.float64)
@@ -1324,9 +1325,12 @@ def _assemble_soft_prior_rows(
             raise ValueError(
                 f"passive_prior_center size {center.size} != sidecar rank {kp}"
             )
-        w_sq = np.sqrt(float(sp.passive_prior_weight))
+        weight = np.broadcast_to(
+            np.asarray(sp.passive_prior_weight, dtype=np.float64), (kp,)
+        )
+        w_sq = np.sqrt(np.clip(weight, 0.0, None))
         row = np.zeros((kp, n_var))
-        row[:, k_dof : k_dof + kp] = w_sq * np.eye(kp)
+        row[:, k_dof : k_dof + kp] = np.diag(w_sq)
         rows.append(_pad(row))
         rhs.append(w_sq * center)
 
