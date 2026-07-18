@@ -157,6 +157,28 @@ def test_rotation_injection_adds_r4_structure(fixture_campaign):
     )
 
 
+def test_z_symmetric_pins_the_midplane_branch(fixture_campaign):
+    """``z_symmetric`` makes the manufactured equilibrium exactly up-down
+    symmetric — the branch pin a chained truth family relies on where the
+    plain Picard would amplify infinitesimal asymmetries near a vertical
+    instability."""
+    truth = st.manufacture(
+        fixture_campaign,
+        beta0=0.6,
+        alpha=1.0,
+        i_pf=None,
+        noise=False,
+        z_symmetric=True,
+    )
+    assert truth.confined
+    assert abs(truth.axis[1]) < 2e-2  # axis on the midplane (grid-resolution)
+    j2d = np.zeros(fixture_campaign.grid.flat_r.size)
+    j2d[fixture_campaign.grid.cells] = truth.cell_currents
+    j2d = j2d.reshape(fixture_campaign.grid.nz, fixture_campaign.grid.nr)
+    asym = np.abs(j2d - j2d[::-1, :]).sum() / max(np.abs(j2d).sum(), 1e-30)
+    assert asym < 1e-9  # current density exactly symmetric by construction
+
+
 def test_firewall_no_evaluator_imports():
     """The generator must not import anything from the EFIT / evaluator side."""
     from pathlib import Path

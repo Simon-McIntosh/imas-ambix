@@ -394,6 +394,7 @@ def _forward_picard(
     max_iterations: int,
     tolerance: float,
     initial_jphi: np.ndarray | None,
+    z_symmetric: bool = False,
 ):
     """Analytic-add free-boundary Picard with a caller-supplied jφ shape.
 
@@ -402,10 +403,18 @@ def _forward_picard(
     profile shape is injected, so rotation / K-coefficient / any manufactured
     family can drive the truth.  Optional ``psi_passive_grid`` is the injected
     passive-conductor flux added to the field every sweep (grid-flat [Wb]).
-    Returns ``(psi2d, cell_currents, jphi_full, axis, axis_psi, boundary_psi,
-    core_mask, converged, residual)`` — ``jphi_full`` is the un-rescaled shape
-    density on the full grid (the warm-start seed for a continuation stage).
+    ``z_symmetric`` symmetrises jφ across the midplane every sweep, pinning
+    the iteration to the up-down symmetric solution branch: near a vertical
+    instability the plain Picard amplifies any infinitesimal asymmetry (warm
+    start, rounding) and wanders off midplane — a chained truth family can
+    DECLARE its world symmetric and make the branch choice exact (requires a
+    Z-symmetric grid).  Returns ``(psi2d, cell_currents, jphi_full, axis,
+    axis_psi, boundary_psi, core_mask, converged, residual)`` — ``jphi_full``
+    is the un-rescaled shape density on the full grid (the warm-start seed
+    for a continuation stage).
     """
+    if z_symmetric and float(np.abs(grid.zg + grid.zg[::-1]).max()) > 1e-9:
+        raise ValueError("z_symmetric requires a midplane-symmetric Z grid")
     psi_coil = grid.coil_psi(np.asarray(i_pf, dtype=np.float64))
     if psi_passive_grid is not None:
         psi_coil = psi_coil + psi_passive_grid
@@ -473,6 +482,9 @@ def _forward_picard(
         jphi = np.zeros_like(jphi)
         shape = shape_fn(psi_n, grid.flat_r)
         jphi[core.ravel()] = shape[core.ravel()]
+        if z_symmetric:
+            j2d = jphi.reshape(grid.nz, grid.nr)
+            jphi = (0.5 * (j2d + j2d[::-1, :])).ravel()
 
         if iteration > 5 and residual < tolerance:
             break
@@ -568,6 +580,7 @@ def manufacture(
     tolerance: float = 3e-4,
     continuation: bool = True,
     warm_jphi: np.ndarray | None = None,
+    z_symmetric: bool = False,
 ) -> SyntheticTruth:
     """Manufacture one confined equilibrium and emit its synthetic payload.
 
@@ -650,6 +663,7 @@ def manufacture(
             max_iterations=max_iterations,
             tolerance=tolerance,
             initial_jphi=blob,
+            z_symmetric=z_symmetric,
         )
         if _ax[0] <= _CONFINED_AXIS_R_MAX:
             seed_jphi = jphi_plain
@@ -675,6 +689,7 @@ def manufacture(
         max_iterations=max_iterations,
         tolerance=tolerance,
         initial_jphi=seed_jphi,
+        z_symmetric=z_symmetric,
     )
     confined = bool(axis[0] <= _CONFINED_AXIS_R_MAX and core.sum() > 4)
 
@@ -746,6 +761,7 @@ def manufacture_shape(
     relax: float = 0.2,
     max_iterations: int = 300,
     tolerance: float = 3e-4,
+    z_symmetric: bool = False,
 ) -> SyntheticTruth:
     """Manufacture one equilibrium from an ARBITRARY jφ(ψ_N, R) shape callback.
 
@@ -799,6 +815,7 @@ def manufacture_shape(
         max_iterations=max_iterations,
         tolerance=tolerance,
         initial_jphi=warm_jphi,
+        z_symmetric=z_symmetric,
     )
     confined = bool(axis[0] <= _CONFINED_AXIS_R_MAX and core.sum() > 4)
 

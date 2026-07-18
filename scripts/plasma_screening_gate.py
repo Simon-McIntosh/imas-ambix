@@ -5,11 +5,16 @@ Truths that the coefficient-ladder generator CANNOT produce: sequences of
 manufactured equilibria whose current profile evolves under the COUPLED
 plasma + vessel filament circuit with a KNOWN η(ψ_N) through fast
 shape-forming ramps.  The chain starts from the machine-quiescent state —
-a vacuum phase (coils ramp, vessel eddies build, no plasma), then the
-plasma is caught at breakdown scale (Ip a few % of flat-top, its profile
-the fully-diffused high-η limit — the unique early state fast diffusion
-pins), and the current and profile GROW from there: every integral term
-accumulates from zero, so the flux ledger carries no free constant.  Per
+a vacuum phase (coils ramp, vessel eddies build, no plasma), a coil-hold
+settle window (the ramp-induced eddies must decay or they crush the
+breakdown plasma — measured), then the plasma is caught at breakdown scale
+(Ip a few % of flat-top, its profile the fully-diffused high-η limit — the
+unique early state fast diffusion pins), and the current and profile GROW
+from there with a Spitzer-motivated breakdown-η schedule (the cold early
+plasma diffuses fast; η relaxes to the declared truth value exactly at the
+label floor) and geometric Ip increments (bounded relative flux swing per
+step): every integral term accumulates from zero, so the flux ledger
+carries no free constant.  Per
 interval the coupled patch+vessel currents evolve exactly (ZOH eigenmodes;
 uniform loop voltage on the plasma rows shot to the prescribed Ip; coil
 swing and vessel eddies drive the same system), the evolved state is
@@ -170,16 +175,39 @@ def _campaign():
         from scipy.linalg import eigh  # noqa: PLC0415
 
         w, vv = eigh(np.diag(vsys.r_diag), vsys.lmat)
+        # mirror-pair index for the up-down symmetrisation of the vessel
+        # state entering the TRUTH equilibria: the Z-asymmetric eddy
+        # component drives a vertical instability a static-equilibrium
+        # truth chain cannot stabilise (measured: axis Z −0.6 three growth
+        # steps in, corner one step later; per-step DC control overshoots
+        # at high Ip) — the synthetic world's vessel is declared up-down
+        # symmetric, retaining the (dominant) symmetric screening physics
+        r_c, z_c = vsys.centroid_r, vsys.centroid_z
+        mirror = np.arange(vsys.n_circuits)
+        for i in range(vsys.n_circuits):
+            d = np.abs(r_c - r_c[i]) + np.abs(z_c + z_c[i])
+            j = int(np.argmin(d))
+            if d[j] < 0.05:
+                mirror[i] = j
         _CAMPAIGN["c"] = c
         _CAMPAIGN["vsys"] = vsys
         _CAMPAIGN["m_vc_ipf"] = m_vc_ipf
         _CAMPAIGN["vessel_eig"] = (1.0 / np.clip(w, 1e-12, None), vv)
+        _CAMPAIGN["vessel_mirror"] = mirror
     return _CAMPAIGN["c"]
 
 
 def _vessel():
     _campaign()
     return _CAMPAIGN["vsys"], _CAMPAIGN["m_vc_ipf"], _CAMPAIGN["vessel_eig"]
+
+
+def sym_vessel(i_vessel: np.ndarray) -> np.ndarray:
+    """Up-down symmetric part of the vessel state (mirror-pair average)."""
+    _campaign()
+    mirror = _CAMPAIGN["vessel_mirror"]
+    i_vessel = np.asarray(i_vessel, dtype=np.float64)
+    return 0.5 * (i_vessel + i_vessel[mirror])
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +251,26 @@ def scenario_i_pf(
             out[j] = base[j] * (1.0 - quad)
         elif chan.startswith("p2") and "coil" in chan:
             out[j] = +abs(div_frac) * 6.0e4 * vf_frac
+    return out
+
+
+def apply_vertical_trim(campaign, i_pf: np.ndarray, trim: float) -> np.ndarray:
+    """Up/down P4/P5 differential — the vertical position controller's
+    actuator.  ``trim > 0`` strengthens the lower set against the upper
+    (sign VERIFIED on this campaign: it moves the axis UP), cancelling the
+    vertical kick the Z-asymmetric vessel eddies apply to the elongating
+    plasma.  The trimmed currents ARE the drive history — the evolution,
+    the sensors, and the fits all see the controlled coils.
+    """
+    if trim == 0.0:
+        return i_pf
+    out = i_pf.copy()
+    for j, chan in enumerate(campaign.fwd.pf_amc_channels):
+        if chan[:2] in ("p4", "p5") and "coil" in chan:
+            if chan[2] == "u":
+                out[j] = i_pf[j] * (1.0 - trim)
+            elif chan[2] == "l":
+                out[j] = i_pf[j] * (1.0 + trim)
     return out
 
 
@@ -362,14 +410,31 @@ def generate_skin_sequence(job: tuple) -> dict | None:
     # phase before it — chained through but never emitted, exactly the real
     # corpus's structure (300 kA label floor; early window unobserved)
     frac0 = rng.uniform(0.35, 0.45)
+    # geometric pre-phase spacing: equal RELATIVE Ip increments per step, so
+    # the per-interval flux swing (and the skin it drives) stays bounded
+    # through the early growth
     frac = np.concatenate(
         [
-            np.linspace(frac_bd, frac0, n_pre + 1)[:-1],
+            np.geomspace(frac_bd, frac0, n_pre + 1)[:-1],
             np.linspace(frac0, 1.0, n_ramp),
             np.ones(n_hold),
         ]
     )
     ip_seq = ip_end * frac
+
+    # breakdown-phase resistivity: below the label floor the plasma is cold
+    # (Te grows with Ip), so η is Spitzer-high and the current diffuses fast —
+    # the early profile stays near-equilibrated and its state is pinned by the
+    # diffusion itself.  η(frac) = η_true · min(cap, (frac0/frac)^p) below the
+    # floor; EXACTLY the declared truth η from the label floor up.
+    eta_bd_pow = float(cfg.get("eta_bd_pow", 1.5))
+    eta_bd_cap = float(cfg.get("eta_bd_cap", 30.0))
+
+    def _eta_at(f_frac: float) -> EtaProfile:
+        s = min(eta_bd_cap, max(1.0, (frac0 / max(f_frac, 1e-6)) ** eta_bd_pow))
+        vec = eta_true.as_vector()
+        return EtaProfile.from_vector([vec[0] + np.log10(s), vec[1], vec[2]])
+
     # shaping grows with the current: the P2 divertor drive and its
     # radial-balance compensation ramp ∝ Ip fraction and SATURATE at
     # frac_sat, crossing the X-point-forming threshold late in the ramp
@@ -407,18 +472,28 @@ def generate_skin_sequence(job: tuple) -> dict | None:
 
     # breakdown catch: the plasma appears at a few % of flat-top current with
     # the fully-diffused (plain) profile — the unique early state the fast
-    # high-η diffusion pins; its formation volt-seconds are ledgered below
-    truth0 = manufacture(
-        campaign,
-        beta0=0.5,
-        alpha=1.0,
-        i_pf=i_pf_seq[0],
-        ip_amperes=float(ip_seq[0]),
-        passive_amplitudes=i_vessel,
-        seed=int(seed * 1000),
-        continuation=False,
-    )
-    if not truth0.confined:
+    # high-η diffusion pins; its formation volt-seconds are ledgered below.
+    # The same position-control trim as the growth steps applies (the boost's
+    # own eddy correction is second-order at catch scale).
+    truth0 = None
+    for boost_try in (1.0, 1.12, 1.25, 1.4):
+        i_pf_0 = _i_pf_at(frac_bd) * boost_try
+        candidate = manufacture(
+            campaign,
+            beta0=0.5,
+            alpha=1.0,
+            i_pf=i_pf_0,
+            ip_amperes=float(ip_seq[0]),
+            passive_amplitudes=sym_vessel(i_vessel),
+            seed=int(seed * 1000),
+            continuation=False,
+            z_symmetric=True,
+        )
+        if candidate.confined:
+            truth0 = candidate
+            i_pf_seq[0] = i_pf_0
+            break
+    if truth0 is None:
         logger.warning("seq %d: breakdown-catch truth not confined — dropped", seed)
         return None
     psi_n, core, axis, _apsi = _psi_n_state(truth0.psi, grid, ip_seq[0])
@@ -464,30 +539,71 @@ def generate_skin_sequence(job: tuple) -> dict | None:
         )
 
     p = circuit.n_patches
+    trim = 0.0  # persistent vertical-controller state (integral action)
+    trims = []  # per-step trim actually applied
     for k in range(1, n_steps):
         sub = np.linspace(times[k - 1], times[k], int(cfg["n_sub"]))
         wts = (sub - times[k - 1]) / (times[k] - times[k - 1])
-        i_pf_sub = (1.0 - wts)[:, None] * i_pf_seq[k - 1] + wts[:, None] * i_pf_seq[k]
-        u, _i_end = ps.coupled_loop_voltage_for_ip(
-            coupled,
-            eta_true,
-            sub,
-            i0=i_state,
-            ip_target=float(ip_seq[k]),
-            i_pf_of_t=i_pf_sub,
-        )
-        traj = ps.evolve_coupled(
-            coupled,
-            eta_true,
-            sub,
-            i0=i_state,
-            loop_voltage=np.full(sub.size, u),
-            i_pf_of_t=i_pf_sub,
-        )
-        i_end = traj[-1]
+        eta_k = _eta_at(0.5 * (float(frac[k - 1]) + float(frac[k])))
+        # vertical position control: the Z-asymmetric part of the vessel
+        # eddies kicks the elongating plasma off midplane and — with no
+        # controller — it falls to a corner (measured: axis Z −0.6 at the
+        # third growth step, corner (1.81, −1.74) one step later).  The
+        # controller holds Z with an up/down P4/P5 differential: persistent
+        # integral action across steps plus acute within-step retries.
+        truth = None
+        for _attempt in range(4):
+            i_pf_k = apply_vertical_trim(campaign, _i_pf_at(float(frac[k])), trim)
+            i_pf_sub = (1.0 - wts)[:, None] * i_pf_seq[k - 1] + wts[:, None] * i_pf_k
+            u, _i_end = ps.coupled_loop_voltage_for_ip(
+                coupled,
+                eta_k,
+                sub,
+                i0=i_state,
+                ip_target=float(ip_seq[k]),
+                i_pf_of_t=i_pf_sub,
+            )
+            traj = ps.evolve_coupled(
+                coupled,
+                eta_k,
+                sub,
+                i0=i_state,
+                loop_voltage=np.full(sub.size, u),
+                i_pf_of_t=i_pf_sub,
+            )
+            i_end = traj[-1]
+            i_plasma_end, i_vessel_try = i_end[:p], i_end[p:]
+            h = _radial_bin_profile(circuit, i_plasma_end, TRUTH_N_RAD)
+            candidate = manufacture_shape(
+                campaign,
+                _shape_from_bins(
+                    h, TRUTH_N_RAD, grid.r0, float(cfg.get("beta_split", BETA_SPLIT))
+                ),
+                ip_amperes=float(ip_seq[k]),
+                i_pf=i_pf_k,
+                passive_amplitudes=sym_vessel(i_vessel_try),
+                seed=int(seed * 1000 + k),
+                warm_jphi=warm,
+                z_symmetric=True,
+            )
+            z_ax = float(candidate.axis[1])
+            if candidate.confined and abs(z_ax) <= 0.35:
+                truth = candidate
+                i_pf_seq[k] = i_pf_k
+                i_vessel = i_vessel_try
+                trims.append(float(trim))
+                # integral action for the NEXT step (small residual Z)
+                trim = float(np.clip(trim - 0.3 * z_ax, -0.2, 0.2))
+                break
+            # acute correction: counter the measured displacement (a fallen
+            # plasma reads |Z| ~ 1.7 — the clip keeps the actuator physical)
+            trim = float(np.clip(trim - 0.5 * z_ax, -0.2, 0.2))
+        if truth is None:
+            logger.warning("seq %d step %d: truth not confined — dropped", seed, k)
+            return None
         # ledger: the per-patch circuit identity dΨ̄/dt + mean(R·i) = u,
         # integrated over the interval (trapezoid on the sub-cadence state)
-        r_p = circuit.r_diag(eta_true)
+        r_p = circuit.r_diag(eta_k)
         psi0 = ps.mean_plasma_linked_flux(coupled, traj[0], i_pf_sub[0])
         psi1 = ps.mean_plasma_linked_flux(coupled, traj[-1], i_pf_sub[-1])
         res = float(np.trapezoid((traj[:, :p] * r_p[np.newaxis, :]).mean(axis=1), sub))
@@ -497,9 +613,7 @@ def generate_skin_sequence(job: tuple) -> dict | None:
         ledger["resistive_vs"] += res
         ledger["closure_err_vs"] += abs(u * dt_k - ((psi1 - psi0) + res))
 
-        i_plasma_end, i_vessel = i_end[:p], i_end[p:]
-        # flux-function limit of the evolved state (recorded approximation:
-        # the poloidal structure the binning annihilates)
+        # poloidal structure the flux-function binning annihilates (recorded)
         rad = np.minimum(
             (np.sqrt(np.clip(circuit.tiling.psi_n, 0.0, 1.0)) * TRUTH_N_RAD).astype(
                 int
@@ -517,21 +631,6 @@ def generate_skin_sequence(job: tuple) -> dict | None:
                 / max(np.abs(i_plasma_end).sum(), 1e-30)
             )
         )
-        h = _radial_bin_profile(circuit, i_plasma_end, TRUTH_N_RAD)
-        truth = manufacture_shape(
-            campaign,
-            _shape_from_bins(
-                h, TRUTH_N_RAD, grid.r0, float(cfg.get("beta_split", BETA_SPLIT))
-            ),
-            ip_amperes=float(ip_seq[k]),
-            i_pf=i_pf_seq[k],
-            passive_amplitudes=i_vessel,
-            seed=int(seed * 1000 + k),
-            warm_jphi=warm,
-        )
-        if not truth.confined:
-            logger.warning("seq %d step %d: truth not confined — dropped", seed, k)
-            return None
         if k >= n_pre:  # the vacuum + pre phases are chained, never emitted
             _record(truth, k)
             rows[-1]["h_true"] = [float(v) for v in h]
@@ -600,6 +699,7 @@ def generate_skin_sequence(job: tuple) -> dict | None:
         "ledger": ledger,
         "flip_frac": flip_frac,
         "ip_end": float(ip_end),
+        "control_trims": [float(t) for t in trims],
     }
 
 
@@ -824,6 +924,8 @@ def _band(rows, key, band):
 
 def _paired_bootstrap_ci(diffs: np.ndarray, n_boot: int = 4000, seed: int = 7):
     rng = np.random.default_rng(seed)
+    diffs = np.asarray(diffs, dtype=np.float64)
+    diffs = diffs[np.isfinite(diffs)]  # unreadable boundaries drop, not poison
     if diffs.size == 0:
         return (float("nan"), float("nan"))
     meds = np.median(rng.choice(diffs, size=(n_boot, diffs.size), replace=True), axis=1)
@@ -850,6 +952,16 @@ def main() -> int:
         help="coil-hold settle window between the vacuum ramp and breakdown "
         "(vessel eddies must decay before the plasma can be caught)",
     )
+    ap.add_argument(
+        "--eta-bd-pow",
+        type=float,
+        default=1.5,
+        help="breakdown-phase resistivity exponent: below the label floor "
+        "eta scales as (frac0/frac)^p (Spitzer — the cold early plasma "
+        "diffuses fast, pinning the early profile); exactly eta_true from "
+        "the label floor up",
+    )
+    ap.add_argument("--eta-bd-cap", type=float, default=30.0)
     ap.add_argument(
         "--frac-bd",
         type=float,
@@ -935,6 +1047,8 @@ def main() -> int:
         "n_pre": args.n_pre,
         "n_vac": args.n_vac,
         "settle_s": args.settle_s,
+        "eta_bd_pow": args.eta_bd_pow,
+        "eta_bd_cap": args.eta_bd_cap,
         "frac_bd": args.frac_bd,
         "n_sub": args.n_sub,
         "quad_max": args.quad_max,
@@ -956,17 +1070,22 @@ def main() -> int:
     jobs = [(args.seed0 + k, cfg_gen) for k in range(args.n_sequences)]
     with ProcessPoolExecutor(max_workers=args.workers, mp_context=ctx) as pool:
         seqs = [s for s in pool.map(generate_skin_sequence, jobs) if s is not None]
-    logger.info(
-        "generated %d/%d skin-truth sequences in %.0f s "
-        "(poloidal-annihilation median %.3f; ledger closure max %.2e; "
-        "flips at Ip-frac %s)",
-        len(seqs),
-        len(jobs),
-        time.perf_counter() - t0,
-        float(np.median([a for s in seqs for a in s["annihilated_frac"]])),
-        max(s["ledger"]["closure_frac"] for s in seqs),
-        [None if s["flip_frac"] is None else round(s["flip_frac"], 2) for s in seqs],
-    )
+    if seqs:
+        logger.info(
+            "generated %d/%d skin-truth sequences in %.0f s "
+            "(poloidal-annihilation median %.3f; ledger closure max %.2e; "
+            "flips at Ip-frac %s; max |vertical trim| %.2f)",
+            len(seqs),
+            len(jobs),
+            time.perf_counter() - t0,
+            float(np.median([a for s in seqs for a in s["annihilated_frac"]])),
+            max(s["ledger"]["closure_frac"] for s in seqs),
+            [
+                None if s["flip_frac"] is None else round(s["flip_frac"], 2)
+                for s in seqs
+            ],
+            max((abs(t) for s in seqs for t in s["control_trims"]), default=0.0),
+        )
     if len(seqs) < 2:
         raise SystemExit("not enough sequences generated")
     tune_seqs = seqs[: args.n_tune]
@@ -1240,8 +1359,17 @@ def main() -> int:
         "frac_bd": args.frac_bd,
         "n_vac": args.n_vac,
         "n_pre": args.n_pre,
+        "settle_s": args.settle_s,
+        "eta_bd_pow": args.eta_bd_pow,
+        "eta_bd_cap": args.eta_bd_cap,
         "poloidal_annihilation_median": float(
             np.median([a for s in seqs for a in s["annihilated_frac"]])
+        ),
+        "control_trim_absmax": float(
+            max((abs(t) for s in seqs for t in s["control_trims"]), default=0.0)
+        ),
+        "control_trim_steps_nonzero": int(
+            sum(1 for s in seqs for t in s["control_trims"] if t != 0.0)
         ),
         "declared": {
             "primary": "B1 recovery >= 0.5 at closure-identified eta, paired CI "
