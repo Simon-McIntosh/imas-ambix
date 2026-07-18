@@ -519,16 +519,23 @@ def generate_skin_sequence(job: tuple) -> dict | None:
     warm = np.zeros(grid.flat_r.size)
     warm[grid.cells] = truth0.cell_currents / (grid.dr * grid.dz)
 
+    emit_pre = bool(cfg.get("emit_pre", False))  # visuals: emit the chained
+    # pre-label truths too (breakdown catch → label floor); gate paths never
+    # set this, so fit/verdict behaviour is unchanged
+
     def _record(truth, k):
         target, _pa, _pb = geometry_target_pushout(truth.psi, grid)
         diverted, xset = read_truth_class(truth.psi, grid, truth.axis)
         rows.append(
             {
                 "truth": truth,
+                "k": int(k),
                 "time_s": float(times[k]),
                 "target_true": target,
                 "li3_true": _li3_2d(truth.psi, truth.core_mask, ip_seq[k], grid),
-                "regime": "ramp" if k < n_pre + n_ramp else "hold",
+                "regime": (
+                    "pre" if k < n_pre else ("ramp" if k < n_pre + n_ramp else "hold")
+                ),
                 "class_true": (
                     "diverted"
                     if diverted
@@ -537,6 +544,9 @@ def generate_skin_sequence(job: tuple) -> dict | None:
                 "x_true": xset.tolist(),
             }
         )
+
+    if emit_pre:
+        _record(truth0, 0)
 
     p = circuit.n_patches
     trim = 0.0  # persistent vertical-controller state (integral action)
@@ -631,9 +641,17 @@ def generate_skin_sequence(job: tuple) -> dict | None:
                 / max(np.abs(i_plasma_end).sum(), 1e-30)
             )
         )
-        if k >= n_pre:  # the vacuum + pre phases are chained, never emitted
+        if k >= n_pre or emit_pre:  # pre phases chained; emitted only for visuals
             _record(truth, k)
             rows[-1]["h_true"] = [float(v) for v in h]
+            if emit_pre:  # the pre-projection circuit state, for the
+                # flux-function-verification visual
+                jc = np.zeros(grid.cells.size)
+                t = circuit.tiling
+                jc[t.cell_index] = (t.share * i_plasma_end[t.owner]) / (
+                    grid.dr * grid.dz
+                )
+                rows[-1]["jphi_circuit_cells"] = jc
         warm = np.zeros(grid.flat_r.size)
         warm[grid.cells] = truth.cell_currents / (grid.dr * grid.dz)
         # chain remap: rebuild the coupled system on the NEW geometry, re-bin
@@ -660,7 +678,7 @@ def generate_skin_sequence(job: tuple) -> dict | None:
     # transition band from the truth class sequence (first limited→diverted
     # flip among the emitted labels)
     classes = [r["class_true"] for r in rows]
-    fracs = [float(ip_seq[n_pre + j] / ip_end) for j in range(len(rows))]
+    fracs = [float(ip_seq[r["k"]] / ip_end) for r in rows]
     flip_frac = None
     for j in range(1, len(rows)):
         if classes[j] == "diverted" and classes[j - 1] == "limited":

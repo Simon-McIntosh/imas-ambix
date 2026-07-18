@@ -250,6 +250,67 @@
     rings.</figcaption>
   </figure>
 
+  <h2>Model form — visual verification (lead audit request)</h2>
+  <p><strong>The plasma representation in every solved equilibrium is exactly
+  the cylinder-cell / GS-force-balance / flux-function-source model.</strong>
+  Current lives on the in-limiter cells of the 65×97 rectangular (R, Z) grid;
+  each cell is a rectangular-cross-section toroidal conductor whose field and
+  couplings are the analytic finite-area cylinder kernel (the locked
+  <code>hybrid_greens</code> convention — grid cell Green's, sensor rows, and
+  coil columns all share it).  Cell currents are set by the force-balanced
+  free-boundary Picard solve of
+  <code>jφ = R·p′(ψ_N) + FF′(ψ_N)/(μ0·R)</code> with BOTH source functions
+  flux functions (truth family: both ∝ h(ψ_N) at fixed split β = 0.3; spine
+  fit: the 3+3-coefficient non-negative ladder — flux functions likewise).
+  The PATCH circuit is not the plasma representation: it is a rank reduction
+  of the same cell grid used only to EVOLVE the current between labels; its
+  state is projected onto the flux-surface profile h(ψ_N) and re-solved
+  force-balanced at every step, and its non-flux-function poloidal content
+  (median 0.73 of L1) is discarded at each projection — the recorded cost of
+  frozen-geometry chaining, made visible below.</p>
+  <figure>
+    <img src="/imas-ambix/figures/plasma-screening-dynamics/fig-truth-flux-function-check.png"
+         alt="flux-function verification" style="max-width:100%">
+    <figcaption>Left: the solved truth's jφ on the cell grid and its collapse
+    onto a single curve of ψ_N when divided by g(R) = βR/R0 + (1−β)R0/R — a
+    flux function (poloidal scatter at rounding scale after detrending).
+    Right: the PRE-projection circuit state — poloidally structured, NOT a
+    flux function; this is the content the projection annihilates.</figcaption>
+  </figure>
+  <figure>
+    <img src="/imas-ambix/figures/plasma-screening-dynamics/fig-truth-flux-evolution.png"
+         alt="flux surface + LCFS evolution" style="max-width:100%">
+    <figcaption>Flux surfaces + push-out LCFS from the breakdown catch (25 kA,
+    5%) through the growth, ramp, and hold — one force-balanced free-boundary
+    solve per chain step.  Every slice is limited (the measured scenario
+    limitation); the synthetic plasma is also visibly more compact and
+    inboard than a real MAST plasma (axis ~0.45–0.5 vs ~0.9 m) — the shape
+    realism the confining family can reach.</figcaption>
+  </figure>
+  <figure>
+    <img src="/imas-ambix/figures/plasma-screening-dynamics/fig-truth-profile-evolution.png"
+         alt="p' ff' jphi profile evolution" style="max-width:100%">
+    <figcaption>Source-function evolution extracted from the SOLVED equilibria
+    by per-bin least squares on the two-term GS form: p′(ψ_N), FF′(ψ_N)/μ0,
+    and ⟨jφ⟩(ψ_N), coloured by Ip fraction (pre-phase dashed, ramp solid,
+    hold dotted).  The profile grows from the near-zero breakdown state,
+    stays edge-broadened (hollow-shouldered) through the ramp, and relaxes
+    peaked in the hold.  (The p′/FF′ split is per-bin least squares over a
+    narrow R range, hence its bin-scale wiggle; their SUM — ⟨jφ⟩ — is
+    smooth.)</figcaption>
+  </figure>
+  <p><strong>The one place the flux-function constraint is deliberately
+  broken:</strong> the screening-mode COLUMNS added to the dynamic fit are
+  patch-space redistributions with poloidal structure — they enter the solve
+  additively (like vessel eddies), NOT through the GS source functions.  The
+  physical skin current is force-balanced flux-function current (a hollow
+  h(ψ_N) on the evolving ψ); the columns only approximate that direction.
+  Given the S1b negative, a successor representation should carry hollowness
+  INSIDE the flux-function source (evolve h itself, e.g. a soft prior on the
+  ladder toward the circuit-evolved h) — the H1b measurement that free hollow
+  bases destabilise the Picard (0/16) is the constraint such a design must
+  respect.</p>
+
   <h2>Basin-scout test re-pinned (pre-existing failure resolved)</h2>
   <p>The pre-existing deterministic failure of
   <code>test_basin_scout_reaches_confined_where_fixed_shape_drifts</code> is
