@@ -340,10 +340,17 @@ def generate_skin_sequence(job: tuple) -> dict | None:
     frac_bd = float(cfg.get("frac_bd", 0.05))
 
     dt_ramp = rng.uniform(0.012, 0.018)
+    settle_s = float(cfg.get("settle_s", 0.05))
     # stream timeline: t = 0 is the machine-quiescent state (no coil current,
-    # no vessel eddies, no plasma) — every integral term starts at zero
+    # no vessel eddies, no plasma) — every integral term starts at zero.  The
+    # coils ramp through the vacuum phase and then HOLD for a settle window
+    # before breakdown: the ramp-induced vessel eddies (measured ~40% of the
+    # catch-scale coil currents) must decay or they crush the breakdown
+    # plasma — the real-operations pattern of waiting for error fields to
+    # settle before initiating breakdown
     t_vac = np.arange(n_vac) * dt_ramp
-    times = n_vac * dt_ramp + np.concatenate(
+    catch_t0 = float(t_vac[-1]) + settle_s if n_vac > 0 else settle_s
+    times = catch_t0 + np.concatenate(
         [
             np.arange(n_pre + n_ramp) * dt_ramp,
             (n_pre + n_ramp) * dt_ramp + np.arange(1, n_hold + 1) * 0.025,
@@ -383,7 +390,10 @@ def generate_skin_sequence(job: tuple) -> dict | None:
             boost=boost_max * s,
         )
 
-    frac_vac = np.linspace(0.0, frac_bd, n_vac + 1)[:-1]
+    # the vacuum ramp ENDS at the catch pattern (frac_bd) so the settle
+    # interval [t_vac[-1], catch] holds the coils exactly constant — the
+    # piecewise-linear ZOH then decays the eddies exactly
+    frac_vac = np.linspace(0.0, frac_bd, n_vac)
     i_pf_vac = np.stack([_i_pf_at(f) for f in frac_vac])
     i_pf_seq = np.stack([_i_pf_at(f) for f in frac])
 
@@ -834,6 +844,13 @@ def main() -> int:
     ap.add_argument("--n-pre", type=int, default=6)
     ap.add_argument("--n-vac", type=int, default=4)
     ap.add_argument(
+        "--settle-s",
+        type=float,
+        default=0.05,
+        help="coil-hold settle window between the vacuum ramp and breakdown "
+        "(vessel eddies must decay before the plasma can be caught)",
+    )
+    ap.add_argument(
         "--frac-bd",
         type=float,
         default=0.05,
@@ -901,9 +918,9 @@ def main() -> int:
     args = ap.parse_args()
 
     if args.smoke:
-        args.n_sequences, args.n_tune = 2, 1
+        args.n_sequences, args.n_tune = 3, 1
         args.n_ramp, args.n_hold = 5, 2
-        args.n_pre, args.n_vac = 3, 2
+        args.n_pre, args.n_vac = 4, 2
         args.weights = "0.5"
         args.eta_scan = "0.5,1.0"
 
@@ -917,6 +934,7 @@ def main() -> int:
         "n_hold": args.n_hold,
         "n_pre": args.n_pre,
         "n_vac": args.n_vac,
+        "settle_s": args.settle_s,
         "frac_bd": args.frac_bd,
         "n_sub": args.n_sub,
         "quad_max": args.quad_max,

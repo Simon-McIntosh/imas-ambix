@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="plasma-screening-dynamics-s1b-landed">
+  <meta name="plan-title" content="Plasma Screening Dynamics — §3 record: S1b breakdown-start re-gate">
+  <meta name="plan-summary" content="S1b re-gate record: truth chain rebuilt to start from the machine-quiescent state (vacuum coil ramp, vessel eddies from exact zero, breakdown catch at 5% Ip with the fully-diffused profile, coil-hold settle window) with the plasma and vessel evolved as ONE coupled L/R system; per-interval flux ledger closes with the shape-remap dL/dt term explicit. Gate re-declared oracle-free with the closure-identified eta as the PRIMARY operating point. Measured scenario limitation: no confined configuration of the forward operator reads diverted (8 design probes; real diverted coil pattern has no confined fixed point) — the limited→diverted transition band cannot be manufactured, so A2/C2 fail for scenario reasons. Verdicts recorded below.">
+  <meta name="plan-informs" content="plasma-screening-dynamics">
+  <title>plasma-screening-dynamics §3 — S1b record</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>§3 record — S1b: breakdown-start coupled-dynamics re-gate</h1>
+  <p class="lede"><strong>PLACEHOLDER-VERDICT-LEDE</strong></p>
+
+  <h2>What S1b rebuilt (the lead's directive, honoured in full)</h2>
+  <ul>
+    <li><strong>Start from pre-initialisation, not an arbitrary state.</strong>
+    The stream now begins at the machine-quiescent zero: a vacuum phase ramps
+    the coils (vessel eddies integrate from a=0 exactly), the coils then HOLD
+    for a settle window, and the plasma is caught at breakdown scale
+    (Ip = 5% of flat-top) with the fully-diffused profile — the unique early
+    state the fast high-η diffusion pins ("early on, current diffuses through
+    the plasma quickly, so its early state is easy to identify").  Current and
+    profile GROW from the catch; every integral term accumulates from zero, so
+    the flux ledger carries no free constant.</li>
+    <li><strong>All dynamics terms in ONE system.</strong> The plasma patches
+    and the 146 vessel circuits form a single block L/R circuit (exact
+    cross-mutuals, SPD-guarded; loop voltage on the plasma rows only), so flux
+    diffusion, passive-structure eddies, and the plasma redistribution evolve
+    together — every dΦ/dt term (coil swing, vessel back-reaction, plasma
+    self-flux) is carried by one exact-ZOH integration
+    (<code>plasma_screening.CoupledCircuit</code>, commit
+    <code>2145b58</code>).</li>
+    <li><strong>dL_p/dt and dΦ/dt asserted, not assumed.</strong> A
+    per-sequence flux ledger integrates the per-patch circuit identity
+    <code>dΨ̄/dt + mean(R·i) = u</code>: drive volt-seconds must equal the flux
+    change plus resistive dissipation within every interval, with the
+    breakdown-formation term and the shape-remap jumps (the frozen-geometry
+    chain's carry of the inductance change) ledgered explicitly, and the
+    patch-mean self-flux per ampere (L_p) tracked along the chain.  Pinned at
+    module level (<code>test_flux_ledger_closes_from_zero_state</code> +
+    Lenz-sign vessel screening + coupled≡uncoupled pins) and asserted per
+    sequence in the gate (C1, C4).</li>
+    <li><strong>Fit side steps forward with the dynamics model + external
+    measurements.</strong> The screening-mode trajectory integrates from t = 0
+    (vacuum) with a = 0 exactly; the vessel-eddy history is PREDICTED from the
+    measured coil drives (nominal R) and folded into the mode flux; the
+    backbone is Ip-amplitude-followed down to breakdown and zero through
+    vacuum.  The spine is never treated as ground truth — on real data the
+    firewalled EFIT referee is, and the world model simulates from breakdown
+    even where no early labels exist.</li>
+    <li><strong>Oracle-free tune (the S2-transferable protocol).</strong> The
+    S1 run froze the prior weight at ORACLE η before scanning η — oracle
+    leakage into a gate whose real-data analogue has no oracle.  S1b
+    identifies the closure η first (misfit scan at a fixed scan weight), then
+    scans the weight AT the closure η; the oracle enters eval-side diagnostics
+    only.</li>
+  </ul>
+
+  <h2>Measured scenario limitation — the transition band cannot be
+  manufactured (8 design probes, recorded BEFORE the gate run)</h2>
+  <p>The S1b brief required the truth chain to form an in-vessel X-point
+  during the ramp (limited→diverted band at Ip-frac 0.75–0.85).  Eight design
+  probes measured this to be unreachable with the current forward
+  operator:</p>
+  <table>
+    <thead><tr><th>lever</th><th>range probed</th><th>result</th></tr></thead>
+    <tbody>
+      <tr><td>P4/P5 quadrupole</td><td>0.25–1.1, ± radial-balance boost
+      0.15/0.3</td><td>elongates then DECONFINES (axis → outboard attractor at
+      quad ≥ 0.85 unboosted); no in-vessel saddle at any confined quad</td></tr>
+      <tr><td>P2 divertor drive (same sign as Ip)</td><td>0.2–3.0× confining
+      strength, both/lower-only, ± boost 0.2–0.9</td><td>weakens the net
+      vertical field (axis outboard, deconfines); ONE marginal
+      "diverted" read at (div 2.0, boost 0.6) — a knife-edge interior saddle
+      at (0.90, +0.16) m, d_ring 3.7 cm, that vanishes under a 0.005 change in
+      quad — not a divertor topology</td></tr>
+      <tr><td>P6 (in-vessel) weaken/off/flip</td><td>scale +0.5 → −1.0,
+      ± boost</td><td>no in-vessel saddle; flipped P6 deconfines
+      unboosted</td></tr>
+      <tr><td>Vertical asymmetry (p4/p5 upper vs lower)</td><td>0.15–0.45,
+      ± boost</td><td>plasma shifts up (axis Z to +0.9); no in-vessel
+      saddle</td></tr>
+      <tr><td>Blend toward shot 11766's MEASURED flat-top pattern (the real
+      diverted program: p4 −121 kA, p5 −62 kA, sol −35 kA, Ip 624 kA)</td>
+      <td>m = 0 → 1, warm-chained</td><td>confined to m 0.2 (axis moves to the
+      realistic 0.91 m), OUTBOARD ATTRACTOR from m 0.4 — the documented
+      coil-model failure on real currents persists</td></tr>
+      <tr><td>Real-pattern components isolated</td><td>p4/p5 coils only;
+      minus solenoid; minus case channels</td><td>ALL hit the attractor — the
+      failure is not the solenoid or case terms</td></tr>
+      <tr><td>Real-shaped family (p6 off, p4-heavy, vf ×1.3–1.7)</td>
+      <td>quad 0.25–0.4</td><td>confined (axis pulled inboard 0.43–0.57 m);
+      saddles stay 1.05–1.26 m from the ring, out-limiter</td></tr>
+      <tr><td>Saddle landscape (all confined configs)</td><td>—</td>
+      <td>nearest saddles live between the P5/P6 coils at (1.66–1.70,
+      ±0.76–0.82) m, outside the limiter polygon, ~1 m from the boundary; the
+      compact inboard synthetic plasma (axis 0.55–0.6 m) never reaches
+      them</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Conclusion (measured):</strong> within the operator's confined
+  fixed-point family the boundary never meets a readable saddle, and the real
+  diverted coil program has no confined fixed point (the outboard-attractor
+  coil-model error, module-documented since the generator landed, persists
+  after the calibration fixes).  The class-flip assertion C2 therefore FAILS
+  for scenario reasons and A2 (cost tracks error through the transition
+  hotspot) remains untestable as measured.  Unblocking the transition truth
+  family requires the coil-model attractor fix or a free-boundary-evolution
+  truth chain.  Recorded before the gate ran; the P2 lever is kept in the
+  harness only to reproduce the probes.</p>
+
+  <h2>Breakdown-catch settle window (measured)</h2>
+  <p>The first smoke dropped every sequence at the breakdown catch: the
+  vacuum coil ramp induces vessel eddies of ~40% of the catch-scale coil
+  currents (1.05 vs 2.51 kA), which crush the breakdown plasma
+  (axis → 1.80 m).  Holding the coils for a 50 ms settle window decays the
+  eddies to 0.15 kA and the catch confines (axis 0.61 m) — the synthetic
+  chain reproduces the real-operations requirement of waiting for error
+  fields to settle before initiating breakdown.  The settle window is now
+  part of the scenario (<code>--settle-s</code>, default 50 ms).</p>
+
+  <h2>Gate verdicts (re-declared rules)</h2>
+  <p>PLACEHOLDER-VERDICT-TABLES</p>
+
+  <h2>Basin-scout test re-pinned (pre-existing failure resolved)</h2>
+  <p>The pre-existing deterministic failure of
+  <code>test_basin_scout_reaches_confined_where_fixed_shape_drifts</code> is
+  resolved with the invariant intact (commit <code>b85cf43</code>).  Root
+  cause: the cold-drift / warm-confine contrast lives only at a MARGINAL
+  confining well, and the default 60 kA well deepened (the basin follows the
+  vacuum field, so calibration-scale coil-model changes move it) — measured:
+  at 60 kA every fragile profile now confines from a cold seed; at 44 kA the
+  confined branch is lost even warm-started; at 52 kA with (β0 0.75, α 2.0)
+  the cold seed drifts (axis 1.79 m) while the warm start holds the confined
+  branch (1.20 m), margins ~0.4/0.2 m either side of the 1.4 m threshold.
+  The test now probes 52 kA; the full file is 7/7 green including the slow
+  MAST-geometry test.</p>
+
+  <h2>Artifacts and provenance</h2>
+  <ul>
+    <li>Commits: <code>2145b58</code> (coupled plasma+vessel circuit + pins),
+    <code>5172d36</code> (breakdown-start gate, re-declared before running),
+    <code>b85cf43</code> (basin test re-pin), PLACEHOLDER-RUN-COMMIT.</li>
+    <li>Gate artifact:
+    <code>imas_ambix/latent/artifacts/patch_gate/plasma_screening_gate.json</code>
+    (+ <code>-smoke</code>); figures under
+    <code>docs/figures/plasma-screening-dynamics/</code>
+    (signature / recovery / example / dynamics panels).</li>
+    <li>Config: frozen D2 spine byte-same, push-out read both sides, campaign
+    shot 11766 (train split — geometry + noise floor; its measured coil
+    program additionally probed as a scenario anchor and found unconfinable),
+    truth tiling 14×10, fit tiling 10×8, k = 2 screening modes, EFIT
+    nowhere.</li>
+  </ul>
+
+  <h2>Decisions honoured</h2>
+  <ul>
+    <li><code>screening-representation</code> (bounded-mode-column): frozen
+    non-negative backbone + k=2 bounded zero-net screening columns, amplitudes
+    prior-centred on the coupled-circuit trajectory integrated from the
+    machine-quiescent stream start.</li>
+    <li><code>geometry-motion-order</code> (frozen-first): geometry frozen per
+    label interval; the shape-remap dL/dt term is LEDGERED explicitly (the
+    honest cost of the choice is now a measured volt-second share, not an
+    unknown).</li>
+    <li><code>te-closure-role</code> (firewalled-eta-closure): no temperature
+    anywhere; the closure η identified by ramp-transient misfit scan is the
+    PRIMARY operating point.</li>
+  </ul>
+</main>
+</body>
+</html>
