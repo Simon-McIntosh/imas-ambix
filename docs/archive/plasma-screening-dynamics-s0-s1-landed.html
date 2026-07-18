@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="plasma-screening-dynamics-s0-s1-landed">
+  <meta name="plan-title" content="Plasma Screening Dynamics — §3 record: S0 foundations + S1 synthetic skin-truth gate">
+  <meta name="plan-summary" content="S0 SHIPPED: plasma filament circuit (patch tiling, exact cell-kernel mutuals, EtaProfile resistances, zero-net-current screening eigenmodes, exact ZOH) with all four pins green — the 1D-limit identity vs diffuse_psi holds to discretisation error. S1 verdicts: leg (a) FAILS its pre-declared A2 (cost–error Spearman −0.41 vs measured +0.77) while reproducing the other three signature elements nearly quantitatively (a2 +7.4 vs +5.7 cm, a1 −4.6 vs −3.8 cm, li3 over-read 2.3×, ramp/hold ratio 2.6 vs 2.85) — attributed to the scenario lacking the limited→diverted transition band where the real hotspot lives. Leg (b): B1 FAILS at oracle η (recovery −0.07 CI-clear) yet B2 PASSES big — the SAME bounded-mode-column representation at the misfit-scan-identified η recovers 56% of the gap CI-clear (+4.62 cm [2.71, 5.29]), and the flat-η oracle-scale ablation (47% recovery) isolates the cause to the η CONTRAST in the mode build, not the scale: the closure calibrates the reduced model's effective resistance, absorbing reduction error exactly as the vessel's calibrated multipliers did. Pre-declared stop honoured: no real-data rung until the S1 refinement re-gates.">
+  <meta name="plan-informs" content="plasma-screening-dynamics">
+  <title>plasma-screening-dynamics §3 — S0 + S1 record</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>§3 record — S0 foundations + S1 decisive synthetic skin-truth gate</h1>
+  <p class="lede"><strong>Verdict (2026-07-18): S0 shipped with all four pins
+  green — the plasma filament circuit and the landed 1D ψ-diffusion operator
+  are measured to be ONE system.  S1 recorded honestly against its
+  pre-declared rules: leg (a) FAIL on the cost–error correlation (A2) with
+  the other three signature elements reproduced nearly quantitatively; leg
+  (b) FAIL on the literal oracle-η rule (B1) while the honest transfer arm
+  (B2, the closure-identified η the real-data rung would actually use)
+  recovers 56% of the ramp LCFS gap CI-clear.  Both fails carry measured
+  attributions; the pre-declared stop is honoured — no real-data spend until
+  a refinement rung re-gates.</strong></p>
+
+  <h2>S0 — plasma screening circuit foundations (SHIPPED)</h2>
+  <p>Module <code>imas_ambix/latent/plasma_screening.py</code>
+  (commit <code>1184c8c</code>): (√ψ_N × poloidal-angle) patch tiling of the
+  core (dimensionless bins — machine-agnostic by construction), patch mutual
+  matrix <code>L = Wᵀ·Gψ·W</code> from the grid's cached analytic cylinder
+  cell kernel (no new kernels, SPD-guarded like the vessel build), per-cell
+  resistances <code>Σ share²·2πR·η(ψ_N)/A</code> from the bounded
+  <code>EtaProfile</code> family, zero-net-current screening eigenmodes (the
+  net-current direction deflated BEFORE the eigensolve — the Rogowski pins
+  the total, so the free dynamics live in the redistribution subspace and a
+  mode column can never fight the Ip anchor), exact-ZOH evolution and
+  trajectory via the vessel integrator, and fit-ready sidecar columns whose
+  grid flux comes from the grid's own Dirichlet solve.  Pins
+  (<code>tests/latent/test_plasma_screening.py</code>, 7 tests green):</p>
+  <table>
+    <thead><tr><th>pin</th><th>result</th></tr></thead>
+    <tbody>
+      <tr><td>1 — 1D-limit identity vs <code>diffuse_psi</code> (shared
+      analytic nested-circle case, ZOH-exact circuit integration so the pin
+      isolates spatial discretisation)</td>
+      <td>enclosed-current RMS &lt; 5% of Ip; interior-flux residual &lt; 8%
+      of span, shrinking under radial refinement (discretisation-limited);
+      the kernel's MAST-sign flux orientation pinned</td></tr>
+      <tr><td>2 — analytic thin-shell skin time + screening limits</td>
+      <td>τ within 8% of μ0·(ln(8R0/r_s)−2)·A/(2πη); fast drive puts &gt;80%
+      of the current on the surface; t ≫ τ relaxes exactly to the
+      conductance-weighted steady state (&lt;5%)</td></tr>
+      <tr><td>3 — exact-ZOH trajectory</td>
+      <td>coarse ≡ dense to 10⁻¹⁰ for piecewise-linear flux +
+      piecewise-constant voltage; second-order on smooth drives</td></tr>
+      <tr><td>4 — mode structure + machine agnosticism</td>
+      <td>modes zero-net to 10⁻⁹, edge-weighted beyond the uniform share;
+      uniform rescale maps τ → τ·s² to 10⁻⁶ with identical shapes</td></tr>
+    </tbody>
+  </table>
+
+  <h2>S1 — synthetic skin-truth gate (verdicts recorded)</h2>
+  <p><strong>Truth generator</strong> (commit <code>220b784</code>,
+  <code>scripts/plasma_screening_gate.py</code> +
+  <code>synthetic_truth.manufacture_shape</code>): per interval the patch
+  currents evolve exactly (ZOH eigenmodes; uniform loop voltage — the exact
+  central-solenoid drive — shot to the prescribed Ip; coil-swing drive), the
+  evolved state is binned to a hollow-capable flux-function profile and
+  solved force-balanced (frozen geometry per interval, remap at labels — the
+  locked <code>geometry-motion-order</code> form).  Scenario fidelity
+  required three measured fixes: vertical field ∝ Ip (the calibrated
+  6·10⁴ A ↔ 0.6 MA pair; constant field crushes the low-Ip plasma inboard),
+  ramp-phase η (10^−6.5 Ω·m — few-hundred-eV Spitzer; the flat-top scale
+  leaves the truths unphysically hollow, li3 ~0.03, and the equilibria
+  degenerate), and an UNLABELLED pre-phase so labels start at the corpus's
+  Ip floor with the skin already accumulated (the real corpus's structure).
+  Emitted truths: 6/8 sequences × 14 slices; ramp slices carry the broadened
+  skin profile (edge/core ≈ 0.72 vs 0.47 equilibrated) and relax on hold.
+  Recorded approximation: the flux-function binning annihilates a median
+  0.71 of the evolved patch state's L1 as poloidal structure (the
+  coil-swing screening response — the content S3's shape-motion terms and a
+  non-flux-function truth family would carry).</p>
+
+  <h3>Leg (a) — failure-signature reproduction: <strong>FAIL on A2 (3 of 4
+  elements reproduced)</strong></h3>
+  <table>
+    <thead><tr><th>criterion (pre-declared)</th><th>synthetic</th>
+    <th>measured (audit)</th><th>verdict</th></tr></thead>
+    <tbody>
+      <tr><td>A1 — elevated ramp LCFS (≥1.8× hold)</td>
+      <td>10.72 vs 4.09 cm (2.6×)</td><td>8.44 vs 2.96 cm (2.85×)</td>
+      <td><strong>PASS</strong></td></tr>
+      <tr><td>A2 — cost tracks error (Spearman ≥0.4, p&lt;0.01)</td>
+      <td><strong>−0.41</strong> (p=1.3·10⁻³)</td><td>+0.77</td>
+      <td><strong>FAIL</strong></td></tr>
+      <tr><td>A3 — shape signature (a2&gt;0, a1&lt;0, ≥2× hold)</td>
+      <td>a2 +7.4, a1 −4.6 cm</td><td>a2 +5.7, a1 −3.8 cm</td>
+      <td><strong>PASS</strong></td></tr>
+      <tr><td>A4 — li3 over-read (ratio ≥1.5 and ≥1.3× hold)</td>
+      <td>2.29 ramp vs 1.40 hold</td><td>li3 reads 2–3 on ramp</td>
+      <td><strong>PASS</strong></td></tr>
+    </tbody>
+  </table>
+  <p><strong>Attribution of the A2 fail:</strong> the synthetic boundary
+  error DECREASES with Ip fraction (largest at the lowest-Ip labels) whereas
+  the measured error PEAKS in the limited→diverted transition band
+  (Ip-frac 0.75–0.85: 12.5 cm) — my scenario never forms an X-point, so the
+  band where the real hotspot (and its cost elevation) lives does not exist
+  in these truths, and the early small-plasma slices dominate instead.  The
+  spine's failure MODE on skin truths is nonetheless the measured one: too
+  round, inboard-heavy, li3 over-read.  The diagnosis is supported on shape
+  and profile; the error-vs-current STRUCTURE needs a transition-capable
+  scenario before leg (a) can pass as declared.</p>
+  <figure>
+    <img src="/imas-ambix/figures/plasma-screening-dynamics/fig-skin-gate-signature.png"
+         alt="leg (a) signature panels" style="max-width:100%">
+    <figcaption>Leg (a): spine LCFS error vs Ip fraction (ramp red / hold
+    blue, measured medians dotted), the anti-correlated cost–error scatter
+    (A2 FAIL), the harmonic signature vs the measured audit (A3), and the
+    li3 over-read (A4).</figcaption>
+  </figure>
+
+  <h3>Leg (b) — recovery: <strong>B1 FAIL at oracle η · B2 PASS CI-clear at
+  closure η</strong> (eval = 4 held-out sequences, weight frozen on 2 tune
+  sequences)</h3>
+  <table>
+    <thead><tr><th>arm (η for modes + trajectory)</th><th>ramp LCFS median</th>
+    <th>paired gain vs spine [cm]</th><th>gap recovery</th></tr></thead>
+    <tbody>
+      <tr><td>frozen spine</td><td>10.88 cm</td><td>—</td><td>—</td></tr>
+      <tr><td>dyn @ oracle η (10^−6.5, contrast 1.5)</td><td>11.39 cm</td>
+      <td>−0.72 CI [−1.11, −0.38]</td><td><strong>−0.07 — B1 FAIL</strong></td></tr>
+      <tr><td>dyn @ closure η (misfit scan: 0.5× scale, flat)</td>
+      <td><strong>6.66 cm</strong></td><td>+4.62 CI [+2.71, +5.29]</td>
+      <td><strong>0.56 — B2 PASS</strong></td></tr>
+      <tr><td>ablation: flat η at ORACLE scale (1.0×)</td><td>7.30 cm</td>
+      <td>+3.11 CI [+1.75, +5.88]</td><td>0.47</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Attribution of the B1/B2 split — the contrast, not the
+  scale:</strong> the flat-η oracle-scale ablation recovers 47% CI-clear, so
+  what breaks the oracle arm is building the screening modes at the truth's
+  edge-resistive contrast: contrast-1.5 η makes the edge patches ~4.5× more
+  resistive, the retained slow eigenmodes concentrate interior, and the
+  columns no longer span the edge-redistribution deficit direction.  Flat-η
+  modes keep the slow edge-weighted redistribution shapes that match the
+  actual deficit.  The misfit scan (the P1b ramp-transient pattern)
+  identifies this EFFECTIVE resistance automatically — the closure
+  calibrates the reduced model, absorbing reduction error, exactly as the
+  vessel's calibrated resistance multipliers absorbed coil-model error.
+  Since the real-data rung has no oracle and would always run at the
+  closure-identified η, the arm that passed is the arm S2 would use — but
+  the PRE-DECLARED rule is the oracle rule, so the stop stands until a
+  refinement rung re-declares the gate with the mode-build η as the
+  closure's operating point.  Diagnostics for that rung: hold LCFS at
+  oracle η mildly non-inferior-FAIL (3.56 vs 3.31 cm, margin 0.05); axis
+  median not degraded (14.2 vs 13.7 cm on truths whose interior is
+  deliberately profile-degenerate); prior-weight scan monotone toward light
+  weights (0.5 best — the screening COLUMNS carry more of the gain than the
+  trajectory pull at this fidelity).</p>
+  <figure>
+    <img src="/imas-ambix/figures/plasma-screening-dynamics/fig-skin-gate-recovery.png"
+         alt="leg (b) recovery panels" style="max-width:100%">
+    <figcaption>Leg (b): paired spine-vs-dyn scatter at oracle η (B1),
+    ramp-error distributions for all three arms (the closure-η distribution
+    sits far left of the spine), and the tune weight scan.</figcaption>
+  </figure>
+  <figure>
+    <img src="/imas-ambix/figures/plasma-screening-dynamics/fig-skin-gate-example.png"
+         alt="representative slice" style="max-width:100%">
+    <figcaption>A representative ramp slice: the hollow truth profile vs the
+    spine's peaked read, and the truth vs spine LCFS rings.</figcaption>
+  </figure>
+
+  <h2>Artifacts and provenance</h2>
+  <ul>
+    <li>Commits: <code>1184c8c</code> (S0 module + pins),
+    <code>220b784</code> (S1 gate + generator extension).</li>
+    <li>Gate artifacts (under
+    <code>imas_ambix/latent/artifacts/patch_gate/</code>):
+    <code>plasma_screening_gate.json</code> (main, 6 sequences / 84 slices),
+    <code>plasma_screening_gate-etaflat1.json</code> (flat-η oracle-scale
+    ablation), <code>plasma_screening_gate-smoke.json</code>.</li>
+    <li>Config: frozen D2 spine byte-same (via
+    <code>frozen_spine_config()</code>), push-out boundary read both sides,
+    campaign shot 11766 (train split — geometry + noise floor only), truth
+    tiling 14×10, fit tiling 10×8, k = 2 screening modes, EFIT nowhere.</li>
+    <li>Recorded limits: poloidal annihilation 0.71 (flux-function truth
+    family); truth scenario is limited-only (no X-point) and more
+    inboard/elongated than real MAST ramps; li3 compared with a shared 2D
+    estimator (ratios only); weight and closure-η scans froze at scan
+    edges.</li>
+    <li>Repo hygiene: pre-existing
+    <code>test_basin_scout_reaches_confined_where_fixed_shape_drifts</code>
+    failure confirmed deterministic and NOT caused by this session (the
+    fixed-shape cold seed now CONFINES at axis 0.57 m on shot-18502
+    geometry — its call chain is byte-identical to the pre-session code);
+    followup queued.</li>
+  </ul>
+
+  <h2>Decisions honoured</h2>
+  <ul>
+    <li><code>screening-representation</code> (bounded-mode-column): frozen
+    non-negative backbone + k=2 bounded zero-net screening columns,
+    amplitudes prior-centred on the exact-ZOH circuit trajectory, mode
+    shapes frozen per solve from the pass-1 state.</li>
+    <li><code>geometry-motion-order</code> (frozen-first): geometry frozen
+    per label interval in both the truth chain and the fit arms; the
+    annihilated poloidal fraction is the recorded cost of that choice.</li>
+    <li><code>te-closure-role</code> (firewalled-eta-closure): no
+    temperature anywhere; η entered only as the truth's known profile, the
+    arm's operating point, and the misfit-scan identification.</li>
+  </ul>
+</main>
+</body>
+</html>
