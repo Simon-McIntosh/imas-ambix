@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="equilibrium-realism">
+  <meta name="plan-title"     content="Equilibrium Realism — force-balance diagnosis, real-current confinement, stability-honest truths">
+  <meta name="plan-summary"   content="Successor to plasma-screening-dynamics (resolves its lead decision). The spine cannot be a reanalysis engine until its forward model holds a confined equilibrium through a real shot's measured coil program — every synthetic truth family so far ran on a manufactured uniform field with an uncontrolled decay index and a Z-symmetry pin, producing kappa~3.5 startup plasmas no experiment passes through. Ladder: V1 analytic force-balance diagnosis (Shafranov vertical-field balance + decay index at measured states, EFIT diagnostic-only) with a pre-declared coil-side/solve-side branch; V2 binding gate = confined free-boundary equilibrium under measured coil programs at the measured axis/shape; V3 stability-honest forward truth chain (real coil programs, near-circular breakdown catch, Z-feedback as forward dynamics — reconstruction mode is measurement-constrained and needs none); V4 representation re-tests queued behind it. All learned/representation work parked until V2 passes.">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="L">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-blocks"    content="learned-equilibrium-operator">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <title>Equilibrium Realism | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h2 id="s1">§1 — Overview: why realism is the binding attack</h2>
+  <p><strong>The evidence that forced this plan.</strong> The
+  plasma-screening-dynamics closure (S1b, 2026-07-18) was infrastructurally
+  clean — flux ledger closing at 3×10⁻⁵, coupled plasma+vessel circuit,
+  breakdown settle window — but its truth family is a plasma that cannot
+  exist: at Ip = 134 kA (26% of flat-top) the truth LCFS spans
+  R ≈ 0.27–0.62 m against Z ≈ −0.55 to +0.75 m — <strong>elongation
+  κ ≈ 3.5 at breakdown scale</strong>, axis at R ≈ 0.45–0.5 m where the real
+  MAST ramp axis sits near 0.9 m. A real startup is a small near-circular
+  plasma (κ ~ 1.1–1.3) whose shaping is ramped with Ip and li under active
+  vertical control; κ ≈ 3.5 at 130 kA has an n = 0 growth rate no vessel and
+  controller holds. Every gate verdict in that plan — including the decisive
+  negative — was measured on this family.</p>
+  <figure>
+    <img src="/imas-ambix/figures/plasma-screening-dynamics/fig-truth-flux-evolution.png"
+         alt="S1b truth-chain flux surfaces: over-elongated inboard startup plasmas"
+         style="max-width:100%">
+    <figcaption>The forcing evidence (from the closed plan's truth chain):
+    breakdown-catch → ramp → hold flux surfaces. The plasma is a tall
+    center-column sliver (κ ≈ 3.5 by mid-ramp, axis R ≈ 0.45–0.5 m) — a
+    vertically unstable configuration no experiment starts from. The lead
+    flagged this on review; this plan is the response.</figcaption>
+  </figure>
+  <p><strong>Why the chain produced it — three compounding workarounds:</strong></p>
+  <ul>
+    <li>On real MAST coil currents the forward operator has <em>no confined
+    fixed point</em> (the outboard attractor, even warm-started at the EFIT
+    axis) — so truths run on a manufactured field:
+    <code>build_confining_i_pf</code> drives every P4/P5/P6 coil uniformly at
+    −60 kA, a pattern no shot ever produced.</li>
+    <li>That fictitious pattern has an uncontrolled decay index — strongly
+    elongating for a small inboard plasma with the in-vessel P6 coils close
+    by — and the gate layered a fixed quadrupole knob on top. No decay-index,
+    Shafranov vertical-field, or vertical-stability criterion exists anywhere
+    in the repo.</li>
+    <li>The resulting n = 0 instability was silenced with a
+    <code>z_symmetric</code> solve pin plus an ad-hoc up/down trim — the
+    instability was the physics reporting that the scenario is unphysical,
+    and the messenger was suppressed.</li>
+  </ul>
+  <p><strong>The unresolved tension this plan settles first.</strong> The
+  vacuum-shot campaign validated coil→sensor predictions at 0.1–0.44σ
+  (solenoid 8.25% scale found and fixed) — yet the same operator cannot
+  confine a plasma under measured currents where a real plasma demonstrably
+  sat. Both cannot be unqualified truths about "the coil model": either the
+  error lives where sensors do not sample (the field <em>at the plasma</em>,
+  not at the sensor ring), or the attractor is not a coil-model error at all
+  and is solve-side (Picard basin, boundary-ψ read, profile family). The
+  differential diagnosis is cheap and uses only physics we fully trust —
+  radial force balance and the vacuum decay index.</p>
+  <p><strong>End-goal framing (GenCast).</strong> GenCast is trustworthy
+  because ERA5 is, and ERA5 is trustworthy because the assimilating model
+  carries all confident atmospheric physics. Our spine is the assimilation
+  engine that will produce reanalysis-grade equilibrium labels over the
+  12.6k-shot corpus; the learned operator is the GenCast trained on them.
+  The spine is validated statically at flat-top (1.50 cm held-out LCFS) and
+  unvalidated dynamically, because it cannot yet hold a confined equilibrium
+  through a single real shot's coil program. Closing that is this plan; the
+  representation questions (hollow flux-function profiles, screening
+  columns) re-open only on truths that pass it.</p>
+  <figure>
+    <svg viewBox="0 0 980 250" role="img" aria-label="Validation ladder V0 to V4 with the V1 branch point" style="max-width:100%;height:auto;font-family:system-ui">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#333"/>
+        </marker>
+      </defs>
+      <!-- V0 -->
+      <rect x="10" y="80" width="150" height="70" fill="none" stroke="#999" stroke-width="1"/>
+      <text x="85" y="103" text-anchor="middle" font-size="14" font-weight="600" fill="#666">V0 — done</text>
+      <text x="85" y="122" text-anchor="middle" font-size="13" fill="#666">vacuum sensor replay</text>
+      <text x="85" y="139" text-anchor="middle" font-size="13" fill="#666">0.44σ, solenoid fixed</text>
+      <!-- V1 -->
+      <rect x="200" y="80" width="180" height="70" fill="none" stroke="#0a5" stroke-width="2"/>
+      <text x="290" y="103" text-anchor="middle" font-size="14" font-weight="600" fill="#111">V1 — §2 diagnosis</text>
+      <text x="290" y="122" text-anchor="middle" font-size="13" fill="#111">Shafranov B_v balance</text>
+      <text x="290" y="139" text-anchor="middle" font-size="13" fill="#111">decay index at axis</text>
+      <!-- branch labels -->
+      <text x="475" y="52" text-anchor="middle" font-size="13" fill="#111">coil-side: circuit / geometry fix</text>
+      <text x="475" y="212" text-anchor="middle" font-size="13" fill="#111">solve-side: Picard / profile-family fix</text>
+      <!-- V2 -->
+      <rect x="590" y="80" width="180" height="70" fill="none" stroke="#0a5" stroke-width="2"/>
+      <text x="680" y="103" text-anchor="middle" font-size="14" font-weight="600" fill="#111">V2 — §3 binding gate</text>
+      <text x="680" y="122" text-anchor="middle" font-size="13" fill="#111">confined equilibrium on</text>
+      <text x="680" y="139" text-anchor="middle" font-size="13" fill="#111">measured coil programs</text>
+      <!-- V3 -->
+      <rect x="810" y="80" width="160" height="70" fill="none" stroke="#333" stroke-width="1"/>
+      <text x="890" y="103" text-anchor="middle" font-size="14" font-weight="600" fill="#111">V3 — §4 truth chain</text>
+      <text x="890" y="122" text-anchor="middle" font-size="13" fill="#111">real programs, κ(t) bands,</text>
+      <text x="890" y="139" text-anchor="middle" font-size="13" fill="#111">Z-feedback (forward only)</text>
+      <!-- arrows -->
+      <line x1="160" y1="115" x2="198" y2="115" stroke="#333" stroke-width="1" marker-end="url(#arr)"/>
+      <line x1="380" y1="100" x2="588" y2="92" stroke="#333" stroke-width="1" marker-end="url(#arr)"/>
+      <line x1="380" y1="130" x2="588" y2="138" stroke="#333" stroke-width="1" marker-end="url(#arr)"/>
+      <line x1="475" y1="60" x2="475" y2="92" stroke="#999" stroke-width="1"/>
+      <line x1="475" y1="200" x2="475" y2="138" stroke="#999" stroke-width="1"/>
+      <line x1="770" y1="115" x2="808" y2="115" stroke="#333" stroke-width="1" marker-end="url(#arr)"/>
+      <text x="480" y="240" text-anchor="middle" font-size="13" fill="#666">V4 (§5, queued followups): hollow-h / screening re-tests on realistic truths → real-data rung → learned-operator temporal thesis</text>
+    </svg>
+    <figcaption>The validation ladder. V1 is a days-scale analytic diagnosis
+    with a pre-declared branch; V2 is the binding gate every downstream plan
+    waits on; V3 rebuilds the forward truth chain on the S1b infrastructure;
+    V4 re-opens representation questions only after V1–V3.</figcaption>
+  </figure>
+  <p><strong>Session protocol (lead directive, 2026-07-18).</strong> Every
+  landed section MUST queue the next session's followup with a full
+  ready-to-run prompt that carries <strong>pre-declared gates and tests</strong> —
+  numeric thresholds, pass/fail rules, and stop conditions written down
+  BEFORE the work runs, S1b-style. A followup prompt without its gates is a
+  defect. Outcomes are recorded in this plan the same session the work
+  lands.</p>
+
+  <h2 id="s2">§2 — V1: analytic force-balance diagnosis (days, no fitting)</h2>
+  <p><strong>Deliverable:</strong> a signed, localized verdict on WHY the
+  forward operator deconfines under measured currents, using only classical
+  force balance — no fitting, no learned components.</p>
+  <ul>
+    <li><strong>Analytic pins first (tests).</strong> Unit tests pinning the
+    two diagnostics on analytic cases before any data touches them: the
+    Shafranov vertical-field requirement
+    <code>B_v = μ0·Ip/(4πR)·(ln(8R/a) + βp + li/2 − 3/2)</code> checked
+    against a known filament-in-uniform-field balance, and the decay index
+    <code>n = −(R/B_z)·(∂B_z/∂R)</code> checked against the analytic field of
+    a symmetric coil pair. These pins gate the diagnosis script.</li>
+    <li><strong>Measured-state sweep.</strong> For campaign shot 11766 plus
+    at least two more train-split shots (one ramp-heavy), slices spanning
+    Ip-fraction 0.1 → 1.0: load measured coil currents; on ramp slices fold
+    the vessel-eddy contribution predicted by the coupled circuit
+    (<code>plasma_screening.CoupledCircuit</code>, landed) from the measured
+    coil drives; compute the model's vacuum B_z(R, Z=0) profile over
+    R ∈ [0.4, 1.4] m via the locked <code>hybrid_greens</code> kernel.</li>
+    <li><strong>Compare against the Shafranov requirement</strong> using
+    EFIT R_axis, a, κ, βp+li/2 — <strong>diagnostic-only</strong> (locked
+    decision below): nothing tunes against these numbers; they parameterise
+    an analytic identity.</li>
+    <li><strong>Per-coil-group waterfall</strong> of B_z at the measured axis
+    (solenoid / P2 / P3 / P4 / P5 / P6 / case / vessel) — the localizer that
+    turns a discrepancy into a named suspect.</li>
+    <li><strong>Reconstruction-mode probe (independent second witness).</strong>
+    The lead's constraint: in reconstruction mode the measured magnetics
+    should stabilize and constrain the plasma — feedback is only required for
+    controlled forward free-boundary solves. So run the measurement-constrained
+    interior solve (the frozen D2 spine fit) on the same slices and record
+    whether the solve holds the axis where the data puts it or fights the
+    data toward the attractor. If the vacuum field checks out AND the
+    measurement-constrained solve still drifts, the culprit is solve-side by
+    elimination — independent of the waterfall.</li>
+  </ul>
+  <p><strong>Pre-declared gates (branch rule):</strong></p>
+  <ul>
+    <li><strong>G1a (coil-side):</strong> flat-top slices show
+    |B_z,model − B_v,req| / |B_v,req| &gt; 0.15 in magnitude or a sign error,
+    AND the waterfall localizes ≥ 70% of the discrepancy to ≤ 2 coil groups
+    ⇒ lock <code>attractor-branch = coil-side</code>; the fix rung targets the
+    named circuit/geometry terms (machine-agnostic fixes preferred per the
+    validation policy — no per-shot tuning).</li>
+    <li><strong>G1b (solve-side):</strong> B_z,model within 15% of requirement
+    with the decay index inside the stability window, yet the Picard
+    deconfines ⇒ lock <code>attractor-branch = solve-side</code>; deliverable
+    becomes a minimal reproduction (fixed vacuum field + profile family
+    demonstrating the drift) that instruments the Picard basin, the
+    boundary-ψ read, and the non-negative profile family.</li>
+    <li><strong>Ambiguous zone:</strong> discrepancy 5–15% or a waterfall that
+    does not localize ⇒ do NOT guess: extend the shot set once (pre-declared,
+    +3 shots); if still ambiguous, surface to the lead with the figures
+    rather than picking a branch.</li>
+  </ul>
+  <p><strong>Figures (mandatory):</strong> B_z(R) overlays vs the Shafranov
+  requirement per Ip-fraction; decay index vs Ip-fraction with the stability
+  window banded; the per-coil-group waterfall; the reconstruction-mode
+  axis-hold trace. Committed under
+  <code>docs/figures/equilibrium-realism/</code>.</p>
+
+  <h2 id="s3">§3 — V2: the binding gate — confinement under measured coil programs</h2>
+  <p>After the branch fix lands: free-boundary solves driven by real measured
+  coil (+predicted vessel) currents for ≥ 3 shots (train-split anchors
+  including 11766 and one ramp-heavy shot), slices spanning ramp and
+  flat-top, must converge <strong>confined</strong> — interior O-point,
+  localized current, no outboard-attractor read.</p>
+  <p><strong>Pre-declared gates:</strong></p>
+  <ul>
+    <li><strong>G2a (position):</strong> |R_axis − R_axis,EFIT| ≤ 5 cm on
+    flat-top slices, ≤ 10 cm on ramp slices (EFIT diagnostic-only), per shot
+    median.</li>
+    <li><strong>G2b (shape):</strong> κ within ±20% of the EFIT κ trajectory;
+    limiter-contact class (inboard-limited vs diverted) matches the EFIT
+    read on flat-top slices — this is where the diverted transition band
+    becomes manufacturable: the real diverted program (shot 11766 flat-top:
+    p4 −121 kA, p5 −62 kA) must acquire a confined fixed point, X-point and
+    all.</li>
+    <li><strong>G2c (no pins):</strong> no <code>z_symmetric</code> pin in any
+    reconstruction-mode solve — the measured data holds Z, per the lead's
+    constraint. A solve that needs the pin to converge FAILS the gate.</li>
+    <li><strong>Stop rule:</strong> if after the branch fix confinement still
+    fails on more than one shot, STOP — record the negative, do not tune
+    per-shot, re-plan with the lead. Per-machine or per-shot parameter
+    tuning as a first response is banned by the standing validation
+    policy.</li>
+  </ul>
+
+  <h2 id="s4">§4 — V3: stability-honest forward truth chain</h2>
+  <p>Rebuild the forward truth scenario on the landed S1b infrastructure —
+  the coupled plasma+vessel circuit, the flux ledger (closure ≤ 10⁻⁴
+  asserted), and the breakdown settle window are all reused unchanged.
+  What changes:</p>
+  <ul>
+    <li><strong>Real coil programs as the drive.</strong>
+    <code>build_confining_i_pf</code>'s manufactured uniform field is retired;
+    truths are driven by measured (or measured-anchored) coil waveforms that
+    V2 proved confining.</li>
+    <li><strong>Near-circular breakdown catch.</strong> The catch state must
+    satisfy the decay-index stability window (0 &lt; n &lt; n_crit with the
+    vessel's passive contribution) and κ ≤ 1.3 at the catch; shaping ramps
+    with Ip and li as in real operations.</li>
+    <li><strong>Vertical feedback as forward dynamics — forward side ONLY.</strong>
+    The <code>z_symmetric</code> pin is dropped. The forward chain carries the
+    n = 0 mode honestly: passive vessel stabilization (already in the coupled
+    circuit) plus a modeled Z-controller (up/down P4/P5 differential,
+    proportional + integral on the axis Z) as part of the scenario.
+    Reconstruction-mode solves need none of this — the measured magnetics
+    constrain Z (lead's locked constraint).</li>
+    <li><strong>Realism assertions as emission criteria.</strong> Every
+    emitted truth sequence must pass corpus-band checks on κ(t) and
+    R_axis(t) (bands from the EFIT corpus distribution, diagnostic-only) —
+    a truth outside the bands is rejected, not shipped. The S1b failure mode
+    (κ ≈ 3.5 truths shipping silently) becomes structurally impossible.</li>
+  </ul>
+  <p><strong>Pre-declared gates:</strong> G3a — the chain emits 10/10
+  sequences with all realism assertions green and the flux ledger closing
+  ≤ 10⁻⁴; G3b — with the V2 fix in place, at least one truth family runs the
+  limited→diverted transition (the S1b scenario limitation retired); G3c —
+  the existing module pins (Lenz-sign vessel screening, coupled≡uncoupled,
+  ledger-from-zero) stay green throughout.</p>
+
+  <h2 id="s5">§5 — V4: representation re-tests (queued, not implemented here)</h2>
+  <p>Parked behind V1–V3, queued as followups when §4 lands, each with its
+  own pre-declared gates per the session protocol:</p>
+  <ul>
+    <li><strong>Hollowness inside the flux function:</strong> soft prior on
+    the profile ladder toward the circuit-evolved h(ψ_N) — the cheap lever
+    the S1b record recommends, now testable on truths that are physically
+    reachable. Must respect the measured constraint that free hollow bases
+    destabilise the Picard (0/16 converged).</li>
+    <li><strong>Screening-column re-gate</strong> on realistic truths — the
+    S1b decisive negative re-examined on a family whose failure signature is
+    trustworthy.</li>
+    <li><strong>Real-data rung</strong> (S2-style, oracle-free operating
+    point) and the learned-operator temporal-thesis re-plan, which this plan
+    blocks.</li>
+  </ul>
+  <p><strong>Non-goals:</strong> no learned components anywhere in this plan;
+  EFIT never enters a fit/tune path (diagnostic/eval only); no per-machine or
+  per-shot tuning as a first resort; no added-diagnostics information study
+  (explicitly deferred — it cannot be interpreted while the forward model is
+  wrong).</p>
+
+  <section data-reckon="decisions" id="decisions" class="r-decisions">
+    <h2><span class="sec">§</span> Decisions</h2>
+    <div class="r-dec" data-key="binding-gate" data-choice="diagnosis-first" data-by="lead" data-when="2026-07-18">
+      <p class="r-dec-q">What is the successor's binding gate after the S1b negative?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt" data-value="diagnosis-first">V1 analytic diagnosis → V2 confinement-under-measured-currents; representation work parked</button>
+        <button class="r-opt" data-value="v2-only">V2 gate, skip the analytic diagnosis</button>
+        <button class="r-opt" data-value="free-boundary-first">Free-boundary truth chain first on manufactured scenarios</button>
+        <button class="r-opt" data-value="parallel-cheap-lever">Diagnosis-first plus a parallel hollow-h test on the old truths</button>
+      </p>
+      <p class="r-dec-rat">Locked by the lead (interview, 2026-07-18): the S1b negative was measured on truths driven by a fictitious coil field; nothing representation-side is interpretable until the forward model confines under real currents. Diagnosis-first is also the only path that unblocks diverted truths and real-pattern anchoring.</p>
+    </div>
+    <div class="r-dec" data-key="referee-policy" data-choice="efit-diagnostic-only" data-by="lead" data-when="2026-07-18">
+      <p class="r-dec-q">What may the V1/V2 gates read as the position/shape reference?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt" data-value="efit-diagnostic-only">Firewalled EFIT axis/a/κ/βp+li/2, eval-side only</button>
+        <button class="r-opt" data-value="magnetics-only">Own staged-disc/boundary reads on measured magnetics</button>
+        <button class="r-opt" data-value="hybrid">EFIT for V1 analytics; magnetics misfit for V2</button>
+      </p>
+      <p class="r-dec-rat">Locked by the lead: this is a forward-model diagnosis, not a fit — nothing learned consumes the referee, and the Shafranov identity needs βp+li/2 anyway. The firewall stands: EFIT appears in no fit/tune path.</p>
+    </div>
+    <div class="r-dec" data-key="vertical-stability-treatment" data-choice="feedback-forward-only" data-by="lead" data-when="2026-07-18">
+      <p class="r-dec-q">How does the successor treat the n = 0 vertical mode?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt" data-value="feedback-forward-only">Z-feedback as dynamics in FORWARD solves only; reconstruction mode is measurement-constrained</button>
+        <button class="r-opt" data-value="stability-constrained-scenarios">Z-symmetric solve + scenarios restricted to the passive-stability window</button>
+        <button class="r-opt" data-value="staged">Constrained scenarios now, feedback later</button>
+      </p>
+      <p class="r-dec-rat">Locked by the lead with the sharpening constraint: in reconstruction mode the measured magnetics stabilize and constrain the plasma — feedback is only required for controlled forward free-boundary solves. Corollary exploited in §2: a measurement-constrained solve that still drifts is solve-side evidence independent of the coil model.</p>
+    </div>
+    <div class="r-dec" data-key="plan-scope" data-choice="single-staged-plan" data-by="lead" data-when="2026-07-18">
+      <p class="r-dec-q">One plan spanning the ladder, or split diagnosis / rebuild?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt" data-value="single-staged-plan">One plan, staged V1→V3, V4 queued as followups</button>
+        <button class="r-opt" data-value="diagnosis-only">Tight V1+V2 plan; chain rebuild is a successor</button>
+        <button class="r-opt" data-value="sibling-plans">Diagnosis and rebuild as parallel sibling plans</button>
+      </p>
+      <p class="r-dec-rat">Locked by the lead: one plan keeps the thread coherent with stages gating each other, S1b-style.</p>
+    </div>
+    <div class="r-dec" data-key="attractor-branch" data-choice="" data-by="" data-when="">
+      <p class="r-dec-q">Is the outboard attractor coil-side (vacuum field at the plasma wrong) or solve-side (Picard/profile-family/boundary-read)? Locked by the §2 measurement, not by opinion.</p>
+      <p class="r-dec-opts">
+        <button class="r-opt" data-value="coil-side">coil-side — G1a fires (B_z discrepancy &gt; 15% or sign, waterfall localizes)</button>
+        <button class="r-opt" data-value="solve-side">solve-side — G1b fires (B_z within 15%, stable window, still deconfines)</button>
+        <button class="r-opt" data-value="mixed">mixed — both mechanisms contribute; fix order decided with the lead</button>
+      </p>
+      <p class="r-dec-rat"></p>
+    </div>
+  </section>
+
+  <section data-reckon="followups" id="followups" class="r-followups">
+    <h2><span class="sec">§</span> Followups</h2>
+    <article class="r-fu" data-id="f-eqr-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-18" data-recommends-skill="/reckon-ship equilibrium-realism §2" data-resolved-at="" data-resolved-by="">
+      <h4 class="r-fu-title">Ship §2 — V1 analytic force-balance diagnosis: Shafranov balance + decay index at measured states, branch decision locked</h4>
+      <div class="r-fu-body"><p>First full session. Build the analytic pins (unit tests on known filament/coil-pair cases), then the measured-state sweep (11766 + ≥2 train-split shots, ramp-spanning slices): model vacuum B_z at the measured axis vs the Shafranov requirement, decay index vs the stability window, per-coil-group waterfall, and the reconstruction-mode axis-hold probe. Lock the <code>attractor-branch</code> decision by the pre-declared G1a/G1b rules — or invoke the ambiguity extension, never a guess. Figures mandatory. Per the session protocol, the landing MUST queue the next-session followup with its own pre-declared gates and tests.</p></div>
+      <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    equilibrium-realism (http://localhost:8765/imas-ambix/equilibrium-realism.html)
+Section: §2 (V1 — analytic force-balance diagnosis)
+Tier:    opus
+
+Context
+  Successor to plasma-screening-dynamics, which closed on a decisive negative
+  measured on unphysical truths (kappa~3.5 startup, manufactured coil field,
+  z_symmetric pin). Before any representation work, diagnose WHY the forward
+  operator has no confined fixed point on real measured coil currents, using
+  only classical force balance. The vacuum-shot campaign validated coil->sensor
+  at 0.1-0.44 sigma, so the error is either at the plasma (not the sensor ring)
+  or solve-side - the diagnosis must separate these.
+
+State to read  (CODE / FILES / DATA)
+  imas_ambix/gs/operator.py                (ForwardOperator, pf_amc_channels, coil columns)
+  imas_ambix/gs/cylinder.py                (hybrid_greens - the locked kernel; use for ALL field evals)
+  imas_ambix/latent/synthetic_truth.py     (module note documents the attractor; build_confining_i_pf)
+  imas_ambix/latent/plasma_screening.py    (CoupledCircuit - vessel-eddy prediction from coil drives)
+  imas_ambix/latent/gs_solve.py            (Picard, boundary-psi read, profile_basis)
+  scripts/plasma_screening_gate.py         (the 8 design probes; real 11766 pattern: p4 -121kA p5 -62kA sol -35kA Ip 624kA)
+  docs/archive/plasma-screening-dynamics-s1b-landed.html  (verdicts + scenario-limitation table)
+  Data: campaign shot 11766 (train split) + >=2 more train-split shots, one
+  ramp-heavy; load measured coil currents via the harness loaders
+  (load_shot_slices_raw pattern - NOT the statespace loader). EFIT quantities
+  (R_axis, a, kappa, betap+li/2) DIAGNOSTIC-ONLY per the locked referee-policy
+  decision - they parameterise the analytic identity, nothing tunes on them.
+
+Scope locks / constraints  (non-decision)
+  - No fitting, no learned components, no solver changes in this session -
+    this rung MEASURES and LOCKS THE BRANCH; the fix is the next rung.
+  - All field evaluations through hybrid_greens (thick-cylinder couplings -
+    standing user directive; never point-filament).
+  - Figures mandatory (Tufte style, docs/figures/equilibrium-realism/):
+    B_z(R) overlays vs Shafranov requirement per Ip-fraction; decay index vs
+    Ip-fraction with stability window banded; per-coil-group waterfall at the
+    measured axis; reconstruction-mode axis-hold trace.
+  - Light enough for the login node (analytic evals); if a sweep grows, use
+    the *_debug SLURM partitions per the standing compute rules.
+  - Commit + push each coherent change on main; conventional commits; no AI
+    co-author trailers (verify: git log -1 --format=%B | grep -Eqi "^co-authored-by:").
+
+Gates and tests  (pre-declared - read the full G1a/G1b/ambiguity rules in section 2)
+  T1. Unit tests pin the Shafranov B_v identity on an analytic
+      filament-in-uniform-field case and the decay index on a symmetric coil
+      pair BEFORE the diagnosis script consumes data. Tests land green.
+  T2. Sweep report: per shot x slice, signed (B_z,model - B_v,req)/B_v,req,
+      decay index n at the measured axis, waterfall shares. Artifact JSON +
+      figures committed.
+  G1a (coil-side): flat-top |dB_z|/B_v > 0.15 or sign error AND waterfall
+      localizes >=70% to <=2 coil groups  => lock attractor-branch=coil-side.
+  G1b (solve-side): B_z within 15%, n inside stability window, Picard still
+      deconfines => lock attractor-branch=solve-side + commit a minimal
+      reproduction (fixed vacuum field + profile family showing the drift).
+  Ambiguous (5-15% or non-localizing waterfall): extend once by +3 shots
+      (pre-declared); if still ambiguous, STOP and surface to the lead with
+      the figures - do NOT pick a branch by judgement.
+
+Done-when
+  1. Analytic pin tests green; diagnosis script + artifact + figures committed
+  2. attractor-branch decision locked in the plan by the gate that fired
+     (or the ambiguity stop recorded and the lead pinged)
+  3. Plan updated same-session: section 2 outcome recorded; next-session
+     followup queued WITH its own pre-declared gates and tests (session
+     protocol - a followup prompt without gates is a defect); this followup
+     resolved</pre>
+    </article>
+  </section>
+
+</main>
+</body>
+</html>
