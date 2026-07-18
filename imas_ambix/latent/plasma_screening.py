@@ -262,6 +262,43 @@ def circuit_eigensystem(
     return tau, v
 
 
+def _evolve_lr_system(
+    lmat: np.ndarray,
+    r_vec: np.ndarray,
+    m_coil: np.ndarray,
+    volt_pattern: np.ndarray,
+    times: np.ndarray,
+    *,
+    i0: np.ndarray,
+    loop_voltage: np.ndarray,
+    i_pf_of_t: np.ndarray | None,
+) -> np.ndarray:
+    """Exact-ZOH evolution of a generic diagonal-R L/R system.
+
+    Dynamics: ``L·di/dt + R·i = u(t)·p − M_c·dI_c/dt`` with ``p`` the
+    voltage-drive pattern (which conductors the loop voltage acts on).  In
+    the L-orthonormal eigenbasis both terms are exactly integrable per step
+    (piecewise-constant voltage / piecewise-linear flux — the vessel ZOH
+    contract), so the integration is EXACT for those drive classes at any
+    step size.  Returns the current state (T, N).
+    """
+    from scipy.linalg import eigh  # noqa: PLC0415
+
+    times = np.asarray(times, dtype=np.float64)
+    u = np.asarray(loop_voltage, dtype=np.float64)
+    w, v = eigh(np.diag(np.asarray(r_vec, dtype=np.float64)), lmat)
+    tau = 1.0 / np.clip(w, 1e-12, None)
+    pat_m = v.T @ np.asarray(volt_pattern, dtype=np.float64)
+    volt_m = u[:, np.newaxis] * pat_m[np.newaxis, :]
+    if i_pf_of_t is not None and m_coil.shape[1]:
+        psi_m = np.asarray(i_pf_of_t, dtype=np.float64) @ (v.T @ m_coil).T
+    else:
+        psi_m = np.zeros((times.size, tau.size))
+    a0 = v.T @ (lmat @ np.asarray(i0, dtype=np.float64))
+    a, _u = integrate_eddy_ode(tau, times, psi_m, a0=a0, volt_m=volt_m)
+    return a @ v.T
+
+
 def evolve_patch_currents(
     circuit: PlasmaCircuit,
     eta: EtaProfile,
@@ -276,24 +313,19 @@ def evolve_patch_currents(
     Dynamics: ``L·di/dt + R·i = u(t)·1 − M_pc·dI_c/dt`` — ``u`` the loop
     voltage (identical for every toroidal loop enclosing the solenoid, so the
     central-solenoid drive is exactly the uniform vector), ``i_pf_of_t``
-    (T, C) the coil currents whose swing drives the mode flux.  In the
-    L-orthonormal eigenbasis both terms are exactly integrable per step
-    (piecewise-constant voltage / piecewise-linear flux — the vessel ZOH
-    contract), so the integration is EXACT for those drive classes at any
-    step size.  Returns patch currents (T, P).
+    (T, C) the coil currents whose swing drives the mode flux.  Returns patch
+    currents (T, P).
     """
-    times = np.asarray(times, dtype=np.float64)
-    u = np.asarray(loop_voltage, dtype=np.float64)
-    tau, v = circuit_eigensystem(circuit, eta)
-    ones_m = v.T @ np.ones(circuit.n_patches)  # voltage-drive coupling per mode
-    volt_m = u[:, np.newaxis] * ones_m[np.newaxis, :]
-    if i_pf_of_t is not None and circuit.m_coil.shape[1]:
-        psi_m = np.asarray(i_pf_of_t, dtype=np.float64) @ (v.T @ circuit.m_coil).T
-    else:
-        psi_m = np.zeros((times.size, tau.size))
-    a0 = v.T @ (circuit.lmat @ np.asarray(i0, dtype=np.float64))
-    a, _u = integrate_eddy_ode(tau, times, psi_m, a0=a0, volt_m=volt_m)
-    return a @ v.T
+    return _evolve_lr_system(
+        circuit.lmat,
+        circuit.r_diag(eta),
+        circuit.m_coil,
+        np.ones(circuit.n_patches),
+        times,
+        i0=i0,
+        loop_voltage=loop_voltage,
+        i_pf_of_t=i_pf_of_t,
+    )
 
 
 def steady_state_currents(
@@ -341,6 +373,185 @@ def loop_voltage_for_ip(
         raise ValueError("degenerate voltage response — check the circuit")
     u = (float(ip_target) - float(i_free.sum())) / denom
     return u, i_free + u * i_unit
+
+
+# ---------------------------------------------------------------------------
+# coupled system — plasma patches + fixed external conductors, ONE circuit
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class CoupledCircuit:
+    """Plasma patches + fixed external conductors (vessel) as ONE L/R system.
+
+    The full dynamic content of the machine in a single block circuit: the
+    plasma patch self/mutual block, the external-conductor block, and the
+    exact cross-linkage between them — so the flux diffusion, the passive
+    structures, and the plasma redistribution evolve together and every
+    dΦ/dt term (coil swing, vessel eddies, plasma back-reaction) is carried
+    by one integration.  The loop voltage acts on the plasma rows only (the
+    solenoid EMF drives loops the plasma closes; the vessel is passive).
+    """
+
+    plasma: PlasmaCircuit
+    lmat: np.ndarray  # (P+V, P+V) block flux linkage, SPD-guarded
+    m_coil: np.ndarray  # (P+V, C) coil-channel flux linkage
+    r_ext: np.ndarray  # (V,) external conductor resistances [Ω]
+
+    @property
+    def n_plasma(self) -> int:
+        return self.plasma.n_patches
+
+    @property
+    def n_ext(self) -> int:
+        return int(self.r_ext.size)
+
+    @property
+    def n_total(self) -> int:
+        return int(self.lmat.shape[0])
+
+    def r_vec(self, eta: EtaProfile) -> np.ndarray:
+        return np.concatenate([self.plasma.r_diag(eta), self.r_ext])
+
+    def volt_pattern(self) -> np.ndarray:
+        return np.concatenate([np.ones(self.n_plasma), np.zeros(self.n_ext)])
+
+
+def patch_external_linkage(
+    grid: EquilibriumGrid,
+    tiling: PatchTiling,
+    psi_columns: np.ndarray,
+) -> np.ndarray:
+    """(P, V) flux linked by each patch per ampere of each external circuit.
+
+    ``psi_columns`` (n_grid, V) are the external circuits' grid-flux columns
+    (finite-area kernel — e.g. the campaign's passive columns); the patch
+    linkage is the share-weighted average over the patch's cells, exactly the
+    coil-linkage construction.
+    """
+    cells_flat = grid.cells[tiling.cell_index]
+    cols = np.asarray(psi_columns, dtype=np.float64)[cells_flat, :]
+    out = np.zeros((tiling.n_patches, cols.shape[1]))
+    for c in range(cols.shape[1]):
+        out[:, c] = np.bincount(
+            tiling.owner, weights=tiling.share * cols[:, c], minlength=tiling.n_patches
+        )
+    return out
+
+
+def build_coupled_circuit(
+    circuit: PlasmaCircuit,
+    *,
+    l_ext: np.ndarray,
+    r_ext: np.ndarray,
+    m_ext_coil: np.ndarray,
+    m_patch_ext: np.ndarray,
+) -> CoupledCircuit:
+    """Assemble the plasma+external block system.
+
+    ``l_ext`` (V, V) external self/mutual linkage, ``r_ext`` (V,) external
+    resistances, ``m_ext_coil`` (V, C) external↔coil linkage in the SAME coil
+    channel order as ``circuit.m_coil``, ``m_patch_ext`` (P, V) plasma-patch↔
+    external linkage (reciprocity supplies the transpose block).  The block L
+    is symmetrised and SPD-guarded exactly as each sub-block build.
+    """
+    p = circuit.n_patches
+    v = int(np.asarray(r_ext).size)
+    lmat = np.zeros((p + v, p + v))
+    lmat[:p, :p] = circuit.lmat
+    lmat[:p, p:] = m_patch_ext
+    lmat[p:, :p] = np.asarray(m_patch_ext, dtype=np.float64).T
+    lmat[p:, p:] = l_ext
+    lmat = 0.5 * (lmat + lmat.T)
+    ev, u0 = np.linalg.eigh(lmat)
+    lmat = (u0 * np.clip(ev, 1e-8 * ev.max(), None)) @ u0.T
+    m_coil = np.vstack([circuit.m_coil, np.asarray(m_ext_coil, dtype=np.float64)])
+    return CoupledCircuit(
+        plasma=circuit,
+        lmat=lmat,
+        m_coil=m_coil,
+        r_ext=np.asarray(r_ext, dtype=np.float64),
+    )
+
+
+def evolve_coupled(
+    coupled: CoupledCircuit,
+    eta: EtaProfile,
+    times: np.ndarray,
+    *,
+    i0: np.ndarray,
+    loop_voltage: np.ndarray,
+    i_pf_of_t: np.ndarray | None = None,
+) -> np.ndarray:
+    """Exact-ZOH evolution of the coupled plasma+external state (T, P+V)."""
+    return _evolve_lr_system(
+        coupled.lmat,
+        coupled.r_vec(eta),
+        coupled.m_coil,
+        coupled.volt_pattern(),
+        times,
+        i0=i0,
+        loop_voltage=loop_voltage,
+        i_pf_of_t=i_pf_of_t,
+    )
+
+
+def coupled_loop_voltage_for_ip(
+    coupled: CoupledCircuit,
+    eta: EtaProfile,
+    times: np.ndarray,
+    *,
+    i0: np.ndarray,
+    ip_target: float,
+    i_pf_of_t: np.ndarray | None = None,
+) -> tuple[float, np.ndarray]:
+    """Constant loop voltage landing Σ(plasma rows) = ``ip_target``.
+
+    Same closed-form two-integration linearity as
+    :func:`loop_voltage_for_ip`, with the total taken over the plasma rows
+    only (the vessel rows carry eddies, not plasma current).  Returns
+    ``(u, i_end)`` with ``i_end`` the full (P+V,) end state.
+    """
+    times = np.asarray(times, dtype=np.float64)
+    p = coupled.n_plasma
+    zero = np.zeros(times.size)
+    i_free = evolve_coupled(
+        coupled, eta, times, i0=i0, loop_voltage=zero, i_pf_of_t=i_pf_of_t
+    )[-1]
+    i_unit = evolve_coupled(
+        coupled,
+        eta,
+        times,
+        i0=np.zeros(coupled.n_total),
+        loop_voltage=np.ones(times.size),
+        i_pf_of_t=None,
+    )[-1]
+    denom = float(i_unit[:p].sum())
+    if abs(denom) < 1e-30:
+        raise ValueError("degenerate voltage response — check the coupled circuit")
+    u = (float(ip_target) - float(i_free[:p].sum())) / denom
+    return u, i_free + u * i_unit
+
+
+def mean_plasma_linked_flux(
+    coupled: CoupledCircuit,
+    i_state: np.ndarray,
+    i_pf: np.ndarray | None = None,
+) -> float:
+    """Patch-mean linked flux Ψ̄ of the plasma rows [Wb].
+
+    ``Ψ̄ = mean_j (L·i + M_c·I_c)_j`` over the plasma rows — the scalar whose
+    balance ``dΨ̄/dt + mean_j(R_j i_j) = u`` integrates the per-patch circuit
+    equation.  With the state integrated from zero (vacuum start) the flux
+    ledger ``∫u dt = ΔΨ̄ + Σ(shape-remap jumps) + ∫mean(R·i) dt`` closes with
+    no free constant; the remap jumps are the frozen-geometry chain's carry
+    of the shape/inductance change (dL/dt).
+    """
+    p = coupled.n_plasma
+    psi = coupled.lmat[:p, :] @ np.asarray(i_state, dtype=np.float64)
+    if i_pf is not None and coupled.m_coil.shape[1]:
+        psi = psi + coupled.m_coil[:p, :] @ np.asarray(i_pf, dtype=np.float64)
+    return float(psi.mean())
 
 
 # ---------------------------------------------------------------------------
@@ -459,6 +670,7 @@ def screening_trajectory(
     *,
     i_pf_of_t: np.ndarray | None = None,
     i_backbone_patch: np.ndarray | None = None,
+    psi_extra_m: np.ndarray | None = None,
 ) -> np.ndarray:
     """Exact-ZOH screening-mode amplitudes along a drive history.
 
@@ -469,7 +681,11 @@ def screening_trajectory(
     trajectory), and the resistive term the EMF the non-solution backbone
     leaves behind.  ``i_backbone_patch`` (T, P) is the backbone patch-current
     history (e.g. the pass-1 fits binned onto the tiling); None drops the
-    backbone terms.  Returns amplitudes (T, k) in L-orthonormal coordinates.
+    backbone terms.  ``psi_extra_m`` (T, k) is additional linked flux per
+    mode from external conductors the coil channels do not carry — e.g. the
+    vessel-eddy history predicted from the measured drives — so all of the
+    machine's dΦ/dt terms enter the mode dynamics.  Returns amplitudes (T, k)
+    in L-orthonormal coordinates.
     """
     times = np.asarray(times, dtype=np.float64)
     k = basis.n_modes
@@ -481,6 +697,8 @@ def screening_trajectory(
         ib = np.asarray(i_backbone_patch, dtype=np.float64)
         psi_m += ib @ (basis.v.T @ basis.lmat).T
         volt_m -= ib @ (basis.v.T @ np.diag(basis.r_diag)).T
+    if psi_extra_m is not None:
+        psi_m += np.asarray(psi_extra_m, dtype=np.float64)
     a, _u = integrate_eddy_ode(basis.tau, times, psi_m, volt_m=volt_m)
     return a
 
@@ -540,15 +758,21 @@ def bin_cell_currents(tiling: PatchTiling, cell_currents: np.ndarray) -> np.ndar
 
 __all__ = [
     "MU0",
+    "CoupledCircuit",
     "PatchTiling",
     "PlasmaCircuit",
     "ScreeningBasis",
     "bin_cell_currents",
+    "build_coupled_circuit",
     "build_plasma_circuit",
     "build_plasma_circuit_from_state",
     "circuit_eigensystem",
+    "coupled_loop_voltage_for_ip",
+    "evolve_coupled",
     "evolve_patch_currents",
     "loop_voltage_for_ip",
+    "mean_plasma_linked_flux",
+    "patch_external_linkage",
     "screening_eigenbasis",
     "screening_sidecar",
     "screening_trajectory",

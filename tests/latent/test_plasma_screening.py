@@ -348,6 +348,123 @@ def test_screening_modes_zero_net_and_edge_weighted(nested_grid, nested_circuit)
     assert side["amp_scale"].shape == (3,)
 
 
+# ---------------------------------------------------------------------------
+# pin 5 — coupled plasma+external system: one circuit carries ALL the dΦ/dt
+# terms, and the flux ledger closes from a zero (pre-breakdown) state
+# ---------------------------------------------------------------------------
+
+
+def _external_ring(grid, r_ring: float, z_ring: float, w: float = 0.04):
+    """One vessel-like external ring: grid flux column + analytic self-L."""
+    from imas_ambix.gs.cylinder import hybrid_greens
+
+    psi_col, _br, _bz = hybrid_greens(grid.flat_r, grid.flat_z, r_ring, z_ring, w, w)
+    psi_self, _b1, _b2 = hybrid_greens(
+        np.array([r_ring]), np.array([z_ring]), r_ring, z_ring, w, w
+    )
+    return psi_col[:, np.newaxis], float(psi_self[0])
+
+
+def test_coupled_matches_uncoupled_at_zero_cross_linkage(nested_grid, nested_circuit):
+    circuit = nested_circuit
+    _col, l_self = _external_ring(nested_grid, R0, 0.68)
+    coupled = ps.build_coupled_circuit(
+        circuit,
+        l_ext=np.array([[l_self]]),
+        r_ext=np.array([1.0e-4]),
+        m_ext_coil=np.zeros((1, 0)),
+        m_patch_ext=np.zeros((circuit.n_patches, 1)),
+    )
+    times = np.linspace(0.0, 0.05, 41)
+    u = np.ones(times.size)
+    i_plasma = ps.evolve_patch_currents(
+        circuit, ETA_FLAT, times, i0=np.zeros(circuit.n_patches), loop_voltage=u
+    )
+    i_coupled = ps.evolve_coupled(
+        coupled, ETA_FLAT, times, i0=np.zeros(coupled.n_total), loop_voltage=u
+    )
+    p = circuit.n_patches
+    ref = np.abs(i_plasma[-1]).max()
+    assert np.abs(i_coupled[:, :p] - i_plasma).max() < 1e-6 * ref
+    # undriven, uncoupled external ring stays exactly quiescent
+    assert np.abs(i_coupled[:, p:]).max() < 1e-12 * ref
+
+
+def test_coupled_external_ring_screens_the_plasma_swing(nested_grid, nested_circuit):
+    """Lenz: a fast plasma current swing induces an OPPOSING external eddy,
+    which then decays on the ring's own L/R time once the drive stops."""
+    circuit = nested_circuit
+    col, l_self = _external_ring(nested_grid, R0, 0.68)
+    m_pe = ps.patch_external_linkage(nested_grid, circuit.tiling, col)
+    assert m_pe.shape == (circuit.n_patches, 1)
+    assert (m_pe > 0).all()  # coaxial rings link positively
+    coupled = ps.build_coupled_circuit(
+        circuit,
+        l_ext=np.array([[l_self]]),
+        r_ext=np.array([2.0e-5]),
+        m_ext_coil=np.zeros((1, 0)),
+        m_patch_ext=m_pe,
+    )
+    p = circuit.n_patches
+    times = np.linspace(0.0, 2e-3, 41)  # fast against both time scales
+    i_state = ps.evolve_coupled(
+        coupled,
+        ETA_FLAT,
+        times,
+        i0=np.zeros(coupled.n_total),
+        loop_voltage=np.ones(times.size),
+    )
+    ip_end = float(i_state[-1, :p].sum())
+    i_ring = float(i_state[-1, p])
+    assert ip_end > 0.0
+    assert i_ring < 0.0  # opposing (screening) eddy
+    # and the shoot-to-Ip drive lands the PLASMA total, not the grand total
+    u, i_end = ps.coupled_loop_voltage_for_ip(
+        coupled,
+        ETA_FLAT,
+        times,
+        i0=np.zeros(coupled.n_total),
+        ip_target=1.0e5,
+    )
+    assert abs(float(i_end[:p].sum()) - 1.0e5) < 1e-3 * 1.0e5
+    assert float(i_end[p]) < 0.0
+
+
+def test_flux_ledger_closes_from_zero_state(nested_grid, nested_circuit):
+    """∫u dt = ΔΨ̄ + ∫mean(R·i) dt — exact when the state integrates from
+    zero (the breakdown-start contract: no free integral constant)."""
+    circuit = nested_circuit
+    col, l_self = _external_ring(nested_grid, R0, 0.68)
+    m_pe = ps.patch_external_linkage(nested_grid, circuit.tiling, col)
+    coupled = ps.build_coupled_circuit(
+        circuit,
+        l_ext=np.array([[l_self]]),
+        r_ext=np.array([2.0e-5]),
+        m_ext_coil=np.zeros((1, 0)),
+        m_patch_ext=m_pe,
+    )
+    times = np.linspace(0.0, 0.08, 401)
+    u_const = 0.7
+    i_state = ps.evolve_coupled(
+        coupled,
+        ETA_FLAT,
+        times,
+        i0=np.zeros(coupled.n_total),
+        loop_voltage=np.full(times.size, u_const),
+    )
+    psi_bar_0 = ps.mean_plasma_linked_flux(coupled, i_state[0])
+    psi_bar_t = ps.mean_plasma_linked_flux(coupled, i_state[-1])
+    assert abs(psi_bar_0) < 1e-30  # zero state ⇒ zero linked flux, no constant
+    p = circuit.n_patches
+    r_p = circuit.r_diag(ETA_FLAT)
+    resistive = float(
+        np.trapezoid((i_state[:, :p] * r_p[np.newaxis, :]).mean(axis=1), times)
+    )
+    vs_drive = u_const * float(times[-1] - times[0])
+    closure = abs(vs_drive - ((psi_bar_t - psi_bar_0) + resistive))
+    assert closure < 5e-4 * abs(vs_drive)
+
+
 def test_uniform_rescale_maps_tau_by_s_squared():
     s = 2.0
     grid1 = _nested_circle_grid(r0=R0, a=A_MINOR, n=33)

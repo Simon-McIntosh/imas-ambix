@@ -738,6 +738,7 @@ def manufacture_shape(
     *,
     ip_amperes: float,
     i_pf: np.ndarray,
+    passive_amplitudes: np.ndarray | None = None,
     noise: bool = True,
     seed: int = 0,
     warm_jphi: np.ndarray | None = None,
@@ -752,13 +753,30 @@ def manufacture_shape(
     flux-diffusion chain) supplies the shape directly — including
     hollow-but-non-negative skin-current states no coefficient ladder can
     produce — and the truth is a genuine fixed point of the SAME forward
-    chain the inverse arms use (:func:`_forward_picard`).  Payload emission
-    is identical to :func:`manufacture` at default calibration (no injected
-    offsets / gains / passive currents).
+    chain the inverse arms use (:func:`_forward_picard`).
+    ``passive_amplitudes`` (n_passive,) injects evolved passive-conductor
+    currents [A] exactly as :func:`manufacture` does — their flux enters the
+    Picard field and their signal the sensors, so a dynamically-chained truth
+    carries the vessel state its own drive history induced.  Payload emission
+    is otherwise identical to :func:`manufacture` at default calibration (no
+    injected offsets / gains).
     """
     grid = campaign.grid
     rng = np.random.default_rng(seed)
     i_pf = np.asarray(i_pf, dtype=np.float64)
+    n_pass = campaign.n_passive
+    passive = (
+        np.zeros(n_pass)
+        if passive_amplitudes is None
+        else np.asarray(passive_amplitudes, dtype=np.float64)
+    )
+    if passive.size != n_pass:
+        raise ValueError(
+            f"passive_amplitudes must have length {n_pass}, got {passive.size}"
+        )
+    psi_passive = (
+        campaign.passive_psi_grid @ passive if n_pass and passive.any() else None
+    )
     (
         psi2d,
         cell_currents,
@@ -774,7 +792,7 @@ def manufacture_shape(
         i_pf,
         float(ip_amperes),
         shape_fn,
-        psi_passive_grid=None,
+        psi_passive_grid=psi_passive,
         seed_z0=0.0,
         seed_width=seed_width,
         relax=relax,
@@ -786,7 +804,8 @@ def manufacture_shape(
 
     vacuum = campaign.m_coil @ i_pf
     plasma = campaign.g_sens @ cell_currents
-    measured_clean = vacuum + plasma
+    passive_sens = campaign.passive_g_sens @ passive if n_pass else 0.0
+    measured_clean = vacuum + plasma + passive_sens
     scale = campaign.scale.copy()
     noise_vec = (
         rng.normal(0.0, 1.0, size=measured_clean.shape) * scale
@@ -807,7 +826,7 @@ def manufacture_shape(
         gamma_kind="peaked",
         offsets_true=np.zeros(n_ch),
         gains_true=np.ones(n_ch),
-        passive_true=np.zeros(campaign.n_passive),
+        passive_true=passive,
         i_pf=i_pf,
         ip_amperes=float(ip_amperes),
         vf_strength=0.0,
