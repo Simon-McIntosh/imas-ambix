@@ -546,7 +546,7 @@ def fit_and_read_slice(
     nonneg: bool = False,
     passive: dict | None = None,
     passive_ridge: float = 1.0,
-    passive_prior: tuple[np.ndarray, float] | None = None,
+    passive_prior: tuple[np.ndarray, float | np.ndarray] | None = None,
     coeff_prior: tuple[np.ndarray, float] | None = None,
     beta_sep_prior: tuple[float, np.ndarray, float] | None = None,
     maxfev: int = 60,
@@ -651,11 +651,17 @@ def fit_and_read_slice(
         # byte-identical to the frozen spine
         if passive_prior is not None and passive is not None:
             center, prior_weight = passive_prior
-            if float(prior_weight) > 0.0:
+            if bool(np.any(np.asarray(prior_weight) > 0.0)):
                 if sp_slice is None:
                     sp_slice = SoftPriors()
                 sp_slice.passive_prior_center = np.asarray(center, dtype=np.float64)
-                sp_slice.passive_prior_weight = float(prior_weight)
+                # a per-mode weight VECTOR lets heterogeneous sidecar blocks
+                # (vessel modes at 0 + screening modes at w) share one solve
+                sp_slice.passive_prior_weight = (
+                    float(prior_weight)
+                    if np.isscalar(prior_weight)
+                    else np.asarray(prior_weight, dtype=np.float64)
+                )
         # diffusion-evolved profile-coefficient prediction as a soft temporal-
         # consistency prior on the ladder coefficients; weight 0 leaves the
         # solve byte-identical to the frozen spine

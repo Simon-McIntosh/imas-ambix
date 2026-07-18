@@ -732,6 +732,105 @@ def manufacture(
     )
 
 
+def manufacture_shape(
+    campaign: Campaign,
+    shape_fn: Callable[[np.ndarray, np.ndarray], np.ndarray],
+    *,
+    ip_amperes: float,
+    i_pf: np.ndarray,
+    noise: bool = True,
+    seed: int = 0,
+    warm_jphi: np.ndarray | None = None,
+    seed_width: tuple[float, float] = (0.2, 0.35),
+    relax: float = 0.2,
+    max_iterations: int = 300,
+    tolerance: float = 3e-4,
+) -> SyntheticTruth:
+    """Manufacture one equilibrium from an ARBITRARY jφ(ψ_N, R) shape callback.
+
+    The dynamically-evolved profile entry point: a caller (e.g. a circuit /
+    flux-diffusion chain) supplies the shape directly — including
+    hollow-but-non-negative skin-current states no coefficient ladder can
+    produce — and the truth is a genuine fixed point of the SAME forward
+    chain the inverse arms use (:func:`_forward_picard`).  Payload emission
+    is identical to :func:`manufacture` at default calibration (no injected
+    offsets / gains / passive currents).
+    """
+    grid = campaign.grid
+    rng = np.random.default_rng(seed)
+    i_pf = np.asarray(i_pf, dtype=np.float64)
+    (
+        psi2d,
+        cell_currents,
+        _jphi_full,
+        axis,
+        axis_psi,
+        boundary_psi,
+        core,
+        converged,
+        residual,
+    ) = _forward_picard(
+        grid,
+        i_pf,
+        float(ip_amperes),
+        shape_fn,
+        psi_passive_grid=None,
+        seed_z0=0.0,
+        seed_width=seed_width,
+        relax=relax,
+        max_iterations=max_iterations,
+        tolerance=tolerance,
+        initial_jphi=warm_jphi,
+    )
+    confined = bool(axis[0] <= _CONFINED_AXIS_R_MAX and core.sum() > 4)
+
+    vacuum = campaign.m_coil @ i_pf
+    plasma = campaign.g_sens @ cell_currents
+    measured_clean = vacuum + plasma
+    scale = campaign.scale.copy()
+    noise_vec = (
+        rng.normal(0.0, 1.0, size=measured_clean.shape) * scale
+        if noise
+        else np.zeros_like(measured_clean)
+    )
+    measured = measured_clean + noise_vec
+    n_ch = measured_clean.size
+    mask = np.isfinite(measured) & (scale > 0)
+
+    return SyntheticTruth(
+        beta0_true=float("nan"),
+        alpha_true=float("nan"),
+        coeffs_true=None,
+        n_p=0,
+        n_f=0,
+        gamma0_true=0.0,
+        gamma_kind="peaked",
+        offsets_true=np.zeros(n_ch),
+        gains_true=np.ones(n_ch),
+        passive_true=np.zeros(campaign.n_passive),
+        i_pf=i_pf,
+        ip_amperes=float(ip_amperes),
+        vf_strength=0.0,
+        seed=int(seed),
+        cell_currents=cell_currents,
+        psi=psi2d,
+        axis=(float(axis[0]), float(axis[1])),
+        axis_psi=float(axis_psi),
+        boundary_psi=float(boundary_psi),
+        core_mask=core,
+        converged=converged,
+        confined=confined,
+        residual=residual,
+        channels=list(campaign.channels),
+        measured=measured,
+        measured_clean=measured_clean,
+        vacuum=vacuum,
+        scale=scale,
+        mask=mask,
+        noise=noise_vec,
+    )
+
+
 __all__ = [
     "DEFAULT_VF_STRENGTH",
     "DEFAULT_IP_AMPERES",
@@ -742,4 +841,5 @@ __all__ = [
     "confined_seed",
     "rotation_gamma",
     "manufacture",
+    "manufacture_shape",
 ]
