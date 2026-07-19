@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-19">
 <meta name="plan-impl" content="0.333">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
 </head>
 <body>
 <main class="plan-doc">
@@ -264,6 +264,16 @@
       <button class="r-opt" data-value="hybrid">EFIT for some analytics</button>
       </p>
     <p class="r-dec-rat">Carried from equilibrium-realism: EFIT appears in no fit/tune/train path. Held-out MSE is the physical validator; EFIT stays a diagnostic cross-check only.</p>
+    </div>
+<div class="r-dec" data-key="moment-scope" data-choice="dipole-cap" data-by="lead" data-when="2026-07-19">
+    <p class="r-dec-q">How far up the current-moment ladder does the firewall-safe solve go?</p>
+    <p class="r-dec-ctx">Raised at the §3 ship (2026-07-19): should the engine fold in 2nd+ current moments (quadrupole: ∫R²jφ, ∫RZ jφ, ∫Z²jφ → elongation/shape and the βp+li/2 combination) in addition to Ip (0th) and the R/Z centroid (1st)?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="dipole-cap">Cap at Ip + centroid (0th+1st); ship §3 dynamics-only, no higher moments folded in</button>
+      <button class="r-opt" data-value="quadrupole-shape-label">Add the 2nd moment as a firewall-safe constraint on the always-asserted shape label only</button>
+      <button class="r-opt" data-value="quadrupole-in-dynamics">Fold 2nd-order moments into the §3 dynamics-coupled solve</button>
+      </p>
+    <p class="r-dec-rat">Locked by the lead (2026-07-19). Physics: current moments are a change of basis on the external magnetics ordered by observability. For §3&#x27;s target (the interior profile) higher moments are null — the βp vs li separation (profile peakedness → axis Shafranov shift) produces NO external field signature at any moment order (external magnetics fix βp+li/2, never βp−li/2), so they cannot break the interior null; that is exactly why §3 earns the profile from DYNAMICS (resistive diffusion) and §4 proves it on held-out MSE. For shape, higher moments are genuine firewall-safe info but near-redundant with the already-landed source-free boundary read (best-in-class LCFS). The firewall danger the lead flagged is real at the limit — climbing the moment ladder until the magnetics are reconstructed as completely as EFIT invites profile-parameterisation creep; the discipline is to truncate at moments that are observable AND not already supplied by the boundary read. Net: for the interior it is &#x27;just the magnetics in another form&#x27; with zero payoff; cap at the dipole.</p>
     </div>
 </section>
 
