@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="mse-gated-reanalysis-s3-landed">
+  <meta name="plan-title" content="MSE-Gated Reanalysis — §3 record: dynamics coupling — earning the internal profile from measured histories (QUALIFIED PASS)">
+  <meta name="plan-summary" content="§3 landing record (2026-07-19). With position well-posed (§2), the internal profile is the open DOF. It is coupled across successive slices by 1D resistive poloidal-flux diffusion driven by the measured Ip, only η(ψ_N) unknown: the stable free-sign K=2 position solve selects the confined basin, its current warm-starts the rich non-negative ladder (n_p=n_f=3, jφ>=0 + smoothness ridge — GS + regularization, not an assumed low-order polynomial), the flux-surface geometry drives the ψ diffusion over each measured interval, and the evolved current is projected back onto the rich basis as a soft coefficient prior. Gate verdicts: G3a QUALIFIED PASS — the coupled solve is finite, ships no fabricated readout (0 NaN), tracks the §2 position to 2.18 cm median, and the coupling IMPROVES rich-basis stability (confined 88%→94%, rescuing 2 fast-ramp slices, regressing none); it does not match the rigid K=2's 100% confinement (a basis-fragility trade-off — 2 fast-ramp slices flagged, never shipped). G3b PASS — synthetic exact-η recovery of the profile split reaches 0.084 median (bar 0.120), confirming the diffusion machinery is correct; on synthetic sequences (informative magnetics) it does not beat the 0.044 independent-slice spine, as expected — the coupling's value is at the real-data interior null. G3c PASS — 47/47 module pins green. Stop rule not invoked (no fabrication).">
+  <meta name="plan-informs" content="mse-gated-reanalysis">
+  <title>mse-gated-reanalysis §3 — dynamics coupling (QUALIFIED PASS)</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h1>§3 record — dynamics coupling: earning the internal profile from measured histories (QUALIFIED PASS)</h1>
+
+  <p><strong>Verdict (2026-07-19): §3 QUALIFIED PASS.</strong> With position held
+  by &sect;2, the internal profile is the open DOF &mdash; and it is not free in
+  time. Successive slices are coupled by <strong>1D resistive poloidal-flux
+  diffusion</strong> with the <em>measured</em> Ip as the drive and only the
+  parallel resistivity &eta;(&psi;<sub>N</sub>) unknown. The dynamics-coupled
+  solve is finite, ships no fabricated readout, and tracks the &sect;2 position to
+  a couple of cm; the coupling <em>improves</em> the stability of the rich
+  profile basis rather than regressing it. It does not match the rigid K=2
+  position crutch's perfect confinement &mdash; the rich basis is intrinsically
+  more basin-fragile, which is exactly why &sect;2 used K=2 to hold
+  <em>position</em> and left the <em>profile</em> to be earned here. The residual
+  fast-ramp slices are flagged, never shipped (label-honesty preserved).</p>
+
+  <h2>The representation, made explicit</h2>
+  <p>This is GS force balance <em>with regularization</em>, not an imposed flux
+  profile. Grad&ndash;Shafranov has two free functions,
+  <em>p&prime;(&psi;)</em> and <em>FF&prime;(&psi;)</em>; force balance relates
+  &psi; to them but does not determine them, so they must be represented. The
+  firewall-clean way &mdash; and the profile this rung earns &mdash; is a
+  <strong>rich non-negative ladder</strong> (the frozen spine's
+  n<sub>p</sub>=n<sub>f</sub>=3, K=6, with j&phi;&ge;0 and a second-difference
+  smoothness ridge), <em>not</em> a low-order polynomial whose assumed shape does
+  the load-bearing work (EFIT's move). &sect;2's free-sign K=2 solve is the one
+  deliberately rigid element &mdash; a stability crutch that carries
+  <em>position</em>, never a profile claim &mdash; and &sect;3 lifts that
+  rigidity: the K=2 solve selects the confined basin, then warm-starts the rich
+  ladder, and the <em>dynamics</em> supply the internal-profile shape the
+  single-slice magnetics cannot (the interior null).</p>
+
+  <h2>Gate verdicts (pre-declared in f-mgr-02)</h2>
+  <figure>
+    <table>
+      <thead><tr><th>Gate</th><th>Rule</th><th>Result</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>G3a</strong> finite &amp; physical on the position spine</td>
+          <td>coupled solve stays finite/physical across the beam-on shot set;
+              no NaN/outboard-drift <em>regression</em> from the coupling</td>
+          <td>33 slices (11766/11767/11772). Coupled confined <strong>31/33
+              (0.94)</strong> vs uncoupled-rich 29/33 (0.88) &mdash; the coupling
+              rescues 2 slices and regresses none; <strong>0 NaN shipped</strong>;
+              position tracked to <strong>2.18&nbsp;cm median</strong> vs the K2
+              reference. K2 reference itself 33/33.</td>
+          <td><strong>QUALIFIED PASS</strong></td>
+        </tr>
+        <tr>
+          <td><strong>G3b</strong> synthetic exact-recovery</td>
+          <td>on time-coupled synthetic truths (exact &eta;, exact profile) the
+              coupled solve recovers the internal-profile split to the generator's
+              pre-set tolerance (median |split&minus;truth| &lt; 0.120)</td>
+          <td>diffusion arm <strong>0.084 median</strong> (bar 0.120) &mdash;
+              PASS. On these synthetic sequences the independent-slice spine is
+              better (0.044): where the magnetics <em>are</em> informative the
+              temporal prior cannot improve an already-good fit &mdash; expected.</td>
+          <td><strong>PASS</strong></td>
+        </tr>
+        <tr>
+          <td><strong>G3c</strong> module pins</td>
+          <td>Lenz-sign vessel screening, coupled&equiv;uncoupled at zero
+              coupling, ledger-from-zero stay green</td>
+          <td><strong>47/47</strong> passed
+              (<code>test_current_diffusion</code>,
+              <code>test_plasma_screening</code>,
+              <code>test_temporal_operator</code>)</td>
+          <td><strong>PASS</strong></td>
+        </tr>
+      </tbody>
+    </table>
+    <figcaption>G3a is qualified because the rich profile basis does not reach
+    the rigid K=2's 100% confinement (a 6% gap on fast-ramp slices). That gap is a
+    <em>basis</em> property, not a coupling regression: the gate isolates the
+    coupling's own effect (coupled vs uncoupled, same basis), where it improves.</figcaption>
+  </figure>
+
+  <h2>The mechanism</h2>
+  <ul>
+    <li><strong>Scaffold &mdash; the stable K=2 position solve.</strong> The
+    &sect;2 free-sign K=2 solve (Ip + R/Z current centroid, magnetics OFF) selects
+    the confined inboard branch. Its converged current warm-starts the rich arms,
+    so basin selection (the fragile step without magnetics) is done by the stable
+    solve; the rich ladder then refines from the confined branch.</li>
+    <li><strong>Evolution &mdash; 1D resistive &psi; diffusion, measured drive.</strong>
+    Each confined rich slice's flux-surface geometry
+    (<code>current_diffusion.flux_surface_geometry</code>) drives the poloidal-flux
+    diffusion (<code>diffuse_psi</code>) over the measured interval to the next
+    slice, with the measured Ip as the edge boundary condition and
+    &eta;(&psi;<sub>N</sub>) the bounded low-DOF unknown &mdash; the only free
+    function, by design.</li>
+    <li><strong>Prior &mdash; the evolved profile, projected back.</strong> The
+    diffused current (<code>predicted_current</code>) is projected onto the rich
+    basis (<code>project_coefficients</code>) &mdash; source geometry and
+    projection basis identical (K=6), so the prediction is well-posed &mdash; and
+    enters the next slice's solve as a soft coefficient centre
+    (<code>SoftPriors.coeff_prior_*</code>). The temporal link is carried by this
+    <em>physics</em> prior, not by the numerical warm-start.</li>
+  </ul>
+
+  <figure>
+    <img src="/imas-ambix/figures/mse-gated-reanalysis/fig-coupled-axis-trace.png"
+         alt="Magnetic-axis R vs time for the three arms across the three shots: K2 and rich-coupled hold inboard near R~0.85 m; rich-uncoupled drops out on a few ramp slices"
+         style="max-width:100%">
+    <figcaption>The coupled solve holds inboard. Across the three shots the K2
+    reference (grey) and the rich coupled solve (blue) cluster inboard at
+    R&nbsp;&asymp;&nbsp;0.85&nbsp;m; the uncoupled rich solve (red) drops out on a
+    few fast-ramp slices that the coupling rescues. The dotted line is the
+    outboard-attractor threshold (1.4&nbsp;m).</figcaption>
+  </figure>
+
+  <figure>
+    <img src="/imas-ambix/figures/mse-gated-reanalysis/fig-coupled-profile-evolution.png"
+         alt="Per-coefficient profile evolution across shot 11766: the coupled coefficients follow a smoother diffusion-linked trajectory than the noisier uncoupled fit"
+         style="max-width:100%">
+    <figcaption>Coupled vs uncoupled profile-coefficient evolution across a shot.
+    The diffusion prior pulls the coupled coefficients (blue) onto the physically
+    evolved trajectory; the uncoupled fit (red) is the per-slice best fit with no
+    temporal link. The coupling is doing work &mdash; it is not inert.</figcaption>
+  </figure>
+
+  <figure>
+    <img src="/imas-ambix/figures/mse-gated-reanalysis/fig-synthetic-profile-recovery.png"
+         alt="Histogram of the profile-split recovery error for the spine and diffusion arms on synthetic sequences, both below the 0.120 bar"
+         style="max-width:100%">
+    <figcaption>G3b: on synthetic sequences evolved under a known
+    &eta;(&psi;<sub>N</sub>), the diffusion arm recovers the profile split to 0.084
+    median (bar 0.120). The machinery is correct; the coupling cannot beat the
+    already-good independent fit where the synthetic magnetics see the split
+    &mdash; its payoff is the real-data interior null, scored in &sect;4.</figcaption>
+  </figure>
+
+  <h2>Notable findings</h2>
+  <ul>
+    <li><strong>The coupling stabilises, it does not destabilise.</strong> On the
+    same rich basis, switching the diffusion prior on lifts confinement from 88%
+    to 94% (rescuing 11766 t=0.091 and 11767 t=0.123 from the outboard attractor)
+    and regresses no slice. The physically-evolved profile is a better-posed
+    target than the per-slice free rich fit.</li>
+    <li><strong>The residual failures are fast-ramp slices, honestly flagged.</strong>
+    The two coupled drop-outs (11772 t=0.059, a 379&rarr;530&nbsp;kA ramp; 11766
+    t=0.113, masked with no upstream prediction) are the "ramp gap =
+    representation deficit" regime. They carry <code>scored=False</code> or an
+    unconfined axis &mdash; masked, never shipped as a readout.</li>
+    <li><strong>Synthetic caveat, recorded straight.</strong> Even with exact
+    &eta;, the diffusion prediction carries an ~8% split error floor
+    (discretisation + projection) and does not beat independent fitting where the
+    magnetics are informative. This is the same signal the
+    <code>temporal-physics-spine</code> thesis closed on: the temporal channel is
+    marginal at the information floor. Its value is precisely where single-slice
+    magnetics are blind &mdash; the interior null &mdash; which &sect;4 scores on
+    held-out MSE.</li>
+    <li><strong>Stop rule NOT invoked.</strong> No profile was fabricated to force
+    a pass; the fragile slices are flagged, not filled.</li>
+  </ul>
+
+  <h2>Scoped honestly for &sect;4</h2>
+  <p>G3a is a <em>stability</em> gate; it runs a fixed nominal
+  &eta;(&psi;<sub>N</sub>) = (log<sub>10</sub>&eta;<sub>0</sub>, contrast, shape)
+  = (&minus;7.3, 2.0, 2.0). Two refinements the machinery already supports are
+  deliberately deferred to the &sect;4 fit, where they are <em>scored</em> rather
+  than assumed:</p>
+  <ul>
+    <li><strong>&eta;(&psi;<sub>N</sub>) calibration</strong> against the measured
+    drives (loop-voltage / flux budget + coefficient prediction), the existing
+    <code>eta-fit</code> path &mdash; firewall-safe (measured), and only
+    meaningful once scored on MSE.</li>
+    <li><strong>Circuit-integrated passive eddy trajectory</strong>
+    (<code>passive_prior_center</code> from the one-interaction-matrix integration)
+    &mdash; it refines the boundary flux, whose precision matters for MSE, not for
+    the G3a inboard-hold.</li>
+  </ul>
+  <p>Neither changes the &sect;3 conclusion: the internal profile can be earned
+  from measured dynamics on the position spine, finite and physical, on the
+  confined population &mdash; and where it cannot, the slice is flagged
+  under-determined, exactly as <code>label-honesty</code> requires.</p>
+
+  <h2>Artifacts &amp; code</h2>
+  <ul>
+    <li>Harness: <code>scripts/dynamics_coupled_solve_gate.py</code> (the
+    three-arm coupled gate on the position spine), reusing
+    <code>current_diffusion_gate_eval.predict_interval</code> and the &sect;2
+    <code>position_controlled_solve_gate</code> seed helpers.</li>
+    <li>Mechanism (pre-existing, re-pointed): <code>imas_ambix/latent/current_diffusion.py</code>
+    (<code>diffuse_psi</code>, <code>flux_surface_geometry</code>,
+    <code>project_coefficients</code>), <code>imas_ambix/latent/gs_solve.py</code>
+    (<code>SoftPriors.coeff_prior_*</code>).</li>
+    <li>G3b: <code>scripts/current_diffusion_synthetic_gate.py</code> &rarr;
+    <code>imas_ambix/latent/artifacts/patch_gate/current_diffusion_synth_gate-mgr-s3.json</code>.</li>
+    <li>G3c: <code>tests/latent/test_current_diffusion.py</code>,
+    <code>test_plasma_screening.py</code>, <code>test_temporal_operator.py</code>
+    (47 passed).</li>
+    <li>Artifact: <code>imas_ambix/latent/artifacts/patch_gate/dynamics_coupled_solve.json</code>.</li>
+    <li>Figures: <code>docs/figures/mse-gated-reanalysis/</code>
+    (coupled-axis-trace, coupled-profile-evolution, synthetic-profile-recovery).</li>
+  </ul>
+
+  <h2>What&rsquo;s next &mdash; &sect;4 the binding gate: held-out MSE pitch</h2>
+  <p>Score the coupled engine's internal pitch prediction on the locked,
+  leakage-audited 112-shot held-out MSE split through the shared harness
+  (<code>mse_eval.score</code>), on the same ruler as persistence (0.719) and the
+  EnKF bar (0.225). This is where &eta;(&psi;<sub>N</sub>) is calibrated against
+  measured drives and the profile the dynamics earn is finally proven &mdash; or
+  flagged under-determined, per <code>label-honesty</code>. G4a: beat persistence
+  CI-clear, coverage &ge; 0.88. G4b: approach the EnKF bar. G4c: report the gap to
+  the 0.19 frontier the learned operator (&sect;5) must close.</p>
+
+</main>
+</body>
+</html>
