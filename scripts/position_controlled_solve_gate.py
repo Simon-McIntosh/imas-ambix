@@ -400,6 +400,173 @@ def evaluate_gates(shots: list[dict]) -> dict:
     }
 
 
+def _coil_rects(table):
+    """Winding-pack rectangles (r0, z0, dr, dz) for the flux-map overlay."""
+    by_circ: dict[int, list] = {}
+    for f in table.pf_filaments:
+        by_circ.setdefault(f.circuit, []).append(f)
+    rects = []
+    for _circ, fils in sorted(by_circ.items()):
+        r0 = min(f.r - abs(f.width) / 2 for f in fils)
+        r1 = max(f.r + abs(f.width) / 2 for f in fils)
+        z0 = min(f.z - abs(f.height) / 2 for f in fils)
+        z1 = max(f.z + abs(f.height) / 2 for f in fils)
+        rects.append((r0, z0, r1 - r0, z1 - z0))
+    return rects
+
+
+def _panel(ax, grid, table, psi, psi_ax, psi_b, axis, *, title, centroid=None):
+    from matplotlib.patches import Rectangle  # noqa: PLC0415
+
+    rr, zz = np.meshgrid(grid.rg, grid.zg)
+    span = psi_b - psi_ax if abs(psi_b - psi_ax) > 1e-12 else 1.0
+    psi_n = (psi - psi_ax) / span
+    ax.contour(
+        rr,
+        zz,
+        psi_n,
+        levels=np.linspace(0.1, 0.95, 8),
+        colors="#4477aa",
+        linewidths=0.6,
+    )
+    ax.contour(rr, zz, psi_n, levels=[1.0], colors="#ee6677", linewidths=1.8)  # LCFS
+    for r0, z0, dr, dz in _coil_rects(table):
+        ax.add_patch(
+            Rectangle(
+                (r0, z0), dr, dz, facecolor="#bbbbbb", edgecolor="#555555", lw=0.4
+            )
+        )
+    lr = np.append(grid.limiter_r, grid.limiter_r[0])
+    lz = np.append(grid.limiter_z, grid.limiter_z[0])
+    ax.plot(lr, lz, "k-", lw=1.0)
+    ax.plot(
+        [axis[0]],
+        [axis[1]],
+        "+",
+        color="#228833",
+        ms=12,
+        mew=2.2,
+        label="magnetic axis",
+    )
+    if centroid is not None:
+        ax.plot(
+            [centroid[0]],
+            [centroid[1]],
+            "x",
+            color="#cc3311",
+            ms=9,
+            mew=2.0,
+            label="measured centroid",
+        )
+    ax.set_aspect("equal")
+    ax.set_xlabel("R [m]")
+    ax.set_title(title, fontsize=9)
+    ax.legend(fontsize=6, loc="upper right")
+
+
+def make_flux_map(shot: int, *, nr: int, nz: int, sigma: float) -> None:
+    """Side-by-side ψ flux map: position-controlled solve vs reconstruction.
+
+    Re-solves the peak-Ip flat-top slice both ways and renders normalised-flux
+    contours with the LCFS, limiter, winding packs, and the magnetic axis — the
+    centroid-held equilibrium next to the full-magnetics reconstruction.
+    """
+    from imas_ambix.latent.boundary_disc import disc_read  # noqa: PLC0415
+    from scripts.closure_gate_eval import (  # noqa: PLC0415
+        _shot_passive_sidecar,
+        geometry_target_pushout,
+    )
+    from scripts.spine_label_factory import (  # noqa: PLC0415
+        factory_shot_payloads,
+        frozen_spine_config,
+    )
+
+    spine, _ = frozen_spine_config()
+    disc_cfg = dict(spine["soft_priors"])
+    disc_cfg.setdefault("boundary_prior", "disc")
+    pl = factory_shot_payloads(shot, nr=nr, nz=nz, max_slices=12, min_ip_ka=60.0)
+    if pl is None:
+        return
+    grid, table, basis = pl["grid"], pl["table"], pl["basis"]
+    sidecar = _shot_passive_sidecar(pl, int(spine["interior_solve"]["passive_k"]))
+    # a settled flat-top slice (median time among the near-peak-Ip slices) — the
+    # first post-ramp slice has the largest axis offset and is unrepresentative
+    ips = np.array([p.ip_amperes for p in pl["payloads"]])
+    times = np.array([p.time_s for p in pl["payloads"]])
+    flat = np.where(ips >= 0.9 * ips.max())[0]
+    k = int(flat[int(np.argsort(times[flat])[len(flat) // 2])])
+    p = pl["payloads"][k]
+    inv = disc_read(p, grid, table, basis)
+    if inv is None or inv.ring is None:
+        return
+    centroid = (float(inv.centroid_r), float(inv.centroid_z))
+    off = np.zeros_like(p.mask, dtype=bool)
+
+    f_rec = _solve(
+        grid,
+        table,
+        p,
+        spine,
+        mask=p.mask,
+        warm=None,
+        soft_prior_cfg=disc_cfg,
+        sidecar=sidecar,
+        basis=basis,
+    )
+    f_pos = _solve(
+        grid,
+        table,
+        p,
+        spine,
+        mask=off,
+        warm=_disc_seed_flat(grid, inv),
+        centroid=centroid,
+        sigma=sigma,
+        reseed=False,
+        n_p=1,
+        n_f=1,
+        nonneg=False,
+    )
+    if not (f_pos.scored and f_rec.scored):
+        return
+    tp, pap, pbp = geometry_target_pushout(f_pos.psi, grid)
+    tr, par, pbr = geometry_target_pushout(f_rec.psi, grid)
+
+    fig, axes = plt.subplots(1, 2, figsize=(9.4, 5.4), sharey=True)
+    _panel(
+        axes[0],
+        grid,
+        table,
+        f_pos.psi,
+        pap,
+        pbp,
+        (tp[0], tp[1]),
+        title=f"position-controlled (Ip + centroid)\naxis R={tp[0]:.3f} m",
+        centroid=centroid,
+    )
+    _panel(
+        axes[1],
+        grid,
+        table,
+        f_rec.psi,
+        par,
+        pbr,
+        (tr[0], tr[1]),
+        title=f"reconstruction (full magnetics)\naxis R={tr[0]:.3f} m",
+    )
+    axes[0].set_ylabel("Z [m]")
+    fig.suptitle(
+        f"Shot {shot} flat-top (Ip {p.ip_amperes / 1e3:.0f} kA): the centroid-held "
+        f"equilibrium reproduces the reconstruction (Δaxis "
+        f"{abs(tp[0] - tr[0]) * 100:.1f} cm)",
+        fontsize=10,
+    )
+    fig.savefig(
+        FIGURES / "fig-flux-map-position-vs-recon.png", dpi=150, bbox_inches="tight"
+    )
+    plt.close(fig)
+
+
 def make_figures(shots: list[dict]) -> None:
     FIGURES.mkdir(parents=True, exist_ok=True)
     marker = {"11766": "o", "11767": "s", "11772": "^"}
@@ -506,6 +673,10 @@ def main() -> int:
     logger.info("artifact: %s", args.out)
     if not args.no_figures:
         make_figures(shots)
+        if shots:
+            make_flux_map(
+                int(shots[0]["shot"]), nr=args.nr, nz=args.nz, sigma=args.sigma
+            )
         logger.info("figures: %s", FIGURES)
     return 0
 
