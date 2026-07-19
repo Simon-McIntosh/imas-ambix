@@ -68,13 +68,21 @@ def frozen_spine_config() -> tuple[dict, str]:
 
 
 def factory_shot_payloads(
-    shot: int, *, nr: int, nz: int, max_slices: int, min_ip_ka: float
+    shot: int, *, nr: int, nz: int, max_slices: int, min_ip_ka: float, table=None
 ) -> dict | None:
     """Referee-free per-shot payload assembly (mirror of the gate harness's
     ``shot_payloads`` with the EFIT referee load removed — labels must not
     depend on referee availability, and the firewall forbids reading it here).
-    Slice selection is by plasma current alone."""
-    table = build_table_for_shot(int(shot))
+    Slice selection is by plasma current alone.
+
+    ``table`` (optional): a pre-built geometry table for this shot's campaign.
+    The passive-structure geometry (amm) is a CAMPAIGN property, so a table
+    built from any shot in the same campaign is valid; passing one lets callers
+    score shots whose own zarr lacks the amm group (the sensor windows read
+    below need only ama/amb/amc/ane).  When None the table is built from this
+    shot as before."""
+    if table is None:
+        table = build_table_for_shot(int(shot))
     fwd = build_operator(table)
     grid = EquilibriumGrid.from_table(table, nr=nr, nz=nz)
     basis = PatchBasis.from_table(table, nr=nr, nz=nz)
