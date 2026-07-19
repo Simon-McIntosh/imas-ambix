@@ -1088,6 +1088,19 @@ class SoftPriors:
     pprime_basis: np.ndarray | None = None  # (n_samp, n_p) p'-family at samples
     pprime_sigma: float = 1.0
 
+    # current-centroid position constraint (the well-posed position lever):
+    # pin the R and/or Z toroidal-current centroid to a MEASURED magnetic
+    # moment (firewall-safe, like the Ip anchor) so the free-boundary solve
+    # holds the current at the measured position instead of drifting outboard
+    # through the radially-unstable in-vessel-coil band.  The moments are
+    # linear-homogeneous in the coefficients (∫R jφ = R_c·Ip, ∫Z jφ = Z_c·Ip),
+    # assembled from the sweep's u_n exactly like a_anchor.  A None target
+    # leaves that coordinate free; both None is byte-identical OFF.
+    centroid_r_target: float | None = None
+    centroid_z_target: float | None = None
+    centroid_sigma_r: float = 0.02  # 1σ [m] on the R centroid (strong tether)
+    centroid_sigma_z: float = 0.02  # 1σ [m] on the Z centroid
+
     # passive trajectory prior (dynamic passive spine): centre the passive
     # eddy amplitudes on a circuit-integrated trajectory instead of zero.
     # ``passive_prior_center`` is in the SIDECAR's whitened mode coordinates
@@ -1118,6 +1131,8 @@ class SoftPriors:
             or self.ip_soft_sigma is not None
             or self.beta_li_target is not None
             or self.pprime_target is not None
+            or self.centroid_r_target is not None
+            or self.centroid_z_target is not None
             or (
                 self.passive_prior_center is not None
                 and bool(np.any(np.asarray(self.passive_prior_weight) > 0.0))
@@ -1308,6 +1323,30 @@ def _assemble_soft_prior_rows(
         )
         rows.append(_pad(prows))
         rhs.append(prhs)
+
+    # --- current-centroid position constraint (the well-posed position lever) ---
+    # ∫R jφ = R_c·Ip and ∫Z jφ = Z_c·Ip are linear-homogeneous in the profile
+    # coefficients (same form as the Ip anchor a_anchor = Σ_cell u_n); the
+    # per-coefficient sensitivities are Σ_cell coord·u_n.  A strong soft tether
+    # holds the measured centroid while the profile shape stays free.
+    if sp.centroid_r_target is not None or sp.centroid_z_target is not None:
+        from imas_ambix.latent.moment_priors import centroid_moment_rows
+
+        crows, crhs = centroid_moment_rows(
+            cell_r=grid.flat_r[grid.cells],
+            cell_z=grid.flat_z[grid.cells],
+            unit_cell_currents=u_n,
+            r_target=sp.centroid_r_target,
+            z_target=sp.centroid_z_target,
+            ip_amperes=ip_amperes,
+            sigma_r=sp.centroid_sigma_r,
+            sigma_z=sp.centroid_sigma_z,
+            k_dof=k_dof,
+            kp=kp,
+        )
+        if crows.shape[0]:
+            rows.append(_pad(crows))
+            rhs.append(crhs)
 
     # --- passive trajectory prior: centre the eddy amplitudes on the
     # circuit-integrated trajectory (the L/R mode ODE driven by measured coil
@@ -1692,13 +1731,23 @@ def solve_equilibrium_lsq(
                 axis_images_unit = np.zeros(k_dof)
             new_coeffs = None
             new_a_pass = None
-            if n_data >= n_var and ok_cols.any():
+            # the coefficients are determined by the magnetics data when it is
+            # present (the reconstruction), OR by the position constraint alone
+            # when it is not (the well-posed position-controlled solve: Ip +
+            # current-centroid moment, profile otherwise free).  The data-rich
+            # branch is unchanged, so the reconstruction stays byte-identical.
+            if ok_cols.any() and (n_data >= n_var or sp.any_penalty):
                 cols = np.hstack([b_mat, bp]) if kp else b_mat
                 # ridges are RELATIVE: the unit-weight Grams are rescaled by
                 # the data Gram's mean diagonal so --smoothness and
                 # --passive-ridge are dimensionless O(0.01–1) knobs
                 h_data = cols.T @ cols
                 mean_diag = np.trace(h_data) / max(n_var, 1)
+                # no magnetics data (position-controlled solve): the Gram is
+                # zero, so give the relative regularisers an absolute unit
+                # scale — leaves the data-rich reconstruction untouched.
+                if mean_diag <= 0.0:
+                    mean_diag = 1.0
                 anchor = np.concatenate([a_anchor, np.zeros(kp)])
                 # assemble optional soft-prior rows (annulus anchor, q bound,
                 # Ip-soft, moment, pressure) on x = [coeffs, a_pass] (+1 gauge

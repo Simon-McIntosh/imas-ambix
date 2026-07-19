@@ -86,6 +86,7 @@ __all__ = [
     "MomentTarget",
     "ip_soft_prior_row",
     "moment_consistency_rows",
+    "centroid_moment_rows",
     "beta_p_li_over_2",
     "internal_inductance_li",
     "beta_poloidal",
@@ -414,6 +415,80 @@ def moment_consistency_rows(
     row[:k_dof] = s / sigma
     rhs = float(target_moment) / sigma
     return row, rhs
+
+
+def centroid_moment_rows(
+    *,
+    cell_r: np.ndarray,
+    cell_z: np.ndarray,
+    unit_cell_currents: np.ndarray,
+    r_target: float | None,
+    z_target: float | None,
+    ip_amperes: float,
+    sigma_r: float,
+    sigma_z: float,
+    k_dof: int,
+    kp: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Soft rows pinning the toroidal-current centroid (R, Z) to a measured target.
+
+    The current centroid is a FIREWALL-SAFE magnetic moment — a direct field
+    moment of the plasma current (like Ip from the Rogowski), not an EFIT
+    output or a profile prior.  Both centroid coordinates are
+    linear-HOMOGENEOUS in the profile coefficients, exactly like the Ip anchor
+    ∫jφ dA = a_anchor·coeffs:
+
+        ∫R jφ dA = a_R · coeffs,   a_R = Σ_cell R_cell · U[cell, :]
+        ∫Z jφ dA = a_Z · coeffs,   a_Z = Σ_cell Z_cell · U[cell, :]
+
+    where ``unit_cell_currents`` U (n_cells, k_dof) are the per-coefficient cell
+    currents [A] (the solve's ``u_n``, so Σ_cell U[cell, k] = a_anchor[k]).  The
+    centroid targets are ∫R jφ = R_c·Ip and ∫Z jφ = Z_c·Ip.  Each row whitens
+    the moment residual so that a ``sigma`` (metres) centroid error is unit cost
+    — the moment error is δmoment = δcentroid·Ip, so the moment 1σ is σ·|Ip|::
+
+        r_R = (a_R · coeffs − R_c·Ip) / (σ_R·|Ip|)
+
+    Pinning the centroid holds the current at the MEASURED position against the
+    radially-unstable in-vessel-coil band (the outboard drift), while the
+    profile SHAPE stays free — the position is externally determined, the
+    internal profile is the residual.  A ``None`` target skips that coordinate.
+    Returns ``(rows, rhs)`` on ``x = [coeffs(k_dof), a_pass(kp)]`` (passive
+    columns zero); ``rows`` has 0, 1, or 2 rows.
+    """
+    u = np.asarray(unit_cell_currents, dtype=np.float64)
+    if u.ndim != 2 or u.shape[1] != k_dof:
+        raise ValueError(
+            f"unit_cell_currents must be (n_cells, {k_dof}); got {u.shape}"
+        )
+    cr = np.asarray(cell_r, dtype=np.float64).ravel()
+    cz = np.asarray(cell_z, dtype=np.float64).ravel()
+    if cr.size != u.shape[0] or cz.size != u.shape[0]:
+        raise ValueError("cell_r/cell_z length must match unit_cell_currents rows")
+    ip_abs = max(abs(float(ip_amperes)), 1e-30)
+    rows: list[np.ndarray] = []
+    rhs: list[float] = []
+    for target, coord, sigma in (
+        (r_target, cr, sigma_r),
+        (z_target, cz, sigma_z),
+    ):
+        if target is None:
+            continue
+        if sigma <= 0.0:
+            raise ValueError("centroid sigma must be > 0 (metres)")
+        sensitivity = (coord[:, np.newaxis] * u).sum(axis=0)  # ∂(∫coord·jφ)/∂coeffs
+        row, r = moment_consistency_rows(
+            computed_moment_unit_sensitivity=sensitivity,
+            target_moment=float(target) * float(ip_amperes),
+            sigma=float(sigma) * ip_abs,
+            k_dof=k_dof,
+            kp=kp,
+        )
+        rows.append(row)
+        rhs.append(r)
+    if not rows:
+        return np.zeros((0, k_dof + kp), dtype=np.float64), np.zeros(0)
+    return np.vstack(rows), np.asarray(rhs, dtype=np.float64)
 
 
 # --------------------------------------------------------------------------- #

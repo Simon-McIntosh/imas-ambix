@@ -16,6 +16,7 @@ from imas_ambix.latent.moment_priors import (
     TE_DATA_GATE,
     beta_p_li_over_2,
     beta_poloidal,
+    centroid_moment_rows,
     density_pressure_proxy,
     internal_inductance_li,
     ip_soft_prior_row,
@@ -75,6 +76,110 @@ def test_ip_soft_prior_approaches_hard_anchor():
 
     assert a_anchor @ x_soft == pytest.approx(ip, rel=1e-4)
     np.testing.assert_allclose(x_soft, x_hard, rtol=1e-3, atol=1e-3)
+
+
+# --------------------------------------------------------------------------- #
+# 1b. Current-centroid moment rows (the position lever, like the Ip anchor)
+# --------------------------------------------------------------------------- #
+def _toy_current_system(k_dof=4, n_cells=37, seed=1):
+    """A synthetic (cell_r, cell_z, U, coeffs) with an exactly-known centroid.
+
+    U (n_cells, k_dof) are per-coefficient cell currents [A]; jφ_cell = U·coeffs,
+    Ip = Σ U·coeffs, and the true centroid is Σ coord·jφ / Ip — all computed
+    directly so the row residual can be checked against machine zero.
+    """
+    rng = np.random.default_rng(seed)
+    cell_r = 0.6 + 0.8 * rng.random(n_cells)  # MAST-like R ∈ [0.6, 1.4] m
+    cell_z = -0.4 + 0.8 * rng.random(n_cells)
+    u = rng.random((n_cells, k_dof))  # ≥ 0 so the current is unidirectional
+    coeffs = rng.random(k_dof)
+    i_cell = u @ coeffs
+    ip = float(i_cell.sum())
+    r_c = float((cell_r * i_cell).sum() / ip)
+    z_c = float((cell_z * i_cell).sum() / ip)
+    return cell_r, cell_z, u, coeffs, ip, r_c, z_c
+
+
+def test_centroid_rows_reproduce_known_centroid():
+    """At the true centroid target the whitened moment residual is machine-zero.
+
+    This is the T1 correctness check: the R and Z centroid moment rows encode
+    ∫R jφ = R_c·Ip and ∫Z jφ = Z_c·Ip exactly (linear-homogeneous in coeffs,
+    like the Ip anchor), so row·[coeffs, 0] − rhs = 0 to machine precision when
+    the target equals the current's actual centroid.
+    """
+    cell_r, cell_z, u, coeffs, ip, r_c, z_c = _toy_current_system(k_dof=4)
+    kp = 3
+    rows, rhs = centroid_moment_rows(
+        cell_r=cell_r,
+        cell_z=cell_z,
+        unit_cell_currents=u,
+        r_target=r_c,
+        z_target=z_c,
+        ip_amperes=ip,
+        sigma_r=0.02,
+        sigma_z=0.02,
+        k_dof=4,
+        kp=kp,
+    )
+    assert rows.shape == (2, 4 + kp)
+    x = np.concatenate([coeffs, np.zeros(kp)])
+    np.testing.assert_allclose(rows @ x, rhs, atol=1e-9, rtol=0.0)
+    # passive columns carry no centroid sensitivity
+    np.testing.assert_allclose(rows[:, 4:], 0.0)
+
+
+def test_centroid_rows_whitening_and_offset_centroid():
+    """A centroid offset of σ metres produces unit whitened residual per axis."""
+    cell_r, cell_z, u, coeffs, ip, r_c, z_c = _toy_current_system(k_dof=3)
+    sigma = 0.03
+    rows, rhs = centroid_moment_rows(
+        cell_r=cell_r,
+        cell_z=cell_z,
+        unit_cell_currents=u,
+        r_target=r_c + sigma,  # target 1σ outboard of the true centroid
+        z_target=z_c - sigma,  # and 1σ below
+        ip_amperes=ip,
+        sigma_r=sigma,
+        sigma_z=sigma,
+        k_dof=3,
+        kp=0,
+    )
+    resid = rows @ coeffs - rhs
+    # residual = (moment(coeffs) − target·Ip)/(σ·|Ip|) = ∓(σ·Ip)/(σ·|Ip|) = ∓1
+    np.testing.assert_allclose(np.abs(resid), 1.0, atol=1e-9)
+
+
+def test_centroid_rows_skip_none_target():
+    """A None coordinate target drops that row (R-only or Z-only pinning)."""
+    cell_r, cell_z, u, coeffs, ip, r_c, z_c = _toy_current_system(k_dof=2)
+    rows_r, _ = centroid_moment_rows(
+        cell_r=cell_r,
+        cell_z=cell_z,
+        unit_cell_currents=u,
+        r_target=r_c,
+        z_target=None,
+        ip_amperes=ip,
+        sigma_r=0.02,
+        sigma_z=0.02,
+        k_dof=2,
+        kp=0,
+    )
+    assert rows_r.shape == (1, 2)
+    none_rows, none_rhs = centroid_moment_rows(
+        cell_r=cell_r,
+        cell_z=cell_z,
+        unit_cell_currents=u,
+        r_target=None,
+        z_target=None,
+        ip_amperes=ip,
+        sigma_r=0.02,
+        sigma_z=0.02,
+        k_dof=2,
+        kp=0,
+    )
+    assert none_rows.shape == (0, 2)
+    assert none_rhs.shape == (0,)
 
 
 # --------------------------------------------------------------------------- #
