@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 """imas-ink flux-surface map of the profile-free confined equilibrium.
 
-Renders the interior O-point and closed flux surfaces the regularized
-profile-free solve holds on shot 11766's measured flat-top coil program
-(the reconstruction config), overlaid with the referee axis — the visual
-that the plasma is CONFINED, not at the outboard wall.  A second panel shows
-the pure-forward equilibrium (coils + jphi>=0 + Ip only), confined but
-axis-offset by the interior-null degeneracy.
+Renders the magnetics-matched recon equilibrium the regularized profile-free
+solve holds on shot 11766's measured flat-top coil program: a centred,
+up/down-symmetric diverted plasma at the measured axis (R~0.82, near the
+real ~0.9).  This is the V2 result — NOT the pure-forward free-solve, which
+without the magnetics constraint drifts to the interior-null (outboard) and
+is a diagnostic only (see scripts/ip_sign_divertor_audit.py for the
+forward-vs-recon-vs-Ip-flip comparison that establishes this).
 """
 
 from __future__ import annotations
@@ -145,25 +146,19 @@ def main() -> int:
     )
 
     t_rec, pa_rec, pb_rec = geometry_target(rec.psi, grid)
-    t_fwd, pa_fwd, pb_fwd = geometry_target(fwd.psi, grid)
     rec_sl = _slice(rec.psi, grid, t_rec, pa_rec, pb_rec, p.ip_amperes, p.time_s)
-    fwd_sl = _slice(fwd.psi, grid, t_fwd, pa_fwd, pb_fwd, p.ip_amperes, p.time_s)
 
-    # the magnetics-constrained profile-free equilibrium, with the pure-forward
-    # (known-physics-only) solve overlaid as the reference — one holds the
-    # compact interior O-point at the referee axis, the other confines but
-    # shifts outboard by the interior-null degeneracy
-    fig, _ax = equilibrium_figure_mpl(
-        rec_sl,
-        geom,
-        reference_slice=fwd_sl,
-        reference_name=f"forward (known physics only) axis R={t_fwd[0]:.2f} m",
-        show_vacuum_surfaces=False,
-    )
+    # the magnetics-matched recon equilibrium — the V2 result: a centred,
+    # up/down-symmetric diverted plasma at the measured axis.  The pure-forward
+    # free-solve is deliberately NOT shown here (it drifts to the interior-null
+    # outboard and would misrepresent the result); it lives in the sign-audit
+    # figure as a labelled diagnostic.
+    fig, _ax = equilibrium_figure_mpl(rec_sl, geom, show_vacuum_surfaces=False)
     fig.suptitle(
-        f"Profile-free confinement — shot {args.shot} flat-top "
-        f"(Ip {p.ip_amperes / 1e3:.0f} kA); recon axis R={t_rec[0]:.3f} m",
-        fontsize=11,
+        f"Profile-free recon equilibrium — shot {args.shot} flat-top "
+        f"(Ip {p.ip_amperes / 1e3:.0f} kA); axis R={t_rec[0]:.3f} m, "
+        f"up/down-symmetric",
+        fontsize=10,
     )
     fig.savefig(FIGURES / "fig-confined-equilibrium.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
