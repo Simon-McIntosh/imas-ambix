@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="equilibrium-realism-s3-landed">
+  <meta name="plan-title" content="Equilibrium Realism — §3 record: V2-forward is the radial interior-null (honest negative + mechanism correction)">
+  <meta name="plan-summary" content="§3 landing record (2026-07-19). V2-forward — the free-boundary solve holding the physical equilibrium on the measured coils without magnetics — FAILS, but not by the mechanism §2.5 recorded. Measured across 3 train-split shots (36 slices), the forward drift is purely RADIAL (axis |Z| <= 0.37 cm everywhere, none over 0.5 cm — the n=0 vertical mode is stable at every slice, so the locked feedback-forward-only Z-controller is a no-op for V2-forward), the forward axis is a genuine conductor-clear O-point at every slice (0/36 on a coil pocket; the in-vessel coil O-points are correctly excluded — NOT a coil-flux-pocket capture, correcting §2.5), and the forward current centroid sits near the physical axis while the magnetic axis is Shafranov-shifted outboard (flat-top median +0.10 m) by an amount set by the profile peakedness (beta_p+li/2) — the radial interior-null, externally undetermined without magnetics or a learned profile prior (flat-top forward-vs-referee gap min 18.3, median 22.5, max 56.5 cm — every flat slice over the 15 cm gate). The harness ladder forward path inflates the drift via a legacy boundary-continuation seed (axis 1.77 vs 1.14 for a compact-seed analytic-add solve). Stop rule invoked: no machine-agnostic forward fix closes the interior-null without magnetics (reconstruction mode, passing 23/23) or a learned prior (the learned operator this plan blocks). V2 is met in reconstruction mode; V2-forward is the interior-null the learned operator exists to resolve. Lead decision requested on reframing.">
+  <meta name="plan-informs" content="equilibrium-realism">
+  <title>equilibrium-realism §3 — V2-forward is the radial interior-null</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h1>§3 record — V2-forward: the radial interior-null (honest negative + mechanism correction)</h1>
+
+  <p><strong>Verdict (2026-07-19): V2-forward FAILS — the free-boundary solve
+  does not independently hold the physical equilibrium — but the mechanism is
+  the radial interior-null, not the vertical mode or a coil-flux pocket.</strong>
+  §2.5 left the forward operator failing with a stated mechanism (a spurious
+  outboard attractor = "the plasma falls into a flux pocket at the in-vessel
+  P4/P5/P6 coils"). §3 instrumented that failure across the V2 shot set and
+  the mechanism does not hold up. Three findings, each measured:</p>
+
+  <ol>
+    <li><strong>The drift is purely RADIAL, not the n=0 vertical mode.</strong>
+    The forward magnetic axis stays on the midplane at <em>every</em> slice
+    (|Z| ≤ 0.37 cm, none over 0.5 cm, 36/36). There is no vertical excursion to control — so a
+    modeled Z-controller (the locked
+    <code>vertical-stability-treatment = feedback-forward-only</code> decision)
+    is a <strong>no-op for the V2-forward gate</strong>. It remains the correct
+    tool for the §4 dynamic truth chain, where the n=0 mode genuinely grows in
+    time; it cannot close a static radial offset.</li>
+    <li><strong>It is NOT a coil-flux-pocket capture.</strong> The forward axis
+    is a genuine conductor-clear O-point at every slice; the 4–8 in-vessel coil
+    O-points (ψ-pockets sitting on the P4/P5/P6 packs) are correctly excluded by
+    the topology read at every slice. The §2.5 "flux pocket at the coils"
+    mechanism is <strong>corrected</strong> — the plasma sits at a real O-point,
+    just at the wrong radius.</li>
+    <li><strong>It IS the radial interior-null.</strong> The forward current
+    centroid sits near the physical axis (0.91–1.31 m, median 0.98 m on flat-top
+    vs the referee ~0.81–0.89 m), while the magnetic axis is Shafranov-shifted
+    outboard by +0.07–0.21 m (flat-top median +0.10 m) — an amount set by the
+    profile peakedness (β_p + l_i/2). That
+    profile DOF is externally undetermined on the measured coils + Rogowski Ip
+    alone; the magnetics (reconstruction) or a learned profile prior pin it. The
+    forward operator is multi-stable in R and the free Picard selects an outboard
+    branch.</li>
+  </ol>
+
+  <p><strong>Stop rule invoked (pre-declared in f-eqr-04).</strong> No
+  machine-agnostic forward fix closes the interior-null without magnetics or a
+  profile prior. A position controller cannot help: the failing coordinate is
+  radial, its target (the physical R, or β_p+l_i/2) is only knowable from the
+  magnetics (leakage, banned) or a learned prior (the learned operator, which
+  this plan blocks). V2 — a confined equilibrium under the measured coil program
+  at the measured axis/shape — <em>is</em> met in reconstruction mode (23/23
+  flat-top within 15 cm, median 3.8 cm, no z-pin), which the locked
+  <code>vertical-stability-treatment</code> decision explicitly legitimizes. The
+  stricter V2-forward (free ≈ constrained without magnetics) is precisely the
+  interior-null the learned operator exists to resolve. Lead decision requested
+  on the reframe.</p>
+
+  <h2>Quick status</h2>
+  <table>
+    <thead><tr><th>Gate</th><th>Status</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>T1 — reproduce the drift as a committed regression baseline</td>
+          <td>✓ shipped</td>
+          <td><code>scripts/forward_confinement_diagnostic.py</code> + artifact; forward converges outboard, magnetics load-bearing (reproduces the §2.5 warm-start drift)</td></tr>
+      <tr><td>G3a — forward holds the physical eq (free ≈ constrained, ≤15 cm)</td>
+          <td>✗ FAIL</td>
+          <td>forward axis is 18–56 cm outboard of the referee on flat-top (min 18.3, median 22.5 cm — every flat slice over the gate); the current centroid is closer (~10–15 cm)</td></tr>
+      <tr><td>G3b — no spurious outboard <em>coil-pocket</em> fixed point</td>
+          <td>✓ / corrected</td>
+          <td>the forward axis is a genuine conductor-clear O-point at every slice; the coil O-points are excluded — it is NOT a coil-flux-pocket capture (the §2.5 mechanism is corrected)</td></tr>
+      <tr><td>G3c — no z-pin, no magnetics leakage in the forward solve</td>
+          <td>✓ confirmed</td>
+          <td>forward = empty sensor mask, no z_symmetric pin, no soft prior; structural</td></tr>
+      <tr><td>Vertical mode (n=0) — the Z-controller's target</td>
+          <td>stable</td>
+          <td>forward axis |Z| ≤ 0.37 cm at all 36 slices (none over 0.5 cm) — the vertical mode is not the forward failure; the Z-controller is a no-op for V2-forward (belongs to §4 dynamics)</td></tr>
+      <tr><td>Machine-agnostic forward fix</td>
+          <td>stop rule</td>
+          <td>none closes the radial interior-null without magnetics (reconstruction) or a learned profile prior (learned operator) — surfaced to the lead</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Radial, not vertical — the Z-controller addresses the wrong mode</h2>
+  <p>The locked <code>vertical-stability-treatment = feedback-forward-only</code>
+  decision anticipated that forward solves would need vertical (n=0) control.
+  On the V2 slices they do not: the forward magnetic axis sits on the midplane
+  to ≤ 3.7 mm at every one of the 36 slices (none beyond 5 mm), across the ramp
+  and flat-top of all three train-split shots. The failing coordinate is
+  <em>radial</em>. A
+  proportional-integral Z-controller on the axis Z (up/down P4/P5 differential)
+  has nothing to act on here — Z is already its setpoint — and cannot move the
+  radial axis. This is not an argument against the decision: the §4 dynamic
+  truth chain, where an elongating column's n=0 mode grows in real time, is
+  exactly where a modeled Z-controller earns its place. It is an argument that
+  the V2-forward <em>static-confinement</em> gate is not a vertical-stability
+  problem, so the decision does not supply its fix.</p>
+  <figure>
+    <img src="/imas-ambix/figures/equilibrium-realism/fig-forward-mechanism.png"
+         alt="Forward axis/centroid/recon/referee R vs Ip (left); forward and recon axis Z vs Ip (right)"
+         style="max-width:100%">
+    <figcaption><strong>Left:</strong> per slice, the forward magnetic axis R
+    (open red), the forward current centroid R (orange), the reconstruction axis
+    R (green), and the referee (EFIT, diagnostic-only) axis R (blue). The forward
+    <em>current</em> tracks near the physical axis; the forward <em>magnetic
+    axis</em> is Shafranov-shifted outboard, the gap widening with Ip /
+    divertedness. <strong>Right:</strong> forward and recon axis Z — both pinned
+    to the midplane band (±0.5 cm) at every slice. The forward failure lives
+    entirely in R.</figcaption>
+  </figure>
+
+  <h2>Not a coil-flux-pocket capture — a genuine outboard O-point</h2>
+  <p>§2.5 attributed the drift to the plasma "falling into a flux pocket at the
+  in-vessel P4/P5/P6 coils." The topology read refutes this: the vacuum coil
+  field does have O-points sitting on those packs (4–8 of them per slice, at
+  R ≈ 1.5–1.7 m, Z ≈ ±0.5–1.1 m), but they are conductor-interior and the axis
+  read excludes every one of them at every slice. The forward magnetic axis is a
+  genuine, conductor-clear plasma O-point — the current's own well — merely at
+  too large a radius. The plasma is not captured by a coil; it is a real
+  equilibrium on the wrong (outboard) branch.</p>
+  <figure>
+    <img src="/imas-ambix/figures/equilibrium-realism/fig-forward-flux.png"
+         alt="imas-ink flux-surface map of the forward free-solve equilibrium on the anchor slice"
+         style="max-width:100%">
+    <figcaption>Flux-surface map (imas-ink) of the forward free-solve on shot
+    11766's flat-top (no magnetics, compact seed): a genuine interior O-point,
+    up/down symmetric, Shafranov-shifted outboard of the physical axis. Compare
+    the §2.5 reconstruction map (<code>fig-confined-equilibrium.png</code>),
+    which the magnetics hold at R ≈ 0.82 m. The gap between the two is the
+    interior-null, not a coil capture.</figcaption>
+  </figure>
+
+  <h2>The interior-null — the current is ~right, the profile sets the axis</h2>
+  <p>The forward current centroid lands near the physical axis on the coils +
+  Rogowski Ip + non-negativity alone (flat-top centroid ~0.9–1.0 m against the
+  referee ~0.81–0.87 m). What is externally undetermined is the profile
+  peakedness — the pressure/FF′ split that fixes β_p + l_i/2 and hence the
+  Shafranov shift between the current centroid and the magnetic axis. A broad
+  (low-l_i) profile, which the data-free solve is free to pick, shifts the axis
+  outboard; the magnetics pin the profile (reconstruction lands the axis at the
+  referee). This is the interior-null the whole project has circled: the axis
+  position is invisible externally beyond Ip / centroid / β_p+l_i/2. The
+  reconstruction spine resolves it from the magnetics; the learned operator is
+  the machine-agnostic route to resolve it forward.</p>
+
+  <h2>A seed artefact in the harness forward path</h2>
+  <p>The harness gate ran the forward solve through <code>fit_profile_ladder</code>,
+  which bootstraps from a legacy <code>coil_field_mode="boundary-continuation"</code>
+  stage-1 seed — the arm its own docstring flags as inaccurate near in-vessel
+  coils and "basin-fragile: the Picard escapes to the outboard corner attractor."
+  For the data-free forward solve that seed inflates the drift. On the anchor
+  slice the paths diverge sharply:</p>
+  <table>
+    <thead><tr><th>Forward solve path (11766 flat-top, Ip 497 kA)</th><th>axis R [m]</th></tr></thead>
+    <tbody>
+      <tr><td>harness ladder, legacy boundary-continuation seed, reseed OFF</td><td>1.768</td></tr>
+      <tr><td>harness ladder, reseed ON (outboard reseed to a compact scout)</td><td>1.513</td></tr>
+      <tr><td>compact-seed analytic-add solve (this diagnostic's forward)</td><td>1.142</td></tr>
+      <tr><td>reconstruction (magnetics-constrained) — the physical axis</td><td>0.820</td></tr>
+    </tbody>
+  </table>
+  <p>The §2.5 "R = 1.77" is the legacy-seed ladder with reseed off — real, but a
+  seed artefact, not the operator's best forward fixed point. A compact-seed
+  analytic-add solve lands markedly more inboard (~1.15 m) yet still outboard of
+  the physical axis by the interior-null Shafranov shift. Two consequences: the
+  gate's forward offset (median 32.6 cm) overstates the irreducible problem (the
+  compact-seed forward median is 22.5 cm); and
+  should the lead want §4 forward truths seeded on the better basin, that is a
+  one-line seed change in the truth path (not the frozen reconstruction spine,
+  left untouched here to protect the passing 23/23 gate).</p>
+
+  <h2>What V2 actually is, and the reframe</h2>
+  <p>The plan's V2 (<em>"confined free-boundary equilibrium under measured coil
+  programs at the measured axis/shape"</em>) is <strong>met in reconstruction
+  mode</strong>: 23/23 flat-top slices within 15 cm of the referee (median
+  3.8 cm), no z-symmetry pin, across the three train-split shots (the §2.5
+  result, unchanged). The locked <code>vertical-stability-treatment</code>
+  decision explicitly legitimizes reconstruction mode as measurement-constrained.
+  The stricter reading introduced in f-eqr-04 — that the <em>forward</em> operator
+  must also hold it, free ≈ constrained — is provably the interior-null: a static
+  free solve cannot know β_p+l_i/2. That residual is exactly what the learned
+  operator (GenCast-style, trained on the reconstruction-labelled corpus — the
+  plan's endgame, which it blocks) exists to supply. The lead decision: accept
+  reconstruction-mode V2 and unblock §4 + the learned operator, or keep
+  V2-forward as an aspirational gate that only a profile prior can meet.</p>
+
+  <h2>Artifacts</h2>
+  <ul>
+    <li><code>scripts/forward_confinement_diagnostic.py</code> — the committed
+    diagnostic: per-slice forward axis/centroid/Z, conductor-clear
+    classification, Shafranov shift, forward↔referee gap, and the anchor
+    seed-sensitivity table + fixed-two-term reproduction</li>
+    <li><code>imas_ambix/gs/artifacts/forward_confinement_diagnostic.json</code>
+    — the per-slice record + the three mechanism verdicts + the seed-artefact
+    table</li>
+    <li><code>docs/figures/equilibrium-realism/fig-forward-mechanism.png</code>,
+    <code>fig-forward-flux.png</code></li>
+    <li>Reference: <code>imas_ambix/gs/artifacts/measured_pattern_confinement.json</code>
+    (the §2.5 reconstruction/forward gate output, cited for the recon + referee
+    axes)</li>
+  </ul>
+
+  <h2>What's next (lead decision, then §4)</h2>
+  <p>The forward attractor is characterised and the fix the plan anticipated
+  (a Z-controller) is shown to target a mode that is not failing at V2. The next
+  step is a lead decision on the V2 reframe (reconstruction-mode V2 accepted vs
+  V2-forward retained). If reconstruction-mode V2 is accepted, §4 (the
+  stability-honest forward truth chain) becomes buildable — and that is where the
+  modeled Z-controller (feedback-forward-only) is implemented as scenario
+  dynamics for the n=0 mode, with the compact-seed basin for the forward drive.</p>
+
+</main>
+</body>
+</html>
