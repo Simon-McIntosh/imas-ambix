@@ -549,6 +549,7 @@ def fit_and_read_slice(
     passive_prior: tuple[np.ndarray, float | np.ndarray] | None = None,
     coeff_prior: tuple[np.ndarray, float] | None = None,
     beta_sep_prior: tuple[float, np.ndarray, float] | None = None,
+    centroid_constraint: tuple[float | None, float | None, float] | None = None,
     maxfev: int = 60,
     warm_x0: tuple[float, ...] | None = None,
     warm_jphi: np.ndarray | None = None,
@@ -684,6 +685,19 @@ def fit_and_read_slice(
                 sp_slice.beta_li_target = float(b_target)
                 sp_slice.beta_li_sensitivity = np.asarray(b_sens, dtype=np.float64)
                 sp_slice.beta_li_sigma = float(b_sigma)
+        # current-centroid position constraint (the well-posed position lever):
+        # pin the R/Z current centroid to the measured magnetic moment so the
+        # solve holds the physical branch.  A None coordinate leaves that axis
+        # free; both None leaves the solve byte-identical to the frozen spine.
+        if centroid_constraint is not None:
+            r_t, z_t, c_sigma = centroid_constraint
+            if (r_t is not None or z_t is not None) and float(c_sigma) > 0.0:
+                if sp_slice is None:
+                    sp_slice = SoftPriors()
+                sp_slice.centroid_r_target = None if r_t is None else float(r_t)
+                sp_slice.centroid_z_target = None if z_t is None else float(z_t)
+                sp_slice.centroid_sigma_r = float(c_sigma)
+                sp_slice.centroid_sigma_z = float(c_sigma)
         if sp_slice is not None:
             kw["soft_priors"] = sp_slice
         lf = fit_profile_ladder(grid, table, **kw)
