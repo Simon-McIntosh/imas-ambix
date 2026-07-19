@@ -70,6 +70,31 @@ def shafranov_vertical_field(
     return float(-MU0 * ip / (4.0 * np.pi * r0) * lam)
 
 
+def shafranov_vertical_field_elongated(
+    ip_amperes: float,
+    r_axis: float,
+    minor_radius: float,
+    elongation: float,
+    betap_li2: float,
+) -> float:
+    """Elongation-corrected Shafranov requirement, ``ln(8R/(a·√κ))`` form.
+
+    The large-aspect circular identity overstates the requirement for an
+    elongated column: to leading order the external-inductance term sees the
+    effective minor radius ``a·√κ`` (the ellipse's area-equivalent circle),
+    so ``Λ = ln(8R/(a√κ)) + βp + li/2 − 3/2``.  Together with the circular
+    form this brackets the identity's own uncertainty at tight aspect —
+    the band a residual must clear before it can convict the coil model.
+    ``elongation = 1`` reproduces :func:`shafranov_vertical_field` exactly.
+    """
+    kappa = float(elongation)
+    if kappa <= 0.0 or not np.isfinite(kappa):
+        return float("nan")
+    return shafranov_vertical_field(
+        ip_amperes, r_axis, float(minor_radius) * float(np.sqrt(kappa)), betap_li2
+    )
+
+
 def decay_index(r: np.ndarray, bz: np.ndarray) -> np.ndarray:
     """Vacuum decay index ``n(R) = −(R/B_z)·(∂B_z/∂R)`` along a midplane ray.
 
@@ -85,16 +110,19 @@ def decay_index(r: np.ndarray, bz: np.ndarray) -> np.ndarray:
     return np.asarray(out, dtype=np.float64)
 
 
-def filament_bz(
+def _filament_field(
     r: np.ndarray,
     z: np.ndarray,
     filaments: list[PFFilament],
+    component: int,
 ) -> np.ndarray:
-    """B_z [T per A] at (r, z) from one circuit's filaments (xmult-weighted).
+    """One hybrid-kernel field component at (r, z) from a circuit's filaments.
 
-    Finite-area sections go through the hybrid cylinder kernel with the same
-    1 cm section floor the operator uses; ``width = height = 0`` filaments
-    reduce to the point-loop formulas inside :func:`hybrid_greens`.
+    ``component`` indexes the :func:`hybrid_greens` output tuple
+    (0 = ψ [Wb per A], 1 = B_R, 2 = B_z [T per A]); each filament is
+    xmult-weighted with the same 1 cm section floor the operator uses;
+    ``width = height = 0`` filaments reduce to the point-loop formulas
+    inside :func:`hybrid_greens`.
     """
     rr = np.asarray(r, dtype=np.float64)
     zz = np.asarray(z, dtype=np.float64)
@@ -105,26 +133,42 @@ def filament_bz(
             continue
         da = max(abs(float(f.width)), 0.01)
         dz = max(abs(float(f.height)), 0.01)
-        _psi, _br, bz = hybrid_greens(rr, zz, float(f.r), float(f.z), da, dz)
-        out = out + w * bz
+        fields = hybrid_greens(rr, zz, float(f.r), float(f.z), da, dz)
+        out = out + w * fields[component]
     return out
 
 
-def known_coil_bz(
+def filament_bz(
+    r: np.ndarray,
+    z: np.ndarray,
+    filaments: list[PFFilament],
+) -> np.ndarray:
+    """B_z [T per A] at (r, z) from one circuit's filaments (xmult-weighted)."""
+    return _filament_field(r, z, filaments, 2)
+
+
+def filament_psi(
+    r: np.ndarray,
+    z: np.ndarray,
+    filaments: list[PFFilament],
+) -> np.ndarray:
+    """Total flux ψ [Wb per A] at (r, z) from one circuit's filaments."""
+    return _filament_field(r, z, filaments, 0)
+
+
+def _known_coil_columns(
     table: GeometryTable,
     r: np.ndarray,
     z: np.ndarray,
+    component: int,
 ) -> tuple[list[str], np.ndarray]:
-    """Per-KNOWN-coil B_z columns [T per A] at arbitrary (r, z) points.
+    """Per-KNOWN-coil field columns at arbitrary points, operator merge rule.
 
     Reproduces the operator's KNOWN-block assembly exactly — one column per
     driven amc channel, redundant fcoil circuits AVERAGED (each is already
     normalised to the full coil current), the solenoid column scaled by the
     vacuum-measured :data:`SOLENOID_RESPONSE_SCALE` — but evaluated at the
-    caller's points instead of the sensor ring.  Returns ``(channels,
-    cols)`` with ``channels`` in the same sorted order as
-    ``ForwardOperator.pf_amc_channels``, so ``cols @ i_pf`` consumes the
-    ``load_shot_windows`` current vectors directly.
+    caller's points instead of the sensor ring.
     """
     rr = np.asarray(r, dtype=np.float64)
     zz = np.asarray(z, dtype=np.float64)
@@ -142,7 +186,9 @@ def known_coil_bz(
     cols: list[np.ndarray] = []
     for chan in sorted(pf_by_chan):
         circs = sorted(pf_by_chan[chan])
-        merged = np.mean([filament_bz(rr, zz, by_circ[c]) for c in circs], axis=0)
+        merged = np.mean(
+            [_filament_field(rr, zz, by_circ[c], component) for c in circs], axis=0
+        )
         if chan == "sol_current":
             merged = merged * SOLENOID_RESPONSE_SCALE
         channels.append(chan)
@@ -150,6 +196,34 @@ def known_coil_bz(
     if not cols:
         return channels, np.zeros(rr.shape + (0,), dtype=np.float64)
     return channels, np.stack(cols, axis=-1)
+
+
+def known_coil_bz(
+    table: GeometryTable,
+    r: np.ndarray,
+    z: np.ndarray,
+) -> tuple[list[str], np.ndarray]:
+    """Per-KNOWN-coil B_z columns [T per A] at arbitrary (r, z) points.
+
+    Returns ``(channels, cols)`` with ``channels`` in the same sorted order
+    as ``ForwardOperator.pf_amc_channels``, so ``cols @ i_pf`` consumes the
+    ``load_shot_windows`` current vectors directly.
+    """
+    return _known_coil_columns(table, r, z, 2)
+
+
+def known_coil_psi(
+    table: GeometryTable,
+    r: np.ndarray,
+    z: np.ndarray,
+) -> tuple[list[str], np.ndarray]:
+    """Per-KNOWN-coil flux columns [Wb per A] at arbitrary (r, z) points.
+
+    Same assembly as :func:`known_coil_bz` with the ψ component — the coil
+    flux-linkage row a plasma circuit needs when it joins the one-matrix
+    coupled flux solve.
+    """
+    return _known_coil_columns(table, r, z, 0)
 
 
 def passive_circuit_bz(
@@ -176,6 +250,28 @@ def passive_circuit_bz(
     return np.stack(cols, axis=-1)
 
 
+def passive_circuit_psi(
+    table: GeometryTable,
+    circuits: np.ndarray,
+    r: np.ndarray,
+    z: np.ndarray,
+) -> np.ndarray:
+    """Per-passive-circuit flux columns [Wb per A] at arbitrary (r, z) points.
+
+    ψ analogue of :func:`passive_circuit_bz` — the vessel→plasma flux
+    linkage a plasma row reads in the one-matrix coupled flux solve.
+    """
+    rr = np.asarray(r, dtype=np.float64)
+    zz = np.asarray(z, dtype=np.float64)
+    by_circ: dict[int, list] = {}
+    for f in table.pf_filaments:
+        by_circ.setdefault(f.circuit, []).append(f)
+    cols = [filament_psi(rr, zz, by_circ[int(c)]) for c in np.asarray(circuits)]
+    if not cols:
+        return np.zeros(rr.shape + (0,), dtype=np.float64)
+    return np.stack(cols, axis=-1)
+
+
 def coil_group(channel: str) -> str:
     """Waterfall group of one amc channel: case / sol / p2…p6 / other."""
     name = channel.lower()
@@ -192,7 +288,11 @@ __all__ = [
     "coil_group",
     "decay_index",
     "filament_bz",
+    "filament_psi",
     "known_coil_bz",
+    "known_coil_psi",
     "passive_circuit_bz",
+    "passive_circuit_psi",
     "shafranov_vertical_field",
+    "shafranov_vertical_field_elongated",
 ]

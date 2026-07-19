@@ -555,6 +555,155 @@ def mean_plasma_linked_flux(
 
 
 # ---------------------------------------------------------------------------
+# one-matrix measured-trace solve — every circuit in one flux balance
+# ---------------------------------------------------------------------------
+
+
+def plasma_self_inductance(
+    r_axis: np.ndarray,
+    minor_radius: np.ndarray,
+    elongation: np.ndarray | float = 1.0,
+    internal_inductance: np.ndarray | float = 0.0,
+) -> np.ndarray:
+    """Large-aspect self-inductance of the plasma ring [H].
+
+    ``L = μ0·R·(ln(8R/(a√κ)) − 2 + li/2)`` — the external term at the
+    elongation-corrected effective minor radius plus the internal-inductance
+    share.  All arguments broadcast, so a measured (R, a, κ, li) TRACE
+    yields L(t) directly: the dL/dt of the growing, shifting, shaping column
+    is as much a flux-balance term as the moving centroid, and both must be
+    carried for the applied loop voltage to come out right.
+    """
+    r0 = np.asarray(r_axis, dtype=np.float64)
+    a = np.asarray(minor_radius, dtype=np.float64)
+    kappa = np.asarray(elongation, dtype=np.float64)
+    li = np.asarray(internal_inductance, dtype=np.float64)
+    a_eff = a * np.sqrt(kappa)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        lam = np.log(8.0 * r0 / a_eff) - 2.0 + 0.5 * li
+        out = MU0 * r0 * lam
+    return np.where((r0 > 0.0) & (a_eff > 0.0) & (a_eff < r0 * 8.0), out, np.nan)
+
+
+@dataclass
+class PinnedFluxSolve:
+    """Result of the one-interaction-matrix solve at pinned plasma current.
+
+    ``u_loop`` is the SOLVED applied loop voltage [V]; ``dpsi_terms`` maps
+    each flux-balance component to its voltage share [V] (``plasma_self`` =
+    d(L_p·Ip)/dt including the dL/dt of the evolving shape, ``coils``,
+    ``vessel``, ``resistive`` = R_p·Ip) so nothing enters the balance
+    silently.  Vessel states are in the passive system's circuit order.
+    """
+
+    u_loop: np.ndarray  # (T,) applied loop voltage [V]
+    i_vessel: np.ndarray  # (T, P) coil+plasma-driven vessel state [A]
+    i_vessel_coil: np.ndarray  # (T, P) coil-only vessel state [A]
+    psi_plasma: np.ndarray  # (T,) plasma-row linked flux [Wb]
+    plasma_l: np.ndarray  # (T,) plasma self-inductance [H]
+    dpsi_terms: dict[str, np.ndarray]
+
+
+def solve_pinned_plasma_circuit(
+    table,
+    passive,
+    i_pf_full: np.ndarray,
+    channels: list[str],
+    times: np.ndarray,
+    *,
+    ip_amperes: np.ndarray,
+    axis_rz: np.ndarray,
+    minor_radius: np.ndarray,
+    elongation: np.ndarray | float = 1.0,
+    internal_inductance: np.ndarray | float = 0.0,
+    plasma_resistance_ohm: float = 3.0e-6,
+) -> PinnedFluxSolve:
+    """One-interaction-matrix flux solve with the plasma row pinned.
+
+    Design rule: when solving for flux, EVERY circuit — driven coil,
+    measured case, passive structure, and the plasma itself — lives in the
+    same interaction matrix, so every component of dψ/dt (coil swing,
+    vessel eddies, plasma back-reaction, and the dL/dt of the evolving
+    column) is accounted for and the applied loop voltage is SOLVED, never
+    assumed.  The plasma row is resolved from measurement, not idealised:
+    total current from the Ip trace, centroid from the first-moment trace
+    (``axis_rz``), self-inductance from the evolving ``(R, a, κ, li)``
+    through :func:`plasma_self_inductance` — the traces may come from the
+    magnetics moment read (measurement path) or a firewalled referee
+    (diagnostic path).
+
+    With the plasma current pinned the block system decomposes exactly:
+    the passive rows integrate the coil+plasma drive history
+    (:func:`~imas_ambix.latent.temporal_operator.predict_vessel_currents`,
+    moving-centroid mutuals included), and the plasma row's own balance is
+    read out as the applied voltage
+
+        u(t) = d/dt[L_p(t)·Ip(t) + M_pc(t)·I_c(t) + M_pv(t)·i_v(t)]
+               + R_p·Ip(t)
+
+    with every term reported separately in ``dpsi_terms``.  A passive
+    system built with ``hold_back_cases=True`` moves the measured-case
+    circuits from the drive columns into the state — the forward-chain
+    configuration where no case measurements exist.
+    """
+    from imas_ambix.gs.force_balance import (  # noqa: PLC0415
+        known_coil_psi,
+        passive_circuit_psi,
+    )
+    from imas_ambix.latent.temporal_operator import (  # noqa: PLC0415
+        predict_vessel_currents,
+    )
+
+    times = np.asarray(times, dtype=np.float64)
+    ip = np.where(
+        np.isfinite(np.asarray(ip_amperes, dtype=np.float64)),
+        np.asarray(ip_amperes, dtype=np.float64),
+        0.0,
+    )
+    axis_rz = np.asarray(axis_rz, dtype=np.float64)
+    i_coil, i_full = predict_vessel_currents(
+        table, passive, i_pf_full, channels, times, ip_amperes=ip, axis_rz=axis_rz
+    )
+
+    r_t = axis_rz[:, 0]
+    z_t = axis_rz[:, 1]
+    l_p = plasma_self_inductance(r_t, minor_radius, elongation, internal_inductance)
+    psi_self = np.where(ip != 0.0, np.nan_to_num(l_p) * ip, 0.0)
+
+    coil_chans, coil_cols = known_coil_psi(table, r_t, z_t)  # (T, C_known)
+    idx = {ch: j for j, ch in enumerate(channels)}
+    psi_coils = np.zeros(times.size)
+    for j, chan in enumerate(coil_chans):
+        if chan in idx:
+            psi_coils += coil_cols[:, j] * np.asarray(i_pf_full)[:, idx[chan]]
+
+    vessel_cols = passive_circuit_psi(table, passive.circuits, r_t, z_t)  # (T, P)
+    psi_vessel = np.einsum("tp,tp->t", vessel_cols, i_full)
+
+    psi_plasma = psi_self + psi_coils + psi_vessel
+    dpsi_terms = {
+        "plasma_self": np.gradient(psi_self, times),
+        "coils": np.gradient(psi_coils, times),
+        "vessel": np.gradient(psi_vessel, times),
+        "resistive": float(plasma_resistance_ohm) * ip,
+    }
+    u_loop = (
+        dpsi_terms["plasma_self"]
+        + dpsi_terms["coils"]
+        + dpsi_terms["vessel"]
+        + dpsi_terms["resistive"]
+    )
+    return PinnedFluxSolve(
+        u_loop=u_loop,
+        i_vessel=i_full,
+        i_vessel_coil=i_coil,
+        psi_plasma=psi_plasma,
+        plasma_l=l_p,
+        dpsi_terms=dpsi_terms,
+    )
+
+
+# ---------------------------------------------------------------------------
 # screening eigenbasis — zero-net-current modes for the per-slice fit
 # ---------------------------------------------------------------------------
 
@@ -760,10 +909,13 @@ __all__ = [
     "MU0",
     "CoupledCircuit",
     "PatchTiling",
+    "PinnedFluxSolve",
     "PlasmaCircuit",
     "ScreeningBasis",
     "bin_cell_currents",
     "build_coupled_circuit",
+    "plasma_self_inductance",
+    "solve_pinned_plasma_circuit",
     "build_plasma_circuit",
     "build_plasma_circuit_from_state",
     "circuit_eigensystem",

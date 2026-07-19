@@ -308,6 +308,92 @@ def build_drive_linkage(
     return channels, lam
 
 
+def predict_vessel_currents(
+    table: GeometryTable,
+    system: PassiveCircuitSystem,
+    i_pf_full: np.ndarray,
+    channels: list[str],
+    times: np.ndarray,
+    *,
+    ip_amperes: np.ndarray | None = None,
+    axis_rz: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Vessel circuit currents from the measured drives, quiescent start.
+
+    Exact-ZOH eigenmode integration of the passive circuit system driven by
+    the full measured coil history (``i_pf_full`` (T, C) in ``channels``
+    order; channels the system does not carry contribute zero).  When
+    ``ip_amperes`` (T,) and ``axis_rz`` (T, 2) are given, the PLASMA
+    current's own flux swing drives the vessel too — a toroidal filament at
+    the given axis trace: the Lenz-anti-parallel image currents this induces
+    during a fast Ip ramp contribute vertical field at the plasma in the
+    CONFINING direction while they last, and decay on the vessel L/R times
+    once the ramp holds — a drive term absent from every coil-only
+    prediction.  Non-finite / zero-Ip samples contribute no plasma linkage
+    (breakdown-start convention: the pre-plasma vessel state is coil-driven
+    only).
+
+    Returns ``(i_coil (T, P), i_full (T, P))`` — the coil-only and the
+    coil+plasma-driven circuit states in ``system.circuits`` order
+    (identical when the plasma drive is omitted).  The flux a downstream
+    consumer injects is ``system.g_circ @ i_full[t]`` (grid) or
+    ``system.a_circ @ i_full[t]`` (sensors).
+    """
+    from scipy.linalg import eigh  # noqa: PLC0415
+
+    from imas_ambix.gs.operator import greens_psi  # noqa: PLC0415
+
+    times = np.asarray(times, dtype=np.float64)
+    i_pf_full = np.asarray(i_pf_full, dtype=np.float64)
+    chan_idx = {ch: j for j, ch in enumerate(system.coil_channels)}
+    m_vc = np.zeros((system.n_circuits, len(channels)))
+    for j, chan in enumerate(channels):
+        if chan in chan_idx:
+            m_vc[:, j] = system.m_coil_circ[:, chan_idx[chan]]
+    w, vv = eigh(np.diag(system.r_diag), system.lmat)
+    tau = 1.0 / np.clip(w, 1e-12, None)
+    psi_coil = i_pf_full @ m_vc.T
+    a_coil, _u = integrate_eddy_ode(tau, times, psi_coil @ vv)
+    i_coil = a_coil @ vv.T
+    if ip_amperes is None or axis_rz is None:
+        return i_coil, i_coil
+
+    # plasma→circuit linkage per slice: xmult-weighted ψ per ampere of a
+    # loop at the (time-varying) axis, vectorised over all passive filaments
+    ip_amperes = np.asarray(ip_amperes, dtype=np.float64)
+    axis_rz = np.asarray(axis_rz, dtype=np.float64)
+    by_circ: dict[int, list] = {}
+    for f in table.pf_filaments:
+        by_circ.setdefault(f.circuit, []).append(f)
+    fr, fz, fw, ci = [], [], [], []
+    for i, c in enumerate(system.circuits):
+        for f in by_circ[int(c)]:
+            fr.append(f.r)
+            fz.append(f.z)
+            fw.append(f.xmult)
+            ci.append(i)
+    fr = np.array(fr)
+    fz = np.array(fz)
+    fw = np.array(fw)
+    ci = np.array(ci)
+    psi_plasma = np.zeros((times.size, system.n_circuits))
+    for t in range(times.size):
+        if (
+            not np.isfinite(ip_amperes[t])
+            or ip_amperes[t] == 0.0
+            or not np.all(np.isfinite(axis_rz[t]))
+        ):
+            continue
+        psi = np.atleast_1d(
+            greens_psi(fr, fz, float(axis_rz[t, 0]), float(axis_rz[t, 1]))
+        )
+        psi_plasma[t] = np.bincount(
+            ci, weights=fw * psi, minlength=system.n_circuits
+        ) * float(ip_amperes[t])
+    a_full, _u = integrate_eddy_ode(tau, times, (psi_coil + psi_plasma) @ vv)
+    return i_coil, a_full @ vv.T
+
+
 def reduce_passive_system(
     system: PassiveCircuitSystem,
     grid: EquilibriumGrid,

@@ -61,7 +61,7 @@ from imas_ambix.latent.data import feature_schema, load_shot_slices_raw
 from imas_ambix.latent.gs_solve import EquilibriumGrid
 from imas_ambix.latent.temporal_operator import (
     build_passive_circuit_system,
-    integrate_eddy_ode,
+    predict_vessel_currents,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -118,63 +118,27 @@ def _vessel_currents(
 ):
     """Vessel circuit currents from the measured drives, quiescent start.
 
-    Exact-ZOH eigenmode integration of the passive circuit system driven by
-    the full measured coil history — the same prediction the screening gate
-    folds into its truth chain.  When ``ip_amperes`` (T,) and ``axis_rz``
-    (T, 2) are given, the PLASMA current's own flux swing drives the vessel
-    too (a filament at the referee axis trace): the Lenz-anti-parallel image
-    currents this induces during the fast Ip ramp contribute confining
-    vertical field at the plasma — a term absent from coil-only predictions
-    (lead hypothesis, quantified by this sweep).  Returns ``(circuits,
-    i_vessel_coil (T, P), i_vessel_full (T, P))`` — coil-only and
-    coil+plasma-driven states (identical when the plasma drive is omitted).
+    Thin wrapper over :func:`imas_ambix.latent.temporal_operator.
+    predict_vessel_currents` (the drive mechanism now lives in the forward
+    chain, not in this diagnosis script): exact-ZOH eigenmode integration of
+    the passive circuit system driven by the full measured coil history AND —
+    when ``ip_amperes``/``axis_rz`` are given — by the plasma current's own
+    flux swing (a filament at the referee axis trace), whose
+    Lenz-anti-parallel image currents contribute confining vertical field
+    during the fast Ip ramp.  Returns ``(circuits, i_vessel_coil (T, P),
+    i_vessel_full (T, P))``.
     """
-    from scipy.linalg import eigh  # noqa: PLC0415
-
-    from imas_ambix.gs.operator import greens_psi  # noqa: PLC0415
-
     vsys = build_passive_circuit_system(table, grid)
-    chan_idx = {ch: j for j, ch in enumerate(vsys.coil_channels)}
-    m_vc = np.zeros((vsys.n_circuits, len(channels)))
-    for j, chan in enumerate(channels):
-        if chan in chan_idx:
-            m_vc[:, j] = vsys.m_coil_circ[:, chan_idx[chan]]
-    w, vv = eigh(np.diag(vsys.r_diag), vsys.lmat)
-    tau = 1.0 / np.clip(w, 1e-12, None)
-    psi_coil = i_pf_full @ m_vc.T
-    a_coil, _u = integrate_eddy_ode(tau, times, psi_coil @ vv)
-    i_coil = a_coil @ vv.T
-    if ip_amperes is None or axis_rz is None:
-        return vsys.circuits, i_coil, i_coil
-
-    # plasma→circuit linkage per slice: xmult-weighted ψ per ampere of a
-    # loop at the (time-varying) axis, vectorised over all passive filaments
-    by_circ: dict[int, list] = {}
-    for f in table.pf_filaments:
-        by_circ.setdefault(f.circuit, []).append(f)
-    fr, fz, fw, ci = [], [], [], []
-    for i, c in enumerate(vsys.circuits):
-        for f in by_circ[int(c)]:
-            fr.append(f.r)
-            fz.append(f.z)
-            fw.append(f.xmult)
-            ci.append(i)
-    fr = np.array(fr)
-    fz = np.array(fz)
-    fw = np.array(fw)
-    ci = np.array(ci)
-    psi_plasma = np.zeros((times.size, vsys.n_circuits))
-    for t in range(times.size):
-        if ip_amperes[t] == 0.0 or not np.all(np.isfinite(axis_rz[t])):
-            continue
-        psi = np.atleast_1d(
-            greens_psi(fr, fz, float(axis_rz[t, 0]), float(axis_rz[t, 1]))
-        )
-        psi_plasma[t] = np.bincount(
-            ci, weights=fw * psi, minlength=vsys.n_circuits
-        ) * float(ip_amperes[t])
-    a_full, _u = integrate_eddy_ode(tau, times, (psi_coil + psi_plasma) @ vv)
-    return vsys.circuits, i_coil, a_full @ vv.T
+    i_coil, i_full = predict_vessel_currents(
+        table,
+        vsys,
+        i_pf_full,
+        channels,
+        times,
+        ip_amperes=ip_amperes,
+        axis_rz=axis_rz,
+    )
+    return vsys.circuits, i_coil, i_full
 
 
 def _select_slices(
@@ -283,6 +247,7 @@ def diagnose_shot(shot: int) -> dict | None:
         r_ax = _interp_ref(ref, "magnetic_axis_r", t)
         z_ax = _interp_ref(ref, "magnetic_axis_z", t)
         a_min = _interp_ref(ref, "minor_radius", t)
+        kappa = _interp_ref(ref, "elongation", t)
         betap = _interp_ref(ref, "beta_pol", t)
         li = _interp_ref(ref, "li", t)
         ip_a = float(ip_ka[k]) * 1e3
@@ -315,6 +280,17 @@ def diagnose_shot(shot: int) -> dict | None:
         )
         bv_req = fb.shafranov_vertical_field(ip_a, r_ax, a_min, betap_li2)
         rel = (bz_axis - bv_req) / abs(bv_req) if np.isfinite(bv_req) else float("nan")
+        # the identity's own uncertainty bracket: the elongation-corrected
+        # requirement ln(8R/(a√κ)) is the soft edge of the band the circular
+        # form anchors — a residual must clear BOTH before it can convict
+        # the coil model (diagnostic columns; gate inputs unchanged)
+        bv_req_elong = fb.shafranov_vertical_field_elongated(
+            ip_a, r_ax, a_min, kappa, betap_li2
+        )
+
+        def _rel(bz: float, bv: float) -> float:
+            return (bz - bv) / abs(bv) if np.isfinite(bv) else float("nan")
+
         mags = np.array([abs(groups[g]) for g in GROUP_ORDER])
         top2 = (
             float(np.sort(mags)[-2:].sum() / mags.sum()) if mags.sum() else float("nan")
@@ -332,17 +308,23 @@ def diagnose_shot(shot: int) -> dict | None:
                 "r_axis_ref": r_ax,
                 "z_axis_ref": z_ax,
                 "minor_radius_ref": a_min,
+                "kappa_ref": kappa,
                 "betap_ref": betap,
                 "li_ref": li,
                 "betap_li2": betap_li2,
                 "bz_model_axis": bz_axis,
                 "bv_required": bv_req,
+                "bv_required_elong": bv_req_elong,
                 "rel_discrepancy": rel,
+                "rel_discrepancy_elong": _rel(bz_axis, bv_req_elong),
                 "bz_eddy_plasma": bz_eddy_plasma,
                 "rel_discrepancy_with_plasma_eddies": (
                     (bz_axis + bz_eddy_plasma - bv_req) / abs(bv_req)
                     if np.isfinite(bv_req)
                     else float("nan")
+                ),
+                "rel_discrepancy_elong_with_plasma_eddies": _rel(
+                    bz_axis + bz_eddy_plasma, bv_req_elong
                 ),
                 "sign_error": bool(np.isfinite(bv_req) and bz_axis * bv_req < 0.0),
                 "decay_index_axis": float(n_line[j_ax]),
@@ -472,7 +454,13 @@ def evaluate_gates(shot_results: list[dict], probe_rows: list[dict]) -> dict:
     n_in_window = (
         bool(np.median((n_ax > lo) & (n_ax < hi)) >= 0.5) if n_ax.size else False
     )
-    probe_scored = [r for r in probe_rows if r["scored"] and np.isfinite(r["axis_r"])]
+    probe_scored = [
+        r
+        for r in probe_rows
+        if r["scored"]
+        and np.isfinite(r["axis_r"])
+        and np.isfinite(r["axis_r_ref"])  # no referee sample → not comparable
+    ]
     probe_err = (
         float(np.median([abs(r["axis_r"] - r["axis_r_ref"]) for r in probe_scored]))
         if probe_scored
@@ -507,7 +495,38 @@ def evaluate_gates(shot_results: list[dict], probe_rows: list[dict]) -> dict:
         vals = [r[key] for r in rows_ if np.isfinite(r.get(key, float("nan")))]
         return float(np.median(vals)) if vals else float("nan")
 
+    # identity-robustness band (diagnostic — the pre-declared gate inputs
+    # above are untouched): the large-aspect identity's own uncertainty is
+    # bracketed by its circular and elongation-corrected forms; the
+    # eddy-folded flat-top residual is "inside the band" when the two forms
+    # straddle zero (the true requirement lies between them) or when the
+    # elongation-corrected residual sits within the ±5% inner band.
+    med_flat_folded = _med(flat, "rel_discrepancy_with_plasma_eddies")
+    med_flat_elong_folded = _med(flat, "rel_discrepancy_elong_with_plasma_eddies")
+    inside_band = bool(
+        np.isfinite(med_flat_folded)
+        and np.isfinite(med_flat_elong_folded)
+        and (
+            med_flat_folded * med_flat_elong_folded <= 0.0
+            or abs(med_flat_elong_folded) <= 0.05
+        )
+    )
+
     return {
+        "identity_band": {
+            "median_rel_flat_elong": _med(flat, "rel_discrepancy_elong"),
+            "median_rel_flat_elong_with_plasma_eddies": med_flat_elong_folded,
+            "median_rel_ramp_elong_with_plasma_eddies": _med(
+                ramp, "rel_discrepancy_elong_with_plasma_eddies"
+            ),
+            "rule": (
+                "inside iff the eddy-folded flat-top residual changes sign "
+                "between the circular and elongation-corrected requirement "
+                "forms, or the elongation-corrected residual is within the "
+                "5% inner band"
+            ),
+            "flat_residual_inside_band": inside_band,
+        },
         "flat_top_slices": len(flat),
         "median_abs_rel_discrepancy": med_abs_rel,
         # reported diagnostics (NOT gate inputs): the missing plasma-driven
@@ -598,6 +617,46 @@ def make_figures(shot_results: list[dict], probe_rows: list[dict]) -> None:
     ax2.set_ylabel("decay index n at axis")
     ax2.legend(fontsize=8)
     fig.savefig(FIGURES / "fig-decay-index.png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    # (2b) identity-robustness band: the eddy-folded residual against the
+    # circular vs elongation-corrected requirement forms, flat-top slices
+    fig, ax = plt.subplots(figsize=(7.5, 4.4))
+    for si, s in enumerate(shot_results):
+        flat_rows = [
+            r
+            for r in s["rows"]
+            if r["tag"].startswith("flat")
+            and np.isfinite(r.get("rel_discrepancy_elong", float("nan")))
+        ]
+        xs = np.full(len(flat_rows), si)
+        circ = [r["rel_discrepancy_with_plasma_eddies"] for r in flat_rows]
+        elong = [r["rel_discrepancy_elong_with_plasma_eddies"] for r in flat_rows]
+        ax.plot(
+            xs - 0.12,
+            circ,
+            "o",
+            ms=6,
+            color="#4477aa",
+            label="vs circular ln(8R/a)" if si == 0 else None,
+        )
+        ax.plot(
+            xs + 0.12,
+            elong,
+            "s",
+            ms=6,
+            color="#cc3311",
+            label="vs elongation-corrected ln(8R/(a√κ))" if si == 0 else None,
+        )
+        for x, c, e in zip(xs, circ, elong, strict=True):
+            ax.plot([x - 0.12, x + 0.12], [c, e], "-", lw=0.7, color="0.6")
+    ax.axhspan(-0.05, 0.05, color="#228833", alpha=0.15, label="±5% inner band")
+    ax.axhline(0, color="k", lw=0.6)
+    ax.set_xticks(range(len(shot_results)), [str(s["shot"]) for s in shot_results])
+    ax.set_ylabel("flat-top (B$_z$+eddy − B$_v$ req) / |B$_v$ req|")
+    ax.set_title("identity-robustness band — the residual the identity itself moves")
+    ax.legend(fontsize=8)
+    fig.savefig(FIGURES / "fig-identity-band.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
 
     # (3) per-coil-group waterfall at the measured axis (flat-top slices)

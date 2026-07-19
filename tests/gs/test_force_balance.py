@@ -55,6 +55,46 @@ def test_shafranov_field_rejects_degenerate_geometry():
     assert math.isnan(fb.shafranov_vertical_field(6.0e5, 0.9, 0.0, 1.0))
 
 
+# --- elongation-corrected requirement ------------------------------------
+
+
+def test_elongated_shafranov_hand_case():
+    """ln(8R/(a√κ)) form, hand-computed.
+
+    Ip = 1 MA at R = 1.7 m, a = 0.5 m, κ = 1.69 (√κ = 1.3), βp + li/2 = 1.25:
+    Λ = ln(8·1.7/0.65) + 1.25 − 1.5 = ln(20.923…) − 0.25,
+    |B_v| = 1e-7·1e6/1.7·Λ, signed negative.
+    """
+    got = fb.shafranov_vertical_field_elongated(1.0e6, 1.7, 0.5, 1.69, 1.25)
+    hand = -1.0e-7 * 1.0e6 / 1.7 * (math.log(8.0 * 1.7 / (0.5 * 1.3)) - 0.25)
+    assert got == pytest.approx(hand, rel=1e-12)
+
+
+def test_elongated_shafranov_reduces_to_circular_at_unit_kappa():
+    base = fb.shafranov_vertical_field(6.0e5, 0.9, 0.55, 1.0)
+    elong = fb.shafranov_vertical_field_elongated(6.0e5, 0.9, 0.55, 1.0, 1.0)
+    assert elong == pytest.approx(base, rel=1e-14)
+
+
+def test_elongated_shafranov_softens_the_requirement():
+    """κ > 1 → larger effective minor radius → shallower |B_v| requirement."""
+    base = fb.shafranov_vertical_field(6.0e5, 0.9, 0.55, 1.0)
+    elong = fb.shafranov_vertical_field_elongated(6.0e5, 0.9, 0.55, 1.8, 1.0)
+    assert abs(elong) < abs(base)
+    # the softening is exactly 0.5·ln κ on Λ
+    lam_shift = 0.5 * math.log(1.8)
+    assert base - elong == pytest.approx(
+        -op.MU0 * 6.0e5 / (4.0 * np.pi * 0.9) * lam_shift, rel=1e-10
+    )
+
+
+def test_elongated_shafranov_rejects_degenerate_kappa():
+    assert math.isnan(fb.shafranov_vertical_field_elongated(6e5, 0.9, 0.5, 0.0, 1.0))
+    assert math.isnan(
+        fb.shafranov_vertical_field_elongated(6e5, 0.9, 0.5, float("nan"), 1.0)
+    )
+
+
 # --- decay index --------------------------------------------------------
 
 
@@ -186,6 +226,17 @@ def test_known_coil_channel_order_matches_operator():
     fwd = op.build_operator(table)
     channels, _cols = fb.known_coil_bz(table, np.array([0.9]), np.array([0.0]))
     assert channels == fwd.pf_amc_channels
+
+
+def test_known_coil_psi_matches_operator_merge_and_order():
+    """The ψ columns share the B_z assembly: same channels, same merge."""
+    table = _synthetic_table()
+    r = np.array([0.9])
+    z = np.array([0.0])
+    channels, cols = fb.known_coil_psi(table, r, z)
+    assert channels == ["p4u_coil_current"]
+    single = fb.filament_psi(r, z, [table.pf_filaments[0]])
+    assert cols[0, 0] == pytest.approx(single[0], rel=1e-9)
 
 
 def test_passive_circuit_bz_column_per_circuit():
