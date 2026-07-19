@@ -126,6 +126,8 @@ def _solve_anchor(shot: int):
 def main() -> int:
     from imas_ink.figures import equilibrium_figure_mpl  # noqa: PLC0415
 
+    from scripts.patch_gate_eval import geometry_target  # noqa: PLC0415
+
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--shot", type=int, default=11766)
     args = ap.parse_args()
@@ -142,23 +144,26 @@ def main() -> int:
         p.ip_amperes / 1e3,
     )
 
-    fig, axes = plt.subplots(1, 2, figsize=(10.5, 6.0))
-    for ax, f, label in (
-        (axes[0], rec, "recon (magnetics + circuits + free profile + disc)"),
-        (axes[1], fwd, "forward (coils + jφ≥0 + Ip only)"),
-    ):
-        sl = _slice(
-            f.psi, grid, f.target, f.axis_psi, f.boundary_psi, p.ip_amperes, p.time_s
-        )
-        try:
-            equilibrium_figure_mpl(sl, geometry=geom, ax=ax)
-        except TypeError:
-            equilibrium_figure_mpl(sl, geom, ax=ax)
-        ax.set_title(f"{label}\naxis R={f.target[0]:.3f} m", fontsize=9)
+    t_rec, pa_rec, pb_rec = geometry_target(rec.psi, grid)
+    t_fwd, pa_fwd, pb_fwd = geometry_target(fwd.psi, grid)
+    rec_sl = _slice(rec.psi, grid, t_rec, pa_rec, pb_rec, p.ip_amperes, p.time_s)
+    fwd_sl = _slice(fwd.psi, grid, t_fwd, pa_fwd, pb_fwd, p.ip_amperes, p.time_s)
+
+    # the magnetics-constrained profile-free equilibrium, with the pure-forward
+    # (known-physics-only) solve overlaid as the reference — one holds the
+    # compact interior O-point at the referee axis, the other confines but
+    # shifts outboard by the interior-null degeneracy
+    fig, _ax = equilibrium_figure_mpl(
+        rec_sl,
+        geom,
+        reference_slice=fwd_sl,
+        reference_name=f"forward (known physics only) axis R={t_fwd[0]:.2f} m",
+        show_vacuum_surfaces=False,
+    )
     fig.suptitle(
         f"Profile-free confinement — shot {args.shot} flat-top "
-        f"(Ip {p.ip_amperes / 1e3:.0f} kA)",
-        fontsize=12,
+        f"(Ip {p.ip_amperes / 1e3:.0f} kA); recon axis R={t_rec[0]:.3f} m",
+        fontsize=11,
     )
     fig.savefig(FIGURES / "fig-confined-equilibrium.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
