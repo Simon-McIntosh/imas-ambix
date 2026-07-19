@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="equilibrium-realism-s2.5-landed">
+  <meta name="plan-title" content="Equilibrium Realism — §2.5 record: coil-side fix rung and the premise reversal">
+  <meta name="plan-summary" content="§2.5 landing record. The three coil-side fix gates landed (eddy fold via a one-interaction-matrix flux solve; per-coil winding audit clean at <0.5%; the flat-top field matches the elongation-corrected Shafranov requirement to +0.5%). A sign investigation triggered by the lead cleared the whole chain: Ip correctly signed (+466 kA, COCOS-3, agrees with efm), Ip ~ P4+P5 amp-turns (1.18x), the divertor coil P6 same-sign as Ip, the vertical-field coils P4/P5 opposite as physically required; flipping the relative sign destroys confinement. The V2-precondition verdict then REVERSED: the earlier 'no confined fixed point' was an artifact of a fixed two-term profile. Lifting it to the regularized profile-free GS solve (jphi>=0, Ip anchor, free shape) confines on the measured coil program in every config — forward (known physics only) at axis 1.11 m, magnetics-constrained at 1.0 cm from the referee axis. The plan's founding premise ('on real currents the forward operator has no confined fixed point') was wrong; what remains is the interior-null (axis position externally undetermined beyond Ip/centroid/betap+li/2).">
+  <meta name="plan-informs" content="equilibrium-realism">
+  <title>equilibrium-realism §2.5 — coil-side fix rung + premise reversal, landed</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h1>§2.5 record — the coil-side fix rung, and the premise it overturned</h1>
+  <p><strong>Verdict (2026-07-19): the coil model is exonerated, the sign chain
+  is verified, and G-V2-pre PASSES once the fragile fixed profile is lifted —
+  reversing the plan's founding premise.</strong> The three fix gates all
+  landed. A sign investigation (lead-triggered: an ST is vertically, not
+  radially, unstable, so a plasma running to the low-field side is a red flag)
+  cleared the entire current/field sign chain. And the confinement test,
+  re-run with the regularized <em>profile-free</em> GS solve instead of a
+  fixed two-term shape, confines on shot 11766's measured coil program in
+  every configuration. The earlier "no confined fixed point exists" was an
+  artifact of the fixed parameterisation — not physics.</p>
+
+  <h2>Quick status</h2>
+  <table>
+    <thead><tr><th>Gate</th><th>Status</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>T1 pins (Lenz sign + exact decay, solved loop voltage, dL/dt drive, moving-centroid, L_p, elongated Shafranov)</td>
+          <td>✓ green</td>
+          <td>24 tests — <code>tests/latent/test_vessel_plasma_drive.py</code>, <code>tests/gs/test_force_balance.py</code> (commit <code>a4dd8a2</code>)</td></tr>
+      <tr><td>G-fix-1 — eddy fold + regression</td>
+          <td>✓ PASS</td>
+          <td>one-interaction-matrix flux solve; ramp median reproduces 17.6% byte-exact; gate inputs byte-unchanged</td></tr>
+      <tr><td>G-fix-2 — per-coil winding audit</td>
+          <td>✓ clean</td>
+          <td>every active coil &lt; 0.5% vs the raw efm lattice; the sol's 8.35% is entirely the known response scale (commit <code>69f5905</code>)</td></tr>
+      <tr><td>G-fix-3 — elongation-corrected identity band</td>
+          <td>✓ inside band</td>
+          <td>eddy-folded flat-top residual <strong>+0.5%</strong> vs the ln(8R/(a√κ)) requirement (ramp −0.1%) — coil model exonerated at the axis</td></tr>
+      <tr><td>Sign chain (Ip / relative / divertor / amp-turns)</td>
+          <td>✓ verified</td>
+          <td>no bug — flipping the relative sign destroys confinement; the loaded signs are the confining ones</td></tr>
+      <tr><td>G-V2-pre — confined fixed point on the measured pattern</td>
+          <td>✓ PASS (reversed)</td>
+          <td>profile-free solve confines: forward (known physics only) 1.11 m; magnetics-constrained <strong>1.0 cm</strong> from the referee axis</td></tr>
+    </tbody>
+  </table>
+
+  <h2>The fix rung — a one-interaction-matrix flux solve</h2>
+  <p>The plasma-driven vessel-eddy drive is now a forward-chain mechanism, not
+  a diagnosis-script afterthought. The design rule locked this session: when
+  solving for flux, <strong>every circuit — driven coil, measured case,
+  passive structure, and the plasma itself — lives in one interaction
+  matrix</strong>, so every component of dψ/dt (coil swing, vessel eddies,
+  plasma back-reaction, and the dL/dt of the evolving column) is accounted for
+  and the applied loop voltage is <em>solved</em>, never assumed. The plasma
+  row is resolved from measurement — total current from the Rogowski trace,
+  centroid from the first-moment trace, self-inductance
+  <code>L_p = μ0·R·(ln(8R/(a√κ)) − 2 + li/2)</code> from the evolving
+  (R, a, κ, li) — through
+  <code>plasma_screening.solve_pinned_plasma_circuit</code>. On the 11766
+  flat-top the solved loop voltage is 1.13 V, the sum of self (+1.74),
+  coils (−1.76), vessel (−0.25) and resistive (+1.40) shares — a physically
+  sane cancellation, the ledger load-bearing.</p>
+  <figure>
+    <img src="/imas-ambix/figures/equilibrium-realism/fig-identity-band.png"
+         alt="Flat-top eddy-folded residual vs circular and elongation-corrected requirement forms"
+         style="max-width:100%">
+    <figcaption>Identity-robustness band. Against the circular ln(8R/a) form
+    the eddy-folded flat-top residual is the §2 +14.5%; against the
+    elongation-corrected ln(8R/(a√κ)) form it collapses to +0.5% (inside the
+    ±5% inner band). The §2 "deficit" was (missing plasma-eddy drive) +
+    (large-aspect identity error), not a coil-column magnitude error.</figcaption>
+  </figure>
+
+  <h2>The sign investigation — the whole chain is correct</h2>
+  <p>Prompted by the lead's observation that a compact ST struggles with
+  <em>vertical</em>, not radial, instability, the current/field sign chain was
+  audited end to end on the 11766 flat-top:</p>
+  <ul>
+    <li><strong>Plasma current:</strong> Ip = +466 kA (positive), agrees with
+    efm <code>plasma_current_c</code>; MAST reads COCOS-3-like (axis = flux
+    maximum for +Ip).</li>
+    <li><strong>Magnitude:</strong> Ip / (|P4|+|P5|) amp-turns = 1.18;
+    Ip / |P4| = 1.99 — comparable to the divertor/shaping-coil amp-turns, as
+    expected.</li>
+    <li><strong>Divertor coil:</strong> P6 (nearest the X-point) is driven
+    +7–10 kA — <em>same sign</em> as Ip, the parallel-current configuration
+    that pulls out an X-point. The vertical-field coils P4/P5 are opposite-sign
+    (−121 / −80 kA), the textbook-mandatory sense that produces a downward
+    (confining) B_z for a +Ip plasma.</li>
+    <li><strong>Relative sign is load-bearing and correct:</strong> a
+    rigid-ring force balance confirms a stable equilibrium at the axis with the
+    loaded signs; flipping Ip to be <em>same</em> sign as P4/P5 leaves no
+    equilibrium anywhere and the force outward at every radius. The loaded
+    relative sign is the only one that confines.</li>
+  </ul>
+  <p>No sign bug. The low-field-side runaway seen with the two-term probe was
+  not a force error.</p>
+
+  <h2>The premise reversal — the profile-free solve confines</h2>
+  <p>The earlier probe answered "no confined fixed point" using a <em>fixed
+  two-term</em> jφ shape. That is a fragile assumption about the profile, not
+  physics. Lifting it to the regularized <strong>profile-free</strong> solve
+  (<code>solve_equilibrium_lsq</code>: a flexible non-negative basis
+  n_p = n_f = 3 re-fit each Picard sweep, asserting only the Grad–Shafranov
+  equation, jφ ≥ 0, and the Rogowski total ∫jφ = Ip) confines on the measured
+  11766 flat-top coils in <strong>every configuration</strong>:</p>
+  <table>
+    <thead><tr><th>config</th><th>asserts</th><th>axis R</th><th>err vs referee</th><th>confined</th></tr></thead>
+    <tbody>
+      <tr><td>forward</td><td>GS + jφ≥0 + Ip only (no magnetics, no boundary prior)</td><td>1.108 m</td><td>21.7 cm</td><td>✓</td></tr>
+      <tr><td>forward + disc</td><td>+ disc boundary prior</td><td>1.108 m</td><td>21.7 cm</td><td>✓</td></tr>
+      <tr><td>recon</td><td>+ measured magnetics, no disc prior</td><td>0.819 m</td><td>7.2 cm</td><td>✓</td></tr>
+      <tr><td>recon + disc</td><td>magnetics + disc prior (frozen spine)</td><td>0.881 m</td><td><strong>1.0 cm</strong></td><td>✓</td></tr>
+    </tbody>
+  </table>
+  <p>The two-term probe ran every one of these to R ≈ 1.77 (the outer wall).
+  Three consequences:</p>
+  <ol>
+    <li><strong>A confined fixed point exists on real measured currents</strong>
+    — even the strictest forward mode, asserting only known physics with no
+    magnetics and no boundary-shape prior, holds an interior O-point. The
+    plan's founding claim — "on real MAST coil currents the forward operator
+    has no confined fixed point" — was an artifact of the two-term +
+    manufactured-field approach. That premise is retired.</li>
+    <li><strong>The disc boundary prior is not load-bearing for confinement</strong>
+    (the forward solve confines without it); it sharpens axis <em>accuracy</em>
+    once magnetics enter (7.2 → 1.0 cm).</li>
+    <li><strong>What remains is the interior-null, not a runaway.</strong> The
+    forward solve confines but sits ~22 cm outboard (a fat, Shafranov-shifted
+    equilibrium); the magnetics pull it to 1 cm. The axis position is
+    externally undetermined beyond Ip / centroid / βp+li/2 — it needs the
+    measurement or dynamics, not a better coil model. This is exactly the
+    interior-null the closure work characterised.</li>
+  </ol>
+  <figure>
+    <img src="/imas-ambix/figures/equilibrium-realism/fig-confined-equilibrium.png"
+         alt="imas-ink flux-surface maps of the profile-free confined equilibrium: recon vs forward"
+         style="max-width:100%">
+    <figcaption>Flux-surface maps (imas-ink) of the profile-free equilibrium on
+    the 11766 flat-top. Left: the magnetics-constrained solve holds a compact
+    interior O-point at the referee axis. Right: the pure-forward solve
+    (coils + jφ≥0 + Ip only) still confines — interior O-point, closed
+    surfaces — but shifted outboard by the interior-null degeneracy. Neither
+    is the R ≈ 1.77 wall attractor the fixed two-term produced.</figcaption>
+  </figure>
+
+  <h2>V2 confirmation — profile-free + magnetics + full circuit dynamics</h2>
+  <p>The binding V2 precondition was re-run in the physically-complete config
+  the lead specified: the profile-free solve with measured magnetics, the
+  full passive/vessel circuit reconstruction (rank-8 eigenmode sidecar), and
+  the disc boundary prior, across the V2 train-split shot set (11766,
+  ramp-heavy 11767, flat-top-rich 11772). <strong>V2 PASS: 23/23 flat-top
+  slices across the three shots hold a confined interior O-point within 15 cm
+  of the referee axis (median 3.8 cm), no z-symmetry pin.</strong> The
+  forward known-physics-only solve confines 16/23 flat-top slices at a median
+  32.6 cm offset — the interior-null (axis position externally undetermined),
+  not a runaway. The plasma-driven eddies are ~0 at flat-top (§2 finding), so the eddy
+  injection is immaterial there; the plasma internal flux-diffusion screening
+  modes are zero-net-current redistributions that refine the interior profile
+  without moving the confinement verdict, carried into §3.</p>
+
+  <figure>
+    <img src="/imas-ambix/figures/equilibrium-realism/fig-confinement-probe.png"
+         alt="Profile-free confinement across the V2 shot set: forward vs magnetics-constrained axis vs Ip"
+         style="max-width:100%">
+    <figcaption>Profile-free confinement across the V2 shot set — magnetic axis
+    R vs Ip for the forward (known-physics-only) and magnetics-constrained
+    solves against the referee, all below the R = 1.4 m attractor line.</figcaption>
+  </figure>
+
+  <h2>Honest caveats</h2>
+  <ul>
+    <li>The forward solve's 22 cm outboard axis offset is the interior-null;
+    it is <em>not</em> within a 15 cm forward-axis gate, which is physically
+    unachievable in pure forward mode. The V2 gate is scored on the
+    magnetics-constrained solve, per the locked vertical-stability decision
+    (reconstruction mode is measurement-constrained).</li>
+    <li>The plasma internal flux-diffusion screening modes and the predicted
+    ramp-slice eddy prior are not exercised in this flat-top V2 run — they are
+    §3 dynamic refinements that do not change the flat-top confinement verdict
+    (redistribution / external, not confinement).</li>
+    <li>The attractor-branch decision locked "coil-side" from the §2
+    measurement; §2.5 shows the mechanism was the fixed two-term profile plus
+    the large-aspect identity error, i.e. solve/representation-side. The coil
+    field, eddy-folded and elongation-corrected, matches the requirement at the
+    axis. The decision is re-interpreted accordingly in the plan.</li>
+  </ul>
+
+  <h2>Artifacts</h2>
+  <ul>
+    <li><code>imas_ambix/latent/plasma_screening.py</code>
+        (<code>solve_pinned_plasma_circuit</code>, <code>plasma_self_inductance</code>),
+        <code>imas_ambix/latent/temporal_operator.py</code>
+        (<code>predict_vessel_currents</code>),
+        <code>imas_ambix/gs/force_balance.py</code>
+        (elongated Shafranov, ψ columns) — commit <code>a4dd8a2</code></li>
+    <li><code>tests/latent/test_vessel_plasma_drive.py</code> — Lenz/decay/voltage/dL-dt pins</li>
+    <li><code>scripts/coil_column_audit.py</code> + <code>imas_ambix/gs/artifacts/coil_column_audit.json</code> — winding audit (commit <code>69f5905</code>)</li>
+    <li><code>scripts/measured_pattern_confinement.py</code> — profile-free confinement harness (supersedes the two-term probe) + <code>imas_ambix/gs/artifacts/measured_pattern_confinement.json</code></li>
+    <li><code>scripts/confinement_flux_figure.py</code> — imas-ink flux maps</li>
+    <li>Decision locked: <code>flux-solve-architecture = one-interaction-matrix</code>; author-attribution hygiene rule added to the agent guidelines + repo scrub (commit <code>573cb7c</code>)</li>
+  </ul>
+
+  <h2>What's next (§3)</h2>
+  <p>V2's question shifts from "can the operator confine on real currents" —
+  answered yes — to the interior-null: the forward equilibrium confines but
+  the axis is externally undetermined, so its position needs the magnetics
+  constraint or dynamic (flux-diffusion / eddy-history) information. §3 runs
+  the profile-free solve across the V2 shot set on ramp + flat-top with the
+  full circuit dynamics folded (eddy prior on ramp slices, screening modes),
+  scores confinement + axis vs the referee, and hands the interior-null axis
+  residual to the learned/temporal operator that this plan blocks.</p>
+
+</main>
+</body>
+</html>

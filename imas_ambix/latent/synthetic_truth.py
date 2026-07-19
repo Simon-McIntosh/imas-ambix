@@ -28,15 +28,20 @@ inside the core, rescaled to the measured Ip.  The centrifugal exponent adds
 exactly the R⁴ structure the ``affine-r2-rotation`` design column detects; with
 γ = 0 the shape is byte-identical to :func:`gs_solve.profile_jphi_shape`.
 
-The confinement caveat (a measured fact this generator works around).  On real
-MAST coil currents our forward operator has no stable *confined* fixed point —
-the Picard drifts to an outboard corner attractor even warm-started at the
-EFIT axis (the coil-model error the plan attacks separately).  A manufactured
-truth must be genuinely confined, so the generator drives a manufactured
-symmetric outer-coil vertical field (:func:`build_confining_i_pf`) strong
-enough to hold an interior O-point, warm-starts from a compact core blob, and
-*verifies* confinement (interior axis, localised current) before emitting —
-rejecting a non-confined solve rather than shipping a corner artifact.
+The confinement caveat (a solver simplification this generator works around).
+The FIXED two-term Picard here drifts to an outboard corner attractor on real
+measured coil currents even warm-started at the axis — but that is a
+fixed-profile artifact, NOT a coil-model error and NOT an absence of a
+confined fixed point: the regularized profile-free solve
+(:func:`~imas_ambix.latent.gs_solve.solve_equilibrium_lsq`, jφ ≥ 0 + Ip
+anchor, free shape) DOES confine on the measured program (verified across the
+train-split flat-top; the vertical-field sign chain and coil winding are both
+correct).  This generator predates that finding and still uses a manufactured
+symmetric outer-coil vertical field (:func:`build_confining_i_pf`) to hold an
+interior O-point with the cheap fixed-shape Picard; it warm-starts from a
+compact core blob and *verifies* confinement (interior axis, localised
+current) before emitting.  Driving it from measured programs under the
+profile-free solve is the forward-truth-chain work (the plan's §3/§4).
 """
 
 from __future__ import annotations
