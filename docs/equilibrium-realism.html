@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="equilibrium-realism">
   <meta name="plan-title" content="Equilibrium Realism — force-balance diagnosis, real-current confinement, stability-honest truths">
   <meta name="plan-summary" content="Successor to plasma-screening-dynamics (resolves its lead decision). The spine cannot be a reanalysis engine until its forward model holds a confined equilibrium through a real shot&#x27;s measured coil program — every synthetic truth family so far ran on a manufactured uniform field with an uncontrolled decay index and a Z-symmetry pin, producing kappa~3.5 startup plasmas no experiment passes through. Ladder: V1 analytic force-balance diagnosis (Shafranov vertical-field balance + decay index at measured states, EFIT diagnostic-only) with a pre-declared coil-side/solve-side branch; V2 binding gate = confined free-boundary equilibrium under measured coil programs at the measured axis/shape; V3 stability-honest forward truth chain (real coil programs, near-circular breakdown catch, Z-feedback as forward dynamics — reconstruction mode is measurement-constrained and needs none); V4 representation re-tests queued behind it. All learned/representation work parked until V2 passes.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="superseded">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
   <meta name="plan-tier" content="opus">
@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-19">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 <meta name="plan-impl" content="0.75">
 </head>
 <body>
@@ -75,6 +75,17 @@
   in reconstruction mode; V2-forward is the interior-null the learned operator
   resolves. The original motivation below is the standing record, not superseded;
   see the <a href="archive/equilibrium-realism-s3-landed.html">§3 record</a>.</p>
+  <p class="landed-summary"><strong>Superseded by <a href="mse-gated-reanalysis.html">mse-gated-reanalysis</a>
+  (lead decision, 2026-07-19).</strong> This plan's diagnosis is the foundation:
+  it established the forward-solve mechanism (a radially-stable inboard well plus
+  an n&gt;3/2 radially-unstable band at the in-vessel coils), that the internal
+  profile is an interior null single-slice magnetics cannot resolve, and that the
+  reconstruction confines. The lead moved the binding gate off the EFIT axis (the
+  interior null) and onto <strong>held-out MSE pitch</strong>; the go-forward
+  build — the firewall-clean position-controlled + dynamics-coupled reanalysis
+  engine whose internal profile is earned from dynamics and MSE-proven, feeding
+  the learned operator — lives in the successor. The V1/V2 diagnostic records
+  (§2, §2.5, §3) stand as its foundation.</p>
   <p><strong>Why the chain produced it — three compounding workarounds
   (as understood at plan creation; the first is superseded per above):</strong></p>
   <ul>
@@ -707,7 +718,7 @@ Done-when
      pre-declared gates; this followup resolved</pre>
     <p class="r-fu-outcome">§3 landed as an honest negative + mechanism correction. V2-forward FAILS, but NOT by the §2.5 mechanism. Instrumented across 3 shots / 36 slices (scripts/forward_confinement_diagnostic.py + artifact + 2 figures): the forward drift is purely RADIAL — axis |Z| ≤ 0.37 cm at every slice (0 over 0.5 cm), so the n=0 vertical mode is stable and the locked feedback-forward-only Z-controller is a NO-OP for V2-forward (it belongs to §4 dynamics). The forward axis is a genuine conductor-clear O-point at every slice (0/36 on a coil pocket) — NOT the §2.5 'flux pocket at the P4/P5/P6 coils' (mechanism corrected). The forward current centroid sits near physical (flat-top median 0.98 m) while the magnetic axis is Shafranov-shifted outboard (flat-top median +0.10 m) by the profile peakedness — the RADIAL interior-null, externally undetermined without magnetics or a learned prior (flat-top forward-vs-referee gap min 18.3 / median 22.5 / max 56.5 cm, every flat slice over the 15 cm gate → G3a FAIL). The §2.5 'R=1.77' is a legacy boundary-continuation seed artefact (compact-seed forward = 1.14 m; recon = 0.82 m). G3b: no coil-pocket capture (corrected). G3c: no pins / no magnetics confirmed. STOP RULE invoked: no machine-agnostic forward fix closes the interior-null without magnetics (reconstruction mode, passing 23/23) or a learned profile prior (the learned operator this plan blocks). V2 IS met in reconstruction mode. Archive docs/archive/equilibrium-realism-s3-landed.html. Lead decision on the V2 reframe queued (f-eqr-05).</p>
     </article>
-<article class="r-fu" data-id="f-eqr-05" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-19T14:20:00+00:00" data-recommends-skill="/reckon-edit equilibrium-realism" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-eqr-05" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-19T14:20:00+00:00" data-recommends-skill="/reckon-edit equilibrium-realism" data-resolved-at="2026-07-19T16:38:10+00:00" data-resolved-by="lead">
     <h4 class="r-fu-title">Lead decision: reframe V2 (forward failure is the radial interior-null, not the vertical mode or a coil pocket), then build §4</h4>
     <div class="r-fu-body"><p>§3 measured V2-forward failing as the RADIAL interior-null: the forward magnetic axis is Shafranov-shifted outboard by the profile peakedness (β_p+l_i/2, externally undetermined), the forward current centroid is near physical, the axis Z is stable at every slice (n=0 is NOT the failure → the locked feedback-forward-only Z-controller is a no-op for V2-forward), and the in-vessel coil O-points are excluded at every slice (NOT a flux pocket — corrects §2.5). No machine-agnostic forward fix closes it without magnetics or a learned profile prior. V2 IS met in reconstruction mode (23/23 flat-top ≤ 15 cm, median 3.8 cm). Two asks for the lead: (1) re-lock <code>v2-precondition-verdict</code>'s rationale to the corrected mechanism (radial interior-null; not a coil-flux pocket at the P4/P5/P6 coils); (2) decide the V2 reframe — (A) accept reconstruction-mode V2 as the binding gate and unblock §4 (the stability-honest forward truth chain, where the modeled Z-controller lives as scenario dynamics for the n=0 mode) + the learned operator (which resolves the interior-null the forward solve cannot), or (B) retain V2-forward as an aspirational gate only a profile prior can meet.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -778,6 +789,7 @@ Done-when
   2. If (A): §4 truth chain built; G4a–G4c recorded honestly; §5 (V4
      representation re-tests) or the learned-operator handoff queued with gates
   3. Plan updated same-session; this followup resolved</pre>
+    <p class="r-fu-outcome">Lead decided (2026-07-19): move the binding gate to held-out MSE pitch. Successor plan mse-gated-reanalysis created — a firewall-clean position-controlled + dynamics-coupled reanalysis engine whose internal profile is EARNED from dynamics (resistive current diffusion + measured drives) and PROVEN on the locked 112-shot held-out MSE split (persistence 0.719 / EnKF 0.225 / frontier 0.19, coverage >=0.88), never fabricated; the learned operator folds high-bandwidth optional channels EnKF/EFIT ignore as the 'magic sauce'. Mechanism completed via prototype this session: the measured coils give a radially-stable inboard well (n~0.1 at R~0.85) + a radially-UNSTABLE band (n>3/2) at the in-vessel coils (R~1.34-1.68 m); an R+Z current-centroid moment constraint (firewall-safe measured moment) recovers the reconstruction axis to a few cm from Ip+centroid alone (11766 0.781 vs 0.820; 11772 1.027 vs 1.025). This plan is SUPERSEDED; its V1/V2 diagnostic records (§2/§2.5/§3) stand as the successor's foundation.</p>
     </article>
 </section>
 
