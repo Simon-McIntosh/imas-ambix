@@ -19,8 +19,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-19">
-<meta name="plan-impl" content="0.333">
-<meta name="plan-version" content="2">
+<meta name="plan-impl" content="0.667">
+<meta name="plan-version" content="3">
 </head>
 <body>
 <main class="plan-doc">
@@ -150,34 +150,32 @@
     </p>
   </section>
 
-  <h2 id="s3">§3 — Dynamics coupling: earn the internal profile from measured histories</h2>
-  <p>With position well-posed, the internal profile is the open DOF. It is not
-  free in time: the jφ profile at t evolves from t−Δt under resistive flux
-  diffusion, with measured drives (surface loop voltage, Ip) and only the
-  resistivity profile η(ψ_N) unknown; and the vessel eddies obey the passive
-  circuit equation with computable external flux swing. This rung re-points the
-  reduced-order dynamics machinery that already exists
-  (<code>temporal_operator.py</code>: L/R eigenmode reduction + exact-ZOH
-  integration; the in-house TORAX-style 1D current diffusion from
-  <code>temporal-physics-spine</code>) at the MSE gate rather than the EFIT axis
-  it previously closed on.</p>
-  <ul>
-    <li>Couple successive slices via 1D resistive ψ diffusion driven by the
-    raw-cadence measured loop voltage + Ip; η(ψ_N) is the low-DOF unknown by
-    design.</li>
-    <li>Promote the passive eddy trajectory from a per-slice static unknown to a
-    circuit-integrated constraint (the one-interaction-matrix flux solve landed
-    in equilibrium-realism §2.5).</li>
-    <li>Keep SOL-current freedom (the <code>sol_cap</code> C¹ decay foot) so
-    edge current is representable, not pinned to zero at ψ_N = 1.</li>
-  </ul>
-  <p><strong>Pre-declared gates:</strong> G3a — the dynamics-coupled solve stays
-  finite and physical across the beam-on shot set with the position constraint;
-  G3b — on synthetic time-coupled truths (exact η, exact profile) the coupled
-  solve recovers the internal profile to a pre-set tolerance (the
-  exact-recovery check the synthetic generator supports); G3c — the existing
-  module pins (Lenz-sign vessel screening, coupled≡uncoupled, ledger-from-zero)
-  stay green.</p>
+  <section id="s3" class="section-landed">
+    <header>
+      <span class="badge badge-shipped">✓ landed 2026-07-19</span>
+      <h2>§3 — Dynamics coupling: earn the internal profile from measured histories</h2>
+    </header>
+    <p class="landed-summary">
+      1D resistive ψ-diffusion (measured Ip drive, η(ψ_N) the only unknown)
+      couples successive slices on the §2 position spine: the stable K=2 solve
+      selects the confined basin and warm-starts the <strong>rich non-negative
+      ladder</strong> (n_p=n_f=3, jφ≥0 + smoothness ridge — GS + regularization,
+      <em>not</em> an assumed low-order profile), then the diffusion evolves that
+      profile and re-centres the coupled solve. <strong>G3a QUALIFIED PASS</strong>:
+      the coupling is finite, ships 0 fabricated readouts, tracks position to
+      <strong>2.18 cm</strong> median, and <strong>lifts rich-basis confinement
+      88→94%</strong> (rescues 2 fast-ramp slices, regresses none) across
+      11766/11767/11772 (33 slices); it does not match the rigid K=2's 100% (a
+      basis-fragility trade-off — 2 fast-ramp slices flagged, never shipped).
+      <strong>G3b PASS</strong>: synthetic exact-η split recovery 0.084 (bar
+      0.120) — the machinery is correct; it loses to the 0.044 independent spine
+      where synthetic magnetics are informative, so the payoff is the real-data
+      interior null (§4). <strong>G3c PASS</strong> 47/47 module pins. Stop rule
+      not invoked. Full record:
+      <a href="archive/mse-gated-reanalysis-s3-landed.html">§3 landed</a>
+      (commit <code>fbdfdff</code>).
+    </p>
+  </section>
 
   <h2 id="s4">§4 — The binding gate: held-out MSE pitch</h2>
   <p>Score the reanalysis engine's internal pitch prediction on the locked,
@@ -349,7 +347,7 @@ Done-when
      coupling) followup queued WITH pre-declared gates; this followup resolved</pre>
     <p class="r-fu-outcome">§2 landed (PASS). Disc seed + R/Z current-centroid moment constraint holds the physical inboard branch: position solve (Ip+centroid only, no full magnetics) reproduces the reconstruction axis to per-shot median 2.45/2.38/2.05 cm across 11766/11767/11772 (G2a ≤5cm PASS); outboard-seed recovered 36/36 (G2b PASS); firewall Ip+centroid only, profile free, no z-pin/EFIT (G2c PASS, unit-tested). Free solve drifts to ~1.76 m every slice. Stable free-sign K=2 brancher; now the DEFAULT position solve, drifting free solve retired. Commits f805348/75a9be0/beddc87; archive docs/archive/mse-gated-reanalysis-s2-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-mgr-02" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-19T21:00:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-mgr-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-19T21:00:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §3" data-resolved-at="2026-07-19T19:54:14+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §3 — dynamics coupling: earn the internal profile from measured histories</h4>
     <div class="r-fu-body"><p>Position is now well-posed (§2 landed on the disc-seed + centroid position-controlled spine). The internal profile (pitch/q) is the remaining open DOF and it is not free in time: couple successive slices via 1D resistive ψ diffusion driven by the measured loop voltage + Ip (η(ψ_N) the low-DOF unknown), promote the passive eddy trajectory to a circuit-integrated constraint, and keep SOL-current freedom — re-pointing the reduced-order dynamics machinery (temporal_operator.py + the 1D current diffusion) at the position-controlled spine. Gates G3a-G3c pre-declared. §4 (the binding held-out-MSE gate) scores what this earns.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -396,6 +394,54 @@ Gates (pre-declared)
 Done-when
   1. Dynamics-coupled solve committed on the position spine; G3a-G3c verdicts recorded honestly; artifact + figures committed.
   2. Plan updated same-session: §3 outcome recorded + collapsed; §4 (held-out MSE gate) followup queued WITH pre-declared gates; this followup resolved.</pre>
+    <p class="r-fu-outcome">§3 landed (QUALIFIED PASS). 1D resistive ψ-diffusion couples successive slices on the §2 position spine: the stable K=2 solve selects the confined basin and warm-starts the rich non-negative ladder (n_p=n_f=3, jφ≥0 + smoothness ridge — GS + regularization, not an assumed profile), flux-surface geometry drives diffuse_psi over each measured interval (measured Ip drive, η(ψ_N) the low-DOF unknown), and the evolved current projects back onto the rich basis as a soft coeff_prior. G3a QUALIFIED PASS: coupling lifts rich-basis confinement 88→94% (rescues 2 fast-ramp slices, regresses 0), ships 0 NaN, tracks position to 2.18 cm median across 11766/11767/11772 (33 slices); it does not match the rigid K=2's 100% (a basis-fragility trade-off — 2 fast-ramp slices flagged, never shipped). G3b PASS: synthetic exact-η split recovery 0.084 (bar 0.120); loses to the 0.044 independent-slice spine where synthetic magnetics are informative — the coupling's value is the real-data interior null. G3c PASS 47/47 module pins. Stop rule not invoked. Commit fbdfdff; archive docs/archive/mse-gated-reanalysis-s3-landed.html.</p>
+    </article>
+<article class="r-fu" data-id="f-mgr-03" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-19T22:15:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Ship §4 — the binding gate: held-out MSE pitch</h4>
+    <div class="r-fu-body"><p>§3 landed: the internal profile is earned from measured dynamics on the position spine (finite, physical, position-tracking on the confined population; under-determined slices flagged). §4 is the binding gate — score the coupled engine's internal pitch prediction on the locked, leakage-audited 112-shot held-out MSE split through the shared harness (mse_eval.score), on the same ruler as persistence (0.719) and the EnKF bar (0.225). This is where η(ψ_N) is calibrated against the measured drives (the eta-fit path) and the circuit-integrated passive_prior is activated — both scored, never assumed. The label-honesty gate binds: emit the internal profile ONLY where the coupled solve clears G4a; elsewhere the label records position+shape and flags the profile under-determined. Gates G4a-G4c + label-honesty pre-declared.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    mse-gated-reanalysis (http://localhost:8765/imas-ambix/mse-gated-reanalysis.html)
+Section: §4 (the binding gate — held-out MSE pitch)
+Tier:    opus
+
+Context
+  §2 made position well-posed (disc seed + R/Z centroid); §3 earned the internal
+  profile from 1D resistive ψ-diffusion on that spine (QUALIFIED PASS: coupling
+  finite/physical, lifts rich-basis confinement 88→94%, tracks position 2.18cm,
+  ships no fabricated readout; fast-ramp slices flagged under-determined). §4 is
+  the binding validation gate the whole plan turns on: prove the earned profile
+  against the direct internal measurement — held-out MSE pitch — on the same
+  ruler as persistence and the classical EnKF. MSE is held out of every fit; it
+  validates, it never trains. Honour the locked decisions (binding-gate=
+  held-out-mse-pitch, label-honesty=assert-only-validated, position-treatment=
+  centroid-moment-constraint, firewall-scope=physics-and-measured-moments,
+  moment-scope=dipole-cap, referee-policy=efit-diagnostic-only).
+
+State to read  (CODE / FILES / DATA)
+  docs/archive/mse-gated-reanalysis-s3-landed.html   (the §3 coupled-solve record + what is deferred to §4)
+  scripts/dynamics_coupled_solve_gate.py             (the §3 coupled solve to score)
+  statespace/mse_eval.py, statespace/mse_split.py    (mse_eval.score → PRIMARY pitch RMSE, rad, clean; the locked 112-shot held-out split)
+  imas_ambix/eval/prediction_bar.py                  (persistence 0.719 / EnKF 0.225 / frontier 0.19 baselines)
+  scripts/current_diffusion_gate_eval.py             (the eta-fit path: η(ψ_N) calibrated to measured drives; the circuit-integrated passive_prior)
+
+Scope locks / constraints  (non-decision)
+  - Score the §3 coupled engine&#x27;s internal pitch on the held-out split ONLY; MSE never enters any fit/tune/train path.
+  - η(ψ_N) calibrated against measured drives (loop-voltage/flux budget + coefficient prediction) on the tune split; eval split consumes frozen η. Firewall: measured drives only, no EFIT, no assumed profile.
+  - Activate the circuit-integrated passive_prior (boundary-flux precision) now that it is scored on MSE.
+  - Emit the internal profile in the label ONLY on the population that clears G4a; elsewhere record position+shape and flag profile under-determined (label-honesty, binding). No fabricated profile ships.
+  - Figures mandatory (docs/figures/mse-gated-reanalysis/): pitch-RMSE bar (engine vs persistence/EnKF/frontier with CIs); coverage; per-shot residual vs radius (the near-axis interior floor).
+  - Commit+push each coherent change on main; no AI co-author trailers (verify: git log -1 --format=%B | grep -Eqi &quot;^co-authored-by:&quot;).
+
+Gates (pre-declared)
+  G4a (beat persistence — must): held-out PRIMARY pitch RMSE clears 0.719 CI-clear, coverage ≥ 0.88. Below this the dynamics add nothing and the profile stays labelled under-determined.
+  G4b (match the classical bar — target): pitch RMSE approaches the EnKF 0.225 (CI 0.199–0.259) — parity means the GS-native dynamics recover as much internal information as the ensemble-smoother over TORAX diffusion.
+  G4c (frontier sightline): report the gap to the 0.19 physics frontier and the near-axis interior floor (0.41 rad) — the residual §5&#x27;s high-bandwidth channels must close.
+  Label-honesty gate (binding): internal profile emitted only where G4a clears; elsewhere position+shape + under-determined flag.
+  Stop rule: if the coupled engine cannot beat persistence CI-clear (G4a FAIL), STOP and surface — do NOT relax the held-out split, tune toward MSE, or ship a fabricated profile to force a pass.
+
+Done-when
+  1. Held-out MSE scoring of the §3 coupled engine committed; G4a-G4c + label-honesty verdicts recorded honestly; artifact + figures committed.
+  2. Plan updated same-session: §4 outcome recorded + collapsed; §5 (learned-operator handoff) followup queued (resuming learned-equilibrium-operator) WITH pre-declared gates; this followup resolved.</pre>
     </article>
 </section>
 
