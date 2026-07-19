@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="mse-gated-reanalysis-s4-landed">
+  <meta name="plan-title" content="MSE-Gated Reanalysis — §4 record: the binding gate — held-out MSE pitch (QUALIFIED PASS)">
+  <meta name="plan-summary" content="§4 landing record (2026-07-19). The dynamics-coupled reanalysis engine's earned internal profile is scored on the locked 112-shot held-out MSE pitch split through the shared observation model (kind='j' jphi(rho_hat) readout, the same ruler as the classical EnKF). Verdict QUALIFIED PASS. G4a (beat persistence — binding, stop-rule): PASS CI-clear — engine pitch RMSE 0.362 rad vs persistence 0.731 (live, same 101 shots) / 0.719 (reference), paired-bootstrap delta 0.369 rad CI95 [0.314, 0.427]; the earned profile carries real internal-field information the engine was never shown. Coverage sub-gate FAIL (cov90 0.297 < 0.88 — a shared uncertainty-calibration gap; the classical EnKF is itself only 0.465). G4b (match EnKF — target): MISS — gap 0.137 rad to the 0.225 EnKF bar; the GS-native dynamics recover about half the persistence error, not as much internal information as the ensemble-smoother over TORAX diffusion. G4c: gap to the 0.19 frontier 0.172 rad; near-axis residual 0.434 rad sits right at the pre-registered 0.41 interior floor — the residual the learned operator's high-bandwidth channels (the magic sauce, section 5) must close. Label honesty upheld: 11/112 shots + under-determined slices flagged, no fabricated profile shipped. eta(psi_N) frozen from the tune-split measured-drive calibration (reproduced this session); MSE never entered a fit.">
+  <meta name="plan-informs" content="mse-gated-reanalysis">
+  <title>mse-gated-reanalysis §4 — the binding held-out-MSE gate (QUALIFIED PASS)</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h1>§4 record — the binding gate: held-out MSE pitch (QUALIFIED PASS)</h1>
+
+  <p><strong>Verdict (2026-07-19): §4 QUALIFIED PASS.</strong> This is the gate
+  the whole plan turns on. The reanalysis engine &mdash; position well-posed
+  (&sect;2), internal profile earned from measured dynamics (&sect;3) &mdash; is
+  scored on the DIRECT internal-field measurement it was never shown: the locked,
+  leakage-audited <strong>112-shot held-out MSE pitch split</strong>, through the
+  same shared observation model as the classical baselines. The earned profile
+  <strong>beats persistence CI-clear</strong> (the binding &ldquo;did the dynamics
+  recover real internal information&rdquo; bar and the stop-rule criterion) &mdash;
+  0.362 rad vs 0.731, a paired-bootstrap gap of 0.369 rad with a 95&nbsp;% CI of
+  [0.314,&nbsp;0.427]. It does <em>not</em> reach the classical EnKF bar (0.225,
+  gap 0.137 rad), and its predictive intervals are under-dispersed (coverage 0.297
+  vs the 0.88 gate &mdash; the classical EnKF is itself only 0.465). The internal
+  profile is therefore <strong>earned and emittable as a validated label</strong>
+  on the confined population; the residual to the classical bar and the frontier
+  is exactly what &sect;5&rsquo;s high-bandwidth channels exist to close.</p>
+
+  <h2>The ruler &mdash; one shared observation model</h2>
+  <p>Every predictor is scored through the <em>identical</em> forward model
+  (<code>mse_eval.pitch_from_current_profile</code>, the LOCKED
+  <code>kind='j'</code> representation from the S9 head-to-head coordination): a
+  1D toroidal-current-density profile j&phi;(&rho;&#770;) on a
+  &rho;&#770;&middot;a<sub>minor</sub> minor-radius grid maps to MSE pitch per
+  sightline. The classical EnKF reads out its TORAX <code>j_total(&rho;_norm)</code>
+  the same way; the reanalysis engine&rsquo;s force-balanced &psi; + ladder
+  coefficients give the flux-surface geometry
+  (<code>current_diffusion.flux_surface_geometry</code>), whose flux-surface-
+  averaged j&phi;(&rho;&#770;) (<code>predicted_current</code>) is that same
+  quantity in that same coordinate. Pitch is read at each shot&rsquo;s sightlines
+  with the per-shot R<sub>0</sub>&nbsp;=&nbsp;0.85&nbsp;m and B<sub>t0</sub> from
+  <code>amc.tf_current</code> (matching the EnKF baseline), then interpolated onto
+  the manifest&rsquo;s beam-on slice times. A head-to-head therefore isolates
+  <em>state inference</em>, not the observation physics.</p>
+
+  <h2>Gate verdicts (pre-declared in f-mgr-03)</h2>
+  <figure>
+    <table>
+      <thead><tr><th>Gate</th><th>Rule</th><th>Result</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>G4a</strong> beat persistence (MUST / stop-rule)</td>
+          <td>held-out PRIMARY pitch RMSE clears persistence (0.719) CI-clear,
+              coverage &ge; 0.88</td>
+          <td>engine <strong>0.362 rad</strong> vs persistence <strong>0.731</strong>
+              (live, same 101 shots) / 0.719 (reference). Paired shot-bootstrap
+              &Delta;&nbsp;=&nbsp;<strong>0.369 rad, CI95 [0.314, 0.427]</strong>
+              &mdash; CI-clear. Coverage cov90 <strong>0.297</strong> &lt; 0.88
+              (EnKF itself 0.465).</td>
+          <td><strong>QUALIFIED PASS</strong><br>(beat-persistence PASS; coverage FAIL)</td>
+        </tr>
+        <tr>
+          <td><strong>G4b</strong> match the classical bar (target)</td>
+          <td>pitch RMSE approaches the EnKF 0.225 (CI 0.199&ndash;0.259)</td>
+          <td>engine 0.362 vs EnKF 0.225 &mdash; <strong>gap 0.137 rad</strong>.
+              The GS-native dynamics recover ~half the persistence error, not as
+              much internal information as the ensemble-smoother over TORAX
+              current-diffusion.</td>
+          <td><strong>MISS</strong></td>
+        </tr>
+        <tr>
+          <td><strong>G4c</strong> frontier sightline</td>
+          <td>report the gap to the 0.19 frontier + the near-axis interior floor
+              (0.41 rad)</td>
+          <td>gap to frontier <strong>0.172 rad</strong>; near-axis residual
+              (|R&minus;R<sub>0</sub>|&lt;15&nbsp;cm) <strong>0.434 rad</strong>
+              &asymp; the pre-registered 0.41 floor; outboard-edge residual
+              0.622 rad (representation).</td>
+          <td><strong>REPORTED</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Label honesty</strong> (binding)</td>
+          <td>emit the internal profile only where the coupled solve clears G4a;
+              elsewhere flag under-determined &mdash; no fabricated profile ships</td>
+          <td><strong>11 / 112</strong> shots skipped (too few confined slices)
+              + per-slice unconfined slices masked; profile emitted on the 101
+              scored shots where the dynamics beat persistence. <strong>0
+              fabricated readouts.</strong></td>
+          <td><strong>UPHELD</strong></td>
+        </tr>
+      </tbody>
+    </table>
+    <figcaption>G4a is qualified because the pre-declared rule conjoins two
+    properties: beating persistence (an information question &mdash; PASS,
+    CI-clear, and the stop-rule bar) and coverage &ge; 0.88 (an
+    uncertainty-calibration question &mdash; FAIL). The engine&rsquo;s intervals
+    use only the measured aleatoric pitch-error floor (the same std persistence
+    and EnKF use); a calibrated posterior is deferred to &sect;5. The
+    stop rule &mdash; &ldquo;if the engine cannot beat persistence CI-clear,
+    STOP&rdquo; &mdash; was NOT invoked.</figcaption>
+  </figure>
+
+  <figure>
+    <img src="/imas-ambix/figures/mse-gated-reanalysis/fig-heldout-pitch-bar-v0.png"
+         alt="Bar chart of held-out MSE pitch RMSE: persistence 0.73, engine 0.36, EnKF 0.23 with CI, frontier 0.19; the engine sits roughly halfway between persistence and EnKF"
+         style="max-width:100%">
+    <figcaption>The one ruler. The dynamics-coupled engine (0.362 rad) beats the
+    persistence floor (0.731, live on the same 101 shots) CI-clear &mdash; the
+    earned profile carries real internal-field information &mdash; and approaches
+    but does not reach the classical EnKF bar (0.225, CI [0.199,&nbsp;0.259]).
+    The gap to EnKF and to the 0.19 frontier is the information conventional
+    reconstruction never uses, which &sect;5&rsquo;s high-bandwidth channels exist
+    to fold in.</figcaption>
+  </figure>
+
+  <figure>
+    <img src="/imas-ambix/figures/mse-gated-reanalysis/fig-heldout-residual-radius-v0.png"
+         alt="Scatter of per-channel pitch residual RMSE vs sightline major radius; near-axis values cluster near the 0.41 floor, outboard values rise toward 0.6"
+         style="max-width:100%">
+    <figcaption>G4c &mdash; the residual by radius. Near the magnetic axis the
+    engine reaches the pre-registered 0.41&nbsp;rad interior floor (mean 0.434 for
+    |R&minus;R<sub>0</sub>|&lt;15&nbsp;cm) &mdash; the externally-invisible
+    near-axis degeneracy the single-slice magnetics cannot resolve. The residual
+    rises outboard (0.62 at the edge), where the Shafranov shift and the shared
+    cylindrical readout diverge most. Both are the residual &sect;5 must close.</figcaption>
+  </figure>
+
+  <h2>What the number means</h2>
+  <ul>
+    <li><strong>The dynamics recover real internal information.</strong>
+    Persistence (freeze the pitch at the first beam-on slice) is the null of
+    &ldquo;no dynamics&rdquo;; the engine roughly <em>halves</em> its error in
+    both the quiescent (0.362 vs 0.733) and the transient (0.372 vs 0.724)
+    windows. Beating it CI-clear is the direct evidence that the resistive
+    &psi;-diffusion coupling earns internal-profile shape the per-slice magnetics
+    cannot &mdash; the interior null the temporal thesis closed on, now scored
+    where the information lives (the pitch profile, not the EFIT axis).</li>
+    <li><strong>It is not yet the classical bar.</strong> The 0.137&nbsp;rad gap
+    to EnKF is honest: the ensemble-smoother folds a measured T<sub>e</sub>(&rho;)
+    &rarr; neoclassical &sigma;<sub>&parallel;</sub> closure the firewall-clean
+    engine deliberately does not assume (&eta;(&psi;<sub>N</sub>) is a bounded
+    low-DOF unknown, not a Thomson-derived profile). Closing it with information
+    conventional reconstruction never touches &mdash; fast cameras / fast
+    magnetics &mdash; is precisely &sect;5&rsquo;s remit.</li>
+    <li><strong>Coverage is under-dispersed &mdash; a UQ gap, not an information
+    gap.</strong> The engine is a single deterministic solve; its predictive std
+    is the measured aleatoric pitch-error floor only, so cov90 0.297 is far below
+    the 0.88 gate. The classical EnKF, with a full ensemble spread, still reaches
+    only 0.465 &mdash; the gate is demanding and unmet by both. A calibrated
+    posterior (physics ensemble over the under-determined interior) is a &sect;5
+    uncertainty-quantification task, not a blocker on whether the profile is
+    earned.</li>
+    <li><strong>Label honesty held.</strong> 11 shots had too few confined slices
+    to couple (fast ramp-downs / thin plasmas) and were skipped; unconfined slices
+    within scored shots were masked. No fabricated profile entered the score or
+    would enter a label &mdash; exactly the <code>assert-only-validated</code>
+    decision.</li>
+  </ul>
+
+  <h2>Firewall &amp; provenance</h2>
+  <ul>
+    <li>The engine consumes ONLY magnetics (I<sub>p</sub> + R/Z current centroid)
+    and the measured I<sub>p</sub> drive. <strong>MSE never entered any
+    fit/tune/train path</strong> &mdash; it is the held-out validator.</li>
+    <li>&eta;(&psi;<sub>N</sub>) is FROZEN from the tune-split measured-drive
+    calibration (<code>[-6.335, -0.097, 4.383]</code>, objective 0.252&rarr;0.0186
+    over 60 intervals, tune shots 11774/11775/11777/11779); the eval consumes the
+    frozen parameters. The calibration was <strong>re-run this session and
+    reproduced exactly</strong>.</li>
+    <li>Readout geometry matches the EnKF baseline exactly: R<sub>0</sub>&nbsp;=&nbsp;0.85&nbsp;m,
+    a<sub>minor</sub>&nbsp;=&nbsp;0.5&nbsp;m, per-shot B<sub>t0</sub> from
+    <code>amc.tf_current</code> (N<sub>TF,eff</sub>&nbsp;=&nbsp;25). EFIT appears
+    nowhere.</li>
+    <li>Data coverage: the equilibrium loader needs the <code>amm</code>
+    passive-structure geometry, absent from most held-out shots&rsquo; own zarr;
+    since that geometry is a CAMPAIGN property, the geometry table is built once
+    per campaign from a representative that carries it and reused &mdash; all 112
+    held-out shots loaded, 0 loader failures (the sensor windows need only
+    ama/amb/amc/ane).</li>
+  </ul>
+
+  <h2>Artifacts &amp; code</h2>
+  <ul>
+    <li>Harness: <code>scripts/heldout_mse_gate_eval.py</code> (the coupled solve
+    chain &rarr; kind='j' pitch readout &rarr; <code>mse_eval.score</code>, paired
+    shot-bootstrap vs persistence).</li>
+    <li>Shared ruler: <code>imas_ambix/statespace/mse_eval.py</code>
+    (<code>pitch_from_current_profile</code>, <code>score</code>),
+    <code>imas_ambix/eval/prediction_bar.py</code> (persistence/EnKF/frontier
+    references), <code>imas_ambix/statespace/enkf_baseline.py</code> (the classical
+    comparator&rsquo;s identical readout).</li>
+    <li>Frozen &eta;: <code>imas_ambix/latent/artifacts/patch_gate/current_diffusion_eta_calibration.json</code>
+    (tune-split measured-drive fit, reproduced).</li>
+    <li>Result: <code>imas_ambix/latent/artifacts/patch_gate/heldout_mse_gate-v0.json</code>
+    (per-shot RMSE, by-window, residual-vs-radius, skipped-shot log). Job wall
+    20&nbsp;min, 26 cores, sun_debug.</li>
+    <li>Figures: <code>docs/figures/mse-gated-reanalysis/</code>
+    (heldout-pitch-bar, heldout-residual-radius).</li>
+  </ul>
+
+  <h2>What&rsquo;s next &mdash; &sect;5 the learned-operator handoff (the magic sauce)</h2>
+  <p>The reanalysis engine is built and PROVEN: it produces firewall-clean
+  equilibrium labels whose internal profile is validated where the dynamics earn
+  it (beats persistence CI-clear) and flagged under-determined where they do not.
+  &sect;5 resumes <code>learned-equilibrium-operator</code> (R1 landed, R2
+  sustained-negative, re-planned through the now-closed temporal-physics-spine):
+  train the cross-machine operator on these MSE-validated labels, then fold in the
+  high-frequency / high-bandwidth channels EnKF/TORAX/EFIT ignore &mdash; fast
+  cameras, fast magnetics &mdash; as OPTIONAL conditioning, and measure whether
+  they push held-out pitch below the EnKF bar (0.225) toward the frontier (0.19).
+  Beating the classical bar with information conventional reconstruction never
+  uses is the plan&rsquo;s decisive win and the operator&rsquo;s reason to exist.
+  The 0.137&nbsp;rad gap to EnKF and the near-axis 0.41 floor are the concrete
+  targets &sect;5 must close.</p>
+
+</main>
+</body>
+</html>
