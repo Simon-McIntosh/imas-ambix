@@ -1,7 +1,7 @@
 """Stage an L2 measured group as a conditioning SIGNAL stream (label-agnostic).
 
 The L2 set is calibrated/processed and usually the better training input, but its
-IMAS dd-path NAMES are NOT reliably mapped (lead directive: ignore the dd
+IMAS dd-path NAMES are NOT reliably mapped (ignore the dd
 semantics).  So this stager is label-agnostic: it keeps the numeric value channels
 aligned to the group's primary moderate-cadence ``time`` axis, records their
 on-disk names only as provenance, and the downstream quantise-on-read loader

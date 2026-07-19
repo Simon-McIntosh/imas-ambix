@@ -1,6 +1,6 @@
 """Field-level provenance resolver + reconstruction-vs-plan classifier.
 
-These tests pin the lead-corrected principle:
+These tests pin the principle:
 
 * PLANNED actions are AUTHORISED — pulse_schedule demanded Ip/density,
   the pf_active feed-forward coil voltage (``XDC_PF_F``), and the

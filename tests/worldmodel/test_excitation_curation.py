@@ -821,7 +821,7 @@ def test_plasma_phase_span_min_duration_drops_short_burst(monkeypatch):
     s0 = ec.find_plasma_phase_span(1, ip_present_threshold=2.0e4, min_duration_s=0.0)
     assert s0.valid
     assert s0.duration_s < 0.03
-    # with a 0.1 s floor: dropped as too_short (the lead's fix)
+    # with a 0.1 s floor: dropped as too_short
     s1 = ec.find_plasma_phase_span(1, ip_present_threshold=2.0e4, min_duration_s=0.1)
     assert not s1.valid
     assert s1.reason == "too_short"

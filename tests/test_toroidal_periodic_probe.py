@@ -5,7 +5,7 @@ Three contracts the toroidal-array build must satisfy:
 1. PERIODIC adjacency — the encoded geometry distance between φ=359° and φ=1° is
    SMALL (they are physically adjacent on the torus) while φ=0° vs φ=180° is
    LARGE.  A linear angle-in-degrees encoding does the opposite; this is the
-   sharp correctness point the lead asked for (identify 2π−ε and 0+ε as
+   sharp correctness point (identify 2π−ε and 0+ε as
    adjacent).
 2. The L2 saddle toroidal array resolves to 12 channels at distinct toroidal
    angles with finite φ/R/Z.

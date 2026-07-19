@@ -1,6 +1,6 @@
 """Build explicit shotlists for the PREPARED (held) GPU frame encodes.
 
-Three new frame/signal encodes are PREPARED but GATED on the lead signalling a
+Three new frame/signal encodes are PREPARED but GATED on a signalled
 free card (the unified corpus + current jobs hold 8/8 GPUs).  The two CAMERA
 encodes (rbc; the M5/M6 rbb backfill) reuse the production frame encoder
 (``scripts/slurm/stream_encode_rbb.sbatch``) verbatim — they differ only in the

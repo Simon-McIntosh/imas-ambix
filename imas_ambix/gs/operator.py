@@ -15,8 +15,8 @@ where each ``G_·`` is a **geometry-only** matrix (one per campaign signature) a
                   ``latent-to-psi-representation = current-distribution-greens``);
 * ``c_passive`` — the INFERRED passive / eddy currents (a nuisance term — the
                   ``amm`` computed current values are an EFIT-wall-model OUTPUT
-                  and are EXCLUDED per the orchestrator adjudication
-                  ``c-s8-amm-adjudication``; only the passive *geometry* is used).
+                  and are EXCLUDED — never a known source; only the passive
+                  *geometry* is used).
 
 **Scope boundary (T2 vs T3).**  T2 builds all three column blocks (pure
 geometry), assembles the KNOWN ``I_pf`` term, and validates the vacuum
@@ -312,7 +312,7 @@ def classify_circuits(
     conductors (the ``1004−938 = 167−101 = 66`` extra fc1004 elements, ~½ of
     which coincide with ``amm`` passive geometry) and any coil we cannot pin —
     is INFERRED passive / eddy nuisance.  ``amm`` computed currents are NEVER
-    read (orchestrator adjudication ``c-s8-amm-adjudication``).
+    read (EFIT-wall-model outputs, not measurements).
 
     Case-circuit correction (measured, ``docs/mast-coil-circuits.html`` §6)
     -------------------------------------------------------------------------
@@ -891,7 +891,7 @@ def write_operator_summary(
         "coil_model_version": COIL_MODEL_VERSION,
         "latent_to_psi_representation": "current-distribution-greens",
         "si_denorm": "raw-SI (Wb, T, A; mu0 carried; amc kA*turn x1000)",
-        "amm_currents": "EXCLUDED (EFIT-wall-model output; c-s8-amm-adjudication)",
+        "amm_currents": "EXCLUDED (EFIT-wall-model output, never a known source)",
         "passive_currents": (
             "INFERRED nuisance (fcoil structural circuits, not amm-read)"
         ),
@@ -953,6 +953,6 @@ def passive_amm_coincidence(
         "note": (
             "passive/eddy currents are INFERRED on the fcoil structural circuits"
             " (single source); amm geometry overlaps but amm CURRENTS are excluded"
-            " (EFIT-wall-model output, c-s8-amm-adjudication)."
+            " (EFIT-wall-model output, never a known source)."
         ),
     }

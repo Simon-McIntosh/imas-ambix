@@ -2,7 +2,7 @@
 
 This is the *clear-evidence* companion to :mod:`reconstruction_demo`.  Where
 that module renders the dense per-scenario grids, this one produces the
-side-by-side animations and clean three-row panels the lead asked for, all
+side-by-side animations and clean three-row panels, all
 comparing the trained **dynamics** arm against the trained per-frame
 **baseline** arm and the ground truth.
 

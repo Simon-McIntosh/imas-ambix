@@ -7,7 +7,7 @@ moderate-cadence group), extract every 1-D value trace on the group's own
 conditioning loader consumes (read like ``summary_l2`` / ``ait`` and quantised
 on read to the L2 257-id vocab).
 
-The dd-path/IMAS NAMES are NOT trusted (the lead's directive: the mapping is not
+The dd-path/IMAS NAMES are NOT trusted (the mapping is not
 reliable) — this stager is label-agnostic: it keeps the numeric (time,) channels
 and records their on-disk array names as provenance only.  Static geometry,
 ``*_error`` / ``*_status`` / ``passnumber`` and scalar arrays are skipped.

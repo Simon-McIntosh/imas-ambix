@@ -1,7 +1,7 @@
 """GATED GPU re-encode of the curated dynamic-excitation windows (exposure-balanced).
 
 THIS IS THE MULTI-HOUR GPU STEP — it must NOT run unannounced.  Launch only
-after the lead's go (the select-phase manifest carries the compute estimate;
+after an explicit go (the select-phase manifest carries the compute estimate;
 for a curated subset it is well under 1 GPU-hour).
 
 What it does (in-process, model-loaded-once, SIGTERM-clean — AGENTS.md §2b):
@@ -28,7 +28,7 @@ needs (the manifest read + the exposure transform) are pure-numpy and imported
 defensively.  Whole held-out shots are excluded at SELECT time, so the manifest
 already carries the shot-level leakage guard.
 
-Launch (only after the lead's go):
+Launch (only after an explicit go):
     sbatch scripts/slurm/build_excitation_corpus_encode.sbatch
 """
 

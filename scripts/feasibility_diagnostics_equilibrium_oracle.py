@@ -1447,7 +1447,7 @@ def run(args) -> int:
     # the headline result the report + scatter mirror is arm B (all-diagnostics).
     all_report, all_pred, all_yte, all_mte = arm_b
 
-    # log the consolidation delta B − A on axis + LCFS (the lead's question:
+    # log the consolidation delta B − A on axis + LCFS (the open question:
     # does the geometry-tagged all-diagnostics arm beat magnetics-only?).
     def _skill(arm, comp):
         for row in arm[0]["verdict"]["components"]:

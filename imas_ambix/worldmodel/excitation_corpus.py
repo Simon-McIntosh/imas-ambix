@@ -240,7 +240,7 @@ def select_curated_windows(
     excited plasma-present long-horizon window via
     :func:`select_curated_window_for_shot`.  Returns a DETERMINISTIC list sorted
     by descending excitation score (most dynamic first), so a ``limit`` keeps the
-    most excited shots — the dynamic-weighting the lead asked for.  Every emitted
+    most excited shots — dynamics-weighted selection.  Every emitted
     ``shot_id`` is an input shot not in ``held_out`` — the structural shot-level
     leakage guard.
     """
@@ -272,7 +272,7 @@ def select_curated_windows(
 # ---------------------------------------------------------------------------
 #
 # select_curated_windows above picks the SINGLE most-excited window per shot.
-# For the re-train the lead wants MULTIPLE 0.25 s windows per pulse covering the
+# The re-train takes MULTIPLE 0.25 s windows per pulse covering the
 # WHOLE recording — ramp-up, flat-top, AND the termination/quench — so the model
 # sees every phase, not just the one most-excited segment.  The disruption-tail
 # de-prioritisation used by find_excitation_window is dropped here (a fast

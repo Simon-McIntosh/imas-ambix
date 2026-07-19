@@ -2,7 +2,7 @@
 
 The ait source is the divertor IR heat-flux ANALYSIS (not raw IR camera frames —
 those are ~13 real frames and are skipped).  Per shot it carries, on its own
-``time`` axis (~4.6k samples), the strike-point divertor traces the lead named:
+``time`` axis (~4.6k samples), the selected strike-point divertor traces:
 
   * ``etot_{isp,osp}`` / ``etotsum_{isp,osp}`` — energy to the inner / outer
     strike point (and ELM-resolved ``*_elm`` variants),
@@ -22,7 +22,7 @@ into a per-shot signal Zarr keyed by the ait ``time`` axis — the staging the
 downstream uniform-quantiser tokeniser / conditioning loader consumes.
 
 This is CPU work (a read + reshape, no model), so it can run on ``sun`` — but it
-is PREPARED and HELD per the lead until the encode slot is signalled (kept here
+is PREPARED and HELD until the encode slot is signalled (kept here
 beside the GPU encodes for a single coordinated launch).  The leakage stance:
 ait is a DIAGNOSTIC measurement (divertor heat flux), an admissible conditioning
 / probe stream — NOT a reconstruction (efm/esm/xdc), so it does not trip the
