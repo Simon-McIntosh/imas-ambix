@@ -4,20 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="mse-gated-reanalysis">
-  <meta name="plan-title"     content="MSE-Gated Reanalysis — a firewall-clean equilibrium engine whose internal profile is earned from dynamics and proven on held-out MSE">
-  <meta name="plan-summary"   content="Successor to equilibrium-realism (whose diagnosis it inherits). Build the reanalysis engine — the ERA5-analog assimilating model that produces firewall-clean equilibrium labels for the learned cross-machine operator (the GenCast). Two things the diagnosis settled: (1) single-slice magnetics cannot distinguish the internal profile (the interior null), so a fabricated profile must NEVER be a label; (2) the free-boundary solve drifts outboard because the measured coils give a radially-stable inboard well (decay index n approx 0.1 at R approx 0.85) plus a radially-UNSTABLE band (n>3/2) at the in-vessel P4/P5/P6 coils (R approx 1.34-1.68 m) — a real ST radial-instability feature. The lead moved the binding gate off the EFIT axis (an interior null the temporal thesis closed on) and onto HELD-OUT MSE pitch: the internal profile is EARNED from time/dynamics + position + GS + SOL current and PROVEN against the locked 112-shot held-out MSE split (persistence 0.719, EnKF 0.225, physics frontier 0.19, coverage >=0.88), never fabricated. Ladder: §2 well-posed position-controlled free-boundary solve (R+Z current-centroid moment constraint — prototype-validated to recover the reconstruction axis to a few cm from Ip+centroid alone); §3 dynamics coupling (resistive current diffusion + passive circuit, measured drives); §4 the binding MSE gate; §5 learned operator folds high-bandwidth optional channels EnKF/EFIT ignore to beat EnKF toward the frontier — the 'magic sauce'. Firewall: only physical laws + direct measurements; never EFIT outputs, assumed profile priors, or tuned gains.">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="XL">
-  <meta name="plan-tier"      content="opus">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="mse-gated-reanalysis">
+  <meta name="plan-title" content="MSE-Gated Reanalysis — a firewall-clean equilibrium engine whose internal profile is earned from dynamics and proven on held-out MSE">
+  <meta name="plan-summary" content="Successor to equilibrium-realism (whose diagnosis it inherits). Build the reanalysis engine — the ERA5-analog assimilating model that produces firewall-clean equilibrium labels for the learned cross-machine operator (the GenCast). Two things the diagnosis settled: (1) single-slice magnetics cannot distinguish the internal profile (the interior null), so a fabricated profile must NEVER be a label; (2) the free-boundary solve drifts outboard because the measured coils give a radially-stable inboard well (decay index n approx 0.1 at R approx 0.85) plus a radially-UNSTABLE band (decay index above 3/2) at the in-vessel P4/P5/P6 coils (R approx 1.34-1.68 m) — a real ST radial-instability feature. The lead moved the binding gate off the EFIT axis (an interior null the temporal thesis closed on) and onto HELD-OUT MSE pitch: the internal profile is EARNED from time/dynamics + position + GS + SOL current and PROVEN against the locked 112-shot held-out MSE split (persistence 0.719, EnKF 0.225, physics frontier 0.19, coverage at least 0.88), never fabricated. Ladder: §2 well-posed position-controlled free-boundary solve (R+Z current-centroid moment constraint — prototype-validated to recover the reconstruction axis to a few cm from Ip+centroid alone); §3 dynamics coupling (resistive current diffusion + passive circuit, measured drives); §4 the binding MSE gate; §5 learned operator folds high-bandwidth optional channels EnKF/EFIT ignore to beat EnKF toward the frontier — the &#x27;magic sauce&#x27;. Firewall: only physical laws + direct measurements; never EFIT outputs, assumed profile priors, or tuned gains.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="XL">
+  <meta name="plan-tier" content="opus">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="equilibrium-realism">
-  <meta name="plan-blocks"    content="learned-equilibrium-operator">
+  <meta name="plan-blocks" content="learned-equilibrium-operator">
   <title>MSE-Gated Reanalysis | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-19">
+<meta name="plan-impl" content="0.333">
+<meta name="plan-version" content="1">
 </head>
 <body>
 <main class="plan-doc">
@@ -125,47 +128,27 @@
   the internal profile from dynamics and prove it on held-out MSE (§3–§4) → then
   train the operator on clean labels (§5).</p>
 
-  <h2 id="s2">§2 — The well-posed position-controlled free-boundary solve</h2>
-  <p><strong>Deliverable:</strong> a free-boundary GS solve that, driven by the
-  measured coil program, holds the physical equilibrium — because the current
-  centroid (a firewall-safe measured magnetic moment) is constrained, exactly as
-  the real machine's radial + vertical position control held it. This is the
-  label engine's spine.</p>
-  <p><strong>Mechanism (§1) + prototype evidence.</strong> The free solve drifts
-  outboard through the n &gt; 3/2 band at the coils. Adding
-  <strong>R and Z current-centroid moment constraints</strong> — linear moments
-  of jφ (∫R·jφ = R_c·Ip, ∫Z·jφ = Z_c·Ip), assembled exactly like the existing Ip
-  anchor — pins the current at the measured position. A same-session prototype
-  (2 train-split slices) showed: the FREE solve robustly runs to centroid
-  R ≈ 1.72; the CONSTRAINED solve, from a physical/compact seed, snaps the
-  current onto the measured centroid AND recovers the reconstruction axis to a
-  few cm — 11766: axis 0.781 vs recon 0.820; 11772: axis 1.027 vs recon 1.025 —
-  using only <strong>Ip + centroid + GS + jφ ≥ 0</strong>, no full magnetics. So
-  the current centroid is the dominant externally-determined DOF: pin it and the
-  axis follows. The internal profile (pitch/q) is the remaining residual, earned
-  in §3–§4.</p>
-  <p><strong>Known caveat (from the prototype):</strong> from a pathological
-  <em>outboard</em> seed the constrained solve stays stuck (it cannot cross the
-  unstable band back inboard), so a compact seed + temporal warm-start (the
-  harness already chains slices) is required. The gate below tests exactly that
-  robustness.</p>
-  <p><strong>Pre-declared gates:</strong></p>
-  <ul>
-    <li><strong>G2a (position held):</strong> across the train-split shot set
-    (ramp + flat-top), the centroid-constrained solve holds the current at the
-    measured centroid (|Δcentroid| ≤ a few cm) and the axis within ≤ 5 cm of the
-    magnetics-constrained reconstruction, from a compact seed + temporal
-    warm-start — no gross outboard drift.</li>
-    <li><strong>G2b (seed robustness):</strong> compact and warm seeds converge
-    to the same inboard solution; an outboard seed is either recovered or
-    correctly reported as a basin failure (never silently shipped outboard).</li>
-    <li><strong>G2c (firewall):</strong> the only magnetics used is the current
-    centroid moment (+ Ip); the profile stays free (GS + jφ ≥ 0 + SOL foot); no
-    z-symmetric pin, no EFIT output anywhere in the solve.</li>
-    <li><strong>Stop rule:</strong> if the centroid constraint cannot hold the
-    inboard branch across the shot set from physical seeds, STOP and surface —
-    do not add EFIT-derived position or a profile prior to force it.</li>
-  </ul>
+  <section id="s2" class="section-landed">
+    <header>
+      <span class="badge badge-shipped">✓ landed 2026-07-19</span>
+      <h2>§2 — The well-posed position-controlled free-boundary solve</h2>
+    </header>
+    <p class="landed-summary">
+      Seed from the validated staged-disc read + constrain the R+Z current
+      centroid (firewall-safe measured moment, like the Ip anchor): the free
+      solve now holds the physical inboard branch instead of drifting outboard.
+      Across 11766/11767/11772 (36 slices) the position solve — <strong>Ip +
+      centroid only, no full magnetics</strong> — reproduces the reconstruction
+      axis to per-shot median <strong>2.45 / 2.38 / 2.05 cm</strong> (G2a ≤5cm
+      <strong>PASS</strong>); outboard-seed recovered <strong>36/36</strong>
+      (G2b PASS); firewall Ip+centroid only, profile free, no z-pin/EFIT (G2c
+      PASS, unit-tested). The bare free solve drifts to ~1.76 m every slice.
+      Stable free-sign K=2 brancher; the disc-seed+centroid routine is now the
+      <strong>default</strong> position solve, the drifting free solve retired.
+      Full record: <a href="archive/mse-gated-reanalysis-s2-landed.html">§2 landed</a>
+      (commits <code>f805348</code>, <code>75a9be0</code>, <code>beddc87</code>).
+    </p>
+  </section>
 
   <h2 id="s3">§3 — Dynamics coupling: earn the internal profile from measured histories</h2>
   <p>With position well-posed, the internal profile is the open DOF. It is not
@@ -238,58 +221,58 @@
   measurement.</p>
 
   <section data-reckon="decisions" id="decisions" class="r-decisions">
-    <h2><span class="sec">§</span> Decisions</h2>
-    <div class="r-dec" data-key="binding-gate" data-choice="held-out-mse-pitch" data-by="lead" data-when="2026-07-19">
-      <p class="r-dec-q">What is the binding validation gate for internal-profile recovery?</p>
-      <p class="r-dec-opts">
-        <button class="r-opt chosen" data-value="held-out-mse-pitch">Held-out MSE pitch RMSE (beat persistence 0.719, target EnKF 0.225, frontier 0.19), coverage ≥ 0.88</button>
-        <button class="r-opt" data-value="efit-axis">The EFIT magnetic axis (diagnostic-only)</button>
-        <button class="r-opt" data-value="dual">Both MSE pitch and the EFIT axis</button>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="binding-gate" data-choice="held-out-mse-pitch" data-by="lead" data-when="2026-07-19">
+    <p class="r-dec-q">What is the binding validation gate for internal-profile recovery?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="held-out-mse-pitch">Held-out MSE pitch RMSE (beat persistence 0.719, target EnKF 0.225, frontier 0.19), coverage ≥ 0.88</button>
+      <button class="r-opt" data-value="efit-axis">The EFIT magnetic axis (diagnostic-only)</button>
+      <button class="r-opt" data-value="dual">Both MSE pitch and the EFIT axis</button>
       </p>
-      <p class="r-dec-rat">Locked by the lead (2026-07-19): without internal measurements the profile cannot be distinguished, so the axis is an interior null — the temporal-physics-spine thesis closed against it for that reason. MSE pitch is the direct internal-field measurement, with locked baselines (persistence 0.719, EnKF 0.225, frontier 0.19) already built (statespace/mse_eval + eval/prediction_bar). The gate proves profile recovery is real physics, never a fabricated label.</p>
+    <p class="r-dec-rat">Locked by the lead (2026-07-19): without internal measurements the profile cannot be distinguished, so the axis is an interior null — the temporal-physics-spine thesis closed against it for that reason. MSE pitch is the direct internal-field measurement, with locked baselines (persistence 0.719, EnKF 0.225, frontier 0.19) already built (statespace/mse_eval + eval/prediction_bar). The gate proves profile recovery is real physics, never a fabricated label.</p>
     </div>
-    <div class="r-dec" data-key="label-honesty" data-choice="assert-only-validated" data-by="lead" data-when="2026-07-19">
-      <p class="r-dec-q">May the label factory assert an internal profile the single-slice data cannot distinguish?</p>
-      <p class="r-dec-opts">
-        <button class="r-opt chosen" data-value="assert-only-validated">No — assert position + shape always; assert the internal profile only where MSE-validated dynamics earn it</button>
-        <button class="r-opt" data-value="assert-best-guess">Assert the solve's best-guess profile everywhere</button>
+<div class="r-dec" data-key="label-honesty" data-choice="assert-only-validated" data-by="lead" data-when="2026-07-19">
+    <p class="r-dec-q">May the label factory assert an internal profile the single-slice data cannot distinguish?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="assert-only-validated">No — assert position + shape always; assert the internal profile only where MSE-validated dynamics earn it</button>
+      <button class="r-opt" data-value="assert-best-guess">Assert the solve&#x27;s best-guess profile everywhere</button>
       </p>
-      <p class="r-dec-rat">Locked by the lead (2026-07-19): "passing made-up ones as labels would hurt our training process, we should not do this." A profile the data cannot distinguish is a prior belief, not a measurement; shipping it teaches the operator our guess. The label carries only what is measured or MSE-validated.</p>
+    <p class="r-dec-rat">Locked by the lead (2026-07-19): &quot;passing made-up ones as labels would hurt our training process, we should not do this.&quot; A profile the data cannot distinguish is a prior belief, not a measurement; shipping it teaches the operator our guess. The label carries only what is measured or MSE-validated.</p>
     </div>
-    <div class="r-dec" data-key="position-treatment" data-choice="centroid-moment-constraint" data-by="lead" data-when="2026-07-19">
-      <p class="r-dec-q">How is the free-boundary solve made well-posed (held on the physical branch)?</p>
-      <p class="r-dec-opts">
-        <button class="r-opt chosen" data-value="centroid-moment-constraint">R + Z current-centroid moment constraint (firewall-safe measured moment), like the Ip anchor</button>
-        <button class="r-opt" data-value="full-magnetics-position">Full flux-loop/B-probe reconstruction for position</button>
-        <button class="r-opt" data-value="efit-position">EFIT axis/boundary as the position target</button>
-        <button class="r-opt" data-value="z-pin">z-symmetric pin</button>
+<div class="r-dec" data-key="position-treatment" data-choice="centroid-moment-constraint" data-by="lead" data-when="2026-07-19">
+    <p class="r-dec-q">How is the free-boundary solve made well-posed (held on the physical branch)?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="centroid-moment-constraint">R + Z current-centroid moment constraint (firewall-safe measured moment), like the Ip anchor</button>
+      <button class="r-opt" data-value="full-magnetics-position">Full flux-loop/B-probe reconstruction for position</button>
+      <button class="r-opt" data-value="efit-position">EFIT axis/boundary as the position target</button>
+      <button class="r-opt" data-value="z-pin">z-symmetric pin</button>
       </p>
-      <p class="r-dec-rat">Locked by the lead (proposed 2026-07-19) and prototype-validated this session: the current centroid is a direct magnetic moment (physics, not EFIT); constraining R+Z holds the current inboard against the n>3/2 coil band and recovers the reconstruction axis to a few cm from Ip+centroid alone (11766 0.781 vs 0.820; 11772 1.027 vs 1.025). It is faithful to the real machine's radial+vertical position control. Not full-magnetics (that is the reconstruction; this is the minimal firewall-safe position lever), not EFIT, not a z-pin.</p>
+    <p class="r-dec-rat">Locked by the lead (proposed 2026-07-19) and prototype-validated this session: the current centroid is a direct magnetic moment (physics, not EFIT); constraining R+Z holds the current inboard against the n&gt;3/2 coil band and recovers the reconstruction axis to a few cm from Ip+centroid alone (11766 0.781 vs 0.820; 11772 1.027 vs 1.025). It is faithful to the real machine&#x27;s radial+vertical position control. Not full-magnetics (that is the reconstruction; this is the minimal firewall-safe position lever), not EFIT, not a z-pin.</p>
     </div>
-    <div class="r-dec" data-key="firewall-scope" data-choice="physics-and-measured-moments" data-by="lead" data-when="2026-07-19">
-      <p class="r-dec-q">What may be folded into the reanalysis engine without becoming EFIT-in-all-but-name?</p>
-      <p class="r-dec-opts">
-        <button class="r-opt chosen" data-value="physics-and-measured-moments">Only physical laws + direct measurements (GS, force balance, Ip, centroid, flux loops, conservation, jφ≥0, current diffusion with measured drives)</button>
-        <button class="r-opt" data-value="allow-priors">Also allow profile priors / defaults where data is weak</button>
+<div class="r-dec" data-key="firewall-scope" data-choice="physics-and-measured-moments" data-by="lead" data-when="2026-07-19">
+    <p class="r-dec-q">What may be folded into the reanalysis engine without becoming EFIT-in-all-but-name?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="physics-and-measured-moments">Only physical laws + direct measurements (GS, force balance, Ip, centroid, flux loops, conservation, jφ≥0, current diffusion with measured drives)</button>
+      <button class="r-opt" data-value="allow-priors">Also allow profile priors / defaults where data is weak</button>
       </p>
-      <p class="r-dec-rat">Locked by the lead (2026-07-19): "physics is physics ... if we keep folding more stuff in then we could go too far down the EFIT route in all but name." The discriminating test is kind, not amount: fold in physical laws and direct measurements; never EFIT outputs, assumed profiles, or tuned gains.</p>
+    <p class="r-dec-rat">Locked by the lead (2026-07-19): &quot;physics is physics ... if we keep folding more stuff in then we could go too far down the EFIT route in all but name.&quot; The discriminating test is kind, not amount: fold in physical laws and direct measurements; never EFIT outputs, assumed profiles, or tuned gains.</p>
     </div>
-    <div class="r-dec" data-key="referee-policy" data-choice="efit-diagnostic-only" data-by="lead" data-when="2026-07-18">
-      <p class="r-dec-q">May EFIT quantities enter any fit/tune/train path?</p>
-      <p class="r-dec-opts">
-        <button class="r-opt chosen" data-value="efit-diagnostic-only">No — EFIT is diagnostic/eval-only; the firewall stands</button>
-        <button class="r-opt" data-value="hybrid">EFIT for some analytics</button>
+<div class="r-dec" data-key="referee-policy" data-choice="efit-diagnostic-only" data-by="lead" data-when="2026-07-18">
+    <p class="r-dec-q">May EFIT quantities enter any fit/tune/train path?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="efit-diagnostic-only">No — EFIT is diagnostic/eval-only; the firewall stands</button>
+      <button class="r-opt" data-value="hybrid">EFIT for some analytics</button>
       </p>
-      <p class="r-dec-rat">Carried from equilibrium-realism: EFIT appears in no fit/tune/train path. Held-out MSE is the physical validator; EFIT stays a diagnostic cross-check only.</p>
+    <p class="r-dec-rat">Carried from equilibrium-realism: EFIT appears in no fit/tune/train path. Held-out MSE is the physical validator; EFIT stays a diagnostic cross-check only.</p>
     </div>
-  </section>
+</section>
 
   <section data-reckon="followups" id="followups" class="r-followups">
-    <h2><span class="sec">§</span> Followups</h2>
-    <article class="r-fu" data-id="f-mgr-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-19T15:30:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §2">
-      <h4 class="r-fu-title">Ship §2 — the well-posed position-controlled free-boundary solve (R+Z centroid moment constraint)</h4>
-      <div class="r-fu-body"><p>Make the free-boundary GS solve hold the physical equilibrium on the measured coils by constraining the R+Z current centroid (a firewall-safe measured moment), so it stops drifting outboard through the n&gt;3/2 coil band. Prototype-validated this session (recovers the reconstruction axis to a few cm from Ip+centroid alone); this rung lands it in the frozen-spine machinery across the shot set with a compact-seed + temporal warm-start, and confirms seed robustness. This is the label engine's spine — §3 (dynamics) and §4 (the MSE gate) build on it. Gates pre-declared in the prompt.</p></div>
-      <pre class="r-fu-prompt">Project: imas-ambix
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-mgr-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-19T15:30:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §2" data-resolved-at="2026-07-19T18:57:22+00:00" data-resolved-by="reckon-ship">
+    <h4 class="r-fu-title">Ship §2 — the well-posed position-controlled free-boundary solve (R+Z centroid moment constraint)</h4>
+    <div class="r-fu-body"><p>Make the free-boundary GS solve hold the physical equilibrium on the measured coils by constraining the R+Z current centroid (a firewall-safe measured moment), so it stops drifting outboard through the n&gt;3/2 coil band. Prototype-validated this session (recovers the reconstruction axis to a few cm from Ip+centroid alone); this rung lands it in the frozen-spine machinery across the shot set with a compact-seed + temporal warm-start, and confirms seed robustness. This is the label engine's spine — §3 (dynamics) and §4 (the MSE gate) build on it. Gates pre-declared in the prompt.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    mse-gated-reanalysis (http://localhost:8765/imas-ambix/mse-gated-reanalysis.html)
 Section: §2 (well-posed position-controlled free-boundary solve)
 Tier:    opus
@@ -298,7 +281,7 @@ Context
   The equilibrium-realism diagnosis is complete: the free-boundary solve drifts
   outboard because the measured coils give a radially-stable inboard well
   (decay index n approx 0.1 at R approx 0.85) plus a radially-UNSTABLE band
-  (n>3/2) at the in-vessel P4/P5/P6 coils (R approx 1.34-1.68 m). A same-session
+  (n&gt;3/2) at the in-vessel P4/P5/P6 coils (R approx 1.34-1.68 m). A same-session
   prototype showed an R+Z current-centroid moment constraint holds the current
   inboard and recovers the reconstruction axis to a few cm from Ip+centroid
   alone (no full magnetics). This rung lands that as the production label-engine
@@ -320,9 +303,9 @@ State to read  (CODE / FILES / DATA)
 
 Scope locks / constraints  (non-decision)
   - Firewall: the only magnetics the solve consumes is the R+Z current-centroid
-    moment (+ Ip). Profile stays free (GS + jphi>=0 + SOL foot). No EFIT output,
+    moment (+ Ip). Profile stays free (GS + jphi&gt;=0 + SOL foot). No EFIT output,
     no z_symmetric pin, no profile prior.
-  - Do NOT modify the frozen reconstruction spine's behaviour (it passes 23/23);
+  - Do NOT modify the frozen reconstruction spine&#x27;s behaviour (it passes 23/23);
     add the centroid constraint as an opt-in path so the frozen recon is
     byte-unchanged when the constraint is off.
   - All field evals hybrid_greens; one-interaction-matrix flux (locked).
@@ -331,14 +314,14 @@ Scope locks / constraints  (non-decision)
     vs free axis-R-vs-Ip across the shot set; an imas-ink flux map of the
     centroid-held equilibrium next to the reconstruction.
   - Commit+push each coherent change on main; no AI co-author trailers
-    (verify: git log -1 --format=%B | grep -Eqi "^co-authored-by:").
+    (verify: git log -1 --format=%B | grep -Eqi &quot;^co-authored-by:&quot;).
 
 Gates and tests (pre-declared)
   T1. Unit test: the R,Z centroid moment rows are correct (a hand jphi with a
       known centroid is reproduced to machine precision); constraint-off path is
       byte-identical to the current solve.
   G2a (position held): across 11766/11767/11772 (ramp+flat-top), the
-      centroid-constrained solve holds |R_axis - R_axis,recon| <= 5 cm per-shot
+      centroid-constrained solve holds |R_axis - R_axis,recon| &lt;= 5 cm per-shot
       median, from a compact seed + temporal warm-start, no gross outboard drift.
   G2b (seed robustness): compact and warm seeds converge to the same inboard
       solution; an outboard seed is recovered OR correctly reported as a basin
@@ -354,8 +337,57 @@ Done-when
      T1 + G2a-G2c verdicts recorded honestly; artifact + figures committed
   2. Plan updated same-session: §2 outcome recorded + collapsed; §3 (dynamics
      coupling) followup queued WITH pre-declared gates; this followup resolved</pre>
+    <p class="r-fu-outcome">§2 landed (PASS). Disc seed + R/Z current-centroid moment constraint holds the physical inboard branch: position solve (Ip+centroid only, no full magnetics) reproduces the reconstruction axis to per-shot median 2.45/2.38/2.05 cm across 11766/11767/11772 (G2a ≤5cm PASS); outboard-seed recovered 36/36 (G2b PASS); firewall Ip+centroid only, profile free, no z-pin/EFIT (G2c PASS, unit-tested). Free solve drifts to ~1.76 m every slice. Stable free-sign K=2 brancher; now the DEFAULT position solve, drifting free solve retired. Commits f805348/75a9be0/beddc87; archive docs/archive/mse-gated-reanalysis-s2-landed.html.</p>
     </article>
-  </section>
+<article class="r-fu" data-id="f-mgr-02" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-19T21:00:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Ship §3 — dynamics coupling: earn the internal profile from measured histories</h4>
+    <div class="r-fu-body"><p>Position is now well-posed (§2 landed on the disc-seed + centroid position-controlled spine). The internal profile (pitch/q) is the remaining open DOF and it is not free in time: couple successive slices via 1D resistive ψ diffusion driven by the measured loop voltage + Ip (η(ψ_N) the low-DOF unknown), promote the passive eddy trajectory to a circuit-integrated constraint, and keep SOL-current freedom — re-pointing the reduced-order dynamics machinery (temporal_operator.py + the 1D current diffusion) at the position-controlled spine. Gates G3a-G3c pre-declared. §4 (the binding held-out-MSE gate) scores what this earns.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    mse-gated-reanalysis (http://localhost:8765/imas-ambix/mse-gated-reanalysis.html)
+Section: §3 (dynamics coupling — earn the internal profile from measured histories)
+Tier:    opus
+
+Context
+  §2 landed: the position-controlled free-boundary solve (disc seed + R/Z
+  current-centroid moment constraint, free-sign K=2) holds the physical inboard
+  branch and reproduces the reconstruction axis to a few cm from Ip+centroid
+  alone (G2a/G2b/G2c PASS across 11766/11767/11772). With position well-posed,
+  the internal profile is the open DOF — and it is NOT free in time: the jφ
+  profile at t evolves from t−Δt under resistive flux diffusion with measured
+  drives (surface loop voltage, Ip), only η(ψ_N) unknown; the vessel eddies obey
+  the passive circuit equation with computable external flux swing. Honour the
+  locked decisions (binding-gate=held-out-mse-pitch, label-honesty=assert-only-
+  validated, position-treatment=centroid-moment-constraint, firewall-scope=
+  physics-and-measured-moments, referee-policy=efit-diagnostic-only).
+
+State to read  (CODE / FILES / DATA)
+  docs/archive/mse-gated-reanalysis-s2-landed.html   (the §2 position-controlled spine record)
+  scripts/position_controlled_solve_gate.py          (the §2 gate + the position arm to build on)
+  imas_ambix/latent/gs_solve.py                      (SoftPriors: centroid_* + coeff_prior_center/weight + passive_prior_center; solve_equilibrium_lsq)
+  imas_ambix/latent/temporal_operator.py             (L/R eigenmode reduction + exact-ZOH integration)
+  imas_ambix/latent/current_diffusion.py             (in-house 1D resistive current diffusion)
+  scripts/closure_gate_eval.py                       (fit_and_read_slice: coeff_prior / passive_prior / centroid_constraint hooks)
+  imas_ambix/latent/plasma_screening.py              (one-interaction-matrix circuit-integrated eddy flux)
+
+Scope locks / constraints  (non-decision)
+  - Build ON the §2 position-controlled spine (disc seed + centroid), NOT the retired free solve.
+  - Firewall: measured drives only (loop voltage, Ip, centroid); η(ψ_N) low-DOF unknown by design; NO EFIT, no assumed profile, no tuned gain.
+  - Couple successive slices via 1D resistive ψ diffusion at the raw measured cadence; carry the coefficient temporal-consistency prior (coeff_prior_center/weight) as the diffusion-evolved prediction.
+  - Promote the passive eddy trajectory from per-slice static to the circuit-integrated constraint (passive_prior_center); keep the SOL foot (sol_cap C¹ decay) so edge current is representable.
+  - Figures mandatory (docs/figures/mse-gated-reanalysis/): η(ψ_N) recovery on synthetic; coupled-vs-uncoupled profile evolution across a shot.
+  - Commit+push each coherent change on main; no AI co-author trailers (verify: git log -1 --format=%B | grep -Eqi &quot;^co-authored-by:&quot;).
+
+Gates (pre-declared)
+  G3a: the dynamics-coupled solve stays finite and physical across the beam-on shot set with the position constraint (no NaN/outboard-drift regressions vs §2).
+  G3b: on synthetic time-coupled truths (exact η, exact profile) the coupled solve recovers the internal profile to the generator&#x27;s exact-recovery tolerance.
+  G3c: the existing module pins stay green (Lenz-sign vessel screening, coupled≡uncoupled at zero coupling, ledger-from-zero).
+  Stop rule: if the coupled dynamics cannot recover the synthetic profile (G3b) OR destabilise the position hold (G3a), STOP and surface — do not fabricate a profile to pass §4.
+
+Done-when
+  1. Dynamics-coupled solve committed on the position spine; G3a-G3c verdicts recorded honestly; artifact + figures committed.
+  2. Plan updated same-session: §3 outcome recorded + collapsed; §4 (held-out MSE gate) followup queued WITH pre-declared gates; this followup resolved.</pre>
+    </article>
+</section>
 
 </main>
 </body>

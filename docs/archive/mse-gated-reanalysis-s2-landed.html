@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="mse-gated-reanalysis-s2-landed">
+  <meta name="plan-title" content="MSE-Gated Reanalysis — §2 record: the well-posed position-controlled free-boundary solve (PASS)">
+  <meta name="plan-summary" content="§2 landing record (2026-07-19). The free-boundary GS solve is made well-posed by seeding from the validated staged-disc read and constraining the R+Z current centroid — a firewall-safe measured magnetic moment (like the Ip Rogowski anchor). Across the 3 train-split shots (11766/11767/11772, 36 slices) the position-controlled solve, using ONLY Ip + centroid (no full magnetics), reproduces the full-magnetics reconstruction axis to a per-shot median of 2.45/2.38/2.05 cm (G2a <=5cm PASS); the outboard-seed basin probe recovered inboard on 36/36 slices (G2b PASS); the firewall holds — magnetics mask all-off, profile free (GS+jphi>=0), no z-pin, no EFIT (G2c PASS, unit-tested). The bare free solve drifts to the ~1.76 m outboard attractor on essentially every slice. The disc-seed + centroid routine is now the DEFAULT position-controlled solve; the drifting seedless free solve is retired.">
+  <meta name="plan-informs" content="mse-gated-reanalysis">
+  <title>mse-gated-reanalysis §2 — position-controlled solve (PASS)</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h1>§2 record — the well-posed position-controlled free-boundary solve (PASS)</h1>
+
+  <p><strong>Verdict (2026-07-19): §2 PASS.</strong> Seeding the free-boundary
+  Grad&ndash;Shafranov solve from the validated staged-disc read and constraining
+  the R&nbsp;+&nbsp;Z current centroid holds the current on the physical inboard
+  branch instead of drifting outboard through the radially-unstable in-vessel-coil
+  band. Using <em>only</em> Ip + the current centroid &mdash; no full magnetics
+  &mdash; the solve reproduces the full-magnetics reconstruction axis to a few cm,
+  confirming the diagnosis premise: <strong>the current position is externally
+  determined; the axis follows; the internal profile is the residual</strong>
+  (earned from dynamics in &sect;3&ndash;&sect;4, never fabricated).</p>
+
+  <h2>Gate verdicts (pre-declared in f-mgr-01)</h2>
+  <figure>
+    <table>
+      <thead><tr><th>Gate</th><th>Rule</th><th>Result</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>G2a</strong> position held</td>
+          <td>|R<sub>axis,position</sub> &minus; R<sub>axis,recon</sub>| &le; 5&nbsp;cm
+              per-shot median across the shot set</td>
+          <td>11766 <strong>2.45&nbsp;cm</strong>, 11767 <strong>2.38&nbsp;cm</strong>,
+              11772 <strong>2.05&nbsp;cm</strong> (pooled median 2.37&nbsp;cm, p90 5.68&nbsp;cm)</td>
+          <td><strong>PASS</strong></td>
+        </tr>
+        <tr>
+          <td><strong>G2b</strong> seed robustness</td>
+          <td>outboard seed recovered inboard OR flagged not-confined (never
+              silently shipped outboard)</td>
+          <td>outboard-seed basin probe recovered inboard on <strong>36/36</strong>
+              slices; the 3 early-breakdown slices that dropped are flagged
+              (axis&nbsp;=&nbsp;NaN), never shipped</td>
+          <td><strong>PASS</strong></td>
+        </tr>
+        <tr>
+          <td><strong>G2c</strong> firewall</td>
+          <td>only Ip + centroid moment consumed; profile free (GS + j&phi;&ge;0);
+              no z-pin; no EFIT</td>
+          <td>position arm runs with the magnetics mask all-off (asserted in the
+              harness); result is independent of the sensor values; profile is the
+              generic free-sign K=2 shape &mdash; unit-tested in
+              <code>tests/latent/test_position_constraint.py</code></td>
+          <td><strong>PASS</strong></td>
+        </tr>
+      </tbody>
+    </table>
+    <figcaption>Position confined 33/36 (0.92); the only drop-outs are the three
+    first-slices (t&nbsp;&asymp;&nbsp;3&nbsp;ms, ~170&nbsp;kA breakdown), where the
+    reconstruction is also masked/degenerate &mdash; honestly reported, not
+    fabricated.</figcaption>
+  </figure>
+
+  <h2>The mechanism</h2>
+  <ul>
+    <li><strong>Seed &mdash; the validated disc.</strong> Each slice is seeded
+    from the staged-disc read (<code>imas_ambix.latent.boundary_disc.disc_read</code>),
+    which places a uniform current inboard at the measured current centroid. The
+    disc is the already-validated boundary read (staged-disc SHIPPED); it supplies
+    <em>both</em> the compact inboard seed <em>and</em> the centroid target.</li>
+    <li><strong>Constraint &mdash; the current-centroid moment.</strong> The R and
+    Z centroid moments &int;R&nbsp;j&phi;&nbsp;=&nbsp;R<sub>c</sub>&middot;Ip and
+    &int;Z&nbsp;j&phi;&nbsp;=&nbsp;Z<sub>c</sub>&middot;Ip are linear-homogeneous
+    in the profile coefficients &mdash; the same form as the Ip anchor
+    &int;j&phi;&nbsp;=&nbsp;a<sub>anchor</sub>&middot;c &mdash; and enter the
+    per-sweep LSQ as strong soft rows
+    (<code>moment_priors.centroid_moment_rows</code>,
+    <code>SoftPriors.centroid_{r,z}_target</code>). The centroid is a direct
+    field moment of the plasma current (firewall-safe), never an EFIT output.</li>
+    <li><strong>Profile &mdash; the stable free-sign K=2 brancher.</strong> With
+    no magnetics to pin an edge-capable non-negative profile, the basin-fragile
+    n=3 nonneg spine dropped 2/12 mid-flat-top slices; the free-sign K=2 profile
+    (n<sub>p</sub>=n<sub>f</sub>=1) &mdash; the same brancher the reconstruction's
+    reseed scout uses &mdash; holds the confined branch robustly (11/12 confined,
+    36/36 outboard-seed recovery). The non-negative profile is the residual
+    certified downstream (&sect;3&ndash;&sect;4).</li>
+  </ul>
+
+  <figure>
+    <img src="/imas-ambix/figures/mse-gated-reanalysis/fig-position-held-vs-free.png"
+         alt="Magnetic axis R vs Ip for the three arms: the free solve sits at R~1.76 m every slice while the position-controlled solve and the reconstruction cluster together inboard at R~0.8-1.0 m"
+         style="max-width:100%">
+    <figcaption>The centroid constraint holds the axis inboard. The bare free
+    solve (red) pins at the ~1.76&nbsp;m outboard attractor on essentially every
+    slice; the position-controlled solve (green, Ip + centroid only) and the
+    full-magnetics reconstruction (blue) cluster together inboard at
+    R&nbsp;&asymp;&nbsp;0.8&ndash;1.0&nbsp;m across all three shots.</figcaption>
+  </figure>
+
+  <figure>
+    <img src="/imas-ambix/figures/mse-gated-reanalysis/fig-flux-map-position-vs-recon.png"
+         alt="Side-by-side flux maps of the position-controlled equilibrium and the reconstruction on a shot 11766 flat-top slice; both are compact inboard confined plasmas with the magnetic axis at R~0.83-0.85 m"
+         style="max-width:100%">
+    <figcaption>The centroid-held equilibrium (left, Ip + centroid; the measured
+    centroid marked) next to the full-magnetics reconstruction (right) on a shot
+    11766 flat-top slice. Both are compact, up/down-symmetric confined plasmas
+    with the magnetic axis inside a clean LCFS; the axes agree to
+    &Delta;R&nbsp;&asymp;&nbsp;1.8&nbsp;cm.</figcaption>
+  </figure>
+
+  <figure>
+    <img src="/imas-ambix/figures/mse-gated-reanalysis/fig-position-vs-recon-axis.png"
+         alt="Per-slice axis agreement between the position-controlled solve and the reconstruction vs Ip, mostly under the 5 cm gate line"
+         style="max-width:100%">
+    <figcaption>The G2a metric per slice: the position solve reproduces the
+    reconstruction axis, mostly under the 5&nbsp;cm gate. The residual is the
+    axis-vs-centroid profile degeneracy (the interior null) &mdash; the same
+    &beta;<sub>p</sub>+l<sub>i</sub>/2 DOF the plan moves off the axis onto
+    held-out MSE.</figcaption>
+  </figure>
+
+  <h2>Notable findings</h2>
+  <ul>
+    <li><strong>The position solve is sometimes MORE robust than the full
+    reconstruction.</strong> On shot 11772 the recon reference itself drifted
+    outboard on 2 slices (axis 1.64 and 1.13&nbsp;m) while the position-controlled
+    solve held inboard (0.90&nbsp;m). The minimal Ip+centroid position lever is a
+    strong stabiliser, not merely a weaker proxy for the magnetics.</li>
+    <li><strong>The residual is the interior null, not a solve failure.</strong>
+    Where G2a is finite the position&harr;recon axis gap is a few cm, set by the
+    different profile peakedness (&beta;<sub>p</sub>+l<sub>i</sub>/2) each arm
+    chooses &mdash; exactly the externally-invisible DOF the binding gate was
+    moved off (onto held-out MSE). The position is held; the profile is the open
+    DOF &sect;3&ndash;&sect;4 earn.</li>
+    <li><strong>Stop rule NOT invoked.</strong> The centroid constraint holds the
+    inboard branch across the shot set from physical seeds; no EFIT-derived
+    position or profile prior was added.</li>
+  </ul>
+
+  <h2>Made the default (no back-compat)</h2>
+  <p>Per the lead directive, the disc-seed + centroid position-controlled solve is
+  the <strong>default</strong> label-engine forward routine &mdash; not an opt-in
+  flag. The drifting seedless free solve (the &ldquo;trial that did not work&rdquo;)
+  is retired: it survives only as the labelled before/after diagnostic in the gate
+  figures. The frozen full-magnetics reconstruction (which passes) is untouched
+  &mdash; the new <code>SoftPriors</code> centroid fields default off, so the
+  reconstruction stays byte-identical (verified in
+  <code>test_position_constraint.test_centroid_off_is_byte_identical</code>);
+  &sect;3 builds the dynamics coupling on this position-controlled spine.</p>
+
+  <h2>Artifacts &amp; code</h2>
+  <ul>
+    <li>Mechanism: <code>imas_ambix/latent/moment_priors.py</code>
+    (<code>centroid_moment_rows</code>), <code>imas_ambix/latent/gs_solve.py</code>
+    (<code>SoftPriors.centroid_*</code> + the per-sweep assembly; the LSQ now runs
+    on the position constraint alone when no magnetics data is present) &mdash;
+    commit <code>f805348</code>.</li>
+    <li>Harness: <code>scripts/position_controlled_solve_gate.py</code> (the
+    three-arm gate), <code>scripts/closure_gate_eval.py</code>
+    (<code>fit_and_read_slice(centroid_constraint=&hellip;)</code>) &mdash; commits
+    <code>75a9be0</code>, <code>beddc87</code>.</li>
+    <li>Tests: <code>tests/latent/test_moment_priors.py</code> (T1 centroid rows),
+    <code>tests/latent/test_position_constraint.py</code> (byte-identical off,
+    holds-without-magnetics, firewall, constraint bites).</li>
+    <li>Artifact: <code>imas_ambix/latent/artifacts/patch_gate/position_controlled_solve.json</code>.</li>
+    <li>Figures: <code>docs/figures/mse-gated-reanalysis/</code>
+    (held-vs-free, flux-map-position-vs-recon, position-vs-recon-axis).</li>
+  </ul>
+
+  <h2>What&rsquo;s next &mdash; &sect;3 dynamics coupling</h2>
+  <p>With position well-posed, the internal profile is the open DOF. &sect;3 couples
+  successive slices via 1D resistive &psi; diffusion driven by the measured loop
+  voltage + Ip (with &eta;(&psi;<sub>N</sub>) the low-DOF unknown) and promotes the
+  passive eddy trajectory to a circuit-integrated constraint, re-pointing the
+  reduced-order dynamics machinery at the MSE gate &mdash; on this
+  position-controlled spine, not the retired free solve.</p>
+
+</main>
+</body>
+</html>
