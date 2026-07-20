@@ -146,15 +146,24 @@
     </p>
   </section>
 
-  <h2 id="s3">§3 — Flux-surface averaging on the analytic ψ</h2>
+  <h2 id="s3">§3 — Flux-surface averaging on the analytic ψ (GPU-native, contour-free)</h2>
   <p>Re-base the flux-surface geometry (the input to the resistive diffusion) on
-  the smooth analytic ψ with a proper contour tracer (nova&rsquo;s
-  <code>fieldnull</code>/<code>levelset</code> machinery is the reference), instead
-  of binning grid cells onto surfaces. Gate G2: the diffusion coefficient
-  d = g<sub>2</sub>g<sub>3</sub>/&rho;&#770; and the metrics V&prime;, &langle;1/R&rangle;
-  reach a target smoothness (relative second-difference well below the current
-  ~0.5) and — critically — do NOT degrade with resolution; the §3 dynamics
-  coupling is re-checked on the new substrate and does not regress.</p>
+  the smooth analytic ψ. <strong>GPU-native from inception: NO contour tracing /
+  marching-squares / level-set walk</strong> — those are host-side, data-dependent,
+  and do not batch on a GPU (the lesson of the topology reviews). Compute the 1D
+  metrics (V&prime;, g<sub>2</sub>, g<sub>3</sub>, &langle;1/R&rangle;,
+  d = g<sub>2</sub>g<sub>3</sub>/&rho;&#770;) by the SAME connectivity / flood-fill
+  flux-surface machinery as <code>connectivity-topology-reader</code> — fixed-shape,
+  vmap-safe, differentiable, smooth — never by extracting contours. <strong>Reconcile
+  first:</strong> the "d roughness ~0.5 worsening 0.45→0.72 with resolution" figure has
+  no committed diagnostic behind it, and the committed <code>spine_bench</code> metric
+  on the current contour-integrated <code>geo.d_face</code> shows the roughness
+  <em>improving</em> with resolution — so §3 must re-baseline the roughness against
+  <code>spine_bench</code> before claiming a fix. Gate G2: the GPU-native FSA metrics
+  reach a target smoothness AND do not degrade with resolution (measured vs the
+  <code>spine_bench</code> baseline), the read is contour-free / on-device, and the
+  <code>mse-gated-reanalysis</code> §3 dynamics coupling does not regress on the new
+  substrate.</p>
 
   <h2 id="s4">§4 — Performance to corpus scale</h2>
   <p>With the matvec substrate in place: cache the Green&rsquo;s / interaction
@@ -265,7 +274,7 @@ Done-when
     </article>
 <article class="r-fu" data-id="f-gfs-02" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T09:15:00+00:00" data-recommends-skill="/reckon-ship greens-filament-solver §3" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Ship §3 — flux-surface averaging on the analytic ψ</h4>
-    <div class="r-fu-body"><p>§2 landed GO: the analytic Green's-matvec substrate reproduces the frozen grid-GS equilibria (sub-mm axis, ~60μm LCFS, ~2% profile RMS). §3 cashes the second motivation — re-base the flux-surface geometry (V′, g2, g3, ⟨1/R⟩) that drives the resistive current diffusion on the smooth analytic ψ with a proper contour tracer, instead of binning grid cells onto surfaces (measured d = g2·g3/ρ̂ roughness ~0.5, worsening with resolution). Gate G2: analytic-contour d roughness falls materially below ~0.5 AND does not degrade with resolution; the mse-gated-reanalysis §3 dynamics coupling re-checked on the new substrate does not regress.</p></div>
+    <div class="r-fu-body"><p>§2 landed GO: the analytic Green's-matvec substrate reproduces the frozen grid-GS equilibria (sub-mm axis, ~60μm LCFS, ~2% profile RMS). §3 re-bases the flux-surface geometry (V′, g2, g3, ⟨1/R⟩, d) that drives the resistive diffusion on the smooth analytic ψ — GPU-NATIVE and CONTOUR-FREE from inception (NO contourpy / marching-squares / level-set walk; those don't batch on a GPU), on the same connectivity/flood-fill flux-surface machinery as connectivity-topology-reader, smooth + differentiable. RECONCILE FIRST: the "d roughness 0.45→0.72 worsening with resolution" figure has no committed diagnostic; the committed spine_bench metric shows it improving with resolution — re-baseline against spine_bench before claiming a fix. Gate G2: GPU-native/contour-free FSA metrics reach a target smoothness AND do not degrade with resolution (vs the spine_bench baseline); the mse-gated-reanalysis §3 dynamics coupling does not regress.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    greens-filament-solver (http://localhost:8765/imas-ambix/greens-filament-solver.html)
 Section: §3 (flux-surface averaging on the analytic ψ)
@@ -276,36 +285,45 @@ Context
   equilibria to sub-mm axis / ~60μm LCFS / ~2% profile RMS (G1a/G1b/G1c PASS), as a
   byte-clean opt-in on the existing solve. The second motivation for the substrate is
   now in reach: the 1D flux-surface metrics that drive the resistive current diffusion
-  (V′, g2, g3, ⟨1/R⟩) are computed by binning finite grid cells onto flux surfaces, and
-  that binning is noisy — measured d = g2·g3/ρ̂ relative second-difference roughness ~0.5,
-  WORSENING with resolution (0.45→0.72 as n_ρ 16→96). Re-base the flux-surface geometry
-  on the smooth analytic ψ with a proper contour tracer instead of cell-binning. Honour
-  the locked decisions (solver-substrate=GO, plasma-kernel=hybrid-greens-finite-area,
-  force-balance-preserved=pointwise-gs-on-filaments, fixed-point-scheme).
+  (V′, g2, g3, ⟨1/R⟩, d = g2·g3/ρ̂) feed the resistive diffusion; re-base them on the
+  smooth analytic ψ. CRITICAL DESIGN CONSTRAINT (lead): GPU-NATIVE and CONTOUR-FREE from
+  inception — NO contourpy / marching-squares / level-set contour extraction (host-side,
+  data-dependent, does not batch on a GPU, per the topology reviews). Use the SAME
+  connectivity/flood-fill flux-surface machinery as connectivity-topology-reader (fixed-
+  shape, vmap-safe, differentiable). Honour the locked decisions (solver-substrate=GO,
+  plasma-kernel=hybrid-greens-finite-area, force-balance-preserved=pointwise-gs-on-
+  filaments, fixed-point-scheme).
 
 State to read (CODE / FILES / DATA)
   docs/archive/greens-filament-solver-s2-landed.html   (the §2 substrate record)
   imas_ambix/latent/gs_solve.py                        (EquilibriumGrid.plasma_grid_psi; the analytic ψ)
   imas_ambix/latent/current_diffusion.py               (flux_surface_geometry: the cell-binned V′/g2/g3/⟨1/R⟩ that drive diffuse_psi)
-  ~/Code/nova/nova/biot/fieldnull.py + the levelset/contour machinery (the reference tracer)
+  docs/connectivity-topology-reader.html               (the GPU-native connectivity/flood-fill flux-surface machinery to share)
+  imas_ambix/spine_bench/                              (the committed d-roughness baseline metric to re-baseline against)
   scripts/greens_filament_gate_eval.py                 (the §2 harness to extend)
 
 Scope locks / constraints (non-decision)
-  - Re-base FSA on the smooth analytic ψ with a level-set contour tracer, not cell-binning.
+  - Re-base FSA on the smooth analytic ψ GPU-NATIVE + CONTOUR-FREE (connectivity/flood-fill
+    flux-surface averaging; differentiable). NO contourpy/marching-squares/level-set walk.
+  - RECONCILE the roughness claim first: the "0.45→0.72 worsens with resolution" figure has
+    no committed diagnostic; the spine_bench metric shows the current contour-integrated
+    geo.d_face IMPROVING with resolution. Re-baseline against spine_bench before claiming a fix.
   - GS force balance preserved; hybrid_greens only; EFIT diagnostic/eval-only; no assumed profile; no tuned gain.
   - Opt-in: the cell-binned FSA path stays byte-unchanged when off.
   - Figures mandatory (docs/figures/greens-filament-solver/): d(ρ̂) roughness cell-binned vs
-    analytic-contour at n_ρ 16/32/64/96 (the resolution-degradation curve); V′/⟨1/R⟩ smoothness.
+    GPU-native at n_ρ 16/32/64/96 (the resolution curve, vs the spine_bench baseline); V′/⟨1/R⟩ smoothness.
   - Commit+push each coherent change on main; no AI co-author trailers (verify: git log -1 --format=%B | grep -Eqi &quot;^co-authored-by:&quot;).
 
 Gates (pre-declared)
-  G2a (smoothness): analytic-contour d = g2·g3/ρ̂ relative second-difference roughness falls
-      materially below the current ~0.5 (target ≲0.1).
-  G2b (resolution-stable): the analytic-contour roughness does NOT degrade with n_ρ (flat or
-      improving 16→96, vs the cell-binned 0.45→0.72).
-  G2c (no regress): the mse-gated-reanalysis §3 dynamics coupling re-run on the analytic-FSA
+  G2a (smoothness): the GPU-native FSA d = g2·g3/ρ̂ relative second-difference roughness is
+      materially below the spine_bench baseline (re-measured, not the un-backed 0.5 figure).
+  G2b (resolution-stable): the GPU-native roughness does NOT degrade with n_ρ (16→96), vs
+      the spine_bench baseline trend.
+  G2c (contour-free + on-device): assert no contourpy/marching-squares/level-set call in the
+      FSA path; it is fixed-shape and batchable (the GPU prerequisite).
+  G2d (no regress): the mse-gated-reanalysis §3 dynamics coupling re-run on the new FSA
       substrate does not regress (confinement, position tracking, synthetic η recovery, module pins).
-  Stop rule: if the analytic-contour FSA cannot beat the cell-binned roughness OR degrades the
+  Stop rule: if the GPU-native FSA cannot beat the spine_bench roughness baseline OR degrades the
       §3 dynamics, STOP and surface the honest negative — do not ship a noisier metric.
 
 Done-when
