@@ -400,6 +400,12 @@ def run_stamp(
             "Per-component / GPU-device memory is added with the GPU rollout; "
             "peak_rss_gb here is process-level. Held-out-MSE pitch is tracked "
             "separately (heldout_mse_gate_eval).",
+            "CAVEAT (corpus extrapolation): per-slice metrics are on the CACHED "
+            "Green's matrix (built once per shot, warmup-excluded), so a corpus-cost "
+            "extrapolation from throughput_slices_per_core_s ASSUMES campaign-scope "
+            "Green's caching (greens-filament-solver §4). Today the grid+matrices are "
+            "rebuilt per shot (only ~2 campaign signatures exist), adding ~2% at "
+            "corpus scale until §4 lands.",
         ],
     )
 

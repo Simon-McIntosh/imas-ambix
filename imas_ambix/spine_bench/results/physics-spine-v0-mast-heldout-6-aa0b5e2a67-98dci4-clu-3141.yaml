@@ -355,9 +355,13 @@ notes:
   check on the same slice (greens row).
 - bench_scope = per-slice STATIC solve (the GPU inner-loop target); the dynamics-coupled label rollout
   (diffusion + passive + temporal warm-start) is a distinct mode to add before the corpus GPU run.
-- "FSA d-roughness = rms(2nd-diff of d_face)/rms(d_face), interior faces. RECONCILE: the greens-filament-solver\
-  \ s3 plan cites a cell-binned d-roughness ~0.5 worsening 0.45->0.72 with n_rho; on the current CONTOUR-INTEGRATED\
-  \ geo.d_face the slope measured here is <=0 \u2014 no committed diagnostic backs the plan's number,\
-  \ so s3 should re-baseline."
+- 'FSA d-roughness = rms(2nd-diff of d_face)/rms(d_face), interior faces. RECONCILE: the greens-filament-solver
+  s3 plan cites a cell-binned d-roughness ~0.5 worsening 0.45->0.72 with n_rho; on the current CONTOUR-INTEGRATED
+  geo.d_face the slope measured here is <=0 — no committed diagnostic backs the plan''s number, so s3
+  should re-baseline.'
 - Per-component / GPU-device memory is added with the GPU rollout; peak_rss_gb here is process-level.
   Held-out-MSE pitch is tracked separately (heldout_mse_gate_eval).
+- 'CAVEAT (corpus extrapolation): per-slice metrics are on the CACHED Green''s matrix (built once per
+  shot, warmup-excluded), so extrapolating corpus cost from throughput_slices_per_core_s ASSUMES campaign-scope
+  Green''s caching (greens-filament-solver §4). Today the grid+matrices are rebuilt per shot (~2 campaign
+  signatures exist), adding ~2% at corpus scale until §4 lands.'

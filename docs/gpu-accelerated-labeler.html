@@ -327,6 +327,14 @@
       </p>
       <p class="r-dec-rat">Locked (2026-07-20): jax targets CPU and GPU from one codebase — the GPU-native rewrite loses NO CPU capability; it is a backend switch (fp64 enabled on both). CPU cost is nuanced: at batch-1 a jax-CPU solve ≈ the current numpy grid-free path (the dense matvec dominates either way — no material gain/loss), but the BATCHED form is a CPU speedup over the per-shot loop (XLA-CPU threaded GEMM). Avoid a parallel _v2 engine family: the frozen numpy grid-GS remains the byte-frozen reference oracle the jax engine is validated against; it is not maintained as a second production path.</p>
     </div>
+    <div class="r-dec" data-key="matrix-freeze-invariant" data-choice="frozen-matrices-vector-only-update" data-by="lead" data-when="2026-07-20">
+      <p class="r-dec-q">What is manipulated at solve time — the matrices, or only the current vectors?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt chosen" data-value="frozen-matrices-vector-only-update">ALL interaction matrices are FROZEN geometry (campaign-invariant, resident/cached); the ONLY per-iteration update is the plasma current VECTOR (force-balance turns → i_cell → renormalise Ip). Coil &amp; passive ψ computed once per slice. Minimise matrix manipulation; maximise frozen geometry across and between shots.</button>
+        <button class="r-opt" data-value="rebuild-per-iteration">Rebuild / manipulate interaction matrices per iteration</button>
+      </p>
+      <p class="r-dec-rat">Locked by the lead (2026-07-20), confirmed in code: ψ = ψ_coil (once/slice) + ψ_pass (frozen columns · a_pass vector) + G_plasma · i_cell, with every G block frozen geometry. The plasma "turns" update is a pure VECTOR op — i_cell = fixed cell-area weights × the force-balance current density × Ip/Σ — the matrix is never touched (same as nova; there is no matrix manipulation to remove, we are already there). This is the load-bearing GPU invariant: the resident matrices are static and only the current vector streams (GEMV→GEMM over the batch). The ONE small per-sweep assembly is the K≈6 profile-coefficient LSQ (basis images on the evolving core + soft-prior/KKT rows) — necessary, tiny, NOT the interaction matrix; keep it small and batch-friendly. Freeze geometry at campaign scope (§4) so the matrices build once for the whole corpus (~2 signatures). The follow-on must NOT introduce per-iteration interaction-matrix manipulation.</p>
+    </div>
   </section>
 
   <section data-reckon="followups" id="followups" class="r-followups">
