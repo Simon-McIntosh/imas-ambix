@@ -1,0 +1,618 @@
+schema_version: spine-bench/1.3
+shotset_version: v0-mast-heldout-6
+benchmark_name: physics-spine
+created_utc: '2026-07-20T21:41:30.237746+00:00'
+bench_scope: per-slice static free-boundary solve (K=2 scaffold + rich ladder)
+complete_run_wall_s: 1704.61
+peak_rss_gb: 2.93
+machine:
+  hostname: 98dci4-clu-3141.iter.org
+  platform: Linux-5.14.0-284.25.1.el9_2.x86_64-x86_64-with-glibc2.34
+  cpu_model: Intel(R) Xeon(R) Gold 5220 CPU @ 2.20GHz
+  n_logical_cpu: 36
+  ram_gb: 201.9
+  slurm_partition: sun_debug
+  omp_num_threads: '1'
+env:
+  python_version: 3.14.2
+  numpy_version: 2.4.4
+  scipy_version: 1.17.1
+  git_commit: 55972bda9610b60e136595e382922bd1240f48de
+  git_dirty: true
+  engine_config_name: closure-spine-D2
+  engine_config_sha: 3b50b94debd9f3c085120ae949f5de4ff859655a5b840c31acd3e5a0880a1ecb
+  device: cpu
+  backend: numpy-scipy
+  solver: free-boundary GS ladder (solve_equilibrium_lsq @ closure-spine-D2); PRIMARY = greens-matvec
+    filament/single-matrix, BASELINE-CHECK = grid-delstar delta*
+shots:
+- shot_id: 21978
+  role: ramp+flat-top (low-Ip early + 900kA flat-top)
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: grid-delstar
+  topology_read: hard
+  n_slices_attempted: 6
+  n_slices_scored: 6
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 2759.6115367487073
+    throughput_slices_per_core_s: 0.3623698432490866
+    end_to_end_ms_per_slice: 5237.088620662689
+    latency_ms_p50: 5237.088620662689
+    latency_ms_p99: 5313.210720159113
+    converged_fraction: 1.0
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.35748842895309296
+    fsa_d_roughness_nrho96: 0.1665574925827264
+    fsa_d_roughness_resolution_slope: -0.054516224074381635
+    fsa_d_roughness_conn_nrho32: 0.12654403885565413
+    fsa_d_roughness_conn_nrho96: 0.13094778327906154
+    fsa_d_roughness_conn_resolution_slope: -0.036542699013714944
+  phase_timing_ms:
+    disc_read: 239.77613355964422
+    scaffold_k2: 2192.1323630958796
+    rich_ladder: 2759.6115367487073
+    fsa_readout: 162.501884624362
+- shot_id: 21978
+  role: ramp+flat-top (low-Ip early + 900kA flat-top)
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: greens-matvec
+  topology_read: hard
+  n_slices_attempted: 6
+  n_slices_scored: 6
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 4669.938446953893
+    throughput_slices_per_core_s: 0.21413558473180305
+    end_to_end_ms_per_slice: 9020.239519886672
+    latency_ms_p50: 9020.239519886672
+    latency_ms_p99: 9291.447101905942
+    converged_fraction: 1.0
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.3516376594819519
+    fsa_d_roughness_nrho96: 0.16425618620503724
+    fsa_d_roughness_resolution_slope: -0.06590989061885591
+    fsa_d_roughness_conn_nrho32: 0.12660667828093375
+    fsa_d_roughness_conn_nrho96: 0.13093662378022894
+    fsa_d_roughness_conn_resolution_slope: -0.03657381094403178
+    axis_reproduce_cm: 0.035287648411179706
+    lcfs_reproduce_cm: 0.010095340803623065
+    profile_reproduce_rms: 0.02562131932285422
+  phase_timing_ms:
+    disc_read: 239.77613355964422
+    scaffold_k2: 4109.861940145493
+    rich_ladder: 4669.938446953893
+    fsa_readout: 162.29073517024517
+- shot_id: 21978
+  role: ramp+flat-top (low-Ip early + 900kA flat-top)
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: greens-matvec
+  topology_read: connectivity
+  n_slices_attempted: 6
+  n_slices_scored: 5
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 12329.230576753616
+    throughput_slices_per_core_s: 0.08110806215965083
+    end_to_end_ms_per_slice: 24565.856688655913
+    latency_ms_p50: 24565.856688655913
+    latency_ms_p99: 39595.10777525604
+    converged_fraction: 0.8333333333333334
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.37318234040521353
+    fsa_d_roughness_nrho96: 0.18265717602788645
+    fsa_d_roughness_resolution_slope: -0.02492575043636758
+    fsa_d_roughness_conn_nrho32: 0.12731741647748637
+    fsa_d_roughness_conn_nrho96: 0.13346560205216979
+    fsa_d_roughness_conn_resolution_slope: -0.0390719202960491
+    axis_smoothread_cm: 4.885266883485808
+    lcfs_smoothread_cm: 1.841274425657946
+    profile_smoothread_rms: 0.23807448073417936
+  phase_timing_ms:
+    disc_read: 239.77613355964422
+    scaffold_k2: 11947.884841822088
+    rich_ladder: 12329.230576753616
+    fsa_readout: 159.43019930273294
+- shot_id: 21983
+  role: flat-top representative
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: grid-delstar
+  topology_read: hard
+  n_slices_attempted: 6
+  n_slices_scored: 6
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 2279.013404622674
+    throughput_slices_per_core_s: 0.43878636166493523
+    end_to_end_ms_per_slice: 4341.791213490069
+    latency_ms_p50: 4341.791213490069
+    latency_ms_p99: 5026.741442792118
+    converged_fraction: 1.0
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.3242625645849878
+    fsa_d_roughness_nrho96: 0.13649128827800697
+    fsa_d_roughness_resolution_slope: -0.05459608270650442
+    fsa_d_roughness_conn_nrho32: 0.1217484796406656
+    fsa_d_roughness_conn_nrho96: 0.11648964255846542
+    fsa_d_roughness_conn_resolution_slope: -0.038220227228063806
+  phase_timing_ms:
+    disc_read: 238.15063387155533
+    scaffold_k2: 1689.4014291465282
+    rich_ladder: 2279.013404622674
+    fsa_readout: 143.85596476495266
+- shot_id: 21983
+  role: flat-top representative
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: greens-matvec
+  topology_read: hard
+  n_slices_attempted: 6
+  n_slices_scored: 6
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 4172.692725434899
+    throughput_slices_per_core_s: 0.23965340028620843
+    end_to_end_ms_per_slice: 8161.102421581745
+    latency_ms_p50: 8161.102421581745
+    latency_ms_p99: 8809.196048006415
+    converged_fraction: 1.0
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.3208791942876763
+    fsa_d_roughness_nrho96: 0.13739233489898195
+    fsa_d_roughness_resolution_slope: -0.04793513296779769
+    fsa_d_roughness_conn_nrho32: 0.12246589871910124
+    fsa_d_roughness_conn_nrho96: 0.11668108144880508
+    fsa_d_roughness_conn_resolution_slope: -0.038807267430601505
+    axis_reproduce_cm: 0.023156721139120325
+    lcfs_reproduce_cm: 0.0075491315747147625
+    profile_reproduce_rms: 0.008348929631978363
+  phase_timing_ms:
+    disc_read: 238.15063387155533
+    scaffold_k2: 3585.3225365281105
+    rich_ladder: 4172.692725434899
+    fsa_readout: 143.4959750622511
+- shot_id: 21983
+  role: flat-top representative
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: greens-matvec
+  topology_read: connectivity
+  n_slices_attempted: 6
+  n_slices_scored: 6
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 12402.883007191122
+    throughput_slices_per_core_s: 0.08062641560193752
+    end_to_end_ms_per_slice: 24587.605386041105
+    latency_ms_p50: 24587.605386041105
+    latency_ms_p99: 24657.30593636632
+    converged_fraction: 1.0
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.31958326406471016
+    fsa_d_roughness_nrho96: 0.13562997562226037
+    fsa_d_roughness_resolution_slope: -0.06718878761437096
+    fsa_d_roughness_conn_nrho32: 0.12023244143917916
+    fsa_d_roughness_conn_nrho96: 0.10736024089103248
+    fsa_d_roughness_conn_resolution_slope: -0.040112500953624806
+    axis_smoothread_cm: 6.1467147605517205
+    lcfs_smoothread_cm: 2.1902267491291507
+    profile_smoothread_rms: 0.14612281309812156
+  phase_timing_ms:
+    disc_read: 238.15063387155533
+    scaffold_k2: 11920.691451057792
+    rich_ladder: 12402.883007191122
+    fsa_readout: 156.58572409301996
+- shot_id: 21985
+  role: flat-top representative
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: grid-delstar
+  topology_read: hard
+  n_slices_attempted: 6
+  n_slices_scored: 6
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 2780.228844843805
+    throughput_slices_per_core_s: 0.35968262175777144
+    end_to_end_ms_per_slice: 5113.764847628772
+    latency_ms_p50: 5113.764847628772
+    latency_ms_p99: 7853.414692617953
+    converged_fraction: 1.0
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.2776633837843647
+    fsa_d_roughness_nrho96: 0.1921172263813861
+    fsa_d_roughness_resolution_slope: -0.025616024878158526
+    fsa_d_roughness_conn_nrho32: 0.12853022106328293
+    fsa_d_roughness_conn_nrho96: 0.12739070534760955
+    fsa_d_roughness_conn_resolution_slope: -0.042906529411074486
+  phase_timing_ms:
+    disc_read: 245.1412295922637
+    scaffold_k2: 1695.661854930222
+    rich_ladder: 2780.228844843805
+    fsa_readout: 152.80100144445896
+- shot_id: 21985
+  role: flat-top representative
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: greens-matvec
+  topology_read: hard
+  n_slices_attempted: 6
+  n_slices_scored: 6
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 4701.745809055865
+    throughput_slices_per_core_s: 0.21268695514630664
+    end_to_end_ms_per_slice: 8246.273073367774
+    latency_ms_p50: 8246.273073367774
+    latency_ms_p99: 14134.75092612207
+    converged_fraction: 1.0
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.2940378428374316
+    fsa_d_roughness_nrho96: 0.1939451113684442
+    fsa_d_roughness_resolution_slope: -0.03185346869485918
+    fsa_d_roughness_conn_nrho32: 0.12856065628378266
+    fsa_d_roughness_conn_nrho96: 0.1274321959075283
+    fsa_d_roughness_conn_resolution_slope: -0.043197753994947075
+    axis_reproduce_cm: 0.01598267694741597
+    lcfs_reproduce_cm: 0.006808323590780374
+    profile_reproduce_rms: 0.010596375936977567
+  phase_timing_ms:
+    disc_read: 245.1412295922637
+    scaffold_k2: 2943.337831646204
+    rich_ladder: 4701.745809055865
+    fsa_readout: 152.62495260685682
+- shot_id: 21985
+  role: flat-top representative
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: greens-matvec
+  topology_read: connectivity
+  n_slices_attempted: 6
+  n_slices_scored: 6
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 12309.970440343022
+    throughput_slices_per_core_s: 0.08123496354814436
+    end_to_end_ms_per_slice: 24454.793327488005
+    latency_ms_p50: 24454.793327488005
+    latency_ms_p99: 24732.47490208596
+    converged_fraction: 1.0
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.243339601685159
+    fsa_d_roughness_nrho96: 0.14427323174485945
+    fsa_d_roughness_resolution_slope: -0.024348251806939114
+    fsa_d_roughness_conn_nrho32: 0.12606913558422225
+    fsa_d_roughness_conn_nrho96: 0.1214891415258437
+    fsa_d_roughness_conn_resolution_slope: -0.03725151183241568
+    axis_smoothread_cm: 3.826825198853279
+    lcfs_smoothread_cm: 1.9644965926400373
+    profile_smoothread_rms: 0.1386047048090813
+  phase_timing_ms:
+    disc_read: 245.1412295922637
+    scaffold_k2: 11922.605930827558
+    rich_ladder: 12309.970440343022
+    fsa_readout: 148.19806814193726
+- shot_id: 21986
+  role: flat-top representative
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: grid-delstar
+  topology_read: hard
+  n_slices_attempted: 6
+  n_slices_scored: 6
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 2617.164935916662
+    throughput_slices_per_core_s: 0.3820928464524724
+    end_to_end_ms_per_slice: 4855.218585580587
+    latency_ms_p50: 4855.218585580587
+    latency_ms_p99: 8329.311913661659
+    converged_fraction: 1.0
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.454786128036605
+    fsa_d_roughness_nrho96: 0.16956191149838185
+    fsa_d_roughness_resolution_slope: -0.07159361301879677
+    fsa_d_roughness_conn_nrho32: 0.12712301503077117
+    fsa_d_roughness_conn_nrho96: 0.12531894787464687
+    fsa_d_roughness_conn_resolution_slope: -0.0357953112319559
+  phase_timing_ms:
+    disc_read: 238.58740460127592
+    scaffold_k2: 1999.4662450626493
+    rich_ladder: 2617.164935916662
+    fsa_readout: 153.19047961384058
+- shot_id: 21986
+  role: flat-top representative
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: greens-matvec
+  topology_read: hard
+  n_slices_attempted: 6
+  n_slices_scored: 6
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 4525.773256085813
+    throughput_slices_per_core_s: 0.220956716878226
+    end_to_end_ms_per_slice: 8649.18849337846
+    latency_ms_p50: 8649.18849337846
+    latency_ms_p99: 14212.840901091695
+    converged_fraction: 1.0
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.4512040886654144
+    fsa_d_roughness_nrho96: 0.16619950743102513
+    fsa_d_roughness_resolution_slope: -0.0670173266868003
+    fsa_d_roughness_conn_nrho32: 0.1273372048701975
+    fsa_d_roughness_conn_nrho96: 0.12547516674713638
+    fsa_d_roughness_conn_resolution_slope: -0.03601200160620029
+    axis_reproduce_cm: 0.02388701812787656
+    lcfs_reproduce_cm: 0.010192835407182854
+    profile_reproduce_rms: 0.030974476645092716
+  phase_timing_ms:
+    disc_read: 238.58740460127592
+    scaffold_k2: 3884.8278326913714
+    rich_ladder: 4525.773256085813
+    fsa_readout: 152.07091998308897
+- shot_id: 21986
+  role: flat-top representative
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: greens-matvec
+  topology_read: connectivity
+  n_slices_attempted: 6
+  n_slices_scored: 5
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 8653.489106334746
+    throughput_slices_per_core_s: 0.11556032343854859
+    end_to_end_ms_per_slice: 19917.198004201055
+    latency_ms_p50: 19917.198004201055
+    latency_ms_p99: 38733.61658141017
+    converged_fraction: 0.8333333333333334
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.3073177784644847
+    fsa_d_roughness_nrho96: 0.14512423078113124
+    fsa_d_roughness_resolution_slope: -0.06835408485341178
+    fsa_d_roughness_conn_nrho32: 0.1296032184807481
+    fsa_d_roughness_conn_nrho96: 0.13120758066871405
+    fsa_d_roughness_conn_resolution_slope: -0.03407919080274373
+    axis_smoothread_cm: 7.807755186015676
+    lcfs_smoothread_cm: 2.631253487384444
+    profile_smoothread_rms: 0.15617376188860607
+  phase_timing_ms:
+    disc_read: 238.58740460127592
+    scaffold_k2: 11943.6992155388
+    rich_ladder: 8653.489106334746
+    fsa_readout: 142.2918839380145
+- shot_id: 21989
+  role: flat-top representative
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: grid-delstar
+  topology_read: hard
+  n_slices_attempted: 6
+  n_slices_scored: 6
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 2701.5804797410965
+    throughput_slices_per_core_s: 0.37015369614153937
+    end_to_end_ms_per_slice: 3414.994351565838
+    latency_ms_p50: 3414.994351565838
+    latency_ms_p99: 8897.946817725897
+    converged_fraction: 1.0
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.35435824541809274
+    fsa_d_roughness_nrho96: 0.1788274365508655
+    fsa_d_roughness_resolution_slope: -0.061429444467080895
+    fsa_d_roughness_conn_nrho32: 0.1241056128378625
+    fsa_d_roughness_conn_nrho96: 0.14202099598968349
+    fsa_d_roughness_conn_resolution_slope: -0.03634268857474306
+  phase_timing_ms:
+    disc_read: 239.59917202591896
+    scaffold_k2: 2372.473806142807
+    rich_ladder: 2701.5804797410965
+    fsa_readout: 159.2696439474821
+- shot_id: 21989
+  role: flat-top representative
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: greens-matvec
+  topology_read: hard
+  n_slices_attempted: 6
+  n_slices_scored: 6
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 4611.3825384527445
+    throughput_slices_per_core_s: 0.216854704996027
+    end_to_end_ms_per_slice: 5804.564764723182
+    latency_ms_p50: 5804.564764723182
+    latency_ms_p99: 9316.754855141044
+    converged_fraction: 1.0
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.34112657392106016
+    fsa_d_roughness_nrho96: 0.17618271501922134
+    fsa_d_roughness_resolution_slope: -0.04868284684675621
+    fsa_d_roughness_conn_nrho32: 0.12398408650281001
+    fsa_d_roughness_conn_nrho96: 0.14320198789689192
+    fsa_d_roughness_conn_resolution_slope: -0.036665503884211775
+    axis_reproduce_cm: 0.02364007329035355
+    lcfs_reproduce_cm: 0.009005586708618618
+    profile_reproduce_rms: 0.02186549061142038
+  phase_timing_ms:
+    disc_read: 239.59917202591896
+    scaffold_k2: 4258.10063816607
+    rich_ladder: 4611.3825384527445
+    fsa_readout: 158.99941977113485
+- shot_id: 21989
+  role: flat-top representative
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: greens-matvec
+  topology_read: connectivity
+  n_slices_attempted: 6
+  n_slices_scored: 5
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 12361.474980600178
+    throughput_slices_per_core_s: 0.08089649508407189
+    end_to_end_ms_per_slice: 24523.649784736335
+    latency_ms_p50: 24523.649784736335
+    latency_ms_p99: 24597.4561579898
+    converged_fraction: 0.8333333333333334
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.3430330818704961
+    fsa_d_roughness_nrho96: 0.20043271275627858
+    fsa_d_roughness_resolution_slope: -0.07452745947469015
+    fsa_d_roughness_conn_nrho32: 0.12456535732638245
+    fsa_d_roughness_conn_nrho96: 0.14221807573404732
+    fsa_d_roughness_conn_resolution_slope: -0.033177760646676
+    axis_smoothread_cm: 12.430391935856198
+    lcfs_smoothread_cm: 1.9124138304618592
+    profile_smoothread_rms: 2.34009022018084e+26
+  phase_timing_ms:
+    disc_read: 239.59917202591896
+    scaffold_k2: 11935.004060156643
+    rich_ladder: 12361.474980600178
+    fsa_readout: 158.3785703405738
+- shot_id: 22086
+  role: flat-top representative (campaign-edge)
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: grid-delstar
+  topology_read: hard
+  n_slices_attempted: 6
+  n_slices_scored: 6
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 920.1477412134409
+    throughput_slices_per_core_s: 1.0867819972923634
+    end_to_end_ms_per_slice: 1889.3526289612055
+    latency_ms_p50: 1889.3526289612055
+    latency_ms_p99: 5339.96431261301
+    converged_fraction: 1.0
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.3318683207049535
+    fsa_d_roughness_nrho96: 0.18911387578173489
+    fsa_d_roughness_resolution_slope: -0.06502087450857388
+    fsa_d_roughness_conn_nrho32: 0.12538277769184294
+    fsa_d_roughness_conn_nrho96: 0.1352052251133688
+    fsa_d_roughness_conn_resolution_slope: -0.03601411046077619
+  phase_timing_ms:
+    disc_read: 238.88711258769035
+    scaffold_k2: 568.7217619270086
+    rich_ladder: 920.1477412134409
+    fsa_readout: 160.41236370801926
+- shot_id: 22086
+  role: flat-top representative (campaign-edge)
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: greens-matvec
+  topology_read: hard
+  n_slices_attempted: 6
+  n_slices_scored: 6
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 1515.5521808192134
+    throughput_slices_per_core_s: 0.6598255161755382
+    end_to_end_ms_per_slice: 3100.456800311804
+    latency_ms_p50: 3100.456800311804
+    latency_ms_p99: 9167.014215551317
+    converged_fraction: 1.0
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.3560900128691553
+    fsa_d_roughness_nrho96: 0.18751942874742883
+    fsa_d_roughness_resolution_slope: -0.06939083249355982
+    fsa_d_roughness_conn_nrho32: 0.12531885199104317
+    fsa_d_roughness_conn_nrho96: 0.1351319426222467
+    fsa_d_roughness_conn_resolution_slope: -0.03578757052828475
+    axis_reproduce_cm: 0.008554340135926704
+    lcfs_reproduce_cm: 0.005758018690030231
+    profile_reproduce_rms: 0.008618259963913431
+  phase_timing_ms:
+    disc_read: 238.88711258769035
+    scaffold_k2: 979.9176510423422
+    rich_ladder: 1515.5521808192134
+    fsa_readout: 160.01259814947844
+- shot_id: 22086
+  role: flat-top representative (campaign-edge)
+  campaign_signature: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+  substrate: greens-matvec
+  topology_read: connectivity
+  n_slices_attempted: 6
+  n_slices_scored: 6
+  timing_n_repeat: 5
+  metrics:
+    solve_wall_ms_per_slice: 3773.3882665634155
+    throughput_slices_per_core_s: 0.2650138097001988
+    end_to_end_ms_per_slice: 16608.018030412495
+    latency_ms_p50: 16608.018030412495
+    latency_ms_p99: 31459.61046859622
+    converged_fraction: 1.0
+    confined_fraction: 1.0
+    fsa_d_roughness_nrho32: 0.2990351008527267
+    fsa_d_roughness_nrho96: 0.13963496002451706
+    fsa_d_roughness_resolution_slope: -0.05328731027429374
+    fsa_d_roughness_conn_nrho32: 0.12052339750135496
+    fsa_d_roughness_conn_nrho96: 0.12297097418033454
+    fsa_d_roughness_conn_resolution_slope: -0.03400868753352809
+    axis_smoothread_cm: 4.125141486195102
+    lcfs_smoothread_cm: 1.962049415331757
+    profile_smoothread_rms: 0.40088331387158166
+  phase_timing_ms:
+    disc_read: 238.88711258769035
+    scaffold_k2: 11910.798526369035
+    rich_ladder: 3773.3882665634155
+    fsa_readout: 161.48475278168917
+aggregate:
+  greens-matvec+connectivity:
+    axis_smoothread_cm: 5.515990822018765
+    confined_fraction: 1.0
+    converged_fraction: 0.9166666666666667
+    end_to_end_ms_per_slice: 24489.22155611217
+    fsa_d_roughness_conn_nrho32: 0.12531724645530234
+    fsa_d_roughness_conn_nrho96: 0.1270892774245243
+    fsa_d_roughness_conn_resolution_slope: -0.035665351317579704
+    fsa_d_roughness_nrho32: 0.31345052126459744
+    fsa_d_roughness_nrho96: 0.14469873126299534
+    fsa_d_roughness_resolution_slope: -0.06023804894433235
+    latency_ms_p50: 24489.22155611217
+    latency_ms_p99: 28096.04268534109
+    lcfs_smoothread_cm: 1.963273003985897
+    profile_smoothread_rms: 0.19712412131139273
+    solve_wall_ms_per_slice: 12319.60050854832
+    throughput_slices_per_core_s: 0.08117151285389759
+  greens-matvec:
+    axis_reproduce_cm: 0.023398397214736938
+    confined_fraction: 1.0
+    converged_fraction: 1.0
+    end_to_end_ms_per_slice: 8203.68774747476
+    fsa_d_roughness_conn_nrho32: 0.12596276513598847
+    fsa_d_roughness_conn_nrho96: 0.12918440984387863
+    fsa_d_roughness_conn_resolution_slope: -0.03661965741412178
+    fsa_d_roughness_nrho32: 0.34638211670150604
+    fsa_d_roughness_nrho96: 0.17119111122512323
+    fsa_d_roughness_resolution_slope: -0.05729636873280606
+    latency_ms_p50: 8203.68774747476
+    latency_ms_p99: 9304.100978523493
+    lcfs_reproduce_cm: 0.00827735914166669
+    profile_reproduce_rms: 0.016230933274198972
+    solve_wall_ms_per_slice: 4568.577897269279
+    throughput_slices_per_core_s: 0.2189057109371265
+  grid-delstar:
+    confined_fraction: 1.0
+    converged_fraction: 1.0
+    end_to_end_ms_per_slice: 4598.504899535328
+    fsa_d_roughness_conn_nrho32: 0.12596340827374852
+    fsa_d_roughness_conn_nrho96: 0.12916924431333554
+    fsa_d_roughness_conn_resolution_slope: -0.036442693794229
+    fsa_d_roughness_nrho32: 0.3431132830615231
+    fsa_d_roughness_nrho96: 0.17419467402462369
+    fsa_d_roughness_resolution_slope: -0.05801276358679266
+    latency_ms_p50: 4598.504899535328
+    latency_ms_p99: 6596.689502615482
+    solve_wall_ms_per_slice: 2659.3727078288794
+    throughput_slices_per_core_s: 0.37612327129700585
+notes:
+- greens-matvec = the FILAMENT / single-interaction-matrix DEV SPINE (primary, GPU target); grid-delstar
+  = the gridded delta* solve, retained as a baseline CHECK.
+- Perf at OMP=1; per-shot first slice discarded as warmup. solve_wall = the rich ladder only; end_to_end/latency
+  = disc-seed + K=2 scaffold + rich ladder.
+- Reproduction (axis/lcfs/profile) validates the greens-matvec dev spine against the grid-delta* baseline
+  check on the same slice (greens row).
+- bench_scope = per-slice STATIC solve (the GPU inner-loop target); the dynamics-coupled label rollout
+  (diffusion + passive + temporal warm-start) is a distinct mode to add before the corpus GPU run.
+- "FSA d-roughness = rms(2nd-diff of d_face)/rms(d_face), interior faces. RECONCILE: the greens-filament-solver\
+  \ s3 plan cites a cell-binned d-roughness ~0.5 worsening 0.45->0.72 with n_rho; on the current CONTOUR-INTEGRATED\
+  \ geo.d_face the slope measured here is <=0 \u2014 no committed diagnostic backs the plan's number,\
+  \ so s3 should re-baseline."
+- Per-component / GPU-device memory is added with the GPU rollout; peak_rss_gb here is process-level.
+  Held-out-MSE pitch is tracked separately (heldout_mse_gate_eval).
+- "CAVEAT (corpus extrapolation): per-slice metrics are on the CACHED Green's matrix (built once per shot,\
+  \ warmup-excluded), so a corpus-cost extrapolation from throughput_slices_per_core_s ASSUMES campaign-scope\
+  \ Green's caching (greens-filament-solver \xA74). Today the grid+matrices are rebuilt per shot (only\
+  \ ~2 campaign signatures exist), adding ~2% at corpus scale until \xA74 lands."
