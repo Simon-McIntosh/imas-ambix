@@ -142,6 +142,15 @@ def _shift(field, dz, dr):
     return jnp.roll(field, shift=(-dz, -dr), axis=(0, 1))
 
 
+def _dilate4(mask):
+    """4-neighbour boolean dilation, non-wrapping (border does not fold)."""
+    up = jnp.zeros_like(mask).at[1:, :].set(mask[:-1, :])
+    dn = jnp.zeros_like(mask).at[:-1, :].set(mask[1:, :])
+    lt = jnp.zeros_like(mask).at[:, 1:].set(mask[:, :-1])
+    rt = jnp.zeros_like(mask).at[:, :-1].set(mask[:, 1:])
+    return mask | up | dn | lt | rt
+
+
 @jax.jit
 def ring_sign_changes(psi):
     """Sign-change count of ψ − ψ_centre around each vertex's 8-neighbour ring.
@@ -226,7 +235,9 @@ def magnetic_axis_subgrid(psi, rg, zg, inside_limiter, region=None):
 # ---------------------------------------------------------------------------
 
 
-def xpoint_candidates(psi, rg, zg, inside_limiter, k_slots=6, extra_mask=None):
+def xpoint_candidates(
+    psi, rg, zg, inside_limiter, k_slots=6, extra_mask=None, material_dilate=1
+):
     """Up to ``k_slots`` sub-grid X-point candidates (static-count select).
 
     Vertices classified as saddles (4 sign changes) inside the wall are selected
@@ -235,12 +246,22 @@ def xpoint_candidates(psi, rg, zg, inside_limiter, k_slots=6, extra_mask=None):
     candidates — e.g. a flux-proximity band around the binding level, to drop
     spurious near-axis null-space saddles.
 
+    ``material_dilate`` (default 1) dilates the in-wall gate by that many cells
+    so a BINDING saddle sitting within a cell of a tile/limiter (whose cell the
+    supercover raster marks material, one cell outside ``inside_limiter``) is not
+    masked out — the sub-grid saddle still refines to its true position, and the
+    downstream flux-band / flood-adjacency filter rejects genuinely off-surface
+    nulls.  Set 0 to gate strictly inside the raster.
+
     Returns a dict of ``(k_slots,)`` arrays: ``r``, ``z``, ``psi``, ``ntype`` and
     ``valid`` (a real saddle occupies the slot).  Padded slots are NaN / False.
     """
     nz, nr = psi.shape
     counts = ring_sign_changes(psi)
-    cand = (counts == 4) & inside_limiter
+    gate = inside_limiter
+    for _ in range(int(material_dilate)):
+        gate = _dilate4(gate)
+    cand = (counts == 4) & gate
     if extra_mask is not None:
         cand = cand & extra_mask
     idx = jnp.where(cand.reshape(-1), size=k_slots, fill_value=-1)[0]
@@ -253,6 +274,13 @@ def xpoint_candidates(psi, rg, zg, inside_limiter, k_slots=6, extra_mask=None):
     # confirms a saddle (type 0)
     is_saddle = jnp.abs(subs[:, 3]) < 0.5
     valid = slot_valid & is_saddle
+    # Freeze the gradient on padded / degenerate slots.  A near-planar 3×3
+    # cluster (which the one-cell material dilation can admit in a flat flux tail)
+    # gives an ill-conditioned lstsq whose VJP is huge/∞; even though the value is
+    # masked out downstream, a masked NaN/∞ would still poison the gradient (0·∞).
+    # stop_gradient on the unselected slots removes the poison while leaving the
+    # selected saddles fully differentiable.
+    subs = jnp.where(valid[:, None], subs, jax.lax.stop_gradient(subs))
     nan = jnp.nan * jnp.ones_like(subs[:, 0])
     return {
         "r": jnp.where(valid, subs[:, 0], nan),

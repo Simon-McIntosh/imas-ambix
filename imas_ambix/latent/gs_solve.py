@@ -35,6 +35,7 @@ must be masked by consumers, never silently used.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -51,6 +52,14 @@ from imas_ambix.latent.topology import (
     boundary_flux_robust,
     find_critical_points,
 )
+from imas_ambix.latent.wall_mask import (
+    WallUnit,
+    build_wall_mask,
+    densify_units,
+    vessel_unit,
+)
+
+logger = logging.getLogger("imas_ambix.gs_solve")
 
 if TYPE_CHECKING:
     from imas_ambix.gs.geometry import GeometryTable
@@ -113,6 +122,7 @@ class EquilibriumGrid:
         coil_psi_columns: np.ndarray,  # (N, n_coil) ψ per unit coil current
         r0: float,
         conductor_rects: np.ndarray | None = None,  # (n, 4) r0, r1, z0, z1 packs
+        wall_units: list[WallUnit] | None = None,  # arbitrary multi-unit wall (§4)
     ) -> None:
         self.rg = rg
         self.zg = zg
@@ -128,9 +138,36 @@ class EquilibriumGrid:
         self.mesh_z = mesh_z
         self.flat_r = mesh_r.ravel()
         self.flat_z = mesh_z.ravel()
-        self.inside_limiter = _inside_polygon(
-            self.flat_r, self.flat_z, self.limiter_r, self.limiter_z
-        ).reshape(self.nz, self.nr)
+        # The wall enters ONLY as a raster boolean mask + a string of surface
+        # nodes.  A single closed vessel loop (the ``limiter_r/limiter_z``
+        # default — MAST) is byte-identical to the plain point-in-polygon read;
+        # an explicit ``wall_units`` list (AUG discrete tiles, a movable WEST
+        # wall) is DATA through the same code path (tiles-as-holes supercover).
+        self.wall_units = wall_units
+        if wall_units is not None:
+            self.inside_limiter, self.wall_diagnostics = build_wall_mask(
+                self.rg, self.zg, wall_units
+            )
+            units_for_nodes = wall_units
+        else:
+            self.inside_limiter = _inside_polygon(
+                self.flat_r, self.flat_z, self.limiter_r, self.limiter_z
+            ).reshape(self.nz, self.nr)
+            self.wall_diagnostics = []
+            units_for_nodes = (
+                [vessel_unit(self.limiter_r, self.limiter_z)]
+                if self.limiter_r.size >= 2
+                else []
+            )
+        # wall surface nodes at ~Δ/2 arc spacing (the sub-grid tangency string,
+        # tagged by unit); the exact node flux is the campaign ``g_wall`` GEMM.
+        self.wall_r, self.wall_z, self.wall_unit_id = densify_units(
+            units_for_nodes, 0.5 * min(self.dr, self.dz)
+        )
+        #: per-merged-circuit filament packs (r, z, w, h, weight) for the coil
+        #: block of ``g_wall``; populated by ``from_table`` (the point where the
+        #: filaments are available), None on a bare grid.
+        self._coil_packs: list[np.ndarray] | None = None
         self.cells = np.where(self.inside_limiter.ravel())[0]
         self._coil_psi_columns = coil_psi_columns
         self.conductor_rects = (
@@ -282,6 +319,26 @@ class EquilibriumGrid:
             r0=fwd.r0,
             conductor_rects=rects,
         )
+        # per-merged-circuit filament packs (r, z, clamped-w, clamped-h, weight)
+        # so ``g_wall``'s coil block reproduces ``coil_psi`` at arbitrary wall
+        # nodes: a merged column is the mean over its circuits of Σ xmult·greens,
+        # i.e. Σ over (circuit, filament) of (xmult/n_circ)·greens.
+        packs: list[np.ndarray] = []
+        for circs in fwd.pf_merged_circuits:
+            n_circ = max(len(circs), 1)
+            rows = [
+                (
+                    float(f.r),
+                    float(f.z),
+                    max(abs(f.width), 0.01),
+                    max(abs(f.height), 0.01),
+                    float(f.xmult) / n_circ,
+                )
+                for c in circs
+                for f in by_circ.get(c, [])
+            ]
+            packs.append(np.array(rows, dtype=np.float64) if rows else np.zeros((0, 5)))
+        grid._coil_packs = packs
         if key is not None:
             cls._build_cache[key] = grid
         return grid
@@ -463,6 +520,78 @@ class EquilibriumGrid:
         self._cell_greens_cache = out
         return out
 
+    def wall_greens(self) -> dict:
+        """Wall-node ψ influence matrices ``g_wall`` — the campaign wall-flux GEMM.
+
+        Returns ``{nodes_r, nodes_z, unit_id, g_coils, g_cells}`` where
+        ``g_coils`` is ``(n_node, n_coil)`` and ``g_cells`` is
+        ``(n_node, n_cell)`` per-ampere total-flux ψ [Wb] at every wall surface
+        node (``self.wall_r/wall_z`` order) from a unit coil or in-limiter cell
+        current, from the SAME finite-area :func:`hybrid_greens` kernel the coils,
+        ``g_edge`` and the plasma-grid block use — but at the wall nodes, which
+        are NEAR-field to the edge plasma cells, so the point-filament far-field
+        shortcut that suffices for ``g_edge`` does not.  ``wall_flux`` then reads
+        the tangency EXACTLY at the node (no O(Δ²) bilerp floor, largest exactly
+        at a tangency where the plasma leans), linearly hence differentiably, in
+        one matmul per solve.  Cached (pure campaign geometry); slots beside
+        ``g_edge`` in the build cache.
+        """
+        cached = getattr(self, "_wall_greens_cache", None)
+        if cached is not None:
+            return cached
+        wr = np.asarray(self.wall_r, dtype=np.float64)
+        wz = np.asarray(self.wall_z, dtype=np.float64)
+        # in-limiter cell → wall node (mirror of plasma_grid_psi_columns at nodes)
+        cell_cols = [
+            hybrid_greens(
+                wr, wz, float(self.flat_r[c]), float(self.flat_z[c]), self.dr, self.dz
+            )[0]
+            for c in self.cells
+        ]
+        g_cells = (
+            np.column_stack(cell_cols)
+            if cell_cols
+            else np.zeros((wr.size, 0), dtype=np.float64)
+        )
+        # coil → wall node, from the stored merged-circuit filament packs
+        packs = self._coil_packs
+        if packs:
+            coil_cols = []
+            for pack in packs:
+                acc = np.zeros(wr.size, dtype=np.float64)
+                for fr, fz, fw, fh, wt in pack:
+                    acc += wt * hybrid_greens(wr, wz, float(fr), float(fz), fw, fh)[0]
+                coil_cols.append(acc)
+            g_coils = np.column_stack(coil_cols)
+        else:
+            g_coils = np.zeros((wr.size, 0), dtype=np.float64)
+        out = {
+            "nodes_r": wr,
+            "nodes_z": wz,
+            "unit_id": np.asarray(self.wall_unit_id),
+            "g_coils": g_coils,
+            "g_cells": g_cells,
+        }
+        self._wall_greens_cache = out
+        return out
+
+    def wall_flux(self, i_pf: np.ndarray, i_cell: np.ndarray) -> np.ndarray:
+        """Exact total ψ [Wb] at every wall node for coil + cell currents (one GEMM).
+
+        ``g_coils @ i_pf + g_cells @ i_cell`` on the same absolute scale as the
+        gridded ψ (both are the finite-area Green's superposition of the same
+        currents), so the connectivity read normalises it consistently against
+        ``psi_axis``.  This is the sub-grid tangency source that replaces the
+        bilinear read off the grid.
+        """
+        g = self.wall_greens()
+        psi = np.zeros(g["nodes_r"].size, dtype=np.float64)
+        if g["g_cells"].shape[1]:
+            psi = psi + g["g_cells"] @ np.asarray(i_cell, dtype=np.float64)
+        if g["g_coils"].shape[1]:
+            psi = psi + g["g_coils"] @ np.asarray(i_pf, dtype=np.float64)
+        return psi
+
 
 def _read_axis(
     psi2d: np.ndarray, grid: EquilibriumGrid, sign: float
@@ -605,11 +734,7 @@ def _read_topology_smooth(
 
     psi2d = psi_flat.reshape(grid.nz, grid.nr)
     cb = boundary_read(psi2d, grid, seed_axis)
-    axis = (
-        cb.axis
-        if np.isfinite(cb.axis[0]) and np.isfinite(cb.axis[1])
-        else seed_axis
-    )
+    axis = cb.axis if np.isfinite(cb.axis[0]) and np.isfinite(cb.axis[1]) else seed_axis
     axis_psi = float(cb.axis_psi) if np.isfinite(cb.axis_psi) else float(cb.psi_axis)
     boundary_psi = float(cb.psi_bnd)
     if not np.isfinite(boundary_psi):

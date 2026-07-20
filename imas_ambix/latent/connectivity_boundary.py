@@ -87,6 +87,12 @@ _DEFAULT_ANGLES = jnp.asarray(LCFS_ANGLES)
 #: so a call without a wall polygon falls back to the flood binding level.
 _NO_WALL = jnp.asarray([1.0e30])
 
+#: default wall-node flux — a single NaN so, by broadcasting, every node falls
+#: back to the bilinear grid read.  A caller with the exact campaign ``g_wall``
+#: node flux passes a finite array aligned with ``wall_r``/``wall_z`` and each
+#: finite node then reads its EXACT flux instead of the O(Δ²) bilerp.
+_NO_WALL_PSI = jnp.asarray([jnp.nan])
+
 #: static count of X-point candidate slots the stencil classifier fills (a
 #: double-null plus spares); the emergent set is then trimmed to N_XPOINT_SLOTS.
 _K_XCAND = 8
@@ -195,15 +201,19 @@ def boundary_read_jax(
     lcfs_norm=0.999,
     wall_r: jnp.ndarray = _NO_WALL,
     wall_z: jnp.ndarray = _NO_WALL,
+    wall_psi: jnp.ndarray = _NO_WALL_PSI,
 ) -> dict:
     """Connectivity LCFS read from ψ — the device-native ``lcfs_contour``.
 
     ``psi2d`` is ``(nz, nr)`` total poloidal flux; ``rg``/``zg`` the axis-ordered
     grid coordinates; ``inside_limiter`` the ``(nz, nr)`` boolean wall (raster)
     mask; ``(axis_r, axis_z)`` the read's axis (the current centroid, in metres).
-    ``wall_r``/``wall_z`` are the wall boundary sample points (the limiter polygon
+    ``wall_r``/``wall_z`` are the wall boundary sample points (all wall units
     densified) — used for the SUB-GRID binding flux (see below); omit them to fall
-    back to the cell-level flood binding.
+    back to the cell-level flood binding.  ``wall_psi`` is the EXACT node flux
+    (the campaign ``g_wall`` GEMM) aligned with those points; each finite entry
+    reads its exact flux instead of the O(Δ²) bilinear grid read (the sentinel
+    NaN default falls every node back to bilerp, so the read is unchanged).
 
     Returns a dict of fixed-shape arrays: ``found`` (bool — a valid closed
     axis-enclosing level exists), ``psi_axis``, ``psi_out``, ``psi_bnd`` (the
@@ -330,9 +340,18 @@ def boundary_read_jax(
     wj = jnp.clip(jnp.round(jnp.interp(wall_r, rg, ar_idx)), 0, nr - 1)
     wi = jnp.clip(jnp.round(jnp.interp(wall_z, zg, az_idx)), 0, nz - 1)
     reachable = reach[wi.astype(jnp.int32), wj.astype(jnp.int32)]
-    u_wall_pts = jax.vmap(
+    u_wall_bilerp = jax.vmap(
         lambda r_, z_: (_bilerp(psi2d, rg, zg, r_, z_) - psi_axis) / span_safe
     )(wall_r, wall_z)
+    # exact node flux (campaign g_wall) where provided; bilerp elsewhere.  A
+    # length-1 NaN sentinel broadcasts to "all bilerp"; a per-node finite array
+    # reads each tangency EXACTLY (no O(Δ²) floor at the lean point).  Sanitise
+    # the exact branch to a finite value BEFORE the select so the NaN sentinel
+    # never poisons the gradient (the jnp.where NaN-VJP trap).
+    wall_psi_finite = jnp.isfinite(wall_psi)
+    wall_psi_safe = jnp.where(wall_psi_finite, wall_psi, psi_axis)
+    u_wall_exact = (wall_psi_safe - psi_axis) / span_safe
+    u_wall_pts = jnp.where(wall_psi_finite, u_wall_exact, u_wall_bilerp)
     u_wall = jnp.min(jnp.where(reachable, u_wall_pts, jnp.inf))
     u_wall_valid = jnp.any(reachable) & jnp.isfinite(u_wall)
     u_wall_c = jnp.where(u_wall_valid, u_wall, jnp.inf)
@@ -354,8 +373,14 @@ def boundary_read_jax(
         & flood_adjacent
     )
     xc = xpoint_candidates(psi2d, rg, zg, inside_limiter, _K_XCAND, extra_mask=x_mask)
-    u_x = (xc["psi"] - psi_axis) / span_safe  # (_K_XCAND,)
-    x_valid = xc["valid"] & jnp.isfinite(u_x)
+    # Sanitise the masked-out (NaN) candidate flux to a finite value BEFORE any
+    # arithmetic: a NaN numerator would poison the VJP of the /span_safe division
+    # (0·NaN into span_safe, which depends on the axis), even though the value is
+    # gated out downstream.  The x_valid flag still drops these slots.
+    xc_valid = xc["valid"] & jnp.isfinite(xc["psi"])
+    psi_x_safe = jnp.where(xc_valid, xc["psi"], psi_axis)
+    u_x = (psi_x_safe - psi_axis) / span_safe  # (_K_XCAND,), finite everywhere
+    x_valid = xc_valid
     x_key = jnp.where(x_valid, jnp.abs(u_x - s_flood), jnp.inf)
     kbind = jnp.argmin(x_key)
     x_bind_valid = x_valid[kbind] & jnp.isfinite(x_key[kbind])
@@ -433,13 +458,21 @@ def boundary_read_jax(
 
 
 def _densify_wall(grid, m: int = 720):
-    """Resample the limiter polygon to ``m`` arc-length points ``(wall_r, wall_z)``.
+    """Wall surface nodes ``(wall_r, wall_z)`` for the SUB-GRID binding flux.
 
-    The wall boundary points feed the SUB-GRID binding flux.  A grid without a
-    ``limiter_r``/``limiter_z`` polygon (e.g. a bare test grid) yields the
-    single far-away no-wall point, so the read falls back to the flood binding.
+    Prefers the grid's precomputed multi-unit nodes (``wall_r``/``wall_z`` built
+    at ~Δ/2 over every wall unit — vessel, tiles, movable limiters), so an
+    arbitrary machine wall is data, not a code path.  Falls back to resampling a
+    single ``limiter_r``/``limiter_z`` loop to ``m`` points (a bare test grid or
+    an older grid), and to the single far-away no-wall point when neither exists
+    (the read then uses the cell-level flood binding).
     """
     import numpy as np  # noqa: PLC0415
+
+    gwr = getattr(grid, "wall_r", None)
+    gwz = getattr(grid, "wall_z", None)
+    if gwr is not None and gwz is not None and len(np.asarray(gwr)) >= 1:
+        return np.asarray(gwr, dtype=np.float64), np.asarray(gwz, dtype=np.float64)
 
     lr = getattr(grid, "limiter_r", None)
     lz = getattr(grid, "limiter_z", None)
@@ -488,22 +521,45 @@ def boundary_read(
     n_ray: int = 512,
     angles=LCFS_ANGLES,
     lcfs_norm: float = 0.999,
+    wall_psi=None,
 ) -> ConnectivityBoundary:
     """Host adapter: run :func:`boundary_read_jax` on one slice, return numpy.
 
     ``grid`` is an :class:`~imas_ambix.latent.gs_solve.EquilibriumGrid` (supplies
-    ``rg``/``zg``/``inside_limiter``).  ``lcfs_norm=1.0`` reports the ring AT the
-    separatrix (the ``lcfs_contour(clip_legs=True)`` convention used by the disc
-    pushout); the 0.999 default reads a hair inside (the plain ``lcfs_contour``).
+    ``rg``/``zg``/``inside_limiter`` and the multi-unit wall nodes).  ``wall_psi``
+    is the exact node flux (``grid.wall_flux(i_pf, i_cell)``) aligned with the
+    grid's wall nodes; pass it to read the tangency exactly (the campaign
+    ``g_wall`` GEMM) instead of bilinear off the grid.  ``lcfs_norm=1.0`` reports
+    the ring AT the separatrix (the ``lcfs_contour(clip_legs=True)`` convention
+    used by the disc pushout); the 0.999 default reads a hair inside.
     """
     import numpy as np  # noqa: PLC0415
 
     wall_r, wall_z = _densify_wall(grid)
+    # ONE hard error per solve: the flood seed (the axis cell) must be occupiable
+    # — if it lands in wall material (or outside the vessel) the connectivity read
+    # has no plasma to grow.  (The read itself is fully differentiable; this is a
+    # host-side precondition, not a branch inside the device kernel.)
+    inside = np.asarray(grid.inside_limiter, dtype=bool)
+    rg_np = np.asarray(grid.rg, dtype=np.float64)
+    zg_np = np.asarray(grid.zg, dtype=np.float64)
+    ia = int(np.argmin(np.abs(zg_np - float(axis[1]))))
+    ja = int(np.argmin(np.abs(rg_np - float(axis[0]))))
+    if not inside[ia, ja]:
+        raise ValueError(
+            f"flood seed (axis cell R={axis[0]:.4f}, Z={axis[1]:.4f} → grid "
+            f"[{ia}, {ja}]) lies in wall material / outside the vessel — no "
+            "axis-connected plasma to grow"
+        )
+    if wall_psi is None:
+        wpsi = _NO_WALL_PSI
+    else:
+        wpsi = jnp.asarray(np.asarray(wall_psi, dtype=np.float64))
     out = boundary_read_jax(
         jnp.asarray(np.asarray(psi2d, dtype=np.float64)),
-        jnp.asarray(np.asarray(grid.rg, dtype=np.float64)),
-        jnp.asarray(np.asarray(grid.zg, dtype=np.float64)),
-        jnp.asarray(np.asarray(grid.inside_limiter, dtype=bool)),
+        jnp.asarray(rg_np),
+        jnp.asarray(zg_np),
+        jnp.asarray(inside),
         jnp.asarray(float(axis[0])),
         jnp.asarray(float(axis[1])),
         int(n_levels),
@@ -513,6 +569,7 @@ def boundary_read(
         jnp.asarray(float(lcfs_norm)),
         jnp.asarray(wall_r),
         jnp.asarray(wall_z),
+        wpsi,
     )
     return ConnectivityBoundary(
         found=bool(out["found"]),
@@ -540,12 +597,15 @@ def boundary_read_batch(
     n_ray: int = 512,
     angles=LCFS_ANGLES,
     lcfs_norm: float = 0.999,
+    wall_psi=None,
 ) -> dict:
     """Batched read over ``(B, nz, nr)`` ψ fields sharing one grid — a single vmap.
 
-    ``axes`` is ``(B, 2)`` (R, Z).  Proves the fixed-shape / on-device batch the
-    corpus labeller needs: one ``jax.vmap``, no host loop, no per-slice contour
-    extraction.  Returns a dict of stacked device arrays.
+    ``axes`` is ``(B, 2)`` (R, Z).  ``wall_psi`` is an optional ``(B, n_node)``
+    exact node flux (per-slice ``grid.wall_flux``) aligned with the grid's wall
+    nodes; omit it for the bilinear read.  Proves the fixed-shape / on-device
+    batch the corpus labeller needs: one ``jax.vmap``, no host loop, no per-slice
+    contour extraction.  Returns a dict of stacked device arrays.
     """
     import numpy as np  # noqa: PLC0415
 
@@ -558,8 +618,12 @@ def boundary_read_batch(
     wall_r, wall_z = _densify_wall(grid)
     wr = jnp.asarray(wall_r)
     wz = jnp.asarray(wall_z)
+    if wall_psi is None:
+        wpsi = jnp.broadcast_to(_NO_WALL_PSI, (ps.shape[0], 1))
+    else:
+        wpsi = jnp.asarray(np.asarray(wall_psi, dtype=np.float64))
 
-    def one(psi2d, axis):
+    def one(psi2d, axis, wp):
         return boundary_read_jax(
             psi2d,
             rg,
@@ -574,6 +638,7 @@ def boundary_read_batch(
             jnp.asarray(float(lcfs_norm)),
             wr,
             wz,
+            wp,
         )
 
-    return jax.vmap(one)(ps, ax)
+    return jax.vmap(one)(ps, ax, wpsi)
