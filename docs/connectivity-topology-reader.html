@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-20">
 <meta name="plan-impl" content="0.25">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="5">
 </head>
 <body>
 <main class="plan-doc">
@@ -251,7 +251,7 @@ Done-when
      artifact + figures committed.
   2. Plan updated same-session: §2 outcome recorded + collapsed; §3 (axis + X via nova
      stencils) followup queued WITH pre-declared gates; this followup resolved.</pre>
-    <p class="r-fu-outcome">§2 landed + collapsed (commits 69bb126/612f91b/81f3274/df71314 code, 6c2ba63/6f9656c docs). Device connectivity boundary read (flood-fill + level sweep; two-sided-mean saddle binding + sub-grid interpolated wall-min for the limited tangency, classes split by the region size jump) reproduces host lcfs_contour on 36 held-out MAST slices (18 diverted/18 limited): LCFS radii 0.09cm median <3cm (limited 0.06/diverted 0.46, p90 2.14) and ψ_bnd 0.02% of span (p90 1.77), BOTH classes on y=x (limited signed median -0.01%, diverted +0.43%) — T-B1 PASS; on-device vmap byte-parity 46ms/slice, no contourpy/ndimage/argwhere — T-B2 PASS; connectivity ψ_bnd continuous 0.5% vs classify-first 9.2% — T-B3 PASS. RCA (2 lead-flagged rounds): single-sided escape biased ψ_bnd ~1 cell toward axis (limited all above y=x); two-sided mean fixed the saddle, sub-grid wall-min fixed the limited tangency. All fixed-shape jnp, GPU-portable. Findings: connectivity-topology-reader-boundary-findings.html.</p>
+    <p class="r-fu-outcome">§2 landed + collapsed (commits 69bb126/612f91b/81f3274/df71314 code, 6c2ba63/6f9656c docs). Device connectivity boundary read (flood-fill + level sweep; two-sided-mean saddle binding + sub-grid interpolated wall-min for the limited tangency, classes split by the region size jump) reproduces host lcfs_contour on 36 held-out MAST slices (18 diverted/18 limited): LCFS radii 0.09cm median &lt;3cm (limited 0.06/diverted 0.46, p90 2.14) and ψ_bnd 0.02% of span (p90 1.77), BOTH classes on y=x (limited signed median -0.01%, diverted +0.43%) — T-B1 PASS; on-device vmap byte-parity 46ms/slice, no contourpy/ndimage/argwhere — T-B2 PASS; connectivity ψ_bnd continuous 0.5% vs classify-first 9.2% — T-B3 PASS. RCA (2 lead-flagged rounds): single-sided escape biased ψ_bnd ~1 cell toward axis (limited all above y=x); two-sided mean fixed the saddle, sub-grid wall-min fixed the limited tangency. All fixed-shape jnp, GPU-portable. Findings: connectivity-topology-reader-boundary-findings.html.</p>
     </article>
 <article class="r-fu" data-id="f-ctr-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T16:00:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §3" data-resolved-at="2026-07-20T14:06:39+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §3 — axis + optional X-point via nova stencils (classify-after) + sub-grid ψ_bnd polish</h4>
@@ -314,7 +314,7 @@ Done-when
      mask) followup queued WITH pre-declared gates; this followup resolved.</pre>
     <p class="r-fu-outcome">Superseded by f-ctr-03. §2's two-sided binding level already delivered an unbiased scalar ψ_bnd (1.87% of span, T-B1 PASS), so the ψ_bnd sub-grid polish this followup scoped into §3 is no longer needed; §3 is rescoped to the sub-grid null POSITIONS only.</p>
     </article>
-<article class="r-fu" data-id="f-ctr-03" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T16:30:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ctr-03" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T16:30:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §3" data-resolved-at="2026-07-20T19:37:53+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §3 — axis + optional X-point via nova stencils (classify-after)</h4>
     <div class="r-fu-body"><p>§2 landed the connectivity boundary (radii reproduce host to 1.31cm; ψ_bnd unbiased at 1.87% of span via the two-sided binding level — all gates PASS). §3 adds the sub-grid null POSITIONS the boundary read leaves to a separate rung: port nova's <code>zero_cross_count</code> stencil classifier + <code>select.subnull</code> quadratic refinement (with the static-count idiom) for the sub-grid axis O-point position and X-point <em>location</em>, read AFTER the §2 boundary by proximity to the ring (<code>emergent_xpoints</code>). The scalar ψ_bnd is already unbiased from §2, so §3 does NOT touch the boundary flux — only the null positions (locked decision nova-primitives = stencils-only).</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -369,6 +369,51 @@ Done-when
      artifact + figures committed.
   2. Plan updated same-session: §3 outcome recorded + collapsed; §4 (machine-agnostic wall
      mask) followup queued WITH pre-declared gates; this followup resolved.</pre>
+    <p class="r-fu-outcome">Rescoped into f-ctr-04. The lead flagged the 0.06cm(limited)/0.46cm(diverted) asymmetry; a contourpy-oracle check (this session) confirmed the host is NOT grid-biased (4x-upsampled ψ moves ψ_bnd +0.000%; host ψ_bnd = sub-grid X-point flux to <0.01% on diverted). So §2's diverted ψ_bnd carries a small two-sided-mean residual the sub-grid X-point saddle should close, unifying the binding and removing the size-ratio switch — §3 now OWNS that (this followup's 'do not re-touch ψ_bnd' scope was superseded).</p>
+    </article>
+<article class="r-fu" data-id="f-ctr-04" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T18:00:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Ship §3 — axis + X-point via nova stencils, and unify the boundary binding (sub-grid saddle)</h4>
+    <div class="r-fu-body"><p>§2 landed the connectivity boundary (all gates PASS; radii 0.09cm, ψ_bnd 0.02%). Two residuals remain for §3: (1) the sub-grid axis O-point + X-point POSITIONS (read after the boundary by ring-proximity, emergent_xpoints); (2) a UNIFICATION — §2 uses a limited/diverted size-ratio SWITCH (two-sided-mean saddle for diverted, sub-grid interpolated wall-min for limited), leaving diverted at a 0.46cm residual vs limited 0.06cm. The contourpy oracle was verified correct (not grid-biased; host ψ_bnd = sub-grid X-point flux to <0.01%), so the fix is to read the diverted binding SUB-GRID via nova select.subnull's X-point (saddle) flux — the X-point equivalent of the wall interpolation — and set binding = confined-most of {sub-grid wall tangency, sub-grid X-point saddle}, removing the switch. Quality unification, not a correctness fix (the switch is device-portable and correct meanwhile).</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    connectivity-topology-reader (http://localhost:8765/imas-ambix/connectivity-topology-reader.html)
+Section: §3 (axis + X-point via nova stencils, classify-after; unify the boundary binding)
+Tier:    opus
+
+Context
+  §2 shipped the GPU-native connectivity BOUNDARY read (imas_ambix/latent/connectivity_boundary.py):
+  radii reproduce host lcfs_contour to 0.09cm median, ψ_bnd 0.02% of span, both classes on y=x,
+  on-device/vmap/grad-safe, continuous through the marginal transition (all gates PASS). It uses a
+  LIMITED/DIVERTED size-ratio SWITCH: diverted binding = two-sided-mean flood level (0.46cm residual),
+  limited = sub-grid interpolated wall-min (0.06cm). A contourpy-oracle check (findings §3b) confirmed
+  the host is NOT grid-biased (4x upsample moves ψ_bnd +0.000%; host ψ_bnd = sub-grid X-point flux to
+  &lt;0.01% on diverted) — so the diverted residual is the mean&#x27;s own error, closable by a sub-grid saddle.
+  §3 ports nova&#x27;s stencils (locked decision nova-primitives = stencils-only) for the sub-grid nulls AND
+  uses the X-point saddle FLUX to unify the boundary binding. Honour the locked decisions.
+
+State to read (CODE / FILES / DATA)
+  imas_ambix/latent/connectivity_boundary.py   (the §2 device boundary read; the size-ratio switch to remove)
+  imas_ambix/latent/topology.py                (magnetic_axis, xpoint_set, emergent_xpoints, find_critical_points — CPU reads to reproduce; find_critical_points gives the Newton-refined saddle to match)
+  ~/Code/nova/nova/jax/null.py                 (zero_cross_count stencil null classifier: 0 sign-changes → O, 4 → X)
+  ~/Code/nova/nova/jax/select.py               (select.subnull local-quadratic sub-grid position + flux + the static-count idiom, proven jax.grad path)
+  scripts/connectivity_boundary_gate_eval.py   (the §2 gate + held-out loader + imas-ink cross-section; the §3b oracle check to fold in)
+
+Scope locks / constraints (non-decision)
+  - Sub-grid axis O-point POSITION + X-point LOCATION via the nova stencil classifier + subnull; validated jax.grad. Match CPU magnetic_axis / find_critical_points to sub-grid tolerance.
+  - UNIFY the boundary binding: replace the §2 limited/diverted size-ratio switch with binding = confined-most (nearest ψ_N to axis) of {sub-grid wall tangency (§2&#x27;s wall-min), sub-grid X-point saddle flux (subnull)}. Re-run the gate: diverted ψ_bnd residual should close to &lt;0.5% of span (toward the &lt;0.01% the X-point flux reproduces) with NO regression to limited (stays ~0.06cm) and both classes still on y=x.
+  - X-slots + limited/diverted class still read AFTER the boundary by ring-proximity (emergent_xpoints soft margin); marginal transition reported soft/undefined (no branch flip).
+  - Fixed-shape / jit / vmap / grad-safe throughout (static-count idiom for the variable null count); GPU-portable. Firewall unchanged: physics + measured channels only, no EFIT.
+  - Figures mandatory (docs/figures/connectivity-topology-reader/), imas-ink where the data is an equilibrium cross-section (plot the O-point axis, NOT the centroid): axis/X-point overlay on a diverted slice; per-class ψ_bnd scatter showing diverted closed to limited parity.
+  - Commit+push each coherent change on main; no AI co-author trailers (verify: git log -1 --format=%B | grep -Eqi &quot;^co-authored-by:&quot;).
+
+Gates (pre-declared)
+  T-C1 (axis): sub-grid axis position matches CPU to tolerance, jax.grad finite.
+  T-C2 (X + class): X-point positions + diverted class match the CPU read on a diverted-slice set; marginal transition soft/undefined (no branch flip).
+  T-C3 (unify): the unified binding (no switch) reproduces host lcfs_contour with diverted ψ_bnd residual &lt;0.5% of span (from 0.46cm/+0.43%) and no limited regression; both classes on y=x.
+  Stop rule: if the stencil nulls cannot reach sub-grid tolerance OR the unified binding regresses §2&#x27;s limited accuracy or the diverted-continuity, STOP and surface — keep the §2 switch (device-portable, correct) rather than ship a worse unified read.
+
+Done-when
+  1. Sub-grid axis + X-point stencils + unified binding committed; T-C1..T-C3 verdicts recorded honestly; artifact + figures committed.
+  2. Plan updated same-session: §3 outcome recorded + collapsed; §4 (machine-agnostic wall mask) followup queued WITH pre-declared gates; this followup resolved.</pre>
     </article>
 </section>
 

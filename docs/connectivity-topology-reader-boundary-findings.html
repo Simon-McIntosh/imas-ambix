@@ -159,6 +159,32 @@ error dropped from 2.55 cm to <strong>0.09 cm</strong> median (limited 0.06 cm),
 interpolated wall min + reductions) — <code>jit</code>/<code>vmap</code>-portable to
 the GPU, and ψ_bnd differentiable.</p>
 
+<h2 id="oracle">§3b — Is the diverted residual a contourpy bias? (checked: no)</h2>
+<p>The remaining asymmetry — limited 0.06 cm vs diverted 0.46 cm — raised the
+question of whether the host <code>lcfs_contour</code> oracle is itself grid-biased
+for diverted plasmas (its ψ_bnd sitting a hair <em>inside</em> the true separatrix,
+so the device's cell-level mean would be chasing a wrong target). Two checks say
+<strong>no — contourpy is correct</strong>:</p>
+<ul>
+  <li><strong>Resolution convergence.</strong> Re-running the host read on a 4×
+  bilinearly-upsampled ψ moves ψ_bnd by <strong>+0.000%</strong> of span on every
+  held-out slice (limited and diverted): the coarse-grid host ψ_bnd is already
+  converged.</li>
+  <li><strong>Equals the sub-grid X-point flux.</strong> On the diverted slices the
+  host ψ_bnd matches the Newton-refined sub-grid X-point (saddle) flux to
+  <strong>&lt; 0.01%</strong> of span (−0.006% / −0.003% / −0.002%): the host
+  boundary <em>is</em> the separatrix.</li>
+</ul>
+<p>So the earlier device "diverted overshoot" (a min-over-reachable-wall reading the
+plasma's outboard wall approach, which sits outside the separatrix) was a device
+error, not a truer boundary. The residual 0.46 cm is the two-sided cell mean's own
+small error on the saddle binding — and it is the natural place for the SAME sub-grid
+refinement the wall tangency got: a sub-grid X-point saddle flux (nova's
+<code>select.subnull</code>) would close it to the &lt; 0.01% the X-point flux already
+shows, and <strong>unify the read</strong> (the binding = the confined-most of
+{sub-grid wall tangency, sub-grid X-point saddle}, no limited/diverted switch). That
+sub-grid saddle is §3's deliverable (see §7).</p>
+
 <h2 id="ondevice">§4 — On-device and batchable (T-B2) — PASS</h2>
 <p>A batch of the six slices sharing one campaign grid runs as a single
 <code>jax.vmap</code> with fixed shapes, byte-parity with the per-slice read
@@ -201,13 +227,16 @@ construction — the property the differentiable rollout depends on.</p>
 </ul>
 
 <h2 id="next">§7 — Next</h2>
-<p><strong>§3 — axis + optional X-point via nova stencils (classify-after).</strong>
+<p><strong>§3 — axis + X-point via nova stencils, and UNIFY the binding.</strong>
 Port nova's <code>zero_cross_count</code> stencil classifier and
-<code>select.subnull</code> quadratic refinement for the sub-grid axis O-point
-<em>position</em> and X-point <em>location</em>, read off AFTER the §2 boundary by
-proximity to the ring (the <code>emergent_xpoints</code> soft-margin rule). The §2
-two-sided binding level already delivers an unbiased scalar ψ_bnd, so §3 is scoped
-to the sub-grid null <em>positions</em>, not the boundary flux. Artifacts:
+<code>select.subnull</code> quadratic refinement for the sub-grid axis O-point and
+X-point <em>positions</em>. The same subnull yields the sub-grid X-point (saddle)
+<em>flux</em> — the diverted binding — so §3 also folds it into the boundary read:
+<strong>binding = the confined-most of {sub-grid wall tangency, sub-grid X-point
+saddle}</strong>, which removes the §2 limited/diverted size-ratio switch and closes
+the diverted residual (0.46 cm → the &lt; 0.01% the X-point flux already reproduces,
+§3b). The switch is device-portable and correct in the meantime, so this is a
+quality unification, not a fix for a wrong answer. Artifacts:
 <code>imas_ambix/latent/connectivity_boundary.py</code>,
 <code>scripts/connectivity_boundary_gate_eval.py</code>,
 <code>imas_ambix/latent/artifacts/patch_gate/connectivity_boundary_gate-v0.json</code>.</p>
