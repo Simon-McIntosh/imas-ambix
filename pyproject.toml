@@ -158,6 +158,9 @@ select = ["E", "F", "W", "I", "UP", "N", "B", "A", "SIM", "TCH"]
 # The structure-fidelity probe uses conventional math names (L, G, W, T) and
 # carries long diagnostic caption/verdict strings; same rationale as metrics.py.
 "imas_ambix/camdyn/structure_fidelity.py" = ["N806", "E501"]
+# The batched-labeller spike uses conventional linear-algebra naming (G = the
+# Green's matrix, I = the current matrix) — uppercase matches the math.
+"scripts/gpu_labeler_foundation_spike.py" = ["N803", "N806", "E741"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,270 @@
+{
+  "kind": "gpu-labeler-foundation-spike",
+  "jax_version": "0.10.1",
+  "backend": "gpu",
+  "on_gpu": true,
+  "devices": [
+    "gpu:0"
+  ],
+  "campaign": "mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4",
+  "n_unique_slices": 6,
+  "G_shape": [
+    6305,
+    5084
+  ],
+  "leg_a1_framework": {
+    "batch": 64,
+    "dtype": "fp64",
+    "jax_devices": [
+      "gpu:0"
+    ],
+    "jax_on_gpu": true,
+    "jax_step_ms": 9.3335,
+    "jax_slices_per_s": 6857.0,
+    "torch_cuda_available": false,
+    "torch_device": "cpu",
+    "torch_step_ms": 1439.8228,
+    "torch_slices_per_s": 44.4,
+    "qualitative": {
+      "device_topology_read": "jax-only (connectivity_boundary is JAX; torch has no device port of the boundary read / flood-fill / stencil nulls)",
+      "autograd_through_rollout": "jax vmap+grad through the fixed-point map is a strategic need (learned operator handoff); torch would need a rewrite",
+      "temporal_stack": "the temporal world-model stack is torch-fp64"
+    }
+  },
+  "leg_a2_gemm_crossover": {
+    "on_gpu": true,
+    "devices": [
+      "gpu:0"
+    ],
+    "G_shape": [
+      6305,
+      5084
+    ],
+    "batches": [
+      1,
+      8,
+      32,
+      128,
+      512
+    ],
+    "by_dtype": {
+      "fp64": [
+        {
+          "batch": 1,
+          "wall_ms": 1.06164,
+          "slices_per_s": 941.9,
+          "tflop_s": 0.06
+        },
+        {
+          "batch": 8,
+          "wall_ms": 1.35452,
+          "slices_per_s": 5906.1,
+          "tflop_s": 0.379
+        },
+        {
+          "batch": 32,
+          "wall_ms": 4.66998,
+          "slices_per_s": 6852.3,
+          "tflop_s": 0.439
+        },
+        {
+          "batch": 128,
+          "wall_ms": 18.33771,
+          "slices_per_s": 6980.2,
+          "tflop_s": 0.447
+        },
+        {
+          "batch": 512,
+          "wall_ms": 72.17781,
+          "slices_per_s": 7093.6,
+          "tflop_s": 0.455
+        }
+      ],
+      "fp32": [
+        {
+          "batch": 1,
+          "wall_ms": 1.02825,
+          "slices_per_s": 972.5,
+          "tflop_s": 0.062
+        },
+        {
+          "batch": 8,
+          "wall_ms": 2.19194,
+          "slices_per_s": 3649.7,
+          "tflop_s": 0.234
+        },
+        {
+          "batch": 32,
+          "wall_ms": 2.25108,
+          "slices_per_s": 14215.4,
+          "tflop_s": 0.911
+        },
+        {
+          "batch": 128,
+          "wall_ms": 3.19163,
+          "slices_per_s": 40104.9,
+          "tflop_s": 2.571
+        },
+        {
+          "batch": 512,
+          "wall_ms": 4.18297,
+          "slices_per_s": 122401.1,
+          "tflop_s": 7.847
+        }
+      ],
+      "tf32": [
+        {
+          "batch": 1,
+          "wall_ms": 2.10159,
+          "slices_per_s": 475.8,
+          "tflop_s": 0.031
+        },
+        {
+          "batch": 8,
+          "wall_ms": 2.2219,
+          "slices_per_s": 3600.5,
+          "tflop_s": 0.231
+        },
+        {
+          "batch": 32,
+          "wall_ms": 2.23421,
+          "slices_per_s": 14322.7,
+          "tflop_s": 0.918
+        },
+        {
+          "batch": 128,
+          "wall_ms": 2.35345,
+          "slices_per_s": 54388.4,
+          "tflop_s": 3.487
+        },
+        {
+          "batch": 512,
+          "wall_ms": 2.88518,
+          "slices_per_s": 177458.4,
+          "tflop_s": 11.377
+        }
+      ],
+      "bf16": [
+        {
+          "batch": 1,
+          "wall_ms": 1.5793,
+          "slices_per_s": 633.2,
+          "tflop_s": 0.041
+        },
+        {
+          "batch": 8,
+          "wall_ms": 1.59161,
+          "slices_per_s": 5026.3,
+          "tflop_s": 0.322
+        },
+        {
+          "batch": 32,
+          "wall_ms": 1.60045,
+          "slices_per_s": 19994.4,
+          "tflop_s": 1.282
+        },
+        {
+          "batch": 128,
+          "wall_ms": 1.664,
+          "slices_per_s": 76923.0,
+          "tflop_s": 4.931
+        },
+        {
+          "batch": 512,
+          "wall_ms": 2.06726,
+          "slices_per_s": 247670.2,
+          "tflop_s": 15.878
+        }
+      ]
+    },
+    "linear_scaling_ceiling": {
+      "fp64": 1,
+      "fp32": 1,
+      "tf32": 128,
+      "bf16": 128
+    }
+  },
+  "leg_a3_batched_solve": {
+    "on_gpu": true,
+    "devices": [
+      "gpu:0"
+    ],
+    "batch": 12,
+    "n_unique": 6,
+    "picard_iters": 60,
+    "read_resolution": {
+      "n_levels": 48,
+      "n_bisect": 12,
+      "n_ray": 96
+    },
+    "axis_tol_cm": 2.0,
+    "fp64_wall_s": 15.4958,
+    "fp64_compile_s": 49.1,
+    "fp64_solves_per_s": 0.8,
+    "fp64_is_f64": true,
+    "reproduction": {
+      "n_scored": 6,
+      "n_ref_converged": 6,
+      "axis_median_cm": 14.926947542520795,
+      "axis_p90_cm": 43.241667953200434,
+      "residual_median": 0.02377371610304521,
+      "pass": false,
+      "pairs": {
+        "dev_r": [
+          1.049566646672623,
+          1.846366161791639,
+          1.8108122639718636,
+          1.0231928251189353,
+          1.8159856444330222,
+          1.176205807109663
+        ],
+        "dev_z": [
+          -0.0018653920487030275,
+          0.005695911192080805,
+          0.00491791326617386,
+          -0.0027574272262082186,
+          0.005655594018846443,
+          0.009730178576427106
+        ],
+        "ref_r": [
+          0.8286858530848968,
+          1.7687687133116492,
+          1.7668321567764522,
+          0.7474367867603601,
+          1.7669688034476474,
+          1.765176225601119
+        ],
+        "ref_z": [
+          -0.007019172299303644,
+          0.005998701602804322,
+          0.003577276242367022,
+          -0.00883605197523211,
+          0.004943115082775016,
+          0.0028732764284657244
+        ]
+      }
+    },
+    "precision": {
+      "tf32": {
+        "wall_s": 6.3982,
+        "solves_per_s": 1.9,
+        "axis_delta_vs_fp64_median_cm": 0.0025674326935272275,
+        "axis_delta_vs_fp64_p90_cm": 0.0066360004208130055
+      },
+      "bf16": {
+        "wall_s": 7.7164,
+        "solves_per_s": 1.6,
+        "axis_delta_vs_fp64_median_cm": 0.01858740264607591,
+        "axis_delta_vs_fp64_p90_cm": 0.14293736624407222
+      }
+    },
+    "parity": {
+      "small_batch": 8,
+      "max_abs_axis_diff_m": 7.482903185973555e-14,
+      "pass": true
+    }
+  },
+  "git_commit": "f9947763656bee852c294fd1a12a8f04949f6d50",
+  "hostname": "98dci4-srv-1006.iter.org",
+  "platform": "Linux-5.14.0-284.25.1.el9_2.x86_64-x86_64-with-glibc2.34"
+}
