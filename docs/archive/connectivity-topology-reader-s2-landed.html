@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="connectivity-topology-reader-s2-landed">
+  <meta name="plan-title" content="§2 landed — GPU-native connectivity boundary read">
+  <meta name="plan-status" content="reference">
+  <meta name="plan-summary" content="Per-stage landed record for connectivity-topology-reader §2: the GPU-native connectivity boundary read (flood-fill + level sweep + two-sided binding level). All three gates PASS — LCFS radii reproduce host lcfs_contour to 1.31 cm median (< 3 cm); psi_bnd to 1.87% of span (a first single-sided escape test biased it ~1 cell / 3.7% toward the axis; fixed by the two-sided mean); on-device vmap byte-parity, no contourpy/ndimage/argwhere; continuity 0.5% vs classify-first 9.2%.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>§2 landed — GPU-native connectivity boundary read | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Per-stage record</strong> for
+<a href="/imas-ambix/connectivity-topology-reader.html">connectivity-topology-reader</a>
+§2 — the GPU-native connectivity boundary read. Full findings + figures:
+<a href="/imas-ambix/connectivity-topology-reader-boundary-findings.html">boundary-read findings report</a>.</p>
+
+<h2 id="status">Quick status</h2>
+<figure>
+  <table>
+    <thead><tr><th>Gate</th><th>Verdict</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>T-B1 — reproduction</td><td>PASS</td>
+        <td>LCFS radii reproduce host <code>lcfs_contour</code> to <strong>1.31 cm median</strong>
+        (bar 3.0 cm; diverted 0.46 cm, limited 1.40 cm, p90 max 2.14 cm); ψ_bnd to
+        <strong>1.87% of span</strong> (p90 3.12%, bar 3%), on the y=x line</td></tr>
+      <tr><td>T-B2 — on-device</td><td>PASS</td>
+        <td>batch of 6 slices = one <code>jax.vmap</code>, byte-parity (1e-9), 46 ms/slice CPU;
+        no contourpy / ndimage / argwhere (AST-audited)</td></tr>
+      <tr><td>T-B3 — continuity</td><td>PASS</td>
+        <td>connectivity ψ_bnd max step 0.5% of span vs classify-first 9.2% at the
+        in-vessel X-point appearance</td></tr>
+    </tbody>
+  </table>
+  <figcaption>36 held-out MAST slices (6 shots × 6; 18 diverted / 18 limited) + a
+  synthetic limited→diverted sweep. Firewall: physics + measured channels only, no EFIT.</figcaption>
+</figure>
+
+<h2 id="outcomes">Outcomes</h2>
+<figure>
+  <table>
+    <thead><tr><th>Item</th><th>Artifact</th><th>Commit</th></tr></thead>
+    <tbody>
+      <tr><td>Device connectivity boundary read (+ two-sided binding-level fix)</td>
+        <td><code>imas_ambix/latent/connectivity_boundary.py</code></td>
+        <td><code>69bb126</code>, <code>612f91b</code></td></tr>
+      <tr><td>Gate (T-B1/T-B2/T-B3) + figures + imas-ink cross-section</td>
+        <td><code>scripts/connectivity_boundary_gate_eval.py</code>,
+        <code>…/artifacts/patch_gate/connectivity_boundary_gate-v0.json</code></td>
+        <td><code>69bb126</code>, <code>6c2ba63</code></td></tr>
+      <tr><td>Unit tests (jit/vmap/grad, contour-free, reproduction, continuity)</td>
+        <td><code>tests/latent/test_connectivity_boundary.py</code></td>
+        <td><code>69bb126</code></td></tr>
+      <tr><td>Findings report</td>
+        <td><code>connectivity-topology-reader-boundary-findings.html</code></td>
+        <td><code>6c2ba63</code></td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<h2 id="method">What landed</h2>
+<p>A fixed-shape, <code>jit</code> / <code>vmap</code> / <code>grad</code>-safe device
+reimplementation of the shipped host <code>topology.lcfs_contour</code>: a
+fixed-iteration flood-fill from the axis (reusing the contour-free FSA's
+<code>flood_fill_core</code>) + a candidate-level sweep + a fixed-count bisection
+over the connectivity-change level, replacing host contourpy and the
+bisection-over-traced-contours. ONE code path for limited and diverted,
+continuous through the marginal transition by construction; the wall enters only
+as a raster boolean mask (the machine-agnostic §4 abstraction, in place from the
+start). The LCFS radii are read a hair inside the separatrix by a differentiable
+ray-march so a ray never runs down an open X-point leg.</p>
+
+<h2 id="rca">RCA — the boundary-size bias, found and fixed</h2>
+<p>A first single escape test (region touches the innermost in-wall shell) fired
+~one grid cell <em>inside</em> the true wall crossing / saddle, so ψ_bnd was biased
+toward the axis and the boundary came out consistently too small (real-data ψ_bnd
+sat entirely on one side of y = x, median 3.7%; diverted lobes slightly small too).
+Fixed by reading ψ_bnd at the <strong>mean of an inner escape test (~1 cell inside)
+and an outer escape test (~1 cell outside)</strong>, which brackets the binding from
+both sides. The mean is unbiased (real-data ψ_bnd 3.74% one-sided → 1.87% centred,
+radii 2.55 → 1.31 cm) and lands the diverted boundary on the X-point saddle
+(ψ_N = 1). No classification, no upsampling; ψ_bnd stays differentiable.</p>
+
+<h2 id="next">What's next — §3</h2>
+<p><strong>Axis + optional X-point via nova stencils (classify-after).</strong> Port
+<code>zero_cross_count</code> + <code>select.subnull</code> for the sub-grid axis
+O-point <em>position</em> and X-point <em>location</em>, read AFTER the §2 boundary
+by proximity to the ring (<code>emergent_xpoints</code>). §2 already delivers an
+unbiased scalar ψ_bnd, so §3 owns the sub-grid null positions, not the boundary
+flux. Run: <code>/reckon-ship connectivity-topology-reader §3</code>.</p>
+
+</main>
+</body>
+</html>

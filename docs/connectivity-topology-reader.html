@@ -4,21 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="connectivity-topology-reader">
-  <meta name="plan-title"     content="Connectivity Topology Reader — GPU-native, differentiable boundary/axis/mask (classify-after)">
-  <meta name="plan-summary"   content="The topology read (magnetic axis, X-point, LCFS/boundary, core mask) is the one data-dependent, GPU-hostile step in the batched equilibrium engine, and the place EFIT-class reconstructors sink into a contour-tree/critical-point-classification tar pit. This plan makes it a clean, on-device, differentiable prerequisite for gpu-accelerated-labeler by porting the ALGORITHM we already validated (the connectivity-boundary read, shipped in connectivity-boundary-classification / used as the frozen-spine pushout) to GPU-native primitives, and leaning on nova's proven stencils only where they help. The boundary is defined by CONNECTIVITY, not stationary-point classification: the outermost closed axis-enclosing flux contour still inside the wall, found by a monotone valid->invalid level sweep — ONE code path, no limited/diverted branch, no X-point gate, continuous through the marginal limited<->diverted transition by construction (where a marginal plasma looks identical in flux space and classify-first is ill-conditioned). GPU-native rewrite: replace host contourpy + ndimage.label + argwhere-Newton with a fixed-iteration convolutional FLOOD-FILL from the axis + a fixed candidate-level sweep + batched containment/pinch reductions — branchless, fixed-shape, vmap-safe, differentiable. Port from nova ONLY the stencil sign-change null classifier (axis O-point + optional X-point diagnostics) and the local-quadratic sub-null refinement (sub-grid position/flux, proven jax.grad path) + the static-count idiom; do NOT port nova's boundary mode-gate, its half-plane core mask, its single-loop wall contact, or contourpy (an independent review found nova's boundary discontinuous through the marginal transition, plus a likely gate bug). X-points and the limited/diverted class are read off AFTER the boundary by proximity to the ring, never a prerequisite for psi_N. Machine-agnostic wall: the only machine input is a wall MASK, so multiple discrete limiters (AUG) and per-pulse movable limiters (WEST) are a union / per-pulse mask, not new code paths — where a classify-first pipeline becomes machine-specific. Differentiable (smooth mask) so the whole rollout supports implicit-diff (feeds gpu-accelerated-labeler's 4D-Var / physics-in-the-loop stretch). Prerequisite to gpu-accelerated-labeler; also sharpens the CPU greens-filament-solver read.">
-  <meta name="plan-status"    content="draft">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="L">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="connectivity-topology-reader">
+  <meta name="plan-title" content="Connectivity Topology Reader — GPU-native, differentiable boundary/axis/mask (classify-after)">
+  <meta name="plan-summary" content="The topology read (magnetic axis, X-point, LCFS/boundary, core mask) is the one data-dependent, GPU-hostile step in the batched equilibrium engine, and the place EFIT-class reconstructors sink into a contour-tree/critical-point-classification tar pit. This plan makes it a clean, on-device, differentiable prerequisite for gpu-accelerated-labeler by porting the ALGORITHM we already validated (the connectivity-boundary read, shipped in connectivity-boundary-classification / used as the frozen-spine pushout) to GPU-native primitives, and leaning on nova&#x27;s proven stencils only where they help. The boundary is defined by CONNECTIVITY, not stationary-point classification: the outermost closed axis-enclosing flux contour still inside the wall, found by a monotone valid→invalid level sweep — ONE code path, no limited/diverted branch, no X-point gate, continuous through the marginal limited↔diverted transition by construction (where a marginal plasma looks identical in flux space and classify-first is ill-conditioned). GPU-native rewrite: replace host contourpy + ndimage.label + argwhere-Newton with a fixed-iteration convolutional FLOOD-FILL from the axis + a fixed candidate-level sweep + batched containment/pinch reductions — branchless, fixed-shape, vmap-safe, differentiable. Port from nova ONLY the stencil sign-change null classifier (axis O-point + optional X-point diagnostics) and the local-quadratic sub-null refinement (sub-grid position/flux, proven jax.grad path) + the static-count idiom; do NOT port nova&#x27;s boundary mode-gate, its half-plane core mask, its single-loop wall contact, or contourpy (an independent review found nova&#x27;s boundary discontinuous through the marginal transition, plus a likely gate bug). X-points and the limited/diverted class are read off AFTER the boundary by proximity to the ring, never a prerequisite for psi_N. Machine-agnostic wall: the only machine input is a wall MASK, so multiple discrete limiters (AUG) and per-pulse movable limiters (WEST) are a union / per-pulse mask, not new code paths — where a classify-first pipeline becomes machine-specific. Differentiable (smooth mask) so the whole rollout supports implicit-diff (feeds gpu-accelerated-labeler&#x27;s 4D-Var / physics-in-the-loop stretch). Prerequisite to gpu-accelerated-labeler; also sharpens the CPU greens-filament-solver read.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
+  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="greens-filament-solver">
-  <meta name="plan-blocks"    content="gpu-accelerated-labeler">
+  <meta name="plan-blocks" content="gpu-accelerated-labeler">
   <title>Connectivity Topology Reader | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-20">
+<meta name="plan-impl" content="0.25">
+<meta name="plan-version" content="3">
 </head>
 <body>
 <main class="plan-doc">
@@ -104,30 +107,22 @@
   <code>vmap</code>-batchable for <code>gpu-accelerated-labeler</code>. This plan is the
   shared prerequisite for both the accelerated solve and the batched GPU throughput.</p>
 
-  <h2 id="s2">§2 — GPU-native connectivity boundary read (flood-fill + level sweep)</h2>
-  <p>Reimplement <code>lcfs_contour</code>'s monotone connectivity read with GPU-native
-  primitives: seed a one-hot mask at the axis; at each of a fixed set of candidate
-  levels, run a fixed-iteration 3×3-max-conv flood-fill AND-ed with {ψ on the confined
-  side of the level}; the boundary is the largest level whose axis-connected region
-  stays closed AND entirely inside the wall (batched containment + pinch reductions).
-  No contourpy, no `ndimage.label`, no bisection branch. Gate T-B: on held-out slices
-  the flood-fill boundary reproduces the CPU <code>lcfs_contour</code> ψ_bnd and LCFS
-  radii to tolerance (cold + warm), across limited and diverted slices; the read is
-  fully on-device (no host round-trip) and batches over slices/shots.</p>
-  <p><strong>Two numerical cautions (from the imas-efit review; EFIT invests heavily
-  in both).</strong> (i) <em>Sub-grid ψ_bnd accuracy</em>: at grid resolution the
-  boundary flux carries O(Δx) error at the binding saddle/wall-tangency point. Add ONE
-  post-hoc Newton/quadratic polish of the scalar ψ_bnd (nova's <code>subnull</code> /
-  EFIT's <code>wall_segment_tangency</code> idea) — outside any loop, never a
-  per-iteration correction. (ii) <em>Saddle-cell connectivity is grid-ambiguous</em>:
-  through an X-point, 4-connectivity blocks and 8-connectivity leaks diagonally, and the
-  result is resolution-dependent. Do NOT trust a single discrete flood at a fixed level;
-  resolve it by <strong>bisecting the flux offset to the level at which the axis-basin's
-  connectivity first changes</strong> (first touches the wall or pinches at the saddle) —
-  the connectivity-change level IS ψ_bnd. This is a refinement of the monotone sweep,
-  not new machinery, and keeps the read continuous through the marginal transition. The
-  reeb/merge-tree concept (EFIT's own 2026 method: "first binding critical level = LCFS,
-  no hysteresis, no per-iter cache") validates that this is the correct physics.</p>
+  <h2 id="s2"><span class="badge badge-shipped">✓ landed 2026-07-20</span> §2 — GPU-native connectivity boundary read (flood-fill + level sweep)</h2>
+  <p class="landed-summary">Built <code>imas_ambix/latent/connectivity_boundary.py</code>:
+  a fixed-shape <code>jit</code>/<code>vmap</code>/<code>grad</code>-safe device read
+  (flood-fill from the axis + candidate-level sweep + bisection), replacing host
+  contourpy. On 36 held-out MAST slices (18 diverted / 18 limited) the LCFS radii
+  reproduce host <code>lcfs_contour</code> to <strong>1.31 cm median</strong> (bar 3 cm;
+  diverted 0.46 cm) and ψ_bnd to <strong>1.87% of span</strong> — <strong>T-B1 PASS</strong>
+  (a first single-sided escape test biased ψ_bnd ~1 cell / 3.7% toward the axis;
+  fixed by reading ψ_bnd at the mean of an inner + outer escape test → unbiased,
+  diverted lands at ψ_N=1). Batch = one <code>jax.vmap</code>, byte-parity, no
+  contourpy/ndimage/argwhere — <strong>T-B2 PASS</strong>; connectivity ψ_bnd continuous
+  (0.5% max step) where classify-first steps 9.2% at the X-point appearance —
+  <strong>T-B3 PASS</strong>. Findings + imas-ink cross-section:
+  <a href="/imas-ambix/connectivity-topology-reader-boundary-findings.html">boundary-read findings</a>;
+  record: <a href="archive/connectivity-topology-reader-s2-landed.html">§2 landed</a>
+  (commits <code>69bb126</code>, <code>612f91b</code>, <code>6c2ba63</code>).</p>
 
   <h2 id="s3">§3 — Axis + optional X-point via nova stencils (classify-after)</h2>
   <p>Port nova's <code>zero_cross_count</code> stencil classifier + <code>select.subnull</code>
@@ -168,40 +163,40 @@
   variant is validated against the hard-mask read before use in the differentiable path.</p>
 
   <section data-reckon="decisions" id="decisions" class="r-decisions">
-    <h2><span class="sec">§</span> Decisions</h2>
-    <div class="r-dec" data-key="read-paradigm" data-choice="connectivity-first" data-by="lead" data-when="2026-07-20">
-      <p class="r-dec-q">Connectivity-first or classify-first topology extraction?</p>
-      <p class="r-dec-opts">
-        <button class="r-opt chosen" data-value="connectivity-first">Connectivity-first — boundary = outermost closed axis-enclosing contour inside the wall (monotone sweep / flood-fill); X-points + class read AFTER. Port the algorithm we already validated.</button>
-        <button class="r-opt" data-value="classify-first">Classify-first — find/classify critical points, then trace the separatrix (EFIT / nova)</button>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="read-paradigm" data-choice="connectivity-first" data-by="lead" data-when="2026-07-20">
+    <p class="r-dec-q">Connectivity-first or classify-first topology extraction?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="connectivity-first">Connectivity-first — boundary = outermost closed axis-enclosing contour inside the wall (monotone sweep / flood-fill); X-points + class read AFTER. Port the algorithm we already validated.</button>
+      <button class="r-opt" data-value="classify-first">Classify-first — find/classify critical points, then trace the separatrix (EFIT / nova)</button>
       </p>
-      <p class="r-dec-rat">Locked by the lead (2026-07-20), backed by an independent nova-topology review: classify-first is discontinuous through the marginal limited↔diverted transition (nova gates the boundary on a flux-vs-contact mode + an X-point height band, with a likely bug at topology.py:94-95); imas-efit carries the fuller contour-tree tar pit. The connectivity read is continuous by construction, already validated (connectivity-boundary-classification, best-in-class LCFS), and GPU-native as a flood-fill. This is the ONE topology paradigm for the engine.</p>
+    <p class="r-dec-rat">Locked by the lead (2026-07-20), backed by an independent nova-topology review: classify-first is discontinuous through the marginal limited↔diverted transition (nova gates the boundary on a flux-vs-contact mode + an X-point height band, with a likely bug at topology.py:94-95); imas-efit carries the fuller contour-tree tar pit. The connectivity read is continuous by construction, already validated (connectivity-boundary-classification, best-in-class LCFS), and GPU-native as a flood-fill. This is the ONE topology paradigm for the engine.</p>
     </div>
-    <div class="r-dec" data-key="nova-primitives" data-choice="stencils-only" data-by="lead" data-when="2026-07-20">
-      <p class="r-dec-q">How much of nova's topology do we port?</p>
-      <p class="r-dec-opts">
-        <button class="r-opt chosen" data-value="stencils-only">Stencils only — nova's zero_cross_count null classifier + select.subnull quadratic refinement (+ the static-count idiom) for the axis + optional X diagnostics; nothing else.</button>
-        <button class="r-opt" data-value="full-nova">Port nova's full topology (boundary gate + half-plane mask + wall contact)</button>
-        <button class="r-opt" data-value="nothing">Port nothing from nova</button>
+<div class="r-dec" data-key="nova-primitives" data-choice="stencils-only" data-by="lead" data-when="2026-07-20">
+    <p class="r-dec-q">How much of nova&#x27;s topology do we port?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="stencils-only">Stencils only — nova&#x27;s zero_cross_count null classifier + select.subnull quadratic refinement (+ the static-count idiom) for the axis + optional X diagnostics; nothing else.</button>
+      <button class="r-opt" data-value="full-nova">Port nova&#x27;s full topology (boundary gate + half-plane mask + wall contact)</button>
+      <button class="r-opt" data-value="nothing">Port nothing from nova</button>
       </p>
-      <p class="r-dec-rat">Locked (2026-07-20, lead + nova review): lean on nova's ALREADY-working, GPU-compliant, differentiable stencils (proven jax.grad path) for sub-grid O/X location — that is real, reusable value. Do NOT port nova's boundary mode-gate (discontinuous at the marginal transition), its half-plane core mask (approximate; spurious X-points pollute it), its single-loop wall contact (breaks on multi-limiter machines), or its host-side contourpy. The boundary + interior come from OUR connectivity flood-fill.</p>
+    <p class="r-dec-rat">Locked (2026-07-20, lead + nova review): lean on nova&#x27;s ALREADY-working, GPU-compliant, differentiable stencils (proven jax.grad path) for sub-grid O/X location — that is real, reusable value. Do NOT port nova&#x27;s boundary mode-gate (discontinuous at the marginal transition), its half-plane core mask (approximate; spurious X-points pollute it), its single-loop wall contact (breaks on multi-limiter machines), or its host-side contourpy. The boundary + interior come from OUR connectivity flood-fill.</p>
     </div>
-    <div class="r-dec" data-key="wall-model" data-choice="arbitrary-mask" data-by="lead" data-when="2026-07-20">
-      <p class="r-dec-q">How is the limiter/wall represented?</p>
-      <p class="r-dec-opts">
-        <button class="r-opt chosen" data-value="arbitrary-mask">An arbitrary wall MASK — single loop (MAST), union of discrete polygons (AUG), or a per-pulse/movable mask (WEST). The read takes it as data.</button>
-        <button class="r-opt" data-value="single-loop">A single closed limiter loop (current MAST assumption)</button>
+<div class="r-dec" data-key="wall-model" data-choice="arbitrary-mask" data-by="lead" data-when="2026-07-20">
+    <p class="r-dec-q">How is the limiter/wall represented?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="arbitrary-mask">An arbitrary wall MASK — single loop (MAST), union of discrete polygons (AUG), or a per-pulse/movable mask (WEST). The read takes it as data.</button>
+      <button class="r-opt" data-value="single-loop">A single closed limiter loop (current MAST assumption)</button>
       </p>
-      <p class="r-dec-rat">Locked (2026-07-20): the ONLY machine-specific input to the connectivity read is the wall mask, so multiple discrete limiters and movable limiters are a union / per-pulse mask, not new code paths — the machine-agnostic North Star. A classify-first pipeline is where limiter/strike logic becomes machine-specific; designing the mask abstraction in from the start (green-field) keeps the read machine-agnostic.</p>
+    <p class="r-dec-rat">Locked (2026-07-20): the ONLY machine-specific input to the connectivity read is the wall mask, so multiple discrete limiters and movable limiters are a union / per-pulse mask, not new code paths — the machine-agnostic North Star. A classify-first pipeline is where limiter/strike logic becomes machine-specific; designing the mask abstraction in from the start (green-field) keeps the read machine-agnostic.</p>
     </div>
-  </section>
+</section>
 
   <section data-reckon="followups" id="followups" class="r-followups">
-    <h2><span class="sec">§</span> Followups</h2>
-    <article class="r-fu" data-id="f-ctr-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-20T10:00:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §2">
-      <h4 class="r-fu-title">Ship §2 — GPU-native connectivity boundary read (flood-fill + level sweep)</h4>
-      <div class="r-fu-body"><p>Reimplement the validated connectivity boundary read (lcfs_contour) with GPU-native primitives — a fixed-iteration convolutional flood-fill from the axis + a fixed candidate-level sweep + batched containment/pinch reductions — replacing contourpy + ndimage.label + the bisection branch. Validate byte-comparable to the CPU lcfs_contour on held-out limited AND diverted slices, fully on-device (no host round-trip), batchable over slices/shots. This is the boundary half of the on-device topology read gpu-accelerated-labeler depends on.</p></div>
-      <pre class="r-fu-prompt">Project: imas-ambix
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-ctr-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-20T10:00:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §2" data-resolved-at="2026-07-20T14:06:39+00:00" data-resolved-by="reckon-ship">
+    <h4 class="r-fu-title">Ship §2 — GPU-native connectivity boundary read (flood-fill + level sweep)</h4>
+    <div class="r-fu-body"><p>Reimplement the validated connectivity boundary read (lcfs_contour) with GPU-native primitives — a fixed-iteration convolutional flood-fill from the axis + a fixed candidate-level sweep + batched containment/pinch reductions — replacing contourpy + ndimage.label + the bisection branch. Validate byte-comparable to the CPU lcfs_contour on held-out limited AND diverted slices, fully on-device (no host round-trip), batchable over slices/shots. This is the boundary half of the on-device topology read gpu-accelerated-labeler depends on.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    connectivity-topology-reader (http://localhost:8765/imas-ambix/connectivity-topology-reader.html)
 Section: §2 (GPU-native connectivity boundary read — flood-fill + level sweep)
 Tier:    opus
@@ -236,7 +231,7 @@ Scope locks / constraints  (non-decision)
     contourpy boundary overlay on a limited AND a diverted held-out slice; ψ_bnd/LCFS-
     radius agreement scatter; a marginal-transition sweep showing continuity.
   - Commit+push each coherent change on main; no AI co-author trailers
-    (verify: git log -1 --format=%B | grep -Eqi "^co-authored-by:").
+    (verify: git log -1 --format=%B | grep -Eqi &quot;^co-authored-by:&quot;).
 
 Gates (pre-declared)
   T-B1 (reproduction): flood-fill ψ_bnd + LCFS radii match CPU lcfs_contour to tolerance
@@ -254,8 +249,126 @@ Done-when
      artifact + figures committed.
   2. Plan updated same-session: §2 outcome recorded + collapsed; §3 (axis + X via nova
      stencils) followup queued WITH pre-declared gates; this followup resolved.</pre>
+    <p class="r-fu-outcome">§2 landed + collapsed (commits 69bb126, 612f91b, 6c2ba63). Device connectivity boundary read (flood-fill + level sweep + two-sided binding level) reproduces host lcfs_contour on 36 held-out MAST slices (18 diverted/18 limited): LCFS radii 1.31cm median <3cm (diverted 0.46/limited 1.40, p90 2.14) and ψ_bnd 1.87% of span <3% (p90 3.12) — T-B1 PASS; on-device vmap byte-parity, 46ms/slice, no contourpy/ndimage/argwhere — T-B2 PASS; connectivity ψ_bnd continuous 0.5% vs classify-first 9.2% — T-B3 PASS. RCA: a first single-sided escape test biased ψ_bnd ~1 cell toward the axis (boundary too small, 3.7% one-sided); fixed by the mean of an inner + outer escape test (unbiased; diverted lands at ψ_N=1). Findings: connectivity-topology-reader-boundary-findings.html.</p>
     </article>
-  </section>
+<article class="r-fu" data-id="f-ctr-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T16:00:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §3" data-resolved-at="2026-07-20T14:06:39+00:00" data-resolved-by="reckon-ship">
+    <h4 class="r-fu-title">Ship §3 — axis + optional X-point via nova stencils (classify-after) + sub-grid ψ_bnd polish</h4>
+    <div class="r-fu-body"><p>§2 landed the connectivity boundary (radii reproduce host to 2.55cm); the scalar ψ_bnd sits at the O(Δψ) binding-cell grid floor (3.7% of span). §3 ports nova's <code>zero_cross_count</code> stencil classifier + <code>select.subnull</code> quadratic refinement (with the static-count idiom) for the sub-grid axis O-point and X-point <em>location</em>, read AFTER the §2 boundary by proximity to the ring (<code>emergent_xpoints</code>). The SAME subnull polishes the scalar ψ_bnd sub-grid, closing the T-B1 ψ_bnd leg — and a grid-smooth ψ_bnd is what the differentiable-solve retest needs.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    connectivity-topology-reader (http://localhost:8765/imas-ambix/connectivity-topology-reader.html)
+Section: §3 (axis + optional X-point via nova stencils, classify-after; sub-grid ψ_bnd polish)
+Tier:    opus
+
+Context
+  §2 shipped the GPU-native connectivity BOUNDARY read (imas_ambix/latent/connectivity_boundary.py):
+  the LCFS radii reproduce host lcfs_contour to 2.55cm median (&lt;3cm) on 36 held-out MAST
+  slices, on-device/vmap/grad-safe, continuous through the marginal transition. The scalar
+  ψ_bnd is at the O(Δψ) binding-cell grid floor (3.7% of span, T-B1 QUALIFIED). §3 adds the
+  sub-grid nulls the boundary read leaves to a separate rung, from nova&#x27;s ALREADY-working
+  differentiable stencils (locked decision nova-primitives = stencils-only). Honour the
+  locked decisions (read-paradigm connectivity-first, nova-primitives stencils-only,
+  wall-model arbitrary-mask).
+
+State to read (CODE / FILES / DATA)
+  imas_ambix/latent/connectivity_boundary.py   (the §2 device boundary read to build on)
+  imas_ambix/latent/topology.py                (magnetic_axis, xpoint_set, emergent_xpoints, find_critical_points — the CPU reads to reproduce)
+  ~/Code/nova/nova/jax/null.py                 (zero_cross_count stencil null classifier: 0 sign-changes → O, 4 → X)
+  ~/Code/nova/nova/jax/select.py               (select.subnull local-quadratic sub-grid position/flux + the static-count idiom, proven jax.grad path)
+  scripts/connectivity_boundary_gate_eval.py   (the §2 gate + held-out loader + imas-ink cross-section to extend)
+
+Scope locks / constraints (non-decision)
+  - Sub-grid axis O-point (position + flux) via the nova stencil classifier + subnull; a
+    validated jax.grad path. Match the CPU magnetic_axis to sub-grid tolerance.
+  - X-point LOCATION as a post-hoc diagnostic: candidates from the stencil classifier, then
+    the limited/diverted class + X-slots read AFTER the §2 boundary by proximity to the ring
+    (the emergent_xpoints soft-margin rule). NEVER a prerequisite for ψ_N; never in the mask.
+    Near the marginal transition report the class as soft/undefined (no branch flip).
+  - Sub-grid ψ_bnd polish: the same subnull applied to the binding saddle (diverted) /
+    wall-tangency (limited) polishes the scalar ψ_bnd — ONE post-hoc refinement, outside any
+    loop. Re-run the §2 gate: T-B1 ψ_bnd leg should close (&lt;3% of span) WITHOUT regressing
+    the radii; keep it differentiable.
+  - Fixed-shape / jit / vmap / grad-safe throughout (static-count idiom for the variable
+    null count). Firewall unchanged: physics + measured channels only, no EFIT.
+  - Figures mandatory (docs/figures/connectivity-topology-reader/), imas-ink where the data
+    is an equilibrium cross-section: axis/X-point overlay on a diverted slice; axis-flux
+    sub-grid agreement scatter; ψ_bnd before/after the subnull polish.
+  - Commit+push each coherent change on main; no AI co-author trailers
+    (verify: git log -1 --format=%B | grep -Eqi &quot;^co-authored-by:&quot;).
+
+Gates (pre-declared)
+  T-C1 (axis): sub-grid axis position + flux match the CPU read to tolerance, jax.grad finite.
+  T-C2 (X + class): X-point diagnostics + diverted class match the CPU read on a diverted-slice
+       set; the marginal transition reported soft/undefined (no branch flip).
+  T-C3 (ψ_bnd polish): the §2 T-B1 ψ_bnd leg closes (&lt;3% of span median) after the subnull
+       polish, with no radii regression; ψ_bnd differentiable.
+  Stop rule: if the stencil nulls cannot reach sub-grid tolerance OR the polish regresses the
+       §2 radii, STOP and surface — do not ship a boundary read whose sub-grid nulls are worse
+       than the CPU reference.
+
+Done-when
+  1. Sub-grid axis + X-point stencils committed; T-C1..T-C3 verdicts recorded honestly;
+     artifact + figures committed.
+  2. Plan updated same-session: §3 outcome recorded + collapsed; §4 (machine-agnostic wall
+     mask) followup queued WITH pre-declared gates; this followup resolved.</pre>
+    <p class="r-fu-outcome">Superseded by f-ctr-03. §2's two-sided binding level already delivered an unbiased scalar ψ_bnd (1.87% of span, T-B1 PASS), so the ψ_bnd sub-grid polish this followup scoped into §3 is no longer needed; §3 is rescoped to the sub-grid null POSITIONS only.</p>
+    </article>
+<article class="r-fu" data-id="f-ctr-03" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T16:30:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Ship §3 — axis + optional X-point via nova stencils (classify-after)</h4>
+    <div class="r-fu-body"><p>§2 landed the connectivity boundary (radii reproduce host to 1.31cm; ψ_bnd unbiased at 1.87% of span via the two-sided binding level — all gates PASS). §3 adds the sub-grid null POSITIONS the boundary read leaves to a separate rung: port nova's <code>zero_cross_count</code> stencil classifier + <code>select.subnull</code> quadratic refinement (with the static-count idiom) for the sub-grid axis O-point position and X-point <em>location</em>, read AFTER the §2 boundary by proximity to the ring (<code>emergent_xpoints</code>). The scalar ψ_bnd is already unbiased from §2, so §3 does NOT touch the boundary flux — only the null positions (locked decision nova-primitives = stencils-only).</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    connectivity-topology-reader (http://localhost:8765/imas-ambix/connectivity-topology-reader.html)
+Section: §3 (axis + optional X-point via nova stencils, classify-after)
+Tier:    opus
+
+Context
+  §2 shipped the GPU-native connectivity BOUNDARY read (imas_ambix/latent/connectivity_boundary.py):
+  the LCFS radii reproduce host lcfs_contour to 1.31cm median (&lt;3cm) and the scalar ψ_bnd to
+  1.87% of span (unbiased, via the two-sided inner+outer binding level) on 36 held-out MAST
+  slices, on-device/vmap/grad-safe, continuous through the marginal transition (all gates PASS).
+  §3 adds the sub-grid null POSITIONS from nova&#x27;s ALREADY-working differentiable stencils
+  (locked decision nova-primitives = stencils-only). The boundary flux ψ_bnd is DONE in §2 —
+  §3 does not re-touch it. Honour the locked decisions (read-paradigm connectivity-first,
+  nova-primitives stencils-only, wall-model arbitrary-mask).
+
+State to read (CODE / FILES / DATA)
+  imas_ambix/latent/connectivity_boundary.py   (the §2 device boundary read to build on)
+  imas_ambix/latent/topology.py                (magnetic_axis, xpoint_set, emergent_xpoints, find_critical_points — the CPU reads to reproduce)
+  ~/Code/nova/nova/jax/null.py                 (zero_cross_count stencil null classifier: 0 sign-changes → O, 4 → X)
+  ~/Code/nova/nova/jax/select.py               (select.subnull local-quadratic sub-grid position + the static-count idiom, proven jax.grad path)
+  scripts/connectivity_boundary_gate_eval.py   (the §2 gate + held-out loader + imas-ink cross-section to extend)
+
+Scope locks / constraints (non-decision)
+  - Sub-grid axis O-point POSITION via the nova stencil classifier + subnull; a validated
+    jax.grad path. Match the CPU magnetic_axis to sub-grid tolerance.
+  - X-point LOCATION as a post-hoc diagnostic: candidates from the stencil classifier, then
+    the limited/diverted class + X-slots read AFTER the §2 boundary by proximity to the ring
+    (the emergent_xpoints soft-margin rule). NEVER a prerequisite for ψ_N; never in the mask.
+    Near the marginal transition report the class as soft/undefined (no branch flip).
+  - Do NOT re-derive ψ_bnd — §2&#x27;s two-sided binding level already delivers it unbiased; §3 is
+    the null POSITIONS only.
+  - Fixed-shape / jit / vmap / grad-safe throughout (static-count idiom for the variable
+    null count). Firewall unchanged: physics + measured channels only, no EFIT.
+  - Figures mandatory (docs/figures/connectivity-topology-reader/), imas-ink where the data
+    is an equilibrium cross-section: axis/X-point overlay on a diverted slice; axis + X-point
+    sub-grid position agreement scatter vs the CPU read.
+  - Commit+push each coherent change on main; no AI co-author trailers
+    (verify: git log -1 --format=%B | grep -Eqi &quot;^co-authored-by:&quot;).
+
+Gates (pre-declared)
+  T-C1 (axis): sub-grid axis position matches the CPU read to tolerance, jax.grad finite.
+  T-C2 (X + class): X-point positions + diverted class match the CPU read on a diverted-slice
+       set; the marginal transition reported soft/undefined (no branch flip).
+  Stop rule: if the stencil nulls cannot reach sub-grid tolerance OR the class flips hard at the
+       marginal transition, STOP and surface — do not ship a classify-after that is worse than
+       the CPU reference or reintroduces a discontinuous class gate.
+
+Done-when
+  1. Sub-grid axis + X-point stencils committed; T-C1..T-C2 verdicts recorded honestly;
+     artifact + figures committed.
+  2. Plan updated same-session: §3 outcome recorded + collapsed; §4 (machine-agnostic wall
+     mask) followup queued WITH pre-declared gates; this followup resolved.</pre>
+    </article>
+</section>
 
 </main>
 </body>
