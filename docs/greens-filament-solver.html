@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="greens-filament-solver">
+  <meta name="plan-title"     content="Grid-Free Green's-Filament Equilibrium Solver — analytic Δ* inversion, cached per campaign">
+  <meta name="plan-summary"   content="Replace the gridded Grad–Shafranov Δ*ψ operator evaluation with a Green's-function / filament plasma representation (nova-validated), keeping GS force balance exactly. The plasma is finite-area toroidal filaments carrying effective turns that sum to 1 (net current = Ip); ψ everywhere is an analytic Δ* inversion by the hybrid_greens finite-area kernel — the SAME kernel as the coils and vessel (the locked one-interaction-matrix decision, extended to the plasma) — with interaction matrices computed ONCE per campaign and cached; the free-boundary equilibrium is a Jacobian-free Newton–Krylov fixed point that evaluates ψ by matvec, locates the axis/X-point matrix-free, applies force balance jφ = R·p′(ψ_N) + FF′(ψ_N)/(μ0 R) pointwise on the filaments, and renormalises the turns. Three payoffs: (1) performance — a matvec per iteration instead of an elliptic solve, so the label factory scales to the corpus; (2) flux-surface-averaging integrity — a smooth analytic ψ + a contour tracer fixes the noisy flux-surface metrics (measured d_face roughness ~0.5, worsening with resolution) that corrupt the resistive-diffusion coefficient; (3) coil↔plasma consistency. Gated by a go/no-go spike: reproduce the grid-GS equilibria on held-out slices to tolerance AND measurably faster AND with cleaner flux-surface metrics, before adoption. Firewall: GS force balance preserved; hybrid_greens only; no EFIT.">
+  <meta name="plan-status"    content="draft">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="XL">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="mse-gated-reanalysis">
+  <meta name="plan-blocks"    content="interior-closure-hardening">
+  <title>Grid-Free Green's-Filament Equilibrium Solver | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h2 id="s1">§1 — Overview: drop the grid solve, keep the physics</h2>
+  <p><strong>The problem.</strong> The reanalysis engine solves the free-boundary
+  Grad&ndash;Shafranov equation by evaluating the gridded elliptic operator
+  Δ*ψ on a 65&times;97 R&ndash;Z grid every Picard sweep, three solves per slice.
+  Two costs follow. First, <strong>throughput</strong>: the §4 held-out-MSE run
+  took ~20&nbsp;min for 112 shots, and the label factory must run this same solve
+  over the ~12.6k-shot corpus to feed the learned operator &mdash; ~37 core-days
+  at today&rsquo;s rate, and every physics term we are about to add
+  (<code>interior-closure-hardening</code>) makes each slice more expensive.
+  Second, and more insidiously, <strong>flux-surface-averaging integrity</strong>:
+  the 1D metrics that drive the resistive current diffusion
+  (V&prime;, g<sub>2</sub>, g<sub>3</sub>, &langle;1/R&rangle;) are computed by
+  binning the finite grid cells onto flux surfaces, and that binning is noisy.
+  Measured on a real 937&nbsp;kA slice, the diffusion coefficient
+  d = g<sub>2</sub>&middot;g<sub>3</sub>/&rho;&#770; carries a relative
+  second-difference roughness of <strong>~0.5</strong>, and it gets
+  <em>worse</em> with more surfaces (0.45 &rarr; 0.72 as n<sub>&rho;</sub> goes
+  16 &rarr; 96) &mdash; fewer cells per surface, noisier averages. That noise sits
+  in the transport coefficient <code>diffuse_psi</code> integrates against, so the
+  §3 dynamics coupling is running on corrupted metrics, not just a bumpy plot.</p>
+
+  <p><strong>The fix (validated against the nova code).</strong> Keep GS force
+  balance; drop only the <em>gridded</em> Δ*ψ evaluation. The coaxial finite-area
+  mutual-inductance kernel <em>is</em> the free-space Green&rsquo;s function of
+  Δ*, so ψ = &Sigma; G(target, filament)&middot;I is an <strong>analytic</strong>
+  Δ* inversion &mdash; the same <code>hybrid_greens</code> kernel already used for
+  the coils and vessel (this is the locked one-interaction-matrix decision,
+  finally extended to the plasma). The plasma becomes finite-area toroidal
+  filaments carrying effective turns that <strong>sum to 1 by construction</strong>
+  (n<sub>turn</sub> = area/&Sigma;area), so the net current is Ip exactly. The
+  interaction matrices are built <strong>once per campaign and cached</strong>;
+  every ψ evaluation is then a matvec. The free-boundary equilibrium is a
+  Jacobian-free Newton&ndash;Krylov fixed point on ψ.</p>
+
+  <figure>
+    <svg viewBox="0 0 720 300" width="100%" role="img"
+         aria-label="Grid-free free-boundary equilibrium fixed point: turns to flux via cached Greens matvec, locate axis and LCFS, force balance to new current density, renormalise turns, iterate">
+      <style>
+        .bx{fill:#ffffff;stroke:#333;stroke-width:1}
+        .tx{font:13px system-ui;fill:#111}
+        .tt{font:600 13px system-ui;fill:#111}
+        .ar{stroke:#268;stroke-width:1.4;fill:none;marker-end:url(#a)}
+        .lb{font:12px system-ui;fill:#268}
+        .note{font:12px system-ui;fill:#666}
+      </style>
+      <defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 z" fill="#268"/></marker></defs>
+      <rect class="bx" x="12"  y="120" width="150" height="52" rx="4"/>
+      <text class="tt" x="87" y="140" text-anchor="middle">filament turns</text>
+      <text class="tx" x="87" y="159" text-anchor="middle">Σ n·turn = 1 → Ip</text>
+      <rect class="bx" x="205" y="120" width="150" height="52" rx="4"/>
+      <text class="tt" x="280" y="140" text-anchor="middle">ψ = G · I</text>
+      <text class="tx" x="280" y="159" text-anchor="middle">cached Greens matvec</text>
+      <rect class="bx" x="398" y="120" width="150" height="52" rx="4"/>
+      <text class="tt" x="473" y="140" text-anchor="middle">locate axis / LCFS</text>
+      <text class="tx" x="473" y="159" text-anchor="middle">matrix-free saddle</text>
+      <rect class="bx" x="398" y="220" width="310" height="52" rx="4"/>
+      <text class="tt" x="553" y="240" text-anchor="middle">force balance</text>
+      <text class="tx" x="553" y="259" text-anchor="middle">jφ = R·p′(ψ_N) + FF′(ψ_N)/(μ₀R)</text>
+      <rect class="bx" x="205" y="220" width="150" height="52" rx="4"/>
+      <text class="tt" x="280" y="240" text-anchor="middle">renormalise turns</text>
+      <text class="tx" x="280" y="259" text-anchor="middle">Σ = 1 (net = Ip)</text>
+      <path class="ar" d="M162,146 H203"/>
+      <path class="ar" d="M355,146 H396"/>
+      <path class="ar" d="M473,172 V218"/>
+      <path class="ar" d="M398,246 H357"/>
+      <path class="ar" d="M280,220 V174"/>
+      <text class="lb" x="292" y="200" text-anchor="middle">iterate (Newton–Krylov)</text>
+      <rect x="12" y="16" width="696" height="70" rx="4" fill="#f7f7f9" stroke="#ccc" stroke-width="1"/>
+      <text class="tt" x="24" y="40">No gridded Δ* solve.</text>
+      <text class="note" x="24" y="60">The elliptic operator is inverted analytically by the finite-area Green's kernel (once per campaign, cached);</text>
+      <text class="note" x="24" y="77">each iteration is a dense matvec + a scalar fixed-point step. GS force balance is preserved exactly on the filaments.</text>
+    </svg>
+    <figcaption>The grid-free fixed point. Filament turns (Σ = 1) give the flux
+    by a cached Green&rsquo;s matvec; the axis and LCFS are found matrix-free; force
+    balance sets a new current density on the filaments; the turns renormalise to
+    keep the net current at Ip; iterate to self-consistency. The gridded Δ*
+    inversion is replaced by an analytic one — the same kernel the coils use.</figcaption>
+  </figure>
+
+  <p><strong>Firewall.</strong> This is a solver-substrate change, not a physics
+  change: GS force balance is preserved exactly (the pointwise jφ(ψ) relation on
+  the filaments), all field evaluations stay on the <code>hybrid_greens</code>
+  finite-area kernel (standing directive), and EFIT enters nowhere. The soft
+  priors survive unchanged in kind — the current centroid is <em>linear</em> in
+  the filament turns (∫R jφ = R<sub>c</sub>·Ip), and the passive/vessel eddies are
+  already Green&rsquo;s-represented.</p>
+
+  <p><strong>The binding gate (go/no-go, pre-declared).</strong> The grid-free
+  solver is adopted only if it clears a spike: (a) it <em>reproduces</em> the
+  grid-GS equilibria on held-out slices to tolerance (axis, LCFS, and profile
+  within pre-set bounds); (b) it is measurably <em>faster</em> (the per-iteration
+  matvec + NK vs the elliptic Picard); and (c) the flux-surface metrics it yields
+  are <em>cleaner</em> (the d roughness falls materially). If any leg fails, we
+  keep the grid solve and fall back to Anderson-accelerated Picard + Green's
+  caching for the runtime target — recorded honestly, no forced adoption.</p>
+
+  <h2 id="s2">§2 — The grid-free solver spike (go/no-go)</h2>
+  <p>Port the nova mechanism into the engine as an opt-in solver, reusing the
+  plasma Green&rsquo;s machinery that already exists
+  (<code>gs/operator.py</code> represents the plasma as current nodes and computes
+  plasma&rarr;sensor ψ through <code>hybrid_greens</code>; the EnKF baseline
+  already drives it). What is missing and this rung adds: the plasma&rarr;plasma
+  self-ψ Green&rsquo;s block, the plasma&rarr;evaluation-target ψ Green&rsquo;s,
+  and the force-balance turn-update Newton&ndash;Krylov fixed point (axis/X-point
+  by matrix-free saddle detection, LCFS by contour). Gate G1: on a held-out slice
+  set the grid-free solve reproduces the frozen grid-GS axis/LCFS within a
+  pre-set tolerance and the profile within the same, cold- and warm-seeded; a
+  clean honest negative if it cannot.</p>
+
+  <h2 id="s3">§3 — Flux-surface averaging on the analytic ψ</h2>
+  <p>Re-base the flux-surface geometry (the input to the resistive diffusion) on
+  the smooth analytic ψ with a proper contour tracer (nova&rsquo;s
+  <code>fieldnull</code>/<code>levelset</code> machinery is the reference), instead
+  of binning grid cells onto surfaces. Gate G2: the diffusion coefficient
+  d = g<sub>2</sub>g<sub>3</sub>/&rho;&#770; and the metrics V&prime;, &langle;1/R&rangle;
+  reach a target smoothness (relative second-difference well below the current
+  ~0.5) and — critically — do NOT degrade with resolution; the §3 dynamics
+  coupling is re-checked on the new substrate and does not regress.</p>
+
+  <h2 id="s4">§4 — Performance to corpus scale</h2>
+  <p>With the matvec substrate in place: cache the Green&rsquo;s / interaction
+  matrices at campaign scope (build once, reuse across every shot and slice),
+  collapse the label-production solve to what it actually needs (the §3 chain runs
+  three solves per slice; label production needs fewer), and settle the
+  fixed-point accelerator — <strong>Newton&ndash;Krylov primary, an
+  Anderson-accelerated Picard evaluated as the interpretable fallback</strong>.
+  Gate G3: a corpus-scale throughput target of <strong>&ge; 3&times;</strong> the
+  current baseline, measured as slices/core-hour, with the equilibria
+  byte-comparable to the adopted solver.</p>
+
+  <h2 id="s5">§5 — Adopt + integrate + re-score</h2>
+  <p>Make the grid-free solver the engine substrate behind the existing spine
+  interface, carrying the soft priors (centroid moment linear in turns, passive
+  eddies, SOL/edge terms) across unchanged in kind, and re-score the held-out MSE
+  pitch to confirm the substrate change is byte-comparable-or-better (it must not
+  cost skill). Hand the faster, cleaner-metric engine to
+  <code>interior-closure-hardening</code>, which builds the resistivity closure,
+  the pedestal, and the interior representation on top of it.</p>
+
+  <section data-reckon="decisions" id="decisions" class="r-decisions">
+    <h2><span class="sec">§</span> Decisions</h2>
+    <div class="r-dec" data-key="solver-substrate" data-choice="grid-free-greens-filament-if-spike-passes" data-by="lead" data-when="2026-07-20">
+      <p class="r-dec-q">Replace the gridded Δ*ψ evaluation with a Green's-function / filament plasma solve?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt chosen" data-value="grid-free-greens-filament-if-spike-passes">Yes — adopt the nova-style grid-free Green's/filament solve IF the go/no-go spike passes (reproduces grid-GS, faster, cleaner FSA)</button>
+        <button class="r-opt" data-value="stay-grid-gs">Keep the gridded Δ*ψ solve; optimise it in place only</button>
+      </p>
+      <p class="r-dec-rat">Locked by the lead (2026-07-20). The gridded elliptic solve is both the throughput bottleneck for the corpus-scale label factory and the source of the noisy flux-surface metrics that corrupt the resistive-diffusion coefficient (measured d roughness ~0.5, worsening with resolution). The nova code proves the elliptic operator can be inverted analytically by the Green's kernel with GS force balance preserved. Adoption is gated by a go/no-go spike so the change is de-risked, never forced.</p>
+    </div>
+    <div class="r-dec" data-key="plasma-kernel" data-choice="hybrid-greens-finite-area" data-by="lead" data-when="2026-07-20">
+      <p class="r-dec-q">Which Green's kernel represents the plasma filaments?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt chosen" data-value="hybrid-greens-finite-area">hybrid_greens finite-area cylinder — the same kernel as the coils and vessel</button>
+        <button class="r-opt" data-value="coaxial-loop-point">nova's default coaxial point-loop kernel</button>
+      </p>
+      <p class="r-dec-rat">Locked by the standing directive that all couplings use the hybrid_greens finite-area cylinder kernel (never point-filament). Using it for the plasma filaments makes the plasma join the coils and vessel in ONE interaction system — the locked one-interaction-matrix decision — and keeps the plasma-driven field consistent with the coil-driven field.</p>
+    </div>
+    <div class="r-dec" data-key="force-balance-preserved" data-choice="pointwise-gs-on-filaments" data-by="lead" data-when="2026-07-20">
+      <p class="r-dec-q">Is GS force balance retained, or is this a current-tomography fit?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt chosen" data-value="pointwise-gs-on-filaments">GS force balance retained — jφ = R·p′(ψ_N) + FF′(ψ_N)/(μ₀R) applied pointwise on the filaments each iteration; only the gridded Δ* eval is dropped</button>
+        <button class="r-opt" data-value="current-fit">A magnetics-only current fit (no force balance)</button>
+      </p>
+      <p class="r-dec-rat">Locked by the lead (2026-07-20): "obviously we still keep GS force balance — it is just the gridded GS operator eval that we can avoid." The fixed point enforces self-consistency (the current that produces ψ equals the current force balance demands at that ψ); it is a genuine free-boundary GS equilibrium, not a current tomography.</p>
+    </div>
+    <div class="r-dec" data-key="fixed-point-scheme" data-choice="newton-krylov-primary" data-by="reckon-create" data-when="2026-07-20">
+      <p class="r-dec-q">Which fixed-point scheme drives the free-boundary loop?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt chosen" data-value="newton-krylov-primary">Jacobian-free Newton–Krylov primary (nova's proven choice), with an Anderson-accelerated Picard evaluated as the interpretable fallback</button>
+        <button class="r-opt" data-value="picard-only">Plain Picard only</button>
+      </p>
+      <p class="r-dec-rat">Newton–Krylov is nova's validated accelerator and converges faster/robustlier than plain Picard on the free-boundary fixed point. Anderson-accelerated Picard is evaluated in §4 as the interpretable fallback (per the lead's request to investigate Anderson damping). The scheme is a means to the go/no-go and runtime gates, not a physics choice.</p>
+    </div>
+  </section>
+
+  <section data-reckon="followups" id="followups" class="r-followups">
+    <h2><span class="sec">§</span> Followups</h2>
+    <article class="r-fu" data-id="f-gfs-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-20T00:00:00+00:00" data-recommends-skill="/reckon-ship greens-filament-solver §2">
+      <h4 class="r-fu-title">Ship §2 — the grid-free Green's/filament solver spike (go/no-go)</h4>
+      <div class="r-fu-body"><p>Port the nova free-boundary mechanism into the engine as an opt-in solver on the existing plasma Green's machinery: add the plasma→plasma self-ψ and plasma→target ψ Green's blocks (hybrid_greens finite-area), and the force-balance turn-update Newton–Krylov fixed point (filament turns sum to 1 → net = Ip; axis/X-point matrix-free; LCFS by contour). Prove it against the frozen grid-GS on held-out slices — the go/no-go that gates the whole plan. Gates pre-declared in the prompt.</p></div>
+      <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    greens-filament-solver (http://localhost:8765/imas-ambix/greens-filament-solver.html)
+Section: §2 (the grid-free Green's/filament solver spike — go/no-go)
+Tier:    opus
+
+Context
+  The engine solves free-boundary GS by evaluating the gridded Δ*ψ operator every
+  Picard sweep — the throughput bottleneck for the corpus-scale label factory AND
+  the source of noisy flux-surface metrics that corrupt the §3 resistive-diffusion
+  coefficient (measured d roughness ~0.5, worsening with resolution). The nova code
+  (~/Code/nova) proves the elliptic operator can be inverted analytically by the
+  Green's kernel with GS force balance preserved. This rung ports that as an opt-in
+  solver and proves it against the frozen grid-GS — the go/no-go for the plan.
+  Honour the locked decisions shown live above this brief.
+
+State to read  (CODE / FILES / DATA)
+  ~/Code/nova/nova/biot/plasma.py           (Plasma.solve_flux / profile / psi getter-setter — the fixed point)
+  ~/Code/nova/nova/jax/plasma.py            (the whole scheme restated in ~40 lines)
+  ~/Code/nova/nova/biot/operate.py          (Operator.evaluate = source_target @ Ic; plasma-column fold-in)
+  ~/Code/nova/nova/biot/fieldnull.py        (matrix-free axis/X-point saddle detection)
+  imas_ambix/gs/operator.py                 (plasma_rz, c_plasma, predict — the existing plasma→sensor Greens to extend)
+  imas_ambix/gs/cylinder.py                 (hybrid_greens finite-area kernel — the locked kernel)
+  imas_ambix/latent/gs_solve.py             (the grid-GS solve to reproduce; solve_equilibrium_lsq, the soft priors, the axis/LCFS reads)
+  imas_ambix/latent/artifacts/patch_gate/closure_spine_frozen.json  (the frozen grid-GS config to match)
+
+Scope locks / constraints  (non-decision)
+  - Keep GS force balance exactly (pointwise jφ on filaments); drop ONLY the gridded Δ* eval.
+  - hybrid_greens finite-area kernel for the plasma filaments (standing directive; same as coils/vessel).
+  - Filament turns sum to 1 by construction → net current = Ip; no KKT Ip anchor needed for the net.
+  - Opt-in path: the grid-GS solve stays byte-unchanged when the grid-free solver is off.
+  - EFIT diagnostic/eval-only; no assumed profile; no tuned gain.
+  - Figures mandatory (docs/figures/greens-filament-solver/): grid-GS vs grid-free ψ / axis / LCFS overlay on a held-out slice; convergence trace.
+  - Commit+push each coherent change on main; no AI co-author trailers (verify: git log -1 --format=%B | grep -Eqi "^co-authored-by:").
+
+Gates and tests (pre-declared)
+  T1. Unit: on a hand current distribution the plasma→target ψ Greens reproduces the analytic loop flux to tolerance; turns renormalise to Σ=1 (net = Ip) exactly.
+  G1a (reproduces grid-GS): on held-out slices the grid-free solve holds axis and LCFS within a pre-set tolerance of the frozen grid-GS, cold- AND warm-seeded, and the profile within the same bound.
+  G1b (force balance): the converged state satisfies jφ = R·p′ + FF′/(μ₀R) pointwise (residual below tolerance) — a genuine equilibrium, not a current fit.
+  G1c (no grid Δ* solve): assert in code + test that no gridded elliptic operator is assembled/inverted in the grid-free path.
+  Stop rule: if the grid-free solve cannot reproduce the grid-GS equilibria within tolerance from physical seeds, STOP and surface the honest negative with figures — do NOT force adoption; the fallback is grid-GS + Anderson/caching for the runtime target.
+
+Done-when
+  1. Grid-free solver committed (opt-in; grid-GS byte-unchanged when off); T1 + G1a–G1c verdicts recorded honestly; artifact + figures committed.
+  2. Plan updated same-session: §2 outcome recorded + collapsed; §3 (FSA on the analytic ψ) followup queued WITH pre-declared gates; this followup resolved.</pre>
+    </article>
+  </section>
+
+</main>
+</body>
+</html>

@@ -14,13 +14,13 @@
   <meta name="plan-tier" content="opus">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="equilibrium-realism">
-  <meta name="plan-blocks" content="learned-equilibrium-operator">
+  <meta name="plan-blocks" content="greens-filament-solver">
   <title>MSE-Gated Reanalysis | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-19">
+<meta name="plan-modified" content="2026-07-20">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="5">
 </head>
 <body>
 <main class="plan-doc">
@@ -216,6 +216,16 @@
   but sits 0.137 rad short of the EnKF bar — that gap, plus the near-axis 0.41
   interior floor, is §5's concrete target. Gates G5a–G5c pre-declared in the §5
   followup.</p>
+  <p><strong>§5 is now gated behind a physics shore-up (lead decision,
+  2026-07-20).</strong> Rather than hand the 0.137 rad gap straight to the learned
+  operator — the residual its R2 already failed to extract from raw sensors — two
+  interim plans first close the admissible classical physics the boundary-tuned
+  spine left out: <code>greens-filament-solver</code> (drop the gridded Δ*ψ eval
+  for a Green's/filament solve — performance + flux-surface-averaging integrity),
+  then <code>interior-closure-hardening</code> (resistivity from measured Tₑ, a
+  fittable pedestal, interior representation, re-scored on held-out MSE). §5
+  resumes once those land with cleaner labels + a smaller, genuinely-unmeasured
+  residual.</p>
   <p><strong>Non-goals:</strong> no fabricated profiles as labels (ever); EFIT
   never enters a fit/tune/train path (diagnostic/eval only); no per-shot or
   per-machine tuning as a first resort; no profile prior standing in for a
@@ -445,7 +455,7 @@ Gates (pre-declared)
 Done-when
   1. Held-out MSE scoring of the §3 coupled engine committed; G4a-G4c + label-honesty verdicts recorded honestly; artifact + figures committed.
   2. Plan updated same-session: §4 outcome recorded + collapsed; §5 (learned-operator handoff) followup queued (resuming learned-equilibrium-operator) WITH pre-declared gates; this followup resolved.</pre>
-    <p class="r-fu-outcome">§4 landed (QUALIFIED PASS) — the binding gate. Scored the §3 dynamics-coupled engine's earned internal profile on the locked 112-shot held-out MSE pitch split through the shared kind='j' jphi(rho_hat) readout (EnKF's ruler). 101/112 shots scored; 11 flagged under-determined (too few confined slices) + unconfined slices masked — label-honesty UPHELD, 0 fabricated readouts. G4a (beat persistence — binding/stop-rule): PASS CI-clear — engine pitch RMSE 0.362 rad vs persistence 0.731 (live, same shots)/0.719 (ref), paired shot-bootstrap Δ 0.369, CI95 [0.314,0.427]; the dynamics recover real internal-field info (≈halve error in both windows). Coverage sub-gate FAIL: cov90 0.297 < 0.88 (a UQ gap; classical EnKF itself 0.465). G4b (match EnKF): MISS — gap 0.137 to 0.225. G4c: near-axis residual 0.434 ≈ 0.41 interior floor; frontier gap 0.172. η frozen from the tune-split measured-drive calibration (re-run + reproduced exactly this session); MSE never entered a fit. Stop rule not invoked. Loader fix: per-campaign geometry table lets amm-absent held-out shots load (0 failures). Commit ec82027; archive docs/archive/mse-gated-reanalysis-s4-landed.html. Engine BUILT + PROVEN — §5 (learned-operator handoff) queued.</p>
+    <p class="r-fu-outcome">§4 landed (QUALIFIED PASS) — the binding gate. Scored the §3 dynamics-coupled engine's earned internal profile on the locked 112-shot held-out MSE pitch split through the shared kind='j' jphi(rho_hat) readout (EnKF's ruler). 101/112 shots scored; 11 flagged under-determined (too few confined slices) + unconfined slices masked — label-honesty UPHELD, 0 fabricated readouts. G4a (beat persistence — binding/stop-rule): PASS CI-clear — engine pitch RMSE 0.362 rad vs persistence 0.731 (live, same shots)/0.719 (ref), paired shot-bootstrap Δ 0.369, CI95 [0.314,0.427]; the dynamics recover real internal-field info (≈halve error in both windows). Coverage sub-gate FAIL: cov90 0.297 &lt; 0.88 (a UQ gap; classical EnKF itself 0.465). G4b (match EnKF): MISS — gap 0.137 to 0.225. G4c: near-axis residual 0.434 ≈ 0.41 interior floor; frontier gap 0.172. η frozen from the tune-split measured-drive calibration (re-run + reproduced exactly this session); MSE never entered a fit. Stop rule not invoked. Loader fix: per-campaign geometry table lets amm-absent held-out shots load (0 failures). Commit ec82027; archive docs/archive/mse-gated-reanalysis-s4-landed.html. Engine BUILT + PROVEN — §5 (learned-operator handoff) queued.</p>
     </article>
 <article class="r-fu" data-id="f-mgr-04" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-19T20:35:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §5" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Ship §5 — learned-operator handoff: the high-bandwidth magic sauce</h4>

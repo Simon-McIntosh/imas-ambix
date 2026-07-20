@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="interior-closure-hardening">
+  <meta name="plan-title"     content="Interior Physics Closure — resistivity from measured Te, a fittable pedestal, and interior representation, proven on held-out MSE">
+  <meta name="plan-summary"   content="On the grid-free solver substrate, close the admissible interior physics the boundary-tuned frozen spine deliberately left out — the classical headroom the §4 held-out-MSE gate exposed (engine 0.362 rad vs EnKF 0.225; the gap is specifically the Te→σ(η) closure the firewall engine chose not to use). Three closures, each firewall-safe (physics + direct measurement) and each proven on the held-out MSE ruler: (1) parallel resistivity from MEASURED Thomson Te (Spitzer/neoclassical σ∥(Te)) — optional, with the frozen parametric η as the validated fallback where Thomson is gated, and η-provenance emitted per label plus a Thomson-coverage / selection-bias audit so mixed-η labels never silently bias the training set; (2) a properly parametrized, FITTABLE pedestal model — an edge transport barrier (steep p′/current gradient inside the separatrix), distinct from the SOL-current foot, which the low-order smooth basis cannot represent; (3) interior representation — reconsider the profile-basis order and the q0>=1 (sawtooth) clamp, each ablated on held-out MSE and kept only if it earns skill. Binding gate: held-out MSE pitch beats the current 0.362 CI-clear toward the 0.225 EnKF bar, every term earns its place on the ruler, and the corpus runtime target is preserved. Deliverable: cleaner MSE-validated labels + η-provenance handed to the learned operator. Dynamic sawtooth (q0→1 relaxation timed off measured crashes) is a named deferred follow-on. Firewall: physics + measured channels only; EFIT diagnostic/eval-only; no fabricated profile, ever.">
+  <meta name="plan-status"    content="draft">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="XL">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="greens-filament-solver">
+  <meta name="plan-blocks"    content="learned-equilibrium-operator">
+  <title>Interior Physics Closure | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h2 id="s1">§1 — Overview: the classical headroom the MSE gate exposed</h2>
+  <p>The §4 held-out-MSE gate proved the reanalysis engine beats persistence
+  CI-clear (0.362 rad) but sits 0.137 rad short of the classical EnKF (0.225), and
+  the profile comparison localised <em>why</em>: our GS current profile is too
+  broad and over-predicts the outboard pitch, while EnKF&rsquo;s
+  T<sub>e</sub>-informed profile concentrates current core-ward. That gap is
+  <strong>admissible physics the firewall-clean engine chose not to use</strong> —
+  the frozen spine kept the interior minimal on purpose ("interior profile
+  fidelity intentionally NOT chased classically; flows to the learned operator"),
+  tuned for boundary fidelity, with the resistivity frozen and the q &ge; 1 and
+  SOL terms off. Now that the binding gate is <em>interior</em> pitch, that
+  minimalism is leaving real, firewall-safe physics on the table. This plan closes
+  it — on the faster, cleaner-metric grid-free substrate
+  (<code>greens-filament-solver</code>, its hard prerequisite) — so the learned
+  operator inherits a smaller, genuinely-unmeasured residual instead of one that
+  still contains classical physics (the residual the learned operator&rsquo;s R2
+  already failed to extract from raw sensors).</p>
+
+  <p><strong>The firewall test is kind, not amount.</strong> Every term here is
+  physics + direct measurement, never a tuned gain or an EFIT output:</p>
+  <figure>
+    <table>
+      <thead><tr><th>Closure term</th><th>What it models</th><th>Firewall status</th><th>In frozen spine?</th></tr></thead>
+      <tbody>
+        <tr><td>η<sub>∥</sub>(T<sub>e</sub>) from Thomson</td><td>parallel resistivity via measured T<sub>e</sub> → Spitzer/neoclassical σ<sub>∥</sub></td><td><strong>safe</strong> — measured T<sub>e</sub> + known physics</td><td>no — frozen parametric η only</td></tr>
+        <tr><td>fittable pedestal</td><td>edge transport barrier: steep p′/current gradient inside the separatrix</td><td><strong>safe</strong> — a physical profile DOF, fit to magnetics + MSE-validated</td><td>no — absent</td></tr>
+        <tr><td>q<sub>0</sub> ≥ 1 clamp</td><td>soft sawtooth prior: j<sub>φ,axis</sub> ≤ 2B<sub>φ0</sub>/(μ₀R₀)</td><td><strong>safe</strong> — a physics inequality, no free parameter</td><td>no — <code>q_bound=false</code></td></tr>
+        <tr><td>SOL-current foot</td><td>current past the separatrix (NOT a pedestal)</td><td><strong>safe</strong> — physical edge current</td><td>no — <code>sol_cap=1.0</code></td></tr>
+      </tbody>
+    </table>
+    <figcaption>The four interior terms and their firewall status. The pedestal and
+    the SOL foot are <em>different models</em> — the foot carries SOL current
+    outside the separatrix; the pedestal is a steep edge barrier inside it. Both
+    are absent from the boundary-tuned frozen spine; each is admitted here only if
+    it earns held-out-MSE skill.</figcaption>
+  </figure>
+
+  <p><strong>Binding gate (pre-declared).</strong> Held-out MSE pitch RMSE beats
+  the current 0.362 CI-clear (target meaningfully toward EnKF 0.225); every
+  physics term is ablated on the MSE ruler and kept only if it earns skill (honest
+  null otherwise); and the corpus-scale runtime target from the solver plan is
+  preserved. MSE never enters a fit — it is the held-out validator.</p>
+
+  <h2 id="s2">§2 — Resistivity closure from measured Te (optional; frozen fallback)</h2>
+  <p>Where Thomson T<sub>e</sub>(ρ) is available, derive the parallel resistivity
+  from it (Spitzer/neoclassical σ<sub>∥</sub>(T<sub>e</sub>, Z<sub>eff</sub>)) and
+  feed it to the §3 current diffusion — the same channel the EnKF exploits, and
+  firewall-safe because T<sub>e</sub> is a measurement. Where Thomson is gated, the
+  <strong>frozen parametric η stays the fallback</strong>, validated on the same
+  MSE ruler. Because η varies per shot, the labels become heterogeneous in
+  interior fidelity — so this rung emits <strong>η-provenance per label</strong>
+  (measured-T<sub>e</sub> vs frozen) and runs a <strong>Thomson-coverage /
+  selection-bias audit</strong>: report which regimes get the high-fidelity
+  interior labels, so §5&rsquo;s learned operator can condition on or reweight the
+  provenance rather than inherit a silent regime bias. Gate G2: a CI-clear
+  held-out-pitch improvement attributable to the measured-T<sub>e</sub> channel on
+  the Thomson-covered population, with the frozen-η population non-regressed.</p>
+
+  <h2 id="s3">§3 — A fittable pedestal model</h2>
+  <p>Add a properly parametrized pedestal — an edge transport barrier with a steep
+  p′/current gradient just inside the separatrix, with fittable position, width,
+  and height — <em>distinct</em> from the SOL-current foot. The low-order smooth
+  basis cannot represent a pedestal, and its absence shows in the larger outboard
+  pitch residual (0.62 rad vs 0.43 near-axis). The pedestal DOF is fit to the
+  magnetics and validated on held-out MSE, never asserted. Gate G3: on H-mode-class
+  slices the pedestal earns a CI-clear held-out-pitch improvement (particularly the
+  outboard channels), or an honest null; it must not degrade L-mode slices.</p>
+
+  <h2 id="s4">§4 — Interior representation: basis order and the q0≥1 clamp</h2>
+  <p>Reconsider the profile-basis order (the frozen n<sub>p</sub>=n<sub>f</sub>=3
+  low-order ladder was a boundary-fidelity choice) and turn on the q<sub>0</sub>≥1
+  (sawtooth) soft clamp and the SOL-current foot where physical — each
+  <strong>ablated independently on the held-out MSE ruler</strong> and kept only if
+  it earns skill. This is the discipline that keeps richer representation from
+  becoming over-fitting: more DOF is admitted only when the direct internal
+  measurement says it recovers real structure. Gate G4: each term&rsquo;s
+  held-out-pitch effect recorded with its CI; the composite representation is the
+  best-scoring firewall-safe combination.</p>
+
+  <h2 id="s5">§5 — Composite re-score + label-factory readiness</h2>
+  <p>Re-score the fully hardened engine on the held-out MSE split against the
+  binding gate (beat 0.362 CI-clear toward 0.225), project the corpus-sweep cost on
+  the grid-free substrate, and emit the label set with η-provenance and the
+  under-determined flags intact (label-honesty). Hand the cleaner labels + a
+  smaller, genuinely-unmeasured residual to the learned operator
+  (<code>learned-equilibrium-operator</code>). The dynamic sawtooth extension is
+  queued as a deferred follow-on, not folded into this plan&rsquo;s core.</p>
+
+  <section data-reckon="decisions" id="decisions" class="r-decisions">
+    <h2><span class="sec">§</span> Decisions</h2>
+    <div class="r-dec" data-key="eta-closure" data-choice="measured-te-optional-frozen-fallback" data-by="lead" data-when="2026-07-20">
+      <p class="r-dec-q">How is the parallel resistivity η(ψ_N) determined?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt chosen" data-value="measured-te-optional-frozen-fallback">From MEASURED Thomson Te where available (Spitzer/neoclassical σ∥(Te)) — OPTIONAL, with the frozen parametric η as the validated fallback where Thomson is gated; provenance emitted per label</button>
+        <button class="r-opt" data-value="frozen-only">Keep the frozen parametric η everywhere (the §4 status quo)</button>
+        <button class="r-opt" data-value="learned-eta">Learn η end-to-end (defer to the learned operator)</button>
+      </p>
+      <p class="r-dec-rat">Locked by the lead (2026-07-20). The §4 gap to EnKF is specifically the measured-Te → σ(η) closure; Te is a measurement, so using it is firewall-safe (not a tuned gain). It must be OPTIONAL because Thomson is not available on all shots — hence the frozen-η fallback and the provenance/bias audit so mixed-η labels stay honest. Fully-learned η is deferred to the learned operator (the residual after this physics closure).</p>
+    </div>
+    <div class="r-dec" data-key="pedestal-model" data-choice="fittable-edge-barrier" data-by="lead" data-when="2026-07-20">
+      <p class="r-dec-q">Do we model the H-mode pedestal, and how?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt chosen" data-value="fittable-edge-barrier">Yes — a properly parametrized, FITTABLE edge transport barrier (position/width/height), distinct from the SOL-current foot, validated on held-out MSE</button>
+        <button class="r-opt" data-value="sol-foot-only">Rely on the SOL-current foot only (conflates SOL current with a pedestal — rejected)</button>
+        <button class="r-opt" data-value="none">No pedestal (the §4 status quo — under-represents the H-mode edge)</button>
+      </p>
+      <p class="r-dec-rat">Locked by the lead (2026-07-20): the SOL foot models SOL current, NOT a pedestal; we are missing a good pedestal model and it needs to be properly parametrized so we can fit it. A pedestal is a steep edge gradient inside the separatrix that the low-order smooth basis cannot represent; its absence shows in the larger outboard pitch residual. Admitted as a fittable physical DOF, validated on MSE — never asserted.</p>
+    </div>
+    <div class="r-dec" data-key="label-consistency" data-choice="honesty-gate-plus-provenance-and-bias-audit" data-by="lead" data-when="2026-07-20">
+      <p class="r-dec-q">How do heterogeneous-η (mixed measured-Te / frozen) labels stay clean for training?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt chosen" data-value="honesty-gate-plus-provenance-and-bias-audit">The label-honesty gate (assert the internal profile only where MSE-validated) PLUS η-provenance per label PLUS a Thomson-coverage / selection-bias audit</button>
+        <button class="r-opt" data-value="restrict-to-thomson">Only label Thomson-covered shots (shrinks the corpus; rejected)</button>
+      </p>
+      <p class="r-dec-rat">Locked by the lead (2026-07-20), answering "will optional η(Te) affect the quality of the labelled dataset?". Label-honesty already firewalls the obvious risk (only MSE-validated profiles are asserted, on one ruler). The residual risk is selection bias — if Thomson-covered shots are a systematically different regime, the high-fidelity interior labels concentrate there. Recording provenance + auditing coverage turns that risk into metadata the learned operator can condition on, rather than a silent bias.</p>
+    </div>
+    <div class="r-dec" data-key="representation-discipline" data-choice="ablate-each-term-on-mse" data-by="reckon-create" data-when="2026-07-20">
+      <p class="r-dec-q">How is richer interior representation kept from becoming over-fitting?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt chosen" data-value="ablate-each-term-on-mse">Each added DOF/term (basis order, q0≥1, SOL foot, pedestal) is ablated independently on the held-out MSE ruler and kept ONLY if it earns CI-clear skill</button>
+        <button class="r-opt" data-value="add-all">Turn everything on together</button>
+      </p>
+      <p class="r-dec-rat">The direct internal measurement (held-out MSE) is the discipline: more DOF is admitted only when MSE says it recovers real structure, not because it fits the magnetics better (the magnetics under-determine the interior — the whole premise). This keeps the firewall-safe physics from degenerating into a well-fitted guess.</p>
+    </div>
+  </section>
+
+  <section data-reckon="followups" id="followups" class="r-followups">
+    <h2><span class="sec">§</span> Followups</h2>
+    <article class="r-fu" data-id="f-ich-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-20T00:00:00+00:00" data-recommends-skill="/reckon-ship interior-closure-hardening §2">
+      <h4 class="r-fu-title">Ship §2 — resistivity closure from measured Te (optional; frozen fallback; provenance + bias audit)</h4>
+      <div class="r-fu-body"><p>Derive η(ψ_N) from measured Thomson Te where available (Spitzer/neoclassical σ∥(Te)) and feed it to the current diffusion — the firewall-safe channel the §4 gap traced to. Keep the frozen parametric η as the fallback where Thomson is gated; emit η-provenance per label and audit Thomson coverage / selection bias so mixed-η labels stay honest. Score the improvement on held-out MSE. HARD PREREQUISITE: greens-filament-solver must have landed (this builds on the grid-free substrate). Gates pre-declared in the prompt.</p></div>
+      <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    interior-closure-hardening (http://localhost:8765/imas-ambix/interior-closure-hardening.html)
+Section: §2 (resistivity closure from measured Te)
+Tier:    opus
+
+Context
+  The §4 held-out-MSE gate localised the 0.137 rad gap to EnKF as the measured-Te →
+  σ∥(Te) resistivity closure our frozen-η engine chose not to use (our current
+  profile is too broad, over-predicts outboard pitch; EnKF's Te-informed profile
+  concentrates current core-ward). Te is a measurement, so using it is firewall-safe.
+  This rung derives η from Thomson where available, keeps the frozen η as the
+  fallback where Thomson is gated, and proves the improvement on held-out MSE.
+  Honour the locked decisions shown live above this brief.
+
+State to read  (CODE / FILES / DATA)
+  docs/mse-gated-reanalysis.html + docs/archive/mse-gated-reanalysis-s4-landed.html  (the gap + the deep-dive)
+  imas_ambix/latent/current_diffusion.py    (EtaProfile — the frozen parametric η to make optional)
+  imas_ambix/statespace/enkf_baseline.py    (_thomson_profiles — how the EnKF reads Te(rho) from ayc → σ(Te); reuse the reader, NOT the ensemble)
+  scripts/heldout_mse_gate_eval.py          (the held-out MSE scorer — the ruler this must improve)
+  scripts/current_diffusion_gate_eval.py    (the eta-fit path; the frozen fallback calibration)
+  imas_ambix/data/*                          (Thomson ayc availability per shot for the coverage audit)
+
+Scope locks / constraints  (non-decision)
+  - η(Te) is OPTIONAL and firewall-safe (measured Te + Spitzer/neoclassical physics); the frozen parametric η is the validated fallback where Thomson is gated. No EFIT, no tuned gain.
+  - Emit η-provenance per label (measured-Te vs frozen) and a Thomson-coverage / selection-bias report (which regimes get high-fidelity interior labels).
+  - Score on the held-out MSE ruler ONLY; MSE never enters the η derivation or any fit.
+  - Build on the grid-free substrate from greens-filament-solver (hard prerequisite); do not re-open the solver choice here.
+  - Figures mandatory (docs/figures/interior-closure-hardening/): η(Te) vs frozen η profiles; held-out pitch improvement on the Thomson-covered population; Thomson-coverage map.
+  - Commit+push each coherent change on main; no AI co-author trailers (verify: git log -1 --format=%B | grep -Eqi "^co-authored-by:").
+
+Gates and tests (pre-declared)
+  G2a (Te channel earns skill): on the Thomson-covered held-out population, η(Te) improves the held-out MSE pitch CI-clear vs the frozen-η engine; the frozen-η population is non-regressed.
+  G2b (label honesty + provenance): every emitted label carries its η-provenance; the internal profile is asserted only where MSE-validated; the coverage/bias audit is reported.
+  G2c (firewall): assert Te is measurement-only and MSE enters no fit; no EFIT.
+  Stop rule: if the measured-Te channel does not improve held-out pitch CI-clear, record the honest null (the interior gap is not classically closable from Te at MAST coverage) and surface — do NOT tune toward MSE.
+
+Done-when
+  1. η(Te) optional closure committed with frozen fallback + provenance + coverage/bias audit; G2a–G2c recorded honestly; artifact + figures committed.
+  2. Plan updated same-session: §2 outcome recorded + collapsed; §3 (fittable pedestal) followup queued WITH pre-declared gates; this followup resolved.</pre>
+    </article>
+  </section>
+
+</main>
+</body>
+</html>
