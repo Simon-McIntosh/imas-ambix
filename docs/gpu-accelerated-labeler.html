@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="gpu-accelerated-labeler">
+  <meta name="plan-title"     content="GPU-Accelerated Equilibrium Labeler — batched causal rollout on the H200 node">
+  <meta name="plan-summary"   content="Re-architect the reanalysis label factory to exploit the H200 node. A per-solve GPU port of the free-boundary GS solver shows NO speedup (confirmed: the grid-free matvec is 1.67x slower than the cached grid solve at batch-1, and a prior jax GPU port of nova flatlined) — because one equilibrium is a batch-1 memory-bound GEMV (~600x below the tensor-core ridge) driven by a strictly sequential fixed-point chain of tiny kernels with a per-iteration HOST round-trip for the topology read, an anti-pattern nested TWICE (the GS fixed point AND the time integration). Three independent expert reviews (HPC/roofline, batched numerical methods, jax/XLA systems) converge on the cure: batch over SHOTS (the parallel axis), express the whole causal rollout on-device as one vmap(shots) x scan(time) x fixed-point graph so the per-solve GEMV becomes a corpus-wide GEMM (compute-bound past B~600), and move the topology read on-device as a fixed-shape stencil null-finder + smooth mask (nova already ships this; NO connected-components). A single-shot / parallel-in-time arm (windowed waveform relaxation) accelerates the live/between-shot reconstruction where shot-batching is unavailable (~3-5x per shot). Honest ceiling: 1-2 orders of magnitude, corpus label factory ~37 core-days -> well under an hour on 8xH200, bounded by the sequential per-step thin-ops, not the matvec. Stretch: the smooth on-device read makes the whole rollout differentiable -> gradient-based eta/passive-R/prior calibration against EFIT-free held-out magnetics. Depends on greens-filament-solver (the grid-free substrate is the port target).">
+  <meta name="plan-status"    content="draft">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="XL">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="greens-filament-solver">
+  <title>GPU-Accelerated Equilibrium Labeler | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h2 id="s1">§1 — Overview: the per-solve GPU port is a dead end; batch the corpus</h2>
+  <p><strong>The problem, and the honest negative that motivates it.</strong> The
+  reanalysis engine produces firewall-clean equilibrium labels; the label factory
+  must run the free-boundary Grad&ndash;Shafranov solve over the ~12.6k-shot MAST
+  corpus (~600k slices) to feed the learned cross-machine operator &mdash; ~37
+  core-days at today&rsquo;s CPU rate. The obvious move &mdash; port the solver to
+  the 8&times;H200 node &mdash; <strong>does not work per-solve</strong>: the
+  <code>greens-filament-solver</code> §2 spike measured the grid-free matvec at
+  <strong>1.67&times; SLOWER</strong> than the cached grid solve on a single CPU
+  slice, and the lead&rsquo;s own prior jax GPU port of the nova scheme showed no
+  material speedup. This plan is the re-architecture that <em>does</em> work.</p>
+
+  <p><strong>Why a per-solve GPU solver fails (three independent reviews agree).</strong>
+  A single equilibrium is close to the canonical anti-GPU workload:</p>
+  <ul>
+    <li><strong>Batch-1 is a memory-bound GEMV.</strong> The plasma&rarr;grid
+    Green&rsquo;s matvec (6305&times;1500, ~38&nbsp;MB) has arithmetic intensity
+    ~0.5&nbsp;FLOP/byte &mdash; <strong>~600&times; below the H200 tensor-core ridge</strong>
+    (~295&nbsp;FLOP/byte). The tensor cores that <em>are</em> the H200 sit ~99.5% idle;
+    the 38&nbsp;MB matrix stays hot in CPU L3 across all sweeps, so the CPU wins.</li>
+    <li><strong>The fixed point is strictly sequential</strong> &mdash; a chain of
+    40&ndash;120 dependent sub-20-MFLOP kernels; latency-bound, not throughput-bound.</li>
+    <li><strong>The topology read forces a per-iteration HOST round-trip</strong>
+    (device&rarr;host ψ &rarr; NumPy critical-points + <code>ndimage.label</code>
+    &rarr; host&rarr;device jφ) &mdash; the dominant killer, idling the GPU every sweep.</li>
+    <li><strong>The anti-pattern is nested twice:</strong> the <em>time-integration</em>
+    loop (resistive diffusion + passive circuits) is ALSO a Python loop with per-step
+    host scalar reads, so even a perfectly batched per-slice solve re-serialises in time.</li>
+  </ul>
+
+  <p><strong>The fix.</strong> The parallelism is <em>across</em> solves, not within
+  one. Two payoff axes, mapped to the two ways the engine is used:</p>
+
+  <figure>
+    <svg viewBox="0 0 720 320" width="100%" role="img"
+         aria-label="The batched causal rollout: an outer parallel batch over shots, a sequential scan over time within a shot carrying diffusion and passive-circuit state, and an inner warm-started GS fixed point at each time step.">
+      <style>
+        .bx{fill:#ffffff;stroke:#444;stroke-width:1}
+        .outer{fill:#ffffff;stroke:#268;stroke-width:1.5}
+        .mid{fill:#ffffff;stroke:#c73;stroke-width:1.5}
+        .inn{fill:#ffffff;stroke:#484;stroke-width:1.5}
+        .tt{font:600 13px system-ui;fill:#111}
+        .tx{font:12px system-ui;fill:#222}
+        .lab{font:600 12px system-ui}
+        .ar{stroke:#555;stroke-width:1.3;fill:none;marker-end:url(#h)}
+      </style>
+      <defs><marker id="h" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 z" fill="#555"/></marker></defs>
+      <rect class="outer" x="10" y="10" width="700" height="300" rx="6"/>
+      <text class="lab" x="24" y="30" fill="#268">OUTER — vmap / shard over SHOTS  (~12.6k, independent → the batch axis; GEMM width B)</text>
+      <rect class="mid" x="30" y="44" width="660" height="250" rx="5"/>
+      <text class="lab" x="44" y="64" fill="#c73">MIDDLE — lax.scan over TIME within a shot  (sequential; carry = profile coeffs, passive modal amps, warm ψ)</text>
+      <rect class="inn" x="52" y="80" width="626" height="200" rx="5"/>
+      <text class="lab" x="66" y="100" fill="#484">INNER — warm-started GS fixed point per slice  (few iters; fixed budget + convergence mask)</text>
+      <rect class="bx" x="70" y="116" width="150" height="60" rx="4"/>
+      <text class="tt" x="145" y="140" text-anchor="middle">ψ = G · I</text>
+      <text class="tx" x="145" y="158" text-anchor="middle">batched GEMM (B shots)</text>
+      <rect class="bx" x="262" y="116" width="150" height="60" rx="4"/>
+      <text class="tt" x="337" y="140" text-anchor="middle">topology read</text>
+      <text class="tx" x="337" y="158" text-anchor="middle">on-device stencil</text>
+      <rect class="bx" x="454" y="116" width="150" height="60" rx="4"/>
+      <text class="tt" x="529" y="140" text-anchor="middle">jφ + renorm</text>
+      <text class="tx" x="529" y="158" text-anchor="middle">elementwise → Ip</text>
+      <path class="ar" d="M220,146 H260"/>
+      <path class="ar" d="M412,146 H452"/>
+      <path class="ar" d="M529,176 V206 H145 V178"/>
+      <rect class="bx" x="70" y="220" width="288" height="48" rx="4"/>
+      <text class="tt" x="214" y="240" text-anchor="middle">batched tridiagonal ψ-diffusion</text>
+      <text class="tx" x="214" y="257" text-anchor="middle">(Thomas, fp64) — per time step</text>
+      <rect class="bx" x="390" y="220" width="288" height="48" rx="4"/>
+      <text class="tt" x="534" y="240" text-anchor="middle">modal-ZOH passive circuits</text>
+      <text class="tx" x="534" y="257" text-anchor="middle">exact L/R recurrence (fp64)</text>
+    </svg>
+    <figcaption>The batched causal rollout. The GS matvec becomes a batched GEMM
+    across shots (compute-bound past B&nbsp;&approx;&nbsp;600); the entire nest &mdash;
+    inner fixed point, the batched tridiagonal diffusion, and the exact modal-ZOH
+    passive circuits &mdash; runs on-device as one <code>vmap(shots)&nbsp;&times;
+    &nbsp;scan(time)&nbsp;&times;&nbsp;fixed-point</code> graph, with the fp64
+    recurrent state threading the time axis and no host round-trip in the loop.</figcaption>
+  </figure>
+
+  <p><strong>Axis A — offline corpus (this is where shot-batching lives).</strong>
+  Batch over shots; the GEMV becomes a GEMM; the whole rollout is one jitted,
+  sync-free graph. Pure shot-batching is <em>strictly</em> optimal offline &mdash;
+  the batch is already saturated, so the single-shot temporal split below would only
+  add redundant FLOPs.</p>
+
+  <p><strong>Axis B — single shot (live / between-shot reconstruction).</strong> With
+  no shot-batch to fill, use <strong>parallel-in-time</strong> (windowed waveform
+  relaxation): solve all ~50&ndash;200 slices of the shot simultaneously as
+  independent per-slice GS equilibria (coupling lagged → decoupled → batched over
+  slices), thread the diffusion + passive coupling sequentially, iterate the outer
+  loop. The temporal coupling is a weak <em>soft prior</em>, so the outer iteration
+  contracts in ~2&ndash;4 sweeps; a causal sliding-window, 1&ndash;2-outer-iteration
+  variant is a viable live reconstruction.</p>
+
+  <p><strong>The prerequisite both axes share.</strong> The topology read MUST move
+  on-device as a fixed-shape, branchless op (nova&rsquo;s 7-point stencil null-finder
+  + a smooth/tracked core mask &mdash; no connected-components). Without it the
+  per-iteration host round-trip re-serialises the batch and Amdahl caps everything at
+  ~3&times;. This is a port of primitives nova already ships, not new research.</p>
+
+  <p><strong>Honest ceiling &amp; firewall.</strong> The matmuls become effectively
+  free; the residual bottleneck is the sequential per-step thin-ops (topology +
+  tridiagonal + circuit) &times; rollout depth, amortised across the shot batch.
+  Converged estimate: <strong>1&ndash;2 orders of magnitude</strong>, corpus label
+  factory <strong>~37 core-days &rarr; well under an hour (plausibly minutes) on
+  8&times;H200</strong>. The equilibria must stay byte-comparable to the CPU grid-free
+  solver (validated, incl. the Ejima/flux-budget ledger); GS force balance and the
+  firewall (physics + measured channels only, no EFIT) are unchanged &mdash; this is a
+  compute re-architecture, not a physics change.</p>
+
+  <h2 id="s2">§2 — Framework spike + batched GEMM crossover + on-device topology (go/no-go)</h2>
+  <p>The de-risking rung. (1) <strong>Framework decision</strong> (see decisions):
+  the temporal stack (<code>current_diffusion.py</code>, <code>temporal_operator.py</code>)
+  is already torch-fp64, so a unified torch pipeline avoids rewriting it; jax wins for
+  whole-rollout fusion + clean implicit-diff. Prototype the inner GS step in both and
+  decide. (2) <strong>Batched GEMM microbench</strong> on one H200: confirm the
+  GEMV&rarr;GEMM crossover and the compute-bound regime past B&nbsp;&approx;&nbsp;600,
+  and measure achievable slices/s. (3) <strong>On-device topology port</strong>:
+  reimplement the axis/X-point + core mask as nova&rsquo;s fixed-shape stencil
+  null-finder + smooth mask, and <strong>validate it against the exact CPU read</strong>
+  on axis / boundary_psi / LCFS to tolerance. Gate G-A: a batched (B&nbsp;&ge;&nbsp;512)
+  inner GS solve on real held-out slices reproduces the CPU grid-free axis/LCFS/profile
+  within the <code>greens-filament-solver</code> §2 tolerances AND shows the
+  compute-bound GEMM crossover; the on-device read matches the exact read. Honest
+  negative if the on-device read cannot hold tolerance.</p>
+
+  <h2 id="s3">§3 — Offline batched causal rollout (the corpus labeler)</h2>
+  <p>Assemble the full <code>vmap(shots) &times; scan(time) &times; fixed-point</code>
+  graph: the inner GS solve (§2) warm-started along time, the batched tridiagonal
+  resistive diffusion (Thomas, fp64), and the exact modal-ZOH passive circuits in the
+  scan carry. Fixed iteration budget + per-column convergence masking (no adaptive
+  per-slice early-exit); shot-length bucketing; precision tiering (tf32/bf16 GEMM,
+  fp32 topology, <strong>fp64 recurrent state</strong>). Gate G-B: the batched rollout
+  reproduces the CPU sequential labeler&rsquo;s equilibria (axis/LCFS/profile + the
+  held-out-MSE pitch readout) on a held-out shot set to tolerance, with 0 fabricated
+  readouts (label-honesty preserved).</p>
+
+  <h2 id="s4">§4 — Single-shot / parallel-in-time arm (live &amp; between-shot)</h2>
+  <p>Windowed waveform relaxation for the single-shot path: Gauss&ndash;Seidel across
+  short causal windows (T_win/τ_R&nbsp;&lesssim;&nbsp;0.3), Jacobi batched-over-slices
+  within a window, exact causal eddy-state carry between windows; disc+centroid
+  position prior (or a cheap coarse sequential pre-march) as basin insurance on the
+  cold decoupled pass. A causal sliding-window, 1&ndash;2-outer-iteration variant for
+  live reconstruction. Gate G-C: the outer iteration converges to the sequential
+  march&rsquo;s trajectory (axis/LCFS/flux-budget) to tolerance in a bounded outer
+  count, and delivers a measured single-shot wall-clock speedup (target ~3&ndash;5&times;)
+  vs the sequential march; the truncated live variant is validated against the
+  converged one before any real-time use.</p>
+
+  <h2 id="s5">§5 — Multi-GPU sharding + corpus throughput benchmark</h2>
+  <p>Data-parallel over the shot-batch across the 8 H200 cards (replicate the ~2
+  campaign Green&rsquo;s matrices per device, ~76&nbsp;MB each; zero cross-device comms
+  during the rollout; per-device shard write). Bucket-aware load balancing. Stream
+  inputs/outputs (600k shards) so I/O does not become the new wall. Runs on the
+  betelgeuse H200 reservation (<code>gpu_0003_grpA</code>). Gate G-D: the full-corpus
+  label factory clears the wall-clock target (well under an hour) with equilibria
+  byte-comparable to the CPU grid-free solver.</p>
+
+  <h2 id="s6">§6 — (Stretch) differentiable rollout → gradient-based calibration</h2>
+  <p>Once the topology read is smooth, the whole rollout is differentiable via an
+  implicit-function / deep-equilibrium adjoint at each GS fixed point (no unrolling) +
+  per-slice checkpointing across the time scan. The labeler then becomes its own
+  gradient-based calibrator: fit η(ψ_N), the passive resistances, and the priors
+  against EFIT-free held-out magnetics, replacing the current gradient-free search.
+  Deferred/stretch &mdash; folds into the learned-operator endgame; the learned operator
+  is also the natural coarse propagator for a future parareal variant of §4.</p>
+
+  <section data-reckon="decisions" id="decisions" class="r-decisions">
+    <h2><span class="sec">§</span> Decisions</h2>
+    <div class="r-dec" data-key="compute-framework" data-choice="" data-by="" data-when="">
+      <p class="r-dec-q">Which framework for the batched on-device rollout?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt" data-value="jax">jax/XLA — whole-rollout fusion (one vmap×scan×fixed-point graph) + clean implicit-diff for §6</button>
+        <button class="r-opt" data-value="torch">torch — reuses the existing fp64 temporal stack unchanged; torch.compile + vmap + batched Thomas + a Triton topology kernel</button>
+      </p>
+      <p class="r-dec-rat">OPEN — the §2 spike decides. The GEMM and batched tridiagonal are a tie; the decider is (a) how much of the already-torch-fp64 temporal stack we are willing to rewrite in jax, and (b) whether §6 differentiability (jax implicit-diff is cleaner) is pursued. Prototype the inner step in both.</p>
+    </div>
+    <div class="r-dec" data-key="parallelism-axis" data-choice="batch-shots-offline-pint-single-shot" data-by="expert-review-consensus" data-when="2026-07-20">
+      <p class="r-dec-q">What is the parallel axis — offline vs single-shot?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt chosen" data-value="batch-shots-offline-pint-single-shot">Offline: batch over SHOTS (pure shot-batching, strictly optimal). Single-shot: parallel-in-time (windowed WR over slices). Two distinct arms.</button>
+        <button class="r-opt" data-value="pint-everywhere">Parallel-in-time everywhere (including offline)</button>
+        <button class="r-opt" data-value="batch-slices-only">Batch over raw slices ignoring the causal coupling</button>
+      </p>
+      <p class="r-dec-rat">Locked from the three-review + parallel-in-time-analysis consensus (2026-07-20). Offline, pure shot-batching saturates the GPU and the temporal split only adds ~5-7x redundant FLOPs (PinT loses). Single-shot, there is no shot-batch to fill, so windowed WR over slices is the analogue (~3-5x, latency win). Batching raw slices while ignoring the diffusion + passive coupling is physically wrong (drops the causal profile evolution the engine earns).</p>
+    </div>
+    <div class="r-dec" data-key="topology-read-location" data-choice="on-device-fixed-shape" data-by="expert-review-consensus" data-when="2026-07-20">
+      <p class="r-dec-q">Where does the axis/X-point + core-mask topology read run?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt chosen" data-value="on-device-fixed-shape">On-device, fixed-shape/branchless — nova stencil null-finder + smooth/tracked mask (no connected-components), validated vs the exact read</button>
+        <button class="r-opt" data-value="host-read">Keep the exact host read (NumPy critical-points + ndimage.label)</button>
+      </p>
+      <p class="r-dec-rat">Locked (2026-07-20): all three reviews agree the per-iteration host round-trip is the dominant reason the per-solve jax port flatlined; without an on-device read Amdahl caps the whole thing at ~3x. nova already ships the branchless primitives. A final exact-read CPU polish for the EMITTED label is retained where sub-mm axis is a hard requirement (validated against the on-device read + the Ejima/flux-budget ledger).</p>
+    </div>
+  </section>
+
+  <section data-reckon="followups" id="followups" class="r-followups">
+    <h2><span class="sec">§</span> Followups</h2>
+    <article class="r-fu" data-id="f-gal-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-20T09:20:00+00:00" data-recommends-skill="/reckon-ship gpu-accelerated-labeler §2">
+      <h4 class="r-fu-title">Ship §2 — framework spike + batched GEMM crossover + on-device topology (go/no-go)</h4>
+      <div class="r-fu-body"><p>De-risk the re-architecture before building the full rollout: pick the framework (jax vs torch) by prototyping the inner GS step in both; microbench the batched GEMM to confirm the GEMV→GEMM compute-bound crossover past B≈600 on one H200; and port the topology read on-device (nova stencil null-finder + smooth mask), validated against the exact CPU read. Gate G-A: a batched (B≥512) inner GS solve on real held-out slices reproduces the CPU grid-free axis/LCFS/profile within the greens-filament-solver §2 tolerances AND shows the compute-bound crossover; honest negative if the on-device read cannot hold tolerance.</p></div>
+      <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    gpu-accelerated-labeler (http://localhost:8765/imas-ambix/gpu-accelerated-labeler.html)
+Section: §2 (framework spike + batched GEMM crossover + on-device topology)
+Tier:    opus
+
+Context
+  The per-solve GPU port is a confirmed dead end (grid-free matvec 1.67x slower than
+  the cached grid solve at batch-1; a prior jax GPU port of nova flatlined). Three
+  independent expert reviews converged: batch over shots, whole rollout on-device, and
+  move the topology read on-device. This rung de-risks all three before building the
+  full rollout. Honour the locked decisions shown live above this brief
+  (parallelism-axis, topology-read-location) and resolve the OPEN compute-framework
+  decision with the spike evidence.
+
+State to read  (CODE / FILES / DATA)
+  docs/archive/greens-filament-solver-s2-landed.html   (the grid-free substrate + the 1.67x per-solve finding)
+  imas_ambix/latent/gs_solve.py                         (EquilibriumGrid.plasma_grid_psi/_columns; the inner GS fixed point to batch)
+  ~/Code/nova/nova/jax/{plasma,target,topology,null}.py (the reference jax scheme + the branchless stencil null-finder to port)
+  imas_ambix/latent/current_diffusion.py + temporal_operator.py + passive_resistance.py (the already-torch-fp64 temporal stack)
+  scripts/greens_filament_gate_eval.py                  (the CPU grid-free reference + its tolerances)
+  H200 access: betelgeuse partition, reservation gpu_0003_grpA (see imas_ambix/agent/AGENTS.md)
+
+Scope locks / constraints  (non-decision)
+  - Reproduce the CPU grid-free equilibria to the greens-filament-solver §2 tolerances
+    (axis sub-mm, LCFS ~60um, profile ~2% RMS on well-determined slices).
+  - On-device topology read must be fixed-shape/branchless (nova stencil null-finder +
+    smooth/tracked mask; NO connected-components) and validated vs the exact read.
+  - Precision: bf16/tf32 matmul with fp32 accumulate is in scope for the GEMM ONLY;
+    keep fp32 topology and fp64 for any recurrent/state quantity; validate axis/LCFS.
+  - Firewall unchanged: GS force balance, physics + measured channels only, no EFIT.
+  - Figures mandatory (docs/figures/gpu-accelerated-labeler/): the GEMV→GEMM roofline
+    crossover (slices/s vs batch B on one H200); on-device-vs-exact topology-read
+    agreement (axis/LCFS scatter).
+  - Commit+push each coherent change on main; no AI co-author trailers
+    (verify: git log -1 --format=%B | grep -Eqi "^co-authored-by:").
+  - GPU/SLURM: run on the H200 via the reservation; async shell + file-redirect +
+    exit sentinel; never a long foreground sleep.
+
+Gates (pre-declared)
+  G-A1 (framework): the inner GS step prototyped in jax AND torch; compute-framework
+       decision resolved with measured evidence (fusion, fp64-stack reuse, §6 diff need).
+  G-A2 (GEMM crossover): batched G·I microbench on one H200 shows the compute-bound
+       crossover past B≈600 and reports achievable slices/s at B=512/1024/2048.
+  G-A3 (reproduction): a batched (B≥512) inner GS solve on real held-out slices holds
+       the CPU grid-free axis/LCFS/profile within the §2 tolerances, with the on-device
+       topology read matching the exact read.
+  Stop rule: if the on-device fixed-shape read cannot hold the §2 axis/LCFS tolerance,
+       STOP and surface — do not ship a labeler whose topology read is looser than the
+       CPU reference (Amdahl makes a host read pointless; a lossy on-device read
+       corrupts the labels).
+
+Done-when
+  1. Framework decided + batched inner-GS prototype committed; G-A1..G-A3 verdicts
+     recorded honestly; artifact + figures committed.
+  2. Plan updated same-session: §2 outcome recorded + collapsed; §3 (offline batched
+     causal rollout) followup queued WITH pre-declared gates; this followup resolved.</pre>
+    </article>
+  </section>
+
+</main>
+</body>
+</html>
