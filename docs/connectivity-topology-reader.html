@@ -99,6 +99,20 @@
   the flood-fill boundary reproduces the CPU <code>lcfs_contour</code> ψ_bnd and LCFS
   radii to tolerance (cold + warm), across limited and diverted slices; the read is
   fully on-device (no host round-trip) and batches over slices/shots.</p>
+  <p><strong>Two numerical cautions (from the imas-efit review; EFIT invests heavily
+  in both).</strong> (i) <em>Sub-grid ψ_bnd accuracy</em>: at grid resolution the
+  boundary flux carries O(Δx) error at the binding saddle/wall-tangency point. Add ONE
+  post-hoc Newton/quadratic polish of the scalar ψ_bnd (nova's <code>subnull</code> /
+  EFIT's <code>wall_segment_tangency</code> idea) — outside any loop, never a
+  per-iteration correction. (ii) <em>Saddle-cell connectivity is grid-ambiguous</em>:
+  through an X-point, 4-connectivity blocks and 8-connectivity leaks diagonally, and the
+  result is resolution-dependent. Do NOT trust a single discrete flood at a fixed level;
+  resolve it by <strong>bisecting the flux offset to the level at which the axis-basin's
+  connectivity first changes</strong> (first touches the wall or pinches at the saddle) —
+  the connectivity-change level IS ψ_bnd. This is a refinement of the monotone sweep,
+  not new machinery, and keeps the read continuous through the marginal transition. The
+  reeb/merge-tree concept (EFIT's own 2026 method: "first binding critical level = LCFS,
+  no hysteresis, no per-iter cache") validates that this is the correct physics.</p>
 
   <h2 id="s3">§3 — Axis + optional X-point via nova stencils (classify-after)</h2>
   <p>Port nova's <code>zero_cross_count</code> stencil classifier + <code>select.subnull</code>
@@ -117,9 +131,16 @@
   mask; the poke-out test is "axis-connected region ⊄ union-wall-mask"), WEST movable /
   per-pulse limiters (a per-pulse/per-phase mask input). This is where a classify-first
   pipeline becomes machine-specific (limiter-contact search, strike-point logic); the
-  connectivity read needs only the mask. Gate T-D: the boundary read is correct on
-  synthetic single-loop, multi-polygon, and time-varying-wall cases (limited and
-  diverted), with the wall supplied as data, not code.</p>
+  connectivity read needs only the mask. Implement the mask as a <strong>raster
+  boolean grid</strong> (the union of all limiter units rasterised) — strictly more
+  general than EFIT's polygon-composite/convex-hull (`compositeInclusionPolygon`): a
+  raster natively handles disconnected tiles and non-simply-connected walls, rebuilds
+  cheaply per pulse (WEST), and admits a soft/smoothed (differentiable) form. Heed
+  EFIT's own lesson (`zlimit.f90:826-829`): do NOT excise interior tile material from
+  the flux-occupiable domain (it fragments the divertor into islands) — mark tiles as
+  boundary, not holes. Gate T-D: the boundary read is correct on synthetic single-loop,
+  multi-polygon, and time-varying-wall cases (limited and diverted), with the wall
+  supplied as a raster mask, not code.</p>
 
   <h2 id="s5">§5 — Differentiable + adversarial-topology robustness</h2>
   <p>Make the read differentiable (smooth/sigmoid core mask, soft level) for the
