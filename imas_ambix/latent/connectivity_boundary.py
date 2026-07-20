@@ -26,11 +26,17 @@ Method (the connectivity read, re-expressed on device):
   axis region stays clear of the wall boundary; it becomes invalid the instant
   the region first reaches the wall — either by a flux surface going tangent to
   the wall (LIMITED) or by opening through an X-point so the scrape-off connects
-  to the divertor/wall (DIVERTED).  This predicate is monotone in ``s`` (the
-  confined set only grows), so ψ_bnd is the largest valid level, found by a
-  fixed coarse sweep bracketing the transition + a fixed-count bisection.  This
-  is exactly the caution the plan pins: the connectivity-change level IS ψ_bnd
-  (no hysteresis, no per-iteration contour cache).
+  to the divertor/wall (DIVERTED).  This is monotone in ``s`` (the confined set
+  only grows), so each transition is the largest valid level, found by a fixed
+  coarse sweep + a fixed-count bisection.  ψ_bnd is read at the MEAN of two
+  transition levels that bracket the true binding from opposite sides — an inner
+  test (region touches the innermost in-wall shell, ~one cell inside) and an outer
+  test (dilating the region reaches a still-confined out-of-wall/edge cell, ~one
+  cell outside).  A single test is biased by the half-cell between the region's
+  last in-wall cell and the first out-of-wall cell; their mean is unbiased, and
+  for a diverted plasma it lands on the X-point saddle (ψ_N = 1).  The divertor
+  legs are open branches the closed axis-region never floods, so the lobe — and
+  the radii read off it — are unaffected.
 
 * **LCFS radii.**  Read at ψ_lcfs = ψ_axis + lcfs_norm·(ψ_bnd − ψ_axis) by a
   fixed outward ray-march from the axis at the evaluator's 8 poloidal angles —
@@ -44,12 +50,11 @@ as a raster boolean mask (``inside_limiter``), so a single loop (MAST), a union
 of discrete limiters (AUG), or a per-pulse movable wall (WEST) is data, not a
 new code path.
 
-Sub-grid note: ψ_bnd is resolved to the flux of the binding grid cell (O(Δψ)
-at the wall-tangency / saddle, the discretisation floor the host contour read
-also carries); the LCFS radii are sub-grid (interpolated ray crossing).  The
-sub-grid saddle/axis position that would polish the scalar ψ_bnd is the nova
-stencil refinement (a separate rung), deliberately not folded into the boundary
-sweep.
+Sub-grid note: the two-sided mean removes the ~one-cell systematic bias in the
+scalar ψ_bnd, leaving an unbiased sub-cell residual; the LCFS radii are sub-grid
+(interpolated ray crossing).  The sub-grid saddle/axis POSITION (as opposed to
+the binding flux) is the nova stencil refinement — a separate rung, not folded
+into the boundary sweep.
 """
 
 from __future__ import annotations
@@ -211,34 +216,65 @@ def boundary_read_jax(
     outside = (~inside_limiter) | border
     wall_ring = _dilate4(outside) & inside_limiter
 
-    def valid(s):
-        confined = (u <= s) & inside_limiter
-        region = flood_fill_core(confined, seed, n_iter)  # float 0/1
+    # Two escape tests bracket the true binding level from opposite sides, so their
+    # mean is unbiased (a single test is off by the ~half-cell between the region's
+    # last in-wall cell and the first out-of-wall cell):
+    #   INNER — the axis region touches the innermost in-wall shell.  Fires ~one cell
+    #     INSIDE the wall crossing / saddle, so ψ_bnd comes out biased toward the axis
+    #     (boundary too small).
+    #   OUTER — dilating the axis region by one step reaches a still-confined cell
+    #     OUTSIDE the wall (or on the domain edge).  Fires ~one cell OUTSIDE, so ψ_bnd
+    #     comes out biased away from the axis (boundary too big).
+    # ψ_bnd is read at the mean of the two transition levels: for a limited plasma
+    # that is the wall tangency, for a diverted plasma the X-point saddle (ψ_N = 1) —
+    # the divertor legs are open branches the closed axis-region never floods, so the
+    # lobe is unaffected.
+    def _alive_region(s):
+        region = flood_fill_core((u <= s) & inside_limiter, seed, n_iter)
         alive = region.reshape(-1)[seed_flat] > 0.5
-        touches = jnp.sum(region * wall_ring.astype(region.dtype)) > 0.5
-        return alive & (~touches)
+        return region, alive
 
-    # coarse sweep: the valid predicate is True on a single contiguous band
-    # [u_seed, s*]; the largest valid grid level brackets the transition s*.
+    def valid_inner(s):
+        region, alive = _alive_region(s)
+        touch = jnp.sum(region * wall_ring.astype(region.dtype)) > 0.5
+        return alive & (~touch)
+
+    def valid_outer(s):
+        region, alive = _alive_region(s)
+        reach = _dilate4(region > 0.5) & outside & (u <= s)
+        touch = jnp.sum(reach.astype(region.dtype)) > 0.5
+        return alive & (~touch)
+
+    # coarse sweep: each valid predicate is True on a single contiguous band
+    # [u_seed, s*]; the largest valid grid level brackets that transition.
     s_grid = jnp.linspace(0.0, 1.0, n_levels + 1)[1:]  # (n_levels,) in (0, 1]
-    vk = jax.vmap(valid)(s_grid)
     idxs = jnp.arange(n_levels)
-    last = jnp.max(jnp.where(vk, idxs, -1))
-    found = last >= 0
 
-    lo0 = jnp.where(found, s_grid[jnp.clip(last, 0, n_levels - 1)], 0.0)
-    hi0 = jnp.where(
-        last < n_levels - 1, s_grid[jnp.clip(last + 1, 0, n_levels - 1)], 1.0
-    )
+    def _bracket(valid_fn):
+        vk = jax.vmap(valid_fn)(s_grid)
+        last = jnp.max(jnp.where(vk, idxs, -1))
+        lo0 = jnp.where(last >= 0, s_grid[jnp.clip(last, 0, n_levels - 1)], 0.0)
+        hi0 = jnp.where(
+            last < n_levels - 1, s_grid[jnp.clip(last + 1, 0, n_levels - 1)], 1.0
+        )
+        return last, lo0, hi0
 
-    def body(_i, carry):
-        lo, hi = carry
-        mid = 0.5 * (lo + hi)
-        v = valid(mid)
-        return (jnp.where(v, mid, lo), jnp.where(v, hi, mid))
+    def _refine(valid_fn, lo0, hi0):
+        def body(_i, carry):
+            lo, hi = carry
+            mid = 0.5 * (lo + hi)
+            v = valid_fn(mid)
+            return (jnp.where(v, mid, lo), jnp.where(v, hi, mid))
 
-    lo, hi = jax.lax.fori_loop(0, n_bisect, body, (lo0, hi0))
-    s_star = lo
+        lo, _hi = jax.lax.fori_loop(0, n_bisect, body, (lo0, hi0))
+        return lo
+
+    last_in, lo_in, hi_in = _bracket(valid_inner)
+    last_out, lo_out, hi_out = _bracket(valid_outer)
+    found = last_in >= 0
+    s_in = _refine(valid_inner, lo_in, hi_in)
+    s_out = _refine(valid_outer, lo_out, hi_out)
+    s_star = 0.5 * (s_in + s_out)
     psi_bnd = psi_axis + s_star * span
     # Radii are read on the surface the ray-cast sits on, ALWAYS a hair inside the
     # separatrix (≤0.999·span): a ray cast at exactly ψ_bnd runs down an open
