@@ -68,6 +68,11 @@ import jax
 import jax.numpy as jnp
 
 from imas_ambix.latent.flux_surface_connectivity import _dilate4, flood_fill_core
+from imas_ambix.latent.stencil_nulls import (
+    magnetic_axis_subgrid,
+    xpoint_candidates,
+)
+from imas_ambix.latent.topology import N_XPOINT_SLOTS
 from imas_ambix.worldmodel.equilibrium_labels import LCFS_ANGLES
 
 # fp64 is mandatory: the boundary flux is a small difference of grid fluxes and
@@ -81,6 +86,17 @@ _DEFAULT_ANGLES = jnp.asarray(LCFS_ANGLES)
 #: default wall boundary points — a single far-away point that is never reachable,
 #: so a call without a wall polygon falls back to the flood binding level.
 _NO_WALL = jnp.asarray([1.0e30])
+
+#: static count of X-point candidate slots the stencil classifier fills (a
+#: double-null plus spares); the emergent set is then trimmed to N_XPOINT_SLOTS.
+_K_XCAND = 8
+
+#: half-width (in ψ_N span units) of the flux band around the flood binding level
+#: within which an X-point saddle is accepted as the binding candidate.
+_X_FLUX_BAND = 0.05
+
+#: ψ_N tolerance for an X-point to be reported as sitting ON the boundary ring.
+_X_ON_RING_U = 0.02
 
 __all__ = [
     "ConnectivityBoundary",
@@ -282,31 +298,33 @@ def boundary_read_jax(
     s_out = _refine(valid_outer, lo_out, hi_out)
     s_flood = 0.5 * (s_in + s_out)  # unbiased for an interior saddle (diverted)
 
-    # --- limited vs diverted by the connectivity-change signature --------------
-    # A LIMITED plasma's region grows SMOOTHLY through the binding (a flux surface
-    # goes tangent to the wall).  A DIVERTED plasma's region JUMPS in size at the
-    # binding — the X-point saddle opens and the axis region merges with the SOL /
-    # private-flux region.  The size ratio across the binding is that topology
-    # signal, and it separates the two cleanly (limited ≲ 1.3, diverted ≳ 1.4).
-    def _size(s):
-        return jnp.sum(flood_fill_core((u <= s) & inside_limiter, seed, n_iter))
+    # The connectivity flood localises the binding to s_flood; the two remaining
+    # sub-grid refinements (the wall tangency and the X-point saddle) are read at
+    # that level and the binding is the CONFINED-MOST (nearest ψ_N to the axis) of
+    # the two — one rule, no limited/diverted branch.  A wall tangency binds a
+    # limited plasma; an X-point saddle binds a diverted one; whichever is reached
+    # first (smaller ψ_N) closes the boundary, exactly as the outermost-closed
+    # connectivity read does.
 
-    size_ratio = _size(jnp.minimum(1.06 * s_flood, 0.999)) / jnp.maximum(
-        _size(0.92 * s_flood), 1.0
-    )
-    is_limited = size_ratio < 1.35
-
-    # --- sub-grid wall tangency (LIMITED only) ---------------------------------
-    # For a limited plasma the two-sided mean still carries the sub-cell wall-
-    # position error, so read the tangency flux SUB-GRID: the minimum interpolated
-    # ψ_N over the wall boundary points adjacent to the axis region (so coil-
-    # perturbed or far-wall points cannot win).  A diverted plasma keeps the
-    # interior-saddle mean — a min-over-wall would read its outboard wall approach,
-    # which sits OUTSIDE the separatrix, and overshoot.
+    # region at the flood binding, and a few-cell dilation of it (the "flood
+    # rejoin" band) — a candidate null must sit in this band to be ON the axis
+    # region's edge, so a same-flux null elsewhere in (or out of) the vessel is
+    # rejected.
     region_at = flood_fill_core((u <= s_flood) & inside_limiter, seed, n_iter)
     reach = region_at > 0.5
     for _ in range(2):  # unrolled (static) — reach the wall polygon near the touch
         reach = _dilate4(reach)
+    flood_adjacent = region_at > 0.5
+    for _ in range(3):  # unrolled — the separatrix saddle sits at the region edge
+        flood_adjacent = _dilate4(flood_adjacent)
+
+    # --- sub-grid wall tangency ------------------------------------------------
+    # The confined-most flux the closed surface reaches on the wall, read SUB-GRID
+    # (the cell mean carries the sub-cell wall-position error a tangency is
+    # sensitive to): the minimum interpolated ψ_N over the wall boundary points
+    # adjacent to the axis region.  Computed for EVERY slice; on a diverted plasma
+    # the reachable wall sits OUTSIDE the separatrix so this overshoots and loses
+    # the confined-most min to the saddle below — no class switch needed.
     ar_idx = jnp.arange(nr, dtype=jnp.float64)
     az_idx = jnp.arange(nz, dtype=jnp.float64)
     wj = jnp.clip(jnp.round(jnp.interp(wall_r, rg, ar_idx)), 0, nr - 1)
@@ -316,8 +334,42 @@ def boundary_read_jax(
         lambda r_, z_: (_bilerp(psi2d, rg, zg, r_, z_) - psi_axis) / span_safe
     )(wall_r, wall_z)
     u_wall = jnp.min(jnp.where(reachable, u_wall_pts, jnp.inf))
-    wall_binding = is_limited & jnp.any(reachable) & jnp.isfinite(u_wall)
-    s_star = jnp.where(wall_binding, u_wall, s_flood)
+    u_wall_valid = jnp.any(reachable) & jnp.isfinite(u_wall)
+    u_wall_c = jnp.where(u_wall_valid, u_wall, jnp.inf)
+
+    # --- sub-grid X-point saddle at the binding (the diverted separatrix) -------
+    # Classify saddles on the whole grid, then keep only those that (a) lie inside
+    # the wall (xpoint_candidates ANDs inside_limiter), (b) sit in the flood-rejoin
+    # band (spatially at the axis region's edge — rejects a same-flux X elsewhere),
+    # (c) have flux within a band of the flood binding, and (d) are clear of the
+    # axis (rejects a spurious near-axis null-space saddle — the device analogue of
+    # the host min_axis_dist guard).  Refine sub-grid; the binding saddle is the
+    # surviving candidate nearest the flood level.  Its flux closes the two-sided-
+    # mean residual the diverted binding otherwise carries.
+    d2_axis = (rg[None, :] - axis_r) ** 2 + (zg[:, None] - axis_z) ** 2
+    min_axis_d = jnp.maximum(3.0 * (rg[1] - rg[0]), 0.05)
+    x_mask = (
+        (jnp.abs(u - s_flood) <= _X_FLUX_BAND)
+        & (d2_axis >= min_axis_d**2)
+        & flood_adjacent
+    )
+    xc = xpoint_candidates(psi2d, rg, zg, inside_limiter, _K_XCAND, extra_mask=x_mask)
+    u_x = (xc["psi"] - psi_axis) / span_safe  # (_K_XCAND,)
+    x_valid = xc["valid"] & jnp.isfinite(u_x)
+    x_key = jnp.where(x_valid, jnp.abs(u_x - s_flood), jnp.inf)
+    kbind = jnp.argmin(x_key)
+    x_bind_valid = x_valid[kbind] & jnp.isfinite(x_key[kbind])
+    u_x_c = jnp.where(x_bind_valid, u_x[kbind], jnp.inf)
+
+    # --- unified binding: confined-most of {wall tangency, X-point saddle} ------
+    u_min = jnp.minimum(u_wall_c, u_x_c)
+    s_star = jnp.where(jnp.isfinite(u_min), u_min, s_flood)
+
+    # diverted iff the X-point saddle is the confined-most obstruction; the margin
+    # is a SOFT continuous quantity (>0 diverted, <0 limited, ~0 marginal) so the
+    # class is never a code-path switch.
+    is_diverted = x_bind_valid & (u_x_c <= u_wall_c)
+    class_margin = u_wall_c - u_x_c
 
     psi_bnd = psi_axis + s_star * span
     # Radii are read on the surface the ray-cast sits on, ALWAYS a hair inside the
@@ -333,6 +385,27 @@ def boundary_read_jax(
     region_star = flood_fill_core(confined_star, seed, n_iter)
     n_core = jnp.sum(region_star)
 
+    # --- classify-after: sub-grid axis O-point + emergent X-set ----------------
+    # The nulls are read AFTER the boundary, never as a prerequisite for ψ_N.  The
+    # axis is the deepest O-point inside the confined region; the emergent X-set is
+    # the saddles sitting ON the boundary (order-invariant, NaN-padded), the device
+    # analogue of the host emergent_xpoints soft-margin rule.
+    ax = magnetic_axis_subgrid(psi2d, rg, zg, inside_limiter, region=region_star)
+    on_bound = x_valid & (jnp.abs(u_x - s_star) <= _X_ON_RING_U)
+    ob_key = jnp.where(on_bound, jnp.abs(u_x - s_star), jnp.inf)
+    order = jnp.argsort(ob_key)
+    xr_s = xc["r"][order]
+    xz_s = xc["z"][order]
+    ob_s = on_bound[order]
+    take = ob_s[:N_XPOINT_SLOTS]
+    xset = jnp.stack(
+        [
+            jnp.where(take, xr_s[:N_XPOINT_SLOTS], jnp.nan),
+            jnp.where(take, xz_s[:N_XPOINT_SLOTS], jnp.nan),
+        ],
+        axis=1,
+    )  # (N_XPOINT_SLOTS, 2)
+
     return {
         "found": found,
         "psi_axis": psi_axis,
@@ -342,6 +415,15 @@ def boundary_read_jax(
         "s_star": jnp.where(found, s_star, jnp.nan),
         "radii": jnp.where(found, radii, jnp.nan),
         "n_core_cells": n_core,
+        # classify-after diagnostics (never feed ψ_N)
+        "axis_r": jnp.where(ax["found"], ax["r"], jnp.nan),
+        "axis_z": jnp.where(ax["found"], ax["z"], jnp.nan),
+        "axis_psi_sub": jnp.where(ax["found"], ax["psi"], jnp.nan),
+        "xset": xset,
+        "is_diverted": is_diverted,
+        "class_margin": class_margin,
+        "u_wall": u_wall_c,
+        "u_xpoint": u_x_c,
     }
 
 
@@ -388,6 +470,12 @@ class ConnectivityBoundary:
     radii: object  # np.ndarray (len(angles),) [m]
     s_star: float
     n_core_cells: int
+    # classify-after diagnostics (read AFTER the boundary; never feed ψ_N)
+    axis: tuple[float, float]  # sub-grid magnetic axis (O-point) [m]
+    axis_psi: float  # sub-grid axis flux [Wb]
+    xset: object  # np.ndarray (N_XPOINT_SLOTS, 2) NaN-padded emergent X-points [m]
+    is_diverted: bool
+    class_margin: float  # u_wall − u_xpoint (>0 diverted, <0 limited, ~0 marginal)
 
 
 def boundary_read(
@@ -434,6 +522,11 @@ def boundary_read(
         radii=np.asarray(out["radii"], dtype=np.float64),
         s_star=float(out["s_star"]),
         n_core_cells=int(out["n_core_cells"]),
+        axis=(float(out["axis_r"]), float(out["axis_z"])),
+        axis_psi=float(out["axis_psi_sub"]),
+        xset=np.asarray(out["xset"], dtype=np.float64),
+        is_diverted=bool(out["is_diverted"]),
+        class_margin=float(out["class_margin"]),
     )
 
 

@@ -43,8 +43,6 @@ kernel.
 
 from __future__ import annotations
 
-from functools import partial
-
 import jax
 import jax.numpy as jnp
 
@@ -93,7 +91,7 @@ def _null_value(coef, r0, z0):
 
 @jax.jit
 def _null_type(coef, atol=1e-12):
-    """Null type from the Hessian: 0 saddle (X), −1 min, +1 max (both O), NaN degenerate."""
+    """Null type from the Hessian: 0 saddle (X), ±1 extremum (O), NaN degenerate."""
     a, b, _c, _d, e, _f = coef
     root = 4 * a * b - e**2
     condlist = [
@@ -185,7 +183,6 @@ def _refine_at(psi, rg, zg, ia, ja):
 # ---------------------------------------------------------------------------
 
 
-@partial(jax.jit, static_argnums=())
 def magnetic_axis_subgrid(psi, rg, zg, inside_limiter, region=None):
     """Sub-grid magnetic axis = the deepest in-wall O-point (flux extremum).
 
@@ -229,7 +226,6 @@ def magnetic_axis_subgrid(psi, rg, zg, inside_limiter, region=None):
 # ---------------------------------------------------------------------------
 
 
-@partial(jax.jit, static_argnums=(4,))
 def xpoint_candidates(psi, rg, zg, inside_limiter, k_slots=6, extra_mask=None):
     """Up to ``k_slots`` sub-grid X-point candidates (static-count select).
 

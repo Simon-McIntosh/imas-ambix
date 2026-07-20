@@ -53,6 +53,12 @@ LCFS_TOL_CM = 3.0
 PSI_BND_FRAC_TOL = 0.03
 CONFINED_AXIS_R_MAX = 1.4
 
+# §3 classify-after tolerances
+AXIS_TOL_CM = 3.0  # sub-grid axis vs CPU magnetic_axis (one grid cell)
+XSET_TOL_CM = 3.0  # X-point position vs CPU emergent_xpoints
+CLASS_ACC_TOL = 0.80  # device is_diverted vs CPU class agreement (soft near transition)
+DIVERTED_PSI_BND_TOL = 0.005  # unified diverted ψ_bnd residual (fraction of span)
+
 
 # ---------------------------------------------------------------------------
 # real-slice reproduction (T-B1)
@@ -68,11 +74,35 @@ def _classify_diverted(psi, grid, ring) -> bool:
     return bool(is_div)
 
 
+def _xset_match_cm(dev_xset, cpu_xset) -> float:
+    """Match distance [cm] between two NaN-padded (S, 2) X-point sets.
+
+    Order-invariant: for each finite CPU X-point, the nearest finite device
+    X-point; the reported value is the worst (max) such pairing, so a missed or
+    displaced X-point shows up.  NaN when either set has no finite point.
+    """
+    dev = np.asarray(dev_xset, dtype=np.float64).reshape(-1, 2)
+    cpu = np.asarray(cpu_xset, dtype=np.float64).reshape(-1, 2)
+    dev = dev[np.isfinite(dev).all(axis=1)]
+    cpu = cpu[np.isfinite(cpu).all(axis=1)]
+    if dev.shape[0] == 0 or cpu.shape[0] == 0:
+        return float("nan")
+    d = np.hypot(
+        cpu[:, None, 0] - dev[None, :, 0], cpu[:, None, 1] - dev[None, :, 1]
+    ).min(axis=1)
+    return 100.0 * float(np.max(d))
+
+
 def _slice_rows(shot: int, *, nr: int, nz: int, max_slices: int, min_ip_ka: float):
     """Per-slice host-vs-device boundary reads on one held-out shot's disc fields."""
     from imas_ambix.latent.boundary_disc import disc_read
     from imas_ambix.latent.connectivity_boundary import boundary_read
-    from imas_ambix.latent.topology import lcfs_contour
+    from imas_ambix.latent.topology import (
+        emergent_xpoints,
+        find_critical_points,
+        lcfs_contour,
+        magnetic_axis,
+    )
     from scripts.heldout_mse_gate_eval import _campaign_table
     from scripts.spine_label_factory import factory_shot_payloads
 
@@ -118,7 +148,29 @@ def _slice_rows(shot: int, *, nr: int, nz: int, max_slices: int, min_ip_ka: floa
         if not ok.any():
             continue
         dr = 100.0 * np.abs(gpu.radii[ok] - cpu.radii[ok])
-        is_div = _classify_diverted(psi, grid, cpu.ring)
+        # CPU reference nulls (§3): magnetic axis (O-point) + emergent X-set/class
+        cp = find_critical_points(psi, grid.rg, grid.zg)
+        cpu_axis = magnetic_axis(
+            psi,
+            grid.rg,
+            grid.zg,
+            limiter_r=grid.limiter_r,
+            limiter_z=grid.limiter_z,
+            cp=cp,
+        )
+        cpu_xset, is_div = emergent_xpoints(
+            cp.x_points, cpu.ring, tol=1.5 * float(grid.dr)
+        )
+        axis_d_cm = float("nan")
+        if (
+            cpu_axis is not None
+            and np.isfinite(gpu.axis[0])
+            and np.isfinite(gpu.axis[1])
+        ):
+            axis_d_cm = 100.0 * float(
+                np.hypot(gpu.axis[0] - cpu_axis[0], gpu.axis[1] - cpu_axis[1])
+            )
+        xset_d_cm = _xset_match_cm(gpu.xset, cpu_xset)
         rows.append(
             {
                 "shot": shot,
@@ -132,6 +184,15 @@ def _slice_rows(shot: int, *, nr: int, nz: int, max_slices: int, min_ip_ka: floa
                 "radii_dmed_cm": float(np.median(dr)),
                 "radii_dmax_cm": float(np.max(dr)),
                 "n_core_cells": int(gpu.n_core_cells),
+                # §3 classify-after diagnostics
+                "cpu_axis_r": None if cpu_axis is None else float(cpu_axis[0]),
+                "cpu_axis_z": None if cpu_axis is None else float(cpu_axis[1]),
+                "dev_axis_r": float(gpu.axis[0]),
+                "dev_axis_z": float(gpu.axis[1]),
+                "axis_d_cm": axis_d_cm,
+                "dev_is_diverted": bool(gpu.is_diverted),
+                "class_margin": float(np.clip(gpu.class_margin, -1.0, 1.0)),
+                "xset_d_cm": xset_d_cm,
                 "found_both": True,
             }
         )
@@ -375,6 +436,142 @@ def _tb3():
 
 
 # ---------------------------------------------------------------------------
+# classify-after nulls: axis (T-C1), X-point + class (T-C2), unified binding (T-C3)
+# ---------------------------------------------------------------------------
+
+
+def _tc1(rows):
+    """Sub-grid axis position vs CPU ``magnetic_axis``."""
+    vals = [r["axis_d_cm"] for r in rows if np.isfinite(r["axis_d_cm"])]
+    n = len(vals)
+    med = float(np.median(vals)) if vals else float("nan")
+    p90 = float(np.percentile(vals, 90)) if vals else float("nan")
+    ok = n > 0 and np.isfinite(med) and med <= AXIS_TOL_CM
+    return {
+        "verdict": "PASS" if ok else "FAIL",
+        "n_axis": n,
+        "axis_dmed_cm": med,
+        "axis_dp90_cm": p90,
+        "tol_cm": AXIS_TOL_CM,
+    }
+
+
+def _tc1_grad(overlays):
+    """A finite ``jax.grad`` of the sub-grid axis R w.r.t. ψ on one real slice."""
+    import jax
+    import jax.numpy as jnp
+
+    from imas_ambix.latent.connectivity_boundary import _densify_wall, boundary_read_jax
+    from imas_ambix.worldmodel.equilibrium_labels import LCFS_ANGLES
+
+    picks = [ov for ov in overlays if np.isfinite(ov[4].axis[0])]
+    if not picks:
+        return {"grad_finite": None, "grad_nonzero": None}
+    _cls, psi, grid, _cpu, _gpu, centroid = picks[0]
+    wr, wz = _densify_wall(grid)
+    rg = jnp.asarray(np.asarray(grid.rg, dtype=np.float64))
+    zg = jnp.asarray(np.asarray(grid.zg, dtype=np.float64))
+    inside = jnp.asarray(np.asarray(grid.inside_limiter, dtype=bool))
+    ang = jnp.asarray(np.asarray(LCFS_ANGLES, dtype=np.float64))
+
+    def axis_r(p):
+        out = boundary_read_jax(
+            p,
+            rg,
+            zg,
+            inside,
+            jnp.asarray(float(centroid[0])),
+            jnp.asarray(float(centroid[1])),
+            96,
+            18,
+            512,
+            ang,
+            jnp.asarray(1.0),
+            jnp.asarray(wr),
+            jnp.asarray(wz),
+        )
+        return out["axis_r"]
+
+    g = np.asarray(jax.grad(axis_r)(jnp.asarray(np.asarray(psi, dtype=np.float64))))
+    return {
+        "grad_finite": bool(np.all(np.isfinite(g))),
+        "grad_nonzero": bool(np.any(g != 0.0)),
+    }
+
+
+def _tc2(rows):
+    """X-point positions + diverted class vs the CPU read (on the diverted subset)."""
+    n = len(rows)
+    div = [r for r in rows if r["diverted"]]
+    agree = sum(1 for r in rows if bool(r["dev_is_diverted"]) == bool(r["diverted"]))
+    class_acc = agree / n if n else float("nan")
+    xd = [r["xset_d_cm"] for r in div if np.isfinite(r["xset_d_cm"])]
+    x_med = float(np.median(xd)) if xd else float("nan")
+    x_p90 = float(np.percentile(xd, 90)) if xd else float("nan")
+    # softness: the disagreeing slices should carry a small |class_margin|
+    disagree = [
+        abs(r["class_margin"])
+        for r in rows
+        if bool(r["dev_is_diverted"]) != bool(r["diverted"])
+    ]
+    soft = float(np.median(disagree)) if disagree else 0.0
+    xset_ok = (not xd) or x_med <= XSET_TOL_CM
+    ok = np.isfinite(class_acc) and class_acc >= CLASS_ACC_TOL and xset_ok
+    return {
+        "verdict": "PASS" if ok else "FAIL",
+        "n_slices": n,
+        "n_diverted": len(div),
+        "class_accuracy": class_acc,
+        "n_class_disagree": len(disagree),
+        "disagree_abs_margin_median": soft,
+        "xset_dmed_cm": x_med,
+        "xset_dp90_cm": x_p90,
+        "n_xset_matched": len(xd),
+        "tol_cm": XSET_TOL_CM,
+        "class_acc_tol": CLASS_ACC_TOL,
+    }
+
+
+def _tc3(rows):
+    """Unified binding: diverted ψ_bnd residual closed, limited not regressed."""
+    div = [r for r in rows if r["diverted"]]
+    lim = [r for r in rows if not r["diverted"]]
+
+    def _med(subset, key):
+        v = [r[key] for r in subset]
+        return float(np.median(v)) if v else float("nan")
+
+    def _signed(subset):
+        v = [
+            (r["gpu_psi_bnd"] - r["cpu_psi_bnd"])
+            / abs(r["cpu_psi_bnd"] - r["psi_axis"])
+            for r in subset
+            if abs(r["cpu_psi_bnd"] - r["psi_axis"]) > 1e-12
+        ]
+        return float(np.median(v)) if v else float("nan")
+
+    div_dpsi = _med(div, "dpsi_frac")
+    lim_dpsi = _med(lim, "dpsi_frac")
+    div_radii = _med(div, "radii_dmed_cm")
+    lim_radii = _med(lim, "radii_dmed_cm")
+    diverted_ok = np.isfinite(div_dpsi) and div_dpsi <= DIVERTED_PSI_BND_TOL
+    limited_ok = np.isfinite(lim_radii) and lim_radii <= LCFS_TOL_CM
+    ok = diverted_ok and limited_ok
+    return {
+        "verdict": "PASS" if ok else "FAIL",
+        "diverted_dpsi_frac_median": div_dpsi,
+        "diverted_dpsi_tol": DIVERTED_PSI_BND_TOL,
+        "limited_dpsi_frac_median": lim_dpsi,
+        "diverted_radii_dmed_cm": div_radii,
+        "limited_radii_dmed_cm": lim_radii,
+        "diverted_signed_bias_frac": _signed(div),
+        "limited_signed_bias_frac": _signed(lim),
+        "n_diverted": len(div),
+        "n_limited": len(lim),
+    }
+
+
+# ---------------------------------------------------------------------------
 # imas-ink poloidal cross-section (device read vs host read)
 # ---------------------------------------------------------------------------
 
@@ -437,9 +634,9 @@ def _magnetic_axis(psi, grid, ring, psi_bnd):
     from imas_ambix.latent.topology import _inside_polygon
 
     rr, zz = np.meshgrid(grid.rg, grid.zg)
-    inside = _inside_polygon(
-        rr.ravel(), zz.ravel(), ring[:, 0], ring[:, 1]
-    ).reshape(psi.shape)
+    inside = _inside_polygon(rr.ravel(), zz.ravel(), ring[:, 0], ring[:, 1]).reshape(
+        psi.shape
+    )
     sign = np.sign(np.nanmax(psi[inside]) - psi_bnd) if inside.any() else 1.0
     score = np.where(inside, psi * sign, -np.inf)
     iz, ir = np.unravel_index(int(np.argmax(score)), psi.shape)
@@ -707,6 +904,139 @@ def _figures(tb1, tb3, overlays):
     except Exception as exc:  # noqa: BLE001 — the ink stack is an optional sibling
         logger.warning("imas-ink cross-section skipped: %s", exc)
 
+    # (5) §3 classify-after: axis agreement + axis/X overlay
+    try:
+        _figures_classify_after(rows, overlays)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("classify-after figures skipped: %s", exc)
+
+
+def _figures_classify_after(rows, overlays):
+    """Axis sub-grid agreement (device vs CPU) and an axis/X-point overlay."""
+    FIG_DIR.mkdir(parents=True, exist_ok=True)
+
+    # (a) axis agreement: device vs CPU magnetic_axis (R and Z) + distance hist
+    ax_rows = [
+        r for r in rows if r["cpu_axis_r"] is not None and np.isfinite(r["axis_d_cm"])
+    ]
+    if ax_rows:
+        fig, (a1, a2) = plt.subplots(1, 2, figsize=(11, 4.4))
+        for comp, col, lab in [("r", "#268", "R"), ("z", "#c73", "Z")]:
+            cx = [r[f"cpu_axis_{comp}"] for r in ax_rows]
+            dy = [r[f"dev_axis_{comp}"] for r in ax_rows]
+            a1.scatter(cx, dy, s=20, alpha=0.7, color=col, label=f"{lab} [m]")
+        lims = [
+            min(a1.get_xlim()[0], a1.get_ylim()[0]),
+            max(a1.get_xlim()[1], a1.get_ylim()[1]),
+        ]
+        a1.plot(lims, lims, "k--", lw=0.8, label="y = x")
+        a1.set_xlabel("host magnetic_axis  [m]")
+        a1.set_ylabel("device sub-grid axis  [m]")
+        a1.set_title("T-C1 — sub-grid axis (O-point) vs host")
+        a1.legend(fontsize=8)
+        d = [r["axis_d_cm"] for r in ax_rows]
+        a2.hist(d, bins=16, color="#484", alpha=0.8)
+        a2.axvline(
+            AXIS_TOL_CM, color="k", ls="--", lw=1, label=f"tol {AXIS_TOL_CM:.0f} cm"
+        )
+        a2.axvline(
+            float(np.median(d)),
+            color="#484",
+            ls=":",
+            lw=1.4,
+            label=f"median {np.median(d):.2f} cm",
+        )
+        a2.set_xlabel("axis position agreement, host vs device [cm]")
+        a2.set_ylabel("slices")
+        a2.set_title("T-C1 — axis agreement")
+        a2.legend(fontsize=8)
+        fig.suptitle(
+            "Sub-grid magnetic axis (nova stencil + biquadratic subnull) vs host"
+        )
+        fig.tight_layout()
+        fig.savefig(FIG_DIR / "axis_agreement.png", dpi=130)
+        plt.close(fig)
+
+    # (b) axis + X-point overlay on a diverted slice (O-point axis, NOT centroid)
+    want = {}
+    for ov in overlays:
+        want.setdefault(ov[0], ov)
+    panel = want.get("diverted") or want.get("limited")
+    if panel is not None:
+        from imas_ambix.latent.topology import find_critical_points, magnetic_axis
+
+        cls, psi, grid, cpu, gpu, centroid = panel
+        ring = _dense_ring(psi, grid, centroid, lcfs_norm=1.0)
+        cp = find_critical_points(psi, grid.rg, grid.zg)
+        cpu_ax = magnetic_axis(
+            psi,
+            grid.rg,
+            grid.zg,
+            limiter_r=grid.limiter_r,
+            limiter_z=grid.limiter_z,
+            cp=cp,
+        )
+        fig, axp = plt.subplots(figsize=(5.4, 6.6))
+        lv = np.linspace(np.min(psi), np.max(psi), 26)
+        axp.contour(
+            grid.mesh_r, grid.mesh_z, psi, levels=lv, colors="#ccc", linewidths=0.4
+        )
+        axp.plot(grid.limiter_r, grid.limiter_z, "k-", lw=1.2, label="wall")
+        if ring is not None:
+            axp.plot(
+                ring[:, 0], ring[:, 1], "-", color="#268", lw=1.6, label="device LCFS"
+            )
+        axp.plot(
+            gpu.axis[0],
+            gpu.axis[1],
+            "o",
+            color="#268",
+            ms=11,
+            mfc="none",
+            mew=2,
+            label="device axis (O)",
+        )
+        if cpu_ax is not None:
+            axp.plot(
+                cpu_ax[0],
+                cpu_ax[1],
+                "+",
+                color="#111",
+                ms=12,
+                mew=1.6,
+                label="host axis",
+            )
+        xs = np.asarray(gpu.xset)
+        okx = np.isfinite(xs).all(axis=1)
+        if okx.any():
+            axp.plot(
+                xs[okx, 0],
+                xs[okx, 1],
+                "X",
+                color="#c73",
+                ms=13,
+                mew=2,
+                label="device X-point",
+            )
+        if cp.x_points.shape[0]:
+            axp.plot(
+                cp.x_points[:, 0],
+                cp.x_points[:, 1],
+                "1",
+                color="#711",
+                ms=13,
+                mew=1.6,
+                label="host X-points",
+            )
+        axp.set_aspect("equal")
+        axp.set_xlabel("R [m]")
+        axp.set_ylabel("Z [m]")
+        axp.set_title(f"{cls} — sub-grid axis + X-point (classify-after)")
+        axp.legend(fontsize=8, loc="upper right")
+        fig.tight_layout()
+        fig.savefig(FIG_DIR / "axis_xpoint_overlay.png", dpi=140)
+        plt.close(fig)
+
 
 # ---------------------------------------------------------------------------
 # driver
@@ -794,6 +1124,16 @@ def main() -> int:
         ),
     )
 
+    # --- §3 classify-after gates -------------------------------------------
+    rows = tb1["rows"]
+    tc1 = _tc1(rows)
+    tc1["grad"] = _tc1_grad(overlays)
+    logger.info("T-C1: %s", json.dumps(tc1, indent=2))
+    tc2 = _tc2(rows)
+    logger.info("T-C2: %s", json.dumps(tc2, indent=2))
+    tc3 = _tc3(rows)
+    logger.info("T-C3: %s", json.dumps(tc3, indent=2))
+
     if not args.no_figures:
         _figures(tb1, tb3, overlays)
 
@@ -808,12 +1148,22 @@ def main() -> int:
                 "tb1_rows": tb1["rows"],
                 "tb2_on_device": tb2,
                 "tb3_continuity": tb3,
+                "tc1_axis": tc1,
+                "tc2_xpoint_class": tc2,
+                "tc3_unified_binding": tc3,
             },
             indent=2,
         )
     )
     logger.info("wrote %s", out)
-    verdicts = {"T-B1": tb1["verdict"], "T-B2": tb2["verdict"], "T-B3": tb3["verdict"]}
+    verdicts = {
+        "T-B1": tb1["verdict"],
+        "T-B2": tb2["verdict"],
+        "T-B3": tb3["verdict"],
+        "T-C1": tc1["verdict"],
+        "T-C2": tc2["verdict"],
+        "T-C3": tc3["verdict"],
+    }
     logger.info("VERDICTS: %s", verdicts)
     return 0
 
