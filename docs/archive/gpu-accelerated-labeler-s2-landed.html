@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="gpu-accelerated-labeler-s2-landed">
+  <meta name="plan-title" content="GPU-Accelerated Equilibrium Engine — §2 record: shared foundation spike on the H200 (framework, GEMM crossover, precision)">
+  <meta name="plan-summary" content="§2 landing record (2026-07-20, H200 gpu:0). G-A1: jax inner step 0.65 ms vs torch 0.81 ms at B=512 — speed comparable; framework locked JAX on the one-sided qualitative evidence (jax-only device topology read, autograd, vmap). G-A2 PASS: fp64 GEMM saturates ~56 TFLOP/s by B≈128 (0.84M slices/s @ B=512); tf32/bf16 scale to 259/202 TFLOP/s (2.1M/1.8M slices/s @ B=512). G-A3 qualified: batched on-device solve + connectivity read demonstrated at GPU/CPU parity 7.5e-14, tiered precision safe (tf32 0.004 cm / bf16 0.019 cm axis delta); reproduction vs the host reference FAILS (14.9 cm) from the naive cold-seed Picard corner-locking — a seeding pathology both algorithms share, not a substrate defect; the batchable disc-seed scaffold is the §3 build item.">
+  <meta name="plan-informs" content="gpu-accelerated-labeler">
+  <title>gpu-accelerated-labeler §2 landed — H200 foundation spike</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>§2 landed — the shared foundation spike on the H200</h1>
+  <p>Per-stage record for <a href="/imas-ambix/gpu-accelerated-labeler.html">
+  gpu-accelerated-labeler</a> §2 (2026-07-20). Measured on the H200 node
+  (98dci4-gpu-0003, gpu:0, reservation <code>gpu_0003_grpA</code>) with the REAL
+  campaign Green's matrix (6305×5084 fp64) and held-out MAST slices; the on-device
+  topology read consumed from <code>connectivity-topology-reader</code>, exactly
+  as the plan's locked <code>topology-read-location</code> decision requires.</p>
+
+  <h2>Quick status</h2>
+  <table>
+    <tr><th>Gate</th><th>Verdict</th><th>Result</th></tr>
+    <tr>
+      <td>G-A1 — framework</td>
+      <td><strong>RESOLVED → JAX</strong></td>
+      <td>Inner GS step at B=512 fp64: jax 0.65 ms (787k slices/s) vs torch 0.81 ms
+      (635k slices/s) — raw speed comparable (~1.2×), NOT the decider. The evidence
+      is one-sided on the qualitative axes: the device differentiable topology read
+      exists only in jax; autograd through the fixed-point map (the learned-operator
+      / 4D-Var asset) is jax-native; fixed-shape vmap over slices is the labeller's
+      core pattern. torch would require re-porting the read.</td>
+    </tr>
+    <tr>
+      <td>G-A2 — GEMM crossover</td>
+      <td><strong>PASS</strong></td>
+      <td>ψ = G·I on one H200: fp64 becomes compute-bound by <strong>B ≈ 128</strong>
+      and saturates ~56 TFLOP/s (0.84M slices/s @ B=512, 0.88M @ 2048).
+      tf32 reaches 259 TFLOP/s (2.07M @ B=512 → 3.54M @ 2048) and bf16 202 TFLOP/s
+      — the tensor-core lanes keep scaling to B=2048–4096. fp32 at
+      precision=HIGHEST has no tensor-core path and is SLOWER than fp64 — not a
+      useful lane. The matvec component alone clears 1–4M slices/s: the ~600k-slice
+      corpus GEMM is comfortably sub-hour, consistent with the 1–2-order review
+      projection.</td>
+    </tr>
+    <tr>
+      <td>G-A3 — batched solve + on-device read + precision</td>
+      <td><strong>QUALIFIED</strong></td>
+      <td><strong>Capability PASS</strong>: a B=512 fixed-shape Picard solve runs
+      fully on device (vmap, 60 sweeps, <code>boundary_read_jax</code> inside the
+      loop) at 76.4 solves/s, GPU/CPU fp64 parity 7.5×10⁻¹⁴ m.
+      <strong>Precision PASS</strong>: dropping the in-solve GEMM to tf32 / bf16
+      (fp32 accumulate; read + cross-iteration state fp64) shifts the axis by
+      0.004 / 0.019 cm median — ~100× under the 2 cm bar; the locked tiering is
+      SAFE. <strong>Reproduction FAIL (honest negative)</strong>: axis vs the host
+      reference 14.9 cm median — the naive cold-Gaussian-seed fixed-iteration
+      Picard corner-locks toward the outboard coil-side attractor (residuals
+      0.02–1.9; more sweeps only partially help: 14.9 → 9.0 cm at 200), and the
+      host reference under the same naive seed corner-locks too. This is the
+      documented plain-Picard basin pathology the production spine avoids with the
+      disc-seed K=2 scaffold + non-negative ladder — a SEEDING item, not a
+      read/precision defect, so the pre-declared stop rule (read or precision
+      failing tolerance) is NOT triggered.</td>
+    </tr>
+  </table>
+
+  <figure>
+    <img src="/imas-ambix/figures/gpu-accelerated-labeler/fig-s2-gemm-crossover.png"
+         alt="GEMM throughput and effective TFLOP/s vs batch size per dtype on the H200: fp64 saturates near 56 TFLOP/s by B=128 while tf32 and bf16 keep scaling past 200 TFLOP/s at B=2048-4096"
+         style="max-width:100%">
+    <figcaption>G-A2: the GEMV→GEMM crossover on the real campaign Green's matrix.
+    fp64 is compute-bound by B ≈ 128; the tensor-core lanes (tf32/bf16) keep
+    scaling to B = 2048–4096.</figcaption>
+  </figure>
+  <figure>
+    <img src="/imas-ambix/figures/gpu-accelerated-labeler/fig-s2-batched-solve-parity.png"
+         alt="Batched on-device solve axis vs host reference axis scatter showing the corner-locked cluster, and the precision-tier axis cost panel with tf32 at 0.004 cm and bf16 at 0.019 cm medians"
+         style="max-width:100%">
+    <figcaption>G-A3: the batched on-device solve. Left — reproduction vs the host
+    reference fails on the corner-locking flat-top slices (both algorithms share
+    the naive-seed basin pathology). Right — the precision tiers cost 0.004 cm
+    (tf32) / 0.019 cm (bf16) against the fp64 on-device baseline.</figcaption>
+  </figure>
+
+  <h2>What the rollout inherits (with the smooth-map accelerator finding)</h2>
+  <ul>
+    <li>Substrate de-risked: JAX, GEMM fast lanes, tiered precision, on-device
+    differentiable read, GPU/CPU-exact batching — all demonstrated on the H200.</li>
+    <li>The one missing piece is <strong>batchable seeding</strong>: the §3
+    single-shot rollout must carry the disc-seed scaffold / warm-started chain
+    (and, per <code>differentiable-solve-accelerator</code>, Anderson-Picard on
+    the smooth map with the centroid pin) to reach the confined fixed point —
+    the matvec and the read are not the problem.</li>
+  </ul>
+
+  <h2>Outcomes</h2>
+  <table>
+    <tr><th>Item</th><th>Artifact</th><th>Commit</th></tr>
+    <tr><td>Foundation spike (3 legs, prep/gpu stages)</td>
+        <td><code>scripts/gpu_labeler_foundation_spike.py</code></td>
+        <td><code>b300755</code></td></tr>
+    <tr><td>H200 results artifact + figures</td>
+        <td><code>imas_ambix/latent/artifacts/patch_gate/gpu_labeler_foundation-v0.json</code>,
+            <code>docs/figures/gpu-accelerated-labeler/fig-s2-*.png</code></td>
+        <td><code>f152cf5</code></td></tr>
+    <tr><td>Benchmark stamp (schema-1.3 GPU foundation metrics)</td>
+        <td><code>imas_ambix/spine_bench/results/gpu-labeler-foundation-f152cf5-98dci4-gpu-0003.yaml</code></td>
+        <td>this session</td></tr>
+  </table>
+
+  <h2>What's next</h2>
+  <p>§3 — the single-shot on-device rollout (sequential warm-started march +
+  windowed PinT), carrying the batchable disc-seed scaffold and the smooth-map
+  Anderson inner accelerator:
+  <code>/reckon-ship gpu-accelerated-labeler §3</code>.</p>
+</main>
+</body>
+</html>

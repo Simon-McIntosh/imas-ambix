@@ -1,0 +1,44 @@
+kind: gpu-labeler-foundation
+purpose: batched-over-slices GPU substrate capability (framework A/B, GEMM crossover,
+  on-device batched inner solve + topology read, tiered precision) — capability +
+  crossover measurement, not a corpus-throughput claim
+schema_metrics: spine-bench/1.3  # metric names registered in spine_bench/schema.py
+source_artifact: imas_ambix/latent/artifacts/patch_gate/gpu_labeler_foundation-v0.json
+git_commit: f152cf5
+hostname: 98dci4-gpu-0003
+device: NVIDIA H200 (gpu:0), reservation gpu_0003_grpA
+jax_version: 0.10.1
+backend: gpu
+greens_matrix_shape: [6305, 5084]  # real campaign Green's matrix, fp64
+campaign: mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4
+metrics:
+  gpu_gemm_slices_per_s_b512: 841590.0        # fp64; tf32 2.07e6, bf16 1.78e6
+  gpu_gemm_crossover_batch: 128               # fp64 saturates ~56 TFLOP/s by B~128;
+                                              # tf32/bf16 keep scaling to B=2048-4096
+  gpu_batched_solve_slices_per_s_b512: 76.4   # fixed-shape Picard (60 sweeps) + on-device
+                                              # connectivity read, fp64, vmap B=512
+  gpu_batched_axis_reproduce_cm: 14.93        # FAIL vs 2.0 bar — naive cold-Gaussian-seed
+                                              # Picard corner-locks (basin, not read/precision);
+                                              # batchable disc-seed scaffold is the next build item
+  gpu_bf16_axis_delta_cm: 0.019               # vs fp64 on-device baseline (tf32: 0.004)
+framework_step_ms_b512:
+  jax: 0.650    # 787k slices/s
+  torch: 0.807  # 635k slices/s (torch cu130 runs on this node's driver)
+gemm_tflops:
+  fp64_ceiling: 56.3      # saturated by B~128
+  fp32_highest: 42.9      # no tensor-core path at precision=HIGHEST — slower than fp64
+  tf32_b4096: 259.0
+  bf16_b4096: 202.0
+parity:
+  gpu_cpu_fp64_max_abs_axis_diff_m: 7.55e-14
+notes:
+- framework evidence one-sided toward JAX — raw step speed comparable (jax 1.2x), but
+  the on-device differentiable topology read, autograd through the fixed-point map, and
+  fixed-shape vmap batching are jax-native; torch would need a device port of the read.
+- tiered precision SAFE — tf32/bf16 GEMM inside the solve shifts the axis 0.004/0.019 cm
+  median vs the fp64 on-device baseline; topology read + cross-iteration state stay fp64.
+- reproduction FAIL is a SEEDING pathology, not a substrate one — the reference host solve
+  itself corner-locks on flat-top under the same naive seed; the production spine avoids it
+  with the disc-seed K=2 scaffold + non-negative ladder, which the batched rollout must carry.
+- sample thin (6 unique slices, 1 campaign) for the reproduction leg; framework/GEMM/precision/
+  parity results are slice-count-independent.
