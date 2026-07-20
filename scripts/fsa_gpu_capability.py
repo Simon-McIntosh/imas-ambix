@@ -11,12 +11,13 @@ On the H200 node (partition ``betelgeuse``) with a CUDA jaxlib it runs on a
 correctness cross-check — so the same command is a valid check everywhere and a
 genuine GPU demonstration where a GPU is present.
 
-Run (H200 — see imas_ambix/spine_bench/AGENTS.md for the reservation recipe):
+Run (H200 — see imas_ambix/spine_bench/AGENTS.md for the reservation recipe;
+the CUDA jaxlib is a core dep, so `uv sync` on a login node is all the setup):
 
     srun --partition=betelgeuse --reservation=gpu_0003_grpA --gres=gpu:1 \
          --cpus-per-task=4 --mem=32G --time=00:20:00 \
       bash -lc 'export TMPDIR=/tmp; cd <repo>; \
-        uv run --with "jax[cuda12]==0.10.1" python -m scripts.fsa_gpu_capability'
+        uv run python -m scripts.fsa_gpu_capability'
 
 Stamps imas_ambix/spine_bench/results/fsa-gpu-capability-<commit>-<host>.yaml.
 """

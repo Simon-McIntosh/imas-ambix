@@ -57,15 +57,20 @@ GPU-capable inventory today:
 The H200 (`98dci4-gpu-0003`, partition `betelgeuse`) has **`ReqResv=YES`** —
 every job MUST name the standing reservation `gpu_0003_grpA` or it is denied.
 The reservation holds CPUs only (30-CPU ceiling); all 8 GPUs are requestable
-through it. **Compute nodes have no network**, so a CUDA jaxlib cannot be
-resolved there on the fly — install it into the project `.venv` from the login
-node first (additive; on a CPU box JAX just falls back to CPU):
+through it.
+
+The CUDA jaxlib is now a **core dependency** (`jax[cuda12]` on Linux, plain
+`jax` elsewhere — see the root `pyproject.toml`), so a normal `uv sync` installs
+it and no manual step is needed. The one caveat: **compute nodes have no
+network** — the FIRST `uv sync` (or any resolve/download) MUST run on a
+networked **login** node; once the `.venv` is populated, `uv run` on the H200
+reads it offline. On a CPU box the same code just falls back to CPU.
 
 ```bash
-# once, on the LOGIN node (has network):
-uv pip install "jax-cuda12-plugin==0.10.1" "jax-cuda12-pjrt==0.10.1"
+# once, on the LOGIN node (has network): populate the .venv from the lock
+uv sync
 
-# then on the H200 (plain `uv run` uses the .venv — no --with, no resolution):
+# then on the H200 (plain `uv run` uses the .venv — offline is fine):
 srun --partition=betelgeuse --reservation=gpu_0003_grpA --gres=gpu:1 \
      --cpus-per-task=4 --mem=32G --time=00:20:00 \
   bash -lc 'export TMPDIR=/tmp; cd <repo>; \
@@ -73,10 +78,11 @@ srun --partition=betelgeuse --reservation=gpu_0003_grpA --gres=gpu:1 \
 # → imas_ambix/spine_bench/results/fsa-gpu-capability-<commit>-<host>.yaml
 ```
 
-Keep the CUDA jaxlib version pinned to the installed `jax` version
-(`jax --version`); a mismatch silently drops the plugin and JAX falls back to
-CPU. The demo prints the resolved `devices` and asserts GPU/CPU parity, so a
-CPU fallback is visible in the stamp (`on_gpu: false`), never a silent pass.
+The CUDA jaxlib version must match the installed `jax` (`jax[cuda12]` keeps them
+in lockstep); a mismatch silently drops the plugin and JAX falls back to CPU
+(`Unable to load CUDA`). The demo prints the resolved `devices` and asserts
+GPU/CPU parity, so a CPU fallback is visible in the stamp (`on_gpu: false`),
+never a silent pass.
 
 ## Extending the benchmark
 
