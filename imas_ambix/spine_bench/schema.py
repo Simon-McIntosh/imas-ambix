@@ -17,7 +17,11 @@ from pydantic import BaseModel, Field
 #: story lives in these.  1.2 added the CONNECTIVITY (accelerator-native, contour-free
 #: JAX) flux-surface-averaging d-roughness alongside the host coarea baseline, so a
 #: single stamp compares the two FSA reads head-to-head (greens-filament-solver §3).
-SCHEMA_VERSION = "spine-bench/1.2"
+#: 1.3 added the ``topology_read`` dimension (hard host read vs the continuous
+#: connectivity/smooth-mask read that makes the fixed-point map differentiable),
+#: its reproduction metrics, and the batched-GPU foundation metrics (GEMM
+#: crossover + batched on-device inner-solve throughput/reproduction/precision).
+SCHEMA_VERSION = "spine-bench/1.3"
 
 
 class Metric(BaseModel):
@@ -153,6 +157,68 @@ METRICS: dict[str, Metric] = {
             description="Slope of the connectivity-FSA d-roughness vs log2(n_rho) "
             "over {16,32,64,96}; ≤0 = resolution-stable (the §3 gate G2b).",
         ),
+        # --- topology-read reproduction (continuous/smooth vs hard host read) ---
+        Metric(
+            name="axis_smoothread_cm",
+            unit="cm",
+            direction="lower_better",
+            description="Median |Δ| between the continuous-topology-read "
+            "(connectivity binding + stencil axis + smooth core weight) and the "
+            "hard-read magnetic-axis positions on the same slice, greens-matvec "
+            "substrate.",
+        ),
+        Metric(
+            name="lcfs_smoothread_cm",
+            unit="cm",
+            direction="lower_better",
+            description="Median |Δ| over the 8 LCFS radii between the "
+            "continuous-topology-read and hard-read solves on the same slice.",
+        ),
+        Metric(
+            name="profile_smoothread_rms",
+            unit="normalised",
+            direction="lower_better",
+            description="Median normalised RMS between the continuous-topology-"
+            "read and hard-read jphi(rho_hat) profiles on the same slice.",
+        ),
+        # --- batched-GPU foundation (GEMM crossover + on-device inner solve) ---
+        Metric(
+            name="gpu_gemm_slices_per_s_b512",
+            unit="slice/s",
+            direction="higher_better",
+            description="Batched Green's GEMM (psi = G·I) slices/s at B=512 on "
+            "one GPU, fp64 unless the stamp notes a dtype.",
+        ),
+        Metric(
+            name="gpu_gemm_crossover_batch",
+            unit="batch",
+            direction="lower_better",
+            description="Batch size where the Green's matvec→GEMM becomes "
+            "compute-bound (slices/s stops scaling ~linearly with B).",
+        ),
+        Metric(
+            name="gpu_batched_solve_slices_per_s_b512",
+            unit="slice/s",
+            direction="higher_better",
+            description="Batched fixed-shape on-device inner GS solve (vmap, "
+            "fixed sweep budget, on-device topology read) slices/s at B=512 on "
+            "one GPU.",
+        ),
+        Metric(
+            name="gpu_batched_axis_reproduce_cm",
+            unit="cm",
+            direction="lower_better",
+            description="Median |Δ| between the batched on-device inner-solve "
+            "axis and the per-slice CPU grid-free reference axis (unique slices).",
+        ),
+        Metric(
+            name="gpu_bf16_axis_delta_cm",
+            unit="cm",
+            direction="lower_better",
+            description="Median axis shift when the inner-solve GEMM drops to "
+            "bf16 (fp32 accumulate) vs the fp64 on-device baseline; topology "
+            "read and cross-iteration state stay >= fp32/fp64.",
+        ),
         # --- solve health ---
         Metric(
             name="converged_fraction",
@@ -216,6 +282,9 @@ class ShotStamp(BaseModel):
     role: str
     campaign_signature: str = ""
     substrate: str  # 'grid-delstar' | 'greens-matvec'
+    #: per-sweep topology read: 'hard' (host critical points + labelled mask) or
+    #: 'connectivity' (continuous binding + stencil axis + smooth core weight)
+    topology_read: str = "hard"
     n_slices_attempted: int = 0
     n_slices_scored: int = 0
     timing_n_repeat: int = 0

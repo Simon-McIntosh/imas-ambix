@@ -32,6 +32,14 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="explicit comma list (overrides the frozen set — for testing)",
     )
+    ap.add_argument(
+        "--topology-reads",
+        type=str,
+        default="hard",
+        help="comma list of per-sweep topology reads to bench on the primary "
+        "substrate: 'hard' (historical) and/or 'connectivity' (continuous "
+        "smooth-map read)",
+    )
     return ap
 
 
@@ -54,7 +62,13 @@ def main() -> int:
     created = datetime.now(UTC).isoformat()
     logger.info("stamping physics-spine baseline @ %s", created)
     stamp = run_stamp(
-        created_utc=created, max_slices=args.max_slices, sigma=args.sigma, shots=shots
+        created_utc=created,
+        max_slices=args.max_slices,
+        sigma=args.sigma,
+        shots=shots,
+        topology_reads=tuple(
+            t.strip() for t in args.topology_reads.split(",") if t.strip()
+        ),
     )
     path = write_yaml(stamp, Path(args.out_dir))
 

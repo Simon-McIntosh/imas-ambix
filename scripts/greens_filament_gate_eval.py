@@ -137,6 +137,7 @@ def _fit_slice(
     warm,
     sigma,
     accelerator="picard",
+    topology_read="hard",
 ):
     """One frozen-spine ladder solve under ``substrate`` (magnetics mask OFF)."""
     from scripts.closure_gate_eval import fit_and_read_slice
@@ -166,6 +167,7 @@ def _fit_slice(
         boundary_read=boundary_read,
         substrate=substrate,
         accelerator=accelerator,
+        topology_read=topology_read,
     )
 
 

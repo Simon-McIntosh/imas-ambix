@@ -155,9 +155,20 @@ def _median(xs: list[float]) -> float:
 
 
 def run_stamp(
-    *, created_utc: str, max_slices: int = 6, sigma: float = 0.02, shots=None
+    *,
+    created_utc: str,
+    max_slices: int = 6,
+    sigma: float = 0.02,
+    shots=None,
+    topology_reads: tuple[str, ...] = ("hard",),
 ) -> SpineBenchmarkStamp:
-    """Solve the frozen shot set under both substrates and assemble the stamp."""
+    """Solve the frozen shot set under both substrates and assemble the stamp.
+
+    ``topology_reads`` adds per-sweep topology-read arms on the PRIMARY
+    (greens-matvec) substrate: ``("hard",)`` is the historical two-arm stamp;
+    include ``"connectivity"`` to bench the continuous (smooth-map) read
+    head-to-head, with its reproduction metrics vs the hard-read solve.
+    """
     from imas_ambix.latent.boundary_disc import disc_read
     from imas_ambix.latent.gs_solve import (
         SUBSTRATE_GREENS,
@@ -233,8 +244,18 @@ def run_stamp(
                 "ph_fsa": [],
             }
 
-        acc = {SUBSTRATE_GRID: _acc(), SUBSTRATE_GREENS: _acc()}
-        grids = {SUBSTRATE_GRID: grid_gs, SUBSTRATE_GREENS: grid_free}
+        # benchmark arms: (key, substrate, topology_read, grid).  The topology-
+        # read sweep applies to the PRIMARY (greens-matvec) substrate only.
+        arms = [
+            (SUBSTRATE_GRID, SUBSTRATE_GRID, "hard", grid_gs),
+            (SUBSTRATE_GREENS, SUBSTRATE_GREENS, "hard", grid_free),
+        ]
+        for tr in topology_reads:
+            if tr != "hard":
+                arms.append(
+                    (f"{SUBSTRATE_GREENS}+{tr}", SUBSTRATE_GREENS, tr, grid_free)
+                )
+        acc = {key: _acc() for key, _s, _t, _g in arms}
         for pos, k in enumerate(order):
             p = payload["payloads"][int(k)]
             t = time.perf_counter()
@@ -244,8 +265,7 @@ def run_stamp(
                 continue
             centroid = (float(inv.centroid_r), float(inv.centroid_z))
             disc_seed = _disc_seed_flat(grid_gs, inv)
-            for sub in (SUBSTRATE_GRID, SUBSTRATE_GREENS):
-                g = grids[sub]
+            for key, sub, tr, g in arms:
                 # phase 1: K=2 position scaffold
                 t = time.perf_counter()
                 f_k2 = _fit(
@@ -260,6 +280,7 @@ def run_stamp(
                     smoothness=smoothness,
                     boundary_read=boundary_read,
                     sigma=sigma,
+                    topology_read=tr,
                 )
                 t_scaffold = time.perf_counter() - t
                 k2_ok = (
@@ -271,7 +292,7 @@ def run_stamp(
                 seed = f_k2.jphi_flat if k2_ok else disc_seed
                 # phase 2: rich non-negative ladder (the readout equilibrium)
                 t = time.perf_counter()
-                fit = _fit(g, sub, p, centroid, seed, **spine_kw)
+                fit = _fit(g, sub, p, centroid, seed, topology_read=tr, **spine_kw)
                 t_rich = time.perf_counter() - t
                 # phase 3: FSA readout (timed as a component)
                 t = time.perf_counter()
@@ -282,7 +303,7 @@ def run_stamp(
                 )
                 t_fsa = time.perf_counter() - t
 
-                a = acc[sub]
+                a = acc[key]
                 a["fits"].append((int(k), fit))
                 if pos > 0:  # discard each shot's first slice as timing warmup
                     a["ph_disc"].append(t_disc * 1e3)
@@ -313,8 +334,31 @@ def run_stamp(
             jf = _profile(ff, grid_free, bt0, n_p=n_p, n_f=n_f, nonneg=nonneg)
             prof_rms.append(_profile_rms(jg, jf))
 
-        for sub in (SUBSTRATE_GRID, SUBSTRATE_GREENS):
-            a = acc[sub]
+        # reproduction: the continuous topology read vs the hard read, same
+        # (greens-matvec) substrate — the smooth read must not be lossy
+        smooth_rep: dict[str, list[float]] = {}
+        for key, _sub, tr, _g in arms:
+            if tr == "hard":
+                continue
+            sm_by_k = dict(acc[key]["fits"])
+            sm_axis, sm_lcfs, sm_prof = [], [], []
+            for k in fr_by_k:
+                fh, fs = fr_by_k[k], sm_by_k.get(k)
+                if fs is None or not (fh.scored and fs.scored):
+                    continue
+                sm_axis.append(_axis_cm(fh.target, fs.target))
+                sm_lcfs.append(_lcfs_cm(fh.target, fs.target))
+                jh = _profile(fh, grid_free, bt0, n_p=n_p, n_f=n_f, nonneg=nonneg)
+                js = _profile(fs, grid_free, bt0, n_p=n_p, n_f=n_f, nonneg=nonneg)
+                sm_prof.append(_profile_rms(jh, js))
+            smooth_rep[key] = [
+                _median(sm_axis),
+                _median(sm_lcfs),
+                _median(sm_prof),
+            ]
+
+        for key, sub, tr, _g in arms:
+            a = acc[key]
             metrics: dict[str, float] = {}
             if a["ph_rich"]:
                 rich_med = float(np.median(a["ph_rich"]))
@@ -356,13 +400,21 @@ def run_stamp(
                         ys.append(med)
                 if len(xs) >= 2:
                     metrics[nslope] = float(np.polyfit(xs, ys, 1)[0])
-            if sub == SUBSTRATE_GREENS:  # dev-spine vs the grid baseline check
+            if key == SUBSTRATE_GREENS:  # dev-spine vs the grid baseline check
                 if axis_cm:
                     metrics["axis_reproduce_cm"] = _median(axis_cm)
                 if lcfs_cm:
                     metrics["lcfs_reproduce_cm"] = _median(lcfs_cm)
                 if prof_rms:
                     metrics["profile_reproduce_rms"] = _median(prof_rms)
+            if key in smooth_rep:  # smooth read vs the hard read, same substrate
+                sm_a, sm_l, sm_p = smooth_rep[key]
+                if np.isfinite(sm_a):
+                    metrics["axis_smoothread_cm"] = sm_a
+                if np.isfinite(sm_l):
+                    metrics["lcfs_smoothread_cm"] = sm_l
+                if np.isfinite(sm_p):
+                    metrics["profile_smoothread_rms"] = sm_p
             phase = {
                 "disc_read": _median(a["ph_disc"]),
                 "scaffold_k2": _median(a["ph_scaffold"]),
@@ -375,6 +427,7 @@ def run_stamp(
                     role=bs.role,
                     campaign_signature=sig,
                     substrate=sub,
+                    topology_read=tr,
                     n_slices_attempted=len(a["fits"]),
                     n_slices_scored=int(sum(a["conv"])),
                     timing_n_repeat=len(a["e2e"]),
@@ -383,13 +436,21 @@ def run_stamp(
                 )
             )
 
-    # aggregate rollups: median of each metric across shots, per substrate
+    # aggregate rollups: median of each metric across shots, per arm
+    # (arm key = substrate, suffixed '+<topology_read>' for non-hard reads)
+    def _arm_key(s: ShotStamp) -> str:
+        return (
+            s.substrate
+            if s.topology_read == "hard"
+            else f"{s.substrate}+{s.topology_read}"
+        )
+
     agg: dict[str, dict[str, float]] = {}
-    for sub in {s.substrate for s in stamps}:
-        keys = {k for s in stamps if s.substrate == sub for k in s.metrics}
-        agg[sub] = {
+    for arm in {_arm_key(s) for s in stamps}:
+        keys = {k for s in stamps if _arm_key(s) == arm for k in s.metrics}
+        agg[arm] = {
             k: _median(
-                [s.metrics[k] for s in stamps if s.substrate == sub and k in s.metrics]
+                [s.metrics[k] for s in stamps if _arm_key(s) == arm and k in s.metrics]
             )
             for k in sorted(keys)
         }
