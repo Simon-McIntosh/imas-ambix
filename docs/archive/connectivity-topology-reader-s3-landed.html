@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="connectivity-topology-reader-s3-landed">
+  <meta name="plan-title" content="§3 landed — classify-after axis + X-point, and unified boundary binding">
+  <meta name="plan-status" content="reference">
+  <meta name="plan-summary" content="Per-stage landed record for connectivity-topology-reader §3: the sub-grid magnetic axis (O-point) and X-point positions read AFTER the §2 boundary from ported nova stencils (Kuijper 8-ring sign-change classifier + biquadratic subnull), AND a unification of the boundary binding — the §2 limited/diverted size-ratio switch is replaced by binding = confined-most of {sub-grid wall tangency, sub-grid X-point saddle flux}. On 36 held-out MAST slices all six gates PASS: T-C1 axis 0.016 cm median vs host magnetic_axis (jax.grad finite); T-C2 X-point 0.067 cm median, class 97.2% (35/36); T-C3 the unified binding closes the diverted psi_bnd residual +0.43%/0.46 cm -> -0.02%/0.078 cm with no limited regression (0.062 cm), both classes on y=x. T-B1/T-B2/T-B3 unchanged (still PASS); the run executed on cuda:0 with vmap 7.4 ms/slice.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>§3 landed — classify-after axis + X-point, unified binding | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Per-stage record</strong> for
+<a href="/imas-ambix/connectivity-topology-reader.html">connectivity-topology-reader</a>
+§3 — the classify-after nulls (sub-grid axis O-point + X-point positions) and the
+unification of the boundary binding. Full findings + figures:
+<a href="/imas-ambix/connectivity-topology-reader-boundary-findings.html">boundary-read findings report</a>.</p>
+
+<h2 id="status">Quick status</h2>
+<figure>
+  <table>
+    <thead><tr><th>Gate</th><th>Verdict</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>T-C1 — axis</td><td>PASS</td>
+        <td>sub-grid axis (O-point) vs host <code>magnetic_axis</code>
+        <strong>0.016 cm median</strong> (p90 0.029 cm, bar 3 cm) over 36 slices;
+        <code>jax.grad</code>(axis&nbsp;R) finite and non-zero</td></tr>
+      <tr><td>T-C2 — X-point + class</td><td>PASS</td>
+        <td>X-point position vs host <code>emergent_xpoints</code>
+        <strong>0.067 cm median</strong> (p90 0.097 cm, 17 matched); diverted-class
+        agreement <strong>97.2%</strong> (35/36) — the one miss is a conservative
+        limited-call whose <em>boundary still reproduced</em> (the class never feeds ψ_N)</td></tr>
+      <tr><td>T-C3 — unified binding</td><td>PASS</td>
+        <td>the diverted ψ_bnd residual closes <strong>+0.43%/0.46 cm &rarr;
+        &minus;0.02%/0.078 cm</strong> with no limited regression (0.062 cm); both
+        classes on y=x; the limited/diverted size-ratio switch is removed</td></tr>
+      <tr><td>T-B1 / T-B2 / T-B3</td><td>PASS</td>
+        <td>unchanged under the unified read — radii 0.068 cm overall, vmap byte-parity
+        on <code>cuda:0</code> (7.4 ms/slice batched vs 44 ms looped), ψ_bnd continuous
+        (0.5% vs classify-first 9.2%)</td></tr>
+    </tbody>
+  </table>
+  <figcaption>36 held-out MAST slices (6 shots × 6; 18 diverted / 18 limited) + the
+  synthetic sweep. Firewall: physics + measured channels only, no EFIT.</figcaption>
+</figure>
+
+<h2 id="outcomes">Outcomes</h2>
+<figure>
+  <table>
+    <thead><tr><th>Item</th><th>Artifact</th><th>Commit</th></tr></thead>
+    <tbody>
+      <tr><td>Sub-grid stencil null locator (8-ring classifier + biquadratic subnull)</td>
+        <td><code>imas_ambix/latent/stencil_nulls.py</code></td>
+        <td><code>b6a92a3</code></td></tr>
+      <tr><td>Unified binding (min of wall tangency &amp; X-saddle) + classify-after axis/X in the read</td>
+        <td><code>imas_ambix/latent/connectivity_boundary.py</code></td>
+        <td><code>6d5b6e3</code></td></tr>
+      <tr><td>Gate T-C1/T-C2/T-C3 + axis/X figures</td>
+        <td><code>scripts/connectivity_boundary_gate_eval.py</code>,
+        <code>…/artifacts/patch_gate/connectivity_boundary_gate-v0.json</code></td>
+        <td><code>6d5b6e3</code></td></tr>
+      <tr><td>Unit tests (classifier, sub-grid saddle, grad, mask)</td>
+        <td><code>tests/test_stencil_nulls.py</code></td>
+        <td><code>b6a92a3</code></td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<h2 id="method">What landed</h2>
+<p><strong>Classify-after nulls (stencils-only port).</strong> Every interior grid
+vertex is classified by the sign-change count of ψ around its 8-neighbour ring
+(Kuijper: 0 &rarr; O-point, 4 &rarr; X-point) — a whole-grid, fixed-shape,
+differentiable reduction (&ldquo;find all stationary points&rdquo; is cheap). The
+relevant nulls are picked with a fixed-shape proximity mask (the §2 axis-connected
+flood region + the in-wall raster for the axis; a flux-proximity band at the binding
+level for the saddle) &mdash; an elementwise <code>(nz, nr)</code> boolean AND, never
+a variable-length gather, so the read stays <code>jit</code>/<code>vmap</code>/<code>grad</code>-safe.
+A selected vertex's 3×3 neighbourhood is refined sub-grid by a biquadratic surface fit
+(the stationary point, its flux, and its Hessian type in closed form — nova's
+<code>select.subnull</code> algorithm, reproduced so the read carries no cross-package
+dependency). The variable X-count uses the static-count idiom
+(<code>jnp.where(size=K)</code> + NaN-pad).</p>
+
+<p><strong>Unified boundary binding.</strong> The §2 read used a limited/diverted
+size-ratio <em>switch</em> (two-sided-mean saddle level for diverted, sub-grid wall
+min for limited), which left the diverted binding at a 0.46 cm / +0.43% residual. §3
+removes the switch: the binding is the <strong>confined-most (nearest ψ_N to the
+axis) of {sub-grid wall tangency, sub-grid X-point saddle flux}</strong>. A wall
+tangency binds a limited plasma; an X-point saddle binds a diverted one; whichever is
+reached first closes the boundary — the same outermost-closed connectivity rule, now
+sub-grid on both obstructions. On a diverted plasma the reachable wall sits
+<em>outside</em> the separatrix so it overshoots and loses the min to the saddle;
+on a limited plasma no on-binding saddle is accepted so the wall wins — no class
+decision enters the boundary.</p>
+
+<h2 id="robust">Rejecting spurious same-flux nulls</h2>
+<p>A saddle candidate at the binding flux can appear elsewhere in (or outside) the
+vessel at the <em>same</em> flux, so the flux band alone is insufficient. Three
+fixed-shape guards, all ANDed at candidate generation, keep only the true separatrix
+saddle: (a) inside the wall raster; (b) inside the <em>flood-rejoin band</em> — a
+few-cell dilation of the axis-connected region, so the candidate sits at the region's
+edge where the separatrix actually pinches; (c) clear of the axis by a minimum
+distance (the device analogue of the host <code>min_axis_dist</code> guard against a
+near-axis null-space saddle). The emergent X-set and the diverted class inherit the
+same filtered candidates.</p>
+
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/axis_agreement.png"
+       alt="Device sub-grid axis vs host magnetic_axis (R and Z on y=x) and the axis-distance histogram"
+       style="max-width:100%;height:auto">
+  <figcaption>T-C1 — the sub-grid axis (nova stencil + biquadratic subnull) lands on
+  the host <code>magnetic_axis</code> in both R and Z; per-slice agreement 0.016 cm
+  median, far inside one grid cell.</figcaption>
+</figure>
+
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/axis_xpoint_overlay.png"
+       alt="Axis O-point and X-point overlaid on a diverted MAST slice, device vs host"
+       style="max-width:100%;height:auto">
+  <figcaption>The sub-grid axis O-point (device circle vs host cross) and X-point
+  (device X vs host reference) on a diverted held-out slice, with the device LCFS —
+  the nulls read AFTER the boundary by flux-proximity, never a prerequisite for ψ_N.</figcaption>
+</figure>
+
+<h2 id="next">What's next — §4</h2>
+<p><strong>Machine-agnostic wall mask.</strong> Generalise the wall-inside predicate
+to an arbitrary raster MASK so the read is machine-agnostic: MAST single loop, AUG
+multiple discrete limiters (a union mask), WEST movable / per-pulse limiters (a
+per-pulse mask). The connectivity read already takes the wall as a raster boolean;
+§4 validates the boundary read on synthetic single-loop, multi-polygon, and
+time-varying-wall cases (limited and diverted). Run:
+<code>/reckon-ship connectivity-topology-reader §4</code>.</p>
+
+</main>
+</body>
+</html>

@@ -226,18 +226,43 @@ construction — the property the differentiable rollout depends on.</p>
   those schemes need.</li>
 </ul>
 
-<h2 id="next">§7 — Next</h2>
-<p><strong>§3 — axis + X-point via nova stencils, and UNIFY the binding.</strong>
-Port nova's <code>zero_cross_count</code> stencil classifier and
-<code>select.subnull</code> quadratic refinement for the sub-grid axis O-point and
-X-point <em>positions</em>. The same subnull yields the sub-grid X-point (saddle)
-<em>flux</em> — the diverted binding — so §3 also folds it into the boundary read:
-<strong>binding = the confined-most of {sub-grid wall tangency, sub-grid X-point
-saddle}</strong>, which removes the §2 limited/diverted size-ratio switch and closes
-the diverted residual (0.46 cm → the &lt; 0.01% the X-point flux already reproduces,
-§3b). The switch is device-portable and correct in the meantime, so this is a
-quality unification, not a fix for a wrong answer. Artifacts:
+<h2 id="s3">§7 — §3 shipped: classify-after axis + X-point, and the unified binding</h2>
+<p><strong>Both §3 deliverables landed (all six gates PASS).</strong> The sub-grid
+axis O-point and X-point positions are read AFTER the boundary from ported nova
+stencils (a whole-grid Kuijper 8-ring sign-change classifier &mdash; 0 &rarr; O,
+4 &rarr; X &mdash; plus the biquadratic <code>subnull</code> refinement), selected
+by a fixed-shape proximity mask (the axis flood region for the axis; a flux band at
+the binding level, ANDed with the wall raster, a flood-rejoin band, and a
+min-axis-distance guard for the saddle). The classifier is a cheap, differentiable,
+fixed-shape reduction, so &ldquo;find all stationary points&rdquo; costs a handful of
+shifted-array comparisons and the proximity mask is an elementwise AND &mdash; never
+a variable-length gather, so the read stays <code>jit</code>/<code>vmap</code>/<code>grad</code>-safe.</p>
+<figure>
+  <table>
+    <thead><tr><th>Gate</th><th>Result</th><th>Bar</th></tr></thead>
+    <tbody>
+      <tr><td>T-C1 — sub-grid axis vs host <code>magnetic_axis</code></td>
+        <td><strong>0.016 cm</strong> median (p90 0.029); <code>jax.grad</code> finite</td><td>&le; 3 cm</td></tr>
+      <tr><td>T-C2 — X-point vs host / diverted class</td>
+        <td><strong>0.067 cm</strong> median / <strong>97.2%</strong> (35/36)</td><td>&le; 3 cm / &ge; 80%</td></tr>
+      <tr><td>T-C3 — unified binding, diverted ψ_bnd residual</td>
+        <td><strong>&minus;0.02% / 0.078 cm</strong> (from +0.43% / 0.46 cm)</td><td>&lt; 0.5% of span</td></tr>
+      <tr><td>&nbsp;&nbsp;— limited (no regression)</td><td>0.062 cm / &minus;0.008%</td><td></td></tr>
+    </tbody>
+  </table>
+  <figcaption>The §3b prediction realised: the sub-grid X-point saddle flux closes the
+  diverted residual to the &lt; 0.01%-of-span territory the X-point flux already
+  reproduced, and the limited/diverted size-ratio switch is <strong>removed</strong> —
+  binding = confined-most of {sub-grid wall tangency, sub-grid X-point saddle}. Full
+  record: <a href="/imas-ambix/connectivity-topology-reader-s3-landed.html">§3 landed</a>.</figcaption>
+</figure>
+
+<h2 id="next">§8 — Next: §4 machine-agnostic wall mask</h2>
+<p>Generalise the wall-inside predicate to an arbitrary raster MASK (single loop,
+multiple discrete limiters, movable / per-pulse limiters) and validate the boundary
+read on synthetic single-loop, multi-polygon and time-varying-wall cases. Artifacts:
 <code>imas_ambix/latent/connectivity_boundary.py</code>,
+<code>imas_ambix/latent/stencil_nulls.py</code>,
 <code>scripts/connectivity_boundary_gate_eval.py</code>,
 <code>imas_ambix/latent/artifacts/patch_gate/connectivity_boundary_gate-v0.json</code>.</p>
 

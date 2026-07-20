@@ -20,8 +20,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-20">
-<meta name="plan-impl" content="0.25">
-<meta name="plan-version" content="5">
+<meta name="plan-impl" content="0.5">
+<meta name="plan-version" content="6">
 </head>
 <body>
 <main class="plan-doc">
@@ -126,16 +126,24 @@
   record: <a href="archive/connectivity-topology-reader-s2-landed.html">§2 landed</a>
   (commits <code>69bb126</code>, <code>612f91b</code>, <code>81f3274</code>, <code>df71314</code>, <code>6c2ba63</code>).</p>
 
-  <h2 id="s3">§3 — Axis + optional X-point via nova stencils (classify-after)</h2>
-  <p>Port nova's <code>zero_cross_count</code> stencil classifier + <code>select.subnull</code>
-  quadratic refinement (with the static-count idiom) for the axis O-point (sub-grid,
-  differentiable) and for X-point <em>location</em> as a post-hoc diagnostic. The
-  limited/diverted class + X-slots are read off AFTER the §2 boundary by proximity to
-  the ring (the <code>emergent_xpoints</code> soft-margin rule) &mdash; never a
-  prerequisite for ψ_N, never in the interior mask. Gate T-C: axis position/flux matches
-  the CPU read to sub-grid tolerance with a validated `jax.grad`; X-point diagnostics
-  and the diverted class match the CPU read on a diverted-slice set, with the marginal
-  transition reported as soft/undefined (no branch flip).</p>
+  <h2 id="s3"><span class="badge badge-shipped">✓ landed 2026-07-20</span> §3 — Axis + X-point via nova stencils (classify-after), unified binding</h2>
+  <p class="landed-summary">Built <code>imas_ambix/latent/stencil_nulls.py</code>
+  (whole-grid Kuijper 8-ring classifier — 0→O, 4→X — + biquadratic <code>subnull</code>,
+  the ported nova stencils; fixed-shape, differentiable) and wired it into the read:
+  the sub-grid axis O-point + emergent X-set are read AFTER the boundary by a
+  fixed-shape flux-proximity mask (never feeding ψ_N), and the §2 limited/diverted
+  size-ratio SWITCH is <strong>removed</strong> — binding = confined-most of
+  {sub-grid wall tangency, sub-grid X-point saddle flux}. On 36 held-out MAST slices
+  all six gates PASS: <strong>T-C1</strong> axis vs host <code>magnetic_axis</code>
+  0.016 cm median (<code>jax.grad</code> finite); <strong>T-C2</strong> X-point 0.067 cm
+  median, diverted class 97.2% (the one miss's boundary still reproduced — class never
+  feeds ψ_N); <strong>T-C3</strong> the unified binding closes the diverted ψ_bnd
+  residual +0.43%/0.46 cm → −0.02%/0.078 cm with no limited regression (0.062 cm),
+  both classes on y=x. Ran on <code>cuda:0</code> (vmap 7.4 ms/slice); T-B1/B2/B3
+  unchanged. A same-flux null elsewhere is rejected by an inside-wall + flood-rejoin +
+  min-axis-distance guard. Full record:
+  <a href="archive/connectivity-topology-reader-s3-landed.html">§3 landed</a>
+  (commits <code>b6a92a3</code>, <code>6d5b6e3</code>).</p>
 
   <h2 id="s4">§4 — Machine-agnostic wall mask (single / multiple / movable limiters)</h2>
   <p>Generalise the wall-inside predicate to an arbitrary wall MASK so the read is
@@ -369,11 +377,11 @@ Done-when
      artifact + figures committed.
   2. Plan updated same-session: §3 outcome recorded + collapsed; §4 (machine-agnostic wall
      mask) followup queued WITH pre-declared gates; this followup resolved.</pre>
-    <p class="r-fu-outcome">Rescoped into f-ctr-04. The lead flagged the 0.06cm(limited)/0.46cm(diverted) asymmetry; a contourpy-oracle check (this session) confirmed the host is NOT grid-biased (4x-upsampled ψ moves ψ_bnd +0.000%; host ψ_bnd = sub-grid X-point flux to <0.01% on diverted). So §2's diverted ψ_bnd carries a small two-sided-mean residual the sub-grid X-point saddle should close, unifying the binding and removing the size-ratio switch — §3 now OWNS that (this followup's 'do not re-touch ψ_bnd' scope was superseded).</p>
+    <p class="r-fu-outcome">Rescoped into f-ctr-04. The lead flagged the 0.06cm(limited)/0.46cm(diverted) asymmetry; a contourpy-oracle check (this session) confirmed the host is NOT grid-biased (4x-upsampled ψ moves ψ_bnd +0.000%; host ψ_bnd = sub-grid X-point flux to &lt;0.01% on diverted). So §2's diverted ψ_bnd carries a small two-sided-mean residual the sub-grid X-point saddle should close, unifying the binding and removing the size-ratio switch — §3 now OWNS that (this followup's 'do not re-touch ψ_bnd' scope was superseded).</p>
     </article>
-<article class="r-fu" data-id="f-ctr-04" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T18:00:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ctr-04" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T18:00:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §3" data-resolved-at="2026-07-20T20:12:53+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §3 — axis + X-point via nova stencils, and unify the boundary binding (sub-grid saddle)</h4>
-    <div class="r-fu-body"><p>§2 landed the connectivity boundary (all gates PASS; radii 0.09cm, ψ_bnd 0.02%). Two residuals remain for §3: (1) the sub-grid axis O-point + X-point POSITIONS (read after the boundary by ring-proximity, emergent_xpoints); (2) a UNIFICATION — §2 uses a limited/diverted size-ratio SWITCH (two-sided-mean saddle for diverted, sub-grid interpolated wall-min for limited), leaving diverted at a 0.46cm residual vs limited 0.06cm. The contourpy oracle was verified correct (not grid-biased; host ψ_bnd = sub-grid X-point flux to <0.01%), so the fix is to read the diverted binding SUB-GRID via nova select.subnull's X-point (saddle) flux — the X-point equivalent of the wall interpolation — and set binding = confined-most of {sub-grid wall tangency, sub-grid X-point saddle}, removing the switch. Quality unification, not a correctness fix (the switch is device-portable and correct meanwhile).</p></div>
+    <div class="r-fu-body"><p>§2 landed the connectivity boundary (all gates PASS; radii 0.09cm, ψ_bnd 0.02%). Two residuals remain for §3: (1) the sub-grid axis O-point + X-point POSITIONS (read after the boundary by ring-proximity, emergent_xpoints); (2) a UNIFICATION — §2 uses a limited/diverted size-ratio SWITCH (two-sided-mean saddle for diverted, sub-grid interpolated wall-min for limited), leaving diverted at a 0.46cm residual vs limited 0.06cm. The contourpy oracle was verified correct (not grid-biased; host ψ_bnd = sub-grid X-point flux to &lt;0.01%), so the fix is to read the diverted binding SUB-GRID via nova select.subnull's X-point (saddle) flux — the X-point equivalent of the wall interpolation — and set binding = confined-most of {sub-grid wall tangency, sub-grid X-point saddle}, removing the switch. Quality unification, not a correctness fix (the switch is device-portable and correct meanwhile).</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    connectivity-topology-reader (http://localhost:8765/imas-ambix/connectivity-topology-reader.html)
 Section: §3 (axis + X-point via nova stencils, classify-after; unify the boundary binding)
@@ -414,6 +422,63 @@ Gates (pre-declared)
 Done-when
   1. Sub-grid axis + X-point stencils + unified binding committed; T-C1..T-C3 verdicts recorded honestly; artifact + figures committed.
   2. Plan updated same-session: §3 outcome recorded + collapsed; §4 (machine-agnostic wall mask) followup queued WITH pre-declared gates; this followup resolved.</pre>
+    <p class="r-fu-outcome">§3 landed + collapsed (commits b6a92a3 stencil module + tests, 6d5b6e3 unified binding + gate + figures + artifact; docs this session). Ported nova stencils to imas_ambix/latent/stencil_nulls.py (whole-grid Kuijper 8-ring sign-change classifier — 0→O, 4→X — + biquadratic subnull; fixed-shape, differentiable) and wired into connectivity_boundary.py. The §2 limited/diverted size-ratio SWITCH is REMOVED: binding = confined-most of {sub-grid wall tangency, sub-grid X-point saddle flux}. Same-flux spurious nulls rejected by inside-wall + flood-rejoin-band + min-axis-distance guards (per lead). On 36 held-out MAST slices all six gates PASS: T-C1 axis vs host magnetic_axis 0.016cm median (p90 0.029), jax.grad finite+nonzero; T-C2 X-point 0.067cm median (p90 0.097), diverted class 97.2% (35/36 — the 1 miss's boundary still reproduced, class never feeds ψ_N); T-C3 unified binding closes diverted ψ_bnd +0.43%/0.46cm → −0.02%/0.078cm, no limited regression (0.062cm), both classes on y=x. T-B1/B2/B3 unchanged (radii 0.068cm overall; ran on cuda:0, vmap 7.4ms/slice vs 44ms looped; no contourpy/ndimage/argwhere). Record: connectivity-topology-reader-s3-landed.html; findings §7 updated.</p>
+    </article>
+<article class="r-fu" data-id="f-ctr-05" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T21:30:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Ship §4 — machine-agnostic wall mask (single / multiple / movable limiters)</h4>
+    <div class="r-fu-body"><p>§2+§3 landed the full topology read (boundary + sub-grid axis/X, all gates PASS) on the MAST single-loop wall, which already enters ONLY as a raster boolean mask (<code>inside_limiter</code>). §4 proves the machine-agnostic claim: the read takes an arbitrary raster wall MASK — a single closed loop (MAST), a union of discrete limiter polygons (AUG), or a per-pulse/movable mask (WEST) — as data, not code. This is where a classify-first pipeline becomes machine-specific (limiter-contact search, strike-point logic); the connectivity read needs only the mask. Implement the mask as a raster boolean grid (union of all limiter units rasterised) — strictly more general than a polygon-composite/convex-hull: it natively handles disconnected tiles and non-simply-connected walls, rebuilds cheaply per pulse, and admits a soft/smoothed differentiable form. Heed EFIT's own lesson (zlimit.f90): do NOT excise interior tile material from the flux-occupiable domain — mark tiles as boundary, not holes.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    connectivity-topology-reader (http://localhost:8765/imas-ambix/connectivity-topology-reader.html)
+Section: §4 (machine-agnostic wall mask — single / multiple / movable limiters)
+Tier:    opus
+
+Context
+  §2 shipped the GPU-native connectivity BOUNDARY read and §3 the classify-after sub-grid
+  axis/X-point + a unified binding (binding = confined-most of {sub-grid wall tangency,
+  sub-grid X-point saddle}); all six gates PASS on 36 held-out MAST slices, on cuda:0.
+  The wall already enters ONLY as a raster boolean mask (inside_limiter) plus densified
+  wall boundary points (wall_r/wall_z) for the sub-grid tangency. §4 proves the read is
+  machine-agnostic: an arbitrary wall MASK is DATA, not a new code path. Honour the locked
+  decisions (read-paradigm connectivity-first, nova-primitives stencils-only,
+  wall-model arbitrary-mask).
+
+State to read (CODE / FILES / DATA)
+  imas_ambix/latent/connectivity_boundary.py   (the read: inside_limiter mask + _densify_wall + the sub-grid wall tangency)
+  imas_ambix/latent/stencil_nulls.py           (the §3 classify-after nulls)
+  scripts/connectivity_boundary_gate_eval.py   (the gate + the synthetic _sweep_field to extend with multi-polygon / movable walls)
+  imas_ambix/latent/gs_solve.py                (EquilibriumGrid: how inside_limiter / limiter_r / limiter_z are built)
+
+Scope locks / constraints (non-decision)
+  - Generalise the wall-inside predicate to an arbitrary raster boolean MASK: single loop
+    (MAST), union of discrete polygons (AUG), per-pulse/movable mask (WEST). The read takes
+    it as data; NO limiter-contact search, NO strike-point logic, NO new code path per machine.
+  - The densified wall boundary points (for the sub-grid tangency) must generalise to a
+    multi-unit wall (per-unit densification, union) so the min-over-reachable-wall still
+    reads the true tangency. A movable wall is a per-pulse mask + points input.
+  - Heed EFIT&#x27;s zlimit lesson: do NOT excise interior tile material from the flux-occupiable
+    domain (it fragments the divertor into islands) — mark tiles as boundary, not holes.
+  - Keep fixed-shape / jit / vmap / grad-safe; the mask is a fixed (nz,nr) boolean, admitting
+    a soft/smoothed differentiable form (§5 will use it). Firewall unchanged: physics +
+    measured channels only, no EFIT.
+  - Figures mandatory (docs/figures/connectivity-topology-reader/): boundary read on a
+    synthetic single-loop, a multi-polygon (two discrete limiters), and a time-varying-wall
+    case (limited AND diverted), wall supplied as a raster mask; the boundary overlay for each.
+  - Commit+push each coherent change on main; no AI co-author trailers
+    (verify: git log -1 --format=%B | grep -Eqi &quot;^co-authored-by:&quot;).
+
+Gates (pre-declared)
+  T-D (multi-wall): the boundary read is correct (reproduces the intended LCFS) on synthetic
+       single-loop, multi-polygon, and time-varying-wall cases, limited AND diverted, with the
+       wall supplied as a raster mask (not code); the sub-grid tangency reads the true wall
+       contact on the multi-unit wall.
+  Stop rule: if a multi-unit or movable wall needs a code branch (not just a different mask/
+       points input), STOP and surface — the machine-agnostic claim is the whole point.
+
+Done-when
+  1. Machine-agnostic wall mask + multi-unit densification committed; T-D verdict recorded
+     honestly; artifact + figures committed.
+  2. Plan updated same-session: §4 outcome recorded + collapsed; §5 (differentiable +
+     adversarial-topology robustness) followup queued WITH pre-declared gates; this followup resolved.</pre>
     </article>
 </section>
 
