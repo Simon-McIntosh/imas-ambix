@@ -19,9 +19,9 @@
   <title>Connectivity Topology Reader | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-20">
-<meta name="plan-impl" content="0.5">
-<meta name="plan-version" content="7">
+<meta name="plan-modified" content="2026-07-21">
+<meta name="plan-impl" content="0.75">
+<meta name="plan-version" content="8">
 </head>
 <body>
 <main class="plan-doc">
@@ -145,65 +145,24 @@
   <a href="archive/connectivity-topology-reader-s3-landed.html">§3 landed</a>
   (commits <code>b6a92a3</code>, <code>6d5b6e3</code>).</p>
 
-  <h2 id="s4">§4 — Machine-agnostic wall: tiles-as-holes supercover mask + campaign wall-flux Green's</h2>
-  <p><strong>Corrected strategy (lead, 2026-07-20; decisions <code>mask-semantics</code>,
-  <code>wall-flux-source</code>).</strong> The wall is two per-campaign <em>data</em>
-  objects — a raster mask and a Green's-evaluated wall-node flux string — and the read
-  stays ONE code path for MAST single loop, AUG's 29 discrete tiles/limiters, and a
-  per-pulse movable WEST wall. We are NOT rebuilding EFIT: no zlimit topology
-  discriminator, no convex hulls, no limiter-contact search — rasterise every unit,
-  flood, read.</p>
-  <ul>
-  <li><strong>Raster mask = geometric reachability only.</strong> Occupiable = inside
-  vessel AND NOT material. Every wall unit — closed tile or open line primitive — is
-  <em>supercover-rasterised</em>: any cell a wall segment crosses is material; cell
-  centres inside a closed unit are material. Tiles are HOLES: the flood stopping at one
-  IS the limiter-contact test — contact and vessel poke-through are the same escape
-  event in the same sweep. This deliberately REVERSES the earlier EFIT-zlimit transplant
-  ("mark tiles as boundary, not holes"): zlimit's no-holes rule protects EFIT's
-  merge-tree, which spans the whole domain and breaks when the divertor fragments — a
-  classify-first constraint that does not transfer to a flood-fill that only ever grows
-  the axis-connected component (whatever a hole disconnects is never flooded, never
-  queried). And the raster MUST carry the tiles: ψ_bnd is unknown during the push-out,
-  so geometric contact is the only available in-sweep stopping test, and
-  reachability-from-the-flood — which excludes private-flux plate nodes (ψ_N &lt; 1!)
-  and shadowed far-side limiters from the wall-flux min — is only correct if the flood
-  stops at tiles.</li>
-  <li><strong>Wall-node flux = part of the solve (the influence-matrix string).</strong>
-  Per campaign, sample every unit's surface at ~Δ/2 arc spacing and build
-  <code>g_wall</code> — (coils + plasma cells) → wall nodes — beside the existing
-  <code>g_edge</code> in the campaign cache, with the <code>hybrid_greens</code>
-  finite-area kernel (wall nodes are near-field to edge plasma cells; the far-field
-  point-filament shortcut that is fine for <code>g_edge</code> does not hold at the
-  wall). Per solve, ψ_wall is one GEMM: exact at the nodes (no O(Δ²·∂²ψ) bilerp floor,
-  which is largest exactly at a tangency where the plasma leans), linear hence
-  differentiable, batched trivially. The tangency read becomes u_wall = min over
-  REACHABLE nodes of exact node flux; binding = confined-most of {wall tangency,
-  X-saddle}, unchanged from §3. Geometry decides WHICH surfaces count; flux decides
-  WHERE the binding sits.</li>
-  <li><strong>Thin limiters.</strong> Supercover guarantees a ≥1-cell obstacle for
-  arbitrarily thin blades; the ≤1-cell thickening biases only the coarse bracket
-  (s_flood), while ψ_bnd is re-read sub-grid from exact reachable-node flux — no
-  thickening error in the binding. Near-degenerate ties (two units tangent within one
-  cell-flux of each other) put both surfaces in the reachable set and the node min
-  resolves them. <code>xpoint_candidates</code> tolerates a one-cell dilation near
-  material so a binding saddle beside a tile is not masked out.</li>
-  <li><strong>Loud diagnostics, not errors.</strong> At the cached campaign build:
-  WARN per unit whose interior cell set is empty (supercover-only ⇒ thinner than the
-  grid; report a 2·Area/Perimeter thickness proxy vs Δ), and per unit pair whose
-  polygons are disjoint but raster sets adjacent (sub-cell gap fused by the raster).
-  Warning not error — the binding flux never comes from the raster, and erroring would
-  reject AUG-class thin heat shields at standard campaign grids (the target machine
-  class). ONE hard error, per solve: the flood seed (axis cell) lands in material.</li>
-  </ul>
-  <p>Gates T-D1..T-D4: correct boundary on synthetic single-loop / multi-polygon /
-  thin-tile (t &lt; Δ — the warning fires AND ψ_bnd still lands on the true surface
-  flux) / time-varying walls, limited AND diverted; <code>g_wall</code> matches the
-  synthetic field at the nodes to solver precision with no held-out-MAST-36 regression
-  on the bilerp→g_wall swap; the real imas-efit AUG 29-unit geometry (machine
-  description only — no EFIT reconstruction outputs cross the firewall) rasterises with
-  no special-casing and binds a synthetic field on the correct unit. Stop rule: any
-  wall that needs a code branch rather than different data STOPS the rung.</p>
+  <h2 id="s4"><span class="badge badge-shipped">✓ landed 2026-07-21</span> §4 — Machine-agnostic wall: tiles-as-holes supercover mask + campaign wall-flux Green's</h2>
+  <p class="landed-summary">Built <code>imas_ambix/latent/wall_mask.py</code>: an arbitrary
+  wall-unit list (vessel + material tiles) becomes a supercover raster mask
+  (<code>occupiable = inside vessel AND NOT material</code>; tiles are HOLES, so limiter
+  contact = vessel poke-through — one escape event) + a per-unit ~Δ/2 node string; MAST
+  single loop is byte-identical to the point-in-polygon mask. A campaign
+  <code>g_wall</code> matrix (coils+cells→nodes, <code>hybrid_greens</code> near-field)
+  reads the sub-grid tangency EXACTLY in one GEMM — machine-ε vs the O(Δ²) bilerp floor
+  (1.5e-4 of span). All four gates PASS on 48 held-out MAST slices + synthetic multi-unit
+  walls: <strong>T-D1</strong> multi-wall (single-loop/multi-polygon/movable, lim+div)
+  reads the true tangency/saddle to &lt;1e-4 span (5/5); <strong>T-D2</strong> thin blade
+  (t&lt;Δ) warns AND binds exact (7e-7); <strong>T-D3</strong> g_wall exact + the
+  bilerp→g_wall swap does not regress (consistency 0 — grid kernel reconstructs
+  <code>psi_tot</code> exactly; swap p90 8.5e-5); <strong>T-D4</strong> AUG-class 29-unit
+  raster (9 thin-tile warnings, single-null diverted binds). T-B1/2/3 &amp; T-C1/2/3
+  unchanged. Full record:
+  <a href="archive/connectivity-topology-reader-s4-landed.html">§4 landed</a>
+  (commits <code>ab73b76</code>, <code>6513358</code>).</p>
 
   <h2 id="s5">§5 — Differentiable + adversarial-topology robustness</h2>
   <p>Make the read differentiable (smooth/sigmoid core mask, soft level) for the
@@ -540,7 +499,7 @@ Done-when
      adversarial-topology robustness) followup queued WITH pre-declared gates; this followup resolved.</pre>
     <p class="r-fu-outcome">Superseded by f-ctr-06 — the lead corrected the mask semantics before dispatch. The EFIT zlimit 'tiles as boundary, not holes' rule this followup carried is a merge-tree constraint that does not transfer to a flood-fill read: tiles ARE holes (supercover raster; contact = poke-through, the same escape event), and the wall-surface flux comes from a per-campaign Green's matrix (g_wall, hybrid_greens near-field kernel, nodes ~Δ/2) instead of grid bilerp — ψ_bnd is unknown during the push-out so geometric contact is the only in-sweep stopping test, and reachability (which excludes private-flux plate nodes) is only correct if the flood stops at tiles. See decisions mask-semantics + wall-flux-source and the rewritten §4.</p>
     </article>
-<article class="r-fu" data-id="f-ctr-06" data-status="open" data-tier="opus" data-written-by="lead + reckon-edit" data-written-at="2026-07-20T22:45:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §4" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ctr-06" data-status="resolved" data-tier="opus" data-written-by="lead + reckon-edit" data-written-at="2026-07-20T22:45:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §4" data-resolved-at="2026-07-20T22:29:41+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §4 — machine-agnostic wall: tiles-as-holes supercover mask + campaign wall-flux Green&#x27;s (g_wall)</h4>
     <div class="r-fu-body"><p>§2+§3 landed the full topology read (boundary + sub-grid axis/X, unified binding, all gates PASS) on the MAST single-loop wall. §4 proves the machine-agnostic claim on the CORRECTED semantics (decisions <code>mask-semantics</code>, <code>wall-flux-source</code>): occupiable = inside vessel AND NOT material — every unit (closed tile or open line) supercover-rasterised as HOLES, so limiter contact and vessel poke-through are the same escape event; wall-surface flux from a per-campaign Green's influence matrix <code>g_wall</code> (hybrid_greens near-field kernel, nodes ~Δ/2) replacing grid bilerp; per-campaign loud thin-tile / gap-merge diagnostics (warning, not error — binding flux never comes from the raster); one per-solve hard error when the flood seed lands in material. We are NOT rebuilding EFIT: no zlimit topology discriminator, no convex hulls, no contact search — rasterise every unit, flood, read.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -625,6 +584,73 @@ Done-when
   2. Plan updated same-session: §4 outcome recorded + collapsed; §5 (differentiable +
      adversarial-topology robustness) followup queued WITH pre-declared gates; this followup
      resolved.</pre>
+    <p class="r-fu-outcome">§4 landed + collapsed (commits ab73b76 wall_mask + g_wall + read wiring + tests, 6513358 gate T-D1..T-D4 + figures; docs this session). New imas_ambix/latent/wall_mask.py: an arbitrary wall-unit list (vessel + material tiles) becomes a supercover raster mask (occupiable = inside vessel AND NOT material; tiles are HOLES, contact = vessel poke-through = the same escape event) + a per-unit ~Δ/2 node string; MAST single loop is byte-identical to the point-in-polygon mask. Campaign g_wall matrix (coils+cells→nodes, hybrid_greens near-field) reads the sub-grid tangency EXACTLY in one GEMM. Loud thin-tile/gap-merge build diagnostics; one hard per-solve error when the flood seed lands in material. xpoint_candidates one-cell material dilation, made grad-safe (stop_gradient on padded/degenerate candidate slots — a masked-where 0·∞ trap). ALL 10 gates PASS on 48 held-out MAST slices + synthetic walls: T-D1 multi-wall (single-loop/multi-polygon/movable, lim+div; 5/5, <1e-4 of span); T-D2 thin blade t<Δ warns AND binds exact (7e-7); T-D3 g_wall exact (machine-ε) vs the O(Δ²) bilerp floor 1.5e-4, and the held-out bilerp→g_wall swap does NOT regress (consistency 0 — grid kernel reconstructs basis psi_tot exactly; swap ψ_bnd p90 8.5e-5, median 2.4e-5); T-D4 AUG-class 29-unit raster (9 thin-tile warnings, single-null diverted classified+binds). T-B1/2/3 + T-C1/2/3 unchanged. Caveat: real AUG per-unit R,Z not present in the imas-efit tree as clean geometry → an AUG-class synthetic 29-unit fixture exercises the SAME build_wall_mask path (the stop rule guards code branches, not fixture source). Record: connectivity-topology-reader-s4-landed.html; findings §8 updated.</p>
+    </article>
+<article class="r-fu" data-id="f-ctr-07" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-21T00:30:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §5" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Ship §5 — differentiable read (smooth mask + soft level) + adversarial-topology robustness</h4>
+    <div class="r-fu-body"><p>§2–§4 landed the full connectivity read (boundary + classify-after axis/X + unified binding + machine-agnostic wall), all gates PASS on 48 held-out MAST slices. The read is already jit/vmap/grad-safe through the sub-grid nulls and the exact g_wall tangency, but the CORE MASK and the binding LEVEL are hard thresholds. §5 makes the read END-TO-END DIFFERENTIABLE for the implicit-diff rollout gpu-accelerated-labeler §7 needs — a smooth/sigmoid core mask and a soft binding level, validated against the hard-mask read — and pins the adversarial topologies the connectivity read must get right: double-null / near-double ordering, secondary separatrix, private-flux pockets (already connectivity-separated in classify_regions), snowflake. The hard read stays the reference; the smooth variant must match it before use in the differentiable path.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    connectivity-topology-reader (http://localhost:8765/imas-ambix/connectivity-topology-reader.html)
+Section: §5 (differentiable read — smooth core mask + soft level — and adversarial-topology robustness)
+Tier:    opus
+
+Context
+  §2–§4 shipped the full GPU-native connectivity read: the boundary (flood-fill + level
+  sweep + two-sided binding), the classify-after sub-grid axis/X + unified binding, and
+  the machine-agnostic wall (tiles-as-holes supercover mask + campaign g_wall wall-flux).
+  All gates PASS on 48 held-out MAST slices + synthetic multi-unit walls, on cuda:0. The
+  read is already jit/vmap/grad-safe (grads flow through the sub-grid nulls and the exact
+  g_wall tangency), but the CORE MASK and the binding LEVEL are hard thresholds. §5 makes
+  the read end-to-end differentiable (a smooth/sigmoid core mask, a soft level) for the
+  implicit-diff rollout gpu-accelerated-labeler §7 depends on, and pins the adversarial
+  topologies. Honour the locked decisions (read-paradigm connectivity-first,
+  nova-primitives stencils-only, wall-model arbitrary-mask, mask-semantics tiles-as-holes,
+  wall-flux-source campaign-greens).
+
+State to read (CODE / FILES / DATA)
+  imas_ambix/latent/connectivity_boundary.py     (the read: flood_fill_core hard mask, s_star binding, the (u&lt;=s) threshold to soften)
+  imas_ambix/latent/flux_surface_connectivity.py (flood_fill_core, _dilate4, _gaussian_cdf — the smooth-CDF coarea already here)
+  imas_ambix/latent/stencil_nulls.py             (the classify-after nulls — already differentiable)
+  imas_ambix/latent/topology.py                  (classify_regions — private/core/SOL connectivity separation, the CPU reference)
+  scripts/connectivity_boundary_gate_eval.py     (the gate + synthetic fields to extend with double-null / snowflake / private-flux)
+
+Scope locks / constraints (non-decision)
+  - Smooth core mask + soft binding level: a sigmoid/temperature-controlled (u&lt;=s) mask and
+    a soft s_star, validated to reproduce the hard-mask read (ψ_bnd, radii, core cells,
+    private/core separation) to tolerance as temperature→0. The smooth variant is the
+    differentiable path; the hard read stays the reference. Fixed-shape/jit/vmap throughout.
+  - Implicit-diff readiness: the whole rollout (currents → ψ → read) must support grad
+    through the smooth read (finite, non-zero) so the operator can be trained by
+    physics-in-the-loop / 4D-Var (gpu-accelerated-labeler §7).
+  - Adversarial topologies pinned: double-null / near-double ordering (two X-points at
+    ~equal flux), secondary separatrix, private-flux pockets (already connectivity-separated
+    in classify_regions), snowflake. The read matches the exact CPU read (boundary,
+    private/core separation, X-slots) to tolerance on synthetic AND real double-null /
+    high-triangularity slices; no branch flip at a near-double ordering.
+  - Firewall unchanged: physics + measured channels only, no EFIT.
+  - Figures mandatory (docs/figures/connectivity-topology-reader/): smooth-vs-hard mask
+    agreement (ψ_bnd/radii vs temperature); adversarial-topology overlays (double-null,
+    snowflake, private-flux) device vs CPU.
+  - Commit+push each coherent change on main; no AI co-author trailers
+    (verify: git log -1 --format=%B | grep -Eqi &quot;^co-authored-by:&quot;).
+
+Gates (pre-declared)
+  T-E1 (smooth ≈ hard): the smooth-mask/soft-level read reproduces the hard read (ψ_bnd,
+       radii, private/core separation) to tolerance as temperature→0, on the held-out set.
+  T-E2 (differentiable rollout): grad of a read scalar w.r.t. the currents flows finite and
+       non-zero end-to-end through the smooth read (implicit-diff ready).
+  T-E3 (adversarial topology): on synthetic + real double-null / high-triangularity /
+       snowflake / private-flux slices the read matches the exact CPU read (boundary,
+       private/core, X-slots) to tolerance; no branch flip at a near-double ordering.
+  Stop rule: if the smooth read cannot reproduce the hard read within tolerance OR the
+       adversarial topologies regress the boundary/separation, STOP and surface — do not
+       ship a smooth read worse than the hard reference or one that mis-separates private flux.
+
+Done-when
+  1. Smooth core mask + soft level + adversarial-topology validation committed; T-E1..T-E3
+     verdicts recorded honestly; artifact + figures committed.
+  2. Plan updated same-session: §5 outcome recorded + collapsed; the plan retired (status
+     done) OR a follow-on queued into gpu-accelerated-labeler; this followup resolved.</pre>
     </article>
 </section>
 

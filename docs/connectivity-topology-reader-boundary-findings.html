@@ -257,14 +257,39 @@ a variable-length gather, so the read stays <code>jit</code>/<code>vmap</code>/<
   record: <a href="/imas-ambix/connectivity-topology-reader-s3-landed.html">§3 landed</a>.</figcaption>
 </figure>
 
-<h2 id="next">§8 — Next: §4 machine-agnostic wall mask</h2>
-<p>Generalise the wall-inside predicate to an arbitrary raster MASK (single loop,
-multiple discrete limiters, movable / per-pulse limiters) and validate the boundary
-read on synthetic single-loop, multi-polygon and time-varying-wall cases. Artifacts:
-<code>imas_ambix/latent/connectivity_boundary.py</code>,
-<code>imas_ambix/latent/stencil_nulls.py</code>,
-<code>scripts/connectivity_boundary_gate_eval.py</code>,
-<code>imas_ambix/latent/artifacts/patch_gate/connectivity_boundary_gate-v0.json</code>.</p>
+<h2 id="s4">§8 — §4 shipped: machine-agnostic wall (tiles-as-holes + <code>g_wall</code>)</h2>
+<p>The wall becomes <em>data</em>. A new <code>imas_ambix/latent/wall_mask.py</code> turns
+an arbitrary list of wall <em>units</em> (a vessel outline + material tiles/limiters) into
+a supercover raster mask — <code>occupiable = inside&nbsp;vessel&nbsp;AND&nbsp;NOT&nbsp;material</code>,
+with every material unit (closed tile or open blade) supercover-rasterised as a
+<strong>HOLE</strong>, so limiter contact and vessel poke-through are the SAME escape
+event in the flood — plus a per-unit ~Δ/2 node string. A single closed vessel loop (MAST)
+reproduces the plain point-in-polygon mask byte-for-byte; AUG's discrete tiles and a
+movable WEST wall are just a different unit list, one code path.</p>
+<p>The sub-grid wall tangency now reads the <strong>exact</strong> node flux from a
+per-campaign <code>g_wall</code> influence matrix (coils + plasma cells &rarr; wall nodes,
+the <code>hybrid_greens</code> near-field kernel, one GEMM per solve) instead of bilinear
+off the grid — machine-ε at the node where the bilerp carries an O(Δ²) floor (1.5e-4 of
+span, largest exactly at a tangency). All four gates PASS: <strong>T-D1</strong> multi-wall
+(single-loop / multi-polygon / movable, limited AND diverted) reproduces the true tangency
+/ separatrix saddle to &lt;&nbsp;1e-4 of span; <strong>T-D2</strong> a thin blade
+(t&nbsp;&lt;&nbsp;Δ) fires the thin-unit warning AND still binds the exact surface flux
+(raster thickness ≠ binding precision); <strong>T-D3</strong> the held-out MAST
+bilerp&rarr;<code>g_wall</code> swap does not regress ψ_bnd (the grid kernel reconstructs
+<code>psi_tot</code> exactly, consistency&nbsp;0); <strong>T-D4</strong> an AUG-class
+29-unit wall rasterises with no special-casing (9 thin heat-shield warnings) and binds a
+limited AND a single-null diverted field correctly. T-B1/2/3 and T-C1/2/3 unchanged.
+Full record: <a href="/imas-ambix/connectivity-topology-reader-s4-landed.html">§4 landed</a>.</p>
+
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/wall_multi.png"
+       alt="Boundary read across six wall configurations — single loop, multi-polygon, thin tile, movable limiter, AUG-class limited and single-null — each with the raster mask, unit polygons, and the device LCFS"
+       style="max-width:100%;height:auto">
+  <figcaption>§4 — one connectivity read across arbitrary raster walls (grey = occupiable,
+  black = vessel, red = material tiles as holes, blue = the device LCFS): a single loop,
+  two discrete limiters, a sub-grid blade, a movable limiter, and an AUG-class 29-unit wall
+  (limited and single-null diverted). The wall is data, never a per-machine branch.</figcaption>
+</figure>
 
 </main>
 </body>

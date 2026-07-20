@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="connectivity-topology-reader-s4-landed">
+  <meta name="plan-title" content="§4 landed — machine-agnostic wall: tiles-as-holes supercover mask + g_wall campaign wall-flux">
+  <meta name="plan-status" content="reference">
+  <meta name="plan-summary" content="Per-stage landed record for connectivity-topology-reader §4: the wall becomes DATA. A new wall_mask module turns an arbitrary list of wall units (vessel outline + material tiles/limiters) into a supercover raster mask (occupiable = inside vessel AND NOT material; tiles are holes, so limiter contact = vessel poke-through — one escape event) plus a per-unit ~half-cell node string. A campaign g_wall influence matrix (coils+cells to wall nodes, hybrid_greens near-field kernel) reads the sub-grid tangency EXACTLY in one GEMM, with no O(delta^2) bilerp floor. All four gates PASS: T-D1 multi-wall (single-loop/multi-polygon/movable, limited+diverted) reads the true tangency/saddle to ~1e-6 of span; T-D2 thin tile (t<delta) fires the warning and still lands on the exact surface flux; T-D3 g_wall exact vs the bilerp floor (1.5e-4) and the held-out MAST bilerp->g_wall swap does not regress psi_bnd (grid kernel reconstructs psi_tot exactly, consistency=0); T-D4 AUG-class 29-unit raster (thin heat shields fire, single-null diverted binds). MAST single loop byte-identical; T-B1/2/3 and T-C1/2/3 unchanged.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>§4 landed — machine-agnostic wall (tiles-as-holes + g_wall) | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Per-stage record</strong> for
+<a href="/imas-ambix/connectivity-topology-reader.html">connectivity-topology-reader</a>
+§4 — the machine-agnostic wall: the wall enters the connectivity read as
+<em>data</em> (a raster mask + a wall-node string), never a code path. Full findings:
+<a href="/imas-ambix/connectivity-topology-reader-boundary-findings.html">boundary-read findings report</a>.</p>
+
+<h2 id="status">Quick status</h2>
+<figure>
+  <table>
+    <thead><tr><th>Gate</th><th>Verdict</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>T-D1 — multi-wall</td><td>PASS</td>
+        <td>on synthetic single-loop, multi-polygon (two discrete limiters), and a
+        movable (time-varying) wall — limited AND diverted — the device ψ_bnd
+        reproduces the true fine-sampled tangency / separatrix saddle to
+        <strong>&lt; 1e-4 of span</strong> (5/5 cases), with the wall supplied as unit
+        polygons &rarr; supercover raster + nodes, not code; the binding unit is the
+        correct one</td></tr>
+      <tr><td>T-D2 — thin tile (t&nbsp;&lt;&nbsp;Δ)</td><td>PASS</td>
+        <td>a blade of thickness <strong>0.82 cm &lt; Δ 1.25 cm</strong> fires the
+        thin-unit warning AND the plasma binds on it with ψ_bnd on the true surface
+        flux to <strong>7e-7 of span</strong> — raster thickness ≠ binding precision,
+        because ψ_bnd is re-read from the exact node flux</td></tr>
+      <tr><td>T-D3 — wall-flux exactness + no regression</td><td>PASS</td>
+        <td><em>exactness</em>: the <code>g_wall</code> node flux equals the direct
+        finite-area Green's superposition to <strong>machine ε</strong> where the
+        bilinear grid read carries an O(Δ²) floor of <strong>1.5e-4 of span</strong>;
+        <em>no regression</em>: over 48 held-out MAST slices swapping
+        bilerp&rarr;<code>g_wall</code> moves ψ_bnd by <strong>8.5e-5 of span (p90;
+        median 2.4e-5)</strong> and the grid-kernel reconstruction matches the basis
+        <code>psi_tot</code> to <strong>consistency 0 (exact)</strong> — a clean A/B</td></tr>
+      <tr><td>T-D4 — AUG-class raster</td><td>PASS</td>
+        <td>a <strong>29-unit</strong> AUG-class wall (thin inner-column heat shields,
+        outer limiter tiles, up/down divertor tiles, an open limiter blade) rasterises
+        with <strong>no special-casing</strong>; <strong>9 thin-unit warnings</strong>
+        fire; a limited field binds the nearest unit (ψ_bnd 3e-6) and a single-null
+        diverted field is classified diverted and binds the saddle (ψ_bnd 4e-5)</td></tr>
+      <tr><td>T-B1/2/3 &amp; T-C1/2/3</td><td>PASS</td>
+        <td>unchanged under the multi-unit node source + the grad-safe X-candidate
+        dilation — MAST single loop is byte-identical (one vessel unit ≡ the plain
+        point-in-polygon mask); the held-out reproduction, on-device batch, continuity,
+        axis, X-point and unified-binding gates all still PASS</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Synthetic multi-unit walls (deterministic) + the held-out MAST slice set.
+  Firewall: physics + measured channels only; the machine wall GEOMETRY is machine
+  description, no EFIT reconstruction outputs.</figcaption>
+</figure>
+
+<h2 id="outcomes">Outcomes</h2>
+<figure>
+  <table>
+    <thead><tr><th>Item</th><th>Artifact</th><th>Commit</th></tr></thead>
+    <tbody>
+      <tr><td>Machine-agnostic wall module (supercover raster, tiles-as-holes,
+        per-unit nodes, thin-tile / gap-merge diagnostics)</td>
+        <td><code>imas_ambix/latent/wall_mask.py</code></td>
+        <td><code>ab73b76</code></td></tr>
+      <tr><td>Campaign <code>g_wall</code> wall-flux matrix + multi-unit mask/nodes in
+        the grid; exact-node tangency + seed-in-material error in the read; grad-safe
+        X-candidate one-cell material dilation</td>
+        <td><code>imas_ambix/latent/gs_solve.py</code>,
+        <code>…/connectivity_boundary.py</code>, <code>…/stencil_nulls.py</code></td>
+        <td><code>ab73b76</code></td></tr>
+      <tr><td>Gates T-D1..T-D4 + <code>--td-only</code> + wall figures</td>
+        <td><code>scripts/connectivity_boundary_gate_eval.py</code>,
+        <code>…/artifacts/patch_gate/connectivity_boundary_gate-v0.json</code></td>
+        <td><code>6513358</code></td></tr>
+      <tr><td>Unit tests (MAST parity, tiles-as-holes, thin blade, diagnostics, nodes,
+        <code>g_wall</code> exactness)</td>
+        <td><code>tests/latent/test_wall_mask.py</code></td>
+        <td><code>ab73b76</code></td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<h2 id="method">What landed</h2>
+<p><strong>The wall is two per-campaign data objects, one code path.</strong> A wall is
+an arbitrary list of <em>units</em>: a <code>vessel</code> outline (occupiable interior)
+and any number of <code>material</code> tiles/limiters. The occupiable mask is
+<code>inside&nbsp;vessel&nbsp;AND&nbsp;NOT&nbsp;material</code>; every material unit — a
+closed tile or an open line primitive — is <strong>supercover-rasterised</strong> (every
+cell a wall segment crosses is material; a closed unit also fills its interior). Tiles are
+<strong>holes</strong>: the flood only ever grows the axis-connected component, so
+limiter contact and vessel poke-through are the <em>same</em> escape event, and whatever
+a hole disconnects is never flooded or queried. A single closed vessel loop (MAST)
+reproduces the plain point-in-polygon limiter mask <strong>byte-for-byte</strong>, so the
+shipped read is unchanged; AUG's discrete tiles and a movable WEST wall are just a
+different unit list.</p>
+
+<p><strong>Wall-node flux is part of the solve — the <code>g_wall</code> influence
+matrix.</strong> Every unit's surface is sampled at ~Δ/2 arc spacing into a wall-node
+string; a per-campaign <code>g_wall</code> matrix (coils + plasma cells &rarr; nodes,
+built with the <code>hybrid_greens</code> finite-area kernel because the nodes are
+NEAR-field to edge plasma cells) gives ψ at every node in <strong>one GEMM</strong> per
+solve — exact, linear, differentiable, cached beside <code>g_edge</code>. The tangency
+read becomes the minimum node flux over the REACHABLE nodes (reachability from the flood
+naturally excludes private-flux plate nodes and shadowed far-side limiters). This
+replaces the bilinear read off the grid, whose O(Δ²·∂²ψ) error is largest exactly at a
+tangency, where the plasma leans and flux curvature peaks. The unified binding —
+confined-most of {wall tangency, X-saddle} — is unchanged from §3.</p>
+
+<p><strong>Supercover guarantees a ≥1-cell obstacle for arbitrarily thin blades.</strong>
+The ≤1-cell thickening biases only the coarse flood bracket; ψ_bnd is re-read sub-grid
+from the exact reachable-node flux, so it carries no thickening error (T-D2). The
+X-candidate gate tolerates a one-cell dilation near material so a binding saddle beside a
+tile is not masked out — made grad-safe by freezing the gradient on padded/degenerate
+candidate slots (a near-planar cluster's ill-conditioned <code>lstsq</code> VJP would
+otherwise poison the differentiable read through the masked-where 0·∞ trap).</p>
+
+<h2 id="diagnostics">Loud diagnostics, never errors</h2>
+<p>At the cached campaign build the mask reports, as WARNINGs (never raised): every unit
+thinner than the grid (<code>2·Area/Perimeter</code> thickness proxy &lt; Δ, or an empty
+interior fill — e.g. an open blade), and every pair of units whose polygons are disjoint
+but whose rasters fuse across a sub-cell gap. Erroring would reject AUG-class thin heat
+shields at standard campaign grids — and the binding flux never comes from the raster, so
+a fused or sub-grid unit is a report, not a failure. The one hard per-solve error is the
+flood seed (the axis cell) landing in wall material, where there is no axis-connected
+plasma to grow.</p>
+
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/wall_multi.png"
+       alt="Boundary read on six wall configurations: single loop, multi-polygon, thin tile, movable limiter, AUG-class 29-unit limited and single-null, each with the occupiable raster mask, unit polygons, and the device LCFS"
+       style="max-width:100%;height:auto">
+  <figcaption>§4 — one connectivity read across arbitrary raster walls (grey = occupiable,
+  black = vessel, red = material tiles as holes, blue = the device LCFS). A single closed
+  loop, two discrete limiters, a sub-grid blade (t&nbsp;&lt;&nbsp;Δ), a movable limiter,
+  and an AUG-class 29-unit wall (limited and single-null diverted) — the read takes each
+  as data, no per-machine branch. Inner-column heat-shield tiles show dashed (supercover-
+  only, thin-warned).</figcaption>
+</figure>
+
+<h2 id="next">What's next — §5</h2>
+<p><strong>Differentiable + adversarial-topology robustness.</strong> Make the read
+end-to-end differentiable for the implicit-diff rollout (a smooth/sigmoid core mask and
+soft level, validated against the hard-mask read) and pin the adversarial topologies the
+connectivity read must get right: double-null / near-double ordering, secondary
+separatrix, private-flux pockets, and snowflake configurations. Run:
+<code>/reckon-ship connectivity-topology-reader §5</code>.</p>
+
+</main>
+</body>
+</html>
