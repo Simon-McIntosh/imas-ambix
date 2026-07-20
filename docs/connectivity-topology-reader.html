@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-20">
 <meta name="plan-impl" content="0.5">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 </head>
 <body>
 <main class="plan-doc">
@@ -145,22 +145,65 @@
   <a href="archive/connectivity-topology-reader-s3-landed.html">§3 landed</a>
   (commits <code>b6a92a3</code>, <code>6d5b6e3</code>).</p>
 
-  <h2 id="s4">§4 — Machine-agnostic wall mask (single / multiple / movable limiters)</h2>
-  <p>Generalise the wall-inside predicate to an arbitrary wall MASK so the read is
-  machine-agnostic: MAST single closed loop, AUG multiple discrete limiters (a union
-  mask; the poke-out test is "axis-connected region ⊄ union-wall-mask"), WEST movable /
-  per-pulse limiters (a per-pulse/per-phase mask input). This is where a classify-first
-  pipeline becomes machine-specific (limiter-contact search, strike-point logic); the
-  connectivity read needs only the mask. Implement the mask as a <strong>raster
-  boolean grid</strong> (the union of all limiter units rasterised) — strictly more
-  general than EFIT's polygon-composite/convex-hull (`compositeInclusionPolygon`): a
-  raster natively handles disconnected tiles and non-simply-connected walls, rebuilds
-  cheaply per pulse (WEST), and admits a soft/smoothed (differentiable) form. Heed
-  EFIT's own lesson (`zlimit.f90:826-829`): do NOT excise interior tile material from
-  the flux-occupiable domain (it fragments the divertor into islands) — mark tiles as
-  boundary, not holes. Gate T-D: the boundary read is correct on synthetic single-loop,
-  multi-polygon, and time-varying-wall cases (limited and diverted), with the wall
-  supplied as a raster mask, not code.</p>
+  <h2 id="s4">§4 — Machine-agnostic wall: tiles-as-holes supercover mask + campaign wall-flux Green's</h2>
+  <p><strong>Corrected strategy (lead, 2026-07-20; decisions <code>mask-semantics</code>,
+  <code>wall-flux-source</code>).</strong> The wall is two per-campaign <em>data</em>
+  objects — a raster mask and a Green's-evaluated wall-node flux string — and the read
+  stays ONE code path for MAST single loop, AUG's 29 discrete tiles/limiters, and a
+  per-pulse movable WEST wall. We are NOT rebuilding EFIT: no zlimit topology
+  discriminator, no convex hulls, no limiter-contact search — rasterise every unit,
+  flood, read.</p>
+  <ul>
+  <li><strong>Raster mask = geometric reachability only.</strong> Occupiable = inside
+  vessel AND NOT material. Every wall unit — closed tile or open line primitive — is
+  <em>supercover-rasterised</em>: any cell a wall segment crosses is material; cell
+  centres inside a closed unit are material. Tiles are HOLES: the flood stopping at one
+  IS the limiter-contact test — contact and vessel poke-through are the same escape
+  event in the same sweep. This deliberately REVERSES the earlier EFIT-zlimit transplant
+  ("mark tiles as boundary, not holes"): zlimit's no-holes rule protects EFIT's
+  merge-tree, which spans the whole domain and breaks when the divertor fragments — a
+  classify-first constraint that does not transfer to a flood-fill that only ever grows
+  the axis-connected component (whatever a hole disconnects is never flooded, never
+  queried). And the raster MUST carry the tiles: ψ_bnd is unknown during the push-out,
+  so geometric contact is the only available in-sweep stopping test, and
+  reachability-from-the-flood — which excludes private-flux plate nodes (ψ_N &lt; 1!)
+  and shadowed far-side limiters from the wall-flux min — is only correct if the flood
+  stops at tiles.</li>
+  <li><strong>Wall-node flux = part of the solve (the influence-matrix string).</strong>
+  Per campaign, sample every unit's surface at ~Δ/2 arc spacing and build
+  <code>g_wall</code> — (coils + plasma cells) → wall nodes — beside the existing
+  <code>g_edge</code> in the campaign cache, with the <code>hybrid_greens</code>
+  finite-area kernel (wall nodes are near-field to edge plasma cells; the far-field
+  point-filament shortcut that is fine for <code>g_edge</code> does not hold at the
+  wall). Per solve, ψ_wall is one GEMM: exact at the nodes (no O(Δ²·∂²ψ) bilerp floor,
+  which is largest exactly at a tangency where the plasma leans), linear hence
+  differentiable, batched trivially. The tangency read becomes u_wall = min over
+  REACHABLE nodes of exact node flux; binding = confined-most of {wall tangency,
+  X-saddle}, unchanged from §3. Geometry decides WHICH surfaces count; flux decides
+  WHERE the binding sits.</li>
+  <li><strong>Thin limiters.</strong> Supercover guarantees a ≥1-cell obstacle for
+  arbitrarily thin blades; the ≤1-cell thickening biases only the coarse bracket
+  (s_flood), while ψ_bnd is re-read sub-grid from exact reachable-node flux — no
+  thickening error in the binding. Near-degenerate ties (two units tangent within one
+  cell-flux of each other) put both surfaces in the reachable set and the node min
+  resolves them. <code>xpoint_candidates</code> tolerates a one-cell dilation near
+  material so a binding saddle beside a tile is not masked out.</li>
+  <li><strong>Loud diagnostics, not errors.</strong> At the cached campaign build:
+  WARN per unit whose interior cell set is empty (supercover-only ⇒ thinner than the
+  grid; report a 2·Area/Perimeter thickness proxy vs Δ), and per unit pair whose
+  polygons are disjoint but raster sets adjacent (sub-cell gap fused by the raster).
+  Warning not error — the binding flux never comes from the raster, and erroring would
+  reject AUG-class thin heat shields at standard campaign grids (the target machine
+  class). ONE hard error, per solve: the flood seed (axis cell) lands in material.</li>
+  </ul>
+  <p>Gates T-D1..T-D4: correct boundary on synthetic single-loop / multi-polygon /
+  thin-tile (t &lt; Δ — the warning fires AND ψ_bnd still lands on the true surface
+  flux) / time-varying walls, limited AND diverted; <code>g_wall</code> matches the
+  synthetic field at the nodes to solver precision with no held-out-MAST-36 regression
+  on the bilerp→g_wall swap; the real imas-efit AUG 29-unit geometry (machine
+  description only — no EFIT reconstruction outputs cross the firewall) rasterises with
+  no special-casing and binds a synthetic field on the correct unit. Stop rule: any
+  wall that needs a code branch rather than different data STOPS the rung.</p>
 
   <h2 id="s5">§5 — Differentiable + adversarial-topology robustness</h2>
   <p>Make the read differentiable (smooth/sigmoid core mask, soft level) for the
@@ -198,6 +241,22 @@
       <button class="r-opt" data-value="single-loop">A single closed limiter loop (current MAST assumption)</button>
       </p>
     <p class="r-dec-rat">Locked (2026-07-20): the ONLY machine-specific input to the connectivity read is the wall mask, so multiple discrete limiters and movable limiters are a union / per-pulse mask, not new code paths — the machine-agnostic North Star. A classify-first pipeline is where limiter/strike logic becomes machine-specific; designing the mask abstraction in from the start (green-field) keeps the read machine-agnostic.</p>
+    </div>
+<div class="r-dec" data-key="mask-semantics" data-choice="tiles-as-holes" data-by="lead" data-when="2026-07-20">
+    <p class="r-dec-q">Do interior tiles/limiters excise cells from the raster mask (holes), or is the flux-occupiable domain kept whole?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="tiles-as-holes">Tiles are HOLES — occupiable = inside vessel AND NOT material; every unit (closed tile or open line) supercover-rasterised (any cell a wall segment crosses is material), so limiter contact = poke-through: ONE escape test, one code path.</button>
+      <button class="r-opt" data-value="domain-whole">Keep the flux-occupiable domain whole (EFIT zlimit rule): tiles marked as boundary points only, never excised from the raster.</button>
+      </p>
+    <p class="r-dec-rat">Locked by the lead (2026-07-20), REVERSING the plan&#x27;s earlier EFIT transplant: zlimit&#x27;s no-holes rule protects EFIT&#x27;s merge-tree, which spans the whole domain and breaks when the divertor fragments — a classify-first constraint that does not transfer. The flood-fill only ever grows the axis-connected component; whatever a hole disconnects is never flooded or queried. Holes are the natural encoding: limiter contact and vessel poke-through become the SAME escape event in the sweep. Decisive: ψ_bnd is unknown during the push-out, so geometric contact is the only available in-sweep stopping test — a tile can only stop the push by being material in the raster; and reachability-from-the-flood (which excludes private-flux plate nodes at ψ_N&lt;1 and shadowed far-side limiters from the wall-flux min) is only correct if the flood stops at tiles.</p>
+    </div>
+<div class="r-dec" data-key="wall-flux-source" data-choice="campaign-greens" data-by="lead" data-when="2026-07-20">
+    <p class="r-dec-q">Where does the wall-surface flux for the sub-grid tangency come from?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="campaign-greens">Per-campaign Green&#x27;s influence matrix g_wall: (coils + plasma cells) → wall nodes sampled commensurate with the grid (~Δ/2 arc spacing), hybrid_greens finite-area kernel; ψ_wall = one GEMM per solve — exact, no grid interpolation, differentiable.</button>
+      <button class="r-opt" data-value="grid-bilerp">Bilinear interpolation of the gridded ψ at densified wall polygon points (the §2/§3 shipped read).</button>
+      </p>
+    <p class="r-dec-rat">Locked by the lead (2026-07-20): compute the wall flux as part of the per-campaign solve machinery (the NOVA influence-matrix construction — currents → flux on a string of wall nodes), not as a topology-read afterthought. Bilinear off the grid carries an O(Δ²·∂²ψ) error largest exactly at a tangency, where the plasma leans and flux curvature peaks; the Green&#x27;s evaluation at the node is exact given the current model. Node spacing commensurate with the grid (~Δ/2) — finer buys nothing, the gridded current model bounds sub-grid flux structure anyway. Must use the hybrid_greens finite-area kernel: wall nodes are NEAR-field to edge plasma cells, unlike g_edge whose far-field point-filament assumption does not hold at the wall. Slots into the landed campaign grid/matrix cache beside g_edge.</p>
     </div>
 </section>
 
@@ -424,7 +483,7 @@ Done-when
   2. Plan updated same-session: §3 outcome recorded + collapsed; §4 (machine-agnostic wall mask) followup queued WITH pre-declared gates; this followup resolved.</pre>
     <p class="r-fu-outcome">§3 landed + collapsed (commits b6a92a3 stencil module + tests, 6d5b6e3 unified binding + gate + figures + artifact; docs this session). Ported nova stencils to imas_ambix/latent/stencil_nulls.py (whole-grid Kuijper 8-ring sign-change classifier — 0→O, 4→X — + biquadratic subnull; fixed-shape, differentiable) and wired into connectivity_boundary.py. The §2 limited/diverted size-ratio SWITCH is REMOVED: binding = confined-most of {sub-grid wall tangency, sub-grid X-point saddle flux}. Same-flux spurious nulls rejected by inside-wall + flood-rejoin-band + min-axis-distance guards (per lead). On 36 held-out MAST slices all six gates PASS: T-C1 axis vs host magnetic_axis 0.016cm median (p90 0.029), jax.grad finite+nonzero; T-C2 X-point 0.067cm median (p90 0.097), diverted class 97.2% (35/36 — the 1 miss's boundary still reproduced, class never feeds ψ_N); T-C3 unified binding closes diverted ψ_bnd +0.43%/0.46cm → −0.02%/0.078cm, no limited regression (0.062cm), both classes on y=x. T-B1/B2/B3 unchanged (radii 0.068cm overall; ran on cuda:0, vmap 7.4ms/slice vs 44ms looped; no contourpy/ndimage/argwhere). Record: connectivity-topology-reader-s3-landed.html; findings §7 updated.</p>
     </article>
-<article class="r-fu" data-id="f-ctr-05" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T21:30:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §4" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ctr-05" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T21:30:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §4" data-resolved-at="2026-07-20T21:17:56+00:00" data-resolved-by="lead + reckon-edit">
     <h4 class="r-fu-title">Ship §4 — machine-agnostic wall mask (single / multiple / movable limiters)</h4>
     <div class="r-fu-body"><p>§2+§3 landed the full topology read (boundary + sub-grid axis/X, all gates PASS) on the MAST single-loop wall, which already enters ONLY as a raster boolean mask (<code>inside_limiter</code>). §4 proves the machine-agnostic claim: the read takes an arbitrary raster wall MASK — a single closed loop (MAST), a union of discrete limiter polygons (AUG), or a per-pulse/movable mask (WEST) — as data, not code. This is where a classify-first pipeline becomes machine-specific (limiter-contact search, strike-point logic); the connectivity read needs only the mask. Implement the mask as a raster boolean grid (union of all limiter units rasterised) — strictly more general than a polygon-composite/convex-hull: it natively handles disconnected tiles and non-simply-connected walls, rebuilds cheaply per pulse, and admits a soft/smoothed differentiable form. Heed EFIT's own lesson (zlimit.f90): do NOT excise interior tile material from the flux-occupiable domain — mark tiles as boundary, not holes.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -479,6 +538,93 @@ Done-when
      honestly; artifact + figures committed.
   2. Plan updated same-session: §4 outcome recorded + collapsed; §5 (differentiable +
      adversarial-topology robustness) followup queued WITH pre-declared gates; this followup resolved.</pre>
+    <p class="r-fu-outcome">Superseded by f-ctr-06 — the lead corrected the mask semantics before dispatch. The EFIT zlimit 'tiles as boundary, not holes' rule this followup carried is a merge-tree constraint that does not transfer to a flood-fill read: tiles ARE holes (supercover raster; contact = poke-through, the same escape event), and the wall-surface flux comes from a per-campaign Green's matrix (g_wall, hybrid_greens near-field kernel, nodes ~Δ/2) instead of grid bilerp — ψ_bnd is unknown during the push-out so geometric contact is the only in-sweep stopping test, and reachability (which excludes private-flux plate nodes) is only correct if the flood stops at tiles. See decisions mask-semantics + wall-flux-source and the rewritten §4.</p>
+    </article>
+<article class="r-fu" data-id="f-ctr-06" data-status="open" data-tier="opus" data-written-by="lead + reckon-edit" data-written-at="2026-07-20T22:45:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Ship §4 — machine-agnostic wall: tiles-as-holes supercover mask + campaign wall-flux Green&#x27;s (g_wall)</h4>
+    <div class="r-fu-body"><p>§2+§3 landed the full topology read (boundary + sub-grid axis/X, unified binding, all gates PASS) on the MAST single-loop wall. §4 proves the machine-agnostic claim on the CORRECTED semantics (decisions <code>mask-semantics</code>, <code>wall-flux-source</code>): occupiable = inside vessel AND NOT material — every unit (closed tile or open line) supercover-rasterised as HOLES, so limiter contact and vessel poke-through are the same escape event; wall-surface flux from a per-campaign Green's influence matrix <code>g_wall</code> (hybrid_greens near-field kernel, nodes ~Δ/2) replacing grid bilerp; per-campaign loud thin-tile / gap-merge diagnostics (warning, not error — binding flux never comes from the raster); one per-solve hard error when the flood seed lands in material. We are NOT rebuilding EFIT: no zlimit topology discriminator, no convex hulls, no contact search — rasterise every unit, flood, read.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    connectivity-topology-reader (http://localhost:8765/imas-ambix/connectivity-topology-reader.html)
+Section: §4 (machine-agnostic wall — tiles-as-holes supercover mask + campaign wall-flux Green&#x27;s)
+Tier:    opus
+
+Context
+  §2+§3 shipped the GPU-native connectivity read (boundary + classify-after sub-grid axis/X,
+  unified binding = confined-most of {sub-grid wall tangency, sub-grid X-point saddle}); all
+  six gates PASS on 36 held-out MAST slices, on cuda:0. §4 generalises the wall on the
+  CORRECTED semantics (decisions mask-semantics + wall-flux-source — honour them and the
+  other locked decisions shown live above): tiles are HOLES in the raster, and the wall
+  tangency flux comes from a per-campaign Green&#x27;s matrix, not grid bilerp. We are NOT
+  rebuilding EFIT: no stationary-point-first logic, no contour tree, no zlimit topology
+  discriminator, no convex hulls — rasterise every unit, flood, read.
+
+State to read (CODE / FILES / DATA)
+  imas_ambix/latent/connectivity_boundary.py   (the read: inside_limiter mask, _densify_wall, sub-grid wall tangency via _bilerp — the bilerp to replace)
+  imas_ambix/latent/gs_solve.py                (EquilibriumGrid: _inside_polygon mask build to generalise; g_edge — the existing per-campaign Green&#x27;s matrix g_wall mirrors; hybrid_greens kernel)
+  imas_ambix/latent/stencil_nulls.py           (xpoint_candidates ANDs inside_limiter — needs the one-cell dilation tolerance near material)
+  scripts/connectivity_boundary_gate_eval.py   (the gate + synthetic _sweep_field to extend)
+  ~/Code/imas-efit/tests/AUG + ~/Code/imas-efit/output/wall_profiles/  (real AUG 29-unit wall GEOMETRY for the multi-limiter fixture — machine description only; NO EFIT reconstruction outputs cross the firewall)
+
+Scope locks / constraints (non-decision)
+  - Mask semantics (locked): occupiable = inside vessel AND NOT material. Every wall unit —
+    closed tile or open line primitive — is SUPERCOVER-rasterised: any cell a wall segment
+    crosses is material; cells whose centres lie inside a closed unit are material. Contact
+    = poke-through: ONE escape test, one code path, no limiter-contact search, no
+    strike-point logic, no per-machine branch, no topology-A/B discrimination.
+  - Wall flux (locked): per-campaign g_wall influence matrix (coils + plasma cells → wall
+    nodes; hybrid_greens finite-area kernel — wall nodes are NEAR-field to edge plasma
+    cells), nodes sampled per unit at ~Δ/2 arc spacing; ψ_wall = one GEMM per solve, exact,
+    differentiable. Replaces _bilerp at wall points in the tangency read; u_wall = min over
+    REACHABLE nodes (reachability from the flood, as shipped) of the exact node flux.
+  - Thin limiters: supercover guarantees a ≥1-cell obstacle for arbitrarily thin blades.
+    The ≤1-cell thickening biases ONLY the coarse bracket (s_flood); the binding flux is
+    re-read sub-grid from exact reachable-node flux, so ψ_bnd carries no thickening error.
+    xpoint_candidates must tolerate a one-cell dilation near material (a binding saddle
+    within a cell of a tile must not be masked out).
+  - Per-campaign LOUD diagnostics at the mask/matrix build (cached step): per unit, if its
+    interior cell set is EMPTY (supercover-only ⇒ thinner than the grid), emit a structured
+    WARNING (unit index, 2·Area/Perimeter thickness proxy, grid Δ); per unit PAIR, if the
+    polygons are disjoint but the raster sets are adjacent, WARN that the sub-cell gap is
+    fused. Warning NOT error — the binding flux never comes from the raster, and erroring
+    would reject AUG-class thin heat shields at standard campaign grids (the target machine
+    class). ONE hard error, per solve: the flood seed (axis cell) lands in material.
+  - Keep fixed-shape / jit / vmap / grad-safe; the mask stays a fixed (nz,nr) boolean
+    admitting the §5 soft form. A movable wall (WEST) = per-pulse mask + nodes + g_wall rows
+    rebuilt through the campaign cache — data, not code (WEST full solve also needs the iron
+    core model — out of scope, geometry fixture only). Firewall unchanged: physics +
+    measured channels only; machine wall GEOMETRY is machine description, allowed.
+  - Figures mandatory (docs/figures/connectivity-topology-reader/): boundary overlays on
+    synthetic single-loop, two-discrete-limiter, THIN-TILE (t &lt; Δ, warning firing), and
+    time-varying-wall cases (limited AND diverted each), plus the real AUG 29-unit wall
+    rasterised with a synthetic flux field; imas-ink where the data is a cross-section.
+  - Commit+push each coherent change on main; no AI co-author trailers
+    (verify: git log -1 --format=%B | grep -Eqi &quot;^co-authored-by:&quot;).
+
+Gates (pre-declared)
+  T-D1 (multi-wall): the boundary read reproduces the intended LCFS on synthetic single-loop,
+       multi-polygon, and time-varying-wall cases, limited AND diverted, wall supplied as
+       data (unit polygons → supercover raster + nodes), not code; the tangency reads the
+       true contact on the multi-unit wall.
+  T-D2 (thin tile): a synthetic blade with t &lt; Δ (e.g. Δ/3) binds a limited plasma correctly:
+       the thin-tile warning FIRES and ψ_bnd still lands on the true surface flux (exact
+       node read) — raster thickness ≠ binding precision, demonstrated.
+  T-D3 (wall-flux exactness): g_wall node flux matches the analytic/synthetic field at the
+       nodes to solver precision (no O(Δ²) bilerp floor); on the held-out MAST 36, swapping
+       bilerp → g_wall does not regress ψ_bnd/radii.
+  T-D4 (real-wall raster): the AUG 29-unit geometry rasterises without special-casing (open
+       unit included), the diagnostics report its thin units, and a synthetic limited AND
+       diverted field on that wall binds on the correct unit.
+  Stop rule: if a multi-unit, thin, or movable wall needs a code branch (not just different
+       mask/node/matrix data), STOP and surface — the machine-agnostic claim is the whole
+       point. If g_wall cannot be built within the campaign-cache budget, STOP and surface
+       (do not silently fall back to bilerp).
+
+Done-when
+  1. Supercover rasteriser + g_wall campaign matrix + diagnostics committed; T-D1..T-D4
+     verdicts recorded honestly; artifact + figures committed.
+  2. Plan updated same-session: §4 outcome recorded + collapsed; §5 (differentiable +
+     adversarial-topology robustness) followup queued WITH pre-declared gates; this followup
+     resolved.</pre>
     </article>
 </section>
 
