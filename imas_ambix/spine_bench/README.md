@@ -34,16 +34,34 @@ when they agree (or the difference is explicit):
 
 Each metric is named, has a unit and an improvement direction, and a definition:
 
+Two solvers are benched each run: **`greens-matvec`** — the filament /
+single-interaction-matrix **dev spine** (analytic ψ = G·I, the pivot away from the
+gridded Δ\*; primary, the GPU target) — and **`grid-delstar`** — the gridded Δ\* solve,
+retained as the **baseline check** the dev spine is validated against. Every stamp also
+carries a **`device`** field (`cpu`/`gpu`) so CPU and GPU runs sit in one comparison.
+
 | Metric | Unit | Dir | Meaning |
 |---|---|---|---|
-| `solve_wall_ms_per_slice` | ms/slice | ↓ | median rich frozen-spine ladder solve wall (warmup-excluded) |
+| `solve_wall_ms_per_slice` | ms/slice | ↓ | median rich ladder solve wall (warmup-excluded) |
+| `end_to_end_ms_per_slice` | ms/slice | ↓ | full per-slice wall: disc-seed + K=2 scaffold + rich ladder |
 | `throughput_slices_per_core_s` | slice/(core·s) | ↑ | corpus-label-factory throughput proxy at OMP=1 |
-| `axis_reproduce_cm` | cm | ↓ | grid-free vs grid-GS magnetic-axis agreement |
-| `lcfs_reproduce_cm` | cm | ↓ | grid-free vs grid-GS LCFS-radii agreement |
-| `profile_reproduce_rms` | norm | ↓ | grid-free vs grid-GS jφ(ρ̂) agreement |
-| `fsa_d_roughness_nrho32/96` | norm | ↓ | roughness of d = g2·g3/ρ̂ (the §3 pathology) |
-| `fsa_d_roughness_resolution_slope` | Δ/Δlog2(nρ) | ↓ | >0 = worsens with resolution (the pathology) |
+| `latency_ms_p50` / `latency_ms_p99` | ms | ↓ | end-to-end per-slice latency (streaming-latency proxy) |
+| `axis_reproduce_cm` | cm | ↓ | dev-spine vs grid baseline-check magnetic-axis agreement |
+| `lcfs_reproduce_cm` | cm | ↓ | dev-spine vs grid baseline-check LCFS-radii agreement |
+| `profile_reproduce_rms` | norm | ↓ | dev-spine vs grid baseline-check jφ(ρ̂) agreement |
+| `fsa_d_roughness_nrho32/96` | norm | ↓ | roughness of d = g2·g3/ρ̂ at n_rho 32 / 96 |
+| `fsa_d_roughness_resolution_slope` | Δ/Δlog2(nρ) | ↓ | >0 = worsens with resolution (the §3-claimed pathology) |
 | `converged_fraction` / `confined_fraction` | frac | ↑ | solve health |
+
+Run-level fields: `complete_run_wall_s`, `peak_rss_gb` (process peak RSS), and a
+per-shot per-substrate **`phase_timing_ms`** breakdown (`disc_read` / `scaffold_k2` /
+`rich_ladder` / `fsa_readout`) — the component attribution of where solve time goes.
+
+**Scope now = the per-slice STATIC solve** (the GPU inner-loop target). The
+dynamics-coupled label rollout (§3 resistive diffusion + passive circuits + temporal
+warm-start) is the label-factory throughput — a distinct mode to add before the corpus
+GPU run. Per-component / GPU-device memory is added with the GPU rollout; `peak_rss_gb`
+here is process-level.
 
 **FSA d-roughness** = `rms(2nd-difference of geo.d_face) / rms(d_face)` over interior
 faces — a dimensionless, resolution-comparable measure of the noise the resistive

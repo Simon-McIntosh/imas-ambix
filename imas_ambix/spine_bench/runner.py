@@ -150,7 +150,6 @@ def run_stamp(
         SUBSTRATE_GRID,
         EquilibriumGrid,
     )
-    from scripts.greens_filament_gate_eval import _profile, _solve_arm
     from scripts.heldout_mse_gate_eval import _campaign_table, shot_bt0
     from scripts.position_controlled_solve_gate import _disc_seed_flat
     from scripts.spine_label_factory import factory_shot_payloads, frozen_spine_config
@@ -171,6 +170,23 @@ def run_stamp(
         sigma=sigma,
     )
 
+    import resource
+    import time
+
+    from scripts.greens_filament_gate_eval import (
+        _axis_cm,
+        _fit_slice,
+        _lcfs_cm,
+        _profile,
+        _profile_rms,
+    )
+
+    def _fit(g, sub, p, centroid, warm, **kw):
+        return _fit_slice(
+            g, tbl, basis, p, substrate=sub, warm=warm, centroid=centroid, **kw
+        )
+
+    run_t0 = time.perf_counter()
     stamps: list[ShotStamp] = []
     for bs in shotset:
         shot = int(bs.shot_id)
@@ -189,59 +205,90 @@ def run_stamp(
         sig = tbl.signature.key if hasattr(tbl, "signature") else ""
         order = np.argsort([p.time_s for p in payload["payloads"]])
 
-        # per-substrate accumulators
-        acc = {
-            SUBSTRATE_GRID: {"dt": [], "fits": [], "conf": [], "conv": [], "rough": []},
-            SUBSTRATE_GREENS: {
-                "dt": [],
+        # per-substrate accumulators (phase timing + e2e latency + quality)
+        def _acc():
+            return {
                 "fits": [],
                 "conf": [],
                 "conv": [],
                 "rough": [],
-            },
-        }
+                "e2e": [],
+                "ph_disc": [],
+                "ph_scaffold": [],
+                "ph_rich": [],
+                "ph_fsa": [],
+            }
+
+        acc = {SUBSTRATE_GRID: _acc(), SUBSTRATE_GREENS: _acc()}
         grids = {SUBSTRATE_GRID: grid_gs, SUBSTRATE_GREENS: grid_free}
         for pos, k in enumerate(order):
             p = payload["payloads"][int(k)]
-            inv = disc_read(p, grid_gs, tbl, basis)
+            t = time.perf_counter()
+            inv = disc_read(p, grid_gs, tbl, basis)  # substrate-independent seed
+            t_disc = time.perf_counter() - t
             if inv is None or inv.ring is None:
                 continue
             centroid = (float(inv.centroid_r), float(inv.centroid_z))
             disc_seed = _disc_seed_flat(grid_gs, inv)
             for sub in (SUBSTRATE_GRID, SUBSTRATE_GREENS):
-                fit, dt = _solve_arm(
-                    grids[sub],
+                g = grids[sub]
+                # phase 1: K=2 position scaffold
+                t = time.perf_counter()
+                f_k2 = _fit(
+                    g,
                     sub,
-                    None,
                     p,
                     centroid,
                     disc_seed,
-                    tbl,
-                    basis,
-                    **spine_kw,
+                    n_p=1,
+                    n_f=1,
+                    nonneg=False,
+                    smoothness=smoothness,
+                    boundary_read=boundary_read,
+                    sigma=sigma,
                 )
+                t_scaffold = time.perf_counter() - t
+                k2_ok = (
+                    f_k2.scored
+                    and f_k2.jphi_flat is not None
+                    and np.isfinite(f_k2.target[0])
+                    and f_k2.target[0] <= CONFINED_AXIS_R_MAX
+                )
+                seed = f_k2.jphi_flat if k2_ok else disc_seed
+                # phase 2: rich non-negative ladder (the readout equilibrium)
+                t = time.perf_counter()
+                fit = _fit(g, sub, p, centroid, seed, **spine_kw)
+                t_rich = time.perf_counter() - t
+                # phase 3: FSA readout (timed as a component)
+                t = time.perf_counter()
+                rough = (
+                    _fsa_roughness_sweep(fit, g, bt0, n_p=n_p, n_f=n_f, nonneg=nonneg)
+                    if fit.scored
+                    else {}
+                )
+                t_fsa = time.perf_counter() - t
+
                 a = acc[sub]
                 a["fits"].append((int(k), fit))
                 if pos > 0:  # discard each shot's first slice as timing warmup
-                    a["dt"].append(dt)
+                    a["ph_disc"].append(t_disc * 1e3)
+                    a["ph_scaffold"].append(t_scaffold * 1e3)
+                    a["ph_rich"].append(t_rich * 1e3)
+                    a["ph_fsa"].append(t_fsa * 1e3)
+                    a["e2e"].append((t_disc + t_scaffold + t_rich) * 1e3)
                 if fit.scored:
                     a["conv"].append(1.0)
                     cr = float(fit.target[0]) if np.isfinite(fit.target[0]) else 1e9
                     a["conf"].append(1.0 if cr <= CONFINED_AXIS_R_MAX else 0.0)
-                    rough = _fsa_roughness_sweep(
-                        fit, grids[sub], bt0, n_p=n_p, n_f=n_f, nonneg=nonneg
-                    )
                     if rough:
                         a["rough"].append(rough)
                 else:
                     a["conv"].append(0.0)
 
-        # reproduction (grid-free vs grid-GS) per slice
-        gs_by_k = {k: f for k, f in acc[SUBSTRATE_GRID]["fits"]}
-        fr_by_k = {k: f for k, f in acc[SUBSTRATE_GREENS]["fits"]}
+        # reproduction: the greens-matvec DEV SPINE vs the grid-Δ* baseline check
+        gs_by_k = dict(acc[SUBSTRATE_GRID]["fits"])
+        fr_by_k = dict(acc[SUBSTRATE_GREENS]["fits"])
         axis_cm, lcfs_cm, prof_rms = [], [], []
-        from scripts.greens_filament_gate_eval import _axis_cm, _lcfs_cm, _profile_rms
-
         for k in gs_by_k:
             fg, ff = gs_by_k[k], fr_by_k.get(k)
             if ff is None or not (fg.scored and ff.scored):
@@ -254,27 +301,25 @@ def run_stamp(
 
         for sub in (SUBSTRATE_GRID, SUBSTRATE_GREENS):
             a = acc[sub]
-            n_att = len(a["fits"])
-            n_scored = int(sum(a["conv"]))
-            wall_ms = [d * 1e3 for d in a["dt"]]
             metrics: dict[str, float] = {}
-            if wall_ms:
-                metrics["solve_wall_ms_per_slice"] = float(np.median(wall_ms))
-                metrics["throughput_slices_per_core_s"] = float(
-                    1000.0 / np.median(wall_ms)
-                )
+            if a["ph_rich"]:
+                rich_med = float(np.median(a["ph_rich"]))
+                metrics["solve_wall_ms_per_slice"] = rich_med
+                metrics["throughput_slices_per_core_s"] = 1000.0 / rich_med
+            if a["e2e"]:
+                metrics["end_to_end_ms_per_slice"] = float(np.median(a["e2e"]))
+                metrics["latency_ms_p50"] = float(np.percentile(a["e2e"], 50))
+                metrics["latency_ms_p99"] = float(np.percentile(a["e2e"], 99))
             if a["conv"]:
                 metrics["converged_fraction"] = float(np.mean(a["conv"]))
             if a["conf"]:
                 metrics["confined_fraction"] = float(np.mean(a["conf"]))
-            # FSA roughness: median over slices, per n_rho + slope
             r32 = _median([r.get(32, np.nan) for r in a["rough"]])
             r96 = _median([r.get(96, np.nan) for r in a["rough"]])
             if np.isfinite(r32):
                 metrics["fsa_d_roughness_nrho32"] = r32
             if np.isfinite(r96):
                 metrics["fsa_d_roughness_nrho96"] = r96
-            # slope of median-roughness vs log2(n_rho)
             xs, ys = [], []
             for nr in _NRHO_SWEEP:
                 med = _median([r.get(nr, np.nan) for r in a["rough"]])
@@ -285,24 +330,30 @@ def run_stamp(
                 metrics["fsa_d_roughness_resolution_slope"] = float(
                     np.polyfit(xs, ys, 1)[0]
                 )
-            # reproduction only meaningful on the grid-free arm (vs grid-GS ref)
-            if sub == SUBSTRATE_GREENS:
+            if sub == SUBSTRATE_GREENS:  # dev-spine vs the grid baseline check
                 if axis_cm:
                     metrics["axis_reproduce_cm"] = _median(axis_cm)
                 if lcfs_cm:
                     metrics["lcfs_reproduce_cm"] = _median(lcfs_cm)
                 if prof_rms:
                     metrics["profile_reproduce_rms"] = _median(prof_rms)
+            phase = {
+                "disc_read": _median(a["ph_disc"]),
+                "scaffold_k2": _median(a["ph_scaffold"]),
+                "rich_ladder": _median(a["ph_rich"]),
+                "fsa_readout": _median(a["ph_fsa"]),
+            }
             stamps.append(
                 ShotStamp(
                     shot_id=shot,
                     role=bs.role,
                     campaign_signature=sig,
                     substrate=sub,
-                    n_slices_attempted=n_att,
-                    n_slices_scored=n_scored,
-                    timing_n_repeat=len(wall_ms),
+                    n_slices_attempted=len(a["fits"]),
+                    n_slices_scored=int(sum(a["conv"])),
+                    timing_n_repeat=len(a["e2e"]),
                     metrics=metrics,
+                    phase_timing_ms={k: v for k, v in phase.items() if np.isfinite(v)},
                 )
             )
 
@@ -317,26 +368,38 @@ def run_stamp(
             for k in sorted(keys)
         }
 
+    peak_rss_gb = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6, 2)
+    env = _env_info("closure-spine-D2", spine_sha)
     return SpineBenchmarkStamp(
         schema_version=SCHEMA_VERSION,
         shotset_version=SHOTSET_VERSION,
         created_utc=created_utc,
+        complete_run_wall_s=round(time.perf_counter() - run_t0, 2),
+        peak_rss_gb=peak_rss_gb,
         machine=_machine_info(),
-        env=_env_info("closure-spine-D2", spine_sha),
+        env=env,
         shots=stamps,
         aggregate=agg,
         notes=[
-            "Perf timing at OMP=1 (set OMP_NUM_THREADS=1); per-shot first slice "
-            "discarded as warmup.",
-            "Reproduction metrics (axis/lcfs/profile) are grid-free vs grid-GS on the "
-            "same slice; recorded on the greens-matvec substrate row.",
-            "FSA d-roughness = rms(2nd-diff of d_face)/rms(d_face), interior faces.",
-            "RECONCILE: the greens-filament-solver §3 plan cites a cell-binned "
-            "d-roughness ~0.5 worsening 0.45→0.72 with n_rho; measured here on the "
-            "current CONTOUR-INTEGRATED geo.d_face the slope is ≤0 (improves with "
-            "resolution) — no committed diagnostic backs the plan's number, so §3 "
-            "should re-baseline roughness against this metric before claiming a fix.",
-            "Held-out-MSE pitch is tracked separately (heldout_mse_gate_eval).",
+            "greens-matvec = the FILAMENT / single-interaction-matrix DEV SPINE "
+            "(primary, GPU target); grid-delstar = the gridded delta* solve, "
+            "retained as a baseline CHECK.",
+            "Perf at OMP=1; per-shot first slice discarded as warmup. solve_wall = "
+            "the rich ladder only; end_to_end/latency = disc-seed + K=2 scaffold "
+            "+ rich ladder.",
+            "Reproduction (axis/lcfs/profile) validates the greens-matvec dev spine "
+            "against the grid-delta* baseline check on the same slice (greens row).",
+            "bench_scope = per-slice STATIC solve (the GPU inner-loop target); the "
+            "dynamics-coupled label rollout (diffusion + passive + temporal "
+            "warm-start) is a distinct mode to add before the corpus GPU run.",
+            "FSA d-roughness = rms(2nd-diff of d_face)/rms(d_face), interior faces. "
+            "RECONCILE: the greens-filament-solver s3 plan cites a cell-binned "
+            "d-roughness ~0.5 worsening 0.45->0.72 with n_rho; on the current "
+            "CONTOUR-INTEGRATED geo.d_face the slope measured here is <=0 — no "
+            "committed diagnostic backs the plan's number, so s3 should re-baseline.",
+            "Per-component / GPU-device memory is added with the GPU rollout; "
+            "peak_rss_gb here is process-level. Held-out-MSE pitch is tracked "
+            "separately (heldout_mse_gate_eval).",
         ],
     )
 

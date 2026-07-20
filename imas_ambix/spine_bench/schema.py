@@ -12,7 +12,10 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 #: Bump when the record shape or a metric definition changes (never silently).
-SCHEMA_VERSION = "spine-bench/1.0"
+#: 1.1 added the ``device`` dimension, phase timing, peak-RSS memory, end-to-end
+#: latency percentiles, and the complete-run wall — the GPU-vs-CPU throughput/latency
+#: story lives in these.
+SCHEMA_VERSION = "spine-bench/1.1"
 
 
 class Metric(BaseModel):
@@ -42,7 +45,39 @@ METRICS: dict[str, Metric] = {
             unit="slice/(core·s)",
             direction="higher_better",
             description="Slices solved per single-core second (1/solve_wall at "
-            "OMP=1) — the corpus-label-factory throughput proxy.",
+            "OMP=1) — the corpus-label-factory throughput proxy. Report the GPU "
+            "aggregate (slices/s over all cards) against this CPU per-core figure.",
+        ),
+        Metric(
+            name="end_to_end_ms_per_slice",
+            unit="ms/slice",
+            direction="lower_better",
+            description="Median COMPLETE per-slice equilibrium wall: disc-read seed "
+            "+ K=2 scaffold + rich ladder (not just the rich solve). The full cost "
+            "of producing one labelled equilibrium.",
+        ),
+        Metric(
+            name="latency_ms_p50",
+            unit="ms",
+            direction="lower_better",
+            description="Median end-to-end per-slice wall — the streaming-latency "
+            "proxy (true in-pulse stream latency = window-fill + solve + emit, "
+            "measured by the gpu-accelerated-labeler in-pulse rung).",
+        ),
+        Metric(
+            name="latency_ms_p99",
+            unit="ms",
+            direction="lower_better",
+            description="p99 of the end-to-end per-slice wall — the tail latency "
+            "a real-time control-room budget must clear.",
+        ),
+        Metric(
+            name="peak_rss_gb",
+            unit="GB",
+            direction="lower_better",
+            description="Peak process resident set size over the whole benchmark "
+            "run (ru_maxrss). Process-level; per-component / GPU-device memory is "
+            "added with the GPU rollout (device memory tools).",
         ),
         # --- physics quality: substrate reproduction (grid-free vs grid-GS) ---
         Metric(
@@ -133,6 +168,19 @@ class EnvInfo(BaseModel):
     git_dirty: bool
     engine_config_name: str = ""
     engine_config_sha: str = ""
+    device: str = "cpu"  # 'cpu' | 'gpu' — the comparison axis GPU stamps set to 'gpu'
+    backend: str = "numpy-scipy"  # 'numpy-scipy' | 'jax-cpu' | 'jax-gpu'
+    #: The solvers benched. PRIMARY = the filament / single-interaction-matrix solve
+    #: (greens-matvec: analytic ψ = G·I, the pivot away from the gridded Δ*), our most
+    #: technically-able solver and the GPU target. BASELINE CHECK = the gridded Δ* solve
+    #: (grid-delstar), retained as the trusted numerical reference the filament solve is
+    #: validated against — not the production target. Both at closure-spine-D2
+    #: (disc seed + R/Z centroid, rich non-negative K=3+3, smoothness ridge, pushout).
+    solver: str = (
+        "free-boundary GS ladder (solve_equilibrium_lsq @ closure-spine-D2); "
+        "PRIMARY = greens-matvec filament/single-matrix, "
+        "BASELINE-CHECK = grid-delstar delta*"
+    )
 
 
 class ShotStamp(BaseModel):
@@ -146,15 +194,26 @@ class ShotStamp(BaseModel):
     n_slices_scored: int = 0
     timing_n_repeat: int = 0
     metrics: dict[str, float] = Field(default_factory=dict)
+    #: Median per-phase wall [ms] — disc_read / scaffold_k2 / rich_ladder / fsa_readout;
+    #: the component breakdown that attributes where the solve time goes.
+    phase_timing_ms: dict[str, float] = Field(default_factory=dict)
 
 
 class SpineBenchmarkStamp(BaseModel):
-    """The full versioned benchmark record — one YAML file per (commit, machine)."""
+    """The full versioned benchmark record — one YAML per (commit, machine, device)."""
 
     schema_version: str = SCHEMA_VERSION
     shotset_version: str
     benchmark_name: str = "physics-spine"
     created_utc: str  # ISO-8601, stamped by the caller
+    #: What is timed. The per-slice static solve is the GPU inner-loop target; the
+    #: dynamics-coupled label rollout (§3 diffusion + passive + temporal warm-start)
+    #: is the label-factory throughput — a distinct mode, added before the corpus run.
+    bench_scope: str = (
+        "per-slice static free-boundary solve (K=2 scaffold + rich ladder)"
+    )
+    complete_run_wall_s: float = 0.0  # end-to-end wall of the whole benchmark run
+    peak_rss_gb: float = 0.0  # peak process RSS over the run (ru_maxrss); run-level
     machine: MachineInfo
     env: EnvInfo
     shots: list[ShotStamp] = Field(default_factory=list)
