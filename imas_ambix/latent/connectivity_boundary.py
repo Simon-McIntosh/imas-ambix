@@ -22,20 +22,23 @@ Method (the connectivity read, re-expressed on device):
   iterated 4-neighbour dilation (the shipped ``flood_fill_core`` device kernel)
   — the axis-connected component, never a disconnected pocket.
 
-* **The binding flux, read SUB-GRID on the wall.**  The connectivity binding is
-  the confined-most flux the axis-enclosing surface reaches on the wall — for a
-  LIMITED plasma the wall tangency, for a DIVERTED plasma the X-point saddle whose
-  separatrix strikes the wall (ψ_N = 1).  It is read as the MINIMUM interpolated
-  ψ_N over the wall boundary points, restricted to points reachable from the axis
-  region (a cell-level flood, dilated a few cells) so coil-perturbed or far-wall
-  points can never win.  This interpolates the actual wall crossing rather than
-  snapping to a grid cell — a single cell-level escape test is biased by the
-  sub-cell wall position (~one cell inward at a shallow tangency), and a two-sided
-  cell mean only half-corrects it.  A diverted plasma whose separatrix does NOT
-  strike the wall falls back to the cell-level flood binding (the monotone
-  valid→invalid connectivity level).  The divertor legs are open branches the
-  closed axis-region never floods, so the lobe — and the radii read off it — are
-  unaffected.
+* **The binding level, split by connectivity signature.**  A level is *valid*
+  while the axis region stays clear of the wall; each escape transition is the
+  largest valid level (monotone → coarse sweep + bisection).  ψ_bnd is read at
+  the MEAN of an inner escape test (region touches the innermost in-wall shell,
+  ~one cell inside) and an outer test (region dilation reaches a still-confined
+  out-of-wall/edge cell, ~one cell outside) — unbiased for an interior SADDLE
+  binding, so a DIVERTED separatrix (ψ_N = 1) is reproduced by the mean.  A
+  LIMITED wall tangency is refined SUB-GRID: the minimum interpolated ψ_N over
+  the wall boundary points adjacent to the axis region (the cell mean carries the
+  sub-cell wall-position error a tangency is sensitive to; the interpolated wall
+  crossing removes it).  Limited and diverted are told apart by the region SIZE
+  RATIO across the binding — a saddle opening merges the region with the SOL /
+  private flux and jumps the size, a tangency grows smoothly — so the sub-grid
+  wall read is applied only to limited plasmas (on a diverted plasma the nearest
+  wall sits outside the separatrix and a min-over-wall would overshoot).  The
+  divertor legs are open branches the closed axis-region never floods, so the
+  lobe — and the radii read off it — are unaffected.
 
 * **LCFS radii.**  Read at ψ_lcfs = ψ_axis + lcfs_norm·(ψ_bnd − ψ_axis) by a
   fixed outward ray-march from the axis at the evaluator's 8 poloidal angles —
@@ -225,52 +228,84 @@ def boundary_read_jax(
     wall_ring = _dilate4(outside) & inside_limiter
 
     # --- cell-level connectivity binding (the flood) --------------------------
-    # A level is valid while the axis region stays clear of the wall; the largest
-    # valid level is the connectivity-change (monotone → coarse sweep + bisection).
-    # This gives the SADDLE binding for a diverted plasma whose separatrix does not
-    # touch the wall, and a cell-level reference / reachability region otherwise.
+    # A level is valid while the axis region stays clear of the wall; it turns
+    # invalid the instant the region first reaches the wall.  Two escape tests
+    # bracket the transition from opposite sides — an INNER test (region touches
+    # the innermost in-wall shell, ~one cell inside) and an OUTER test (dilating
+    # the region reaches a still-confined out-of-wall/edge cell, ~one cell outside).
+    # Their mean is unbiased for an interior SADDLE binding (a diverted separatrix,
+    # ψ_N=1), where the brackets straddle the saddle symmetrically; a LIMITED wall
+    # tangency is then refined sub-grid below (the brackets straddle the wall, whose
+    # sub-cell position is not the mean's implicit half-cell).
     def _alive_region(s):
         region = flood_fill_core((u <= s) & inside_limiter, seed, n_iter)
         alive = region.reshape(-1)[seed_flat] > 0.5
         return region, alive
 
-    def valid_flood(s):
+    def valid_inner(s):
         region, alive = _alive_region(s)
         touch = jnp.sum(region * wall_ring.astype(region.dtype)) > 0.5
         return alive & (~touch)
 
+    def valid_outer(s):
+        region, alive = _alive_region(s)
+        reach = _dilate4(region > 0.5) & outside & (u <= s)
+        touch = jnp.sum(reach.astype(region.dtype)) > 0.5
+        return alive & (~touch)
+
     s_grid = jnp.linspace(0.0, 1.0, n_levels + 1)[1:]  # (n_levels,) in (0, 1]
     idxs = jnp.arange(n_levels)
-    vk = jax.vmap(valid_flood)(s_grid)
-    last = jnp.max(jnp.where(vk, idxs, -1))
-    found = last >= 0
-    lo0 = jnp.where(found, s_grid[jnp.clip(last, 0, n_levels - 1)], 0.0)
-    hi0 = jnp.where(
-        last < n_levels - 1, s_grid[jnp.clip(last + 1, 0, n_levels - 1)], 1.0
+
+    def _bracket(valid_fn):
+        vk = jax.vmap(valid_fn)(s_grid)
+        last = jnp.max(jnp.where(vk, idxs, -1))
+        lo0 = jnp.where(last >= 0, s_grid[jnp.clip(last, 0, n_levels - 1)], 0.0)
+        hi0 = jnp.where(
+            last < n_levels - 1, s_grid[jnp.clip(last + 1, 0, n_levels - 1)], 1.0
+        )
+        return last, lo0, hi0
+
+    def _refine(valid_fn, lo0, hi0):
+        def body(_i, carry):
+            lo, hi = carry
+            mid = 0.5 * (lo + hi)
+            v = valid_fn(mid)
+            return (jnp.where(v, mid, lo), jnp.where(v, hi, mid))
+
+        lo, _hi = jax.lax.fori_loop(0, n_bisect, body, (lo0, hi0))
+        return lo
+
+    last_in, lo_in, hi_in = _bracket(valid_inner)
+    _last_out, lo_out, hi_out = _bracket(valid_outer)
+    found = last_in >= 0
+    s_in = _refine(valid_inner, lo_in, hi_in)
+    s_out = _refine(valid_outer, lo_out, hi_out)
+    s_flood = 0.5 * (s_in + s_out)  # unbiased for an interior saddle (diverted)
+
+    # --- limited vs diverted by the connectivity-change signature --------------
+    # A LIMITED plasma's region grows SMOOTHLY through the binding (a flux surface
+    # goes tangent to the wall).  A DIVERTED plasma's region JUMPS in size at the
+    # binding — the X-point saddle opens and the axis region merges with the SOL /
+    # private-flux region.  The size ratio across the binding is that topology
+    # signal, and it separates the two cleanly (limited ≲ 1.3, diverted ≳ 1.4).
+    def _size(s):
+        return jnp.sum(flood_fill_core((u <= s) & inside_limiter, seed, n_iter))
+
+    size_ratio = _size(jnp.minimum(1.06 * s_flood, 0.999)) / jnp.maximum(
+        _size(0.92 * s_flood), 1.0
     )
+    is_limited = size_ratio < 1.35
 
-    def body(_i, carry):
-        lo, hi = carry
-        mid = 0.5 * (lo + hi)
-        v = valid_flood(mid)
-        return (jnp.where(v, mid, lo), jnp.where(v, hi, mid))
-
-    lo, _hi = jax.lax.fori_loop(0, n_bisect, body, (lo0, hi0))
-    s_flood = lo  # cell-level connectivity binding (biased ~1 cell at a wall contact)
-
-    # --- sub-grid wall binding (interpolated along the wall) -------------------
-    # The binding flux is, by definition, the confined-most flux the axis-enclosing
-    # surface reaches on the wall — for a limited plasma the wall tangency, for a
-    # diverted plasma the X-point saddle whose separatrix strikes the wall (ψ_N=1).
-    # Read it SUB-GRID as the minimum interpolated ψ_N over the wall boundary points,
-    # rather than the cell-level flood (which is off by the sub-cell wall position).
-    # Restrict to wall points reachable from the axis region (the region flooded at
-    # the flood level, dilated a few cells) so coil-perturbed or far-wall points can
-    # never win, and so a diverted saddle that does NOT strike the wall falls back to
-    # the flood level.
-    region_flood = flood_fill_core((u <= s_flood) & inside_limiter, seed, n_iter)
-    reach = region_flood > 0.5
-    for _ in range(3):  # unrolled (static) — reach ~3 cells past the region boundary
+    # --- sub-grid wall tangency (LIMITED only) ---------------------------------
+    # For a limited plasma the two-sided mean still carries the sub-cell wall-
+    # position error, so read the tangency flux SUB-GRID: the minimum interpolated
+    # ψ_N over the wall boundary points adjacent to the axis region (so coil-
+    # perturbed or far-wall points cannot win).  A diverted plasma keeps the
+    # interior-saddle mean — a min-over-wall would read its outboard wall approach,
+    # which sits OUTSIDE the separatrix, and overshoot.
+    region_at = flood_fill_core((u <= s_flood) & inside_limiter, seed, n_iter)
+    reach = region_at > 0.5
+    for _ in range(2):  # unrolled (static) — reach the wall polygon near the touch
         reach = _dilate4(reach)
     ar_idx = jnp.arange(nr, dtype=jnp.float64)
     az_idx = jnp.arange(nz, dtype=jnp.float64)
@@ -281,7 +316,7 @@ def boundary_read_jax(
         lambda r_, z_: (_bilerp(psi2d, rg, zg, r_, z_) - psi_axis) / span_safe
     )(wall_r, wall_z)
     u_wall = jnp.min(jnp.where(reachable, u_wall_pts, jnp.inf))
-    wall_binding = jnp.any(reachable) & jnp.isfinite(u_wall)
+    wall_binding = is_limited & jnp.any(reachable) & jnp.isfinite(u_wall)
     s_star = jnp.where(wall_binding, u_wall, s_flood)
 
     psi_bnd = psi_axis + s_star * span
