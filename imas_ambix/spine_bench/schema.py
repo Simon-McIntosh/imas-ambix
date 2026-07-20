@@ -14,8 +14,10 @@ from pydantic import BaseModel, Field
 #: Bump when the record shape or a metric definition changes (never silently).
 #: 1.1 added the ``device`` dimension, phase timing, peak-RSS memory, end-to-end
 #: latency percentiles, and the complete-run wall — the GPU-vs-CPU throughput/latency
-#: story lives in these.
-SCHEMA_VERSION = "spine-bench/1.1"
+#: story lives in these.  1.2 added the CONNECTIVITY (accelerator-native, contour-free
+#: JAX) flux-surface-averaging d-roughness alongside the host coarea baseline, so a
+#: single stamp compares the two FSA reads head-to-head (greens-filament-solver §3).
+SCHEMA_VERSION = "spine-bench/1.2"
 
 
 class Metric(BaseModel):
@@ -126,6 +128,30 @@ METRICS: dict[str, Metric] = {
             description="Slope of d-roughness vs log2(n_rho) over {16,32,64,96}; "
             "positive = degrades with resolution (the §3-claimed pathology), "
             "≤0 = stable/improving. Measured, not assumed.",
+        ),
+        # --- FSA integrity: CONNECTIVITY (accelerator-native, contour-free) read ---
+        Metric(
+            name="fsa_d_roughness_conn_nrho32",
+            unit="normalised",
+            direction="lower_better",
+            description="d = g2·g3/rho_hat roughness at n_rho=32 for the "
+            "CONNECTIVITY FSA — the contour-free, fixed-shape JAX kernel-coarea "
+            "read (flood-fill core + Gaussian surface averages, jit/vmap-safe). "
+            "Compare head-to-head with fsa_d_roughness_nrho32 (host coarea).",
+        ),
+        Metric(
+            name="fsa_d_roughness_conn_nrho96",
+            unit="normalised",
+            direction="lower_better",
+            description="Connectivity-FSA d-roughness at n_rho=96; compare to "
+            "conn_nrho32 for the resolution trend and to the coarea baseline.",
+        ),
+        Metric(
+            name="fsa_d_roughness_conn_resolution_slope",
+            unit="Δrough/Δlog2(n_rho)",
+            direction="lower_better",
+            description="Slope of the connectivity-FSA d-roughness vs log2(n_rho) "
+            "over {16,32,64,96}; ≤0 = resolution-stable (the §3 gate G2b).",
         ),
         # --- solve health ---
         Metric(

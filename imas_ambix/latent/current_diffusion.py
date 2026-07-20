@@ -376,6 +376,8 @@ def flux_surface_geometry(
     n_psin: int = 28,
     psin_min: float = 0.04,
     psin_max: float = 0.985,
+    fsa_mode: str = "coarea",
+    h_factor: float = 1.25,
 ) -> FluxSurfaceGeometry | None:
     """Contour-integrated 1D flux-surface metrics of one spine equilibrium.
 
@@ -385,6 +387,19 @@ def flux_surface_geometry(
     ρ̂ = √(Φ_tor/Φ_tor,b) and the F metric the diffusion needs.  Returns None
     when the core is too small to bin (tiny ramp-up plasmas) — the caller
     must skip the prior for that interval, never fabricate one.
+
+    ``fsa_mode`` selects how the geometric flux-surface averages (dV/dψ_N,
+    ⟨1/R²⟩, ⟨1/R⟩, ⟨|∇ψ|²/R²⟩) are computed — the only step that differs
+    between modes; the F / ρ̂ / ψ assembly is shared and identical.
+
+    * ``"coarea"`` (default): host-side coarea binning (``argsort`` +
+      cumulative-sum, differenced at ψ_N levels).  Byte-unchanged when off.
+    * ``"connectivity"``: the fixed-shape, contour-free, ``jit``/``vmap``-safe
+      JAX kernel-coarea average on the analytic ψ
+      (:func:`imas_ambix.latent.flux_surface_connectivity.flux_surface_bins`) —
+      accelerator-native, with a flood-fill core (no ``scipy.ndimage.label``)
+      and Gaussian-kernel surface averages (no sort).  ``h_factor`` scales the
+      kernel bandwidth in units of the ψ_N level spacing.
     """
     rec = reconstruct_profile_scales(
         psi2d, grid, ip_amperes, n_p=n_p, n_f=n_f, nonneg=nonneg
@@ -422,15 +437,12 @@ def flux_surface_geometry(
         dpsi_dpsin=span / _TWO_PI,
     )
 
-    # --- flux-surface metrics by CUMULATIVE VOLUME INTEGRALS (coarea form) ---
-    # ⟨X⟩(ψ) = d(∫_{<ψ} X dV)/dV and dV/dΦ = d(∫dV)/dΦ, evaluated by binning
-    # the core cells on ψ_N and differencing the cumulative sums.  Integrate-
-    # then-differentiate is numerically robust where ring line-integrals of
-    # 1/|∇Φ| are not (bilinear |∇Φ| degrades near stagnation regions —
-    # measured 36% dV/dΦ error at mid-radius on the test fixture); the
-    # surface identity q = |F|·⟨1/R²⟩·(dV/dΦ)/(2π) replaces the traced loop
-    # integral (the repo's canonical tracer, topology._axis_enclosing_ring,
-    # remains the boundary/LCFS instrument — nothing here re-implements it).
+    # --- flux-surface metrics ⟨X⟩(ψ_N) = d(∫_{<ψ} X dV)/dV, dV/dΦ = d(∫dV)/dΦ ---
+    # the surface identity q = |F|·⟨1/R²⟩·(dV/dΦ)/(2π) then replaces the traced
+    # loop integral (the repo's canonical tracer, topology._axis_enclosing_ring,
+    # remains the boundary/LCFS instrument — nothing here re-implements it).  The
+    # geometric averages are the ONLY step that differs between fsa_mode values;
+    # the core cells / order below feed the shared ψ→I initial condition.
     core_flat = rec["core"].ravel()
     cells_in = grid.cells[core_flat[grid.cells]]
     if cells_in.size < 200:  # tiny ramp-up plasma — too few cells to bin
@@ -440,33 +452,71 @@ def flux_surface_geometry(
     dphi_dz, dphi_dr = np.gradient(psi2d, grid.zg, grid.rg)
     grad2 = (dphi_dr**2 + dphi_dz**2).ravel()[cells_in]
     dvol = _TWO_PI * r_cells * grid.dr * grid.dz  # cell volume 2πR dA
-
-    order = np.argsort(pn_cells)
+    order = np.argsort(pn_cells)  # core-cell ψ_N order (the ψ→I initial condition)
     pn_sorted = pn_cells[order]
-    cum = {
-        "v": np.cumsum(dvol[order]),
-        "r2": np.cumsum((dvol / r_cells**2)[order]),
-        "ir": np.cumsum((dvol / r_cells)[order]),
-        "g2": np.cumsum((dvol * grad2 / r_cells**2)[order]),
-    }
-    levels = np.linspace(psin_min, min(psin_max, float(pn_sorted[-1])), n_psin + 1)
-    at = {k: np.interp(levels, pn_sorted, v, left=0.0) for k, v in cum.items()}
-    dv_lvl = np.diff(at["v"])
-    if np.any(dv_lvl <= 0):
-        return None
-    pn_s = 0.5 * (levels[:-1] + levels[1:])  # metric samples at mid-levels
-    dv_dpn_s = dv_lvl / np.diff(levels)
+
+    if fsa_mode == "coarea":
+        # host-side coarea binning: cumulative volume integrals differenced at
+        # ψ_N levels.  Integrate-then-differentiate is numerically robust where
+        # ring line-integrals of 1/|∇Φ| are not (bilinear |∇Φ| degrades near
+        # stagnation regions — measured 36% dV/dΦ error at mid-radius on the
+        # test fixture).
+        cum = {
+            "v": np.cumsum(dvol[order]),
+            "r2": np.cumsum((dvol / r_cells**2)[order]),
+            "ir": np.cumsum((dvol / r_cells)[order]),
+            "g2": np.cumsum((dvol * grad2 / r_cells**2)[order]),
+        }
+        levels = np.linspace(psin_min, min(psin_max, float(pn_sorted[-1])), n_psin + 1)
+        at = {k: np.interp(levels, pn_sorted, v, left=0.0) for k, v in cum.items()}
+        dv_lvl = np.diff(at["v"])
+        if np.any(dv_lvl <= 0):
+            return None
+        pn_s = 0.5 * (levels[:-1] + levels[1:])  # metric samples at mid-levels
+        dv_dpn_s = dv_lvl / np.diff(levels)
+        inv_r2_s = np.diff(at["r2"]) / dv_lvl  # ⟨1/R²⟩
+        inv_r_s = np.diff(at["ir"]) / dv_lvl  # ⟨1/R⟩
+        grad2_r2_s = np.diff(at["g2"]) / dv_lvl  # ⟨|∇Φ|²/R²⟩
+        v_s = 0.5 * (at["v"][:-1] + at["v"][1:])  # cumulative V at mid-levels
+        volume = float(dvol.sum())
+    elif fsa_mode == "connectivity":
+        # accelerator-native, contour-free flux-surface averages on the analytic
+        # ψ: a flood-fill core (no scipy.ndimage.label) + Gaussian kernel-coarea
+        # surface averages (no sort).  Fixed-shape, jit/vmap-safe — the device
+        # inner-loop kernel for the batched corpus labeller.  The KDE smoothing
+        # is intrinsic (no differencing of noisy cumulative sums).
+        from imas_ambix.latent.flux_surface_connectivity import (  # noqa: PLC0415
+            flux_surface_bins,
+        )
+
+        bins = flux_surface_bins(
+            psi2d,
+            grid,
+            axis_psi=axis_psi,
+            boundary_psi=boundary_psi,
+            psin_min=psin_min,
+            psin_max=psin_max,
+            n_psin=n_psin,
+            h_factor=h_factor,
+        )
+        if bins is None:
+            return None
+        pn_s = np.asarray(bins["pn_s"], dtype=np.float64)
+        dv_dpn_s = np.asarray(bins["dv_dpn"], dtype=np.float64)
+        inv_r2_s = np.asarray(bins["inv_r2"], dtype=np.float64)
+        inv_r_s = np.asarray(bins["inv_r"], dtype=np.float64)
+        grad2_r2_s = np.asarray(bins["grad2_r2"], dtype=np.float64)
+        v_s = np.asarray(bins["v_cum"], dtype=np.float64)
+        volume = float(bins["v_total"])
+        if np.any(dv_dpn_s <= 0) or not np.all(np.isfinite(inv_r2_s)):
+            return None
+    else:
+        raise ValueError(f"unknown fsa_mode {fsa_mode!r}")
+
     dv_dphi = dv_dpn_s / abs(span)  # |dV/dΦ_pol|
-    inv_r2_s = np.diff(at["r2"]) / dv_lvl  # ⟨1/R²⟩
-    inv_r_s = np.diff(at["ir"]) / dv_lvl  # ⟨1/R⟩
-    grad2_r2_s = np.diff(at["g2"]) / dv_lvl  # ⟨|∇Φ|²/R²⟩
-    v_s = at["v"][1:]
     f_s = np.interp(pn_s, psin_grid, f_of_grid)
     q_s = np.abs(f_s) * inv_r2_s * dv_dphi / _TWO_PI
 
-    # cumulative volume + toroidal flux from the axis outward (in ψ_N)
-    # V at the mid-levels (exact cumulative volumes, no re-integration)
-    v_s = 0.5 * (at["v"][:-1] + at["v"][1:])
     # Φ_tor(ψ_N) = ∫ q dΦ_pol  (q = dΦ_tor/dΦ_pol — same-convention fluxes)
     phi_tor_s = _cumtrapz_from_zero(pn_s, q_s * abs(span))
     # ⟨B²⟩ = ⟨B_p²⟩ + F²⟨1/R²⟩,  B_p = |∇Φ|/(2πR)
@@ -474,9 +524,8 @@ def flux_surface_geometry(
 
     if phi_tor_s[-1] <= 0:
         return None
-    # extrapolate Φ_tor to the separatrix; the volume is the exact cell sum
+    # extrapolate Φ_tor to the separatrix (``volume`` is set per fsa_mode above)
     phi_b = float(phi_tor_s[-1] + (1.0 - pn_s[-1]) * q_s[-1] * abs(span))
-    volume = float(dvol.sum())
 
     rho_of_pn = np.sqrt(np.clip(phi_tor_s / phi_b, 0.0, 1.0))
     # guard monotonicity for the inverse map

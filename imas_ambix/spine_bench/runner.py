@@ -103,32 +103,46 @@ def _d_roughness(d_face: np.ndarray) -> float:
     return float(np.sqrt(np.mean(d2**2)) / scale)
 
 
-def _fsa_roughness_sweep(fit, grid, bt0, *, n_p, n_f, nonneg) -> dict[int, float]:
-    """d-roughness at each n_rho in the sweep, from a fit's force-balanced ψ."""
+#: The FSA reads compared head-to-head: the host coarea binning (baseline) and
+#: the accelerator-native, contour-free JAX kernel-coarea (greens-filament-solver §3).
+_FSA_MODES = ("coarea", "connectivity")
+
+
+def _fsa_roughness_sweep(
+    fit, grid, bt0, *, n_p, n_f, nonneg
+) -> dict[str, dict[int, float]]:
+    """d-roughness at each n_rho per FSA mode, from a fit's force-balanced ψ.
+
+    Returns ``{mode: {n_rho: roughness}}`` for both the host coarea read and the
+    contour-free connectivity read on the SAME equilibrium — the only difference
+    is how the flux surfaces are averaged, so the two are directly comparable.
+    """
     from imas_ambix.latent.current_diffusion import flux_surface_geometry
 
-    out: dict[int, float] = {}
+    out: dict[str, dict[int, float]] = {m: {} for m in _FSA_MODES}
     if not (fit.scored and fit.psi is not None and fit.coeffs is not None):
         return out
     if not (np.isfinite(fit.target[0]) and float(fit.target[0]) <= CONFINED_AXIS_R_MAX):
         return out
-    for n_rho in _NRHO_SWEEP:
-        geo = flux_surface_geometry(
-            fit.psi,
-            grid,
-            coeffs=np.asarray(fit.coeffs, dtype=np.float64),
-            ip_amperes=abs(float(fit.ip_amperes)),
-            n_p=n_p,
-            n_f=n_f,
-            nonneg=nonneg,
-            b_phi0=bt0,
-            n_rho=n_rho,
-        )
-        if geo is None:
-            continue
-        r = _d_roughness(np.asarray(geo.d_face))
-        if np.isfinite(r):
-            out[n_rho] = r
+    for mode in _FSA_MODES:
+        for n_rho in _NRHO_SWEEP:
+            geo = flux_surface_geometry(
+                fit.psi,
+                grid,
+                coeffs=np.asarray(fit.coeffs, dtype=np.float64),
+                ip_amperes=abs(float(fit.ip_amperes)),
+                n_p=n_p,
+                n_f=n_f,
+                nonneg=nonneg,
+                b_phi0=bt0,
+                n_rho=n_rho,
+                fsa_mode=mode,
+            )
+            if geo is None:
+                continue
+            r = _d_roughness(np.asarray(geo.d_face))
+            if np.isfinite(r):
+                out[mode][n_rho] = r
     return out
 
 
@@ -314,22 +328,34 @@ def run_stamp(
                 metrics["converged_fraction"] = float(np.mean(a["conv"]))
             if a["conf"]:
                 metrics["confined_fraction"] = float(np.mean(a["conf"]))
-            r32 = _median([r.get(32, np.nan) for r in a["rough"]])
-            r96 = _median([r.get(96, np.nan) for r in a["rough"]])
-            if np.isfinite(r32):
-                metrics["fsa_d_roughness_nrho32"] = r32
-            if np.isfinite(r96):
-                metrics["fsa_d_roughness_nrho96"] = r96
-            xs, ys = [], []
-            for nr in _NRHO_SWEEP:
-                med = _median([r.get(nr, np.nan) for r in a["rough"]])
-                if np.isfinite(med):
-                    xs.append(np.log2(nr))
-                    ys.append(med)
-            if len(xs) >= 2:
-                metrics["fsa_d_roughness_resolution_slope"] = float(
-                    np.polyfit(xs, ys, 1)[0]
-                )
+            _fsa_names = {
+                "coarea": (
+                    "fsa_d_roughness_nrho32",
+                    "fsa_d_roughness_nrho96",
+                    "fsa_d_roughness_resolution_slope",
+                ),
+                "connectivity": (
+                    "fsa_d_roughness_conn_nrho32",
+                    "fsa_d_roughness_conn_nrho96",
+                    "fsa_d_roughness_conn_resolution_slope",
+                ),
+            }
+            for mode, (n32, n96, nslope) in _fsa_names.items():
+                per = [r[mode] for r in a["rough"] if mode in r]
+                r32 = _median([r.get(32, np.nan) for r in per])
+                r96 = _median([r.get(96, np.nan) for r in per])
+                if np.isfinite(r32):
+                    metrics[n32] = r32
+                if np.isfinite(r96):
+                    metrics[n96] = r96
+                xs, ys = [], []
+                for nr in _NRHO_SWEEP:
+                    med = _median([r.get(nr, np.nan) for r in per])
+                    if np.isfinite(med):
+                        xs.append(np.log2(nr))
+                        ys.append(med)
+                if len(xs) >= 2:
+                    metrics[nslope] = float(np.polyfit(xs, ys, 1)[0])
             if sub == SUBSTRATE_GREENS:  # dev-spine vs the grid baseline check
                 if axis_cm:
                     metrics["axis_reproduce_cm"] = _median(axis_cm)
