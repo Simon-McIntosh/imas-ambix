@@ -426,8 +426,32 @@ def _dense_ring(psi, grid, centroid, *, n_ang=180, lcfs_norm=0.999):
     return np.column_stack([rr, zz]) if ok.any() else None
 
 
-def _ink_slice(psi, grid, centroid, psi_axis, psi_bnd, ring, ip, time_s):
-    """Build an imas-ink EquilibriumSlice for one boundary read on ``psi``."""
+def _magnetic_axis(psi, grid, ring, psi_bnd):
+    """The magnetic axis = the flux extremum INSIDE the boundary ring (the O-point).
+
+    NOT the current centroid — on a Shafranov-shifted equilibrium the axis sits
+    outboard of the centroid, so plotting the centroid on the flux surfaces would
+    be misleading.  The confined side is the ψ direction away from ψ_bnd; the axis
+    is the ring-interior cell furthest along it.
+    """
+    from imas_ambix.latent.topology import _inside_polygon
+
+    rr, zz = np.meshgrid(grid.rg, grid.zg)
+    inside = _inside_polygon(
+        rr.ravel(), zz.ravel(), ring[:, 0], ring[:, 1]
+    ).reshape(psi.shape)
+    sign = np.sign(np.nanmax(psi[inside]) - psi_bnd) if inside.any() else 1.0
+    score = np.where(inside, psi * sign, -np.inf)
+    iz, ir = np.unravel_index(int(np.argmax(score)), psi.shape)
+    return float(grid.rg[ir]), float(grid.zg[iz])
+
+
+def _ink_slice(psi, grid, axis_rz, psi_axis, psi_bnd, ring, ip, time_s):
+    """Build an imas-ink EquilibriumSlice for one boundary read on ``psi``.
+
+    ``axis_rz`` is the MAGNETIC AXIS (O-point, flux extremum inside the ring), used
+    both for imas-ink's confined-contour classification and the plotted axis marker.
+    """
     from imas_ink._types import EquilibriumSlice
 
     return EquilibriumSlice(
@@ -436,8 +460,8 @@ def _ink_slice(psi, grid, centroid, psi_axis, psi_bnd, ring, ip, time_s):
         z_grid=np.asarray(grid.zg, dtype=np.float64),
         psi_axis=float(psi_axis),
         psi_boundary=float(psi_bnd),
-        r_axis=float(centroid[0]),
-        z_axis=float(centroid[1]),
+        r_axis=float(axis_rz[0]),
+        z_axis=float(axis_rz[1]),
         ip=float(ip),
         time=float(time_s),
         converged=True,
@@ -464,11 +488,17 @@ def _ink_cross_section(overlays):
     for cls, psi, grid, cpu, gpu, centroid in panels:
         geom = _machine_geometry_from_grid(grid)
         ring = _dense_ring(psi, grid, centroid, lcfs_norm=1.0)
-        dev = _ink_slice(
-            psi, grid, centroid, gpu.psi_axis, gpu.psi_bnd, ring, 0.0, 0.0
+        # magnetic axis (O-point), NOT the current centroid, for the marker + the
+        # confined-contour classification
+        o_dev = (
+            _magnetic_axis(psi, grid, ring, gpu.psi_bnd)
+            if ring is not None
+            else centroid
         )
+        o_host = _magnetic_axis(psi, grid, cpu.ring, cpu.psi_bnd)
+        dev = _ink_slice(psi, grid, o_dev, gpu.psi_axis, gpu.psi_bnd, ring, 0.0, 0.0)
         host = _ink_slice(
-            psi, grid, centroid, gpu.psi_axis, cpu.psi_bnd, cpu.ring, 0.0, 0.0
+            psi, grid, o_host, gpu.psi_axis, cpu.psi_bnd, cpu.ring, 0.0, 0.0
         )
         fig, ax = equilibrium_figure_mpl(
             dev,
