@@ -27,7 +27,10 @@ FIGDIR = Path("docs/figures/greens-filament-solver")
 NRHO_SWEEP = (16, 32, 48, 64, 96)
 MODES = ("coarea", "connectivity")
 _COL = {"coarea": "#c1440e", "connectivity": "#1f6feb"}
-_LBL = {"coarea": "coarea (host baseline)", "connectivity": "connectivity (JAX, contour-free)"}
+_LBL = {
+    "coarea": "coarea (host baseline)",
+    "connectivity": "connectivity (JAX, contour-free)",
+}
 
 
 def _solve_flat_top_slice(shot: int, nr: int, nz: int):
@@ -64,13 +67,31 @@ def _solve_flat_top_slice(shot: int, nr: int, nz: int):
     disc_seed = _disc_seed_flat(grid, inv)
     kw = dict(smoothness=smoothness, boundary_read=boundary_read, sigma=0.02)
     f_k2 = _fit_slice(
-        grid, tbl, basis, p, substrate="grid-delstar", warm=disc_seed,
-        centroid=centroid, n_p=1, n_f=1, nonneg=False, **kw,
+        grid,
+        tbl,
+        basis,
+        p,
+        substrate="grid-delstar",
+        warm=disc_seed,
+        centroid=centroid,
+        n_p=1,
+        n_f=1,
+        nonneg=False,
+        **kw,
     )
     seed = f_k2.jphi_flat if (f_k2.scored and f_k2.jphi_flat is not None) else disc_seed
     fit = _fit_slice(
-        grid, tbl, basis, p, substrate="grid-delstar", warm=seed, centroid=centroid,
-        n_p=n_p, n_f=n_f, nonneg=nonneg, **kw,
+        grid,
+        tbl,
+        basis,
+        p,
+        substrate="grid-delstar",
+        warm=seed,
+        centroid=centroid,
+        n_p=n_p,
+        n_f=n_f,
+        nonneg=nonneg,
+        **kw,
     )
     if not fit.scored:
         raise SystemExit(f"shot {shot}: rich solve did not score")
@@ -92,10 +113,15 @@ def main() -> int:
     ap.add_argument("--nz", type=int, default=97)
     args = ap.parse_args()
 
-    fit, grid, bt0, n_p, n_f, nonneg = _solve_flat_top_slice(args.shot, args.nr, args.nz)
+    fit, grid, bt0, n_p, n_f, nonneg = _solve_flat_top_slice(
+        args.shot, args.nr, args.nz
+    )
     geo_kw = dict(
         coeffs=np.asarray(fit.coeffs, dtype=np.float64),
-        ip_amperes=abs(float(fit.ip_amperes)), n_p=n_p, n_f=n_f, nonneg=nonneg,
+        ip_amperes=abs(float(fit.ip_amperes)),
+        n_p=n_p,
+        n_f=n_f,
+        nonneg=nonneg,
         b_phi0=bt0,
     )
     FIGDIR.mkdir(parents=True, exist_ok=True)
@@ -115,7 +141,7 @@ def main() -> int:
     ax.set_xlabel(r"radial resolution $n_\rho$")
     ax.set_ylabel(r"relative 2nd-diff roughness of $d=g_2 g_3/\hat\rho$")
     ax.set_title(
-        f"FSA diffusion-coefficient roughness vs resolution (shot {args.shot} flat-top)\n"
+        f"FSA d-roughness vs resolution (shot {args.shot} flat-top)\n"
         "lower = smoother; a rising curve = degrades with resolution"
     )
     ax.grid(True, alpha=0.3)
@@ -127,8 +153,10 @@ def main() -> int:
 
     # --- fig 2: profile smoothness overlay at a fixed n_rho ------------------
     nrho = 64
-    geos = {m: flux_surface_geometry(fit.psi, grid, n_rho=nrho, fsa_mode=m, **geo_kw)
-            for m in MODES}
+    geos = {
+        m: flux_surface_geometry(fit.psi, grid, n_rho=nrho, fsa_mode=m, **geo_kw)
+        for m in MODES
+    }
     fig, axes = plt.subplots(1, 3, figsize=(14.5, 4.3))
     for m in MODES:
         g = geos[m]
@@ -153,8 +181,12 @@ def main() -> int:
 
     print("roughness by n_rho:")
     for m in MODES:
-        print(f"  {m:13s}: " + "  ".join(
-            f"n{nr}={r:.3f}" for nr, r in zip(NRHO_SWEEP, rough[m], strict=True)))
+        print(
+            f"  {m:13s}: "
+            + "  ".join(
+                f"n{nr}={r:.3f}" for nr, r in zip(NRHO_SWEEP, rough[m], strict=True)
+            )
+        )
     print(f"wrote {p1}\nwrote {p2}")
     return 0
 

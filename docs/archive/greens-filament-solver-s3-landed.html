@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="greens-filament-solver-s3-landed">
+  <meta name="plan-title" content="Grid-Free Green's-Filament Solver — §3 record: contour-free FSA on the analytic ψ (GPU-native)">
+  <meta name="plan-summary" content="§3 landing record (2026-07-20). The 1D flux-surface metrics that drive the resistive current diffusion (V′, g2, g3, ⟨1/R⟩, d = g2·g3/ρ̂) are re-based on the smooth analytic ψ through an accelerator-native, contour-free JAX kernel: a fixed-iteration flood-fill core (no scipy.ndimage.label) and a smooth-CDF coarea surface average (no argsort) — jit/vmap/grad-safe, fixed-shape, fp64 — added as an opt-in fsa_mode='connectivity' with the host coarea path byte-unchanged. RECONCILE: the plan's cited 'd roughness ~0.5 worsening 0.45→0.72 with resolution' pathology is NOT reproduced by the committed spine_bench diagnostic — the coarea read is already smooth (0.34→0.17) and IMPROVES with resolution (slope −0.058). So §3's genuine deliverable is a fixed-shape, GPU-batchable FSA that matches-or-beats that baseline, not a pathology fix. Verdict: the connectivity read is at least as smooth and resolution-stable on the 6-shot metric, materially smoother per-slice (coarea peaks 0.54 at n_rho=48; connectivity flat ~0.15), closes Ampère+volume, is provably contour-free, and does not regress the dynamics coupling (G2d: confinement identical, position tracking 2.18→1.85 cm). Demonstrated on the H200: batched jax.vmap over 1024 equilibria on a CudaDevice, fp64, GPU/CPU parity 1e-13.">
+  <meta name="plan-informs" content="greens-filament-solver">
+  <title>greens-filament-solver §3 — contour-free FSA on the analytic ψ (GPU-native)</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h1>§3 record — flux-surface averaging on the analytic ψ (GPU-native, contour-free)</h1>
+
+  <p><strong>Verdict (2026-07-20): §3 PASS, with an honest re-framing.</strong> The
+  flux-surface metrics that drive the resistive current diffusion
+  (V&prime;, g<sub>2</sub>, g<sub>3</sub>, &langle;1/R&rangle;,
+  d = g<sub>2</sub>g<sub>3</sub>/&rho;&#770;) are re-based on the smooth analytic
+  &psi; by an <strong>accelerator-native, contour-free JAX kernel</strong> &mdash;
+  a fixed-iteration flood-fill core (no <code>scipy.ndimage.label</code>) and a
+  smooth-CDF coarea surface average (no <code>argsort</code>), <code>jit</code> /
+  <code>vmap</code> / <code>grad</code>-safe, fixed-shape, fp64 &mdash; added as an
+  opt-in <code>fsa_mode="connectivity"</code> with the host coarea path
+  byte-unchanged. It is at least as smooth and resolution-stable as the committed
+  coarea baseline, <em>materially</em> smoother per-slice, provably contour-free,
+  closes Amp&egrave;re + volume, does not regress the dynamics coupling, and was
+  <strong>demonstrated running on the H200</strong>.</p>
+
+  <div class="callout callout-warn">
+    <p><strong>Reconcile first (the plan mandated it) — the cited pathology is not
+    real.</strong> §3 was motivated by a claim that the cell-binned FSA
+    d-roughness is <em>~0.5 and worsens with resolution (0.45&nbsp;&rarr;&nbsp;0.72
+    as n<sub>&rho;</sub> 16&nbsp;&rarr;&nbsp;96)</em>. That figure has <strong>no
+    committed diagnostic behind it</strong>. The committed
+    <code>spine_bench</code> metric on the actual contour-integrated
+    <code>geo.d_face</code> (baseline stamp <code>aa0b5e2</code>, 6 shots) measures
+    the opposite: median roughness <strong>0.343 at n<sub>&rho;</sub>=32,
+    0.174 at n<sub>&rho;</sub>=96</strong>, resolution slope
+    <strong>&minus;0.058</strong> (it <em>improves</em> with resolution). So the
+    coarea read is already smooth and resolution-stable. §3's genuine deliverable
+    is therefore <strong>not</strong> "fix a pathology" but "provide a fixed-shape,
+    GPU-batchable FSA that matches-or-beats that baseline" &mdash; the forward
+    requirement for the corpus labeller, since the coarea path
+    (<code>argsort</code> + <code>scipy.ndimage.label</code>) cannot batch on a
+    device.</p>
+  </div>
+
+  <h2>Gate verdicts (pre-declared in f-gfs-02)</h2>
+  <figure>
+    <table>
+      <thead><tr><th>Gate</th><th>Rule</th><th>Result</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>G2a</strong> smoothness</td>
+          <td>connectivity d-roughness materially below the re-measured coarea
+              baseline (not the un-backed 0.5 figure)</td>
+          <td>6-shot median: coarea n32 <code>0.346</code> / n96 <code>0.171</code>;
+              connectivity n32 <code>0.126</code> / n96 <code>0.129</code>.
+              Per-slice (shot 21983 flat-top) the coarea read peaks at
+              <strong>0.544</strong> (n<sub>&rho;</sub>=48); the connectivity read is
+              flat <strong>~0.15</strong> across n<sub>&rho;</sub> 32&ndash;96</td>
+          <td><strong>PASS</strong></td>
+        </tr>
+        <tr>
+          <td><strong>G2b</strong> resolution-stable</td>
+          <td>connectivity roughness does not degrade with n<sub>&rho;</sub></td>
+          <td>connectivity slope <code>&minus;0.037</code> vs coarea
+              <code>&minus;0.058</code> (both &le;&nbsp;0 &mdash; neither degrades;
+              per-slice the connectivity curve is monotone-flat where coarea is
+              non-monotone)</td>
+          <td><strong>PASS</strong></td>
+        </tr>
+        <tr>
+          <td><strong>G2c</strong> contour-free + on-device</td>
+          <td>no contourpy / marching-squares / level-set / ndimage in the FSA
+              path; fixed-shape and batchable</td>
+          <td>AST-checked (no banned import); flood-fill core matches
+              <code>scipy.ndimage.label</code> exactly; output shape fixed vs core
+              size; <code>jit</code>/<code>vmap</code>/<code>grad</code> compile;
+              <strong>ran on an H200 CudaDevice</strong> (below)</td>
+          <td><strong>PASS</strong></td>
+        </tr>
+        <tr>
+          <td><strong>G2d</strong> no dynamics regress</td>
+          <td>the mse-gated-reanalysis §3 dynamics coupling does not regress on
+              the new FSA substrate</td>
+          <td>coarea vs connectivity, 3 shots: confinement <strong>identical</strong>
+              (coupled 0.939 / uncoupled 0.879 both); position tracking
+              <strong>improves 2.18&nbsp;&rarr;&nbsp;1.85&nbsp;cm</strong>; G3a PASS
+              both arms</td>
+          <td><strong>PASS</strong></td>
+        </tr>
+      </tbody>
+    </table>
+    <figcaption>The connectivity read is a fixed-shape, differentiable device
+    kernel that reproduces the coarea physics and is smoother per-slice, without
+    regressing the dynamics it feeds.</figcaption>
+  </figure>
+
+  <h2>The d-roughness resolution curve (the G2a/G2b evidence)</h2>
+  <figure>
+    <img src="/imas-ambix/figures/greens-filament-solver/fig-fsa-d-roughness-resolution.png"
+         alt="d-roughness vs n_rho for the coarea and connectivity reads on a flat-top slice"
+         style="max-width:100%">
+    <figcaption>Diffusion-coefficient roughness vs radial resolution on a real
+    flat-top slice (shot 21983). The host coarea read is non-monotone and peaks at
+    0.544 at n<sub>&rho;</sub>=48 (cell-binning noise); the contour-free
+    connectivity read holds ~0.14&ndash;0.17 flat across n<sub>&rho;</sub>
+    32&ndash;96. Same surfaces, a smoother estimator.</figcaption>
+  </figure>
+  <figure>
+    <img src="/imas-ambix/figures/greens-filament-solver/fig-fsa-profile-smoothness.png"
+         alt="d, V-prime and inverse-R profiles for both FSA reads on the same psi"
+         style="max-width:100%">
+    <figcaption>The 1D metrics d = g<sub>2</sub>g<sub>3</sub>/&rho;&#770;,
+    V&prime; and &langle;1/R&rangle; read from the SAME &psi; by both methods at
+    n<sub>&rho;</sub>=64 &mdash; the connectivity read tracks the coarea physics
+    with the cell-binning wiggles removed.</figcaption>
+  </figure>
+
+  <h2>What the connectivity read is</h2>
+  <p>Two fixed-shape device primitives on the full grid, in
+  <code>imas_ambix/latent/flux_surface_connectivity.py</code>
+  (<code>jax.numpy</code>, fp64):</p>
+  <ul>
+    <li><strong>Flood-fill core.</strong> The axis-connected component of the
+    confined set {&psi;<sub>N</sub>&nbsp;&lt;&nbsp;1 &and; inside-limiter} grown from
+    the axis cell by a fixed number of 4-neighbour dilations
+    (<code>jax.lax.fori_loop</code>) &mdash; the same connectivity rule as
+    <code>topology.classify_regions</code>, but a fixed-shape kernel instead of
+    <code>scipy.ndimage.label</code>. It matches <code>ndimage.label</code> exactly
+    (test) and rejects disconnected private pockets.</li>
+    <li><strong>Smooth-CDF coarea average.</strong>
+    &langle;X&rangle;(u) = &part;<sub>u</sub>&int;<sub>&psi;N&lt;u</sub>X&nbsp;dV /
+    &part;<sub>u</sub>&int;<sub>&psi;N&lt;u</sub>dV, computed as a difference of
+    cumulative volume integrals with the hard sorted-cumsum step replaced by a
+    Gaussian&nbsp;CDF on a fixed &psi;<sub>N</sub> level grid. As the bandwidth
+    h&nbsp;&rarr;&nbsp;0 it reduces <em>exactly</em> to the coarea estimator; at
+    finite h it is the same estimator with the cell-binning noise smoothed and no
+    <code>argsort</code>. Being a difference of cumulatives it is edge-unbiased.</li>
+  </ul>
+  <p>Only the geometric surface average changes; the F / &rho;&#770; / &psi;
+  assembly and the &psi;&rarr;I initial condition are shared and unchanged, so the
+  two modes differ purely in how the surfaces are averaged. The default
+  (<code>fsa_mode="coarea"</code>) is byte-identical to before (test + the coarea
+  benchmark numbers reproduce the <code>aa0b5e2</code> baseline).</p>
+
+  <h2>H200 capability demonstration</h2>
+  <p>The connectivity kernel was run on the H200 (<code>98dci4-gpu-0003</code>,
+  partition <code>betelgeuse</code>) with a CUDA jaxlib &mdash; a
+  <em>capability</em> demonstration, not a speedup claim
+  (<code>scripts/fsa_gpu_capability.py</code>, stamped to
+  <code>spine_bench/results/</code>):</p>
+  <figure>
+    <table>
+      <thead><tr><th>batch (equilibria, one vmap)</th><th>wall</th><th>fp64 GPU vs CPU parity</th></tr></thead>
+      <tbody>
+        <tr><td>16</td><td>1.6 ms</td><td rowspan="4">max |&Delta;| = <strong>1.1e&minus;13</strong> (fp64 roundoff)</td></tr>
+        <tr><td>64</td><td>1.7 ms</td></tr>
+        <tr><td>256</td><td>2.5 ms</td></tr>
+        <tr><td>1024</td><td>5.3 ms</td></tr>
+      </tbody>
+    </table>
+    <figcaption>Backend <code>gpu</code>, <code>CudaDevice(id=0)</code>, fp64.
+    The same kernel batched by <code>jax.vmap</code> over up to 1024 equilibria on
+    one card, with the on-device result matching the host to 1e&minus;13. This is
+    the corpus-labeller inner loop the coarea path could never batch. Throughput
+    (up to ~1.9&times;10<sup>5</sup> equilibria/s at batch 1024) is reported for
+    context; the binding per-solve throughput gate is §4.</figcaption>
+  </figure>
+
+  <h2>Tests + artifacts</h2>
+  <ul>
+    <li><code>tests/latent/test_flux_surface_connectivity.py</code> &mdash; 7/7:
+    fp64 + jit/vmap/grad compile; fixed output shape vs core size; flood-fill ==
+    <code>ndimage.label</code>; Amp&egrave;re + volume closure; coarea agreement in
+    the mid-band; default byte-identical.</li>
+    <li><code>tests/latent/test_current_diffusion.py</code> &mdash; 14/14 (coarea
+    refactor byte-clean).</li>
+    <li>Benchmark stamp: <code>spine_bench/results/physics-spine-…</code> (schema
+    1.2, both FSA reads) &mdash; the frozen comparable metric.</li>
+    <li>GPU stamp: <code>spine_bench/results/fsa-gpu-capability-…-gpu-0003.yaml</code>.</li>
+    <li>Commits <code>2e35d09</code> (FSA kernel + wiring + bench + tests),
+    <code>ab22215</code> (GPU demo + policy + G2d harness),
+    <code>59c4744</code> (figures).</li>
+  </ul>
+
+  <div class="callout">
+    <p><strong>What&rsquo;s next &mdash; §4 (performance to corpus scale).</strong>
+    §3 makes the FSA read device-batchable and confirms the analytic &psi; feeds it
+    cleanly. §4 caches the Green&rsquo;s / interaction matrices at campaign scope,
+    collapses the label-production solve to what it needs, settles the fixed-point
+    accelerator (Newton&ndash;Krylov primary, Anderson-Picard fallback), and gates a
+    &ge;&nbsp;3&times; corpus-throughput target &mdash; where the batched-GPU path
+    demonstrated here becomes the labeller.</p>
+  </div>
+
+</main>
+</body>
+</html>

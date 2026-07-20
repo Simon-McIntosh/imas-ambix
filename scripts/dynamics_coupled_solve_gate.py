@@ -102,9 +102,22 @@ def _confined(axis_r: float) -> bool:
     return bool(np.isfinite(axis_r) and axis_r <= CONFINED_AXIS_R_MAX)
 
 
-def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_weight,
-             n_sub: int, par_weight: float, b_phi0: float, n_rho: int,
-             max_slices: int, min_ip_ka: float, fsa_mode: str = "coarea") -> dict:
+def run_shot(
+    shot: int,
+    *,
+    nr: int,
+    nz: int,
+    sigma: float,
+    eta_params,
+    prior_weight,
+    n_sub: int,
+    par_weight: float,
+    b_phi0: float,
+    n_rho: int,
+    max_slices: int,
+    min_ip_ka: float,
+    fsa_mode: str = "coarea",
+) -> dict:
     """Three arms over one shot's ramp + flat-top; the coupled arm is rich-cpl."""
     from imas_ambix.latent.boundary_disc import disc_read  # noqa: PLC0415
     from imas_ambix.latent.current_diffusion import (  # noqa: PLC0415
@@ -129,8 +142,9 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
     smoothness = float(isolve["smoothness"])
     boundary_read = isolve["boundary_read_scoring"]
 
-    payload = factory_shot_payloads(shot, nr=nr, nz=nz, max_slices=max_slices,
-                                    min_ip_ka=min_ip_ka)
+    payload = factory_shot_payloads(
+        shot, nr=nr, nz=nz, max_slices=max_slices, min_ip_ka=min_ip_ka
+    )
     if payload is None:
         return {"shot": shot, "slices": []}
     grid, table, basis = payload["grid"], payload["table"], payload["basis"]
@@ -148,13 +162,27 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
     # measured centroid the only field constraint beyond Ip, no reseed.
     def _fit(p, *, n_p_, n_f_, nonneg_, warm, centroid, coeff_prior=None):
         return fit_and_read_slice(
-            grid, table, dataclasses.replace(p, mask=off),
-            beta0_grid=(0.5,), alpha_grid=(1.0,), cost_limit=float("inf"),
-            convergence_limit=5e-3, retry_max_iterations=160, fit_mode="ladder",
-            n_p=n_p_, n_f=n_f_, nonneg=nonneg_, smoothness=smoothness,
-            warm_jphi=warm, centroid_constraint=(centroid[0], centroid[1], sigma),
-            coeff_prior=coeff_prior, reseed_axis_r_max=None,
-            keep_psi=True, keep_jphi=True, basis=basis, meta={},
+            grid,
+            table,
+            dataclasses.replace(p, mask=off),
+            beta0_grid=(0.5,),
+            alpha_grid=(1.0,),
+            cost_limit=float("inf"),
+            convergence_limit=5e-3,
+            retry_max_iterations=160,
+            fit_mode="ladder",
+            n_p=n_p_,
+            n_f=n_f_,
+            nonneg=nonneg_,
+            smoothness=smoothness,
+            warm_jphi=warm,
+            centroid_constraint=(centroid[0], centroid[1], sigma),
+            coeff_prior=coeff_prior,
+            reseed_axis_r_max=None,
+            keep_psi=True,
+            keep_jphi=True,
+            basis=basis,
+            meta={},
             boundary_read=boundary_read,
         )
 
@@ -168,9 +196,14 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
             continue
         centroid = (float(inv.centroid_r), float(inv.centroid_z))
         disc_seed = _disc_seed_flat(grid, inv)
-        f_k2 = _fit(p, n_p_=1, n_f_=1, nonneg_=False,
-                    warm=warm_k2 if warm_k2 is not None else disc_seed,
-                    centroid=centroid)
+        f_k2 = _fit(
+            p,
+            n_p_=1,
+            n_f_=1,
+            nonneg_=False,
+            warm=warm_k2 if warm_k2 is not None else disc_seed,
+            centroid=centroid,
+        )
         if not f_k2.scored:
             continue
         k2_confined = f_k2.jphi_flat is not None and _confined(_axis(f_k2)[0])
@@ -179,9 +212,16 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
         # the rich arms warm-start from the STABLE same-slice K=2 current (it
         # selects the confined basin); the disc seed is the fallback.  Temporal
         # coupling is then carried by the physics coeff_prior, not the numerics.
-        slices.append({"k": int(k), "p": p, "centroid": centroid,
-                       "disc_seed": disc_seed, "f_k2": f_k2,
-                       "k2_jphi": f_k2.jphi_flat if k2_confined else disc_seed})
+        slices.append(
+            {
+                "k": int(k),
+                "p": p,
+                "centroid": centroid,
+                "disc_seed": disc_seed,
+                "f_k2": f_k2,
+                "k2_jphi": f_k2.jphi_flat if k2_confined else disc_seed,
+            }
+        )
     if len(slices) < 2:
         return {"shot": shot, "slices": [], "reason": "too few scored slices"}
 
@@ -198,15 +238,35 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
     f_uncs: list = []
     geos: list = []
     for s in slices:
-        f_unc = _fit(s["p"], n_p_=n_p, n_f_=n_f, nonneg_=nonneg,
-                     warm=s["k2_jphi"], centroid=s["centroid"])
+        f_unc = _fit(
+            s["p"],
+            n_p_=n_p,
+            n_f_=n_f,
+            nonneg_=nonneg,
+            warm=s["k2_jphi"],
+            centroid=s["centroid"],
+        )
         f_uncs.append(f_unc)
-        if (f_unc.scored and f_unc.psi is not None and f_unc.coeffs is not None
-                and _confined(_axis(f_unc)[0])):
-            geos.append(flux_surface_geometry(
-                f_unc.psi, grid, coeffs=np.asarray(f_unc.coeffs, dtype=np.float64),
-                ip_amperes=abs(float(f_unc.ip_amperes)), n_p=n_p, n_f=n_f,
-                nonneg=nonneg, b_phi0=b_phi0, n_rho=n_rho, fsa_mode=fsa_mode))
+        if (
+            f_unc.scored
+            and f_unc.psi is not None
+            and f_unc.coeffs is not None
+            and _confined(_axis(f_unc)[0])
+        ):
+            geos.append(
+                flux_surface_geometry(
+                    f_unc.psi,
+                    grid,
+                    coeffs=np.asarray(f_unc.coeffs, dtype=np.float64),
+                    ip_amperes=abs(float(f_unc.ip_amperes)),
+                    n_p=n_p,
+                    n_f=n_f,
+                    nonneg=nonneg,
+                    b_phi0=b_phi0,
+                    n_rho=n_rho,
+                    fsa_mode=fsa_mode,
+                )
+            )
         else:
             geos.append(None)  # a drifted/failed rich-unc supplies no prediction
 
@@ -216,10 +276,18 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
         if geos[j] is None:
             continue
         out = predict_interval(
-            geos[j], eta, t_start=slices[j]["p"].time_s,
-            t_end=slices[j + 1]["p"].time_s, raw_times=raw_times,
-            ip_raw_amp=ip_raw_amp, n_p=n_p, n_f=n_f, nonneg=nonneg,
-            n_sub=n_sub, par_weight=par_weight)
+            geos[j],
+            eta,
+            t_start=slices[j]["p"].time_s,
+            t_end=slices[j + 1]["p"].time_s,
+            raw_times=raw_times,
+            ip_raw_amp=ip_raw_amp,
+            n_p=n_p,
+            n_f=n_f,
+            nonneg=nonneg,
+            n_sub=n_sub,
+            par_weight=par_weight,
+        )
         if out is not None:
             preds[j + 1] = out
 
@@ -230,9 +298,15 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
         f_unc = f_uncs[j]
         c_pred = preds[j]["c_pred"] if preds[j] is not None else None
         if c_pred is not None and prior_weight > 0.0:
-            f_cpl = _fit(p, n_p_=n_p, n_f_=n_f, nonneg_=nonneg,
-                         warm=s["k2_jphi"], centroid=centroid,
-                         coeff_prior=(c_pred, prior_weight))
+            f_cpl = _fit(
+                p,
+                n_p_=n_p,
+                n_f_=n_f,
+                nonneg_=nonneg,
+                warm=s["k2_jphi"],
+                centroid=centroid,
+                coeff_prior=(c_pred, prior_weight),
+            )
         else:
             # first slice / no prediction: the uncoupled rich fit IS the arm
             f_cpl = f_unc
@@ -241,37 +315,77 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
         ur, _uz = _axis(f_unc)
         cr, _cz = _axis(f_cpl)
         cen_cpl = _current_centroid(grid, f_cpl)
-        rows.append({
-            "k": s["k"], "t_index": s["p"].t_index, "time_s": float(s["p"].time_s),
-            "ip_a": float(abs(s["p"].ip_amperes)),
-            "centroid_target": [centroid[0], centroid[1]],
-            "k2": {"axis_r": k2r, "axis_z": k2z, "confined": _confined(k2r),
-                   "coeffs": list(map(float, s["f_k2"].coeffs or []))},
-            "rich_unc": {"axis_r": ur, "confined": _confined(ur),
-                         "scored": bool(f_unc.scored), "converged": bool(f_unc.converged),
-                         "coeffs": list(map(float, f_unc.coeffs or []))},
-            "rich_cpl": {"axis_r": cr, "confined": _confined(cr),
-                         "scored": bool(f_cpl.scored), "converged": bool(f_cpl.converged),
-                         "coeffs": list(map(float, f_cpl.coeffs or [])),
-                         "centroid_r": cen_cpl[0], "centroid_z": cen_cpl[1],
-                         "centroid_err_cm": (
-                             float(100.0 * np.hypot(cen_cpl[0] - centroid[0],
-                                                    cen_cpl[1] - centroid[1]))
-                             if np.isfinite(cen_cpl[0]) else float("nan"))},
-            "cpl_pred": [float(c) for c in c_pred] if c_pred is not None else None,
-            "cpl_vs_k2_axis_cm": (float(100.0 * abs(cr - k2r))
-                                  if (_confined(cr) and _confined(k2r)) else float("nan")),
-        })
+        rows.append(
+            {
+                "k": s["k"],
+                "t_index": s["p"].t_index,
+                "time_s": float(s["p"].time_s),
+                "ip_a": float(abs(s["p"].ip_amperes)),
+                "centroid_target": [centroid[0], centroid[1]],
+                "k2": {
+                    "axis_r": k2r,
+                    "axis_z": k2z,
+                    "confined": _confined(k2r),
+                    "coeffs": list(map(float, s["f_k2"].coeffs or [])),
+                },
+                "rich_unc": {
+                    "axis_r": ur,
+                    "confined": _confined(ur),
+                    "scored": bool(f_unc.scored),
+                    "converged": bool(f_unc.converged),
+                    "coeffs": list(map(float, f_unc.coeffs or [])),
+                },
+                "rich_cpl": {
+                    "axis_r": cr,
+                    "confined": _confined(cr),
+                    "scored": bool(f_cpl.scored),
+                    "converged": bool(f_cpl.converged),
+                    "coeffs": list(map(float, f_cpl.coeffs or [])),
+                    "centroid_r": cen_cpl[0],
+                    "centroid_z": cen_cpl[1],
+                    "centroid_err_cm": (
+                        float(
+                            100.0
+                            * np.hypot(
+                                cen_cpl[0] - centroid[0], cen_cpl[1] - centroid[1]
+                            )
+                        )
+                        if np.isfinite(cen_cpl[0])
+                        else float("nan")
+                    ),
+                },
+                "cpl_pred": [float(c) for c in c_pred] if c_pred is not None else None,
+                "cpl_vs_k2_axis_cm": (
+                    float(100.0 * abs(cr - k2r))
+                    if (_confined(cr) and _confined(k2r))
+                    else float("nan")
+                ),
+            }
+        )
         logger.info(
             "%d t=%.3f Ip=%.0fkA | K2 R=%.3f(%s) rich-unc R=%.3f(%s) "
             "rich-cpl R=%.3f(%s) cpl-vs-K2=%.2fcm",
-            shot, s["p"].time_s, abs(s["p"].ip_amperes) / 1e3, k2r,
-            "C" if _confined(k2r) else "X", ur, "C" if _confined(ur) else "X",
-            cr, "C" if _confined(cr) else "X", rows[-1]["cpl_vs_k2_axis_cm"])
+            shot,
+            s["p"].time_s,
+            abs(s["p"].ip_amperes) / 1e3,
+            k2r,
+            "C" if _confined(k2r) else "X",
+            ur,
+            "C" if _confined(ur) else "X",
+            cr,
+            "C" if _confined(cr) else "X",
+            rows[-1]["cpl_vs_k2_axis_cm"],
+        )
 
-    return {"shot": shot, "spine_sha": spine_sha, "n_p": n_p, "n_f": n_f,
-            "eta_params": list(map(float, eta_params)), "prior_weight": prior_weight,
-            "slices": rows}
+    return {
+        "shot": shot,
+        "spine_sha": spine_sha,
+        "n_p": n_p,
+        "n_f": n_f,
+        "eta_params": list(map(float, eta_params)),
+        "prior_weight": prior_weight,
+        "slices": rows,
+    }
 
 
 def _worker(job):
@@ -289,24 +403,49 @@ def _fig_axis_trace(results, path: Path) -> None:
     shots = [r for r in results if r.get("slices")]
     if not shots:
         return
-    fig, axes = plt.subplots(1, len(shots), figsize=(4.2 * len(shots), 3.6),
-                             squeeze=False, sharey=True)
-    for ax, r in zip(axes[0], shots):
+    fig, axes = plt.subplots(
+        1, len(shots), figsize=(4.2 * len(shots), 3.6), squeeze=False, sharey=True
+    )
+    for ax, r in zip(axes[0], shots, strict=False):
         sl = r["slices"]
         t = [s["time_s"] for s in sl]
-        ax.plot(t, [s["k2"]["axis_r"] for s in sl], "o-", ms=3, lw=1.2,
-                color="#555", label="K2 position")
-        ax.plot(t, [s["rich_unc"]["axis_r"] for s in sl], "s--", ms=3, lw=1.0,
-                color="#c44", label="rich uncoupled")
-        ax.plot(t, [s["rich_cpl"]["axis_r"] for s in sl], "^-", ms=3.5, lw=1.4,
-                color="#268", label="rich coupled")
+        ax.plot(
+            t,
+            [s["k2"]["axis_r"] for s in sl],
+            "o-",
+            ms=3,
+            lw=1.2,
+            color="#555",
+            label="K2 position",
+        )
+        ax.plot(
+            t,
+            [s["rich_unc"]["axis_r"] for s in sl],
+            "s--",
+            ms=3,
+            lw=1.0,
+            color="#c44",
+            label="rich uncoupled",
+        )
+        ax.plot(
+            t,
+            [s["rich_cpl"]["axis_r"] for s in sl],
+            "^-",
+            ms=3.5,
+            lw=1.4,
+            color="#268",
+            label="rich coupled",
+        )
         ax.axhline(CONFINED_AXIS_R_MAX, color="k", ls=":", lw=0.8)
         ax.set_title(f"shot {r['shot']}")
         ax.set_xlabel("time [s]")
     axes[0][0].set_ylabel("magnetic-axis R [m]")
     axes[0][0].legend(fontsize=7, loc="best")
-    fig.suptitle("Dynamics coupling holds the rich profile inboard "
-                 "(dotted = outboard-attractor threshold)", fontsize=9)
+    fig.suptitle(
+        "Dynamics coupling holds the rich profile inboard "
+        "(dotted = outboard-attractor threshold)",
+        fontsize=9,
+    )
     fig.tight_layout()
     fig.savefig(path, dpi=130)
     plt.close(fig)
@@ -335,8 +474,11 @@ def _fig_profile_evolution(results, path: Path) -> None:
         ax.set_xlabel("t [s]")
     axes[0][0].set_ylabel("profile coeff")
     axes[0][0].legend(fontsize=7)
-    fig.suptitle(f"shot {r['shot']}: diffusion-evolved profile vs the "
-                 "under-determined uncoupled fit", fontsize=9)
+    fig.suptitle(
+        f"shot {r['shot']}: diffusion-evolved profile vs the "
+        "under-determined uncoupled fit",
+        fontsize=9,
+    )
     fig.tight_layout()
     fig.savefig(path, dpi=130)
     plt.close(fig)
@@ -354,12 +496,18 @@ def _summarise(results, prior_weight: float) -> dict:
     k2_frac, n = _frac_confined("k2")
     unc_frac, _ = _frac_confined("rich_unc")
     cpl_frac, _ = _frac_confined("rich_cpl")
-    dev = [s["cpl_vs_k2_axis_cm"] for r in results for s in r.get("slices", [])
-           if np.isfinite(s["cpl_vs_k2_axis_cm"])]
+    dev = [
+        s["cpl_vs_k2_axis_cm"]
+        for r in results
+        for s in r.get("slices", [])
+        if np.isfinite(s["cpl_vs_k2_axis_cm"])
+    ]
     med_dev = float(np.median(dev)) if dev else float("nan")
     any_nan = any(
         (s["rich_cpl"]["scored"] and not np.isfinite(s["rich_cpl"]["axis_r"]))
-        for r in results for s in r.get("slices", []))
+        for r in results
+        for s in r.get("slices", [])
+    )
     # G3a asks whether the DYNAMICS COUPLING (the thing §3 adds) keeps the solve
     # finite and physical without regressing.  That is three checks:
     #   (a) no fabricated readout — a scored coupled fit never carries a NaN axis
@@ -376,14 +524,21 @@ def _summarise(results, prior_weight: float) -> dict:
     tracks_position = bool(np.isfinite(med_dev) and med_dev <= REGRESS_TOL_CM)
     no_coupling_regression = bool(cpl_frac >= unc_frac - 1e-9)
     g3a = bool(no_fabrication and tracks_position and no_coupling_regression)
-    return {"n_slices": n, "k2_confined_frac": k2_frac,
-            "rich_unc_confined_frac": unc_frac, "rich_cpl_confined_frac": cpl_frac,
-            "rich_vs_k2_confinement_gap": float(k2_frac - cpl_frac),
-            "cpl_vs_k2_axis_median_cm": med_dev, "coupled_emits_nan": any_nan,
-            "no_fabrication": no_fabrication, "tracks_position": tracks_position,
-            "no_coupling_regression": no_coupling_regression,
-            "prior_weight": prior_weight, "regress_tol_cm": REGRESS_TOL_CM,
-            "G3a_pass": g3a}
+    return {
+        "n_slices": n,
+        "k2_confined_frac": k2_frac,
+        "rich_unc_confined_frac": unc_frac,
+        "rich_cpl_confined_frac": cpl_frac,
+        "rich_vs_k2_confinement_gap": float(k2_frac - cpl_frac),
+        "cpl_vs_k2_axis_median_cm": med_dev,
+        "coupled_emits_nan": any_nan,
+        "no_fabrication": no_fabrication,
+        "tracks_position": tracks_position,
+        "no_coupling_regression": no_coupling_regression,
+        "prior_weight": prior_weight,
+        "regress_tol_cm": REGRESS_TOL_CM,
+        "G3a_pass": g3a,
+    }
 
 
 def main() -> int:
@@ -403,20 +558,35 @@ def main() -> int:
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--out-suffix", type=str, default="")
     ap.add_argument(
-        "--fsa-mode", type=str, default="coarea", choices=("coarea", "connectivity"),
+        "--fsa-mode",
+        type=str,
+        default="coarea",
+        choices=("coarea", "connectivity"),
         help="flux-surface-averaging read: 'coarea' (host baseline) or "
         "'connectivity' (contour-free JAX). The G2d no-regress check runs both.",
     )
     args = ap.parse_args()
 
-    shots = ([int(s) for s in args.shots.split(",") if s]
-             if args.shots else list(DEFAULT_SHOTS))
+    shots = (
+        [int(s) for s in args.shots.split(",") if s]
+        if args.shots
+        else list(DEFAULT_SHOTS)
+    )
     eta_params = [float(v) for v in args.eta_params.split(",")]
-    cfg = dict(nr=args.nr, nz=args.nz, sigma=args.sigma, eta_params=eta_params,
-               prior_weight=args.prior_weight, n_sub=args.n_sub_steps,
-               par_weight=args.par_weight, b_phi0=args.b_phi0, n_rho=args.n_rho,
-               max_slices=args.max_slices_per_shot, min_ip_ka=args.min_ip_ka,
-               fsa_mode=args.fsa_mode)
+    cfg = dict(
+        nr=args.nr,
+        nz=args.nz,
+        sigma=args.sigma,
+        eta_params=eta_params,
+        prior_weight=args.prior_weight,
+        n_sub=args.n_sub_steps,
+        par_weight=args.par_weight,
+        b_phi0=args.b_phi0,
+        n_rho=args.n_rho,
+        max_slices=args.max_slices_per_shot,
+        min_ip_ka=args.min_ip_ka,
+        fsa_mode=args.fsa_mode,
+    )
 
     jobs = [(sh, cfg) for sh in shots]
     if args.workers > 1 and len(jobs) > 1:
@@ -435,14 +605,24 @@ def main() -> int:
 
     ARTIFACT.parent.mkdir(parents=True, exist_ok=True)
     out = ARTIFACT.with_name(ARTIFACT.stem + sfx + ARTIFACT.suffix)
-    out.write_text(json.dumps({"arm": "dynamics-coupled-solve-position-spine",
-                               "shots": shots, "summary": summary,
-                               "results": results}, indent=1))
+    out.write_text(
+        json.dumps(
+            {
+                "arm": "dynamics-coupled-solve-position-spine",
+                "shots": shots,
+                "summary": summary,
+                "results": results,
+            },
+            indent=1,
+        )
+    )
     logger.info("wrote %s", out)
-    print(f"G3a_PASS={summary['G3a_pass']} "
-          f"cpl_confined={summary['rich_cpl_confined_frac']:.3f} "
-          f"unc_confined={summary['rich_unc_confined_frac']:.3f} "
-          f"cpl_vs_k2_med={summary['cpl_vs_k2_axis_median_cm']:.2f}cm")
+    print(
+        f"G3a_PASS={summary['G3a_pass']} "
+        f"cpl_confined={summary['rich_cpl_confined_frac']:.3f} "
+        f"unc_confined={summary['rich_unc_confined_frac']:.3f} "
+        f"cpl_vs_k2_med={summary['cpl_vs_k2_axis_median_cm']:.2f}cm"
+    )
     return 0
 
 
