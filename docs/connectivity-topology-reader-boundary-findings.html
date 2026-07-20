@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="connectivity-topology-reader-boundary-findings">
+  <meta name="plan-title" content="Connectivity Boundary Read — GPU-native reproduction findings">
+  <meta name="plan-status" content="reference">
+  <meta name="plan-summary" content="Findings for the GPU-native connectivity boundary read (connectivity-topology-reader §2): a fixed-shape, jit/vmap/grad-safe device reimplementation of the shipped host lcfs_contour (flood-fill from the axis + candidate-level sweep + fixed-count bisection over the connectivity-change level), replacing host contourpy. On 36 held-out MAST slices (18 diverted / 18 limited) the device LCFS radii reproduce the host to 2.55 cm median (< 3 cm bar; diverted 0.82 cm); the scalar psi_bnd reproduces to 3.7% of the axis-boundary flux span, at the O(dpsi) binding-cell grid floor (sub-grid saddle/tangency polish = the nova subnull refinement, next rung). On-device batch is one jax.vmap (byte-parity, 41 ms/slice CPU), imports no contourpy/ndimage/argwhere. On a synthetic limited-to-diverted sweep the connectivity psi_bnd is continuous (0.5% max step of span) where the classify-first boundary steps (9.2%) at the X-point appearance.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>Connectivity Boundary Read — GPU-native reproduction findings | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Scope.</strong> This document records the build and gate of the GPU-native
+<strong>connectivity boundary read</strong>
+(<code>imas_ambix/latent/connectivity_boundary.py</code>), §2 of the
+<a href="/imas-ambix/connectivity-topology-reader.html">connectivity-topology-reader</a>
+plan. It states plainly what landed, the honest gate verdicts (including one
+qualified pass), and what the read unblocks. All figures are on held-out MAST
+slices or self-contained synthetic fields; EFIT is never an input.</p>
+
+<h2 id="problem">§1 — The problem: the one GPU-hostile step</h2>
+<p>The topology read — magnetic axis, X-point(s), LCFS/boundary, core mask — is the
+single data-dependent step in the batched equilibrium engine, and the place
+EFIT-class reconstructors sink into a contour-tree / critical-point-classification
+tar pit. Ported verbatim to a GPU it re-serialises the whole rollout: host
+round-trips, <code>argwhere</code> loops, union-find connected components,
+variable-count nulls.</p>
+<p>We already resolve the LCFS by <strong>connectivity</strong>, not stationary-point
+classification (the shipped <code>topology.lcfs_contour</code>, used as the
+frozen-spine push-out boundary): the boundary is the <em>outermost closed,
+axis-enclosing flux contour that still lies inside the wall</em>, found by ONE
+monotone flux-offset push — continuous through the marginal limited&harr;diverted
+transition by construction, because the read never decides <em>which</em> surface
+bounds; it finds where the axis-connected region stops being closed inside the
+wall. The algorithm is validated; the <em>implementation</em> used the GPU-hostile
+primitives (contourpy, a bisection over traced contours). §2 re-expresses the SAME
+algorithm on-device.</p>
+
+<h2 id="method">§2 — Method: flood-fill + level sweep + bisection</h2>
+<p>The device kernel (<code>boundary_read_jax</code>) is a fixed-shape reduction over
+the grid — no contour extraction, no host round-trip:</p>
+<ul>
+  <li><strong>Normalised flux.</strong> <code>u = (ψ − ψ_axis)/(ψ_out − ψ_axis)</code>
+  maps the axis to 0 and the domain-edge extreme to 1, so the confined side at a
+  candidate level <code>s</code> is simply <code>u ≤ s</code> (sign-agnostic).</li>
+  <li><strong>Axis-connected region.</strong> At each level the confined-and-in-wall
+  set is flood-filled from the axis cell by iterated 4-neighbour dilation (the
+  shipped <code>flood_fill_core</code> device kernel from the contour-free FSA) —
+  the axis-connected component, never a disconnected pocket.</li>
+  <li><strong>The binding level = the connectivity change.</strong> A level is
+  <em>valid</em> while the axis region stays clear of the wall boundary; it becomes
+  invalid the instant the region first reaches the wall — a flux surface going
+  tangent to the wall (LIMITED) or opening through an X-point so the scrape-off
+  connects to the divertor/wall (DIVERTED). This predicate is monotone in
+  <code>s</code>, so ψ_bnd is the largest valid level, found by a fixed coarse
+  sweep bracketing the transition + a fixed-count bisection.</li>
+  <li><strong>LCFS radii.</strong> Read a hair inside the separatrix by an outward
+  ray-march at the evaluator's 8 poloidal angles — a differentiable interpolated
+  crossing (the same fixed parameterisation the host uses).</li>
+</ul>
+<p>The only machine input is the wall as a <strong>raster boolean mask</strong>, so a
+single loop (MAST), a union of discrete limiters (AUG), or a per-pulse movable
+wall (WEST) is data, not a new code path — the §4 abstraction is already in place.
+Everything is <code>jit</code> / <code>vmap</code> / <code>grad</code>-safe.</p>
+
+<h2 id="repro">§3 — Reproduction on held-out MAST slices (T-B1)</h2>
+<p>On 36 held-out slices (6 shots × 6 slices; <strong>18 diverted, 18 limited</strong>)
+the device flood-fill read is compared against the host <code>lcfs_contour</code>
+(the disc-pushout reference, <code>clip_legs=True</code>) on the SAME disc ψ field,
+axis, and wall mask.</p>
+
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/overlay_ink.png"
+       alt="imas-ink poloidal cross-section: device flood-fill LCFS vs host lcfs_contour ring on a limited and a diverted MAST slice"
+       style="max-width:100%;height:auto">
+  <figcaption><strong>imas-ink poloidal cross-section.</strong> The device
+  connectivity flood-fill LCFS (blue) overlaid with the host <code>lcfs_contour</code>
+  ring as the faint sienna reference underlay, on a limited and a diverted held-out
+  MAST slice. One code path across both topologies; the MAST in-vessel PF coil boxes
+  and first wall are drawn from the campaign geometry.</figcaption>
+</figure>
+
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/overlay.png"
+       alt="Device ray-cast LCFS radii sitting on the host contourpy ring, limited and diverted"
+       style="max-width:100%;height:auto">
+  <figcaption>The 8 device ray-cast radii (orange) land on the host contourpy ring
+  (blue) for both a limited and a diverted slice — the boundary <em>shape</em>
+  reproduces regardless of topology.</figcaption>
+</figure>
+
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/reproduction.png"
+       alt="ψ_bnd device-vs-host scatter and LCFS-radius agreement histogram"
+       style="max-width:100%;height:auto">
+  <figcaption>Left: device vs host ψ_bnd − ψ_axis (near the y = x line). Right: the
+  LCFS-radius agreement across all 36 slices against the 3 cm label tolerance.</figcaption>
+</figure>
+
+<p><strong>Verdict — QUALIFIED.</strong> The <strong>LCFS radii — the boundary
+geometry the evaluator actually scores</strong> — reproduce the host to
+<strong>2.55 cm median</strong> (bar 3.0 cm; diverted 0.82 cm, limited 2.70 cm,
+p90 max-radius 3.98 cm): the connectivity boundary the device finds is the same
+boundary the host finds. The scalar ψ_bnd reproduces to <strong>3.7% of the
+axis→boundary flux span</strong> (median; p90 6.2%), just over the self-declared
+3% bar — the O(Δψ) binding-cell grid floor that caution (i) of the plan named in
+advance (on a fine synthetic grid the same read matches ψ_bnd to 0.03%; the
+coarse 65×97 campaign grid quantises the binding saddle / wall-tangency). The
+sub-grid ψ_bnd polish is nova's <code>select.subnull</code> quadratic refinement —
+the explicit deliverable of §3, which locates that null sub-grid anyway. This is a
+reproduction of the connectivity boundary, not a looser or host-bound read (see
+T-B2), so it is a qualified pass rather than a stop.</p>
+
+<h2 id="ondevice">§4 — On-device and batchable (T-B2) — PASS</h2>
+<p>A batch of the six slices sharing one campaign grid runs as a single
+<code>jax.vmap</code> with fixed shapes, byte-parity with the per-slice read
+(<code>allclose</code> at 1e-9). The module imports <strong>no contourpy, no
+scipy.ndimage, and calls no <code>argwhere</code> / <code>label</code></strong>
+(AST-audited). Throughput on CPU: <strong>41 ms/slice batched</strong> vs
+52 ms/slice looped — and the identical code runs on the GPU whenever a CUDA jaxlib
+is present (device chosen by the installed jaxlib, not the code), exactly the
+inner-loop the corpus labeller needs.</p>
+
+<h2 id="continuity">§5 — Continuity through the marginal transition (T-B3) — PASS</h2>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/continuity.png"
+       alt="Connectivity ψ_bnd continuous through the limited-to-diverted transition where classify-first steps"
+       style="max-width:100%;height:auto">
+  <figcaption>A synthetic sweep growing a lower blob (limited → diverted). The
+  classify-first boundary (innermost in-vessel X-point flux, else limiter) STEPS by
+  9.2% of span the moment an in-vessel X-point is first detected; the connectivity
+  read is smooth through the same transition (0.5% max step).</figcaption>
+</figure>
+<p>This is the ill-conditioned case classify-first pipelines fail: a marginal plasma
+looks identical in flux space, so the height-gate / mode decision jumps. The
+connectivity read never makes that decision, so ψ_bnd is continuous by
+construction — the property the differentiable rollout depends on.</p>
+
+<h2 id="unblocks">§6 — What this unblocks</h2>
+<p>The read is now <strong>doubly load-bearing</strong>:</p>
+<ul>
+  <li><strong>Batched GPU throughput</strong> (<a href="/imas-ambix/gpu-accelerated-labeler.html">gpu-accelerated-labeler</a>):
+  the boundary half of the on-device topology read is a single <code>vmap</code>
+  over slices sharing one grid — no host contour extraction re-serialising the
+  rollout.</li>
+  <li><strong>The differentiable-solve retest</strong>
+  (<a href="/imas-ambix/differentiable-solve-accelerator.html">differentiable-solve-accelerator</a>):
+  the hard-threshold host topology step made the free-boundary map
+  non-differentiable, corrupting Newton–Krylov's Jacobian and Anderson's history.
+  A flood-fill boundary that is continuous through the marginal transition and
+  carries a finite <code>jax.grad</code> (verified) is the smooth map those schemes
+  need. Note: the scalar ψ_bnd is presently grid-quantised; the §3 sub-grid subnull
+  polish makes it smoothly differentiable, which is the form NK/Anderson require.</li>
+</ul>
+
+<h2 id="next">§7 — Next</h2>
+<p><strong>§3 — axis + optional X-point via nova stencils (classify-after).</strong>
+Port nova's <code>zero_cross_count</code> stencil classifier and
+<code>select.subnull</code> quadratic refinement for the sub-grid axis O-point and
+X-point <em>location</em>, read off AFTER the §2 boundary by proximity to the ring
+(the <code>emergent_xpoints</code> soft-margin rule). The same <code>subnull</code>
+polishes the scalar ψ_bnd sub-grid, closing the T-B1 ψ_bnd leg. Artifacts:
+<code>imas_ambix/latent/connectivity_boundary.py</code>,
+<code>scripts/connectivity_boundary_gate_eval.py</code>,
+<code>imas_ambix/latent/artifacts/patch_gate/connectivity_boundary_gate-v0.json</code>.</p>
+
+</main>
+</body>
+</html>

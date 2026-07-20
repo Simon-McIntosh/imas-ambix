@@ -375,6 +375,135 @@ def _tb3():
 
 
 # ---------------------------------------------------------------------------
+# imas-ink poloidal cross-section (device read vs host read)
+# ---------------------------------------------------------------------------
+
+
+def _machine_geometry_from_grid(grid):
+    """MachineGeometry (wall + coil boxes) from an EquilibriumGrid alone."""
+    from imas_ink._types import CoilRect, MachineGeometry
+
+    lr = np.asarray(grid.limiter_r, dtype=np.float64)
+    lz = np.asarray(grid.limiter_z, dtype=np.float64)
+    clip = np.column_stack([np.append(lr, lr[0]), np.append(lz, lz[0])])
+    rects = [
+        CoilRect(r=r0, z=z0, width=r1 - r0, height=z1 - z0, name=str(i))
+        for i, (r0, r1, z0, z1) in enumerate(np.asarray(grid.conductor_rects))
+    ]
+    return MachineGeometry(
+        wall_r=lr,
+        wall_z=lz,
+        coil_rects=rects,
+        wall_clip_vertices=clip,
+        wall_units=[(lr, lz)],
+    )
+
+
+def _dense_ring(psi, grid, centroid, *, n_ang=180, lcfs_norm=0.999):
+    """Device LCFS as a dense (R, Z) polygon: ray-cast at ``n_ang`` fine angles."""
+    import jax.numpy as jnp
+
+    from imas_ambix.latent.connectivity_boundary import boundary_read_jax
+
+    ang = np.linspace(0.0, 2.0 * np.pi, n_ang, endpoint=False)
+    out = boundary_read_jax(
+        jnp.asarray(np.asarray(psi, dtype=np.float64)),
+        jnp.asarray(np.asarray(grid.rg, dtype=np.float64)),
+        jnp.asarray(np.asarray(grid.zg, dtype=np.float64)),
+        jnp.asarray(np.asarray(grid.inside_limiter, dtype=bool)),
+        jnp.asarray(float(centroid[0])),
+        jnp.asarray(float(centroid[1])),
+        96,
+        18,
+        512,
+        jnp.asarray(ang),
+        jnp.asarray(float(lcfs_norm)),
+    )
+    rad = np.asarray(out["radii"], dtype=np.float64)
+    ok = np.isfinite(rad)
+    rr = centroid[0] + rad[ok] * np.cos(ang[ok])
+    zz = centroid[1] + rad[ok] * np.sin(ang[ok])
+    return np.column_stack([rr, zz]) if ok.any() else None
+
+
+def _ink_slice(psi, grid, centroid, psi_axis, psi_bnd, ring, ip, time_s):
+    """Build an imas-ink EquilibriumSlice for one boundary read on ``psi``."""
+    from imas_ink._types import EquilibriumSlice
+
+    return EquilibriumSlice(
+        psi_2d=np.ascontiguousarray(np.asarray(psi, dtype=np.float64).T),  # (nR, nZ)
+        r_grid=np.asarray(grid.rg, dtype=np.float64),
+        z_grid=np.asarray(grid.zg, dtype=np.float64),
+        psi_axis=float(psi_axis),
+        psi_boundary=float(psi_bnd),
+        r_axis=float(centroid[0]),
+        z_axis=float(centroid[1]),
+        ip=float(ip),
+        time=float(time_s),
+        converged=True,
+        x_points=[],
+        boundary_r=None if ring is None else np.asarray(ring)[:, 0],
+        boundary_z=None if ring is None else np.asarray(ring)[:, 1],
+    )
+
+
+def _ink_cross_section(overlays):
+    """imas-ink poloidal cross-section: device flood-fill LCFS (primary) with the
+    host ``lcfs_contour`` ring as the faint reference underlay, on a limited AND a
+    diverted held-out slice."""
+    from imas_ink.figures import equilibrium_figure_mpl
+
+    want = {}
+    for ov in overlays:
+        want.setdefault(ov[0], ov)
+    panels = [want[k] for k in ("limited", "diverted") if k in want]
+    if not panels:
+        return None
+    FIG_DIR.mkdir(parents=True, exist_ok=True)
+    tiles = []
+    for cls, psi, grid, cpu, gpu, centroid in panels:
+        geom = _machine_geometry_from_grid(grid)
+        ring = _dense_ring(psi, grid, centroid, lcfs_norm=1.0)
+        dev = _ink_slice(
+            psi, grid, centroid, gpu.psi_axis, gpu.psi_bnd, ring, 0.0, 0.0
+        )
+        host = _ink_slice(
+            psi, grid, centroid, gpu.psi_axis, cpu.psi_bnd, cpu.ring, 0.0, 0.0
+        )
+        fig, ax = equilibrium_figure_mpl(
+            dev,
+            geom,
+            reference_slice=host,
+            reference_name="host lcfs_contour",
+            figsize=(4.4, 6.4),
+            show_probes=False,
+            show_flux_loops=False,
+        )
+        ax.set_title(
+            f"{cls}\ndevice ψ_bnd {gpu.psi_bnd:.4f} · host {cpu.psi_bnd:.4f}",
+            fontsize=9,
+        )
+        fig.canvas.draw()
+        tiles.append(np.asarray(fig.canvas.buffer_rgba()))
+        plt.close(fig)
+    fig, axes = plt.subplots(1, len(tiles), figsize=(4.6 * len(tiles), 6.6))
+    axes = np.atleast_1d(axes)
+    for ax, img in zip(axes, tiles, strict=True):
+        ax.imshow(img)
+        ax.axis("off")
+    fig.suptitle(
+        "imas-ink cross-section — device connectivity flood-fill LCFS (blue) vs "
+        "host lcfs_contour ring (faint sienna)\none code path, limited & diverted",
+        fontsize=10,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    out = FIG_DIR / "overlay_ink.png"
+    fig.savefig(out, dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    return str(out)
+
+
+# ---------------------------------------------------------------------------
 # figures
 # ---------------------------------------------------------------------------
 
@@ -542,6 +671,12 @@ def _figures(tb1, tb3, overlays):
     fig.savefig(FIG_DIR / "continuity.png", dpi=130)
     plt.close(fig)
 
+    # (4) imas-ink poloidal cross-section (device vs host boundary)
+    try:
+        _ink_cross_section(overlays)
+    except Exception as exc:  # noqa: BLE001 — the ink stack is an optional sibling
+        logger.warning("imas-ink cross-section skipped: %s", exc)
+
 
 # ---------------------------------------------------------------------------
 # driver
@@ -558,6 +693,12 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--nz", type=int, default=97)
     ap.add_argument("--no-figures", action="store_true")
     ap.add_argument(
+        "--ink-shot",
+        type=int,
+        default=0,
+        help="regenerate ONLY the imas-ink cross-section from this one shot, then exit",
+    )
+    ap.add_argument(
         "--out",
         type=str,
         default="imas_ambix/latent/artifacts/patch_gate/connectivity_boundary_gate-v0.json",
@@ -568,6 +709,18 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     from imas_ambix.eval import prediction_bar as pbar
+
+    if args.ink_shot:
+        _rows, overlays = _slice_rows(
+            int(args.ink_shot),
+            nr=args.nr,
+            nz=args.nz,
+            max_slices=args.max_slices,
+            min_ip_ka=args.min_ip_ka,
+        )
+        out = _ink_cross_section(overlays)
+        logger.info("wrote imas-ink cross-section: %s", out)
+        return 0
 
     if args.shots:
         shots = [int(s) for s in args.shots.split(",") if s.strip()]
