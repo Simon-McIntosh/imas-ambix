@@ -24,10 +24,20 @@
 
   <h2 id="s1">§1 — Overview: one on-device rollout substrate, three deployment dimensions</h2>
   <p><strong>Sequencing.</strong> This plan lands <em>after</em>
-  <code>greens-filament-solver</code> is complete (§3 FSA → §4 performance → §5
-  adopt) &mdash; its grid-free analytic-ψ substrate is the port target
-  (<code>depends_on</code>). Green-field GPU-first design starts now so the
-  substrate is optimised for H200 compute from the very beginning, not retrofitted.</p>
+  <code>greens-filament-solver</code> (SHIPPED 2026-07-20: grid-free analytic-ψ
+  substrate GO, contour-free GPU-native FSA PASS, campaign-scope matrix cache) and
+  <em>after</em> <code>connectivity-topology-reader</code> (the on-device
+  differentiable topology read) &mdash; both are <code>depends_on</code>. The
+  grid-free substrate is the port target. Crucially, <code>greens-filament-solver</code>
+  §4 confirmed on CPU what this plan asserts: <strong>no per-solve iterator (Picard,
+  Anderson, Newton&ndash;Krylov) clears the ≥3× throughput gate</strong>, because the
+  wall is the sequential, non-smooth, host topology read (it corrupts NK&rsquo;s
+  Jacobian and Anderson&rsquo;s history alike) &mdash; not the arithmetic. So the
+  3×+ is a batched-over-shots GPU result that lives HERE, and
+  <code>greens-filament-solver</code> §5 (adopt + integrate + re-score at corpus
+  scale) folds into this plan&rsquo;s ONE jax engine (§4 offline corpus + gate G-C).
+  Green-field GPU-first design starts now so the substrate is optimised for H200
+  compute from the beginning, not retrofitted.</p>
 
   <p><strong>The problem, and the honest negative that motivates it.</strong> The
   reanalysis engine produces firewall-clean equilibrium labels; the label factory

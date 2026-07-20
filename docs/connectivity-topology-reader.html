@@ -89,6 +89,21 @@
   MASK. This is the on-device topology read <code>gpu-accelerated-labeler</code> depends
   on; it also sharpens the CPU <code>greens-filament-solver</code> read.</p>
 
+  <p><strong>Now doubly load-bearing &mdash; it also unblocks the fixed-point
+  accelerator.</strong> <code>greens-filament-solver</code> §4 (shipped 2026-07-20)
+  established that <em>no</em> per-solve CPU iterator &mdash; Picard, safeguarded
+  Anderson, or Newton&ndash;Krylov &mdash; clears the throughput gate, and the wall is
+  precisely this read: the hard-threshold host topology step
+  (<code>find_critical_points</code> + <code>ndimage.label</code> core mask) makes the
+  free-boundary map <em>non-differentiable</em>, so finite-differencing the residual
+  across a mask flip corrupts Newton&ndash;Krylov&rsquo;s Jacobian and the mask-flip
+  noise corrupts Anderson&rsquo;s history (measured: Anderson ~1.3&times; only on
+  well-posed slices; NK diverges on 2/5). Making this read <strong>continuous and
+  differentiable</strong> therefore does two things at once: it lets the accelerator
+  schemes be revisited on a <em>solvable</em> (differentiable) map, AND it makes the map
+  <code>vmap</code>-batchable for <code>gpu-accelerated-labeler</code>. This plan is the
+  shared prerequisite for both the accelerated solve and the batched GPU throughput.</p>
+
   <h2 id="s2">§2 — GPU-native connectivity boundary read (flood-fill + level sweep)</h2>
   <p>Reimplement <code>lcfs_contour</code>'s monotone connectivity read with GPU-native
   primitives: seed a one-hot mask at the axis; at each of a fixed set of candidate

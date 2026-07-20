@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="greens-filament-solver">
   <meta name="plan-title" content="Grid-Free Green&#x27;s-Filament Equilibrium Solver — analytic Δ* inversion, cached per campaign">
   <meta name="plan-summary" content="Replace the gridded Grad–Shafranov Δ*ψ operator evaluation with a Green&#x27;s-function / filament plasma representation (nova-validated), keeping GS force balance exactly. The plasma is finite-area toroidal filaments carrying effective turns that sum to 1 (net current = Ip); ψ everywhere is an analytic Δ* inversion by the hybrid_greens finite-area kernel — the SAME kernel as the coils and vessel (the locked one-interaction-matrix decision, extended to the plasma) — with interaction matrices computed ONCE per campaign and cached; the free-boundary equilibrium is a Jacobian-free Newton–Krylov fixed point that evaluates ψ by matvec, locates the axis/X-point matrix-free, applies force balance jφ = R·p′(ψ_N) + FF′(ψ_N)/(μ0 R) pointwise on the filaments, and renormalises the turns. Three payoffs: (1) performance — a matvec per iteration instead of an elliptic solve, so the label factory scales to the corpus; (2) flux-surface-averaging integrity — a smooth analytic ψ + a contour tracer fixes the noisy flux-surface metrics (measured d_face roughness ~0.5, worsening with resolution) that corrupt the resistive-diffusion coefficient; (3) coil↔plasma consistency. Gated by a go/no-go spike: reproduce the grid-GS equilibria on held-out slices to tolerance AND measurably faster AND with cleaner flux-surface metrics, before adoption. Firewall: GS force balance preserved; hybrid_greens only; no EFIT.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="XL">
   <meta name="plan-tier" content="opus">
@@ -20,8 +20,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-20">
-<meta name="plan-impl" content="0.5">
-<meta name="plan-version" content="2">
+<meta name="plan-impl" content="1.0">
+<meta name="plan-version" content="3">
+<meta name="plan-informs" content="connectivity-topology-reader,gpu-accelerated-labeler">
 </head>
 <body>
 <main class="plan-doc">
@@ -173,25 +174,51 @@
     </p>
   </section>
 
-  <h2 id="s4">§4 — Performance to corpus scale</h2>
-  <p>With the matvec substrate in place: cache the Green&rsquo;s / interaction
-  matrices at campaign scope (build once, reuse across every shot and slice),
-  collapse the label-production solve to what it actually needs (the §3 chain runs
-  three solves per slice; label production needs fewer), and settle the
-  fixed-point accelerator — <strong>Newton&ndash;Krylov primary, an
-  Anderson-accelerated Picard evaluated as the interpretable fallback</strong>.
-  Gate G3: a corpus-scale throughput target of <strong>&ge; 3&times;</strong> the
-  current baseline, measured as slices/core-hour, with the equilibria
-  byte-comparable to the adopted solver.</p>
+  <section id="s4" class="section-landed">
+    <header>
+      <span class="badge badge-shipped">✓ landed 2026-07-20</span>
+      <h2>§4 — Performance to corpus scale — campaign cache LANDED; 3× routes to the GPU path</h2>
+    </header>
+    <p class="landed-summary">
+      Campaign-scope Green&rsquo;s/interaction-matrix cache landed (opt-in; cold build
+      2718&nbsp;ms → cache hit 0.04&nbsp;ms/shot, wired into the corpus factory). The
+      fixed-point accelerator hit a CPU ceiling, reported honestly: warm-rollout is NOT
+      a lever (0.53&times;; the same-slice K=2 scaffold is a better seed); safeguarded
+      Anderson-Picard is ~1.3&times; on well-posed slices byte-comparably but cannot
+      help the under-determined interior-null slices; Newton&ndash;Krylov is erratic on
+      the non-smooth map (2/5 fixed-shape slices diverge, axis 47&ndash;70&nbsp;cm off)
+      and is host-scipy. Root cause: the hard-threshold host topology read
+      (<code>ndimage.label</code> + critical-points) makes the map non-differentiable —
+      it corrupts NK&rsquo;s Jacobian and Anderson&rsquo;s history alike — while the
+      hard slices are under-determined (the centroid pin holds the branch; the
+      axis&ndash;pin gap is the physical Shafranov shift). <strong>G3 (≥3× on CPU) is an
+      HONEST NEGATIVE per the pre-declared stop rule</strong> — no per-solve CPU iterator
+      clears 3× because the ceiling is the sequential, non-smooth, host topology read,
+      not the arithmetic. The 3×+ moves to the batched-over-shots GPU path
+      (<code>gpu-accelerated-labeler</code>), gated on the continuous/differentiable
+      topology read (<code>connectivity-topology-reader</code>) that makes the map
+      differentiable so the accelerators are revisited there cleanly.
+      Full record: <a href="archive/greens-filament-solver-s4-landed.html">§4 landed</a>
+      (commit <code>1faf3ab</code>).
+    </p>
+  </section>
 
-  <h2 id="s5">§5 — Adopt + integrate + re-score</h2>
-  <p>Make the grid-free solver the engine substrate behind the existing spine
-  interface, carrying the soft priors (centroid moment linear in turns, passive
-  eddies, SOL/edge terms) across unchanged in kind, and re-score the held-out MSE
-  pitch to confirm the substrate change is byte-comparable-or-better (it must not
-  cost skill). Hand the faster, cleaner-metric engine to
-  <code>interior-closure-hardening</code>, which builds the resistivity closure,
-  the pedestal, and the interior representation on top of it.</p>
+  <section id="s5" class="section-landed">
+    <header>
+      <span class="badge badge-shipped">✓ folded 2026-07-20</span>
+      <h2>§5 — Adopt + integrate + re-score — folded into the GPU-native path</h2>
+    </header>
+    <p class="landed-summary">
+      Adoption at corpus scale is architecturally the GPU-native rebuild, not a CPU
+      step (the grid-free per-solve is 1.67&times; slower on CPU; the throughput
+      multiple is GPU batching). It folds into <code>gpu-accelerated-labeler</code> —
+      the ONE jax engine (CPU+GPU) that adopts the grid-free substrate + the §3
+      connectivity FSA and re-scores the held-out MSE pitch (its §4 offline corpus /
+      gate&nbsp;G-C). <code>interior-closure-hardening</code> builds on the shipped
+      §2/§3 substrate directly (it needs the solve, not the throughput), so it is
+      unblocked now.
+    </p>
+  </section>
 
   <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -341,7 +368,7 @@ Done-when
      followup queued WITH pre-declared gates; this followup resolved.</pre>
     <p class="r-fu-outcome">§3 PASS. Contour-free JAX FSA (flood-fill core + smooth-CDF coarea; jit/vmap/grad-safe, fixed-shape, fp64) landed as opt-in fsa_mode='connectivity' — coarea default byte-unchanged (14/14 current_diffusion tests + 7/7 new). RECONCILE: the cited 0.45→0.72 worsening pathology is NOT reproduced — the committed coarea metric is already smooth (0.34→0.17) and improves with resolution. Connectivity is materially smoother regardless: 6-shot d-roughness 0.126/0.129 (n32/n96) vs coarea 0.346/0.171, flat across resolution slope -0.037 (G2a/G2b PASS); contour-free + on-device (G2c PASS: flood-fill == scipy.ndimage.label, AST-checked, fixed-shape); dynamics coupling no-regress — confinement identical (0.939/0.879), tracking improves 2.18→1.85 cm (G2d PASS). DEMONSTRATED ON H200: batched jax.vmap over 1024 equilibria on a CudaDevice, fp64, GPU/CPU parity 1e-13 (scripts/fsa_gpu_capability.py). spine_bench schema 1.2 tracks both FSA reads; imas_ambix/spine_bench/AGENTS.md codifies the H200 benchmark policy. Commits 2e35d09 (kernel+wiring+bench+tests), ab22215 (GPU demo+policy+G2d harness), 59c4744 (figures), 88a3610 (stamp+record); archive docs/archive/greens-filament-solver-s3-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-gfs-04" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T12:20:00+00:00" data-recommends-skill="/reckon-ship greens-filament-solver §4" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-gfs-04" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T12:20:00+00:00" data-recommends-skill="/reckon-ship greens-filament-solver §4" data-resolved-at="2026-07-20T12:41:52+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §4 — performance to corpus scale (campaign-cached matvec + accelerator + ≥3× throughput)</h4>
     <div class="r-fu-body"><p>§3 PASS: the FSA read is now contour-free and device-batchable (H200 demo: 1024 equilibria/vmap, GPU/CPU parity 1e-13), and the analytic-ψ substrate (§2 GO) feeds it cleanly. §4 turns the substrate into throughput: cache the Green's/interaction matrices at CAMPAIGN scope (build once, reuse across every shot+slice — the spine_bench corpus-extrapolation caveat assumes this), collapse the label-production solve to what label production actually needs (fewer than the 3 solves/slice the §3 chain runs), and settle the fixed-point accelerator (Newton–Krylov primary, Anderson-accelerated Picard as the interpretable fallback). Gate G3: ≥3× the current baseline throughput (slices/core-hour) with equilibria byte-comparable to the adopted solver. Track it on spine_bench (throughput_slices_per_core_s + the new campaign-cache path) and demonstrate the batched path on the H200 per spine_bench/AGENTS.md.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -384,6 +411,35 @@ Gates (pre-declared)
 Done-when
   1. Campaign-cached solve + accelerator committed; G3/G3b verdicts recorded honestly; spine_bench stamp + H200 batched demo committed.
   2. Plan updated same-session: §4 outcome recorded + collapsed; §5 (adopt + integrate + re-score) followup queued; this followup resolved.</pre>
+    <p class="r-fu-outcome">§4 landed. Campaign-scope grid/matrix cache LANDED (opt-in cache=; cold build 2718ms → cache hit 0.04ms/shot, wired into the corpus factory) — the corpus-extrapolation caveat satisfied. Accelerator study honest: warm-rollout NOT a lever (0.53×; same-slice K=2 scaffold is the better seed, warm diverges ~1.15cm); safeguarded Anderson-Picard ~1.3× on well-posed slices byte-comparably (agree 0.2–0.6cm), can't help under-determined interior-null slices; Newton–Krylov erratic on the non-smooth map (2/5 fixed-shape slices diverge, axis 47–70cm off) and host-scipy. Root cause: the hard-threshold host topology read (ndimage.label + critical-points) makes the map non-differentiable (corrupts NK's Jacobian + Anderson's history) and the hard slices are under-determined (centroid pin holds the branch; the axis–pin gap is the physical Shafranov shift). G3 (≥3× on CPU) = HONEST NEGATIVE per the pre-declared stop rule — no per-solve CPU iterator clears 3× (the ceiling is the sequential non-smooth host topology read, not the arithmetic); the 3×+ routes to the batched-over-shots GPU path (gpu-accelerated-labeler) gated on the differentiable topology (connectivity-topology-reader). G3b reported; Anderson adopted as opt-in, NK retained. §5 (adopt+re-score) folded into the GPU path (ONE jax engine). Commit 1faf3ab; archive docs/archive/greens-filament-solver-s4-landed.html. Plan SHIPPED (§2 GO, §3 PASS, §4 cache+honest-ceiling).</p>
+    </article>
+<article class="r-fu" data-id="f-gfs-05" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T14:40:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Next: the continuous/differentiable topology read (connectivity-topology-reader) — the unblocker</h4>
+    <div class="r-fu-body"><p>greens-filament-solver SHIPPED: grid-free substrate (GO), contour-free GPU-native FSA (PASS), campaign cache landed, and the §4 finding that no CPU per-solve iterator clears 3× because the non-smooth, host topology read (ndimage.label core-mask + critical-points) is the wall — it corrupts both Newton–Krylov's Jacobian and Anderson's history, and forces a per-iteration host round-trip. The cure is already planned: connectivity-topology-reader makes the topology read continuous/differentiable (flood-fill boundary + smooth core mask, GPU-native, continuous through the marginal transition). Landing it (i) makes the free-boundary map differentiable so the fixed-point accelerator schemes are revisited cleanly on a solvable map, and (ii) makes the map vmap-batchable so the GEMV becomes a corpus GEMM — the prerequisite the gpu-accelerated-labeler 3×+ throughput and the §5 corpus adopt+re-score both depend on. Ship connectivity-topology-reader next.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    connectivity-topology-reader (http://localhost:8765/imas-ambix/connectivity-topology-reader.html)
+Section: §2 (GPU-native connectivity boundary read — flood-fill + level sweep)
+Tier:    opus
+
+Context
+  greens-filament-solver is SHIPPED (substrate GO, FSA PASS, campaign cache). Its §4
+  established the CPU accelerator ceiling: the non-smooth, host topology read (ndimage.label
+  core-mask + find_critical_points) makes the free-boundary map non-differentiable —
+  corrupting Newton–Krylov&#x27;s Jacobian-free GMRES and Anderson&#x27;s least-squares history alike —
+  and forces a per-iteration host round-trip that serialises any GPU port. connectivity-
+  topology-reader is the unblocker: a continuous/differentiable, GPU-native topology read
+  (connectivity flood-fill boundary + smooth core mask + nova stencils) that (i) makes the
+  solve map differentiable so the fixed-point accelerators are revisited on a solvable map,
+  and (ii) is vmap-batchable so the GEMV becomes a corpus GEMM. This is the prerequisite for
+  gpu-accelerated-labeler (the 3×+ throughput + the folded §5 corpus adopt+re-score). Honour
+  the locked decisions on that plan (read-paradigm=connectivity-first, nova-primitives=
+  stencils-only, wall-model=arbitrary-mask). Follow the §2 prompt already authored on the
+  connectivity-topology-reader plan (f-ctr-01) — this pointer just re-sequences it as the
+  immediate next step after greens-filament-solver.
+
+Done-when
+  1. GPU-native connectivity boundary read committed; T-B1..T-B3 verdicts recorded honestly.
+  2. connectivity-topology-reader plan updated same-session (§2 collapsed; §3 queued).</pre>
     </article>
 </section>
 

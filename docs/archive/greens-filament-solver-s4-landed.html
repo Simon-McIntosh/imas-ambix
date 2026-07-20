@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="greens-filament-solver-s4-landed">
+  <meta name="plan-title" content="Grid-Free Green's-Filament Solver — §4 record: performance to corpus scale (CPU accelerator ceiling; 3× routes to the GPU path)">
+  <meta name="plan-summary" content="§4 landing record (2026-07-20). Campaign-scope Green's/interaction-matrix caching LANDED (opt-in; cold build 2718 ms → cache hit 0.04 ms/shot, wired into the corpus factory). The fixed-point accelerator was evaluated honestly and hit a CPU ceiling: temporal warm-rollout is NOT a lever (0.53×; the same-slice K=2 scaffold is a better, cheaper seed and warm diverges ~1.15 cm from the canonical equilibrium); safeguarded Anderson-accelerated Picard gives ~1.3× on the well-posed (solvable) slices byte-comparably (agree 0.2–0.6 cm) but cannot help the under-determined interior-null slices; Newton–Krylov is erratic on the same map (2/5 fixed-shape slices diverge, axis 47–70 cm off) and is host-scipy (not GPU-native). Root cause: the hard-threshold topology read (ndimage.label core-mask + find_critical_points) makes the free-boundary map non-differentiable — it corrupts NK's Jacobian-free GMRES and Anderson's history alike — while the under-determined slices fluctuate. The current-centroid pin holds the branch (no basin escape; the axis-vs-pin gap is the physical Shafranov shift). Verdict: G3 (≥3× slices/core-hour on CPU) is an HONEST NEGATIVE per the pre-declared stop rule; no per-solve CPU iterator clears 3× because the ceiling is the sequential, non-smooth, host topology read, not the arithmetic. The 3×+ moves to the GPU-native batched path (gpu-accelerated-labeler), whose prerequisite is the continuous/differentiable topology read (connectivity-topology-reader) — which makes the map differentiable so the accelerators are revisited there cleanly, and batchable over shots (GEMV→GEMM). §5 (adopt + re-score at corpus scale) folds into that path (the ONE jax engine, CPU+GPU).">
+  <meta name="plan-informs" content="greens-filament-solver">
+  <title>greens-filament-solver §4 — performance ceiling (CPU) → GPU path</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h1>§4 record — performance to corpus scale: the CPU accelerator ceiling</h1>
+
+  <p><strong>Verdict (2026-07-20): campaign cache LANDED; G3 (≥3× on CPU) an
+  HONEST NEGATIVE, routed to the GPU path per the pre-declared stop rule.</strong>
+  §4 set out to reach a ≥3&times; corpus throughput on CPU via campaign-scope
+  caching + collapsing the label solve + settling the fixed-point accelerator
+  (Newton&ndash;Krylov primary, Anderson-accelerated Picard as the interpretable
+  fallback). The caching is a clean, real win and is landed. The accelerator
+  study, run honestly on the frozen shots, confirms what §2 and the three expert
+  reviews predicted: <strong>no per-solve CPU iterator (Picard, Anderson, or
+  Newton&ndash;Krylov) clears 3&times;</strong>, because the throughput ceiling is
+  the sequential, <em>non-smooth, host</em> topology read, not the arithmetic. The
+  3&times;+ is a batched-over-shots GPU result and moves to
+  <code>gpu-accelerated-labeler</code>, gated on the continuous/differentiable
+  topology read (<code>connectivity-topology-reader</code>).</p>
+
+  <h2>Gate verdicts (pre-declared in f-gfs-04)</h2>
+  <figure>
+    <table>
+      <thead><tr><th>Gate</th><th>Rule</th><th>Result</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>G3</strong> throughput</td>
+          <td>≥ 3&times; the baseline slices/core-hour at OMP=1, equilibria
+              byte-comparable to the adopted solver</td>
+          <td>campaign cache ~2% corpus; warm-rollout 0.53&times; (not a lever);
+              accelerator ~1.3&times; on well-posed slices only. Product &lt; 3&times;
+              on CPU per-solve. The dominant-cost slices are under-determined
+              (interior null) &mdash; not accelerator-addressable.</td>
+          <td><strong>NEGATIVE (CPU)</strong><br>→ GPU path</td>
+        </tr>
+        <tr>
+          <td><strong>G3b</strong> accelerator</td>
+          <td>NK vs Anderson-Picard convergence + wall reported honestly; adopt
+              the faster robust one, retain the other</td>
+          <td>Anderson: ~1.3&times; on the well-posed (Picard-converged) subset,
+              byte-comparable (axis agree 0.2&ndash;0.6 cm), do-no-harm-safeguarded;
+              adopted as an opt-in. NK: erratic on the (non-smooth) map &mdash; 2/5
+              fixed-shape slices diverge catastrophically (axis 47&ndash;70 cm off),
+              23&times; slower when it does converge; host-scipy, not GPU-native.
+              Neither is a production default on the current read.</td>
+          <td><strong>reported</strong></td>
+        </tr>
+        <tr>
+          <td>stop rule</td>
+          <td>if caching + batching cannot reach ≥3× without degrading equilibria,
+              STOP and surface the honest negative; the corpus GPU batching moves to
+              <code>gpu-accelerated-labeler</code></td>
+          <td>invoked exactly as written &mdash; the honest negative is surfaced
+              with its cause and the 3&times;+ is routed to the GPU path</td>
+          <td><strong>INVOKED</strong></td>
+        </tr>
+      </tbody>
+    </table>
+    <figcaption>G3 is a negative <em>on CPU per-solve</em>, not a failure of the
+    substrate: §2 GO and §3 PASS stand; the throughput multiple was always a
+    GPU-batching target (§2 caveat, expert reviews). The stop rule anticipated this
+    outcome and routes the work forward.</figcaption>
+  </figure>
+
+  <h2>The three levers, measured</h2>
+  <ul>
+    <li><strong>Campaign-scope caching &mdash; LANDED (real).</strong> The grid,
+    &Delta;* factorisation, and every Green&rsquo;s / interaction matrix are pure
+    functions of (campaign signature, resolution), so they are built ONCE per
+    campaign and reused across every shot and slice: cold build <strong>2718 ms</strong>
+    → cache hit <strong>0.04 ms</strong>. Opt-in (<code>cache=</code>; default keeps
+    the gate&rsquo;s independent-grid G1c invariant), wired into the corpus factory
+    (<code>factory_shot_payloads(cache_grid=True)</code>). This satisfies the
+    corpus-extrapolation caveat the spine_bench baseline recorded (~2% at corpus
+    scale, paid once per campaign not per shot).</li>
+    <li><strong>Temporal warm-rollout &mdash; NOT a lever.</strong> Warm-starting the
+    rich solve from the previous slice&rsquo;s converged current is <strong>0.53&times;</strong>
+    (slower) than the cold within-slice path AND diverges ~1.15 cm from the canonical
+    equilibrium: the same-slice K=2 position scaffold is a better, cheaper seed than
+    a different slice&rsquo;s answer. Measured, reported, not adopted.</li>
+    <li><strong>Fixed-point accelerator (G3b) &mdash; a modest, CPU-limited win.</strong>
+    A safeguarded Anderson-accelerated Picard (engage-after-warmup + step-cap + finite
+    guard; the free-boundary map is non-stationary and only piecewise-smooth) gives
+    <strong>~1.3&times;</strong> on the well-posed slices, byte-comparably. But it
+    cannot help the under-determined interior-null slices (their residual limit-cycles
+    ~1e-3 as the discrete mask flips), and those dominate the cost. Newton&ndash;Krylov
+    on the same map is <em>erratic</em> (tight convergence on some slices, catastrophic
+    divergence on others), and its <code>scipy.optimize.newton_krylov</code> is
+    host-only.</li>
+  </ul>
+
+  <figure>
+    <img src="/imas-ambix/figures/greens-filament-solver/fig-s4-accelerator-ceiling.png"
+         alt="Four panels. (a) Per-slice Picard vs Anderson sweep counts for shot 21983: Anderson ~1.3x faster on well-posed slices, both hit the iteration cap on the two shaded under-determined slices. (b) k4 axis distance from the centroid pin drifts monotonically outboard from 9 to 17 cm over 260 sweeps — the Shafranov shift, in-basin, no escape. (c) k4 residual limit-cycles around 1e-3 and never reaches the 3e-4 tolerance. (d) Newton-Krylov final residual per slice: 2 of 5 slices diverge above the converged threshold."
+         style="max-width:100%">
+    <figcaption>The CPU accelerator ceiling and its cause. <strong>(a)</strong> Anderson
+    is ~1.3&times; on well-posed slices, blocked on the under-determined ones (shaded).
+    <strong>(b)</strong> On a hard slice the axis drifts <em>monotonically outboard</em>
+    toward its Shafranov-shifted fixed point &mdash; the current-centroid pin holds the
+    branch (no basin escape; the 10&ndash;17 cm axis&ndash;pin gap is physical &beta;p+li/2).
+    <strong>(c)</strong> The residual limit-cycles ~1e-3 as the discrete core-mask flips
+    &mdash; the non-smooth topology read. <strong>(d)</strong> Newton&ndash;Krylov is
+    erratic on that same non-smooth map (finite-difference Jacobian across mask flips):
+    2/5 fixed-shape slices diverge.</figcaption>
+  </figure>
+
+  <h2>Root cause &mdash; the non-smooth, host topology read</h2>
+  <p>Both accelerators are blocked by the SAME wall: the free-boundary map re-reads
+  the magnetic axis and the axis-connected core mask every sweep with hard-threshold
+  host primitives (<code>find_critical_points</code> + <code>ndimage.label</code>).
+  That read is <strong>non-differentiable</strong> &mdash; finite-differencing the
+  residual across a mask flip corrupts Newton&ndash;Krylov&rsquo;s Jacobian, and the
+  mask-flip noise corrupts Anderson&rsquo;s least-squares history &mdash; and it is a
+  per-iteration <strong>host round-trip</strong> that serialises any GPU port (the
+  §2 expert-review finding). The lead&rsquo;s diagnosis was exact: with the
+  current-centroid pin (a magnetics-derived soft prior) holding the branch, there is
+  <em>no basin escape</em> to fear; the hard slices are under-determined (the interior
+  null) so <em>any</em> iterator thrashes there &mdash; that is a property of the
+  problem, and the accelerators must be tested on a solvable one, which is what the
+  well-posed subset is.</p>
+
+  <h2>The re-sequencing &mdash; the differentiable topology unblocks both</h2>
+  <p>The cure for the wall is a <strong>continuous, differentiable</strong> topology
+  read &mdash; already planned as <code>connectivity-topology-reader</code> (a
+  connectivity flood-fill boundary + smooth core mask, GPU-native, continuous through
+  the marginal transition by construction). Making the solve&rsquo;s core-mask smooth
+  makes the whole map differentiable, which (i) lets Newton&ndash;Krylov / Anderson
+  converge cleanly (the schemes are <em>revisited there</em>, on a solvable map) and
+  (ii) makes the map <code>vmap</code>-batchable so the GEMV becomes a corpus GEMM.
+  The 3&times;+ therefore lives in the batched-over-shots GPU rollout
+  (<code>gpu-accelerated-labeler</code>), whose locked <code>topology-read-location</code>
+  decision already names <code>connectivity-topology-reader</code> as its prerequisite.
+  §5 (adopt + integrate + re-score at corpus scale) folds into that path &mdash; the
+  ONE jax engine (CPU+GPU) that adopts the grid-free substrate + connectivity FSA and
+  re-scores the held-out MSE pitch.</p>
+
+  <figure>
+    <table>
+      <thead><tr><th>step</th><th>plan</th><th>role</th></tr></thead>
+      <tbody>
+        <tr><td>done</td><td><code>greens-filament-solver</code> §2/§3/§4</td><td>grid-free substrate (GO) + contour-free FSA (PASS) + campaign cache + the CPU accelerator ceiling finding</td></tr>
+        <tr><td><strong>next</strong></td><td><code>connectivity-topology-reader</code></td><td>continuous/differentiable topology read &mdash; unblocks the accelerator revisit AND the GPU batching</td></tr>
+        <tr><td>then</td><td><code>gpu-accelerated-labeler</code></td><td>batched on-device rollout (GEMM + on-device topology + Krylov/PinT) &mdash; where the 3&times;+ and §5 corpus re-score land</td></tr>
+      </tbody>
+    </table>
+    <figcaption>The corrected sequence. The accelerator schemes are dependency-blocked
+    on the differentiable topology, so they are revisited after
+    <code>connectivity-topology-reader</code>, on the GPU-native path.</figcaption>
+  </figure>
+
+  <h2>Artifacts &amp; code</h2>
+  <ul>
+    <li>Campaign cache: <code>EquilibriumGrid.from_table(cache=)</code> +
+    <code>_build_cache</code> / <code>clear_grid_cache</code>;
+    <code>factory_shot_payloads(cache_grid=)</code> (opt-in in the corpus factory) &mdash;
+    <code>imas_ambix/latent/gs_solve.py</code>, <code>scripts/spine_label_factory.py</code>.</li>
+    <li>Accelerator: <code>_AndersonMixer</code> (safeguarded) +
+    <code>accelerator=</code>/<code>iteration_trace=</code> on
+    <code>solve_equilibrium_lsq</code>; threaded through
+    <code>fit_and_read_slice</code> and the gate harness (default <code>picard</code>
+    byte-identical). The Newton&ndash;Krylov arm is the pre-existing
+    <code>solve_equilibrium_nk</code>.</li>
+    <li>Tests: <code>tests/latent/test_greens_filament_solver.py</code> &mdash; the
+    Anderson mixer accelerates a slow linear map to the same fixed point + a finite
+    safeguard (9/9 green; byte-identical default + G1c retained).</li>
+    <li>Figure: <code>docs/figures/greens-filament-solver/fig-s4-accelerator-ceiling.png</code>.</li>
+    <li>Commit <code>1faf3ab</code> (cache + accelerator + tests).</li>
+  </ul>
+
+  <div class="callout">
+    <p><strong>What&rsquo;s next &mdash; <code>connectivity-topology-reader</code>.</strong>
+    Build the continuous/differentiable, GPU-native topology read (connectivity
+    flood-fill boundary + smooth core mask + nova stencils). It is the prerequisite
+    that unblocks both a clean accelerated solve (the §4 schemes, revisited on a
+    differentiable map) and the batched-over-shots GPU rollout
+    (<code>gpu-accelerated-labeler</code>) where the ≥3&times; corpus throughput and the
+    §5 adopt + re-score land.</p>
+  </div>
+
+</main>
+</body>
+</html>
