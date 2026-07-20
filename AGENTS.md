@@ -78,3 +78,12 @@ it automatically when working under `imas_ambix/agent/`. Look there for:
 hardware specs, the SLURM submission pattern and CPU/GPU sizing, storage paths,
 `imas-ambix agent {list,info,download,serve,status,key,clive}`, per-model
 deployment notes and memory budgets, and the `clive` interactive-harness setup.
+
+## Physics-spine benchmark (perf + quality, incl. H200/GPU policy)
+
+The equilibrium-engine benchmark — how to run the frozen CPU metric on SLURM,
+the GPU-capable inventory, and the **binding H200 capability-demonstration
+policy** (reservation, CUDA-jaxlib install, `scripts/fsa_gpu_capability.py`) —
+lives next to that code, in
+[`imas_ambix/spine_bench/AGENTS.md`](imas_ambix/spine_bench/AGENTS.md). Read it
+before running or extending any benchmark.

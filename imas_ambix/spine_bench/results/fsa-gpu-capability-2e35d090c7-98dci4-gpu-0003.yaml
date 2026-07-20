@@ -1,0 +1,36 @@
+kind: fsa-gpu-capability
+purpose: on-device execution + GPU/CPU parity of the contour-free FSA (capability, not a speedup claim)
+jax_version: 0.10.1
+backend: gpu
+on_gpu: true
+devices:
+- gpu:0
+grid:
+  nr: 65
+  nz: 97
+fp64: true
+max_abs_diff_vs_cpu_all_batches: 1.1368683772161603e-13
+runs:
+- batch: 16
+  vmap_wall_s: 0.00159
+  equilibria_per_s: 10076.1
+  max_abs_diff_vs_cpu: 5.284661597215745e-14
+  well_posed_fraction: 1.0
+- batch: 64
+  vmap_wall_s: 0.00167
+  equilibria_per_s: 38342.6
+  max_abs_diff_vs_cpu: 6.350475700855895e-14
+  well_posed_fraction: 1.0
+- batch: 256
+  vmap_wall_s: 0.00252
+  equilibria_per_s: 101658.3
+  max_abs_diff_vs_cpu: 6.350475700855895e-14
+  well_posed_fraction: 1.0
+- batch: 1024
+  vmap_wall_s: 0.00528
+  equilibria_per_s: 193954.9
+  max_abs_diff_vs_cpu: 1.1368683772161603e-13
+  well_posed_fraction: 1.0
+git_commit: 2e35d090c742962522b85e100e04faea69865b0d
+hostname: 98dci4-gpu-0003.iter.org
+platform: Linux-6.12.0-124.11.1.el10_1.x86_64-x86_64-with-glibc2.39

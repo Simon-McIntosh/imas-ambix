@@ -76,6 +76,13 @@ docs = [
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.27",
 ]
+gpu = [
+    # CUDA jaxlib for the accelerator-native flux-surface averaging on the H200
+    # (the plugin + bundled nvidia-*-cu12 runtime). Pin to the jax version above;
+    # a mismatch silently drops the plugin and JAX falls back to CPU. Install on a
+    # networked (login) node — compute nodes are offline (spine_bench/AGENTS.md).
+    "jax[cuda12]>=0.10",
+]
 viz = [
     # Equilibrium / flux-surface plotting + firewalled-EFIT overlay maps
     # (imas_ink.figures.equilibrium_figure_mpl). Local sibling checkout —

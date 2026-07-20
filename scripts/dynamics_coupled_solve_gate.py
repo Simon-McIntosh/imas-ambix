@@ -104,7 +104,7 @@ def _confined(axis_r: float) -> bool:
 
 def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_weight,
              n_sub: int, par_weight: float, b_phi0: float, n_rho: int,
-             max_slices: int, min_ip_ka: float) -> dict:
+             max_slices: int, min_ip_ka: float, fsa_mode: str = "coarea") -> dict:
     """Three arms over one shot's ramp + flat-top; the coupled arm is rich-cpl."""
     from imas_ambix.latent.boundary_disc import disc_read  # noqa: PLC0415
     from imas_ambix.latent.current_diffusion import (  # noqa: PLC0415
@@ -206,7 +206,7 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
             geos.append(flux_surface_geometry(
                 f_unc.psi, grid, coeffs=np.asarray(f_unc.coeffs, dtype=np.float64),
                 ip_amperes=abs(float(f_unc.ip_amperes)), n_p=n_p, n_f=n_f,
-                nonneg=nonneg, b_phi0=b_phi0, n_rho=n_rho))
+                nonneg=nonneg, b_phi0=b_phi0, n_rho=n_rho, fsa_mode=fsa_mode))
         else:
             geos.append(None)  # a drifted/failed rich-unc supplies no prediction
 
@@ -402,6 +402,11 @@ def main() -> int:
     ap.add_argument("--min-ip-ka", type=float, default=60.0)
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--out-suffix", type=str, default="")
+    ap.add_argument(
+        "--fsa-mode", type=str, default="coarea", choices=("coarea", "connectivity"),
+        help="flux-surface-averaging read: 'coarea' (host baseline) or "
+        "'connectivity' (contour-free JAX). The G2d no-regress check runs both.",
+    )
     args = ap.parse_args()
 
     shots = ([int(s) for s in args.shots.split(",") if s]
@@ -410,7 +415,8 @@ def main() -> int:
     cfg = dict(nr=args.nr, nz=args.nz, sigma=args.sigma, eta_params=eta_params,
                prior_weight=args.prior_weight, n_sub=args.n_sub_steps,
                par_weight=args.par_weight, b_phi0=args.b_phi0, n_rho=args.n_rho,
-               max_slices=args.max_slices_per_shot, min_ip_ka=args.min_ip_ka)
+               max_slices=args.max_slices_per_shot, min_ip_ka=args.min_ip_ka,
+               fsa_mode=args.fsa_mode)
 
     jobs = [(sh, cfg) for sh in shots]
     if args.workers > 1 and len(jobs) > 1:
