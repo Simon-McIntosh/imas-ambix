@@ -22,21 +22,20 @@ Method (the connectivity read, re-expressed on device):
   iterated 4-neighbour dilation (the shipped ``flood_fill_core`` device kernel)
   — the axis-connected component, never a disconnected pocket.
 
-* **The binding level = the connectivity change.**  A level is *valid* while the
-  axis region stays clear of the wall boundary; it becomes invalid the instant
-  the region first reaches the wall — either by a flux surface going tangent to
-  the wall (LIMITED) or by opening through an X-point so the scrape-off connects
-  to the divertor/wall (DIVERTED).  This is monotone in ``s`` (the confined set
-  only grows), so each transition is the largest valid level, found by a fixed
-  coarse sweep + a fixed-count bisection.  ψ_bnd is read at the MEAN of two
-  transition levels that bracket the true binding from opposite sides — an inner
-  test (region touches the innermost in-wall shell, ~one cell inside) and an outer
-  test (dilating the region reaches a still-confined out-of-wall/edge cell, ~one
-  cell outside).  A single test is biased by the half-cell between the region's
-  last in-wall cell and the first out-of-wall cell; their mean is unbiased, and
-  for a diverted plasma it lands on the X-point saddle (ψ_N = 1).  The divertor
-  legs are open branches the closed axis-region never floods, so the lobe — and
-  the radii read off it — are unaffected.
+* **The binding flux, read SUB-GRID on the wall.**  The connectivity binding is
+  the confined-most flux the axis-enclosing surface reaches on the wall — for a
+  LIMITED plasma the wall tangency, for a DIVERTED plasma the X-point saddle whose
+  separatrix strikes the wall (ψ_N = 1).  It is read as the MINIMUM interpolated
+  ψ_N over the wall boundary points, restricted to points reachable from the axis
+  region (a cell-level flood, dilated a few cells) so coil-perturbed or far-wall
+  points can never win.  This interpolates the actual wall crossing rather than
+  snapping to a grid cell — a single cell-level escape test is biased by the
+  sub-cell wall position (~one cell inward at a shallow tangency), and a two-sided
+  cell mean only half-corrects it.  A diverted plasma whose separatrix does NOT
+  strike the wall falls back to the cell-level flood binding (the monotone
+  valid→invalid connectivity level).  The divertor legs are open branches the
+  closed axis-region never floods, so the lobe — and the radii read off it — are
+  unaffected.
 
 * **LCFS radii.**  Read at ψ_lcfs = ψ_axis + lcfs_norm·(ψ_bnd − ψ_axis) by a
   fixed outward ray-march from the axis at the evaluator's 8 poloidal angles —
@@ -75,6 +74,10 @@ jax.config.update("jax_enable_x64", True)
 #: the evaluator's 8 fixed poloidal query angles as a device array (default
 #: `angles` — a module singleton so the jitted signature has no call in defaults)
 _DEFAULT_ANGLES = jnp.asarray(LCFS_ANGLES)
+
+#: default wall boundary points — a single far-away point that is never reachable,
+#: so a call without a wall polygon falls back to the flood binding level.
+_NO_WALL = jnp.asarray([1.0e30])
 
 __all__ = [
     "ConnectivityBoundary",
@@ -171,12 +174,17 @@ def boundary_read_jax(
     n_ray: int = 512,
     angles: jnp.ndarray = _DEFAULT_ANGLES,
     lcfs_norm=0.999,
+    wall_r: jnp.ndarray = _NO_WALL,
+    wall_z: jnp.ndarray = _NO_WALL,
 ) -> dict:
     """Connectivity LCFS read from ψ — the device-native ``lcfs_contour``.
 
     ``psi2d`` is ``(nz, nr)`` total poloidal flux; ``rg``/``zg`` the axis-ordered
     grid coordinates; ``inside_limiter`` the ``(nz, nr)`` boolean wall (raster)
     mask; ``(axis_r, axis_z)`` the read's axis (the current centroid, in metres).
+    ``wall_r``/``wall_z`` are the wall boundary sample points (the limiter polygon
+    densified) — used for the SUB-GRID binding flux (see below); omit them to fall
+    back to the cell-level flood binding.
 
     Returns a dict of fixed-shape arrays: ``found`` (bool — a valid closed
     axis-enclosing level exists), ``psi_axis``, ``psi_out``, ``psi_bnd`` (the
@@ -216,65 +224,66 @@ def boundary_read_jax(
     outside = (~inside_limiter) | border
     wall_ring = _dilate4(outside) & inside_limiter
 
-    # Two escape tests bracket the true binding level from opposite sides, so their
-    # mean is unbiased (a single test is off by the ~half-cell between the region's
-    # last in-wall cell and the first out-of-wall cell):
-    #   INNER — the axis region touches the innermost in-wall shell.  Fires ~one cell
-    #     INSIDE the wall crossing / saddle, so ψ_bnd comes out biased toward the axis
-    #     (boundary too small).
-    #   OUTER — dilating the axis region by one step reaches a still-confined cell
-    #     OUTSIDE the wall (or on the domain edge).  Fires ~one cell OUTSIDE, so ψ_bnd
-    #     comes out biased away from the axis (boundary too big).
-    # ψ_bnd is read at the mean of the two transition levels: for a limited plasma
-    # that is the wall tangency, for a diverted plasma the X-point saddle (ψ_N = 1) —
-    # the divertor legs are open branches the closed axis-region never floods, so the
-    # lobe is unaffected.
+    # --- cell-level connectivity binding (the flood) --------------------------
+    # A level is valid while the axis region stays clear of the wall; the largest
+    # valid level is the connectivity-change (monotone → coarse sweep + bisection).
+    # This gives the SADDLE binding for a diverted plasma whose separatrix does not
+    # touch the wall, and a cell-level reference / reachability region otherwise.
     def _alive_region(s):
         region = flood_fill_core((u <= s) & inside_limiter, seed, n_iter)
         alive = region.reshape(-1)[seed_flat] > 0.5
         return region, alive
 
-    def valid_inner(s):
+    def valid_flood(s):
         region, alive = _alive_region(s)
         touch = jnp.sum(region * wall_ring.astype(region.dtype)) > 0.5
         return alive & (~touch)
 
-    def valid_outer(s):
-        region, alive = _alive_region(s)
-        reach = _dilate4(region > 0.5) & outside & (u <= s)
-        touch = jnp.sum(reach.astype(region.dtype)) > 0.5
-        return alive & (~touch)
-
-    # coarse sweep: each valid predicate is True on a single contiguous band
-    # [u_seed, s*]; the largest valid grid level brackets that transition.
     s_grid = jnp.linspace(0.0, 1.0, n_levels + 1)[1:]  # (n_levels,) in (0, 1]
     idxs = jnp.arange(n_levels)
+    vk = jax.vmap(valid_flood)(s_grid)
+    last = jnp.max(jnp.where(vk, idxs, -1))
+    found = last >= 0
+    lo0 = jnp.where(found, s_grid[jnp.clip(last, 0, n_levels - 1)], 0.0)
+    hi0 = jnp.where(
+        last < n_levels - 1, s_grid[jnp.clip(last + 1, 0, n_levels - 1)], 1.0
+    )
 
-    def _bracket(valid_fn):
-        vk = jax.vmap(valid_fn)(s_grid)
-        last = jnp.max(jnp.where(vk, idxs, -1))
-        lo0 = jnp.where(last >= 0, s_grid[jnp.clip(last, 0, n_levels - 1)], 0.0)
-        hi0 = jnp.where(
-            last < n_levels - 1, s_grid[jnp.clip(last + 1, 0, n_levels - 1)], 1.0
-        )
-        return last, lo0, hi0
+    def body(_i, carry):
+        lo, hi = carry
+        mid = 0.5 * (lo + hi)
+        v = valid_flood(mid)
+        return (jnp.where(v, mid, lo), jnp.where(v, hi, mid))
 
-    def _refine(valid_fn, lo0, hi0):
-        def body(_i, carry):
-            lo, hi = carry
-            mid = 0.5 * (lo + hi)
-            v = valid_fn(mid)
-            return (jnp.where(v, mid, lo), jnp.where(v, hi, mid))
+    lo, _hi = jax.lax.fori_loop(0, n_bisect, body, (lo0, hi0))
+    s_flood = lo  # cell-level connectivity binding (biased ~1 cell at a wall contact)
 
-        lo, _hi = jax.lax.fori_loop(0, n_bisect, body, (lo0, hi0))
-        return lo
+    # --- sub-grid wall binding (interpolated along the wall) -------------------
+    # The binding flux is, by definition, the confined-most flux the axis-enclosing
+    # surface reaches on the wall — for a limited plasma the wall tangency, for a
+    # diverted plasma the X-point saddle whose separatrix strikes the wall (ψ_N=1).
+    # Read it SUB-GRID as the minimum interpolated ψ_N over the wall boundary points,
+    # rather than the cell-level flood (which is off by the sub-cell wall position).
+    # Restrict to wall points reachable from the axis region (the region flooded at
+    # the flood level, dilated a few cells) so coil-perturbed or far-wall points can
+    # never win, and so a diverted saddle that does NOT strike the wall falls back to
+    # the flood level.
+    region_flood = flood_fill_core((u <= s_flood) & inside_limiter, seed, n_iter)
+    reach = region_flood > 0.5
+    for _ in range(3):  # unrolled (static) — reach ~3 cells past the region boundary
+        reach = _dilate4(reach)
+    ar_idx = jnp.arange(nr, dtype=jnp.float64)
+    az_idx = jnp.arange(nz, dtype=jnp.float64)
+    wj = jnp.clip(jnp.round(jnp.interp(wall_r, rg, ar_idx)), 0, nr - 1)
+    wi = jnp.clip(jnp.round(jnp.interp(wall_z, zg, az_idx)), 0, nz - 1)
+    reachable = reach[wi.astype(jnp.int32), wj.astype(jnp.int32)]
+    u_wall_pts = jax.vmap(
+        lambda r_, z_: (_bilerp(psi2d, rg, zg, r_, z_) - psi_axis) / span_safe
+    )(wall_r, wall_z)
+    u_wall = jnp.min(jnp.where(reachable, u_wall_pts, jnp.inf))
+    wall_binding = jnp.any(reachable) & jnp.isfinite(u_wall)
+    s_star = jnp.where(wall_binding, u_wall, s_flood)
 
-    last_in, lo_in, hi_in = _bracket(valid_inner)
-    last_out, lo_out, hi_out = _bracket(valid_outer)
-    found = last_in >= 0
-    s_in = _refine(valid_inner, lo_in, hi_in)
-    s_out = _refine(valid_outer, lo_out, hi_out)
-    s_star = 0.5 * (s_in + s_out)
     psi_bnd = psi_axis + s_star * span
     # Radii are read on the surface the ray-cast sits on, ALWAYS a hair inside the
     # separatrix (≤0.999·span): a ray cast at exactly ψ_bnd runs down an open
@@ -304,6 +313,33 @@ def boundary_read_jax(
 # ---------------------------------------------------------------------------
 # host adapters
 # ---------------------------------------------------------------------------
+
+
+def _densify_wall(grid, m: int = 720):
+    """Resample the limiter polygon to ``m`` arc-length points ``(wall_r, wall_z)``.
+
+    The wall boundary points feed the SUB-GRID binding flux.  A grid without a
+    ``limiter_r``/``limiter_z`` polygon (e.g. a bare test grid) yields the
+    single far-away no-wall point, so the read falls back to the flood binding.
+    """
+    import numpy as np  # noqa: PLC0415
+
+    lr = getattr(grid, "limiter_r", None)
+    lz = getattr(grid, "limiter_z", None)
+    if lr is None or lz is None or len(np.asarray(lr)) < 2:
+        return np.array([1.0e30]), np.array([1.0e30])
+    lr = np.asarray(lr, dtype=np.float64)
+    lz = np.asarray(lz, dtype=np.float64)
+    # close the loop, cumulative arc length, resample uniformly to m points
+    rr = np.append(lr, lr[0])
+    zz = np.append(lz, lz[0])
+    seg = np.hypot(np.diff(rr), np.diff(zz))
+    s = np.concatenate([[0.0], np.cumsum(seg)])
+    total = s[-1]
+    if total <= 0.0:
+        return np.array([1.0e30]), np.array([1.0e30])
+    q = np.linspace(0.0, total, m, endpoint=False)
+    return np.interp(q, s, rr), np.interp(q, s, zz)
 
 
 @dataclass
@@ -339,6 +375,7 @@ def boundary_read(
     """
     import numpy as np  # noqa: PLC0415
 
+    wall_r, wall_z = _densify_wall(grid)
     out = boundary_read_jax(
         jnp.asarray(np.asarray(psi2d, dtype=np.float64)),
         jnp.asarray(np.asarray(grid.rg, dtype=np.float64)),
@@ -351,6 +388,8 @@ def boundary_read(
         int(n_ray),
         jnp.asarray(np.asarray(angles, dtype=np.float64)),
         jnp.asarray(float(lcfs_norm)),
+        jnp.asarray(wall_r),
+        jnp.asarray(wall_z),
     )
     return ConnectivityBoundary(
         found=bool(out["found"]),
@@ -388,6 +427,9 @@ def boundary_read_batch(
     ang = jnp.asarray(np.asarray(angles, dtype=np.float64))
     ps = jnp.asarray(np.asarray(psi_stack, dtype=np.float64))
     ax = jnp.asarray(np.asarray(axes, dtype=np.float64))
+    wall_r, wall_z = _densify_wall(grid)
+    wr = jnp.asarray(wall_r)
+    wz = jnp.asarray(wall_z)
 
     def one(psi2d, axis):
         return boundary_read_jax(
@@ -402,6 +444,8 @@ def boundary_read_batch(
             int(n_ray),
             ang,
             jnp.asarray(float(lcfs_norm)),
+            wr,
+            wz,
         )
 
     return jax.vmap(one)(ps, ax)

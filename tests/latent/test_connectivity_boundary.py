@@ -31,13 +31,19 @@ from imas_ambix.worldmodel.equilibrium_labels import LCFS_ANGLES
 
 
 def _limited_field(nr=81, nz=101):
-    """A single O-point Gaussian — a wall-limited plasma (no separatrix X)."""
+    """A single O-point Gaussian — a wall-limited plasma (no separatrix X).
+
+    The limiter box is kept close to the plasma so the wall tangency sits at a
+    real flux gradient (~2σ), not out on the flat Gaussian tail — otherwise the
+    boundary radius is ill-conditioned in ψ (a tiny ψ shift moves it centimetres)
+    and would swamp the reproduction test with conditioning, not read error.
+    """
     rg = np.linspace(0.2, 1.8, nr)
     zg = np.linspace(-1.0, 1.0, nz)
     rr, zz = np.meshgrid(rg, zg)
     psi = np.exp(-(((rr - 1.0) ** 2 + zz**2) / 0.3**2))
-    lr = np.array([0.25, 1.75, 1.75, 0.25, 0.25])
-    lz = np.array([-0.95, -0.95, 0.95, 0.95, -0.95])
+    lr = np.array([0.55, 1.45, 1.45, 0.55, 0.55])
+    lz = np.array([-0.55, -0.55, 0.55, 0.55, -0.55])
     inside = _inside_polygon(rr.ravel(), zz.ravel(), lr, lz).reshape(nz, nr)
     return psi, rg, zg, (1.0, 0.0), lr, lz, inside
 
@@ -62,8 +68,9 @@ def _diverted_field(nr=101, nz=141):
 class _Grid:
     """Minimal grid duck-type for the host adapters."""
 
-    def __init__(self, rg, zg, inside):
+    def __init__(self, rg, zg, inside, lr=None, lz=None):
         self.rg, self.zg, self.inside_limiter = rg, zg, inside
+        self.limiter_r, self.limiter_z = lr, lz
 
 
 # --- accelerator compliance -------------------------------------------------
@@ -169,26 +176,29 @@ def test_module_is_contour_free():
 
 
 def test_reproduces_host_lcfs_limited():
+    """The wall-tangency binding, read SUB-GRID on the wall — no inward bias."""
     psi, rg, zg, axis, lr, lz, inside = _limited_field()
     cpu = lcfs_contour(psi, rg, zg, axis, limiter_r=lr, limiter_z=lz)
-    gpu = cb.boundary_read(psi, _Grid(rg, zg, inside), axis, lcfs_norm=0.999)
+    gpu = cb.boundary_read(psi, _Grid(rg, zg, inside, lr, lz), axis, lcfs_norm=0.999)
     assert cpu.found and gpu.found
     span = abs(cpu.psi_bnd - gpu.psi_axis)
-    assert abs(gpu.psi_bnd - cpu.psi_bnd) / span < 0.03  # grid discretisation floor
+    # sub-grid wall interpolation: ψ_bnd reproduces the host well inside a cell,
+    # with no systematic sign (the single-/two-sided cell tests were biased inward)
+    assert abs(gpu.psi_bnd - cpu.psi_bnd) / span < 0.01
     ok = np.isfinite(cpu.radii) & np.isfinite(gpu.radii)
-    assert np.median(np.abs(gpu.radii[ok] - cpu.radii[ok])) < 0.03  # < 3 cm
+    assert np.median(np.abs(gpu.radii[ok] - cpu.radii[ok])) < 0.02  # < 2 cm
 
 
 def test_reproduces_host_lcfs_diverted():
     psi, rg, zg, axis, lr, lz, inside = _diverted_field()
     cpu = lcfs_contour(psi, rg, zg, axis, limiter_r=lr, limiter_z=lz)
-    gpu = cb.boundary_read(psi, _Grid(rg, zg, inside), axis, lcfs_norm=0.999)
+    gpu = cb.boundary_read(psi, _Grid(rg, zg, inside, lr, lz), axis, lcfs_norm=0.999)
     assert cpu.found and gpu.found
     span = abs(cpu.psi_bnd - gpu.psi_axis)
-    assert abs(gpu.psi_bnd - cpu.psi_bnd) / span < 0.03
+    assert abs(gpu.psi_bnd - cpu.psi_bnd) / span < 0.01
     ok = np.isfinite(cpu.radii) & np.isfinite(gpu.radii)
     # a hair inside the separatrix the rays stay on the closed lobe (no leg run-out)
-    assert np.median(np.abs(gpu.radii[ok] - cpu.radii[ok])) < 0.03
+    assert np.median(np.abs(gpu.radii[ok] - cpu.radii[ok])) < 0.02
 
 
 def test_clip_legs_radii_stay_on_lobe():
@@ -197,7 +207,7 @@ def test_clip_legs_radii_stay_on_lobe():
     clip_legs (ψ_N=1) convention."""
     psi, rg, zg, axis, lr, lz, inside = _diverted_field()
     cpu = lcfs_contour(psi, rg, zg, axis, limiter_r=lr, limiter_z=lz, clip_legs=True)
-    gpu = cb.boundary_read(psi, _Grid(rg, zg, inside), axis, lcfs_norm=1.0)
+    gpu = cb.boundary_read(psi, _Grid(rg, zg, inside, lr, lz), axis, lcfs_norm=1.0)
     ok = np.isfinite(cpu.radii) & np.isfinite(gpu.radii)
     # no single ray blows out down a leg (would be tens of cm)
     assert np.max(np.abs(gpu.radii[ok] - cpu.radii[ok])) < 0.05
