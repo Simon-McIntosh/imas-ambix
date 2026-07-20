@@ -688,6 +688,10 @@ class ShotResult:
     n_ok_members: int
     readout_source: str
     pitch_error: np.ndarray = field(default=None)  # type: ignore[assignment]  # (K,C) aleatoric
+    # analysis-arm mean toroidal current density j(rho) at the slice times, for
+    # profile comparison against other predictors on the shared rho grid.
+    j_analysis: np.ndarray | None = None  # (K, G) [A/m^2]
+    rho_analysis: np.ndarray | None = None  # (G,) rho_norm
 
 
 def run_shot(inp: ShotInputs, obs: MagneticsObs, cfg: EnKFConfig) -> ShotResult:
@@ -822,6 +826,15 @@ def run_shot(inp: ShotInputs, obs: MagneticsObs, cfg: EnKFConfig) -> ShotResult:
         np.array([_q0_at_slices(tr, inp.slice_t) for tr in trajs]), axis=0
     )
 
+    # analysis-arm mean j(rho) at the slice times (profile-comparison readout)
+    j_analysis = rho_analysis = None
+    ok_an = [tr for tr in analysis_trajs if tr.ok]
+    if ok_an:
+        rho_analysis = ok_an[0].rho_norm
+        j_analysis = np.nanmean(
+            np.array([_j_at_slices(tr, inp.slice_t) for tr in ok_an]), axis=0
+        )
+
     return ShotResult(
         shot_id=inp.shot_id,
         slice_t=inp.slice_t,
@@ -834,6 +847,8 @@ def run_shot(inp: ShotInputs, obs: MagneticsObs, cfg: EnKFConfig) -> ShotResult:
         n_ok_members=n_ok,
         readout_source="mse_eval",
         pitch_error=inp.pitch_error,
+        j_analysis=j_analysis,
+        rho_analysis=rho_analysis,
     )
 
 

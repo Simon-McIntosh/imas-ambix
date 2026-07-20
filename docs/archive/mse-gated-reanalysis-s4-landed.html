@@ -206,6 +206,188 @@
     (heldout-pitch-bar, heldout-residual-radius).</li>
   </ul>
 
+  <h2 id="deepdive">Physics deep-dive — resistivity, the EnKF comparison, and where the model is thin</h2>
+  <p>Follow-up questions (2026-07-20) on what the engine actually assumes. Short
+  version: the engine&rsquo;s one free function is the parallel plasma
+  resistivity, held frozen for firewall reasons; its profile regularisation is
+  spatial (a curvature ridge on the low-order p&prime;/FF&prime; ladder) while its
+  <em>temporal</em> regularisation is the resistive-diffusion transport itself;
+  and it carries no H-mode pedestal and no dynamic sawtooth &mdash; both are
+  identified extensions.</p>
+
+  <h3>1. What &eta; is, and why it is frozen</h3>
+  <p><strong>&eta; is the parallel plasma resistivity profile
+  &eta;<sub>&parallel;</sub>(&psi;<sub>N</sub>) [&Omega;&middot;m].</strong> In
+  code (<code>current_diffusion.EtaProfile</code>) it is a bounded, monotone
+  3-parameter family
+  &eta;(&psi;<sub>N</sub>) = &eta;<sub>0</sub>&middot;exp(contrast&middot;&psi;<sub>N</sub><sup>shape</sup>),
+  edge-hotter-than-axis. It is the <em>only</em> free function in the &sect;3
+  current-diffusion coupling: it sets the diffusion coefficient
+  (&sigma;<sub>&parallel;</sub> = 1/&eta;) and the ohmic parallel current
+  &langle;J&middot;B&rangle; = &sigma;<sub>&parallel;</sub>&langle;E&middot;B&rangle;.
+  Everything else the coupling needs &mdash; the plasma current I<sub>p</sub>, the
+  surface flux swing &mdash; is <em>measured</em>.</p>
+  <p><strong>Why frozen (three reasons, all firewall):</strong></p>
+  <ul>
+    <li><strong>No leakage.</strong> &eta; must never be fitted to the held-out
+    MSE &mdash; that would tune the model toward the very quantity it is judged
+    on. It is calibrated on the disjoint <strong>tune split</strong> (shots
+    11774/11775/11777/11779) against <em>measured drives only</em> &mdash; the
+    surface-flux / loop-voltage budget plus the coefficient-prediction
+    consistency &mdash; then FROZEN, and the eval consumes the three numbers
+    (<code>[-6.335, -0.097, 4.383]</code>). The calibration reproduced exactly
+    this session (objective 0.252 &rarr; 0.0186).</li>
+    <li><strong>Cross-shot, not per-shot.</strong> Three parameters shared across
+    <em>every</em> shot. A per-shot or per-slice &eta; could absorb per-shot
+    misfit the way a tuned gain does &mdash; exactly the EFIT move the firewall
+    bans.</li>
+    <li><strong>Deliberately not derived from T<sub>e</sub>.</strong> The
+    physically correct resistivity is temperature-dependent
+    (Spitzer &eta; &prop; T<sub>e</sub><sup>&minus;3/2</sup>). The code uses the
+    bounded parametric stand-in &ldquo;while Thomson T<sub>e</sub> is
+    gated&rdquo;: MAST Thomson coverage is patchy across the corpus, so a robust
+    &sigma;<sub>&parallel;</sub>(T<sub>e</sub>) closure is not available
+    shot-to-shot, and folding a fitted T<sub>e</sub>&rarr;&sigma; closure in
+    re-opens the &ldquo;keep folding stuff in &rarr; EFIT in all but name&rdquo;
+    risk.</li>
+  </ul>
+  <p><strong>The temperature-dependence point is exactly right, and it is why the
+  classical EnKF beats us.</strong> The EnKF drives TORAX with <em>measured</em>
+  T<sub>e</sub>(&rho;) (Thomson) &rarr; a neoclassical
+  &sigma;<sub>&parallel;</sub>(T<sub>e</sub>) closure. That measured-T<sub>e</sub>
+  channel is precisely how it breaks the single-slice magnetic under-determination
+  and reaches 0.225 rad where our frozen-&eta; engine sits at 0.362 (the
+  0.137&nbsp;rad gap). Our engine leaves that information on the table <em>by
+  design</em>. <strong>These are parameters that should be learnt from data</strong>,
+  and that is the whole point of the learned operator (&sect;5): fold the kinetic /
+  high-bandwidth channels that carry the T<sub>e</sub> (and transport) information
+  &mdash; the magic sauce &mdash; and learn the closure the firewall engine refuses
+  to assume.</p>
+
+  <h3>2. j(&rho;): our reanalysis engine vs EnKF</h3>
+  <figure>
+    <img src="/imas-ambix/figures/mse-gated-reanalysis/fig-compare-jrho.png"
+         alt="Toroidal current-density profiles vs normalised minor radius for two held-out shots at ramp-up, mid and flat-top: ours broader, EnKF more core-peaked with an off-axis bump"
+         style="max-width:100%">
+    <figcaption>Toroidal current-density profile j&phi; on the normalised minor
+    radius, two held-out shots (21983, 21985) at ramp-up / mid / flat-top. Both
+    recover a peaked core current, but with a telling difference: our
+    GS-regularised j&phi;(&rho;&#770;) (blue) is <strong>broader</strong> &mdash;
+    it carries appreciable current out to &rho;&nbsp;&asymp;&nbsp;0.8&ndash;1.0
+    &mdash; while the EnKF/TORAX profile (red) is <strong>more core-peaked</strong>
+    with a characteristic off-axis bump at &rho;&nbsp;&asymp;&nbsp;0.35&ndash;0.4
+    (the current-diffusion skin/bootstrap structure), and even goes
+    hollow/negative on-axis during the early ramp (a startup skin current our
+    j&phi;&nbsp;&ge;&nbsp;0 ladder cannot represent). The broader profile is the
+    mechanism behind the pitch gap: more current at large minor radius means more
+    enclosed current and a larger outboard poloidal field.</figcaption>
+  </figure>
+
+  <h3>3. MSE pitch: our engine and EnKF vs the held-out truth</h3>
+  <figure>
+    <img src="/imas-ambix/figures/mse-gated-reanalysis/fig-compare-pitch.png"
+         alt="MSE pitch vs sightline major radius for two shots at three times: both engines cross zero at the axis and rise outboard; ours over-predicts the outboard pitch, EnKF plateaus closer to the truth points"
+         style="max-width:100%">
+    <figcaption>MSE pitch at the sightlines vs the held-out MSE truth (black,
+    points + measured error). Both engines get the topology (zero-crossing at the
+    magnetic axis R&nbsp;&asymp;&nbsp;0.85&nbsp;m, rising outboard). At mid and
+    flat-top our engine (blue) systematically <strong>over-predicts the outboard
+    pitch</strong> &mdash; the direct signature of the too-broad current profile
+    &mdash; while EnKF&rsquo;s T<sub>e</sub>-informed profile (red) plateaus closer
+    to the truth outboard. During the ramp the truth itself is noisy and
+    rail-scattered and neither engine tracks it (the hard regime). This is the
+    visual anatomy of the 0.362 (ours) vs 0.225 (EnKF) rad gap: not a topology
+    failure but an over-broad current the &sigma;(T<sub>e</sub>) closure would
+    concentrate.</figcaption>
+  </figure>
+
+  <h3>4. Backing out the Ejima coefficient</h3>
+  <figure>
+    <img src="/imas-ambix/figures/mse-gated-reanalysis/fig-compare-ejima.png"
+         alt="Resistive axis loop voltage rising from 0.5 to 6 V through the ramp, and the incremental Ejima coefficient, for two shots"
+         style="max-width:100%">
+    <figcaption>Yes &mdash; the Ejima coefficient falls straight out of our flux
+    ledger. The resistive axis loop voltage
+    V<sub>axis</sub>(t)&nbsp;=&nbsp;d&psi;<sub>axis</sub>/dt (blue; Ohm&rsquo;s law
+    at the axis, purely resistive) rises through the ramp from
+    &asymp;&nbsp;0.5&nbsp;V to &asymp;&nbsp;6&nbsp;V as the current builds and
+    relaxes near flat-top &mdash; a direct, physical readout of &eta; at work. The
+    incremental Ejima
+    C<sub>E</sub>&nbsp;=&nbsp;|&Delta;&psi;<sub>res</sub>|/(&mu;<sub>0</sub>R<sub>0</sub>|&Delta;I<sub>p</sub>|)
+    (red) is O(0.1&ndash;1) through the physical ramp (order-consistent with MAST)
+    but <em>inflates as &Delta;I<sub>p</sub>&rarr;0</em> approaching flat-top (the
+    ratio diverges), so only the ramp values are meaningful. The EnKF/TORAX
+    baseline evolves poloidal flux too but does not currently surface its axis
+    flux, so a C<sub>E</sub> comparison there is future plumbing; ours is a
+    firewall-safe cross-check that the frozen &eta; and the diffusion are
+    physically reasonable.</figcaption>
+  </figure>
+
+  <h3>5. Regularisation of the p&prime;/FF&prime; profiles &mdash; spatial vs temporal</h3>
+  <p>There are two <em>distinct</em> regularisers, and the space-vs-time split
+  maps onto them cleanly:</p>
+  <ul>
+    <li><strong>Spatial (spectral) smoothness &mdash; a curvature ridge.</strong>
+    The profile is a low-order non-negative ladder (n<sub>p</sub>=n<sub>f</sub>=3
+    monomials (1&minus;&psi;<sub>N</sub>)<sup>e</sup>, e&nbsp;=&nbsp;0.5,1,1.5 per
+    family). On top of the basis truncation and j&phi;&nbsp;&ge;&nbsp;0, a
+    <strong>second-difference (curvature) penalty on each family&rsquo;s
+    coefficient ladder</strong> (weight <code>smoothness&nbsp;=&nbsp;0.01</code> in
+    the frozen spine, block-diagonal so p&prime; and FF&prime; are damped
+    <em>separately</em>) suppresses high-order wiggles in the profile
+    <em>shape</em>. This is spatial and static-per-slice. An optional soft
+    monotonicity penalty exists but is off in the frozen config.</li>
+    <li><strong>Temporal &mdash; the transport IS the time regulariser.</strong>
+    The only time-link between slices is the diffusion-evolved coefficient prior
+    (&sect;3): the resistive &psi;-diffusion propagates the previous slice&rsquo;s
+    profile forward over the measured interval and soft-centres the next fit on
+    it. So &mdash; exactly as the intuition goes &mdash; <em>we do not impose an
+    ad-hoc temporal smoothness; the physics transport (resistive current
+    diffusion) carries the temporal regularisation.</em> The smoothness ridge is
+    purely spatial.</li>
+  </ul>
+
+  <h3>6. Transport barriers and the H-mode pedestal</h3>
+  <p><strong>Not modelled.</strong> There is a scrape-off-layer decay-foot
+  capability (<code>profile_regularization.profile_basis_foot</code>, with a
+  dimensionless pedestal/foot width <em>w</em>) that lets current continue
+  C&sup1;-smoothly past the separatrix, but it is <strong>off in the frozen
+  spine</strong> (<code>sol_cap&nbsp;=&nbsp;1.0</code> &rarr; current pinned to
+  zero at &psi;<sub>N</sub>&nbsp;=&nbsp;1). And even with the foot on, it is a
+  smooth SOL <em>tail</em>, not an edge transport barrier: an H-mode pedestal is a
+  narrow region of steep p&prime;/current gradient, which the low-order (n=3)
+  smooth basis cannot represent. So the engine as scored in &sect;4 carries
+  <strong>no ETB/pedestal</strong> &mdash; part of why the outboard pitch residual
+  (0.62&nbsp;rad) exceeds the near-axis one (0.43). A faithful pedestal would need
+  a higher-order/knotted edge basis or an explicit pedestal term (firewall-safe if
+  driven by a measured edge quantity).</p>
+
+  <h3>7. The q&nbsp;&ge;&nbsp;1 condition and a dynamic sawtooth model</h3>
+  <p><strong>A static q<sub>0</sub>&nbsp;&ge;&nbsp;1 clamp exists; a dynamic
+  sawtooth does not.</strong> The code carries a sawtooth <em>prior</em>:
+  <code>q_axis_linear_bound</code> gives the large-aspect circular bound
+  j<sub>&phi;,axis</sub> &le; 2B<sub>&phi;0</sub>/(&mu;<sub>0</sub>R<sub>0</sub>)
+  &hArr; q<sub>0</sub>&nbsp;&ge;&nbsp;1, applied as a soft one-sided hinge on the
+  on-axis current density (<code>SoftPriors.q_axis_max</code>), plus a
+  contour-integrated q(&psi;<sub>N</sub>) diagnostic. But it is <strong>off in the
+  frozen spine</strong> (<code>q_bound&nbsp;=&nbsp;false</code>) &mdash; the
+  &sect;4 result used neither this clamp nor the SOL foot. It is a <em>static</em>
+  per-slice clamp, not reconnection dynamics: no periodic q<sub>0</sub> relaxation,
+  no Kadomtsev/Porcelli core flattening at the crash.</p>
+  <p><strong>A dynamic sawtooth model is a strong, complementary extension.</strong>
+  In the Kalman-filter equilibrium-reconstruction line (van Mulders et al.), a
+  periodic sawtooth reconnection pins core q toward 1 between crashes and flattens
+  the current, which constrains the internal profile in a way pure external
+  magnetics cannot &mdash; a temporal/kinetic constraint of exactly the kind the
+  interior null needs. Two firewall-safe routes here: (a) turn on the soft
+  q<sub>0</sub>&nbsp;&ge;&nbsp;1 clamp and add a dynamic q<sub>0</sub>&rarr;1
+  relaxation as an additional physics constraint on the &sect;3 diffusion (crash
+  timing from the fast diagnostics that see it &mdash; SXR, Mirnov); (b) let the
+  learned operator (&sect;5) learn the sawtooth signature from those fast channels.
+  Both are the same thesis as the resistivity point: <strong>the sawtooth cadence
+  and the resistivity are internal-state information that should be learnt from (or
+  constrained by) the fast measured data, not assumed.</strong></p>
+
   <h2>What&rsquo;s next &mdash; &sect;5 the learned-operator handoff (the magic sauce)</h2>
   <p>The reanalysis engine is built and PROVEN: it produces firewall-clean
   equilibrium labels whose internal profile is validated where the dynamics earn
