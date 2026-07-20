@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="greens-filament-solver-s2-landed">
+  <meta name="plan-title" content="Grid-Free Green's-Filament Solver — §2 record: the go/no-go spike (GO)">
+  <meta name="plan-summary" content="§2 landing record (2026-07-20). The gridded Δ*ψ operator evaluation is replaced by an analytic finite-area Green's matvec (ψ = G_cell→grid·i_cell + ψ_coil, the hybrid_greens kernel — the locked one-interaction-matrix decision extended to the plasma) as an opt-in substrate on the existing free-boundary solve; GS force balance and every topology/profile read are byte-unchanged. Go/no-go on 8 held-out shots / 63 paired slices: the grid-free solve reproduces the frozen grid-GS axis to 0.016 cm median (warm 0.019), the LCFS radii to 0.006 cm, and the jφ(ρ̂) profile to 0.019 RMS on the well-determined flat-top population (G1a PASS, cold + warm); it is a genuine force-balanced equilibrium (G1b PASS, 100% converged); and it provably never assembles or inverts the elliptic operator (G1c PASS, grid._lu is None). Honest finding: the grid-free matvec is 1.67x SLOWER per single CPU solve than the cached-LU grid solve — §2 proves physical reproduction, NOT per-solve speed; the throughput payoff lives in the FSA integrity (§3) and batched-GPU labeler (follow-on), not the per-solve substrate. Stop rule not invoked. Decision solver-substrate = GO.">
+  <meta name="plan-informs" content="greens-filament-solver">
+  <title>greens-filament-solver §2 — grid-free substrate go/no-go (GO)</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h1>§2 record — the grid-free Green's/filament solver spike (GO)</h1>
+
+  <p><strong>Verdict (2026-07-20): §2 GO.</strong> The gridded elliptic
+  &Delta;*&psi; evaluation can be replaced by an <em>analytic</em> finite-area
+  Green&rsquo;s matvec &mdash; the coaxial mutual-inductance kernel <em>is</em> the
+  free-space Green&rsquo;s function of &Delta;* &mdash; with the free-boundary GS
+  fixed point and every topology / profile read left byte-unchanged. On held-out
+  slices the grid-free substrate reproduces the frozen grid-GS equilibria to
+  <strong>sub-mm axis, ~60&nbsp;&micro;m LCFS, and ~2% profile RMS</strong>,
+  cold- and warm-seeded, as genuine force-balanced equilibria, while provably
+  never assembling the elliptic operator. The spike passes; the locked
+  <code>solver-substrate</code> decision is confirmed GO.</p>
+
+  <p><strong>Honest caveat, load-bearing for the plan&rsquo;s framing.</strong> The
+  grid-free matvec is <strong>1.67&times; SLOWER</strong> per single CPU solve than
+  the cached-LU grid solve (median 1.98&nbsp;s vs 1.19&nbsp;s): a dense
+  (6305&times;1500) matvec every iteration loses to a cached sparse triangular
+  backsolve when only one equilibrium is in flight. §2 proves <em>physical
+  reproduction</em>, not per-solve speed. The throughput payoff is elsewhere &mdash;
+  the smooth analytic &psi; for flux-surface-averaging integrity (&sect;3), and a
+  <em>batched</em> GPU labeler where the per-solve GEMV becomes a corpus-wide GEMM
+  (the follow-on plan). This is exactly the expert-review conclusion below.</p>
+
+  <h2>Gate verdicts (pre-declared in f-gfs-01)</h2>
+  <figure>
+    <table>
+      <thead><tr><th>Gate</th><th>Rule</th><th>Result (8 shots / 63 paired slices)</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>T1</strong> analytic flux + turns</td>
+          <td>plasma&rarr;target &psi; reproduces the point-loop flux far-field;
+              &Sigma; filament turns renormalise to net&nbsp;=&nbsp;Ip</td>
+          <td>far-field &psi; matches <code>greens_psi</code> to 2e-3 rel; edge block
+              equals <code>g_edge</code> exactly; &Sigma;&nbsp;=&nbsp;Ip to 1e-9 &mdash;
+              <code>tests/latent/test_greens_filament_solver.py</code> 7/7</td>
+          <td><strong>PASS</strong></td>
+        </tr>
+        <tr>
+          <td><strong>G1a</strong> reproduces grid-GS</td>
+          <td>axis / LCFS / profile within a pre-set tolerance of the frozen
+              grid-GS, cold- AND warm-seeded</td>
+          <td>axis <strong>0.016&nbsp;cm</strong> median (warm 0.019, p90 0.036; per-shot
+              0.009&ndash;0.027) &le;&nbsp;2&nbsp;cm; LCFS radii <strong>0.006&nbsp;cm</strong>
+              &le;&nbsp;3&nbsp;cm; j&phi;(&rho;&#770;) RMS <strong>0.019</strong>
+              flat-top (0.022 all-slices) &le;&nbsp;0.10</td>
+          <td><strong>PASS</strong></td>
+        </tr>
+        <tr>
+          <td><strong>G1b</strong> force balance</td>
+          <td>converged state satisfies j&phi;&nbsp;=&nbsp;R&middot;p&prime;(&psi;<sub>N</sub>)
+              &plus;&nbsp;FF&prime;(&psi;<sub>N</sub>)/(&micro;<sub>0</sub>R) pointwise
+              (fixed-point residual below tol)</td>
+          <td>fixed-point &psi; residual &lt;&nbsp;5e-3 on <strong>100%</strong> of
+              paired slices; j&phi; is the two-term GS source by construction of the
+              profile basis</td>
+          <td><strong>PASS</strong></td>
+        </tr>
+        <tr>
+          <td><strong>G1c</strong> no grid &Delta;* solve</td>
+          <td>no gridded elliptic operator assembled or inverted in the grid-free
+              path</td>
+          <td><code>grid._lu is None</code> after every grid-free solve
+              (8/8 shots); the &Delta;* LU is now built lazily and the greens-matvec
+              path never triggers it &mdash; asserted in code + unit test</td>
+          <td><strong>PASS</strong></td>
+        </tr>
+      </tbody>
+    </table>
+    <figcaption>Profile leg scored on the well-determined flat-top population
+    (48 slices); the 15 early-ramp slices (low Ip, marginal confinement) diverge in
+    the interior profile (p90 0.155, max 1.41) even though their axis/LCFS still
+    agree to sub-mm &mdash; the interior null (see findings), the same population the
+    label engine flags under-determined. Reported, not hidden.</figcaption>
+  </figure>
+
+  <h2>The mechanism</h2>
+  <ul>
+    <li><strong>Substrate &mdash; an analytic &Delta;* inversion by matvec.</strong>
+    The free-boundary loop&rsquo;s one gridded step,
+    <code>&psi; = solve_dirichlet(&minus;2&pi;&micro;<sub>0</sub>R&nbsp;j&phi;)&nbsp;+&nbsp;&psi;<sub>coil</sub></code>
+    (a 5-point &Delta;* LU backsolve), is replaced by
+    <code>&psi; = G<sub>cell&rarr;grid</sub>&middot;i<sub>cell</sub>&nbsp;+&nbsp;&psi;<sub>coil</sub></code>,
+    where <code>G</code> is the finite-area <code>hybrid_greens</code> kernel &mdash;
+    the SAME kernel the coils and vessel use (the locked one-interaction-matrix
+    decision, extended to the plasma). Both invert the same elliptic operator (one
+    on the grid, one analytically), so they agree to discretisation error inside and
+    <em>exactly</em> on the domain edge (both read the identical Green&rsquo;s block
+    there). Routed through one <code>_plasma_psi_field</code> helper, so the default
+    <code>grid-delstar</code> path is byte-unchanged (94 solver tests green).</li>
+    <li><strong>The nova scheme, on this engine.</strong> The fixed point is
+    T(&psi;)&nbsp;=&nbsp;&psi;<sub>coil</sub>&nbsp;+&nbsp;G&middot;I(&psi;), with I(&psi;)
+    the force-balanced filament currents (topology&nbsp;&rarr;&nbsp;&psi;<sub>N</sub>&nbsp;&rarr;&nbsp;j&phi;
+    pointwise&nbsp;&rarr;&nbsp;renormalise&nbsp;&Sigma;&nbsp;=&nbsp;Ip). This maps
+    exactly onto nova&rsquo;s <code>residual = &psi; &minus; (external + internal(&psi;))</code>.
+    A Jacobian-free Newton&ndash;Krylov driver (<code>solve_equilibrium_nk</code>) on
+    the shared grid-free evaluator is included as the accelerator arm; the go/no-go
+    itself rests on the existing Picard driver so the ONLY changed variable is the
+    &psi; evaluator (a clean substrate control).</li>
+    <li><strong>Filament turns sum to 1 &rarr; net = Ip.</strong> The per-sweep
+    renormalisation <code>i_cell&nbsp;&times;=&nbsp;Ip/&Sigma;i_cell</code> makes the net
+    current exactly the measured Rogowski Ip &mdash; no KKT anchor needed for the
+    net (T1).</li>
+  </ul>
+
+  <figure>
+    <img src="/imas-ambix/figures/greens-filament-solver/psi_overlay.png"
+         alt="Left: grid-GS (solid) and grid-free (dashed) psi contours overlaid on shot 21978 t=0.332s — indistinguishable, both axes at (0.879, 0.036), delta 0.04 cm. Right: the two Picard convergence traces lie exactly on top of each other, both reaching tol 3e-4 at iteration 60."
+         style="max-width:100%">
+    <figcaption>The substrate control on a held-out flat-top slice. <strong>Left:</strong>
+    the grid-free &psi; contours (dashed orange) trace the grid-GS contours (solid blue)
+    everywhere; the magnetic axes coincide (both at R&nbsp;=&nbsp;0.879, Z&nbsp;=&nbsp;0.036,
+    &Delta;&nbsp;=&nbsp;0.04&nbsp;cm). <strong>Right:</strong> swapping the &Delta;* solve for
+    the analytic matvec does not change the convergence path &mdash; the two Picard residual
+    traces are indistinguishable to tol&nbsp;3e-4.</figcaption>
+  </figure>
+
+  <figure>
+    <img src="/imas-ambix/figures/greens-filament-solver/reproduction.png"
+         alt="Two histograms across held-out slices: grid-GS vs grid-free axis distance (median 0.016 cm, all well under the 2 cm tolerance line) and jphi profile RMS (flat-top median 0.019, well under the 0.10 tolerance)."
+         style="max-width:100%">
+    <figcaption>Reproduction across the held-out slice set. Axis agreement (left) is
+    sub-mm for every slice, cold and warm; the flat-top profile RMS (right) is ~2%,
+    far inside the 0.10 gate. The distributions confirm the substrate change is a
+    physical no-op on the equilibrium.</figcaption>
+  </figure>
+
+  <h2>Notable findings</h2>
+  <ul>
+    <li><strong>The per-solve substrate is NOT the speedup (1.67&times; slower on
+    CPU).</strong> A single equilibrium&rsquo;s dense matvec loses to the cached
+    sparse-LU backsolve; the 38&nbsp;MB Green&rsquo;s matrix streams from memory every
+    iteration with no reuse, while the factorised &Delta;* is a cheap triangular
+    solve. This is the correct result for a batch-1 workload and reframes the plan:
+    the substrate&rsquo;s value is (a) the smooth analytic &psi; for FSA integrity
+    (&sect;3) and (b) enabling a <em>batched</em> GPU labeler (follow-on), where the
+    matvec becomes a corpus-wide GEMM. It is not a per-solve CPU accelerator.</li>
+    <li><strong>The interior-null ramp divergence is physics, not a substrate
+    defect.</strong> On early low-Ip ramp slices the axis and LCFS still reproduce to
+    sub-mm, but the interior profile coefficients diverge (profile RMS up to 1.4):
+    with identical &psi; geometry the coefficient readout is non-unique in the
+    under-determined interior direction &mdash; exactly the slices the MSE label
+    engine flags under-determined. Scoring the profile leg on the well-determined
+    flat-top population is consistent with the label-honesty gate.</li>
+    <li><strong>Stop rule NOT invoked.</strong> The grid-free solve reproduced the
+    grid-GS equilibria within tolerance from physical (disc + centroid) seeds; no
+    adoption was forced against a failing reproduction.</li>
+  </ul>
+
+  <h2>GPU-porting outlook (independent expert review)</h2>
+  <p>Prompted by the lead&rsquo;s question &mdash; and the datum that a per-solve jax
+  GPU port of the nova scheme showed <em>no</em> material speedup &mdash; three
+  independent expert reviews (HPC/roofline, batched numerical methods, jax/XLA
+  systems) converged: a per-solve solver is the canonical anti-GPU workload
+  (batch-1 GEMV at arithmetic intensity ~0.5, ~600&times; below the H200 tensor-core
+  ridge; a strictly sequential fixed-point chain of tiny kernels; a per-iteration
+  host round-trip for the topology read &mdash; the anti-pattern nested twice, in
+  both the GS fixed point and the time integration). The realisable speedup requires
+  a re-architected labeler: batch over <strong>shots</strong> (the parallel axis;
+  the per-solve GEMV becomes a corpus GEMM, compute-bound past B&nbsp;&asymp;&nbsp;600),
+  the whole causal rollout on-device as one <code>vmap(shots)&nbsp;&times;&nbsp;scan(time)&nbsp;&times;&nbsp;fixed-point</code>
+  graph, and an on-device fixed-shape topology read (nova&rsquo;s stencil null-finder
+  + smooth mask, no connected-components). A <strong>single-shot / parallel-in-time</strong>
+  arm (waveform relaxation: decoupled all-slice batched solve &otimes; sequential
+  temporal threading, outer-iterated) accelerates the live/between-shot
+  reconstruction where shot-batching is unavailable. Honest ceiling: 1&ndash;2 orders
+  of magnitude (corpus label factory ~37 core-days &rarr; well under an hour on
+  8&times;H200), bounded by the sequential per-step thin-ops, not the matvec. Captured
+  in the follow-on plan.</p>
+
+  <h2>Artifacts &amp; code</h2>
+  <ul>
+    <li>Substrate: <code>imas_ambix/latent/gs_solve.py</code> &mdash;
+    <code>EquilibriumGrid.plasma_grid_psi[_columns]</code> (the cached analytic
+    Green&rsquo;s block), lazy <code>_lu</code>, <code>_plasma_psi_field</code>
+    (the shared switch), <code>substrate=</code> on <code>solve_equilibrium</code> /
+    <code>solve_equilibrium_lsq</code> / <code>fit_profile_ladder</code>, and the
+    Newton&ndash;Krylov driver <code>solve_equilibrium_nk</code> &mdash; commit
+    <code>6c41817</code>.</li>
+    <li>Harness: <code>scripts/greens_filament_gate_eval.py</code> (the go/no-go),
+    <code>scripts/closure_gate_eval.py</code>
+    (<code>fit_and_read_slice(substrate=&hellip;)</code>) &mdash; commit
+    <code>f6528e9</code>.</li>
+    <li>Tests: <code>tests/latent/test_greens_filament_solver.py</code> (T1 analytic
+    flux + turns&rarr;Ip, edge-exact / interior-tolerance substrate agreement,
+    byte-identical default, G1c no-&Delta;*).</li>
+    <li>Artifact: <code>imas_ambix/latent/artifacts/patch_gate/greens_filament_gate-v0.json</code>.</li>
+    <li>Figures: <code>docs/figures/greens-filament-solver/</code>
+    (psi_overlay, reproduction).</li>
+  </ul>
+
+  <h2>What&rsquo;s next &mdash; &sect;3 flux-surface averaging on the analytic &psi;</h2>
+  <p>With the analytic &psi; substrate proven equivalent, &sect;3 re-bases the
+  flux-surface geometry (the input to the resistive current diffusion) on the smooth
+  analytic &psi; with a proper contour tracer, instead of binning grid cells onto
+  surfaces. Gate G2: the diffusion coefficient
+  d&nbsp;=&nbsp;g<sub>2</sub>g<sub>3</sub>/&rho;&#770; and the metrics V&prime;,
+  &langle;1/R&rangle; reach a target smoothness (relative second-difference well below
+  the current ~0.5) and do NOT degrade with resolution; the &sect;3 dynamics coupling
+  of mse-gated-reanalysis is re-checked on the new substrate and does not regress.</p>
+
+</main>
+</body>
+</html>
