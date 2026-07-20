@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="differentiable-solve-accelerator">
+  <meta name="plan-title" content="Differentiable-Map Fixed-Point Accelerator — retest NK / Anderson once the topology read is smooth">
+  <meta name="plan-summary" content="greens-filament-solver §4 established a CPU accelerator ceiling and localised its cause: no per-solve iterator (relaxed Picard, safeguarded Anderson, or Newton–Krylov) clears the ≥3× throughput gate because the hard-threshold HOST topology read (find_critical_points + ndimage.label core mask) makes the free-boundary map non-differentiable — finite-differencing the residual across a discrete mask flip corrupts NK&#x27;s Jacobian-free GMRES, the mask-flip noise corrupts Anderson&#x27;s least-squares history, and the under-determined interior-null slices limit-cycle. connectivity-topology-reader delivers a continuous, differentiable topology read (flood-fill boundary + smooth core mask, continuous through the marginal transition). This plan tests the §4 causal hypothesis directly: wire that differentiable read into the free-boundary solve&#x27;s fixed-point loop (replacing the hard mask), then re-run the NK vs Anderson vs warm-Picard accelerator study on the now-smooth map — CPU-first, to isolate the accelerator effect from batching. It settles the fixed-point-scheme choice (locked NK-primary before the ceiling was known; §4 showed NK erratic on the non-smooth map) and either (a) delivers the per-solve convergence the §4 CPU study missed — quantifying how close CPU per-solve now gets to ≥3× — or (b) is an honest negative that localises the residual bottleneck to batching (→ gpu-accelerated-labeler). Firewall unchanged: GS force balance, physics + measured channels only, no EFIT. A prerequisite is that connectivity-topology-reader has landed.">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="M">
+  <meta name="plan-tier" content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-depends-on" content="connectivity-topology-reader,greens-filament-solver">
+  <meta name="plan-informs" content="gpu-accelerated-labeler">
+  <title>Differentiable-Map Fixed-Point Accelerator | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-20">
+<meta name="plan-version" content="1">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h2 id="s1">§1 — Overview: does a differentiable topology read cure the per-solve accelerator?</h2>
+  <p><strong>The hypothesis this plan tests.</strong>
+  <code>greens-filament-solver</code> §4 (shipped 2026-07-20) reached an honest
+  negative on the CPU throughput gate: no per-solve fixed-point iterator &mdash;
+  relaxed Picard, safeguarded Anderson, or Newton&ndash;Krylov &mdash; clears
+  &ge;3&times;. It localised the cause to a single wall: the free-boundary solve
+  re-reads the magnetic axis and the axis-connected core mask every sweep with
+  hard-threshold <em>host</em> primitives (<code>find_critical_points</code> +
+  <code>ndimage.label</code>). That read is <strong>non-differentiable</strong>, so
+  finite-differencing the residual across a discrete mask flip corrupts
+  Newton&ndash;Krylov&rsquo;s Jacobian-free GMRES; the same mask-flip noise corrupts
+  Anderson&rsquo;s least-squares history; and the under-determined interior-null
+  slices limit-cycle around ~1e-3 while the axis drifts to its Shafranov-shifted
+  fixed point. The measured signatures: safeguarded Anderson gives ~1.3&times; on the
+  well-posed slices only; NK diverges on 2/5 fixed-shape slices (axis 47&ndash;70 cm
+  off). The prediction that follows is precise: <strong>make the topology read
+  continuous and differentiable and the accelerators should converge cleanly</strong>
+  &mdash; the mask no longer flips, the map is smooth, NK gets a clean Jacobian and
+  Anderson a clean history.</p>
+
+  <p><strong>The unblocker already exists.</strong> <code>connectivity-topology-reader</code>
+  builds exactly the read this needs: a connectivity flood-fill boundary + a smooth
+  core mask, continuous through the marginal limited&harr;diverted transition by
+  construction, GPU-native and differentiable. This plan is the follow-on that
+  <em>consumes</em> it on the CPU solve and closes the accelerator question.</p>
+
+  <figure>
+    <svg viewBox="0 0 720 250" width="100%" role="img"
+         aria-label="Two causal chains. Top: hard-threshold host topology read makes the map non-differentiable, which corrupts the Newton-Krylov Jacobian and Anderson history, so no per-solve accelerator clears three times on CPU. Bottom: the differentiable connectivity read makes the map smooth, so Newton-Krylov and Anderson are retested on a solvable map.">
+      <style>
+        .bx{fill:#ffffff;stroke:#888;stroke-width:1}
+        .bad{fill:#ffffff;stroke:#a33;stroke-width:1.4}
+        .good{fill:#ffffff;stroke:#2a7;stroke-width:1.4}
+        .tt{font:600 12.5px system-ui;fill:#111}
+        .tx{font:12px system-ui;fill:#222}
+        .hd{font:600 12.5px system-ui}
+        .ar{stroke:#666;stroke-width:1.3;fill:none;marker-end:url(#h)}
+      </style>
+      <defs><marker id="h" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 z" fill="#666"/></marker></defs>
+      <text class="hd" x="12" y="24" fill="#a33">§4 today — non-smooth host read</text>
+      <rect class="bad" x="12"  y="34" width="150" height="52" rx="4"/>
+      <text class="tt" x="87" y="55" text-anchor="middle">hard mask read</text>
+      <text class="tx" x="87" y="72" text-anchor="middle">ndimage.label +</text>
+      <text class="tx" x="87" y="72" text-anchor="middle" dy="14">critical-points</text>
+      <rect class="bad" x="210" y="34" width="150" height="52" rx="4"/>
+      <text class="tt" x="285" y="55" text-anchor="middle">map NOT</text>
+      <text class="tt" x="285" y="72" text-anchor="middle">differentiable</text>
+      <rect class="bad" x="408" y="34" width="180" height="52" rx="4"/>
+      <text class="tx" x="498" y="55" text-anchor="middle">NK Jacobian + Anderson</text>
+      <text class="tx" x="498" y="72" text-anchor="middle">history corrupted</text>
+      <rect class="bad" x="620" y="34" width="88" height="52" rx="4"/>
+      <text class="tt" x="664" y="55" text-anchor="middle">no 3×</text>
+      <text class="tx" x="664" y="72" text-anchor="middle">on CPU</text>
+      <path class="ar" d="M162,60 H208"/>
+      <path class="ar" d="M360,60 H406"/>
+      <path class="ar" d="M588,60 H618"/>
+      <text class="hd" x="12" y="150" fill="#2a7">this plan — differentiable read (from connectivity-topology-reader)</text>
+      <rect class="good" x="12"  y="160" width="150" height="52" rx="4"/>
+      <text class="tt" x="87" y="181" text-anchor="middle">smooth mask read</text>
+      <text class="tx" x="87" y="198" text-anchor="middle">flood-fill + soft level</text>
+      <rect class="good" x="210" y="160" width="150" height="52" rx="4"/>
+      <text class="tt" x="285" y="181" text-anchor="middle">map IS</text>
+      <text class="tt" x="285" y="198" text-anchor="middle">differentiable</text>
+      <rect class="good" x="408" y="160" width="180" height="52" rx="4"/>
+      <text class="tx" x="498" y="181" text-anchor="middle">retest NK / Anderson</text>
+      <text class="tx" x="498" y="198" text-anchor="middle">on a SOLVABLE map</text>
+      <rect class="good" x="620" y="160" width="88" height="52" rx="4"/>
+      <text class="tt" x="664" y="181" text-anchor="middle">settle +</text>
+      <text class="tx" x="664" y="198" text-anchor="middle">quantify</text>
+      <path class="ar" d="M162,186 H208"/>
+      <path class="ar" d="M360,186 H406"/>
+      <path class="ar" d="M588,186 H618"/>
+    </svg>
+    <figcaption>The causal hypothesis §4 localised (top) and the experiment this plan
+    runs (bottom). The differentiable read from <code>connectivity-topology-reader</code>
+    removes the mask-flip non-smoothness; the open question is whether the per-solve
+    accelerators then converge cleanly on CPU &mdash; and how close that gets to the
+    ≥3× the §4 CPU study missed.</figcaption>
+  </figure>
+
+  <p><strong>Why a distinct plan (not folded into <code>gpu-accelerated-labeler</code>).</strong>
+  That plan&rsquo;s thesis is deliberately that per-solve GPU is a dead end and the
+  throughput comes from batching over shots; putting a CPU-first, per-solve accelerator
+  study inside it would muddy that clean argument. This experiment is conceptually
+  separate: it isolates the <em>accelerator</em> effect of a differentiable map from the
+  <em>batching</em> effect, settles the fixed-point-scheme choice, and validates the §4
+  causal claim as a first-class result. Its finding then <em>informs</em>
+  <code>gpu-accelerated-labeler</code>&rsquo;s inner-solve design (which assumes the
+  warm-started inner fixed point converges in a small fixed budget).</p>
+
+  <h2 id="s2">§2 — Wire the differentiable read into the free-boundary solve; confirm the map is smooth</h2>
+  <p>Replace the hard-threshold core-mask / axis read inside the free-boundary
+  fixed-point loop (<code>solve_equilibrium_lsq</code> and the shared
+  <code>_read_axis</code> / core-mask step) with the differentiable connectivity read
+  from <code>connectivity-topology-reader</code> (smooth core-membership + soft level),
+  as an opt-in path so the hard-mask solve stays byte-unchanged when off. The point is
+  not speed yet but <em>smoothness</em>: the fixed-point map must become differentiable
+  so the residual decreases monotonically instead of limit-cycling as the discrete mask
+  flips. <strong>Gate D-A</strong>: on held-out slices the smooth-mask solve reproduces
+  the hard-mask converged equilibria (axis / LCFS / profile) to tolerance on the
+  well-posed population, AND the previously-limit-cycling under-determined slices (the
+  §4 k4/k6 class) now show a monotone residual decrease under plain relaxed Picard (the
+  mask-flip signature is gone) &mdash; the direct test that the map is now smooth. Stop
+  rule: if the smooth mask cannot reproduce the hard-mask equilibria, STOP and surface
+  (a lossy mask would corrupt the labels).</p>
+
+  <h2 id="s3">§3 — Retest the accelerators on the differentiable map (NK vs Anderson vs warm-Picard)</h2>
+  <p>Re-run the §4 accelerator A/B on the now-differentiable map: relaxed Picard
+  (baseline), safeguarded Anderson, and Jacobian-free Newton&ndash;Krylov, per-slice,
+  reporting sweeps/matvecs to convergence, wall, and byte-comparability of the converged
+  equilibrium &mdash; on the well-posed slices AND the previously-under-determined ones
+  that a smooth map may now make solvable. Report against the frozen §4 CPU baseline
+  (Anderson ~1.3× well-posed; NK erratic). <strong>Gate D-B</strong>: at least one
+  accelerator converges the previously-limit-cycling slices cleanly and materially faster
+  than relaxed Picard on the differentiable map, byte-comparably &mdash; validating the §4
+  causal hypothesis &mdash; OR an honest negative that the smoothness alone does not close
+  the gap, localising the residual bottleneck. Quantify how close CPU per-solve now gets to
+  ≥3× vs the §4 baseline. This §3 A/B settles the <code>map-accelerator</code> decision.</p>
+
+  <h2 id="s4">§4 — Verdict + hand-off to the GPU path</h2>
+  <p>State the CPU per-solve verdict plainly: does a differentiable map let a per-solve
+  accelerator clear (or approach) ≥3× on CPU, or is the throughput multiple still
+  batching-bound? Either way the finding <em>informs</em>
+  <code>gpu-accelerated-labeler</code>: if an accelerator wins on the differentiable map,
+  it is the inner-solve accelerator the batched rollout should use (and CPU per-solve is a
+  usable fallback); if not, the batched-over-shots GEMM is confirmed as the only route to
+  the corpus throughput. Record the implication for the on-device rollout&rsquo;s inner
+  fixed-point budget.</p>
+
+  <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="map-accelerator" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">On the differentiable map, which fixed-point accelerator is adopted (and which retained as fallback)?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="newton-krylov">Newton–Krylov — nova&#x27;s proven choice; expected to converge cleanly once the map is differentiable (a clean Jacobian-free GMRES)</button>
+      <button class="r-opt" data-value="anderson-picard">Anderson-accelerated Picard — the interpretable option; the §4 opt-in, expected to strengthen on a smooth map</button>
+      <button class="r-opt" data-value="warm-picard">Plain warm-started relaxed Picard — if the accelerators do not beat it on the differentiable map</button>
+      </p>
+    <p class="r-dec-rat">OPEN — to be settled by §3 on measured per-slice convergence + wall on the differentiable map. §4 (greens-filament-solver) locked &quot;NK-primary&quot; BEFORE the CPU ceiling was known and then measured NK erratic on the non-smooth map; this plan resolves the choice on the map the accelerators are actually meant for (a smooth one).</p>
+    </div>
+<div class="r-dec" data-key="smooth-mask-default" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Does the differentiable (smooth-mask) read become the solve default, or stay opt-in?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="default-if-byte-comparable">Make it the default IF §2 shows it is byte-comparable to the hard-mask solve on the well-posed population</button>
+      <button class="r-opt" data-value="opt-in">Keep it opt-in; the hard-mask read stays the production default</button>
+      </p>
+    <p class="r-dec-rat">OPEN — gated on §2 (D-A). The project norm is byte-identical defaults; promotion to default requires the reproduction gate to pass first.</p>
+    </div>
+</section>
+
+  <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-dsa-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-20T15:00:00+00:00" data-recommends-skill="/reckon-ship differentiable-solve-accelerator §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Ship §2 — wire the differentiable connectivity read into the free-boundary solve; confirm the map is smooth</h4>
+    <div class="r-fu-body"><p>PREREQUISITE: <code>connectivity-topology-reader</code> must have landed (it delivers the differentiable read). Replace the hard-threshold core-mask / axis read inside the free-boundary fixed-point loop with the connectivity-topology-reader smooth read, as an opt-in path (hard-mask solve byte-unchanged when off). The deliverable is smoothness, not speed: the fixed-point map must become differentiable so the residual decreases monotonically instead of limit-cycling as the discrete mask flips. Gate D-A: the smooth-mask solve reproduces the hard-mask converged equilibria on the well-posed population to tolerance, AND the previously-limit-cycling under-determined slices (the greens-filament-solver §4 k4/k6 class) show a monotone residual decrease under plain relaxed Picard (the mask-flip signature gone). This is the direct test of the §4 causal hypothesis before the §3 accelerator retest.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    differentiable-solve-accelerator (http://localhost:8765/imas-ambix/differentiable-solve-accelerator.html)
+Section: §2 (wire the differentiable connectivity read into the free-boundary solve)
+Tier:    opus
+
+Context
+  greens-filament-solver §4 localised the CPU accelerator ceiling to the hard-threshold
+  HOST topology read (find_critical_points + ndimage.label core mask): it makes the
+  free-boundary map non-differentiable, so NK&#x27;s Jacobian-free GMRES and Anderson&#x27;s history
+  are both corrupted across mask flips, and under-determined slices limit-cycle. This rung
+  wires the differentiable read from connectivity-topology-reader into the solve&#x27;s
+  fixed-point loop so the map becomes smooth — the prerequisite for the §3 accelerator
+  retest. PREREQUISITE: connectivity-topology-reader must be landed first.
+
+State to read (CODE / FILES / DATA)
+  imas_ambix/latent/gs_solve.py            (solve_equilibrium_lsq fixed-point loop; _read_axis + the ndimage.label core-mask step to replace; the _AndersonMixer / accelerator= hook from §4)
+  imas_ambix/latent/flux_surface_connectivity.py  (the §3 contour-free flood-fill primitives)
+  imas_ambix/latent/topology.py            (lcfs_contour / classify_regions — the connectivity read; and whatever connectivity-topology-reader landed as the GPU-native differentiable read)
+  docs/archive/greens-filament-solver-s4-landed.html  (the §4 ceiling finding + the k4/k6 limit-cycle signature to test against)
+  scripts/greens_filament_gate_eval.py     (held-out slice loader + the CPU reference read; the _s4-style A/B harness pattern)
+
+Scope locks / constraints (non-decision)
+  - Opt-in path only: the hard-mask solve stays byte-identical when the smooth read is off.
+  - Firewall unchanged: GS force balance, physics + measured channels only, no EFIT; the
+    current-centroid soft prior (magnetics-derived) stays as the position lever.
+  - Reproduce the hard-mask converged equilibria (axis/LCFS/profile) on the well-posed
+    population to the greens-filament-solver §2 tolerances; do NOT ship a lossy mask.
+  - Figures mandatory (docs/figures/differentiable-solve-accelerator/): the k4/k6 residual
+    trace hard-mask (limit-cycle) vs smooth-mask (monotone) — the direct smoothness test.
+  - Commit+push each coherent change on main; no AI co-author trailers
+    (verify: git log -1 --format=%B | grep -Eqi &quot;^co-authored-by:&quot;).
+
+Done-when
+  1. Smooth-read solve path committed (opt-in; hard-mask byte-unchanged); D-A verdict
+     recorded honestly (reproduction + the monotone-residual smoothness test); figure committed.
+  2. Plan updated same-session: §2 outcome recorded + collapsed; §3 (retest NK/Anderson on
+     the differentiable map) followup queued WITH pre-declared gates; this followup resolved.</pre>
+    </article>
+</section>
+
+</main>
+</body>
+</html>
