@@ -335,7 +335,7 @@ def run_stamp(
             "d-roughness ~0.5 worsening 0.45→0.72 with n_rho; measured here on the "
             "current CONTOUR-INTEGRATED geo.d_face the slope is ≤0 (improves with "
             "resolution) — no committed diagnostic backs the plan's number, so §3 "
-            "should re-baseline the roughness against this metric before claiming a fix.",
+            "should re-baseline roughness against this metric before claiming a fix.",
             "Held-out-MSE pitch is tracked separately (heldout_mse_gate_eval).",
         ],
     )
