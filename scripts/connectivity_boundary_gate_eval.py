@@ -171,6 +171,12 @@ def _slice_rows(shot: int, *, nr: int, nz: int, max_slices: int, min_ip_ka: floa
                 np.hypot(gpu.axis[0] - cpu_axis[0], gpu.axis[1] - cpu_axis[1])
             )
         xset_d_cm = _xset_match_cm(gpu.xset, cpu_xset)
+        # --- T-D3: exact g_wall node tangency vs the bilerp read (no-regression) ---
+        # Same field (inv.psi_tot), same read — only the wall-tangency SOURCE swaps
+        # from bilinear off the grid to the exact campaign g_wall GEMM.  The grid
+        # kernel reconstruction is checked against the basis psi_tot so the swap is
+        # a clean A/B (the consistency residual quantifies any kernel offset).
+        gwall = _gwall_leg(grid, p, inv, psi, centroid, cpu, float(span))
         rows.append(
             {
                 "shot": shot,
@@ -184,6 +190,11 @@ def _slice_rows(shot: int, *, nr: int, nz: int, max_slices: int, min_ip_ka: floa
                 "radii_dmed_cm": float(np.median(dr)),
                 "radii_dmax_cm": float(np.max(dr)),
                 "n_core_cells": int(gpu.n_core_cells),
+                # T-D3 g_wall swap
+                "gwall_dpsi_frac": gwall["dpsi_frac"],
+                "gwall_radii_dmed_cm": gwall["radii_dmed_cm"],
+                "gwall_vs_bilerp_dpsi_frac": gwall["vs_bilerp_dpsi_frac"],
+                "gwall_consistency_frac": gwall["consistency_frac"],
                 # §3 classify-after diagnostics
                 "cpu_axis_r": None if cpu_axis is None else float(cpu_axis[0]),
                 "cpu_axis_z": None if cpu_axis is None else float(cpu_axis[1]),
@@ -1039,6 +1050,606 @@ def _figures_classify_after(rows, overlays):
 
 
 # ---------------------------------------------------------------------------
+# §4 machine-agnostic wall gates: T-D1 (multi-wall), T-D2 (thin tile),
+# T-D3 (g_wall exactness + no regression), T-D4 (AUG-class raster)
+# ---------------------------------------------------------------------------
+
+# tolerances
+WALL_PSI_BND_TOL = 0.03  # device ψ_bnd vs the true (fine-sampled) tangency, / span
+GWALL_SWAP_TOL = 0.02  # g_wall vs bilerp ψ_bnd on MAST-36 (no regression), / span
+GWALL_CONSISTENCY_TOL = 0.01  # grid-kernel reconstruction vs basis psi_tot, / span
+
+
+class _WallGrid:
+    """Duck-type grid for a synthetic multi-unit wall.
+
+    Carries exactly the surface the connectivity read consumes — the raster
+    ``inside_limiter`` mask and the per-unit ``wall_r``/``wall_z`` node string —
+    both built from an arbitrary ``wall_mask.WallUnit`` list through the SAME code
+    path an :class:`EquilibriumGrid` uses.  No solver machinery: the field is
+    supplied analytically and the exact node flux is evaluated in closed form.
+    """
+
+    def __init__(self, rg, zg, units):
+        from imas_ambix.latent.wall_mask import build_wall_mask, densify_units
+
+        self.rg = np.asarray(rg, dtype=np.float64)
+        self.zg = np.asarray(zg, dtype=np.float64)
+        self.nr, self.nz = self.rg.size, self.zg.size
+        self.dr = float(self.rg[1] - self.rg[0])
+        self.dz = float(self.zg[1] - self.zg[0])
+        self.inside_limiter, self.wall_diagnostics = build_wall_mask(
+            self.rg, self.zg, units
+        )
+        self.wall_r, self.wall_z, self.wall_unit_id = densify_units(
+            units, 0.5 * min(self.dr, self.dz)
+        )
+        vessels = [u for u in units if u.kind == "vessel"]
+        self.limiter_r = vessels[0].r if vessels else np.asarray([1.0e30])
+        self.limiter_z = vessels[0].z if vessels else np.asarray([1.0e30])
+        self.units = units
+
+
+def _gauss_field(centers, amps, sig):
+    """Closed-form ψ = Σ aₖ·exp(−((r−rₖ)²+(z−zₖ)²)/σ²) — evaluable exactly anywhere."""
+
+    def fn(r, z):
+        r = np.asarray(r, dtype=np.float64)
+        z = np.asarray(z, dtype=np.float64)
+        out = np.zeros(np.broadcast_shapes(r.shape, z.shape), dtype=np.float64)
+        for (r0, z0), a in zip(centers, amps, strict=True):
+            out = out + a * np.exp(-(((r - r0) ** 2 + (z - z0) ** 2) / sig**2))
+        return out
+
+    return fn
+
+
+def _psi_out(psi2d, psi_axis):
+    """Domain-edge flux extreme (the read's ψ_out) for a gridded field."""
+    edge = np.concatenate([psi2d[0, :], psi2d[-1, :], psi2d[:, 0], psi2d[:, -1]])
+    return float(edge[np.argmax(np.abs(edge - psi_axis))])
+
+
+def _tangency_ref(fn, units, psi_axis, psi_out):
+    """True limited-tangency flux + binding unit from a fine surface sampling.
+
+    Densifies every unit's surface an order finer than the grid, reads the exact
+    field, and takes the confined-most node (nearest ψ_N to the axis) — the true
+    wall tangency, independent of the grid/flood.  Returns ``(psi_bnd, unit_id)``.
+    """
+    from imas_ambix.latent.wall_mask import densify_units
+
+    span = psi_out - psi_axis
+    wr, wz, uid = densify_units(units, spacing=0.002)  # 2 mm — well sub-cell
+    u = (fn(wr, wz) - psi_axis) / span
+    k = int(np.argmin(u))
+    return float(fn(np.array([wr[k]]), np.array([wz[k]]))[0]), int(uid[k])
+
+
+def _saddle_ref(fn, rg, zg, limiter_r, limiter_z):
+    """True diverted separatrix flux — confined-most in-vessel saddle (fine grid)."""
+    from imas_ambix.latent.topology import _inside_polygon, find_critical_points
+
+    rf = np.linspace(rg[0], rg[-1], int(2.5 * rg.size))
+    zf = np.linspace(zg[0], zg[-1], int(2.5 * zg.size))
+    psif = _gridfield(fn, rf, zf)
+    cp = find_critical_points(psif, rf, zf)
+    if cp.x_points.shape[0] == 0:
+        return None
+    ins = _inside_polygon(cp.x_points[:, 0], cp.x_points[:, 1], limiter_r, limiter_z)
+    if not ins.any():
+        return None
+    xpsi = np.asarray(cp.x_psi)[ins]  # in-vessel saddle fluxes
+    # confined-most (binding) separatrix = the in-vessel saddle flux nearest the
+    # axis O-point flux (the innermost X); no tile dependence — a field feature.
+    o_ins = _inside_polygon(cp.o_points[:, 0], cp.o_points[:, 1], limiter_r, limiter_z)
+    if o_ins.any():
+        psi_ax = float(
+            np.asarray(cp.o_psi)[o_ins][np.argmax(np.abs(np.asarray(cp.o_psi)[o_ins]))]
+        )
+        k = int(np.argmin(np.abs(xpsi - psi_ax)))
+    else:
+        k = int(np.argmax(np.abs(xpsi)))
+    return float(xpsi[k])
+
+
+def _gridfield(fn, rg, zg):
+    rr, zz = np.meshgrid(rg, zg)
+    return fn(rr, zz)
+
+
+def _read_wall(fn, grid, axis, lcfs_norm=1.0):
+    """Run the device connectivity read on a synthetic field with EXACT node flux."""
+    from imas_ambix.latent.connectivity_boundary import boundary_read
+
+    psi2d = _gridfield(fn, grid.rg, grid.zg)
+    wall_psi = fn(grid.wall_r, grid.wall_z)
+    return boundary_read(psi2d, grid, axis, lcfs_norm=lcfs_norm, wall_psi=wall_psi)
+
+
+def _gwall_leg(grid, payload_item, inv, psi, centroid, cpu, span):
+    """T-D3 held-out leg: swap the bilerp tangency for the exact g_wall GEMM.
+
+    Reads the same field (``inv.psi_tot``) with the exact campaign ``g_wall`` node
+    flux instead of bilinear, and reports the ψ_bnd/radii shift plus the
+    grid-kernel-vs-basis consistency residual (so the swap is an honest A/B).
+    """
+    from imas_ambix.latent.connectivity_boundary import boundary_read
+
+    out = {
+        "dpsi_frac": float("nan"),
+        "radii_dmed_cm": float("nan"),
+        "vs_bilerp_dpsi_frac": float("nan"),
+        "consistency_frac": float("nan"),
+    }
+    if getattr(grid, "_coil_packs", None) is None or abs(span) < 1e-12:
+        return out
+    try:
+        i_cell = np.asarray(inv.i_cell, dtype=np.float64)
+        i_pf = np.asarray(payload_item.i_pf, dtype=np.float64)
+        wall_psi = grid.wall_flux(i_pf, i_cell)
+        gw = boundary_read(psi, grid, centroid, lcfs_norm=1.0, wall_psi=wall_psi)
+        bl = boundary_read(psi, grid, centroid, lcfs_norm=1.0)  # bilerp baseline
+        out["dpsi_frac"] = abs(gw.psi_bnd - cpu.psi_bnd) / abs(span)
+        out["vs_bilerp_dpsi_frac"] = abs(gw.psi_bnd - bl.psi_bnd) / abs(span)
+        okg = np.isfinite(cpu.radii) & np.isfinite(gw.radii)
+        if okg.any():
+            out["radii_dmed_cm"] = float(
+                np.median(100.0 * np.abs(gw.radii[okg] - cpu.radii[okg]))
+            )
+        recon = (grid.coil_psi(i_pf) + grid.plasma_grid_psi(i_cell)).reshape(
+            grid.nz, grid.nr
+        )
+        out["consistency_frac"] = float(np.max(np.abs(recon - psi))) / abs(span)
+    except Exception as exc:  # noqa: BLE001 — record nothing, keep sweeping
+        logger.warning("g_wall leg skipped: %s", exc)
+    return out
+
+
+# --- synthetic wall fixtures ------------------------------------------------
+
+
+def _vessel_box(rlo, rhi, zlo, zhi):
+    from imas_ambix.latent.wall_mask import vessel_unit
+
+    return vessel_unit(
+        np.array([rlo, rhi, rhi, rlo, rlo]),
+        np.array([zlo, zlo, zhi, zhi, zlo]),
+        name="vessel",
+    )
+
+
+def _tile(rc, zc, hw, hh, *, name="tile", closed=True):
+    from imas_ambix.latent.wall_mask import material_unit
+
+    return material_unit(
+        np.array([rc - hw, rc + hw, rc + hw, rc - hw, rc - hw]),
+        np.array([zc - hh, zc - hh, zc + hh, zc + hh, zc - hh]),
+        closed=closed,
+        name=name,
+    )
+
+
+def _td1():
+    """Multi-wall correctness: single-loop, multi-polygon, movable — lim + div."""
+    cases = []
+
+    def limited_case(name, units, centre, axis):
+        grid = _WallGrid(
+            np.linspace(0.25, 1.75, 121), np.linspace(-1.15, 1.15, 161), units
+        )
+        fn = _gauss_field([centre], [1.0], 0.30)
+        b = _read_wall(fn, grid, axis)
+        psi_ax = float(b.psi_axis)
+        psi2d = _gridfield(fn, grid.rg, grid.zg)
+        p_out = _psi_out(psi2d, psi_ax)
+        ref_bnd, ref_unit = _tangency_ref(fn, units, psi_ax, p_out)
+        span = abs(p_out - psi_ax)
+        err = abs(b.psi_bnd - ref_bnd) / span
+        return {
+            "case": name,
+            "class": "limited",
+            "found": bool(b.found),
+            "dpsi_frac": float(err),
+            "ref_unit": int(ref_unit),
+            "pass": bool(b.found and err < WALL_PSI_BND_TOL),
+        }
+
+    def diverted_case(name, units, axis):
+        grid = _WallGrid(
+            np.linspace(0.25, 1.75, 121), np.linspace(-1.2, 1.2, 161), units
+        )
+        fn = _gauss_field([(1.0, 0.25), (1.0, -0.7)], [1.0, 0.9], 0.28)
+        b = _read_wall(fn, grid, axis)
+        ref = _saddle_ref(fn, grid.rg, grid.zg, grid.limiter_r, grid.limiter_z)
+        if ref is None:
+            return {
+                "case": name,
+                "class": "diverted",
+                "pass": False,
+                "found": bool(b.found),
+            }
+        psi2d = _gridfield(fn, grid.rg, grid.zg)
+        span = abs(_psi_out(psi2d, float(b.psi_axis)) - float(b.psi_axis))
+        err = abs(b.psi_bnd - ref) / span
+        return {
+            "case": name,
+            "class": "diverted",
+            "found": bool(b.found),
+            "dpsi_frac": float(err),
+            "dev_is_diverted": bool(b.is_diverted),
+            "pass": bool(b.found and err < WALL_PSI_BND_TOL),
+        }
+
+    # (1) single closed vessel loop (MAST-like)
+    box = [_vessel_box(0.3, 1.7, -1.05, 1.05)]
+    cases.append(limited_case("single_loop", box, (1.0, 0.1), (1.0, 0.1)))
+    cases.append(diverted_case("single_loop", box, (1.0, 0.25)))
+    # (2) multi-polygon: vessel + two discrete limiter tiles (AUG-like)
+    multi = [
+        _vessel_box(0.3, 1.7, -1.05, 1.05),
+        _tile(1.42, 0.0, 0.05, 0.35, name="inner_limiter"),
+        _tile(0.55, -0.6, 0.10, 0.06, name="lower_tile"),
+    ]
+    # plasma leans on the inner limiter (nearest surface at R≈1.37)
+    cases.append(limited_case("multi_polygon", multi, (1.0, 0.0), (1.0, 0.0)))
+    # (3) time-varying wall: a movable limiter steps inward between two pulses
+    for pos, tag in ((1.55, "wall_far"), (1.30, "wall_near")):
+        mv = [
+            _vessel_box(0.3, 1.7, -1.05, 1.05),
+            _tile(pos, 0.0, 0.04, 0.4, name="movable_limiter"),
+        ]
+        cases.append(limited_case(f"movable_{tag}", mv, (1.0, 0.0), (1.0, 0.0)))
+
+    n_pass = sum(c.get("pass", False) for c in cases)
+    verdict = "PASS" if n_pass == len(cases) else "FAIL"
+    return {"verdict": verdict, "n_pass": n_pass, "n_cases": len(cases), "cases": cases}
+
+
+def _td2():
+    """Thin tile (t < Δ): the warning FIRES and ψ_bnd still lands on the true flux."""
+    rg = np.linspace(0.25, 1.75, 121)
+    zg = np.linspace(-1.15, 1.15, 161)
+    delta = min(float(rg[1] - rg[0]), float(zg[1] - zg[0]))
+    thin = delta / 3.0  # blade thinner than the grid
+    units = [
+        _vessel_box(0.3, 1.7, -1.05, 1.05),
+        _tile(1.30, 0.0, thin, 0.4, name="thin_blade"),
+    ]
+    grid = _WallGrid(rg, zg, units)
+    warned = [d for d in grid.wall_diagnostics if d.kind == "thin_unit"]
+    fn = _gauss_field([(1.0, 0.0)], [1.0], 0.30)
+    b = _read_wall(fn, grid, (1.0, 0.0))
+    psi_ax = float(b.psi_axis)
+    psi2d = _gridfield(fn, grid.rg, grid.zg)
+    p_out = _psi_out(psi2d, psi_ax)
+    ref_bnd, ref_unit = _tangency_ref(fn, units, psi_ax, p_out)
+    span = abs(p_out - psi_ax)
+    err = abs(b.psi_bnd - ref_bnd) / span
+    ok = bool(len(warned) >= 1 and b.found and ref_unit == 1 and err < WALL_PSI_BND_TOL)
+    return {
+        "verdict": "PASS" if ok else "FAIL",
+        "warning_fired": bool(len(warned) >= 1),
+        "thickness_proxy_cm": (
+            100.0 * warned[0].detail["thickness_proxy_m"] if warned else None
+        ),
+        "delta_cm": 100.0 * delta,
+        "binds_on_blade": bool(ref_unit == 1),
+        "dpsi_frac": float(err),
+        "found": bool(b.found),
+    }
+
+
+def _td3_exactness():
+    """g_wall node flux is exact (machine-eps) where bilerp carries an O(Δ²) floor."""
+    import jax.numpy as jnp
+
+    from imas_ambix.latent.connectivity_boundary import _bilerp
+    from imas_ambix.latent.gs_solve import EquilibriumGrid
+
+    rg = np.linspace(0.25, 1.75, 65)
+    zg = np.linspace(-1.05, 1.05, 97)
+    lr = np.array([0.4, 1.6, 1.6, 0.4, 0.4])
+    lz = np.array([-0.9, -0.9, 0.9, 0.9, -0.9])
+    grid = EquilibriumGrid(
+        rg=rg,
+        zg=zg,
+        limiter_r=lr,
+        limiter_z=lz,
+        coil_psi_columns=np.zeros((rg.size * zg.size, 0)),
+        r0=1.0,
+    )
+    cr = grid.flat_r[grid.cells]
+    cz = grid.flat_z[grid.cells]
+    i_cell = np.exp(-(((cr - 1.0) ** 2 + cz**2) / 0.3**2)) * 1.0e3
+    exact = grid.wall_flux(np.zeros(0), i_cell)
+    direct = grid.wall_greens()["g_cells"] @ i_cell
+    psi2d = grid.plasma_grid_psi(i_cell).reshape(grid.nz, grid.nr)
+    rgj, zgj, psij = jnp.asarray(rg), jnp.asarray(zg), jnp.asarray(psi2d)
+    bilerp = np.array(
+        [
+            float(_bilerp(psij, rgj, zgj, float(r), float(z)))
+            for r, z in zip(grid.wall_r, grid.wall_z, strict=True)
+        ]
+    )
+    span = float(psi2d.max() - psi2d.min())
+    exact_err = float(np.max(np.abs(exact - direct))) / span
+    bilerp_err = float(np.max(np.abs(bilerp - exact))) / span
+    ok = bool(exact_err < 1e-12 and bilerp_err > 1e-5)
+    return {
+        "verdict": "PASS" if ok else "FAIL",
+        "exact_vs_direct_frac": exact_err,
+        "bilerp_floor_frac": bilerp_err,
+        "ratio": (bilerp_err / exact_err) if exact_err > 0 else float("inf"),
+    }
+
+
+def _td3_mast(rows):
+    """No-regression: swapping bilerp→g_wall on MAST-36 does not move ψ_bnd/radii."""
+
+    def med(key):
+        v = [r[key] for r in rows if np.isfinite(r.get(key, np.nan))]
+        return float(np.median(v)) if v else float("nan")
+
+    def p90(key):
+        v = [r[key] for r in rows if np.isfinite(r.get(key, np.nan))]
+        return float(np.percentile(v, 90)) if v else float("nan")
+
+    swap = med("gwall_vs_bilerp_dpsi_frac")
+    swap90 = p90("gwall_vs_bilerp_dpsi_frac")
+    cons = med("gwall_consistency_frac")
+    cons90 = p90("gwall_consistency_frac")
+    gw_dpsi = med("gwall_dpsi_frac")
+    n = sum(1 for r in rows if np.isfinite(r.get("gwall_vs_bilerp_dpsi_frac", np.nan)))
+    ok = bool(
+        n > 0
+        and np.isfinite(swap90)
+        and swap90 < GWALL_SWAP_TOL
+        and cons90 < GWALL_CONSISTENCY_TOL
+    )
+    return {
+        "verdict": "PASS" if ok else "FAIL",
+        "n_slices": n,
+        "swap_dpsi_frac_med": swap,
+        "swap_dpsi_frac_p90": swap90,
+        "consistency_frac_med": cons,
+        "consistency_frac_p90": cons90,
+        "gwall_vs_host_dpsi_frac_med": gw_dpsi,
+    }
+
+
+def _aug_class_wall():
+    """An AUG-class multi-unit wall: a vessel + ~29 discrete tiles (thin inner-
+    column heat shields, outer limiter tiles, up/down divertor tiles) + one open
+    limiter blade.  "AUG-class" = the many-discrete-unit STRUCTURE (a real AUG
+    wall is ~29 units); clean per-unit R,Z for the real AUG geometry was not in
+    the imas-efit tree, so this fixture exercises the SAME build_wall_mask path a
+    real 29-unit wall would.  Dimensions are chosen divertor-capable (a lower
+    divertor the single-null separatrix escapes to) so BOTH a limited and a
+    diverted field bind through the multi-unit raster."""
+    from imas_ambix.latent.wall_mask import material_unit
+
+    units = [
+        _vessel_box(0.35, 1.75, -1.15, 1.15),  # vessel (occupiable)
+    ]
+    # inner-column heat-shield tiles (sub-grid thin, stacked) — fire the thin warn
+    for k, zc in enumerate(np.linspace(-0.75, 0.75, 8)):
+        units.append(_tile(0.40, zc, 0.004, 0.09, name=f"innercol_{k}"))
+    # outer discrete limiter tiles
+    for k, zc in enumerate(np.linspace(-0.6, 0.6, 7)):
+        units.append(_tile(1.70, zc, 0.03, 0.09, name=f"outer_{k}"))
+    # upper divertor tiles
+    for k, rc in enumerate(np.linspace(0.7, 1.3, 6)):
+        units.append(_tile(rc, 1.08, 0.05, 0.04, name=f"updiv_{k}"))
+    # lower divertor tiles (the single-null separatrix escapes here)
+    for k, rc in enumerate(np.linspace(0.7, 1.3, 6)):
+        units.append(_tile(rc, -1.08, 0.05, 0.04, name=f"lowdiv_{k}"))
+    # one OPEN line primitive (a limiter blade)
+    units.append(
+        material_unit(
+            np.array([1.55, 1.55]), np.array([-0.2, 0.2]), closed=False, name="blade"
+        )
+    )
+    return units
+
+
+def _td4():
+    """AUG-class 29-unit raster: no special-casing, thin warnings, correct binding."""
+    units = _aug_class_wall()
+    rg = np.linspace(0.35, 1.75, 141)
+    zg = np.linspace(-1.15, 1.15, 181)
+    grid = _WallGrid(rg, zg, units)
+    thin = [d for d in grid.wall_diagnostics if d.kind == "thin_unit"]
+    n_units = len(units)
+
+    # limited: a centred plasma leans on the nearest discrete unit
+    fn_lim = _gauss_field([(1.0, 0.0)], [1.0], 0.32)
+    b_lim = _read_wall(fn_lim, grid, (1.0, 0.0))
+    psi_ax = float(b_lim.psi_axis)
+    p_out = _psi_out(_gridfield(fn_lim, rg, zg), psi_ax)
+    ref_bnd, ref_unit = _tangency_ref(fn_lim, units, psi_ax, p_out)
+    span_l = abs(p_out - psi_ax)
+    err_lim = abs(b_lim.psi_bnd - ref_bnd) / span_l
+
+    # diverted: main blob + a lower-divertor blob (single-null) — the separatrix
+    # escapes to the lower divertor tiles, so the X-saddle is the binding surface
+    fn_div = _gauss_field([(1.0, 0.25), (1.0, -0.7)], [1.0, 0.9], 0.28)
+    b_div = _read_wall(fn_div, grid, (1.0, 0.25))
+    ref_saddle = _saddle_ref(fn_div, rg, zg, grid.limiter_r, grid.limiter_z)
+    div_ok = False
+    err_div = float("nan")
+    if ref_saddle is not None and b_div.found:
+        span_d = abs(
+            _psi_out(_gridfield(fn_div, rg, zg), float(b_div.psi_axis))
+            - float(b_div.psi_axis)
+        )
+        err_div = abs(b_div.psi_bnd - ref_saddle) / span_d
+        div_ok = err_div < WALL_PSI_BND_TOL
+
+    ok = bool(
+        len(thin) >= 1
+        and b_lim.found
+        and err_lim < WALL_PSI_BND_TOL
+        and b_div.is_diverted
+        and div_ok
+    )
+    return {
+        "verdict": "PASS" if ok else "FAIL",
+        "n_units": n_units,
+        "n_thin_warnings": len(thin),
+        "limited_found": bool(b_lim.found),
+        "limited_dpsi_frac": float(err_lim),
+        "limited_binds_unit": int(ref_unit),
+        "diverted_found": bool(b_div.found),
+        "diverted_is_diverted": bool(b_div.is_diverted),
+        "diverted_dpsi_frac": float(err_div),
+        "fixture": "AUG-class synthetic multi-unit wall (29 units)",
+    }
+
+
+def _ring_from_radii(read, angles):
+    """(ring_r, ring_z) from a read's LCFS radii about its axis (NaN-safe)."""
+    ar, az = read.axis
+    if not (np.isfinite(ar) and np.isfinite(az)):
+        return None, None
+    rad = np.asarray(read.radii, dtype=np.float64)
+    rr = ar + rad * np.cos(angles)
+    zz = az + rad * np.sin(angles)
+    return rr, zz
+
+
+def _panel(ax, grid, units, read, title):
+    """One boundary-read panel: occupiable mask + unit polygons + LCFS ring."""
+    from imas_ambix.worldmodel.equilibrium_labels import LCFS_ANGLES
+
+    ang = np.asarray(LCFS_ANGLES)
+    ax.imshow(
+        grid.inside_limiter,
+        origin="lower",
+        extent=[grid.rg[0], grid.rg[-1], grid.zg[0], grid.zg[-1]],
+        cmap="Greys",
+        alpha=0.25,
+        aspect="auto",
+    )
+    for u in units:
+        r = np.append(u.r, u.r[0]) if u.closed else u.r
+        z = np.append(u.z, u.z[0]) if u.closed else u.z
+        ax.plot(r, z, "-", lw=1.0, color=("k" if u.kind == "vessel" else "C3"))
+    rr, zz = _ring_from_radii(read, ang)
+    if rr is not None:
+        ax.plot(np.append(rr, rr[0]), np.append(zz, zz[0]), "-", color="C0", lw=1.6)
+    if np.isfinite(read.axis[0]):
+        ax.plot(read.axis[0], read.axis[1], "x", color="C0", ms=7)
+    cls = "diverted" if read.is_diverted else "limited"
+    ax.set_title(f"{title}\n({cls})", fontsize=8)
+    ax.set_xlabel("R [m]", fontsize=7)
+    ax.set_ylabel("Z [m]", fontsize=7)
+    ax.tick_params(labelsize=6)
+
+
+def _figures_wall():
+    """Boundary overlays: single-loop, multi-polygon, thin-tile, movable, AUG-class."""
+    FIG_DIR.mkdir(parents=True, exist_ok=True)
+    delta_grid = (np.linspace(0.25, 1.75, 121), np.linspace(-1.15, 1.15, 161))
+    dr = float(delta_grid[0][1] - delta_grid[0][0])
+    thin = (min(dr, float(delta_grid[1][1] - delta_grid[1][0]))) / 3.0
+    panels = []
+    # single loop (limited)
+    u = [_vessel_box(0.3, 1.7, -1.05, 1.05)]
+    g = _WallGrid(*delta_grid, u)
+    panels.append(
+        (
+            g,
+            u,
+            _read_wall(_gauss_field([(1.0, 0.1)], [1.0], 0.30), g, (1.0, 0.1)),
+            "single loop",
+        )
+    )
+    # multi-polygon (two discrete limiters)
+    u = [
+        _vessel_box(0.3, 1.7, -1.05, 1.05),
+        _tile(1.42, 0.0, 0.05, 0.35, name="inner_limiter"),
+        _tile(0.55, -0.6, 0.10, 0.06, name="lower_tile"),
+    ]
+    g = _WallGrid(*delta_grid, u)
+    panels.append(
+        (
+            g,
+            u,
+            _read_wall(_gauss_field([(1.0, 0.0)], [1.0], 0.30), g, (1.0, 0.0)),
+            "multi-polygon",
+        )
+    )
+    # thin tile (t < Δ)
+    u = [
+        _vessel_box(0.3, 1.7, -1.05, 1.05),
+        _tile(1.30, 0.0, thin, 0.4, name="thin_blade"),
+    ]
+    g = _WallGrid(*delta_grid, u)
+    panels.append(
+        (
+            g,
+            u,
+            _read_wall(_gauss_field([(1.0, 0.0)], [1.0], 0.30), g, (1.0, 0.0)),
+            "thin tile (t<Δ)",
+        )
+    )
+    # movable limiter (near)
+    u = [
+        _vessel_box(0.3, 1.7, -1.05, 1.05),
+        _tile(1.30, 0.0, 0.04, 0.4, name="movable"),
+    ]
+    g = _WallGrid(*delta_grid, u)
+    panels.append(
+        (
+            g,
+            u,
+            _read_wall(_gauss_field([(1.0, 0.0)], [1.0], 0.30), g, (1.0, 0.0)),
+            "movable limiter",
+        )
+    )
+    # AUG-class limited + diverted
+    au = _aug_class_wall()
+    ag = _WallGrid(np.linspace(0.35, 1.75, 141), np.linspace(-1.15, 1.15, 181), au)
+    panels.append(
+        (
+            ag,
+            au,
+            _read_wall(_gauss_field([(1.0, 0.0)], [1.0], 0.32), ag, (1.0, 0.0)),
+            "AUG-class (29 units)",
+        )
+    )
+    panels.append(
+        (
+            ag,
+            au,
+            _read_wall(
+                _gauss_field([(1.0, 0.25), (1.0, -0.7)], [1.0, 0.9], 0.28),
+                ag,
+                (1.0, 0.25),
+            ),
+            "AUG-class single-null",
+        )
+    )
+
+    n = len(panels)
+    fig, axes = plt.subplots(2, (n + 1) // 2, figsize=(3.2 * ((n + 1) // 2), 6.4))
+    for axp, (g, u, b, title) in zip(np.ravel(axes), panels, strict=False):
+        _panel(axp, g, u, b, title)
+    for axp in np.ravel(axes)[n:]:
+        axp.axis("off")
+    fig.suptitle(
+        "§4 machine-agnostic wall — one read, arbitrary raster mask (tiles as holes)",
+        fontsize=10,
+    )
+    fig.tight_layout()
+    out = FIG_DIR / "wall_multi.png"
+    fig.savefig(out, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return str(out)
+
+
+# ---------------------------------------------------------------------------
 # driver
 # ---------------------------------------------------------------------------
 
@@ -1052,6 +1663,11 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--nr", type=int, default=65)
     ap.add_argument("--nz", type=int, default=97)
     ap.add_argument("--no-figures", action="store_true")
+    ap.add_argument(
+        "--td-only",
+        action="store_true",
+        help="run only the §4 wall gates (synthetic; no held-out data)",
+    )
     ap.add_argument(
         "--ink-shot",
         type=int,
@@ -1080,6 +1696,31 @@ def main() -> int:
         )
         out = _ink_cross_section(overlays)
         logger.info("wrote imas-ink cross-section: %s", out)
+        return 0
+
+    if args.td_only:
+        td1 = _td1()
+        td2 = _td2()
+        td3x = _td3_exactness()
+        td4 = _td4()
+        for tag, r in [
+            ("T-D1", td1),
+            ("T-D2", td2),
+            ("T-D3-exact", td3x),
+            ("T-D4", td4),
+        ]:
+            logger.info("%s: %s", tag, json.dumps(r, indent=2))
+        if not args.no_figures:
+            logger.info("wall figures: %s", _figures_wall())
+        logger.info(
+            "VERDICTS (§4 synthetic): %s",
+            {
+                "T-D1": td1["verdict"],
+                "T-D2": td2["verdict"],
+                "T-D3-exact": td3x["verdict"],
+                "T-D4": td4["verdict"],
+            },
+        )
         return 0
 
     if args.shots:
@@ -1134,8 +1775,28 @@ def main() -> int:
     tc3 = _tc3(rows)
     logger.info("T-C3: %s", json.dumps(tc3, indent=2))
 
+    # --- §4 machine-agnostic wall gates ------------------------------------
+    td1 = _td1()
+    logger.info("T-D1: %s", json.dumps(td1, indent=2))
+    td2 = _td2()
+    logger.info("T-D2: %s", json.dumps(td2, indent=2))
+    td3 = {"exactness": _td3_exactness(), "no_regression_mast": _td3_mast(rows)}
+    td3["verdict"] = (
+        "PASS"
+        if td3["exactness"]["verdict"] == "PASS"
+        and td3["no_regression_mast"]["verdict"] == "PASS"
+        else "FAIL"
+    )
+    logger.info("T-D3: %s", json.dumps(td3, indent=2))
+    td4 = _td4()
+    logger.info("T-D4: %s", json.dumps(td4, indent=2))
+
     if not args.no_figures:
         _figures(tb1, tb3, overlays)
+        try:
+            _figures_wall()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("wall figures skipped: %s", exc)
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -1151,6 +1812,10 @@ def main() -> int:
                 "tc1_axis": tc1,
                 "tc2_xpoint_class": tc2,
                 "tc3_unified_binding": tc3,
+                "td1_multi_wall": td1,
+                "td2_thin_tile": td2,
+                "td3_wall_flux": td3,
+                "td4_aug_raster": td4,
             },
             indent=2,
         )
@@ -1163,6 +1828,10 @@ def main() -> int:
         "T-C1": tc1["verdict"],
         "T-C2": tc2["verdict"],
         "T-C3": tc3["verdict"],
+        "T-D1": td1["verdict"],
+        "T-D2": td2["verdict"],
+        "T-D3": td3["verdict"],
+        "T-D4": td4["verdict"],
     }
     logger.info("VERDICTS: %s", verdicts)
     return 0
