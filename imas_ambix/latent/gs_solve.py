@@ -2162,7 +2162,12 @@ def fit_profile_ladder(
     """Bootstrapped ladder solve: fixed-shape boundary-continuation stage 1
     (unless ``initial_jphi`` warm-starts it away), then the analytic-add
     LSQ-per-sweep Picard of :func:`solve_equilibrium_lsq`.
+
+    Under the grid-free ``greens-matvec`` substrate the stage-1 bootstrap uses
+    the analytic-add matvec (the boundary-continuation arm has no grid-free
+    form), so the whole ladder stays free of the gridded Δ* solve.
     """
+    substrate = solve_kwargs.get("substrate", SUBSTRATE_GRID)
     if initial_jphi is None:
         stage1 = solve_equilibrium(
             grid,
@@ -2171,7 +2176,12 @@ def fit_profile_ladder(
             beta0=0.5,
             alpha=1.0,
             max_iterations=bootstrap_iterations,
-            coil_field_mode="boundary-continuation",
+            coil_field_mode=(
+                "analytic-add"
+                if substrate == SUBSTRATE_GREENS
+                else "boundary-continuation"
+            ),
+            substrate=substrate,
             seed_z0=solve_kwargs.get("seed_z0", 0.0),
         )
         initial_jphi = stage1.jphi.ravel()
@@ -2195,6 +2205,7 @@ def fit_profile_ladder(
                 n_p=1,
                 n_f=1,
                 initial_jphi=initial_jphi,
+                substrate=substrate,
             )
             initial_jphi = scout.result.jphi.ravel()
     return solve_equilibrium_lsq(

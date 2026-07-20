@@ -560,6 +560,7 @@ def fit_and_read_slice(
     meta: dict | None = None,
     soft_prior_cfg: dict | None = None,
     boundary_read: str = "innermost",
+    substrate: str = "grid-delstar",
 ) -> ClosureSliceFit:
     """Fit the profile against ``payload``'s raw magnetics through the GS fixed
     point and read the hardened 14-D geometry from the force-balanced ψ.
@@ -635,6 +636,7 @@ def fit_and_read_slice(
         z0 = fit.z0 if fit else None
     elif fit_mode == "ladder":
         kw = payload_kw | dict(n_p=n_p, n_f=n_f, smoothness=smoothness, nonneg=nonneg)
+        kw["substrate"] = substrate
         if passive is not None:
             kw["passive"] = passive
             kw["passive_ridge"] = passive_ridge
@@ -769,6 +771,7 @@ def fit_and_read_slice(
             n_p=1,
             n_f=1,
             seed_width=(0.25, 0.35),
+            substrate=substrate,
         )
         reseed_kw = dict(
             n_p=n_p,
@@ -776,6 +779,7 @@ def fit_and_read_slice(
             smoothness=smoothness,
             nonneg=nonneg,
             initial_jphi=scout.result.jphi.ravel(),
+            substrate=substrate,
         )
         if sp_slice is not None:
             reseed_kw["soft_priors"] = sp_slice
