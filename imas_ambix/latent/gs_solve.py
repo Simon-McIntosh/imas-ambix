@@ -143,7 +143,12 @@ class EquilibriumGrid:
         interior[1:-1, 1:-1] = True
         self.interior = interior
         self.edge_idx = np.where(~interior.ravel())[0]
-        self._lu = self._factorise()
+        # The gridded Δ* operator is LU-factorised lazily, on the first
+        # ``solve_dirichlet`` call.  A solve that evaluates ψ purely by the
+        # analytic Green's matvec (``plasma_grid_psi``) never touches it, so
+        # ``self._lu is None`` after such a solve is a machine-checkable proof
+        # that no gridded elliptic operator was assembled or inverted.
+        self._lu = None
         # plasma-cell → domain-edge ψ Green's matrix (edge is far from interior
         # cells, so point filaments per cell are accurate there)
         er, ez = self.flat_r[self.edge_idx], self.flat_z[self.edge_idx]
@@ -290,11 +295,62 @@ class EquilibriumGrid:
 
         ``rhs_interior`` and ``psi_boundary`` are (nz, nr) fields; only the
         interior of the former and the edge ring of the latter are read.
-        Returns ψ as (nz, nr).
+        Returns ψ as (nz, nr).  The Δ* LU is built here on first use.
         """
+        if self._lu is None:
+            self._lu = self._factorise()
         rhs = np.where(self.interior, rhs_interior, 0.0).ravel().astype(np.float64)
         rhs[self.edge_idx] = psi_boundary.ravel()[self.edge_idx]
         return self._lu.solve(rhs).reshape(self.nz, self.nr)
+
+    def plasma_grid_psi_columns(self) -> np.ndarray:
+        """Analytic plasma→grid ψ Green's matrix ``(n_grid, n_cell)`` [Wb per A].
+
+        Column ``j`` is the total poloidal flux ψ at every grid point produced
+        by unit current in in-limiter cell ``j`` (``self.cells`` order), from
+        the finite-area :func:`hybrid_greens` kernel — the SAME kernel the
+        coils, vessel, and the ``g_edge`` Dirichlet block already use, so this
+        is the analytic Δ* inversion (the free-space Green's function of Δ*),
+        not a second discretisation.  Matmul against a cell-current vector then
+        gives ψ everywhere WITHOUT solving the gridded elliptic operator — the
+        grid-free substrate.  Cached (pure geometry); the ``g_edge`` edge block
+        is reproduced exactly here on the edge rows, so the grid-free field
+        matches the grid solve's Dirichlet data on the boundary by construction
+        and differs only in the interior (analytic vs 5-point-FD Green's).
+        """
+        cached = getattr(self, "_plasma_grid_psi_cache", None)
+        if cached is not None:
+            return cached
+        cols = [
+            hybrid_greens(
+                self.flat_r,
+                self.flat_z,
+                float(self.flat_r[c]),
+                float(self.flat_z[c]),
+                self.dr,
+                self.dz,
+            )[0]
+            for c in self.cells
+        ]
+        g = (
+            np.column_stack(cols)
+            if cols
+            else np.zeros((self.flat_r.size, 0), dtype=np.float64)
+        )
+        self._plasma_grid_psi_cache = g
+        return g
+
+    def plasma_grid_psi(self, cell_currents: np.ndarray) -> np.ndarray:
+        """Plasma-generated ψ on the flattened grid [Wb] from per-cell currents.
+
+        ``cell_currents`` [A] are one value per in-limiter cell (``self.cells``
+        order).  Returns ``G_cell→grid @ cell_currents`` — the analytic Δ*
+        inversion evaluated at every grid point by matvec (no ``_lu`` solve).
+        """
+        g = self.plasma_grid_psi_columns()
+        if g.shape[1] == 0:
+            return np.zeros(self.flat_r.size, dtype=np.float64)
+        return np.asarray(g @ np.asarray(cell_currents, dtype=np.float64))
 
     def coil_psi(self, i_pf: np.ndarray) -> np.ndarray:
         """Vacuum coil ψ on the flattened grid [Wb] for coil currents [A]."""
@@ -472,6 +528,45 @@ def _read_boundary_psi_robust(
     return lim_b
 
 
+#: The two ψ-evaluation substrates.  ``grid-delstar`` inverts the gridded
+#: 5-point Δ* operator (the historical solve, byte-unchanged); ``greens-matvec``
+#: evaluates ψ by the analytic finite-area Green's matvec and never assembles or
+#: inverts the elliptic operator.
+SUBSTRATE_GRID = "grid-delstar"
+SUBSTRATE_GREENS = "greens-matvec"
+SUBSTRATES = (SUBSTRATE_GRID, SUBSTRATE_GREENS)
+
+
+def _plasma_psi_field(
+    grid: EquilibriumGrid,
+    jphi_scaled: np.ndarray,
+    i_cell: np.ndarray,
+    psi_coil: np.ndarray,
+    *,
+    substrate: str,
+) -> np.ndarray:
+    """Plasma+coil ψ on the flattened grid for one analytic-add Picard iterate.
+
+    ``jphi_scaled`` is the Ip-rescaled current density on the full grid
+    (``jphi * scale``); ``i_cell`` the matching per-cell current [A]
+    (``jphi[cells] * cell_area * scale``, ``self.cells`` order); ``psi_coil``
+    the vacuum coil ψ.
+
+    ``substrate='grid-delstar'`` (default) is byte-identical to the historical
+    analytic-add solve — Δ* inverted on the 5-point grid with the plasma's own
+    Green's field as the Dirichlet edge, plus the analytic coil field.
+    ``substrate='greens-matvec'`` drops the gridded solve: ψ_plasma is the
+    analytic Green's matvec ``grid.plasma_grid_psi(i_cell)``, so no elliptic
+    operator is assembled or inverted.
+    """
+    if substrate == SUBSTRATE_GREENS:
+        return grid.plasma_grid_psi(i_cell) + psi_coil
+    rhs2d = (-(2.0 * np.pi * MU0) * grid.flat_r * jphi_scaled).reshape(grid.nz, grid.nr)
+    psi_b2d = np.zeros((grid.nz, grid.nr))
+    psi_b2d.ravel()[grid.edge_idx] = grid.g_edge @ i_cell
+    return grid.solve_dirichlet(rhs2d, psi_b2d).ravel() + psi_coil
+
+
 def solve_equilibrium(
     grid: EquilibriumGrid,
     i_pf: np.ndarray,
@@ -485,6 +580,7 @@ def solve_equilibrium(
     seed_width: tuple[float, float] = (0.35, 0.5),
     seed_z0: float = 0.0,
     coil_field_mode: str = "analytic-add",
+    substrate: str = SUBSTRATE_GRID,
     initial_jphi: np.ndarray | None = None,
     iteration_trace: list[dict] | None = None,
 ) -> EquilibriumResult:
@@ -508,7 +604,18 @@ def solve_equilibrium(
     Δ*-harmonic continuation of its boundary values — smooth but wrong near
     in-vessel coils), retained as a diagnostic arm.  ``iteration_trace``
     (a list) collects per-iteration axis / flux / residual dicts.
+
+    ``substrate`` selects the ψ evaluator (:data:`SUBSTRATES`): the default
+    ``grid-delstar`` is byte-unchanged; ``greens-matvec`` drops the gridded
+    Δ* solve for the analytic Green's matvec (opt-in; ``analytic-add`` only —
+    the legacy boundary-continuation arm has no grid-free form).
     """
+    if substrate not in SUBSTRATES:
+        raise ValueError(f"substrate must be one of {SUBSTRATES}, got {substrate!r}")
+    if substrate == SUBSTRATE_GREENS and coil_field_mode != "analytic-add":
+        raise ValueError(
+            "greens-matvec substrate requires coil_field_mode='analytic-add'"
+        )
     psi_coil = grid.coil_psi(np.asarray(i_pf, dtype=np.float64))
     sign = 1.0 if ip_amperes >= 0 else -1.0
     cell_area = grid.dr * grid.dz
@@ -557,14 +664,15 @@ def solve_equilibrium(
         # Φ = 2π R A_φ [Wb], so the matching FD source is Δ*Φ = −2π μ0 R jφ
         # (per-radian −μ0 R jφ under-weights the plasma well by 2π against
         # the coil field — pinned by the flux-integral consistency test).
-        rhs2d = (-(2.0 * np.pi * MU0) * grid.flat_r * jphi * scale).reshape(
-            grid.nz, grid.nr
-        )
-        psi_b2d = np.zeros((grid.nz, grid.nr))
         if coil_field_mode == "analytic-add":
-            psi_b2d.ravel()[grid.edge_idx] = grid.g_edge @ i_cell
-            psi_new = grid.solve_dirichlet(rhs2d, psi_b2d).ravel() + psi_coil
-        else:  # boundary-continuation — the legacy diagnostic arm
+            psi_new = _plasma_psi_field(
+                grid, jphi * scale, i_cell, psi_coil, substrate=substrate
+            )
+        else:  # boundary-continuation — the legacy diagnostic arm (grid only)
+            rhs2d = (-(2.0 * np.pi * MU0) * grid.flat_r * jphi * scale).reshape(
+                grid.nz, grid.nr
+            )
+            psi_b2d = np.zeros((grid.nz, grid.nr))
             psi_b2d.ravel()[grid.edge_idx] = (
                 psi_coil[grid.edge_idx] + grid.g_edge @ i_cell
             )
@@ -691,6 +799,144 @@ def solve_equilibrium_bootstrapped(
         max_iterations=max_iterations,
         initial_jphi=stage1.jphi.ravel(),
         **kwargs,
+    )
+
+
+def solve_equilibrium_nk(
+    grid: EquilibriumGrid,
+    i_pf: np.ndarray,
+    ip_amperes: float,
+    *,
+    beta0: float = 0.5,
+    alpha: float = 1.0,
+    substrate: str = SUBSTRATE_GREENS,
+    picard_warmup: int = 12,
+    relax: float = 0.5,
+    f_tol: float = 1e-7,
+    maxiter: int = 80,
+    seed_width: tuple[float, float] = (0.35, 0.5),
+    seed_z0: float = 0.0,
+    initial_jphi: np.ndarray | None = None,
+) -> EquilibriumResult:
+    """Jacobian-free Newton–Krylov free-boundary solve (nova's scheme).
+
+    The free-boundary equilibrium is the fixed point of
+
+        T(ψ) = ψ_coil + G · I(ψ)
+
+    where ``I(ψ)`` are the force-balanced filament currents — the topology read
+    gives ψ_N and the axis-connected core, ``jφ = R·p′(ψ_N) + FF′(ψ_N)/(μ₀R)``
+    is applied pointwise, and the currents are renormalised so the net equals
+    the measured Ip (filament turns sum to 1).  NK drives the residual
+    ``F(ψ) = ψ − T(ψ)`` to zero (``scipy.optimize.newton_krylov``), exactly the
+    nova ``residual = psi - self(psi)`` restated on this engine's machinery.
+    Defaults to the grid-free ``greens-matvec`` substrate so ``G·I`` is the
+    analytic Green's matvec and no Δ* is assembled.  A short Picard warmup seeds
+    NK into the confined basin (the broad seed has no interior O-point, so a
+    cold NK start would sit at the currentless fixed point).
+    """
+    from scipy.optimize import NoConvergence, newton_krylov  # noqa: PLC0415
+
+    if substrate not in SUBSTRATES:
+        raise ValueError(f"substrate must be one of {SUBSTRATES}, got {substrate!r}")
+    psi_coil = grid.coil_psi(np.asarray(i_pf, dtype=np.float64))
+    sign = 1.0 if ip_amperes >= 0 else -1.0
+    cell_area = grid.dr * grid.dz
+    state: dict = {}
+
+    def currents_from_psi(psi_flat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Force-balanced (jφ_full·scale, i_cell) from a ψ iterate; caches reads."""
+        psi2d = psi_flat.reshape(grid.nz, grid.nr)
+        axis, axis_psi = _read_axis(psi2d, grid, sign)
+        boundary_psi = _read_boundary_psi(psi2d, grid, axis_psi)
+        span = boundary_psi - axis_psi
+        if abs(span) < 1e-12:
+            span = 1e-12
+        psi_n = (psi_flat - axis_psi) / span
+        closed = ((psi_n < 1.0) & grid.inside_limiter.ravel()).reshape(grid.nz, grid.nr)
+        labels, _ = ndimage.label(closed)
+        ia = int(np.argmin(np.abs(grid.zg - axis[1])))
+        ja = int(np.argmin(np.abs(grid.rg - axis[0])))
+        core_label = labels[ia, ja]
+        core = (labels == core_label) if core_label != 0 else closed
+        jphi = np.zeros(grid.flat_r.size)
+        shape = profile_jphi_shape(
+            psi_n, grid.flat_r, r0=grid.r0, beta0=beta0, alpha=alpha
+        )
+        jphi[core.ravel()] = shape[core.ravel()]
+        i_cell = jphi[grid.cells] * cell_area
+        total = i_cell.sum()
+        scale = ip_amperes / total if abs(total) > 1e-12 else 0.0
+        i_cell = i_cell * scale
+        state.update(
+            axis=axis,
+            axis_psi=axis_psi,
+            boundary_psi=boundary_psi,
+            core=core,
+            jphi=(jphi * scale).reshape(grid.nz, grid.nr),
+        )
+        return jphi * scale, i_cell
+
+    def apply_map(psi_flat: np.ndarray) -> np.ndarray:
+        jphi_scaled, i_cell = currents_from_psi(psi_flat)
+        return _plasma_psi_field(
+            grid, jphi_scaled, i_cell, psi_coil, substrate=substrate
+        )
+
+    # seed jφ (warm-start or the compact Gaussian) → an initial ψ with an axis
+    if initial_jphi is not None:
+        seed = np.where(
+            grid.inside_limiter.ravel(),
+            np.asarray(initial_jphi, dtype=np.float64).ravel(),
+            0.0,
+        )
+        if not np.isfinite(seed).all() or abs(seed.sum()) < 1e-12:
+            seed = np.zeros(grid.flat_r.size)
+    else:
+        seed = np.zeros(grid.flat_r.size)
+    if abs(seed.sum()) < 1e-12:
+        seed[grid.cells] = np.exp(
+            -(
+                ((grid.flat_r[grid.cells] - grid.r0) / seed_width[0]) ** 2
+                + ((grid.flat_z[grid.cells] - seed_z0) / seed_width[1]) ** 2
+            )
+        )
+    seed_cells = seed[grid.cells] * cell_area
+    seed_total = seed_cells.sum()
+    seed_cells = seed_cells * (
+        ip_amperes / seed_total if abs(seed_total) > 1e-12 else 0.0
+    )
+    psi = _plasma_psi_field(grid, seed, seed_cells, psi_coil, substrate=substrate)
+
+    # Picard warmup into the confined basin, then Newton–Krylov to the root
+    for _ in range(max(0, picard_warmup)):
+        psi = relax * apply_map(psi) + (1.0 - relax) * psi
+
+    def residual_fn(psi_flat: np.ndarray) -> np.ndarray:
+        return psi_flat - apply_map(psi_flat)
+
+    converged = True
+    iterations = maxiter
+    try:
+        psi = newton_krylov(residual_fn, psi, f_tol=f_tol, maxiter=maxiter)
+    except NoConvergence as exc:
+        psi = np.asarray(exc.args[0], dtype=np.float64)
+        converged = False
+
+    jphi_scaled, i_cell = currents_from_psi(psi)
+    res = residual_fn(psi)
+    residual = float(np.abs(res).max() / max(np.abs(psi).max(), 1e-12))
+    return EquilibriumResult(
+        psi=psi.reshape(grid.nz, grid.nr),
+        axis=state["axis"],
+        axis_psi=state["axis_psi"],
+        boundary_psi=state["boundary_psi"],
+        jphi=state["jphi"],
+        cell_currents=i_cell,
+        core_mask=state["core"],
+        converged=bool(converged and residual < 1e-3),
+        residual=residual,
+        iterations=iterations,
     )
 
 
@@ -1534,6 +1780,7 @@ def solve_equilibrium_lsq(
     seed_width: tuple[float, float] = (0.35, 0.5),
     initial_jphi: np.ndarray | None = None,
     soft_priors: SoftPriors | None = None,
+    substrate: str = SUBSTRATE_GRID,
 ) -> LadderFit:
     """Free-boundary Picard solve with the profile coefficients re-fit by
     whitened linear least squares against the raw magnetics every sweep.
@@ -1568,7 +1815,13 @@ def solve_equilibrium_lsq(
     Ip anchor (vessel currents are not plasma current), and their flux added
     to the Picard field alongside the coil term.  ``passive=None`` (default)
     is byte-identical to the sidecar-free solve.
+
+    ``substrate`` selects the ψ evaluator (:data:`SUBSTRATES`): the default
+    ``grid-delstar`` is byte-unchanged; ``greens-matvec`` drops the gridded Δ*
+    solve for the analytic Green's matvec (the grid-free substrate spike).
     """
+    if substrate not in SUBSTRATES:
+        raise ValueError(f"substrate must be one of {SUBSTRATES}, got {substrate!r}")
     g_sens, _channels = grid.sensor_greens(table)
     meas = np.asarray(measured, dtype=np.float64)
     vac = np.asarray(vacuum_prediction, dtype=np.float64)
@@ -1630,12 +1883,9 @@ def solve_equilibrium_lsq(
         scale_ip = ip_amperes / total if abs(total) > 1e-12 else 0.0
         i_cell = i_cell * scale_ip
 
-        rhs2d = (-(2.0 * np.pi * MU0) * grid.flat_r * jphi * scale_ip).reshape(
-            grid.nz, grid.nr
+        psi_new = _plasma_psi_field(
+            grid, jphi * scale_ip, i_cell, psi_coil, substrate=substrate
         )
-        psi_b2d = np.zeros((grid.nz, grid.nr))
-        psi_b2d.ravel()[grid.edge_idx] = grid.g_edge @ i_cell
-        psi_new = grid.solve_dirichlet(rhs2d, psi_b2d).ravel() + psi_coil
         if kp:
             psi_new = psi_new + psi_pass @ a_pass
 
