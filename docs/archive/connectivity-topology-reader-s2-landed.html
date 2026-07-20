@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="connectivity-topology-reader-s2-landed">
   <meta name="plan-title" content="§2 landed — GPU-native connectivity boundary read">
   <meta name="plan-status" content="reference">
-  <meta name="plan-summary" content="Per-stage landed record for connectivity-topology-reader §2: the GPU-native connectivity boundary read (flood-fill + level sweep + two-sided binding level). All three gates PASS — LCFS radii reproduce host lcfs_contour to 1.31 cm median (< 3 cm); psi_bnd to 1.87% of span (a first single-sided escape test biased it ~1 cell / 3.7% toward the axis; fixed by the two-sided mean); on-device vmap byte-parity, no contourpy/ndimage/argwhere; continuity 0.5% vs classify-first 9.2%.">
+  <meta name="plan-summary" content="Per-stage landed record for connectivity-topology-reader §2: the GPU-native connectivity boundary read (flood-fill + level sweep; two-sided-mean saddle binding + sub-grid wall tangency for limited). All three gates PASS — LCFS radii reproduce host lcfs_contour to 0.09 cm median (< 3 cm; limited 0.06, diverted 0.46); psi_bnd to 0.02% of span, both classes on y=x (a first single-sided escape test biased psi_bnd ~1 cell toward the axis; fixed in two steps — two-sided mean for the saddle, sub-grid interpolated wall min for the limited tangency); on-device vmap byte-parity, no contourpy/ndimage/argwhere; continuity 0.5% vs classify-first 9.2%.">
   <meta name="plan-owner" content="Simon McIntosh">
   <title>§2 landed — GPU-native connectivity boundary read | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -28,9 +28,10 @@
     <thead><tr><th>Gate</th><th>Verdict</th><th>Result</th></tr></thead>
     <tbody>
       <tr><td>T-B1 — reproduction</td><td>PASS</td>
-        <td>LCFS radii reproduce host <code>lcfs_contour</code> to <strong>1.31 cm median</strong>
-        (bar 3.0 cm; diverted 0.46 cm, limited 1.40 cm, p90 max 2.14 cm); ψ_bnd to
-        <strong>1.87% of span</strong> (p90 3.12%, bar 3%), on the y=x line</td></tr>
+        <td>LCFS radii reproduce host <code>lcfs_contour</code> to <strong>0.09 cm median</strong>
+        (bar 3.0 cm; limited 0.06 cm, diverted 0.46 cm, p90 max 2.14 cm); ψ_bnd to
+        <strong>0.02% of span</strong> (p90 1.77%, bar 3%), both classes on the y=x
+        line (limited signed median −0.01%, diverted +0.43%)</td></tr>
       <tr><td>T-B2 — on-device</td><td>PASS</td>
         <td>batch of 6 slices = one <code>jax.vmap</code>, byte-parity (1e-9), 46 ms/slice CPU;
         no contourpy / ndimage / argwhere (AST-audited)</td></tr>
@@ -48,9 +49,9 @@
   <table>
     <thead><tr><th>Item</th><th>Artifact</th><th>Commit</th></tr></thead>
     <tbody>
-      <tr><td>Device connectivity boundary read (+ two-sided binding-level fix)</td>
+      <tr><td>Device connectivity boundary read (+ ψ_bnd bias fixes)</td>
         <td><code>imas_ambix/latent/connectivity_boundary.py</code></td>
-        <td><code>69bb126</code>, <code>612f91b</code></td></tr>
+        <td><code>69bb126</code>, <code>612f91b</code>, <code>81f3274</code>, <code>df71314</code></td></tr>
       <tr><td>Gate (T-B1/T-B2/T-B3) + figures + imas-ink cross-section</td>
         <td><code>scripts/connectivity_boundary_gate_eval.py</code>,
         <code>…/artifacts/patch_gate/connectivity_boundary_gate-v0.json</code></td>
@@ -77,16 +78,23 @@ as a raster boolean mask (the machine-agnostic §4 abstraction, in place from th
 start). The LCFS radii are read a hair inside the separatrix by a differentiable
 ray-march so a ray never runs down an open X-point leg.</p>
 
-<h2 id="rca">RCA — the boundary-size bias, found and fixed</h2>
+<h2 id="rca">RCA — the boundary-size bias, found and fixed in two steps</h2>
 <p>A first single escape test (region touches the innermost in-wall shell) fired
 ~one grid cell <em>inside</em> the true wall crossing / saddle, so ψ_bnd was biased
 toward the axis and the boundary came out consistently too small (real-data ψ_bnd
-sat entirely on one side of y = x, median 3.7%; diverted lobes slightly small too).
-Fixed by reading ψ_bnd at the <strong>mean of an inner escape test (~1 cell inside)
-and an outer escape test (~1 cell outside)</strong>, which brackets the binding from
-both sides. The mean is unbiased (real-data ψ_bnd 3.74% one-sided → 1.87% centred,
-radii 2.55 → 1.31 cm) and lands the diverted boundary on the X-point saddle
-(ψ_N = 1). No classification, no upsampling; ψ_bnd stays differentiable.</p>
+sat entirely on one side of y = x, median 3.7%). <strong>Step 1:</strong> reading
+ψ_bnd at the mean of an inner (~1 cell in) and an outer (~1 cell out) escape test
+removes the sign for the interior SADDLE binding (diverted → +0.4%, on ψ_N = 1) but
+leaves a LIMITED wall tangency +2.4% too small — the brackets straddle the wall,
+whose sub-cell position is not the mean's half-cell. <strong>Step 2:</strong> read
+the limited tangency SUB-GRID as the minimum interpolated ψ_N over the wall boundary
+points adjacent to the axis region, applied only to the LIMITED class (limited vs
+diverted separated by the region size ratio across the binding — a saddle opening
+jumps the size ~1.4–1.8, a tangency grows smoothly ~1.2; a min-over-wall on a
+diverted plasma would read its outboard wall approach, outside the separatrix, and
+overshoot). Both classes now sit on y = x (limited signed median −0.01%, diverted
++0.43%); radii 2.55 → <strong>0.09 cm</strong>, ψ_bnd → <strong>0.02%</strong>. All
+fixed-shape jnp → GPU-portable; ψ_bnd differentiable.</p>
 
 <h2 id="next">What's next — §3</h2>
 <p><strong>Axis + optional X-point via nova stencils (classify-after).</strong> Port

@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-20">
 <meta name="plan-impl" content="0.25">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
 </head>
 <body>
 <main class="plan-doc">
@@ -112,17 +112,19 @@
   a fixed-shape <code>jit</code>/<code>vmap</code>/<code>grad</code>-safe device read
   (flood-fill from the axis + candidate-level sweep + bisection), replacing host
   contourpy. On 36 held-out MAST slices (18 diverted / 18 limited) the LCFS radii
-  reproduce host <code>lcfs_contour</code> to <strong>1.31 cm median</strong> (bar 3 cm;
-  diverted 0.46 cm) and ψ_bnd to <strong>1.87% of span</strong> — <strong>T-B1 PASS</strong>
-  (a first single-sided escape test biased ψ_bnd ~1 cell / 3.7% toward the axis;
-  fixed by reading ψ_bnd at the mean of an inner + outer escape test → unbiased,
-  diverted lands at ψ_N=1). Batch = one <code>jax.vmap</code>, byte-parity, no
-  contourpy/ndimage/argwhere — <strong>T-B2 PASS</strong>; connectivity ψ_bnd continuous
-  (0.5% max step) where classify-first steps 9.2% at the X-point appearance —
-  <strong>T-B3 PASS</strong>. Findings + imas-ink cross-section:
+  reproduce host <code>lcfs_contour</code> to <strong>0.09 cm median</strong> (bar 3 cm;
+  limited 0.06 / diverted 0.46) and ψ_bnd to <strong>0.02% of span</strong>, both
+  classes on y=x — <strong>T-B1 PASS</strong>. A first single-sided escape test
+  biased ψ_bnd ~1 cell toward the axis (limited all above y=x); fixed in two steps —
+  a two-sided escape mean for the diverted saddle (ψ_N=1), and a sub-grid interpolated
+  wall-min for the limited tangency (classes split by the region size jump across the
+  binding). Batch = one <code>jax.vmap</code>, byte-parity, no contourpy/ndimage/argwhere
+  — <strong>T-B2 PASS</strong>; connectivity ψ_bnd continuous (0.5% max step) where
+  classify-first steps 9.2% at the X-point appearance — <strong>T-B3 PASS</strong>.
+  Findings + imas-ink cross-section:
   <a href="/imas-ambix/connectivity-topology-reader-boundary-findings.html">boundary-read findings</a>;
   record: <a href="archive/connectivity-topology-reader-s2-landed.html">§2 landed</a>
-  (commits <code>69bb126</code>, <code>612f91b</code>, <code>6c2ba63</code>).</p>
+  (commits <code>69bb126</code>, <code>612f91b</code>, <code>81f3274</code>, <code>df71314</code>, <code>6c2ba63</code>).</p>
 
   <h2 id="s3">§3 — Axis + optional X-point via nova stencils (classify-after)</h2>
   <p>Port nova's <code>zero_cross_count</code> stencil classifier + <code>select.subnull</code>
@@ -193,7 +195,7 @@
 
   <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-ctr-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-20T10:00:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §2" data-resolved-at="2026-07-20T14:06:39+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-ctr-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-20T10:00:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §2" data-resolved-at="2026-07-20T14:55:35+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §2 — GPU-native connectivity boundary read (flood-fill + level sweep)</h4>
     <div class="r-fu-body"><p>Reimplement the validated connectivity boundary read (lcfs_contour) with GPU-native primitives — a fixed-iteration convolutional flood-fill from the axis + a fixed candidate-level sweep + batched containment/pinch reductions — replacing contourpy + ndimage.label + the bisection branch. Validate byte-comparable to the CPU lcfs_contour on held-out limited AND diverted slices, fully on-device (no host round-trip), batchable over slices/shots. This is the boundary half of the on-device topology read gpu-accelerated-labeler depends on.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -249,7 +251,7 @@ Done-when
      artifact + figures committed.
   2. Plan updated same-session: §2 outcome recorded + collapsed; §3 (axis + X via nova
      stencils) followup queued WITH pre-declared gates; this followup resolved.</pre>
-    <p class="r-fu-outcome">§2 landed + collapsed (commits 69bb126, 612f91b, 6c2ba63). Device connectivity boundary read (flood-fill + level sweep + two-sided binding level) reproduces host lcfs_contour on 36 held-out MAST slices (18 diverted/18 limited): LCFS radii 1.31cm median <3cm (diverted 0.46/limited 1.40, p90 2.14) and ψ_bnd 1.87% of span <3% (p90 3.12) — T-B1 PASS; on-device vmap byte-parity, 46ms/slice, no contourpy/ndimage/argwhere — T-B2 PASS; connectivity ψ_bnd continuous 0.5% vs classify-first 9.2% — T-B3 PASS. RCA: a first single-sided escape test biased ψ_bnd ~1 cell toward the axis (boundary too small, 3.7% one-sided); fixed by the mean of an inner + outer escape test (unbiased; diverted lands at ψ_N=1). Findings: connectivity-topology-reader-boundary-findings.html.</p>
+    <p class="r-fu-outcome">§2 landed + collapsed (commits 69bb126/612f91b/81f3274/df71314 code, 6c2ba63/6f9656c docs). Device connectivity boundary read (flood-fill + level sweep; two-sided-mean saddle binding + sub-grid interpolated wall-min for the limited tangency, classes split by the region size jump) reproduces host lcfs_contour on 36 held-out MAST slices (18 diverted/18 limited): LCFS radii 0.09cm median <3cm (limited 0.06/diverted 0.46, p90 2.14) and ψ_bnd 0.02% of span (p90 1.77), BOTH classes on y=x (limited signed median -0.01%, diverted +0.43%) — T-B1 PASS; on-device vmap byte-parity 46ms/slice, no contourpy/ndimage/argwhere — T-B2 PASS; connectivity ψ_bnd continuous 0.5% vs classify-first 9.2% — T-B3 PASS. RCA (2 lead-flagged rounds): single-sided escape biased ψ_bnd ~1 cell toward axis (limited all above y=x); two-sided mean fixed the saddle, sub-grid wall-min fixed the limited tangency. All fixed-shape jnp, GPU-portable. Findings: connectivity-topology-reader-boundary-findings.html.</p>
     </article>
 <article class="r-fu" data-id="f-ctr-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T16:00:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §3" data-resolved-at="2026-07-20T14:06:39+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §3 — axis + optional X-point via nova stencils (classify-after) + sub-grid ψ_bnd polish</h4>
