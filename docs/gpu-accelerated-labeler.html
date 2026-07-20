@@ -303,6 +303,30 @@
       </p>
       <p class="r-dec-rat">Locked by the lead (2026-07-20), spike-validated: dropping precision on the H200 is a LARGE win where it is safe. The GEMM is the dominant arithmetic once batched and the H200 tensor cores run bf16/tf32 at ~990/495 TFLOP/s vs fp64 34–67 (~14x); the Ip renormalisation self-corrects the matvec each slice, so bf16-in/fp32-accumulate is tolerable there. But the CROSS-SLICE RECURRENT STATE (resistive diffusion, exact-ZOH passive integration) accumulates error over the rollout → keep fp64; the topology argmax needs fp32 for sign-change detection / sub-mm axis. bf16 must NEVER leak into state that crosses a slice boundary. §2 validates axis/LCFS/Ejima-ledger under the mixed-precision boundaries before locking; warm-starting (few sweeps) reduces the accumulation exposure. Green-field: the data layout is designed around these boundaries from the start, not retrofitted.</p>
     </div>
+    <div class="r-dec" data-key="time-support" data-choice="interpolated-smoother-where-available" data-by="lead" data-when="2026-07-20">
+      <p class="r-dec-q">How is the flux-surface geometry supported in time between slices — ZOH-hold or time-interpolated (smoother)?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt chosen" data-value="interpolated-smoother-where-available">Time-INTERPOLATED (two-sided smoother) wherever the trajectory is available — the PinT/batched rollout solves neighbouring slices together, so interpolate the flux-surface geometry in time (trapezoidal/CN) instead of ZOH-holding the previous slice; ZOH-causal only at the streaming frontier (fixed-lag within the causal window).</button>
+        <button class="r-opt" data-value="zoh-only">ZOH-hold the previous slice's geometry (causal, filter-only)</button>
+      </p>
+      <p class="r-dec-rat">Locked by the lead (2026-07-20) — an EnKF-smoother analogue and a strong exploitation of the PinT structure. Because the batched rollout solves past AND future slices of a window simultaneously, the transport integration between slices can use a time-interpolated (two-sided) flux-surface support rather than the causal ZOH — higher-order-accurate in time (Crank–Nicolson vs backward-Euler-with-frozen-geometry) and smoother-quality (uses future data), which improves LABEL quality (a smoother beats a filter). Offline (A) and post-shot (B) get the full two-sided smoother over the whole trajectory; in-pulse (C) gets a fixed-lag smoother over the causal window, ZOH only at the very frontier. Validate the smoother labels reproduce the ZOH labels in the ZOH limit + improve the flux-budget/Ejima ledger.</p>
+    </div>
+    <div class="r-dec" data-key="transport-cadence" data-choice="multi-rate" data-by="lead" data-when="2026-07-20">
+      <p class="r-dec-q">Single-rate or multi-rate — does the transport roll out at the same cadence as the flux-surface/equilibrium support?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt chosen" data-value="multi-rate">Multi-rate — substep the fast transport (η-diffusion + passive ZOH) at a HIGHER frequency on a slowly-updated (interpolated) flux-surface geometry; refresh the equilibrium/geometry at a coarser cadence.</button>
+        <button class="r-opt" data-value="single-rate">Single-rate — transport and geometry updated at one cadence</button>
+      </p>
+      <p class="r-dec-rat">Locked by the lead (2026-07-20). The equilibrium GEOMETRY is quasi-static / slowly-varying relative to the fast transport + magnetics; rolling the transport (resistive diffusion, passive circuits) at a finer Δt on a time-interpolated geometry (see time-support) captures high-bandwidth dynamics without re-solving the equilibrium every substep. GPU compute makes the fast substeps cheap, and it fits the existing frozen-geometry-per-interval structure of diffuse_psi (now generalised: interpolated, not frozen). This is the path to higher-bandwidth reconstruction than the flux-surface support cadence — the equilibrium is refreshed coarsely, the transport rolls fine. Validate against a single-rate reference; the geometry-refresh cadence is a controlled accuracy knob.</p>
+    </div>
+    <div class="r-dec" data-key="backend-portability" data-choice="one-jax-engine-cpu-and-gpu" data-by="lead" data-when="2026-07-20">
+      <p class="r-dec-q">Does the GPU-native engine still run on CPU?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt chosen" data-value="one-jax-engine-cpu-and-gpu">ONE jax engine that runs on CPU or GPU from the same code (a backend switch); the frozen numpy grid-GS stays the correctness-reference ORACLE, not a maintained parallel path.</button>
+        <button class="r-opt" data-value="two-engines">Maintain separate CPU (numpy) and GPU engines</button>
+      </p>
+      <p class="r-dec-rat">Locked (2026-07-20): jax targets CPU and GPU from one codebase — the GPU-native rewrite loses NO CPU capability; it is a backend switch (fp64 enabled on both). CPU cost is nuanced: at batch-1 a jax-CPU solve ≈ the current numpy grid-free path (the dense matvec dominates either way — no material gain/loss), but the BATCHED form is a CPU speedup over the per-shot loop (XLA-CPU threaded GEMM). Avoid a parallel _v2 engine family: the frozen numpy grid-GS remains the byte-frozen reference oracle the jax engine is validated against; it is not maintained as a second production path.</p>
+    </div>
   </section>
 
   <section data-reckon="followups" id="followups" class="r-followups">
