@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="differentiable-solve-accelerator-s3-landed">
+  <meta name="plan-title" content="Differentiable-Map Accelerator — §3+§4 record: the accelerator retest on the smooth map and the batching-bound verdict">
+  <meta name="plan-summary" content="§3+§4 landing record (2026-07-20). D-B PASS: Anderson on the connectivity read converges 3/7 previously limit-cycling slices (hard Picard 0/7) at 2.49x fewer sweeps (1.4x well-posed), axis 1.02 cm vs smooth Picard; plain Picard 28% fewer sweeps on the smooth map; fixed-shape NK reaches machine precision but is basin-blind without the centroid pin. map-accelerator locked anderson-picard; smooth-mask-default locked opt-in. §4 verdict: CPU per-solve stays batching-bound (smooth read 2.63x CPU wall) — the 3x+ lives in the batched GPU rollout.">
+  <meta name="plan-informs" content="differentiable-solve-accelerator">
+  <title>differentiable-solve-accelerator §3+§4 landed — accelerators on the smooth map</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>§3 landed — the accelerator retest on the differentiable map (+ the §4 verdict)</h1>
+  <p>Per-stage record for <a href="/imas-ambix/differentiable-solve-accelerator.html">
+  differentiable-solve-accelerator</a> §3 and the §4 hand-off verdict (2026-07-20).
+  20 held-out slices (5 shots × 4), four ladder arms {hard, connectivity} ×
+  {Picard, Anderson} at a shared seed, plus a fixed-shape Newton–Krylov leg on
+  6 slices of the first held-out shot. Firewall unchanged: GS force balance,
+  physics + measured channels only, no EFIT.</p>
+
+  <h2>Quick status</h2>
+  <table>
+    <tr><th>Gate</th><th>Verdict</th><th>Result</th></tr>
+    <tr>
+      <td>D-B — an accelerator wins on the smooth map</td>
+      <td><strong>PASS</strong></td>
+      <td>Safeguarded <strong>Anderson on the connectivity read</strong> converges
+      3/7 previously limit-cycling slices (hard-read Picard: 0/7) at
+      <strong>2.49× fewer sweeps</strong> (median) on that class and 1.4× on the
+      well-posed class, with a 1.02 cm median axis gap to the smooth-Picard fixed
+      point (byte-comparable at the ≤ 2 cm bar). Even <em>plain</em> Picard needs
+      ~28% fewer sweeps on the smooth map than on the hard map (well-posed
+      medians). The §4 causal hypothesis is <strong>validated</strong>: the
+      non-smooth read was the accelerator blocker.</td>
+    </tr>
+  </table>
+
+  <h2>The four ladder arms, measured</h2>
+  <table>
+    <tr><th>Arm</th><th>converged (13-well-posed / 7-cycling)</th>
+        <th>sweep speedup vs smooth-Picard (wp / cyc)</th>
+        <th>axis gap vs smooth-Picard [cm]</th></tr>
+    <tr><td>hard : Picard</td><td>13 / <strong>0</strong></td><td>0.72 / —</td><td>2.77</td></tr>
+    <tr><td>hard : Anderson</td><td>9 / 2</td><td>0.87 / 1.94</td><td>3.38</td></tr>
+    <tr><td>connectivity : Picard</td><td>11 / 3</td><td>1.0 / 1.0</td><td>0</td></tr>
+    <tr><td>connectivity : Anderson</td><td>10 / <strong>3</strong></td>
+        <td><strong>1.40 / 2.49</strong></td><td><strong>1.02</strong></td></tr>
+  </table>
+  <p>The 4 slices no arm converges are the deeply under-determined interior-null
+  class — the same 4 the §2 monotonicity test left oscillating; under-determination
+  is a property of the problem, not of the iterator.</p>
+
+  <h2>Newton–Krylov: the Jacobian corruption is cured; the basin is not NK's to hold</h2>
+  <p>On the fixed-shape map (the arm the prior study measured as erratic), NK under
+  the connectivity read reaches <strong>machine-precision residuals</strong>
+  (2×10⁻¹² and 5×10⁻¹⁰ on 2/6 slices, and 0.018–0.08 on two more) where hard-read
+  NK thrashes at ~0.13–0.19 on 5/6 — a clean Jacobian-free GMRES at last. But its
+  converged fixed points sit 27–88 cm from the centroid-pinned Picard reference:
+  the <em>fixed-shape</em> map has multiple fixed points and carries no
+  current-centroid pin, so NK converges beautifully to the wrong basin. Basin
+  control lives in the pinned LSQ map; a pinned-map NK is the retained research
+  arm, not a production path.</p>
+
+  <figure>
+    <img src="/imas-ambix/figures/differentiable-solve-accelerator/fig-s3-accelerator-retest.png"
+         alt="Three panels: (a) sweeps-to-tolerance per slice for the four arms; (b) converged-slice counts by arm, well-posed vs previously limit-cycling — connectivity arms convert 3 of 7 cycling slices, hard Picard none; (c) fixed-shape Newton-Krylov axis distance to the Picard reference — the connectivity read converges tightly but far from the pinned reference."
+         style="max-width:100%">
+    <figcaption>(a) Sweeps to 3×10⁻⁴ per arm. (b) Convergence by arm: the smooth
+    map converts previously-cycling slices; Anderson adds the speed.
+    (c) Fixed-shape NK: solvable at last on the smooth map, but basin-blind
+    without the pin.</figcaption>
+  </figure>
+
+  <h2>§4 verdict — CPU per-solve stays batching-bound; the finding informs the GPU rollout</h2>
+  <ul>
+    <li><strong>≥3× on CPU per-solve: NO.</strong> The connectivity read costs
+    2.63× the hard solve's CPU wall (the jax read runs on host every sweep);
+    Anderson buys back 1.4–2.5× in sweeps — net ≈ 0.5–0.95× wall. Smoothness fixes
+    <em>convergence</em>, not CPU <em>throughput</em>. The ≥3× multiple is
+    confirmed batching-bound → <code>gpu-accelerated-labeler</code>, where the
+    same read is on-device (7.4 ms/slice batched) and its cost is amortised by
+    the vmap batch.</li>
+    <li><strong>What the GPU rollout inherits:</strong> (i) the inner fixed point
+    on the smooth map is well-behaved — a small fixed sweep budget with a
+    warm start is sound (the assumption the batched rollout makes); (ii)
+    Anderson-accelerated Picard is the inner-solve accelerator of choice
+    (interpretable, safeguarded, 1.4–2.5×, byte-comparable); (iii) NK is viable
+    on device only with the centroid pin folded into the map.</li>
+  </ul>
+
+  <h2>Decisions locked</h2>
+  <ul>
+    <li><code>map-accelerator</code> → <strong>anderson-picard</strong> (on the
+    connectivity read; warm-Picard fallback; NK a research arm pending a
+    pinned-map form).</li>
+    <li><code>smooth-mask-default</code> → <strong>opt-in</strong> (D-A1 not
+    byte-comparable; the hard read stays the production/label default).</li>
+  </ul>
+
+  <h2>Outcomes</h2>
+  <table>
+    <tr><th>Item</th><th>Artifact</th><th>Commit</th></tr>
+    <tr><td>A/B harness (ladder + NK legs)</td>
+        <td><code>scripts/smooth_map_accelerator_eval.py</code></td>
+        <td><code>ec8539b</code>, <code>f2aabb7</code></td></tr>
+    <tr><td>Artifacts + figure</td>
+        <td><code>imas_ambix/latent/artifacts/patch_gate/smooth_map_accelerator*-v0.json</code>,
+            <code>docs/figures/differentiable-solve-accelerator/fig-s3-accelerator-retest.png</code></td>
+        <td><code>9d4004b</code></td></tr>
+    <tr><td>Benchmark dimension (topology-read arm, smooth-read reproduction metrics)</td>
+        <td><code>imas_ambix/spine_bench/</code> schema 1.3 + runner
+            <code>--topology-reads</code></td>
+        <td><code>f994776</code></td></tr>
+  </table>
+
+  <h2>What's next</h2>
+  <p>The batched-over-shots GPU rollout consumes this finding:
+  <code>/reckon-ship gpu-accelerated-labeler §3</code> (single-shot on-device
+  rollout, Anderson-ready inner fixed point). A pinned-map NK is the retained
+  research arm (see the plan followup).</p>
+</main>
+</body>
+</html>

@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="differentiable-solve-accelerator">
   <meta name="plan-title" content="Differentiable-Map Fixed-Point Accelerator — retest NK / Anderson once the topology read is smooth">
   <meta name="plan-summary" content="greens-filament-solver §4 established a CPU accelerator ceiling and localised its cause: no per-solve iterator (relaxed Picard, safeguarded Anderson, or Newton–Krylov) clears the ≥3× throughput gate because the hard-threshold HOST topology read (find_critical_points + ndimage.label core mask) makes the free-boundary map non-differentiable — finite-differencing the residual across a discrete mask flip corrupts NK&#x27;s Jacobian-free GMRES, the mask-flip noise corrupts Anderson&#x27;s least-squares history, and the under-determined interior-null slices limit-cycle. connectivity-topology-reader delivers a continuous, differentiable topology read (flood-fill boundary + smooth core mask, continuous through the marginal transition). This plan tests the §4 causal hypothesis directly: wire that differentiable read into the free-boundary solve&#x27;s fixed-point loop (replacing the hard mask), then re-run the NK vs Anderson vs warm-Picard accelerator study on the now-smooth map — CPU-first, to isolate the accelerator effect from batching. It settles the fixed-point-scheme choice (locked NK-primary before the ceiling was known; §4 showed NK erratic on the non-smooth map) and either (a) delivers the per-solve convergence the §4 CPU study missed — quantifying how close CPU per-solve now gets to ≥3× — or (b) is an honest negative that localises the residual bottleneck to batching (→ gpu-accelerated-labeler). Firewall unchanged: GS force balance, physics + measured channels only, no EFIT. A prerequisite is that connectivity-topology-reader has landed.">
-  <meta name="plan-status" content="draft">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="M">
   <meta name="plan-tier" content="opus">
@@ -20,7 +20,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-20">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
+<meta name="plan-impl" content="1.0">
 </head>
 <body>
 <main class="plan-doc">
@@ -116,69 +117,76 @@
   <code>gpu-accelerated-labeler</code>&rsquo;s inner-solve design (which assumes the
   warm-started inner fixed point converges in a small fixed budget).</p>
 
-  <h2 id="s2">§2 — Wire the differentiable read into the free-boundary solve; confirm the map is smooth</h2>
-  <p>Replace the hard-threshold core-mask / axis read inside the free-boundary
-  fixed-point loop (<code>solve_equilibrium_lsq</code> and the shared
-  <code>_read_axis</code> / core-mask step) with the differentiable connectivity read
-  from <code>connectivity-topology-reader</code> (smooth core-membership + soft level),
-  as an opt-in path so the hard-mask solve stays byte-unchanged when off. The point is
-  not speed yet but <em>smoothness</em>: the fixed-point map must become differentiable
-  so the residual decreases monotonically instead of limit-cycling as the discrete mask
-  flips. <strong>Gate D-A</strong>: on held-out slices the smooth-mask solve reproduces
-  the hard-mask converged equilibria (axis / LCFS / profile) to tolerance on the
-  well-posed population, AND the previously-limit-cycling under-determined slices (the
-  §4 k4/k6 class) now show a monotone residual decrease under plain relaxed Picard (the
-  mask-flip signature is gone) &mdash; the direct test that the map is now smooth. Stop
-  rule: if the smooth mask cannot reproduce the hard-mask equilibria, STOP and surface
-  (a lossy mask would corrupt the labels).</p>
+  <section id="s2" class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-07-20</span>
+  <h2>§2 — Wire the differentiable read into the free-boundary solve; confirm the map is smooth</h2></header>
+  <p class="landed-summary">
+  Opt-in <code>topology_read='connectivity'</code> landed on the LSQ ladder + NK solves
+  (connectivity binding + stencil axis + smooth sigmoid core weight; default byte-unchanged).
+  <strong>D-A2 smoothness PASS</strong>: 10/14 previously limit-cycling slices turn monotone
+  under plain Picard (7 at exactly 1.0; hard uniformly 0.59&ndash;0.72) &mdash; the mask-flip
+  signature is gone; the 4 holdouts are the deeply under-determined class.
+  <strong>D-A1 reproduction FAIL (qualified)</strong>: axis 4.0 cm / LCFS 2.6 cm / profile 0.159
+  medians &mdash; attributed to the hard read's half-cell wall quantization (smooth = true
+  sub-grid tangency to 1e-15 on ground truth) and to hard-map outboard-drift outliers (hard
+  41 cm off the centroid pin where smooth sits 11 cm); smooth solve costs 2.63&times; CPU wall.
+  Smooth read stays <strong>opt-in</strong>; labels unchanged. Full record:
+  <a href="archive/differentiable-solve-accelerator-s2-landed.html">§2 landed</a>
+  (commits <code>8fd4c2a</code>, <code>ec8539b</code>, <code>9d4004b</code>).</p>
+  </section>
 
-  <h2 id="s3">§3 — Retest the accelerators on the differentiable map (NK vs Anderson vs warm-Picard)</h2>
-  <p>Re-run the §4 accelerator A/B on the now-differentiable map: relaxed Picard
-  (baseline), safeguarded Anderson, and Jacobian-free Newton&ndash;Krylov, per-slice,
-  reporting sweeps/matvecs to convergence, wall, and byte-comparability of the converged
-  equilibrium &mdash; on the well-posed slices AND the previously-under-determined ones
-  that a smooth map may now make solvable. Report against the frozen §4 CPU baseline
-  (Anderson ~1.3× well-posed; NK erratic). <strong>Gate D-B</strong>: at least one
-  accelerator converges the previously-limit-cycling slices cleanly and materially faster
-  than relaxed Picard on the differentiable map, byte-comparably &mdash; validating the §4
-  causal hypothesis &mdash; OR an honest negative that the smoothness alone does not close
-  the gap, localising the residual bottleneck. Quantify how close CPU per-solve now gets to
-  ≥3× vs the §4 baseline. This §3 A/B settles the <code>map-accelerator</code> decision.</p>
+  <section id="s3" class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-07-20</span>
+  <h2>§3 — Retest the accelerators on the differentiable map (NK vs Anderson vs warm-Picard)</h2></header>
+  <p class="landed-summary">
+  <strong>D-B PASS — the §4 causal hypothesis is validated.</strong> On the smooth map,
+  safeguarded Anderson converges 3/7 previously-cycling slices (hard Picard 0/7) at
+  2.49&times; fewer sweeps (1.4&times; well-posed), axis 1.02 cm vs smooth Picard; plain
+  Picard itself needs ~28% fewer sweeps than on the hard map. Fixed-shape NK now reaches
+  machine precision (2e-12; impossible on the hard map) but is basin-blind without the
+  centroid pin (27&ndash;88 cm off) &mdash; a pinned-map NK is the retained research arm.
+  <code>map-accelerator</code> LOCKED &rarr; anderson-picard. Full record:
+  <a href="archive/differentiable-solve-accelerator-s3-landed.html">§3+§4 landed</a>
+  (commit <code>9d4004b</code>).</p>
+  </section>
 
-  <h2 id="s4">§4 — Verdict + hand-off to the GPU path</h2>
-  <p>State the CPU per-solve verdict plainly: does a differentiable map let a per-solve
-  accelerator clear (or approach) ≥3× on CPU, or is the throughput multiple still
-  batching-bound? Either way the finding <em>informs</em>
-  <code>gpu-accelerated-labeler</code>: if an accelerator wins on the differentiable map,
-  it is the inner-solve accelerator the batched rollout should use (and CPU per-solve is a
-  usable fallback); if not, the batched-over-shots GEMM is confirmed as the only route to
-  the corpus throughput. Record the implication for the on-device rollout&rsquo;s inner
-  fixed-point budget.</p>
+  <section id="s4" class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-07-20</span>
+  <h2>§4 — Verdict + hand-off to the GPU path</h2></header>
+  <p class="landed-summary">
+  <strong>CPU per-solve stays batching-bound</strong>: the smooth read costs 2.63&times;
+  CPU wall and Anderson buys back 1.4&ndash;2.5&times; in sweeps &mdash; net &approx;
+  0.5&ndash;0.95&times;, so ≥3&times; per-solve is NOT reachable on CPU; smoothness fixes
+  convergence, not host throughput. The batched-over-shots GPU rollout inherits: a
+  warm-started small fixed sweep budget is sound on the smooth map; Anderson-Picard is the
+  inner accelerator; NK needs the pin folded into the map. Detail in the
+  <a href="archive/differentiable-solve-accelerator-s3-landed.html">§3+§4 record</a>.</p>
+  </section>
 
   <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="map-accelerator" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="map-accelerator" data-choice="anderson-picard" data-by="reckon-ship" data-when="2026-07-20T21:44:26+00:00">
     <p class="r-dec-q">On the differentiable map, which fixed-point accelerator is adopted (and which retained as fallback)?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="newton-krylov">Newton–Krylov — nova&#x27;s proven choice; expected to converge cleanly once the map is differentiable (a clean Jacobian-free GMRES)</button>
-      <button class="r-opt" data-value="anderson-picard">Anderson-accelerated Picard — the interpretable option; the §4 opt-in, expected to strengthen on a smooth map</button>
+      <button class="r-opt chosen" data-value="anderson-picard">Anderson-accelerated Picard — the interpretable option; the §4 opt-in, expected to strengthen on a smooth map</button>
       <button class="r-opt" data-value="warm-picard">Plain warm-started relaxed Picard — if the accelerators do not beat it on the differentiable map</button>
       </p>
-    <p class="r-dec-rat">OPEN — to be settled by §3 on measured per-slice convergence + wall on the differentiable map. §4 (greens-filament-solver) locked &quot;NK-primary&quot; BEFORE the CPU ceiling was known and then measured NK erratic on the non-smooth map; this plan resolves the choice on the map the accelerators are actually meant for (a smooth one).</p>
+    <p class="r-dec-rat">Measured on 20 held-out slices (5 shots x 4), four arms at a shared seed: on the connectivity (smooth) map, safeguarded Anderson converges 3/7 previously limit-cycling slices (hard Picard 0/7) at 2.49x fewer sweeps median on that class and 1.4x on the well-posed class, axis gap 1.02 cm vs smooth Picard (byte-comparable at &lt;=2 cm). NK on the smooth map reaches machine precision (2e-12 - the Jacobian corruption IS cured) but the fixed-shape map is basin-blind without the centroid pin (27-88 cm off the pinned reference), so NK stays a research arm pending a pinned-map form; warm-Picard retained as fallback. Artifact: imas_ambix/latent/artifacts/patch_gate/smooth_map_accelerator-v0.json.</p>
     </div>
-<div class="r-dec" data-key="smooth-mask-default" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="smooth-mask-default" data-choice="opt-in" data-by="reckon-ship" data-when="2026-07-20T21:44:26+00:00">
     <p class="r-dec-q">Does the differentiable (smooth-mask) read become the solve default, or stay opt-in?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="default-if-byte-comparable">Make it the default IF §2 shows it is byte-comparable to the hard-mask solve on the well-posed population</button>
-      <button class="r-opt" data-value="opt-in">Keep it opt-in; the hard-mask read stays the production default</button>
+      <button class="r-opt chosen" data-value="opt-in">Keep it opt-in; the hard-mask read stays the production default</button>
       </p>
-    <p class="r-dec-rat">OPEN — gated on §2 (D-A). The project norm is byte-identical defaults; promotion to default requires the reproduction gate to pass first.</p>
+    <p class="r-dec-rat">D-A1 reproduction FAILED as pre-declared (axis 4.0 cm median vs 2.0 bar; profile RMS 0.159 vs 0.10; LCFS 2.63 PASS) - the smooth solve is not byte-comparable, so it cannot be the label default. Qualified attribution: the both-converged pool is dominated by early-ramp limited slices where the HARD read&#x27;s half-cell wall quantization is largest (the smooth binding reproduces the true interpolated tangency to 1e-15 on ground truth), and the worst flat-top outlier is the hard solve sitting 41 cm outboard of the centroid pin (smooth: 11 cm). The smooth read is better-grounded but different -&gt; opt-in; production labels unchanged; smooth solve costs 2.63x CPU wall.</p>
     </div>
 </section>
 
   <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-dsa-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-20T15:00:00+00:00" data-recommends-skill="/reckon-ship differentiable-solve-accelerator §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-dsa-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-20T15:00:00+00:00" data-recommends-skill="/reckon-ship differentiable-solve-accelerator §2" data-resolved-at="2026-07-20T21:44:26+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §2 — wire the differentiable connectivity read into the free-boundary solve; confirm the map is smooth</h4>
     <div class="r-fu-body"><p>PREREQUISITE: <code>connectivity-topology-reader</code> must have landed (it delivers the differentiable read). Replace the hard-threshold core-mask / axis read inside the free-boundary fixed-point loop with the connectivity-topology-reader smooth read, as an opt-in path (hard-mask solve byte-unchanged when off). The deliverable is smoothness, not speed: the fixed-point map must become differentiable so the residual decreases monotonically instead of limit-cycling as the discrete mask flips. Gate D-A: the smooth-mask solve reproduces the hard-mask converged equilibria on the well-posed population to tolerance, AND the previously-limit-cycling under-determined slices (the greens-filament-solver §4 k4/k6 class) show a monotone residual decrease under plain relaxed Picard (the mask-flip signature gone). This is the direct test of the §4 causal hypothesis before the §3 accelerator retest.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -218,6 +226,33 @@ Done-when
      recorded honestly (reproduction + the monotone-residual smoothness test); figure committed.
   2. Plan updated same-session: §2 outcome recorded + collapsed; §3 (retest NK/Anderson on
      the differentiable map) followup queued WITH pre-declared gates; this followup resolved.</pre>
+    <p class="r-fu-outcome">SS2+SS3+SS4 landed same-session - commits 8fd4c2a/ec8539b/9d4004b. D-A2 smoothness PASS (10/14 previously-cycling slices monotone under plain Picard; mask-flip signature gone); D-A1 reproduction FAIL qualified (hard-read wall quantization + hard-map outboard outliers; smooth read stays opt-in). D-B PASS: Anderson on the smooth map 2.49x on the cycling class / 1.4x well-posed, axis 1.02 cm; NK machine-precision-capable but basin-blind without the pin. SS4 verdict: CPU per-solve stays batching-bound (smooth read 2.63x CPU wall) -> gpu-accelerated-labeler.</p>
+    </article>
+<article class="r-fu" data-id="f-dsa-02" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T22:30:00+00:00" data-recommends-skill="/reckon-ship gpu-accelerated-labeler §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Consume the smooth-map accelerator finding in the batched GPU rollout; pinned-map NK as a research arm</h4>
+    <div class="r-fu-body"><p>The plan is shipped; its finding informs gpu-accelerated-labeler: the inner fixed point on the smooth map is well-behaved (warm-started small sweep budget sound), Anderson-Picard is the inner accelerator of choice, and NK is viable on device only with the current-centroid pin folded into the residual map. The open research thread is a pinned-map NK: wrap the centroid-pinned LSQ map (not the fixed-shape map) in Jacobian-free NK and test whether its machine-precision convergence carries over with basin control.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    gpu-accelerated-labeler (follow-on consumer of differentiable-solve-accelerator)
+Section: §3 (single-shot on-device rollout)
+Tier:    opus
+
+Context
+  differentiable-solve-accelerator shipped: the connectivity read makes the free-boundary
+  map differentiable (10/14 previously-cycling slices monotone; Anderson 2.49x on that
+  class, axis 1.02 cm; NK machine-precision-capable but basin-blind without the centroid
+  pin; CPU per-solve stays batching-bound - smooth read 2.63x CPU wall).
+
+Carry into the rollout
+  - Inner fixed point: warm-started small fixed sweep budget on the smooth map, with
+    per-column convergence masking; Anderson-Picard as the opt-in inner accelerator.
+  - NK research arm: fold the current-centroid pin into the on-device residual map before
+    retesting NK (the fixed-shape map is basin-blind).
+  - The smooth read is opt-in on CPU (2.63x wall there) but native and amortised on device.
+
+Done-when
+  1. gpu-accelerated-labeler §3 rollout uses the smooth read + warm-started fixed budget;
+     inner-accelerator choice validated against the sequential march.
+  2. Findings recorded in that plan.</pre>
     </article>
 </section>
 

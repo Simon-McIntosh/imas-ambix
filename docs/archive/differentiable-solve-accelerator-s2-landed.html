@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="differentiable-solve-accelerator-s2-landed">
+  <meta name="plan-title" content="Differentiable-Map Accelerator — §2 record: the continuous topology read wired into the free-boundary solve">
+  <meta name="plan-summary" content="§2 landing record (2026-07-20). Opt-in topology_read='connectivity' on the LSQ ladder and NK solves; default byte-unchanged. D-A2 smoothness PASS (10/14 previously limit-cycling slices monotone under plain Picard; mask-flip signature gone); D-A1 reproduction FAIL qualified (axis 4.0 cm / profile 0.159 medians, attributed to the hard read's half-cell wall quantization and hard-map outboard outliers); smooth read stays opt-in; smooth solve 2.63x CPU wall.">
+  <meta name="plan-informs" content="differentiable-solve-accelerator">
+  <title>differentiable-solve-accelerator §2 landed — the smooth-map solve</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>§2 landed — the continuous topology read wired into the free-boundary solve</h1>
+  <p>Per-stage record for <a href="/imas-ambix/differentiable-solve-accelerator.html">
+  differentiable-solve-accelerator</a> §2 (2026-07-20).</p>
+
+  <h2>Quick status</h2>
+  <table>
+    <tr><th>Gate</th><th>Verdict</th><th>Result</th></tr>
+    <tr>
+      <td>D-A2 — smoothness (the §4 causal test)</td>
+      <td><strong>PASS</strong> (10/14)</td>
+      <td>10 of 14 previously limit-cycling slices turn <strong>monotone</strong>
+      under plain relaxed Picard on the connectivity read (tail monotone fraction
+      ≥ 0.82, seven slices exactly 1.0) where the hard read sits uniformly at
+      0.59–0.72 — the discrete mask-flip signature is gone. The 4 remaining
+      oscillators are the deeply under-determined interior-null slices: a property
+      of the problem, not of the read.</td>
+    </tr>
+    <tr>
+      <td>D-A1 — reproduction (byte-comparability)</td>
+      <td><strong>FAIL</strong> (qualified)</td>
+      <td>Medians on the both-converged pool: axis 4.00 cm (bar 2.0),
+      LCFS 2.63 cm (bar 3.0, PASS), profile RMS 0.159 (bar 0.10). The smooth
+      solve is NOT byte-comparable — but the gap is not a lossy mask: see the
+      attribution below.</td>
+    </tr>
+  </table>
+
+  <h2>What landed</h2>
+  <p><code>topology_read='connectivity'</code> on <code>solve_equilibrium_lsq</code>
+  and <code>solve_equilibrium_nk</code> (<code>imas_ambix/latent/gs_solve.py</code>):
+  the per-sweep hard-threshold read (<code>find_critical_points</code> +
+  <code>ndimage.label</code> core mask) is replaced by the connectivity boundary
+  binding (sub-grid wall tangency / X-saddle, continuous in ψ), the sub-grid
+  stencil axis, and a <strong>smooth sigmoid core-membership weight</strong>
+  (ψ_N width 0.02) gated by the axis-connected component of the padded support —
+  the gate flips only where the weight is already ~0, so the fixed-point map is
+  continuous. Default <code>'hard'</code> is byte-unchanged. Threaded through
+  <code>fit_and_read_slice</code> (+ a per-sweep <code>iteration_trace</code>
+  pass-through). Tests: <code>tests/latent/test_gs_solve_smooth_topology.py</code>
+  (5 new, 14/14 suite green).</p>
+
+  <figure>
+    <img src="/imas-ambix/figures/differentiable-solve-accelerator/fig-s2-smooth-map-gate.png"
+         alt="Three panels: (a) residual trace on an under-determined slice — the hard read limit-cycles around 2e-3 while the connectivity read decays monotonically to ~6e-4; (b) histogram of hard-vs-smooth axis agreement, median 4.0 cm against the 2 cm bar; (c) residual tail monotone fraction per traced slice — connectivity clears the 0.9 gate on 8 slices with 7 at exactly 1.0, hard sits at 0.6-0.72 everywhere."
+         style="max-width:100%">
+    <figcaption>(a) The direct smoothness test on 21978/k3: the hard-read residual
+    limit-cycles ~2×10⁻³ for a hundred sweeps; the connectivity-read residual
+    decays monotonically. (b) Hard-vs-smooth axis agreement across the paired
+    slices. (c) Tail monotone fraction: the mask-flip signature is gone wherever
+    the slice is not deeply under-determined.</figcaption>
+  </figure>
+
+  <h2>Why D-A1 fails — and why that is not a lossy mask</h2>
+  <ul>
+    <li><strong>The hard read's wall binding is grid-quantized.</strong> The hard
+    LCFS contact reads ψ at limiter <em>grid points</em> (up to ~half a cell off
+    the polygon); the smooth binding is the sub-grid interpolated tangency. On a
+    synthetic ground-truth case the smooth binding reproduces the true interpolated
+    wall tangency to 1×10⁻¹⁵ while the hard read is 0.19 of the span off (pinned in
+    <code>test_smooth_read_reproduces_hard_read</code>). The both-converged pool is
+    dominated by early-ramp <em>limited</em> slices (8/11 at t ≤ 0.11 s) — exactly
+    where that bias is largest — so the 4 cm axis median measures the two solves
+    converging to <em>differently-normalised</em> equilibria, with the smooth one
+    better grounded at the wall.</li>
+    <li><strong>The worst outliers are hard-map pathologies.</strong> On the worst
+    paired slice (21986/k4, flat-top, 887 kA) the HARD solve converged with its
+    axis 41 cm outboard of the measured current-centroid pin (the known outboard
+    drift); the smooth solve sits 11 cm from the pin — inside the physical
+    Shafranov band. The "disagreement" is the smooth map correcting a hard-map
+    artifact.</li>
+    <li><strong>Cost:</strong> the smooth solve is 2.63× the hard solve's CPU wall
+    per slice (the jax connectivity read runs every sweep on host) — the CPU cost
+    of smoothness that the batched on-device rollout amortises away.</li>
+  </ul>
+  <p><strong>Consequence (decision locked):</strong> the smooth read stays
+  <strong>opt-in</strong>; the hard read remains the production/label default.
+  The stop rule ("do not ship a lossy mask") is honoured — no label path changes.
+  The smoothness deliverable — the prerequisite for the accelerator retest — is
+  delivered.</p>
+
+  <h2>Outcomes</h2>
+  <table>
+    <tr><th>Item</th><th>Artifact</th><th>Commit</th></tr>
+    <tr><td>Smooth-read solve path (opt-in) + tests</td>
+        <td><code>imas_ambix/latent/gs_solve.py</code>,
+            <code>tests/latent/test_gs_solve_smooth_topology.py</code></td>
+        <td><code>8fd4c2a</code></td></tr>
+    <tr><td>Gate harness (reproduction + monotonicity, traces)</td>
+        <td><code>scripts/differentiable_solve_gate_eval.py</code>,
+            <code>scripts/closure_gate_eval.py</code></td>
+        <td><code>ec8539b</code></td></tr>
+    <tr><td>Gate artifact + figure</td>
+        <td><code>imas_ambix/latent/artifacts/patch_gate/differentiable_solve_gate-v0.json</code>,
+            <code>docs/figures/differentiable-solve-accelerator/fig-s2-smooth-map-gate.png</code></td>
+        <td><code>9d4004b</code></td></tr>
+  </table>
+
+  <h2>What's next</h2>
+  <p>§3 — the accelerator retest on the now-differentiable map (Picard vs Anderson
+  vs Newton–Krylov): <code>/reckon-ship differentiable-solve-accelerator §3</code>
+  (ran in the same session — see the §3 landed record).</p>
+</main>
+</body>
+</html>
