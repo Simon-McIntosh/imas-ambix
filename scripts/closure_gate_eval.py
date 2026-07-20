@@ -562,6 +562,8 @@ def fit_and_read_slice(
     boundary_read: str = "innermost",
     substrate: str = "grid-delstar",
     accelerator: str = "picard",
+    topology_read: str = "hard",
+    smooth_edge_width: float = 0.02,
 ) -> ClosureSliceFit:
     """Fit the profile against ``payload``'s raw magnetics through the GS fixed
     point and read the hardened 14-D geometry from the force-balanced ψ.
@@ -640,6 +642,9 @@ def fit_and_read_slice(
         kw["substrate"] = substrate
         if accelerator != "picard":
             kw["accelerator"] = accelerator
+        if topology_read != "hard":
+            kw["topology_read"] = topology_read
+            kw["smooth_edge_width"] = smooth_edge_width
         if passive is not None:
             kw["passive"] = passive
             kw["passive_ridge"] = passive_ridge

@@ -563,6 +563,75 @@ SUBSTRATE_GRID = "grid-delstar"
 SUBSTRATE_GREENS = "greens-matvec"
 SUBSTRATES = (SUBSTRATE_GRID, SUBSTRATE_GREENS)
 
+#: The two per-sweep topology reads.  ``hard`` is the historical
+#: hard-threshold host read (critical points + labelled core mask,
+#: byte-unchanged); ``connectivity`` is the continuous read — connectivity
+#: boundary binding + sub-grid stencil axis + a smooth core-membership weight —
+#: under which the free-boundary fixed-point map is differentiable.
+TOPOLOGY_HARD = "hard"
+TOPOLOGY_CONNECTIVITY = "connectivity"
+TOPOLOGY_READS = (TOPOLOGY_HARD, TOPOLOGY_CONNECTIVITY)
+
+
+def _read_topology_smooth(
+    psi_flat: np.ndarray,
+    grid: EquilibriumGrid,
+    seed_axis: tuple[float, float],
+    core_cap: float,
+    edge_width: float,
+) -> tuple[tuple[float, float], float, float, np.ndarray, np.ndarray]:
+    """Continuous per-sweep topology read for the smooth-map solve path.
+
+    The axis and the binding flux come from the connectivity boundary read
+    (sub-grid stencil O-point + the unified wall-tangency/X-saddle binding —
+    both continuous in ψ, no classify-first selection to flip), and the core
+    membership is a SMOOTH weight: a sigmoid in ψ_N about ``core_cap``
+    (half-weight at the cap, width ``edge_width``), gated by the
+    axis-connected component of the padded support so a disconnected
+    private-flux pocket never carries weight.  The connectivity gate flips
+    only where the sigmoid weight is already ~0 (cap + 6 widths), so the
+    effective fixed-point map stays continuous — the discrete mask-flip
+    signature of the hard read is gone.
+
+    Returns ``(axis, axis_psi, boundary_psi, weight_flat, core_bool_2d)``;
+    ``core_bool_2d`` is the reporting-only hard threshold (it never feeds the
+    map).  Degenerate transients (no O-point / no closed level yet) fall back
+    to the flood seed and the limiter-contact flux so the solve degrades the
+    same way the hard read does instead of dying.
+    """
+    from imas_ambix.latent.connectivity_boundary import (  # noqa: PLC0415 (jax)
+        boundary_read,
+    )
+
+    psi2d = psi_flat.reshape(grid.nz, grid.nr)
+    cb = boundary_read(psi2d, grid, seed_axis)
+    axis = (
+        cb.axis
+        if np.isfinite(cb.axis[0]) and np.isfinite(cb.axis[1])
+        else seed_axis
+    )
+    axis_psi = float(cb.axis_psi) if np.isfinite(cb.axis_psi) else float(cb.psi_axis)
+    boundary_psi = float(cb.psi_bnd)
+    if not np.isfinite(boundary_psi):
+        boundary_psi = _read_boundary_psi(psi2d, grid, axis_psi)
+    span = boundary_psi - axis_psi
+    if abs(span) < 1e-12:
+        span = 1e-12
+    psi_n = (psi_flat - axis_psi) / span
+    pad = 6.0 * edge_width
+    support = ((psi_n < core_cap + pad) & grid.inside_limiter.ravel()).reshape(
+        grid.nz, grid.nr
+    )
+    labels, _ = ndimage.label(support)
+    ia = int(np.argmin(np.abs(grid.zg - axis[1])))
+    ja = int(np.argmin(np.abs(grid.rg - axis[0])))
+    lab = labels[ia, ja]
+    gate = (labels == lab) if lab != 0 else support
+    arg = np.clip((psi_n - core_cap) / max(edge_width, 1e-6), -60.0, 60.0)
+    weight = gate.ravel() / (1.0 + np.exp(arg))
+    core = gate & (psi_n < core_cap).reshape(grid.nz, grid.nr)
+    return axis, axis_psi, boundary_psi, weight, core
+
 
 def _plasma_psi_field(
     grid: EquilibriumGrid,
@@ -844,6 +913,8 @@ def solve_equilibrium_nk(
     seed_width: tuple[float, float] = (0.35, 0.5),
     seed_z0: float = 0.0,
     initial_jphi: np.ndarray | None = None,
+    topology_read: str = TOPOLOGY_HARD,
+    smooth_edge_width: float = 0.02,
 ) -> EquilibriumResult:
     """Jacobian-free Newton–Krylov free-boundary solve (nova's scheme).
 
@@ -866,31 +937,53 @@ def solve_equilibrium_nk(
 
     if substrate not in SUBSTRATES:
         raise ValueError(f"substrate must be one of {SUBSTRATES}, got {substrate!r}")
+    if topology_read not in TOPOLOGY_READS:
+        raise ValueError(
+            f"topology_read must be one of {TOPOLOGY_READS}, got {topology_read!r}"
+        )
     psi_coil = grid.coil_psi(np.asarray(i_pf, dtype=np.float64))
     sign = 1.0 if ip_amperes >= 0 else -1.0
     cell_area = grid.dr * grid.dz
-    state: dict = {}
+    state: dict = {"axis": (grid.r0, seed_z0)}
 
     def currents_from_psi(psi_flat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Force-balanced (jφ_full·scale, i_cell) from a ψ iterate; caches reads."""
         psi2d = psi_flat.reshape(grid.nz, grid.nr)
-        axis, axis_psi = _read_axis(psi2d, grid, sign)
-        boundary_psi = _read_boundary_psi(psi2d, grid, axis_psi)
-        span = boundary_psi - axis_psi
-        if abs(span) < 1e-12:
-            span = 1e-12
-        psi_n = (psi_flat - axis_psi) / span
-        closed = ((psi_n < 1.0) & grid.inside_limiter.ravel()).reshape(grid.nz, grid.nr)
-        labels, _ = ndimage.label(closed)
-        ia = int(np.argmin(np.abs(grid.zg - axis[1])))
-        ja = int(np.argmin(np.abs(grid.rg - axis[0])))
-        core_label = labels[ia, ja]
-        core = (labels == core_label) if core_label != 0 else closed
-        jphi = np.zeros(grid.flat_r.size)
-        shape = profile_jphi_shape(
-            psi_n, grid.flat_r, r0=grid.r0, beta0=beta0, alpha=alpha
-        )
-        jphi[core.ravel()] = shape[core.ravel()]
+        if topology_read == TOPOLOGY_CONNECTIVITY:
+            # continuous read — the residual F(ψ) = ψ − T(ψ) is differentiable,
+            # so the finite-difference directional derivatives of NK's GMRES
+            # see a smooth map instead of discrete mask flips.
+            axis, axis_psi, boundary_psi, weight, core = _read_topology_smooth(
+                psi_flat, grid, state["axis"], 1.0, smooth_edge_width
+            )
+            span = boundary_psi - axis_psi
+            if abs(span) < 1e-12:
+                span = 1e-12
+            psi_n = (psi_flat - axis_psi) / span
+            shape = profile_jphi_shape(
+                psi_n, grid.flat_r, r0=grid.r0, beta0=beta0, alpha=alpha
+            )
+            jphi = shape * weight
+        else:
+            axis, axis_psi = _read_axis(psi2d, grid, sign)
+            boundary_psi = _read_boundary_psi(psi2d, grid, axis_psi)
+            span = boundary_psi - axis_psi
+            if abs(span) < 1e-12:
+                span = 1e-12
+            psi_n = (psi_flat - axis_psi) / span
+            closed = ((psi_n < 1.0) & grid.inside_limiter.ravel()).reshape(
+                grid.nz, grid.nr
+            )
+            labels, _ = ndimage.label(closed)
+            ia = int(np.argmin(np.abs(grid.zg - axis[1])))
+            ja = int(np.argmin(np.abs(grid.rg - axis[0])))
+            core_label = labels[ia, ja]
+            core = (labels == core_label) if core_label != 0 else closed
+            jphi = np.zeros(grid.flat_r.size)
+            shape = profile_jphi_shape(
+                psi_n, grid.flat_r, r0=grid.r0, beta0=beta0, alpha=alpha
+            )
+            jphi[core.ravel()] = shape[core.ravel()]
         i_cell = jphi[grid.cells] * cell_area
         total = i_cell.sum()
         scale = ip_amperes / total if abs(total) > 1e-12 else 0.0
@@ -1903,6 +1996,8 @@ def solve_equilibrium_lsq(
     accelerator: str = "picard",
     anderson_depth: int = 6,
     anderson_ridge: float = 1e-8,
+    topology_read: str = TOPOLOGY_HARD,
+    smooth_edge_width: float = 0.02,
     iteration_trace: list[dict] | None = None,
 ) -> LadderFit:
     """Free-boundary Picard solve with the profile coefficients re-fit by
@@ -1942,12 +2037,23 @@ def solve_equilibrium_lsq(
     ``substrate`` selects the ψ evaluator (:data:`SUBSTRATES`): the default
     ``grid-delstar`` is byte-unchanged; ``greens-matvec`` drops the gridded Δ*
     solve for the analytic Green's matvec (the grid-free substrate spike).
+
+    ``topology_read`` selects the per-sweep topology read
+    (:data:`TOPOLOGY_READS`): the default ``hard`` is byte-unchanged;
+    ``connectivity`` swaps in the continuous read (connectivity boundary
+    binding + sub-grid stencil axis + a smooth core-membership weight of
+    ψ_N-width ``smooth_edge_width``), under which the fixed-point map is
+    differentiable — no discrete mask flips enter the Picard/Anderson path.
     """
     if substrate not in SUBSTRATES:
         raise ValueError(f"substrate must be one of {SUBSTRATES}, got {substrate!r}")
     if accelerator not in ("picard", "anderson"):
         raise ValueError(
             f"accelerator must be 'picard' or 'anderson', got {accelerator!r}"
+        )
+    if topology_read not in TOPOLOGY_READS:
+        raise ValueError(
+            f"topology_read must be one of {TOPOLOGY_READS}, got {topology_read!r}"
         )
     # ``picard`` (default) is byte-identical to the historical relaxed solve;
     # ``anderson`` wraps the SAME relaxed-Picard update in a safeguarded
@@ -2043,33 +2149,52 @@ def solve_equilibrium_lsq(
                 psi_flat = relax * psi_new + (1.0 - relax) * psi_flat
 
         psi2d = psi_flat.reshape(grid.nz, grid.nr)
-        axis, axis_psi = _read_axis(psi2d, grid, sign)
-        boundary_psi = _read_boundary_psi(psi2d, grid, axis_psi)
-        span = boundary_psi - axis_psi
-        if abs(span) < 1e-12:
-            span = 1e-12
-        psi_n = (psi_flat - axis_psi) / span
+        if topology_read == TOPOLOGY_CONNECTIVITY:
+            # continuous read: connectivity binding + stencil axis + smooth
+            # core weight — the fixed-point map is differentiable, so the
+            # residual decreases monotonically instead of limit-cycling on
+            # discrete mask flips.  The previous sweep's axis seeds the flood.
+            axis, axis_psi, boundary_psi, core_weight, core = _read_topology_smooth(
+                psi_flat, grid, axis, core_cap, smooth_edge_width
+            )
+            span = boundary_psi - axis_psi
+            if abs(span) < 1e-12:
+                span = 1e-12
+            psi_n = (psi_flat - axis_psi) / span
+            ia = int(np.argmin(np.abs(grid.zg - axis[1])))
+            ja = int(np.argmin(np.abs(grid.rg - axis[0])))
+        else:
+            core_weight = None
+            axis, axis_psi = _read_axis(psi2d, grid, sign)
+            boundary_psi = _read_boundary_psi(psi2d, grid, axis_psi)
+            span = boundary_psi - axis_psi
+            if abs(span) < 1e-12:
+                span = 1e-12
+            psi_n = (psi_flat - axis_psi) / span
 
-        # core support: axis-connected component of ψ_N < cap inside the
-        # limiter.  cap = 1 is the hard separatrix mask; cap > 1 (A2 soft SOL
-        # edge) admits the public-SOL band, and the axis-connected component
-        # keeps ONLY the common-flux region (private flux below an X-point is a
-        # separate component that does not contain the axis — §3.3h).
-        closed = ((psi_n < core_cap) & grid.inside_limiter.ravel()).reshape(
-            grid.nz, grid.nr
-        )
-        labels, _ = ndimage.label(closed)
-        ia = int(np.argmin(np.abs(grid.zg - axis[1])))
-        ja = int(np.argmin(np.abs(grid.rg - axis[0])))
-        core_label = labels[ia, ja]
-        core = (labels == core_label) if core_label != 0 else closed
+            # core support: axis-connected component of ψ_N < cap inside the
+            # limiter.  cap = 1 is the hard separatrix mask; cap > 1 (A2 soft SOL
+            # edge) admits the public-SOL band, and the axis-connected component
+            # keeps ONLY the common-flux region (private flux below an X-point is a
+            # separate component that does not contain the axis — §3.3h).
+            closed = ((psi_n < core_cap) & grid.inside_limiter.ravel()).reshape(
+                grid.nz, grid.nr
+            )
+            labels, _ = ndimage.label(closed)
+            ia = int(np.argmin(np.abs(grid.zg - axis[1])))
+            ja = int(np.argmin(np.abs(grid.rg - axis[0])))
+            core_label = labels[ia, ja]
+            core = (labels == core_label) if core_label != 0 else closed
 
         if iteration <= warmup_iterations:
             jphi = np.zeros_like(jphi)
             shape = profile_jphi_shape(
                 psi_n, grid.flat_r, r0=grid.r0, beta0=0.5, alpha=1.0
             )
-            jphi[core.ravel()] = shape[core.ravel()]
+            if core_weight is None:
+                jphi[core.ravel()] = shape[core.ravel()]
+            else:
+                jphi = shape * core_weight
         else:
             # basis images on the current core; L1-normalise each column to
             # carry |Ip| of gross current so the coefficients stay O(1).  In
@@ -2104,7 +2229,12 @@ def solve_equilibrium_lsq(
                     kind="monomial-nonneg" if nonneg else "legendre",
                     centrifugal_gamma=centrifugal_gamma,
                 )
-            images[~core.ravel(), :] = 0.0
+            if core_weight is None:
+                images[~core.ravel(), :] = 0.0
+            else:
+                # smooth core membership: a cell's contribution fades
+                # continuously through the edge instead of flipping in/out
+                images = images * core_weight[:, np.newaxis]
             u = images[grid.cells, :] * cell_area  # unit-coeff cell currents [A]
             norms = np.abs(u).sum(axis=0)
             ok_cols = norms > 1e-12 * max(abs(ip_amperes), 1.0)
