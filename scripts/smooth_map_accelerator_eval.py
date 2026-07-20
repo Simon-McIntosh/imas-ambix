@@ -106,7 +106,14 @@ def _ladder_arm(
 
 
 def run_shot(
-    shot: int, *, nr: int, nz: int, max_slices: int, min_ip_ka: float, sigma: float
+    shot: int,
+    *,
+    nr: int,
+    nz: int,
+    max_slices: int,
+    min_ip_ka: float,
+    sigma: float,
+    legs: str = "both",
 ) -> dict:
     from imas_ambix.latent.boundary_disc import disc_read
     from scripts.heldout_mse_gate_eval import _campaign_table
@@ -149,33 +156,36 @@ def run_shot(
         centroid = (float(inv.centroid_r), float(inv.centroid_z))
         disc_seed = _disc_seed_flat(grid, inv)
 
-        arms = {}
-        for topo in ("hard", "connectivity"):
-            for acc in ("picard", "anderson"):
-                arms[f"{topo}:{acc}"] = _ladder_arm(
-                    grid,
-                    p,
-                    centroid,
-                    disc_seed,
-                    tbl,
-                    basis,
-                    topology_read=topo,
-                    accelerator=acc,
-                    **spine_kw,
-                )
-        base = arms["hard:picard"]
-        rows.append(
-            {
-                "shot": shot,
-                "k": int(k),
-                "time_s": float(p.time_s),
-                "ip_a": float(abs(p.ip_amperes)),
-                "limit_cycling_hard": bool(
-                    base["residual"] is not None and base["residual"] > TOLERANCE
-                ),
-                "arms": arms,
-            }
-        )
+        if legs in ("both", "ladder"):
+            arms = {}
+            for topo in ("hard", "connectivity"):
+                for acc in ("picard", "anderson"):
+                    arms[f"{topo}:{acc}"] = _ladder_arm(
+                        grid,
+                        p,
+                        centroid,
+                        disc_seed,
+                        tbl,
+                        basis,
+                        topology_read=topo,
+                        accelerator=acc,
+                        **spine_kw,
+                    )
+            base = arms["hard:picard"]
+            rows.append(
+                {
+                    "shot": shot,
+                    "k": int(k),
+                    "time_s": float(p.time_s),
+                    "ip_a": float(abs(p.ip_amperes)),
+                    "limit_cycling_hard": bool(
+                        base["residual"] is not None and base["residual"] > TOLERANCE
+                    ),
+                    "arms": arms,
+                }
+            )
+        if legs not in ("both", "nk"):
+            continue
 
         # fixed-shape NK leg (the prior study's erratic scheme), hard vs smooth
         ref = solve_equilibrium(
@@ -393,6 +403,13 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--nz", type=int, default=97)
     ap.add_argument("--sigma", type=float, default=0.02)
     ap.add_argument(
+        "--legs",
+        type=str,
+        default="both",
+        choices=("both", "ladder", "nk"),
+        help="run the LSQ-ladder leg, the fixed-shape NK leg, or both",
+    )
+    ap.add_argument(
         "--out",
         type=str,
         default="imas_ambix/latent/artifacts/patch_gate/smooth_map_accelerator-v0.json",
@@ -425,6 +442,7 @@ def main() -> int:
                 max_slices=args.max_slices,
                 min_ip_ka=args.min_ip_ka,
                 sigma=args.sigma,
+                legs=args.legs,
             )
         except Exception as exc:  # noqa: BLE001 — record, don't abort the sweep
             logger.warning("  shot %d failed: %s", s, exc)
