@@ -14,7 +14,7 @@
   <meta name="plan-tier"      content="opus">
   <meta name="plan-milestone" content="M4">
   <meta name="plan-owner"     content="Simon McIntosh">
-  <meta name="plan-depends-on" content="greens-filament-solver">
+  <meta name="plan-depends-on" content="greens-filament-solver,connectivity-topology-reader">
   <title>GPU-Accelerated Equilibrium Engine | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
@@ -162,22 +162,24 @@
   jax (autograd) is presumptive and why the rollout is designed differentiable from the
   start.</p>
 
-  <h2 id="s2">§2 — Shared foundation spike: framework + GEMM crossover + on-device topology + precision (go/no-go)</h2>
-  <p>The de-risking rung common to all three dimensions. (1) <strong>Framework</strong>
-  (see decision): presumptive jax for whole-rollout fusion + autograd; the §2 spike
-  prototypes the inner GS step in jax AND torch and confirms no fp64/perf blocker in the
-  recurrent stack (which is already torch-fp64). (2) <strong>Batched GEMM microbench</strong>
-  on one H200: confirm the GEMV&rarr;GEMM crossover and the compute-bound regime past
-  B&nbsp;&approx;&nbsp;600, and measure slices/s at B&nbsp;=&nbsp;512/1024/2048.
-  (3) <strong>On-device topology read</strong>: reimplement axis/X-point + core mask as
-  nova&rsquo;s fixed-shape stencil null-finder + smooth mask, <strong>validated against
-  the exact CPU read</strong> on axis / boundary_ψ / LCFS. (4) <strong>Precision</strong>:
-  establish the tiered boundaries (see decision) and validate that bf16/tf32 in the GEMM
-  holds axis/LCFS/Ejima-ledger through a full warm-started rollout. Gate G-A: a batched
-  (B&nbsp;&ge;&nbsp;512) inner GS solve on real held-out slices reproduces the CPU
-  grid-free axis/LCFS/profile within the <code>greens-filament-solver</code> §2 tolerances
-  AND shows the compute-bound crossover; the on-device read matches the exact read.
-  Honest negative if the on-device fixed-shape read cannot hold tolerance.</p>
+  <h2 id="s2">§2 — Shared foundation spike: framework + GEMM crossover + precision (go/no-go)</h2>
+  <p>The de-risking rung common to all three dimensions. The on-device topology read
+  &mdash; the other hard prerequisite &mdash; is split into its own plan
+  (<code>connectivity-topology-reader</code>, a <code>depends_on</code>): a connectivity
+  flood-fill boundary + nova-stencil axis/X, GPU-native and differentiable. This spike
+  consumes it and covers the rest: (1) <strong>Framework</strong> (see decision):
+  presumptive jax for whole-rollout fusion + autograd; prototype the inner GS step in jax
+  AND torch and confirm no fp64/perf blocker in the recurrent stack (already torch-fp64).
+  (2) <strong>Batched GEMM microbench</strong> on one H200: confirm the GEMV&rarr;GEMM
+  crossover and the compute-bound regime past B&nbsp;&approx;&nbsp;600, slices/s at
+  B&nbsp;=&nbsp;512/1024/2048. (3) <strong>Precision</strong>: establish the tiered
+  boundaries (see decision) and validate that bf16/tf32 in the GEMM holds
+  axis/LCFS/Ejima-ledger through a full warm-started rollout. Gate G-A: a batched
+  (B&nbsp;&ge;&nbsp;512) inner GS solve on real held-out slices &mdash; using the
+  <code>connectivity-topology-reader</code> on-device read &mdash; reproduces the CPU
+  grid-free axis/LCFS/profile within the <code>greens-filament-solver</code> §2
+  tolerances AND shows the compute-bound crossover. Honest negative if the batched solve
+  cannot hold tolerance.</p>
 
   <h2 id="s3">§3 — Single-shot on-device rollout (the inner object; the post-shot dimension)</h2>
   <p><strong>Built first &mdash; it is the unit both other dimensions wrap.</strong> Assemble
@@ -290,7 +292,7 @@
         <button class="r-opt chosen" data-value="on-device-fixed-shape">On-device, fixed-shape/branchless — nova stencil null-finder + smooth/tracked mask (no connected-components), validated vs the exact read</button>
         <button class="r-opt" data-value="host-read">Keep the exact host read (NumPy critical-points + ndimage.label)</button>
       </p>
-      <p class="r-dec-rat">Locked (2026-07-20): all three reviews agree the per-iteration host round-trip is the dominant reason the per-solve jax port flatlined; without an on-device read Amdahl caps everything at ~3x. nova already ships the branchless primitives. A final exact-read CPU polish for the EMITTED label is retained where sub-mm axis is a hard requirement (validated against the on-device read + the Ejima/flux-budget ledger).</p>
+      <p class="r-dec-rat">Locked (2026-07-20): all three reviews agree the per-iteration host round-trip is the dominant reason the per-solve jax port flatlined; without an on-device read Amdahl caps everything at ~3x. DELIVERED BY THE PREREQUISITE PLAN <code>connectivity-topology-reader</code> — a connectivity flood-fill boundary (continuous through the marginal transition) + nova's stencil axis/X primitives, GPU-native and differentiable; this plan consumes it. A final exact-read CPU polish for the EMITTED label is retained where sub-mm axis is a hard requirement (validated against the on-device read + the Ejima/flux-budget ledger).</p>
     </div>
     <div class="r-dec" data-key="precision-tiering" data-choice="tiered-bf16-gemm-fp64-state" data-by="lead" data-when="2026-07-20">
       <p class="r-dec-q">What numerical precision for the H200 rollout?</p>
@@ -307,10 +309,10 @@
     <h2><span class="sec">§</span> Followups</h2>
     <article class="r-fu" data-id="f-gal-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-20T09:20:00+00:00" data-recommends-skill="/reckon-ship gpu-accelerated-labeler §2">
       <h4 class="r-fu-title">Ship §2 — shared foundation spike: framework + GEMM crossover + on-device topology + precision (go/no-go)</h4>
-      <div class="r-fu-body"><p>De-risk the substrate common to all three deployment dimensions BEFORE building the rollout: pick the framework (presumptive jax for autograd; prototype jax + torch, confirm no fp64/perf blocker); microbench the batched GEMM to confirm the GEMV→GEMM compute-bound crossover past B≈600 on one H200; port the topology read on-device (nova stencil null-finder + smooth mask), validated against the exact CPU read; and establish + validate the tiered precision boundaries (bf16/tf32 GEMM, fp32 topology, fp64 recurrent state) on axis/LCFS/Ejima-ledger. Gate G-A: a batched (B≥512) inner GS solve on real held-out slices reproduces the CPU grid-free axis/LCFS/profile within the greens-filament-solver §2 tolerances AND shows the compute-bound crossover; honest negative if the on-device read cannot hold tolerance. NOTE: land greens-filament-solver in full first (this plan's prerequisite).</p></div>
+      <div class="r-fu-body"><p>De-risk the substrate common to all three deployment dimensions BEFORE building the rollout: pick the framework (presumptive jax for autograd; prototype jax + torch, confirm no fp64/perf blocker); microbench the batched GEMM to confirm the GEMV→GEMM compute-bound crossover past B≈600 on one H200; and establish + validate the tiered precision boundaries (bf16/tf32 GEMM, fp32 topology, fp64 recurrent state) on axis/LCFS/Ejima-ledger. The on-device topology read is delivered by the prerequisite plan connectivity-topology-reader — this spike CONSUMES it, it does not build it. Gate G-A: a batched (B≥512) inner GS solve on real held-out slices (using the connectivity-topology-reader on-device read) reproduces the CPU grid-free axis/LCFS/profile within the greens-filament-solver §2 tolerances AND shows the compute-bound crossover. NOTE: land greens-filament-solver AND connectivity-topology-reader first (this plan's prerequisites).</p></div>
       <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    gpu-accelerated-labeler (http://localhost:8765/imas-ambix/gpu-accelerated-labeler.html)
-Section: §2 (shared foundation spike — framework + GEMM crossover + on-device topology + precision)
+Section: §2 (shared foundation spike — framework + GEMM crossover + precision)
 Tier:    opus
 
 Context
@@ -319,9 +321,10 @@ Context
   independent expert reviews converged: batch over the independent axis, whole rollout
   on-device, topology read on-device, precision tiered. This rung de-risks the substrate
   shared by all three deployment dimensions (offline corpus, post-shot single, in-pulse
-  streaming) before any rollout is built. PREREQUISITE: greens-filament-solver must be
-  landed in full first (its grid-free substrate is the port target). Honour the locked
-  decisions shown live above this brief (deployment-dimensions, topology-read-location,
+  streaming) before any rollout is built. PREREQUISITES: greens-filament-solver (its
+  grid-free substrate is the port target) AND connectivity-topology-reader (the on-device
+  topology read this spike consumes) must be landed first. Honour the locked decisions
+  shown live above this brief (deployment-dimensions, topology-read-location,
   precision-tiering) and resolve the presumptive-jax compute-framework decision with the
   spike evidence.
 
@@ -336,8 +339,9 @@ State to read  (CODE / FILES / DATA)
 Scope locks / constraints  (non-decision)
   - Reproduce the CPU grid-free equilibria to the greens-filament-solver §2 tolerances
     (axis sub-mm, LCFS ~60um, profile ~2% RMS on well-determined slices).
-  - On-device topology read must be fixed-shape/branchless (nova stencil null-finder +
-    smooth/tracked mask; NO connected-components) and validated vs the exact read.
+  - Use the connectivity-topology-reader on-device read (the prerequisite plan): a
+    connectivity flood-fill boundary + nova-stencil axis/X, fixed-shape/branchless,
+    NO connected-components, validated vs the exact CPU read. This spike consumes it.
   - Precision boundaries (locked): bf16/tf32 GEMM + fp32 accumulate; fp32 topology argmax;
     fp64 cross-slice recurrent state (diffusion + ZOH). Validate axis/LCFS/Ejima-ledger
     hold under these boundaries through a full warm-started rollout. bf16 must not leak
