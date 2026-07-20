@@ -195,3 +195,65 @@ def test_greens_matvec_rejects_boundary_continuation():
             coil_field_mode="boundary-continuation",
             substrate=SUBSTRATE_GREENS,
         )
+
+
+# --- Anderson accelerator (the §4 interpretable fixed-point accelerator) ----
+
+
+def _slow_linear_fixed_point(n=200, rho=0.92, seed=0):
+    """A smooth linear map g(x)=A·x+b with spectral radius ``rho`` (slow Picard)
+    and its exact fixed point x* = (I−A)⁻¹ b."""
+    rng = np.random.default_rng(seed)
+    q, _ = np.linalg.qr(rng.standard_normal((n, n)))
+    eigs = np.linspace(0.1, rho, n)
+    a = (q * eigs) @ q.T  # symmetric, spectral radius rho
+    b = rng.standard_normal(n)
+    x_star = np.linalg.solve(np.eye(n) - a, b)
+    return a, b, x_star
+
+
+def _iterate(mixer, a, b, x0, beta=0.5, tol=1e-9, max_it=2000):
+    """Run the relaxed fixed-point iteration, mixed by ``mixer`` (or plain
+    relaxed Picard if ``mixer is None``); return (iterations, final x)."""
+
+    x = x0.copy()
+    for it in range(1, max_it + 1):
+        g = a @ x + b
+        resid = float(np.abs(g - x).max() / max(np.abs(g).max(), 1e-12))
+        if resid < tol:
+            return it, x
+        x = mixer.step(x, g, beta) if mixer is not None else beta * g + (1 - beta) * x
+    return max_it, x
+
+
+def test_anderson_mixer_accelerates_and_finds_same_fixed_point():
+    """On a smooth slow-converging linear map the Anderson mixer reaches the
+    SAME fixed point in far fewer map evaluations than plain relaxed Picard."""
+    from imas_ambix.latent.gs_solve import _AndersonMixer
+
+    a, b, x_star = _slow_linear_fixed_point()
+    x0 = np.zeros_like(b)
+    it_picard, x_picard = _iterate(None, a, b, x0)
+    it_and, x_and = _iterate(_AndersonMixer(depth=6), a, b, x0)
+    # both converge to the analytic fixed point
+    np.testing.assert_allclose(x_picard, x_star, atol=1e-6)
+    np.testing.assert_allclose(x_and, x_star, atol=1e-6)
+    # Anderson is materially faster on this slow (rho=0.92) map
+    assert it_and < it_picard / 3
+
+
+def test_anderson_mixer_is_finite_safeguarded():
+    """A non-finite map image never propagates NaN out of the mixer: the step
+    falls back to the (finite) relaxed-Picard update and the history resets."""
+    from imas_ambix.latent.gs_solve import _AndersonMixer
+
+    m = _AndersonMixer(depth=4)
+    x = np.ones(10)
+    # a few clean steps to build history, then a poisoned image
+    for _ in range(3):
+        x = m.step(x, 0.5 * x, 0.5)
+    bad = np.full(10, np.nan)
+    m.step(x, bad, 0.5)  # poisoned image clears the history (guard on non-finite f)
+    # the NEXT clean image recovers cleanly — no NaN carried in the AA history
+    clean = m.step(x, 0.5 * x, 0.5)
+    assert np.isfinite(clean).all()

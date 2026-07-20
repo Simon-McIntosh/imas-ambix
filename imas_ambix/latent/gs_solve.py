@@ -198,10 +198,34 @@ class EquilibriumGrid:
 
     # ---- construction ----
 
+    #: Campaign-scope build cache: the grid geometry, Δ* factorisation, and
+    #: every Green's / interaction matrix are pure functions of the campaign
+    #: (limiter + coil geometry + sensor map) and the resolution, so they are
+    #: built ONCE per (campaign signature, nr, nz) and reused across every shot
+    #: and slice of that campaign — the greens-filament-solver §4 caching that
+    #: the corpus-cost extrapolation assumes.  Opt-in (``cache=True``) so the
+    #: default keeps building an independent grid per call (the gate's
+    #: independent-arm invariant that proves ``_lu is None`` on the grid-free
+    #: arm relies on distinct instances).
+    _build_cache: dict = {}
+
+    @classmethod
+    def clear_grid_cache(cls) -> None:
+        """Drop every cached campaign grid (free the interaction matrices)."""
+        cls._build_cache.clear()
+
     @classmethod
     def from_table(
-        cls, table: GeometryTable, *, nr: int = 65, nz: int = 97
+        cls, table: GeometryTable, *, nr: int = 65, nz: int = 97, cache: bool = False
     ) -> EquilibriumGrid:
+        key = None
+        if cache:
+            sig = getattr(getattr(table, "signature", None), "key", None)
+            if sig is not None:
+                key = (sig, int(nr), int(nz))
+                hit = cls._build_cache.get(key)
+                if hit is not None:
+                    return hit
         lr = np.asarray(table.limiter_r, dtype=np.float64)
         lz = np.asarray(table.limiter_z, dtype=np.float64)
         rg = np.linspace(max(float(lr.min()), 0.06), float(lr.max()), nr)
@@ -249,7 +273,7 @@ class EquilibriumGrid:
                 for f in table.pf_filaments
             ]
         )
-        return cls(
+        grid = cls(
             rg=rg,
             zg=zg,
             limiter_r=lr,
@@ -258,6 +282,9 @@ class EquilibriumGrid:
             r0=fwd.r0,
             conductor_rects=rects,
         )
+        if key is not None:
+            cls._build_cache[key] = grid
+        return grid
 
     def _factorise(self):
         """LU-factorise the 5-point Δ* operator with Dirichlet edge rows."""
@@ -1754,6 +1781,98 @@ def build_passive_sidecar(
     }
 
 
+class _AndersonMixer:
+    """Safeguarded Anderson acceleration of a relaxed fixed-point iteration.
+
+    The relaxed-Picard update x ← x + β(g(x)−x) converges linearly and, at
+    β = 0.5 on the free-boundary map, slowly (tens–hundreds of sweeps).
+    Anderson mixing reuses the last ``depth`` residual/iterate differences to
+    take the (regularised) least-squares step
+
+        x⁺ = x + β f − (ΔX + β ΔF) γ,   γ = argmin_γ ‖f − ΔF γ‖²
+
+    (Walker–Ni type-II; ΔF, ΔX the consecutive differences of the residual
+    f = g(x)−x and the iterate x).  It reduces to plain relaxed Picard while
+    the history is shorter than two.
+
+    The free-boundary map is only piecewise-smooth — the topology read moves
+    the core mask and re-fits the profile discretely — but the position of the
+    equilibrium is held on the physical branch by the current-centroid pin (a
+    magnetics-derived soft prior), so the failure mode is NOT basin escape but
+    slow linear convergence: the axis creeps toward its Shafranov-shifted fixed
+    point over hundreds of sweeps while the raw residual oscillates ~1e-3.  That
+    oscillation is normal, so no residual-restart is used (an earlier
+    restart-on-growth safeguard misfired on it and sabotaged the acceleration).
+    Two cheap guards (no extra map evaluation) suffice:
+
+    * **step cap** — the accepted move ‖x⁺−x‖ is capped at ``kappa``× the
+      Picard step ‖βf‖, bounding any single Anderson step against the residual
+      spikes of the early fixed-shape transient;
+    * **ridge + finite check** — a Tikhonov term (relative to the mean diagonal
+      of ΔFᵀΔF) conditions the small normal-equation solve, and a non-finite
+      candidate falls back to the plain relaxed step.
+
+    Engagement is delayed until after the fixed-shape warmup transient (the
+    caller only calls :meth:`step` once the LSQ profile is live), so Anderson
+    accelerates the slow crawl rather than amplifying the chaotic early sweeps.
+    An Anderson run therefore reaches the SAME fixed point Picard approaches,
+    in far fewer sweeps.
+    """
+
+    def __init__(
+        self,
+        depth: int = 6,
+        ridge: float = 1e-6,
+        kappa: float = 2.0,
+    ) -> None:
+        self.depth = max(1, int(depth))
+        self.ridge = float(ridge)
+        self.kappa = float(kappa)
+        self._x: list[np.ndarray] = []
+        self._f: list[np.ndarray] = []
+
+    def step(self, x: np.ndarray, g: np.ndarray, beta: float) -> np.ndarray:
+        """Next iterate from the current iterate ``x`` and its map image ``g``."""
+        f = g - x
+        picard = x + beta * f
+        if not np.isfinite(f).all():
+            self._x = []
+            self._f = []
+            return picard
+        self._x.append(x)
+        self._f.append(f)
+        if len(self._x) > self.depth + 1:
+            del self._x[0]
+            del self._f[0]
+        if len(self._x) < 2:
+            return picard
+        d_f = np.column_stack(
+            [self._f[i + 1] - self._f[i] for i in range(len(self._f) - 1)]
+        )
+        d_x = np.column_stack(
+            [self._x[i + 1] - self._x[i] for i in range(len(self._x) - 1)]
+        )
+        ftf = d_f.T @ d_f
+        m = ftf.shape[0]
+        reg = self.ridge * (np.trace(ftf) / max(m, 1) or 1.0) * np.eye(m)
+        try:
+            gamma = np.linalg.solve(ftf + reg, d_f.T @ f)
+        except np.linalg.LinAlgError:
+            return picard
+        cand = picard - (d_x + beta * d_f) @ gamma
+        if not np.isfinite(cand).all():
+            return picard
+        # step cap: never move more than kappa× the plain Picard step (bounds a
+        # single wild step during the early transient; the branch itself is held
+        # by the current-centroid pin, so no basin-escape guard is needed).
+        step = cand - x
+        step_norm = float(np.linalg.norm(step))
+        picard_norm = float(np.linalg.norm(beta * f))
+        if picard_norm > 0.0 and step_norm > self.kappa * picard_norm:
+            cand = x + step * (self.kappa * picard_norm / step_norm)
+        return cand
+
+
 def solve_equilibrium_lsq(
     grid: EquilibriumGrid,
     table: GeometryTable,
@@ -1781,6 +1900,10 @@ def solve_equilibrium_lsq(
     initial_jphi: np.ndarray | None = None,
     soft_priors: SoftPriors | None = None,
     substrate: str = SUBSTRATE_GRID,
+    accelerator: str = "picard",
+    anderson_depth: int = 6,
+    anderson_ridge: float = 1e-8,
+    iteration_trace: list[dict] | None = None,
 ) -> LadderFit:
     """Free-boundary Picard solve with the profile coefficients re-fit by
     whitened linear least squares against the raw magnetics every sweep.
@@ -1822,6 +1945,18 @@ def solve_equilibrium_lsq(
     """
     if substrate not in SUBSTRATES:
         raise ValueError(f"substrate must be one of {SUBSTRATES}, got {substrate!r}")
+    if accelerator not in ("picard", "anderson"):
+        raise ValueError(
+            f"accelerator must be 'picard' or 'anderson', got {accelerator!r}"
+        )
+    # ``picard`` (default) is byte-identical to the historical relaxed solve;
+    # ``anderson`` wraps the SAME relaxed-Picard update in a safeguarded
+    # Anderson mixer (fewer sweeps to the identical fixed point).
+    mixer = (
+        _AndersonMixer(depth=anderson_depth, ridge=anderson_ridge)
+        if accelerator == "anderson"
+        else None
+    )
     g_sens, _channels = grid.sensor_greens(table)
     meas = np.asarray(measured, dtype=np.float64)
     vac = np.asarray(vacuum_prediction, dtype=np.float64)
@@ -1892,10 +2027,20 @@ def solve_equilibrium_lsq(
         if psi_flat is None:
             psi_flat = psi_new
         else:
+            # residual is the RAW map update ‖g(ψ)−ψ‖ (pre-mixing), so the
+            # convergence criterion is identical whether the mixing is plain
+            # relaxed Picard or Anderson — the accelerator changes the path to
+            # the fixed point, never the fixed point or its residual measure.
             residual = float(
                 np.abs(psi_new - psi_flat).max() / max(np.abs(psi_new).max(), 1e-12)
             )
-            psi_flat = relax * psi_new + (1.0 - relax) * psi_flat
+            # engage Anderson only once the LSQ profile is live and past the
+            # fixed-shape warmup transient (before that the residual spikes are
+            # the transient, not the slow crawl Anderson is meant to break).
+            if mixer is not None and iteration > warmup_iterations + 2:
+                psi_flat = mixer.step(psi_flat, psi_new, relax)
+            else:
+                psi_flat = relax * psi_new + (1.0 - relax) * psi_flat
 
         psi2d = psi_flat.reshape(grid.nz, grid.nr)
         axis, axis_psi = _read_axis(psi2d, grid, sign)
@@ -2096,6 +2241,18 @@ def solve_equilibrium_lsq(
                     else profile_relax * jphi_lsq + (1.0 - profile_relax) * jphi
                 )
             # else: keep the previous sweep's jphi (fixed-shape degradation)
+
+        if iteration_trace is not None:
+            iteration_trace.append(
+                {
+                    "iteration": iteration,
+                    "axis": axis,
+                    "axis_psi": axis_psi,
+                    "boundary_psi": boundary_psi,
+                    "residual": residual if np.isfinite(residual) else None,
+                    "core_cells": int(core.sum()),
+                }
+            )
 
         if iteration > max(5, warmup_iterations + 2) and residual < tolerance:
             break

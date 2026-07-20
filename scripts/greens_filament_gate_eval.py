@@ -136,6 +136,7 @@ def _fit_slice(
     centroid,
     warm,
     sigma,
+    accelerator="picard",
 ):
     """One frozen-spine ladder solve under ``substrate`` (magnetics mask OFF)."""
     from scripts.closure_gate_eval import fit_and_read_slice
@@ -164,20 +165,47 @@ def _fit_slice(
         meta={},
         boundary_read=boundary_read,
         substrate=substrate,
+        accelerator=accelerator,
     )
 
 
-def _solve_arm(grid, substrate, warm_rich, p, centroid, disc_seed, table, basis,
-               *, n_p, n_f, nonneg, smoothness, boundary_read, sigma):
+def _solve_arm(
+    grid,
+    substrate,
+    warm_rich,
+    p,
+    centroid,
+    disc_seed,
+    table,
+    basis,
+    *,
+    n_p,
+    n_f,
+    nonneg,
+    smoothness,
+    boundary_read,
+    sigma,
+):
     """One arm's readout: K=2 position scaffold → rich non-negative ladder.
 
     ``warm_rich`` (a previous slice's rich jφ) warm-starts the rich solve;
     ``None`` cold-starts it from the K=2 scaffold seeded by the physical disc
     read.  Returns (fit, wall_seconds_for_the_rich_solve)."""
-    f_k2 = _fit_slice(grid, table, basis, p, substrate=substrate, n_p=1, n_f=1,
-                      nonneg=False, smoothness=smoothness,
-                      boundary_read=boundary_read, centroid=centroid,
-                      warm=disc_seed, sigma=sigma)
+    f_k2 = _fit_slice(
+        grid,
+        table,
+        basis,
+        p,
+        substrate=substrate,
+        n_p=1,
+        n_f=1,
+        nonneg=False,
+        smoothness=smoothness,
+        boundary_read=boundary_read,
+        centroid=centroid,
+        warm=disc_seed,
+        sigma=sigma,
+    )
     k2_ok = (
         f_k2.scored
         and f_k2.jphi_flat is not None
@@ -186,11 +214,21 @@ def _solve_arm(grid, substrate, warm_rich, p, centroid, disc_seed, table, basis,
     )
     seed_cold = f_k2.jphi_flat if k2_ok else disc_seed
     t0 = time.perf_counter()
-    f = _fit_slice(grid, table, basis, p, substrate=substrate, n_p=n_p, n_f=n_f,
-                   nonneg=nonneg, smoothness=smoothness, boundary_read=boundary_read,
-                   centroid=centroid,
-                   warm=(warm_rich if warm_rich is not None else seed_cold),
-                   sigma=sigma)
+    f = _fit_slice(
+        grid,
+        table,
+        basis,
+        p,
+        substrate=substrate,
+        n_p=n_p,
+        n_f=n_f,
+        nonneg=nonneg,
+        smoothness=smoothness,
+        boundary_read=boundary_read,
+        centroid=centroid,
+        warm=(warm_rich if warm_rich is not None else seed_cold),
+        sigma=sigma,
+    )
     return f, float(time.perf_counter() - t0)
 
 
@@ -229,8 +267,12 @@ def run_shot(
     order = np.argsort([p.time_s for p in payload["payloads"]])
 
     spine_kw = dict(
-        n_p=n_p, n_f=n_f, nonneg=nonneg, smoothness=smoothness,
-        boundary_read=boundary_read, sigma=sigma,
+        n_p=n_p,
+        n_f=n_f,
+        nonneg=nonneg,
+        smoothness=smoothness,
+        boundary_read=boundary_read,
+        sigma=sigma,
     )
     rows: list[dict] = []
     warm_gs = warm_free = None  # temporal warm-start chains (one per arm)
@@ -244,18 +286,50 @@ def run_shot(
 
         # cold (physical disc seed) — both arms independent, only substrate differs
         f_gs_c, dt_gs = _solve_arm(
-            grid_gs, SUBSTRATE_GRID, None, p, centroid, disc_seed, tbl, basis,
-            **spine_kw)
+            grid_gs,
+            SUBSTRATE_GRID,
+            None,
+            p,
+            centroid,
+            disc_seed,
+            tbl,
+            basis,
+            **spine_kw,
+        )
         f_fr_c, dt_fr = _solve_arm(
-            grid_free, SUBSTRATE_GREENS, None, p, centroid, disc_seed, tbl, basis,
-            **spine_kw)
+            grid_free,
+            SUBSTRATE_GREENS,
+            None,
+            p,
+            centroid,
+            disc_seed,
+            tbl,
+            basis,
+            **spine_kw,
+        )
         # warm (temporal chain of the rich readout jφ)
         f_gs_w, _ = _solve_arm(
-            grid_gs, SUBSTRATE_GRID, warm_gs, p, centroid, disc_seed, tbl, basis,
-            **spine_kw)
+            grid_gs,
+            SUBSTRATE_GRID,
+            warm_gs,
+            p,
+            centroid,
+            disc_seed,
+            tbl,
+            basis,
+            **spine_kw,
+        )
         f_fr_w, _ = _solve_arm(
-            grid_free, SUBSTRATE_GREENS, warm_free, p, centroid, disc_seed, tbl,
-            basis, **spine_kw)
+            grid_free,
+            SUBSTRATE_GREENS,
+            warm_free,
+            p,
+            centroid,
+            disc_seed,
+            tbl,
+            basis,
+            **spine_kw,
+        )
         if f_gs_w.scored and f_gs_w.jphi_flat is not None:
             warm_gs = f_gs_w.jphi_flat
         if f_fr_w.scored and f_fr_w.jphi_flat is not None:
@@ -449,8 +523,13 @@ def _psi_overlay_figure(shot, nr, nz, max_slices, min_ip_ka, sigma) -> str | Non
     lv = np.linspace(np.min(f_gs.psi), np.max(f_gs.psi), 25)
     a1.contour(r_grid, z_grid, f_gs.psi, levels=lv, colors="#268", linewidths=0.7)
     a1.contour(
-        r_grid, z_grid, f_fr.psi, levels=lv, colors="#c73",
-        linewidths=0.7, linestyles="--"
+        r_grid,
+        z_grid,
+        f_fr.psi,
+        levels=lv,
+        colors="#c73",
+        linewidths=0.7,
+        linestyles="--",
     )
     a1.plot(grid.limiter_r, grid.limiter_z, "k-", lw=1.0)
     a1.plot(

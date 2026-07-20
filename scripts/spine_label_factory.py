@@ -68,7 +68,14 @@ def frozen_spine_config() -> tuple[dict, str]:
 
 
 def factory_shot_payloads(
-    shot: int, *, nr: int, nz: int, max_slices: int, min_ip_ka: float, table=None
+    shot: int,
+    *,
+    nr: int,
+    nz: int,
+    max_slices: int,
+    min_ip_ka: float,
+    table=None,
+    cache_grid: bool = False,
 ) -> dict | None:
     """Referee-free per-shot payload assembly (mirror of the gate harness's
     ``shot_payloads`` with the EFIT referee load removed — labels must not
@@ -84,7 +91,11 @@ def factory_shot_payloads(
     if table is None:
         table = build_table_for_shot(int(shot))
     fwd = build_operator(table)
-    grid = EquilibriumGrid.from_table(table, nr=nr, nz=nz)
+    # campaign-scope grid cache: the corpus factory processes a contiguous
+    # range of shots per process, so same-campaign shots reuse the built grid,
+    # Δ* factorisation, and Green's / interaction matrices instead of rebuilding
+    # them per shot (greens-filament-solver §4).
+    grid = EquilibriumGrid.from_table(table, nr=nr, nz=nz, cache=cache_grid)
     basis = PatchBasis.from_table(table, nr=nr, nz=nz)
     _g_sens, channels = grid.sensor_greens(table)
 
@@ -148,6 +159,7 @@ def run_shot(shot: int, args, spine: dict, config_sha: str) -> dict | None:
         nz=args.nz,
         max_slices=args.max_slices_per_shot,
         min_ip_ka=args.min_ip_ka,
+        cache_grid=True,
     )
     if payload is None:
         logger.warning("shot %d: no usable payloads", shot)
