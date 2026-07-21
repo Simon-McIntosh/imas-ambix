@@ -684,16 +684,35 @@ def _class_phase_table(rows: list[dict]) -> dict:
 
 
 def _completion(rows: list[dict], drops: list[dict]) -> dict:
-    """Scored / attempted valid slices; engine failures individually named."""
-    n_scored = len(rows)
-    failures = []
-    n_failed = 0
+    """Scored / attempted valid slices; engine failures individually named.
+
+    Deduped to the physical census slice ``(shot, k)``.  A shot selected for
+    several class draws is re-solved once per draw, so both the scored rows
+    (already deduped) and the failure drops must collapse to the unique slice —
+    otherwise a slice solved in three draws counts its failure three times
+    against a once-counted success.  A ``(shot, k)`` that scored in ANY draw is
+    a success even if another draw's nearest-rec mapping dropped it.
+    """
+    scored = {(int(r["shot"]), int(r["k"])) for r in rows}
+    scored_shots = {s for s, _ in scored}
+    per_slice_fail: dict[tuple[int, int], dict] = {}
+    shot_fail: dict[int, dict] = {}
     for d in drops:
-        if d["reason"] in ENGINE_FAILURE_REASONS:
-            n = int(d.get("n_slices", 1))
-            n_failed += n
-            failures.append(d)
+        if d["reason"] not in ENGINE_FAILURE_REASONS:
+            continue
+        if "k" in d:
+            key = (int(d["shot"]), int(d["k"]))
+            if key not in scored:
+                per_slice_fail.setdefault(key, d)
+        else:  # whole-shot chain failure (no per-slice k)
+            shot_fail.setdefault(int(d["shot"]), d)
+    # a chain-level failure only counts for a shot with NO scored slice at all
+    shot_fail = {s: d for s, d in shot_fail.items() if s not in scored_shots}
+    n_scored = len(scored)
+    n_failed = len(per_slice_fail) + sum(
+        int(d.get("n_slices", 1)) for d in shot_fail.values())
     attempted = n_scored + n_failed
+    failures = list(per_slice_fail.values()) + list(shot_fail.values())
     return {
         "n_scored": n_scored,
         "n_engine_failed": n_failed,
@@ -707,9 +726,25 @@ def _completion(rows: list[dict], drops: list[dict]) -> dict:
 
 
 def _drop_counts(drops: list[dict]) -> dict:
-    out: dict[str, int] = {}
+    """Harness (non-engine) drop counts, deduped to the physical slice / shot.
+
+    Same cross-draw multiplicity as the failures: a thinned slice counted once
+    per draw would inflate the harness tally, so per-slice reasons dedup on
+    ``(shot, k)`` and per-shot aggregates (thinning budget) keep one entry per
+    shot."""
+    per_slice: dict[tuple[int, int, str], int] = {}
+    per_shot: dict[tuple[int, str], int] = {}
     for d in drops:
-        out[d["reason"]] = out.get(d["reason"], 0) + int(d.get("n_slices", 1))
+        r = d["reason"]
+        if "k" in d:
+            per_slice[(int(d["shot"]), int(d["k"]), r)] = 1
+        else:
+            per_shot[(int(d["shot"]), r)] = int(d.get("n_slices", 1))
+    out: dict[str, int] = {}
+    for (_s, _k, r) in per_slice:
+        out[r] = out.get(r, 0) + 1
+    for (_s, r), n in per_shot.items():
+        out[r] = out.get(r, 0) + n
     return dict(sorted(out.items(), key=lambda kv: -kv[1]))
 
 
