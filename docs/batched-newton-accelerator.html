@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="batched-newton-accelerator">
+  <meta name="plan-title"     content="Batched Newton Accelerator — GEMM-native convergence on the temperature-smoothed pinned map">
+  <meta name="plan-summary"   content="Recover a GPU-batch (GEMM) compatible convergence accelerator for the free-boundary solve on the now fully differentiable topology read. The prior accelerator study ran before the temperature-smoothed read existed: the device rollout's map still binds at the exact min with a boolean flood mask, and on that map safeguarded Anderson ties relaxed Picard (~49% of warm slices converge at a 20-sweep budget) — convergence rate is the corpus engine's wall. A measured probe on the rollout's own staged shot (48 cold-seed slices) shows what the smooth read + exact autograd tangents buy: Jacobian-free Newton-Krylov with jax.linearize tangents and fixed-shape GMRES converts 62% of slices at a 40-evaluation budget with median final residual 3.4e-5 (30x under tolerance) vs 10% for the production relaxed Picard and 19% for smooth-map Picard; Anderson ties Picard on both maps on this class; every NK operation is a Green's-GEMM column or a tiny fixed-shape dense solve, so the scheme vmaps over slices unchanged. Plan: re-point the solve and rollout maps at the smooth read (tau operating point measured), adopt and budget-tune the batched NK, lift the rich profile coefficients into a coupled KKT Newton state so under-constrained higher-order fits stop thrashing (smooth softplus nonneg, ridge+prior rows inside the Jacobian), demonstrate the batched B>=512 form on the H200, and integrate into the corpus engine. Firewall unchanged: GS force balance, physics + measured channels only, no EFIT.">
+  <meta name="plan-status"    content="draft">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="L">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="connectivity-topology-reader,differentiable-solve-accelerator">
+  <meta name="plan-blocks"    content="gpu-accelerated-labeler">
+  <title>Batched Newton Accelerator | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+  <h2 id="s1">§1 — Overview: the accelerator question, re-opened on the map it was waiting for</h2>
+  <p><strong>Why revisit.</strong> The shipped accelerator study
+  (<code>differentiable-solve-accelerator</code>) ran on the FIRST smooth read —
+  a host-side sigmoid weight over the hard connectivity binding — and the
+  single-shot device rollout (<code>gpu-accelerated-labeler</code> §3) still
+  builds its map from the HARD kernel: exact-min binding, boolean flood core
+  mask. Two things have landed since that change the question: (i) the
+  <strong>temperature-smoothed read</strong>
+  (<code>boundary_read_smooth_jax</code>: softmin binding + retracted-gate
+  sigmoid core weight, τ-controlled, 13/13 gates) makes the whole map
+  end-to-end differentiable — exact autograd tangents flow from every read
+  scalar through ψ to the currents; and (ii) the rollout showed the
+  <strong>pin belongs inside the map</strong> (the per-sweep closed-form K=2
+  scaffold LSQ holds the basin on all 48 slices) but that on the pinned hard
+  map <strong>Anderson merely ties Picard</strong> (~49% of warm slices
+  converge at a 20-sweep budget) — convergence RATE, not basin control, is now
+  the corpus engine's wall.</p>
+
+  <p><strong>The probe (measured 2026-07-21, committed).</strong>
+  <code>scripts/tau_map_accelerator_probe.py</code> re-uses the rollout's own
+  staged shot (21978: 48 disc-readable slices, real campaign Green's matrix)
+  and races four iterations under the hard and smooth (τ=10⁻³) reads at a
+  shared 40-map-evaluation budget, cold from the disc seed — the hardest
+  seeding class:</p>
+
+  <table>
+    <tr><th>Arm (map evaluations = reads + Green's GEMMs)</th>
+        <th>hard read</th><th>smooth read (τ=10⁻³)</th></tr>
+    <tr><td>relaxed Picard (production)</td>
+        <td>10% conv, resid 1.0e-3</td><td>19% conv, resid 6.3e-4</td></tr>
+    <tr><td>safeguarded Anderson (rollout's mixer)</td>
+        <td>10% conv, resid 1.0e-3 (exact tie)</td>
+        <td>19% conv, resid 6.9e-4 (tie)</td></tr>
+    <tr><td><strong>Newton–Krylov, exact jvp tangents + fixed-shape GMRES</strong></td>
+        <td>44% conv, resid 8.0e-4</td>
+        <td><strong>62% conv, resid 3.4e-5</strong> — and lower wall than Picard</td></tr>
+    <tr><td>reduced 2-coefficient Newton (support-lagged)</td>
+        <td>2%</td><td>6% — superseded by the §4 coupled state</td></tr>
+  </table>
+
+  <figure>
+    <img src="/imas-ambix/figures/batched-newton-accelerator/fig-probe-accelerators.png"
+         alt="Three panels: converged-fraction bars per arm under hard vs smooth reads with NK at 44 and 62 percent versus 10 percent for Picard; median final residual bars on a log scale showing smooth NK at 3.4e-5, thirty times under tolerance; and Picard converged fraction rising with smoothing temperature."
+         style="max-width:100%">
+    <figcaption>The probe: exact-tangent Newton–Krylov converts 6× more slices
+    than the production Picard and lands 30× under tolerance at the same
+    evaluation budget; Anderson ties Picard on both maps on this class; larger
+    τ contracts better (right panel) — the temperature-continuation lever.</figcaption>
+  </figure>
+
+  <p><strong>Why this is GEMM-batch compatible by construction.</strong> The
+  exact tangent of the map is dominated by the SAME Green's GEMM that carries a
+  Picard sweep: each GMRES matvec is one <code>G·(∂i)</code> column plus
+  elementwise read tangents (the flood gate is a boolean selection —
+  stop-grad, zero tangent cost; softmin/sigmoid tangents are elementwise).
+  The probe's NK uses <code>jax.linearize</code> + fixed-iteration GMRES
+  (restart = maxiter, batched solve method, no early exit): no data-dependent
+  shapes, no host branching — <code>jax.vmap</code> over slices turns tangent
+  passes and Picard sweeps into indistinguishable columns of one batched GEMM,
+  and the small per-slice dense work (the m≈6 Hessenberg solve, the 2×2 or
+  K×K Newton blocks) batches as tiny einsums exactly like the Anderson mixer
+  already does. Per-slice heterogeneity is handled the way the labeller
+  already does: fixed budgets + per-column convergence masking. The tangent
+  GEMM can ride the tf32/bf16 tensor-core lanes measured in the
+  <code>gpu-accelerated-labeler</code> §2 spike.</p>
+
+  <p><strong>Two supporting probe facts.</strong> (i) Derivative health: the
+  analytic jvp of the full pinned map agrees with central finite differences to
+  ~10⁻⁹ at a settled iterate on BOTH reads — the hard map's non-smoothness
+  lives on the mask-flip <em>sets</em> the iteration crosses, which is why even
+  hard-map NK reaches 44% (clean tangents between flips) and why the smooth
+  map, which removes the flip sets, compounds to 62%. (ii) The τ sweep:
+  plain-Picard convergence RISES with temperature (17% at τ≤10⁻³ → 25% at
+  τ≥3·10⁻³ on the subsample) — a smoother map contracts better, motivating
+  τ-continuation (anneal from a hot, strongly-contracting map to the accurate
+  τ=10⁻³ operating point the read's gates calibrated).</p>
+
+  <p><strong>Firewall unchanged</strong>: GS force balance, physics + measured
+  channels only, no EFIT; the current-centroid pin stays a measured-moment soft
+  prior inside the map.</p>
+
+  <h2 id="s2">§2 — Re-point the maps at the temperature-smoothed read; calibrate τ</h2>
+  <p>Swap the smooth kernel into the two production consumers, opt-in and
+  byte-safe: (a) <code>gs_solve.solve_equilibrium_lsq</code>'s
+  <code>topology_read='connectivity'</code> path — replace its interim
+  host-side sigmoid-over-hard-binding with
+  <code>boundary_read_smooth_jax</code> (softmin binding, retracted-gate core
+  weight, stencil axis), keeping the hard default byte-identical; and (b) the
+  device rollout's <code>_build_slice_step</code> — a <code>read=</code>
+  switch mirroring the probe's step builder. Re-run the smooth-map
+  reproduction/monotonicity gate and the spine-bench topology-read arm so the
+  smooth-read reproduction metrics track the NEW kernel.
+  <strong>Calibrate the τ operating point</strong>: the read's own gates fixed
+  accuracy (core count 0.99% at τ=10⁻³; ψ_bnd/radii exact); this rung fixes
+  the SOLVE side — convergence rate vs τ on the full 48-slice set (the probe's
+  subsample suggests hotter is faster), and whether a 2–3 stage τ-continuation
+  (e.g. 10⁻² → 3·10⁻³ → 10⁻³) beats any single temperature at equal total
+  evaluations. Gate: the smooth-kernel solve reproduces the probe's smooth-map
+  convergence (≥19% Picard cold-seed baseline) and the monotone-residual
+  signature, with the τ schedule's accuracy-at-emit equal to the τ=10⁻³ read
+  (labels never emitted from a hot read).</p>
+
+  <h2 id="s3">§3 — Adopt + budget-tune the batched Newton–Krylov (single-slice form)</h2>
+  <p>Promote the probe's NK runner to the production single-slice solver form
+  and tune its budget shape for the two seeding classes: the WARM chain (the
+  march's steady state — the rollout's 49%-at-20-sweeps pain) and the COLD
+  disc seed (the probe's class). Levers, all measured against the shared
+  evaluation accounting: warmup length (8 cold — likely 2–4 warm), GMRES depth
+  m (6 in the probe; smaller m = more Newton steps per budget), Newton damping
+  / step cap, forcing sequence (loose GMRES early, tight late — Eisenstat–Walker
+  style but with FIXED per-stage budgets so shapes stay static), and
+  τ-continuation folded into the Newton path. Compare against smooth-map
+  Anderson (retest on the warm class: its history should finally be clean —
+  the probe's cold class barely engages it) and plain Picard. Gates:
+  (a) warm-chain converged fraction at the 20-evaluation budget ≥ 80%
+  (vs 49% today) on the staged shot's warm march, byte-comparable equilibria
+  (axis ≤ 0.1 cm to the converged Picard fixed point on co-converged slices);
+  (b) cold-seed converged fraction ≥ 60% at 40 evaluations (probe: 62% —
+  must not regress under tuning); (c) an honest census of the never-converging
+  remainder (the under-determined class) with the under-determination
+  diagnostic recorded, not hidden.</p>
+
+  <h2 id="s4">§4 — Lift the rich profile into a coupled KKT Newton state (stop the higher-order thrash)</h2>
+  <p>The probe and the rollout run the K=2 scaffold, whose closed-form fit is
+  smooth and well-posed — the coefficients are safely implicit in the map. The
+  PRODUCTION rich profile (K=6 non-negative ladder) is neither: the per-sweep
+  LSQ re-solve thrashes the under-constrained higher-order coefficients along
+  the null space (the solve already carries a <code>profile_relax</code>
+  under-relaxation for exactly this), and the non-negative fit's active set
+  flips discretely — a re-introduced non-smoothness that would corrupt the
+  Newton tangents this plan just cleaned. This rung solves the COUPLED root
+  problem in one Newton state x = (ψ, θ):
+  F_ψ = ψ − G·i(c(θ), read(ψ)) − ψ_coil, and F_θ = the gradient/KKT residual of
+  the regularised profile objective at c(θ) — data rows + smoothness ridge +
+  hard Ip anchor + centroid tether + (when the temporal engine supplies one)
+  the diffusion-evolved coefficient prior row — with non-negativity made
+  smooth by reparameterisation (c = softplus(θ)), never an active set. Newton
+  then moves the coefficients INCREMENTALLY along the regularised manifold:
+  the ridge/prior rows sit inside ∂F_θ/∂θ, so under-constrained directions are
+  damped by construction and the <code>profile_relax</code> hack retires. The
+  coupling blocks stay GEMM-native: ∂F_ψ/∂θ is K extra Green's family-image
+  columns; ∂F_θ/∂ψ flows through the smooth read's elementwise tangents. The
+  same coupled residual, extended with time rows, is the natural 4D-Var /
+  smoother substrate the labeller's differentiable-rollout ambition needs.
+  Gates: (a) on the interior-null (previously thrashing) slices the coupled
+  state's coefficient trajectory is stable (no sweep-to-sweep sign thrash;
+  coefficient step norms decay) where the alternating ladder oscillates;
+  (b) the coupled solve reproduces the alternating ladder's converged
+  equilibria on the well-posed population (axis/LCFS/profile within the
+  established smooth-read tolerances); (c) label honesty — under-determined
+  slices remain flagged, never fabricated.</p>
+
+  <h2 id="s5">§5 — Batched demonstration on the H200 (the GEMM form, proven at B≥512)</h2>
+  <p>vmap the §3 NK solver over B≥512 slices (unique staged slices tiled, as
+  the foundation spike did) and demonstrate on one H200: (a) the whole batched
+  NK graph compiles and runs fixed-shape on device (no host round-trip, no
+  per-column branching), GPU/CPU fp64 parity at the spike's ~10⁻¹⁴ level;
+  (b) throughput: batched-NK slices/s at B=512 vs batched Picard AT EQUAL
+  CONVERGED FRACTION — the honest comparison is evaluations-to-converged ×
+  batch cost, and the tangent GEMM must ride the same tensor-core lanes
+  (fp64 + tf32 variants, axis-delta re-checked against the §2 spike's
+  0.004 cm tf32 figure); (c) per-column convergence masking so converged
+  columns stop paying (masked updates, not early exit). Gate: batched NK at
+  B=512 delivers ≥ 2× the converged-slices/s of batched Picard at matched
+  convergence depth on device, equilibria byte-comparable per column to the
+  single-slice §3 solver.</p>
+
+  <h2 id="s6">§6 — Integrate into the corpus engine and the windowed PinT solver</h2>
+  <p>Wire the adopted accelerator into the corpus-labeller path
+  (<code>gpu-accelerated-labeler</code> §4's batch-over-shots wrap: the NK
+  inner solve replaces the fixed-sweep Picard inside the march scan) and into
+  the windowed parallel-in-time solver (fewer, deeper outer iterations per
+  window — the PinT pareto was chain-capped at 2.44×, and a faster inner
+  contraction moves that pareto directly). Re-stamp the spine benchmark
+  (new accelerator dimension on the existing topology-read arm) and record the
+  corpus-scale projection honestly: converged fraction, evaluations budget,
+  and slices/GPU-hour, against the §3/§5 gates. This section is the hand-off:
+  its outcome updates <code>gpu-accelerated-labeler</code>'s inner-solve
+  assumptions in place.</p>
+
+  <section data-reckon="decisions" id="decisions" class="r-decisions">
+    <h2><span class="sec">§</span> Decisions</h2>
+    <div class="r-dec" data-key="accelerator-primary" data-choice="" data-by="" data-when="">
+      <p class="r-dec-q">Which convergence accelerator is adopted as the batched inner solver?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt" data-value="nk-jvp">Exact-tangent Newton–Krylov (jax.linearize + fixed-shape GMRES) — the probe's 62%-vs-10% winner; presumptive</button>
+        <button class="r-opt" data-value="anderson">Safeguarded Anderson — retained comparator; ties Picard on the cold class, warm-class retest pending</button>
+        <button class="r-opt" data-value="picard">Relaxed Picard — the fallback the map must always degrade to</button>
+      </p>
+      <p class="r-dec-rat">Presumptive nk-jvp on the probe evidence (48 cold-seed slices: 62% converged at 40 evals, residual 3.4e-5, lower wall than Picard; GEMM-native by construction). Locked by §3 on the warm-chain gate + §5 on the batched-throughput gate.</p>
+    </div>
+    <div class="r-dec" data-key="tau-operating-point" data-choice="" data-by="" data-when="">
+      <p class="r-dec-q">Single temperature or τ-continuation, and at what emit accuracy?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt" data-value="tau-1e-3-single">Single τ=10⁻³ (the read's calibrated accuracy point)</button>
+        <button class="r-opt" data-value="tau-continuation">τ-continuation: anneal hot→10⁻³ inside the solve; emit always at 10⁻³</button>
+      </p>
+      <p class="r-dec-rat">OPEN — §2 measures it. The probe's sweep shows hotter maps contract better (17%→25% Picard converged); the read's gates fix accuracy at τ=10⁻³ (core 0.99%). Labels are never emitted from a hot read regardless.</p>
+    </div>
+    <div class="r-dec" data-key="profile-state" data-choice="" data-by="" data-when="">
+      <p class="r-dec-q">How do the rich-profile coefficients enter the Newton iteration?</p>
+      <p class="r-dec-opts">
+        <button class="r-opt" data-value="coupled-kkt-state">Coupled KKT state (ψ, θ): fit optimality residual inside the Newton system, softplus nonneg, ridge+prior rows in the Jacobian — presumptive for K≥3 (lead steer 2026-07-21)</button>
+        <button class="r-opt" data-value="implicit-fit">Implicit fit-in-map (re-solve the LSQ per evaluation) — retained for the closed-form K=2 scaffold</button>
+      </p>
+      <p class="r-dec-rat">Presumptive coupled-kkt-state for the rich profile (lead steer 2026-07-21): the alternating per-sweep LSQ thrashes under-constrained higher-order coefficients (the profile_relax hack exists for this) and the nonneg active set is a discrete flip — both cured by expressing the fit as a smooth KKT residual inside the Newton state. The K=2 scaffold's closed-form fit stays implicit (smooth, well-posed, probe-proven). Locked by §4 on the interior-null stability gate.</p>
+    </div>
+  </section>
+
+  <section data-reckon="followups" id="followups" class="r-followups">
+    <h2><span class="sec">§</span> Followups</h2>
+    <article class="r-fu" data-id="f-bna-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-21T11:30:00+00:00" data-recommends-skill="/reckon-ship batched-newton-accelerator §2" data-resolved-at="" data-resolved-by="">
+      <h4 class="r-fu-title">Ship §2 — re-point the solve + rollout maps at the temperature-smoothed read; calibrate τ</h4>
+      <div class="r-fu-body"><p>The probe evidence is in (62% NK vs 10% Picard on the cold class); the first shippable rung swaps <code>boundary_read_smooth_jax</code> into <code>gs_solve</code>'s connectivity path and the device rollout's slice step (opt-in, hard default byte-unchanged), re-gates reproduction/monotonicity on the new kernel, and measures the τ operating point (single temperature vs continuation) on the full staged shot.</p></div>
+      <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    batched-newton-accelerator (http://localhost:8765/imas-ambix/batched-newton-accelerator.html)
+Section: §2 (re-point the maps at the smooth read; calibrate τ)
+Tier:    opus
+
+Context
+  The accelerator probe (scripts/tau_map_accelerator_probe.py, artifact
+  tau_map_accelerator_probe-v0.json) measured the smooth read + exact-tangent NK at
+  62% converged vs 10% production Picard on 48 cold-seed slices. gs_solve's
+  topology_read='connectivity' path still uses the interim host sigmoid over the hard
+  binding, and the device rollout's map still uses the hard kernel — both predate
+  boundary_read_smooth_jax.
+
+State to read (CODE / FILES / DATA)
+  imas_ambix/latent/connectivity_boundary.py   (boundary_read_smooth_jax + host adapter boundary_read_smooth)
+  imas_ambix/latent/gs_solve.py                (_read_topology_smooth — the interim path to replace)
+  scripts/device_rollout_single_shot.py        (_build_slice_step — add the read switch)
+  scripts/tau_map_accelerator_probe.py         (the probe's build_step smooth variant — the wiring pattern)
+  scripts/differentiable_solve_gate_eval.py    (the reproduction/monotonicity gate to re-run)
+  imas_ambix/latent/artifacts/patch_gate/device_rollout_single_shot-inputs.npz (staged slices)
+
+Scope locks / constraints (non-decision)
+  - Opt-in everywhere; hard defaults byte-identical when off.
+  - Labels are never emitted from a hot (τ>1e-3) read; a continuation schedule must
+    end at the calibrated τ=1e-3 before any emit.
+  - Figures mandatory (docs/figures/batched-newton-accelerator/).
+  - Commit+push each coherent change on main; no AI co-author trailers.
+
+Done-when
+  1. Smooth kernel wired into both consumers (opt-in); reproduction + monotonicity
+     re-gated on the new kernel; τ study (single vs continuation at equal total
+     evaluations) recorded with figure.
+  2. Plan updated same-session: §2 outcome + collapse; §3 followup queued with the
+     warm-chain gate pre-declared; this followup resolved.</pre>
+    </article>
+  </section>
+
+</main>
+</body>
+</html>
