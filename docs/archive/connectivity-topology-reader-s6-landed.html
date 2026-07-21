@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="connectivity-topology-reader-s6-landed">
+  <meta name="plan-title" content="§6 landed — EFIT-scored MAST topology census: read production-validated at 99.98%, engine cross-validation honest FAIL">
+  <meta name="plan-status" content="reference">
+  <meta name="plan-summary" content="Per-stage landed record for connectivity-topology-reader §6: the real-topology production gate. Census: all 1.33M corpus slices classified from EFIT's own reconstruction (limited 283k / SN-lower 104k / SN-upper 15k / connected-DN 200k / marginal-DN 224k; snowflake candidates structurally unsupported in MAST EFIT data — the two X slots are always an up/down pair). The binding-flux band was tightened 0.05→0.005 after measurement showed EFIT binds its LCFS AT the X to ~1e-3 while wall-bound slices sit ≥1.009. T-F2 PASS on every class: the device hard read on EFIT psi reproduces EFIT's boundary/axis/X-set at grid-rendering noise (radii ≤0.04 cm, axis ≤0.09 cm, X-set ≤0.10 cm, class agreement 0.93–1.00; smooth read exact at min-tau). The census surfaced and fixed a real read defect: duplicate coarse-grid stencil hits on one saddle crowded the second null of a connected-DN out of the emergent X-set (244 cm → 0.08 cm after a spatially-deduped greedy trim). Corpus-scale success: 99.98% on a 20k-slice seeded sample (4 non-ok individually listed; 3 are honest found=False declines on near-vacuum fields, 1 tolerance-marginal). T-F3 FAIL: the disc-field engine solve vs EFIT posts radii medians 6.9–37 cm against the 5 cm bar with class agreement 0.56–0.71 — catastrophic in the eddy-dominated early phase (30+ cm, outboard push-to-wall signature, passive_k=0) and a persistent 7–10 cm floor beyond 0.25 s on the random cross-campaign draw vs the 1.5 cm curated-cohort skill. Full per-slice drop accounting; fix design recorded (time-coupled eddy treatment, boundary anchoring, learned operator).">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>§6 landed — EFIT-scored real-topology census | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Per-stage record</strong> for
+<a href="/imas-ambix/connectivity-topology-reader.html">connectivity-topology-reader</a>
+§6 — the production gate: score the connectivity read on <em>real</em> exotic
+topologies against validated EFIT reconstructions, corpus-wide. Bar set by the
+lead mid-campaign: the method must work on real data with a
+<strong>&gt;99% success rate on valid slices</strong>, failures reported
+individually and RCA'd, never averaged away.</p>
+
+<h2 id="status">Quick status</h2>
+<figure>
+  <table>
+    <thead><tr><th>Gate</th><th>Verdict</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>T-F1 — census + stratified support</td><td>PASS</td>
+        <td>all <strong>1,327,296</strong> corpus slices (11,573 shots) classified from
+        EFIT's own X-point/boundary data; five classes supported at the 60-slice
+        stratified draw; <strong>snowflake candidates structurally unsupported</strong>
+        in MAST EFIT data (the two X slots are always an up/down pair, median
+        separation 2.2 m — true snowflakes are MAST-U territory, q-ctr-01)</td></tr>
+      <tr><td>T-F2 — EFIT-ψ read reproduction</td><td>PASS (all classes)</td>
+        <td>device hard read on EFIT's stored ψ vs EFIT's reported reconstruction,
+        60 slices/class: LCFS radii median <strong>0.02–0.04 cm</strong> (tol 4),
+        axis <strong>0.08–0.09 cm</strong> (tol 5), X-set
+        <strong>0.08–0.10 cm</strong> (tol 8), class agreement
+        <strong>0.93–1.00</strong> (bar 0.90); smooth read exact vs hard at min-τ</td></tr>
+      <tr><td>Corpus read success (&gt;99% bar)</td><td><strong>PASS — 99.98%</strong></td>
+        <td>seeded uniform 20,000-slice sample of valid census slices:
+        <strong>19,996 ok</strong>; the 4 non-ok individually listed — 3 near-vacuum
+        early-ramp slices whose stored ψ has no closed flux well at EFIT's own axis
+        (span ~0.002 Wb, sign-inverted; the read declines with <code>found=False</code>
+        — the correct fail-loud output for a label factory) + 1 tolerance-marginal
+        ψ_bnd (0.0311 vs 0.03 span)</td></tr>
+      <tr><td>T-F3 — engine cross-validation</td><td><strong>FAIL</strong></td>
+        <td>disc-field engine solve (measured magnetics, firewall intact) vs EFIT:
+        radii medians <strong>6.9–37 cm</strong> against the pre-declared 5 cm bar on
+        every gated class; class agreement 0.56–0.71 (bar 0.80); only ~6–32% of
+        scored slices within 5 cm — <em>the read is exonerated (T-F2); the solve is
+        the failure</em>; RCA below</td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<h2 id="census">Census — what MAST actually ran</h2>
+<p>Every slice classified from EFIT's own data (ψ map bilinear-read at the two
+X-slots, normalised to the axis→LCFS span). The <strong>binding band is
+measured, not assumed</strong>: on truly diverted slices EFIT places its LCFS AT
+the binding X — u<sub>x</sub> = 1.000 ± 0.001 — while wall-bound slices sit at
+≥ 1.009; the first-pass ±0.05 band mislabelled wall-limited slices leaning
+within a few % of an X as SN (device class agreement 0.32 on those), so the
+band tightened to ±0.005. Marginal-DN = one binding null with the opposite
+null within 5% of span.</p>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/census_by_class_campaign.png"
+       alt="census histogram by class and campaign" style="max-width:100%">
+  <figcaption>1.33M slices: limited 282,895 / SN-lower 103,613 / SN-upper 15,004 /
+  connected-DN 200,404 / marginal-DN 223,950 (invalid 501,430 — no plasma, Ip &lt; 100 kA,
+  or degenerate LCFS). MAST ran connected/marginal DN as a routine configuration;
+  the late-campaign 29.5k–30.5k SN-lower surge is the MAST-U-preparation era.
+  Artifact: <code>topology_census_summary-v0.json</code> (+ 44 MB npz on disk).</figcaption>
+</figure>
+
+<h2 id="read">The read on real EFIT fields — production-validated</h2>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/topology_class_overlays.png"
+       alt="per-class overlays, device read vs EFIT" style="max-width:100%">
+  <figcaption>One representative slice per class: device connectivity read (marks)
+  vs EFIT reconstruction (black), both on the same stored 65×65 ψ. Device radii sit
+  on EFIT's LCFS everywhere; emergent X-set (+) coincides with EFIT's slots (×).</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/topology_residuals_by_class.png"
+       alt="per-class residual distributions, read vs engine" style="max-width:100%">
+  <figcaption>Top row — the READ on EFIT ψ: 0.02–0.1 cm across every class.
+  Bottom row — the ENGINE solve vs EFIT: 5–30+ cm. Two orders of magnitude apart;
+  the read is not the bottleneck.</figcaption>
+</figure>
+<p><strong>The census caught a real defect the synthetic gates missed</strong>
+(the point of §6): on coarse real grids the 4-sign-change stencil fires on two
+adjacent vertices of one physical saddle, and both duplicates outranked the
+genuinely distinct second null in the flux-ordered emergent-set trim — a
+balanced connected-DN lost its upper X (worst pair residual
+<strong>244 cm</strong>). Fixed with a spatially-deduped greedy trim (skip
+candidates within ~1.5 cells of a taken slot; fixed unroll, jit/vmap/grad-safe),
+TDD'd with a coarse-grid double-null fixture that reproduces the duplicate
+firing; 46/46 read tests green; post-fix residual <strong>0.08 cm</strong>.
+A second systematic fix en route: 14 shots (267xx–269xx) lack the zarr wall
+group — the MAST limiter polygon is byte-identical corpus-wide, so a canonical
+wall fallback recovers all 28 affected sample slices.</p>
+
+<h2 id="engine">Engine cross-validation — honest FAIL + RCA</h2>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/engine_worst_overlays.png"
+       alt="worst engine-vs-EFIT boundary overlays" style="max-width:100%">
+  <figcaption>Worst engine cases (all early-time, t = 0.09–0.16 s): the engine ring
+  (orange) is under-elongated, shifted outboard, and pushed to outboard wall contact
+  (it scallops along the wall recesses) while EFIT (black) is the elongated,
+  inboard-leaning boundary — the unanchored-boundary / outboard-drift signature.</figcaption>
+</figure>
+<figure>
+  <table>
+    <thead><tr><th>Phase</th><th>n</th><th>radii med</th><th>p90</th><th>≤ 5 cm</th></tr></thead>
+    <tbody>
+      <tr><td>t &lt; 0.10 s</td><td>18</td><td>32.3 cm</td><td>46.6</td><td>0%</td></tr>
+      <tr><td>0.10–0.15 s</td><td>63</td><td>31.0 cm</td><td>48.7</td><td>13%</td></tr>
+      <tr><td>0.15–0.20 s</td><td>46</td><td>12.6 cm</td><td>40.0</td><td>17%</td></tr>
+      <tr><td>0.20–0.25 s</td><td>38</td><td>7.3 cm</td><td>12.4</td><td>34%</td></tr>
+      <tr><td>≥ 0.25 s</td><td>45</td><td>9.8 cm</td><td>—</td><td>16%</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Two-component failure. (1) The eddy-dominated early phase is
+  catastrophic — 30+ cm with the outboard push-to-wall signature; the disc solve
+  runs with <code>passive_k=0</code> (its own docstring notes per-slice static eddy
+  fits are cohort-neutral and the principled treatment is time-coupled eddy
+  evolution — precisely the regime failing). (2) A persistent ~7–10 cm floor
+  beyond 0.25 s: the shipped 1.4–2.1 cm flat-top skill (5 curated held-out shots)
+  does not generalise to a random cross-campaign, class-stratified draw — the
+  engine's validated envelope is much narrower than the corpus it must label.</figcaption>
+</figure>
+<p><strong>Accounting (nothing dropped silently):</strong> 300 selected → 210
+scored + 90 dropped with reason codes: 63 <code>no-payload-at-time</code>
+(sensor-window time base does not cover the census slice — measurement
+coverage, not solve failure), 17 <code>solve-no-ring</code> +
+2 <code>unconfined-centroid</code> (genuine engine failures), 8
+<code>no-campaign-geometry</code> (data availability). Engine completion on
+attempted valid slices: 210/229 = <strong>91.7%</strong>; quality within 5 cm
+≈ 20% of scored — both far below the 99% bar.
+Artifacts: <code>topology_engine_crossval-v0.json</code> (+ per-class files with
+per-slice rows and drops).</p>
+
+<h2 id="fix-design">Fix design (successor work, in priority order)</h2>
+<ol>
+  <li><strong>Time-coupled vessel-eddy treatment in the solve.</strong> The
+  early-phase failure is eddy-shaped: the eddy state is an L/R convolution of
+  the current history, so the fix is coupled evolution across slices (the
+  dynamics machinery from the ψ-diffusion coupling rung), not per-slice static
+  amplitudes (measured cohort-neutral).</li>
+  <li><strong>Boundary anchoring for the cross-campaign floor.</strong> The
+  outboard push-to-wall symptom is the known unanchored-boundary failure; the
+  source-free boundary read as a soft prior exists in-tree and needs to be
+  engaged and validated per-class on this census's stratified selection.</li>
+  <li><strong>Per-class regression harness.</strong> This census + selection is
+  now the standing eval: any engine change is scored per topology class against
+  EFIT with the drop accounting; class-conditional regressions are
+  STOP-and-surface.</li>
+  <li><strong>Learned operator</strong> (gpu-accelerated-labeler §4 / successor):
+  the census gives it a stratified real-topology corpus; the read (validated at
+  99.98%, differentiable) is its label/rollout primitive.</li>
+</ol>
+
+<h2 id="mastu">Open data question (q-ctr-01, escalated to the lead)</h2>
+<p>The mirror is MAST-only (11766–30471). True Super-X / snowflake validation
+requires MAST-U shots (≥ 40000, FAIR-MAST/UKAEA) + their EFIT++
+reconstructions; the census confirms MAST EFIT data cannot support the
+snowflake class structurally (two X slots, always up/down). Channel and scope
+for a MAST-U slice sample remain a lead decision.</p>
+
+<h2 id="verdict">Bottom line</h2>
+<p><strong>The connectivity read is production-ready on real data</strong> —
+99.98% corpus success with individually-named failures, all residuals at grid
+noise, one real defect found and fixed by this campaign.
+<strong>The disc-field engine solve is not</strong> — it fails the real-data
+bar on every gated class, with a two-component RCA and a designed fix list.
+The engine failure is recorded as the honest T-F3 verdict, not diluted; the
+per-class harness built here is the regression gate for the fixes.</p>
+
+</main>
+</body>
+</html>

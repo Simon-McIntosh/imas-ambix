@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="connectivity-topology-reader">
   <meta name="plan-title" content="Connectivity Topology Reader — GPU-native, differentiable boundary/axis/mask (classify-after)">
   <meta name="plan-summary" content="The topology read (magnetic axis, X-point, LCFS/boundary, core mask) is the one data-dependent, GPU-hostile step in the batched equilibrium engine, and the place EFIT-class reconstructors sink into a contour-tree/critical-point-classification tar pit. This plan makes it a clean, on-device, differentiable prerequisite for gpu-accelerated-labeler by porting the ALGORITHM we already validated (the connectivity-boundary read, shipped in connectivity-boundary-classification / used as the frozen-spine pushout) to GPU-native primitives, and leaning on nova&#x27;s proven stencils only where they help. The boundary is defined by CONNECTIVITY, not stationary-point classification: the outermost closed axis-enclosing flux contour still inside the wall, found by a monotone valid→invalid level sweep — ONE code path, no limited/diverted branch, no X-point gate, continuous through the marginal limited↔diverted transition by construction (where a marginal plasma looks identical in flux space and classify-first is ill-conditioned). GPU-native rewrite: replace host contourpy + ndimage.label + argwhere-Newton with a fixed-iteration convolutional FLOOD-FILL from the axis + a fixed candidate-level sweep + batched containment/pinch reductions — branchless, fixed-shape, vmap-safe, differentiable. Port from nova ONLY the stencil sign-change null classifier (axis O-point + optional X-point diagnostics) and the local-quadratic sub-null refinement (sub-grid position/flux, proven jax.grad path) + the static-count idiom; do NOT port nova&#x27;s boundary mode-gate, its half-plane core mask, its single-loop wall contact, or contourpy (an independent review found nova&#x27;s boundary discontinuous through the marginal transition, plus a likely gate bug). X-points and the limited/diverted class are read off AFTER the boundary by proximity to the ring, never a prerequisite for psi_N. Machine-agnostic wall: the only machine input is a wall MASK, so multiple discrete limiters (AUG) and per-pulse movable limiters (WEST) are a union / per-pulse mask, not new code paths — where a classify-first pipeline becomes machine-specific. Differentiable (smooth mask) so the whole rollout supports implicit-diff (feeds gpu-accelerated-labeler&#x27;s 4D-Var / physics-in-the-loop stretch). Prerequisite to gpu-accelerated-labeler; also sharpens the CPU greens-filament-solver read.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="done">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
   <meta name="plan-tier" content="opus">
@@ -20,8 +20,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-21">
-<meta name="plan-impl" content="0.8">
-<meta name="plan-version" content="10">
+<meta name="plan-impl" content="1.0">
+<meta name="plan-version" content="11">
 </head>
 <body>
 <main class="plan-doc">
@@ -182,32 +182,23 @@
   <a href="archive/connectivity-topology-reader-s5-landed.html">§5 landed</a>
   (commits <code>0058e60</code>, <code>5d57f7e</code>).</p>
 
-  <h2 id="s6">§6 — Real-topology validation: EFIT-scored MAST census (production gate)</h2>
-  <p>§5's adversarial fixtures are synthetic (closed-form ground truth) and the real
-  leg reused 48 conventional held-out slices — production use needs the read scored on
-  <em>real</em> exotic topologies against a validated reference. The corpus holds
-  <strong>11,573 MAST shots (11766–30471)</strong> at level 2, and each shot's
-  <code>equilibrium</code> group carries the EFIT reconstruction: ψ(65×65,t), the LCFS
-  polygon (157,t), <strong>two X-point slots</strong> (2,t), axis, elongation and
-  upper/lower triangularity — everything needed both to <em>find</em> the exotic
-  slices and to <em>score</em> the read against them. MAST ran connected double-null
-  as a routine configuration, plus SN-up/SN-down and high-triangularity shaping;
-  late-campaign MAST-U-preparation experiments are expected in the 28k–30k range.
-  (True Super-X requires the MAST-U divertor — MAST-U shots number ≥40000 and are
-  <em>not</em> in this mirror; flagged as an open data-acquisition question.)</p>
-  <p>Campaign: (1) <strong>topology census</strong> — classify every corpus slice from
-  EFIT's own X-point/boundary data into limited / SN-lower / SN-upper / connected-DN /
-  marginal-DN, plus snowflake <em>candidates</em> (two X-points spatially close at
-  near-equal flux), and publish the census table; (2) <strong>EFIT-ψ scoring</strong> —
-  feed EFIT's ψ maps directly into the device hard + smooth reads and score boundary /
-  axis / X-set / class against EFIT's reported reconstruction, stratified by class
-  (this isolates the READ from our solver); (3) <strong>engine cross-validation</strong>
-  — run the disc-field engine on a stratified shot selection and score its read against
-  EFIT per class. Gate T-F: per-class agreement within the §2/§3 tolerances on every
-  class with ≥ a pre-declared support; any class-conditional failure (e.g. SN-up vs
-  SN-down asymmetry, marginal-DN branch flips) is a STOP-and-surface, not an average
-  to be diluted. The EFIT data serve as a validation REFEREE only — the engine's solve
-  firewall (no EFIT inputs) is unchanged.</p>
+  <h2 id="s6"><span class="badge badge-shipped">✓ landed 2026-07-21</span> §6 — Real-topology validation: EFIT-scored MAST census (production gate)</h2>
+  <p class="landed-summary">
+    Census: all <strong>1.33M corpus slices classified</strong> from EFIT's own data
+    (limited 283k / SN-lower 104k / SN-upper 15k / connected-DN 200k / marginal-DN 224k;
+    snowflake structurally unsupported — MAST EFIT's two X slots are always an up/down
+    pair). <strong>T-F1 + T-F2 PASS on every class</strong>: the read on EFIT ψ matches
+    EFIT at grid noise (radii ≤ 0.04 cm, axis ≤ 0.09 cm, X-set ≤ 0.10 cm); corpus-scale
+    success <strong>99.98% on a 20k-slice sample</strong> (4 non-ok individually named).
+    The census caught + fixed a real defect: coarse-grid duplicate stencil hits crowded
+    a connected-DN's second null out of the X-set (244 → 0.08 cm; spatially-deduped trim).
+    <strong>T-F3 FAIL (honest)</strong>: the disc-engine solve posts 6.9–37 cm vs the 5 cm
+    bar — eddy-dominated early phase catastrophic (passive_k=0), persistent 7–10 cm
+    cross-campaign floor; RCA + fix design (time-coupled eddies, boundary anchoring,
+    per-class regression harness) recorded. Full record:
+    <a href="archive/connectivity-topology-reader-s6-landed.html">§6 landed</a>
+    (commits <code>3c1339a</code>…<code>latest</code>).
+  </p>
 
   <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -688,7 +679,7 @@ Done-when
      done) OR a follow-on queued into gpu-accelerated-labeler; this followup resolved.</pre>
     <p class="r-fu-outcome">§5 landed — commits 0058e60, 5d57f7e. Smooth read (softmin binding + retracted-gate sigmoid core mask) converges to the hard reference (ψ_bnd/radii exact, core 0.99% @ τ=1e-3); currents-gradient finite+non-zero through the Green's GEMM + exact g_wall (T-E2 PASS, implicit-diff ready); adversarial DN/secondary-separatrix/snowflake/private-flux fixtures match the exact CPU read (ψ_bnd ≤3e-4 span, X-set ≤0.011 cm, pocket weight 0), no branch flip through 3 near-double ordering exchanges, held-out τ→0 separation 0.62% median / contamination 0 (13/48 DN). All 13 gates PASS; plan complete (impl 1.0, status done). Successor work is queued in gpu-accelerated-labeler (f-gal-02, §3 single-shot rollout).</p>
     </article>
-<article class="r-fu" data-id="f-ctr-08" data-status="open" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-21 10:40" data-recommends-skill="/reckon-ship connectivity-topology-reader §6" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ctr-08" data-status="resolved" data-tier="opus" data-written-by="reckon-edit" data-written-at="2026-07-21 10:40" data-recommends-skill="/reckon-ship connectivity-topology-reader §6" data-resolved-at="2026-07-21T11:05:42+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §6 — real-topology validation: EFIT-scored MAST census (SN-up/SN-down/DN/snowflake candidates)</h4>
     <div class="r-fu-body"><p>Lead review of §5: the adversarial fixtures are toys and the real leg reused 48 conventional slices — production needs the read scored on REAL exotic topologies against a validated reference. The corpus holds 11,573 MAST shots (11766–30471) whose level-2 <code>equilibrium</code> group carries the full EFIT reconstruction (ψ maps, LCFS polygon, two X-point slots, axis, triangularity) — enough to census the corpus for SN-up/SN-down/connected-DN/marginal-DN/snowflake-candidate slices and to score the device hard+smooth reads against EFIT directly. MAST-U/Super-X data are NOT in the mirror (shots ≥40000) — open question q-ctr-01.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -755,6 +746,46 @@ Done-when
      data-acquisition question resolved or escalated to the lead; this followup
      resolved; plan re-closed (status done) if all gates PASS.
   3. tests still green</pre>
+    <p class="r-fu-outcome">§6 landed — census 1.33M slices (5 classes; snowflake structurally unsupported in MAST EFIT data); T-F1+T-F2 PASS every class (read at grid noise: radii ≤0.04 cm, axis ≤0.09 cm, X-set ≤0.10 cm); corpus read success 99.98% on 20k-slice seeded sample (4 non-ok individually named; connected-DN dedupe defect found+fixed 244→0.08 cm; canonical-wall fallback for 14 wall-less shots). T-F3 HONEST FAIL: disc-engine solve 6.9–37 cm vs 5 cm bar, class acc 0.56–0.71 — eddy-dominated early phase catastrophic (passive_k=0), persistent 7–10 cm cross-campaign floor vs 1.5 cm curated-cohort skill; full drop accounting; RCA + fix design in docs/archive/connectivity-topology-reader-s6-landed.html.</p>
+    </article>
+<article class="r-fu" data-id="f-ctr-09" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-21T13:30:00+00:00" data-recommends-skill="/reckon-create engine-real-data-hardening" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Engine real-data hardening: time-coupled eddy treatment + boundary anchoring, gated by the per-class census harness</h4>
+    <div class="r-fu-body"><p>§6's engine cross-validation is an honest FAIL: the disc-field solve posts 6.9–37 cm vs EFIT (bar 5 cm) with a two-component RCA — (1) the eddy-dominated early phase (t &lt; 0.2 s) is catastrophic (30+ cm, outboard push-to-wall, <code>passive_k=0</code>); (2) a persistent 7–10 cm floor beyond 0.25 s shows the curated-cohort 1.5 cm skill does not generalise cross-campaign. The read is exonerated (99.98% corpus success). Fix design: time-coupled vessel-eddy evolution in the solve, engage the source-free boundary soft prior, and gate every change on the §6 per-class harness (class-conditional regressions are STOP-and-surface). This is engine physics, not reader work — plan it as its own effort.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    engine-real-data-hardening (new — /reckon-create)
+Tier:    opus
+
+Context
+  connectivity-topology-reader §6 built an EFIT-scored per-class validation harness over the full MAST corpus and produced an honest T-F3 FAIL for the disc-field engine solve: radii medians 6.9–37 cm vs the 5 cm bar, class agreement 0.56–0.71, on a 300-slice stratified cross-campaign draw. The connectivity READ is production-validated (99.98% on 20k slices) — the solve is the failure.
+
+State to read
+  docs/archive/connectivity-topology-reader-s6-landed.html  (RCA, per-phase table, fix design)
+  imas_ambix/latent/artifacts/patch_gate/topology_engine_crossval-v0.json  (per-slice rows + drop accounting)
+  imas_ambix/latent/artifacts/patch_gate/topology_census-v0.npz  (census; stratified_selection in scripts/topology_efit_read_eval.py)
+  scripts/topology_engine_crossval.py  (the standing per-class regression harness)
+  imas_ambix/latent/boundary_disc.py  (DiscReadConfig — passive_k=0 note on time-coupled eddies)
+  imas_ambix/latent/current_diffusion.py + mse-gated-reanalysis §3 archive  (ψ-diffusion coupling machinery)
+
+Failure structure (measured)
+  t&lt;0.2s catastrophic: 30+ cm, under-elongated outboard push-to-wall ring (vessel-eddy regime, no passive model)
+  t≥0.25s floor: 7–10 cm median cross-campaign (curated-cohort 1.5 cm skill does not generalise)
+  engine completion on attempted slices 91.7% (17 solve-no-ring + 2 unconfined-centroid / 229)
+
+Fix ladder (pre-declared in §6)
+  1. Time-coupled vessel-eddy evolution across slices (L/R convolution of current history) — NOT per-slice static amplitudes (measured cohort-neutral)
+  2. Source-free boundary read as engaged soft prior (anchoring the outboard drift)
+  3. Per-class census harness as the regression gate for every change; class-conditional regressions STOP-and-surface
+  Target: lead bar &gt;99% success on valid slices; quality bar per class to be pre-declared before tuning
+
+Done-when
+  1. New plan authored with the fix ladder as sections + the census harness as the standing gate
+  2. First rung (eddy treatment) scoped with measurable per-phase targets
+  3. followups wired (this one resolved on plan creation)</pre>
+    </article>
+<article class="r-fu" data-id="f-ctr-10" data-status="open" data-tier="sonnet" data-written-by="reckon-ship" data-written-at="2026-07-21T13:30:00+00:00" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">MAST-U / Super-X data acquisition (q-ctr-01) — lead decision on channel and scope</h4>
+    <div class="r-fu-body"><p>The census confirms MAST EFIT data cannot support the snowflake class structurally (two X slots, always an up/down pair, median separation 2.2 m). True Super-X / snowflake validation of the topology read requires MAST-U shots (≥40000, FAIR-MAST/UKAEA) plus their EFIT++ reconstructions. Channel, scope and priority are a lead decision; the read is otherwise production-validated on MAST.</p></div>
+    <pre class="r-fu-prompt">done — awaiting lead decision on MAST-U data channel (FAIR-MAST/UKAEA); when a slice sample lands, rerun scripts/topology_efit_read_eval.py over the MAST-U slices (snowflake + Super-X classes) with per-class verdicts.</pre>
     </article>
 </section>
 
