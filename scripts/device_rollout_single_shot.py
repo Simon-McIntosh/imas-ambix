@@ -1461,12 +1461,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="sweep budget per warm-started march slice",
     )
     ap.add_argument(
-        "--n-pint", type=int, default=16, help="sweep budget per PinT outer iteration"
+        "--n-pint", type=int, default=20, help="sweep budget per PinT outer iteration"
     )
     ap.add_argument(
         "--n-pre",
         type=int,
-        default=4,
+        default=6,
         help="sweep budget per slice of the coarse PinT pre-march",
     )
     ap.add_argument(
@@ -1484,7 +1484,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--outers",
         type=int,
-        default=4,
+        default=3,
         help="PinT outer (waveform-relaxation) iterations",
     )
     ap.add_argument(
