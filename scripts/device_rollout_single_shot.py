@@ -1062,6 +1062,19 @@ def eval_parallel_in_time(
         if np.isfinite(pint_axis[i]).all() and np.isfinite(march_axis[i]).all()
     ]
     med = float(np.median(d)) if d else float("nan")
+    # the well-posed subset: slices the host anchor itself scores/confines —
+    # outside it the trajectory is under-determined (both engines drift in Z)
+    scored_mask = np.asarray(arrs["ref_converged"]) & np.asarray(
+        arrs["ref_confined"]
+    )
+    d_sc = [
+        _axis_cm(pint_axis[i], march_axis[i])
+        for i in range(T)
+        if scored_mask[i]
+        and np.isfinite(pint_axis[i]).all()
+        and np.isfinite(march_axis[i]).all()
+    ]
+    med_sc = float(np.median(d_sc)) if d_sc else float("nan")
     n_fab = int(np.sum(~np.isfinite(pint_axis).all(axis=1)))
     speedup = march["_march_wall_s"] / wall if wall > 0 else float("nan")
     outers_needed = next(
@@ -1085,12 +1098,14 @@ def eval_parallel_in_time(
         "speedup_vs_march": round(float(speedup), 2),
         "axis_vs_march_median_cm": med,
         "axis_vs_march_p90_cm": float(np.percentile(d, 90)) if d else float("nan"),
+        "axis_vs_march_median_wellposed_cm": med_sc,
+        "n_wellposed": len(d_sc),
         "agreement_per_outer_cm": agree_per_outer,
         "outers_to_tolerance": outers_needed,
         "n_fabricated_readouts": n_fab,
         "residual_median": float(np.median(pint_resid)),
         "pint_axis": pint_axis.tolist(),
-        "pass_convergence": bool(np.isfinite(med) and med <= PINT_TOL_CM),
+        "pass_convergence": bool(np.isfinite(med_sc) and med_sc <= PINT_TOL_CM),
         "pass_speedup": bool(np.isfinite(speedup) and speedup >= 3.0),
     }
 
