@@ -131,6 +131,25 @@ def stratified_selection(rows: np.ndarray) -> dict[str, np.ndarray]:
     return sel
 
 
+_CANONICAL_WALL: tuple[np.ndarray, np.ndarray] | None = None
+_CANONICAL_WALL_SHOT = 22086  # any shot carrying the (corpus-constant) polygon
+
+
+def _canonical_wall() -> tuple[np.ndarray, np.ndarray]:
+    global _CANONICAL_WALL  # noqa: PLW0603 — one lazy load per process
+    if _CANONICAL_WALL is None:
+        import zarr  # noqa: PLC0415
+
+        w = zarr.open_group(
+            str(LEVEL2_SHOTS / f"{_CANONICAL_WALL_SHOT}.zarr"), mode="r"
+        )["wall"]
+        _CANONICAL_WALL = (
+            np.asarray(w["limiter_r"], dtype=np.float64),
+            np.asarray(w["limiter_z"], dtype=np.float64),
+        )
+    return _CANONICAL_WALL
+
+
 def load_slice(shot: int, k: int):
     """One EFIT slice: ψ(nz,nr), grid shim, axis, LCFS polygon, X slots."""
     import zarr  # noqa: PLC0415
@@ -140,8 +159,13 @@ def load_slice(shot: int, k: int):
     psi = np.asarray(eq["psi"][:, :, k], dtype=np.float64)  # (nz, nr)
     rg = np.asarray(eq["major_radius"], dtype=np.float64)
     zg = np.asarray(eq["z"], dtype=np.float64)
-    lr = np.asarray(g["wall"]["limiter_r"], dtype=np.float64)
-    lz = np.asarray(g["wall"]["limiter_z"], dtype=np.float64)
+    if "wall" in g:
+        lr = np.asarray(g["wall"]["limiter_r"], dtype=np.float64)
+        lz = np.asarray(g["wall"]["limiter_z"], dtype=np.float64)
+    else:
+        # a small band of shots lacks the wall group; the MAST limiter polygon
+        # is byte-identical across the corpus, so the canonical wall applies
+        lr, lz = _canonical_wall()
     from imas_ambix.latent.topology import _inside_polygon  # noqa: PLC0415
 
     mesh_r, mesh_z = np.meshgrid(rg, zg)
