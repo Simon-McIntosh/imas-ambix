@@ -14,13 +14,13 @@
   <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
   <meta name="plan-owner" content="Simon McIntosh">
-  <meta name="plan-depends-on" content="greens-filament-solver,connectivity-topology-reader">
+  <meta name="plan-depends-on" content="greens-filament-solver,connectivity-topology-reader,mse-gated-reanalysis">
   <title>GPU-Accelerated Equilibrium Engine | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-21">
 <meta name="plan-impl" content="0.33">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="3">
 </head>
 <body>
 <main class="plan-doc">
@@ -470,7 +470,7 @@ Done-when
   1. Single-shot on-device rollout committed; G-B verdict recorded honestly; figures committed.
   2. Plan updated same-session: §3 outcome + collapse; §4 (offline corpus vmap) followup queued
      with pre-declared gates; this followup resolved.</pre>
-    <p class="r-fu-outcome">S3 landed on the H200 (shot 21978, 48 slices) - commits bb1d13a..b6e0b20. The load-bearing finding: the disc seed alone is NOT basin insurance (the unpinned fixed-theta chain corner-locks to R~1.77 even on host) - the centroid pin was folded INTO the device map as a per-sweep closed-form K=2 LSQ, after which the march holds the confined basin on all 48 slices (GPU/CPU parity 2.9e-15 m, 0 fabricated). G-B FAIL (qualified): march vs host pinned-K2 scaffold 4.12 cm median, n=18 (bar 2 cm; ~2.8 cm is the known hard-vs-smooth read fixed-point gap); PinT (coarse pre-march + 3 batched continuation outers) converges 0.99->0.42 cm on well-posed slices (PASS <=0.5) at 2.44x (3-5x MISS - the sequential chain is load-bearing; measured 5-config pareto); fp64 carry kernels (Thomas psi-diffusion 1.6e-15, exact modal ZOH 4.4e-18) PASS, threaded in one scan. Batched-sweep economics (B=48 sweep = 0.65x a B=1 sweep) validate the S4 batch-over-shots wrap. Anderson on the pinned map: tie (retained with residual-growth safeguard). Record: docs/archive/gpu-accelerated-labeler-s3-landed.html.</p>
+    <p class="r-fu-outcome">S3 landed on the H200 (shot 21978, 48 slices) - commits bb1d13a..b6e0b20. The load-bearing finding: the disc seed alone is NOT basin insurance (the unpinned fixed-theta chain corner-locks to R~1.77 even on host) - the centroid pin was folded INTO the device map as a per-sweep closed-form K=2 LSQ, after which the march holds the confined basin on all 48 slices (GPU/CPU parity 2.9e-15 m, 0 fabricated). G-B FAIL (qualified): march vs host pinned-K2 scaffold 4.12 cm median, n=18 (bar 2 cm; ~2.8 cm is the known hard-vs-smooth read fixed-point gap); PinT (coarse pre-march + 3 batched continuation outers) converges 0.99-&gt;0.42 cm on well-posed slices (PASS &lt;=0.5) at 2.44x (3-5x MISS - the sequential chain is load-bearing; measured 5-config pareto); fp64 carry kernels (Thomas psi-diffusion 1.6e-15, exact modal ZOH 4.4e-18) PASS, threaded in one scan. Batched-sweep economics (B=48 sweep = 0.65x a B=1 sweep) validate the S4 batch-over-shots wrap. Anderson on the pinned map: tie (retained with residual-growth safeguard). Record: docs/archive/gpu-accelerated-labeler-s3-landed.html.</p>
     </article>
 <article class="r-fu" data-id="f-gal-03" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-21T11:00:00+00:00" data-recommends-skill="/reckon-ship gpu-accelerated-labeler §4" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Ship §4 — offline corpus labeling: vmap the sequential march over shots (gate G-C)</h4>
@@ -519,6 +519,58 @@ Done-when
      measured corpus wall-clock; figures committed.
   2. Plan updated same-session: §4 outcome + collapse; §5 (in-pulse streaming) followup
      queued with pre-declared gates; this followup resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-gal-04" data-status="open" data-tier="opus" data-written-by="reckon-edit (orientation review 2026-07-21)" data-written-at="2026-07-21T14:10:00+00:00" data-recommends-skill="/reckon-ship gpu-accelerated-labeler §6" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Own the PinT multi-rate alternation: couple the fp64 dynamics carry into the windowed equilibrium re-solve</h4>
+    <div class="r-fu-body"><p>The lead's short-term PinT architecture — solve 1D dynamics (η-diffusion + passive ZOH) at HIGH time frequency out from a frozen equilibrium, then re-solve a time-windowed set of equilibria on the INTERPOLATED dynamics, then repeat — is locked as two decisions (time-support=interpolated-smoother, transport-cadence=multi-rate) but has NO owning section: §3's B3 fp64 carry kernels (batched Thomas ψ-diffusion 1.6e-15, exact modal ZOH 4.4e-18) are parity-validated but explicitly NOT fed back into the per-sweep profile update, and the validated CPU coupling (mse-gated-reanalysis §3: diffusion-evolved coefficients re-entering as a soft prior at weight 0.3, confinement 88→94%) exists only off-device. This followup owns the wiring: the diffusion-evolved coefficient prior becomes rows in the per-sweep K-profile LSQ inside the windowed device solve, alternating with high-frequency substeps on interpolated flux-surface geometry. This edge is also what batched-newton-accelerator §5's coupled-KKT clause ('when the temporal engine supplies one') is waiting on.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    gpu-accelerated-labeler (http://localhost:8765/imas-ambix/gpu-accelerated-labeler.html)
+Section: §6 (PinT multi-rate dynamics coupling — the alternation loop)
+Tier:    opus
+
+Context
+  §3 landed the pinned on-device march + windowed PinT scaffold (0.42 cm @ 2.44x) and the
+  fp64 dynamics carry kernels (Thomas ψ-diffusion + exact modal ZOH) — but the two are
+  deliberately uncoupled (scripts/device_rollout_single_shot.py:34-37). The VALIDATED
+  coupling exists on CPU: mse-gated-reanalysis §3 evolves the flux-surface current with
+  diffuse_psi over each measured interval (frozen η, measured Ip BC) and re-enters the
+  evolved coefficients as a soft prior (weight 0.3) in the next slice&#x27;s fit — QUALIFIED
+  PASS (confinement 88→94%, synthetic η recovery 0.084 &lt; 0.120 bar), and it is the
+  load-bearing time coupling behind the 0.362-vs-persistence-0.731 MSE gate.
+
+Build (the lead&#x27;s alternation, on device)
+  1. Inner loop: substep the fp64 dynamics carry (η-diffusion + passive ZOH) at high
+     frequency on TIME-INTERPOLATED flux-surface geometry from the current window&#x27;s
+     equilibria (Crank–Nicolson two-sided; ZOH only at a streaming frontier).
+  2. Outer loop: re-solve the window&#x27;s equilibria with the interpolated dynamics entering
+     the per-sweep profile LSQ as diffusion-evolved coefficient-prior rows (the CPU §3
+     mechanism, device-native). Repeat inner↔outer to convergence.
+  3. Vessel eddies as KNOWN drive: precompute the per-shot eddy trajectory
+     (temporal_operator.raw_eddy_trajectory / predict_vessel_currents) and inject through
+     the frozen passive Green&#x27;s columns — never per-slice static passive fitting.
+
+State to read
+  scripts/device_rollout_single_shot.py        (march/PinT/B3 kernels; the :34-37 decoupling note)
+  scripts/dynamics_coupled_solve_gate.py       (the validated CPU alternation to reproduce)
+  scripts/current_diffusion_gate_eval.py::predict_interval  (interval evolution entry)
+  imas_ambix/latent/current_diffusion.py + temporal_operator.py
+  docs/archive/mse-gated-reanalysis-*.html     (§3 validated numbers + configs)
+
+Gates (pre-declared)
+  G-D1 (reproduction): the device coupled window reproduces the CPU §3 coupled solve
+       (dynamics_coupled_solve_gate arms) on held-out shots to the §3 tolerances.
+  G-D2 (multi-rate accuracy): the multi-rate loop matches a single-rate reference within
+       a pre-declared band while the geometry refresh runs ≥4x coarser than the transport.
+  G-D3 (alternation converges): inner↔outer alternation converges in bounded outers on
+       ramp AND flat-top windows; ramp-phase boundary error must IMPROVE vs the frozen
+       fixed-θ chain (this is where the eddy+diffusion physics pays).
+  Stop rule: class- or phase-conditional regressions vs the uncoupled march are
+       STOP-and-surface.
+
+Done-when
+  1. Coupled multi-rate windowed rollout committed; G-D1..G-D3 recorded honestly; figures.
+  2. batched-newton-accelerator §5 informed (its F_θ diffusion-prior row is now supplied).
+  3. Plan updated same-session; this followup resolved; next followup queued.</pre>
     </article>
 </section>
 

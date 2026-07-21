@@ -8,20 +8,20 @@
   <meta name="plan-slug" content="connectivity-topology-reader">
   <meta name="plan-title" content="Connectivity Topology Reader — GPU-native, differentiable boundary/axis/mask (classify-after)">
   <meta name="plan-summary" content="The topology read (magnetic axis, X-point, LCFS/boundary, core mask) is the one data-dependent, GPU-hostile step in the batched equilibrium engine, and the place EFIT-class reconstructors sink into a contour-tree/critical-point-classification tar pit. This plan makes it a clean, on-device, differentiable prerequisite for gpu-accelerated-labeler by porting the ALGORITHM we already validated (the connectivity-boundary read, shipped in connectivity-boundary-classification / used as the frozen-spine pushout) to GPU-native primitives, and leaning on nova&#x27;s proven stencils only where they help. The boundary is defined by CONNECTIVITY, not stationary-point classification: the outermost closed axis-enclosing flux contour still inside the wall, found by a monotone valid→invalid level sweep — ONE code path, no limited/diverted branch, no X-point gate, continuous through the marginal limited↔diverted transition by construction (where a marginal plasma looks identical in flux space and classify-first is ill-conditioned). GPU-native rewrite: replace host contourpy + ndimage.label + argwhere-Newton with a fixed-iteration convolutional FLOOD-FILL from the axis + a fixed candidate-level sweep + batched containment/pinch reductions — branchless, fixed-shape, vmap-safe, differentiable. Port from nova ONLY the stencil sign-change null classifier (axis O-point + optional X-point diagnostics) and the local-quadratic sub-null refinement (sub-grid position/flux, proven jax.grad path) + the static-count idiom; do NOT port nova&#x27;s boundary mode-gate, its half-plane core mask, its single-loop wall contact, or contourpy (an independent review found nova&#x27;s boundary discontinuous through the marginal transition, plus a likely gate bug). X-points and the limited/diverted class are read off AFTER the boundary by proximity to the ring, never a prerequisite for psi_N. Machine-agnostic wall: the only machine input is a wall MASK, so multiple discrete limiters (AUG) and per-pulse movable limiters (WEST) are a union / per-pulse mask, not new code paths — where a classify-first pipeline becomes machine-specific. Differentiable (smooth mask) so the whole rollout supports implicit-diff (feeds gpu-accelerated-labeler&#x27;s 4D-Var / physics-in-the-loop stretch). Prerequisite to gpu-accelerated-labeler; also sharpens the CPU greens-filament-solver read.">
-  <meta name="plan-status" content="done">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
   <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
   <meta name="plan-owner" content="Simon McIntosh">
-  <meta name="plan-depends-on" content="greens-filament-solver">
+  <meta name="plan-depends-on" content="greens-filament-solver,connectivity-boundary-classification">
   <meta name="plan-blocks" content="gpu-accelerated-labeler">
   <title>Connectivity Topology Reader | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-21">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="11">
+<meta name="plan-version" content="13">
 </head>
 <body>
 <main class="plan-doc">
@@ -192,10 +192,12 @@
     success <strong>99.98% on a 20k-slice sample</strong> (4 non-ok individually named).
     The census caught + fixed a real defect: coarse-grid duplicate stencil hits crowded
     a connected-DN's second null out of the X-set (244 → 0.08 cm; spatially-deduped trim).
-    <strong>T-F3 FAIL (honest)</strong>: the disc-engine solve posts 6.9–37 cm vs the 5 cm
-    bar — eddy-dominated early phase catastrophic (passive_k=0), persistent 7–10 cm
-    cross-campaign floor; RCA + fix design (time-coupled eddies, boundary anchoring,
-    per-class regression harness) recorded. Full record:
+    <strong>T-F3 (framing corrected)</strong>: the cross-validation ran the BARE disc-read
+    initialiser (no centroid pin, no coupled fit, no ψ-diffusion prior) and honestly
+    measured its documented unpinned outboard failure (6.9–37 cm) — a seed-quality
+    baseline, NOT a verdict on the validated four-pass engine; the full-engine per-class
+    re-run is queued (f-ctr-11), eddies enter as a precomputed known drive, and the
+    T<sub>e</sub>-resistivity oracle gap is owned by interior-closure-hardening §2. Full record:
     <a href="archive/connectivity-topology-reader-s6-landed.html">§6 landed</a>
     (commits <code>3c1339a</code>…<code>latest</code>).
   </p>
@@ -748,9 +750,9 @@ Done-when
   3. tests still green</pre>
     <p class="r-fu-outcome">§6 landed — census 1.33M slices (5 classes; snowflake structurally unsupported in MAST EFIT data); T-F1+T-F2 PASS every class (read at grid noise: radii ≤0.04 cm, axis ≤0.09 cm, X-set ≤0.10 cm); corpus read success 99.98% on 20k-slice seeded sample (4 non-ok individually named; connected-DN dedupe defect found+fixed 244→0.08 cm; canonical-wall fallback for 14 wall-less shots). T-F3 HONEST FAIL: disc-engine solve 6.9–37 cm vs 5 cm bar, class acc 0.56–0.71 — eddy-dominated early phase catastrophic (passive_k=0), persistent 7–10 cm cross-campaign floor vs 1.5 cm curated-cohort skill; full drop accounting; RCA + fix design in docs/archive/connectivity-topology-reader-s6-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-ctr-09" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-21T13:30:00+00:00" data-recommends-skill="/reckon-create engine-real-data-hardening" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ctr-09" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-21T13:30:00+00:00" data-recommends-skill="/reckon-create engine-real-data-hardening" data-resolved-at="2026-07-21T12:07:50+00:00" data-resolved-by="reckon-edit (orientation review)">
     <h4 class="r-fu-title">Engine real-data hardening: time-coupled eddy treatment + boundary anchoring, gated by the per-class census harness</h4>
-    <div class="r-fu-body"><p>§6's engine cross-validation is an honest FAIL: the disc-field solve posts 6.9–37 cm vs EFIT (bar 5 cm) with a two-component RCA — (1) the eddy-dominated early phase (t &lt; 0.2 s) is catastrophic (30+ cm, outboard push-to-wall, <code>passive_k=0</code>); (2) a persistent 7–10 cm floor beyond 0.25 s shows the curated-cohort 1.5 cm skill does not generalise cross-campaign. The read is exonerated (99.98% corpus success). Fix design: time-coupled vessel-eddy evolution in the solve, engage the source-free boundary soft prior, and gate every change on the §6 per-class harness (class-conditional regressions are STOP-and-surface). This is engine physics, not reader work — plan it as its own effort.</div>
+    <div class="r-fu-body"><p>§6's engine cross-validation is an honest FAIL: the disc-field solve posts 6.9–37 cm vs EFIT (bar 5 cm) with a two-component RCA — (1) the eddy-dominated early phase (t &lt; 0.2 s) is catastrophic (30+ cm, outboard push-to-wall, <code>passive_k=0</code>); (2) a persistent 7–10 cm floor beyond 0.25 s shows the curated-cohort 1.5 cm skill does not generalise cross-campaign. The read is exonerated (99.98% corpus success). Fix design: time-coupled vessel-eddy evolution in the solve, engage the source-free boundary soft prior, and gate every change on the §6 per-class harness (class-conditional regressions are STOP-and-surface). This is engine physics, not reader work — plan it as its own effort.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    engine-real-data-hardening (new — /reckon-create)
 Tier:    opus
@@ -781,11 +783,63 @@ Done-when
   1. New plan authored with the fix ladder as sections + the census harness as the standing gate
   2. First rung (eddy treatment) scoped with measurable per-phase targets
   3. followups wired (this one resolved on plan creation)</pre>
+    <p class="r-fu-outcome">SUPERSEDED by f-ctr-11 after lead review + a five-agent orientation sweep. The T-F3 leg scored the BARE disc-read initialiser (no soft centroid pin, no K=2 scaffold, no rich coupled fit, no ψ-diffusion prior) — the 6.9–37 cm outboard corner-lock is the DOCUMENTED unpinned failure mode the validated engine's centroid pin (σ=2 cm, always ON) was built to kill. No new engine-real-data-hardening plan is needed: the machinery exists (heldout_mse_gate_eval.run_shot four-pass chain; temporal_operator eddy trajectory as known drive; interior-closure-hardening §2 owns Te-resistivity; gpu-accelerated-labeler f-gal-04 owns the PinT dynamics coupling). Archive doc corrected in place.</p>
     </article>
 <article class="r-fu" data-id="f-ctr-10" data-status="open" data-tier="sonnet" data-written-by="reckon-ship" data-written-at="2026-07-21T13:30:00+00:00" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">MAST-U / Super-X data acquisition (q-ctr-01) — lead decision on channel and scope</h4>
     <div class="r-fu-body"><p>The census confirms MAST EFIT data cannot support the snowflake class structurally (two X slots, always an up/down pair, median separation 2.2 m). True Super-X / snowflake validation of the topology read requires MAST-U shots (≥40000, FAIR-MAST/UKAEA) plus their EFIT++ reconstructions. Channel, scope and priority are a lead decision; the read is otherwise production-validated on MAST.</p></div>
     <pre class="r-fu-prompt">done — awaiting lead decision on MAST-U data channel (FAIR-MAST/UKAEA); when a slice sample lands, rerun scripts/topology_efit_read_eval.py over the MAST-U slices (snowflake + Super-X classes) with per-class verdicts.</pre>
+    </article>
+<article class="r-fu" data-id="f-ctr-11" data-status="open" data-tier="opus" data-written-by="reckon-edit (orientation review 2026-07-21)" data-written-at="2026-07-21T14:25:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §6b" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Re-run the per-class census cross-validation against the FULL validated engine (run_shot), not the bare initialiser</h4>
+    <div class="r-fu-body"><p>§6's engine leg honestly measured the Pass-1 disc-read initialiser and reproduced the documented unpinned outboard failure — a seed-quality baseline, not an engine verdict. Re-run the stratified per-class harness calling the validated four-pass pipeline (<code>heldout_mse_gate_eval.run_shot</code>: disc read → centroid-pinned K=2 scaffold (σ=0.02, R AND Z) → rich n=3 non-negative coupled fit → ψ-diffusion coefficient prior at weight 0.3, frozen η), with the per-shot vessel-eddy trajectory injected as a KNOWN drive on ramp slices. Score boundary/axis/X/class per census class with the §6 drop accounting; the lead bar is >99% success on valid slices with failures individually named.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    connectivity-topology-reader (§6b — full-engine per-class re-run on the census harness)
+Tier:    opus
+
+Context
+  §6 built the census (1.33M slices, 5 classes) + per-class harness and validated the READ
+  at 99.98% corpus success. The engine leg ran only the bare disc_read initialiser and
+  reproduced the documented unpinned outboard corner-lock (6.9–37 cm) — baseline recorded
+  in docs/archive/connectivity-topology-reader-s6-landed.html (corrected framing). The
+  validated engine is the four-pass chain behind the MSE gate (0.362 vs persistence 0.731,
+  EnKF oracle 0.225): scripts/heldout_mse_gate_eval.py::run_shot.
+
+Do
+  1. Extend scripts/topology_engine_crossval.py (or a sibling) to call the FULL pipeline
+     per shot: frozen_spine_config, factory_shot_payloads(cache_grid=True), K=2 position
+     scaffold with centroid_constraint sigma=0.02 (Pass 1), rich coupled fit with the
+     predict_interval diffusion prior (weight 0.3, frozen eta_params from
+     current_diffusion_eta_calibration.json), exactly as run_shot wires them — reuse
+     run_shot where possible rather than re-implementing.
+  2. Ramp slices: precompute the per-shot eddy trajectory
+     (temporal_operator.raw_eddy_trajectory / predict_vessel_currents) and inject as a
+     known additive drive through the frozen passive Green&#x27;s columns; report with/without
+     as an ablation on the early-time bins.
+  3. Score per census class (stratified selection, §6 artifact) vs EFIT: boundary radii /
+     axis / X-set / class + per-phase (t&lt;0.2s vs flat-top) tables, full drop accounting.
+  4. Compare against the §6 bare-initialiser baseline per class/phase — the delta IS the
+     measured value of the pin + coupling on real exotic topologies.
+
+Gates (pre-declared)
+  G-E1: engine completion (attempted valid slices) — report against the lead&#x27;s &gt;99% bar
+        with every failure individually named (reasons, reproducible).
+  G-E2: per-class boundary quality — pre-declare per-class tolerances from the engine&#x27;s
+        validated envelope (flat-top LCFS ~1.5–2.1 cm on curated cohorts) BEFORE scoring;
+        class-conditional failures are STOP-and-surface, never averaged.
+  G-E3: ramp ablation — the eddy known-drive injection must not regress any class and
+        should improve the t&lt;0.2s bins (quantified).
+
+Constraints
+  Firewall unchanged (EFIT referee only). SLURM sun_debug chunks; checkpoint + resume
+  (the §6 harness pattern). Figures per class + phase. Commit+push each coherent change;
+  no AI co-author trailers.
+
+Done-when
+  1. Full-engine per-class artifact + figures committed; G-E1..G-E3 recorded honestly.
+  2. Plan updated same-session: §6b outcome recorded; oracle-gap work routed to
+     interior-closure-hardening §2 (Te resistivity) and gpu-accelerated-labeler f-gal-04
+     (PinT dynamics coupling); this followup resolved.</pre>
     </article>
 </section>
 

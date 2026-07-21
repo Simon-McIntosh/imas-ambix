@@ -106,7 +106,28 @@ A second systematic fix en route: 14 shots (267xx–269xx) lack the zarr wall
 group — the MAST limiter polygon is byte-identical corpus-wide, so a canonical
 wall fallback recovers all 28 affected sample slices.</p>
 
-<h2 id="engine">Engine cross-validation — honest FAIL + RCA</h2>
+<h2 id="engine">Engine cross-validation — honest FAIL of the BARE INITIALISER (framing corrected)</h2>
+<p><strong>Correction (lead review + orientation sweep, 2026-07-21):</strong> this leg ran
+<code>disc_read</code> with default <code>DiscReadConfig</code> — the <em>Pass-1
+initialiser</em> of the validated engine, not the engine. The validated pipeline
+(<code>heldout_mse_gate_eval.py::run_shot</code>, the four-pass chain behind the
+0.362-vs-persistence-0.731 MSE gate) uses the disc read ONLY as the measured-centroid
+source + warm seed, then: a K=2 position scaffold with the <strong>soft centroid pin</strong>
+(σ = 2 cm on BOTH R and Z, whitened moment rows in <code>gs_solve.py</code> — always ON,
+built precisely to kill the outboard-basin drift this leg reproduced), the rich n=3
+non-negative coupled fit, and the ψ-diffusion coefficient prior
+(<code>predict_interval</code>, frozen η, weight 0.3). The outboard corner-lock at
+R≈1.77 in the figure below is the <em>documented unpinned failure mode</em>
+(equilibrium-realism §3; gpu-accelerated-labeler §3 measured the same thing on device
+and folded the pin INTO the map, holding the basin 48/48). The vessel-eddy machinery
+also exists (<code>temporal_operator.py</code>: exact-ZOH eddy ODE, measured-coil-history
+vessel currents, calibrated R) — its correct per-slice use is a precomputed KNOWN drive
+through the passive Green's columns, not the <code>passive_k</code> static fit this doc
+originally called "unmodelled". <strong>What stands from this leg:</strong> the numbers
+below honestly characterise the bare initialiser per class (useful as the seed-quality
+baseline), and the per-class census harness itself is the standing regression gate. The
+engine verdict on real data belongs to a re-run against the FULL pipeline — queued as
+the corrected followup.</p>
 <figure>
   <img src="/imas-ambix/figures/connectivity-topology-reader/engine_worst_overlays.png"
        alt="worst engine-vs-EFIT boundary overlays" style="max-width:100%">
@@ -146,24 +167,25 @@ attempted valid slices: 210/229 = <strong>91.7%</strong>; quality within 5 cm
 Artifacts: <code>topology_engine_crossval-v0.json</code> (+ per-class files with
 per-slice rows and drops).</p>
 
-<h2 id="fix-design">Fix design (successor work, in priority order)</h2>
+<h2 id="fix-design">Corrected path (no new plan needed — the machinery exists)</h2>
 <ol>
-  <li><strong>Time-coupled vessel-eddy treatment in the solve.</strong> The
-  early-phase failure is eddy-shaped: the eddy state is an L/R convolution of
-  the current history, so the fix is coupled evolution across slices (the
-  dynamics machinery from the ψ-diffusion coupling rung), not per-slice static
-  amplitudes (measured cohort-neutral).</li>
-  <li><strong>Boundary anchoring for the cross-campaign floor.</strong> The
-  outboard push-to-wall symptom is the known unanchored-boundary failure; the
-  source-free boundary read as a soft prior exists in-tree and needs to be
-  engaged and validated per-class on this census's stratified selection.</li>
-  <li><strong>Per-class regression harness.</strong> This census + selection is
-  now the standing eval: any engine change is scored per topology class against
-  EFIT with the drop accounting; class-conditional regressions are
-  STOP-and-surface.</li>
-  <li><strong>Learned operator</strong> (gpu-accelerated-labeler §4 / successor):
-  the census gives it a stratified real-topology corpus; the read (validated at
-  99.98%, differentiable) is its label/rollout primitive.</li>
+  <li><strong>Re-run this per-class harness against the FULL validated engine</strong> —
+  <code>heldout_mse_gate_eval.py::run_shot</code> (centroid pin σ=0.02 always ON, frozen
+  η, diffusion prior weight 0.3), stratified by census class. That is the honest
+  engine-on-real-data verdict; the numbers in this doc are the bare-initialiser baseline.</li>
+  <li><strong>Vessel eddies as a precomputed known drive.</strong>
+  <code>temporal_operator.raw_eddy_trajectory</code> /
+  <code>predict_vessel_currents</code> per shot, injected through the frozen passive
+  Green's columns — the principled early-ramp treatment (per-slice static
+  <code>passive_k</code> is under-determined and measured cohort-neutral).</li>
+  <li><strong>The oracle gap is already planned:</strong> the EnKF's remaining 0.137 rad
+  edge is its σ(T<sub>e</sub>) neoclassical resistivity —
+  <a href="/imas-ambix/interior-closure-hardening.html">interior-closure-hardening</a> §2
+  (draft) owns T<sub>e</sub>-dependent resistivity; the PinT dynamics coupling is owned by
+  gpu-accelerated-labeler §6 (f-gal-04).</li>
+  <li><strong>Per-class regression harness.</strong> This census + selection is the
+  standing eval: any engine change is scored per topology class against EFIT with drop
+  accounting; class-conditional regressions are STOP-and-surface.</li>
 </ol>
 
 <h2 id="mastu">Open data question (q-ctr-01, escalated to the lead)</h2>
@@ -177,10 +199,13 @@ for a MAST-U slice sample remain a lead decision.</p>
 <p><strong>The connectivity read is production-ready on real data</strong> —
 99.98% corpus success with individually-named failures, all residuals at grid
 noise, one real defect found and fixed by this campaign.
-<strong>The disc-field engine solve is not</strong> — it fails the real-data
-bar on every gated class, with a two-component RCA and a designed fix list.
-The engine failure is recorded as the honest T-F3 verdict, not diluted; the
-per-class harness built here is the regression gate for the fixes.</p>
+<strong>The engine verdict is still open</strong>: this leg honestly measured the
+BARE Pass-1 initialiser (6.9–37 cm, the documented unpinned outboard failure mode)
+— not the validated four-pass pipeline (soft centroid pin + rich coupled fit +
+ψ-diffusion prior) that approaches the EnKF oracle without T<sub>e</sub> data.
+The T-F3 verdict key records the initialiser characterisation; the full-engine
+per-class re-run is the queued corrected followup, scored on this same census
+harness.</p>
 
 </main>
 </body>
