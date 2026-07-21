@@ -109,6 +109,8 @@ __all__ = [
     "boundary_read_jax",
     "boundary_read",
     "boundary_read_batch",
+    "boundary_read_smooth_jax",
+    "boundary_read_smooth",
 ]
 
 
@@ -186,40 +188,28 @@ def _ray_radii(psi2d, rg, zg, ar, az, psi_axis, psi_lcfs, angles, n_ray):
 # ---------------------------------------------------------------------------
 
 
-@partial(jax.jit, static_argnums=(6, 7, 8))
-def boundary_read_jax(
-    psi2d: jnp.ndarray,
-    rg: jnp.ndarray,
-    zg: jnp.ndarray,
-    inside_limiter: jnp.ndarray,
+def _read_ingredients(
+    psi2d,
+    rg,
+    zg,
+    inside_limiter,
     axis_r,
     axis_z,
-    n_levels: int = 96,
-    n_bisect: int = 18,
-    n_ray: int = 512,
-    angles: jnp.ndarray = _DEFAULT_ANGLES,
-    lcfs_norm=0.999,
-    wall_r: jnp.ndarray = _NO_WALL,
-    wall_z: jnp.ndarray = _NO_WALL,
-    wall_psi: jnp.ndarray = _NO_WALL_PSI,
+    n_levels,
+    n_bisect,
+    wall_r,
+    wall_z,
+    wall_psi,
 ) -> dict:
-    """Connectivity LCFS read from ψ — the device-native ``lcfs_contour``.
+    """Everything the binding needs, up to (but not including) the min/softmin.
 
-    ``psi2d`` is ``(nz, nr)`` total poloidal flux; ``rg``/``zg`` the axis-ordered
-    grid coordinates; ``inside_limiter`` the ``(nz, nr)`` boolean wall (raster)
-    mask; ``(axis_r, axis_z)`` the read's axis (the current centroid, in metres).
-    ``wall_r``/``wall_z`` are the wall boundary sample points (all wall units
-    densified) — used for the SUB-GRID binding flux (see below); omit them to fall
-    back to the cell-level flood binding.  ``wall_psi`` is the EXACT node flux
-    (the campaign ``g_wall`` GEMM) aligned with those points; each finite entry
-    reads its exact flux instead of the O(Δ²) bilinear grid read (the sentinel
-    NaN default falls every node back to bilerp, so the read is unchanged).
-
-    Returns a dict of fixed-shape arrays: ``found`` (bool — a valid closed
-    axis-enclosing level exists), ``psi_axis``, ``psi_out``, ``psi_bnd`` (the
-    binding / separatrix / wall flux), ``psi_lcfs`` (the reported ring flux),
-    ``s_star`` (the binding level in [0, 1]), ``radii`` ``(len(angles),)`` LCFS
-    radii about the axis [m], and ``n_core_cells``.  ``jit``/``vmap``/``grad``-safe.
+    Shared by the HARD read (:func:`boundary_read_jax` — the reference, the
+    binding is the exact ``min``) and the SMOOTH read
+    (:func:`boundary_read_smooth_jax` — the differentiable path, the binding is
+    a temperature-controlled softmin and the core mask a sigmoid).  Returns the
+    normalised flux ``u``, the flood binding ``s_flood``, the two sub-grid
+    binding candidates ``u_wall_c`` / ``u_x_c`` (``inf`` when absent), and the
+    X-candidate diagnostics.
     """
     nz = zg.shape[0]
     nr = rg.shape[0]
@@ -386,6 +376,88 @@ def boundary_read_jax(
     x_bind_valid = x_valid[kbind] & jnp.isfinite(x_key[kbind])
     u_x_c = jnp.where(x_bind_valid, u_x[kbind], jnp.inf)
 
+    return {
+        "n_iter": n_iter,
+        "seed": seed,
+        "psi_axis": psi_axis,
+        "psi_out": psi_out,
+        "span": span,
+        "span_safe": span_safe,
+        "u": u,
+        "found": found,
+        "s_flood": s_flood,
+        "u_wall_c": u_wall_c,
+        "u_x_c": u_x_c,
+        "x_bind_valid": x_bind_valid,
+        "u_x": u_x,
+        "x_valid": x_valid,
+        "xc": xc,
+    }
+
+
+@partial(jax.jit, static_argnums=(6, 7, 8))
+def boundary_read_jax(
+    psi2d: jnp.ndarray,
+    rg: jnp.ndarray,
+    zg: jnp.ndarray,
+    inside_limiter: jnp.ndarray,
+    axis_r,
+    axis_z,
+    n_levels: int = 96,
+    n_bisect: int = 18,
+    n_ray: int = 512,
+    angles: jnp.ndarray = _DEFAULT_ANGLES,
+    lcfs_norm=0.999,
+    wall_r: jnp.ndarray = _NO_WALL,
+    wall_z: jnp.ndarray = _NO_WALL,
+    wall_psi: jnp.ndarray = _NO_WALL_PSI,
+) -> dict:
+    """Connectivity LCFS read from ψ — the device-native ``lcfs_contour``.
+
+    ``psi2d`` is ``(nz, nr)`` total poloidal flux; ``rg``/``zg`` the axis-ordered
+    grid coordinates; ``inside_limiter`` the ``(nz, nr)`` boolean wall (raster)
+    mask; ``(axis_r, axis_z)`` the read's axis (the current centroid, in metres).
+    ``wall_r``/``wall_z`` are the wall boundary sample points (all wall units
+    densified) — used for the SUB-GRID binding flux (see below); omit them to fall
+    back to the cell-level flood binding.  ``wall_psi`` is the EXACT node flux
+    (the campaign ``g_wall`` GEMM) aligned with those points; each finite entry
+    reads its exact flux instead of the O(Δ²) bilinear grid read (the sentinel
+    NaN default falls every node back to bilerp, so the read is unchanged).
+
+    Returns a dict of fixed-shape arrays: ``found`` (bool — a valid closed
+    axis-enclosing level exists), ``psi_axis``, ``psi_out``, ``psi_bnd`` (the
+    binding / separatrix / wall flux), ``psi_lcfs`` (the reported ring flux),
+    ``s_star`` (the binding level in [0, 1]), ``radii`` ``(len(angles),)`` LCFS
+    radii about the axis [m], and ``n_core_cells``.  ``jit``/``vmap``/``grad``-safe.
+    """
+    ing = _read_ingredients(
+        psi2d,
+        rg,
+        zg,
+        inside_limiter,
+        axis_r,
+        axis_z,
+        n_levels,
+        n_bisect,
+        wall_r,
+        wall_z,
+        wall_psi,
+    )
+    n_iter = ing["n_iter"]
+    seed = ing["seed"]
+    psi_axis = ing["psi_axis"]
+    psi_out = ing["psi_out"]
+    span = ing["span"]
+    u = ing["u"]
+    found = ing["found"]
+    s_flood = ing["s_flood"]
+    u_wall_c = ing["u_wall_c"]
+    u_x_c = ing["u_x_c"]
+    x_bind_valid = ing["x_bind_valid"]
+    u_x = ing["u_x"]
+    x_valid = ing["x_valid"]
+    xc = ing["xc"]
+
     # --- unified binding: confined-most of {wall tangency, X-point saddle} ------
     u_min = jnp.minimum(u_wall_c, u_x_c)
     s_star = jnp.where(jnp.isfinite(u_min), u_min, s_flood)
@@ -449,6 +521,137 @@ def boundary_read_jax(
         "class_margin": class_margin,
         "u_wall": u_wall_c,
         "u_xpoint": u_x_c,
+    }
+
+
+# ---------------------------------------------------------------------------
+# the smooth (differentiable) read — softmin binding + sigmoid core mask
+# ---------------------------------------------------------------------------
+
+#: finite stand-in for an ABSENT binding candidate (``inf`` sentinel) inside the
+#: softmin — far outside the confined range so its softmax weight vanishes, yet
+#: finite so no ``0·inf`` poisons the reverse pass.
+_ABSENT_U = 2.0
+
+
+@partial(jax.jit, static_argnums=(6, 7, 8))
+def boundary_read_smooth_jax(
+    psi2d: jnp.ndarray,
+    rg: jnp.ndarray,
+    zg: jnp.ndarray,
+    inside_limiter: jnp.ndarray,
+    axis_r,
+    axis_z,
+    n_levels: int = 96,
+    n_bisect: int = 18,
+    n_ray: int = 512,
+    angles: jnp.ndarray = _DEFAULT_ANGLES,
+    lcfs_norm=0.999,
+    wall_r: jnp.ndarray = _NO_WALL,
+    wall_z: jnp.ndarray = _NO_WALL,
+    wall_psi: jnp.ndarray = _NO_WALL_PSI,
+    temperature=0.01,
+) -> dict:
+    """The SMOOTH connectivity boundary read — the end-to-end differentiable path.
+
+    Same ingredients as :func:`boundary_read_jax` (the hard reference), with the
+    two remaining hard thresholds replaced by temperature-controlled smooth
+    surrogates so a gradient flows from any read scalar back to ψ (and through a
+    linear Green's map, to the currents):
+
+    * **Soft binding level.**  The hard read binds at the exact
+      ``min(u_wall, u_x)``; here the binding is the softmin — the softmax-
+      weighted mean of the two sub-grid candidates at temperature ``τ``
+      (in ψ_N span units).  As τ→0 this reduces to the exact min; at finite τ
+      the limited↔diverted hand-off is a smooth blend instead of a kink, and the
+      X-candidate's softmax weight is returned as ``p_diverted`` (a smooth class
+      probability).
+
+    * **Smooth core mask.**  The hard ``(u ≤ s*) ∧ flood`` cell mask becomes
+      ``σ((s_soft − u)/τ) · gate`` — a sigmoid cutoff in normalised flux, gated
+      by the axis-connected flood region (evaluated at ``s_soft + 3τ`` so the
+      sigmoid tail is inside the gate).  The gate is a boolean connectivity
+      SELECTION (no gradient path, exactly like an argmin index), so private-
+      flux pockets stay excluded by connectivity while the mask edge moves
+      smoothly with ψ.  As τ→0 the sigmoid → the step and the mask → the hard
+      core mask.
+
+    Everything else (flood localisation, sub-grid wall tangency / saddle flux,
+    ray-marched radii) is shared with the hard read.  Returns ``found``,
+    ``psi_axis``, ``psi_out``, ``psi_bnd``, ``psi_lcfs``, ``s_soft``, ``radii``,
+    ``core_weight`` ``(nz, nr)``, ``n_core_soft``, ``p_diverted``, ``u_wall``,
+    ``u_xpoint``.  ``jit``/``vmap``/``grad``-safe.
+    """
+    ing = _read_ingredients(
+        psi2d,
+        rg,
+        zg,
+        inside_limiter,
+        axis_r,
+        axis_z,
+        n_levels,
+        n_bisect,
+        wall_r,
+        wall_z,
+        wall_psi,
+    )
+    tau = temperature
+    psi_axis = ing["psi_axis"]
+    span = ing["span"]
+    u = ing["u"]
+    found = ing["found"]
+    s_flood = ing["s_flood"]
+
+    # --- soft binding: softmin over the two sub-grid candidates -----------------
+    cands = jnp.stack([ing["u_wall_c"], ing["u_x_c"]])  # (2,), inf when absent
+    valid = jnp.isfinite(cands)
+    any_valid = jnp.any(valid)
+    c_safe = jnp.where(valid, cands, _ABSENT_U)
+    logits = jnp.where(valid, -c_safe / tau, -jnp.inf)
+    # when NEITHER candidate exists the logits are all −inf and softmax would be
+    # NaN (poisoning the grad through the select below even though the value is
+    # discarded) — substitute uniform logits first, then discard via `where`.
+    logits = jnp.where(any_valid, logits, jnp.zeros_like(logits))
+    w = jax.nn.softmax(logits)
+    s_soft = jnp.where(any_valid, jnp.sum(w * c_safe), s_flood)
+    p_diverted = jnp.where(any_valid, w[1], 0.0)
+
+    psi_bnd = psi_axis + s_soft * span
+    ray_norm = jnp.minimum(lcfs_norm, 0.999)
+    psi_lcfs = psi_axis + ray_norm * (psi_bnd - psi_axis)
+    radii = _ray_radii(psi2d, rg, zg, axis_r, axis_z, psi_axis, psi_lcfs, angles, n_ray)
+
+    # --- smooth core mask --------------------------------------------------------
+    # sigmoid cutoff in u at the soft level, gated by the axis-connected flood ONE
+    # TEMPERATURE INSIDE the binding (u ≤ s_soft − τ).  The retraction is what
+    # seals the saddle pass: a grid sample AT a saddle vertex always sits a hair
+    # below the sub-grid saddle flux (an O(Δ²) deficit), so a flood at exactly
+    # s_soft walks through that cell and pours the mask into the private-flux /
+    # opposing-null pocket beyond it; τ ≫ the vertex deficit, so the retracted
+    # flood stops short of the pass while costing only an O(τ) shell that
+    # vanishes with the temperature.  The boolean comparison carries no gradient
+    # — the gate is a connectivity SELECTION, like an argmin index — while σ
+    # (still centred on s_soft) moves the mask edge smoothly with ψ; a pocket is
+    # never axis-connected, so its cells stay at zero weight for any τ.
+    gate = flood_fill_core(
+        (u <= s_soft - tau) & inside_limiter, ing["seed"], ing["n_iter"]
+    )
+    core_weight = jax.nn.sigmoid((s_soft - u) / tau) * gate
+    n_core_soft = jnp.sum(core_weight)
+
+    return {
+        "found": found,
+        "psi_axis": psi_axis,
+        "psi_out": ing["psi_out"],
+        "psi_bnd": jnp.where(found, psi_bnd, jnp.nan),
+        "psi_lcfs": jnp.where(found, psi_lcfs, jnp.nan),
+        "s_soft": jnp.where(found, s_soft, jnp.nan),
+        "radii": jnp.where(found, radii, jnp.nan),
+        "core_weight": core_weight,
+        "n_core_soft": n_core_soft,
+        "p_diverted": p_diverted,
+        "u_wall": ing["u_wall_c"],
+        "u_xpoint": ing["u_x_c"],
     }
 
 
@@ -585,6 +788,53 @@ def boundary_read(
         is_diverted=bool(out["is_diverted"]),
         class_margin=float(out["class_margin"]),
     )
+
+
+def boundary_read_smooth(
+    psi2d,
+    grid,
+    axis: tuple[float, float],
+    *,
+    temperature: float = 0.01,
+    n_levels: int = 96,
+    n_bisect: int = 18,
+    n_ray: int = 512,
+    angles=LCFS_ANGLES,
+    lcfs_norm: float = 0.999,
+    wall_psi=None,
+) -> dict:
+    """Host adapter: run :func:`boundary_read_smooth_jax` on one slice (numpy out).
+
+    Same contract as :func:`boundary_read` with the softmin/sigmoid smooth read;
+    ``temperature`` is the smoothing scale τ in ψ_N span units.  Returns the
+    smooth read's dict with numpy values (``core_weight`` is the ``(nz, nr)``
+    smooth core mask).
+    """
+    import numpy as np  # noqa: PLC0415
+
+    wall_r, wall_z = _densify_wall(grid)
+    if wall_psi is None:
+        wpsi = _NO_WALL_PSI
+    else:
+        wpsi = jnp.asarray(np.asarray(wall_psi, dtype=np.float64))
+    out = boundary_read_smooth_jax(
+        jnp.asarray(np.asarray(psi2d, dtype=np.float64)),
+        jnp.asarray(np.asarray(grid.rg, dtype=np.float64)),
+        jnp.asarray(np.asarray(grid.zg, dtype=np.float64)),
+        jnp.asarray(np.asarray(grid.inside_limiter, dtype=bool)),
+        jnp.asarray(float(axis[0])),
+        jnp.asarray(float(axis[1])),
+        int(n_levels),
+        int(n_bisect),
+        int(n_ray),
+        jnp.asarray(np.asarray(angles, dtype=np.float64)),
+        jnp.asarray(float(lcfs_norm)),
+        jnp.asarray(wall_r),
+        jnp.asarray(wall_z),
+        wpsi,
+        jnp.asarray(float(temperature)),
+    )
+    return {k: np.asarray(v) for k, v in out.items()}
 
 
 def boundary_read_batch(

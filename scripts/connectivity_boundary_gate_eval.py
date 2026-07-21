@@ -17,6 +17,19 @@ gate records the pre-declared verdicts:
   T-B3 (continuity)   — on a synthetic limited→diverted sweep the connectivity
         ψ_bnd is continuous through the marginal transition, where the classify-
         first boundary (innermost in-vessel X-point flux, else limiter) steps.
+  T-C1..T-C3 (classify-after nulls) — sub-grid axis position, X-point set +
+        limited/diverted class, and the unified confined-most binding, each vs
+        the host CPU read.
+  T-D1..T-D4 (machine-agnostic wall) — multi-unit wall binding, thin-tile
+        warning + binding, exact g_wall node flux (+ bilerp-swap no-regression),
+        dense multi-unit raster.
+  T-E1..T-E3 (differentiable + adversarial) — smooth (softmin/sigmoid) read
+        converges to the hard read as temperature→0; gradients w.r.t. the
+        currents finite and non-zero; double-null / snowflake / private-flux
+        robustness vs the exact CPU read.
+
+These IDs are the artifact's VERDICT KEYS (the vocabulary of the emitted JSON
+and logs); in code every gate is named by the mechanism it checks.
 
 Pre-declared tolerances: LCFS-radius agreement ≤ 3.0 cm median (the host label
 tolerance; one grid cell is ~2-3 cm), ψ_bnd agreement ≤ 0.03 of the axis→boundary
@@ -53,7 +66,7 @@ LCFS_TOL_CM = 3.0
 PSI_BND_FRAC_TOL = 0.03
 CONFINED_AXIS_R_MAX = 1.4
 
-# §3 classify-after tolerances
+# classify-after (sub-grid null) tolerances
 AXIS_TOL_CM = 3.0  # sub-grid axis vs CPU magnetic_axis (one grid cell)
 XSET_TOL_CM = 3.0  # X-point position vs CPU emergent_xpoints
 CLASS_ACC_TOL = 0.80  # device is_diverted vs CPU class agreement (soft near transition)
@@ -61,7 +74,7 @@ DIVERTED_PSI_BND_TOL = 0.005  # unified diverted ψ_bnd residual (fraction of sp
 
 
 # ---------------------------------------------------------------------------
-# real-slice reproduction (T-B1)
+# real-slice reproduction (verdict key T-B1)
 # ---------------------------------------------------------------------------
 
 
@@ -148,7 +161,7 @@ def _slice_rows(shot: int, *, nr: int, nz: int, max_slices: int, min_ip_ka: floa
         if not ok.any():
             continue
         dr = 100.0 * np.abs(gpu.radii[ok] - cpu.radii[ok])
-        # CPU reference nulls (§3): magnetic axis (O-point) + emergent X-set/class
+        # CPU reference nulls: magnetic axis (O-point) + emergent X-set/class
         cp = find_critical_points(psi, grid.rg, grid.zg)
         cpu_axis = magnetic_axis(
             psi,
@@ -171,7 +184,7 @@ def _slice_rows(shot: int, *, nr: int, nz: int, max_slices: int, min_ip_ka: floa
                 np.hypot(gpu.axis[0] - cpu_axis[0], gpu.axis[1] - cpu_axis[1])
             )
         xset_d_cm = _xset_match_cm(gpu.xset, cpu_xset)
-        # --- T-D3: exact g_wall node tangency vs the bilerp read (no-regression) ---
+        # --- exact g_wall node tangency vs the bilerp read (no-regression) ---
         # Same field (inv.psi_tot), same read — only the wall-tangency SOURCE swaps
         # from bilinear off the grid to the exact campaign g_wall GEMM.  The grid
         # kernel reconstruction is checked against the basis psi_tot so the swap is
@@ -190,12 +203,12 @@ def _slice_rows(shot: int, *, nr: int, nz: int, max_slices: int, min_ip_ka: floa
                 "radii_dmed_cm": float(np.median(dr)),
                 "radii_dmax_cm": float(np.max(dr)),
                 "n_core_cells": int(gpu.n_core_cells),
-                # T-D3 g_wall swap
+                # g_wall swap leg
                 "gwall_dpsi_frac": gwall["dpsi_frac"],
                 "gwall_radii_dmed_cm": gwall["radii_dmed_cm"],
                 "gwall_vs_bilerp_dpsi_frac": gwall["vs_bilerp_dpsi_frac"],
                 "gwall_consistency_frac": gwall["consistency_frac"],
-                # §3 classify-after diagnostics
+                # classify-after diagnostics
                 "cpu_axis_r": None if cpu_axis is None else float(cpu_axis[0]),
                 "cpu_axis_z": None if cpu_axis is None else float(cpu_axis[1]),
                 "dev_axis_r": float(gpu.axis[0]),
@@ -214,7 +227,7 @@ def _slice_rows(shot: int, *, nr: int, nz: int, max_slices: int, min_ip_ka: floa
     return rows, overlays
 
 
-def _tb1(shots, *, nr, nz, max_slices, min_ip_ka):
+def _reproduction_gate(shots, *, nr, nz, max_slices, min_ip_ka):
     rows_all = []
     overlays_all = []
     for s in shots:
@@ -245,14 +258,14 @@ def _tb1(shots, *, nr, nz, max_slices, min_ip_ka):
     n_div = sum(1 for r in rows_all if r["diverted"])
     radii_med = _med("radii_dmed_cm")
     dpsi_med = _med("dpsi_frac")
-    tb1 = (
+    repro = (
         np.isfinite(radii_med)
         and radii_med <= LCFS_TOL_CM
         and np.isfinite(dpsi_med)
         and dpsi_med <= PSI_BND_FRAC_TOL
     )
     return {
-        "verdict": "PASS" if tb1 else "FAIL",
+        "verdict": "PASS" if repro else "FAIL",
         "n_slices": n,
         "n_diverted": n_div,
         "n_limited": n - n_div,
@@ -268,11 +281,11 @@ def _tb1(shots, *, nr, nz, max_slices, min_ip_ka):
 
 
 # ---------------------------------------------------------------------------
-# on-device / batchable (T-B2)
+# on-device / batchable (verdict key T-B2)
 # ---------------------------------------------------------------------------
 
 
-def _tb2(overlays):
+def _on_device_gate(overlays):
     """Batched vmap parity + throughput, and a static import audit of the module."""
     import jax
     import jax.numpy as jnp
@@ -327,9 +340,9 @@ def _tb2(overlays):
             cb.boundary_read(ov[1], grid, ov[5])
         per_slice_ms = 1e3 * (time.perf_counter() - t0) / len(same)
 
-    tb2 = (not bad_import) and (not bad_calls) and (parity_ok is not False)
+    on_dev = (not bad_import) and (not bad_calls) and (parity_ok is not False)
     return {
-        "verdict": "PASS" if tb2 else "FAIL",
+        "verdict": "PASS" if on_dev else "FAIL",
         "banned_imports": bad_import,
         "banned_calls": bad_calls,
         "device": str(jax.devices()[0]),
@@ -341,7 +354,7 @@ def _tb2(overlays):
 
 
 # ---------------------------------------------------------------------------
-# continuity through the marginal transition (T-B3)
+# continuity through the marginal transition (verdict key T-B3)
 # ---------------------------------------------------------------------------
 
 
@@ -412,7 +425,7 @@ def _inside_count(pts, lr, lz):
     return int(_inside_polygon(pts[:, 0], pts[:, 1], lr, lz).sum())
 
 
-def _tb3():
+def _transition_continuity_gate():
     from imas_ambix.latent.connectivity_boundary import boundary_read
 
     amps = np.linspace(0.0, 0.9, 31)
@@ -433,9 +446,9 @@ def _tb3():
     # continuity PASS: connectivity max relative step is small AND markedly below
     # classify-first's (which jumps where the in-vessel X count changes)
     x_changes = int(np.sum(np.diff(nx) != 0))
-    tb3 = conn_step < 0.05 and (clf_step > 3.0 * conn_step) and x_changes >= 1
+    continuity = conn_step < 0.05 and (clf_step > 3.0 * conn_step) and x_changes >= 1
     return {
-        "verdict": "PASS" if tb3 else "FAIL",
+        "verdict": "PASS" if continuity else "FAIL",
         "amps": amps.tolist(),
         "conn_psi_bnd_rel": conn.tolist(),
         "classify_psi_bnd_rel": clf.tolist(),
@@ -447,11 +460,11 @@ def _tb3():
 
 
 # ---------------------------------------------------------------------------
-# classify-after nulls: axis (T-C1), X-point + class (T-C2), unified binding (T-C3)
+# classify-after nulls: axis position, X-point + class, unified binding
 # ---------------------------------------------------------------------------
 
 
-def _tc1(rows):
+def _axis_position_gate(rows):
     """Sub-grid axis position vs CPU ``magnetic_axis``."""
     vals = [r["axis_d_cm"] for r in rows if np.isfinite(r["axis_d_cm"])]
     n = len(vals)
@@ -467,7 +480,7 @@ def _tc1(rows):
     }
 
 
-def _tc1_grad(overlays):
+def _axis_grad_probe(overlays):
     """A finite ``jax.grad`` of the sub-grid axis R w.r.t. ψ on one real slice."""
     import jax
     import jax.numpy as jnp
@@ -510,7 +523,7 @@ def _tc1_grad(overlays):
     }
 
 
-def _tc2(rows):
+def _xpoint_class_gate(rows):
     """X-point positions + diverted class vs the CPU read (on the diverted subset)."""
     n = len(rows)
     div = [r for r in rows if r["diverted"]]
@@ -543,7 +556,7 @@ def _tc2(rows):
     }
 
 
-def _tc3(rows):
+def _unified_binding_gate(rows):
     """Unified binding: diverted ψ_bnd residual closed, limited not regressed."""
     div = [r for r in rows if r["diverted"]]
     lim = [r for r in rows if not r["diverted"]]
@@ -746,9 +759,9 @@ def _ink_cross_section(overlays):
 # ---------------------------------------------------------------------------
 
 
-def _figures(tb1, tb3, overlays):
+def _figures(repro, continuity, overlays):
     FIG_DIR.mkdir(parents=True, exist_ok=True)
-    rows = tb1["rows"]
+    rows = repro["rows"]
 
     # (1) reproduction scatter + radii-Δ histogram, coloured by class
     if rows:
@@ -774,7 +787,7 @@ def _figures(tb1, tb3, overlays):
         a1.plot(lims, lims, "k--", lw=0.8, label="y = x")
         a1.set_xlabel("host lcfs_contour  ψ_bnd − ψ_axis [Wb]")
         a1.set_ylabel("device flood-fill  ψ_bnd − ψ_axis [Wb]")
-        _dpm = tb1["dpsi_frac_median"] * 100
+        _dpm = repro["dpsi_frac_median"] * 100
         a1.set_title(f"T-B1 — ψ_bnd reproduction (median Δ {_dpm:.2f}% of span)")
         a1.legend(fontsize=8)
 
@@ -784,20 +797,20 @@ def _figures(tb1, tb3, overlays):
             LCFS_TOL_CM, color="k", ls="--", lw=1, label=f"tol {LCFS_TOL_CM:.0f} cm"
         )
         a2.axvline(
-            tb1["radii_dmed_cm_overall"],
+            repro["radii_dmed_cm_overall"],
             color="#484",
             ls=":",
             lw=1.4,
-            label=f"median {tb1['radii_dmed_cm_overall']:.2f} cm",
+            label=f"median {repro['radii_dmed_cm_overall']:.2f} cm",
         )
         a2.set_xlabel("LCFS-radius agreement, host vs device [cm]")
         a2.set_ylabel("slices")
-        a2.set_title(f"T-B1 — LCFS radii ({tb1['verdict']})")
+        a2.set_title(f"T-B1 — LCFS radii ({repro['verdict']})")
         a2.legend(fontsize=8)
         fig.suptitle(
             f"Device connectivity boundary reproduces host lcfs_contour — "
-            f"{tb1['verdict']} ({tb1['n_slices']} slices: {tb1['n_diverted']} "
-            f"diverted, {tb1['n_limited']} limited)"
+            f"{repro['verdict']} ({repro['n_slices']} slices: {repro['n_diverted']} "
+            f"diverted, {repro['n_limited']} limited)"
         )
         fig.tight_layout()
         fig.savefig(FIG_DIR / "reproduction.png", dpi=130)
@@ -864,10 +877,10 @@ def _figures(tb1, tb3, overlays):
         plt.close(fig)
 
     # (3) continuity through the marginal transition
-    amps = np.array(tb3["amps"])
-    conn = np.array(tb3["conn_psi_bnd_rel"])
-    clf = np.array(tb3["classify_psi_bnd_rel"])
-    nx = np.array(tb3["n_xpoint_invessel"])
+    amps = np.array(continuity["amps"])
+    conn = np.array(continuity["conn_psi_bnd_rel"])
+    clf = np.array(continuity["classify_psi_bnd_rel"])
+    nx = np.array(continuity["n_xpoint_invessel"])
     fig, ax = plt.subplots(figsize=(7.2, 4.6))
     ax.plot(
         amps,
@@ -898,10 +911,10 @@ def _figures(tb1, tb3, overlays):
         )
     ax.set_xlabel("lower-blob amplitude  (limited → diverted)")
     ax.set_ylabel("ψ_bnd − ψ_axis [Wb]")
-    _cs = tb3["conn_max_rel_step"] * 100
-    _fs = tb3["classify_max_rel_step"] * 100
+    _cs = continuity["conn_max_rel_step"] * 100
+    _fs = continuity["classify_max_rel_step"] * 100
     ax.set_title(
-        f"T-B3 — continuity through the marginal transition ({tb3['verdict']})\n"
+        f"T-B3 — continuity through the marginal transition ({continuity['verdict']})\n"
         f"connectivity max step {_cs:.1f}% vs classify-first {_fs:.1f}% of span"
     )
     ax.legend(fontsize=8)
@@ -915,7 +928,7 @@ def _figures(tb1, tb3, overlays):
     except Exception as exc:  # noqa: BLE001 — the ink stack is an optional sibling
         logger.warning("imas-ink cross-section skipped: %s", exc)
 
-    # (5) §3 classify-after: axis agreement + axis/X overlay
+    # (5) classify-after: axis agreement + axis/X overlay
     try:
         _figures_classify_after(rows, overlays)
     except Exception as exc:  # noqa: BLE001
@@ -1050,8 +1063,8 @@ def _figures_classify_after(rows, overlays):
 
 
 # ---------------------------------------------------------------------------
-# §4 machine-agnostic wall gates: T-D1 (multi-wall), T-D2 (thin tile),
-# T-D3 (g_wall exactness + no regression), T-D4 (AUG-class raster)
+# machine-agnostic wall gates: multi-wall binding, thin tile, wall-flux
+# exactness + bilerp-swap no-regression, dense multi-unit raster
 # ---------------------------------------------------------------------------
 
 # tolerances
@@ -1168,7 +1181,7 @@ def _read_wall(fn, grid, axis, lcfs_norm=1.0):
 
 
 def _gwall_leg(grid, payload_item, inv, psi, centroid, cpu, span):
-    """T-D3 held-out leg: swap the bilerp tangency for the exact g_wall GEMM.
+    """Held-out g_wall swap leg: swap the bilerp tangency for the exact g_wall GEMM.
 
     Reads the same field (``inv.psi_tot``) with the exact campaign ``g_wall`` node
     flux instead of bilinear, and reports the ψ_bnd/radii shift plus the
@@ -1230,8 +1243,8 @@ def _tile(rc, zc, hw, hh, *, name="tile", closed=True):
     )
 
 
-def _td1():
-    """Multi-wall correctness: single-loop, multi-polygon, movable — lim + div."""
+def _multi_wall_gate():
+    """Multi-wall binding: single-loop, multi-polygon, movable — lim + div."""
     cases = []
 
     def limited_case(name, units, centre, axis):
@@ -1306,7 +1319,7 @@ def _td1():
     return {"verdict": verdict, "n_pass": n_pass, "n_cases": len(cases), "cases": cases}
 
 
-def _td2():
+def _thin_tile_gate():
     """Thin tile (t < Δ): the warning FIRES and ψ_bnd still lands on the true flux."""
     rg = np.linspace(0.25, 1.75, 121)
     zg = np.linspace(-1.15, 1.15, 161)
@@ -1340,7 +1353,7 @@ def _td2():
     }
 
 
-def _td3_exactness():
+def _wall_flux_exactness():
     """g_wall node flux is exact (machine-eps) where bilerp carries an O(Δ²) floor."""
     import jax.numpy as jnp
 
@@ -1384,7 +1397,7 @@ def _td3_exactness():
     }
 
 
-def _td3_mast(rows):
+def _wall_flux_swap_check(rows):
     """No-regression: swapping bilerp→g_wall on MAST-36 does not move ψ_bnd/radii."""
 
     def med(key):
@@ -1453,7 +1466,7 @@ def _aug_class_wall():
     return units
 
 
-def _td4():
+def _dense_raster_gate():
     """AUG-class 29-unit raster: no special-casing, thin warnings, correct binding."""
     units = _aug_class_wall()
     rg = np.linspace(0.35, 1.75, 141)
@@ -1505,6 +1518,633 @@ def _td4():
         "diverted_dpsi_frac": float(err_div),
         "fixture": "AUG-class synthetic multi-unit wall (29 units)",
     }
+
+
+# ---------------------------------------------------------------------------
+# differentiable-read + adversarial-topology gates: smooth-vs-hard
+# convergence, gradient w.r.t. currents, double-null / snowflake /
+# private-flux robustness
+# ---------------------------------------------------------------------------
+
+# smooth-read temperature ladder (ψ_N span units) and convergence tolerances at
+# the smallest τ: the softmin blend error is O(τ), so 0.003 must land well under
+# the hard read's ψ_bnd discretisation floor.
+SMOOTH_TAUS = (0.1, 0.03, 0.01, 0.003, 0.001)
+SMOOTH_TAU_REF = 0.01  # the operating temperature for grads / real-slice masks
+SMOOTH_PSI_TOL = 0.005  # smooth vs hard ψ_bnd at min τ, / span
+SMOOTH_RADII_TOL_CM = 0.5  # smooth vs hard LCFS radii at min τ (median, cm)
+# soft-vs-hard core-cell count at min τ: the smooth mask's connectivity gate is
+# retracted one τ inside the binding (it must never cross the saddle pass), so
+# the count carries a one-sided O(τ) boundary-shell deficit; on the coarse
+# 65×97 held-out grids the perimeter/area ratio makes that shell a few percent.
+SMOOTH_CORE_TOL = 0.05
+ADVERSARIAL_PSI_TOL = WALL_PSI_BND_TOL  # device vs CPU ψ_bnd on adversarial fields
+CORE_MISMATCH_TOL = 0.05  # device-vs-CPU core cell mismatch (of CPU core)
+PRIVATE_WEIGHT_TOL = 0.01  # max smooth core weight on a CPU-PRIVATE cell
+ORDERING_STEP_TOL = 0.05  # max relative ψ_bnd step through the DN ordering swap
+
+
+def _smooth_convergence_gate(overlays):
+    """Smooth-vs-hard: the smooth read reproduces the hard read as temperature → 0.
+
+    On the held-out overlay slices, run the softmin/sigmoid read down the τ
+    ladder and compare ψ_bnd / LCFS radii / core-cell count against the HARD
+    device read (the reference already validated against the host CPU read)."""
+    from imas_ambix.latent.connectivity_boundary import boundary_read_smooth
+
+    per_tau = {t: {"dpsi": [], "drad_cm": [], "dcore": []} for t in SMOOTH_TAUS}
+    n_slices = 0
+    for _cls, psi, grid, _cpu, gpu, centroid in overlays:
+        span = abs(gpu.psi_bnd - gpu.psi_axis)
+        if not np.isfinite(span) or span < 1e-12 or gpu.n_core_cells == 0:
+            continue
+        n_slices += 1
+        for t in SMOOTH_TAUS:
+            sm = boundary_read_smooth(psi, grid, centroid, temperature=t, lcfs_norm=1.0)
+            per_tau[t]["dpsi"].append(abs(float(sm["psi_bnd"]) - gpu.psi_bnd) / span)
+            ok = np.isfinite(gpu.radii) & np.isfinite(sm["radii"])
+            if ok.any():
+                per_tau[t]["drad_cm"].append(
+                    100.0 * float(np.median(np.abs(sm["radii"][ok] - gpu.radii[ok])))
+                )
+            per_tau[t]["dcore"].append(
+                abs(float(sm["n_core_soft"]) - gpu.n_core_cells) / gpu.n_core_cells
+            )
+    ladder = {
+        t: {k: (float(np.median(v)) if v else float("nan")) for k, v in d.items()}
+        for t, d in per_tau.items()
+    }
+    t_min = min(SMOOTH_TAUS)
+    fin = ladder[t_min]
+    dpsi_desc = [ladder[t]["dpsi"] for t in sorted(SMOOTH_TAUS, reverse=True)]
+    converging = all(np.isfinite(x) for x in dpsi_desc) and (
+        dpsi_desc[-1] <= dpsi_desc[0]
+    )
+    ok = (
+        n_slices > 0
+        and converging
+        and fin["dpsi"] <= SMOOTH_PSI_TOL
+        and fin["drad_cm"] <= SMOOTH_RADII_TOL_CM
+        and fin["dcore"] <= SMOOTH_CORE_TOL
+    )
+    return {
+        "verdict": "PASS" if ok else "FAIL",
+        "n_slices": n_slices,
+        "ladder": {str(t): ladder[t] for t in SMOOTH_TAUS},
+        "min_tau": t_min,
+        "converging": bool(converging),
+        "tolerances": {
+            "psi_frac": SMOOTH_PSI_TOL,
+            "radii_cm": SMOOTH_RADII_TOL_CM,
+            "core_rel": SMOOTH_CORE_TOL,
+        },
+    }
+
+
+def _current_gradient_gate():
+    """Gradient probe: grad of a read scalar w.r.t. the CURRENTS is finite and non-zero.
+
+    The full differentiable chain the implicit-diff rollout uses: cell currents
+    → ψ (the linear plasma Green's GEMM) → exact g_wall node flux → the smooth
+    connectivity read → a scalar (ψ_bnd, mean LCFS radius, soft core count).
+    Exercised on a limited AND a diverted synthetic configuration."""
+    import jax
+    import jax.numpy as jnp
+
+    from imas_ambix.latent.connectivity_boundary import (
+        _densify_wall,
+        boundary_read_smooth_jax,
+    )
+    from imas_ambix.latent.gs_solve import EquilibriumGrid
+    from imas_ambix.worldmodel.equilibrium_labels import LCFS_ANGLES
+
+    rg = np.linspace(0.25, 1.75, 65)
+    zg = np.linspace(-1.05, 1.05, 97)
+    lr = np.array([0.4, 1.6, 1.6, 0.4, 0.4])
+    lz = np.array([-0.9, -0.9, 0.9, 0.9, -0.9])
+    grid = EquilibriumGrid(
+        rg=rg,
+        zg=zg,
+        limiter_r=lr,
+        limiter_z=lz,
+        coil_psi_columns=np.zeros((rg.size * zg.size, 0)),
+        r0=1.0,
+    )
+    g_grid = jnp.asarray(grid.plasma_grid_psi_columns())  # (N, n_cell)
+    g_wall = jnp.asarray(grid.wall_greens()["g_cells"])  # (n_node, n_cell)
+    wr, wz = _densify_wall(grid)
+    cr = grid.flat_r[grid.cells]
+    cz = grid.flat_z[grid.cells]
+    rgj, zgj = jnp.asarray(rg), jnp.asarray(zg)
+    inside = jnp.asarray(grid.inside_limiter)
+    ang = jnp.asarray(np.asarray(LCFS_ANGLES, dtype=np.float64))
+
+    configs = {
+        "limited": ((1.0, 0.0), [((1.0, 0.0), 1.0e3, 0.30)]),
+        "diverted": (
+            (1.0, 0.25),
+            [((1.0, 0.25), 1.0e3, 0.28), ((1.0, -0.55), 0.9e3, 0.25)],
+        ),
+    }
+    results = {}
+    for name, (axis, blobs) in configs.items():
+        i0 = np.zeros(cr.size)
+        for (r0, z0), amp, sig in blobs:
+            i0 = i0 + amp * np.exp(-(((cr - r0) ** 2 + (cz - z0) ** 2) / sig**2))
+        i0 = jnp.asarray(i0)
+
+        def read(i_cell, axis=axis):
+            psi2d = (g_grid @ i_cell).reshape(grid.nz, grid.nr)
+            wall_psi = g_wall @ i_cell
+            return boundary_read_smooth_jax(
+                psi2d,
+                rgj,
+                zgj,
+                inside,
+                jnp.asarray(axis[0]),
+                jnp.asarray(axis[1]),
+                96,
+                18,
+                512,
+                ang,
+                jnp.asarray(1.0),
+                jnp.asarray(wr),
+                jnp.asarray(wz),
+                wall_psi,
+                jnp.asarray(SMOOTH_TAU_REF),
+            )
+
+        scalars = {
+            "psi_bnd": lambda i: read(i)["psi_bnd"],
+            "radius_mean": lambda i: jnp.nanmean(read(i)["radii"]),
+            "n_core_soft": lambda i: read(i)["n_core_soft"],
+        }
+        per = {}
+        for which, fn in scalars.items():
+            gvec = np.asarray(jax.grad(fn)(i0))
+            per[which] = {
+                "finite": bool(np.all(np.isfinite(gvec))),
+                "nonzero": bool(np.any(gvec != 0.0)),
+                "grad_norm": float(np.linalg.norm(gvec)),
+            }
+        results[name] = per
+    ok = all(
+        v["finite"] and v["nonzero"] for case in results.values() for v in case.values()
+    )
+    return {
+        "verdict": "PASS" if ok else "FAIL",
+        "temperature": SMOOTH_TAU_REF,
+        "cases": results,
+    }
+
+
+# --- adversarial-topology fixtures ------------------------------------
+
+
+def _adv_grid(nr=121, nz=181, z_half=1.15):
+    """Tall single-loop vessel grid for the up-down double-null fixtures."""
+    rg = np.linspace(0.25, 1.75, nr)
+    zg = np.linspace(-z_half - 0.1, z_half + 0.1, nz)
+    return _WallGrid(rg, zg, [_vessel_box(0.3, 1.7, -z_half, z_half)])
+
+
+def _cpu_reference(psi, grid, axis):
+    """The exact CPU read: boundary + region labels + emergent X-set."""
+    from imas_ambix.latent.topology import (
+        classify_regions,
+        emergent_xpoints,
+        find_critical_points,
+        lcfs_contour,
+    )
+
+    cpu = lcfs_contour(
+        psi,
+        grid.rg,
+        grid.zg,
+        axis,
+        clip_legs=True,
+        limiter_r=grid.limiter_r,
+        limiter_z=grid.limiter_z,
+    )
+    if not cpu.found:
+        return None
+    cp = find_critical_points(psi, grid.rg, grid.zg)
+    xset, is_div = emergent_xpoints(cp.x_points, cpu.ring, tol=1.5 * float(grid.dr))
+    labels = classify_regions(psi, grid.rg, grid.zg, axis, float(cpu.psi_bnd))
+    return {"cpu": cpu, "xset": xset, "is_diverted": bool(is_div), "labels": labels}
+
+
+def _separation_metrics(labels, core_weight, inside):
+    """Device-vs-CPU private/core separation from the smooth core mask.
+
+    ``labels`` is the CPU ``classify_regions`` field; ``core_weight`` the smooth
+    read's ``(nz, nr)`` mask.  Reports the symmetric core mismatch (device
+    ``weight > 0.5`` vs CPU CORE, as a fraction of the CPU core) and the maximum
+    smooth weight leaked onto a CPU-PRIVATE cell (0 = pockets fully excluded)."""
+    from imas_ambix.latent.topology import REGION_CORE, REGION_PRIVATE
+
+    core_cpu = (labels == REGION_CORE) & inside
+    dev = (core_weight > 0.5) & inside
+    n_cpu = int(core_cpu.sum())
+    mismatch = float((core_cpu ^ dev).sum() / n_cpu) if n_cpu else float("nan")
+    priv = (labels == REGION_PRIVATE) & inside
+    contam = float(core_weight[priv].max()) if priv.any() else 0.0
+    return {
+        "core_mismatch_frac": mismatch,
+        "n_core_cpu": n_cpu,
+        "n_private_cpu": int(priv.sum()),
+        "private_max_weight": contam,
+    }
+
+
+def _adversarial_case(name, psi, grid, axis, *, expect_private=False, expect_nx=None):
+    """One adversarial field: device (hard + smooth) vs the exact CPU read."""
+    from imas_ambix.latent.connectivity_boundary import (
+        boundary_read,
+        boundary_read_smooth,
+    )
+
+    ref = _cpu_reference(psi, grid, axis)
+    if ref is None:
+        return {"case": name, "pass": False, "reason": "CPU read found no boundary"}
+    cpu = ref["cpu"]
+    dev = boundary_read(psi, grid, axis, lcfs_norm=1.0)
+    sm = boundary_read_smooth(
+        psi, grid, axis, temperature=SMOOTH_TAU_REF, lcfs_norm=1.0
+    )
+    span = abs(cpu.psi_bnd - dev.psi_axis)
+    dpsi = abs(dev.psi_bnd - cpu.psi_bnd) / span
+    dpsi_smooth = abs(float(sm["psi_bnd"]) - cpu.psi_bnd) / span
+    xset_d = _xset_match_cm(dev.xset, ref["xset"])
+    sep = _separation_metrics(
+        ref["labels"], np.asarray(sm["core_weight"]), np.asarray(grid.inside_limiter)
+    )
+    n_x_dev = int(np.isfinite(np.asarray(dev.xset)[:, 0]).sum())
+    n_x_cpu = int(np.isfinite(np.asarray(ref["xset"])[:, 0]).sum())
+    checks = [
+        dpsi <= ADVERSARIAL_PSI_TOL,
+        dpsi_smooth <= ADVERSARIAL_PSI_TOL + 2.0 * SMOOTH_TAU_REF,
+        (not np.isfinite(xset_d)) or xset_d <= XSET_TOL_CM,
+        sep["core_mismatch_frac"] <= CORE_MISMATCH_TOL,
+        sep["private_max_weight"] <= PRIVATE_WEIGHT_TOL,
+        bool(dev.is_diverted) == ref["is_diverted"],
+    ]
+    if expect_private:
+        checks.append(sep["n_private_cpu"] > 0)
+    if expect_nx is not None:
+        checks.append(n_x_cpu == expect_nx and n_x_dev == n_x_cpu)
+    return {
+        "case": name,
+        "class_cpu": "diverted" if ref["is_diverted"] else "limited",
+        "class_dev": "diverted" if dev.is_diverted else "limited",
+        "dpsi_frac": float(dpsi),
+        "dpsi_frac_smooth": float(dpsi_smooth),
+        "xset_match_cm": float(xset_d),
+        "n_x_dev": n_x_dev,
+        "n_x_cpu": n_x_cpu,
+        **sep,
+        "pass": bool(all(checks)),
+    }
+
+
+def _adversarial_cases_gate():
+    """Adversarial synthetic fixtures: balanced DN, secondary separatrix, snowflake,
+    private-flux single-null — device matches the exact CPU read on each."""
+    g = _adv_grid()
+    rr, zz = np.meshgrid(g.rg, g.zg)
+
+    def field(blobs, sig):
+        fn = _gauss_field([b[0] for b in blobs], [b[1] for b in blobs], sig)
+        return fn(rr, zz)
+
+    # single-null fixtures live on a COMPACT vessel (the proven diverted
+    # geometry): the divertor legs must escape through the bottom wall for the
+    # separatrix to bind — a taller vessel lets the outermost closed contour
+    # push PAST the saddle into a peanut around both nulls (wall-limited), a
+    # different topology than these cases pin.
+    g_sn = _adv_grid(nz=161, z_half=1.05)
+    rr_sn, zz_sn = np.meshgrid(g_sn.rg, g_sn.zg)
+
+    def field_sn(blobs, sig):
+        fn = _gauss_field([b[0] for b in blobs], [b[1] for b in blobs], sig)
+        return fn(rr_sn, zz_sn)
+
+    cases = []
+    # (1) balanced double-null: symmetric upper+lower shaping blobs, two
+    # X-points at ~equal flux, BOTH on the boundary ring.
+    psi = field([((1.0, 0.0), 1.0), ((1.0, 0.85), 0.75), ((1.0, -0.85), 0.75)], 0.30)
+    cases.append(
+        _adversarial_case("double_null_balanced", psi, g, (1.0, 0.0), expect_nx=2)
+    )
+    # (2) secondary separatrix: the lower saddle binds (the proven diverted
+    # blob configuration); a weak upper blob adds a second saddle clearly
+    # outside, which must NOT enter the X-set or flip the binding.
+    psi = field_sn([((1.0, 0.25), 1.0), ((1.0, -0.7), 0.9), ((1.0, 0.95), 0.35)], 0.28)
+    cases.append(
+        _adversarial_case("secondary_separatrix", psi, g_sn, (1.0, 0.25), expect_nx=1)
+    )
+    # (3) snowflake-like: two lower shaping blobs pull two saddles to nearly the
+    # same flux close together — the near-degenerate second-order null.
+    psi = field([((1.0, 0.1), 1.0), ((0.80, -0.80), 0.60), ((1.20, -0.80), 0.60)], 0.30)
+    cases.append(_adversarial_case("snowflake_like", psi, g, (1.0, 0.1)))
+    # (4) private-flux single-null (the proven diverted blob configuration):
+    # the lower blob past the X-point owns a closed confined-flux pocket
+    # disconnected from the core (CPU PRIVATE); connectivity must keep every
+    # pocket cell out of the (smooth) core mask.
+    psi = field_sn([((1.0, 0.25), 1.0), ((1.0, -0.7), 0.9)], 0.28)
+    cases.append(
+        _adversarial_case(
+            "private_flux_pocket", psi, g_sn, (1.0, 0.25), expect_private=True
+        )
+    )
+
+    n_pass = sum(c.get("pass", False) for c in cases)
+    return {
+        "verdict": "PASS" if n_pass == len(cases) else "FAIL",
+        "n_pass": n_pass,
+        "n_cases": len(cases),
+        "cases": cases,
+    }
+
+
+def _double_null_ordering_sweep(n_steps=21, imbalance=0.06):
+    """Near-double ordering: sweep the up/down saddle-flux ordering through
+    the exchange — no branch flip, ψ_bnd continuous for hard AND smooth reads."""
+    from imas_ambix.latent.connectivity_boundary import (
+        boundary_read,
+        boundary_read_smooth,
+    )
+    from imas_ambix.latent.topology import lcfs_contour
+
+    g = _adv_grid()
+    rr, zz = np.meshgrid(g.rg, g.zg)
+    deltas = np.linspace(-imbalance, imbalance, n_steps)
+    hard, smooth, cpu_ref, div_flags, x_upper = [], [], [], [], []
+    for d in deltas:
+        fn = _gauss_field(
+            [(1.0, 0.0), (1.0, 0.85), (1.0, -0.85)],
+            [1.0, 0.75 + d, 0.75 - d],
+            0.30,
+        )
+        psi = fn(rr, zz)
+        b = boundary_read(psi, g, (1.0, 0.0), lcfs_norm=1.0)
+        sm = boundary_read_smooth(
+            psi, g, (1.0, 0.0), temperature=SMOOTH_TAU_REF, lcfs_norm=1.0
+        )
+        c = lcfs_contour(
+            psi,
+            g.rg,
+            g.zg,
+            (1.0, 0.0),
+            clip_legs=True,
+            limiter_r=g.limiter_r,
+            limiter_z=g.limiter_z,
+        )
+        hard.append(b.psi_bnd - b.psi_axis)
+        smooth.append(float(sm["psi_bnd"]) - float(sm["psi_axis"]))
+        cpu_ref.append((c.psi_bnd - b.psi_axis) if c.found else np.nan)
+        div_flags.append(bool(b.is_diverted))
+        xs = np.asarray(b.xset)
+        fin = xs[np.isfinite(xs[:, 0])]
+        x_upper.append(bool(fin.shape[0] and fin[np.argmax(np.abs(fin[:, 1])), 1] > 0))
+    hard = np.asarray(hard)
+    smooth = np.asarray(smooth)
+    cpu_arr = np.asarray(cpu_ref)
+    span = float(np.nanmax(np.abs(hard)))
+    hard_step = float(np.max(np.abs(np.diff(hard)))) / span
+    smooth_step = float(np.max(np.abs(np.diff(smooth)))) / span
+    okc = np.isfinite(cpu_arr)
+    vs_cpu = (
+        float(np.median(np.abs(hard[okc] - cpu_arr[okc]) / span))
+        if okc.any()
+        else float("nan")
+    )
+    ordering_swaps = int(np.sum(np.asarray(x_upper[:-1]) != np.asarray(x_upper[1:])))
+    ok = (
+        hard_step <= ORDERING_STEP_TOL
+        and smooth_step <= ORDERING_STEP_TOL
+        and all(div_flags)
+        and ordering_swaps >= 1
+        and np.isfinite(vs_cpu)
+        and vs_cpu <= ADVERSARIAL_PSI_TOL
+    )
+    return {
+        "verdict": "PASS" if ok else "FAIL",
+        "deltas": deltas.tolist(),
+        "hard_psi_bnd_rel": hard.tolist(),
+        "smooth_psi_bnd_rel": smooth.tolist(),
+        "cpu_psi_bnd_rel": cpu_arr.tolist(),
+        "hard_max_rel_step": hard_step,
+        "smooth_max_rel_step": smooth_step,
+        "vs_cpu_median_frac": vs_cpu,
+        "always_diverted": bool(all(div_flags)),
+        "binding_ordering_swaps": ordering_swaps,
+        "step_tol": ORDERING_STEP_TOL,
+    }
+
+
+def _region_separation_gate(overlays):
+    """Held-out real leg: private/core separation on the held-out (MAST) slices —
+    the smooth core mask against CPU ``classify_regions`` at the CPU ψ_bnd."""
+    from imas_ambix.latent.connectivity_boundary import boundary_read_smooth
+    from imas_ambix.latent.topology import classify_regions
+
+    rows = []
+    for _cls, psi, grid, cpu, gpu, centroid in overlays:
+        if not (cpu.found and np.isfinite(gpu.psi_bnd)):
+            continue
+        labels = classify_regions(psi, grid.rg, grid.zg, centroid, float(cpu.psi_bnd))
+        sm = boundary_read_smooth(
+            psi, grid, centroid, temperature=SMOOTH_TAU_REF, lcfs_norm=1.0
+        )
+        sep = _separation_metrics(
+            labels, np.asarray(sm["core_weight"]), np.asarray(grid.inside_limiter)
+        )
+        xs = np.asarray(gpu.xset)
+        sep["n_x_dev"] = int(np.isfinite(xs[:, 0]).sum())
+        sep["class"] = _cls
+        rows.append(sep)
+    if not rows:
+        return {"verdict": "FAIL", "n_slices": 0}
+    mm = [r["core_mismatch_frac"] for r in rows if np.isfinite(r["core_mismatch_frac"])]
+    contam = max(r["private_max_weight"] for r in rows)
+    n_priv = sum(1 for r in rows if r["n_private_cpu"] > 0)
+    n_dn = sum(1 for r in rows if r["n_x_dev"] >= 2)
+    med = float(np.median(mm)) if mm else float("nan")
+    ok = (
+        len(rows) > 0
+        and np.isfinite(med)
+        and med <= CORE_MISMATCH_TOL
+        and contam <= PRIVATE_WEIGHT_TOL
+    )
+    return {
+        "verdict": "PASS" if ok else "FAIL",
+        "n_slices": len(rows),
+        "core_mismatch_frac_median": med,
+        "core_mismatch_frac_max": float(np.max(mm)) if mm else float("nan"),
+        "private_max_weight": float(contam),
+        "n_slices_with_private": n_priv,
+        "n_slices_double_null_xset": n_dn,
+    }
+
+
+def _figures_smooth(smooth_gate):
+    """Smooth-read convergence figure: smooth-vs-hard error vs temperature."""
+    FIG_DIR.mkdir(parents=True, exist_ok=True)
+    taus = sorted(float(t) for t in smooth_gate["ladder"])
+    panels = [
+        ("dpsi", "|Δψ_bnd| / span", SMOOTH_PSI_TOL),
+        ("drad_cm", "median |Δr_LCFS| [cm]", SMOOTH_RADII_TOL_CM),
+        ("dcore", "|Δn_core| / n_core", SMOOTH_CORE_TOL),
+    ]
+    fig, axes = plt.subplots(1, 3, figsize=(10.5, 3.2))
+    for ax, (key, label, tol) in zip(axes, panels, strict=True):
+        vals = [smooth_gate["ladder"][str(t)][key] for t in taus]
+        ax.loglog(taus, vals, "o-", color="C0")
+        ax.axhline(tol, color="C3", ls="--", lw=1.0, label="gate tolerance")
+        ax.set_xlabel("temperature τ (ψ_N span units)", fontsize=8)
+        ax.set_ylabel(label, fontsize=8)
+        ax.tick_params(labelsize=7)
+        ax.legend(fontsize=7)
+    fig.suptitle(
+        "smooth read → hard read as τ→0 "
+        f"(held-out median, n={smooth_gate['n_slices']})",
+        fontsize=10,
+    )
+    fig.tight_layout()
+    out = FIG_DIR / "smooth_vs_hard.png"
+    fig.savefig(out, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return str(out)
+
+
+def _figures_adversarial(sweep):
+    """Adversarial-topology overlays (device vs CPU) + the DN ordering sweep."""
+    from imas_ambix.latent.connectivity_boundary import (
+        boundary_read,
+        boundary_read_smooth,
+    )
+    from imas_ambix.latent.topology import REGION_PRIVATE
+
+    FIG_DIR.mkdir(parents=True, exist_ok=True)
+    g = _adv_grid()
+    g_sn = _adv_grid(nz=161, z_half=1.05)  # compact vessel: single-null fixtures
+
+    def field(grid, blobs, sig):
+        fn = _gauss_field([b[0] for b in blobs], [b[1] for b in blobs], sig)
+        rr, zz = np.meshgrid(grid.rg, grid.zg)
+        return fn(rr, zz)
+
+    fixtures = [
+        (
+            "balanced double-null",
+            g,
+            field(
+                g, [((1.0, 0.0), 1.0), ((1.0, 0.85), 0.75), ((1.0, -0.85), 0.75)], 0.30
+            ),
+            (1.0, 0.0),
+        ),
+        (
+            "secondary separatrix",
+            g_sn,
+            field(
+                g_sn,
+                [((1.0, 0.25), 1.0), ((1.0, -0.7), 0.9), ((1.0, 0.95), 0.35)],
+                0.28,
+            ),
+            (1.0, 0.25),
+        ),
+        (
+            "snowflake-like",
+            g,
+            field(
+                g,
+                [((1.0, 0.1), 1.0), ((0.80, -0.80), 0.60), ((1.20, -0.80), 0.60)],
+                0.30,
+            ),
+            (1.0, 0.1),
+        ),
+        (
+            "private-flux pocket",
+            g_sn,
+            field(g_sn, [((1.0, 0.25), 1.0), ((1.0, -0.7), 0.9)], 0.28),
+            (1.0, 0.25),
+        ),
+    ]
+    fig, axes = plt.subplots(1, 5, figsize=(16.5, 3.6))
+    for ax, (title, g, psi, axis) in zip(axes[:4], fixtures, strict=True):
+        rr, zz = np.meshgrid(g.rg, g.zg)
+        ref = _cpu_reference(psi, g, axis)
+        dev = boundary_read(psi, g, axis, lcfs_norm=1.0)
+        sm = boundary_read_smooth(
+            psi, g, axis, temperature=SMOOTH_TAU_REF, lcfs_norm=1.0
+        )
+        ax.contour(rr, zz, psi, levels=18, colors="0.8", linewidths=0.5)
+        if ref is not None:
+            ring = ref["cpu"].ring
+            ax.plot(ring[:, 0], ring[:, 1], "-", color="C1", lw=1.8, label="CPU LCFS")
+            priv = (ref["labels"] == REGION_PRIVATE) & np.asarray(g.inside_limiter)
+            if priv.any():
+                ax.contourf(
+                    rr,
+                    zz,
+                    priv.astype(float),
+                    levels=[0.5, 1.5],
+                    colors=["C4"],
+                    alpha=0.35,
+                )
+        ax.contour(
+            rr,
+            zz,
+            np.asarray(sm["core_weight"]),
+            levels=[0.5],
+            colors="C0",
+            linewidths=1.4,
+            linestyles="--",
+        )
+        xs = np.asarray(dev.xset)
+        fin = xs[np.isfinite(xs[:, 0])]
+        if fin.shape[0]:
+            ax.plot(
+                fin[:, 0], fin[:, 1], "x", color="C3", ms=8, mew=2, label="device X-set"
+            )
+        ax.plot(g.limiter_r, g.limiter_z, "-", color="k", lw=1.0)
+        ax.set_title(
+            f"{title}\n(dev {'div' if dev.is_diverted else 'lim'})", fontsize=8
+        )
+        ax.set_xlabel("R [m]", fontsize=7)
+        ax.tick_params(labelsize=6)
+        ax.set_aspect("equal")
+    axes[0].set_ylabel("Z [m]", fontsize=7)
+    axes[0].legend(fontsize=6, loc="lower left")
+    # DN ordering sweep: ψ_bnd continuity through the saddle exchange
+    ax = axes[4]
+    d = np.asarray(sweep["deltas"])
+    ax.plot(d, sweep["hard_psi_bnd_rel"], "o-", ms=3, color="C0", label="device hard")
+    ax.plot(
+        d,
+        sweep["smooth_psi_bnd_rel"],
+        "s--",
+        ms=3,
+        color="C2",
+        label=f"device smooth (τ={SMOOTH_TAU_REF})",
+    )
+    ax.plot(d, sweep["cpu_psi_bnd_rel"], "^:", ms=3, color="C1", label="CPU")
+    ax.axvline(0.0, color="0.6", ls=":", lw=1.0)
+    ax.set_xlabel("up−down shaping imbalance δ", fontsize=8)
+    ax.set_ylabel("ψ_bnd − ψ_axis [Wb]", fontsize=8)
+    ax.set_title("near-double ordering sweep\n(no branch flip)", fontsize=8)
+    ax.tick_params(labelsize=6)
+    ax.legend(fontsize=6)
+    fig.suptitle(
+        "adversarial topologies — device (hard + smooth mask) vs the exact CPU read",
+        fontsize=10,
+    )
+    fig.tight_layout()
+    out = FIG_DIR / "adversarial_topologies.png"
+    fig.savefig(out, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return str(out)
 
 
 def _ring_from_radii(read, angles):
@@ -1639,7 +2279,7 @@ def _figures_wall():
     for axp in np.ravel(axes)[n:]:
         axp.axis("off")
     fig.suptitle(
-        "§4 machine-agnostic wall — one read, arbitrary raster mask (tiles as holes)",
+        "machine-agnostic wall — one read, arbitrary raster mask (tiles as holes)",
         fontsize=10,
     )
     fig.tight_layout()
@@ -1664,9 +2304,14 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--nz", type=int, default=97)
     ap.add_argument("--no-figures", action="store_true")
     ap.add_argument(
-        "--td-only",
+        "--wall-only",
         action="store_true",
-        help="run only the §4 wall gates (synthetic; no held-out data)",
+        help="run only the synthetic wall gates (no held-out data)",
+    )
+    ap.add_argument(
+        "--adversarial-only",
+        action="store_true",
+        help="run only the synthetic smooth/adversarial gates (no held-out data)",
     )
     ap.add_argument(
         "--ink-shot",
@@ -1698,27 +2343,64 @@ def main() -> int:
         logger.info("wrote imas-ink cross-section: %s", out)
         return 0
 
-    if args.td_only:
-        td1 = _td1()
-        td2 = _td2()
-        td3x = _td3_exactness()
-        td4 = _td4()
+    if args.wall_only:
+        multi_wall = _multi_wall_gate()
+        thin_tile = _thin_tile_gate()
+        wall_flux_exact = _wall_flux_exactness()
+        raster = _dense_raster_gate()
         for tag, r in [
-            ("T-D1", td1),
-            ("T-D2", td2),
-            ("T-D3-exact", td3x),
-            ("T-D4", td4),
+            ("T-D1", multi_wall),
+            ("T-D2", thin_tile),
+            ("T-D3-exact", wall_flux_exact),
+            ("T-D4", raster),
         ]:
             logger.info("%s: %s", tag, json.dumps(r, indent=2))
         if not args.no_figures:
             logger.info("wall figures: %s", _figures_wall())
         logger.info(
-            "VERDICTS (§4 synthetic): %s",
+            "VERDICTS (wall synthetic): %s",
             {
-                "T-D1": td1["verdict"],
-                "T-D2": td2["verdict"],
-                "T-D3-exact": td3x["verdict"],
-                "T-D4": td4["verdict"],
+                "T-D1": multi_wall["verdict"],
+                "T-D2": thin_tile["verdict"],
+                "T-D3-exact": wall_flux_exact["verdict"],
+                "T-D4": raster["verdict"],
+            },
+        )
+        return 0
+
+    if args.adversarial_only:
+        grad_gate = _current_gradient_gate()
+        logger.info("T-E2: %s", json.dumps(grad_gate, indent=2))
+        adversarial_cases = _adversarial_cases_gate()
+        logger.info("T-E3 cases: %s", json.dumps(adversarial_cases, indent=2))
+        adversarial_sweep = _double_null_ordering_sweep()
+        logger.info(
+            "T-E3 sweep: %s",
+            json.dumps(
+                {
+                    k: v
+                    for k, v in adversarial_sweep.items()
+                    if k
+                    not in (
+                        "deltas",
+                        "hard_psi_bnd_rel",
+                        "smooth_psi_bnd_rel",
+                        "cpu_psi_bnd_rel",
+                    )
+                },
+                indent=2,
+            ),
+        )
+        if not args.no_figures:
+            logger.info(
+                "adversarial figures: %s", _figures_adversarial(adversarial_sweep)
+            )
+        logger.info(
+            "VERDICTS (adversarial synthetic): %s",
+            {
+                "T-E2": grad_gate["verdict"],
+                "T-E3-cases": adversarial_cases["verdict"],
+                "T-E3-sweep": adversarial_sweep["verdict"],
             },
         )
         return 0
@@ -1734,7 +2416,7 @@ def main() -> int:
         "connectivity-boundary gate over %d held-out shots: %s", len(shots), shots
     )
 
-    tb1, overlays = _tb1(
+    repro, overlays = _reproduction_gate(
         shots,
         nr=args.nr,
         nz=args.nz,
@@ -1742,17 +2424,18 @@ def main() -> int:
         min_ip_ka=args.min_ip_ka,
     )
     logger.info(
-        "T-B1: %s", json.dumps({k: v for k, v in tb1.items() if k != "rows"}, indent=2)
+        "T-B1: %s",
+        json.dumps({k: v for k, v in repro.items() if k != "rows"}, indent=2),
     )
-    tb2 = _tb2(overlays)
-    logger.info("T-B2: %s", json.dumps(tb2, indent=2))
-    tb3 = _tb3()
+    on_dev = _on_device_gate(overlays)
+    logger.info("T-B2: %s", json.dumps(on_dev, indent=2))
+    continuity = _transition_continuity_gate()
     logger.info(
         "T-B3: %s",
         json.dumps(
             {
                 k: v
-                for k, v in tb3.items()
+                for k, v in continuity.items()
                 if k
                 not in (
                     "amps",
@@ -1765,38 +2448,84 @@ def main() -> int:
         ),
     )
 
-    # --- §3 classify-after gates -------------------------------------------
-    rows = tb1["rows"]
-    tc1 = _tc1(rows)
-    tc1["grad"] = _tc1_grad(overlays)
-    logger.info("T-C1: %s", json.dumps(tc1, indent=2))
-    tc2 = _tc2(rows)
-    logger.info("T-C2: %s", json.dumps(tc2, indent=2))
-    tc3 = _tc3(rows)
-    logger.info("T-C3: %s", json.dumps(tc3, indent=2))
+    # --- classify-after null gates -------------------------------------------
+    rows = repro["rows"]
+    axis_gate = _axis_position_gate(rows)
+    axis_gate["grad"] = _axis_grad_probe(overlays)
+    logger.info("T-C1: %s", json.dumps(axis_gate, indent=2))
+    xclass = _xpoint_class_gate(rows)
+    logger.info("T-C2: %s", json.dumps(xclass, indent=2))
+    binding = _unified_binding_gate(rows)
+    logger.info("T-C3: %s", json.dumps(binding, indent=2))
 
-    # --- §4 machine-agnostic wall gates ------------------------------------
-    td1 = _td1()
-    logger.info("T-D1: %s", json.dumps(td1, indent=2))
-    td2 = _td2()
-    logger.info("T-D2: %s", json.dumps(td2, indent=2))
-    td3 = {"exactness": _td3_exactness(), "no_regression_mast": _td3_mast(rows)}
-    td3["verdict"] = (
+    # --- machine-agnostic wall gates ------------------------------------
+    multi_wall = _multi_wall_gate()
+    logger.info("T-D1: %s", json.dumps(multi_wall, indent=2))
+    thin_tile = _thin_tile_gate()
+    logger.info("T-D2: %s", json.dumps(thin_tile, indent=2))
+    wall_flux = {
+        "exactness": _wall_flux_exactness(),
+        "no_regression_mast": _wall_flux_swap_check(rows),
+    }
+    wall_flux["verdict"] = (
         "PASS"
-        if td3["exactness"]["verdict"] == "PASS"
-        and td3["no_regression_mast"]["verdict"] == "PASS"
+        if wall_flux["exactness"]["verdict"] == "PASS"
+        and wall_flux["no_regression_mast"]["verdict"] == "PASS"
         else "FAIL"
     )
-    logger.info("T-D3: %s", json.dumps(td3, indent=2))
-    td4 = _td4()
-    logger.info("T-D4: %s", json.dumps(td4, indent=2))
+    logger.info("T-D3: %s", json.dumps(wall_flux, indent=2))
+    raster = _dense_raster_gate()
+    logger.info("T-D4: %s", json.dumps(raster, indent=2))
+
+    # --- differentiable-read + adversarial-topology gates ----------------------
+    smooth_gate = _smooth_convergence_gate(overlays)
+    logger.info("T-E1: %s", json.dumps(smooth_gate, indent=2))
+    grad_gate = _current_gradient_gate()
+    logger.info("T-E2: %s", json.dumps(grad_gate, indent=2))
+    adversarial = {
+        "cases": _adversarial_cases_gate(),
+        "sweep": _double_null_ordering_sweep(),
+        "real": _region_separation_gate(overlays),
+    }
+    adversarial["verdict"] = (
+        "PASS"
+        if all(adversarial[k]["verdict"] == "PASS" for k in ("cases", "sweep", "real"))
+        else "FAIL"
+    )
+    logger.info(
+        "T-E3: %s",
+        json.dumps(
+            {
+                "verdict": adversarial["verdict"],
+                "cases": adversarial["cases"],
+                "sweep": {
+                    k: v
+                    for k, v in adversarial["sweep"].items()
+                    if k
+                    not in (
+                        "deltas",
+                        "hard_psi_bnd_rel",
+                        "smooth_psi_bnd_rel",
+                        "cpu_psi_bnd_rel",
+                    )
+                },
+                "real": adversarial["real"],
+            },
+            indent=2,
+        ),
+    )
 
     if not args.no_figures:
-        _figures(tb1, tb3, overlays)
+        _figures(repro, continuity, overlays)
         try:
             _figures_wall()
         except Exception as exc:  # noqa: BLE001
             logger.warning("wall figures skipped: %s", exc)
+        try:
+            _figures_smooth(smooth_gate)
+            _figures_adversarial(adversarial["sweep"])
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("smooth/adversarial figures skipped: %s", exc)
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -1805,33 +2534,39 @@ def main() -> int:
             {
                 "schema": "connectivity-boundary-gate-v0",
                 "shots": shots,
-                "tb1_reproduction": {k: v for k, v in tb1.items() if k != "rows"},
-                "tb1_rows": tb1["rows"],
-                "tb2_on_device": tb2,
-                "tb3_continuity": tb3,
-                "tc1_axis": tc1,
-                "tc2_xpoint_class": tc2,
-                "tc3_unified_binding": tc3,
-                "td1_multi_wall": td1,
-                "td2_thin_tile": td2,
-                "td3_wall_flux": td3,
-                "td4_aug_raster": td4,
+                "tb1_reproduction": {k: v for k, v in repro.items() if k != "rows"},
+                "tb1_rows": repro["rows"],
+                "tb2_on_device": on_dev,
+                "tb3_continuity": continuity,
+                "tc1_axis": axis_gate,
+                "tc2_xpoint_class": xclass,
+                "tc3_unified_binding": binding,
+                "td1_multi_wall": multi_wall,
+                "td2_thin_tile": thin_tile,
+                "td3_wall_flux": wall_flux,
+                "td4_aug_raster": raster,
+                "te1_smooth_vs_hard": smooth_gate,
+                "te2_grad_currents": grad_gate,
+                "te3_adversarial": adversarial,
             },
             indent=2,
         )
     )
     logger.info("wrote %s", out)
     verdicts = {
-        "T-B1": tb1["verdict"],
-        "T-B2": tb2["verdict"],
-        "T-B3": tb3["verdict"],
-        "T-C1": tc1["verdict"],
-        "T-C2": tc2["verdict"],
-        "T-C3": tc3["verdict"],
-        "T-D1": td1["verdict"],
-        "T-D2": td2["verdict"],
-        "T-D3": td3["verdict"],
-        "T-D4": td4["verdict"],
+        "T-B1": repro["verdict"],
+        "T-B2": on_dev["verdict"],
+        "T-B3": continuity["verdict"],
+        "T-C1": axis_gate["verdict"],
+        "T-C2": xclass["verdict"],
+        "T-C3": binding["verdict"],
+        "T-D1": multi_wall["verdict"],
+        "T-D2": thin_tile["verdict"],
+        "T-D3": wall_flux["verdict"],
+        "T-D4": raster["verdict"],
+        "T-E1": smooth_gate["verdict"],
+        "T-E2": grad_gate["verdict"],
+        "T-E3": adversarial["verdict"],
     }
     logger.info("VERDICTS: %s", verdicts)
     return 0
