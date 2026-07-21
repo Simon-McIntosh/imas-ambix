@@ -498,13 +498,21 @@ State to read (CODE / FILES / DATA)
   imas_ambix/spine_bench/AGENTS.md                      (H200 recipe, binding)
 
 Gates (pre-declared, from the plan §4)
-  G-C: the batched corpus rollout reproduces the CPU sequential labeler&#x27;s equilibria
-  (axis/LCFS/profile + the held-out-MSE pitch readout where available) on a held-out
-  shot set to tolerance, with 0 fabricated readouts; report corpus wall-clock
-  (target: ~37 core-days -&gt; well under an hour on 8xH200). Shot-length bucketing +
-  per-column convergence masking; campaign-grouped resident Green&#x27;s matrices
-  (frozen-matrices invariant). Decide and gate the label precision lane
-  (fp64 vs tf32) at corpus scale.
+  G-C1 (batching invariance): the B-batched march is numerically identical
+       (&lt;=1e-12 m axis/LCFS) per shot to the B=1 device march — batching must not
+       change answers. Shot-length bucketing + per-column convergence masking;
+       campaign-grouped resident Green&#x27;s matrices (frozen-matrices invariant).
+  G-C2 (label anchor): device labels vs the validated CPU labeler &lt;=2 cm median
+       axis on the held-out shot set (close the 4.12 cm §3 anchor gap via the
+       same-read host anchor --host-reads both, or the ladder profile family on
+       device). 0 fabricated readouts. If the gap cannot be closed to 2 cm,
+       STOP-and-surface — never emit corpus labels off an engine that disagrees
+       with the validated CPU labeler.
+  G-C3 (throughput): measured corpus wall-clock on 8xH200 reported against the
+       &lt;=1 h target (CPU baseline ~37 core-days); an honest miss is reportable
+       WITH the measured pareto (B, precision lane, read mode).
+  G-C4 (precision lane): fp64-vs-tf32 label deltas measured at corpus scale; the
+       chosen lane must itself satisfy G-C2 (pick the fastest lane that does).
 
 Constraints
   - Honour locked decisions: jax; frozen-matrices-vector-only-update; tiered precision
@@ -559,8 +567,10 @@ State to read
 Gates (pre-declared)
   G-D1 (reproduction): the device coupled window reproduces the CPU §3 coupled solve
        (dynamics_coupled_solve_gate arms) on held-out shots to the §3 tolerances.
-  G-D2 (multi-rate accuracy): the multi-rate loop matches a single-rate reference within
-       a pre-declared band while the geometry refresh runs ≥4x coarser than the transport.
+  G-D2 (multi-rate accuracy): with the geometry refresh ≥4x coarser than the transport
+       substeps, the multi-rate loop matches the single-rate reference to ≤0.5 cm median
+       axis (the §3 PinT convergence bar) AND the held-out MSE-pitch readout difference
+       is CI-indistinguishable (paired bootstrap) on the gate shots.
   G-D3 (alternation converges): inner↔outer alternation converges in bounded outers on
        ramp AND flat-top windows; ramp-phase boundary error must IMPROVE vs the frozen
        fixed-θ chain (this is where the eddy+diffusion physics pays).
