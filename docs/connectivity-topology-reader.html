@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="connectivity-topology-reader">
   <meta name="plan-title" content="Connectivity Topology Reader — GPU-native, differentiable boundary/axis/mask (classify-after)">
   <meta name="plan-summary" content="The topology read (magnetic axis, X-point, LCFS/boundary, core mask) is the one data-dependent, GPU-hostile step in the batched equilibrium engine, and the place EFIT-class reconstructors sink into a contour-tree/critical-point-classification tar pit. This plan makes it a clean, on-device, differentiable prerequisite for gpu-accelerated-labeler by porting the ALGORITHM we already validated (the connectivity-boundary read, shipped in connectivity-boundary-classification / used as the frozen-spine pushout) to GPU-native primitives, and leaning on nova&#x27;s proven stencils only where they help. The boundary is defined by CONNECTIVITY, not stationary-point classification: the outermost closed axis-enclosing flux contour still inside the wall, found by a monotone valid→invalid level sweep — ONE code path, no limited/diverted branch, no X-point gate, continuous through the marginal limited↔diverted transition by construction (where a marginal plasma looks identical in flux space and classify-first is ill-conditioned). GPU-native rewrite: replace host contourpy + ndimage.label + argwhere-Newton with a fixed-iteration convolutional FLOOD-FILL from the axis + a fixed candidate-level sweep + batched containment/pinch reductions — branchless, fixed-shape, vmap-safe, differentiable. Port from nova ONLY the stencil sign-change null classifier (axis O-point + optional X-point diagnostics) and the local-quadratic sub-null refinement (sub-grid position/flux, proven jax.grad path) + the static-count idiom; do NOT port nova&#x27;s boundary mode-gate, its half-plane core mask, its single-loop wall contact, or contourpy (an independent review found nova&#x27;s boundary discontinuous through the marginal transition, plus a likely gate bug). X-points and the limited/diverted class are read off AFTER the boundary by proximity to the ring, never a prerequisite for psi_N. Machine-agnostic wall: the only machine input is a wall MASK, so multiple discrete limiters (AUG) and per-pulse movable limiters (WEST) are a union / per-pulse mask, not new code paths — where a classify-first pipeline becomes machine-specific. Differentiable (smooth mask) so the whole rollout supports implicit-diff (feeds gpu-accelerated-labeler&#x27;s 4D-Var / physics-in-the-loop stretch). Prerequisite to gpu-accelerated-labeler; also sharpens the CPU greens-filament-solver read.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="done">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
   <meta name="plan-tier" content="opus">
@@ -20,8 +20,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-21">
-<meta name="plan-impl" content="0.75">
-<meta name="plan-version" content="8">
+<meta name="plan-impl" content="1.0">
+<meta name="plan-version" content="9">
 </head>
 <body>
 <main class="plan-doc">
@@ -164,15 +164,23 @@
   <a href="archive/connectivity-topology-reader-s4-landed.html">§4 landed</a>
   (commits <code>ab73b76</code>, <code>6513358</code>).</p>
 
-  <h2 id="s5">§5 — Differentiable + adversarial-topology robustness</h2>
-  <p>Make the read differentiable (smooth/sigmoid core mask, soft level) for the
-  implicit-diff rollout (feeds <code>gpu-accelerated-labeler</code> §7), and pin the
-  adversarial topologies the connectivity read must get right: double-null / near-double
-  ordering, secondary separatrix, private-flux pockets (already connectivity-separated
-  in <code>classify_regions</code>), and snowflake configurations. Gate T-E: on
-  synthetic and real double-null / high-triangularity slices the read matches the exact
-  CPU read (boundary, private/core separation, X-slots) to tolerance; the smooth-mask
-  variant is validated against the hard-mask read before use in the differentiable path.</p>
+  <h2 id="s5"><span class="badge badge-shipped">✓ landed 2026-07-21</span> §5 — Differentiable + adversarial-topology robustness</h2>
+  <p class="landed-summary">Built <code>boundary_read_smooth_jax</code>: the binding
+  becomes a temperature-controlled <strong>softmin</strong> of the two sub-grid
+  candidates (X-weight returned as a smooth class probability) and the core mask a
+  <strong>sigmoid</strong> in ψ_N gated by the axis-connected flood retracted one τ
+  inside the binding — the retraction seals the saddle pass (private contamination
+  1.0&rarr;0.0 on the DN fixture). All 13 gates PASS on 48 held-out slices:
+  <strong>T-E1</strong> smooth→hard exact in ψ_bnd/radii, core count 0.99% @ τ=10⁻³
+  (monotone); <strong>T-E2</strong> grad of ψ_bnd / radius / core count w.r.t. the
+  cell currents finite+non-zero through the Green's GEMM + exact g_wall (implicit-diff
+  ready); <strong>T-E3</strong> DN / secondary-separatrix / snowflake / private-flux
+  fixtures match the exact CPU read (ψ_bnd ≤ 3e-4 span, X-set ≤ 0.011 cm, pocket
+  weight 0), no branch flip through 3 near-double ordering exchanges (max step 0.13%),
+  held-out τ→0 separation vs <code>classify_regions</code> 0.62% median / contamination
+  0 (13/48 double-null). Hard read byte-unchanged. Full record:
+  <a href="archive/connectivity-topology-reader-s5-landed.html">§5 landed</a>
+  (commits <code>0058e60</code>, <code>5d57f7e</code>).</p>
 
   <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -584,9 +592,9 @@ Done-when
   2. Plan updated same-session: §4 outcome recorded + collapsed; §5 (differentiable +
      adversarial-topology robustness) followup queued WITH pre-declared gates; this followup
      resolved.</pre>
-    <p class="r-fu-outcome">§4 landed + collapsed (commits ab73b76 wall_mask + g_wall + read wiring + tests, 6513358 gate T-D1..T-D4 + figures; docs this session). New imas_ambix/latent/wall_mask.py: an arbitrary wall-unit list (vessel + material tiles) becomes a supercover raster mask (occupiable = inside vessel AND NOT material; tiles are HOLES, contact = vessel poke-through = the same escape event) + a per-unit ~Δ/2 node string; MAST single loop is byte-identical to the point-in-polygon mask. Campaign g_wall matrix (coils+cells→nodes, hybrid_greens near-field) reads the sub-grid tangency EXACTLY in one GEMM. Loud thin-tile/gap-merge build diagnostics; one hard per-solve error when the flood seed lands in material. xpoint_candidates one-cell material dilation, made grad-safe (stop_gradient on padded/degenerate candidate slots — a masked-where 0·∞ trap). ALL 10 gates PASS on 48 held-out MAST slices + synthetic walls: T-D1 multi-wall (single-loop/multi-polygon/movable, lim+div; 5/5, <1e-4 of span); T-D2 thin blade t<Δ warns AND binds exact (7e-7); T-D3 g_wall exact (machine-ε) vs the O(Δ²) bilerp floor 1.5e-4, and the held-out bilerp→g_wall swap does NOT regress (consistency 0 — grid kernel reconstructs basis psi_tot exactly; swap ψ_bnd p90 8.5e-5, median 2.4e-5); T-D4 AUG-class 29-unit raster (9 thin-tile warnings, single-null diverted classified+binds). T-B1/2/3 + T-C1/2/3 unchanged. Caveat: real AUG per-unit R,Z not present in the imas-efit tree as clean geometry → an AUG-class synthetic 29-unit fixture exercises the SAME build_wall_mask path (the stop rule guards code branches, not fixture source). Record: connectivity-topology-reader-s4-landed.html; findings §8 updated.</p>
+    <p class="r-fu-outcome">§4 landed + collapsed (commits ab73b76 wall_mask + g_wall + read wiring + tests, 6513358 gate T-D1..T-D4 + figures; docs this session). New imas_ambix/latent/wall_mask.py: an arbitrary wall-unit list (vessel + material tiles) becomes a supercover raster mask (occupiable = inside vessel AND NOT material; tiles are HOLES, contact = vessel poke-through = the same escape event) + a per-unit ~Δ/2 node string; MAST single loop is byte-identical to the point-in-polygon mask. Campaign g_wall matrix (coils+cells→nodes, hybrid_greens near-field) reads the sub-grid tangency EXACTLY in one GEMM. Loud thin-tile/gap-merge build diagnostics; one hard per-solve error when the flood seed lands in material. xpoint_candidates one-cell material dilation, made grad-safe (stop_gradient on padded/degenerate candidate slots — a masked-where 0·∞ trap). ALL 10 gates PASS on 48 held-out MAST slices + synthetic walls: T-D1 multi-wall (single-loop/multi-polygon/movable, lim+div; 5/5, &lt;1e-4 of span); T-D2 thin blade t&lt;Δ warns AND binds exact (7e-7); T-D3 g_wall exact (machine-ε) vs the O(Δ²) bilerp floor 1.5e-4, and the held-out bilerp→g_wall swap does NOT regress (consistency 0 — grid kernel reconstructs basis psi_tot exactly; swap ψ_bnd p90 8.5e-5, median 2.4e-5); T-D4 AUG-class 29-unit raster (9 thin-tile warnings, single-null diverted classified+binds). T-B1/2/3 + T-C1/2/3 unchanged. Caveat: real AUG per-unit R,Z not present in the imas-efit tree as clean geometry → an AUG-class synthetic 29-unit fixture exercises the SAME build_wall_mask path (the stop rule guards code branches, not fixture source). Record: connectivity-topology-reader-s4-landed.html; findings §8 updated.</p>
     </article>
-<article class="r-fu" data-id="f-ctr-07" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-21T00:30:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §5" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ctr-07" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-21T00:30:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §5" data-resolved-at="2026-07-21T08:08:23+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §5 — differentiable read (smooth mask + soft level) + adversarial-topology robustness</h4>
     <div class="r-fu-body"><p>§2–§4 landed the full connectivity read (boundary + classify-after axis/X + unified binding + machine-agnostic wall), all gates PASS on 48 held-out MAST slices. The read is already jit/vmap/grad-safe through the sub-grid nulls and the exact g_wall tangency, but the CORE MASK and the binding LEVEL are hard thresholds. §5 makes the read END-TO-END DIFFERENTIABLE for the implicit-diff rollout gpu-accelerated-labeler §7 needs — a smooth/sigmoid core mask and a soft binding level, validated against the hard-mask read — and pins the adversarial topologies the connectivity read must get right: double-null / near-double ordering, secondary separatrix, private-flux pockets (already connectivity-separated in classify_regions), snowflake. The hard read stays the reference; the smooth variant must match it before use in the differentiable path.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -651,6 +659,7 @@ Done-when
      verdicts recorded honestly; artifact + figures committed.
   2. Plan updated same-session: §5 outcome recorded + collapsed; the plan retired (status
      done) OR a follow-on queued into gpu-accelerated-labeler; this followup resolved.</pre>
+    <p class="r-fu-outcome">§5 landed — commits 0058e60, 5d57f7e. Smooth read (softmin binding + retracted-gate sigmoid core mask) converges to the hard reference (ψ_bnd/radii exact, core 0.99% @ τ=1e-3); currents-gradient finite+non-zero through the Green's GEMM + exact g_wall (T-E2 PASS, implicit-diff ready); adversarial DN/secondary-separatrix/snowflake/private-flux fixtures match the exact CPU read (ψ_bnd ≤3e-4 span, X-set ≤0.011 cm, pocket weight 0), no branch flip through 3 near-double ordering exchanges, held-out τ→0 separation 0.62% median / contamination 0 (13/48 DN). All 13 gates PASS; plan complete (impl 1.0, status done). Successor work is queued in gpu-accelerated-labeler (f-gal-02, §3 single-shot rollout).</p>
     </article>
 </section>
 

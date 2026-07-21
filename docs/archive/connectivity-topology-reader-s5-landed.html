@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="connectivity-topology-reader-s5-landed">
+  <meta name="plan-title" content="§5 landed — differentiable smooth read (softmin binding + sigmoid core mask) + adversarial-topology robustness">
+  <meta name="plan-status" content="reference">
+  <meta name="plan-summary" content="Per-stage landed record for connectivity-topology-reader §5: the read becomes end-to-end differentiable and the adversarial topologies are pinned. A smooth variant of the boundary read replaces the two remaining hard thresholds: the binding is the temperature-controlled softmin of the two sub-grid candidates (wall tangency, X-point saddle) with the X-weight returned as a smooth class probability, and the core mask is a sigmoid cutoff in normalised flux gated by the axis-connected flood retracted one temperature inside the binding (the retraction seals the saddle pass, so a private-flux pocket never leaks weight). All three gates PASS on the 48 held-out MAST slices + synthetic fixtures: T-E1 the smooth read converges to the hard reference (psi_bnd and radii exact, core count 0.99 percent at tau=1e-3, monotone); T-E2 grad of psi_bnd / mean radius / soft core count w.r.t. the cell currents through the linear Green's GEMM and the exact g_wall node flux is finite and non-zero (limited AND diverted); T-E3 balanced double-null, secondary separatrix, snowflake-like and private-flux fixtures match the exact CPU read (boundary to 3e-4 span, X-set to 0.011 cm, private contamination 0), the near-double ordering sweep shows no branch flip (max step 0.13 percent through 3 binding exchanges), and on held-out slices the tau-to-0 core mask matches classify_regions to 0.62 percent median with zero private leakage (13/48 slices double-null).">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>§5 landed — differentiable read + adversarial topologies | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Per-stage record</strong> for
+<a href="/imas-ambix/connectivity-topology-reader.html">connectivity-topology-reader</a>
+§5 — the connectivity read becomes <em>end-to-end differentiable</em> (the
+smooth path the implicit-diff rollout in
+<a href="/imas-ambix/gpu-accelerated-labeler.html">gpu-accelerated-labeler</a>
+trains through) and the adversarial topologies — double-null ordering,
+secondary separatrix, snowflake, private flux — are pinned against the exact
+CPU read.</p>
+
+<h2 id="status">Quick status</h2>
+<figure>
+  <table>
+    <thead><tr><th>Gate</th><th>Verdict</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>T-E1 — smooth ≈ hard</td><td>PASS</td>
+        <td>on the 48 held-out MAST slices the smooth (softmin + sigmoid) read
+        reproduces the hard reference: ψ_bnd and LCFS radii <strong>exact at every
+        temperature</strong> (the softmin only blends when both binding candidates
+        coexist within ~τ — the marginal cases it exists to smooth), and the soft
+        core-cell count converges monotonically to the hard count —
+        <strong>0.99% at τ=10⁻³</strong> (2.6% @ 3·10⁻³, 8.0% @ 10⁻², bar 5% at
+        min τ)</td></tr>
+      <tr><td>T-E2 — grad w.r.t. currents</td><td>PASS</td>
+        <td>the full chain cell currents → ψ (linear plasma Green's GEMM) → exact
+        <code>g_wall</code> node flux → smooth read → scalar carries a
+        <strong>finite, non-zero</strong> <code>jax.grad</code> for ψ_bnd, mean LCFS
+        radius, AND the soft core count, on a limited and a diverted configuration —
+        the implicit-diff rollout is unblocked</td></tr>
+      <tr><td>T-E3 — adversarial topologies</td><td>PASS</td>
+        <td><em>fixtures</em> (4/4): balanced double-null (both X-slots read, X-set
+        <strong>0.0009 cm</strong> vs CPU), secondary separatrix (binds the inner
+        saddle; the outer never enters the X-set), snowflake-like (near-degenerate
+        saddle pair, ψ_bnd <strong>3e-4 span</strong>), private-flux pocket
+        (2911 CPU-PRIVATE cells, <strong>zero</strong> smooth-mask weight on every
+        one); <em>ordering sweep</em>: ψ_bnd continuous through <strong>3</strong>
+        up/down binding exchanges (max step <strong>0.13%</strong> hard AND smooth,
+        vs CPU 6e-5 median) — no branch flip; <em>held-out real leg</em>: the τ→0
+        core mask matches CPU <code>classify_regions</code> to <strong>0.62% median /
+        1.5% max</strong> with <strong>private contamination 0.0</strong> on all 48
+        slices (13/48 double-null X-sets)</td></tr>
+      <tr><td>T-B1/2/3, T-C1/2/3, T-D1..D4</td><td>PASS</td>
+        <td>the full 13-gate suite re-stamped in the same run — the hard read is
+        byte-unchanged by the refactor (shared-ingredients extraction verified
+        byte-parity on synthetic limited/diverted/marginal fields); held-out
+        reproduction 0.070 cm radii / 8e-5 ψ_bnd</td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<h2 id="what">What was built</h2>
+<ul>
+  <li><strong><code>boundary_read_smooth_jax</code> / <code>boundary_read_smooth</code></strong>
+    (<code>imas_ambix/latent/connectivity_boundary.py</code>) — the differentiable
+    path. The read's shared ingredients (normalised flux, flood binding, sub-grid
+    wall tangency + saddle candidates) are extracted into one helper consumed by
+    BOTH reads; the hard read (exact <code>min</code>) stays the reference,
+    byte-identical.</li>
+  <li><strong>Soft binding level</strong> — softmin over {wall-tangency ψ_N,
+    X-saddle ψ_N} at temperature τ (span units); the X-candidate's softmax weight
+    is returned as <code>p_diverted</code>, a smooth class probability. Absent
+    candidates use a finite sentinel so no <code>0·inf</code> poisons the VJP.</li>
+  <li><strong>Smooth core mask</strong> — σ((s_soft − u)/τ) gated by the
+    axis-connected flood <em>retracted one τ inside the binding</em>. The
+    retraction is load-bearing: a grid sample at a saddle vertex always sits an
+    O(Δ²) hair below the sub-grid saddle flux, so an un-retracted flood walks
+    through that cell and pours weight-1 into the pocket beyond (measured:
+    private contamination 1.0 on the double-null fixture before the fix, 0.0
+    after). The cost is a one-sided O(τ) boundary shell that vanishes with τ.</li>
+  <li><strong>Adversarial fixtures + gates</strong>
+    (<code>scripts/connectivity_boundary_gate_eval.py</code>) — balanced DN /
+    secondary separatrix / snowflake / private-flux synthetic fields with exact
+    CPU references (<code>lcfs_contour</code>, <code>classify_regions</code>,
+    <code>emergent_xpoints</code>), a 21-step near-double ordering sweep, the
+    currents-gradient probe, and the held-out separation leg. Single-null
+    fixtures live on a compact vessel — a taller vessel lets the CPU push-out
+    close a peanut contour around both nulls (wall-limited), a genuinely
+    different topology than these cases pin.</li>
+  <li><strong>Naming scrub</strong> — every gate function/constant in the eval
+    script is named by the mechanism it checks
+    (<code>_smooth_convergence_gate</code>, <code>_double_null_ordering_sweep</code>,
+    …); the gate IDs survive only as the artifact's verdict keys, glossaried in
+    the module docstring.</li>
+</ul>
+
+<h2 id="figures">Evidence</h2>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/smooth_vs_hard.png"
+       alt="Smooth-vs-hard convergence vs temperature" style="max-width:100%">
+  <figcaption>Smooth read → hard read as τ→0 (held-out median, 48 slices):
+  ψ_bnd and radii exact throughout; the soft core count carries the designed
+  O(τ) retracted-shell deficit and lands at 0.99% at τ=10⁻³.</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/adversarial_topologies.png"
+       alt="Adversarial topology overlays and the double-null ordering sweep" style="max-width:100%">
+  <figcaption>Adversarial fixtures — device hard ring (X markers) + smooth-mask
+  0.5-contour (dashed) vs the CPU LCFS (orange) with CPU-PRIVATE cells shaded;
+  right panel: ψ_bnd through the near-double ordering sweep — continuous through
+  3 binding exchanges for hard, smooth, and CPU reads alike.</figcaption>
+</figure>
+
+<h2 id="outcomes">Outcomes</h2>
+<figure>
+  <table>
+    <thead><tr><th>Item</th><th>Status</th><th>Commit</th></tr></thead>
+    <tbody>
+      <tr><td>Smooth read (softmin binding + retracted-gate sigmoid mask) + mechanism-named gates</td>
+        <td>shipped</td><td><code>0058e60</code></td></tr>
+      <tr><td>13-gate artifact + convergence/adversarial figures</td>
+        <td>shipped</td><td><code>5d57f7e</code></td></tr>
+    </tbody>
+  </table>
+</figure>
+<p>Artifact:
+<code>imas_ambix/latent/artifacts/patch_gate/connectivity_boundary_gate-v0.json</code>
+(schema <code>connectivity-boundary-gate-v0</code>, verdict keys T-B1..T-E3).</p>
+
+<h2 id="next">What's next</h2>
+<p>The plan is complete — all five sections landed, 13/13 gates PASS. The smooth
+read unblocks <strong>gpu-accelerated-labeler</strong>: batch the full rollout
+(currents → ψ → smooth read) over shots on the H200, and revisit the
+Newton–Krylov / Anderson accelerators on the now-differentiable map.</p>
+
+</main>
+</body>
+</html>
