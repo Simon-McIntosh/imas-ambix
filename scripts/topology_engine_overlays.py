@@ -107,9 +107,14 @@ def _render_slice(shot: int, time_s: float, *, nr: int, nz: int):
     our = _our_slice(psi2d, grid, target, psi_ax, psi_b, p.ip_amperes, p.time_s,
                      our_lcfs)
     geom = _machine_geometry(grid, chain["table"])
-    with evaluator_context():
-        efit = read_efit_slice(int(shot), float(p.time_s))
-    efit_slice = _efit_slice(efit) if efit is not None else None
+    efit_slice = None
+    try:
+        with evaluator_context():
+            efit = read_efit_slice(int(shot), float(p.time_s))
+        efit_slice = _efit_slice(efit) if efit is not None else None
+    except Exception as exc:  # noqa: BLE001 — a shot lacking EFIT metadata still
+        logger.info("  %d: no EFIT reference (%s) — engine-only panel",
+                    shot, type(exc).__name__)  # renders engine ψ alone
     return our, efit_slice, geom, {"axis_r": axis_rz[0], "time_s": float(p.time_s)}
 
 
@@ -119,7 +124,11 @@ def _panel(shot: int, time_s: float, role: str, dmed: float, *, nr: int, nz: int
 
     from scripts.patch_flux_map_report import _fig_to_rgba  # noqa: PLC0415
 
-    got = _render_slice(shot, time_s, nr=nr, nz=nz)
+    try:
+        got = _render_slice(shot, time_s, nr=nr, nz=nz)
+    except Exception as exc:  # noqa: BLE001 — one bad shot must not sink the gallery
+        logger.warning("  panel %d t=%.3f failed: %s", shot, time_s, exc)
+        return None
     if got is None:
         return None
     our, efit_slice, geom, info = got
