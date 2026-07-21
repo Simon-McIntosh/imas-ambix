@@ -65,8 +65,16 @@ MAX_PAYLOAD_SLICES = 200  # per-shot payload build ceiling (dense time cover)
 MIN_IP_KA = 100.0
 
 
-def engine_rows_for_shot(shot: int, recs, *, nr: int, nz: int) -> list[dict]:
-    """Run the disc engine on one shot and score its read at the census times."""
+def engine_rows_for_shot(
+    shot: int, recs, *, nr: int, nz: int
+) -> tuple[list[dict], list[dict]]:
+    """Run the disc engine on one shot and score its read at the census times.
+
+    Returns ``(rows, drops)`` — every requested slice lands in exactly one of
+    the two lists; ``drops`` carries a reason code so no failure mode is
+    silently averaged away (world-model label production needs the accounting,
+    not just the survivors).
+    """
     import zarr  # noqa: PLC0415
 
     from imas_ambix.latent.boundary_disc import disc_read  # noqa: PLC0415
@@ -75,9 +83,20 @@ def engine_rows_for_shot(shot: int, recs, *, nr: int, nz: int) -> list[dict]:
     from scripts.heldout_mse_gate_eval import _campaign_table  # noqa: PLC0415
     from scripts.spine_label_factory import factory_shot_payloads  # noqa: PLC0415
 
+    def _drops(reason: str, detail: str = "") -> list[dict]:
+        return [
+            {
+                "shot": int(shot),
+                "k": int(r["k"]),
+                "reason": reason,
+                "detail": detail,
+            }
+            for r in recs
+        ]
+
     table = _campaign_table(int(shot))
     if table is None:
-        return []
+        return [], _drops("no-campaign-geometry")
     payload = factory_shot_payloads(
         int(shot),
         nr=nr,
@@ -88,35 +107,52 @@ def engine_rows_for_shot(shot: int, recs, *, nr: int, nz: int) -> list[dict]:
         cache_grid=True,  # campaign-scope reuse: one grid build per campaign
     )
     if payload is None:
-        return []
+        return [], _drops("no-sensor-windows")
     grid, tbl, basis = payload["grid"], payload["table"], payload["basis"]
     times = np.array([float(p.time_s) for p in payload["payloads"]])
 
     g = zarr.open_group(str(LEVEL2_SHOTS / f"{shot}.zarr"), mode="r")
     eq = g["equilibrium"]
 
-    rows = []
+    rows, drops = [], []
+
+    def _drop(rec, reason: str, detail: str = "") -> None:
+        drops.append(
+            {
+                "shot": int(shot),
+                "k": int(rec["k"]),
+                "reason": reason,
+                "detail": detail,
+            }
+        )
+
     for rec in recs:
         t_ref = float(rec["time_s"])
         j = int(np.argmin(np.abs(times - t_ref)))
         if abs(times[j] - t_ref) > TIME_MATCH_S:
+            _drop(rec, "no-payload-at-time", f"nearest {abs(times[j] - t_ref):.3f} s")
             continue
         p = payload["payloads"][j]
         try:
             inv = disc_read(p, grid, tbl, basis)
-        except Exception:  # noqa: BLE001 — sweep on
-            inv = None
+        except Exception as exc:  # noqa: BLE001 — sweep on, record the cause
+            _drop(rec, "solve-error", f"{type(exc).__name__}: {exc}"[:160])
+            continue
         if inv is None or inv.ring is None:
+            _drop(rec, "solve-no-ring")
             continue
         psi = np.asarray(inv.psi_tot, dtype=np.float64)
         centroid = (float(inv.centroid_r), float(inv.centroid_z))
         if not (np.isfinite(centroid[0]) and centroid[0] <= 1.4):
+            _drop(rec, "unconfined-centroid", f"R={centroid[0]:.3f}")
             continue
         try:
             eng = boundary_read(psi, grid, centroid, lcfs_norm=1.0)
-        except ValueError:
+        except ValueError as exc:
+            _drop(rec, "seed-in-wall", str(exc)[:120])
             continue
         if not eng.found:
+            _drop(rec, "read-not-found")
             continue
         k = int(rec["k"])
         lcfs = np.c_[
@@ -125,10 +161,12 @@ def engine_rows_for_shot(shot: int, recs, *, nr: int, nz: int) -> list[dict]:
         ]
         lcfs = lcfs[np.isfinite(lcfs).all(axis=1) & (lcfs[:, 0] > 0)]
         if lcfs.shape[0] < 8:
+            _drop(rec, "efit-lcfs-degenerate")
             continue
         efit_radii = polygon_ray_radii(lcfs, eng.axis, LCFS_ANGLES)
         ok = np.isfinite(eng.radii) & np.isfinite(efit_radii)
         if not ok.any():
+            _drop(rec, "no-finite-radii-pair")
             continue
         dr_cm = 100.0 * np.abs(eng.radii[ok] - efit_radii[ok])
         efit_axis = (float(eq["magnetic_axis_r"][k]), float(eq["magnetic_axis_z"][k]))
@@ -158,16 +196,20 @@ def engine_rows_for_shot(shot: int, recs, *, nr: int, nz: int) -> list[dict]:
                 "class_margin": float(np.clip(eng.class_margin, -1.0, 1.0)),
             }
         )
-    return rows
+    return rows, drops
 
 
 def score_class(
     cname: str, recs: np.ndarray, *, nr: int, nz: int, checkpoint: Path | None = None
 ) -> dict:
     rows: list[dict] = []
+    drops: list[dict] = []
     done: set[int] = set()
     if checkpoint is not None and checkpoint.exists():
-        rows = json.loads(checkpoint.read_text())["rows"]
+        state = json.loads(checkpoint.read_text())
+        rows = state["rows"]
+        # a scored shot is done; a shot whose slices ALL dropped reruns so the
+        # instrumented reason codes replace a silent gap
         done = {int(r["shot"]) for r in rows}
         logger.info("  %s: resuming — %d rows from checkpoint", cname, len(rows))
     by_shot: dict[int, list] = {}
@@ -176,9 +218,20 @@ def score_class(
             by_shot.setdefault(int(rec["shot"]), []).append(rec)
     for i, (shot, srecs) in enumerate(sorted(by_shot.items())):
         try:
-            rows += engine_rows_for_shot(shot, srecs, nr=nr, nz=nz)
+            srows, sdrops = engine_rows_for_shot(shot, srecs, nr=nr, nz=nz)
+            rows += srows
+            drops += sdrops
         except Exception as exc:  # noqa: BLE001 — engine attrition is reported
             logger.warning("  %s shot %d failed: %s", cname, shot, exc)
+            drops += [
+                {
+                    "shot": int(shot),
+                    "k": int(r["k"]),
+                    "reason": "shot-error",
+                    "detail": f"{type(exc).__name__}: {exc}"[:160],
+                }
+                for r in srecs
+            ]
         if (i + 1) % 10 == 0:
             logger.info(
                 "  %s: %d/%d shots, %d rows", cname, i + 1, len(by_shot), len(rows)
@@ -186,18 +239,26 @@ def score_class(
         if checkpoint is not None:
             # scored rows survive a wall-clock kill; the artifact is rebuilt from
             # the last checkpoint on rerun
-            checkpoint.write_text(json.dumps({"class": cname, "rows": rows}))
+            checkpoint.write_text(
+                json.dumps({"class": cname, "rows": rows, "drops": drops})
+            )
     diverted_expected = cname != "limited"
     class_hits = [r["dev_is_diverted"] == diverted_expected for r in rows]
+    drop_counts: dict[str, int] = {}
+    for d in drops:
+        drop_counts[d["reason"]] = drop_counts.get(d["reason"], 0) + 1
     return {
         "class": cname,
         "n_selected": int(recs.size),
         "n_scored": len(rows),
+        "n_dropped": len(drops),
+        "drop_counts": dict(sorted(drop_counts.items(), key=lambda kv: -kv[1])),
         "radii_dmed_cm": _agg([r["radii_dmed_cm"] for r in rows]),
         "axis_d_cm": _agg([r["axis_d_cm"] for r in rows]),
         "xset_d_cm": _agg([r["xset_d_cm"] for r in rows]),
         "class_agreement": float(np.mean(class_hits)) if class_hits else None,
         "rows": rows,
+        "drops": drops,
     }
 
 
@@ -278,9 +339,11 @@ def main() -> None:
         },
         "verdicts": verdicts,
         "classes": {
-            c: {k: v for k, v in r.items() if k != "rows"} for c, r in results.items()
+            c: {k: v for k, v in r.items() if k not in ("rows", "drops")}
+            for c, r in results.items()
         },
         "rows": {c: r["rows"] for c, r in results.items()},
+        "drops": {c: r["drops"] for c, r in results.items()},
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(artifact, indent=2))
