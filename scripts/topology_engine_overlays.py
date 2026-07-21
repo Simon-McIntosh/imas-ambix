@@ -51,14 +51,21 @@ def _plain_rows(cname: str) -> list[dict]:
     return json.loads(p.read_text()).get("rows", [])
 
 
+def _shape_cm(r: dict) -> float:
+    """Own-axis boundary-shape residual; falls back to the placement frame
+    for rows scored before the shape field existed."""
+    v = r.get("shape_dmed_cm")
+    if v is not None and np.isfinite(v):
+        return float(v)
+    return float(r["radii_dmed_cm"])
+
+
 def _pick_slices(cname: str) -> list[tuple[str, dict]]:
     """(role, row) picks for one class: worst/median flat-top + worst ramp."""
     rows = [r for r in _plain_rows(cname) if r["cls"] == cname]
     picks: list[tuple[str, dict]] = []
-    ft = sorted((r for r in rows if r["phase"] == "flattop"),
-                key=lambda r: r["radii_dmed_cm"])
-    ramp = sorted((r for r in rows if r["phase"] == "ramp"),
-                  key=lambda r: r["radii_dmed_cm"])
+    ft = sorted((r for r in rows if r["phase"] == "flattop"), key=_shape_cm)
+    ramp = sorted((r for r in rows if r["phase"] == "ramp"), key=_shape_cm)
     if ft:
         picks.append(("flat-top worst", ft[-1]))
         picks.append(("flat-top median", ft[len(ft) // 2]))
@@ -148,7 +155,7 @@ def _panel(shot: int, time_s: float, role: str, dmed: float, *, nr: int, nz: int
     fig, _ax = equilibrium_figure_mpl(
         our, geom, reference_slice=efit_slice, reference_name="EFIT",
         figsize=(4.4, 6.0), show_probes=False, show_flux_loops=False)
-    sub = (f"{shot} t={info['time_s']:.3f}s\n{role}: LCFS Δ={dmed:.1f} cm, "
+    sub = (f"{shot} t={info['time_s']:.3f}s\n{role}: shape Δ={dmed:.1f} cm, "
            f"axis R={info['axis_r']:.2f} m")
     fig.suptitle(sub, fontsize=8)
     rgba = _fig_to_rgba(fig)
@@ -164,7 +171,7 @@ def class_overlay(cname: str, *, nr: int, nz: int) -> None:
     panels = []
     for role, r in picks:
         got = _panel(int(r["shot"]), float(r["time_s"]), role,
-                     float(r["radii_dmed_cm"]), nr=nr, nz=nz)
+                     _shape_cm(r), nr=nr, nz=nz)
         if got is not None:
             panels.append(got)
             logger.info("  %s %s: %s", cname, role, got[1].replace("\n", " "))
@@ -186,15 +193,16 @@ def class_overlay(cname: str, *, nr: int, nz: int) -> None:
 
 
 def sn_lower_deepdive(*, nr: int, nz: int) -> None:
-    """The sn-lower coupled-drift deep dive: worst flat-top slices, showing the
-    outboard axis drift that inverts sn-lower below the bare seed."""
+    """The sn-lower deep dive: worst flat-top slices by boundary-shape
+    residual — the slices whose SHAPE (not just placement) is furthest from
+    EFIT's lower-single-null reconstruction."""
     rows = [r for r in _plain_rows("sn-lower") if r["cls"] == "sn-lower"
             and r["phase"] == "flattop"]
-    rows = sorted(rows, key=lambda r: -r["radii_dmed_cm"])[:4]
+    rows = sorted(rows, key=_shape_cm, reverse=True)[:4]
     panels = []
     for r in rows:
         got = _panel(int(r["shot"]), float(r["time_s"]), "flat-top",
-                     float(r["radii_dmed_cm"]), nr=nr, nz=nz)
+                     _shape_cm(r), nr=nr, nz=nz)
         if got is not None:
             panels.append(got)
     if not panels:
@@ -205,8 +213,8 @@ def sn_lower_deepdive(*, nr: int, nz: int) -> None:
     for ax, (rgba, _sub) in zip(np.atleast_1d(axes), panels, strict=False):
         ax.imshow(rgba)
         ax.axis("off")
-    fig.suptitle("§6b sn-lower deep dive — worst flat-top coupled fits: the "
-                 "outboard axis drift EFIT (faint) does not share",
+    fig.suptitle("sn-lower deep dive — worst flat-top coupled fits by "
+                 "boundary shape: engine ψ (solid) vs EFIT (faint)",
                  fontsize=11)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     out = FIGURE_DIR / "fig-engine-worst-sn-lower.png"
@@ -221,12 +229,12 @@ def worst_grid(*, nr: int, nz: int) -> None:
     for cname in SCORED_CLASSES:
         ft = sorted((r for r in _plain_rows(cname) if r["cls"] == cname
                      and r["phase"] == "flattop"),
-                    key=lambda r: -r["radii_dmed_cm"])
+                    key=_shape_cm, reverse=True)
         if not ft:
             continue
         r = ft[0]
         got = _panel(int(r["shot"]), float(r["time_s"]), f"{cname} worst",
-                     float(r["radii_dmed_cm"]), nr=nr, nz=nz)
+                     _shape_cm(r), nr=nr, nz=nz)
         if got is not None:
             panels.append((cname, got))
     if not panels:

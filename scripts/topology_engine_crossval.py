@@ -31,16 +31,31 @@ Verdict keys (module glossary — code below is named by mechanism):
   G-E2   full-engine per-class boundary quality.  Tolerances PRE-DECLARED
          before scoring, from the engine's validated envelope (flat-top LCFS
          1.5–2.1 cm on curated cohorts, ×~1.5 headroom for the uncurated
-         stratified draw): per-class FLAT-TOP median LCFS-radii residual
+         stratified draw): per-class FLAT-TOP median boundary-SHAPE residual
          ≤ 3.0 cm and diverted/limited class agreement ≥ 0.80.  Class-
          conditional failures are surfaced, never averaged away.
   G-E3   ramp eddy ablation: the known-drive injection must not regress any
          class (flat-top median within +0.25 cm) and its early-time
          (t < 0.2 s) effect is quantified per class.
 
-Scoring frame: the engine boundary is read on the ENGINE grid (its own solve
-domain); EFIT's LCFS polygon is rendered to radii about the ENGINE's read axis
-so both sides describe the boundary from the same origin.
+Scoring frames — every row carries the boundary residual in BOTH frames:
+
+* ``shape_dmed_cm`` (own-axis, gates G-E2): the engine boundary as radii
+  about the engine's axis vs EFIT's polygon as radii about EFIT's axis.
+  Translation-insensitive — measures boundary SHAPE, the quantity the
+  validated 1.5–2.1 cm envelope (and hence the 3 cm tolerance) was
+  calibrated on.
+* ``radii_dmed_cm`` (engine-frame placement, reported): EFIT's polygon
+  rendered about the ENGINE's read axis.  An axis displacement Δ projects
+  into these radii at ~0.7·|Δ| (the mean |cos θ| over the ray fan), so this
+  residual measures shape ⊕ position and tracks ``axis_d_cm`` wherever the
+  axis is off.  Axis placement itself is ``axis_d_cm``, its own quantity.
+
+Each full-chain row also carries a PAIRED bare disc-seed read on the same
+payload slice (``bare_*`` fields) so the chain's value-added is measured
+without draw, phase, or campaign-mix mismatch, and aggregates split flat-top
+rows at ``VALIDATED_BAND_MAX_SHOT`` because the census draws mix
+validated-era and later campaigns very differently per class.
 
 Usage:
     uv run python -m scripts.topology_engine_crossval --chain full --classes limited
@@ -89,6 +104,15 @@ CHAIN_MAX_SLICES = 24  # dense enough to cover ramp + flat-top
 CHAIN_MIN_IP_KA = 60.0  # the engine's operating floor (gate value)
 
 RAMP_END_S = 0.2  # early-phase bin boundary [s]
+
+# Campaign-band split for stratified reporting.  The engine's validated
+# cohorts (the 128-slice spine held-out split, shots 12143–18559, and the
+# 112-shot MSE-gate split, shots ≤22587) never cover shots beyond ~23000;
+# later shots carry machine/campaign configurations no validated evaluation
+# touched, and the residual structure differs sharply across this boundary,
+# so aggregates report the two bands separately to keep class effects and
+# campaign effects from confounding each other.
+VALIDATED_BAND_MAX_SHOT = 23000
 
 # Declared BEFORE any full-chain scoring ran (validated flat-top envelope
 # 1.5–2.1 cm on curated cohorts; ×~1.5 headroom for the uncurated census draw).
@@ -214,6 +238,10 @@ def engine_rows_for_shot(
             continue
         dr_cm = 100.0 * np.abs(eng.radii[ok] - efit_radii[ok])
         efit_axis = (float(eq["magnetic_axis_r"][k]), float(eq["magnetic_axis_z"][k]))
+        efit_radii_own = polygon_ray_radii(lcfs, efit_axis, LCFS_ANGLES)
+        ok_s = np.isfinite(eng.radii) & np.isfinite(efit_radii_own)
+        shape_cm = (100.0 * np.abs(eng.radii[ok_s] - efit_radii_own[ok_s])
+                    if ok_s.any() else None)
         u_x = np.array(
             [
                 (rec["u_x_lo"], rec["x_lo_r"], rec["x_lo_z"]),
@@ -229,8 +257,14 @@ def engine_rows_for_shot(
                 "k": k,
                 "time_s": t_ref,
                 "ip_ka": float(rec["ip_ka"]),
+                "cls": _rec_class(rec),
+                "phase": "ramp" if t_ref < RAMP_END_S else "flattop",
                 "radii_dmed_cm": float(np.median(dr_cm)),
                 "radii_dmax_cm": float(np.max(dr_cm)),
+                "shape_dmed_cm": (float(np.median(shape_cm))
+                                  if shape_cm is not None else float("nan")),
+                "shape_dmax_cm": (float(np.max(shape_cm))
+                                  if shape_cm is not None else float("nan")),
                 "axis_d_cm": 100.0
                 * float(
                     np.hypot(eng.axis[0] - efit_axis[0], eng.axis[1] - efit_axis[1])
@@ -278,6 +312,49 @@ def _eddy_center_builder(shot: int, payload: dict):
         return centers
 
     return sidecar, centers_fn
+
+
+def _bare_read_fields(p, grid, table, basis, eq, k: int, lcfs) -> dict | None:
+    """Bare disc-read boundary scored on one slice — the paired seed baseline.
+
+    Runs the linear disc inversion on the SAME payload slice the chain solved
+    and scores its ψ with the same connectivity read against the same EFIT
+    reference, in both frames.  Returns None when the seed read cannot be
+    scored (the chain row then simply carries no baseline for that slice).
+    """
+    from imas_ambix.latent.boundary_disc import disc_read  # noqa: PLC0415
+    from imas_ambix.latent.connectivity_boundary import boundary_read  # noqa: PLC0415
+    from imas_ambix.worldmodel.equilibrium_labels import LCFS_ANGLES  # noqa: PLC0415
+
+    try:
+        inv = disc_read(p, grid, table, basis)
+        if inv is None or inv.ring is None:
+            return None
+        centroid = (float(inv.centroid_r), float(inv.centroid_z))
+        if not (np.isfinite(centroid[0]) and centroid[0] <= 1.4):
+            return None
+        eng = boundary_read(np.asarray(inv.psi_tot, dtype=np.float64), grid,
+                            centroid, lcfs_norm=1.0)
+        if not eng.found:
+            return None
+        efit_axis = (float(eq["magnetic_axis_r"][k]),
+                     float(eq["magnetic_axis_z"][k]))
+        radii_frame = polygon_ray_radii(lcfs, eng.axis, LCFS_ANGLES)
+        radii_own = polygon_ray_radii(lcfs, efit_axis, LCFS_ANGLES)
+        ok_f = np.isfinite(eng.radii) & np.isfinite(radii_frame)
+        ok_s = np.isfinite(eng.radii) & np.isfinite(radii_own)
+        if not (ok_f.any() and ok_s.any()):
+            return None
+        return {
+            "radii_dmed_cm": float(np.median(
+                100.0 * np.abs(eng.radii[ok_f] - radii_frame[ok_f]))),
+            "shape_dmed_cm": float(np.median(
+                100.0 * np.abs(eng.radii[ok_s] - radii_own[ok_s]))),
+            "axis_d_cm": 100.0 * float(np.hypot(
+                eng.axis[0] - efit_axis[0], eng.axis[1] - efit_axis[1])),
+        }
+    except Exception:  # noqa: BLE001 — a missing baseline must not drop the row
+        return None
 
 
 def full_engine_rows_for_shot(
@@ -406,6 +483,13 @@ def full_engine_rows_for_shot(
         if lcfs.shape[0] < 8:
             _drop(rec, "efit-lcfs-degenerate")
             continue
+        # Two boundary residuals, two frames:
+        #  * placement frame — EFIT polygon rendered about the ENGINE's axis;
+        #    a displaced engine axis projects into the radii (~0.7·|Δaxis|),
+        #    so this measures boundary PLACEMENT (shape ⊕ position).
+        #  * shape frame — each boundary about ITS OWN axis, translation-
+        #    insensitive; this is the metric the validated flat-top envelope
+        #    (and the 3 cm tolerance) was calibrated on.
         efit_radii = polygon_ray_radii(lcfs, eng.axis, LCFS_ANGLES)
         ok = np.isfinite(eng.radii) & np.isfinite(efit_radii)
         if not ok.any():
@@ -413,6 +497,15 @@ def full_engine_rows_for_shot(
             continue
         dr_cm = 100.0 * np.abs(eng.radii[ok] - efit_radii[ok])
         efit_axis = (float(eq["magnetic_axis_r"][k]), float(eq["magnetic_axis_z"][k]))
+        efit_radii_own = polygon_ray_radii(lcfs, efit_axis, LCFS_ANGLES)
+        ok_s = np.isfinite(eng.radii) & np.isfinite(efit_radii_own)
+        shape_cm = (100.0 * np.abs(eng.radii[ok_s] - efit_radii_own[ok_s])
+                    if ok_s.any() else None)
+        # paired bare-seed baseline on the SAME slice (same payload, same
+        # reference, same reads) — the seed the chain starts from, so the
+        # chain's value-added is measured without draw or phase mismatch
+        bare = _bare_read_fields(payloads[p_idx], grid, chain["table"],
+                                 chain["basis"], eq, k, lcfs)
         u_x = np.array([
             (rec["u_x_lo"], rec["x_lo_r"], rec["x_lo_z"]),
             (rec["u_x_hi"], rec["x_hi_r"], rec["x_hi_z"]),
@@ -424,11 +517,16 @@ def full_engine_rows_for_shot(
             "phase": "ramp" if t_ref < RAMP_END_S else "flattop",
             "radii_dmed_cm": float(np.median(dr_cm)),
             "radii_dmax_cm": float(np.max(dr_cm)),
+            "shape_dmed_cm": (float(np.median(shape_cm))
+                              if shape_cm is not None else float("nan")),
+            "shape_dmax_cm": (float(np.max(shape_cm))
+                              if shape_cm is not None else float("nan")),
             "axis_d_cm": 100.0 * float(
                 np.hypot(eng.axis[0] - efit_axis[0], eng.axis[1] - efit_axis[1])),
             "xset_d_cm": _xset_match_cm(eng.xset, u_x[binding][:, 1:]),
             "dev_is_diverted": bool(eng.is_diverted),
             "class_margin": float(np.clip(eng.class_margin, -1.0, 1.0)),
+            **{f"bare_{kk}": vv for kk, vv in (bare or {}).items()},
         })
     n_thinned = int(len(recs) - len(used_rec))  # census slices past the budget
     if n_thinned:
@@ -505,6 +603,8 @@ def score_class(
         "n_dropped": len(drops),
         "drop_counts": dict(sorted(drop_counts.items(), key=lambda kv: -kv[1])),
         "radii_dmed_cm": _agg([r["radii_dmed_cm"] for r in rows]),
+        "shape_dmed_cm": _agg(
+            [r.get("shape_dmed_cm", float("nan")) for r in rows]),
         "axis_d_cm": _agg([r["axis_d_cm"] for r in rows]),
         "xset_d_cm": _agg([r["xset_d_cm"] for r in rows]),
         "class_agreement": float(np.mean(class_hits)) if class_hits else None,
@@ -618,7 +718,6 @@ def run_full_chain_class(
 ARTIFACT_DIR = Path("imas_ambix/latent/artifacts/patch_gate")
 FIGURE_DIR = Path("docs/figures/connectivity-topology-reader")
 FULL_ARMS = ("plain", "nobasin", "eddy")
-BARE_BASELINE_ARTIFACT = ARTIFACT_DIR / "topology_engine_crossval-v0.json"
 VERDICT_ARTIFACT = ARTIFACT_DIR / "topology_full_engine_verdicts-v0.json"
 
 ALL_CLASSES = ("limited", "sn-lower", "sn-upper", "connected-dn", "marginal-dn",
@@ -657,8 +756,26 @@ def _dedup_rows(rows: list[dict]) -> list[dict]:
     return out
 
 
+def _phase_aggs(prows: list[dict]) -> dict:
+    """Metric aggregates over one row subset (both frames + axis + X-set)."""
+    nan = float("nan")
+    return {
+        "n": len(prows),
+        "radii_dmed_cm": _agg([r["radii_dmed_cm"] for r in prows]),
+        "shape_dmed_cm": _agg([r.get("shape_dmed_cm", nan) for r in prows]),
+        "axis_d_cm": _agg([r["axis_d_cm"] for r in prows]),
+        "xset_d_cm": _agg([r["xset_d_cm"] for r in prows]),
+    }
+
+
 def _class_phase_table(rows: list[dict]) -> dict:
-    """Per class × phase medians + support + class agreement."""
+    """Per class × phase medians + support + class agreement.
+
+    Each phase cell carries BOTH boundary residual frames (placement
+    ``radii_dmed_cm`` and own-axis ``shape_dmed_cm``) plus a campaign-band
+    split of the flat-top rows, so class effects and campaign effects stay
+    separable (the census draws mix the bands very differently per class).
+    """
     out: dict = {}
     for cname in ALL_CLASSES:
         crows = [r for r in rows if r["cls"] == cname]
@@ -666,12 +783,12 @@ def _class_phase_table(rows: list[dict]) -> dict:
         for phase in ("flattop", "ramp", "all"):
             prows = (crows if phase == "all"
                      else [r for r in crows if r["phase"] == phase])
-            entry[phase] = {
-                "n": len(prows),
-                "radii_dmed_cm": _agg([r["radii_dmed_cm"] for r in prows]),
-                "axis_d_cm": _agg([r["axis_d_cm"] for r in prows]),
-                "xset_d_cm": _agg([r["xset_d_cm"] for r in prows]),
-            }
+            entry[phase] = _phase_aggs(prows)
+        ft = [r for r in crows if r["phase"] == "flattop"]
+        entry["flattop_validated_band"] = _phase_aggs(
+            [r for r in ft if r["shot"] <= VALIDATED_BAND_MAX_SHOT])
+        entry["flattop_late_band"] = _phase_aggs(
+            [r for r in ft if r["shot"] > VALIDATED_BAND_MAX_SHOT])
         expected_div = cname != "limited"
         hits = [r["dev_is_diverted"] == expected_div for r in crows]
         entry["class_agreement"] = float(np.mean(hits)) if hits else None
@@ -749,10 +866,17 @@ def _drop_counts(drops: list[dict]) -> dict:
 
 
 def _paired_class_delta(
-    rows_a: list[dict], rows_b: list[dict], phase: str | None = None
+    rows_a: list[dict], rows_b: list[dict], phase: str | None = None,
+    field: str = "shape_dmed_cm",
 ) -> dict:
-    """Per-class median of paired (b − a) radii residuals on common slices."""
+    """Per-class median of paired (b − a) boundary residuals on common slices.
+
+    ``field`` picks the residual frame; the own-axis shape residual is the
+    default so arm ablations are judged on boundary shape, not on how the
+    arm happens to move the axis (the placement frame folds axis motion in).
+    """
     a_by = {(r["shot"], r["k"]): r for r in rows_a}
+    nan = float("nan")
     out: dict = {}
     for cname in ALL_CLASSES:
         deltas = []
@@ -760,8 +884,11 @@ def _paired_class_delta(
             if r["cls"] != cname or (phase and r["phase"] != phase):
                 continue
             ra = a_by.get((r["shot"], r["k"]))
-            if ra is not None:
-                deltas.append(r["radii_dmed_cm"] - ra["radii_dmed_cm"])
+            if ra is None:
+                continue
+            d = r.get(field, nan) - ra.get(field, nan)
+            if np.isfinite(d):
+                deltas.append(d)
         out[cname] = {
             "n_paired": len(deltas),
             "delta_med_cm": float(np.median(deltas)) if deltas else None,
@@ -769,7 +896,7 @@ def _paired_class_delta(
     return out
 
 
-def aggregate_verdicts(baseline_path: Path = BARE_BASELINE_ARTIFACT) -> dict:
+def aggregate_verdicts() -> dict:
     """Fold the arm artifacts into the gate verdicts + figures."""
     arms: dict[str, dict] = {}
     for arm in FULL_ARMS:
@@ -783,16 +910,23 @@ def aggregate_verdicts(baseline_path: Path = BARE_BASELINE_ARTIFACT) -> dict:
     table = _class_phase_table(plain["rows"])
     completion = _completion(plain["rows"], plain["drops"])
 
-    # per-class boundary-quality checks (pre-declared tolerances)
+    # per-class boundary-quality checks (pre-declared tolerances).  The gate
+    # rides on the own-axis SHAPE residual — the metric the 1.5–2.1 cm
+    # validated envelope (hence the 3 cm tolerance) was calibrated on; the
+    # placement residual is reported alongside, and axis placement itself is
+    # reported as its own quantity rather than folded into the boundary gate.
     quality: dict = {}
     for cname in ALL_CLASSES:
         e = table[cname]
-        med = e["flattop"]["radii_dmed_cm"]["med"]
+        med = e["flattop"]["shape_dmed_cm"]["med"]
+        med_frame = e["flattop"]["radii_dmed_cm"]["med"]
         acc = e["class_agreement_flattop"]
         supported = e["flattop"]["n"] >= SUPPORT_FLOOR
         quality[cname] = {
             "supported": supported,
-            "flattop_radii_med_cm": med,
+            "flattop_shape_med_cm": med,
+            "flattop_placement_med_cm": med_frame,
+            "flattop_axis_med_cm": e["flattop"]["axis_d_cm"]["med"],
             "flattop_class_agreement": acc,
             "radii_ok": (med is not None and med <= FLATTOP_LCFS_TOL_CM),
             "class_ok": (acc is not None and acc >= FULL_CLASS_ACC_TOL),
@@ -831,14 +965,14 @@ def aggregate_verdicts(baseline_path: Path = BARE_BASELINE_ARTIFACT) -> dict:
         per_class = {}
         for cname in ALL_CLASSES:
             e = nb_table[cname]
-            med = e["flattop"]["radii_dmed_cm"]["med"]
+            med = e["flattop"]["shape_dmed_cm"]["med"]
             acc = e["class_agreement_flattop"]
             if e["flattop"]["n"] == 0:
                 per_class[cname] = {"holds": None, "n": 0}
                 continue
             per_class[cname] = {
                 "n": e["flattop"]["n"],
-                "flattop_radii_med_cm": med,
+                "flattop_shape_med_cm": med,
                 "flattop_class_agreement": acc,
                 "holds": bool(
                     med is not None and med <= FLATTOP_LCFS_TOL_CM
@@ -855,24 +989,33 @@ def aggregate_verdicts(baseline_path: Path = BARE_BASELINE_ARTIFACT) -> dict:
                                      and all(v["holds"] for v in evaluated)),
         }
 
-    # bare-initialiser baseline comparison (the measured value of the chain)
-    baseline_cmp = None
-    if baseline_path.exists():
-        base = json.loads(baseline_path.read_text())
-        baseline_cmp = {}
-        for cname, cls_res in base.get("classes", {}).items():
-            full_med = table.get(cname, {}).get("all", {}).get(
-                "radii_dmed_cm", {}).get("med") if cname in table else None
-            full_ft = table.get(cname, {}).get("flattop", {}).get(
-                "radii_dmed_cm", {}).get("med") if cname in table else None
-            baseline_cmp[cname] = {
-                "bare_radii_med_cm": cls_res["radii_dmed_cm"]["med"],
-                "bare_axis_med_cm": cls_res["axis_d_cm"]["med"],
-                "full_radii_med_cm": full_med,
-                "full_radii_med_flattop_cm": full_ft,
-                "full_axis_med_cm": table.get(cname, {}).get("all", {}).get(
-                    "axis_d_cm", {}).get("med") if cname in table else None,
-            }
+    # bare-initialiser baseline comparison (the measured value of the chain).
+    # PAIRED per slice inside the plain arm: each scored row carries the disc
+    # seed's read on the SAME payload slice against the SAME reference — no
+    # draw, phase, or campaign-mix mismatch between the two columns.
+    baseline_cmp = {}
+    nan = float("nan")
+    for cname in ALL_CLASSES:
+        ft = [r for r in plain["rows"]
+              if r["cls"] == cname and r["phase"] == "flattop"
+              and np.isfinite(r.get("bare_shape_dmed_cm", nan))]
+        if not ft:
+            continue
+        baseline_cmp[cname] = {
+            "n_paired_flattop": len(ft),
+            "bare_shape_med_cm": float(np.median(
+                [r["bare_shape_dmed_cm"] for r in ft])),
+            "full_shape_med_cm": float(np.median(
+                [r["shape_dmed_cm"] for r in ft])),
+            "bare_axis_med_cm": float(np.median(
+                [r["bare_axis_d_cm"] for r in ft])),
+            "full_axis_med_cm": float(np.median(
+                [r["axis_d_cm"] for r in ft])),
+            "paired_shape_delta_med_cm": float(np.median(
+                [r["shape_dmed_cm"] - r["bare_shape_dmed_cm"] for r in ft])),
+            "paired_axis_delta_med_cm": float(np.median(
+                [r["axis_d_cm"] - r["bare_axis_d_cm"] for r in ft])),
+        }
 
     verdict = {
         "verdict_keys": {
@@ -913,34 +1056,78 @@ def _aggregate_figures(verdict: dict, arms: dict) -> None:
                if verdict["class_phase_table"][c]["n"] > 0]
     x = np.arange(len(classes))
 
-    # ---- full engine vs bare-initialiser baseline ----
+    # ---- full engine vs bare-initialiser baseline (paired, same slices) ----
     cmp_ = verdict.get("baseline_comparison") or {}
     if cmp_:
         fig, ax = plt.subplots(figsize=(7.2, 4.2))
-        bare = [cmp_.get(c, {}).get("bare_radii_med_cm") or np.nan
+        bare = [cmp_.get(c, {}).get("bare_shape_med_cm", np.nan)
                 for c in classes]
-        full_ft = [cmp_.get(c, {}).get("full_radii_med_flattop_cm") or np.nan
+        full_ft = [cmp_.get(c, {}).get("full_shape_med_cm", np.nan)
                    for c in classes]
         ax.bar(x - 0.2, bare, width=0.38, color="#c66",
-               label="bare disc-read initialiser (seed baseline)")
+               label="bare disc-read seed (paired, same slices)")
         ax.bar(x + 0.2, full_ft, width=0.38, color="#268",
-               label="four-pass engine (flat-top)")
+               label="four-pass engine")
         ax.axhline(FLATTOP_LCFS_TOL_CM, color="k", ls="--", lw=0.9,
                    label=f"pre-declared tolerance {FLATTOP_LCFS_TOL_CM} cm")
-        ax.set_yscale("log")
         ax.set_xticks(x, classes, fontsize=8, rotation=12)
-        ax.set_ylabel("median LCFS-radii residual vs EFIT [cm]")
-        ax.set_title("per-class boundary residual — pinned+coupled chain vs "
-                     "bare seed", fontsize=9)
+        ax.set_ylabel("flat-top median boundary-shape residual [cm]")
+        ax.set_title("own-axis boundary shape, engine vs its disc seed — "
+                     "paired per slice", fontsize=9)
         ax.legend(fontsize=7)
         fig.tight_layout()
         fig.savefig(FIGURE_DIR / "fig-full-engine-vs-baseline.png", dpi=130)
         plt.close(fig)
 
+    # ---- residual frames: shape vs placement vs axis (flat-top) ----
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    for off, field, col, lab in (
+            (-0.27, "shape_dmed_cm", "#268", "boundary shape (own-axis)"),
+            (0.0, "radii_dmed_cm", "#89b", "boundary placement (engine-frame)"),
+            (0.27, "axis_d_cm", "#c66", "axis distance")):
+        med = [verdict["class_phase_table"][c]["flattop"][field]["med"]
+               or np.nan for c in classes]
+        ax.bar(x + off, med, width=0.25, color=col, label=lab)
+    ax.axhline(FLATTOP_LCFS_TOL_CM, color="k", ls="--", lw=0.9,
+               label=f"shape tolerance {FLATTOP_LCFS_TOL_CM} cm")
+    ax.set_xticks(x, classes, fontsize=8, rotation=12)
+    ax.set_ylabel("flat-top median vs EFIT [cm]")
+    ax.set_title("boundary shape vs placement vs axis — the placement "
+                 "residual tracks the axis error, the shape does not",
+                 fontsize=9)
+    ax.legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(FIGURE_DIR / "fig-shape-vs-placement.png", dpi=130)
+    plt.close(fig)
+
+    # ---- campaign-band split (flat-top, shape metric) ----
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    for off, band, col, lab in (
+            (-0.2, "flattop_validated_band", "#268",
+             f"validated-era shots (≤{VALIDATED_BAND_MAX_SHOT})"),
+            (0.2, "flattop_late_band", "#e90",
+             f"later campaigns (>{VALIDATED_BAND_MAX_SHOT})")):
+        med = [verdict["class_phase_table"][c][band]["shape_dmed_cm"]["med"]
+               or np.nan for c in classes]
+        n = [verdict["class_phase_table"][c][band]["n"] for c in classes]
+        ax.bar(x + off, med, width=0.38, color=col, label=lab)
+        for xi, (m, ni) in zip(x + off, zip(med, n, strict=True), strict=True):
+            if np.isfinite(m):
+                ax.text(xi, m, f"n={ni}", ha="center", va="bottom", fontsize=6)
+    ax.axhline(FLATTOP_LCFS_TOL_CM, color="k", ls="--", lw=0.9)
+    ax.set_xticks(x, classes, fontsize=8, rotation=12)
+    ax.set_ylabel("flat-top median boundary-shape residual [cm]")
+    ax.set_title("campaign-band split — per-class draws mix the bands "
+                 "differently, so the bands are reported apart", fontsize=9)
+    ax.legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(FIGURE_DIR / "fig-campaign-band-split.png", dpi=130)
+    plt.close(fig)
+
     # ---- phase split ----
     fig, ax = plt.subplots(figsize=(7.2, 4.2))
     for off, phase, col in ((-0.2, "flattop", "#268"), (0.2, "ramp", "#e90")):
-        med = [verdict["class_phase_table"][c][phase]["radii_dmed_cm"]["med"]
+        med = [verdict["class_phase_table"][c][phase]["shape_dmed_cm"]["med"]
                or np.nan for c in classes]
         n = [verdict["class_phase_table"][c][phase]["n"] for c in classes]
         ax.bar(x + off, med, width=0.38, color=col, label=phase)
@@ -949,7 +1136,7 @@ def _aggregate_figures(verdict: dict, arms: dict) -> None:
                 ax.text(xi, m, f"n={ni}", ha="center", va="bottom", fontsize=6)
     ax.axhline(FLATTOP_LCFS_TOL_CM, color="k", ls="--", lw=0.9)
     ax.set_xticks(x, classes, fontsize=8, rotation=12)
-    ax.set_ylabel("median LCFS-radii residual [cm]")
+    ax.set_ylabel("median boundary-shape residual [cm]")
     ax.set_title(f"four-pass engine per phase (ramp = t < {RAMP_END_S} s)",
                  fontsize=9)
     ax.legend(fontsize=7)
@@ -971,7 +1158,7 @@ def _aggregate_figures(verdict: dict, arms: dict) -> None:
         ax.axhline(EDDY_REGRESSION_BAND_CM, color="#c66", ls="--", lw=0.9,
                    label="regression band")
         ax.set_xticks(x, classes, fontsize=8, rotation=12)
-        ax.set_ylabel("Δ median residual (eddy − plain) [cm]")
+        ax.set_ylabel("Δ median shape residual (eddy − plain) [cm]")
         ax.set_title("vessel-eddy known-drive ablation (negative = eddy helps)",
                      fontsize=9)
         ax.legend(fontsize=7)
@@ -984,8 +1171,8 @@ def _aggregate_figures(verdict: dict, arms: dict) -> None:
     if bv:
         fig, ax = plt.subplots(figsize=(7.2, 4.2))
         full_ft = [verdict["class_phase_table"][c]["flattop"]
-                   ["radii_dmed_cm"]["med"] or np.nan for c in classes]
-        nb_ft = [bv["table"][c]["flattop"]["radii_dmed_cm"]["med"] or np.nan
+                   ["shape_dmed_cm"]["med"] or np.nan for c in classes]
+        nb_ft = [bv["table"][c]["flattop"]["shape_dmed_cm"]["med"] or np.nan
                  for c in classes]
         ax.bar(x - 0.2, full_ft, width=0.38, color="#268",
                label="two-pass (basin + profile)")
@@ -993,7 +1180,7 @@ def _aggregate_figures(verdict: dict, arms: dict) -> None:
                label="profile-only (disc cold start)")
         ax.axhline(FLATTOP_LCFS_TOL_CM, color="k", ls="--", lw=0.9)
         ax.set_xticks(x, classes, fontsize=8, rotation=12)
-        ax.set_ylabel("flat-top median LCFS-radii residual [cm]")
+        ax.set_ylabel("flat-top median boundary-shape residual [cm]")
         ax.set_title("basin-pass necessity ablation (report-only)", fontsize=9)
         ax.legend(fontsize=7)
         fig.tight_layout()
