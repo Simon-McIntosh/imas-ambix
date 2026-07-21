@@ -62,21 +62,37 @@ def _pick_slices(cname: str) -> list[tuple[str, dict]]:
     if ft:
         picks.append(("flat-top worst", ft[-1]))
         picks.append(("flat-top median", ft[len(ft) // 2]))
-        picks.append(("flat-top best", ft[0]))
     if ramp:
         picks.append(("ramp worst", ramp[-1]))
     return picks
 
 
-def _render_slice(shot: int, time_s: float, *, nr: int, nz: int):
-    """Re-solve ``shot`` and return (our_slice, efit_slice, geom, fit_info) for
-    the coupled fit nearest ``time_s`` — or None when it cannot be rendered."""
-    from imas_ambix.eval.efit_referee import evaluator_context  # noqa: PLC0415
-    from scripts.closure_gate_eval import geometry_target  # noqa: PLC0415
+_CHAIN_CACHE: dict[int, dict] = {}  # shot -> chain (one temporal solve per shot)
+
+
+def _chain_for_shot(shot: int, *, nr: int, nz: int) -> dict | None:
+    """The coupled-solve chain for ``shot``, cached — many picks share a shot,
+    so the temporal solve runs once per shot, not once per slice."""
     from scripts.heldout_mse_gate_eval import (  # noqa: PLC0415
         coupled_solve_chain,
         frozen_eta_params,
     )
+
+    if shot in _CHAIN_CACHE:
+        return _CHAIN_CACHE[shot]
+    chain = coupled_solve_chain(
+        int(shot), nr=nr, nz=nz, sigma=0.02, eta_params=list(frozen_eta_params()),
+        prior_weight=0.3, n_sub=24, par_weight=1.0, n_rho=24,
+        max_slices=CHAIN_MAX_SLICES, min_ip_ka=CHAIN_MIN_IP_KA)
+    _CHAIN_CACHE[shot] = chain if chain["slices"] else None
+    return _CHAIN_CACHE[shot]
+
+
+def _render_slice(shot: int, time_s: float, *, nr: int, nz: int):
+    """Return (our_slice, efit_slice, geom, fit_info) for the coupled fit nearest
+    ``time_s`` — or None when it cannot be rendered."""
+    from imas_ambix.eval.efit_referee import evaluator_context  # noqa: PLC0415
+    from scripts.closure_gate_eval import geometry_target  # noqa: PLC0415
     from scripts.patch_flux_map_report import (  # noqa: PLC0415
         _closed_contour_about,
         _efit_slice,
@@ -85,11 +101,8 @@ def _render_slice(shot: int, time_s: float, *, nr: int, nz: int):
         read_efit_slice,
     )
 
-    chain = coupled_solve_chain(
-        int(shot), nr=nr, nz=nz, sigma=0.02, eta_params=list(frozen_eta_params()),
-        prior_weight=0.3, n_sub=24, par_weight=1.0, n_rho=24,
-        max_slices=CHAIN_MAX_SLICES, min_ip_ka=CHAIN_MIN_IP_KA)
-    if not chain["slices"]:
+    chain = _chain_for_shot(int(shot), nr=nr, nz=nz)
+    if chain is None or not chain["slices"]:
         return None
     grid = chain["grid"]
     times = np.array([float(s["p"].time_s) for s in chain["slices"]])
@@ -239,10 +252,12 @@ def main() -> None:
     ap.add_argument("--classes", nargs="*", default=list(SCORED_CLASSES))
     args = ap.parse_args()
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
+    # doc-critical galleries first (worst grid + sn-lower deep dive), then the
+    # per-class phase panels — so a wall-clock kill still leaves the headline figs
+    worst_grid(nr=args.nr, nz=args.nz)
+    sn_lower_deepdive(nr=args.nr, nz=args.nz)
     for cname in args.classes:
         class_overlay(cname, nr=args.nr, nz=args.nz)
-    sn_lower_deepdive(nr=args.nr, nz=args.nz)
-    worst_grid(nr=args.nr, nz=args.nz)
 
 
 if __name__ == "__main__":
