@@ -60,7 +60,7 @@
         <td>44% conv, resid 8.0e-4</td>
         <td><strong>62% conv, resid 3.4e-5</strong> — and lower wall than Picard</td></tr>
     <tr><td>reduced 2-coefficient Newton (support-lagged)</td>
-        <td>2%</td><td>6% — superseded by the §4 coupled state</td></tr>
+        <td>2%</td><td>6% — superseded by the §5 coupled state</td></tr>
   </table>
 
   <figure>
@@ -125,7 +125,38 @@
   signature, with the τ schedule's accuracy-at-emit equal to the τ=10⁻³ read
   (labels never emitted from a hot read).</p>
 
-  <h2 id="s3">§3 — Adopt + budget-tune the batched Newton–Krylov (single-slice form)</h2>
+  <h2 id="s3">§3 — Remove the read wall (the dominant per-evaluation cost, cut FIRST so every later rung inherits it)</h2>
+  <p>The measured batched solve (76.4 solves/s at B=512, 60 sweeps) against the
+  bare GEMM (0.84M slices/s) shows <strong>the topology read is ~99.7% of every
+  evaluation</strong> — the cold binding-level search (48 flood levels + 12
+  bisections, each a ~(nr+nz)-step dilation saturation) dwarfs the matvec.
+  This is the plan's critical-path rung: it lands immediately after the
+  re-point so the accelerator tuning (§4), the coupled-profile work (§5), and
+  the batched demonstration (§6) all iterate — and are all BUDGETED — on the
+  fast read, not the slow one. Removals, each with a read-equivalence check
+  (a faster read that reads a different boundary is a regression, not a win):</p>
+  <ul>
+    <li><strong>Warm-started binding search</strong> — between sweeps the
+    binding level s* moves by ~τ; bisect inside a narrow bracket around the
+    previous sweep's level (cold 48-level sweep only on the first evaluation
+    or on a bracket miss, detected fixed-shape). ~10× fewer floods per read.</li>
+    <li><strong>Log-depth flood fill</strong> — replace the (nr+nz)-step
+    dilation saturation with dilate-by-doubling (~log₂(nr+nz) composite steps):
+    ~20× on the flood kernel, exactly the same fixed point.</li>
+    <li><strong>Iteration-resolution read</strong> — a coarser
+    (n_levels/n_bisect/n_ray) read while iterating, with the calibrated τ=10⁻³
+    full-resolution read at emit only; the emit read is byte-identical to the
+    §2 kernel by construction.</li>
+  </ul>
+  <p>(The fourth removal — the read frozen per Newton linearisation, so
+  tangent passes re-use it — is structural to NK and lands with §4.)
+  Gates: (a) ≥ 5× per-evaluation wall at B=512 vs the §2 kernel, measured in
+  the probe harness; (b) the warm-started binding reproduces the cold-sweep
+  binding on the staged shot to the sub-τ level (and falls back to the cold
+  sweep on bracket miss, counted and reported); (c) the emitted (full-
+  resolution) read byte-comparable to the §2 kernel on every slice.</p>
+
+  <h2 id="s4">§4 — Adopt + budget-tune the batched Newton–Krylov (single-slice form)</h2>
   <p>Promote the probe's NK runner to the production single-slice solver form
   and tune its budget shape for the two seeding classes: the WARM chain (the
   march's steady state — the rollout's 49%-at-20-sweeps pain) and the COLD
@@ -145,7 +176,7 @@
   remainder (the under-determined class) with the under-determination
   diagnostic recorded, not hidden.</p>
 
-  <h2 id="s4">§4 — Lift the rich profile into a coupled KKT Newton state (stop the higher-order thrash)</h2>
+  <h2 id="s5">§5 — Lift the rich profile into a coupled KKT Newton state (stop the higher-order thrash)</h2>
   <p>The probe and the rollout run the K=2 scaffold, whose closed-form fit is
   smooth and well-posed — the coefficients are safely implicit in the map. The
   PRODUCTION rich profile (K=6 non-negative ladder) is neither: the per-sweep
@@ -175,8 +206,8 @@
   established smooth-read tolerances); (c) label honesty — under-determined
   slices remain flagged, never fabricated.</p>
 
-  <h2 id="s5">§5 — Batched demonstration on the H200 (the GEMM form, proven at B≥512)</h2>
-  <p>vmap the §3 NK solver over B≥512 slices (unique staged slices tiled, as
+  <h2 id="s6">§6 — Batched demonstration on the H200 (the GEMM form, proven at B≥512)</h2>
+  <p>vmap the §4 NK solver over B≥512 slices (unique staged slices tiled, as
   the foundation spike did) and demonstrate on one H200: (a) the whole batched
   NK graph compiles and runs fixed-shape on device (no host round-trip, no
   per-column branching), GPU/CPU fp64 parity at the spike's ~10⁻¹⁴ level;
@@ -186,25 +217,14 @@
   (fp64 + tf32 variants, axis-delta re-checked against the §2 spike's
   0.004 cm tf32 figure); (c) per-column convergence masking so converged
   columns stop paying (masked updates, not early exit).
-  <strong>Remove the read wall.</strong> The measured batched solve
-  (76.4 solves/s at B=512, 60 sweeps) against the bare GEMM (0.84M slices/s)
-  shows the topology read is ~99.7% of every evaluation — the binding-level
-  search (48 flood levels + 12 bisections, each a ~(nr+nz)-step dilation
-  saturation) dwarfs the matvec. This rung lands the read-cost removals:
-  (i) a WARM-STARTED binding search (bisect around the previous sweep's s*
-  instead of a cold 48-level sweep — the level moves by ~τ per sweep);
-  (ii) LOG-DEPTH flood fill (dilate-by-doubling, ~log₂ steps instead of
-  nr+nz); (iii) the read frozen per Newton linearisation (tangent passes
-  re-use it — a structural NK advantage no Picard sweep can claim); and
-  (iv) an iteration-resolution read with the calibrated τ=10⁻³ full read at
-  emit only. Gates: (a) batched NK at B=512 delivers ≥ 2× the
+  Gates: (a) batched NK at B=512 delivers ≥ 2× the
   converged-slices/s of batched Picard at matched convergence depth (a FLOOR —
-  the per-converged-slice probe ratio is far larger); (b) the read-cost
-  removals deliver ≥ 5× per-evaluation wall at B=512 with the emitted read
-  byte-comparable to the full-resolution kernel; (c) equilibria
-  byte-comparable per column to the single-slice §3 solver.</p>
+  the per-converged-slice probe ratio is far larger); (b) the §3 read-cost
+  removals hold their ≥ 5× per-evaluation wall inside the full batched NK
+  graph; (c) equilibria byte-comparable per column to the single-slice §4
+  solver.</p>
 
-  <h2 id="s6">§6 — Integrate into the corpus engine and the windowed PinT solver</h2>
+  <h2 id="s7">§7 — Integrate into the corpus engine and the windowed PinT solver</h2>
   <p>Wire the adopted accelerator into the corpus-labeller path
   (<code>gpu-accelerated-labeler</code> §4's batch-over-shots wrap: the NK
   inner solve replaces the fixed-sweep Picard inside the march scan) and into
@@ -213,13 +233,13 @@
   contraction moves that pareto directly). Re-stamp the spine benchmark
   (new accelerator dimension on the existing topology-read arm) and record the
   corpus-scale projection honestly: converged fraction, evaluations budget,
-  and slices/GPU-hour, against the §3/§5 gates.
+  and slices/GPU-hour, against the §4/§6 gates.
   <strong>Binding corpus objective (the promise this plan serves):</strong>
   the WHOLE MAST corpus (~12.6k shots, ~600k slices) labelled in
   <strong>≤ 1 hour on the 8×H200 node</strong>, converged-fraction and
   label-honesty flags at parity with the CPU reference. The measured
   foundations already put the inner solve at ~16 minutes on 8 cards
-  (76.4 solves/s × 8 at B=512, before NK and before the §5 read-cost
+  (76.4 solves/s × 8 at B=512, before NK and before the §3 read-cost
   removals); the hour is the budget for the full pipeline — march chaining,
   diffusion carry, rich profile, I/O — not for the solve. A miss is reported
   against this number with the component budget attached, never re-scoped
@@ -235,7 +255,7 @@
         <button class="r-opt" data-value="anderson">Safeguarded Anderson — retained comparator; ties Picard on the cold class, warm-class retest pending</button>
         <button class="r-opt" data-value="picard">Relaxed Picard — the fallback the map must always degrade to</button>
       </p>
-      <p class="r-dec-rat">Presumptive nk-jvp on the probe evidence (48 cold-seed slices: 62% converged at 40 evals, residual 3.4e-5, lower wall than Picard; GEMM-native by construction). Locked by §3 on the warm-chain gate + §5 on the batched-throughput gate.</p>
+      <p class="r-dec-rat">Presumptive nk-jvp on the probe evidence (48 cold-seed slices: 62% converged at 40 evals, residual 3.4e-5, lower wall than Picard; GEMM-native by construction). Locked by §4 on the warm-chain gate + §6 on the batched-throughput gate.</p>
     </div>
     <div class="r-dec" data-key="tau-operating-point" data-choice="" data-by="" data-when="">
       <p class="r-dec-q">Single temperature or τ-continuation, and at what emit accuracy?</p>
@@ -251,7 +271,7 @@
         <button class="r-opt" data-value="coupled-kkt-state">Coupled KKT state (ψ, θ): fit optimality residual inside the Newton system, softplus nonneg, ridge+prior rows in the Jacobian — presumptive for K≥3 (lead steer 2026-07-21)</button>
         <button class="r-opt" data-value="implicit-fit">Implicit fit-in-map (re-solve the LSQ per evaluation) — retained for the closed-form K=2 scaffold</button>
       </p>
-      <p class="r-dec-rat">Presumptive coupled-kkt-state for the rich profile (lead steer 2026-07-21): the alternating per-sweep LSQ thrashes under-constrained higher-order coefficients (the profile_relax hack exists for this) and the nonneg active set is a discrete flip — both cured by expressing the fit as a smooth KKT residual inside the Newton state. The K=2 scaffold's closed-form fit stays implicit (smooth, well-posed, probe-proven). Locked by §4 on the interior-null stability gate.</p>
+      <p class="r-dec-rat">Presumptive coupled-kkt-state for the rich profile (lead steer 2026-07-21): the alternating per-sweep LSQ thrashes under-constrained higher-order coefficients (the profile_relax hack exists for this) and the nonneg active set is a discrete flip — both cured by expressing the fit as a smooth KKT residual inside the Newton state. The K=2 scaffold's closed-form fit stays implicit (smooth, well-posed, probe-proven). Locked by §5 on the interior-null stability gate.</p>
     </div>
   </section>
 
@@ -292,8 +312,8 @@ Done-when
   1. Smooth kernel wired into both consumers (opt-in); reproduction + monotonicity
      re-gated on the new kernel; τ study (single vs continuation at equal total
      evaluations) recorded with figure.
-  2. Plan updated same-session: §2 outcome + collapse; §3 followup queued with the
-     warm-chain gate pre-declared; this followup resolved.</pre>
+  2. Plan updated same-session: §2 outcome + collapse; §3 (read-wall) followup queued with its
+     read-equivalence + ≥5× gates pre-declared; this followup resolved.</pre>
     </article>
   </section>
 
