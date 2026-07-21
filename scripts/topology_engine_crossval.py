@@ -347,39 +347,38 @@ def full_engine_rows_for_shot(
         return _all("chain-unavailable", reason)
 
     grid = chain["grid"]
-    payload_times = np.array(
-        [float(p.time_s) for p in chain["payload"]["payloads"]])
-    slice_times = np.array([float(s["p"].time_s) for s in chain["slices"]])
+    payloads = chain["payload"]["payloads"]
+    # engine attempt = one payload slice.  Completion is measured over the
+    # payload slices the engine tried (each counted ONCE) that carry a valid
+    # census reference — never per census rec, which over-counts a dropped
+    # payload slice every time a nearby census rec maps to it.
+    fit_by_payload = {int(s["k"]): (s, chain["fits"][j])
+                      for j, s in enumerate(chain["slices"])}
+    rec_times = np.array([float(r["time_s"]) for r in recs])
 
     g = zarr.open_group(str(LEVEL2_SHOTS / f"{shot}.zarr"), mode="r")
     eq = g["equilibrium"]
 
     rows, drops = [], []
-    n_thinned = 0
+    used_rec: set[int] = set()
 
     def _drop(rec, reason: str, detail: str = "") -> None:
         drops.append({"shot": int(shot), "k": int(rec["k"]),
                       "cls": _rec_class(rec), "time_s": float(rec["time_s"]),
                       "reason": reason, "detail": detail})
 
-    scored_slice: set[int] = set()  # chain-slice index -> scored once per rec set
-    for rec in recs:
+    for p_idx in range(len(payloads)):
+        t_p = float(payloads[p_idx].time_s)
+        ir = int(np.argmin(np.abs(rec_times - t_p)))
+        if abs(rec_times[ir] - t_p) > TIME_MATCH_S:
+            continue  # this attempted slice has no census-valid reference
+        used_rec.add(ir)
+        rec = recs[ir]
         t_ref = float(rec["time_s"])
-        j = int(np.argmin(np.abs(slice_times - t_ref)))
-        if abs(slice_times[j] - t_ref) > TIME_MATCH_S:
-            # was the slice ever in the payload?  If yes the CHAIN dropped it
-            # (disc / basin attrition) — an engine failure, not thinning.
-            jp = int(np.argmin(np.abs(payload_times - t_ref)))
-            if abs(payload_times[jp] - t_ref) <= TIME_MATCH_S:
-                _drop(rec, "fit-not-scored", "pass-1 attrition")
-            else:
-                n_thinned += 1
+        if p_idx not in fit_by_payload:
+            _drop(rec, "fit-not-scored", "pass-1 attrition")  # disc/basin drop
             continue
-        if j in scored_slice:
-            n_thinned += 1  # one census rec per chain slice; extras are duplicates
-            continue
-        scored_slice.add(j)
-        s, f = chain["slices"][j], chain["fits"][j]
+        s, f = fit_by_payload[p_idx]
         if not (f.scored and f.psi is not None):
             _drop(rec, "fit-not-scored")
             continue
@@ -431,6 +430,7 @@ def full_engine_rows_for_shot(
             "dev_is_diverted": bool(eng.is_diverted),
             "class_margin": float(np.clip(eng.class_margin, -1.0, 1.0)),
         })
+    n_thinned = int(len(recs) - len(used_rec))  # census slices past the budget
     if n_thinned:
         drops.append({"shot": int(shot), "reason": "not-attempted-thinning",
                       "detail": "payload slice budget", "n_slices": n_thinned})
