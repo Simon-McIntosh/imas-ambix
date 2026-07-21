@@ -369,7 +369,7 @@ def _build_batched_solver(arrs, mode: str):
 # ---------------------------------------------------------------------------
 
 
-def leg_a1_framework(arrs, batch: int) -> dict:
+def framework_step_compare(arrs, batch: int) -> dict:
     """Inner GS step timed in jax and torch at the same batch and dtype (fp64).
 
     The step is the arithmetic core of one Picard iterate — matvec, two-term
@@ -475,7 +475,7 @@ def leg_a1_framework(arrs, batch: int) -> dict:
     return out
 
 
-def leg_a2_gemm(arrs, batches: list[int]) -> dict:
+def gemm_crossover_bench(arrs, batches: list[int]) -> dict:
     """psi = G @ I microbench over a batch sweep in fp64/fp32/tf32/bf16."""
     import jax
     import jax.numpy as jnp
@@ -551,7 +551,7 @@ def _axis_cm(a, b) -> float:
     return float(100.0 * np.hypot(a[0] - b[0], a[1] - b[1]))
 
 
-def leg_a3_solve(arrs, batch: int) -> dict:
+def batched_solve_reproduction(arrs, batch: int) -> dict:
     """Batched fixed-shape on-device Picard: reproduction + precision + parity."""
     import jax
     import jax.numpy as jnp
@@ -818,7 +818,7 @@ def stage_gpu(a1_batch: int, a2_batches: list[int], a3_batch: int, no_figures: b
     print(f"staged: {int(arrs['ip'].shape[0])} unique slices, G {arrs['G'].shape}")
 
     print("\n[A1] framework — inner GS step (jax vs torch)")
-    a1 = leg_a1_framework(arrs, a1_batch)
+    a1 = framework_step_compare(arrs, a1_batch)
     print(
         f"  jax: {a1.get('jax_step_ms')} ms/step "
         f"({a1.get('jax_slices_per_s')} sl/s)  "
@@ -827,10 +827,10 @@ def stage_gpu(a1_batch: int, a2_batches: list[int], a3_batch: int, no_figures: b
     )
 
     print("\n[A2] GEMM crossover")
-    a2 = leg_a2_gemm(arrs, a2_batches)
+    a2 = gemm_crossover_bench(arrs, a2_batches)
 
     print("\n[A3] batched solve + on-device read + precision")
-    a3 = leg_a3_solve(arrs, a3_batch)
+    a3 = batched_solve_reproduction(arrs, a3_batch)
     rep = a3["reproduction"]
     print(
         f"  reproduction axis median {rep['axis_median_cm']:.3f} cm "

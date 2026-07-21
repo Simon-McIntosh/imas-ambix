@@ -120,7 +120,9 @@ def _axis_cm(a, b) -> float:
 # ---------------------------------------------------------------------------
 
 
-def _host_reference_march(grid, payloads, disc_seeds, centroids, tbl, basis) -> dict:
+def _host_reference_march(
+    grid, payloads, disc_seeds, centroids, tbl, basis, topology_read: str
+) -> dict:
     """Sequential host K=2 pinned-scaffold march — the production anchor.
 
     The unpinned fixed-θ map corner-locks toward the outboard attractor on
@@ -129,6 +131,10 @@ def _host_reference_march(grid, payloads, disc_seeds, centroids, tbl, basis) -> 
     map, exactly the accelerator study's conclusion.  The anchor is therefore
     the spine's own K=2 position scaffold (free-sign n_p=n_f=1 fit, all
     magnetics masked, disc-centroid soft tether), warm-chained along time.
+    ``topology_read`` selects the host arm: ``"hard"`` is the production label
+    read; ``"connectivity"`` shares the device read definition, so the
+    device-vs-host gap under it isolates solver formulation from the
+    already-quantified hard-vs-smooth read difference.
     """
     from scripts.differentiable_solve_gate_eval import _fit_slice
     from scripts.spine_label_factory import frozen_spine_config
@@ -153,7 +159,7 @@ def _host_reference_march(grid, payloads, disc_seeds, centroids, tbl, basis) -> 
             centroid=(float(centroids[k][0]), float(centroids[k][1])),
             warm=seed,
             sigma=CENTROID_SIGMA_M,
-            topology_read="hard",
+            topology_read=topology_read,
         )
         ok = bool(f.scored) and f.target is not None and np.isfinite(f.target[0])
         axis = (
@@ -285,6 +291,11 @@ def _zoh_reference(t_sub: np.ndarray, ip_sub: np.ndarray) -> dict:
 
 def stage_prep(nr: int, nz: int, max_slices: int, min_ip_ka: float, shot_arg: int):
     """Stage ONE held-out shot's time-ordered slices + host references."""
+    import os
+
+    # the host connectivity-read arm runs the jax kernels on CPU; keep prep off
+    # any GPU so a concurrent device run is not starved of memory
+    os.environ.setdefault("JAX_PLATFORMS", "cpu")
     from imas_ambix.eval import prediction_bar as pbar
     from imas_ambix.latent.boundary_disc import disc_read
     from imas_ambix.latent.connectivity_boundary import _densify_wall
@@ -346,16 +357,21 @@ def stage_prep(nr: int, nz: int, max_slices: int, min_ip_ka: float, shot_arg: in
         disc_seeds = np.asarray(seeds)
 
         print("  host reference march (pinned K=2 scaffold, warm chain) ...")
-        t0 = time.perf_counter()
-        ref = _host_reference_march(
-            grid, kept, disc_seeds, np.asarray(axis_seeds), tbl, basis
-        )
-        host_wall = time.perf_counter() - t0
-        print(
-            f"    {len(kept)} slices in {host_wall:.1f}s, "
-            f"{int(ref['conv'].sum())}/{len(kept)} scored, "
-            f"{int(ref['confined'].sum())} confined"
-        )
+        refs: dict[str, dict] = {}
+        host_walls: dict[str, float] = {}
+        for read in ("hard", "connectivity"):
+            t0 = time.perf_counter()
+            refs[read] = _host_reference_march(
+                grid, kept, disc_seeds, np.asarray(axis_seeds), tbl, basis, read
+            )
+            host_walls[read] = time.perf_counter() - t0
+            print(
+                f"    [{read}] {len(kept)} slices in {host_walls[read]:.1f}s, "
+                f"{int(refs[read]['conv'].sum())}/{len(kept)} scored, "
+                f"{int(refs[read]['confined'].sum())} confined"
+            )
+        ref = refs["hard"]
+        host_wall = host_walls["hard"]
 
         diff = _diffusion_reference(grid, ref, ip_t, time_s)
         if diff is None:
@@ -395,7 +411,11 @@ def stage_prep(nr: int, nz: int, max_slices: int, min_ip_ka: float, shot_arg: in
             ref_resid=ref["resid"],
             ref_converged=ref["conv"],
             ref_confined=ref["confined"],
+            ref_c_axis=refs["connectivity"]["axis"],
+            ref_c_converged=refs["connectivity"]["conv"],
+            ref_c_confined=refs["connectivity"]["confined"],
             host_march_wall_s=np.float64(host_wall),
+            host_march_connectivity_wall_s=np.float64(host_walls["connectivity"]),
             **extra,
         )
         print(f"staged shot {shot}: {len(kept)} slices → {STAGE_NPZ}")
@@ -792,7 +812,7 @@ def _build_zoh_scan(arrs):
 # ---------------------------------------------------------------------------
 
 
-def leg_b1_march(arrs, n_first: int, n_warm: int) -> dict:
+def eval_sequential_march(arrs, n_first: int, n_warm: int) -> dict:
     """Sequential device march: reproduction, accelerator A/B, backend parity."""
     import jax
     import jax.numpy as jnp
@@ -832,22 +852,37 @@ def leg_b1_march(arrs, n_first: int, n_warm: int) -> dict:
     res = results[prod]
     axis_dev = res["axis"]
     n_fabricated = int(np.sum(~np.isfinite(axis_dev).all(axis=1)))
-    dcm = np.array(
-        [
-            _axis_cm(axis_dev[j], ref_axis[j])
-            for j in range(T)
-            if ref_conv[j] and np.isfinite(axis_dev[j]).all()
-        ]
-    )
-    out["reproduction"] = {
-        "n_scored": int(dcm.size),
-        "n_ref_scored_confined": int(ref_conv.sum()),
-        "n_fabricated_readouts": n_fabricated,
-        "axis_median_cm": float(np.median(dcm)) if dcm.size else float("nan"),
-        "axis_p90_cm": float(np.percentile(dcm, 90)) if dcm.size else float("nan"),
-        "per_slice_cm": dcm.tolist(),
-        "pass": bool(dcm.size and float(np.median(dcm)) <= AXIS_TOL_CM),
-    }
+
+    def _score(anchor_axis, anchor_mask):
+        dcm = np.array(
+            [
+                _axis_cm(axis_dev[j], anchor_axis[j])
+                for j in range(T)
+                if anchor_mask[j] and np.isfinite(axis_dev[j]).all()
+            ]
+        )
+        return {
+            "n_scored": int(dcm.size),
+            "n_ref_scored_confined": int(anchor_mask.sum()),
+            "n_fabricated_readouts": n_fabricated,
+            "axis_median_cm": float(np.median(dcm)) if dcm.size else float("nan"),
+            "axis_p90_cm": float(np.percentile(dcm, 90)) if dcm.size else float("nan"),
+            "per_slice_cm": dcm.tolist(),
+            "pass": bool(dcm.size and float(np.median(dcm)) <= AXIS_TOL_CM),
+        }
+
+    # the GATE anchor is the same-read host march (device and host share the
+    # connectivity read definition, so this isolates the device rollout from
+    # the hard-vs-smooth read difference the differentiable-solve gate already
+    # quantified); the hard-read production-label anchor is reported alongside
+    out["reproduction_hard_read_anchor"] = _score(ref_axis, ref_conv)
+    if "ref_c_axis" in arrs:
+        ref_c_conv = np.asarray(arrs["ref_c_converged"]) & np.asarray(
+            arrs["ref_c_confined"]
+        )
+        out["reproduction"] = _score(np.asarray(arrs["ref_c_axis"]), ref_c_conv)
+    else:
+        out["reproduction"] = out["reproduction_hard_read_anchor"]
 
     # sweeps-to-tolerance from the warm traces (accelerator A/B)
     tol = 3e-4
@@ -928,8 +963,24 @@ def leg_b1_march(arrs, n_first: int, n_warm: int) -> dict:
     return out
 
 
-def leg_b2_pint(arrs, march: dict, window: int, outers: int, n_pint: int) -> dict:
-    """Windowed Jacobi waveform relaxation vs the sequential march."""
+def eval_parallel_in_time(
+    arrs,
+    march: dict,
+    window: int,
+    outers: int,
+    n_pint: int,
+    n_pre: int,
+    pre_first: int,
+) -> dict:
+    """Coarse pre-march + batched continuation outers vs the sequential march.
+
+    The pinned map is still multi-stable: a cold decoupled pass converges each
+    slice to a fixed point that need not be the warm chain's (measured ~44 cm
+    off on this shot).  The plan's basin insurance is therefore a CHEAP COARSE
+    PRE-MARCH — the same sequential scan at a few sweeps per slice — whose
+    chain-consistent states seed the batched (vmap over slices) refinement
+    outers.  Wall clock counts the pre-march plus every outer.
+    """
     import jax
     import jax.numpy as jnp
 
@@ -937,88 +988,62 @@ def leg_b2_pint(arrs, march: dict, window: int, outers: int, n_pint: int) -> dic
     G = jnp.asarray(arrs["G"])
     psi_coil = np.asarray(arrs["psi_coil"])
     ip = np.asarray(arrs["ip"])
-    disc = np.asarray(arrs["disc_seed"])
     axis0 = np.asarray(arrs["axis_seed"])
     march_axis = np.asarray(march["march_axis"])
     W = T if window <= 0 else int(window)
+    prod = march["production_arm"]
 
-    solver = _build_window_solver(arrs, "fp64", n_pint, march["production_arm"])
+    solver = _build_window_solver(arrs, "fp64", n_pint, prod)
+    pre_march = _build_march(arrs, "fp64", pre_first, n_pre, prod)
 
-    def run(record_outer_deltas: bool):
-        carry_jphi = None
-        carry_axis = None
-        axes_prev = None
-        pint_axis = np.zeros((T, 2))
+    def run(record: bool):
+        t0 = time.perf_counter()
+        pre = pre_march(
+            G,
+            jnp.asarray(arrs["psi_coil"]),
+            jnp.asarray(arrs["ip"]),
+            jnp.asarray(arrs["disc_seed"]),
+            jnp.asarray(axis0),
+            jnp.asarray(axis0),
+        )
+        jax.block_until_ready(pre["axis"])
+        pre_wall = time.perf_counter() - t0
+        jphi_iter = np.array(pre["jphi"])
+        axis_iter = np.array(pre["axis"])
+        agree: list[float] = []
         pint_resid = np.zeros(T)
-        outer_deltas: list[list[float]] = []
-        for s0 in range(0, T, W):
-            s1 = min(s0 + W, T)
-            w = s1 - s0
-            jphi_iter = disc[s0:s1].copy()
-            axis_iter = axis0[s0:s1].copy()
-            if carry_jphi is not None:
-                jphi_iter[0] = carry_jphi
-                axis_iter[0] = carry_axis
-            deltas = []
-            res = None
-            for j in range(outers):
+        t0 = time.perf_counter()
+        for _ in range(outers):
+            for s0 in range(0, T, W):
+                s1 = min(s0 + W, T)
                 res = solver(
                     G,
                     jnp.asarray(psi_coil[s0:s1]),
                     jnp.asarray(ip[s0:s1]),
-                    jnp.asarray(jphi_iter),
-                    jnp.asarray(axis_iter),
+                    jnp.asarray(jphi_iter[s0:s1]),
+                    jnp.asarray(axis_iter[s0:s1]),
                     jnp.asarray(axis0[s0:s1]),
                 )
                 jax.block_until_ready(res["axis"])
-                jphi_out = np.asarray(res["jphi"])
-                axis_out = np.asarray(res["axis"])
-                if record_outer_deltas and axes_prev is not None and j > 0:
-                    d = [
-                        _axis_cm(axis_out[i], axes_prev[i])
-                        for i in range(w)
-                        if np.isfinite(axis_out[i]).all()
-                        and np.isfinite(axes_prev[i]).all()
-                    ]
-                    deltas.append(float(np.median(d)) if d else float("nan"))
-                # shifted warm seeding: slice i takes slice i-1's iterate
-                jphi_next = jphi_iter.copy()
-                axis_next = axis_iter.copy()
-                jphi_next[1:] = jphi_out[:-1]
-                axis_next[1:] = axis_out[:-1]
-                if carry_jphi is not None:
-                    jphi_next[0] = carry_jphi
-                    axis_next[0] = carry_axis
-                else:
-                    jphi_next[0] = jphi_out[0]
-                    axis_next[0] = axis_out[0]
-                jphi_iter, axis_iter = jphi_next, axis_next
-                axes_prev = axis_out
-            pint_axis[s0:s1] = np.asarray(res["axis"])
-            pint_resid[s0:s1] = np.asarray(res["residual"])
-            carry_jphi = np.asarray(res["jphi"])[-1]
-            carry_axis = np.asarray(res["axis"])[-1]
-            if record_outer_deltas:
-                outer_deltas.append(deltas)
-        return pint_axis, pint_resid, outer_deltas
+                jphi_iter[s0:s1] = np.asarray(res["jphi"])
+                axis_iter[s0:s1] = np.asarray(res["axis"])
+                pint_resid[s0:s1] = np.asarray(res["residual"])
+            if record:
+                d = [
+                    _axis_cm(axis_iter[i], march_axis[i])
+                    for i in range(T)
+                    if np.isfinite(axis_iter[i]).all()
+                    and np.isfinite(march_axis[i]).all()
+                ]
+                agree.append(float(np.median(d)) if d else float("nan"))
+        outer_wall = time.perf_counter() - t0
+        return axis_iter, pint_resid, agree, pre_wall, outer_wall
 
-    # per-outer trajectory agreement vs the march (extra solves, not timed)
-    agree_per_outer = []
-    for k_out in range(1, outers + 1):
-        pa, _, _ = _run_pint_outers(
-            arrs, solver, G, psi_coil, ip, disc, axis0, W, k_out, T
-        )
-        d = [
-            _axis_cm(pa[i], march_axis[i])
-            for i in range(T)
-            if np.isfinite(pa[i]).all() and np.isfinite(march_axis[i]).all()
-        ]
-        agree_per_outer.append(float(np.median(d)) if d else float("nan"))
-
-    # timed run (compile already warm from the loop above)
-    t0 = time.perf_counter()
-    pint_axis, pint_resid, _ = run(False)
-    wall = time.perf_counter() - t0
+    # instrumented pass (also warms compilation), then the timed pass
+    pint_axis, pint_resid, agree_per_outer, _, _ = run(True)
+    axis_t, resid_t, _, pre_wall, outer_wall = run(False)
+    pint_axis, pint_resid = axis_t, resid_t
+    wall = pre_wall + outer_wall
 
     d = [
         _axis_cm(pint_axis[i], march_axis[i])
@@ -1028,8 +1053,6 @@ def leg_b2_pint(arrs, march: dict, window: int, outers: int, n_pint: int) -> dic
     med = float(np.median(d)) if d else float("nan")
     n_fab = int(np.sum(~np.isfinite(pint_axis).all(axis=1)))
     speedup = march["_march_wall_s"] / wall if wall > 0 else float("nan")
-    # bounded outer count: the first outer at which the trajectory is inside
-    # the PinT tolerance
     outers_needed = next(
         (
             k + 1
@@ -1042,7 +1065,11 @@ def leg_b2_pint(arrs, march: dict, window: int, outers: int, n_pint: int) -> dic
         "window": W,
         "outers": outers,
         "n_pint_sweeps": n_pint,
+        "n_pre_sweeps": n_pre,
+        "pre_first_sweeps": pre_first,
         "wall_s": round(wall, 4),
+        "pre_march_wall_s": round(pre_wall, 4),
+        "outer_wall_s": round(outer_wall, 4),
         "march_wall_s": round(float(march["_march_wall_s"]), 4),
         "speedup_vs_march": round(float(speedup), 2),
         "axis_vs_march_median_cm": med,
@@ -1057,51 +1084,7 @@ def leg_b2_pint(arrs, march: dict, window: int, outers: int, n_pint: int) -> dic
     }
 
 
-def _run_pint_outers(arrs, solver, G, psi_coil, ip, disc, axis0, W, outers, T):
-    """One full PinT pass with a given outer count (agreement probe)."""
-    import jax
-    import jax.numpy as jnp
-
-    carry_jphi = None
-    carry_axis = None
-    pint_axis = np.zeros((T, 2))
-    for s0 in range(0, T, W):
-        s1 = min(s0 + W, T)
-        jphi_iter = disc[s0:s1].copy()
-        axis_iter = axis0[s0:s1].copy()
-        if carry_jphi is not None:
-            jphi_iter[0] = carry_jphi
-            axis_iter[0] = carry_axis
-        res = None
-        for _ in range(outers):
-            res = solver(
-                G,
-                jnp.asarray(psi_coil[s0:s1]),
-                jnp.asarray(ip[s0:s1]),
-                jnp.asarray(jphi_iter),
-                jnp.asarray(axis_iter),
-                jnp.asarray(axis0[s0:s1]),
-            )
-            jax.block_until_ready(res["axis"])
-            jphi_out = np.asarray(res["jphi"])
-            axis_out = np.asarray(res["axis"])
-            jphi_iter = jphi_iter.copy()
-            axis_iter = axis_iter.copy()
-            jphi_iter[1:] = jphi_out[:-1]
-            axis_iter[1:] = axis_out[:-1]
-            if carry_jphi is not None:
-                jphi_iter[0] = carry_jphi
-                axis_iter[0] = carry_axis
-            else:
-                jphi_iter[0] = jphi_out[0]
-                axis_iter[0] = axis_out[0]
-        pint_axis[s0:s1] = np.asarray(res["axis"])
-        carry_jphi = np.asarray(res["jphi"])[-1]
-        carry_axis = np.asarray(res["axis"])[-1]
-    return pint_axis, None, None
-
-
-def leg_b3_carry(arrs) -> dict:
+def eval_temporal_carry(arrs) -> dict:
     """fp64 temporal-carry kernels vs the host references + a threaded scan."""
     import jax
     import jax.numpy as jnp
@@ -1341,7 +1324,7 @@ def stage_gpu(args) -> int:
     print(f"staged shot {int(arrs['shot'])}: {T} slices, G {arrs['G'].shape}")
 
     print("\n[B1] sequential warm-started march (disc seed + warm chain)")
-    b1 = leg_b1_march(arrs, args.n_first, args.n_warm)
+    b1 = eval_sequential_march(arrs, args.n_first, args.n_warm)
     rep = b1["reproduction"]
     print(
         f"  reproduction: median {rep['axis_median_cm']:.3f} cm "
@@ -1350,7 +1333,9 @@ def stage_gpu(args) -> int:
     )
 
     print("\n[B2] windowed PinT (Jacobi waveform relaxation)")
-    b2 = leg_b2_pint(arrs, b1, args.window, args.outers, args.n_pint)
+    b2 = eval_parallel_in_time(
+        arrs, b1, args.window, args.outers, args.n_pint, args.n_pre, args.pre_first
+    )
     print(
         f"  vs march: median {b2['axis_vs_march_median_cm']:.3f} cm in "
         f"{b2['outers_to_tolerance']} outers; speedup {b2['speedup_vs_march']:.2f}x "
@@ -1358,7 +1343,7 @@ def stage_gpu(args) -> int:
     )
 
     print("\n[B3] fp64 temporal scan carry (diffusion Thomas + exact ZOH)")
-    b3 = leg_b3_carry(arrs)
+    b3 = eval_temporal_carry(arrs)
     if "diffusion" in b3:
         print(
             f"  diffusion max rel {b3['diffusion']['max_rel_diff']:.2e}, "
@@ -1408,9 +1393,9 @@ def stage_gpu(args) -> int:
             "anderson_m": ANDERSON_M,
             "read": [READ_N_LEVELS, READ_N_BISECT, READ_N_RAY],
         },
-        "leg_b1_march": b1,
-        "leg_b2_pint": b2,
-        "leg_b3_carry": b3,
+        "sequential_march": b1,
+        "parallel_in_time": b2,
+        "temporal_carry": b3,
         "gate_g_b": {**gate, "pass": g_b},
         "git_commit": _run(["git", "rev-parse", "HEAD"]) or "unknown",
         "hostname": socket.gethostname(),
@@ -1451,6 +1436,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ap.add_argument(
         "--n-pint", type=int, default=16, help="sweep budget per PinT outer iteration"
+    )
+    ap.add_argument(
+        "--n-pre",
+        type=int,
+        default=4,
+        help="sweep budget per slice of the coarse PinT pre-march",
+    )
+    ap.add_argument(
+        "--pre-first",
+        type=int,
+        default=24,
+        help="first-slice sweep budget of the coarse PinT pre-march",
     )
     ap.add_argument(
         "--window",
