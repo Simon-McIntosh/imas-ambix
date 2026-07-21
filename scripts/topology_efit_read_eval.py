@@ -26,8 +26,9 @@ internal representation, so the floor is the grid rendering, not the read):
   class        agreement ≥ 0.90 on limited / sn-lower / sn-upper /
                connected-dn; marginal-dn agreement is REPORTED (the class sits
                inside the read's continuous limited↔diverted blend by design)
-  smooth       vs hard at τ=0.01: |Δψ_bnd|/span ≤ 0.005 and radii median
-               ≤ 0.5 cm per class (the shipped smooth-convergence bounds)
+  smooth       vs hard at the convergence point τ=0.001: |Δψ_bnd|/span ≤ 0.005
+               and radii median ≤ 0.5 cm per class (the shipped smooth-
+               convergence bounds, evaluated at the ladder's min τ)
 Support floor: ≥ 30 slices per class, drawn evenly over the shot range (early
 and late campaigns), at most one slice per (shot, class); snowflake candidates
 are an orthogonal overlay scored as findings (no pass/fail tolerance).
@@ -62,7 +63,7 @@ PSI_BND_FRAC_TOL = 0.03
 AXIS_TOL_CM = 5.0
 XSET_TOL_CM = 8.0
 CLASS_ACC_TOL = 0.90
-SMOOTH_TAU = 0.01
+SMOOTH_TAU = 0.001  # smooth-vs-hard is gated at the convergence (min-τ) point
 SMOOTH_PSI_TOL = 0.005
 SMOOTH_RADII_TOL_CM = 0.5
 

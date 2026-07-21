@@ -12,13 +12,15 @@ Per-slice classification (all flux comparisons in normalised units
 read at EFIT's axis, ψ_bnd the mean bilinear read over EFIT's LCFS polygon —
 the polygon is an EFIT iso-flux line, verified constant to ~1e-4 of the span):
 
-* An X-point slot PARTICIPATES in the boundary when ``|u_x − 1| ≤ 0.05``
-  (the bilinear-off-65×65 flux floor at a saddle).
-* both participate and ``|u_x1 − u_x2| ≤ 0.01``      → ``connected-DN``
-* both participate and ``0.01 < |u_x1 − u_x2| ≤ 0.05`` → ``marginal-DN``
-* exactly one participates (or the DN gap exceeds 0.05): the participating
-  (closest-to-binding) X-point's Z sign splits ``SN-lower`` / ``SN-upper``.
-* no slot participates (or both slots empty)          → ``limited``
+* An X-point slot BINDS the boundary when ``|u_x − 1| ≤ 0.005``: EFIT places
+  its LCFS AT the binding X when diverted, so a binding slot reads u_x = 1 to
+  bilinear noise (~1e-3 measured); wall-bound slices sit ≥ 1.009 — a clean
+  gap.  A slot is NEAR the boundary when ``|u_x − 1| ≤ 0.05``.
+* both slots bind                                    → ``connected-DN``
+* one binds, the opposite slot is near               → ``marginal-DN``
+* one binds, the opposite slot is far: the binding X-point's Z sign splits
+  ``SN-lower`` / ``SN-upper``.
+* no slot binds (wall tangency inside every X flux)  → ``limited``
 * ``snowflake-candidate`` is an ORTHOGONAL flag, not a class: two finite
   X-points within 0.25 m of each other at near-equal flux (gap ≤ 0.02) — the
   merged-saddle geometry a snowflake experiment approaches.
@@ -55,10 +57,13 @@ logger = logging.getLogger("topology_census")
 
 LEVEL2_SHOTS = Path("/work/projects/imas_gpu/mast/level2/shots")
 
-# pre-declared classification thresholds (normalised-flux units u)
-X_BIND_U = 0.05  # |u_x − 1| for an X-point to participate in the boundary
-DN_CONNECTED_U = 0.01  # inter-X flux gap for a connected double-null
-DN_MARGINAL_U = 0.05  # inter-X flux gap ceiling for a marginal double-null
+# pre-declared classification thresholds (normalised-flux units u).
+# X_BIND_U: EFIT binds its LCFS AT the X-point when diverted, so a binding slot
+# reads u_x = 1 to bilinear-interpolation noise (measured ~1e-3 on the 65×65
+# maps; wall-bound slices sit ≥ 1.009 — a clean gap).  A generous band here
+# mislabels wall-limited slices leaning within a few % of an X as SN.
+X_BIND_U = 0.005  # |u_x − 1| for an X-point to BIND the boundary
+DN_MARGINAL_U = 0.05  # |u_other − 1| ceiling for the near-balanced second null
 SNOWFLAKE_DIST_M = 0.25  # inter-X spatial distance for a snowflake candidate
 SNOWFLAKE_GAP_U = 0.02  # inter-X flux gap for a snowflake candidate
 MIN_IP_KA = 100.0  # slice validity: plasma current floor
@@ -217,22 +222,18 @@ def census_shot(shot: int) -> np.ndarray:
     )
     bind_lo = np.abs(u_lo - 1.0) <= X_BIND_U
     bind_hi = np.abs(u_hi - 1.0) <= X_BIND_U
-    both = bind_lo & bind_hi
+    near_lo = np.abs(u_lo - 1.0) <= DN_MARGINAL_U
+    near_hi = np.abs(u_hi - 1.0) <= DN_MARGINAL_U
     cls = np.full(n, CLASSES.index("invalid"), dtype=np.int8)
     cls[valid] = CLASSES.index("limited")
-    sn_lo = valid & bind_lo & ~(both & (dn_gap <= DN_MARGINAL_U))
-    sn_hi = valid & bind_hi & ~bind_lo & ~(both & (dn_gap <= DN_MARGINAL_U))
-    # when both bind but the gap exceeds the marginal ceiling, the closer slot wins
-    far_dn = valid & both & (dn_gap > DN_MARGINAL_U)
-    lo_closer = np.abs(u_lo - 1.0) <= np.abs(u_hi - 1.0)
-    cls[sn_lo & ~far_dn] = CLASSES.index("sn-lower")
-    cls[sn_hi & ~far_dn] = CLASSES.index("sn-upper")
-    cls[far_dn & lo_closer] = CLASSES.index("sn-lower")
-    cls[far_dn & ~lo_closer] = CLASSES.index("sn-upper")
-    cls[valid & both & (dn_gap <= DN_MARGINAL_U) & (dn_gap > DN_CONNECTED_U)] = (
-        CLASSES.index("marginal-dn")
+    # exactly one null binds: SN when the opposite null is far, marginal-DN when
+    # the opposite null hovers within the near band (the near-balanced state)
+    cls[valid & bind_lo & ~bind_hi & ~near_hi] = CLASSES.index("sn-lower")
+    cls[valid & bind_hi & ~bind_lo & ~near_lo] = CLASSES.index("sn-upper")
+    cls[valid & (bind_lo ^ bind_hi) & (near_lo & near_hi)] = CLASSES.index(
+        "marginal-dn"
     )
-    cls[valid & both & (dn_gap <= DN_CONNECTED_U)] = CLASSES.index("connected-dn")
+    cls[valid & bind_lo & bind_hi] = CLASSES.index("connected-dn")
     rows["cls"] = cls
     rows["snowflake"] = (
         valid
@@ -289,7 +290,6 @@ def merge(paths: list[str], out: Path) -> None:
         "counts": counts,
         "thresholds": {
             "x_bind_u": X_BIND_U,
-            "dn_connected_u": DN_CONNECTED_U,
             "dn_marginal_u": DN_MARGINAL_U,
             "snowflake_dist_m": SNOWFLAKE_DIST_M,
             "snowflake_gap_u": SNOWFLAKE_GAP_U,
