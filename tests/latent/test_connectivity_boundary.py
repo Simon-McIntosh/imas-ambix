@@ -217,11 +217,50 @@ def test_clip_legs_radii_stay_on_lobe():
 
 
 def test_continuous_through_marginal_transition():
-    from scripts.connectivity_boundary_gate_eval import _tb3
+    from scripts.connectivity_boundary_gate_eval import _transition_continuity_gate
 
-    r = _tb3()
+    r = _transition_continuity_gate()
     assert r["n_xpoint_transitions"] >= 1  # the sweep really crosses limited→diverted
     # connectivity is smooth where classify-first steps
     assert r["conn_max_rel_step"] < 0.05
     assert r["classify_max_rel_step"] > 3.0 * r["conn_max_rel_step"]
     assert r["verdict"] == "PASS"
+
+
+# --- emergent X-set: distinct nulls, not stencil duplicates ------------------
+
+
+def _double_null_field(nr=45, nz=61):
+    """A near-balanced double-null whose saddles each fire TWO stencil vertices.
+
+    The saddles sit half a cell off the R vertex line and the field is flat in
+    R around them (anisotropic blobs), so the 4-sign-change classifier fires on
+    two adjacent vertices per PHYSICAL saddle — the coarse-grid degeneracy real
+    65×65 EFIT maps show.  The emergent-set trim must not let the two hits on
+    one saddle crowd the opposite null out of the two slots.
+    """
+    rg = np.linspace(0.2, 1.8, nr)
+    zg = np.linspace(-1.4, 1.4, nz)
+    r0 = 1.0 + 0.5 * float(rg[1] - rg[0])
+    rr, zz = np.meshgrid(rg, zg)
+
+    def blob(z0, a):
+        return a * np.exp(-((rr - r0) ** 2 / 0.45**2 + (zz - z0) ** 2 / 0.28**2))
+
+    psi = blob(0.0, 1.0) + blob(-0.9, 0.9) + blob(0.9, 0.88)
+    lr = np.array([0.25, 1.75, 1.75, 0.25, 0.25])
+    lz = np.array([-1.3, -1.3, 1.3, 1.3, -1.3])
+    inside = _inside_polygon(rr.ravel(), zz.ravel(), lr, lz).reshape(nz, nr)
+    return psi, rg, zg, (r0, 0.0), lr, lz, inside
+
+
+def test_emergent_xset_holds_both_nulls_of_a_double_null():
+    psi, rg, zg, axis, lr, lz, inside = _double_null_field()
+    gpu = cb.boundary_read(psi, _Grid(rg, zg, inside, lr, lz), axis, lcfs_norm=1.0)
+    assert gpu.found and gpu.is_diverted
+    xset = np.asarray(gpu.xset, dtype=np.float64)
+    finite = xset[np.isfinite(xset).all(axis=1)]
+    # both slots filled, one null per side — never two copies of one saddle
+    assert finite.shape[0] == 2
+    assert np.sign(finite[0, 1]) != np.sign(finite[1, 1])
+    assert np.all(np.abs(np.abs(finite[:, 1]) - 0.46) < 0.15)

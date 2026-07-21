@@ -494,14 +494,26 @@ def boundary_read_jax(
     xr_s = xc["r"][order]
     xz_s = xc["z"][order]
     ob_s = on_bound[order]
-    take = ob_s[:N_XPOINT_SLOTS]
-    xset = jnp.stack(
-        [
-            jnp.where(take, xr_s[:N_XPOINT_SLOTS], jnp.nan),
-            jnp.where(take, xz_s[:N_XPOINT_SLOTS], jnp.nan),
-        ],
-        axis=1,
-    )  # (N_XPOINT_SLOTS, 2)
+    # Greedy flux-ordered fill with SPATIAL dedupe: on a coarse grid the
+    # 4-sign-change stencil can fire on two adjacent vertices of ONE physical
+    # saddle, and both duplicates rank ahead of a genuinely distinct null (a
+    # balanced double-null loses its second X to the crowding).  A candidate
+    # within ~one stencil footprint of an already-taken slot refines the SAME
+    # saddle, so it is skipped instead of consuming a slot.  Fixed unroll over
+    # the static candidate count — jit/vmap/grad-safe.
+    dedupe_d2 = (1.5 * jnp.maximum(rg[1] - rg[0], zg[1] - zg[0])) ** 2
+    sel_r = jnp.full((N_XPOINT_SLOTS,), jnp.nan)
+    sel_z = jnp.full((N_XPOINT_SLOTS,), jnp.nan)
+    n_taken = jnp.asarray(0)
+    for m in range(_K_XCAND):
+        d2 = (sel_r - xr_s[m]) ** 2 + (sel_z - xz_s[m]) ** 2  # NaN on empty slots
+        dup = jnp.any(d2 < dedupe_d2)  # NaN compares False — empty slots pass
+        take_m = ob_s[m] & ~dup & (n_taken < N_XPOINT_SLOTS)
+        slot = jnp.clip(n_taken, 0, N_XPOINT_SLOTS - 1)
+        sel_r = jnp.where(take_m, sel_r.at[slot].set(xr_s[m]), sel_r)
+        sel_z = jnp.where(take_m, sel_z.at[slot].set(xz_s[m]), sel_z)
+        n_taken = n_taken + take_m.astype(n_taken.dtype)
+    xset = jnp.stack([sel_r, sel_z], axis=1)  # (N_XPOINT_SLOTS, 2)
 
     return {
         "found": found,
