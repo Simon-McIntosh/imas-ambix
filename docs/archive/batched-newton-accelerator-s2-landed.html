@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="batched-newton-accelerator-s2-landed">
+  <meta name="plan-title" content="§2 landed — solve + rollout maps re-pointed at the temperature-smoothed read; τ calibrated">
+  <meta name="plan-status" content="reference">
+  <meta name="plan-summary" content="Per-stage landed record for batched-newton-accelerator §2. The temperature-smoothed kernel replaces the interim host sigmoid in gs_solve's connectivity path (stencil-axis-first wiring, smooth_temperature=1e-3) and enters the device rollout behind an opt-in --device-read switch (hard default byte-identical, pinned by test). The production rollout step reproduces the probe's smooth-map convergence exactly: Picard 19 percent converged on 48 cold-seed slices (residual median 6.3e-4) vs 10 percent hard, derivative health jvp-vs-FD ~1e-9. Full-set tau study: hotter maps contract better (22.9 percent at tau>=3e-3 vs 18.8 percent at 1e-3) but 2-3 stage continuation at equal 40-eval budget buys only +1 slice with emit accuracy equal to the tau=1e-3 read — single tau=1e-3 locked as the operating point; the contraction lever moves into the section-4 Newton path. The D-A reproduction/monotonicity metrics re-stamped on the new kernel track the interim baseline (axis 4.00 vs 4.00 cm, LCFS 2.13 vs 2.63 cm, worst-case monotone fraction 0.30 vs 0.06) at 4.5x vs 2.6x hard-read host cost — the read wall section 3 removes.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>§2 landed — smooth-read re-point + τ calibration | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Per-stage record</strong> for
+<a href="/imas-ambix/batched-newton-accelerator.html">batched-newton-accelerator</a>
+§2 — both production consumers of the topology read now run the
+temperature-smoothed kernel (<code>boundary_read_smooth_jax</code>) behind
+opt-in switches, the τ operating point is measured on the full staged shot,
+and the smooth-map reproduction metrics are re-stamped on the new kernel.</p>
+
+<h2 id="status">Quick status</h2>
+<figure>
+  <table>
+    <thead><tr><th>Item</th><th>Verdict</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Re-point <code>gs_solve</code> connectivity path</td><td>SHIPPED</td>
+        <td><code>_read_topology_smooth</code> drops the interim host
+        sigmoid-over-hard-binding for <code>boundary_read_smooth</code> —
+        stencil O-point first, smooth read seeded at it (the probe's wiring),
+        the kernel's retracted-gate <code>core_weight</code> IS the core
+        membership; <code>smooth_edge_width</code> →
+        <code>smooth_temperature</code> (gate-calibrated default 10⁻³); a soft
+        SOL cap has no smooth-kernel equivalent and fails loud.  Hard default
+        byte-identical (pinned by test).  Commit <code>655e68f</code>.</td></tr>
+      <tr><td>Re-point the device rollout</td><td>SHIPPED</td>
+        <td><code>_build_slice_step</code> gains
+        <code>read='hard'|'smooth'</code> + τ, threaded through slice solver /
+        march / PinT window / CLI (<code>--device-read</code>,
+        <code>--device-tau</code>); the probe grows a
+        <code>--step-source rollout</code> arm so the SAME runners race the
+        production step.  Hard default byte-identical.</td></tr>
+      <tr><td>Gate: probe-convergence reproduction (≥19% Picard cold-seed)</td>
+        <td>PASS</td>
+        <td>production rollout step, 48 cold-seed slices at 40 evals:
+        <strong>smooth Picard 19% converged</strong>, residual median
+        <strong>6.30·10⁻⁴</strong> (probe: 19% / 6.3·10⁻⁴ — exact) vs hard 10%
+        / 1.0·10⁻³; Anderson ties Picard on both reads (the probe's finding,
+        reproduced); derivative health through the production step: jvp vs
+        central FD <strong>~10⁻⁹</strong> on both reads.
+        Artifact <code>tau_map_accelerator_probe-rollout-v0.json</code>.</td></tr>
+      <tr><td>Gate: τ schedule accuracy-at-emit = τ=10⁻³ read</td><td>PASS</td>
+        <td>every continuation schedule ends on the τ=10⁻³ map and is scored
+        there: emit-map residual median <strong>6.30·10⁻⁴</strong> — identical
+        to the single-τ=10⁻³ read.  Labels are never emitted from a hot
+        read.</td></tr>
+      <tr><td>τ operating point (decision input)</td><td>MEASURED</td>
+        <td>full 48-slice sweep, Picard at 40 evals: 3·10⁻⁴ → 16.7%,
+        <strong>10⁻³ → 18.8%</strong>, 3·10⁻³ → 22.9%, 10⁻² → 22.9% (hotter
+        contracts better, plateau above 3·10⁻³); 2–3 stage hot→cold schedules
+        at EQUAL total budget all land 20.8% — <strong>+1 slice</strong> over
+        single τ=10⁻³, with 3·10⁻³→10⁻³ the cheapest anneal (evals-to-tol
+        median 21 vs 26–27).  <strong>Locked: single τ=10⁻³</strong> — the
+        Picard-level continuation gain is within noise; the hotter-map
+        contraction lever moves into the §4 Newton path (forcing/continuation
+        folded into Newton, where the budget shape can exploit it).
+        Artifact <code>tau_map_accelerator_probe-tau-study-v0.json</code>.</td></tr>
+      <tr><td>D-A reproduction/monotonicity re-stamp on the new kernel</td>
+        <td>TRACKS BASELINE</td>
+        <td>5 held-out shots × 6 slices
+        (<code>differentiable_solve_gate-smooth-kernel-v1.json</code> vs the
+        interim-kernel <code>-v0</code>): axis median <strong>4.00 vs
+        4.00 cm</strong>, LCFS <strong>2.13 vs 2.63 cm</strong> (better),
+        profile RMS 0.223 vs 0.159 (slightly worse — the 20× sharper τ=10⁻³
+        edge moves near-edge current), worst-case smooth monotone fraction
+        <strong>0.30 vs 0.06</strong> (much better; 6/14 limit-cycling slices
+        fully monotone vs 5/14, every hard trace ≤0.72); the strict D-A1/D-A2
+        booleans were already FALSE on the interim kernel and remain so — no
+        regression, and the binding §2 gates above pass.  Host cost:
+        smooth/hard solve time <strong>4.5×</strong> (interim 2.6×) — the
+        per-evaluation read wall §3 exists to remove.</td></tr>
+      <tr><td>Spine-bench topology-read arm</td><td>RE-STAMPED</td>
+        <td>frozen 6-shot metric at commit <code>0447fb2</code>
+        (<code>physics-spine-v0-mast-heldout-6-0447fb2e0d-…yaml</code>), new
+        kernel vs the interim-kernel stamp: axis_smoothread
+        <strong>4.78 vs 5.52 cm</strong> (better), LCFS
+        <strong>1.60 vs 1.96 cm</strong> (better), profile RMS 0.43 vs 0.20
+        (worse — the sharper edge again), converged fraction 83.3% vs 91.7%
+        at the bench sweep budget; end-to-end ~unchanged (23.8 vs 24.5
+        s/slice, 2.7× the hard greens-matvec arm).  Hard arms untouched
+        (greens-matvec axis-reproduce 0.023 cm, converged 1.0).</td></tr>
+      <tr><td>Unit tests</td><td>PASS</td>
+        <td>13/13 (<code>test_gs_solve_smooth_topology</code> re-pinned to the
+        kernel semantics incl. hard-default byte-identity + fail-loud SOL cap;
+        <code>test_connectivity_boundary</code> unchanged).</td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<h2 id="tau">The τ calibration</h2>
+<figure>
+  <img src="/imas-ambix/figures/batched-newton-accelerator/fig-s2-tau-calibration.png"
+       alt="Three panels: Picard converged fraction rising with smoothing temperature and plateauing above 3e-3; single-temperature versus continuation bars at equal evaluation budget showing schedules at 20.8 percent versus 18.8 percent at tau 1e-3; median final residual bars on the emit map, all schedules identical to the tau 1e-3 read."
+       style="max-width:100%">
+  <figcaption>Full-set τ calibration (48 cold-seed slices, shared 40-evaluation
+  budget).  Left: hotter maps contract better, plateauing above τ=3·10⁻³.
+  Middle: hot→cold continuation buys only +1 slice over single τ=10⁻³ at equal
+  budget.  Right: every schedule's emit-map residual equals the τ=10⁻³ read —
+  the accuracy-at-emit gate.</figcaption>
+</figure>
+
+<h2 id="notes">What changed in the code</h2>
+<ul>
+  <li><code>imas_ambix/latent/connectivity_boundary.py</code> —
+    <code>_smooth_read_at_stencil_axis</code> (jitted composition: stencil
+    axis → smooth read, axis scalars ride along); host adapter
+    <code>boundary_read_smooth</code> re-pointed at it, τ default 10⁻³.</li>
+  <li><code>imas_ambix/latent/gs_solve.py</code> —
+    <code>_read_topology_smooth</code> rebuilt on the kernel;
+    <code>smooth_temperature</code> kwarg on
+    <code>solve_equilibrium_nk</code> / <code>solve_equilibrium_lsq</code>.</li>
+  <li><code>scripts/device_rollout_single_shot.py</code> — read switch through
+    the whole device stack (step → solver → march → PinT → CLI).</li>
+  <li><code>scripts/tau_map_accelerator_probe.py</code> — full-set τ sweep,
+    hot→cold continuation schedules scored on the cold emit map,
+    production-rollout step source, τ-calibration figure.</li>
+</ul>
+
+<h2 id="next">What's next</h2>
+<p>§3 — remove the read wall (the dominant per-evaluation cost, cut FIRST so
+the accelerator tuning, coupled-profile and batched rungs all inherit it):
+warm-started binding search, log-depth flood fill, iteration-resolution read.
+Pre-declared gates: ≥5× per-evaluation wall at B=512 vs the §2 kernel;
+warm-started binding reproduces the cold sweep to sub-τ (bracket misses
+counted); emitted full-resolution read byte-comparable to the §2 kernel on
+every slice.  The 4.5× smooth/hard host-cost ratio measured here is the §3
+baseline.</p>
+
+</main>
+</body>
+</html>
