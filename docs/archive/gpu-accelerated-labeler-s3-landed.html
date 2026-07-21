@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="gpu-accelerated-labeler-s3-landed">
+  <meta name="plan-title" content="GPU-Accelerated Equilibrium Engine — §3 record: single-shot on-device rollout (pinned K=2 march, windowed PinT, fp64 carry)">
+  <meta name="plan-summary" content="§3 landing record (2026-07-21, H200). The device march holds the confined basin on all 48 slices ONLY with the centroid pin folded into the map (a per-sweep closed-form K=2 LSQ) — the disc seed alone corner-locks even on host. March vs the host pinned-K2 scaffold: 4.12 cm median (n=18; ~2.8 cm is the known hard-vs-smooth read gap) — G-B reproduction clause FAIL. PinT (coarse pre-march + 3 batched continuation outers) converges to the march 0.42 cm on well-posed slices at 2.44x — convergence PASS, 3-5x speedup clause MISS (the sequential chain is load-bearing). fp64 carry kernels (Thomas ψ-diffusion, exact modal ZOH) at 1.6e-15/4.4e-18 vs the host references. G-B overall FAIL (qualified); the batched-sweep economics (0.65x a single-slice sweep at B=48) validate the §4 offline batch-over-shots wrap.">
+  <meta name="plan-informs" content="gpu-accelerated-labeler">
+  <title>gpu-accelerated-labeler §3 landed — single-shot on-device rollout</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>§3 landed — the single-shot on-device rollout (the inner object)</h1>
+  <p>Per-stage record for <a href="/imas-ambix/gpu-accelerated-labeler.html">
+  gpu-accelerated-labeler</a> §3 (2026-07-21). Measured on the H200 node
+  (98dci4-gpu-0003, reservation <code>gpu_0003_grpA</code>) against held-out
+  MAST shot 21978 — 48 disc-readable time-ordered slices (0 dropped for a
+  missing disc read), real campaign Green's matrix (6305×5084 fp64).
+  Harness: <code>scripts/device_rollout_single_shot.py</code> (prep on a CPU
+  node, device legs on the H200); artifact
+  <code>imas_ambix/latent/artifacts/patch_gate/device_rollout_single_shot-v0.json</code>
+  (commit <code>986e1a50</code>). Firewall unchanged: GS force balance,
+  physics + measured channels only, no EFIT.</p>
+
+  <h2>Quick status — gate G-B, clause by clause</h2>
+  <table>
+    <tr><th>Clause</th><th>Verdict</th><th>Result</th></tr>
+    <tr>
+      <td>March reproduces the CPU scaffold</td>
+      <td><strong>FAIL (qualified)</strong></td>
+      <td>4.12 cm median / 10.8 cm p90 axis vs the host pinned-K=2 scaffold on
+      its 18 scored+confined slices (bar: 2 cm). The gap is anchored: the
+      shipped differentiable-solve gate measured the hard-vs-connectivity
+      read <em>fixed-point</em> distance at 2.77 cm median on this class, and
+      the device K=2 profile update is a 3-row closed-form LSQ vs the host
+      ladder's full LSQ (smoothness rows, adaptive iteration). Basin held on
+      all 48 slices; 0 fabricated readouts.</td>
+    </tr>
+    <tr>
+      <td>PinT converges to the march in a bounded outer count</td>
+      <td><strong>PASS (well-posed)</strong></td>
+      <td>0.99 → 0.54 → <strong>0.42 cm</strong> median in 3 outers on the 18
+      well-posed slices (bar: 0.5 cm). All-slice median 17.6 cm is dominated
+      by a contiguous under-determined mid-shot block (k=18–28) that the host
+      scaffold itself cannot score — both engines drift vertically there;
+      under-determination is a property of the problem, not the iterator
+      (the same class the accelerator study left oscillating).</td>
+    </tr>
+    <tr>
+      <td>Single-shot speedup ~3–5×</td>
+      <td><strong>MISS (honest negative)</strong></td>
+      <td><strong>2.44×</strong> at converged trajectory (11.3 s vs 27.5 s);
+      3.1× is reachable only without convergence. The Pareto was measured
+      (5 configs): the sequential coarse pre-march that preserves the warm
+      chain's basin choice is load-bearing and caps the parallel headroom.
+      A batched-over-48 sweep costs 0.65× a single-slice sweep — the batch is
+      nearly free, the CHAIN is not: exactly the economics that favour the
+      §4 offline wrap (batch over shots, sequential in time, no chain broken).</td>
+    </tr>
+    <tr>
+      <td>fp64 temporal scan carry</td>
+      <td><strong>PASS</strong></td>
+      <td>Device Thomas ψ-diffusion (θ=1, vertex-centred FV, real flat-top
+      geometry, measured-Ip edge BC, 143 substeps) matches host
+      <code>diffuse_psi</code> to 1.6×10⁻¹⁵ max relative; the exact modal-ZOH
+      recurrence matches <code>zoh_mode_response</code> to 4.4×10⁻¹⁸; both
+      states thread one <code>lax.scan</code> in fp64 with end-state parity
+      1.1×10⁻¹⁵ / 5.3×10⁻²³. (The fixed-θ profile takes no feedback from this
+      state yet — coupling the diffusion prior into the on-device profile
+      update is corpus-engine integration, §4+.)</td>
+    </tr>
+  </table>
+  <p><strong>G-B overall: FAIL (qualified)</strong> — convergence, carry, and
+  honesty clauses pass; the reproduction and speedup clauses miss with the
+  causes identified and measured, not open.</p>
+
+  <h2>The load-bearing finding: the pin belongs INSIDE the map</h2>
+  <ul>
+    <li><strong>The disc seed alone is NOT the basin insurance.</strong> The
+    §2 hypothesis (batchable disc seeding fixes the corner-lock) is refuted on
+    host ground truth: the unpinned fixed-θ chain corner-locks to the outboard
+    attractor (R ≈ 1.77 m) from the ramp on, disc seed and warm chain
+    notwithstanding. Basin control lives in the centroid-PINNED map — the
+    accelerator study's NK conclusion, now confirmed for Picard too.</li>
+    <li><strong>The device map therefore carries the K=2 pinned scaffold
+    per sweep</strong>: a closed-form 2-coefficient LSQ (free-sign p/f pair on
+    the (1−ψ_N) edge family; rows = Ip normalisation + disc-centroid soft
+    tether, σ = 2 cm) — the "tiny per-sweep profile LSQ" the
+    matrix-freeze decision allows. With it the device march tracks the
+    confined branch on all 48 slices.</li>
+    <li><strong>Anderson on the pinned map: a tie</strong> (1.00× sweeps vs
+    Picard; both converge 49% of warm slices at the 20-sweep budget). The
+    pinned smooth map does not limit-cycle, so the accelerator's
+    cycling-class win has nothing to buy; safeguarded Anderson (history reset
+    on residual growth + 2× step cap) is retained — on the unpinned probe it
+    reached 3.9×10⁻¹⁶ residual where plain Picard sat at 1.5×10⁻¹⁰.</li>
+    <li><strong>One engine, CPU and GPU:</strong> the identical march on the
+    CPU backend agrees with the H200 to 2.9×10⁻¹⁵ m — the backend-portability
+    decision demonstrated on the full chained rollout, not just one solve.</li>
+    <li><strong>Tiered precision through a chained march:</strong> tf32 GEMM
+    (fp64 state) costs ~0.9 cm median axis vs the fp64 march — far above the
+    0.004 cm single-solve figure (§2) because trajectory chaining amplifies
+    the rounding differences. Watch item for §4: gate the tf32 lane at corpus
+    scale before enabling it for labels.</li>
+  </ul>
+
+  <figure>
+    <img src="/imas-ambix/figures/gpu-accelerated-labeler/fig-s3-march-pint.png"
+         alt="Four panels: axis trajectory of host reference, device march and PinT; per-slice device-vs-host axis error with 4.1 cm median; PinT convergence per outer for all and well-posed slices reaching 0.42 cm; wall-clock bars march 27.5 s vs PinT 11.3 s"
+         style="max-width:100%">
+    <figcaption>The sequential march vs the windowed PinT on shot 21978. The
+    host anchor exists only where the scaffold scores (early ramp + flat-top
+    edges); the march/PinT divergence is confined to the unscored
+    under-determined block.</figcaption>
+  </figure>
+  <figure>
+    <img src="/imas-ambix/figures/gpu-accelerated-labeler/fig-s3-carry-parity.png"
+         alt="Three panels: psi-diffusion device-vs-host max difference staying near 1e-15 across substeps; Anderson vs Picard median residual traces overlapping on the pinned map; carry-kernel relative parity bars near 1e-15 and 1e-17"
+         style="max-width:100%">
+    <figcaption>The fp64 temporal carry: device Thomas diffusion and exact
+    modal ZOH at machine precision vs the host references; Anderson and
+    Picard coincide on the pinned map.</figcaption>
+  </figure>
+
+  <h2>What §4 (offline corpus) inherits</h2>
+  <ul>
+    <li>The validated inner object: disc-seeded, centroid-pinned, warm-chained
+    sequential march — 1.7 slices/s single-shot on one H200 at fp64 with the
+    in-loop connectivity read; batch-over-shots amortises the read
+    (batched sweep ≈ 0.65× a B=1 sweep at B=48, and the §2 GEMM lanes keep
+    scaling past B=2048).</li>
+    <li>PinT is NOT the offline lever (as the plan already states) — the §3
+    measurement now quantifies why: the chain is load-bearing; shot-batching
+    breaks no chain.</li>
+    <li>Open items carried forward: close the 4.1 cm anchor gap (same-read
+    host anchor via <code>--host-reads both</code>, and/or port the ladder's
+    profile family + smoothness rows on device); Z-anchoring on the
+    under-determined class; tf32-lane label gate at corpus scale.</li>
+  </ul>
+
+  <h2>Outcomes</h2>
+  <table>
+    <tr><th>Item</th><th>Artifact</th><th>Commit</th></tr>
+    <tr><td>Rollout harness (prep + 3 device legs)</td>
+        <td><code>scripts/device_rollout_single_shot.py</code></td>
+        <td><code>bb1d13a</code>…<code>fc76036</code></td></tr>
+    <tr><td>H200 record + figures</td>
+        <td><code>imas_ambix/latent/artifacts/patch_gate/device_rollout_single_shot-v0.json</code>,
+            <code>docs/figures/gpu-accelerated-labeler/fig-s3-*.png</code></td>
+        <td><code>b6e0b20</code></td></tr>
+    <tr><td>PinT convergence/speedup Pareto (5 configs)</td>
+        <td><code>…/device_rollout_single_shot-v0-pre*-first*-pint*-out*.json</code>
+            (local sweep copies; production budgets baked into the CLI
+            defaults)</td>
+        <td><code>fc76036</code></td></tr>
+  </table>
+
+  <h2>What's next</h2>
+  <p>§4 — wrap the sequential-march inner object in <code>vmap</code>/shard
+  over shots for the offline corpus factory (gate G-C):
+  <code>/reckon-ship gpu-accelerated-labeler §4</code>.</p>
+</main>
+</body>
+</html>

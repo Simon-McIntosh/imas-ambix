@@ -19,8 +19,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-21">
-<meta name="plan-impl" content="0.17">
-<meta name="plan-version" content="1">
+<meta name="plan-impl" content="0.33">
+<meta name="plan-version" content="2">
 </head>
 <body>
 <main class="plan-doc">
@@ -194,21 +194,25 @@
   (commits <code>b300755</code>, <code>f152cf5</code>).</p>
   </section>
 
-  <h2 id="s3">§3 — Single-shot on-device rollout (the inner object; the post-shot dimension)</h2>
-  <p><strong>Built first &mdash; it is the unit both other dimensions wrap.</strong> Assemble
-  the whole causal rollout for ONE shot on-device: the inner GS solve (§2) warm-started
-  along time, the batched tridiagonal resistive diffusion (Thomas, fp64), and the exact
-  modal-ZOH passive circuits in the scan carry. Two forms: (i) the sequential warm-started
-  march (validate byte-comparable to the CPU labeler for that shot &mdash; the correctness
-  anchor); (ii) <strong>parallel-in-time</strong> windowed waveform relaxation for latency
-  &mdash; Gauss&ndash;Seidel across short causal windows (T_win/τ_R&nbsp;&lesssim;&nbsp;0.3),
-  Jacobi batched-over-slices within, exact causal eddy-state carry between windows;
-  disc+centroid position prior (or a cheap coarse pre-march) as basin insurance on the cold
-  decoupled pass. The soft-prior temporal coupling contracts the outer loop in ~2&ndash;4
-  iterations. Gate G-B: the PinT rollout converges to the sequential march&rsquo;s trajectory
-  (axis/LCFS/flux-budget) to tolerance in a bounded outer count, and delivers a measured
-  single-shot wall-clock speedup (target ~3&ndash;5&times;) vs the march, with 0 fabricated
-  readouts (label-honesty). This IS the post-shot fast-reconstruction product.</p>
+  <section id="s3" class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-07-21</span>
+  <h2>§3 — Single-shot on-device rollout (the inner object; the post-shot dimension)</h2></header>
+  <p class="landed-summary">
+  Built <code>scripts/device_rollout_single_shot.py</code> and ran it on the H200 against
+  held-out shot 21978 (48 slices). <strong>The pin belongs inside the map</strong>: the disc
+  seed alone corner-locks even on host — the device march carries a per-sweep closed-form
+  centroid-pinned K=2 LSQ and then holds the confined basin on all 48 slices (GPU/CPU parity
+  2.9e-15&nbsp;m; 0 fabricated readouts). <strong>G-B: FAIL (qualified)</strong> — march vs
+  the host pinned-K2 scaffold 4.12&nbsp;cm median (bar 2; &approx;2.8&nbsp;cm is the known
+  hard-vs-smooth read fixed-point gap); PinT (coarse pre-march + 3 batched outers) converges
+  0.99&rarr;0.42&nbsp;cm on well-posed slices (PASS) at <strong>2.44&times;</strong>
+  (3&ndash;5&times; MISS — the sequential chain is load-bearing; a B=48 batched sweep costs
+  0.65&times; a B=1 sweep, the economics that favour §4's batch-over-shots); fp64 carry
+  kernels (Thomas ψ-diffusion, exact modal ZOH) at 1.6e-15 / 4.4e-18 vs the host references,
+  threaded through one scan. Full record:
+  <a href="archive/gpu-accelerated-labeler-s3-landed.html">§3 landed</a>
+  (commits <code>bb1d13a</code>&hellip;<code>b6e0b20</code>).</p>
+  </section>
 
   <h2 id="s4">§4 — Offline corpus labeling (wrap §3 in vmap over shots)</h2>
   <p>The world-model label factory: wrap the §3 single-shot rollout&rsquo;s sequential-march
@@ -418,9 +422,9 @@ Done-when
      recorded honestly; artifact + figures committed.
   2. Plan updated same-session: §2 outcome recorded + collapsed; §3 (single-shot on-device
      rollout — the inner object) followup queued WITH pre-declared gates; this followup resolved.</pre>
-    <p class="r-fu-outcome">SS2 landed on the H200 - commits b300755/f152cf5. G-A1 resolved -> JAX locked (step speed comparable; device read/autograd/vmap one-sided). G-A2 PASS: fp64 GEMM compute-bound by B~128 at ~56 TFLOP/s (0.84M slices/s @ B=512); tf32/bf16 reach 259/202 TFLOP/s (2.1M/1.8M slices/s @ B=512) scaling to B=2048-4096. G-A3 qualified: batched on-device solve + connectivity read at GPU/CPU parity 7.5e-14 (76.4 solves/s @ B=512); tiered precision SAFE (tf32 0.004 / bf16 0.019 cm axis delta); reproduction FAIL 14.9 cm from the naive cold-seed Picard corner-locking (a shared seeding pathology, stop rule not triggered) -> batchable disc-seed scaffold is the SS3 build item. Benchmark stamp: spine_bench/results/gpu-labeler-foundation-f152cf5-98dci4-gpu-0003.yaml.</p>
+    <p class="r-fu-outcome">SS2 landed on the H200 - commits b300755/f152cf5. G-A1 resolved -&gt; JAX locked (step speed comparable; device read/autograd/vmap one-sided). G-A2 PASS: fp64 GEMM compute-bound by B~128 at ~56 TFLOP/s (0.84M slices/s @ B=512); tf32/bf16 reach 259/202 TFLOP/s (2.1M/1.8M slices/s @ B=512) scaling to B=2048-4096. G-A3 qualified: batched on-device solve + connectivity read at GPU/CPU parity 7.5e-14 (76.4 solves/s @ B=512); tiered precision SAFE (tf32 0.004 / bf16 0.019 cm axis delta); reproduction FAIL 14.9 cm from the naive cold-seed Picard corner-locking (a shared seeding pathology, stop rule not triggered) -&gt; batchable disc-seed scaffold is the SS3 build item. Benchmark stamp: spine_bench/results/gpu-labeler-foundation-f152cf5-98dci4-gpu-0003.yaml.</p>
     </article>
-<article class="r-fu" data-id="f-gal-02" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-21T00:05:00+00:00" data-recommends-skill="/reckon-ship gpu-accelerated-labeler §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-gal-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-21T00:05:00+00:00" data-recommends-skill="/reckon-ship gpu-accelerated-labeler §3" data-resolved-at="2026-07-21T08:14:49+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §3 — single-shot on-device rollout with batchable disc-seed scaffolding (the inner object)</h4>
     <div class="r-fu-body"><p>The §2 spike de-risked the substrate (JAX locked, GEMM fast lanes, tiered precision safe, on-device read at GPU/CPU parity) and localised the one missing piece: batchable SEEDING — the naive cold-Gaussian Picard corner-locks toward the coil-side attractor, exactly the pathology the host spine avoids with the disc-seed K=2 scaffold + non-negative ladder. §3 assembles the single-shot causal rollout on device (warm-started march + windowed PinT) carrying that scaffold, plus the smooth-map finding from differentiable-solve-accelerator: warm-started small fixed sweep budget is sound, Anderson-Picard is the inner accelerator, NK needs the centroid pin folded into the map.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -466,6 +470,55 @@ Done-when
   1. Single-shot on-device rollout committed; G-B verdict recorded honestly; figures committed.
   2. Plan updated same-session: §3 outcome + collapse; §4 (offline corpus vmap) followup queued
      with pre-declared gates; this followup resolved.</pre>
+    <p class="r-fu-outcome">S3 landed on the H200 (shot 21978, 48 slices) - commits bb1d13a..b6e0b20. The load-bearing finding: the disc seed alone is NOT basin insurance (the unpinned fixed-theta chain corner-locks to R~1.77 even on host) - the centroid pin was folded INTO the device map as a per-sweep closed-form K=2 LSQ, after which the march holds the confined basin on all 48 slices (GPU/CPU parity 2.9e-15 m, 0 fabricated). G-B FAIL (qualified): march vs host pinned-K2 scaffold 4.12 cm median, n=18 (bar 2 cm; ~2.8 cm is the known hard-vs-smooth read fixed-point gap); PinT (coarse pre-march + 3 batched continuation outers) converges 0.99->0.42 cm on well-posed slices (PASS <=0.5) at 2.44x (3-5x MISS - the sequential chain is load-bearing; measured 5-config pareto); fp64 carry kernels (Thomas psi-diffusion 1.6e-15, exact modal ZOH 4.4e-18) PASS, threaded in one scan. Batched-sweep economics (B=48 sweep = 0.65x a B=1 sweep) validate the S4 batch-over-shots wrap. Anderson on the pinned map: tie (retained with residual-growth safeguard). Record: docs/archive/gpu-accelerated-labeler-s3-landed.html.</p>
+    </article>
+<article class="r-fu" data-id="f-gal-03" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-21T11:00:00+00:00" data-recommends-skill="/reckon-ship gpu-accelerated-labeler §4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Ship §4 — offline corpus labeling: vmap the sequential march over shots (gate G-C)</h4>
+    <div class="r-fu-body"><p>§3 validated the inner object: the disc-seeded, centroid-pinned (per-sweep K=2 LSQ), warm-chained sequential march on device — confined on all 48 held-out slices, GPU/CPU parity 2.9e-15 m, with the honest negatives quantified (4.12 cm anchor gap = read difference + K=2 formulation; single-shot PinT capped at 2.44x by the load-bearing chain). §4 wraps the march in vmap/shard over SHOTS — the batch that breaks no chain (a B=48 batched sweep already costs 0.65x a B=1 sweep). Open items inherited: same-read host anchor (--host-reads both) or the ladder profile family on device to close the anchor gap; tf32-lane label gate at corpus scale (trajectory chaining amplifies tf32 to ~0.9 cm median vs 0.004 cm single-solve); Z-anchoring on the under-determined class.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    gpu-accelerated-labeler (http://localhost:8765/imas-ambix/gpu-accelerated-labeler.html)
+Section: §4 (offline corpus labeling — wrap the §3 march in vmap over shots)
+Tier:    opus
+
+Context
+  §3 landed the single-shot on-device rollout: sequential warm-started march with the
+  disc seed + per-sweep centroid-pinned K=2 LSQ folded into the map (basin held 48/48,
+  GPU/CPU parity 2.9e-15 m), fp64 carry kernels at machine precision, PinT capped at
+  2.44x (chain load-bearing) — so offline throughput comes from SHOT-batching, which
+  breaks no chain: a B=48 batched sweep costs 0.65x a B=1 sweep, and the §2 GEMM lanes
+  keep scaling past B=2048. Known gaps to close or gate here: the 4.12 cm march-vs-host
+  anchor gap (hard-vs-smooth read ~2.8 cm + K=2 formulation), the tf32 chaining
+  amplification (~0.9 cm median vs fp64 march), Z-drift on the under-determined class.
+
+State to read (CODE / FILES / DATA)
+  docs/archive/gpu-accelerated-labeler-s3-landed.html   (the §3 record + inherited items)
+  scripts/device_rollout_single_shot.py                 (the march to wrap; prep + eval pattern)
+  imas_ambix/latent/artifacts/patch_gate/device_rollout_single_shot-v0.json
+  scripts/spine_label_factory.py                        (the CPU corpus factory + shard format)
+  imas_ambix/spine_bench/AGENTS.md                      (H200 recipe, binding)
+
+Gates (pre-declared, from the plan §4)
+  G-C: the batched corpus rollout reproduces the CPU sequential labeler&#x27;s equilibria
+  (axis/LCFS/profile + the held-out-MSE pitch readout where available) on a held-out
+  shot set to tolerance, with 0 fabricated readouts; report corpus wall-clock
+  (target: ~37 core-days -&gt; well under an hour on 8xH200). Shot-length bucketing +
+  per-column convergence masking; campaign-grouped resident Green&#x27;s matrices
+  (frozen-matrices invariant). Decide and gate the label precision lane
+  (fp64 vs tf32) at corpus scale.
+
+Constraints
+  - Honour locked decisions: jax; frozen-matrices-vector-only-update; tiered precision
+    with fp64 cross-slice state; one engine CPU+GPU; time-support/multi-rate as scoped.
+  - Firewall: GS force balance, physics + measured channels only, no EFIT.
+  - Figures mandatory (docs/figures/gpu-accelerated-labeler/).
+  - Commit+push each coherent change on main; no AI co-author trailers.
+  - H200 via reservation gpu_0003_grpA; async shell + file-redirect + exit sentinel.
+
+Done-when
+  1. Batched-over-shots corpus factory committed; G-C verdict recorded honestly with
+     measured corpus wall-clock; figures committed.
+  2. Plan updated same-session: §4 outcome + collapse; §5 (in-pulse streaming) followup
+     queued with pre-declared gates; this followup resolved.</pre>
     </article>
 </section>
 
