@@ -1945,17 +1945,24 @@ def _double_null_ordering_sweep(n_steps=21, imbalance=0.06):
 
 def _region_separation_gate(overlays):
     """Held-out real leg: private/core separation on the held-out (MAST) slices —
-    the smooth core mask against CPU ``classify_regions`` at the CPU ψ_bnd."""
+    the smooth core mask against CPU ``classify_regions`` at the CPU ψ_bnd.
+
+    Evaluated at the ladder's SMALLEST temperature: the smooth mask's gate is
+    retracted one τ inside the binding by design, so at the operating τ the
+    device core is smaller by an intentional O(τ) shell; in the τ→0 limit that
+    shell vanishes and the residual mismatch isolates genuine private/core
+    disagreement (the object this gate pins)."""
     from imas_ambix.latent.connectivity_boundary import boundary_read_smooth
     from imas_ambix.latent.topology import classify_regions
 
+    tau_min = min(SMOOTH_TAUS)
     rows = []
     for _cls, psi, grid, cpu, gpu, centroid in overlays:
         if not (cpu.found and np.isfinite(gpu.psi_bnd)):
             continue
         labels = classify_regions(psi, grid.rg, grid.zg, centroid, float(cpu.psi_bnd))
         sm = boundary_read_smooth(
-            psi, grid, centroid, temperature=SMOOTH_TAU_REF, lcfs_norm=1.0
+            psi, grid, centroid, temperature=tau_min, lcfs_norm=1.0
         )
         sep = _separation_metrics(
             labels, np.asarray(sm["core_weight"]), np.asarray(grid.inside_limiter)
