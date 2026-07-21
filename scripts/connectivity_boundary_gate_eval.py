@@ -1570,22 +1570,36 @@ def _smooth_convergence_gate(overlays):
             per_tau[t]["dcore"].append(
                 abs(float(sm["n_core_soft"]) - gpu.n_core_cells) / gpu.n_core_cells
             )
-    ladder = {
-        t: {k: (float(np.median(v)) if v else float("nan")) for k, v in d.items()}
-        for t, d in per_tau.items()
-    }
+
+    def _stats(v):
+        # median for the verdict; p90/max + the blending-slice count for
+        # visibility — the softmin's losing weight underflows to exactly 0 when
+        # the candidates sit further apart than a few τ, so the MEDIAN slice is
+        # bit-exact and only the marginal (blending) slices carry a difference.
+        if not v:
+            return {"med": float("nan"), "p90": float("nan"), "max": float("nan")}
+        a = np.asarray(v, dtype=np.float64)
+        return {
+            "med": float(np.median(a)),
+            "p90": float(np.percentile(a, 90)),
+            "max": float(np.max(a)),
+            "n_nonzero": int(np.sum(a > 0.0)),
+            "n": int(a.size),
+        }
+
+    ladder = {t: {k: _stats(v) for k, v in d.items()} for t, d in per_tau.items()}
     t_min = min(SMOOTH_TAUS)
     fin = ladder[t_min]
-    dpsi_desc = [ladder[t]["dpsi"] for t in sorted(SMOOTH_TAUS, reverse=True)]
+    dpsi_desc = [ladder[t]["dpsi"]["med"] for t in sorted(SMOOTH_TAUS, reverse=True)]
     converging = all(np.isfinite(x) for x in dpsi_desc) and (
         dpsi_desc[-1] <= dpsi_desc[0]
     )
     ok = (
         n_slices > 0
         and converging
-        and fin["dpsi"] <= SMOOTH_PSI_TOL
-        and fin["drad_cm"] <= SMOOTH_RADII_TOL_CM
-        and fin["dcore"] <= SMOOTH_CORE_TOL
+        and fin["dpsi"]["med"] <= SMOOTH_PSI_TOL
+        and fin["drad_cm"]["med"] <= SMOOTH_RADII_TOL_CM
+        and fin["dcore"]["med"] <= SMOOTH_CORE_TOL
     )
     return {
         "verdict": "PASS" if ok else "FAIL",
@@ -1996,7 +2010,12 @@ def _region_separation_gate(overlays):
 
 
 def _figures_smooth(smooth_gate):
-    """Smooth-read convergence figure: smooth-vs-hard error vs temperature."""
+    """Smooth-read convergence figure: smooth-vs-hard error vs temperature.
+
+    Plots median, p90, and worst slice.  Exact zeros (the softmin's losing
+    weight underflows when the binding candidates sit further apart than a few
+    τ, so most slices are bit-exact) cannot render on a log axis — they are
+    annotated instead of leaving a blank panel."""
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     taus = sorted(float(t) for t in smooth_gate["ladder"])
     panels = [
@@ -2004,18 +2023,59 @@ def _figures_smooth(smooth_gate):
         ("drad_cm", "median |Δr_LCFS| [cm]", SMOOTH_RADII_TOL_CM),
         ("dcore", "|Δn_core| / n_core", SMOOTH_CORE_TOL),
     ]
-    fig, axes = plt.subplots(1, 3, figsize=(10.5, 3.2))
+    fig, axes = plt.subplots(1, 3, figsize=(10.5, 3.4))
     for ax, (key, label, tol) in zip(axes, panels, strict=True):
-        vals = [smooth_gate["ladder"][str(t)][key] for t in taus]
-        ax.loglog(taus, vals, "o-", color="C0")
+        series = [
+            ("med", "median (gate)", "C0", "o-"),
+            ("p90", "p90", "C2", "s--"),
+            ("max", "worst slice", "C1", "^:"),
+        ]
+        any_pos = False
+        for stat, name, color, style in series:
+            vals = np.asarray(
+                [smooth_gate["ladder"][str(t)][key].get(stat, np.nan) for t in taus]
+            )
+            pos = vals > 0
+            if pos.any():
+                any_pos = True
+                ax.loglog(
+                    np.asarray(taus)[pos], vals[pos], style, color=color, label=name
+                )
+            if (~pos).any():
+                # exact zeros: mark along the bottom axis instead of vanishing
+                ax.plot(
+                    np.asarray(taus)[~pos],
+                    np.full((~pos).sum(), np.nan),
+                    linestyle="none",
+                )
+        n_nz = [smooth_gate["ladder"][str(t)][key].get("n_nonzero") for t in taus]
+        if not any_pos:
+            ax.text(
+                0.5,
+                0.5,
+                "smooth ≡ hard (bit-exact)\nfor every slice at every τ",
+                transform=ax.transAxes,
+                ha="center",
+                va="center",
+                fontsize=8,
+                color="C0",
+            )
+            ax.set_xscale("log")
+        elif all(n is not None for n in n_nz):
+            ax.set_title(
+                "blending slices / n: "
+                + " ".join(f"{n}" for n in n_nz)
+                + f" (τ={taus[0]}→{taus[-1]})",
+                fontsize=6,
+            )
         ax.axhline(tol, color="C3", ls="--", lw=1.0, label="gate tolerance")
         ax.set_xlabel("temperature τ (ψ_N span units)", fontsize=8)
         ax.set_ylabel(label, fontsize=8)
         ax.tick_params(labelsize=7)
-        ax.legend(fontsize=7)
+        ax.legend(fontsize=6)
     fig.suptitle(
         "smooth read → hard read as τ→0 "
-        f"(held-out median, n={smooth_gate['n_slices']})",
+        f"(held-out, n={smooth_gate['n_slices']}; median/p90/worst)",
         fontsize=10,
     )
     fig.tight_layout()
