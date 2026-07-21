@@ -82,24 +82,53 @@ def frame_artifact_scatter(source_dir: Path) -> None:
     print(f"wrote {out} (n={a.size}, r={r:.3f})")
 
 
+def _combine_quarters(paths: list[Path]) -> tuple[float, float, int] | None:
+    """n-weighted mean of the per-quarter shot-mean RMSEs (the harness
+    aggregates as the mean over shots, so the recombination is exact)."""
+    tot = 0
+    acc_e = acc_p = 0.0
+    for p in paths:
+        if not p.exists():
+            return None
+        s = json.loads(p.read_text())["summary"]
+        n = int(s["n_shots_scored"])
+        tot += n
+        acc_e += float(s["engine_pitch_rmse"]) * n
+        acc_p += float(s["persistence_pitch_rmse_live"]) * n
+    return acc_e / tot, acc_p / tot, tot
+
+
 def heldout_gate_repro() -> None:
-    runs = [
+    s4_tree = Path("/home/ITER/mcintos/Code/imas-ambix-wt-s4gate")
+    runs: list[tuple[str, object]] = [
         ("archived §4 result", ARTIFACT_DIR / "heldout_mse_gate-v0.json"),
-        ("re-run, current tree", ARTIFACT_DIR / "heldout_mse_gate-repro-head.json"),
+        ("re-run, current tree",
+         [ARTIFACT_DIR / f"heldout_mse_gate-repro-head-q{q}.json"
+          for q in (1, 2, 3, 4)]),
         ("re-run, §4-era tree",
-         Path("/home/ITER/mcintos/Code/imas-ambix-wt-s4gate") / ARTIFACT_DIR
-         / "heldout_mse_gate-repro-s4code.json"),
+         [s4_tree / ARTIFACT_DIR / f"heldout_mse_gate-repro-s4-q{q}.json"
+          for q in (1, 2, 3, 4)]),
     ]
     labels, eng, per, n_scored = [], [], [], []
-    for label, path in runs:
-        if not path.exists():
-            print(f"skip {label}: {path} missing")
-            continue
-        s = json.loads(path.read_text())["summary"]
+    for label, src in runs:
+        if isinstance(src, list):
+            got = _combine_quarters(src)
+            if got is None:
+                print(f"skip {label}: quarter artifacts missing")
+                continue
+            e, p, n = got
+        else:
+            if not src.exists():
+                print(f"skip {label}: {src} missing")
+                continue
+            s = json.loads(src.read_text())["summary"]
+            e = float(s["engine_pitch_rmse"])
+            p = float(s["persistence_pitch_rmse_live"])
+            n = int(s["n_shots_scored"])
         labels.append(label)
-        eng.append(float(s["engine_pitch_rmse"]))
-        per.append(float(s["persistence_pitch_rmse_live"]))
-        n_scored.append(int(s["n_shots_scored"]))
+        eng.append(e)
+        per.append(p)
+        n_scored.append(n)
     if not labels:
         return
     x = np.arange(len(labels))
