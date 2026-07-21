@@ -7,7 +7,7 @@
   <meta name="reckon-type"    content="plan">
   <meta name="plan-slug"      content="batched-newton-accelerator">
   <meta name="plan-title"     content="Batched Newton Accelerator — GEMM-native convergence on the temperature-smoothed pinned map">
-  <meta name="plan-summary"   content="Recover a GPU-batch (GEMM) compatible convergence accelerator for the free-boundary solve on the now fully differentiable topology read. The prior accelerator study ran before the temperature-smoothed read existed: the device rollout's map still binds at the exact min with a boolean flood mask, and on that map safeguarded Anderson ties relaxed Picard (~49% of warm slices converge at a 20-sweep budget) — convergence rate is the corpus engine's wall. A measured probe on the rollout's own staged shot (48 cold-seed slices) shows what the smooth read + exact autograd tangents buy: Jacobian-free Newton-Krylov with jax.linearize tangents and fixed-shape GMRES converts 62% of slices at a 40-evaluation budget with median final residual 3.4e-5 (30x under tolerance) vs 10% for the production relaxed Picard and 19% for smooth-map Picard; Anderson ties Picard on both maps on this class; every NK operation is a Green's-GEMM column or a tiny fixed-shape dense solve, so the scheme vmaps over slices unchanged. Plan: re-point the solve and rollout maps at the smooth read (tau operating point measured), adopt and budget-tune the batched NK, lift the rich profile coefficients into a coupled KKT Newton state so under-constrained higher-order fits stop thrashing (smooth softplus nonneg, ridge+prior rows inside the Jacobian), demonstrate the batched B>=512 form on the H200, and integrate into the corpus engine. Firewall unchanged: GS force balance, physics + measured channels only, no EFIT.">
+  <meta name="plan-summary"   content="Recover a GPU-batch (GEMM) compatible convergence accelerator for the free-boundary solve on the now fully differentiable topology read. The prior accelerator study ran before the temperature-smoothed read existed: the device rollout's map still binds at the exact min with a boolean flood mask, and on that map safeguarded Anderson ties relaxed Picard (~49% of warm slices converge at a 20-sweep budget) — convergence rate is the corpus engine's wall. A measured probe on the rollout's own staged shot (48 cold-seed slices) shows what the smooth read + exact autograd tangents buy: Jacobian-free Newton-Krylov with jax.linearize tangents and fixed-shape GMRES converts 62% of slices at a 40-evaluation budget with median final residual 3.4e-5 (30x under tolerance) vs 10% for the production relaxed Picard and 19% for smooth-map Picard; Anderson ties Picard on both maps on this class; every NK operation is a Green's-GEMM column or a tiny fixed-shape dense solve, so the scheme vmaps over slices unchanged. Plan: re-point the solve and rollout maps at the smooth read (tau operating point measured), adopt and budget-tune the batched NK, lift the rich profile coefficients into a coupled KKT Newton state so under-constrained higher-order fits stop thrashing (smooth softplus nonneg, ridge+prior rows inside the Jacobian), demonstrate the batched B>=512 form on the H200, and integrate into the corpus engine. Binding corpus objective: the whole MAST corpus (~600k slices) labelled in <=1 hour on the 8xH200 node — the measured foundations (76.4 solves/s at B=512 on ONE card, before NK and before the read-cost removals; the topology read is ~99.7% of each evaluation and has a >=5x removal path) put the inner solve at ~16 minutes on 8 cards, so the hour budgets the full pipeline. Firewall unchanged: GS force balance, physics + measured channels only, no EFIT.">
   <meta name="plan-status"    content="draft">
   <meta name="plan-roi"       content="high">
   <meta name="plan-effort"    content="L">
@@ -185,10 +185,24 @@
   batch cost, and the tangent GEMM must ride the same tensor-core lanes
   (fp64 + tf32 variants, axis-delta re-checked against the §2 spike's
   0.004 cm tf32 figure); (c) per-column convergence masking so converged
-  columns stop paying (masked updates, not early exit). Gate: batched NK at
-  B=512 delivers ≥ 2× the converged-slices/s of batched Picard at matched
-  convergence depth on device, equilibria byte-comparable per column to the
-  single-slice §3 solver.</p>
+  columns stop paying (masked updates, not early exit).
+  <strong>Remove the read wall.</strong> The measured batched solve
+  (76.4 solves/s at B=512, 60 sweeps) against the bare GEMM (0.84M slices/s)
+  shows the topology read is ~99.7% of every evaluation — the binding-level
+  search (48 flood levels + 12 bisections, each a ~(nr+nz)-step dilation
+  saturation) dwarfs the matvec. This rung lands the read-cost removals:
+  (i) a WARM-STARTED binding search (bisect around the previous sweep's s*
+  instead of a cold 48-level sweep — the level moves by ~τ per sweep);
+  (ii) LOG-DEPTH flood fill (dilate-by-doubling, ~log₂ steps instead of
+  nr+nz); (iii) the read frozen per Newton linearisation (tangent passes
+  re-use it — a structural NK advantage no Picard sweep can claim); and
+  (iv) an iteration-resolution read with the calibrated τ=10⁻³ full read at
+  emit only. Gates: (a) batched NK at B=512 delivers ≥ 2× the
+  converged-slices/s of batched Picard at matched convergence depth (a FLOOR —
+  the per-converged-slice probe ratio is far larger); (b) the read-cost
+  removals deliver ≥ 5× per-evaluation wall at B=512 with the emitted read
+  byte-comparable to the full-resolution kernel; (c) equilibria
+  byte-comparable per column to the single-slice §3 solver.</p>
 
   <h2 id="s6">§6 — Integrate into the corpus engine and the windowed PinT solver</h2>
   <p>Wire the adopted accelerator into the corpus-labeller path
@@ -199,9 +213,18 @@
   contraction moves that pareto directly). Re-stamp the spine benchmark
   (new accelerator dimension on the existing topology-read arm) and record the
   corpus-scale projection honestly: converged fraction, evaluations budget,
-  and slices/GPU-hour, against the §3/§5 gates. This section is the hand-off:
-  its outcome updates <code>gpu-accelerated-labeler</code>'s inner-solve
-  assumptions in place.</p>
+  and slices/GPU-hour, against the §3/§5 gates.
+  <strong>Binding corpus objective (the promise this plan serves):</strong>
+  the WHOLE MAST corpus (~12.6k shots, ~600k slices) labelled in
+  <strong>≤ 1 hour on the 8×H200 node</strong>, converged-fraction and
+  label-honesty flags at parity with the CPU reference. The measured
+  foundations already put the inner solve at ~16 minutes on 8 cards
+  (76.4 solves/s × 8 at B=512, before NK and before the §5 read-cost
+  removals); the hour is the budget for the full pipeline — march chaining,
+  diffusion carry, rich profile, I/O — not for the solve. A miss is reported
+  against this number with the component budget attached, never re-scoped
+  silently. This section is the hand-off: its outcome updates
+  <code>gpu-accelerated-labeler</code>'s inner-solve assumptions in place.</p>
 
   <section data-reckon="decisions" id="decisions" class="r-decisions">
     <h2><span class="sec">§</span> Decisions</h2>
