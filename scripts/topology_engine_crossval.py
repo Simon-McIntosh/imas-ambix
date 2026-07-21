@@ -85,6 +85,7 @@ def engine_rows_for_shot(shot: int, recs, *, nr: int, nz: int) -> list[dict]:
         max_slices=MAX_PAYLOAD_SLICES,
         min_ip_ka=MIN_IP_KA,
         table=table,
+        cache_grid=True,  # campaign-scope reuse: one grid build per campaign
     )
     if payload is None:
         return []
@@ -160,11 +161,19 @@ def engine_rows_for_shot(shot: int, recs, *, nr: int, nz: int) -> list[dict]:
     return rows
 
 
-def score_class(cname: str, recs: np.ndarray, *, nr: int, nz: int) -> dict:
+def score_class(
+    cname: str, recs: np.ndarray, *, nr: int, nz: int, checkpoint: Path | None = None
+) -> dict:
     rows: list[dict] = []
+    done: set[int] = set()
+    if checkpoint is not None and checkpoint.exists():
+        rows = json.loads(checkpoint.read_text())["rows"]
+        done = {int(r["shot"]) for r in rows}
+        logger.info("  %s: resuming — %d rows from checkpoint", cname, len(rows))
     by_shot: dict[int, list] = {}
     for rec in recs:
-        by_shot.setdefault(int(rec["shot"]), []).append(rec)
+        if int(rec["shot"]) not in done:
+            by_shot.setdefault(int(rec["shot"]), []).append(rec)
     for i, (shot, srecs) in enumerate(sorted(by_shot.items())):
         try:
             rows += engine_rows_for_shot(shot, srecs, nr=nr, nz=nz)
@@ -174,6 +183,10 @@ def score_class(cname: str, recs: np.ndarray, *, nr: int, nz: int) -> dict:
             logger.info(
                 "  %s: %d/%d shots, %d rows", cname, i + 1, len(by_shot), len(rows)
             )
+        if checkpoint is not None:
+            # scored rows survive a wall-clock kill; the artifact is rebuilt from
+            # the last checkpoint on rerun
+            checkpoint.write_text(json.dumps({"class": cname, "rows": rows}))
     diverted_expected = cname != "limited"
     class_hits = [r["dev_is_diverted"] == diverted_expected for r in rows]
     return {
@@ -237,7 +250,8 @@ def main() -> None:
             idx = np.linspace(0, recs.size - 1, args.per_class).astype(int)
             recs = recs[idx]
         logger.info("class %s: %d selected", cname, recs.size)
-        res = score_class(cname, recs, nr=args.nr, nz=args.nz)
+        ckpt = args.out.with_name(args.out.stem + f"_{cname}_checkpoint.json")
+        res = score_class(cname, recs, nr=args.nr, nz=args.nz, checkpoint=ckpt)
         results[cname] = res
         verdicts[cname] = class_verdict(res)
         logger.info(
