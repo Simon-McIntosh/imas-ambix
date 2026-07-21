@@ -244,99 +244,114 @@ def _residual(g, psi):
     return jnp.max(jnp.abs(g - psi)) / jnp.maximum(jnp.max(jnp.abs(g)), 1e-12)
 
 
-def run_fixed_point(psi_map, psi0, axis0, pin, ip, psi_coil, n_evals, accelerator):
-    """Picard / safeguarded-Anderson iteration; per-eval residual trace."""
+def make_fixed_point_runner(psi_map, n_evals, accelerator):
+    """Jitted-once Picard / safeguarded-Anderson runner (reused across slices;
+    ip/pin/coil are traced arguments so no per-slice retrace)."""
     import jax
     import jax.numpy as jnp
 
-    n_flat = psi0.shape[0]
     m = ANDERSON_M
 
-    def body(i, carry):
-        psi, axis, dx, df, f_prev, x_prev, norm_prev, trace = carry
-        g, axis, _c = psi_map(psi, axis, pin, ip, psi_coil)
-        f = g - psi
-        trace = trace.at[i].set(_residual(g, psi))
-        psi_pic = psi + RELAX * f
-        if accelerator == "anderson":
-            norm_f = jnp.max(jnp.abs(f))
-            grew = norm_f > norm_prev
-            dx = jnp.where(grew, jnp.zeros_like(dx), dx)
-            df = jnp.where(grew, jnp.zeros_like(df), df)
-            col = jnp.mod(i, m)
-            dx_new = jax.lax.dynamic_update_index_in_dim(dx, psi - x_prev, col, axis=1)
-            df_new = jax.lax.dynamic_update_index_in_dim(df, f - f_prev, col, axis=1)
-            have = (i >= 1) & ~grew
-            dx = jnp.where(have, dx_new, dx)
-            df = jnp.where(have, df_new, df)
-            a = df.T @ df
-            a = a + 1e-10 * (jnp.trace(a) + 1e-30) * jnp.eye(m)
-            gam = jnp.linalg.solve(a, df.T @ f)
-            psi_and = psi + RELAX * f - (dx + RELAX * df) @ gam
-            step_pic = jnp.max(jnp.abs(psi_pic - psi))
-            step_and = jnp.max(jnp.abs(psi_and - psi))
-            use = (
-                (i >= ANDERSON_WARMUP)
-                & ~grew
-                & jnp.all(jnp.isfinite(psi_and))
-                & (step_and <= ANDERSON_CAP * jnp.maximum(step_pic, 1e-300))
-            )
-            psi_next = jnp.where(use, psi_and, psi_pic)
-            norm_prev = norm_f
-        else:
-            psi_next = psi_pic
-        return psi_next, axis, dx, df, f, psi, norm_prev, trace
+    @jax.jit
+    def run(psi0, axis0, pin, ip, psi_coil):
+        n_flat = psi0.shape[0]
 
-    init = (
-        psi0,
-        axis0,
-        jnp.zeros((n_flat, m)),
-        jnp.zeros((n_flat, m)),
-        jnp.zeros(n_flat),
-        psi0,
-        jnp.asarray(jnp.inf, dtype=jnp.float64),
-        jnp.full(n_evals, jnp.nan),
-    )
-    psi, axis, *_r, trace = jax.lax.fori_loop(0, n_evals, body, init)
-    return psi, axis, trace
+        def body(i, carry):
+            psi, axis, dx, df, f_prev, x_prev, norm_prev, trace = carry
+            g, axis, _c = psi_map(psi, axis, pin, ip, psi_coil)
+            f = g - psi
+            trace = trace.at[i].set(_residual(g, psi))
+            psi_pic = psi + RELAX * f
+            if accelerator == "anderson":
+                norm_f = jnp.max(jnp.abs(f))
+                grew = norm_f > norm_prev
+                dx = jnp.where(grew, jnp.zeros_like(dx), dx)
+                df = jnp.where(grew, jnp.zeros_like(df), df)
+                col = jnp.mod(i, m)
+                upd = jax.lax.dynamic_update_index_in_dim
+                dx_new = upd(dx, psi - x_prev, col, axis=1)
+                df_new = upd(df, f - f_prev, col, axis=1)
+                have = (i >= 1) & ~grew
+                dx = jnp.where(have, dx_new, dx)
+                df = jnp.where(have, df_new, df)
+                a = df.T @ df
+                a = a + 1e-10 * (jnp.trace(a) + 1e-30) * jnp.eye(m)
+                gam = jnp.linalg.solve(a, df.T @ f)
+                psi_and = psi + RELAX * f - (dx + RELAX * df) @ gam
+                step_pic = jnp.max(jnp.abs(psi_pic - psi))
+                step_and = jnp.max(jnp.abs(psi_and - psi))
+                use = (
+                    (i >= ANDERSON_WARMUP)
+                    & ~grew
+                    & jnp.all(jnp.isfinite(psi_and))
+                    & (step_and <= ANDERSON_CAP * jnp.maximum(step_pic, 1e-300))
+                )
+                psi_next = jnp.where(use, psi_and, psi_pic)
+                norm_prev = norm_f
+            else:
+                psi_next = psi_pic
+            return psi_next, axis, dx, df, f, psi, norm_prev, trace
+
+        init = (
+            psi0,
+            axis0,
+            jnp.zeros((n_flat, m)),
+            jnp.zeros((n_flat, m)),
+            jnp.zeros(n_flat),
+            psi0,
+            jnp.asarray(jnp.inf, dtype=jnp.float64),
+            jnp.full(n_evals, jnp.nan),
+        )
+        psi, axis, *_r, trace = jax.lax.fori_loop(0, n_evals, body, init)
+        return psi, axis, trace
+
+    return run
 
 
-def run_newton_krylov(psi_map, psi0, axis0, pin, ip, psi_coil, n_newton, gmres_m):
-    """Exact-tangent Jacobian-free Newton–Krylov on the pinned ψ-map.
+def make_warmup_runner(psi_map):
+    """Jitted-once pinned-Picard warmup (shared by the Newton-type arms)."""
+    import jax
+    import jax.numpy as jnp
 
-    A short pinned Picard warmup, then ``n_newton`` damped Newton steps: each
-    linearises the map ONCE (``jax.linearize`` — exact tangents, no finite
-    differences) and solves (I − J)s = f with a fixed-shape ``gmres_m``-step
-    GMRES (no early exit — vmap-safe by construction).  The axis is FROZEN
-    inside each linearisation (re-read between steps): the tangent flows
-    through the read scalars and the scaffold LSQ, not the integer vertex
-    picks.  Cost per Newton step ≈ 1 + gmres_m map evaluations.
-    Returns the per-eval residual trace on the same accounting as Picard.
+    @jax.jit
+    def warmup(psi0, axis0, pin, ip, psi_coil):
+        def body(i, carry):
+            psi, axis, trace = carry
+            g, axis, _c = psi_map(psi, axis, pin, ip, psi_coil)
+            trace = trace.at[i].set(_residual(g, psi))
+            return psi + RELAX * (g - psi), axis, trace
+
+        init = (psi0, axis0, jnp.full(NEWTON_WARMUP, jnp.nan))
+        return jax.lax.fori_loop(0, NEWTON_WARMUP, body, init)
+
+    return warmup
+
+
+def make_nk_runner(psi_map, gmres_m):
+    """Exact-tangent Jacobian-free Newton–Krylov, jitted once per leg.
+
+    Each Newton step linearises the map ONCE (``jax.linearize`` — exact
+    tangents, no finite differences) with the axis frozen inside the
+    linearisation (re-read between steps: the tangent flows through the read
+    scalars and the scaffold LSQ, not the integer vertex picks), and solves
+    (I − J)s = f with a fixed-shape ``gmres_m``-step GMRES — no early exit,
+    vmap-safe by construction.  Cost per step ≈ 2 + gmres_m map evaluations.
     """
     import jax
     import jax.numpy as jnp
 
-    psi, axis = psi0, axis0
-    traces = []
-    # warmup (counts toward the evaluation budget)
-    for _ in range(NEWTON_WARMUP):
-        g, axis, _c = psi_map(psi, axis, pin, ip, psi_coil)
-        traces.append(float(_residual(g, psi)))
-        psi = psi + RELAX * (g - psi)
-
-    for _ in range(n_newton):
-        ax_frozen = axis
-
-        def g_of_psi(p, _ax=ax_frozen):
-            out, _a2, _c = psi_map(p, _ax, pin, ip, psi_coil)
+    @jax.jit
+    def newton_step(psi, axis, pin, ip, psi_coil):
+        def g_of_psi(p):
+            out, _a, _c = psi_map(p, axis, pin, ip, psi_coil)
             return out
 
         g, jvp = jax.linearize(g_of_psi, psi)
         f = g - psi
-        traces.append(float(_residual(g, psi)))
+        resid_pre = _residual(g, psi)
 
-        def amat(v, _jvp=jvp):
-            return v - _jvp(v)  # (I − J) v, exact tangent
+        def amat(v):
+            return v - jvp(v)  # (I − J) v, exact tangent
 
         s, _info = jax.scipy.sparse.linalg.gmres(
             amat, f, maxiter=gmres_m, restart=gmres_m, solve_method="batched"
@@ -346,78 +361,81 @@ def run_newton_krylov(psi_map, psi0, axis0, pin, ip, psi_coil, n_newton, gmres_m
         cap = 10.0 * jnp.max(jnp.abs(RELAX * f))
         norm_s = jnp.max(jnp.abs(s))
         s = jnp.where(norm_s > cap, s * (cap / jnp.maximum(norm_s, 1e-300)), s)
-        psi = psi + s
-        for _ in range(gmres_m):  # tangent passes on the shared accounting
-            traces.append(np.nan)
-        # refresh the axis on the new iterate
-        g2, axis, _c = psi_map(psi, ax_frozen, pin, ip, psi_coil)
-        traces.append(float(_residual(g2, psi)))
+        psi2 = psi + s
+        g2, axis2, _c = psi_map(psi2, axis, pin, ip, psi_coil)
+        return psi2, axis2, resid_pre, _residual(g2, psi2)
 
-    return psi, axis, np.asarray(traces, dtype=np.float64)
+    warmup = make_warmup_runner(psi_map)
+
+    def run(psi0, axis0, pin, ip, psi_coil, n_newton):
+        psi, axis, wtrace = warmup(psi0, axis0, pin, ip, psi_coil)
+        traces = [float(x) for x in np.asarray(wtrace)]
+        for _ in range(n_newton):
+            psi, axis, r_pre, r_post = newton_step(psi, axis, pin, ip, psi_coil)
+            traces.append(float(r_pre))
+            traces.extend([np.nan] * gmres_m)  # tangent passes, shared accounting
+            traces.append(float(r_post))
+        return psi, axis, np.asarray(traces, dtype=np.float64)
+
+    return run
 
 
-def run_reduced_newton(step, psi0, axis0, pin, ip, psi_coil, n_outer, n_inner):
-    """Damped Newton on the 2-coefficient scaffold map (support-lagged).
+def make_reduced_newton_runner(step, n_inner):
+    """Damped Newton on the 2-coefficient scaffold map, jitted once per leg.
 
     On a FROZEN read support (ψ_N + core weight of the current iterate), jφ is
-    exactly linear in the coefficient pair, so ψ(c) = c₀·(G·i_p) + c₁·(G·i_f)
-    + ψ_coil is explicit and the reduced map C(c) — read ψ(c), re-fit the
-    scaffold — has its fixed point in R².  Each inner Newton step costs one
-    value + two tangent passes of C (jax.jacfwd), i.e. ~3 map evaluations, and
-    every operation (tangents, 2×2 solve) is fixed-shape vmap-safe arithmetic.
-    The support is refreshed on the outer loop (like the outer read of any
-    quasi-Newton free-boundary scheme).  Returns the shared-accounting trace.
+    exactly linear in the coefficient pair, so ψ(c) is explicit and the reduced
+    map C(c) — read ψ(c), re-fit the scaffold — has its fixed point in R².
+    Each inner Newton step costs one value + two tangent passes of C
+    (``jax.jacfwd``), ~3 map evaluations, all fixed-shape vmap-safe arithmetic;
+    the support refreshes on the outer loop.
     """
     import jax
     import jax.numpy as jnp
 
-    psi, axis = psi0, axis0
-    traces = []
-    for _ in range(NEWTON_WARMUP):
-        g, axis, _c = step["psi_map"](psi, axis, pin, ip, psi_coil)
-        traces.append(float(_residual(g, psi)))
-        psi = psi + RELAX * (g - psi)
-
-    c = None
-    for _outer in range(n_outer):
-        # freeze the support at the current iterate
+    @jax.jit
+    def outer_step(psi, axis, pin, ip, psi_coil):
         psi_n, weight, axis = step["support"](psi, axis)
         img_p, img_f = step["family_images"](psi_n, weight)
-        if c is None:
-            c = step["coeffs_from_images"](img_p, img_f, pin, ip)
+        c0 = step["coeffs_from_images"](img_p, img_f, pin, ip)
 
-        # ψ(c) is explicit on the frozen support (jφ linear in c; the Ip
-        # renormalisation inside psi_from_jphi is part of C, as in the map)
-        def c_map(cc, _img_p=img_p, _img_f=img_f, _axis=axis):
-            jphi_c = cc[0] * _img_p + cc[1] * _img_f
+        def c_map(cc):
+            jphi_c = cc[0] * img_p + cc[1] * img_f
             psi_c = step["psi_from_jphi"](jphi_c, psi_coil, ip)
-            psi_n2, w2, _ax2 = step["support"](psi_c, _axis)
+            psi_n2, w2, _ax2 = step["support"](psi_c, axis)
             i2p, i2f = step["family_images"](psi_n2, w2)
             return step["coeffs_from_images"](i2p, i2f, pin, ip)
 
-        for _inner in range(n_inner):
+        def inner(_i, c):
             jac = jax.jacfwd(c_map)(c)
             r = c - c_map(c)
-            traces.append(np.nan)  # value pass
-            traces.append(np.nan)  # tangent pass 1
-            traces.append(np.nan)  # tangent pass 2
-            jr = jnp.eye(2) - jac  # d r / d c
-            jr = jr + 1e-12 * jnp.eye(2)
+            jr = jnp.eye(2) - jac + 1e-12 * jnp.eye(2)
             dc = jnp.linalg.solve(jr, r)
             dc = jnp.where(jnp.all(jnp.isfinite(dc)), dc, r)
-            # damping: never step more than 2x the plain c-Picard move
             cap = 2.0 * jnp.linalg.norm(r)
             nrm = jnp.linalg.norm(dc)
-            dc = jnp.where(nrm > cap, dc * (cap / jnp.maximum(nrm, 1e-300)), dc)
-            c = c - dc
-        # promote the converged-on-support c to a full ψ iterate + measure
-        jphi_c = c[0] * img_p + c[1] * img_f
-        psi = step["psi_from_jphi"](jphi_c, psi_coil, ip)
-        g, axis, c_read = step["psi_map"](psi, axis, pin, ip, psi_coil)
-        traces[-1] = float(_residual(g, psi))  # charge the measure to a tangent slot
-        c = c_read
+            return c - jnp.where(nrm > cap, dc * (cap / jnp.maximum(nrm, 1e-300)), dc)
 
-    return psi, axis, np.asarray(traces, dtype=np.float64)
+        c = jax.lax.fori_loop(0, n_inner, inner, c0)
+        jphi_c = c[0] * img_p + c[1] * img_f
+        psi2 = step["psi_from_jphi"](jphi_c, psi_coil, ip)
+        g, axis2, _c = step["psi_map"](psi2, axis, pin, ip, psi_coil)
+        return psi2, axis2, _residual(g, psi2)
+
+    warmup = make_warmup_runner(step["psi_map"])
+
+    def run(psi0, axis0, pin, ip, psi_coil, n_outer):
+        psi, axis = psi0, axis0
+        psi, axis, wtrace = warmup(psi0, axis0, pin, ip, psi_coil)
+        traces = [float(x) for x in np.asarray(wtrace)]
+        for _ in range(n_outer):
+            psi, axis, resid = outer_step(psi, axis, pin, ip, psi_coil)
+            # 1 read + n_inner*(1 value + 2 tangents) + 1 promote/measure
+            traces.extend([np.nan] * (1 + 3 * n_inner))
+            traces.append(float(resid))
+        return psi, axis, np.asarray(traces, dtype=np.float64)
+
+    return run
 
 
 def main() -> int:
@@ -530,27 +548,25 @@ def main() -> int:
             key = f"{read}:{arm}"
             rows = []
             t_leg = time.perf_counter()
+            if arm in ("picard", "anderson"):
+                runner = make_fixed_point_runner(pm, args.n_evals, arm)
+            elif arm == "nk":
+                runner = make_nk_runner(pm, args.gmres_m)
+            elif arm == "newton2":
+                runner = make_reduced_newton_runner(step, 3)
+            else:
+                raise ValueError(f"unknown arm {arm!r}")
             for k in idx:
                 pin = jnp.asarray(arrs["axis_seed"][k])
-                ipk = float(arrs["ip"][k])
+                ipk = jnp.asarray(float(arrs["ip"][k]))
                 coil = jnp.asarray(arrs["psi_coil"][k])
                 seed = jnp.asarray(arrs["disc_seed"][k])
                 psi0 = step["psi_from_jphi"](seed, coil, ipk)
                 if arm in ("picard", "anderson"):
-                    _psi, _axis, trace = run_fixed_point(
-                        pm, psi0, pin, pin, ipk, coil, args.n_evals, arm
-                    )
+                    _psi, _axis, trace = runner(psi0, pin, pin, ipk, coil)
                     tr = np.asarray(trace, dtype=np.float64)
-                elif arm == "nk":
-                    _psi, _axis, tr = run_newton_krylov(
-                        pm, psi0, pin, pin, ipk, coil, args.n_newton, args.gmres_m
-                    )
-                elif arm == "newton2":
-                    _psi, _axis, tr = run_reduced_newton(
-                        step, psi0, pin, pin, ipk, coil, args.n_newton, 3
-                    )
                 else:
-                    raise ValueError(f"unknown arm {arm!r}")
+                    _psi, _axis, tr = runner(psi0, pin, pin, ipk, coil, args.n_newton)
                 finite = tr[np.isfinite(tr)]
                 below = np.where(finite <= TOLERANCE)[0]
                 # evals-to-tolerance on the SHARED accounting: index into the
@@ -608,17 +624,15 @@ def main() -> int:
         sweep = {}
         for tau in taus:
             step = build_step(arrs, read="smooth", tau=tau)
-            pm = step["psi_map"]
+            runner = make_fixed_point_runner(step["psi_map"], args.n_evals, "picard")
             hits = []
             for k in idx[:: max(1, len(idx) // 12)]:
                 pin = jnp.asarray(arrs["axis_seed"][k])
-                ipk = float(arrs["ip"][k])
+                ipk = jnp.asarray(float(arrs["ip"][k]))
                 coil = jnp.asarray(arrs["psi_coil"][k])
                 seed_k = jnp.asarray(arrs["disc_seed"][k])
                 psi0 = step["psi_from_jphi"](seed_k, coil, ipk)
-                _p, _a, trace = run_fixed_point(
-                    pm, psi0, pin, pin, ipk, coil, args.n_evals, "picard"
-                )
+                _p, _a, trace = runner(psi0, pin, pin, ipk, coil)
                 tr = np.asarray(trace)
                 below = np.where(tr <= TOLERANCE)[0]
                 hits.append(int(below[0] + 1) if below.size else None)
