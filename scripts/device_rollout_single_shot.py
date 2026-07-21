@@ -289,7 +289,14 @@ def _zoh_reference(t_sub: np.ndarray, ip_sub: np.ndarray) -> dict:
     return {"tau": tau, "psi_m": psi_m, "a_ref": a_ref, "dt": dt}
 
 
-def stage_prep(nr: int, nz: int, max_slices: int, min_ip_ka: float, shot_arg: int):
+def stage_prep(
+    nr: int,
+    nz: int,
+    max_slices: int,
+    min_ip_ka: float,
+    shot_arg: int,
+    host_reads: str = "hard",
+):
     """Stage ONE held-out shot's time-ordered slices + host references."""
     import os
 
@@ -359,7 +366,8 @@ def stage_prep(nr: int, nz: int, max_slices: int, min_ip_ka: float, shot_arg: in
         print("  host reference march (pinned K=2 scaffold, warm chain) ...")
         refs: dict[str, dict] = {}
         host_walls: dict[str, float] = {}
-        for read in ("hard", "connectivity"):
+        reads = ("hard", "connectivity") if host_reads == "both" else ("hard",)
+        for read in reads:
             t0 = time.perf_counter()
             refs[read] = _host_reference_march(
                 grid, kept, disc_seeds, np.asarray(axis_seeds), tbl, basis, read
@@ -381,6 +389,13 @@ def stage_prep(nr: int, nz: int, max_slices: int, min_ip_ka: float, shot_arg: in
         wall_r, wall_z = _densify_wall(grid)
         STAGE_NPZ.parent.mkdir(parents=True, exist_ok=True)
         extra = {}
+        if "connectivity" in refs:
+            extra.update(
+                ref_c_axis=refs["connectivity"]["axis"],
+                ref_c_converged=refs["connectivity"]["conv"],
+                ref_c_confined=refs["connectivity"]["confined"],
+                host_march_connectivity_wall_s=np.float64(host_walls["connectivity"]),
+            )
         if diff is not None:
             extra = {f"diff_{k}": v for k, v in diff.items()}
             extra.update({f"zoh_{k}": v for k, v in zoh.items()})
@@ -411,11 +426,7 @@ def stage_prep(nr: int, nz: int, max_slices: int, min_ip_ka: float, shot_arg: in
             ref_resid=ref["resid"],
             ref_converged=ref["conv"],
             ref_confined=ref["confined"],
-            ref_c_axis=refs["connectivity"]["axis"],
-            ref_c_converged=refs["connectivity"]["conv"],
-            ref_c_confined=refs["connectivity"]["confined"],
             host_march_wall_s=np.float64(host_wall),
-            host_march_connectivity_wall_s=np.float64(host_walls["connectivity"]),
             **extra,
         )
         print(f"staged shot {shot}: {len(kept)} slices → {STAGE_NPZ}")
@@ -1461,6 +1472,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=4,
         help="PinT outer (waveform-relaxation) iterations",
     )
+    ap.add_argument(
+        "--host-reads",
+        choices=["hard", "both"],
+        default="hard",
+        help="host anchor arms to stage: the production hard read, or both "
+        "hard + connectivity (adds the same-read anchor at ~2.6x prep cost)",
+    )
     ap.add_argument("--no-figures", action="store_true")
     return ap
 
@@ -1468,7 +1486,14 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     if args.stage in ("prep", "all"):
-        stage_prep(args.nr, args.nz, args.max_slices, args.min_ip_ka, args.shot)
+        stage_prep(
+            args.nr,
+            args.nz,
+            args.max_slices,
+            args.min_ip_ka,
+            args.shot,
+            host_reads=args.host_reads,
+        )
     if args.stage in ("gpu", "all"):
         return stage_gpu(args)
     return 0
