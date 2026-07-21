@@ -2602,7 +2602,7 @@ def fit_profile_ladder(
             # seed the Picard escapes to the outboard corner attractor, while
             # an equally-good PHYSICAL fixed point exists on the confined
             # branch (measured: free-sign 0.428 vs seeded nonneg 0.434 on the
-            # same slice).  The stable free-sign K=2 LSQ scouts the branch;
+            # same slice).  The stable free-sign basin solve scouts the branch;
             # the sign-constrained solve then certifies a physical profile
             # there — Tier-3 instrument guides, Tier-2 carries.
             scout = solve_equilibrium_lsq(

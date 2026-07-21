@@ -116,7 +116,7 @@ def _solve(
     """One ladder solve; interior config from the frozen spine unless overridden.
 
     The reconstruction arm uses the spine's n=3 nonneg data-fit profile; the
-    position-controlled arm overrides to the stable free-sign K=2 brancher
+    position-controlled arm overrides to the stable free-sign basin solve
     (n_p=n_f=1), which holds the confined branch from a physical seed far more
     robustly than the basin-fragile edge-capable nonneg profile does WITHOUT the
     magnetics to pin it (the frozen-spine note: a free edge-capable solve
@@ -242,9 +242,9 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float) -> dict:
         if f_rec.scored and f_rec.converged and f_rec.jphi_flat is not None:
             warm_rec = f_rec.jphi_flat
 
-        # the position arm uses the stable free-sign K=2 brancher (no magnetics
+        # the position arm uses the stable free-sign basin solve (no magnetics
         # to pin the edge-capable nonneg profile — see _solve docstring)
-        k2 = dict(n_p=1, n_f=1, nonneg=False)
+        basin = dict(n_p=1, n_f=1, nonneg=False)
 
         # arm 2: position-controlled solve (Ip + centroid + disc seed, NO magnetics)
         f_pos = _solve(
@@ -257,7 +257,7 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float) -> dict:
             centroid=centroid,
             sigma=sigma,
             reseed=False,
-            **k2,
+            **basin,
         )
         # G2c firewall: assert no magnetics were consumed by the position arm
         assert not off.any(), "position arm must run with the magnetics mask OFF"
@@ -265,7 +265,8 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float) -> dict:
             warm_pos = f_pos.jphi_flat
 
         # arm 3: free baseline (no seed, no centroid, no reseed) — the drift
-        f_free = _solve(grid, table, p, spine, mask=off, warm=None, reseed=False, **k2)
+        f_free = _solve(grid, table, p, spine, mask=off, warm=None, reseed=False,
+                        **basin)
 
         # G2b: an outboard-seeded position solve (basin probe) — same centroid
         f_out = _solve(
@@ -278,7 +279,7 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float) -> dict:
             centroid=centroid,
             sigma=sigma,
             reseed=False,
-            **k2,
+            **basin,
         )
 
         pr, pz = _axis(f_pos)

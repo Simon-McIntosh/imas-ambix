@@ -122,8 +122,8 @@ def _fit_slice(
 
 
 def _solve_arm(grid, topology_read, p, centroid, disc_seed, table, basis, **spine_kw):
-    """K=2 position scaffold → rich ladder under one topology read."""
-    f_k2 = _fit_slice(
+    """Basin solve → profile solve under one topology read."""
+    f_basin = _fit_slice(
         grid,
         table,
         basis,
@@ -138,13 +138,13 @@ def _solve_arm(grid, topology_read, p, centroid, disc_seed, table, basis, **spin
         sigma=spine_kw["sigma"],
         topology_read=topology_read,
     )
-    k2_ok = (
-        f_k2.scored
-        and f_k2.jphi_flat is not None
-        and np.isfinite(f_k2.target[0])
-        and f_k2.target[0] <= CONFINED_AXIS_R_MAX
+    basin_ok = (
+        f_basin.scored
+        and f_basin.jphi_flat is not None
+        and np.isfinite(f_basin.target[0])
+        and f_basin.target[0] <= CONFINED_AXIS_R_MAX
     )
-    seed = f_k2.jphi_flat if k2_ok else disc_seed
+    seed = f_basin.jphi_flat if basin_ok else disc_seed
     t0 = time.perf_counter()
     f = _fit_slice(
         grid,

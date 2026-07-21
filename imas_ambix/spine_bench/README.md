@@ -42,8 +42,8 @@ carries a **`device`** field (`cpu`/`gpu`) so CPU and GPU runs sit in one compar
 
 | Metric | Unit | Dir | Meaning |
 |---|---|---|---|
-| `solve_wall_ms_per_slice` | ms/slice | ↓ | median rich ladder solve wall (warmup-excluded) |
-| `end_to_end_ms_per_slice` | ms/slice | ↓ | full per-slice wall: disc-seed + K=2 scaffold + rich ladder |
+| `solve_wall_ms_per_slice` | ms/slice | ↓ | median profile-solve wall (warmup-excluded) |
+| `end_to_end_ms_per_slice` | ms/slice | ↓ | full per-slice wall: disc-seed + basin solve + profile solve |
 | `throughput_slices_per_core_s` | slice/(core·s) | ↑ | corpus-label-factory throughput proxy at OMP=1 |
 | `latency_ms_p50` / `latency_ms_p99` | ms | ↓ | end-to-end per-slice latency (streaming-latency proxy) |
 | `axis_reproduce_cm` | cm | ↓ | dev-spine vs grid baseline-check magnetic-axis agreement |
@@ -54,8 +54,8 @@ carries a **`device`** field (`cpu`/`gpu`) so CPU and GPU runs sit in one compar
 | `converged_fraction` / `confined_fraction` | frac | ↑ | solve health |
 
 Run-level fields: `complete_run_wall_s`, `peak_rss_gb` (process peak RSS), and a
-per-shot per-substrate **`phase_timing_ms`** breakdown (`disc_read` / `scaffold_k2` /
-`rich_ladder` / `fsa_readout`) — the component attribution of where solve time goes.
+per-shot per-substrate **`phase_timing_ms`** breakdown (`disc_read` / `basin_solve` /
+`profile_solve` / `fsa_readout`) — the component attribution of where solve time goes.
 
 **Scope now = the per-slice STATIC solve** (the GPU inner-loop target). The
 dynamics-coupled label rollout (§3 resistive diffusion + passive circuits + temporal

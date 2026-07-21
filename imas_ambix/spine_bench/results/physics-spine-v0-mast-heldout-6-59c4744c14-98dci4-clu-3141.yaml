@@ -2,7 +2,7 @@ schema_version: spine-bench/1.2
 shotset_version: v0-mast-heldout-6
 benchmark_name: physics-spine
 created_utc: '2026-07-20T09:55:44.885271+00:00'
-bench_scope: per-slice static free-boundary solve (K=2 scaffold + rich ladder)
+bench_scope: per-slice static free-boundary solve (basin solve + profile solve)
 complete_run_wall_s: 963.85
 peak_rss_gb: 2.55
 machine:
@@ -49,8 +49,8 @@ shots:
     fsa_d_roughness_conn_resolution_slope: -0.036542699013714944
   phase_timing_ms:
     disc_read: 239.24664594233036
-    scaffold_k2: 2214.7898534312844
-    rich_ladder: 2789.2496986314654
+    basin_solve: 2214.7898534312844
+    profile_solve: 2789.2496986314654
     fsa_readout: 161.18625737726688
 - shot_id: 21978
   role: ramp+flat-top (low-Ip early + 900kA flat-top)
@@ -78,8 +78,8 @@ shots:
     profile_reproduce_rms: 0.02562131932285422
   phase_timing_ms:
     disc_read: 239.24664594233036
-    scaffold_k2: 4100.484928116202
-    rich_ladder: 4700.235524214804
+    basin_solve: 4100.484928116202
+    profile_solve: 4700.235524214804
     fsa_readout: 161.16813570261002
 - shot_id: 21983
   role: flat-top representative
@@ -104,8 +104,8 @@ shots:
     fsa_d_roughness_conn_resolution_slope: -0.038220227228063806
   phase_timing_ms:
     disc_read: 245.06736546754837
-    scaffold_k2: 1681.6871892660856
-    rich_ladder: 2270.6217281520367
+    basin_solve: 1681.6871892660856
+    profile_solve: 2270.6217281520367
     fsa_readout: 143.1932970881462
 - shot_id: 21983
   role: flat-top representative
@@ -133,8 +133,8 @@ shots:
     profile_reproduce_rms: 0.008348929631978363
   phase_timing_ms:
     disc_read: 245.06736546754837
-    scaffold_k2: 3678.275303915143
-    rich_ladder: 4262.241843156517
+    basin_solve: 3678.275303915143
+    profile_solve: 4262.241843156517
     fsa_readout: 142.65996497124434
 - shot_id: 21985
   role: flat-top representative
@@ -159,8 +159,8 @@ shots:
     fsa_d_roughness_conn_resolution_slope: -0.042906529411074486
   phase_timing_ms:
     disc_read: 245.23612670600414
-    scaffold_k2: 1669.8112534359097
-    rich_ladder: 2779.747076332569
+    basin_solve: 1669.8112534359097
+    profile_solve: 2779.747076332569
     fsa_readout: 152.59956195950508
 - shot_id: 21985
   role: flat-top representative
@@ -188,8 +188,8 @@ shots:
     profile_reproduce_rms: 0.010596375936977567
   phase_timing_ms:
     disc_read: 245.23612670600414
-    scaffold_k2: 2995.575658045709
-    rich_ladder: 4787.989732809365
+    basin_solve: 2995.575658045709
+    profile_solve: 4787.989732809365
     fsa_readout: 151.2960009276867
 - shot_id: 21986
   role: flat-top representative
@@ -214,8 +214,8 @@ shots:
     fsa_d_roughness_conn_resolution_slope: -0.0357953112319559
   phase_timing_ms:
     disc_read: 245.8286639302969
-    scaffold_k2: 1983.125970698893
-    rich_ladder: 2598.975623957813
+    basin_solve: 1983.125970698893
+    profile_solve: 2598.975623957813
     fsa_readout: 150.7019642740488
 - shot_id: 21986
   role: flat-top representative
@@ -243,8 +243,8 @@ shots:
     profile_reproduce_rms: 0.030974476645092716
   phase_timing_ms:
     disc_read: 245.8286639302969
-    scaffold_k2: 3970.5360885709524
-    rich_ladder: 4586.512956768274
+    basin_solve: 3970.5360885709524
+    profile_solve: 4586.512956768274
     fsa_readout: 150.63531417399645
 - shot_id: 21989
   role: flat-top representative
@@ -269,8 +269,8 @@ shots:
     fsa_d_roughness_conn_resolution_slope: -0.03634268857474306
   phase_timing_ms:
     disc_read: 236.873977817595
-    scaffold_k2: 2331.940515898168
-    rich_ladder: 2664.895779453218
+    basin_solve: 2331.940515898168
+    profile_solve: 2664.895779453218
     fsa_readout: 155.0695849582553
 - shot_id: 21989
   role: flat-top representative
@@ -298,8 +298,8 @@ shots:
     profile_reproduce_rms: 0.02186549061142038
   phase_timing_ms:
     disc_read: 236.873977817595
-    scaffold_k2: 4217.434404417872
-    rich_ladder: 4575.030616484582
+    basin_solve: 4217.434404417872
+    profile_solve: 4575.030616484582
     fsa_readout: 154.84216809272766
 - shot_id: 22086
   role: flat-top representative (campaign-edge)
@@ -324,8 +324,8 @@ shots:
     fsa_d_roughness_conn_resolution_slope: -0.03601411046077619
   phase_timing_ms:
     disc_read: 235.01228541135788
-    scaffold_k2: 560.1355591788888
-    rich_ladder: 905.9626515954733
+    basin_solve: 560.1355591788888
+    profile_solve: 905.9626515954733
     fsa_readout: 157.0180095732212
 - shot_id: 22086
   role: flat-top representative (campaign-edge)
@@ -353,8 +353,8 @@ shots:
     profile_reproduce_rms: 0.008618259963913431
   phase_timing_ms:
     disc_read: 235.01228541135788
-    scaffold_k2: 970.4497093334794
-    rich_ladder: 1500.8137449622154
+    basin_solve: 970.4497093334794
+    profile_solve: 1500.8137449622154
     fsa_readout: 158.30629598349333
 aggregate:
   greens-matvec:
@@ -391,8 +391,8 @@ aggregate:
 notes:
 - greens-matvec = the FILAMENT / single-interaction-matrix DEV SPINE (primary, GPU target); grid-delstar
   = the gridded delta* solve, retained as a baseline CHECK.
-- Perf at OMP=1; per-shot first slice discarded as warmup. solve_wall = the rich ladder only; end_to_end/latency
-  = disc-seed + K=2 scaffold + rich ladder.
+- Perf at OMP=1; per-shot first slice discarded as warmup. solve_wall = the profile solve only; end_to_end/latency
+  = disc-seed + basin solve + profile solve.
 - Reproduction (axis/lcfs/profile) validates the greens-matvec dev spine against the grid-delta* baseline
   check on the same slice (greens row).
 - bench_scope = per-slice STATIC solve (the GPU inner-loop target); the dynamics-coupled label rollout

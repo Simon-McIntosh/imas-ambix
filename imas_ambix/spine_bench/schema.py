@@ -43,8 +43,8 @@ METRICS: dict[str, Metric] = {
             name="solve_wall_ms_per_slice",
             unit="ms/slice",
             direction="lower_better",
-            description="Median wall-clock of one rich frozen-spine ladder solve "
-            "(K=2 scaffold + rich non-negative ladder), warmup-excluded.",
+            description="Median wall-clock of one frozen-spine profile solve "
+            "(basin solve + profile solve), warmup-excluded.",
         ),
         Metric(
             name="throughput_slices_per_core_s",
@@ -59,7 +59,7 @@ METRICS: dict[str, Metric] = {
             unit="ms/slice",
             direction="lower_better",
             description="Median COMPLETE per-slice equilibrium wall: disc-read seed "
-            "+ K=2 scaffold + rich ladder (not just the rich solve). The full cost "
+            "+ basin solve + profile solve (not just the profile solve). The full cost "
             "of producing one labelled equilibrium.",
         ),
         Metric(
@@ -267,7 +267,8 @@ class EnvInfo(BaseModel):
     #: technically-able solver and the GPU target. BASELINE CHECK = the gridded Δ* solve
     #: (grid-delstar), retained as the trusted numerical reference the filament solve is
     #: validated against — not the production target. Both at closure-spine-D2
-    #: (disc seed + R/Z centroid, rich non-negative K=3+3, smoothness ridge, pushout).
+    #: (disc seed + R/Z centroid, non-negative profile ladder n_p=n_f=3,
+    #: smoothness ridge, pushout).
     solver: str = (
         "free-boundary GS ladder (solve_equilibrium_lsq @ closure-spine-D2); "
         "PRIMARY = greens-matvec filament/single-matrix, "
@@ -289,7 +290,8 @@ class ShotStamp(BaseModel):
     n_slices_scored: int = 0
     timing_n_repeat: int = 0
     metrics: dict[str, float] = Field(default_factory=dict)
-    #: Median per-phase wall [ms] — disc_read / scaffold_k2 / rich_ladder / fsa_readout;
+    #: Median per-phase wall [ms] — disc_read / basin_solve / profile_solve /
+    #: fsa_readout;
     #: the component breakdown that attributes where the solve time goes.
     phase_timing_ms: dict[str, float] = Field(default_factory=dict)
 
@@ -305,7 +307,7 @@ class SpineBenchmarkStamp(BaseModel):
     #: dynamics-coupled label rollout (§3 diffusion + passive + temporal warm-start)
     #: is the label-factory throughput — a distinct mode, added before the corpus run.
     bench_scope: str = (
-        "per-slice static free-boundary solve (K=2 scaffold + rich ladder)"
+        "per-slice static free-boundary solve (basin solve + profile solve)"
     )
     complete_run_wall_s: float = 0.0  # end-to-end wall of the whole benchmark run
     peak_rss_gb: float = 0.0  # peak process RSS over the run (ru_maxrss); run-level

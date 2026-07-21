@@ -783,7 +783,7 @@ Done-when
   1. New plan authored with the fix ladder as sections + the census harness as the standing gate
   2. First rung (eddy treatment) scoped with measurable per-phase targets
   3. followups wired (this one resolved on plan creation)</pre>
-    <p class="r-fu-outcome">SUPERSEDED by f-ctr-11 after lead review + a five-agent orientation sweep. The T-F3 leg scored the BARE disc-read initialiser (no soft centroid pin, no K=2 scaffold, no rich coupled fit, no ψ-diffusion prior) — the 6.9–37 cm outboard corner-lock is the DOCUMENTED unpinned failure mode the validated engine's centroid pin (σ=2 cm, always ON) was built to kill. No new engine-real-data-hardening plan is needed: the machinery exists (heldout_mse_gate_eval.run_shot four-pass chain; temporal_operator eddy trajectory as known drive; interior-closure-hardening §2 owns Te-resistivity; gpu-accelerated-labeler f-gal-04 owns the PinT dynamics coupling). Archive doc corrected in place.</p>
+    <p class="r-fu-outcome">SUPERSEDED by f-ctr-11 after lead review + a five-agent orientation sweep. The T-F3 leg scored the BARE disc-read initialiser (no soft centroid pin, no basin solve, no coupled profile solve, no ψ-diffusion prior) — the 6.9–37 cm outboard corner-lock is the DOCUMENTED unpinned failure mode the validated engine's centroid pin (σ=2 cm, always ON) was built to kill. No new engine-real-data-hardening plan is needed: the machinery exists (heldout_mse_gate_eval.run_shot four-pass chain; temporal_operator eddy trajectory as known drive; interior-closure-hardening §2 owns Te-resistivity; gpu-accelerated-labeler f-gal-04 owns the PinT dynamics coupling). Archive doc corrected in place.</p>
     </article>
 <article class="r-fu" data-id="f-ctr-10" data-status="open" data-tier="sonnet" data-written-by="reckon-ship" data-written-at="2026-07-21T13:30:00+00:00" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">MAST-U / Super-X data acquisition (q-ctr-01) — lead decision on channel and scope</h4>
@@ -792,7 +792,7 @@ Done-when
     </article>
 <article class="r-fu" data-id="f-ctr-11" data-status="open" data-tier="opus" data-written-by="reckon-edit (orientation review 2026-07-21)" data-written-at="2026-07-21T14:25:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §6b" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Re-run the per-class census cross-validation against the FULL validated engine (run_shot), not the bare initialiser</h4>
-    <div class="r-fu-body"><p>§6's engine leg honestly measured the Pass-1 disc-read initialiser and reproduced the documented unpinned outboard failure — a seed-quality baseline, not an engine verdict. Re-run the stratified per-class harness calling the validated four-pass pipeline (<code>heldout_mse_gate_eval.run_shot</code>: disc read → centroid-pinned K=2 scaffold (σ=0.02, R AND Z) → rich n=3 non-negative coupled fit → ψ-diffusion coefficient prior at weight 0.3, frozen η), with the per-shot vessel-eddy trajectory injected as a KNOWN drive on ramp slices. Score boundary/axis/X/class per census class with the §6 drop accounting; the lead bar is >99% success on valid slices with failures individually named.</p></div>
+    <div class="r-fu-body"><p>§6's engine leg honestly measured the Pass-1 disc-read initialiser and reproduced the documented unpinned outboard failure — a seed-quality baseline, not an engine verdict. Re-run the stratified per-class harness calling the validated four-pass pipeline (<code>heldout_mse_gate_eval.run_shot</code>: disc read → centroid-pinned basin solve (σ=0.02, R AND Z) → coupled profile solve (non-negative ladder, n_p=n_f=3) → ψ-diffusion coefficient prior at weight 0.3, frozen η), with the per-shot vessel-eddy trajectory injected as a KNOWN drive on ramp slices. Score boundary/axis/X/class per census class with the §6 drop accounting; the lead bar is >99% success on valid slices with failures individually named.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    connectivity-topology-reader (§6b — full-engine per-class re-run on the census harness)
 Tier:    opus
@@ -807,8 +807,8 @@ Context
 
 Do
   1. Extend scripts/topology_engine_crossval.py (or a sibling) to call the FULL pipeline
-     per shot: frozen_spine_config, factory_shot_payloads(cache_grid=True), K=2 position
-     scaffold with centroid_constraint sigma=0.02 (Pass 1), rich coupled fit with the
+     per shot: frozen_spine_config, factory_shot_payloads(cache_grid=True), basin solve
+     with centroid_constraint sigma=0.02 (Pass 1), coupled profile solve with the
      predict_interval diffusion prior (weight 0.3, frozen eta_params from
      current_diffusion_eta_calibration.json), exactly as run_shot wires them — reuse
      run_shot where possible rather than re-implementing.
@@ -820,6 +820,14 @@ Do
      axis / X-set / class + per-phase (t&lt;0.2s vs flat-top) tables, full drop accounting.
   4. Compare against the §6 bare-initialiser baseline per class/phase — the delta IS the
      measured value of the pin + coupling on real exotic topologies.
+  5. Two-pass ablation (stratified subsample, cheap): one arm drops Pass 1 entirely —
+     the profile solve cold-starts from the disc seed with the SAME centroid pin +
+     diffusion prior. The basin solve costs ~44% of solve wall (spine-bench
+     phase_timing_ms: basin_solve ~2.2s vs profile_solve ~2.8s/slice) and its
+     necessity under the full prior stack has never been directly ablated (the 10.2%
+     reseed figure ablated the disc PRIOR, not the pass). The delta prices the
+     second pass: if the pinned+priored profile solve holds the basin alone, the
+     engine gets ~1.8x cheaper; if not, the basin solve is proven load-bearing.
 
 Gates (pre-declared)
   G-E1: engine completion (attempted valid slices) — report against the lead&#x27;s &gt;99% bar

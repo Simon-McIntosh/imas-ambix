@@ -766,7 +766,7 @@ def fit_and_read_slice(
         # Outboard corner attractor: the free-boundary Picard converged onto the
         # non-physical outboard branch (axis R far outboard + high misfit).  A
         # physical confined fixed point exists — re-scout it with the stable
-        # free-sign K=2 LSQ from a compact midplane seed, then re-certify the
+        # free-sign basin-solve LSQ from a compact midplane seed, then re-certify the
         # winner ladder there (Tier-3 instrument guides; Tier-2 carries).  Kept
         # only if it lands the axis inboard without materially worsening cost —
         # never a fabricated readout (an honest coverage lever).

@@ -96,8 +96,8 @@ def main() -> int:
     for name, tag in (
         ("grid", ""),
         ("grid-calibrated", "-calibrated"),
-        ("ladder-free-k2", "-calibrated-dof2"),
-        ("ladder-free-k2-passive8", "-calibrated-dof2-pk8"),
+        ("basin-solve", "-calibrated-dof2"),
+        ("basin-solve-passive8", "-calibrated-dof2-pk8"),
     ):
         loaded = _load(tag)
         if loaded is None:
@@ -163,8 +163,8 @@ def main() -> int:
         ax.plot(dofs, [r["cost_median"] for r in rows], "o-", color="#1565c0")
         for name, colour in (
             ("grid-calibrated", "#444444"),
-            ("ladder-free-k2", "#8a3324"),
-            ("ladder-free-k2-passive8", "#1b7837"),
+            ("basin-solve", "#8a3324"),
+            ("basin-solve-passive8", "#1b7837"),
         ):
             ref = report["references"].get(name)
             if ref:

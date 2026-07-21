@@ -66,7 +66,7 @@ def _solve_flat_top_slice(shot: int, nr: int, nz: int):
     centroid = (float(inv.centroid_r), float(inv.centroid_z))
     disc_seed = _disc_seed_flat(grid, inv)
     kw = dict(smoothness=smoothness, boundary_read=boundary_read, sigma=0.02)
-    f_k2 = _fit_slice(
+    f_basin = _fit_slice(
         grid,
         tbl,
         basis,
@@ -79,7 +79,8 @@ def _solve_flat_top_slice(shot: int, nr: int, nz: int):
         nonneg=False,
         **kw,
     )
-    seed = f_k2.jphi_flat if (f_k2.scored and f_k2.jphi_flat is not None) else disc_seed
+    scored = f_basin.scored and f_basin.jphi_flat is not None
+    seed = f_basin.jphi_flat if scored else disc_seed
     fit = _fit_slice(
         grid,
         tbl,

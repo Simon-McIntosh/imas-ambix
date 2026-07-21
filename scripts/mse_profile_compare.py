@@ -108,7 +108,7 @@ def run_ours(shot: int, *, nr=65, nz=97, max_slices=16, min_ip_ka=60.0,
             keep_jphi=True, basis=basis, meta={}, boundary_read=boundary_read)
 
     slices = []
-    warm_k2 = None
+    warm_basin = None
     for k in order:
         p = payload["payloads"][int(k)]
         inv = disc_read(p, grid, tab, basis)
@@ -116,14 +116,15 @@ def run_ours(shot: int, *, nr=65, nz=97, max_slices=16, min_ip_ka=60.0,
             continue
         centroid = (float(inv.centroid_r), float(inv.centroid_z))
         seed = _disc_seed_flat(grid, inv)
-        f_k2 = _fit(p, n_p_=1, n_f_=1, nonneg_=False,
-                    warm=warm_k2 if warm_k2 is not None else seed, centroid=centroid)
-        if not f_k2.scored:
+        f_basin = _fit(p, n_p_=1, n_f_=1, nonneg_=False,
+                    warm=warm_basin if warm_basin is not None else seed, centroid=centroid)
+        if not f_basin.scored:
             continue
-        conf = f_k2.jphi_flat is not None and _confined(_axis(f_k2)[0])
+        conf = f_basin.jphi_flat is not None and _confined(_axis(f_basin)[0])
         if conf:
-            warm_k2 = f_k2.jphi_flat
-        slices.append({"p": p, "centroid": centroid, "k2": f_k2.jphi_flat if conf else seed})
+            warm_basin = f_basin.jphi_flat
+        slices.append({"p": p, "centroid": centroid,
+                       "basin": f_basin.jphi_flat if conf else seed})
     if len(slices) < 2:
         return {"shot": shot, "slices": []}
 
@@ -136,7 +137,7 @@ def run_ours(shot: int, *, nr=65, nz=97, max_slices=16, min_ip_ka=60.0,
     # rich uncoupled + geometry
     f_uncs, geos = [], []
     for s in slices:
-        fu = _fit(s["p"], n_p_=n_p, n_f_=n_f, nonneg_=nonneg, warm=s["k2"], centroid=s["centroid"])
+        fu = _fit(s["p"], n_p_=n_p, n_f_=n_f, nonneg_=nonneg, warm=s["basin"], centroid=s["centroid"])
         f_uncs.append(fu)
         if fu.scored and fu.psi is not None and fu.coeffs is not None and _confined(_axis(fu)[0]):
             geos.append(flux_surface_geometry(
@@ -166,7 +167,7 @@ def run_ours(shot: int, *, nr=65, nz=97, max_slices=16, min_ip_ka=60.0,
         p = s["p"]
         c_pred = preds[j]["c_pred"] if preds[j] is not None else None
         if c_pred is not None:
-            fc = _fit(p, n_p_=n_p, n_f_=n_f, nonneg_=nonneg, warm=s["k2"],
+            fc = _fit(p, n_p_=n_p, n_f_=n_f, nonneg_=nonneg, warm=s["basin"],
                       centroid=s["centroid"], coeff_prior=(c_pred, prior_weight))
         else:
             fc = f_uncs[j]

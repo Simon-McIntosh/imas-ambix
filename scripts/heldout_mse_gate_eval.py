@@ -213,8 +213,9 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
              min_ip_ka: float, rpos: list, times_beam: list) -> dict:
     """Coupled solve chain over one shot -> per-slice MSE pitch at the sightlines.
 
-    Faithful to the §3 dynamics-coupled engine: the K=2 position scaffold selects
-    the confined basin, warm-starts the rich non-negative ladder, its flux-surface
+    Faithful to the §3 dynamics-coupled engine: the basin solve (free-sign
+    n_p=n_f=1 amplitude pair, centroid-pinned) selects the confined basin and
+    warm-starts the profile solve (non-negative ladder); its flux-surface
     geometry drives the ψ diffusion over each measured interval (measured Ip drive,
     frozen η), and the evolved current enters the next slice as a soft coefficient
     prior.  The COUPLED fit's equilibrium is read out as MSE pitch.
@@ -275,9 +276,9 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
             keep_psi=True, keep_jphi=True, basis=basis, meta={},
             boundary_read=boundary_read)
 
-    # ---- pass 1: the K=2 position scaffold (stable, landed §2) ----
+    # ---- pass 1: the basin solve (stable, landed §2) ----
     slices: list[dict] = []
-    warm_k2 = None
+    warm_basin = None
     for k in order:
         p = payload["payloads"][int(k)]
         inv = disc_read(p, grid, table, basis)
@@ -285,16 +286,16 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
             continue
         centroid = (float(inv.centroid_r), float(inv.centroid_z))
         disc_seed = _disc_seed_flat(grid, inv)
-        f_k2 = _fit(p, n_p_=1, n_f_=1, nonneg_=False,
-                    warm=warm_k2 if warm_k2 is not None else disc_seed,
+        f_basin = _fit(p, n_p_=1, n_f_=1, nonneg_=False,
+                    warm=warm_basin if warm_basin is not None else disc_seed,
                     centroid=centroid)
-        if not f_k2.scored:
+        if not f_basin.scored:
             continue
-        k2_conf = f_k2.jphi_flat is not None and _confined(_axis(f_k2)[0])
-        if k2_conf:
-            warm_k2 = f_k2.jphi_flat
+        basin_conf = f_basin.jphi_flat is not None and _confined(_axis(f_basin)[0])
+        if basin_conf:
+            warm_basin = f_basin.jphi_flat
         slices.append({"k": int(k), "p": p, "centroid": centroid,
-                       "k2_jphi": f_k2.jphi_flat if k2_conf else disc_seed})
+                       "basin_jphi": f_basin.jphi_flat if basin_conf else disc_seed})
     if len(slices) < 2:
         return {"shot": shot, "slices": [], "reason": "too few scored slices"}
 
@@ -304,12 +305,12 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
     ip_scale = float(np.median(lab_ip[good] / raw_at_lab[good])) if good.any() else 1e3
     ip_raw_amp = ip_raw * ip_scale
 
-    # ---- pass 2a: rich uncoupled solve + its flux-surface geometry ----
+    # ---- pass 2a: uncoupled profile solve + its flux-surface geometry ----
     eta = EtaProfile.from_vector(np.asarray(eta_params, dtype=np.float64))
     f_uncs, geos = [], []
     for s in slices:
         f_unc = _fit(s["p"], n_p_=n_p, n_f_=n_f, nonneg_=nonneg,
-                     warm=s["k2_jphi"], centroid=s["centroid"])
+                     warm=s["basin_jphi"], centroid=s["centroid"])
         f_uncs.append(f_unc)
         if (f_unc.scored and f_unc.psi is not None and f_unc.coeffs is not None
                 and _confined(_axis(f_unc)[0])):
@@ -333,14 +334,14 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
         if out is not None:
             preds[j + 1] = out
 
-    # ---- pass 2b: rich coupled solve -> the readout equilibrium ----
+    # ---- pass 2b: coupled profile solve -> the readout equilibrium ----
     rows: list[dict] = []
     for j, s in enumerate(slices):
         p, centroid = s["p"], s["centroid"]
         c_pred = preds[j]["c_pred"] if preds[j] is not None else None
         if c_pred is not None and prior_weight > 0.0:
             f_cpl = _fit(p, n_p_=n_p, n_f_=n_f, nonneg_=nonneg,
-                         warm=s["k2_jphi"], centroid=centroid,
+                         warm=s["basin_jphi"], centroid=centroid,
                          coeff_prior=(c_pred, prior_weight))
         else:
             f_cpl = f_uncs[j]

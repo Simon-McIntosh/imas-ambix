@@ -1,7 +1,7 @@
 """Run the physics-spine benchmark on the frozen shot set → a versioned YAML stamp.
 
-Reuses the VALIDATED greens-filament-solver §2 gate solve path (the K=2 position
-scaffold + rich non-negative ladder, both substrates) so the benchmark measures exactly
+Reuses the VALIDATED greens-filament-solver §2 gate solve path (the basin
+solve + profile solve, both substrates) so the benchmark measures exactly
 the engine the gate proved, not a parallel re-derivation.
 """
 
@@ -239,8 +239,8 @@ def run_stamp(
                 "rough": [],
                 "e2e": [],
                 "ph_disc": [],
-                "ph_scaffold": [],
-                "ph_rich": [],
+                "ph_basin": [],
+                "ph_profile": [],
                 "ph_fsa": [],
             }
 
@@ -266,9 +266,9 @@ def run_stamp(
             centroid = (float(inv.centroid_r), float(inv.centroid_z))
             disc_seed = _disc_seed_flat(grid_gs, inv)
             for key, sub, tr, g in arms:
-                # phase 1: K=2 position scaffold
+                # phase 1: basin solve (free-sign amplitude pair, centroid-pinned)
                 t = time.perf_counter()
-                f_k2 = _fit(
+                f_basin = _fit(
                     g,
                     sub,
                     p,
@@ -282,18 +282,18 @@ def run_stamp(
                     sigma=sigma,
                     topology_read=tr,
                 )
-                t_scaffold = time.perf_counter() - t
-                k2_ok = (
-                    f_k2.scored
-                    and f_k2.jphi_flat is not None
-                    and np.isfinite(f_k2.target[0])
-                    and f_k2.target[0] <= CONFINED_AXIS_R_MAX
+                t_basin = time.perf_counter() - t
+                basin_ok = (
+                    f_basin.scored
+                    and f_basin.jphi_flat is not None
+                    and np.isfinite(f_basin.target[0])
+                    and f_basin.target[0] <= CONFINED_AXIS_R_MAX
                 )
-                seed = f_k2.jphi_flat if k2_ok else disc_seed
-                # phase 2: rich non-negative ladder (the readout equilibrium)
+                seed = f_basin.jphi_flat if basin_ok else disc_seed
+                # phase 2: profile solve (non-negative ladder — the readout equilibrium)
                 t = time.perf_counter()
                 fit = _fit(g, sub, p, centroid, seed, topology_read=tr, **spine_kw)
-                t_rich = time.perf_counter() - t
+                t_profile = time.perf_counter() - t
                 # phase 3: FSA readout (timed as a component)
                 t = time.perf_counter()
                 rough = (
@@ -307,10 +307,10 @@ def run_stamp(
                 a["fits"].append((int(k), fit))
                 if pos > 0:  # discard each shot's first slice as timing warmup
                     a["ph_disc"].append(t_disc * 1e3)
-                    a["ph_scaffold"].append(t_scaffold * 1e3)
-                    a["ph_rich"].append(t_rich * 1e3)
+                    a["ph_basin"].append(t_basin * 1e3)
+                    a["ph_profile"].append(t_profile * 1e3)
                     a["ph_fsa"].append(t_fsa * 1e3)
-                    a["e2e"].append((t_disc + t_scaffold + t_rich) * 1e3)
+                    a["e2e"].append((t_disc + t_basin + t_profile) * 1e3)
                 if fit.scored:
                     a["conv"].append(1.0)
                     cr = float(fit.target[0]) if np.isfinite(fit.target[0]) else 1e9
@@ -360,10 +360,10 @@ def run_stamp(
         for key, sub, tr, _g in arms:
             a = acc[key]
             metrics: dict[str, float] = {}
-            if a["ph_rich"]:
-                rich_med = float(np.median(a["ph_rich"]))
-                metrics["solve_wall_ms_per_slice"] = rich_med
-                metrics["throughput_slices_per_core_s"] = 1000.0 / rich_med
+            if a["ph_profile"]:
+                profile_med = float(np.median(a["ph_profile"]))
+                metrics["solve_wall_ms_per_slice"] = profile_med
+                metrics["throughput_slices_per_core_s"] = 1000.0 / profile_med
             if a["e2e"]:
                 metrics["end_to_end_ms_per_slice"] = float(np.median(a["e2e"]))
                 metrics["latency_ms_p50"] = float(np.percentile(a["e2e"], 50))
@@ -417,8 +417,8 @@ def run_stamp(
                     metrics["profile_smoothread_rms"] = sm_p
             phase = {
                 "disc_read": _median(a["ph_disc"]),
-                "scaffold_k2": _median(a["ph_scaffold"]),
-                "rich_ladder": _median(a["ph_rich"]),
+                "basin_solve": _median(a["ph_basin"]),
+                "profile_solve": _median(a["ph_profile"]),
                 "fsa_readout": _median(a["ph_fsa"]),
             }
             stamps.append(
@@ -472,8 +472,8 @@ def run_stamp(
             "(primary, GPU target); grid-delstar = the gridded delta* solve, "
             "retained as a baseline CHECK.",
             "Perf at OMP=1; per-shot first slice discarded as warmup. solve_wall = "
-            "the rich ladder only; end_to_end/latency = disc-seed + K=2 scaffold "
-            "+ rich ladder.",
+            "the profile solve only; end_to_end/latency = disc-seed + basin solve "
+            "+ profile solve.",
             "Reproduction (axis/lcfs/profile) validates the greens-matvec dev spine "
             "against the grid-delta* baseline check on the same slice (greens row).",
             "bench_scope = per-slice STATIC solve (the GPU inner-loop target); the "

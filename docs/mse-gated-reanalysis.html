@@ -143,7 +143,7 @@
       <strong>PASS</strong>); outboard-seed recovered <strong>36/36</strong>
       (G2b PASS); firewall Ip+centroid only, profile free, no z-pin/EFIT (G2c
       PASS, unit-tested). The bare free solve drifts to ~1.76 m every slice.
-      Stable free-sign K=2 brancher; the disc-seed+centroid routine is now the
+      Stable free-sign basin solve; the disc-seed+centroid routine is now the
       <strong>default</strong> position solve, the drifting free solve retired.
       Full record: <a href="archive/mse-gated-reanalysis-s2-landed.html">§2 landed</a>
       (commits <code>f805348</code>, <code>75a9be0</code>, <code>beddc87</code>).
@@ -157,15 +157,15 @@
     </header>
     <p class="landed-summary">
       1D resistive ψ-diffusion (measured Ip drive, η(ψ_N) the only unknown)
-      couples successive slices on the §2 position spine: the stable K=2 solve
-      selects the confined basin and warm-starts the <strong>rich non-negative
-      ladder</strong> (n_p=n_f=3, jφ≥0 + smoothness ridge — GS + regularization,
+      couples successive slices on the §2 position spine: the stable basin solve
+      selects the confined basin and warm-starts the <strong>profile solve
+      (non-negative ladder)</strong> (n_p=n_f=3, jφ≥0 + smoothness ridge — GS + regularization,
       <em>not</em> an assumed low-order profile), then the diffusion evolves that
       profile and re-centres the coupled solve. <strong>G3a QUALIFIED PASS</strong>:
       the coupling is finite, ships 0 fabricated readouts, tracks position to
-      <strong>2.18 cm</strong> median, and <strong>lifts rich-basis confinement
+      <strong>2.18 cm</strong> median, and <strong>lifts profile-basis confinement
       88→94%</strong> (rescues 2 fast-ramp slices, regresses none) across
-      11766/11767/11772 (33 slices); it does not match the rigid K=2's 100% (a
+      11766/11767/11772 (33 slices); it does not match the rigid basin solve's 100% (a
       basis-fragility trade-off — 2 fast-ramp slices flagged, never shipped).
       <strong>G3b PASS</strong>: synthetic exact-η split recovery 0.084 (bar
       0.120) — the machinery is correct; it loses to the 0.044 independent spine
@@ -358,7 +358,7 @@ Done-when
      T1 + G2a-G2c verdicts recorded honestly; artifact + figures committed
   2. Plan updated same-session: §2 outcome recorded + collapsed; §3 (dynamics
      coupling) followup queued WITH pre-declared gates; this followup resolved</pre>
-    <p class="r-fu-outcome">§2 landed (PASS). Disc seed + R/Z current-centroid moment constraint holds the physical inboard branch: position solve (Ip+centroid only, no full magnetics) reproduces the reconstruction axis to per-shot median 2.45/2.38/2.05 cm across 11766/11767/11772 (G2a ≤5cm PASS); outboard-seed recovered 36/36 (G2b PASS); firewall Ip+centroid only, profile free, no z-pin/EFIT (G2c PASS, unit-tested). Free solve drifts to ~1.76 m every slice. Stable free-sign K=2 brancher; now the DEFAULT position solve, drifting free solve retired. Commits f805348/75a9be0/beddc87; archive docs/archive/mse-gated-reanalysis-s2-landed.html.</p>
+    <p class="r-fu-outcome">§2 landed (PASS). Disc seed + R/Z current-centroid moment constraint holds the physical inboard branch: position solve (Ip+centroid only, no full magnetics) reproduces the reconstruction axis to per-shot median 2.45/2.38/2.05 cm across 11766/11767/11772 (G2a ≤5cm PASS); outboard-seed recovered 36/36 (G2b PASS); firewall Ip+centroid only, profile free, no z-pin/EFIT (G2c PASS, unit-tested). Free solve drifts to ~1.76 m every slice. Stable free-sign basin solve; now the DEFAULT position solve, drifting free solve retired. Commits f805348/75a9be0/beddc87; archive docs/archive/mse-gated-reanalysis-s2-landed.html.</p>
     </article>
 <article class="r-fu" data-id="f-mgr-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-19T21:00:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §3" data-resolved-at="2026-07-19T19:54:14+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §3 — dynamics coupling: earn the internal profile from measured histories</h4>
@@ -370,7 +370,7 @@ Tier:    opus
 
 Context
   §2 landed: the position-controlled free-boundary solve (disc seed + R/Z
-  current-centroid moment constraint, free-sign K=2) holds the physical inboard
+  current-centroid moment constraint, free-sign basin solve) holds the physical inboard
   branch and reproduces the reconstruction axis to a few cm from Ip+centroid
   alone (G2a/G2b/G2c PASS across 11766/11767/11772). With position well-posed,
   the internal profile is the open DOF — and it is NOT free in time: the jφ
@@ -407,7 +407,7 @@ Gates (pre-declared)
 Done-when
   1. Dynamics-coupled solve committed on the position spine; G3a-G3c verdicts recorded honestly; artifact + figures committed.
   2. Plan updated same-session: §3 outcome recorded + collapsed; §4 (held-out MSE gate) followup queued WITH pre-declared gates; this followup resolved.</pre>
-    <p class="r-fu-outcome">§3 landed (QUALIFIED PASS). 1D resistive ψ-diffusion couples successive slices on the §2 position spine: the stable K=2 solve selects the confined basin and warm-starts the rich non-negative ladder (n_p=n_f=3, jφ≥0 + smoothness ridge — GS + regularization, not an assumed profile), flux-surface geometry drives diffuse_psi over each measured interval (measured Ip drive, η(ψ_N) the low-DOF unknown), and the evolved current projects back onto the rich basis as a soft coeff_prior. G3a QUALIFIED PASS: coupling lifts rich-basis confinement 88→94% (rescues 2 fast-ramp slices, regresses 0), ships 0 NaN, tracks position to 2.18 cm median across 11766/11767/11772 (33 slices); it does not match the rigid K=2's 100% (a basis-fragility trade-off — 2 fast-ramp slices flagged, never shipped). G3b PASS: synthetic exact-η split recovery 0.084 (bar 0.120); loses to the 0.044 independent-slice spine where synthetic magnetics are informative — the coupling's value is the real-data interior null. G3c PASS 47/47 module pins. Stop rule not invoked. Commit fbdfdff; archive docs/archive/mse-gated-reanalysis-s3-landed.html.</p>
+    <p class="r-fu-outcome">§3 landed (QUALIFIED PASS). 1D resistive ψ-diffusion couples successive slices on the §2 position spine: the stable basin solve selects the confined basin and warm-starts the profile solve (non-negative ladder, n_p=n_f=3, jφ≥0 + smoothness ridge — GS + regularization, not an assumed profile), flux-surface geometry drives diffuse_psi over each measured interval (measured Ip drive, η(ψ_N) the low-DOF unknown), and the evolved current projects back onto the profile basis as a soft coeff_prior. G3a QUALIFIED PASS: coupling lifts profile-basis confinement 88→94% (rescues 2 fast-ramp slices, regresses 0), ships 0 NaN, tracks position to 2.18 cm median across 11766/11767/11772 (33 slices); it does not match the rigid basin solve's 100% (a basis-fragility trade-off — 2 fast-ramp slices flagged, never shipped). G3b PASS: synthetic exact-η split recovery 0.084 (bar 0.120); loses to the 0.044 independent-slice spine where synthetic magnetics are informative — the coupling's value is the real-data interior null. G3c PASS 47/47 module pins. Stop rule not invoked. Commit fbdfdff; archive docs/archive/mse-gated-reanalysis-s3-landed.html.</p>
     </article>
 <article class="r-fu" data-id="f-mgr-03" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-19T22:15:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §4" data-resolved-at="2026-07-19T21:34:59+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §4 — the binding gate: held-out MSE pitch</h4>

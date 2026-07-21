@@ -201,9 +201,9 @@
   Built <code>scripts/device_rollout_single_shot.py</code> and ran it on the H200 against
   held-out shot 21978 (48 slices). <strong>The pin belongs inside the map</strong>: the disc
   seed alone corner-locks even on host — the device march carries a per-sweep closed-form
-  centroid-pinned K=2 LSQ and then holds the confined basin on all 48 slices (GPU/CPU parity
+  centroid-pinned basin-solve LSQ and then holds the confined basin on all 48 slices (GPU/CPU parity
   2.9e-15&nbsp;m; 0 fabricated readouts). <strong>G-B: FAIL (qualified)</strong> — march vs
-  the host pinned-K2 scaffold 4.12&nbsp;cm median (bar 2; &approx;2.8&nbsp;cm is the known
+  the host pinned basin solve 4.12&nbsp;cm median (bar 2; &approx;2.8&nbsp;cm is the known
   hard-vs-smooth read fixed-point gap); PinT (coarse pre-march + 3 batched outers) converges
   0.99&rarr;0.42&nbsp;cm on well-posed slices (PASS) at <strong>2.44&times;</strong>
   (3&ndash;5&times; MISS — the sequential chain is load-bearing; a B=48 batched sweep costs
@@ -426,7 +426,7 @@ Done-when
     </article>
 <article class="r-fu" data-id="f-gal-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-21T00:05:00+00:00" data-recommends-skill="/reckon-ship gpu-accelerated-labeler §3" data-resolved-at="2026-07-21T08:14:49+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §3 — single-shot on-device rollout with batchable disc-seed scaffolding (the inner object)</h4>
-    <div class="r-fu-body"><p>The §2 spike de-risked the substrate (JAX locked, GEMM fast lanes, tiered precision safe, on-device read at GPU/CPU parity) and localised the one missing piece: batchable SEEDING — the naive cold-Gaussian Picard corner-locks toward the coil-side attractor, exactly the pathology the host spine avoids with the disc-seed K=2 scaffold + non-negative ladder. §3 assembles the single-shot causal rollout on device (warm-started march + windowed PinT) carrying that scaffold, plus the smooth-map finding from differentiable-solve-accelerator: warm-started small fixed sweep budget is sound, Anderson-Picard is the inner accelerator, NK needs the centroid pin folded into the map.</p></div>
+    <div class="r-fu-body"><p>The §2 spike de-risked the substrate (JAX locked, GEMM fast lanes, tiered precision safe, on-device read at GPU/CPU parity) and localised the one missing piece: batchable SEEDING — the naive cold-Gaussian Picard corner-locks toward the coil-side attractor, exactly the pathology the host spine avoids with the disc-seed basin solve + profile solve. §3 assembles the single-shot causal rollout on device (warm-started march + windowed PinT) carrying that scaffold, plus the smooth-map finding from differentiable-solve-accelerator: warm-started small fixed sweep budget is sound, Anderson-Picard is the inner accelerator, NK needs the centroid pin folded into the map.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    gpu-accelerated-labeler (http://localhost:8765/imas-ambix/gpu-accelerated-labeler.html)
 Section: §3 (single-shot on-device rollout — the inner object; the post-shot dimension)
@@ -446,7 +446,7 @@ State to read (CODE / FILES / DATA)
   docs/archive/differentiable-solve-accelerator-s3-landed.html  (inner-accelerator finding)
   scripts/gpu_labeler_foundation_spike.py                  (the batched solve skeleton to grow)
   imas_ambix/latent/gs_solve.py (solve_equilibrium_lsq topology_read=&#x27;connectivity&#x27;; the disc-seed
-    K=2 scaffold pattern in scripts/differentiable_solve_gate_eval.py _solve_arm)
+    basin-solve pattern in scripts/differentiable_solve_gate_eval.py _solve_arm)
   imas_ambix/latent/current_diffusion.py + temporal_operator.py + passive_resistance.py
     (the fp64 temporal stack to port into the scan carry)
   imas_ambix/spine_bench/AGENTS.md                         (H200 recipe, binding)
@@ -470,11 +470,11 @@ Done-when
   1. Single-shot on-device rollout committed; G-B verdict recorded honestly; figures committed.
   2. Plan updated same-session: §3 outcome + collapse; §4 (offline corpus vmap) followup queued
      with pre-declared gates; this followup resolved.</pre>
-    <p class="r-fu-outcome">S3 landed on the H200 (shot 21978, 48 slices) - commits bb1d13a..b6e0b20. The load-bearing finding: the disc seed alone is NOT basin insurance (the unpinned fixed-theta chain corner-locks to R~1.77 even on host) - the centroid pin was folded INTO the device map as a per-sweep closed-form K=2 LSQ, after which the march holds the confined basin on all 48 slices (GPU/CPU parity 2.9e-15 m, 0 fabricated). G-B FAIL (qualified): march vs host pinned-K2 scaffold 4.12 cm median, n=18 (bar 2 cm; ~2.8 cm is the known hard-vs-smooth read fixed-point gap); PinT (coarse pre-march + 3 batched continuation outers) converges 0.99-&gt;0.42 cm on well-posed slices (PASS &lt;=0.5) at 2.44x (3-5x MISS - the sequential chain is load-bearing; measured 5-config pareto); fp64 carry kernels (Thomas psi-diffusion 1.6e-15, exact modal ZOH 4.4e-18) PASS, threaded in one scan. Batched-sweep economics (B=48 sweep = 0.65x a B=1 sweep) validate the S4 batch-over-shots wrap. Anderson on the pinned map: tie (retained with residual-growth safeguard). Record: docs/archive/gpu-accelerated-labeler-s3-landed.html.</p>
+    <p class="r-fu-outcome">S3 landed on the H200 (shot 21978, 48 slices) - commits bb1d13a..b6e0b20. The load-bearing finding: the disc seed alone is NOT basin insurance (the unpinned fixed-theta chain corner-locks to R~1.77 even on host) - the centroid pin was folded INTO the device map as a per-sweep closed-form basin-solve LSQ, after which the march holds the confined basin on all 48 slices (GPU/CPU parity 2.9e-15 m, 0 fabricated). G-B FAIL (qualified): march vs host pinned basin solve 4.12 cm median, n=18 (bar 2 cm; ~2.8 cm is the known hard-vs-smooth read fixed-point gap); PinT (coarse pre-march + 3 batched continuation outers) converges 0.99-&gt;0.42 cm on well-posed slices (PASS &lt;=0.5) at 2.44x (3-5x MISS - the sequential chain is load-bearing; measured 5-config pareto); fp64 carry kernels (Thomas psi-diffusion 1.6e-15, exact modal ZOH 4.4e-18) PASS, threaded in one scan. Batched-sweep economics (B=48 sweep = 0.65x a B=1 sweep) validate the S4 batch-over-shots wrap. Anderson on the pinned map: tie (retained with residual-growth safeguard). Record: docs/archive/gpu-accelerated-labeler-s3-landed.html.</p>
     </article>
 <article class="r-fu" data-id="f-gal-03" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-21T11:00:00+00:00" data-recommends-skill="/reckon-ship gpu-accelerated-labeler §4" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Ship §4 — offline corpus labeling: vmap the sequential march over shots (gate G-C)</h4>
-    <div class="r-fu-body"><p>§3 validated the inner object: the disc-seeded, centroid-pinned (per-sweep K=2 LSQ), warm-chained sequential march on device — confined on all 48 held-out slices, GPU/CPU parity 2.9e-15 m, with the honest negatives quantified (4.12 cm anchor gap = read difference + K=2 formulation; single-shot PinT capped at 2.44x by the load-bearing chain). §4 wraps the march in vmap/shard over SHOTS — the batch that breaks no chain (a B=48 batched sweep already costs 0.65x a B=1 sweep). Open items inherited: same-read host anchor (--host-reads both) or the ladder profile family on device to close the anchor gap; tf32-lane label gate at corpus scale (trajectory chaining amplifies tf32 to ~0.9 cm median vs 0.004 cm single-solve); Z-anchoring on the under-determined class.</p></div>
+    <div class="r-fu-body"><p>§3 validated the inner object: the disc-seeded, centroid-pinned (per-sweep basin-solve LSQ), warm-chained sequential march on device — confined on all 48 held-out slices, GPU/CPU parity 2.9e-15 m, with the honest negatives quantified (4.12 cm anchor gap = read difference + basin-solve formulation; single-shot PinT capped at 2.44x by the load-bearing chain). §4 wraps the march in vmap/shard over SHOTS — the batch that breaks no chain (a B=48 batched sweep already costs 0.65x a B=1 sweep). Open items inherited: same-read host anchor (--host-reads both) or the ladder profile family on device to close the anchor gap; tf32-lane label gate at corpus scale (trajectory chaining amplifies tf32 to ~0.9 cm median vs 0.004 cm single-solve); Z-anchoring on the under-determined class.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    gpu-accelerated-labeler (http://localhost:8765/imas-ambix/gpu-accelerated-labeler.html)
 Section: §4 (offline corpus labeling — wrap the §3 march in vmap over shots)
@@ -482,12 +482,12 @@ Tier:    opus
 
 Context
   §3 landed the single-shot on-device rollout: sequential warm-started march with the
-  disc seed + per-sweep centroid-pinned K=2 LSQ folded into the map (basin held 48/48,
+  disc seed + per-sweep centroid-pinned basin-solve LSQ folded into the map (basin held 48/48,
   GPU/CPU parity 2.9e-15 m), fp64 carry kernels at machine precision, PinT capped at
   2.44x (chain load-bearing) — so offline throughput comes from SHOT-batching, which
   breaks no chain: a B=48 batched sweep costs 0.65x a B=1 sweep, and the §2 GEMM lanes
   keep scaling past B=2048. Known gaps to close or gate here: the 4.12 cm march-vs-host
-  anchor gap (hard-vs-smooth read ~2.8 cm + K=2 formulation), the tf32 chaining
+  anchor gap (hard-vs-smooth read ~2.8 cm + basin-solve formulation), the tf32 chaining
   amplification (~0.9 cm median vs fp64 march), Z-drift on the under-determined class.
 
 State to read (CODE / FILES / DATA)

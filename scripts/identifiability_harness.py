@@ -9,7 +9,7 @@ through the inverse arms and four questions are answered, all firewall-clean
 
 RECOVERY
     Push synthetic payloads through the arms (free patch inverse, physics-prior
-    arm, closure grid, closure continuous, ladder K=2, ladder + passive) and
+    arm, closure grid, closure continuous, basin solve, basin + passive) and
     report recovered-vs-injected coefficient error with bootstrap CIs: fitted
     (β0, α) for the closure arms, axis for every arm, and the passive-mode
     amplitudes for the sidecar arm.

@@ -2,7 +2,7 @@
 
 The single-shot device rollout fixed two things the CPU accelerator study
 asked for — the current-centroid pin lives INSIDE the map (the per-sweep
-closed-form K=2 scaffold LSQ) and the whole solve is a fixed-shape jax graph —
+closed-form basin-solve LSQ) and the whole solve is a fixed-shape jax graph —
 but its topology read is still the HARD kernel (exact-min binding + boolean
 flood core mask), so residual cell-flips survive in the on-device map and
 safeguarded Anderson merely ties relaxed Picard (both ~49% converged at a
@@ -20,8 +20,8 @@ what that buys the fixed-point iteration:
 * **accelerator A/B at a fixed evaluation budget** — relaxed Picard, the
   rollout's safeguarded Anderson, Jacobian-free Newton–Krylov with EXACT
   jvp tangents (fixed-shape GMRES, no finite differences), and a REDUCED
-  Newton on the 2-coefficient scaffold map (the fixed point lives in the
-  K=2 coefficient space; its 2×2 Jacobian costs two tangent passes) — all
+  Newton on the two-coefficient basin-solve map (the fixed point lives in the
+  basin coefficient space; its 2×2 Jacobian costs two tangent passes) — all
   pure fixed-shape jax, i.e. batchable by construction;
 * **temperature sensitivity** — convergence vs τ (does smoothing trade
   accuracy for contraction?).
@@ -66,7 +66,7 @@ NEWTON_WARMUP = 8  # pinned Picard sweeps before any Newton-type iteration
 
 
 def build_step(arrs, *, read: str, tau: float = 1e-3):
-    """(jphi_from_psi, psi_from_jphi) for the pinned K=2 map under one read.
+    """(jphi_from_psi, psi_from_jphi) for the pinned basin-solve map under one read.
 
     ``read='hard'`` replicates the rollout map (exact-min binding, boolean
     flood core).  ``read='smooth'`` swaps in the softmin binding + sigmoid
@@ -105,13 +105,13 @@ def build_step(arrs, *, read: str, tau: float = 1e-3):
     g_mat = jnp.asarray(arrs["G"])
 
     def family_images(psi_n, core_weight):
-        """The two scaffold family images on a read's support (jφ is linear
+        """The two basin-solve family images on a read's support (jφ is linear
         in the coefficient pair on a frozen support: jφ = c₀·img_p + c₁·img_f)."""
         e = jnp.clip(1.0 - psi_n, 0.0, None) ** ALPHA * core_weight
         return img_r_ratio * e, img_r_inv * e
 
     def coeffs_from_images(img_p, img_f, pin, ip):
-        """Closed-form pinned K=2 LSQ (Ip row + centroid tether rows) → c."""
+        """Closed-form pinned basin-solve LSQ (Ip row + centroid tether rows) → c."""
         u = jnp.stack([img_p[cells], img_f[cells]], axis=1) * cell_area
         s_row = jnp.sum(u, axis=0) / ip
         mr_row = jnp.sum(u * (cell_r - pin[0])[:, None], axis=0) / (
@@ -126,7 +126,7 @@ def build_step(arrs, *, read: str, tau: float = 1e-3):
         n_mat = n_mat + 1e-12 * (jnp.trace(n_mat) + 1e-30) * jnp.eye(2)
         return jnp.linalg.solve(n_mat, a_mat.T @ b_vec)
 
-    def _scaffold(psi_n, core_weight, pin, ip):
+    def _basin_lsq(psi_n, core_weight, pin, ip):
         img_p, img_f = family_images(psi_n, core_weight)
         c = coeffs_from_images(img_p, img_f, pin, ip)
         jphi = c[0] * img_p + c[1] * img_f
@@ -214,7 +214,7 @@ def build_step(arrs, *, read: str, tau: float = 1e-3):
 
     def jphi_from_psi(psi, axis, pin, ip):
         psi_n, weight, axis = support(psi, axis)
-        jphi, c = _scaffold(psi_n, weight, pin, ip)
+        jphi, c = _basin_lsq(psi_n, weight, pin, ip)
         return jphi, axis, c
 
     def psi_from_jphi(jphi, psi_coil, ip):
@@ -361,7 +361,7 @@ def make_nk_runner(psi_map, gmres_m):
     Each Newton step linearises the map ONCE (``jax.linearize`` — exact
     tangents, no finite differences) with the axis frozen inside the
     linearisation (re-read between steps: the tangent flows through the read
-    scalars and the scaffold LSQ, not the integer vertex picks), and solves
+    scalars and the basin-solve LSQ, not the integer vertex picks), and solves
     (I − J)s = f with a fixed-shape ``gmres_m``-step GMRES — no early exit,
     vmap-safe by construction.  Cost per step ≈ 2 + gmres_m map evaluations.
     """
@@ -409,11 +409,11 @@ def make_nk_runner(psi_map, gmres_m):
 
 
 def make_reduced_newton_runner(step, n_inner):
-    """Damped Newton on the 2-coefficient scaffold map, jitted once per leg.
+    """Damped Newton on the two-coefficient basin-solve map, jitted once per leg.
 
     On a FROZEN read support (ψ_N + core weight of the current iterate), jφ is
     exactly linear in the coefficient pair, so ψ(c) is explicit and the reduced
-    map C(c) — read ψ(c), re-fit the scaffold — has its fixed point in R².
+    map C(c) — read ψ(c), re-fit the basin solve — has its fixed point in R².
     Each inner Newton step costs one value + two tangent passes of C
     (``jax.jacfwd``), ~3 map evaluations, all fixed-shape vmap-safe arithmetic;
     the support refreshes on the outer loop.

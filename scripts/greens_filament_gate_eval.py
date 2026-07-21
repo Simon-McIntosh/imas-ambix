@@ -188,12 +188,12 @@ def _solve_arm(
     boundary_read,
     sigma,
 ):
-    """One arm's readout: K=2 position scaffold → rich non-negative ladder.
+    """One arm's readout: basin solve → profile solve (non-negative ladder).
 
     ``warm_rich`` (a previous slice's rich jφ) warm-starts the rich solve;
-    ``None`` cold-starts it from the K=2 scaffold seeded by the physical disc
+    ``None`` cold-starts it from the basin solve seeded by the physical disc
     read.  Returns (fit, wall_seconds_for_the_rich_solve)."""
-    f_k2 = _fit_slice(
+    f_basin = _fit_slice(
         grid,
         table,
         basis,
@@ -208,13 +208,13 @@ def _solve_arm(
         warm=disc_seed,
         sigma=sigma,
     )
-    k2_ok = (
-        f_k2.scored
-        and f_k2.jphi_flat is not None
-        and np.isfinite(f_k2.target[0])
-        and f_k2.target[0] <= CONFINED_AXIS_R_MAX
+    basin_ok = (
+        f_basin.scored
+        and f_basin.jphi_flat is not None
+        and np.isfinite(f_basin.target[0])
+        and f_basin.target[0] <= CONFINED_AXIS_R_MAX
     )
-    seed_cold = f_k2.jphi_flat if k2_ok else disc_seed
+    seed_cold = f_basin.jphi_flat if basin_ok else disc_seed
     t0 = time.perf_counter()
     f = _fit_slice(
         grid,

@@ -72,10 +72,10 @@ STAGE_NPZ = Path(
 FIG_DIR = Path("docs/figures/gpu-accelerated-labeler")
 
 # fixed profile parameters θ for the SEED shape (the spike's two-term form);
-# the in-loop profile is the pinned K=2 LSQ, not this fixed shape
+# the in-loop profile is the pinned basin-solve LSQ, not this fixed shape
 BETA0 = 0.5
 ALPHA = 1.0
-# disc-centroid soft-tether width [m] — the spine scaffold's default
+# disc-centroid soft-tether width [m] — the spine basin solve's default
 CENTROID_SIGMA_M = 0.02
 # confined-axis bound: beyond this the read is the outboard attractor [m]
 CONFINED_AXIS_R_MAX = 1.4
@@ -123,13 +123,13 @@ def _axis_cm(a, b) -> float:
 def _host_reference_march(
     grid, payloads, disc_seeds, centroids, tbl, basis, topology_read: str
 ) -> dict:
-    """Sequential host K=2 pinned-scaffold march — the production anchor.
+    """Sequential host pinned basin-solve march — the production anchor.
 
     The unpinned fixed-θ map corner-locks toward the outboard attractor on
     this shot even from a disc seed (measured: the host fixed-θ chain sits at
     R ≈ 1.77 m from the ramp on) — basin control lives in the centroid-PINNED
     map, exactly the accelerator study's conclusion.  The anchor is therefore
-    the spine's own K=2 position scaffold (free-sign n_p=n_f=1 fit, all
+    the spine's own basin solve (free-sign n_p=n_f=1 fit, all
     magnetics masked, disc-centroid soft tether), warm-chained along time.
     ``topology_read`` selects the host arm: ``"hard"`` is the production label
     read; ``"connectivity"`` shares the device read definition, so the
@@ -363,7 +363,7 @@ def stage_prep(
         time_s = np.asarray([float(p.time_s) for p in kept])
         disc_seeds = np.asarray(seeds)
 
-        print("  host reference march (pinned K=2 scaffold, warm chain) ...")
+        print("  host reference march (pinned basin solve, warm chain) ...")
         refs: dict[str, dict] = {}
         host_walls: dict[str, float] = {}
         reads = ("hard", "connectivity") if host_reads == "both" else ("hard",)
@@ -465,7 +465,7 @@ def _build_slice_step(arrs, mode: str, read: str = "hard", tau: float = 1e-3):
     """Return (jphi_from_psi, psi_from_jphi): the two halves of the Picard map.
 
     ``jphi_from_psi`` runs the on-device topology read and updates jφ by the
-    pinned K=2 scaffold: a closed-form 2-coefficient LSQ (free-sign p/f pair
+    pinned basin solve: a closed-form two-coefficient LSQ (free-sign p/f pair
     on the (1−ψ_N) edge family) whose rows are the Ip normalisation and the
     disc-centroid soft tether — the basin insurance the accelerator study
     showed the unpinned map lacks.  This is the "tiny per-sweep profile LSQ"
@@ -587,7 +587,7 @@ def _build_slice_step(arrs, mode: str, read: str = "hard", tau: float = 1e-3):
     def jphi_from_psi(psi, axis, pin, ip):
         psi_n, weight, axis = support(psi, axis)
 
-        # pinned K=2 scaffold: jφ = c_p·(R/R0)·e + c_f·(R0/R)·e on the core,
+        # pinned basin solve: jφ = c_p·(R/R0)·e + c_f·(R0/R)·e on the core,
         # c from the closed-form LSQ of the Ip row + the centroid tether rows
         e = jnp.clip(1.0 - psi_n, 0.0, None) ** ALPHA * weight
         img_p = img_r_ratio * e

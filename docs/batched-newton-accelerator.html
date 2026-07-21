@@ -38,8 +38,8 @@
   sigmoid core weight, τ-controlled, 13/13 gates) makes the whole map
   end-to-end differentiable — exact autograd tangents flow from every read
   scalar through ψ to the currents; and (ii) the rollout showed the
-  <strong>pin belongs inside the map</strong> (the per-sweep closed-form K=2
-  scaffold LSQ holds the basin on all 48 slices) but that on the pinned hard
+  <strong>pin belongs inside the map</strong> (the per-sweep closed-form
+  basin-solve LSQ holds the basin on all 48 slices) but that on the pinned hard
   map <strong>Anderson merely ties Picard</strong> (~49% of warm slices
   converge at a 20-sweep budget) — convergence RATE, not basin control, is now
   the corpus engine's wall.</p>
@@ -186,9 +186,9 @@
   diagnostic recorded, not hidden.</p>
 
   <h2 id="s5">§5 — Lift the rich profile into a coupled KKT Newton state (stop the higher-order thrash)</h2>
-  <p>The probe and the rollout run the K=2 scaffold, whose closed-form fit is
+  <p>The probe and the rollout run the basin solve, whose closed-form fit is
   smooth and well-posed — the coefficients are safely implicit in the map. The
-  PRODUCTION rich profile (K=6 non-negative ladder) is neither: the per-sweep
+  PRODUCTION profile solve (non-negative ladder, n_p=n_f=3) is neither: the per-sweep
   LSQ re-solve thrashes the under-constrained higher-order coefficients along
   the null space (the solve already carries a <code>profile_relax</code>
   under-relaxation for exactly this), and the non-negative fit's active set
@@ -278,9 +278,9 @@
     <p class="r-dec-q">How do the rich-profile coefficients enter the Newton iteration?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="coupled-kkt-state">Coupled KKT state (ψ, θ): fit optimality residual inside the Newton system, softplus nonneg, ridge+prior rows in the Jacobian — presumptive for K≥3 (lead steer 2026-07-21)</button>
-      <button class="r-opt" data-value="implicit-fit">Implicit fit-in-map (re-solve the LSQ per evaluation) — retained for the closed-form K=2 scaffold</button>
+      <button class="r-opt" data-value="implicit-fit">Implicit fit-in-map (re-solve the LSQ per evaluation) — retained for the closed-form basin solve</button>
       </p>
-    <p class="r-dec-rat">Presumptive coupled-kkt-state for the rich profile (lead steer 2026-07-21): the alternating per-sweep LSQ thrashes under-constrained higher-order coefficients (the profile_relax hack exists for this) and the nonneg active set is a discrete flip — both cured by expressing the fit as a smooth KKT residual inside the Newton state. The K=2 scaffold&#x27;s closed-form fit stays implicit (smooth, well-posed, probe-proven). Locked by §5 on the interior-null stability gate.</p>
+    <p class="r-dec-rat">Presumptive coupled-kkt-state for the rich profile (lead steer 2026-07-21): the alternating per-sweep LSQ thrashes under-constrained higher-order coefficients (the profile_relax hack exists for this) and the nonneg active set is a discrete flip — both cured by expressing the fit as a smooth KKT residual inside the Newton state. The basin solve&#x27;s closed-form fit stays implicit (smooth, well-posed, probe-proven). Locked by §5 on the interior-null stability gate.</p>
     </div>
 </section>
 
