@@ -1022,6 +1022,8 @@ def eval_parallel_in_time(
         jphi_iter = np.array(pre["jphi"])
         axis_iter = np.array(pre["axis"])
         agree: list[float] = []
+        agree_wp: list[float] = []
+        wp_mask = np.asarray(arrs["ref_converged"]) & np.asarray(arrs["ref_confined"])
         pint_resid = np.zeros(T)
         t0 = time.perf_counter()
         for _ in range(outers):
@@ -1040,18 +1042,24 @@ def eval_parallel_in_time(
                 axis_iter[s0:s1] = np.asarray(res["axis"])
                 pint_resid[s0:s1] = np.asarray(res["residual"])
             if record:
-                d = [
-                    _axis_cm(axis_iter[i], march_axis[i])
-                    for i in range(T)
-                    if np.isfinite(axis_iter[i]).all()
-                    and np.isfinite(march_axis[i]).all()
-                ]
+                d, d_wp = [], []
+                for i in range(T):
+                    if not (
+                        np.isfinite(axis_iter[i]).all()
+                        and np.isfinite(march_axis[i]).all()
+                    ):
+                        continue
+                    v = _axis_cm(axis_iter[i], march_axis[i])
+                    d.append(v)
+                    if wp_mask[i]:
+                        d_wp.append(v)
                 agree.append(float(np.median(d)) if d else float("nan"))
+                agree_wp.append(float(np.median(d_wp)) if d_wp else float("nan"))
         outer_wall = time.perf_counter() - t0
-        return axis_iter, pint_resid, agree, pre_wall, outer_wall
+        return axis_iter, pint_resid, (agree, agree_wp), pre_wall, outer_wall
 
     # instrumented pass (also warms compilation), then the timed pass
-    pint_axis, pint_resid, agree_per_outer, _, _ = run(True)
+    pint_axis, pint_resid, (agree_per_outer, agree_per_outer_wp), _, _ = run(True)
     axis_t, resid_t, _, pre_wall, outer_wall = run(False)
     pint_axis, pint_resid = axis_t, resid_t
     wall = pre_wall + outer_wall
@@ -1064,9 +1072,7 @@ def eval_parallel_in_time(
     med = float(np.median(d)) if d else float("nan")
     # the well-posed subset: slices the host anchor itself scores/confines —
     # outside it the trajectory is under-determined (both engines drift in Z)
-    scored_mask = np.asarray(arrs["ref_converged"]) & np.asarray(
-        arrs["ref_confined"]
-    )
+    scored_mask = np.asarray(arrs["ref_converged"]) & np.asarray(arrs["ref_confined"])
     d_sc = [
         _axis_cm(pint_axis[i], march_axis[i])
         for i in range(T)
@@ -1080,7 +1086,7 @@ def eval_parallel_in_time(
     outers_needed = next(
         (
             k + 1
-            for k, v in enumerate(agree_per_outer)
+            for k, v in enumerate(agree_per_outer_wp)
             if np.isfinite(v) and v <= PINT_TOL_CM
         ),
         None,
@@ -1101,6 +1107,7 @@ def eval_parallel_in_time(
         "axis_vs_march_median_wellposed_cm": med_sc,
         "n_wellposed": len(d_sc),
         "agreement_per_outer_cm": agree_per_outer,
+        "agreement_per_outer_wellposed_cm": agree_per_outer_wp,
         "outers_to_tolerance": outers_needed,
         "n_fabricated_readouts": n_fab,
         "residual_median": float(np.median(pint_resid)),
@@ -1257,15 +1264,26 @@ def _figures(arrs, b1: dict, b2: dict, b3: dict) -> None:
 
     a2 = axes[1, 0]
     ag = b2["agreement_per_outer_cm"]
-    a2.semilogy(np.arange(1, len(ag) + 1), ag, "o-", color="#c73")
+    ag_wp = b2.get("agreement_per_outer_wellposed_cm", [])
+    a2.semilogy(np.arange(1, len(ag) + 1), ag, "o-", color="#c73", label="all slices")
+    if ag_wp:
+        a2.semilogy(
+            np.arange(1, len(ag_wp) + 1),
+            ag_wp,
+            "s-",
+            color="#268",
+            label="well-posed slices",
+        )
     a2.axhline(
         PINT_TOL_CM, color="k", ls="--", lw=0.8, label=f"tolerance {PINT_TOL_CM} cm"
     )
     a2.set_xlabel("PinT outer iteration")
     a2.set_ylabel("median axis vs march [cm]")
     a2.set_title(
-        f"B2 PinT convergence — {'PASS' if b2['pass_convergence'] else 'FAIL'} "
-        f"(outers to tol: {b2['outers_to_tolerance']})"
+        f"B2 PinT convergence (well-posed) — "
+        f"{'PASS' if b2['pass_convergence'] else 'FAIL'} "
+        f"({b2['axis_vs_march_median_wellposed_cm']:.2f} cm, "
+        f"outers: {b2['outers_to_tolerance']})"
     )
     a2.set_xticks(np.arange(1, len(ag) + 1))
     a2.legend(fontsize=8)
