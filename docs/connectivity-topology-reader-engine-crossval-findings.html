@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="connectivity-topology-reader-engine-crossval-findings">
+  <meta name="plan-title" content="§6b findings — the four-pass engine on the uncurated MAST topology census: curated skill does NOT generalise corpus-wide">
+  <meta name="plan-status" content="reference">
+  <meta name="plan-summary" content="Research findings for connectivity-topology-reader §6b: the VALIDATED four-pass reanalysis engine (disc read -> centroid-pinned basin solve -> coupled profile solve with the psi-diffusion prior, frozen eta) run per topology class against EFIT on the full 1.33M-slice census, firewall intact. Headline: the engine's curated-cohort skill (1.5-2.1 cm flat-top on the 112-shot MSE-gate set) does NOT hold on the uncurated stratified draw. G-E1 completion 0.640 (36% of attempted slices fail: pass-1 disc/basin attrition + the outboard attractor). G-E2 per-class flat-top LCFS-radii vs EFIT all miss the 3 cm bar: connected-dn 4.6, limited 7.0, marginal-dn 7.2, sn-upper 12.2, sn-lower 18.5 cm. The pin+coupling HELPS the routine classes vs the bare disc seed (limited 33.4->7.0, connected-dn 8.9->4.6) but INVERTS the single-null classes (sn-lower axis drifts outboard 6->26 cm, sn-upper 9->23 cm) because the symmetric n_p=n_f=3 profile ladder + centroid pin cannot carry the SN up/down asymmetry. G-E3: the feedforward vessel-eddy known-drive REGRESSES every class (+8-12 cm on ramp) at pin strength — the ramp needs the coupled/learned treatment, not a feedforward drive. Basin-pass ablation: dropping pass 1 RAISES completion (0.64->0.775) and is equal-or-better on every class (paired Delta<=0) — the basin solve is not load-bearing on the census (a ~1.8x speedup lead, pending curated-cohort confirmation). Poloidal-flux cross-sections per class and phase (imas-ink), incl. the sn-lower outboard-drift deep dive.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>§6b findings — four-pass engine on the MAST topology census | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Research findings</strong> for
+<a href="/imas-ambix/connectivity-topology-reader.html">connectivity-topology-reader</a>
+§6b — the verdict rung the later items read. §6 built the census (1.33M slices,
+five classes) and validated the topology <em>read</em> at 99.98% on EFIT ψ; its
+engine leg ran only the bare disc-read initialiser. §6b runs the
+<strong>validated four-pass reanalysis engine</strong> — disc read →
+centroid-pinned basin solve → coupled profile solve with the ψ-diffusion
+coefficient prior, frozen η
+(<code>heldout_mse_gate_eval.coupled_solve_chain</code>) — per class against
+EFIT on the census, firewall intact (measured magnetics only; EFIT is the
+referee and, in the overlays below, a visualization reference).</p>
+
+<h2 id="tldr">TL;DR</h2>
+<figure>
+  <table>
+    <thead><tr><th>Gate</th><th>Verdict</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>G-E1 — completion (≥99% bar)</td><td><strong>FAIL</strong></td>
+        <td><strong>0.640</strong> of attempted valid slices scored (4,379 / 6,838);
+        36% fail — pass-1 disc/basin attrition (1,581) + outboard-attractor
+        <code>unconfined-axis</code> (606) + whole-shot chain failures (264)</td></tr>
+      <tr><td>G-E2 — per-class flat-top LCFS quality (≤3 cm)</td><td><strong>FAIL (all classes)</strong></td>
+        <td>flat-top median LCFS-radii vs EFIT: connected-dn <strong>4.6</strong>,
+        limited <strong>7.0</strong>, marginal-dn <strong>7.2</strong>,
+        sn-upper <strong>12.2</strong>, sn-lower <strong>18.5</strong> cm —
+        every class misses the 3 cm bar</td></tr>
+      <tr><td>G-E3 — vessel-eddy known-drive (must not regress)</td><td><strong>FAIL</strong></td>
+        <td>the feedforward known-drive at pin strength <strong>regresses</strong>
+        every class (+8–12 cm on ramp; +7.8/+3.8/+1.2 cm flat-top on
+        limited/connected-dn/marginal-dn)</td></tr>
+      <tr><td>Basin-pass ablation (report-only)</td><td><strong>not load-bearing on the census</strong></td>
+        <td>dropping pass 1 <em>raises</em> completion 0.640 → 0.775 and is
+        equal-or-better on every class (paired Δ ≤ 0) — a ~1.8× speedup lead,
+        pending curated-cohort confirmation</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Pre-declared tolerances (locked before scoring): flat-top median
+  LCFS ≤ 3.0 cm (validated envelope 1.5–2.1 cm × ~1.5 headroom for the
+  uncurated draw), class agreement ≥ 0.80, completion ≥ 0.99.</figcaption>
+</figure>
+
+<p><strong>The headline finding.</strong> The engine's validated skill — the
+1.5–2.1 cm flat-top LCFS on the 112-shot MSE-gate held-out cohort — is a
+<em>curated-cohort</em> number. On the uncurated stratified census draw the same
+four-pass chain degrades 3–10×. This corrects any reading of "the validated
+engine works corpus-wide": it works where it was validated and degrades
+elsewhere. §6b measures <em>how</em> and <em>where</em>.</p>
+
+<h2 id="e1">G-E1 — completion: the engine confines 64% of the uncurated draw</h2>
+<p>Completion is measured per attempted <em>physical</em> census slice
+(<code>shot, k</code>), deduped across class draws (a shot selected for several
+classes is solved once per draw; scored rows and failure drops both collapse to
+the unique slice). Of 6,838 attempted valid slices, 4,379 produced a confined,
+force-balanced boundary read — <strong>0.640</strong>. The 36% that fail:</p>
+<figure>
+  <table>
+    <thead><tr><th>Failure</th><th>n slices</th><th>Mechanism</th></tr></thead>
+    <tbody>
+      <tr><td><code>fit-not-scored</code></td><td>1,581</td>
+        <td>pass-1 disc-read / basin solve dropped the slice (the seed never
+        reached a confined, scored state) — dominant on early-ramp and
+        low-quality-sensor slices</td></tr>
+      <tr><td><code>unconfined-axis</code></td><td>606</td>
+        <td>the coupled fit's axis landed at R &gt; 1.4 m — the outboard
+        attractor, unrecovered by the σ=2 cm centroid pin on the harder draw</td></tr>
+      <tr><td><code>chain-failed</code></td><td>264</td>
+        <td>whole-shot chains with &lt; 2 scored slices (no temporal spine)</td></tr>
+      <tr><td><code>read-not-found</code></td><td>8</td>
+        <td>confined fit, but no closed axis-enclosing contour inside the wall</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Harness accounting (not engine failures): 13,919 slices past the
+  24-slice/shot chain budget (thinning), 192 chain-unavailable (no
+  campaign geometry / sensor windows).</figcaption>
+</figure>
+
+<h2 id="e2">G-E2 — per-class quality: helps the routine classes, inverts the single-nulls</h2>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-full-engine-vs-baseline.png"
+       alt="Per-class median LCFS-radii residual: four-pass engine (flat-top) vs the bare disc-read initialiser, log scale, with the 3 cm tolerance line.">
+  <figcaption>Four-pass engine (flat-top) vs the bare disc-read seed baseline,
+  per class. The pin+coupling is worth 5–7× on the routine classes but goes the
+  wrong way on the single-nulls.</figcaption>
+</figure>
+<figure>
+  <table>
+    <thead><tr><th>Class</th><th>flat-top LCFS (cm)</th><th>bare seed (cm)</th>
+      <th>flat-top axis (cm)</th><th>bare axis (cm)</th><th>class agree</th>
+      <th>n (flat-top)</th></tr></thead>
+    <tbody>
+      <tr><td>connected-dn</td><td><strong>4.6</strong></td><td>8.9</td>
+        <td>7.1</td><td>3.6</td><td>0.81</td><td>699</td></tr>
+      <tr><td>limited</td><td><strong>7.0</strong></td><td>33.4</td>
+        <td>7.4</td><td>14.9</td><td>0.53</td><td>92</td></tr>
+      <tr><td>marginal-dn</td><td><strong>7.2</strong></td><td>9.0</td>
+        <td>11.2</td><td>5.1</td><td>0.91</td><td>647</td></tr>
+      <tr><td>sn-upper</td><td><strong>12.2</strong></td><td>13.7</td>
+        <td>23.2</td><td>9.3</td><td>0.95</td><td>37</td></tr>
+      <tr><td>sn-lower</td><td><strong>18.5</strong></td><td>7.9</td>
+        <td>26.1</td><td>6.2</td><td>0.79</td><td>365</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Median LCFS-radii and axis distance vs EFIT, flat-top slices. Bold
+  = the G-E2 metric (tol 3 cm). Note the axis columns: the coupled solve drives
+  the sn-lower / sn-upper axis outboard to 26 / 23 cm, from a bare-seed 6 / 9 cm.</figcaption>
+</figure>
+<p>The pattern is physical, not noise:</p>
+<ul>
+  <li><strong>limited &amp; connected-dn</strong> — the coupled solve pulls the
+  boundary in correctly (limited 33.4 → 7.0 cm; connected-dn 8.9 → 4.6 cm).
+  connected-dn is the best class and the closest to the bar.</li>
+  <li><strong>single-null (sn-lower, sn-upper)</strong> — the solve
+  <em>inverts</em>: sn-lower goes 7.9 → 18.5 cm, <em>worse than the bare seed</em>,
+  with the axis drifting outboard to 26 cm. The symmetric n_p=n_f=3 profile
+  ladder plus a centroid pin cannot carry the up/down asymmetry of a dominant
+  single X-point, so the force-balanced solution the optimiser finds sits
+  outboard, toward the null side — the outboard attractor winning exactly on the
+  topologies with the strongest single-sided pull.</li>
+</ul>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-full-engine-phase.png"
+       alt="Per-class median LCFS-radii residual split by phase: ramp (t<0.2s) vs flat-top.">
+  <figcaption>Phase split (ramp = t &lt; 0.2 s). The routine classes are flat
+  across phases; the single-nulls are poor in both. The eddy-dominated ramp is
+  not the sole driver — the SN inversion persists into flat-top.</figcaption>
+</figure>
+
+<h2 id="overlays">Poloidal-flux cross-sections — engine ψ(R,Z) vs EFIT</h2>
+<p>The residual tables become legible in the flux maps: the engine's own
+force-balanced ψ (solid contours, LCFS, axis, X-points) against the EFIT
+reconstruction (faint), rendered with the imas-ink equilibrium figure. Worst,
+median and best flat-top slices per class plus the worst ramp slice.</p>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-engine-overlay-grid.png"
+       alt="One worst-flat-top engine psi(R,Z) panel per class overlaid on EFIT.">
+  <figcaption>Worst flat-top slice per class — the failure gallery. The engine
+  ψ (solid) vs EFIT (faint); where the solid axis/boundary sit outboard of the
+  faint reference is the drift the residual measures.</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-engine-worst-sn-lower.png"
+       alt="sn-lower deep dive: four worst flat-top coupled fits showing the outboard axis drift EFIT does not share.">
+  <figcaption><strong>sn-lower deep dive.</strong> The four worst flat-top
+  coupled fits. The engine's axis and LCFS sit systematically outboard of EFIT's
+  lower-single-null reconstruction — the up/down-asymmetry deficit made visual.</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-engine-overlay-connected-dn.png"
+       alt="connected-dn engine psi vs EFIT across ramp and flat-top phases.">
+  <figcaption>connected-dn (the best class) across phases — engine ψ tracks EFIT
+  closely at flat-top (4.6 cm), the reference for what "working" looks like.</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-engine-overlay-limited.png"
+       alt="limited engine psi vs EFIT across ramp and flat-top phases.">
+  <figcaption>limited across phases — the pin+coupling recovers a confined
+  interior from a bare seed that pushed to 33 cm, though the boundary still
+  sits ~7 cm off EFIT.</figcaption>
+</figure>
+
+<h2 id="e3">G-E3 — the vessel-eddy known-drive regresses (negative result)</h2>
+<p>The ramp arm injects the per-shot vessel-eddy trajectory — precomputed from
+the measured coil + plasma drives on the section-averaged passive eigenbasis —
+as a <em>known</em> additive drive through the frozen passive Green's columns
+(amplitudes pinned at high weight). The pre-declared expectation: it must not
+regress any class and should improve the t &lt; 0.2 s bins.</p>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-eddy-ablation.png"
+       alt="Delta median LCFS residual (eddy minus plain) per class, ramp and flat-top; negative would mean eddy helps.">
+  <figcaption>Δ median residual (eddy − plain); negative = eddy helps. It does
+  the opposite — +8 to +12 cm on ramp across the routine classes, and flat-top
+  regressions of +7.8 (limited), +3.8 (connected-dn), +1.2 cm (marginal-dn).</figcaption>
+</figure>
+<p><strong>Interpretation.</strong> Pinning a feedforward trajectory at drive
+strength injects the trajectory's <em>error</em> as real flux. The
+section-averaged eigenbasis trajectory is not accurate enough to pin; a strong
+known-drive therefore corrupts the field rather than stabilising the ramp. The
+ramp deficit is not closed by a feedforward eddy term — it needs the
+<em>coupled</em> (state-estimated / learned) passive treatment, which is exactly
+the parallel-in-time dynamics coupling owned downstream. G-E3 is a clean
+negative that redirects the ramp fix away from feedforward injection.</p>
+
+<h2 id="basin">Basin-pass ablation — the basin solve is not load-bearing on the census</h2>
+<p>The two-pass chain spends ~44% of solve wall on the basin solve (pass 1)
+before the coupled profile solve. The ablation drops pass 1 entirely: the
+profile solve cold-starts from the disc seed under the <em>same</em> centroid pin
+and diffusion prior. Pre-declared decision rule: no-basin matching the full
+chain within tolerance on every class ⇒ queue a retire-pass-1 followup; any
+class-conditional regression ⇒ basin proven load-bearing.</p>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-basin-ablation.png"
+       alt="Flat-top median LCFS residual per class: two-pass (basin+profile) vs profile-only cold start.">
+  <figcaption>Two-pass vs profile-only (disc cold start), flat-top. Dropping the
+  basin is neutral-to-better in every class.</figcaption>
+</figure>
+<figure>
+  <table>
+    <thead><tr><th>Class</th><th>no-basin flat-top (cm)</th>
+      <th>two-pass flat-top (cm)</th><th>paired Δ (no-basin − 2-pass, cm)</th></tr></thead>
+    <tbody>
+      <tr><td>limited</td><td>2.5</td><td>7.0</td><td>+0.00</td></tr>
+      <tr><td>connected-dn</td><td>2.9</td><td>4.6</td><td>−0.05</td></tr>
+      <tr><td>marginal-dn</td><td>5.1</td><td>7.2</td><td>−0.05</td></tr>
+      <tr><td>sn-upper</td><td>7.2</td><td>12.2</td><td>−0.36</td></tr>
+      <tr><td>sn-lower</td><td>13.1</td><td>18.5</td><td>−0.86</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Completion also rises: no-basin 0.775 vs two-pass 0.640 (the basin
+  gate itself drops slices the cold-start keeps). Paired deltas on common slices
+  are ≤ 0 for every class — no regression. The absolute-tolerance "retirable"
+  flag is False only because both arms miss the 3 cm bar on the uncurated draw.</figcaption>
+</figure>
+<p><strong>Finding.</strong> Under the full pin+prior stack the basin solve is
+<em>not</em> load-bearing on the census — dropping it is neutral-to-beneficial
+and ~1.8× cheaper. This does not by itself justify retiring pass 1: the basin's
+necessity was claimed on the <em>curated</em> MSE-gate cohort, where both arms
+would clear tolerance and a small regression would be visible. The honest next
+step is a targeted basin-necessity re-test on that curated held-out set before
+retiring; if it holds there too, pass 1 retires for a free ~1.8× on the whole
+label factory.</p>
+
+<h2 id="mechanism">Mechanism summary</h2>
+<ul>
+  <li><strong>Curated ≠ corpus.</strong> The 1.5–2.1 cm skill is real on the
+  MSE-gate cohort (beam-on, good-coverage, flat-top-weighted shots). The census
+  stratified draw spans early campaigns, ramp-heavy and low-Ip slices; there the
+  same chain posts 4.6–18.5 cm.</li>
+  <li><strong>The single-null deficit is representational.</strong> The
+  n_p=n_f=3 monomial-nonneg profile ladder + a 2-DOF centroid pin has no term
+  for the up/down asymmetry a dominant single X-point imposes; the force-balanced
+  optimum drifts the axis outboard (sn-lower/sn-upper axis 23–26 cm). This is the
+  same interior-null degeneracy the spine notes flag ("the axis is an interior
+  null … needs dynamics or kinetic data"), sharpened by topology class.</li>
+  <li><strong>The ramp needs coupling, not feedforward.</strong> A pinned
+  feedforward eddy drive regresses; the eddy state has to be co-estimated.</li>
+</ul>
+
+<h2 id="fixes">Fix vectors &amp; routing</h2>
+<figure>
+  <table>
+    <thead><tr><th>Deficit</th><th>Fix vector</th><th>Owner</th></tr></thead>
+    <tbody>
+      <tr><td>Axis / profile offset (interior-null degeneracy, all classes)</td>
+        <td>resistivity closure from measured T<sub>e</sub> — kinetic constraint
+        on the profile the magnetics cannot see</td>
+        <td>interior-closure-hardening §2</td></tr>
+      <tr><td>Outboard attractor on ramp + single-null classes</td>
+        <td>parallel-in-time dynamics coupling (co-estimated passive/eddy state,
+        not feedforward) — the coupled treatment the eddy known-drive negative
+        points to</td>
+        <td>gpu-accelerated-labeler f-gal-04</td></tr>
+      <tr><td>Single-null up/down asymmetry unrepresented</td>
+        <td>an asymmetric profile / boundary DOF for SN topologies (a candidate
+        for the learned cross-machine operator)</td>
+        <td>learned-equilibrium-operator (endgame)</td></tr>
+      <tr><td>Basin-pass cost (~44% of solve wall)</td>
+        <td>confirm no-basin on the curated MSE-gate cohort → retire pass 1
+        for ~1.8×</td>
+        <td>new followup (this rung)</td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<p class="muted">Artifacts:
+<code>imas_ambix/latent/artifacts/patch_gate/topology_full_engine_crossval-{plain,nobasin,eddy}-&lt;class&gt;.json</code>,
+verdicts <code>topology_full_engine_verdicts-v0.json</code>. Harness:
+<code>scripts/topology_engine_crossval.py --chain full</code> (arms plain /
+nobasin / eddy) + <code>--aggregate</code>; overlays
+<code>scripts/topology_engine_overlays.py</code>; engine chain
+<code>scripts/heldout_mse_gate_eval.py::coupled_solve_chain</code>. Firewall:
+EFIT is referee + viz reference only; every fit consumed measured magnetics.</p>
+
+</main>
+</body>
+</html>
