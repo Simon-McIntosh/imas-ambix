@@ -694,9 +694,10 @@ SUBSTRATES = (SUBSTRATE_GRID, SUBSTRATE_GREENS)
 
 #: The two per-sweep topology reads.  ``hard`` is the historical
 #: hard-threshold host read (critical points + labelled core mask,
-#: byte-unchanged); ``connectivity`` is the continuous read — connectivity
-#: boundary binding + sub-grid stencil axis + a smooth core-membership weight —
-#: under which the free-boundary fixed-point map is differentiable.
+#: byte-unchanged); ``connectivity`` is the temperature-smoothed kernel —
+#: softmin boundary binding + retracted-gate sigmoid core weight + sub-grid
+#: stencil axis — under which the free-boundary fixed-point map is
+#: end-to-end differentiable.
 TOPOLOGY_HARD = "hard"
 TOPOLOGY_CONNECTIVITY = "connectivity"
 TOPOLOGY_READS = (TOPOLOGY_HARD, TOPOLOGY_CONNECTIVITY)
@@ -707,20 +708,20 @@ def _read_topology_smooth(
     grid: EquilibriumGrid,
     seed_axis: tuple[float, float],
     core_cap: float,
-    edge_width: float,
+    temperature: float,
 ) -> tuple[tuple[float, float], float, float, np.ndarray, np.ndarray]:
     """Continuous per-sweep topology read for the smooth-map solve path.
 
-    The axis and the binding flux come from the connectivity boundary read
-    (sub-grid stencil O-point + the unified wall-tangency/X-saddle binding —
-    both continuous in ψ, no classify-first selection to flip), and the core
-    membership is a SMOOTH weight: a sigmoid in ψ_N about ``core_cap``
-    (half-weight at the cap, width ``edge_width``), gated by the
-    axis-connected component of the padded support so a disconnected
-    private-flux pocket never carries weight.  The connectivity gate flips
-    only where the sigmoid weight is already ~0 (cap + 6 widths), so the
-    effective fixed-point map stays continuous — the discrete mask-flip
-    signature of the hard read is gone.
+    The temperature-smoothed connectivity kernel
+    (:func:`~imas_ambix.latent.connectivity_boundary.boundary_read_smooth`):
+    the sub-grid stencil O-point is read first, the smooth boundary read is
+    seeded at it (softmin over the wall-tangency / X-saddle binding
+    candidates, retracted-gate sigmoid core weight — everything τ-controlled
+    and end-to-end differentiable in ψ), and the returned ``core_weight`` IS
+    the core membership: half-weight at the binding, width ``temperature``,
+    gated by the axis-connected flood so a disconnected private-flux pocket
+    never carries weight.  The fixed-point map under this read has no
+    discrete mask-flip signature — exact autograd tangents flow through it.
 
     Returns ``(axis, axis_psi, boundary_psi, weight_flat, core_bool_2d)``;
     ``core_bool_2d`` is the reporting-only hard threshold (it never feeds the
@@ -729,32 +730,30 @@ def _read_topology_smooth(
     same way the hard read does instead of dying.
     """
     from imas_ambix.latent.connectivity_boundary import (  # noqa: PLC0415 (jax)
-        boundary_read,
+        boundary_read_smooth,
     )
 
+    if core_cap != 1.0:
+        raise ValueError(
+            "the smooth connectivity read binds the core membership at the "
+            f"boundary; a soft SOL cap (core_cap={core_cap!r}) has no "
+            "smooth-kernel equivalent — run the SOL prior on the hard read"
+        )
     psi2d = psi_flat.reshape(grid.nz, grid.nr)
-    cb = boundary_read(psi2d, grid, seed_axis)
-    axis = cb.axis if np.isfinite(cb.axis[0]) and np.isfinite(cb.axis[1]) else seed_axis
-    axis_psi = float(cb.axis_psi) if np.isfinite(cb.axis_psi) else float(cb.psi_axis)
-    boundary_psi = float(cb.psi_bnd)
+    rd = boundary_read_smooth(psi2d, grid, seed_axis, temperature=temperature)
+    ax_r = float(rd["axis_r"])
+    ax_z = float(rd["axis_z"])
+    axis = (ax_r, ax_z) if np.isfinite(ax_r) and np.isfinite(ax_z) else seed_axis
+    axis_psi = (
+        float(rd["axis_psi_sub"])
+        if np.isfinite(rd["axis_psi_sub"])
+        else float(rd["psi_axis"])
+    )
+    boundary_psi = float(rd["psi_bnd"])
     if not np.isfinite(boundary_psi):
         boundary_psi = _read_boundary_psi(psi2d, grid, axis_psi)
-    span = boundary_psi - axis_psi
-    if abs(span) < 1e-12:
-        span = 1e-12
-    psi_n = (psi_flat - axis_psi) / span
-    pad = 6.0 * edge_width
-    support = ((psi_n < core_cap + pad) & grid.inside_limiter.ravel()).reshape(
-        grid.nz, grid.nr
-    )
-    labels, _ = ndimage.label(support)
-    ia = int(np.argmin(np.abs(grid.zg - axis[1])))
-    ja = int(np.argmin(np.abs(grid.rg - axis[0])))
-    lab = labels[ia, ja]
-    gate = (labels == lab) if lab != 0 else support
-    arg = np.clip((psi_n - core_cap) / max(edge_width, 1e-6), -60.0, 60.0)
-    weight = gate.ravel() / (1.0 + np.exp(arg))
-    core = gate & (psi_n < core_cap).reshape(grid.nz, grid.nr)
+    weight = np.asarray(rd["core_weight"], dtype=np.float64).ravel()
+    core = np.asarray(rd["core_weight"]) > 0.5
     return axis, axis_psi, boundary_psi, weight, core
 
 
@@ -1039,7 +1038,7 @@ def solve_equilibrium_nk(
     seed_z0: float = 0.0,
     initial_jphi: np.ndarray | None = None,
     topology_read: str = TOPOLOGY_HARD,
-    smooth_edge_width: float = 0.02,
+    smooth_temperature: float = 1e-3,
 ) -> EquilibriumResult:
     """Jacobian-free Newton–Krylov free-boundary solve (nova's scheme).
 
@@ -1079,7 +1078,7 @@ def solve_equilibrium_nk(
             # so the finite-difference directional derivatives of NK's GMRES
             # see a smooth map instead of discrete mask flips.
             axis, axis_psi, boundary_psi, weight, core = _read_topology_smooth(
-                psi_flat, grid, state["axis"], 1.0, smooth_edge_width
+                psi_flat, grid, state["axis"], 1.0, smooth_temperature
             )
             span = boundary_psi - axis_psi
             if abs(span) < 1e-12:
@@ -2122,7 +2121,7 @@ def solve_equilibrium_lsq(
     anderson_depth: int = 6,
     anderson_ridge: float = 1e-8,
     topology_read: str = TOPOLOGY_HARD,
-    smooth_edge_width: float = 0.02,
+    smooth_temperature: float = 1e-3,
     iteration_trace: list[dict] | None = None,
 ) -> LadderFit:
     """Free-boundary Picard solve with the profile coefficients re-fit by
@@ -2165,10 +2164,11 @@ def solve_equilibrium_lsq(
 
     ``topology_read`` selects the per-sweep topology read
     (:data:`TOPOLOGY_READS`): the default ``hard`` is byte-unchanged;
-    ``connectivity`` swaps in the continuous read (connectivity boundary
-    binding + sub-grid stencil axis + a smooth core-membership weight of
-    ψ_N-width ``smooth_edge_width``), under which the fixed-point map is
-    differentiable — no discrete mask flips enter the Picard/Anderson path.
+    ``connectivity`` swaps in the temperature-smoothed kernel (softmin
+    binding + retracted-gate sigmoid core weight + sub-grid stencil axis, at
+    smoothing scale ``smooth_temperature``), under which the fixed-point map
+    is differentiable — no discrete mask flips enter the Picard/Anderson
+    path.  Incompatible with a soft SOL cap (``sol_cap`` > 1 raises).
     """
     if substrate not in SUBSTRATES:
         raise ValueError(f"substrate must be one of {SUBSTRATES}, got {substrate!r}")
@@ -2280,7 +2280,7 @@ def solve_equilibrium_lsq(
             # residual decreases monotonically instead of limit-cycling on
             # discrete mask flips.  The previous sweep's axis seeds the flood.
             axis, axis_psi, boundary_psi, core_weight, core = _read_topology_smooth(
-                psi_flat, grid, axis, core_cap, smooth_edge_width
+                psi_flat, grid, axis, core_cap, smooth_temperature
             )
             span = boundary_psi - axis_psi
             if abs(span) < 1e-12:

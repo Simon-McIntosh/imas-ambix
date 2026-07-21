@@ -461,27 +461,37 @@ def _matvec(G, x, mode):
     raise ValueError(f"unknown matvec mode {mode!r}")
 
 
-def _build_slice_step(arrs, mode: str):
+def _build_slice_step(arrs, mode: str, read: str = "hard", tau: float = 1e-3):
     """Return (jphi_from_psi, psi_from_jphi): the two halves of the Picard map.
 
-    ``jphi_from_psi`` runs the on-device connectivity read (axis + binding
-    flux + flood-fill core) and updates jφ by the pinned K=2 scaffold: a
-    closed-form 2-coefficient LSQ (free-sign p/f pair on the (1−ψ_N) edge
-    family) whose rows are the Ip normalisation and the disc-centroid soft
-    tether — the basin insurance the accelerator study showed the unpinned map
-    lacks.  This is the "tiny per-sweep profile LSQ" the matrix-freeze
-    decision allows; the interaction matrices are never touched.
-    ``psi_from_jphi`` renormalises to Ip and evaluates the Green's matvec plus
-    the per-slice vacuum coil flux.  Both are pure fixed-shape functions of
-    fp64 arrays, safe under jit/vmap/scan.
+    ``jphi_from_psi`` runs the on-device topology read and updates jφ by the
+    pinned K=2 scaffold: a closed-form 2-coefficient LSQ (free-sign p/f pair
+    on the (1−ψ_N) edge family) whose rows are the Ip normalisation and the
+    disc-centroid soft tether — the basin insurance the accelerator study
+    showed the unpinned map lacks.  This is the "tiny per-sweep profile LSQ"
+    the matrix-freeze decision allows; the interaction matrices are never
+    touched.  ``read`` selects the topology read: ``'hard'`` (default,
+    byte-identical to the shipped rollout — exact-min binding + boolean flood
+    core) or ``'smooth'`` (the temperature-smoothed kernel at temperature
+    ``tau``: softmin binding + retracted-gate sigmoid core weight, stencil
+    O-point axis — the end-to-end differentiable map the accelerator probe
+    measured).  ``psi_from_jphi`` renormalises to Ip and evaluates the
+    Green's matvec plus the per-slice vacuum coil flux.  Both are pure
+    fixed-shape functions of fp64 arrays, safe under jit/vmap/scan.
     """
     import jax.numpy as jnp
 
     from imas_ambix.latent.connectivity_boundary import (
         _DEFAULT_ANGLES,
+        _NO_WALL_PSI,
         boundary_read_jax,
+        boundary_read_smooth_jax,
     )
     from imas_ambix.latent.flux_surface_connectivity import flood_fill_core
+    from imas_ambix.latent.stencil_nulls import magnetic_axis_subgrid
+
+    if read not in ("hard", "smooth"):
+        raise ValueError(f"read must be 'hard' or 'smooth', got {read!r}")
 
     rg = jnp.asarray(arrs["rg"])
     zg = jnp.asarray(arrs["zg"])
@@ -501,43 +511,85 @@ def _build_slice_step(arrs, mode: str):
     img_r_ratio = flat_r / r0
     img_r_inv = r0 / jnp.maximum(flat_r, 1e-3)
 
-    def jphi_from_psi(psi, axis, pin, ip):
-        psi2d = psi.reshape(nz, nr)
-        rd = boundary_read_jax(
-            psi2d,
-            rg,
-            zg,
-            inside,
-            axis[0],
-            axis[1],
-            READ_N_LEVELS,
-            READ_N_BISECT,
-            READ_N_RAY,
-            _DEFAULT_ANGLES,
-            0.999,
-            wall_r,
-            wall_z,
-        )
-        ax_r = jnp.where(jnp.isfinite(rd["axis_r"]), rd["axis_r"], axis[0])
-        ax_z = jnp.where(jnp.isfinite(rd["axis_z"]), rd["axis_z"], axis[1])
-        axis = jnp.array([ax_r, ax_z])
-        psi_axis = jnp.where(
-            jnp.isfinite(rd["axis_psi_sub"]), rd["axis_psi_sub"], rd["psi_axis"]
-        )
-        psi_bnd = jnp.where(jnp.isfinite(rd["psi_bnd"]), rd["psi_bnd"], psi_axis + 1.0)
-        span = psi_bnd - psi_axis
-        span = jnp.where(jnp.abs(span) < 1e-12, 1e-12, span)
-        psi_n = (psi - psi_axis) / span
+    if read == "hard":
 
-        ja = jnp.argmin(jnp.abs(rg - axis[0]))
-        ia = jnp.argmin(jnp.abs(zg - axis[1]))
-        seed2d = jnp.zeros((nz, nr), dtype=bool).at[ia, ja].set(True)
-        confined = ((psi_n < 1.0).reshape(nz, nr)) & inside
-        core = flood_fill_core(confined, seed2d, n_flood)
+        def support(psi, axis):
+            psi2d = psi.reshape(nz, nr)
+            rd = boundary_read_jax(
+                psi2d,
+                rg,
+                zg,
+                inside,
+                axis[0],
+                axis[1],
+                READ_N_LEVELS,
+                READ_N_BISECT,
+                READ_N_RAY,
+                _DEFAULT_ANGLES,
+                0.999,
+                wall_r,
+                wall_z,
+            )
+            ax_r = jnp.where(jnp.isfinite(rd["axis_r"]), rd["axis_r"], axis[0])
+            ax_z = jnp.where(jnp.isfinite(rd["axis_z"]), rd["axis_z"], axis[1])
+            axis = jnp.array([ax_r, ax_z])
+            psi_axis = jnp.where(
+                jnp.isfinite(rd["axis_psi_sub"]), rd["axis_psi_sub"], rd["psi_axis"]
+            )
+            psi_bnd = jnp.where(
+                jnp.isfinite(rd["psi_bnd"]), rd["psi_bnd"], psi_axis + 1.0
+            )
+            span = psi_bnd - psi_axis
+            span = jnp.where(jnp.abs(span) < 1e-12, 1e-12, span)
+            psi_n = (psi - psi_axis) / span
+            ja = jnp.argmin(jnp.abs(rg - axis[0]))
+            ia = jnp.argmin(jnp.abs(zg - axis[1]))
+            seed2d = jnp.zeros((nz, nr), dtype=bool).at[ia, ja].set(True)
+            confined = ((psi_n < 1.0).reshape(nz, nr)) & inside
+            weight = flood_fill_core(confined, seed2d, n_flood).reshape(-1)
+            return psi_n, weight, axis
+
+    else:  # 'smooth' — stencil axis first, smooth read seeded at it
+
+        def support(psi, axis):
+            psi2d = psi.reshape(nz, nr)
+            ax = magnetic_axis_subgrid(psi2d, rg, zg, inside)
+            ax_r = jnp.where(ax["found"], ax["r"], axis[0])
+            ax_z = jnp.where(ax["found"], ax["z"], axis[1])
+            axis = jnp.array([ax_r, ax_z])
+            rd = boundary_read_smooth_jax(
+                psi2d,
+                rg,
+                zg,
+                inside,
+                axis[0],
+                axis[1],
+                READ_N_LEVELS,
+                READ_N_BISECT,
+                READ_N_RAY,
+                _DEFAULT_ANGLES,
+                0.999,
+                wall_r,
+                wall_z,
+                _NO_WALL_PSI,
+                tau,
+            )
+            psi_axis = jnp.where(ax["found"], ax["psi"], rd["psi_axis"])
+            psi_bnd = jnp.where(
+                jnp.isfinite(rd["psi_bnd"]), rd["psi_bnd"], psi_axis + 1.0
+            )
+            span = psi_bnd - psi_axis
+            span = jnp.where(jnp.abs(span) < 1e-12, 1e-12, span)
+            psi_n = (psi - psi_axis) / span
+            weight = rd["core_weight"].reshape(-1)
+            return psi_n, weight, axis
+
+    def jphi_from_psi(psi, axis, pin, ip):
+        psi_n, weight, axis = support(psi, axis)
 
         # pinned K=2 scaffold: jφ = c_p·(R/R0)·e + c_f·(R0/R)·e on the core,
         # c from the closed-form LSQ of the Ip row + the centroid tether rows
-        e = jnp.clip(1.0 - psi_n, 0.0, None) ** ALPHA * core.reshape(-1)
+        e = jnp.clip(1.0 - psi_n, 0.0, None) ** ALPHA * weight
         img_p = img_r_ratio * e
         img_f = img_r_inv * e
         u = jnp.stack([img_p[cells], img_f[cells]], axis=1) * cell_area
@@ -569,7 +621,14 @@ def _build_slice_step(arrs, mode: str):
     return jphi_from_psi, psi_from_jphi
 
 
-def _build_slice_solver(arrs, mode: str, n_sweeps: int, accelerator: str):
+def _build_slice_solver(
+    arrs,
+    mode: str,
+    n_sweeps: int,
+    accelerator: str,
+    read: str = "hard",
+    tau: float = 1e-3,
+):
     """One slice's fixed-sweep solve of the ψ fixed-point map.
 
     ``accelerator='picard'`` is the relaxed Picard control;
@@ -582,7 +641,7 @@ def _build_slice_solver(arrs, mode: str, n_sweeps: int, accelerator: str):
     import jax
     import jax.numpy as jnp
 
-    jphi_from_psi, psi_from_jphi = _build_slice_step(arrs, mode)
+    jphi_from_psi, psi_from_jphi = _build_slice_step(arrs, mode, read, tau)
     n_flat = int(arrs["flat_r"].size)
     m = ANDERSON_M
 
@@ -661,13 +720,21 @@ def _build_slice_solver(arrs, mode: str, n_sweeps: int, accelerator: str):
     return solve
 
 
-def _build_march(arrs, mode: str, n_first: int, n_warm: int, accelerator: str):
+def _build_march(
+    arrs,
+    mode: str,
+    n_first: int,
+    n_warm: int,
+    accelerator: str,
+    read: str = "hard",
+    tau: float = 1e-3,
+):
     """The sequential warm-started device march: one scan over the slices."""
     import jax
     import jax.numpy as jnp
 
-    solve_first = _build_slice_solver(arrs, mode, n_first, accelerator)
-    solve_warm = _build_slice_solver(arrs, mode, n_warm, accelerator)
+    solve_first = _build_slice_solver(arrs, mode, n_first, accelerator, read, tau)
+    solve_warm = _build_slice_solver(arrs, mode, n_warm, accelerator, read, tau)
 
     def march(G, psi_coil, ip, disc_seed, axis_seed, pins):
         first = solve_first(G, psi_coil[0], ip[0], disc_seed[0], axis_seed[0], pins[0])
@@ -709,11 +776,18 @@ def _build_march(arrs, mode: str, n_first: int, n_warm: int, accelerator: str):
     return jax.jit(march)
 
 
-def _build_window_solver(arrs, mode: str, n_pint: int, accelerator: str):
+def _build_window_solver(
+    arrs,
+    mode: str,
+    n_pint: int,
+    accelerator: str,
+    read: str = "hard",
+    tau: float = 1e-3,
+):
     """A batched (vmap over the window) fixed-sweep solve — one PinT outer."""
     import jax
 
-    solve = _build_slice_solver(arrs, mode, n_pint, accelerator)
+    solve = _build_slice_solver(arrs, mode, n_pint, accelerator, read, tau)
     return jax.jit(jax.vmap(solve, in_axes=(None, 0, 0, 0, 0, 0)))
 
 
@@ -823,7 +897,9 @@ def _build_zoh_scan(arrs):
 # ---------------------------------------------------------------------------
 
 
-def eval_sequential_march(arrs, n_first: int, n_warm: int) -> dict:
+def eval_sequential_march(
+    arrs, n_first: int, n_warm: int, read: str = "hard", tau: float = 1e-3
+) -> dict:
     """Sequential device march: reproduction, accelerator A/B, backend parity."""
     import jax
     import jax.numpy as jnp
@@ -841,7 +917,7 @@ def eval_sequential_march(arrs, n_first: int, n_warm: int) -> dict:
     walls: dict[str, float] = {}
     results: dict[str, dict] = {}
     for acc in ("anderson", "picard"):
-        march = _build_march(arrs, "fp64", n_first, n_warm, acc)
+        march = _build_march(arrs, "fp64", n_first, n_warm, acc, read, tau)
         t0 = time.perf_counter()
         res = march(G, psi_coil, ip, disc, axis0, axis0)
         jax.block_until_ready(res["axis"])
@@ -926,7 +1002,7 @@ def eval_sequential_march(arrs, n_first: int, n_warm: int) -> dict:
     on_gpu = any(d.platform == "gpu" for d in jax.devices())
     small = min(8, T)
     with jax.default_device(jax.devices("cpu")[0]):
-        march_cpu = _build_march(arrs, "fp64", n_first, n_warm, prod)
+        march_cpu = _build_march(arrs, "fp64", n_first, n_warm, prod, read, tau)
         rc = march_cpu(
             jnp.asarray(np.asarray(arrs["G"])),
             jnp.asarray(np.asarray(arrs["psi_coil"][:small])),
@@ -950,7 +1026,7 @@ def eval_sequential_march(arrs, n_first: int, n_warm: int) -> dict:
     }
 
     # tiered-precision march (tf32 GEMM, fp64 state) vs the fp64 march
-    march_tf = _build_march(arrs, "tf32", n_first, n_warm, prod)
+    march_tf = _build_march(arrs, "tf32", n_first, n_warm, prod, read, tau)
     rt = march_tf(G, psi_coil, ip, disc, axis0, axis0)
     jax.block_until_ready(rt["axis"])
     axis_tf = np.asarray(rt["axis"])
@@ -982,6 +1058,8 @@ def eval_parallel_in_time(
     n_pint: int,
     n_pre: int,
     pre_first: int,
+    read: str = "hard",
+    tau: float = 1e-3,
 ) -> dict:
     """Coarse pre-march + batched continuation outers vs the sequential march.
 
@@ -1004,8 +1082,8 @@ def eval_parallel_in_time(
     W = T if window <= 0 else int(window)
     prod = march["production_arm"]
 
-    solver = _build_window_solver(arrs, "fp64", n_pint, prod)
-    pre_march = _build_march(arrs, "fp64", pre_first, n_pre, prod)
+    solver = _build_window_solver(arrs, "fp64", n_pint, prod, read, tau)
+    pre_march = _build_march(arrs, "fp64", pre_first, n_pre, prod, read, tau)
 
     def run(record: bool):
         t0 = time.perf_counter()
@@ -1367,8 +1445,13 @@ def stage_gpu(args) -> int:
     T = int(arrs["ip"].shape[0])
     print(f"staged shot {int(arrs['shot'])}: {T} slices, G {arrs['G'].shape}")
 
-    print("\n[B1] sequential warm-started march (disc seed + warm chain)")
-    b1 = eval_sequential_march(arrs, args.n_first, args.n_warm)
+    print(
+        f"\n[B1] sequential warm-started march (disc seed + warm chain, "
+        f"{args.device_read} read)"
+    )
+    b1 = eval_sequential_march(
+        arrs, args.n_first, args.n_warm, args.device_read, args.device_tau
+    )
     rep = b1["reproduction"]
     print(
         f"  reproduction: median {rep['axis_median_cm']:.3f} cm "
@@ -1378,7 +1461,15 @@ def stage_gpu(args) -> int:
 
     print("\n[B2] windowed PinT (Jacobi waveform relaxation)")
     b2 = eval_parallel_in_time(
-        arrs, b1, args.window, args.outers, args.n_pint, args.n_pre, args.pre_first
+        arrs,
+        b1,
+        args.window,
+        args.outers,
+        args.n_pint,
+        args.n_pre,
+        args.pre_first,
+        args.device_read,
+        args.device_tau,
     )
     print(
         f"  vs march: median {b2['axis_vs_march_median_cm']:.3f} cm in "
@@ -1436,6 +1527,8 @@ def stage_gpu(args) -> int:
             "outers": args.outers,
             "anderson_m": ANDERSON_M,
             "read": [READ_N_LEVELS, READ_N_BISECT, READ_N_RAY],
+            "device_read": args.device_read,
+            "device_tau": args.device_tau,
         },
         "sequential_march": b1,
         "parallel_in_time": b2,
@@ -1511,6 +1604,20 @@ def build_parser() -> argparse.ArgumentParser:
         default="hard",
         help="host anchor arms to stage: the production hard read, or both "
         "hard + connectivity (adds the same-read anchor at ~2.6x prep cost)",
+    )
+    ap.add_argument(
+        "--device-read",
+        choices=["hard", "smooth"],
+        default="hard",
+        help="in-loop device topology read: the shipped hard kernel "
+        "(byte-identical default) or the temperature-smoothed kernel",
+    )
+    ap.add_argument(
+        "--device-tau",
+        type=float,
+        default=1e-3,
+        help="smoothing temperature for --device-read smooth "
+        "(the read's gate-calibrated accuracy point is 1e-3)",
     )
     ap.add_argument("--no-figures", action="store_true")
     return ap

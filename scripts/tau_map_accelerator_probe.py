@@ -238,6 +238,34 @@ def build_step(arrs, *, read: str, tau: float = 1e-3):
     }
 
 
+def build_step_rollout(arrs, *, read: str, tau: float = 1e-3):
+    """The production device-rollout slice step, adapted to the probe interface.
+
+    Wraps :func:`scripts.device_rollout_single_shot._build_slice_step` (the
+    corpus engine's actual per-sweep map, including its ``read=`` switch) into
+    the probe's step dict so the SAME runners race the production consumer —
+    the reproduction check that the re-pointed rollout map matches the probe's
+    measured smooth-map convergence.  Fixed-point arms only (no family-image
+    hooks, so the reduced-Newton arm is unavailable on this step source).
+    """
+    import jax.numpy as jnp
+
+    from scripts.device_rollout_single_shot import _build_slice_step
+
+    jphi_from_psi, psi_from_jphi_g = _build_slice_step(arrs, "fp64", read, tau)
+    g_mat = jnp.asarray(arrs["G"])
+
+    def psi_from_jphi(jphi, psi_coil, ip):
+        psi, _i_cell = psi_from_jphi_g(g_mat, jphi, psi_coil, ip)
+        return psi
+
+    def psi_map(psi, axis, pin, ip, psi_coil):
+        jphi, axis = jphi_from_psi(psi, axis, pin, ip)
+        return psi_from_jphi(jphi, psi_coil, ip), axis, jnp.zeros(2)
+
+    return {"psi_map": psi_map, "psi_from_jphi": psi_from_jphi}
+
+
 def _residual(g, psi):
     import jax.numpy as jnp
 
@@ -438,6 +466,66 @@ def make_reduced_newton_runner(step, n_inner):
     return run
 
 
+def _tau_figure(out: dict, path: Path) -> None:
+    """The τ-calibration figure: sweep, continuation-vs-single, emit residual."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    sweep = out.get("tau_sweep", {})
+    sched = out.get("tau_schedule", {})
+    fig, axes = plt.subplots(1, 3, figsize=(13.5, 4.0))
+
+    a0 = axes[0]
+    if sweep:
+        taus = sorted(sweep, key=float)
+        cf = [100 * sweep[t]["converged_frac"] for t in taus]
+        a0.semilogx([float(t) for t in taus], cf, "o-", color="#268")
+        a0.axvline(1e-3, color="k", ls="--", lw=0.8, label="read accuracy point")
+        a0.legend(fontsize=8)
+    a0.set_title("Picard converged fraction vs τ (single temperature)")
+    a0.set_xlabel("smoothing temperature τ")
+    a0.set_ylabel("converged [%]")
+
+    a1 = axes[1]
+    bars = {f"τ={t}": sweep[t]["converged_frac"] for t in sorted(sweep, key=float)}
+    bars.update({f"anneal {k}": v["converged_frac"] for k, v in sched.items()})
+    if bars:
+        x = np.arange(len(bars))
+        cols = ["#268"] * len(sweep) + ["#2a7"] * len(sched)
+        a1.bar(x, [100 * v for v in bars.values()], color=cols)
+        a1.set_xticks(x)
+        a1.set_xticklabels(list(bars), fontsize=7, rotation=20, ha="right")
+    a1.set_title(
+        f"single τ vs continuation at equal budget "
+        f"({out['constants'].get('n_evals', '?')} evals)"
+    )
+    a1.set_ylabel("converged [%]")
+
+    a2 = axes[2]
+    rows = {
+        f"τ={t}": sweep[t]["final_residual_median"] for t in sorted(sweep, key=float)
+    }
+    rows.update({f"anneal {k}": v["final_residual_median"] for k, v in sched.items()})
+    if rows:
+        x = np.arange(len(rows))
+        cols = ["#268"] * len(sweep) + ["#2a7"] * len(sched)
+        a2.bar(x, list(rows.values()), color=cols)
+        a2.set_yscale("log")
+        a2.axhline(TOLERANCE, color="k", ls="--", lw=0.8, label="tolerance")
+        a2.set_xticks(x)
+        a2.set_xticklabels(list(rows), fontsize=7, rotation=20, ha="right")
+        a2.legend(fontsize=8)
+    a2.set_title("median final residual (emit map for schedules)")
+
+    fig.tight_layout()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    logger.info("wrote %s", path)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
@@ -452,6 +540,34 @@ def main() -> int:
     ap.add_argument("--reads", type=str, default="hard,smooth")
     ap.add_argument("--tau", type=float, default=1e-3)
     ap.add_argument("--tau-sweep", type=str, default="")
+    ap.add_argument(
+        "--tau-sweep-full",
+        action="store_true",
+        help="run the tau sweep on EVERY slice (default: ~12-slice subsample)",
+    )
+    ap.add_argument(
+        "--tau-schedule",
+        type=str,
+        default="",
+        help="tau-continuation study: ';'-separated schedules, each a comma "
+        "list hot->cold (e.g. '1e-2,3e-3,1e-3;3e-3,1e-3'); each schedule "
+        "splits --n-evals equally across its stages, so it races the "
+        "single-temperature arms at EQUAL total evaluations; convergence "
+        "is scored on the FINAL stage only (labels emit at the cold read)",
+    )
+    ap.add_argument(
+        "--step-source",
+        choices=["probe", "rollout"],
+        default="probe",
+        help="build the map from the probe's own step or from the production "
+        "device-rollout slice step (fixed-point arms only)",
+    )
+    ap.add_argument(
+        "--figure",
+        type=str,
+        default="",
+        help="write the tau-calibration figure (sweep + schedule panels) here",
+    )
     ap.add_argument("--n-evals", type=int, default=40)
     ap.add_argument("--n-newton", type=int, default=4)
     ap.add_argument("--gmres-m", type=int, default=6)
@@ -484,12 +600,23 @@ def main() -> int:
 
     arms = [a.strip() for a in args.arms.split(",") if a.strip()]
     reads = [r.strip() for r in args.reads.split(",") if r.strip()]
+    if args.step_source == "rollout":
+        builder = build_step_rollout
+        bad = [a for a in arms if a not in ("picard", "anderson")]
+        if bad:
+            raise SystemExit(
+                f"--step-source rollout supports fixed-point arms only, got {bad}"
+            )
+    else:
+        builder = build_step
     out: dict = {
         "schema": "tau-map-accelerator-probe-v0",
+        "step_source": args.step_source,
         "shot": int(arrs["shot"]),
         "n_slices": len(idx),
         "tolerance": TOLERANCE,
         "constants": {
+            "n_evals": args.n_evals,
             "relax": RELAX,
             "anderson_m": ANDERSON_M,
             "newton_warmup": NEWTON_WARMUP,
@@ -508,7 +635,7 @@ def main() -> int:
     seed0 = jnp.asarray(arrs["disc_seed"][k0])
     deriv = {}
     for read in reads:
-        step = build_step(arrs, read=read, tau=args.tau)
+        step = builder(arrs, read=read, tau=args.tau)
         pm = step["psi_map"]
         psi = step["psi_from_jphi"](seed0, coil0, ip0)
         # settle a few sweeps so the derivative is probed near the attractor
@@ -542,7 +669,7 @@ def main() -> int:
 
     # --- accelerator A/B ------------------------------------------------------
     for read in reads:
-        step = build_step(arrs, read=read, tau=args.tau)
+        step = builder(arrs, read=read, tau=args.tau)
         pm = step["psi_map"]
         for arm in arms:
             key = f"{read}:{arm}"
@@ -621,12 +748,14 @@ def main() -> int:
     # --- temperature sensitivity (picard on the smooth map) ------------------
     if args.tau_sweep:
         taus = [float(t) for t in args.tau_sweep.split(",") if t.strip()]
+        sweep_idx = idx if args.tau_sweep_full else idx[:: max(1, len(idx) // 12)]
         sweep = {}
         for tau in taus:
-            step = build_step(arrs, read="smooth", tau=tau)
+            step = builder(arrs, read="smooth", tau=tau)
             runner = make_fixed_point_runner(step["psi_map"], args.n_evals, "picard")
             hits = []
-            for k in idx[:: max(1, len(idx) // 12)]:
+            finals = []
+            for k in sweep_idx:
                 pin = jnp.asarray(arrs["axis_seed"][k])
                 ipk = jnp.asarray(float(arrs["ip"][k]))
                 coil = jnp.asarray(arrs["psi_coil"][k])
@@ -636,18 +765,78 @@ def main() -> int:
                 tr = np.asarray(trace)
                 below = np.where(tr <= TOLERANCE)[0]
                 hits.append(int(below[0] + 1) if below.size else None)
+                finals.append(float(tr[np.isfinite(tr)][-1]))
             ok = [h for h in hits if h is not None]
             sweep[f"{tau:g}"] = {
+                "n_slices": len(sweep_idx),
                 "converged_frac": len(ok) / max(len(hits), 1),
                 "evals_to_tol_median": float(np.median(ok)) if ok else None,
+                "final_residual_median": float(np.median(finals)),
             }
             logger.info("tau sweep %g: %s", tau, sweep[f"{tau:g}"])
         out["tau_sweep"] = sweep
+
+    # --- tau continuation (anneal hot -> cold at equal total evaluations) ----
+    if args.tau_schedule:
+        schedules = [
+            [float(t) for t in sched.split(",") if t.strip()]
+            for sched in args.tau_schedule.split(";")
+            if sched.strip()
+        ]
+        out["tau_schedule"] = {}
+        for taus in schedules:
+            key = ",".join(f"{t:g}" for t in taus)
+            n_stage = [args.n_evals // len(taus)] * len(taus)
+            n_stage[-1] += args.n_evals - sum(n_stage)
+            stages = [
+                (
+                    make_fixed_point_runner(
+                        builder(arrs, read="smooth", tau=t)["psi_map"], n, "picard"
+                    ),
+                    n,
+                )
+                for t, n in zip(taus, n_stage, strict=True)
+            ]
+            step_cold = builder(arrs, read="smooth", tau=taus[-1])
+            hits = []
+            finals = []
+            for k in idx:
+                pin = jnp.asarray(arrs["axis_seed"][k])
+                ipk = jnp.asarray(float(arrs["ip"][k]))
+                coil = jnp.asarray(arrs["psi_coil"][k])
+                seed_k = jnp.asarray(arrs["disc_seed"][k])
+                psi = step_cold["psi_from_jphi"](seed_k, coil, ipk)
+                axis = pin
+                spent = 0
+                hit = None
+                tr_last = np.empty(0)
+                for runner, n in stages:
+                    psi, axis, trace = runner(psi, axis, pin, ipk, coil)
+                    tr_last = np.asarray(trace)
+                    spent += n
+                # convergence is scored on the FINAL (cold) stage only — a
+                # tolerance hit on a hot map is not an emit-grade residual
+                below = np.where(tr_last <= TOLERANCE)[0]
+                if below.size:
+                    hit = spent - n_stage[-1] + int(below[0]) + 1
+                hits.append(hit)
+                finals.append(float(tr_last[np.isfinite(tr_last)][-1]))
+            ok = [h for h in hits if h is not None]
+            out["tau_schedule"][key] = {
+                "stage_evals": n_stage,
+                "n_slices": len(idx),
+                "converged_frac": len(ok) / max(len(hits), 1),
+                "evals_to_tol_median": float(np.median(ok)) if ok else None,
+                "final_residual_median": float(np.median(finals)),
+            }
+            logger.info("tau schedule [%s]: %s", key, out["tau_schedule"][key])
 
     path = Path(args.out)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(out, indent=2))
     logger.info("wrote %s", path)
+    if args.figure:
+        _tau_figure(out, Path(args.figure))
     return 0
 
 

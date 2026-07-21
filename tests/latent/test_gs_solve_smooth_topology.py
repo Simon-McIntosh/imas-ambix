@@ -1,17 +1,18 @@
-"""Tests for the continuous (connectivity + smooth-mask) topology read in the
+"""Tests for the continuous (temperature-smoothed) topology read in the
 free-boundary solve.
 
 The hard per-sweep read (critical points + labelled core mask) makes the
 fixed-point map non-differentiable: a cell flips in/out of the core mask
 discretely as ψ moves.  The opt-in ``topology_read='connectivity'`` path swaps
-in the connectivity boundary binding + sub-grid stencil axis + a smooth
-sigmoid core-membership weight, under which the map is continuous.  These
-tests pin:
+in the temperature-smoothed connectivity kernel — softmin boundary binding +
+retracted-gate sigmoid core weight + sub-grid stencil axis — under which the
+map is end-to-end differentiable.  These tests pin:
 
 * the smooth read reproduces the hard read's axis / binding flux / core
   support on a converged synthetic equilibrium (it is not a lossy read);
 * the smooth core weight is Lipschitz in ψ (no discrete flips), while the
   hard mask is integer-valued by construction;
+* a soft SOL cap has no smooth-kernel equivalent and fails loud;
 * the default solve path is untouched (``topology_read`` validates, and the
   default equals an explicit ``'hard'``).
 """
@@ -50,7 +51,7 @@ def test_smooth_read_reproduces_hard_read():
     span_h = boundary_h - axis_psi_h
 
     axis_s, axis_psi_s, boundary_s, weight, core = _read_topology_smooth(
-        psi_flat, grid, axis_h, 1.0, 0.02
+        psi_flat, grid, axis_h, 1.0, 1e-3
     )
 
     # axis within one grid cell, fluxes within a few % of the span
@@ -92,17 +93,31 @@ def test_smooth_weight_is_lipschitz_in_psi():
     psi_flat, _res = _converged_psi(grid)
     axis_h, _axis_psi_h = _read_axis(psi_flat.reshape(grid.nz, grid.nr), grid, 1.0)
 
-    _ax, ap, bp, w0, _c = _read_topology_smooth(psi_flat, grid, axis_h, 1.0, 0.02)
+    _ax, ap, bp, w0, _c = _read_topology_smooth(psi_flat, grid, axis_h, 1.0, 1e-3)
     span = bp - ap
-    # perturb ψ by 0.1% of the span everywhere (a sub-cell flux shift)
-    eps = 1e-3 * abs(span)
+    # perturb ψ non-uniformly by ~0.01% of the span (a sub-temperature flux
+    # ripple — a uniform shift would cancel exactly in the normalised flux)
+    rng = np.random.default_rng(7)
+    eps = 1e-4 * abs(span) * rng.standard_normal(psi_flat.size)
     _ax2, _ap2, _bp2, w1, _c2 = _read_topology_smooth(
-        psi_flat + eps, grid, axis_h, 1.0, 0.02
+        psi_flat + eps, grid, axis_h, 1.0, 1e-3
     )
-    # sigmoid slope is 1/(4·edge_width) per unit ψ_N → the bound below is ~6×
-    # the analytic worst case; a hard mask flip would move a weight by 1.0
-    assert np.abs(w1 - w0).max() < 0.5
+    # sigmoid slope is 1/(4·τ) per unit normalised flux → a sub-τ ripple moves
+    # the sigmoid body by a bounded fraction (a hard mask flip is 1.0); the
+    # retracted flood gate is a boolean selection whose O(τ) shell caps any
+    # residual flip at σ(1) ≈ 0.73
+    assert np.abs(w1 - w0).max() < 0.8
     assert np.abs(w1 - w0).mean() < 0.01
+
+
+def test_smooth_read_rejects_sol_cap():
+    """A soft SOL cap (core_cap > 1) has no smooth-kernel equivalent — the
+    read fails loud instead of silently mis-binding the core."""
+    grid = _circular_grid()
+    psi_flat, _res = _converged_psi(grid)
+    axis_h, _ = _read_axis(psi_flat.reshape(grid.nz, grid.nr), grid, 1.0)
+    with pytest.raises(ValueError, match="SOL cap"):
+        _read_topology_smooth(psi_flat, grid, axis_h, 1.05, 1e-3)
 
 
 def test_topology_read_validates():

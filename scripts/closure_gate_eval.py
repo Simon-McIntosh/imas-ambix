@@ -563,7 +563,7 @@ def fit_and_read_slice(
     substrate: str = "grid-delstar",
     accelerator: str = "picard",
     topology_read: str = "hard",
-    smooth_edge_width: float = 0.02,
+    smooth_temperature: float = 1e-3,
     iteration_trace: list[dict] | None = None,
 ) -> ClosureSliceFit:
     """Fit the profile against ``payload``'s raw magnetics through the GS fixed
@@ -645,7 +645,7 @@ def fit_and_read_slice(
             kw["accelerator"] = accelerator
         if topology_read != "hard":
             kw["topology_read"] = topology_read
-            kw["smooth_edge_width"] = smooth_edge_width
+            kw["smooth_temperature"] = smooth_temperature
         if iteration_trace is not None:
             kw["iteration_trace"] = iteration_trace
         if passive is not None:

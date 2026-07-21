@@ -667,6 +667,60 @@ def boundary_read_smooth_jax(
     }
 
 
+@partial(jax.jit, static_argnums=(6, 7, 8))
+def _smooth_read_at_stencil_axis(
+    psi2d,
+    rg,
+    zg,
+    inside_limiter,
+    seed_r,
+    seed_z,
+    n_levels: int,
+    n_bisect: int,
+    n_ray: int,
+    angles,
+    lcfs_norm,
+    wall_r,
+    wall_z,
+    wall_psi,
+    temperature,
+):
+    """Stencil O-point first, smooth read seeded at it — the solve-map wiring.
+
+    The sub-grid stencil axis is read from the raw field (biquadratic refine,
+    differentiable through the surface fit; falls back to the caller's seed
+    when no in-wall O-point exists), the smooth boundary read floods from that
+    axis, and the axis scalars ride along in the result dict
+    (``axis_r``/``axis_z``/``axis_psi_sub``, NaN when absent).  One jitted
+    graph per grid shape, so a per-sweep host caller pays no retrace.
+    """
+    ax = magnetic_axis_subgrid(psi2d, rg, zg, inside_limiter)
+    ax_r = jnp.where(ax["found"], ax["r"], seed_r)
+    ax_z = jnp.where(ax["found"], ax["z"], seed_z)
+    out = boundary_read_smooth_jax(
+        psi2d,
+        rg,
+        zg,
+        inside_limiter,
+        ax_r,
+        ax_z,
+        n_levels,
+        n_bisect,
+        n_ray,
+        angles,
+        lcfs_norm,
+        wall_r,
+        wall_z,
+        wall_psi,
+        temperature,
+    )
+    out = dict(out)
+    out["axis_r"] = jnp.where(ax["found"], ax["r"], jnp.nan)
+    out["axis_z"] = jnp.where(ax["found"], ax["z"], jnp.nan)
+    out["axis_psi_sub"] = jnp.where(ax["found"], ax["psi"], jnp.nan)
+    return out
+
+
 # ---------------------------------------------------------------------------
 # host adapters
 # ---------------------------------------------------------------------------
@@ -807,7 +861,7 @@ def boundary_read_smooth(
     grid,
     axis: tuple[float, float],
     *,
-    temperature: float = 0.01,
+    temperature: float = 0.001,
     n_levels: int = 96,
     n_bisect: int = 18,
     n_ray: int = 512,
@@ -815,12 +869,17 @@ def boundary_read_smooth(
     lcfs_norm: float = 0.999,
     wall_psi=None,
 ) -> dict:
-    """Host adapter: run :func:`boundary_read_smooth_jax` on one slice (numpy out).
+    """Host adapter: the smooth read at the stencil axis, on one slice (numpy out).
 
-    Same contract as :func:`boundary_read` with the softmin/sigmoid smooth read;
-    ``temperature`` is the smoothing scale τ in ψ_N span units.  Returns the
-    smooth read's dict with numpy values (``core_weight`` is the ``(nz, nr)``
-    smooth core mask).
+    Same contract as :func:`boundary_read` with the softmin/sigmoid smooth read
+    (:func:`_smooth_read_at_stencil_axis`): the sub-grid stencil O-point is read
+    first (``axis`` is the flood seed / fallback only) and the smooth read is
+    seeded at it, exactly the solve-map wiring the accelerator probe measured.
+    ``temperature`` is the smoothing scale τ in normalised-flux span units (the
+    read's gate-calibrated accuracy point is τ=10⁻³).  Returns the smooth read's
+    dict with numpy values (``core_weight`` is the ``(nz, nr)`` smooth core
+    mask; ``axis_r``/``axis_z``/``axis_psi_sub`` the stencil axis, NaN when no
+    in-wall O-point exists).
     """
     import numpy as np  # noqa: PLC0415
 
@@ -829,7 +888,7 @@ def boundary_read_smooth(
         wpsi = _NO_WALL_PSI
     else:
         wpsi = jnp.asarray(np.asarray(wall_psi, dtype=np.float64))
-    out = boundary_read_smooth_jax(
+    out = _smooth_read_at_stencil_axis(
         jnp.asarray(np.asarray(psi2d, dtype=np.float64)),
         jnp.asarray(np.asarray(grid.rg, dtype=np.float64)),
         jnp.asarray(np.asarray(grid.zg, dtype=np.float64)),
