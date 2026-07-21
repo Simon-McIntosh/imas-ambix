@@ -208,17 +208,35 @@ def _pitch_from_fit(f, grid, eta, *, n_p, n_f, nonneg, b_phi0, n_rho, rpos, bt0)
     return np.asarray(pitch, dtype=np.float64)
 
 
-def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_weight,
-             n_sub: int, par_weight: float, n_rho: int, max_slices: int,
-             min_ip_ka: float, rpos: list, times_beam: list) -> dict:
-    """Coupled solve chain over one shot -> per-slice MSE pitch at the sightlines.
+def coupled_solve_chain(
+    shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_weight,
+    n_sub: int, par_weight: float, n_rho: int, max_slices: int,
+    min_ip_ka: float, skip_basin: bool = False, passive: dict | None = None,
+    passive_centers_fn=None, passive_weight: float = 0.0,
+    cache_grid: bool = False,
+) -> dict:
+    """The four-pass engine chain over one shot -> per-slice readout fits.
 
     Faithful to the §3 dynamics-coupled engine: the basin solve (free-sign
     n_p=n_f=1 amplitude pair, centroid-pinned) selects the confined basin and
     warm-starts the profile solve (non-negative ladder); its flux-surface
     geometry drives the ψ diffusion over each measured interval (measured Ip drive,
     frozen η), and the evolved current enters the next slice as a soft coefficient
-    prior.  The COUPLED fit's equilibrium is read out as MSE pitch.
+    prior.  Returns the COUPLED fit per slice (the readout equilibrium) plus the
+    chain context; ``reason`` is set (and ``slices`` empty) when the chain
+    cannot run.
+
+    ``skip_basin`` cold-starts the profile solve from the disc seed with the
+    SAME centroid pin + coefficient prior — the basin-pass necessity ablation
+    (the pass is priced directly; the disc PRIOR ablation is a different knob).
+
+    ``passive`` (rank-k eigenmode sidecar) + ``passive_centers_fn`` (maps the
+    chain's label times + per-slice cell currents to sidecar-coordinate
+    trajectory centers) + ``passive_weight`` inject a PRECOMPUTED vessel-eddy
+    trajectory through the frozen passive Green's columns; a large weight is
+    the known-drive limit (the amplitudes are pinned, not fitted).  The eddy
+    flux enters sensors AND the Picard field consistently (sidecar columns).
+    All three default OFF — the validated chain is byte-identical then.
     """
     from imas_ambix.latent.boundary_disc import disc_read  # noqa: PLC0415
     from imas_ambix.latent.current_diffusion import (  # noqa: PLC0415
@@ -230,7 +248,6 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
         predict_interval,
         raw_ip_stream,
     )
-    from scripts.dynamics_coupled_solve_gate import _current_centroid  # noqa: PLC0415
     from scripts.position_controlled_solve_gate import (  # noqa: PLC0415
         _disc_seed_flat,
     )
@@ -250,7 +267,8 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
     if table_cmp is None:
         return {"shot": shot, "slices": [], "reason": "no campaign table"}
     payload = factory_shot_payloads(shot, nr=nr, nz=nz, max_slices=max_slices,
-                                    min_ip_ka=min_ip_ka, table=table_cmp)
+                                    min_ip_ka=min_ip_ka, table=table_cmp,
+                                    cache_grid=cache_grid)
     if payload is None:
         return {"shot": shot, "slices": [], "reason": "no payloads"}
     grid, table, basis = payload["grid"], payload["table"], payload["basis"]
@@ -265,7 +283,14 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
     bt0 = shot_bt0(shot)
     b_phi0 = bt0  # F_boundary = R0·Bt0 (measured toroidal field)
 
-    def _fit(p, *, n_p_, n_f_, nonneg_, warm, centroid, coeff_prior=None):
+    def _fit(p, *, n_p_, n_f_, nonneg_, warm, centroid, coeff_prior=None,
+             passive_prior=None):
+        kw = {}
+        if passive is not None:
+            kw["passive"] = passive
+            kw["passive_ridge"] = 1.0
+            if passive_prior is not None:
+                kw["passive_prior"] = passive_prior
         return fit_and_read_slice(
             grid, table, dataclasses.replace(p, mask=off),
             beta0_grid=(0.5,), alpha_grid=(1.0,), cost_limit=float("inf"),
@@ -274,7 +299,7 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
             warm_jphi=warm, centroid_constraint=(centroid[0], centroid[1], sigma),
             coeff_prior=coeff_prior, reseed_axis_r_max=None,
             keep_psi=True, keep_jphi=True, basis=basis, meta={},
-            boundary_read=boundary_read)
+            boundary_read=boundary_read, **kw)
 
     # ---- pass 1: the basin solve (stable, landed §2) ----
     slices: list[dict] = []
@@ -286,6 +311,12 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
             continue
         centroid = (float(inv.centroid_r), float(inv.centroid_z))
         disc_seed = _disc_seed_flat(grid, inv)
+        if skip_basin:
+            # basin-pass ablation: the profile solve cold-starts from the
+            # disc seed under the same centroid pin + coefficient prior
+            slices.append({"k": int(k), "p": p, "centroid": centroid,
+                           "basin_jphi": disc_seed})
+            continue
         f_basin = _fit(p, n_p_=1, n_f_=1, nonneg_=False,
                     warm=warm_basin if warm_basin is not None else disc_seed,
                     centroid=centroid)
@@ -299,6 +330,17 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
     if len(slices) < 2:
         return {"shot": shot, "slices": [], "reason": "too few scored slices"}
 
+    # ---- optional precomputed vessel-eddy trajectory (known drive) ----
+    passive_priors: list[tuple | None] = [None] * len(slices)
+    if passive is not None and passive_centers_fn is not None:
+        cell_area = grid.dr * grid.dz
+        i_cell_seq = np.stack(
+            [s["basin_jphi"][grid.cells] * cell_area for s in slices])
+        label_times = np.array([s["p"].time_s for s in slices])
+        centers = passive_centers_fn(label_times, i_cell_seq)
+        passive_priors = [(centers[j], passive_weight)
+                          for j in range(len(slices))]
+
     lab_ip = np.array([abs(s["p"].ip_amperes) for s in slices])
     raw_at_lab = np.interp([s["p"].time_s for s in slices], raw_times, ip_raw)
     good = raw_at_lab > 0
@@ -308,9 +350,10 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
     # ---- pass 2a: uncoupled profile solve + its flux-surface geometry ----
     eta = EtaProfile.from_vector(np.asarray(eta_params, dtype=np.float64))
     f_uncs, geos = [], []
-    for s in slices:
+    for j, s in enumerate(slices):
         f_unc = _fit(s["p"], n_p_=n_p, n_f_=n_f, nonneg_=nonneg,
-                     warm=s["basin_jphi"], centroid=s["centroid"])
+                     warm=s["basin_jphi"], centroid=s["centroid"],
+                     passive_prior=passive_priors[j])
         f_uncs.append(f_unc)
         if (f_unc.scored and f_unc.psi is not None and f_unc.coeffs is not None
                 and _confined(_axis(f_unc)[0])):
@@ -335,21 +378,50 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
             preds[j + 1] = out
 
     # ---- pass 2b: coupled profile solve -> the readout equilibrium ----
-    rows: list[dict] = []
+    fits: list = []
     for j, s in enumerate(slices):
-        p, centroid = s["p"], s["centroid"]
         c_pred = preds[j]["c_pred"] if preds[j] is not None else None
         if c_pred is not None and prior_weight > 0.0:
-            f_cpl = _fit(p, n_p_=n_p, n_f_=n_f, nonneg_=nonneg,
-                         warm=s["basin_jphi"], centroid=centroid,
-                         coeff_prior=(c_pred, prior_weight))
+            f_cpl = _fit(s["p"], n_p_=n_p, n_f_=n_f, nonneg_=nonneg,
+                         warm=s["basin_jphi"], centroid=s["centroid"],
+                         coeff_prior=(c_pred, prior_weight),
+                         passive_prior=passive_priors[j])
         else:
             f_cpl = f_uncs[j]
+        fits.append(f_cpl)
+    return {"shot": shot, "spine_sha": spine_sha, "grid": grid, "table": table,
+            "basis": basis, "payload": payload, "bt0": bt0, "b_phi0": b_phi0,
+            "eta": eta, "n_p": n_p, "n_f": n_f, "nonneg": nonneg,
+            "slices": slices, "fits": fits}
+
+
+def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_weight,
+             n_sub: int, par_weight: float, n_rho: int, max_slices: int,
+             min_ip_ka: float, rpos: list, times_beam: list) -> dict:
+    """Coupled solve chain over one shot -> per-slice MSE pitch at the sightlines.
+
+    Thin readout over :func:`coupled_solve_chain` (the four-pass engine): the
+    COUPLED fit's equilibrium is read out as MSE pitch per sightline.
+    """
+    from scripts.dynamics_coupled_solve_gate import _current_centroid  # noqa: PLC0415
+
+    chain = coupled_solve_chain(
+        shot, nr=nr, nz=nz, sigma=sigma, eta_params=eta_params,
+        prior_weight=prior_weight, n_sub=n_sub, par_weight=par_weight,
+        n_rho=n_rho, max_slices=max_slices, min_ip_ka=min_ip_ka)
+    if not chain["slices"]:
+        return {"shot": shot, "slices": [], "reason": chain.get("reason", "chain")}
+    grid, eta, bt0 = chain["grid"], chain["eta"], chain["bt0"]
+    n_p, n_f, nonneg = chain["n_p"], chain["n_f"], chain["nonneg"]
+
+    rows: list[dict] = []
+    for s, f_cpl in zip(chain["slices"], chain["fits"], strict=True):
+        p, centroid = s["p"], s["centroid"]
         cr = _axis(f_cpl)[0]
         confined = _confined(cr)
         pitch = _pitch_from_fit(
-            f_cpl, grid, eta, n_p=n_p, n_f=n_f, nonneg=nonneg, b_phi0=b_phi0,
-            n_rho=n_rho, rpos=rpos, bt0=bt0)
+            f_cpl, grid, eta, n_p=n_p, n_f=n_f, nonneg=nonneg,
+            b_phi0=chain["b_phi0"], n_rho=n_rho, rpos=rpos, bt0=bt0)
         cen = _current_centroid(grid, f_cpl)
         rows.append({
             "k": s["k"], "time_s": float(p.time_s), "ip_a": float(abs(p.ip_amperes)),
@@ -361,7 +433,8 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
             "pitch": [None if not np.isfinite(v) else float(v) for v in pitch],
         })
     n_scored = sum(r["scored"] for r in rows)
-    return {"shot": shot, "spine_sha": spine_sha, "bt0": bt0, "n_p": n_p, "n_f": n_f,
+    return {"shot": shot, "spine_sha": chain["spine_sha"], "bt0": bt0,
+            "n_p": n_p, "n_f": n_f,
             "eta_params": list(map(float, eta_params)), "prior_weight": prior_weight,
             "n_slices": len(rows), "n_scored": n_scored, "rows": rows}
 
