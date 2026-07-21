@@ -105,12 +105,15 @@ CHAIN_MIN_IP_KA = 60.0  # the engine's operating floor (gate value)
 
 RAMP_END_S = 0.2  # early-phase bin boundary [s]
 
-# Campaign-band split for stratified reporting.  The engine's validated
-# cohorts (the 128-slice spine held-out split, shots 12143–18559, and the
-# 112-shot MSE-gate split, shots ≤22587) never cover shots beyond ~23000;
-# later shots carry machine/campaign configurations no validated evaluation
-# touched, and the residual structure differs sharply across this boundary,
-# so aggregates report the two bands separately to keep class effects and
+# Campaign-band split for stratified reporting.  The spine's BOUNDARY-
+# fidelity validation cohort (the 128-slice held-out split behind the
+# 1.5–2.1 cm flat-top envelope) tops out at shot 18559; the 112-shot
+# MSE-gate cohort spans 21978–30203 but validates the internal profile
+# through held-out PITCH on confined slices, not boundary/axis placement.
+# Empirically the census residual structure breaks at ~23000 in every class
+# (~2.5–3× larger medians beyond it — a campaign/machine-configuration
+# boundary), and the per-class draws mix the bands very differently, so
+# aggregates report the two bands separately to keep class effects and
 # campaign effects from confounding each other.
 VALIDATED_BAND_MAX_SHOT = 23000
 
