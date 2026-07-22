@@ -438,6 +438,25 @@ interior-closure-hardening §2; (c) the late-band collapse →
 f-ctr-13/f-ctr-15 jointly. Verdict block: <code>production_spine</code> in
 <code>topology_full_engine_verdicts-v0.json</code>.</p>
 
+<p><strong>Resolution (f-ctr-15, 2026-07-22):</strong> the per-era vacuum-shot
+magnetics scorecard
+(<a href="/imas-ambix/connectivity-topology-reader-magnetics-era-scorecard.html">findings</a>)
+resolves the confound to <strong>PARTIAL&nbsp;&mdash;&nbsp;YES with a mechanism</strong>.
+On coil-only intervals (no EFIT, no inversion), 16 (M7) and 21 (M8) of 65
+vacuum-scored channels drift &gt;10&nbsp;% from their M5 gain, concentrated as a
+coherent &minus;30 to &minus;50&nbsp;% drop at the P4/P5 flux loops
+(<code>fl_p4l/p5l/p5u</code>, post-fit corr 0.83&ndash;0.91) &mdash; exactly the
+in-vessel RMP-coil bay. The late-band magnetics therefore carry a real
+model/data-layer systematic (the unmodelled 12&rarr;18 in-vessel RMP conductors),
+which the centroid pin &mdash; a linear moment of the same magnetics &mdash;
+propagates with weight. So this census <em>cannot</em> license retiring the pin
+(confound confirmed), but the remedy is to model the RMP structure / correct the
+flagged loops, not to retire the pin (f-ctr-18 confirmatory re-score). Sensor
+disambiguation by the Hole&nbsp;et&nbsp;al. signed-assignment is degenerate on the
+archived axisymmetric-PF vacuum shots (median&nbsp;C&nbsp;0.002&ndash;0.09), but
+864 dedicated-vacuum shots with in-vessel coils driven were found for a
+high-confidence disambiguation dataset (f-ctr-17).</p>
+
 <p class="muted">Artifacts:
 <code>heldout_mse_gate-repro-head-q{1..4}.json</code> (+ §4-era worktree
 equivalents), re-scored

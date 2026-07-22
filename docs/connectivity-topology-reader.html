@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-22">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="19">
+<meta name="plan-version" content="20">
 <meta name="plan-informs" content="interior-closure-hardening,gpu-accelerated-labeler">
 </head>
 <body>
@@ -1007,9 +1007,9 @@ Done-when
   3. Plan + RCA doc updated; followup written + this one resolved</pre>
     <p class="r-fu-outcome">Production-spine census arm landed (commits 4a104e6/3de6b8e; 300 shots, 6,250 slices). The anchored spine HOLDS the basin corpus-wide where the chain does not: completion 0.914 vs 0.638 (converged 90%, reseed 1%), flat-top shape 2.6-3.8 cm in 4/5 classes (validated band 1.8-5.0; sn-lower 8.0 on a 64%-late draw), paired axis delta negative in ALL five classes — the centroid pin + psi-diffusion prior worsen shape (4/5) and axis (5/5) vs the plain spine and join the basin pass as retirement candidates (f-ctr-12 scope now covers pin+prior necessity). Axis vs own seed still degrades everywhere (2.4-7.1 -&gt; 3.9-23.2 cm): the axis deficit is the profile solve's interior null -&gt; interior-closure-hardening §2; the &gt;23000 late-band 2-3x collapse stands -&gt; f-ctr-13. Record: RCA §11 + production_spine block in topology_full_engine_verdicts-v0.json.</p>
     </article>
-<article class="r-fu" data-id="f-ctr-15" data-status="open" data-tier="opus" data-written-by="reckon-ship (lead direction 2026-07-22)" data-written-at="2026-07-22 09:20" data-recommends-skill="/reckon-ship connectivity-topology-reader" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ctr-15" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (lead direction 2026-07-22)" data-written-at="2026-07-22 09:20" data-recommends-skill="/reckon-ship connectivity-topology-reader" data-resolved-at="2026-07-22T08:19:47+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Per-era magnetics scorecard from vacuum shots — score every sensor against the fleet, detect gain drift / rewiring / moved sensors, and audit channel completeness</h4>
-    <div class="r-fu-body">The spine-census arm showed the chain's pin+prior underperform the plain spine, but the pin targets a centroid derived from the same magnetics — a degraded late-campaign sensor layer would make the pin amplify a corrupted datum, so pin/prior retirement is withheld. On coil-only (vacuum) intervals the measured magnetics are LINEAR in the known coil currents with zero plasma DOF, so each channel can be scored against the model constrained by the others, per campaign era. Extends the single-era 48-shot vacuum_coil_response_audit corpus-wide. Also audits whether ALL archived magnetics channels are entering the frozen geometry table (sensor count erodes 103->74 by masking) and tests the standing prior that a catalogued sensor keeps its position and wiring across the efm-frozen span 13370-30463.</div>
+    <div class="r-fu-body">The spine-census arm showed the chain's pin+prior underperform the plain spine, but the pin targets a centroid derived from the same magnetics — a degraded late-campaign sensor layer would make the pin amplify a corrupted datum, so pin/prior retirement is withheld. On coil-only (vacuum) intervals the measured magnetics are LINEAR in the known coil currents with zero plasma DOF, so each channel can be scored against the model constrained by the others, per campaign era. Extends the single-era 48-shot vacuum_coil_response_audit corpus-wide. Also audits whether ALL archived magnetics channels are entering the frozen geometry table (sensor count erodes 103-&gt;74 by masking) and tests the standing prior that a catalogued sensor keeps its position and wiring across the efm-frozen span 13370-30463.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    connectivity-topology-reader (standing census-crossval harness)
 Section: per-era magnetics scorecard (vacuum-shot instrument characterisation)
@@ -1069,6 +1069,79 @@ Done-when
   2. Verdict on the pin/prior confound: late-band drift attributable to
      flagged channels YES/NO/PARTIAL, with the paired re-score as evidence
   3. Plan + RCA doc updated; followup written + this one resolved
+</pre>
+    <p class="r-fu-outcome">Per-era vacuum-shot magnetics scorecard SHIPPED (corpus-wide, M5-M9; scripts/magnetics_era_scorecard.py; artifact magnetics_era_scorecard-cylv5.json; doc connectivity-topology-reader-magnetics-era-scorecard.html; commits f215cb6/bab3f88/81f5545). CONFOUND VERDICT = PARTIAL-YES with mechanism: 16 (M7) / 21 (M8) of 65 vacuum-scored channels drift >10% from their M5 gain (12 >25% in M8), concentrated as a coherent -30 to -50% gain drop at the P4/P5 flux loops (fl_p4l/p5l/p5u, post-fit corr 0.83-0.91) exactly at the in-vessel RMP-coil bay -> the late-band magnetics carry a real model/data-layer systematic (unmodelled 12->18 RMP conductors), which the centroid pin (a linear moment of the same magnetics) propagates with weight. The census therefore CANNOT license retiring the pin (confound confirmed), but the fix is to model the RMP structure / correct-or-exclude the flagged loops, not retire the pin. Signed-assignment disambiguation (Hole et al., Hungarian + confidence C, validated vs the paper's synthetic tests) is uniformly DEGENERATE on MAST archived vacuum shots (median C 0.002-0.09, 0 swaps, 0 flips) because only axisymmetric PF coils are energised. Completeness: 103->74 erosion is real archive loss (archived amb 102->75), not schema masking (measured stable 72 through M8). New L1 finding: M9 pickup probes carry NO vacuum data (flux-loop-only). While-we-wait seams: 2,074 dedicated-vacuum shots found, 864 with an in-vessel coil driven >1.0 (M7=474/M8=205/M9=185; ledger ivc_vacuum_candidates.json) - the plasma-less toroidally-asymmetric intervals that would lift disambiguation to the paper's C>0.97 regime.</p>
+    </article>
+<article class="r-fu" data-id="f-ctr-16" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-22 10:20" data-recommends-skill="/reckon-ship connectivity-topology-reader" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">IMAS-DD-backed translation of the MAST magnetics layer (magnetics / pf_active / pf_passive), era-aware, wiring-resolved</h4>
+    <div class="r-fu-body">The scorecard showed the machine description does not travel with the data (frozen detectors.dat_M4 geometry, implicit channel identity, calibration in code constants, mixed L1 Zarr V2 / L2 Zarr V3). The IMAS DD has canonical homes for every quantity the scorecard produces. Pivot at the same seam as the machine-configuration-map registry (f-mcm-01): translate L1 raw magnetics/coils into the measured IDSs, keep L2 EFIT as the firewalled equilibrium referee. Phase 1 (low risk): a thin L1->magnetics/pf_active per-era geometry writer (b_field_pol_probe/position+angles, flux_loop/position) validated against the efm table; Phase 2: populate the measured time-series + fold in the scorecard gain/offset as calibration + non_linear_response, encode flagged polarity/rewire in b_field_pol_probe_equivalent; Phase 3: retire the frozen-table code path.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan: connectivity-topology-reader (magnetics IMAS-DD translation)
+Section: L1 -&gt; magnetics/pf_active/pf_passive per-era writer
+Tier: opus
+
+Context
+  The per-era scorecard (f-ctr-15) established that a per-era, wiring-resolved magnetics representation is needed and that the DD magnetics IDS (b_field_pol_probe position/poloidal_angle/toroidal_angle/non_linear_response + b_field_pol_probe_equivalent, flux_loop/position, rogowski_coil, ip), pf_active (amc coil currents) and pf_passive (amm/case) are the natural home. This also delivers the machine-configuration-map plan&#x27;s era-aware geometry table in a standard schema and buys cross-machine transfer (MAST-&gt;MAST-U-&gt;ITER).
+
+Deliverables
+  1. Phase 1: a thin writer that, per campaign era, emits a magnetics IDS carrying b_field_pol_probe[].position (R,Z,phi) + poloidal/toroidal angle + name and flux_loop[].position from the efm geometry; validated against build_table_for_shot&#x27;s efm-derived table (positions agree, channel set matches). imas-python DBEntry, explicit dd_version (MAST is legacy -&gt; pin a DDv3 minor carrying b_field_pol_probe/position, DD 3.24.0+); never default to latest.
+  2. Phase 2: populate b_field_pol_probe/field.data + flux_loop/flux.data from L1 amb, pf_active from amc, pf_passive from amm; fold the scorecard per-channel gain/offset into calibration + non_linear_response/b_field_linear; record any flagged polarity via orientation sign and rewire/relocation candidates via b_field_pol_probe_equivalent.
+  3. Firewall: keep L2 EFIT as a SEPARATE equilibrium IDS referee, never mixed into the measured IDSs. Read/write with imas-python only (never h5py on IMAS data).
+
+Scope locks
+  Do not touch the frozen spine config or the scorecard artifacts. New artifact family. Start with Phase 1 (no time-series) to de-risk.
+
+Done-when
+  1. Phase-1 writer + per-era magnetics/pf_active IDS validated vs efm table (positions, channel set)
+  2. dd_version pinned + documented; imas-python round-trip read verified
+  3. Plan + a short doc updated; followup written + this one resolved
+</pre>
+    </article>
+<article class="r-fu" data-id="f-ctr-17" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-22 10:20" data-recommends-skill="/reckon-ship connectivity-topology-reader" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Dedicated in-vessel-coil disambiguation dataset — curate the plasma-less RMP/ELM/saddle intervals and reach the paper&#x27;s high-confidence regime</h4>
+    <div class="r-fu-body">The scorecard's signed-assignment (Hole et al.) is degenerate on axisymmetric-PF vacuum shots (median C 0.002-0.09). But the sweep found 864 dedicated-vacuum shots with an in-vessel coil driven >1.0 (ledger ivc_vacuum_candidates.json; M7=474/M8=205/M9=185), plus the post-disruption-tail seam (ELM coils swinging after quench + vessel decay, e.g. shot 24000). These toroidally-asymmetric plasma-less intervals are exactly what the paper needs. Curate them, integrate each coil's Rogowski to recover the driving current for the Green's forward model, and re-run the signed assignment to push confidence from ~0.03 toward >0.97 - a genuine sensor identity/polarity/relocation audit the MAST archive can support.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan: connectivity-topology-reader (in-vessel-coil disambiguation dataset)
+Section: curate plasma-less asymmetric-field intervals + high-confidence signed assignment
+Tier: opus
+
+Context
+  f-ctr-15 validated the Hole et al. Hungarian signed-assignment + confidence C against the paper&#x27;s synthetic tests but found MAST archived axisymmetric-PF vacuum shots too degenerate (median C ~0.03) to disambiguate the sensor set. The IVC sweep (scripts in _ivc_work; artifact ivc_vacuum_candidates.json) found 864 dedicated-vacuum shots with RMP/ELM/outer-saddle/horseshoe/error-field coils driven, e.g. the 27394-27560 M8 series stepping several coils plasma-free.
+
+Deliverables
+  1. Curate the candidate intervals from ivc_vacuum_candidates.json (dedicated-vacuum seam) + a post-disruption-tail detector (Ip quenched, passive case-currents decayed, ELM Rogowski still swinging) into a per-interval, per-coil dataset.
+  2. Integrate each in-vessel coil&#x27;s Rogowski (rog_elm) to a current and build the toroidally-asymmetric Green&#x27;s columns at the sensors (finite-area cylinder kernel; the in-vessel RMP/saddle geometry must be added - it is NOT in the frozen efm model).
+  3. Run the multi-field signed assignment (reuse _signed_assignment in scripts/magnetics_era_scorecard.py) across the curated independent fields; report per-sensor confidence C, swaps, polarity flips, and relocation candidates. Target the paper&#x27;s C&gt;0.97 regime.
+  4. Firewall: L1 magnetics + coil currents + geometry only; no EFIT, no inversion.
+
+Done-when
+  1. Curated dataset + per-sensor disambiguation verdict with confidence C
+  2. Any confirmed rewire/polarity/relocation fed to the scorecard ledger and the f-ctr-16 DD translation (b_field_pol_probe_equivalent)
+  3. Plan + doc updated; followup written + this one resolved
+</pre>
+    </article>
+<article class="r-fu" data-id="f-ctr-18" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-22 10:20" data-recommends-skill="/reckon-ship connectivity-topology-reader" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Confirmatory engine re-score: down-weight/exclude the flagged P4/P5 flux loops (or model the RMP structure) and test whether the &gt;23000 axis displacement contracts</h4>
+    <div class="r-fu-body">The scorecard resolved the pin/prior confound to PARTIAL-YES: the late-band drift is a real magnetics/model-layer systematic (P4/P5 flux-loop gain drop at the RMP bay) that the pin propagates. The firewall-clean scorecard motivates but cannot run the confirmatory step: re-score the late-band census subset with the flagged loops down-weighted/excluded (or the RMP conductors added to the passive model) and check whether the >23000 axis displacement contracts. If it does, the confound is closed and pin/prior can be re-decided on a corrected sensor layer; the RMP-structure modelling routes to mast-machine-configuration-map's RMP remediation deliverable.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan: connectivity-topology-reader (confound confirmatory re-score)
+Section: late-band paired re-score with flagged loops corrected
+Tier: opus
+
+Context
+  f-ctr-15 found a coherent -30 to -50% vacuum-response drop at fl_p4l/p5l/p5u in M7/M8 (the RMP bay), which biases the current-centroid pin. This step confirms the causal link to reconstruction degradation.
+
+Deliverables
+  1. Take the late-band (&gt;23000) census subset and re-score the frozen engine twice, paired per slice: (a) baseline, (b) flagged P4/P5 flux loops down-weighted or excluded (use the scorecard drift_flags from magnetics_era_scorecard-cylv5.json). Optionally a third arm with the 12-&gt;18 in-vessel RMP conductors added to the passive model (coordinate with mast-machine-configuration-map).
+  2. Report the paired change in flat-top axis distance and boundary shape; verdict: does correcting the flagged loops contract the &gt;23000 axis displacement?
+  3. If yes, re-open the pin/prior retirement decision on the corrected layer.
+
+Scope locks
+  Do not mutate the frozen spine config; apply corrections via the existing calibration/weight path. Firewall unchanged (EFIT referee/visual only).
+
+Done-when
+  1. Paired late-band re-score with verdict on whether flagged-loop correction contracts the axis displacement
+  2. Pin/prior decision updated accordingly; plan + RCA s11 updated; this one resolved
 </pre>
     </article>
 </section>
