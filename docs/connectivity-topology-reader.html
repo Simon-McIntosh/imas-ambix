@@ -19,9 +19,9 @@
   <title>Connectivity Topology Reader | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-21">
+<meta name="plan-modified" content="2026-07-22">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="15">
+<meta name="plan-version" content="16">
 <meta name="plan-informs" content="interior-closure-hardening,gpu-accelerated-labeler">
 </head>
 <body>
@@ -222,6 +222,23 @@
     record + ψ(R,Z) cross-sections per class/phase:
     <a href="connectivity-topology-reader-engine-crossval-findings.html">§6b findings</a>
     (commits <code>d54b77e</code>…<code>latest</code>).
+  </p>
+  <p class="landed-summary" style="border:1px solid #c66;">
+    <strong>RCA correction (2026-07-22).</strong> The G-E2 numbers and the SN-inversion
+    reading above were dominated by evaluation-harness defects — the boundary residual was
+    rendered about the ENGINE's displaced axis (≈0.7×axis error, r=0.887 over 4,443 slices),
+    the bare-seed baseline came from a different draw/phase, and per-class medians confounded
+    class with campaign era. The solve chain <strong>reproduces its held-out MSE gate
+    exactly</strong> (0.362 rad, both code trees; A/B probes byte-identical — no spine
+    regression). Re-scored on the own-axis boundary-SHAPE metric: connected-dn 3.05 /
+    marginal-dn 4.33 / limited 4.51 / sn-upper 7.89 / sn-lower 7.97 cm flat-top
+    (validated-era band 2.5–4.1 cm), and the chain <strong>improves shape over its own seed
+    in 4/5 classes</strong> — while degrading AXIS placement everywhere (the real deficit,
+    worst on campaigns &gt;23000 where even the seed read starts ~19 cm out → data-layer
+    audit queued, f-ctr-13). G-E1 (completion 0.638) and G-E3 (eddy regression, now
+    +0.35–0.74 cm shape) stand. Full RCA + corrected galleries:
+    <a href="connectivity-topology-reader-engine-crossval-rca.html">crossval RCA</a>
+    (fix commits <code>eeb3e77</code>…<code>90de396</code>).
   </p>
 
   <section data-reckon="decisions" id="decisions" class="r-decisions">
@@ -874,11 +891,11 @@ Done-when
   2. Plan updated same-session: §6b outcome recorded; oracle-gap work routed to
      interior-closure-hardening §2 (Te resistivity) and gpu-accelerated-labeler f-gal-04
      (PinT dynamics coupling); this followup resolved.</pre>
-    <p class="r-fu-outcome">§6b landed — full four-pass engine per-class re-run on the census (commits d54b77e..0efd966). G-E1 FAIL completion 0.640; G-E2 FAIL all classes (flat-top LCFS connected-dn 4.6 / limited 7.0 / marginal-dn 7.2 / sn-upper 12.2 / sn-lower 18.5 cm, tol 3); G-E3 FAIL — feedforward eddy known-drive regresses every class. Headline: the validated curated-cohort skill (1.5-2.1 cm) does NOT generalise to the uncurated census; the pin+coupling helps the routine classes vs the bare seed but INVERTS the single-nulls (axis outboard 23-26 cm — the symmetric ladder can't carry SN asymmetry). Basin-pass ablation: pass 1 not load-bearing on the census (drop it -> completion 0.64->0.775, paired Delta<=0 every class). Findings + psi(R,Z) cross-sections: docs/connectivity-topology-reader-engine-crossval-findings.html.</p>
+    <p class="r-fu-outcome">§6b landed — full four-pass engine per-class re-run on the census (commits d54b77e..0efd966). G-E1 FAIL completion 0.640; G-E2 FAIL all classes (flat-top LCFS connected-dn 4.6 / limited 7.0 / marginal-dn 7.2 / sn-upper 12.2 / sn-lower 18.5 cm, tol 3); G-E3 FAIL — feedforward eddy known-drive regresses every class. Headline: the validated curated-cohort skill (1.5-2.1 cm) does NOT generalise to the uncurated census; the pin+coupling helps the routine classes vs the bare seed but INVERTS the single-nulls (axis outboard 23-26 cm — the symmetric ladder can't carry SN asymmetry). Basin-pass ablation: pass 1 not load-bearing on the census (drop it -&gt; completion 0.64-&gt;0.775, paired Delta&lt;=0 every class). Findings + psi(R,Z) cross-sections: docs/connectivity-topology-reader-engine-crossval-findings.html.</p>
     </article>
 <article class="r-fu" data-id="f-ctr-12" data-status="open" data-tier="sonnet" data-written-by="reckon-ship" data-written-at="2026-07-21T18:30:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Confirm basin-pass necessity on the curated MSE-gate cohort, then retire pass 1 if it holds</h4>
-    <div class="r-fu-body">§6b's census ablation showed the basin solve (pass 1, ~44% of solve wall) is NOT load-bearing on the uncurated draw: dropping it raises completion 0.640->0.775 and is equal-or-better on every class (paired Delta<=0). But the basin's necessity was claimed on the CURATED MSE-gate cohort, where both arms clear tolerance and a small regression would be visible. Re-run the no-basin arm on the 112-shot MSE-gate held-out set (heldout_mse_gate_eval with skip_basin) and compare G4a pitch RMSE + LCFS skill to the two-pass chain. If no-basin holds there too, retire pass 1 for a free ~1.8x on the whole label factory; if it regresses, record the basin as load-bearing on curated data and keep it.</div>
+    <div class="r-fu-body">§6b's census ablation showed the basin solve (pass 1, ~44% of solve wall) is NOT load-bearing on the uncurated draw: dropping it raises completion 0.640-&gt;0.775 and is equal-or-better on every class (paired Delta&lt;=0). But the basin's necessity was claimed on the CURATED MSE-gate cohort, where both arms clear tolerance and a small regression would be visible. Re-run the no-basin arm on the 112-shot MSE-gate held-out set (heldout_mse_gate_eval with skip_basin) and compare G4a pitch RMSE + LCFS skill to the two-pass chain. If no-basin holds there too, retire pass 1 for a free ~1.8x on the whole label factory; if it regresses, record the basin as load-bearing on curated data and keep it.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan: connectivity-topology-reader (basin-pass necessity on the curated cohort)
 Tier: sonnet
@@ -897,6 +914,41 @@ Constraints
 Done-when
   1. Curated two-pass vs no-basin comparison artifact + verdict committed.
   2. Plan updated: basin-necessity decision recorded; this followup resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-ctr-13" data-status="open" data-tier="opus" data-written-by="reckon-edit (crossval RCA 2026-07-22)" data-written-at="2026-07-22 03:30" data-recommends-skill="/reckon-ship connectivity-topology-reader" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Audit the post-23000-campaign geometry/sensor data layer — even the linear seed read misplaces the field null there</h4>
+    <div class="r-fu-body">The census-crossval RCA (<a href="/imas-ambix/connectivity-topology-reader-engine-crossval-rca.html">connectivity-topology-reader-engine-crossval-rca</a>) exonerated the solve chain (held-out gate reproduces exactly; A/B probes byte-identical) and re-scored the census under a two-frame harness. The isolated REAL deficit: on campaigns beyond shot ~23000 every class degrades ~2.5&ndash;3&times; in boundary shape AND the bare disc-seed read itself starts ~19 cm off-axis on the sn-lower draw &mdash; a data/geometry-layer problem upstream of the solver (candidate causes: campaign circuit/passive geometry, sensor calibration for the late machine configurations). Probe fingerprints: shot 27893 violates the &sigma;=2 cm centroid pin by 21&ndash;63 cm (misfit overwhelms the tether); shot 29496 satisfies the pin while the &psi; null sits 25 cm outboard (field-balance layer).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    connectivity-topology-reader
+Section: post-census data-layer audit (follows the crossval RCA)
+Tier:    opus
+
+Context
+  The census-crossval RCA cleared the solve chain and localised the remaining
+  systematic to campaigns &gt; shot ~23000: boundary shape ~2.5-3x worse in every
+  class and the LINEAR disc-seed read already ~19 cm off-axis on the sn-lower
+  draw. The engine was never boundary-validated there (the 1.5 cm cohort tops
+  out at 18559); the MSE pitch gate passed on those campaigns, so the interior
+  information survives - the field-balance/geometry layer is the suspect.
+
+State to read
+  docs/connectivity-topology-reader-engine-crossval-rca.html (the RCA)
+  imas_ambix/latent/artifacts/patch_gate/topology_full_engine_crossval-plain-*.json
+    (rows carry shape/placement/axis + paired bare_* fields per slice)
+  _ab_probe_27893_head.json / _ab_probe_29496_head.json (pin-violation fingerprints)
+  imas_ambix/gs/geometry.py (campaign tables), enkf_baseline._campaign_representatives
+
+Scope locks / constraints
+  Firewall intact: EFIT referee only. Compare campaign setup signatures,
+  circuit models, and sensor sets across the 23000 boundary FIRST (cheap,
+  data-only) before touching solver knobs. Vacuum-shot sanity checks (coil-only
+  prediction vs measured sensors per campaign band) are the natural instrument.
+
+Done-when
+  1. Per-campaign-band sensor-model residual quantified on vacuum/known-drive data
+  2. The late-band axis displacement attributed (geometry vs calibration vs circuit)
+     with a figure, or the attribution honestly bounded
+  3. Findings doc + plan updated; followup written + this one resolved</pre>
     </article>
 </section>
 
