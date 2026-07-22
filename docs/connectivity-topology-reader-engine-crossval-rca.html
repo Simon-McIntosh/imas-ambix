@@ -354,10 +354,81 @@ worst of the boundary read.</p>
   </table>
 </figure>
 
+<h2 id="spine">11 — Addendum (2026-07-22): the production D2 spine, census-scored</h2>
+<p>Issue #5 above left the load-bearing question open: the census had only ever
+scored the <em>gate chain</em> (centroid pin + ψ-diffusion prior — no disc
+anchor, no reseed), while production training labels come from the <em>frozen
+D2 spine</em> (disc soft-anchor w=10, non-negative ladder n<sub>p</sub>=n<sub>f</sub>=3,
+passive_k=8 sidecar, reseed 1.4). A fourth census arm now runs the exact
+label-factory configuration per slice (factory warm-start in time order,
+chain-arm payload budget for a maximal paired cover; harness commits
+<code>4a104e6</code>/<code>3de6b8e</code>): 300 stratified shots, 6,250 scored
+slices, paired per-slice against both the gate chain and the bare disc seed.</p>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-production-spine-vs-chain.png"
+       alt="Production spine vs gate chain vs bare seed — flat-top shape and axis medians per class">
+  <figcaption>Flat-top medians per class: boundary shape (left) and axis distance
+  (right) — bare disc seed (paired), production spine, gate chain.</figcaption>
+</figure>
+<figure>
+  <table>
+    <thead><tr><th>Quantity</th><th>Spine (label config)</th><th>Gate chain</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>Completion (scored / attempted)</td>
+        <td><strong>0.914</strong> (6,250/6,837; converged 90%, reseed 1%)</td>
+        <td>0.638</td>
+        <td>the spine, not the chain, holds the basin — pass-1 attrition and
+        chain failures are CHAIN pathologies</td></tr>
+      <tr><td>Flat-top boundary shape (own-axis, med cm)</td>
+        <td>limited 2.66 / connected-dn 2.59 / sn-upper 2.98 / marginal-dn 3.82
+        / sn-lower 8.04; validated-era band 1.8–5.0</td>
+        <td>4.51 / 3.05 / 7.89 / 4.33 / 7.97</td>
+        <td>paired Δ(spine−chain) ≤ 0 in 4/5 classes; sn-lower +1.96 (its draw
+        is 64% late-band)</td></tr>
+      <tr><td>Flat-top axis distance (med cm)</td>
+        <td>limited 6.51 / connected-dn 4.09 / sn-upper 8.86 / marginal-dn 7.05
+        / sn-lower 23.43</td>
+        <td>9.30 / 6.41 / 19.37 / 10.72 / 26.06</td>
+        <td>paired Δ negative in <strong>all five</strong> classes (sn-upper
+        −6.07) — the pin + diffusion prior WORSEN axis placement vs the plain
+        anchored spine</td></tr>
+      <tr><td>Axis vs the spine's own seed</td>
+        <td colspan="2">bare 2.4–7.1 cm → spine 3.9–23.2 cm (every class
+        degrades; sn-lower 7.1→23.2)</td>
+        <td>the axis deficit lives in the PROFILE SOLVE itself (interior-null
+        degeneracy + SN asymmetry the symmetric ladder cannot carry), not in
+        the chain's pin</td></tr>
+      <tr><td>Diverted/limited agreement (flat-top)</td>
+        <td>limited 0.84; diverted classes 0.56–0.69</td>
+        <td>limited 0.53; diverted 0.79–0.95</td>
+        <td>the pushout-anchored spine reads more limited-like boundaries than
+        the chain — the one axis where the chain is stronger</td></tr>
+    </tbody>
+  </table>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-production-spine-band-split.png"
+       alt="Production spine campaign-band split — validated-era vs later campaigns">
+  <figcaption>Campaign-band split, spine arm: validated-era shape medians
+  1.8–5.0 cm degrade 2–3× beyond shot 23000 in every class (axis worse still,
+  e.g. connected-dn 3.0→10.4 cm) — the same &gt;23000 data-layer boundary as
+  §9.</figcaption>
+</figure>
+<p><strong>Routing.</strong> The formal corpus-wide gate is <code>holds=False</code>
+(sn-lower shape over tolerance; diverted-class agreement &lt;0.80), but the
+component answer the arm was built for is clean: (a) the anchored spine holds
+boundary shape corpus-wide in the validated band and beats the chain on shape
+AND axis — the chain's pin + diffusion prior add nothing on the census and
+join the basin pass as a retirement candidate (f-ctr-12); (b) axis placement
+remains the spine's own interior deficit → interior-closure-hardening §2;
+(c) the late-band collapse is config/data-layer → f-ctr-13. Verdict block:
+<code>production_spine</code> in
+<code>topology_full_engine_verdicts-v0.json</code>.</p>
+
 <p class="muted">Artifacts:
 <code>heldout_mse_gate-repro-head-q{1..4}.json</code> (+ §4-era worktree
 equivalents), re-scored
-<code>topology_full_engine_crossval-{plain,nobasin,eddy}-&lt;class&gt;.json</code>,
+<code>topology_full_engine_crossval-{plain,nobasin,eddy,spine}-&lt;class&gt;.json</code>,
 verdicts <code>topology_full_engine_verdicts-v0.json</code> (e91aaf8).
 Evidence figures: <code>scripts/figures_engine_crossval_rca.py</code>.
 Harness: <code>scripts/topology_engine_crossval.py</code> (two-frame),

@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-22">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="17">
+<meta name="plan-version" content="18">
 <meta name="plan-informs" content="interior-closure-hardening,gpu-accelerated-labeler">
 </head>
 <body>
@@ -239,6 +239,21 @@
     +0.35–0.74 cm shape) stand. Full RCA + corrected galleries:
     <a href="connectivity-topology-reader-engine-crossval-rca.html">crossval RCA</a>
     (fix commits <code>eeb3e77</code>…<code>90de396</code>).
+  </p>
+  <p class="landed-summary" style="border:1px solid #7a4;">
+    <strong>Production-spine census arm (landed 2026-07-22).</strong> The frozen label-factory
+    config (disc anchor w=10, non-neg ladder, passive_k=8, reseed 1.4) census-scored as a fourth
+    arm (300 shots, 6,250 slices, paired vs chain + bare seed; commits <code>4a104e6</code>/<code>3de6b8e</code>).
+    <strong>The anchored spine holds the basin corpus-wide where the chain does not</strong>:
+    completion 0.914 vs 0.638 (converged 90%, reseed 1%), flat-top shape 2.6–3.8 cm in 4/5 classes
+    (validated band 1.8–5.0 cm; sn-lower 8.0, 64%-late draw), and paired axis Δ negative in ALL
+    five classes — the centroid pin + ψ-diffusion prior <em>worsen</em> both shape (4/5) and axis
+    (5/5) vs the plain spine → chain pin/prior joins the basin pass as a retirement candidate
+    (f-ctr-12). Axis vs own seed still degrades everywhere (bare 2.4–7.1 → spine 3.9–23.2 cm):
+    the axis deficit is the profile solve's interior null → interior-closure-hardening §2; the
+    &gt;23000 late-band 2–3× collapse stands → f-ctr-13. Full record:
+    <a href="connectivity-topology-reader-engine-crossval-rca.html#spine">RCA §11</a>;
+    verdicts <code>production_spine</code> in <code>topology_full_engine_verdicts-v0.json</code>.
   </p>
 
   <section data-reckon="decisions" id="decisions" class="r-decisions">
@@ -950,7 +965,7 @@ Done-when
      with a figure, or the attribution honestly bounded
   3. Findings doc + plan updated; followup written + this one resolved</pre>
     </article>
-<article class="r-fu" data-id="f-ctr-14" data-status="open" data-tier="opus" data-written-by="reckon-edit (spine-config gap 2026-07-22)" data-written-at="2026-07-22 05:20" data-recommends-skill="/reckon-ship connectivity-topology-reader" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ctr-14" data-status="resolved" data-tier="opus" data-written-by="reckon-edit (spine-config gap 2026-07-22)" data-written-at="2026-07-22 05:20" data-recommends-skill="/reckon-ship connectivity-topology-reader" data-resolved-at="2026-07-22T06:45:58+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Census-test the FULL D2 spine config (disc anchor + reseed + passive DOF) — the production label config has never been census-scored</h4>
     <div class="r-fu-body">The census crossval scored the MSE-gate CHAIN config (centroid pin + ψ-diffusion prior only). The production label factory runs the FULL frozen D2 spine — disc soft-anchor w=10, reseed_axis_r_max=1.4, passive_k=8 sidecar (scripts/spine_label_factory.py:153-201) — whose 1.5 cm envelope was validated only on the early-band n128 cohort (shots ≤18559). Whether the anchor+reseed hold the confined basin corpus-wide (where the chain's axis drifts outboard 12–26 cm) is unmeasured, and the answer routes the axis work: if D2 holds, the deficit is the CHAIN config, not the spine; if D2 drifts too, the interior/data-layer work stays the priority.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -986,6 +1001,7 @@ Done-when
   2. Verdict recorded: does D2 hold the basin corpus-wide (axis + completion
      vs the chain&#x27;s 0.638) — routed into the axis work + the map plan
   3. Plan + RCA doc updated; followup written + this one resolved</pre>
+    <p class="r-fu-outcome">Production-spine census arm landed (commits 4a104e6/3de6b8e; 300 shots, 6,250 slices). The anchored spine HOLDS the basin corpus-wide where the chain does not: completion 0.914 vs 0.638 (converged 90%, reseed 1%), flat-top shape 2.6-3.8 cm in 4/5 classes (validated band 1.8-5.0; sn-lower 8.0 on a 64%-late draw), paired axis delta negative in ALL five classes — the centroid pin + psi-diffusion prior worsen shape (4/5) and axis (5/5) vs the plain spine and join the basin pass as retirement candidates (f-ctr-12 scope now covers pin+prior necessity). Axis vs own seed still degrades everywhere (2.4-7.1 -> 3.9-23.2 cm): the axis deficit is the profile solve's interior null -> interior-closure-hardening §2; the >23000 late-band 2-3x collapse stands -> f-ctr-13. Record: RCA §11 + production_spine block in topology_full_engine_verdicts-v0.json.</p>
     </article>
 </section>
 
