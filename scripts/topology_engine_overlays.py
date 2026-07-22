@@ -182,7 +182,7 @@ def class_overlay(cname: str, *, nr: int, nz: int) -> None:
     for ax, (rgba, _sub) in zip(np.atleast_1d(axes), panels, strict=False):
         ax.imshow(rgba)
         ax.axis("off")
-    fig.suptitle(f"§6b engine ψ(R,Z) vs EFIT — {cname} "
+    fig.suptitle(f"engine ψ(R,Z) vs EFIT — {cname} "
                  f"(engine solid, EFIT faint; measured magnetics only)",
                  fontsize=11)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
@@ -244,8 +244,8 @@ def worst_grid(*, nr: int, nz: int) -> None:
     for ax, (_c, (rgba, _sub)) in zip(np.atleast_1d(axes), panels, strict=False):
         ax.imshow(rgba)
         ax.axis("off")
-    fig.suptitle("§6b worst flat-top per class — engine ψ vs EFIT (faint)",
-                 fontsize=11)
+    fig.suptitle("worst flat-top per class by boundary shape — "
+                 "engine ψ vs EFIT (faint)", fontsize=11)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     out = FIGURE_DIR / "fig-engine-overlay-grid.png"
     fig.savefig(out, dpi=115)

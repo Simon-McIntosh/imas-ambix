@@ -99,14 +99,13 @@ def _combine_quarters(paths: list[Path]) -> tuple[float, float, int] | None:
 
 
 def heldout_gate_repro() -> None:
-    s4_tree = Path("/home/ITER/mcintos/Code/imas-ambix-wt-s4gate")
     runs: list[tuple[str, object]] = [
         ("archived §4 result", ARTIFACT_DIR / "heldout_mse_gate-v0.json"),
         ("re-run, current tree",
          [ARTIFACT_DIR / f"heldout_mse_gate-repro-head-q{q}.json"
           for q in (1, 2, 3, 4)]),
-        ("re-run, §4-era tree",
-         [s4_tree / ARTIFACT_DIR / f"heldout_mse_gate-repro-s4-q{q}.json"
+        ("re-run, gate-landing-commit tree",
+         [ARTIFACT_DIR / f"heldout_mse_gate-repro-s4-q{q}.json"
           for q in (1, 2, 3, 4)]),
     ]
     labels, eng, per, n_scored = [], [], [], []

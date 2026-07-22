@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="connectivity-topology-reader-engine-crossval-rca">
+  <meta name="plan-title" content="RCA — the §6b census-crossval verdicts were dominated by evaluation-harness defects; the solve chain reproduces its held-out gate exactly">
+  <meta name="plan-status" content="reference">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-informs" content="connectivity-topology-reader,interior-closure-hardening,gpu-accelerated-labeler">
+  <meta name="plan-summary" content="Root-cause analysis of the §6b engine cross-validation findings (2026-07-22). The decisive reproduction test: the 112-shot held-out MSE gate re-run on the current tree AND on a worktree pinned at the gate's landing commit gives engine 0.3620 rad / persistence 0.7313 / 101 scored / 11 skipped on all three — identical to the archived result, with per-slice A/B probes on the worst census shots byte-identical between trees. There is NO regression in the reconstruction spine. The reported census collapse (G-E2 4.6-18.5 cm all-classes FAIL, single-nulls 'inverted below the bare seed') came from four evaluation-harness defects: (1) the boundary residual rendered EFIT's polygon about the ENGINE's displaced axis, folding axis error into the boundary number at ~0.7x (r=0.887 over 4,443 slices; slices with axis error <3 cm post 2.44 cm — inside the validated envelope, corpus-wide); (2) the bare-seed baseline came from a different, smaller, earlier-campaign draw and an all-phase median; (3) per-class medians confounded class with campaign era (every class degrades ~2.5-3x beyond shot ~23000; the class draws mix the bands very differently); (4) 'flat-top' meant t>=0.2 s, not the validated peak-|Ip| pick. Re-scored under the fixed two-frame harness: flat-top boundary-SHAPE medians are connected-dn 3.05 / marginal-dn 4.33 / limited 4.51 / sn-upper 7.89 / sn-lower 7.97 cm (validated band 2.5-4.1 cm except sn-upper n=24), and the chain IMPROVES shape over its own disc seed in 4/5 classes. What remains real: completion 0.638; the chain degrades AXIS placement vs its seed in every class (the interior-null outboard drift), and the late-campaign band carries a data/geometry-layer axis problem that hits even the linear seed read (~19 cm on the sn-lower draw); the feedforward eddy known-drive still regresses (G-E3 honest FAIL). Fix commits eeb3e77, fd55e47, 5093afd, 7eebd05, e91aaf8.">
+  <title>RCA — §6b census crossval: harness defects, engine exonerated | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Research findings (RCA)</strong> for
+<a href="/imas-ambix/connectivity-topology-reader.html">connectivity-topology-reader</a> §6b,
+correcting
+<a href="/imas-ambix/connectivity-topology-reader-engine-crossval-findings.html">the §6b findings doc</a>.
+Trigger: the §6b census cross-validation reported the validated four-pass engine
+degrading 3–10× corpus-wide with the single-null classes "inverted below the
+bare seed" — surprising, because the same chain had just beaten persistence
+CI-clear on a leakage-audited 112-shot held-out MSE split while approaching the
+classical EnKF that consumes a measured T<sub>e</sub> channel the engine is
+denied. The working hypothesis was an implementation bug introduced into the
+reconstruction spine between the two evaluations. This RCA ran the decisive
+reproduction test, audited every code change and both harnesses, fixed what was
+broken, and re-scored the census.</p>
+
+<h2 id="tldr">TL;DR</h2>
+<figure>
+  <table>
+    <thead><tr><th>Question</th><th>Answer</th></tr></thead>
+    <tbody>
+      <tr><td>Did the reconstruction spine regress?</td>
+        <td><strong>No.</strong> The 112-shot held-out gate re-run on the current
+        tree and on a worktree pinned at the gate's landing commit both give
+        <strong>engine 0.3620 rad / persistence 0.7313 / 101 scored / 11
+        skipped</strong> — identical to the archived result; per-quarter arm
+        parity to 10 significant digits; per-slice A/B probes on the worst
+        census shots byte-identical between the trees.</td></tr>
+      <tr><td>Were there implementation bugs?</td>
+        <td><strong>Yes — four, all in the census evaluation harness</strong>
+        (metric frame, baseline provenance, campaign confounding, flat-top
+        definition), plus one framing conflation (the chain never ran the
+        D2 spine's disc anchor/reseed, so the 1.5 cm envelope was never its
+        boundary spec). Fixed in eeb3e77 / fd55e47; evidence figures
+        5093afd / 7eebd05; re-scored verdicts e91aaf8.</td></tr>
+      <tr><td>Does the curated skill generalise?</td>
+        <td><strong>The boundary SHAPE does.</strong> Re-scored on the correct
+        translation-insensitive metric, flat-top shape medians are 3.0–8.0 cm
+        pooled and <strong>2.5–4.1 cm on validated-era campaigns</strong> (all
+        classes except sn-upper, n=24), and slices whose axis is well-placed
+        post <strong>2.44 cm corpus-wide</strong>. The chain improves shape
+        over its own seed in 4/5 classes — the "worse than the bare seed"
+        inversion was an artifact.</td></tr>
+      <tr><td>What is genuinely wrong?</td>
+        <td><strong>Axis placement and completion.</strong> The coupled solve
+        trades axis position for force-balanced shape in every class (e.g.
+        connected-dn seed 2.3 → engine 6.4 cm; sn-lower 19.4 → 26.6 cm), the
+        late-campaign band (&gt;23000) carries a data/geometry-layer axis
+        problem that displaces even the linear disc-seed read (~19 cm on the
+        sn-lower draw), completion is 0.638, and the feedforward vessel-eddy
+        known-drive still regresses (G-E3 honest FAIL). These are the routed
+        work, not evidence the approach fails.</td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<h2 id="repro">1 — The reproduction test</h2>
+<p>The engine's binding validation is the held-out MSE gate:
+<code>scripts/heldout_mse_gate_eval.py</code> on the locked, leakage-audited
+112-shot split (<code>mse_heldout_split_v0.json</code>, shots 21978–30203),
+frozen η, MSE never in any fit path. It was re-run twice with identical
+configuration: once on the current tree, once in a git worktree pinned at the
+gate's landing commit (<code>3c4fedf</code>, 2026-07-19) — i.e. the exact code
+state that produced the archived artifact — on the same partition class,
+split into quarter-cohorts to fit the debug wall clock.</p>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-heldout-gate-repro.png"
+       alt="Bar chart: archived section-4 result, current-tree re-run, and section-4-era-tree re-run all give engine 0.362 rad vs persistence 0.731, n=101.">
+  <figcaption>All three runs: engine <strong>0.3620</strong> rad, persistence
+  0.7313, 101 scored / 11 skipped. Per-quarter engine RMSE agrees between the
+  two trees to 10 significant digits (residual difference is parallel-reduction
+  floating-point noise). The previous hold-out results are fully recovered.</figcaption>
+</figure>
+<p>Two per-slice A/B probes sharpen this to the census's worst offenders:
+shots 27893 and 29496 (sn-lower, late campaigns, 33–45 cm axis excursions)
+were run through the chain on both trees and compared slice-by-slice —
+<strong>axis and current-centroid values are byte-identical</strong> on every
+slice. A fable-tier audit of the full diff between the two states
+(761 changed lines in <code>gs_solve.py</code>, the temperature-smoothed
+kernel re-point, the boundary-binding unification, the basin/profile rename's
+serialized keys, the campaign grid cache) found every change on the default
+chain path either verified-neutral or genuinely opt-in with defaults intact.
+<strong>The spine did not regress.</strong></p>
+
+<h2 id="h1">2 — Defect 1 (dominant): the boundary metric measured axis placement, not boundary shape</h2>
+<p>The census scorer rendered EFIT's LCFS polygon to ray radii
+<strong>about the engine's own read axis</strong>
+(<code>topology_engine_crossval.py</code>, scoring loop). The validated
+1.5–2.1 cm flat-top envelope — the provenance of the 3 cm tolerance — measures
+each boundary about <em>its own</em> axis
+(<code>geometry_target_pushout</code> radii vs the referee's
+<code>resample_lcfs_radii</code> about EFIT's axis), a translation-insensitive
+<em>shape</em> comparison. A ray fan cast from an origin displaced by Δ reads
+a perfectly-shaped boundary with radii distorted by ~|Δ·cos θ|, i.e. a median
+of ≈0.7·|Δ| over the fan — so the engine's documented axis error was charged
+to the boundary column.</p>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-frame-artifact-scatter.png"
+       alt="Scatter of per-slice engine-frame boundary residual vs axis distance over 4443 slices, riding the 0.7x line, r=0.89.">
+  <figcaption>The signature, measured on the pre-fix artifacts: per-slice
+  boundary residual vs axis distance across all 4,443 scored census slices —
+  <strong>r = 0.887</strong>, median ratio <strong>0.747</strong>, riding the
+  0.7× projection line in every class. Slices whose axis error is &lt; 3 cm
+  post a <strong>2.44 cm</strong> median boundary residual (p90 5.3 cm) —
+  inside the validated envelope, corpus-wide.</figcaption>
+</figure>
+<p>The fixed harness scores <strong>both frames per slice</strong>:
+<code>shape_dmed_cm</code> (own-axis, gates quality — the quantity the 3 cm
+tolerance belongs to) and <code>radii_dmed_cm</code> (engine-frame placement,
+reported), with axis distance its own column rather than a contaminant.</p>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-shape-vs-placement.png"
+       alt="Per-class bars: shape residual much smaller than placement residual, which tracks the axis distance.">
+  <figcaption>Re-scored census, flat-top medians. The placement residual
+  (engine-frame — what §6b called "LCFS quality") tracks the axis distance at
+  ~0.7×; the shape residual does not. sn-lower: placement 18.5 cm (the
+  published number) vs <strong>shape 8.0 cm</strong>; connected-dn 4.6 → 3.05 cm.</figcaption>
+</figure>
+
+<h2 id="h2">3 — Defect 2: the "bare seed" baseline came from a different draw and phase</h2>
+<p>The published table's bare column was read from the earlier §6 bare-chain
+artifact — <strong>45</strong> scored sn-lower slices, roughly half
+early-campaign, aggregated over <em>all phases</em> — and compared against the
+full engine's <em>flat-top</em> median on an <strong>874-row</strong> draw
+that is 64% late-campaign. The headline "sn-lower: engine 18.5 cm worse than
+bare seed 7.9 cm" compared different shots, different slices, different phases
+and different campaign mixes under a metric dominated by Defect 1.</p>
+<p>The fixed harness scores the disc seed <strong>on the same payload slice,
+against the same reference, with the same reads</strong>, carried as
+<code>bare_*</code> fields on every engine row. Paired flat-top medians
+(re-scored census):</p>
+<figure>
+  <table>
+    <thead><tr><th>Class</th><th>n paired</th><th>bare shape → engine shape [cm]</th>
+      <th>paired Δ</th><th>bare axis → engine axis [cm]</th></tr></thead>
+    <tbody>
+      <tr><td>connected-dn</td><td>690</td><td>7.83 → <strong>3.05</strong></td><td>−4.86</td><td>2.28 → 6.41</td></tr>
+      <tr><td>limited</td><td>91</td><td>6.78 → <strong>4.50</strong></td><td>−3.62</td><td>3.72 → 9.22</td></tr>
+      <tr><td>marginal-dn</td><td>644</td><td>6.46 → <strong>4.33</strong></td><td>−2.39</td><td>4.65 → 10.72</td></tr>
+      <tr><td>sn-lower</td><td>365</td><td>8.34 → <strong>7.97</strong></td><td>−1.05</td><td>19.36 → 26.06</td></tr>
+      <tr><td>sn-upper</td><td>37</td><td>7.35 → 7.89</td><td>+0.54</td><td>4.19 → 19.37</td></tr>
+    </tbody>
+  </table>
+  <figcaption>The chain <strong>improves boundary shape over its own seed in
+  4/5 classes</strong> (paired, same slices); the inversion narrative is dead.
+  The axis columns expose the two REAL effects: the coupled solve degrades
+  axis placement everywhere (the interior-null outboard drift), and on the
+  late-band-heavy sn-lower draw even the <em>linear seed read</em> starts
+  19 cm out — a data/geometry-layer problem upstream of the solver.</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-full-engine-vs-baseline.png"
+       alt="Paired per-slice bare seed vs engine boundary shape per class.">
+  <figcaption>Paired seed-vs-engine boundary shape, flat-top medians per class.</figcaption>
+</figure>
+
+<h2 id="h3">4 — Defect 3: class confounded with campaign era</h2>
+<p>Splitting the same rows at shot 23000: <em>every</em> class degrades
+~2.5–3× beyond it, and the per-class draws mix the bands very differently
+(the sn-lower draw is ~3/4 late-band at flat-top; connected-dn ~2/5). The
+published per-class ranking was substantially a campaign-composition
+ranking. Provenance matters here: the spine's <em>boundary</em>-fidelity
+cohort (the 1.5 cm envelope) tops out at shot 18559, so the late band was
+never boundary-validated — while the MSE-gate cohort (21978–30203, 67 shots
+&gt; 23000) validated the <em>internal profile through pitch</em> there and
+passed. The fixed aggregates report the bands separately.</p>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-campaign-band-split.png"
+       alt="Per-class boundary shape split by campaign band; every class roughly doubles beyond shot 23000.">
+  <figcaption>Flat-top boundary shape by campaign band. Validated-era
+  campaigns: 2.5–4.1 cm in four of five classes (sn-upper 7.9 at n=24 support).
+  The band effect dwarfs the class effect.</figcaption>
+</figure>
+
+<h2 id="h4">5 — Defect 4: "flat-top" meant t ≥ 0.2 s</h2>
+<p>The census phase bin calls every slice with t ≥ 0.2 s flat-top; the
+validated envelope's flat-top statistic is the per-shot <em>peak-|I<sub>p</sub>|</em>
+slice. On slow-ramp shots the census bin therefore contains still-ramping
+slices, inflating "flat-top" medians relative to the validated definition.
+Retained (with the band split making it visible) rather than changed, so the
+census keeps its denser time cover — but the two definitions must not be
+compared as if they were one.</p>
+
+<h2 id="framing">6 — Framing conflation: which 1.5 cm was the engine ever supposed to match?</h2>
+<p>The coupled chain (<code>coupled_solve_chain</code>) runs <em>without</em>
+the D2 spine's disc-annulus soft anchor (weight 10, recorded as load-bearing
+in the frozen-spine notes) and <em>without</em> the outboard reseed lever
+(<code>reseed_axis_r_max=None</code> vs the spine's 1.4) — in the gate AND in
+the census, unchanged since landing. Its position authority is the σ=2 cm
+current-centroid tether + warm start + diffusion prior alone. The 1.499 cm
+flat-top LCFS in <code>closure_spine_frozen.json</code> belongs to the full
+D2 closure harness with those priors; the chain was validated on held-out
+<em>pitch</em>. Comparing chain boundary output against the D2 envelope
+conflates two configs — the corrected expectation for the chain is "clears
+the 3 cm bar where its axis is right", which is what the re-scored data
+shows.</p>
+
+<h2 id="verdicts">7 — Corrected census verdicts</h2>
+<figure>
+  <table>
+    <thead><tr><th>Gate</th><th>Corrected result</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>G-E1 completion (≥0.99)</td>
+        <td><strong>0.638</strong> (4,360 / 6,838 attempted; fit-not-scored
+        1,604, unconfined-axis 602, read-not-found 8, chain-failed 11) —
+        unchanged by the metric fix</td>
+        <td><strong>FAIL (real)</strong></td></tr>
+      <tr><td>G-E2 flat-top boundary quality (shape ≤ 3 cm + class agreement ≥ 0.80)</td>
+        <td>shape medians: connected-dn <strong>3.05</strong>,
+        marginal-dn <strong>4.33</strong>, limited <strong>4.51</strong>,
+        sn-upper <strong>7.89</strong>, sn-lower <strong>7.97</strong> cm;
+        validated band 2.5–4.1 cm (sn-upper 7.9, n=24); agreement ≥ 0.79
+        everywhere except limited 0.53</td>
+        <td><strong>FAIL, but 2–4×
+        closer than reported</strong> — the miss concentrates in the late
+        band + the axis-driven attrition, not in shape generalisation</td></tr>
+      <tr><td>G-E3 eddy known-drive (no class regression)</td>
+        <td>shape regressions limited +0.74 cm, connected-dn +0.35 cm —
+        the feedforward injection is harmful under the corrected metric too</td>
+        <td><strong>FAIL (real, honest negative)</strong> — the ramp needs the
+        co-estimated coupling, not a pinned feedforward drive</td></tr>
+      <tr><td>Basin-pass ablation (report-only)</td>
+        <td>paired flat-top shape deltas within ±0.3 cm every class;
+        no-basin completion higher — consistent with the original reading</td>
+        <td><strong>not load-bearing on the census</strong>; curated-cohort
+        re-test (f-ctr-12) still the gate to retiring pass 1</td></tr>
+    </tbody>
+  </table>
+  <figcaption>The pre-declared tolerances are unchanged; only the metric now
+  measures what the tolerance was calibrated on. limited's 0.53 class
+  agreement (diverted/limited call on the engine ψ) tracks the axis/field
+  placement problem and is part of the routed axis work.</figcaption>
+</figure>
+
+<h2 id="gallery">8 — The corrected worst-case gallery</h2>
+<p>The §6b galleries picked "worst" slices by the placement-frame residual —
+i.e. by axis displacement — so they showcased well-shaped, badly-placed
+solutions as boundary failures. The re-rendered galleries rank by the
+own-axis <strong>shape</strong> residual: what remains in them is the genuine
+worst of the boundary read.</p>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-engine-overlay-grid.png"
+       alt="One worst flat-top engine psi panel per class, ranked by boundary-shape residual, overlaid on EFIT.">
+  <figcaption>Worst flat-top slice per class <em>by boundary shape</em> —
+  engine ψ (solid) vs EFIT (faint). These are the true residual failure modes
+  the fix vectors below own.</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-engine-worst-sn-lower.png"
+       alt="Four worst sn-lower flat-top fits by boundary shape.">
+  <figcaption>sn-lower deep dive, worst four flat-top fits by shape. Compare
+  the §6b version of this figure (axis-ranked): the outboard-blob panels it
+  led with were placement failures; the shape-ranked worst cases are the
+  slices where the up/down asymmetry genuinely exceeds the symmetric ladder.</figcaption>
+</figure>
+
+<h2 id="real">9 — What remains real, and where it routes</h2>
+<figure>
+  <table>
+    <thead><tr><th>Deficit (real)</th><th>Evidence</th><th>Route</th></tr></thead>
+    <tbody>
+      <tr><td>Coupled solve trades axis placement for shape — outboard drift
+        in every class; pin authority collapses on hard slices</td>
+        <td>paired axis columns (§3); probe shot 27893: centroid pin violated
+        21–63 cm at σ=2 cm; probe 29496: pin satisfied while the ψ null sits
+        25 cm outboard (field-balance layer)</td>
+        <td>interior-closure-hardening §2 (kinetic constraint on the interior
+        the magnetics cannot see)</td></tr>
+      <tr><td>Late-campaign (&gt;23000) data/geometry layer displaces even the
+        linear seed read</td>
+        <td>bare-seed axis 19.4 cm median on the sn-lower draw vs 2.3 cm on
+        connected-dn's early-heavy draw; every class ~2.5–3× worse in-band</td>
+        <td>new followup on connectivity-topology-reader: campaign
+        geometry/sensor-model audit for the post-23000 configurations
+        (circuit/passive geometry, sensor calibration)</td></tr>
+      <tr><td>Completion 0.638 (pass-1 attrition + outboard attractor)</td>
+        <td>failure ledger §7 — unchanged by the metric fix</td>
+        <td>gpu-accelerated-labeler f-gal-04 (co-estimated dynamics coupling)
+        + the axis work above</td></tr>
+      <tr><td>Feedforward eddy known-drive regresses</td>
+        <td>G-E3 corrected: +0.74 / +0.35 cm shape on limited / connected-dn</td>
+        <td>co-estimated passive state (f-gal-04) — feedforward injection is
+        retired as a fix vector</td></tr>
+      <tr><td>sn-upper small-n seed regression (+0.54 cm, n=37)</td>
+        <td>the one class where the chain does not beat its seed on shape</td>
+        <td>fold into the SN-asymmetry DOF question
+        (learned-equilibrium-operator endgame)</td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<h2 id="ledger">10 — Issue ledger</h2>
+<figure>
+  <table>
+    <thead><tr><th>#</th><th>Issue</th><th>Where</th><th>Fix / disposition</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>EFIT reference radii rendered about the engine axis —
+        boundary residual ≈ 0.7×axis error (r=0.887, n=4,443)</td>
+        <td>topology_engine_crossval.py scoring loops (both chains)</td>
+        <td><strong>eeb3e77</strong> — two-frame scoring; G-E2 gates on the
+        own-axis shape residual; placement + axis reported separately</td></tr>
+      <tr><td>2</td><td>Bare baseline from a different draw (45 vs 874 rows,
+        half-early vs 64%-late) and all-phase vs flat-top medians</td>
+        <td>aggregate_verdicts baseline block</td>
+        <td><strong>eeb3e77</strong> — paired per-slice disc-seed read
+        (bare_* fields), same slices/reference/reads</td></tr>
+      <tr><td>3</td><td>Class × campaign-era confounding (per-class draws mix
+        bands 2:1 differently; every class ~2.5–3× worse late)</td>
+        <td>pooled per-class aggregates</td>
+        <td><strong>eeb3e77</strong> + <strong>fd55e47</strong> — band-split
+        aggregates at shot 23000 with corrected provenance rationale</td></tr>
+      <tr><td>4</td><td>Flat-top = t ≥ 0.2 s vs validated peak-|Ip| pick</td>
+        <td>RAMP_END_S phase bin</td>
+        <td>documented + band split; definitions no longer conflated in
+        verdicts (§5)</td></tr>
+      <tr><td>5</td><td>Chain-vs-D2-spine config conflation (no disc anchor,
+        no reseed in the chain; 1.5 cm envelope is the D2 harness's number)</td>
+        <td>§6b findings framing</td>
+        <td>documented (§6); corrected expectation stated; pre-existing at the
+        gate landing — not a regression</td></tr>
+      <tr><td>6</td><td>Galleries ranked by placement residual — showcased
+        axis drift as boundary failure</td>
+        <td>topology_engine_overlays.py pick functions</td>
+        <td><strong>eeb3e77</strong> — picks rank by shape residual; galleries
+        re-rendered (§8)</td></tr>
+      <tr><td>7</td><td>Suspected but ruled out: solver regressions
+        (smooth-kernel re-point, boundary-binding unification, serialized-key
+        rename, grid cache), cache poisoning (cache_grid), config drift
+        between harnesses</td>
+        <td>gs_solve.py + chain dependency stack, 3c4fedf→HEAD</td>
+        <td>ruled out by the byte-identical A/B probes, the exact gate
+        reproduction (<strong>7eebd05</strong>), and the code audit; the
+        connectivity-vs-pushout read parity on engine ψ remains a noted
+        second-order spot-check</td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<p class="muted">Artifacts:
+<code>heldout_mse_gate-repro-head-q{1..4}.json</code> (+ §4-era worktree
+equivalents), re-scored
+<code>topology_full_engine_crossval-{plain,nobasin,eddy}-&lt;class&gt;.json</code>,
+verdicts <code>topology_full_engine_verdicts-v0.json</code> (e91aaf8).
+Evidence figures: <code>scripts/figures_engine_crossval_rca.py</code>.
+Harness: <code>scripts/topology_engine_crossval.py</code> (two-frame),
+overlays <code>scripts/topology_engine_overlays.py</code> (shape-ranked).
+Firewall unchanged throughout: EFIT is referee/visual reference only; every
+fit consumed measured magnetics.</p>
+
+</main>
+</body>
+</html>
