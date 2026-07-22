@@ -38,13 +38,19 @@ Verdict keys (module glossary — code below is named by mechanism):
          class (flat-top median within +0.25 cm) and its early-time
          (t < 0.2 s) effect is quantified per class.
 
-Scoring frames — every row carries the boundary residual in BOTH frames:
+Scoring frames — every row carries the boundary residual in THREE frames:
 
 * ``shape_dmed_cm`` (own-axis, gates G-E2): the engine boundary as radii
   about the engine's axis vs EFIT's polygon as radii about EFIT's axis.
   Translation-insensitive — measures boundary SHAPE, the quantity the
   validated 1.5–2.1 cm envelope (and hence the 3 cm tolerance) was
   calibrated on.
+* ``centroid_dmed_cm`` (measured-centroid frame): BOTH boundaries as radii
+  about the measured current centroid — a magnetics-derived datum available
+  on every shot, independent of either reconstruction's axis.  The stable
+  fixed-origin boundary metric; it charges true boundary displacement
+  without inheriting either side's axis estimate.  Becomes the gating
+  metric once a tolerance is calibrated on it (validated-cohort re-score).
 * ``radii_dmed_cm`` (engine-frame placement, reported): EFIT's polygon
   rendered about the ENGINE's read axis.  An axis displacement Δ projects
   into these radii at ~0.7·|Δ| (the mean |cos θ| over the ray fan), so this
@@ -317,6 +323,45 @@ def _eddy_center_builder(shot: int, payload: dict):
     return sidecar, centers_fn
 
 
+def _ray_radii_about(psi2d, grid, origin, level, angles) -> np.ndarray:
+    """Radii of the ``psi = level`` surface along rays from ``origin``.
+
+    Marches each ray outward from ``origin`` with bilinear ψ sampling and
+    returns the FIRST crossing of ``level`` (linear-interpolated), NaN where
+    a ray never crosses inside the grid.  This renders a boundary as radii
+    about an ARBITRARY interior origin — used with the measured current
+    centroid, a magnetics-derived datum available on every shot, so the
+    same fixed origin serves every boundary being compared.
+    """
+    from scipy.ndimage import map_coordinates  # noqa: PLC0415
+
+    psi = np.asarray(psi2d, dtype=np.float64)
+    r0, z0 = float(origin[0]), float(origin[1])
+    rg, zg = np.asarray(grid.rg), np.asarray(grid.zg)
+    step = 0.5 * min(grid.dr, grid.dz)
+    n_step = int(np.ceil(np.hypot(rg[-1] - rg[0], zg[-1] - zg[0]) / step))
+    t = step * np.arange(1, n_step + 1)
+    out = np.full(len(angles), np.nan)
+    for i, th in enumerate(np.asarray(angles, dtype=np.float64)):
+        rr = r0 + t * np.cos(th)
+        zz = z0 + t * np.sin(th)
+        ok = (rr >= rg[0]) & (rr <= rg[-1]) & (zz >= zg[0]) & (zz <= zg[-1])
+        if not ok.any():
+            continue
+        rr, zz, tt = rr[ok], zz[ok], t[ok]
+        ci = (zz - zg[0]) / grid.dz
+        cj = (rr - rg[0]) / grid.dr
+        vals = map_coordinates(psi, np.vstack([ci, cj]), order=1) - float(level)
+        sgn = np.sign(vals)
+        cross = np.nonzero(sgn[:-1] * sgn[1:] < 0)[0]
+        if cross.size == 0:
+            continue
+        j = int(cross[0])
+        frac = vals[j] / (vals[j] - vals[j + 1])
+        out[i] = tt[j] + frac * (tt[j + 1] - tt[j])
+    return out
+
+
 def _bare_read_fields(p, grid, table, basis, eq, k: int, lcfs) -> dict | None:
     """Bare disc-read boundary scored on one slice — the paired seed baseline.
 
@@ -348,11 +393,19 @@ def _bare_read_fields(p, grid, table, basis, eq, k: int, lcfs) -> dict | None:
         ok_s = np.isfinite(eng.radii) & np.isfinite(radii_own)
         if not (ok_f.any() and ok_s.any()):
             return None
+        psi = np.asarray(inv.psi_tot, dtype=np.float64)
+        radii_cen = _ray_radii_about(psi, grid, centroid, eng.psi_lcfs,
+                                     LCFS_ANGLES)
+        efit_cen = polygon_ray_radii(lcfs, centroid, LCFS_ANGLES)
+        ok_c = np.isfinite(radii_cen) & np.isfinite(efit_cen)
         return {
             "radii_dmed_cm": float(np.median(
                 100.0 * np.abs(eng.radii[ok_f] - radii_frame[ok_f]))),
             "shape_dmed_cm": float(np.median(
                 100.0 * np.abs(eng.radii[ok_s] - radii_own[ok_s]))),
+            "centroid_dmed_cm": (float(np.median(
+                100.0 * np.abs(radii_cen[ok_c] - efit_cen[ok_c])))
+                if ok_c.any() else float("nan")),
             "axis_d_cm": 100.0 * float(np.hypot(
                 eng.axis[0] - efit_axis[0], eng.axis[1] - efit_axis[1])),
         }
@@ -504,6 +557,17 @@ def full_engine_rows_for_shot(
         ok_s = np.isfinite(eng.radii) & np.isfinite(efit_radii_own)
         shape_cm = (100.0 * np.abs(eng.radii[ok_s] - efit_radii_own[ok_s])
                     if ok_s.any() else None)
+        # centroid frame — both boundaries as radii about the MEASURED current
+        # centroid (the pin target): a magnetics-derived datum available on
+        # every shot, so the origin is fixed and shared rather than tied to
+        # either reconstruction's axis
+        cen = (float(s["centroid"][0]), float(s["centroid"][1]))
+        eng_radii_cen = _ray_radii_about(psi, grid, cen, eng.psi_lcfs,
+                                         LCFS_ANGLES)
+        efit_radii_cen = polygon_ray_radii(lcfs, cen, LCFS_ANGLES)
+        ok_c = np.isfinite(eng_radii_cen) & np.isfinite(efit_radii_cen)
+        cen_cm = (100.0 * np.abs(eng_radii_cen[ok_c] - efit_radii_cen[ok_c])
+                  if ok_c.any() else None)
         # paired bare-seed baseline on the SAME slice (same payload, same
         # reference, same reads) — the seed the chain starts from, so the
         # chain's value-added is measured without draw or phase mismatch
@@ -524,6 +588,10 @@ def full_engine_rows_for_shot(
                               if shape_cm is not None else float("nan")),
             "shape_dmax_cm": (float(np.max(shape_cm))
                               if shape_cm is not None else float("nan")),
+            "centroid_dmed_cm": (float(np.median(cen_cm))
+                                 if cen_cm is not None else float("nan")),
+            "centroid_dmax_cm": (float(np.max(cen_cm))
+                                 if cen_cm is not None else float("nan")),
             "axis_d_cm": 100.0 * float(
                 np.hypot(eng.axis[0] - efit_axis[0], eng.axis[1] - efit_axis[1])),
             "xset_d_cm": _xset_match_cm(eng.xset, u_x[binding][:, 1:]),
@@ -760,12 +828,14 @@ def _dedup_rows(rows: list[dict]) -> list[dict]:
 
 
 def _phase_aggs(prows: list[dict]) -> dict:
-    """Metric aggregates over one row subset (both frames + axis + X-set)."""
+    """Metric aggregates over one row subset (all frames + axis + X-set)."""
     nan = float("nan")
     return {
         "n": len(prows),
         "radii_dmed_cm": _agg([r["radii_dmed_cm"] for r in prows]),
         "shape_dmed_cm": _agg([r.get("shape_dmed_cm", nan) for r in prows]),
+        "centroid_dmed_cm": _agg(
+            [r.get("centroid_dmed_cm", nan) for r in prows]),
         "axis_d_cm": _agg([r["axis_d_cm"] for r in prows]),
         "xset_d_cm": _agg([r["xset_d_cm"] for r in prows]),
     }
@@ -928,6 +998,7 @@ def aggregate_verdicts() -> dict:
         quality[cname] = {
             "supported": supported,
             "flattop_shape_med_cm": med,
+            "flattop_centroid_med_cm": e["flattop"]["centroid_dmed_cm"]["med"],
             "flattop_placement_med_cm": med_frame,
             "flattop_axis_med_cm": e["flattop"]["axis_d_cm"]["med"],
             "flattop_class_agreement": acc,
