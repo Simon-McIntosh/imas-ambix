@@ -219,3 +219,94 @@ def test_broadcasts_target_shape():
     zz = np.full_like(rr, 0.25)
     psi, br, bz = polygon_greens(rr, zz, PARA)
     assert psi.shape == rr.shape and br.shape == rr.shape and bz.shape == rr.shape
+
+
+# --------------------------------------------- robustness & singularity handling
+#
+# The field is the complex-step curl of a semi-analytic ψ that is analytic for
+# every target off the section boundary (D² ≥ r²sin²φ > 0 at the interior φ
+# nodes).  The stresses below — a target grazing / on an edge or vertex, a
+# near-horizontal slanted edge (large slope b₁), and a thin slanted plate — must
+# stay finite and, at physical standoffs, accurate.
+
+# slanted edge (0.97,0)→(1.05,0.20) of PARA; midpoint + outward unit normal
+_EDGE_MID = np.array([1.01, 0.10])
+_EDGE_NRM = np.array([0.20, -0.08]) / np.hypot(0.20, 0.08)
+
+
+@pytest.mark.parametrize(
+    "standoff,tol",
+    [(0.05, 1e-10), (0.01, 1e-8), (0.005, 1e-7), (0.001, 5e-6)],
+    ids=["50mm", "10mm", "5mm", "1mm"],
+)
+def test_near_edge_accuracy_floor(standoff, tol):
+    """Default quadrature stays accurate approaching a slanted edge.
+
+    Machine-precise beyond ~1 cm; ≲1e-6 down to 1 mm — tighter than any physical
+    sensor standoff.  Compared against a heavily-refined rule as reference."""
+    p = _EDGE_MID + standoff * _EDGE_NRM
+    tr, tz = np.array([p[0]]), np.array([p[1]])
+    psi, br, bz = polygon_greens(tr, tz, PARA)  # default 16×48
+    psi_r, br_r, bz_r = polygon_greens(tr, tz, PARA, n_panels=64, n_nodes=96)
+    assert np.all(np.isfinite([psi[0], br[0], bz[0]]))
+    rel = max(
+        abs(psi[0] - psi_r[0]) / abs(psi_r[0]),
+        abs(bz[0] - bz_r[0]) / max(abs(bz_r[0]), 1e-30),
+        abs(br[0] - br_r[0]) / max(abs(br_r[0]), 1e-30),
+    )
+    assert rel <= tol, f"near-edge rel err {rel:.2e} > {tol:.0e} at {standoff} m"
+
+
+def test_subedge_recovers_with_refinement():
+    """Sub-mm from an edge, adding panels drives the field to the reference."""
+    p = _EDGE_MID + 0.0005 * _EDGE_NRM
+    tr, tz = np.array([p[0]]), np.array([p[1]])
+    ref, _, _ = polygon_greens(tr, tz, PARA, n_panels=96, n_nodes=96)
+    e_coarse = abs(polygon_greens(tr, tz, PARA, n_panels=8)[0][0] - ref) / abs(ref)
+    e_fine = abs(polygon_greens(tr, tz, PARA, n_panels=48)[0][0] - ref) / abs(ref)
+    assert e_fine < e_coarse
+
+
+@pytest.mark.parametrize(
+    "pt", [_EDGE_MID, np.array([0.97, 0.00])], ids=["edge-midpoint", "vertex"]
+)
+def test_on_boundary_evaluation_finite(pt):
+    """A target exactly on an edge/vertex stays finite (complex-step off-axis)."""
+    psi, br, bz = polygon_greens(np.array([pt[0]]), np.array([pt[1]]), PARA)
+    assert np.all(np.isfinite([psi[0], br[0], bz[0]]))
+
+
+# a shallow, highly-sheared parallelogram: slanted edges have slope b₁ = 0.40/0.02
+SHEAR = np.array([(0.80, 0.00), (1.00, 0.00), (1.40, 0.02), (1.20, 0.02)])
+# a thin slanted plate (~1 cm thick, 30 cm long, 40°) — a stability-plate stress
+_ANG = np.deg2rad(40.0)
+_R0 = np.array([0.90, -0.10])
+_DIR = np.array([np.cos(_ANG), np.sin(_ANG)]) * 0.30
+_NRM = np.array([-np.sin(_ANG), np.cos(_ANG)]) * 0.01
+PLATE = np.array([_R0, _R0 + _DIR, _R0 + _DIR + _NRM, _R0 + _NRM])
+
+
+@pytest.mark.parametrize("verts", [SHEAR, PLATE], ids=["large_b1_shear", "thin_plate"])
+def test_awkward_geometry_matches_oracle(verts):
+    """Large-slope and thin-plate sections agree with the exact-tiling oracle."""
+    for r, z in [(1.60, 0.40), (0.70, -0.30), (1.30, 0.10)]:
+        psi, br, bz = polygon_greens(np.array([r]), np.array([z]), verts)
+        psi_o, br_o, bz_o = _oracle_fields(r, z, verts, n=160)
+        assert np.all(np.isfinite([psi[0], br[0], bz[0]]))
+        b_scale = max(abs(br_o), abs(bz_o))
+        assert abs(psi[0] - psi_o) <= 1e-4 * abs(psi_o)
+        assert abs(br[0] - br_o) <= 1e-4 * b_scale
+        assert abs(bz[0] - bz_o) <= 1e-4 * b_scale
+
+
+def test_thin_plate_ampere_circulation():
+    """|∮ B·dl| around the thin plate = μ0·I (robust physics invariant)."""
+    r0, z0 = PLATE[:, 0].mean(), PLATE[:, 1].mean()
+    a = 0.40
+    theta = np.linspace(0.0, 2 * np.pi, 720, endpoint=False)
+    rr, zz = r0 + a * np.cos(theta), z0 + a * np.sin(theta)
+    _, br, bz = polygon_greens(rr, zz, PLATE)
+    circ = (
+        np.sum(-br * np.sin(theta) + bz * np.cos(theta)) * a * (2 * np.pi / theta.size)
+    )
+    np.testing.assert_allclose(circ, -MU0, rtol=1e-6)

@@ -53,7 +53,13 @@ For the FULL TURN (axisymmetric ring, arc = 2π) the φ-integrand is even about
 φ = π, so it is evaluated on [0, π] and doubled, with composite Gauss–Legendre
 panels.  The integrand is analytic for every target off the section boundary —
 including INSIDE the conductor — because D² ≥ r²sin²φ > 0 at the interior
-quadrature nodes; convergence is spectral.  This mirrors the in-tree
+quadrature nodes; convergence is spectral.  With the default 16×48 rule the
+field is machine-precise (~1e-13 relative) for targets more than ~1 cm off the
+section boundary and holds to ≲1e-6 down to ~1 mm; sub-millimetre standoffs
+(finer than any physical sensor) recover full accuracy by raising ``n_panels``
+/ ``n_nodes`` (both exposed).  A target lying exactly on an edge or vertex
+stays finite because the complex-step increment nudges the evaluation off the
+real singularity.  This mirrors the in-tree
 precedent: the rectangle kernel itself carries a 785-point arcsinh (ζ)
 quadrature inside its "closed" antiderivative, so a smooth bounded 1-D
 quadrature per edge is the established cost model.  (A fully-elliptic closed
