@@ -162,6 +162,90 @@ records/UDA in the registry work).</p>
   referee availability is not an era confound.</li>
 </ul>
 
+<h2 id="s2b">§2b — Archive tiers, coverage, and the full REST surface (follow-up survey)</h2>
+
+<h3>Level 1 vs Level 2 — official definitions and counts</h3>
+<p>From the archive's own tutorials: <strong>Level 1</strong> is raw /
+minimally processed data "without any preprocessing, interpolation,
+calibration, cropping" applied, "under the original names used during the
+time of MAST's operation" (ama/amb/amc/amm/efm/…), and includes "all shots
+that could be pulled from the MAST archive, including instrument calibration
+and testing shots". <strong>Level 2</strong> "includes cropping,
+interpolation, calibration, etc. of each signal", maps diagnostic groups
+toward IMAS naming, is FAIR-indexed, and its shot set is <em>filtered by
+plasma current</em> to remove testing/commissioning shots. L2 groups:
+summary, pulse_schedule, magnetics, spectrometer_visible, pf_active,
+soft_x_rays, thomson_scattering, cxrs, equilibrium, gas_injection.</p>
+<figure>
+  <table>
+    <thead><tr><th>Campaign</th><th>L1 shots</th><th>L2 shots</th><th>L2/L1</th></tr></thead>
+    <tbody>
+      <tr><td>M5</td><td>2,679</td><td>1,960</td><td>73%</td></tr>
+      <tr><td>M6</td><td>3,848</td><td>2,697</td><td>70%</td></tr>
+      <tr><td>M7</td><td>5,168</td><td>3,514</td><td>68%</td></tr>
+      <tr><td>M8</td><td>2,595</td><td>2,009</td><td>77%</td></tr>
+      <tr><td>M9</td><td>1,679</td><td>1,101</td><td>66%</td></tr>
+      <tr><td>Unknown</td><td>—</td><td>292</td><td>(L2 rows with no campaign label, shots 16332–25365 — resolve in the registry)</td></tr>
+      <tr><td><strong>total</strong></td><td><strong>15,969</strong></td><td><strong>11,865</strong></td><td>~72%</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Per-campaign counts from the aggregate endpoints
+  (<code>/json/shots/aggregate</code> and <code>/json/level2/shots/aggregate</code>,
+  <code>data=shot_id$count:,shot_id$min:,shot_id$max:&amp;groupby=campaign</code>).
+  The L2 subset is the Ip-filtered physics set — consistent with our label
+  corpus scale (~12k usable shots).</figcaption>
+</figure>
+<p><strong>Our pipeline's tier split (verified in code):</strong> the engine
+consumes <em>Level 1</em> — efm geometry tables
+(<code>gs/geometry.py</code>), ama/amb/amc/ane sensor windows
+(<code>latent/data.py</code>), ams MSE truth (<code>mse_eval</code>),
+amc tf_current for B<sub>t0</sub> — with the project's OWN absolute
+calibration layer on top; the census/crossval referee and the shot index
+consume <em>Level 2</em> (equilibrium group; <code>parquet/level2/shots</code>).
+Implication: UKAEA's L2 magnetics calibration is an <strong>independent
+instrument</strong> against which our L1 calibration can be cross-checked
+per configuration era — directly relevant to the late-campaign
+sensor-calibration question.</p>
+
+<h3>Pre-M5 coverage</h3>
+<p>The archive simply begins at M5 (shot 11695, 2004-12-13); the L1 counts
+confirm nothing earlier is ingested. The FAIR-MAST paper gives no explicit
+rationale; M1–M4 (1999–2004, shots below 11695) exist only in UKAEA's
+internal UDA archive (the paper's motivation section: historical data was
+accessible only through the in-house UDA library, not publicly). A plausible
+scope choice — labelled inference, not documented fact — is that ingestion
+targeted the post-2004-rebuild machine (the divertor/centre-column rebuild
+immediately precedes M5). Access to M1–M4 would go through UKAEA/UDA
+collaboration, not the open archive.</p>
+
+<h3>Full REST surface (OpenAPI)</h3>
+<ul>
+  <li><strong>Indexes</strong>: <code>/json/shots</code> (L1, 281 CPF-derived
+  fields) and <code>/json/level2/shots</code> (separate L2 index);
+  <code>/json/signals</code> + <code>/json/level2/signals</code> (per-shot
+  signal instances with quality flags); <code>/json/sources</code> +
+  <code>/json/level2/sources</code> (per-shot diagnostic-source instances
+  with quality annotations, e.g. "abm: multi-chord bolometers | Bad").</li>
+  <li><strong>Aggregates</strong>: <code>…/aggregate</code> on every index
+  (count/min/max with groupby + filters) — the campaign tables above.</li>
+  <li><strong>Dictionaries</strong>: <code>/json/cpf_summary</code> (the
+  description of every CPF summary field) and <code>/json/scenarios</code>
+  (scenario lookup: S1–S8, named scenarios like DN-450-CD-OH /
+  DN-750-CD-1BSW, plus a MAST-U placeholder).</li>
+  <li><strong>Bulk</strong>: <code>/parquet/{shots,signals,sources}</code>
+  and <code>/parquet/level2/…</code> (+ ndjson variants) — the right path
+  for the registry's full sweep.</li>
+  <li><strong>Shot logs — yes</strong>: per-shot free-text
+  <code>preshot_description</code> / <code>postshot_description</code>
+  (populated from the very first archived shot) plus
+  <code>shot_program</code> / <code>shot_objective</code> /
+  <code>shot_summary</code> / <code>shot_physicist</code> /
+  <code>shot_experiment_tags</code> (fill improves in later campaigns).
+  <strong>Campaign logs — no dedicated endpoint</strong>: campaign exists
+  only as a per-shot label; campaign-level narrative would come from the
+  literature chronology (§1) or UKAEA directly.</li>
+</ul>
+
 <h2 id="s3">§3 — Sources</h2>
 <ul>
   <li>FAIR-MAST: <a href="https://mastapp.site/">mastapp.site</a> catalog,

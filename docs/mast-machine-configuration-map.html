@@ -127,7 +127,19 @@ registry instead of hard-coding shot thresholds. Per-shot record:</p>
   power fields (all eras), heating/plasma_shape/scenario/divertor_config
   (M8+ from the API; earlier eras from NBI power fields + preshot text where
   needed).</li>
+  <li><strong>Tier provenance</strong>: L1 vs L2 membership per shot (L2 =
+  the Ip-filtered, calibrated physics set: 11,865 shots vs L1's 15,969 —
+  counts per campaign in the research notes §2b), including the 292
+  L2 rows with campaign "Unknown" (16332–25365) to resolve; per-shot
+  free-text shot logs (preshot/postshot descriptions) retained as registry
+  text fields for scenario mining.</li>
 </ul>
+<p><strong>Calibration cross-check instrument (from the tier survey):</strong>
+the engine consumes L1 raw sensors under our own absolute-calibration layer,
+while UKAEA's L2 magnetics carry their independent calibration — comparing
+the two per configuration era is a cheap, data-only test for the
+late-campaign sensor-calibration hypothesis, and belongs in the §3
+validation rung alongside the vacuum-shot residuals.</p>
 <p>Sources fused: FAIR-MAST bulk parquet + REST API (note: filters use
 <code>$eq/$geq</code>; several <code>mcs_*</code> fields 500 on select;
 plasma_shape/heating/rmp_coil/scenario null before M8), the local level-1/2
