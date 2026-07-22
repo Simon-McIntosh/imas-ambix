@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-22">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="16">
+<meta name="plan-version" content="17">
 <meta name="plan-informs" content="interior-closure-hardening,gpu-accelerated-labeler">
 </head>
 <body>
@@ -917,7 +917,7 @@ Done-when
     </article>
 <article class="r-fu" data-id="f-ctr-13" data-status="open" data-tier="opus" data-written-by="reckon-edit (crossval RCA 2026-07-22)" data-written-at="2026-07-22 03:30" data-recommends-skill="/reckon-ship connectivity-topology-reader" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Audit the post-23000-campaign geometry/sensor data layer — even the linear seed read misplaces the field null there</h4>
-    <div class="r-fu-body">The census-crossval RCA (<a href="/imas-ambix/connectivity-topology-reader-engine-crossval-rca.html">connectivity-topology-reader-engine-crossval-rca</a>) exonerated the solve chain (held-out gate reproduces exactly; A/B probes byte-identical) and re-scored the census under a two-frame harness. The isolated REAL deficit: on campaigns beyond shot ~23000 every class degrades ~2.5&ndash;3&times; in boundary shape AND the bare disc-seed read itself starts ~19 cm off-axis on the sn-lower draw &mdash; a data/geometry-layer problem upstream of the solver (candidate causes: campaign circuit/passive geometry, sensor calibration for the late machine configurations). Probe fingerprints: shot 27893 violates the &sigma;=2 cm centroid pin by 21&ndash;63 cm (misfit overwhelms the tether); shot 29496 satisfies the pin while the &psi; null sits 25 cm outboard (field-balance layer).</div>
+    <div class="r-fu-body">The census-crossval RCA (<a href="/imas-ambix/connectivity-topology-reader-engine-crossval-rca.html">connectivity-topology-reader-engine-crossval-rca</a>) exonerated the solve chain (held-out gate reproduces exactly; A/B probes byte-identical) and re-scored the census under a two-frame harness. The isolated REAL deficit: on campaigns beyond shot ~23000 every class degrades ~2.5–3× in boundary shape AND the bare disc-seed read itself starts ~19 cm off-axis on the sn-lower draw — a data/geometry-layer problem upstream of the solver (candidate causes: campaign circuit/passive geometry, sensor calibration for the late machine configurations). Probe fingerprints: shot 27893 violates the σ=2 cm centroid pin by 21–63 cm (misfit overwhelms the tether); shot 29496 satisfies the pin while the ψ null sits 25 cm outboard (field-balance layer).</div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    connectivity-topology-reader
 Section: post-census data-layer audit (follows the crossval RCA)
@@ -949,6 +949,43 @@ Done-when
   2. The late-band axis displacement attributed (geometry vs calibration vs circuit)
      with a figure, or the attribution honestly bounded
   3. Findings doc + plan updated; followup written + this one resolved</pre>
+    </article>
+<article class="r-fu" data-id="f-ctr-14" data-status="open" data-tier="opus" data-written-by="reckon-edit (spine-config gap 2026-07-22)" data-written-at="2026-07-22 05:20" data-recommends-skill="/reckon-ship connectivity-topology-reader" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Census-test the FULL D2 spine config (disc anchor + reseed + passive DOF) — the production label config has never been census-scored</h4>
+    <div class="r-fu-body">The census crossval scored the MSE-gate CHAIN config (centroid pin + ψ-diffusion prior only). The production label factory runs the FULL frozen D2 spine — disc soft-anchor w=10, reseed_axis_r_max=1.4, passive_k=8 sidecar (scripts/spine_label_factory.py:153-201) — whose 1.5 cm envelope was validated only on the early-band n128 cohort (shots ≤18559). Whether the anchor+reseed hold the confined basin corpus-wide (where the chain's axis drifts outboard 12–26 cm) is unmeasured, and the answer routes the axis work: if D2 holds, the deficit is the CHAIN config, not the spine; if D2 drifts too, the interior/data-layer work stays the priority.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    connectivity-topology-reader (standing census-crossval harness)
+Section: census arm for the D2 spine config
+Tier:    opus
+
+Context
+  The census scored the chain config; production labels run the full D2
+  spine (disc anchor w=10, reseed 1.4, passive_k=8). Nobody has measured the
+  D2 spine per class/era on the census. This is the missing measurement
+  between &#x27;chain drifts outboard corpus-wide&#x27; and the interior-closure /
+  machine-config remediation investments.
+
+State to read
+  scripts/topology_engine_crossval.py (arms: plain/nobasin/eddy — add &#x27;spine&#x27;)
+  scripts/spine_label_factory.py:140-215 (run_shot — the exact D2 invocation:
+    build_slice_soft_priors config, _shot_passive_sidecar(passive_k), reseed)
+  scripts/closure_gate_eval.py::fit_and_read_slice (soft_prior_cfg, reseed args)
+  docs/connectivity-topology-reader-engine-crossval-rca.html (metric frames;
+    score with shape + centroid + placement frames like the other arms)
+
+Scope locks / constraints
+  Firewall intact (measured magnetics only; EFIT referee). Reuse the census
+  draw + checkpointing; sun/sirius/vega debug fleet with resume rounds (1h
+  cap; ~40-60 min per class job at 26-40 workers). Per-slice solves are
+  independent (no warm chain in the D2 factory config) so thinning budget
+  semantics match the bare arm, not the chain.
+
+Done-when
+  1. &#x27;spine&#x27; arm artifacts per class + aggregate verdicts (shape/centroid
+     frames, campaign-band split, paired vs plain-arm on common slices)
+  2. Verdict recorded: does D2 hold the basin corpus-wide (axis + completion
+     vs the chain&#x27;s 0.638) — routed into the axis work + the map plan
+  3. Plan + RCA doc updated; followup written + this one resolved</pre>
     </article>
 </section>
 

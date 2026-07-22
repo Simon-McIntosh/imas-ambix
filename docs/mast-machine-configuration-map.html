@@ -7,7 +7,7 @@
   <meta name="reckon-type" content="plan">
   <meta name="plan-slug" content="mast-machine-configuration-map">
   <meta name="plan-title" content="MAST Machine-Configuration Map — campaign-aware geometry, sensors, and setup for every solve">
-  <meta name="plan-summary" content="Build the authoritative per-shot machine-configuration registry for the MAST archive (M5-M9, shots 11695-30473) and route every solve, label, and evaluation through it. Motivation: the census RCA localised reconstruction degradation to machine history our geometry layer cannot see — the efm setup signature is CONSTANT from shot 13370 to 30463 while the real machine gained 12 in-vessel RMP coils (M7, shot 19031) then 18 (M8, 25404), the magnetics geometry descends from a pre-2004 detectors file, working sensors erode 103->74 channels, and the amm eddy-data availability collapses over 21k-29k. Registry fuses FAIR-MAST API metadata (campaign map, divertor/heating/rmp fields, per-shot signal quality), local zarr scans (sensor inventories, amm presence, geometry digests), and the cited literature chronology (RMP install/upgrade, MSE from ~20400, Thomson upgrades). Deliverables: the shot-map artifact + accessor, era-aware geometry tables, RMP-era passive-model remediation, evaluation stratification by configuration era (retiring the ad-hoc 23000 constant), and the measured-centroid boundary-metric tolerance calibration (centroid datum locked as the stable frame, implemented 5393ded).">
+  <meta name="plan-summary" content="Build the authoritative per-shot machine-configuration registry for the MAST archive (M5-M9, shots 11695-30473) and route every solve, label, and evaluation through it. Motivation: the census RCA localised reconstruction degradation to machine history our geometry layer cannot see — the efm setup signature is CONSTANT from shot 13370 to 30463 while the real machine gained 12 in-vessel RMP coils (M7, shot 19031) then 18 (M8, 25404), the magnetics geometry descends from a pre-2004 detectors file, working sensors erode 103-&gt;74 channels, and the amm eddy-data availability collapses over 21k-29k. Registry fuses FAIR-MAST API metadata (campaign map, divertor/heating/rmp fields, per-shot signal quality), local zarr scans (sensor inventories, amm presence, geometry digests), and the cited literature chronology (RMP install/upgrade, MSE from ~20400, Thomson upgrades). Deliverables: the shot-map artifact + accessor, era-aware geometry tables, RMP-era passive-model remediation, evaluation stratification by configuration era (retiring the ad-hoc 23000 constant), and the measured-centroid boundary-metric tolerance calibration (centroid datum locked as the stable frame, implemented 5393ded).">74 channels, and the amm eddy-data availability collapses over 21k-29k. Registry fuses FAIR-MAST API metadata (campaign map, divertor/heating/rmp fields, per-shot signal quality), local zarr scans (sensor inventories, amm presence, geometry digests), and the cited literature chronology (RMP install/upgrade, MSE from ~20400, Thomson upgrades). Deliverables: the shot-map artifact + accessor, era-aware geometry tables, RMP-era passive-model remediation, evaluation stratification by configuration era (retiring the ad-hoc 23000 constant), and the measured-centroid boundary-metric tolerance calibration (centroid datum locked as the stable frame, implemented 5393ded).">
   <meta name="plan-status" content="draft">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
@@ -16,6 +16,10 @@
   <title>MAST Machine-Configuration Map | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-22">
+<meta name="plan-blocks" content="gpu-accelerated-labeler,interior-closure-hardening">
+<meta name="plan-informs" content="">
+<meta name="plan-version" content="1">
 </head>
 <body>
 <main class="plan-doc">
@@ -201,45 +205,45 @@ open decision below.</p>
 </ul>
 
 <section data-reckon="decisions" id="decisions" class="r-decisions">
-  <h2><span class="sec">§</span> Decisions</h2>
-  <div class="r-dec" data-key="boundary-metric-datum" data-choice="measured-current-centroid" data-by="smc" data-when="2026-07-22">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="boundary-metric-datum" data-choice="measured-current-centroid" data-by="smc" data-when="2026-07-22">
     <p class="r-dec-q">Which fixed origin does the stable boundary metric use?</p>
     <p class="r-dec-opts">
       <button class="r-opt chosen" data-value="measured-current-centroid">measured current centroid</button>
       <button class="r-opt" data-value="efit-axis">EFIT axis</button>
       <button class="r-opt" data-value="engine-axis">engine axis</button>
-    </p>
+      </p>
     <p class="r-dec-rat">User directive 2026-07-22: the current centroid is
     magnetics-derived, available on every shot, and independent of either
     reconstruction — a frozen datum. Implemented as the third residual frame
-    (<code>centroid_dmed_cm</code>) in commit <code>5393ded</code>; becomes
+    ( centroid_dmed_cm ) in commit 5393ded ; becomes
     the gating metric once its tolerance is calibrated on the validated
     cohorts (§4).</p>
-  </div>
-  <div class="r-dec" data-key="registry-storage" data-choice="" data-by="" data-when="">
+    </div>
+<div class="r-dec" data-key="registry-storage" data-choice="" data-by="" data-when="">
     <p class="r-dec-q">Where does the shot-map registry live?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="work-manifest-parquet">/work manifests parquet (beside the split manifests)</button>
       <button class="r-opt" data-value="repo-artifact-json">in-repo JSON artifact (versioned with code)</button>
       <button class="r-opt" data-value="both-parquet-plus-repo-summary">parquet + thin in-repo era summary</button>
-    </p>
+      </p>
     <p class="r-dec-rat"></p>
-  </div>
-  <div class="r-dec" data-key="rmp-passive-treatment" data-choice="" data-by="" data-when="">
+    </div>
+<div class="r-dec" data-key="rmp-passive-treatment" data-choice="" data-by="" data-when="">
     <p class="r-dec-q">How are the unmodeled in-vessel RMP conductors handled in the passive model?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="add-conductors-per-era">add era-gated conductors to the passive geometry</button>
       <button class="r-opt" data-value="per-era-calibration">absorb via per-era sensor-model calibration</button>
       <button class="r-opt" data-value="flag-only">registry flag only; document as out-of-model</button>
-    </p>
+      </p>
     <p class="r-dec-rat"></p>
-  </div>
+    </div>
 </section>
 
 <section data-reckon="followups" id="followups" class="r-followups">
-  <h2><span class="sec">§</span> Followups</h2>
-  <article class="r-fu" data-id="f-mcm-01" data-status="open" data-tier="opus" data-written-by="reckon-create (machine-map research 2026-07-22)" data-written-at="2026-07-22T04:30:00+00:00" data-recommends-skill="/reckon-ship mast-machine-configuration-map §2">
-    <h3 class="r-fu-title">Build the shot-map registry extraction pipeline (§2)</h3>
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-mcm-01" data-status="open" data-tier="opus" data-written-by="reckon-create (machine-map research 2026-07-22)" data-written-at="2026-07-22T04:30:00+00:00" data-recommends-skill="/reckon-ship mast-machine-configuration-map §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Build the shot-map registry extraction pipeline (§2)</h4>
     <div class="r-fu-body">The research base is in place:
     <a href="/imas-ambix/mast-campaign-research-notes.html">mast-campaign-research-notes</a>
     carries the authoritative campaign map + API field caveats, the local
@@ -258,7 +262,7 @@ Context
   The census RCA traced late-campaign reconstruction degradation to machine
   history the geometry layer cannot see (efm signature constant 13370-30463
   while the machine gained in-vessel RMP coils and lost ~30% of its working
-  magnetics). The registry is the fix's foundation. (Honour the locked /
+  magnetics). The registry is the fix&#x27;s foundation. (Honour the locked /
   surface the open decisions shown live above - do not re-list them.)
 
 State to read
@@ -286,7 +290,7 @@ Done-when
   3. Registry-vs-corpus spot-validation (sensor counts, amm bands) green
   4. Plan updated (section 2 outcome recorded); followup written for section 3
      (era-aware tables + RMP conductor remediation); this followup resolved</pre>
-  </article>
+    </article>
 </section>
 
 </main>
