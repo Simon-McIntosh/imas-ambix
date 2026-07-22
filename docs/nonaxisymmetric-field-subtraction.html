@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="nonaxisymmetric-field-subtraction">
+  <meta name="plan-title"     content="Non-Axisymmetric Field Subtraction — validated 3D EM modeling of in-vessel coils and sensors">
+  <meta name="plan-summary"   content="We reconstruct axisymmetric equilibria from non-axisymmetric diagnostics operating in non-axisymmetric magnetic fields. The per-era vacuum scorecard localised a 30-50% flux-loop coupling collapse to the in-vessel RMP-coil bay; the 3D conductor set (RMP/ELM coils, saddle coils, error-field correction coils, leads) is unmodelled. This plan ports nova's 3D polyline+arc Biot-Savart kernels and its RDP line/arc defeaturing, models the IVC set and the 3D sensor geometry, validates on the plasma-free measurements already identified (864 vacuum-IVC shots, always-on error-field windows, post-disruption tails), and subtracts the 3D components — passive (circuit-coupled eddy) and energised (n!=0 applied) — so that axisymmetric equilibria are fit to axisymmetric measurements only.">
+  <meta name="plan-status"    content="draft">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="XL">
+  <meta name="plan-tier"      content="opus">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="">
+  <title>Non-Axisymmetric Field Subtraction | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<h2 id="s1">§1 — The problem: axisymmetric reconstruction from a non-axisymmetric machine</h2>
+<p>Every equilibrium solve in this project fits an <em>axisymmetric</em> field
+model to sensors that are (a) non-axisymmetrically placed 3D objects, (b)
+operating inside non-axisymmetric applied fields (RMP/ELM coils, error-field
+correction coils), and (c) coupled to non-axisymmetric passive conductors the
+frozen geometry model does not contain. The per-era magnetics scorecard
+(<a href="/imas-ambix/connectivity-topology-reader-magnetics-era-scorecard.html">findings</a>)
+measured the cost: the P4/P5 flux loops lose 30–50 % of their modelled vacuum
+coupling across the campaigns that installed the 12→18 in-vessel RMP coils, and
+that bias propagates through the current-centroid pin into every late-band
+reconstruction. The remedy is not to discard sensors or retire physics priors —
+it is to <strong>model the 3D machine and subtract what is not axisymmetric</strong>,
+so the axisymmetric solve only ever sees axisymmetric data.</p>
+
+<p>Three distinct layers hide inside "non-axisymmetric contamination", with
+different physics, different sensors affected, and different validation data:</p>
+<figure>
+  <table>
+    <thead><tr><th>Layer</th><th>Mechanism</th><th>Who it hits</th><th>Validation data</th></tr></thead>
+    <tbody>
+      <tr><td><strong>A — passive</strong> (dominant, the scorecard signal)</td>
+        <td>PF-ramp-induced eddy currents in the unmodelled 3D conductors
+        (RMP coils, leads, supports, saddle structures) screen/perturb flux at
+        co-located sensors — an L/R circuit response, largest on ramps</td>
+        <td>bay flux loops severely (−30…−50 % gain), nearby <code>obv</code>
+        probes moderately (0.11–0.16)</td>
+        <td>ordinary vacuum PF ramps per era (the scorecard pool; the
+        quasi-static vs dI/dt dual fit already exists)</td></tr>
+      <tr><td><strong>B — energised</strong></td>
+        <td>n≠0 applied fields from RMP/ELM coils and the n=2/n=5 error-field
+        correction coils, present whenever those circuits carry current</td>
+        <td>probes fully (~4.4 G at 5.6 kA·turns ≈ 0.4–0.9 % of signal);
+        <em>full toroidal flux loops are immune by symmetry</em> (prototype:
+        2×10⁻¹⁹ Wb vs 4.4×10⁻⁴ Wb single-coil)</td>
+        <td>the 864 dedicated-vacuum shots with IVCs driven
+        (<code>ivc_vacuum_candidates.json</code>); the always-on
+        <code>error_field_05</code> pre-breakdown windows; post-disruption
+        tails</td></tr>
+      <tr><td><strong>C — instrument</strong></td>
+        <td>shorted turns / effective-area / wiring changes in the sensor
+        itself</td>
+        <td>any single channel; a <em>uniform</em> gain scalar across all drive
+        coils and frequencies</td>
+        <td>the per-(sensor, coil) gain-pattern discriminator (§5)</td></tr>
+    </tbody>
+  </table>
+  <figcaption>The three-layer decomposition. A and B are modelled and
+  subtracted; C is calibrated per era against the stable far sensor set. The
+  scorecard's evidence (drift is a clean <em>gain</em> change with shrinking
+  offsets, localised to the RMP bay) already rules out integrator drift and
+  rules in A and/or C at the loops.</figcaption>
+</figure>
+
+<h2 id="s2">§2 — Evidence base (research landed 2026-07-22)</h2>
+<p><strong>Scorecard drift anatomy.</strong> Per-family medians of |Δgain vs M5|
+/ |offset/σ| show the failure is spatial, not sensor-type: centre-column loops
+0.00–0.01 / 0.01 (stable to &lt;1 % over 8 years); centre-column probes 0.01–0.05;
+outboard <code>obr</code> 0.01–0.02; outboard <code>obv</code> 0.11–0.16 / falling
+offsets; P-coil bay loops 0.28 (M7) → 0.58 (M8) → 1.54 (M9) with offsets
+<em>shrinking</em> 0.12→0.01. Gain change at constant-or-shrinking offset is a
+coupling/effective-area change, not electronics drift. In M9 the bay loops'
+vacuum gain is ≈ 0 (−0.11…+0.10) — the M9 vacuum flux-loop records are
+uncorrelated with the drive, so <strong>M9 has effectively no usable vacuum
+magnetics at all</strong> (pickup probes were already known to carry no vacuum
+data there).</p>
+
+<p><strong>Prototype (validated, in-tree:
+<code>scripts/segment_biot_sensor_coupling.py</code>).</strong> A 3D finite-segment
+Biot-Savart (field <em>B</em> and vector potential <em>A</em>, flux linkage by
+∮A·dl) checks to 10⁻¹⁶ against the square-loop analytic and to 9×10⁻⁶ against
+the Maxwell coaxial-circles mutual. Applied to a MAST-like n=3 picture-frame
+RMP set at 5.6 kA·turns with catalogued sensor positions:</p>
+<figure>
+  <img src="/imas-ambix/figures/nonaxisymmetric-field-subtraction/fig-loop-probe-coupling.png"
+       alt="Prototype geometry and coupling magnitudes" style="max-width:100%">
+  <figcaption>(a) prototype geometry — picture-frame IVC set (± polarity), full
+  toroidal flux loop at the catalogued fl_p5l_1 position, outboard probe.
+  (b) coupling magnitudes: the full n=3 set links 2×10⁻¹⁹ Wb through the loop
+  (exact symmetry cancellation) vs 4.4×10⁻⁴ Wb for a single coil; the probe
+  sees the full set undiminished (≈4.4 G). Full toroidal loops and point probes
+  have <em>opposite</em> sensitivity to the energised 3D field.</figcaption>
+</figure>
+<p>Consequences: (i) the energised layer B is a <em>probe</em> correction —
+loops don't need it (unless a loop is broken/partial, which the geometry
+ingestion must record); (ii) the big loop signal in the scorecard is layer A
+(passive) and/or C (instrument), so the 3D upgrade must be
+<strong>circuit-coupled</strong> (mutual-inductance L/R dynamics), not just
+field-from-known-currents; (iii) at ~0.4–0.9 % of signal, layer B matters at
+the precision of our residual fits and grows with RMP current — worth
+subtracting, cheap once the geometry exists.</p>
+
+<p><strong>Flux-loop drift question (answered).</strong> Loops and probes do
+<em>not</em> suffer the same problem: the degradation is a property of
+<em>location</em> (proximity to the new conductors), not of the sensing
+principle. The era-stable far set (centre-column probes + <code>obr</code> +
+centre-column loops) can therefore anchor an axisymmetric vacuum fit that
+predicts each bay loop's flux and recalibrates it per era — a bay probe cannot
+correct a bay loop, but the far set can. This cross-instrument correction is
+layered under §5's discriminator.</p>
+
+<h2 id="s3">§3 — What nova provides (capability survey, 2026-07-22)</h2>
+<p>The nova codebase (<code>~/Code/nova</code>, HEAD <code>ae6385c0</code>)
+carries the complete 3D kit:</p>
+<ul>
+  <li><strong>Kernels</strong> (<code>nova/biot/</code>, registry in
+    <code>solve.py:31</code>): <code>line</code> (finite straight segment),
+    <code>arc</code> (circular arc in an arbitrary 3D plane, elliptic-integral),
+    <code>beam</code>/<code>bow</code> (straight/arc with finite rectangular
+    cross-section), plus the axisymmetric <code>circle</code>/<code>cylinder</code>/
+    <code>polygon</code> (the cylinder kernel is what we already extracted as
+    <code>imas_ambix/gs/cylinder.py</code>). All return the vector potential
+    <code>Ax/Ay/Az</code> and field <code>Bx/By/Bz</code>; axisymmetric kernels
+    add ψ. Filament kernels are numpy/scipy-only — cleanly extractable.</li>
+  <li><strong>RDP line/arc defeaturing</strong>:
+    <code>nova/geometry/polyline.py</code> — an RDP-like decimator for mixed
+    linear/arc polylines (<code>PolyLine(points, arc_eps, line_eps, rdp_eps,
+    minimum_arc_nodes, …).decimate()</code>): greedily grows best-fit arcs
+    (SVD plane-align + least-squares circle), demotes short arcs to chords,
+    merges collinear runs via plain n-D RDP (<code>nova/geometry/rdp.py</code>,
+    numpy-only). Output: a list of <code>Line|Arc</code> elements that feed the
+    kernels directly. Tested in <code>tests/test_polyline.py</code> /
+    <code>test_biotsavart_3d.py</code>.</li>
+  <li><strong>Sensors & circuits</strong>: <code>Point.solve(xyz)</code> gives
+    the B-vector at arbitrary 3D probe positions; flux through an arbitrary 3D
+    loop is ∮A·dl over the kernel A-vector (the prototype demonstrates the
+    pattern); <code>Inductance.solve()</code> yields circuit-level mutual
+    inductances across 3D source elements — exactly what layer A's L/R model
+    needs.</li>
+  <li><strong>Worked ITER precedent</strong>:
+    <code>nova/imas/coils_non_axisymmetric.py</code> ingests the
+    <code>coils_non_axisymmetric</code> IDS (line/arc conductor elements) and
+    <code>nova/field/elm_3d_field.py</code> assembles CC/VS3/ELM/CS/PF/TF 3D
+    coilsets and computes fields — the direct analogue of the MAST RMP/EFCC
+    workflow, and the bridge to the IMAS-DD pivot: <em>author the MAST IVC
+    geometry as a <code>coils_non_axisymmetric</code> IDS</em> and both nova
+    and this repo read it (connectivity-topology-reader f-ctr-16).</li>
+  <li><strong>Portability</strong>: filament kernels + rdp are numpy/scipy-only;
+    <code>zeta</code> (cylinder/bow) has a pure-Python fallback when numba is
+    absent. No MAST 3D coil geometry exists in nova — we supply centrelines.</li>
+</ul>
+
+<h2 id="s4">§4 — Deliverables</h2>
+
+<h3 id="d1">D1 — 3D EM kernel in-tree (nova port)</h3>
+<p>Port the filament kernels (<code>line</code>, <code>arc</code>) plus the
+line/arc RDP decimator into <code>imas_ambix/gs/</code> beside
+<code>cylinder.py</code>, with the sensor-coupling layer: B-vector at oriented
+probe points, ∮A·dl flux linkage for arbitrary 3D loops, and circuit-level
+mutual inductances. Validation: reproduce the prototype's C1/C2 checks and
+nova's <code>test_biotsavart_3d</code> cases in-tree; cross-check one
+picture-frame coil against nova itself (the <code>nova_coil_greens_check</code>
+precedent). Finite-section <code>beam</code>/<code>bow</code> ported only if the
+filament limit proves insufficient at real sensor–conductor separations
+(measure, don't assume).</p>
+
+<h3 id="d2">D2 — 3D geometry of the in-vessel coil set and sensors, era-keyed</h3>
+<p>Build centreline + cross-section models for: the 12-coil M7 RMP set and the
+18-coil M8+ set (Kirk/Nardon PPCF 51 124010; Kirk NF 53 043007), their leads
+and feeders as far as documented; the n=2/n=5 error-field correction coils; the
+outer saddle-coil structures; and the 3D sensor geometry (probes as oriented
+points with <code>magpr_ang</code>; flux loops as full 3D circles unless
+documentation shows breaks/partial loops — record loop topology explicitly,
+since layer-B immunity depends on it). Geometry is keyed by campaign era
+(12-coil ≥19031, 18-coil ≥25404) and authored as a
+<code>coils_non_axisymmetric</code> IDS (the f-ctr-16 bridge), consumable by
+both this repo and nova. Where drawings are unavailable, the geometry carries
+explicit uncertainty and §5's fits treat the worst-known dimensions as bounded
+nuisance parameters.</p>
+
+<h3 id="d3">D3 — Passive layer (A): circuit-coupled eddy model, validated on vacuum ramps</h3>
+<p>Mutual-inductance matrix between PF circuits, IVC circuits (including the
+idle-circuit boundary condition — see the decision below), and every sensor,
+from D1+D2. L/R dynamics fit on the per-era vacuum PF-ramp pool (the scorecard
+machinery already stratifies quasi-static vs dI/dt).
+<strong>Validation gate G-A (make-or-break):</strong> the passive 3D model must
+quantitatively reproduce the measured P4/P5 loop gain collapse (−30…−50 %,
+era-resolved) from first principles. If it reproduces the pattern → layer A
+confirmed, subtract it. If it cannot (e.g. predicted screening is 10× too
+small) → the loop collapse re-routes to layer C (instrument), and the
+correction becomes per-era calibration anchored on the stable far set — either
+way the pin/prior confound closes with a mechanism.</p>
+
+<h3 id="d4">D4 — Energised layer (B): n≠0 Green's columns, validated on the vacuum-IVC seams</h3>
+<p>3D Green's columns from every IVC circuit to every sensor. Calibrate the
+<code>rog_elm</code> Rogowski→ampere-turns chain, then validate measured-vs-
+predicted on the three plasma-free seams: the 864 dedicated-vacuum candidates
+(<code>ivc_vacuum_candidates.json</code>; the 27394–27560 M8 series steps
+several coils individually), the always-on error-field pre-breakdown windows
+(corpus-wide), and post-disruption tails (quench + vessel-decay gating, ELM
+Rogowski still swinging — prototype detector exists). By-product: with the
+toroidally-localised fields validated, re-run the Hole et al. signed assignment
+on these intervals — the archive's route from the degenerate C≈0.03 to the
+paper's C&gt;0.97 sensor-identity audit (connectivity-topology-reader
+f-ctr-17 executes there; this deliverable supplies its forward model).</p>
+
+<h3 id="d5">D5 — Subtraction operator + era recalibration in the reconstruction chain</h3>
+<p><code>measured′ = measured − G₃D·I_ivc(t) − passive_estimate(t)</code>
+applied upstream of every fit, era-keyed; bay-loop recalibration anchored on
+the stable far sensor set where layer C carries the residual. Includes the
+per-(sensor, coil) gain-pattern discriminator: a uniform scalar across drive
+coils ⇒ C (effective-area/wiring); a coil-dependent pattern ⇒ A (screening).
+<strong>Validation gate G-B:</strong> the corrected sensor layer must contract
+the &gt;23000 late-band axis displacement on the paired census re-score — this
+plan supplies the corrected measurements; connectivity-topology-reader
+f-ctr-18 runs the engine arm. Firewall unchanged throughout: raw magnetics +
+coil currents + geometry models; EFIT referee only.</p>
+
+<h2 id="s5">§5 — Sequencing and gates</h2>
+<p>D1 → D2 → (D3 ∥ D4) → D5. D1 and D2 are pure engineering with hard
+validation targets and no physics risk. D3 carries the physics risk and the
+G-A gate decides the loop-collapse attribution; D4 is low-risk (linear,
+directly validated) and independently unblocks f-ctr-17. D5 integrates and
+hands the corrected layer to the census re-score (f-ctr-18). Each deliverable
+lands with its validation evidence in a per-stage archive doc; SLURM debug
+fleet for corpus sweeps; <code>OPENBLAS/OMP/MKL_NUM_THREADS=1</code> in every
+sbatch wrap.</p>
+
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+  <h2><span class="sec">§</span> Decisions</h2>
+
+  <div class="r-dec" data-key="correction-coils-in-scope" data-choice="yes-include-error-field-coils" data-by="Simon McIntosh" data-when="2026-07-22">
+    <p class="r-dec-q">Do the n=2/n=5 error-field correction coils belong in the modelled 3D set?</p>
+    <p class="r-dec-rat">Locked: yes. The correction coils are energised in
+    essentially every shot (error_field_05 median 3.2 corpus-wide) including
+    the pre-breakdown vacuum window, so their n≠0 field contaminates the
+    probes in all operating scenarios; they are also the most abundant
+    validation source. The 3D field set = RMP/ELM coils + saddle structures +
+    error-field correction coils + documented leads.</p>
+  </div>
+
+  <div class="r-dec" data-key="idle-ivc-circuit-state" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">What is the electrical boundary condition of the in-vessel coil circuits when not energised — open circuit (no eddy path), crowbarred/shorted (full L/R eddy circuit), or era/shot-dependent?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="open">open circuit</button>
+      <button class="r-opt" data-value="shorted">crowbarred / shorted</button>
+      <button class="r-opt" data-value="fit-from-data">treat as unknown, fit an effective admittance per era from the vacuum ramps</button>
+    </p>
+    <p class="r-dec-rat">This changes layer A qualitatively: an open coil
+    contributes no circulating eddy (only its structure/case does); a shorted
+    coil is a strong screening circuit. Power-supply documentation may answer
+    it; otherwise the fit-from-data option makes it an identifiable nuisance
+    (the vacuum ramps constrain it well). Resolve during D3.</p>
+  </div>
+
+  <div class="r-dec" data-key="kernel-hosting" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Port the nova kernels into imas_ambix (like cylinder.py) or depend on nova as a library?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="port-in">port filament kernels + rdp in-tree (cylinder.py precedent)</button>
+      <button class="r-opt" data-value="depend-on-nova">import nova directly</button>
+    </p>
+    <p class="r-dec-rat">The filament kernels and rdp are numpy/scipy-only and
+    small; the port-in path avoids coupling this repo to nova's frame/vedo
+    stack and matches the cylinder.py precedent. nova stays the cross-check
+    oracle either way (nova_coil_greens_check pattern).</p>
+  </div>
+
+  <div class="r-dec" data-key="rmp-geometry-source" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Where does the RMP/IVC 3D geometry come from — literature reconstruction (Kirk/Nardon papers), MAST engineering drawings/UDA metadata, or a coils_non_axisymmetric IDS if one exists for MAST?</p>
+    <p class="r-dec-rat">Determines D2's fidelity and uncertainty model. Survey
+    first (part of D2); literature gives coil counts, spans and locations,
+    drawings give conductor paths and leads. Whatever the source, the landed
+    geometry is authored as a coils_non_axisymmetric IDS so it is versioned,
+    portable, and nova-readable.</p>
+  </div>
+</section>
+
+<section data-reckon="followups" id="followups" class="r-followups">
+  <h2><span class="sec">§</span> Followups</h2>
+  <article class="r-fu" data-id="f-nfs-01" data-status="open" data-tier="opus"
+           data-written-by="reckon-create" data-written-at="2026-07-22 11:05">
+    <h4 class="r-fu-title">Ship D1+D2 — port the 3D line/arc kernels + RDP decimator in-tree; build the era-keyed IVC geometry</h4>
+    <div class="r-fu-body"><p>First shippable pair: the numpy/scipy filament
+    kernels (line, arc) with probe-B, loop-∮A·dl and mutual-inductance
+    couplings, validated against the prototype checks and nova itself; then the
+    12/18-coil RMP set + error-field coils + sensor 3D geometry from the best
+    available source, authored as a coils_non_axisymmetric IDS. Unblocks D3
+    (passive gate G-A) and D4 (vacuum-IVC validation).</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    nonaxisymmetric-field-subtraction (http://localhost:8765/imas-ambix/nonaxisymmetric-field-subtraction.html)
+Section: D1 + D2
+Tier:    opus
+
+Context
+  Research + prototypes landed 2026-07-22: the per-era scorecard localised a
+  30-50% flux-loop coupling collapse to the RMP bay; the in-tree prototype
+  (scripts/segment_biot_sensor_coupling.py) validated segment Biot-Savart,
+  A-line-integral flux linkage, and the loop-immunity/probe-exposure physics.
+  This followup lands the production kernel and the real coil geometry.
+
+State to read  (CODE / FILES / DATA)
+  scripts/segment_biot_sensor_coupling.py       (validated prototype + checks C1/C2)
+  imas_ambix/gs/cylinder.py                      (the nova-extraction precedent)
+  ~/Code/nova: nova/biot/{line,arc,matrix}.py, nova/geometry/{polyline,rdp}.py,
+    nova/imas/coils_non_axisymmetric.py, nova/field/elm_3d_field.py,
+    tests/test_biotsavart_3d.py, tests/test_polyline.py
+  docs/connectivity-topology-reader-magnetics-era-scorecard.html (evidence)
+  imas_ambix/latent/artifacts/patch_gate/magnetics_era_scorecard-cylv5.json
+  Kirk/Nardon PPCF 51 124010 + Kirk NF 53 043007 (RMP coil geometry, 12->18)
+
+Scope locks / constraints  (non-decision)
+  Firewall: no EFIT anywhere. Do not modify the frozen spine config or the
+  scorecard artifacts. New modules under imas_ambix/gs/ beside cylinder.py.
+  nova is the cross-check oracle (nova_coil_greens_check pattern), heavy
+  sweeps on SLURM *_debug with OPENBLAS/OMP/MKL_NUM_THREADS=1.
+
+Done-when
+  1. In-tree line+arc kernels (B, A, loop flux, mutuals) reproduce prototype
+     C1/C2 and a nova cross-check on a picture-frame coil; tests green
+  2. Era-keyed IVC geometry (12-coil M7 / 18-coil M8+, error-field coils,
+     sensor 3D positions/orientations, loop topology) authored as a
+     coils_non_axisymmetric IDS with documented uncertainty
+  3. Plan updated (D1/D2 collapsed with results); followup for D3/D4 written +
+     this one resolved</pre>
+  </article>
+</section>
+
+</main>
+</body>
+</html>
