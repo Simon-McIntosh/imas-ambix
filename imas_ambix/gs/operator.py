@@ -707,6 +707,31 @@ def _green_columns(
     return col
 
 
+def polygon_section_column(
+    vertices: np.ndarray,
+    xmult: float,
+    sensor_r: np.ndarray,
+    sensor_z: np.ndarray,
+    sensor_ang: np.ndarray,
+    is_flux: np.ndarray,
+) -> np.ndarray:
+    """One G column from an analytic polygon cross-section (Urankar Part V).
+
+    The exact-shape counterpart of the single-source path in
+    :func:`_green_columns`: flux-loop rows get ``xmult·ψ``, B-probe rows get
+    ``xmult·(B_R cosθ + B_Z sinθ)``, with (ψ, B_R, B_Z) from
+    :func:`imas_ambix.gs.polygon.polygon_greens` per ampere of TOTAL section
+    current (the same sign/units contract as ``hybrid_greens``).  Replaces the
+    bounding-box column for a slanted / trapezoidal / hollow passive at
+    O(edges) cost, with none of the multi-filament proxy's Riemann error.
+    """
+    from imas_ambix.gs.polygon import polygon_greens  # noqa: PLC0415
+
+    psi, br, bz = polygon_greens(sensor_r, sensor_z, np.asarray(vertices, np.float64))
+    bproj = _project_bprobe(bz, br, sensor_ang)
+    return xmult * np.where(is_flux, psi, bproj)
+
+
 def build_operator(table: GeometryTable) -> ForwardOperator:
     """Build the per-campaign :class:`ForwardOperator` from a T1 geometry table.
 
@@ -769,12 +794,24 @@ def build_operator(table: GeometryTable) -> ForwardOperator:
         pf_cols.append(merged)
 
     # --- INFERRED passive block: one column per passive(structural) circuit ---
+    # A circuit with a wired PolygonSection uses the exact shaped Urankar kernel
+    # in place of its axis-aligned bounding-box cylinder (opt-in — an empty
+    # table.polygon_sections leaves every column byte-identical).
+    poly_by_circ = {ps.circuit: ps for ps in table.polygon_sections}
     passive_rz: list[tuple[float, float]] = []
     passive_cols: list[np.ndarray] = []
     for cc in classes:
         if cc.role not in _KNOWN_ROLES:
             passive_rz.append((cc.centroid_r, cc.centroid_z))
-            passive_cols.append(_circ_col(cc.circuit))
+            ps = poly_by_circ.get(cc.circuit)
+            if ps is not None:
+                passive_cols.append(
+                    polygon_section_column(
+                        ps.vertices, ps.xmult, srz_r, srz_z, srz_ang, is_flux
+                    )
+                )
+            else:
+                passive_cols.append(_circ_col(cc.circuit))
 
     g_pf = (
         np.column_stack(pf_cols)

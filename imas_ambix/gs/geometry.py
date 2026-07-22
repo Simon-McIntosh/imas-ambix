@@ -325,6 +325,53 @@ class PassiveStructure:
     obsolete: bool
 
 
+@dataclass(frozen=True, eq=False)
+class PolygonSection:
+    """A conductor cross-section as an (R, Z) polygon — the faithful field source
+    for a slanted / trapezoidal / hollow section, evaluated with the analytic
+    Urankar Part V kernel (:func:`imas_ambix.gs.polygon.polygon_greens`) instead
+    of an axis-aligned bounding box or a Riemann-limited multi-filament tiling.
+
+    Keyed to the fcoil ``circuit`` whose bounding-box representation it REPLACES
+    in the forward operator (an opt-in override — a table with no polygon
+    sections builds byte-identically to before).  ``vertices`` are the (n, 2)
+    corners in either orientation, no repeated closing vertex.  ``xmult`` is the
+    current-share weight and MUST equal the replaced circuit's summed ``xmult``
+    so the column's per-amplitude scaling is unchanged (only the shape differs).
+    """
+
+    circuit: int
+    vertices: np.ndarray  # (n, 2) (R, Z) corners
+    xmult: float = 1.0
+    name: str = ""
+
+
+def parallelogram_vertices(
+    r: float, z: float, width: float, height: float, angle_deg: float
+) -> np.ndarray:
+    """(4, 2) corners of a parallelogram cross-section centred at ``(r, z)``.
+
+    ``width`` / ``height`` are the radial / vertical extents; ``angle_deg`` tilts
+    the two vertical (side) edges away from the Z-axis, so ``angle_deg = 0`` is an
+    axis-aligned rectangle and the top / bottom edges stay horizontal — the crown
+    / P2-arm / stability-plate shape.  A corner at ±height/2 shifts radially by
+    ``(height/2)·tan(angle_deg)``; the enclosed area stays ``width·height``.
+    Turns the MAST data-catalog ``*_r/_z/_width/_height/_shapeAngle``
+    parametrisation of the slanted passives into explicit vertices for a
+    :class:`PolygonSection`.
+    """
+    dr = 0.5 * height * np.tan(np.deg2rad(angle_deg))
+    hw, hh = 0.5 * width, 0.5 * height
+    return np.array(
+        [
+            (r - hw - dr, z - hh),
+            (r + hw - dr, z - hh),
+            (r + hw + dr, z + hh),
+            (r - hw + dr, z + hh),
+        ]
+    )
+
+
 @dataclass(frozen=True)
 class SensorMapping:
     """One amb sensor column mapped to its efm geometry index."""
@@ -445,6 +492,12 @@ class GeometryTable:
     "empty" value coerced to zero, or a non-axisymmetric sensor approximated
     by a single point.  Always ``[]`` for the MAST reader (nothing to flag);
     populated by :mod:`imas_ambix.gs.imas_geometry` where it applies."""
+    polygon_sections: list[PolygonSection] = field(default_factory=list)
+    """Analytic polygon cross-sections that REPLACE the axis-aligned bounding box
+    of specific fcoil circuits in the forward operator (keyed by
+    :attr:`PolygonSection.circuit`).  Empty for every existing reader — the
+    operator is byte-identical when this is ``[]`` — and populated only where a
+    faithful slanted / trapezoidal / hollow section is wired in."""
 
     # ---- summary helpers ----
 
