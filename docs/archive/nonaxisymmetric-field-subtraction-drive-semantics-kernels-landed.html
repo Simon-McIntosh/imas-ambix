@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="nonaxisymmetric-field-subtraction-drive-semantics-kernels-landed">
+  <meta name="plan-title" content="Landed — levers 1+2 (drive semantics) + D1 3D kernels + EFCC first rung">
+  <meta name="plan-status" content="reference">
+  <meta name="plan-summary" content="Per-stage landed record for nonaxisymmetric-field-subtraction: the first two drive-semantics levers plus the D1 3D filament-kernel port and the EFCC Green's-columns first rung. Lever 1 names the bay-loop bimodality as a drive-data amplitude error on p3l_case_current (empirical/model scale k=2.40, constant across all four bay loops, separable column). Lever 2's per-era ledger resolves the 0.66-0.71/-0.04 case-k class as the eight measured coil-case columns, present in every era. D1 ports the line + adaptive-arc Biot-Savart kernels, sensor coupling and RDP decimator in-tree (12 tests pass). The EFCC forward model confirms full-loop n!=0 cancellation to 3e-15 and the coarse exposure ladder (outboard probes 37G >> ccbv 1.1G >> loops 0 at 15 kA-turn); the obv-vs-obr fine ordering is toroidal-position governed and deferred to D2.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>Landed — drive semantics + 3D kernels + EFCC | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Per-stage record</strong> for
+<a href="/imas-ambix/nonaxisymmetric-field-subtraction.html">nonaxisymmetric-field-subtraction</a>
+— the first rungs of the locked lever ranking (drive semantics first, 3D fields
+second): lever 1 (name the bimodal column), lever 2 (coil-circuit semantic
+ledger), the D1 3D filament-kernel port, and the EFCC Green's-columns first
+rung. All firewall-safe (raw <code>amb</code>/<code>amc</code> + geometry only,
+no EFIT).</p>
+
+<h2 id="status">Quick status</h2>
+<figure>
+  <table>
+    <thead><tr><th>Item</th><th>Verdict</th><th>Result</th><th>Commit</th></tr></thead>
+    <tbody>
+      <tr><td>Lever 1 — name the bimodal column</td><td>SHIPPED</td>
+        <td>The bay-loop bimodality is a <strong>drive-DATA amplitude error on
+        <code>p3l_case_current</code></strong>: empirical/model scale
+        <strong>k = 2.40</strong>, near-constant across all four bay loops
+        (values 2.37 / 2.39 / 2.52 / 2.41, rel. spread 0.02), on a
+        <em>separable</em> column (the only unseparable set is
+        <code>p3l</code>+<code>p3u</code> coil-current). A constant multiplier
+        across sensors ⇒ amplitude/scaling error, not a field-pattern
+        (geometry) error. Routed fix: audit the case channel's turns/xmult
+        scaling + name assignment before it enters <code>G_pf</code>. 430-shot
+        vacuum cohort. Artifact
+        <code>flux_loop_column_decomposition.json</code>.</td>
+        <td><code>4de2bbc</code></td></tr>
+      <tr><td>Lever 2 — coil-circuit semantic ledger (per era)</td><td>SHIPPED</td>
+        <td>The <strong>0.66–0.71 / −0.04 case-k class = the 8 measured
+        coil-CASE circuits</strong> (pfSystems ids 14–21: P2U/P2L/P3U/P3L/P4U/
+        P4L/P5U/P5L case-current), each already carried as its own dedicated
+        <code>G_pf</code> column with CASE (induced-structural) semantics, never
+        merged with the co-located winding. P6U/P6L cases constrained-zero;
+        solenoid keeps uniform <code>k_sol</code> = 1.0825. The amc channel
+        inventory + semantics are <strong>time-invariant M5–M9</strong> — all 13
+        active + 8 case columns present with identical meaning in every era; the
+        only per-era amc change is the error-field drive relabel
+        <code>a/b</code> → <code>02/05</code> mid-M6. Artifact
+        <code>coil_circuit_semantic_ledger.json</code>.</td>
+        <td><code>1647a29</code></td></tr>
+      <tr><td>Convergence of levers 1+2</td><td>NOTED</td>
+        <td>The named bimodal column <em>is</em> a case column — exactly the
+        class the ledger resolved. The systematic sits on the case-current
+        response, not the coil winding; the coil-vs-case application decision is
+        queued (<code>f-nfs-lever2</code>).</td><td>—</td></tr>
+      <tr><td>D1 — 3D EM kernels in-tree</td><td>SHIPPED</td>
+        <td><code>imas_ambix/gs/filaments3d.py</code>: <code>Line</code> +
+        adaptive circular-<code>Arc</code> Biot-Savart (vector potential A and
+        field B), polyline/<code>Conductor</code> assembly, sensor coupling
+        (<code>probe_response</code> B·n̂, <code>flux_through_loop</code> ∮A·dl,
+        <code>mutual_inductance</code>), and a line/arc RDP <code>decimate</code>.
+        numpy/scipy-only (cylinder.py precedent). <strong>12 tests pass</strong>
+        (C1 square-loop centre field, C2 coaxial-circles mutual vs Maxwell, arc
+        convergence, full-loop analytic, RDP round-trip); nova cross-check
+        <code>importorskip</code>-guarded (nova needs pandas, absent here).</td>
+        <td><code>805c60a</code></td></tr>
+      <tr><td>EFCC Green's columns (D4 first rung)</td><td>SHIPPED (qualified)</td>
+        <td>Kirk et al. geometry (4 ex-vessel coils, 83°, 3 turns, sectors 2–8 /
+        5–11) built with the D1 kernels. <strong>Full-loop n≠0 cancellation to
+        3×10⁻¹⁵</strong> of a single-coil linkage (the symmetry counterpart of
+        the measured loop immunity); <strong>coarse exposure ladder
+        reproduced</strong> — outboard probes ~37 G ≫ ccbv 1.1 G ≫ loops 0 at
+        15 kA·turn — and the sector-2 sign convention (positive EFCC_2 →
+        B<sub>r</sub>&lt;0) satisfied. <strong>Boundary:</strong> the obv-vs-obr
+        <em>fine</em> ordering is NOT reproducible from axisymmetric geometry
+        (data favours vertical obv; the (R,Z) envelope favours the radial obr) —
+        it is governed by toroidal probe position + the coil vertical extent,
+        both D2 inputs. Artifact <code>efcc_greens_columns.json</code>.</td>
+        <td><code>3b82d9e</code></td></tr>
+    </tbody>
+  </table>
+  <figcaption>Outcomes for the drive-semantics + kernels rung. All artifacts
+  under <code>imas_ambix/latent/artifacts/patch_gate/</code>.</figcaption>
+</figure>
+
+<h2 id="lever1">Lever 1 — the named column</h2>
+<p>On the 430-shot vacuum cohort each bay loop's per-shot gain was regressed on
+the individual coil-current columns (not the summed prediction). The identifiable
+source that tops the bay-loop gain-drive ranking, carries a bay-loop scale
+significantly ≠ 1, and does so as a <em>constant multiplier across sensors</em>
+is <code>p3l_case_current</code> at k ≈ 2.40. The constancy across the four bay
+loops (spread 0.02) is the discriminator: an amplitude/data-scaling error
+(drive-DATA), not a wrong field pattern (which would vary sensor-to-sensor). This
+matches the ~factor-2.7 bimodality in the era scorecard — shots that heavily
+drive the P3-lower case land on the high-gain mode.</p>
+<figure>
+  <img src="/imas-ambix/figures/nonaxisymmetric-field-subtraction/fig-column-decomposition.png"
+       alt="Per-coil gain decomposition for bay vs control loops" style="max-width:100%">
+  <figcaption>Per-coil exposure-weight distributions and fitted scales for the
+  bay loops vs the centre-column controls; the named column carrying the
+  bimodal factor is highlighted.</figcaption>
+</figure>
+
+<h2 id="lever2">Lever 2 — the per-era coil-circuit ledger</h2>
+<figure>
+  <img src="/imas-ambix/figures/nonaxisymmetric-field-subtraction/fig-coil-circuit-ledger.png"
+       alt="Per-era coil-circuit semantic ledger" style="max-width:100%">
+  <figcaption>Circuits × campaign eras coloured by role/presence; the case-k
+  class and the solenoid uniform scale are annotated. The amc inventory and
+  semantics are time-invariant M5–M9 — only the error-field drive relabels.</figcaption>
+</figure>
+
+<h2 id="efcc">EFCC Green's columns — what geometry can and cannot constrain</h2>
+<p>The in-tree sensor geometry is axisymmetric (each sensor an (R,Z) with, for
+probes, a poloidal pickup angle — no toroidal position). Two things are
+reconstructable and both validate: full toroidal loops cancel the n≠0 field to
+machine precision regardless of phase (matching the empirical immunity), and the
+probe exposure <em>envelope</em> by (R,Z) orders the families the robust way
+(outboard ≫ centre-column ≫ loops). The one thing that is <em>not</em>
+reconstructable here — the obv-vs-obr fine ordering — is exactly the piece that
+needs the toroidal sensor positions and a pinned coil vertical extent, which is
+the D2 deliverable.</p>
+<figure>
+  <img src="/imas-ambix/figures/nonaxisymmetric-field-subtraction/fig-efcc-greens.png"
+       alt="EFCC geometry, full-loop cancellation, and family exposure ladder"
+       style="max-width:100%">
+  <figcaption>(a) EFCC coil plan view (two opposite-in-series pairs). (b)
+  full-loop n≠0 cancellation: pair linkage as a fraction of a single coil's,
+  ~10⁻¹⁵. (c) predicted (R,Z) exposure envelope vs measured ΔR² per family.</figcaption>
+</figure>
+
+<h2 id="next">What's next</h2>
+<div class="callout">
+  <p><strong>D2 — era-keyed 3D geometry + toroidal sensor positions</strong>
+  (<code>f-nfs-d2</code>). Build the 12-coil (≥19031) and 18-coil (≥25404) RMP
+  sets, ELM rows, the EFCC coils with a pinned vertical extent, saddle
+  structures, and the toroidal sensor positions + loop topology. Unblocks
+  absolute per-probe EFCC calibration, the D3 passive circuit-coupled eddy model
+  whose gate G-A must reproduce the −30…−50 % P4/P5 loop-gain collapse from
+  first principles (and locks the idle-IVC-circuit-state decision), and D5
+  subtraction into the reconstruction chain.</p>
+  <p><strong>Coil-vs-case attribution + case-k application</strong>
+  (<code>f-nfs-lever2</code>). Cross the named column against the ledger and
+  decide whether the measured case-k factors are applied to the 8 case
+  <code>G_pf</code> columns (a per-case analogue of the solenoid scale) or left
+  as a fitted nuisance — backed by a vacuum-window fit. Feeds gate G-A.</p>
+</div>
+
+</main>
+</body>
+</html>

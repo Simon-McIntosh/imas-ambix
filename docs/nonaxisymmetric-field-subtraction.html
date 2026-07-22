@@ -4,22 +4,63 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="nonaxisymmetric-field-subtraction">
-  <meta name="plan-title"     content="Non-Axisymmetric Field Subtraction — validated 3D EM modeling of in-vessel coils and sensors">
-  <meta name="plan-summary"   content="We reconstruct axisymmetric equilibria from non-axisymmetric diagnostics operating in non-axisymmetric magnetic fields. The per-era vacuum scorecard localised a 30-50% flux-loop coupling collapse to the in-vessel RMP-coil bay; the 3D conductor set (RMP/ELM coils, saddle coils, error-field correction coils, leads) is unmodelled. This plan ports nova's 3D polyline+arc Biot-Savart kernels and its RDP line/arc defeaturing, models the IVC set and the 3D sensor geometry, validates on the plasma-free measurements already identified (864 vacuum-IVC shots, always-on error-field windows, post-disruption tails), and subtracts the 3D components — passive (circuit-coupled eddy) and energised (n!=0 applied) — so that axisymmetric equilibria are fit to axisymmetric measurements only.">
-  <meta name="plan-status"    content="draft">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="XL">
-  <meta name="plan-tier"      content="opus">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="nonaxisymmetric-field-subtraction">
+  <meta name="plan-title" content="Non-Axisymmetric Field Subtraction — validated 3D EM modeling of in-vessel coils and sensors">
+  <meta name="plan-summary" content="We reconstruct axisymmetric equilibria from non-axisymmetric diagnostics operating in non-axisymmetric magnetic fields. The per-era vacuum scorecard localised a 30-50% flux-loop coupling collapse to the in-vessel RMP-coil bay; the 3D conductor set (RMP/ELM coils, saddle coils, error-field correction coils, leads) is unmodelled. This plan ports nova&#x27;s 3D polyline+arc Biot-Savart kernels and its RDP line/arc defeaturing, models the IVC set and the 3D sensor geometry, validates on the plasma-free measurements already identified (864 vacuum-IVC shots, always-on error-field windows, post-disruption tails), and subtracts the 3D components — passive (circuit-coupled eddy) and energised (n!=0 applied) — so that axisymmetric equilibria are fit to axisymmetric measurements only.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="XL">
+  <meta name="plan-tier" content="opus">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="">
   <title>Non-Axisymmetric Field Subtraction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-22">
+<meta name="plan-version" content="2">
+<meta name="plan-impl" content="0.35">
 </head>
 <body>
 <main class="plan-doc">
+
+<section class="section-landed" id="landed-levers">
+  <header>
+    <span class="badge badge-shipped">✓ landed 2026-07-22</span>
+    <h2>Levers 1+2 (drive semantics) + D1 kernels + EFCC first rung — landed</h2>
+  </header>
+  <p class="landed-summary">
+    <strong>Lever 1 — bimodal column named.</strong> On the 430-shot vacuum
+    cohort the bay-loop bimodality is a <strong>drive-DATA amplitude error on
+    <code>p3l_case_current</code></strong>: empirical/model scale
+    <strong>k ≈ 2.40</strong>, constant across all four bay loops (rel. spread
+    0.02), on a <em>separable</em> column. Routed fix: audit that case channel's
+    turns/xmult scaling + name assignment before <code>G_pf</code> assembly
+    (<code>flux_loop_column_decomposition.json</code>).
+    <strong>Lever 2 — case-k resolved.</strong> The 0.66–0.71 / −0.04 case-k
+    class = the 8 measured coil-CASE columns (pfSystems ids 14–21), each already
+    its own <code>G_pf</code> column with CASE semantics; amc inventory +
+    semantics are time-invariant M5–M9 (only <code>error_field</code> a/b→02/05
+    relabels mid-M6). The named column <em>is</em> a case column — the two levers
+    converge (<code>coil_circuit_semantic_ledger.json</code>).
+    <strong>D1 — 3D kernels in-tree.</strong>
+    <code>imas_ambix/gs/filaments3d.py</code>: line + adaptive circular-arc
+    Biot-Savart (A and B), polyline/Conductor assembly, sensor coupling (probe
+    B·n̂, ∮A·dl loop flux, mutual inductance), line/arc RDP decimator — 12 tests
+    pass (nova cross-check <code>importorskip</code>-guarded).
+    <strong>EFCC — Green's columns validated.</strong> Kirk-geometry columns
+    confirm full-loop n≠0 cancellation to <strong>3×10⁻¹⁵</strong> (matches the
+    measured loop immunity) and the coarse exposure ladder (outboard probes
+    ~37 G ≫ ccbv 1.1 G ≫ loops 0 @ 15 kA·turn), sector-2 sign convention
+    satisfied; the obv-vs-obr <em>fine</em> ordering is set by toroidal probe
+    position + coil z-extent — a D2 input, not reproducible from axisymmetric
+    geometry (<code>efcc_greens_columns.json</code>).
+    Commits <code>1647a29</code>, <code>805c60a</code>, <code>3b82d9e</code>.
+    Full record: <a href="archive/nonaxisymmetric-field-subtraction-drive-semantics-kernels-landed.html">levers 1–2 + D1 + EFCC landed</a>.
+    Next: D2 era-keyed geometry + toroidal sensor positions → gate G-A (f-nfs-d2);
+    coil-vs-case column attribution + case-k application (f-nfs-lever2).
+  </p>
+</section>
 
 <h2 id="s1">§1 — The problem: axisymmetric reconstruction from a non-axisymmetric machine</h2>
 <p>Every equilibrium solve in this project fits an <em>axisymmetric</em> field
@@ -254,17 +295,19 @@ carries the complete 3D kit:</p>
 
 <h2 id="s4">§4 — Deliverables</h2>
 
-<h3 id="d1">D1 — 3D EM kernel in-tree (nova port)</h3>
-<p>Port the filament kernels (<code>line</code>, <code>arc</code>) plus the
-line/arc RDP decimator into <code>imas_ambix/gs/</code> beside
-<code>cylinder.py</code>, with the sensor-coupling layer: B-vector at oriented
-probe points, ∮A·dl flux linkage for arbitrary 3D loops, and circuit-level
-mutual inductances. Validation: reproduce the prototype's C1/C2 checks and
-nova's <code>test_biotsavart_3d</code> cases in-tree; cross-check one
-picture-frame coil against nova itself (the <code>nova_coil_greens_check</code>
-precedent). Finite-section <code>beam</code>/<code>bow</code> ported only if the
-filament limit proves insufficient at real sensor–conductor separations
-(measure, don't assume).</p>
+<h3 id="d1">D1 — 3D EM kernel in-tree (nova port) <span class="badge badge-shipped">✓ landed 2026-07-22</span></h3>
+<p class="landed-summary"><code>imas_ambix/gs/filaments3d.py</code> ports the
+filament <code>line</code> + circular-<code>arc</code> kernels (vector potential
+A and field B), polyline/<code>Conductor</code> assembly, the sensor-coupling
+layer (probe B·n̂, ∮A·dl loop flux, circuit mutual inductance) and a line/arc
+RDP decimator — numpy/scipy-only, matching the <code>cylinder.py</code>
+precedent. <code>tests/test_filaments3d.py</code>: 12 pass — square-loop centre
+field (C1), coaxial-circles mutual vs Maxwell (C2), arc-convergence, full-loop
+analytic, RDP round-trip; the nova cross-check is <code>importorskip</code>-
+guarded (nova needs pandas, absent here) so the suite stays nova-free.
+Finite-section <code>beam</code>/<code>bow</code> deferred (filament limit
+sufficient at the measured sensor–conductor separations). Commit
+<code>805c60a</code>.</p>
 
 <h3 id="d2a">Published geometry &amp; measured 3D facts — Kirk et al., arXiv:1312.6507
 (CCFE, 2013): "Measurement, correction and implications of the intrinsic error
@@ -369,7 +412,18 @@ small) → the loop collapse re-routes to layer C (instrument), and the
 correction becomes per-era calibration anchored on the stable far set — either
 way the pin/prior confound closes with a mechanism.</p>
 
-<h3 id="d4">D4 — Energised layer (B): n≠0 Green's columns, validated on the vacuum-IVC seams</h3>
+<h3 id="d4">D4 — Energised layer (B): n≠0 Green's columns, validated on the vacuum-IVC seams <span class="badge badge-shipped">✓ EFCC rung landed 2026-07-22</span></h3>
+<p class="landed-summary"><strong>EFCC first rung landed.</strong>
+<code>scripts/efcc_greens_columns.py</code> builds the EFCC Green's columns from
+the Kirk et al. geometry via the D1 kernels. Full toroidal loops cancel the n≠0
+field to <strong>3×10⁻¹⁵</strong> (the symmetry counterpart of the measured loop
+immunity); the coarse (R,Z) exposure ladder is reproduced — outboard probes
+~37 G ≫ ccbv 1.1 G ≫ loops 0 at 15 kA·turn — and the sector-2 sign convention is
+satisfied. What geometry alone cannot fix: the obv-vs-obr <em>fine</em> ordering
+(data favours vertical obv; the axisymmetric envelope favours the radial obr),
+because it is governed by toroidal probe position + the coil's vertical extent —
+both a <strong>D2</strong> input. The empirical per-sensor EF response and the
+Rogowski chain calibration below remain the next rung. Commit <code>3b82d9e</code>.</p>
 <p>3D Green's columns from every IVC circuit to every sensor — the correction
 targets are the <strong>probes and the saddle sensors</strong> (both fully
 exposed to n≠0; the empirically-immune full loops need no layer-B term, but
@@ -415,9 +469,8 @@ fleet for corpus sweeps; <code>OPENBLAS/OMP/MKL_NUM_THREADS=1</code> in every
 sbatch wrap.</p>
 
 <section data-reckon="decisions" id="decisions" class="r-decisions">
-  <h2><span class="sec">§</span> Decisions</h2>
-
-  <div class="r-dec" data-key="plasma-response-out-of-scope" data-choice="vacuum-taring-only" data-by="Simon McIntosh" data-when="2026-07-22">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="plasma-response-out-of-scope" data-choice="vacuum-taring-only" data-by="Simon McIntosh" data-when="2026-07-22">
     <p class="r-dec-q">Does this plan model the plasma response to non-axisymmetric fields?</p>
     <p class="r-dec-rat">Locked: no — vacuum taring only. The objective is to
     tare the diagnostic set back to the axisymmetric ideal: model only what is
@@ -432,15 +485,14 @@ sbatch wrap.</p>
     systematic becomes a biased label the world model learns as machine-specific
     physics, killing transfer; every plasma-entangled term fitted in the spine
     is unidentifiable physics smuggled into calibration.</p>
-  </div>
-
-  <div class="r-dec" data-key="lever-ranking" data-choice="drive-semantics-first" data-by="Simon McIntosh" data-when="2026-07-22">
+    </div>
+<div class="r-dec" data-key="lever-ranking" data-choice="drive-semantics-first" data-by="Simon McIntosh" data-when="2026-07-22">
     <p class="r-dec-q">In what order do the diagnostic-error levers land?</p>
     <p class="r-dec-rat">Locked ranking (impact × identifiability ÷ effort):
     (1) name the bimodal column — per-(sensor, coil) decomposition, the
     factor-2.7 bay-loop systematic, no new geometry needed; (2) coil-circuit
     semantic ledger — what each amc feed/coil/case pseudo-current channel means
-    per era (the 0.66–0.71/−0.04 case-k class); (3) EFCC vacuum Green's columns
+    per era (the 0.66–0.71/−0.04 case-k class); (3) EFCC vacuum Green&#x27;s columns
     from the Kirk et al. geometry, validated on EFCC-off/on contrast and
     locked-mode ramp shots; (4) per-era channel-health mask (fl_cc04, M9);
     (5) IVC-energised window flags + σ inflation; (6) passive ramp model
@@ -448,9 +500,8 @@ sbatch wrap.</p>
     full RDP port for complex conductors, all plasma-response work. The top
     two levers are drive-side data semantics, not 3D fields: the 3D modeling
     is real but second-tier.</p>
-  </div>
-
-  <div class="r-dec" data-key="correction-coils-in-scope" data-choice="yes-include-error-field-coils" data-by="Simon McIntosh" data-when="2026-07-22">
+    </div>
+<div class="r-dec" data-key="correction-coils-in-scope" data-choice="yes-include-error-field-coils" data-by="Simon McIntosh" data-when="2026-07-22">
     <p class="r-dec-q">Do the n=2/n=5 error-field correction coils belong in the modelled 3D set?</p>
     <p class="r-dec-rat">Locked: yes. The correction coils are energised in
     essentially every shot (error_field_05 median 3.2 corpus-wide) including
@@ -458,49 +509,45 @@ sbatch wrap.</p>
     probes in all operating scenarios; they are also the most abundant
     validation source. The 3D field set = RMP/ELM coils + saddle structures +
     error-field correction coils + documented leads.</p>
-  </div>
-
-  <div class="r-dec" data-key="idle-ivc-circuit-state" data-choice="" data-by="" data-when="">
+    </div>
+<div class="r-dec" data-key="idle-ivc-circuit-state" data-choice="" data-by="" data-when="">
     <p class="r-dec-q">What is the electrical boundary condition of the in-vessel coil circuits when not energised — open circuit (no eddy path), crowbarred/shorted (full L/R eddy circuit), or era/shot-dependent?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="open">open circuit</button>
       <button class="r-opt" data-value="shorted">crowbarred / shorted</button>
       <button class="r-opt" data-value="fit-from-data">treat as unknown, fit an effective admittance per era from the vacuum ramps</button>
-    </p>
+      </p>
     <p class="r-dec-rat">This changes layer A qualitatively: an open coil
     contributes no circulating eddy (only its structure/case does); a shorted
     coil is a strong screening circuit. Power-supply documentation may answer
     it; otherwise the fit-from-data option makes it an identifiable nuisance
     (the vacuum ramps constrain it well). Resolve during D3.</p>
-  </div>
-
-  <div class="r-dec" data-key="kernel-hosting" data-choice="port-in" data-by="Simon McIntosh" data-when="2026-07-22">
+    </div>
+<div class="r-dec" data-key="kernel-hosting" data-choice="port-in" data-by="Simon McIntosh" data-when="2026-07-22">
     <p class="r-dec-q">Port the nova kernels into imas_ambix (like cylinder.py) or depend on nova as a library?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="port-in">port filament kernels + rdp in-tree (cylinder.py precedent)</button>
+      <button class="r-opt chosen" data-value="port-in">port filament kernels + rdp in-tree (cylinder.py precedent)</button>
       <button class="r-opt" data-value="depend-on-nova">import nova directly</button>
-    </p>
+      </p>
     <p class="r-dec-rat">Locked: port, do not import. The filament kernels and
     rdp are numpy/scipy-only and small; porting avoids coupling this repo to
-    nova's frame/vedo stack and matches the cylinder.py precedent. nova stays
+    nova&#x27;s frame/vedo stack and matches the cylinder.py precedent. nova stays
     the cross-check oracle (nova_coil_greens_check pattern).</p>
-  </div>
-
-  <div class="r-dec" data-key="rmp-geometry-source" data-choice="" data-by="" data-when="">
+    </div>
+<div class="r-dec" data-key="rmp-geometry-source" data-choice="" data-by="" data-when="">
     <p class="r-dec-q">Where does the RMP/IVC 3D geometry come from — literature reconstruction (Kirk/Nardon papers), MAST engineering drawings/UDA metadata, or a coils_non_axisymmetric IDS if one exists for MAST?</p>
-    <p class="r-dec-rat">Determines D2's fidelity and uncertainty model. Survey
+    <p class="r-dec-rat">Determines D2&#x27;s fidelity and uncertainty model. Survey
     first (part of D2); literature gives coil counts, spans and locations,
     drawings give conductor paths and leads. Whatever the source, the landed
     geometry lands as plain versioned in-tree data (a
     coils_non_axisymmetric IDS export may follow as the f-ctr-16 bridge — a
     parallel consideration, never a prerequisite for the modeling).</p>
-  </div>
+    </div>
 </section>
 
 <section data-reckon="followups" id="followups" class="r-followups">
-  <h2><span class="sec">§</span> Followups</h2>
-  <article class="r-fu" data-id="f-nfs-01" data-status="open" data-tier="opus"
-           data-written-by="reckon-create" data-written-at="2026-07-22 11:05">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-nfs-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-22 11:05" data-recommends-skill="" data-resolved-at="2026-07-22T11:18:11+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship levers 1+2 — name the bimodal column (per-(sensor, coil) decomposition) and build the coil-circuit semantic ledger; then D1 kernels + EFCC columns</h4>
     <div class="r-fu-body"><p>Per the locked lever ranking: first the
     drive-side semantics — decompose the bay-loop response per (sensor, coil)
@@ -534,7 +581,7 @@ Deliverables (in order)
      pseudo-current meaning; which circuits physically exist; solenoid-scale
      precedent) — resolves the 0.66-0.71/-0.04 case-k class.
   3. D1 kernel port (line+arc, numpy/scipy, cylinder.py precedent) + EFCC
-     Green's columns from the Kirk et al. geometry (4 coils, 83deg, 3 turns,
+     Green&#x27;s columns from the Kirk et al. geometry (4 coils, 83deg, 3 turns,
      sectors 2/8 + 5/11); validate on EFCC-off/on contrast and locked-mode
      ramp shots (EF ramped at fixed PF - ideal identifiability).
 
@@ -546,7 +593,7 @@ State to read  (CODE / FILES / DATA)
     tests/test_biotsavart_3d.py, tests/test_polyline.py
   docs/connectivity-topology-reader-magnetics-era-scorecard.html (evidence)
   imas_ambix/latent/artifacts/patch_gate/magnetics_era_scorecard-cylv5.json
-  Kirk/Nardon PPCF 51 124010 + Kirk NF 53 043007 (RMP coil geometry, 12->18)
+  Kirk/Nardon PPCF 51 124010 + Kirk NF 53 043007 (RMP coil geometry, 12-&gt;18)
 
 Scope locks / constraints  (non-decision)
   Firewall: no EFIT anywhere. Do not modify the frozen spine config or the
@@ -558,10 +605,116 @@ Done-when
   1. Bimodal column NAMED with evidence (per-coil decomposition verdict:
      drive-data vs model column), fix routed; coil-circuit ledger committed
   2. In-tree line+arc kernels reproduce prototype checks + nova cross-check;
-     EFCC Green's columns validated on EFCC-off/on + locked-mode-ramp shots
+     EFCC Green&#x27;s columns validated on EFCC-off/on + locked-mode-ramp shots
   3. Plan updated (levers 1-3 collapsed with results); followup for the
      remaining rungs written + this one resolved</pre>
-  </article>
+    <p class="r-fu-outcome">Levers 1+2 + D1 kernels + EFCC first rung landed (commits 1647a29, 805c60a, 3b82d9e). LEVER 1 (flux_loop_column_decomposition.json, 430-shot cohort): the bay-loop bimodality is a DRIVE-DATA amplitude error on p3l_case_current — empirical/model scale k≈2.40, constant across all 4 bay loops (rel spread 0.02), and a SEPARABLE column (only coupled set is p3l+p3u coil-current); routed fix = audit the case channel turns/xmult scaling + name assignment before G_pf assembly. LEVER 2 (coil_circuit_semantic_ledger.json): the 0.66-0.71/-0.04 case-k class = the 8 measured coil-CASE columns (pfSystems ids 14-21), each already its own G_pf column with CASE semantics; amc inventory + semantics time-invariant M5-M9 (only error_field a/b->02/05 relabel mid-M6). Convergence: the named column IS a case column — exactly the class lever 2 resolved. D1 (filaments3d.py): in-tree line + adaptive-arc Biot-Savart (A and B) + polyline/Conductor + sensor coupling + RDP decimator; 12 tests pass (nova cross-check importorskip-guarded, nova needs pandas). EFCC (efcc_greens_columns.json): Kirk-geometry Green's columns confirm full-loop n!=0 cancellation to 3e-15 (matches measured immunity) + coarse exposure ladder reproduced (outboard probes 37G >> ccbv 1.1G >> loops 0 @ 15kAt), sector-2 sign convention satisfied; obv-vs-obr fine ordering NOT reproducible from axisymmetric geometry (toroidal probe position + coil z-extent — a D2 input).</p>
+    </article>
+<article class="r-fu" data-id="f-nfs-lever2" data-status="open" data-tier="opus" data-written-by="lever2-ledger" data-written-at="2026-07-22 12:00" data-recommends-skill="/reckon-ship nonaxisymmetric-field-subtraction" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Fold the coil-circuit semantic ledger into the drive-column verdict — case-k belongs to the 8 measured case-current columns, present in every era</h4>
+    <div class="r-fu-body"><p>The per-era coil-circuit semantic ledger is built and committed (scripts/coil_circuit_semantic_ledger.py, artifact coil_circuit_semantic_ledger.json, fig-coil-circuit-ledger.png). It resolves the 0.66-0.71/-0.04 case-k class: those factors belong to the 8 measured coil-CASE circuits (pfSystems ids 14-21: P2U/P2L/P3U/P3L/P4U/P4L/P5U/P5L case-current), each of which the operator already carries as its OWN dedicated G_pf column driven by *_case_current (CASE semantics = induced structural current), never merged with the co-located coil winding. P6U/P6L cases are constrained-zero (no channel). The solenoid keeps its uniform k_sol=1.0825.</p><p>Key implication for lever 1: the amc channel inventory is time-invariant across M5-M9 — all 13 active (coil) + 8 case columns are present with identical semantics in every era; the ONLY per-era amc change is the error-field drive relabel error_field_a/b to error_field_02/05 mid-M6. So the bay-loop bimodality cannot be a channel-existence or case-column-appearance effect; it is a fixed coupling/gain error in the P4/P5 coil-or-case column response exposed differently by drive mix. Next: cross the named bimodal column (lever 1) against this ledger to decide whether the factor sits on the coil-winding column or the case column, and whether the case-k factors should be applied to the 8 case G_pf columns.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    nonaxisymmetric-field-subtraction (http://localhost:8765/imas-ambix/nonaxisymmetric-field-subtraction.html)
+Section: lever 2 follow-through — case-k application + coil-vs-case column attribution
+Tier:    opus
+
+Context
+  The per-era coil-circuit semantic ledger is landed (commit 1647a29):
+    scripts/coil_circuit_semantic_ledger.py
+    imas_ambix/latent/artifacts/patch_gate/coil_circuit_semantic_ledger.json
+    docs/figures/nonaxisymmetric-field-subtraction/fig-coil-circuit-ledger.png
+  Verdict: the case-k class (0.66-0.71, and -0.04 for the near-null) maps to
+  the 8 measured coil-CASE circuits (pfSystems ids 14-21), each already a
+  dedicated G_pf column driven by *_case_current (CASE semantics). P6U/P6L
+  cases constrained-zero. Solenoid uniform k_sol=1.0825. amc channel set +
+  semantics are time-invariant M5-M9; only the error-field drive relabels
+  a/b -&gt; 02/05 mid-M6. The efm PF geometry signature is frozen throughout.
+
+Deliverables
+  1. Cross lever-1&#x27;s named bimodal column against this ledger: is the
+     factor-2.7 systematic on a P4/P5 coil-winding column (*_coil_current) or
+     on the co-located case column (*_case_current)? Use the per-(sensor,coil)
+     decomposition + the ledger&#x27;s per-column semantics.
+  2. Decide whether the measured case-k scale factors (0.66-0.71; -0.04)
+     should be applied to the 8 case G_pf columns in build_operator (a
+     per-case SOLENOID_RESPONSE_SCALE analogue) or whether the case current
+     is better left as a fitted nuisance; back it with a vacuum-window fit.
+  3. Feed the coil/case attribution into gate G-A (layer D adjudication).
+
+State to read
+  scripts/coil_circuit_semantic_ledger.py + its artifact
+  scripts/flux_loop_column_decomposition.py (lever 1, sibling worker)
+  imas_ambix/gs/circuits.py (ActiveCircuit/CaseCircuit semantics)
+  imas_ambix/gs/operator.py (classify_circuits, build_operator merge logic,
+    SOLENOID_RESPONSE_SCALE precedent at sol_current)
+
+Done-when
+  1. Bimodal factor attributed to a specific G_pf column TYPE (coil vs case)
+     with the ledger + decomposition as joint evidence
+  2. Case-k application decision made + backed by a vacuum-window fit
+  3. Plan updated; this followup resolved</pre>
+    </article>
+<article class="r-fu" data-id="f-nfs-d2" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-22 13:20" data-recommends-skill="/reckon-ship nonaxisymmetric-field-subtraction" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">D2 era-keyed 3D geometry (RMP/ELM/EFCC + toroidal sensor positions), then D3 passive gate G-A and D4 full seams</h4>
+    <div class="r-fu-body"><p>The 3D kernels (D1) and the EFCC forward model (D4 first rung) are landed and validated on what axisymmetric geometry can constrain. The next rung is D2: build the era-keyed centreline+cross-section models — 12-coil (>=19031) and 18-coil (>=25404) RMP sets, ELM rows, the EFCC coils with a PINNED vertical extent, and crucially the TOROIDAL sensor positions the EFCC obv-vs-obr fine ordering needs. That unblocks (a) absolute per-probe EFCC calibration, (b) the D3 passive circuit-coupled eddy model whose gate G-A must reproduce the P4/P5 loop-gain collapse from first principles, and (c) D5 subtraction into the reconstruction chain.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    nonaxisymmetric-field-subtraction (http://localhost:8765/imas-ambix/nonaxisymmetric-field-subtraction.html)
+Section: D2 geometry -&gt; D3 passive (gate G-A) -&gt; D4 full seams -&gt; D5 subtraction
+Tier:    opus
+
+Context
+  D1 (imas_ambix/gs/filaments3d.py) + the EFCC forward model
+  (scripts/efcc_greens_columns.py) are landed. EFCC validated the phase-
+  independent physics: full toroidal loops cancel n!=0 to 3e-15 (matches the
+  measured loop immunity); the coarse exposure ladder is reproduced (outboard
+  probes ~37 G &gt;&gt; ccbv 1.1 G &gt;&gt; loops 0 at 15 kA-turn). The obv-vs-obr FINE
+  ordering is governed by toroidal probe position + the (unpinned) EFCC
+  vertical extent — neither in the axisymmetric in-tree geometry. Levers 1+2
+  named the bay-loop bimodality: a drive-DATA amplitude error k≈2.40 on the
+  p3l_case_current column (a case column; see f-nfs-lever2 for the coil-vs-
+  case application decision).
+
+Deliverables (in order)
+  1. D2: era-keyed 3D geometry as plain versioned in-tree data — 12-coil M7
+     and 18-coil M8+ RMP sets (Kirk/Nardon PPCF 51 124010, Kirk NF 53 043007),
+     ELM rows, EFCC coils with a pinned r/z extent (Howell et al. NF 47 1336 or
+     drawings), saddle structures, and the 3D SENSOR geometry incl. TOROIDAL
+     positions for probes + saddle partial-loop topology. Record loop topology
+     explicitly (full vs partial) — layer-B immunity depends on it.
+  2. Re-run EFCC validation with toroidal positions -&gt; absolute per-probe
+     coupling; check obv09/obv11 dominance and the sign at the responder
+     locations; correlate predicted vs empirical per-sensor EF columns.
+  3. D3 passive layer: single-turn 3D passive-loop circuits (RMP circuit if
+     closed-when-idle, coil cases, saddle structures) built from the same
+     line/arc elements; mutual matrix + L/R dynamics fit on the per-era vacuum
+     ramp pool. GATE G-A (make-or-break): reproduce the measured -30..-50%
+     P4/P5 loop-gain collapse from first principles, era-resolved. Resolve the
+     idle-ivc-circuit-state decision (open/shorted/fit-from-data) here.
+  4. D5: measured&#x27; = measured - G3D.I_ivc(t) - passive_estimate(t), era-keyed,
+     upstream of every fit; hand the corrected layer to the census re-score
+     (connectivity-topology-reader f-ctr-18).
+
+State to read
+  imas_ambix/gs/filaments3d.py (kernels), scripts/efcc_greens_columns.py
+  scripts/flux_loop_column_decomposition.py + artifact (lever 1 verdict)
+  scripts/coil_circuit_semantic_ledger.py + artifact (lever 2 ledger)
+  imas_ambix/gs/operator.py _sensor_rows (axisymmetric sensor geometry today)
+  ~/Code/nova nova/imas/coils_non_axisymmetric.py (IDS bridge, f-ctr-16)
+  docs/connectivity-topology-reader-magnetics-era-scorecard.html
+
+Scope locks / constraints
+  Firewall: no EFIT. New geometry + modules under imas_ambix/gs/. nova is the
+  cross-check oracle. Heavy sweeps on SLURM *_debug with
+  OPENBLAS/OMP/MKL_NUM_THREADS=1, file-redirect + exit sentinels.
+
+Done-when
+  1. Era-keyed 3D geometry (coils + toroidal sensor positions + loop topology)
+     committed as versioned in-tree data
+  2. Absolute per-probe EFCC coupling validated; obv/obr ordering resolved
+  3. Gate G-A adjudicated (passive reproduces the loop collapse, or it routes
+     to layer C per-era calibration); idle-circuit-state decision locked
+  4. Plan updated; this followup resolved</pre>
+    </article>
 </section>
 
 </main>
