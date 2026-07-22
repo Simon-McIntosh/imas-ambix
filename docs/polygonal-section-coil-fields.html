@@ -4,20 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="polygonal-section-coil-fields">
-  <meta name="plan-title"     content="Polygonal-Section Coil Fields — analytic axisymmetric Green's functions from Urankar Part V">
-  <meta name="plan-summary"   content="Implement, from the source paper (Urankar, IEEE Trans. Magn. 26(3) 1990, Part V: polygon cross section), the exact analytic vector potential and magnetic field of an axisymmetric conductor with an arbitrary POLYGONAL cross section, generalising the in-tree rectangular thick-cylinder kernel to slanted / trapezoidal / L-shaped sections. Benchmark the analytic result against a dense multi-filament proxy for accuracy and cost, and expose it as a section type the geometry layer can use for the ~8 slanted vessel / stability-plate passives and any non-rectangular coil pack. Implementation from paper, not a code port; nova's abandoned biot/polygon.py is only a fingerprint.">
-  <meta name="plan-status"    content="draft">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="XL">
-  <meta name="plan-tier"      content="opus">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="polygonal-section-coil-fields">
+  <meta name="plan-title" content="Polygonal-Section Coil Fields — analytic axisymmetric Green&#x27;s functions from Urankar Part V">
+  <meta name="plan-summary" content="Implement, from the source paper (Urankar, IEEE Trans. Magn. 26(3) 1990, Part V: polygon cross section), the exact analytic vector potential and magnetic field of an axisymmetric conductor with an arbitrary POLYGONAL cross section, generalising the in-tree rectangular thick-cylinder kernel to slanted / trapezoidal / L-shaped sections. Benchmark the analytic result against a dense multi-filament proxy for accuracy and cost, and expose it as a section type the geometry layer can use for the ~8 slanted vessel / stability-plate passives and any non-rectangular coil pack. Implementation from paper, not a code port; nova&#x27;s abandoned biot/polygon.py is only a fingerprint.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="XL">
+  <meta name="plan-tier" content="opus">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="">
-  <meta name="plan-blocks"    content="">
+  <meta name="plan-blocks" content="">
   <title>Polygonal-Section Coil Fields | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-22">
+<meta name="plan-version" content="2">
+<meta name="plan-impl" content="0.4">
 </head>
 <body>
 <main class="plan-doc">
@@ -159,23 +162,26 @@ section edge/vertex is the second numerical risk.</p>
 
 <h2 id="s3">§3 — Deliverables</h2>
 
-<h3 id="d1">D1 — Incomplete elliptic Π(n; φ, k), validated</h3>
-<p>A numpy/scipy-only incomplete-Π (and the complete Π as its φ = π/2 limit),
-via Carlson R<sub>J</sub> / R<sub>F</sub> (preferred — symmetric, uniformly
-convergent, handles the Cauchy-principal-value branch) or Bulirsch's
-<code>el3</code>. Validate against reference tables / mpmath at 1e-12 across the
-parameter ranges the polygon integrals exercise (including n near the
-characteristic-value singularity). This is the standalone foundation the field
-formulae rest on and can be built and tested with zero coil geometry.</p>
+<h3 id="d1" class="section-landed"><span class="badge badge-shipped">✓ landed 2026-07-22</span> D1 — Incomplete elliptic Π(n; φ, k), validated</h3>
+<p class="landed-summary">Built <code>imas_ambix/gs/elliptic.py</code> — incomplete + complete
+Π(n; φ, m) on scipy Carlson R<sub>F</sub>/R<sub>J</sub>, vectorised, with half-period
+reduction and the n&gt;1 Cauchy-PV branch (scipy <code>elliprj</code>, p&lt;0 → Re(mpmath)).
+Validated to <strong>1e-12 vs mpmath</strong> across 58 cases incl. the pole-crossing branch.
+Decision <code>elliptic-pi-impl</code> → <strong>Carlson</strong> (scipy-native, PV-safe; Bulirsch
+not needed). Commit <code>5fe5344</code>. Full record:
+<a href="archive/polygonal-section-coil-fields-d1d2-landed.html">D1+D2 landed</a>.</p>
 
-<h3 id="d2">D2 — Urankar Part V A &amp; B for an axisymmetric polygon section</h3>
-<p>Implement the full-turn A<sub>φ</sub> / B<sub>r</sub> / B<sub>z</sub> (and ψ =
-2πR·A<sub>φ</sub>) for a uniform-current axisymmetric conductor of arbitrary
-polygon cross section, as the sum over the polygon's edges (each a sloped line
-<em>r = r₁ + b₁z</em>), from the paper's closed forms. Reuse the
-<code>cylinder.py</code> interface shape so the geometry layer can call it the
-same way. <strong>Regression gate:</strong> for a rectangular polygon the result
-must equal <code>hybrid_greens</code> to 1e-10.</p>
+<h3 id="d2" class="section-landed"><span class="badge badge-shipped">✓ landed 2026-07-22</span> D2 — Urankar Part V A &amp; B for an axisymmetric polygon section</h3>
+<p class="landed-summary">Built <code>imas_ambix/gs/polygon.py</code> — full-turn ψ/B<sub>R</sub>/B<sub>Z</sub>
+per ampere for an arbitrary polygon section. A<sub>φ</sub> from Urankar Part V's sloped-edge
+antiderivative g(u,φ) (eq 9, regression-pinned to a 2-D quadrature; "Γ/2a₀²D" ⇒ Γ·D/(2a₀²)
+typeset-trap resolved), arc integral by Gauss–Legendre on [0,π]; <strong>B is the exact curl
+of ψ via complex-step</strong> (machine-precision, ψ↔B consistent — sidesteps the error-prone
+eq-11b B transcription). <strong>Reduces to <code>cylinder_greens</code> at 1e-10</strong>
+(incl. interior); matches an exact-tiled filament oracle to ~1e-6 for para/crown/trapezoid/tri;
+Ampère + invariance pinned (12 tests). Decision <code>arc-scope</code> → <strong>axisymmetric-only</strong>.
+Commit <code>3de2cd1</code>. Full record:
+<a href="archive/polygonal-section-coil-fields-d1d2-landed.html">D1+D2 landed</a>.</p>
 
 <h3 id="d3">D3 — Benchmark vs the multi-filament proxy (make-or-break)</h3>
 <p>Against a dense multi-filament proxy (the current fallback — a converged ring
@@ -238,52 +244,37 @@ non-axisymmetric-field-subtraction passive layer. numpy/scipy-only throughout
 
 <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-
-<div class="r-dec" data-key="arc-scope" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">Implement the axisymmetric full-turn case only, or the general finite-arc 3-D polygon segment (Urankar Part V in full)?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt" data-value="axisymmetric-only">axisymmetric full-turn only (what the vessel/PF passives need)</button>
-    <button class="r-opt" data-value="full-arc-3d">full finite-arc 3-D segment (also feeds the 3D IVC/EFCC kit)</button>
-  </p>
-  <p class="r-dec-rat">The immediate need (slanted vessel / stability-plate
-  passives, non-rectangular coil sections) is entirely axisymmetric, and the
-  full-turn case is a large simplification (the arc integral closes to complete/
-  incomplete elliptic integrals). The general finite-arc polygon segment would
-  additionally give a finite-cross-section upgrade to the 3-D
-  <code>filaments3d</code> RMP/EFCC kit — but at materially more effort and not
-  needed yet. Lean axisymmetric-only for this plan; leave the 3-D arc as a
-  documented extension.</p>
-</div>
-
-<div class="r-dec" data-key="elliptic-pi-impl" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">How to implement the incomplete elliptic integral of the third kind Π(n; φ, k) (absent from scipy)?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt" data-value="carlson">Carlson symmetric forms R_F / R_J</button>
-    <button class="r-opt" data-value="bulirsch">Bulirsch el3 / cel</button>
-  </p>
-  <p class="r-dec-rat">Carlson R<sub>J</sub>/R<sub>F</sub> are the modern default
-  — symmetric, uniformly convergent by duplication, and clean handling of the
-  Cauchy-principal-value branch (n &gt; 1). Bulirsch's <code>el3</code> is the
-  form Urankar/Babic themselves use, so it eases cross-checking the paper's
-  numbers. Decide in D1 after a quick accuracy/robustness spike on both against
-  mpmath.</p>
-</div>
-
+<div class="r-dec" data-key="arc-scope" data-choice="axisymmetric-only" data-by="reckon-ship" data-when="2026-07-22T14:26:19+00:00">
+    <p class="r-dec-q">Implement the axisymmetric full-turn case only, or the general finite-arc 3-D polygon segment (Urankar Part V in full)?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="axisymmetric-only">axisymmetric full-turn only (what the vessel/PF passives need)</button>
+      <button class="r-opt" data-value="full-arc-3d">full finite-arc 3-D segment (also feeds the 3D IVC/EFCC kit)</button>
+      </p>
+    <p class="r-dec-rat">D2 implemented the axisymmetric full-turn (arc=2π) case: A_φ from Urankar Part V&#x27;s per-edge closed antiderivative g(u,φ) with the arc integral as one bounded Gauss–Legendre quadrature on [0,π] (integrand even about π), and B as the exact complex-step curl of ψ. This is exactly what the slanted vessel / stability-plate passives and non-rectangular PF sections need, and it collapses the arc integral cleanly. The general finite-arc 3-D polygon segment (which would additionally upgrade the 3-D filaments3d RMP/EFCC kit to finite cross-section) remains a documented extension, not built here.</p>
+    </div>
+<div class="r-dec" data-key="elliptic-pi-impl" data-choice="carlson" data-by="reckon-ship" data-when="2026-07-22T13:26:20+00:00">
+    <p class="r-dec-q">How to implement the incomplete elliptic integral of the third kind Π(n; φ, k) (absent from scipy)?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="carlson">Carlson symmetric forms R_F / R_J</button>
+      <button class="r-opt" data-value="bulirsch">Bulirsch el3 / cel</button>
+      </p>
+    <p class="r-dec-rat">D1 spike settled it: Π(n;φ,m) on scipy&#x27;s Carlson elliprf/elliprj validates to 1e-12 vs mpmath across the full parameter grid (ordinary n&lt;1, complete φ=π/2, φ&gt;π/2 half-period reduction) and — decisively — the n&gt;1 characteristic returns the real Cauchy-principal-value branch for free (scipy elliprj with negative fourth argument == Re(mpmath.ellippi) to 12 digits), the exact regime the polygon integrals cross. Carlson is scipy-native (no new special-function code, matching the cylinder.py precedent) and needs no separate pole handling, so Bulirsch el3 was not implemented — Carlson clears every accuracy/robustness gate outright.</p>
+    </div>
 <div class="r-dec" data-key="proxy-retirement" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">Once validated, does the analytic polygon kernel REPLACE the multi-filament proxy for non-rectangular sections, or run alongside it as an option?</p>
-  <p class="r-dec-rat">Depends on the D3 benchmark: if the analytic kernel is
+    <p class="r-dec-q">Once validated, does the analytic polygon kernel REPLACE the multi-filament proxy for non-rectangular sections, or run alongside it as an option?</p>
+    <p class="r-dec-rat">Depends on the D3 benchmark: if the analytic kernel is
   both more accurate and cheaper at the section shapes we actually have, it
   should replace the proxy at those sections (the retained-lattice fallback in
   the collapse gate becomes analytic-section instead). If robustness edge cases
   remain, keep the proxy as the guarded fallback. Resolve after D3.</p>
-</div>
+    </div>
 </section>
 
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-psc-01" data-status="open" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-22 15:10" data-recommends-skill="/reckon-ship polygonal-section-coil-fields §D1">
-  <h4 class="r-fu-title">Build + validate the incomplete elliptic Π, then transcribe Urankar Part V A/B and regress against cylinder.py</h4>
-  <div class="r-fu-body"><p>Start a dedicated session. First D1: a numpy/scipy-only
+<article class="r-fu" data-id="f-psc-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-22 15:10" data-recommends-skill="/reckon-ship polygonal-section-coil-fields §D1" data-resolved-at="2026-07-22T14:26:19+00:00" data-resolved-by="reckon-ship">
+    <h4 class="r-fu-title">Build + validate the incomplete elliptic Π, then transcribe Urankar Part V A/B and regress against cylinder.py</h4>
+    <div class="r-fu-body"><p>Start a dedicated session. First D1: a numpy/scipy-only
   incomplete Π(n; φ, k) (Carlson R_J/R_F preferred; spike Bulirsch el3 for the
   paper cross-check) validated to 1e-12 against mpmath across the polygon
   integrals' parameter ranges incl. the n&gt;1 principal-value branch. Then D2:
@@ -292,7 +283,7 @@ non-axisymmetric-field-subtraction passive layer. numpy/scipy-only throughout
   <code>cylinder.hybrid_greens</code> at 1e-10 as the correctness gate. nova's
   <code>biot/polygon.py</code> is a fingerprint for the algebra, not a source of
   truth.</p></div>
-  <pre class="r-fu-prompt">Project: imas-ambix
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    polygonal-section-coil-fields (http://localhost:8765/imas-ambix/polygonal-section-coil-fields.html)
 Section: D1 (incomplete elliptic Pi) then D2 (Urankar Part V field formulae)
 Tier:    opus
@@ -322,9 +313,9 @@ State to read  (CODE / FILES / DATA)
 Scope locks / constraints  (non-decision)
   numpy/scipy-only (cylinder.py precedent); no nova import (cross-check oracle).
   New module under imas_ambix/gs/ beside cylinder.py. Validate Pi against mpmath
-  (dev-only). APPLY the paper's Appendix B + p.1180 errata (raw printed formulae
+  (dev-only). APPLY the paper&#x27;s Appendix B + p.1180 errata (raw printed formulae
   have typos). A_phi carries two terms g_p=INT arsinh(beta_p) dalpha (eq 14e) with
-  NO closed form -> one bounded 1-D quadrature per edge; B_r/B_z are fully closed.
+  NO closed form -&gt; one bounded 1-D quadrature per edge; B_r/B_z are fully closed.
   No operator/frozen-spine wiring in D1/D2 — that is D5, gated by the D3 benchmark.
   Heavy sweeps (if any) on SLURM *_debug, OPENBLAS/OMP/MKL=1.
 
@@ -338,7 +329,50 @@ Done-when
      filament sum agrees at a non-edge field point
   3. arc-scope + elliptic-pi decisions resolved with the spike evidence
   4. followup written for D3 (benchmark vs multi-filament proxy) + this one resolved</pre>
-</article>
+    <p class="r-fu-outcome">D1+D2 landed (commits 5fe5344, 3de2cd1). D1: incomplete+complete Π on scipy Carlson, 1e-12 vs mpmath incl. n>1 PV branch (58 cases) → elliptic-pi-impl=carlson. D2: analytic polygon-section ψ/B_R/B_Z — A_φ from Urankar Part V edge antiderivative (Γ/2a0²D typeset-trap resolved to Γ·D/2a0²; Part V eqs stand, Appendix B errata are Parts II–IV only), B as exact complex-step curl of ψ (sidesteps the eq-11b B typo). Reduces to cylinder_greens at 1e-10 (incl. interior); matches exact-tiled filament oracle ~1e-6 for para/crown/trapezoid/tri; Ampere+invariance pinned (12 tests) → arc-scope=axisymmetric-only. Archive: docs/archive/polygonal-section-coil-fields-d1d2-landed.html.</p>
+    </article>
+<article class="r-fu" data-id="f-psc-02" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-22T14:05:00+00:00" data-recommends-skill="/reckon-ship polygonal-section-coil-fields §D3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Benchmark the analytic polygon kernel vs the multi-filament proxy (make-or-break)</h4>
+    <div class="r-fu-body"><p>D1+D2 landed: <code>imas_ambix/gs/polygon.py</code> gives exact axisymmetric ψ/B_R/B_Z for an arbitrary polygon section (rectangle→cylinder_greens 1e-10; slanted→filament oracle ~1e-6). Next, D3: quantify the win over the multi-filament proxy the operator uses today. Per section shape (rectangle sanity, parallelogram, trapezoid, decomposed L/hollow) and at realistic sensor distances, measure analytic-vs-proxy field agreement, the proxy filament count N needed to reach 1e-3/1e-4/1e-5, and the wall-cost ratio; deliver a figure + JSON. The exact-affine-tiled filament oracle in <code>tests/gs/test_polygon.py::_oracle_fields</code> is the converged reference. Resolve the <code>proxy-retirement</code> decision on the result. Then D4 (robustness at near-edge/near-vertical/grazing targets, Babic 2005) and D5 (wire the ~8 slanted pf_passive elements into the geometry layer).</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    polygonal-section-coil-fields (http://localhost:8765/imas-ambix/polygonal-section-coil-fields.html)
+Section: D3 (benchmark vs multi-filament proxy) — then D4 (robustness), D5 (geometry wiring)
+Tier:    opus
+
+Context
+  D1+D2 are shipped: imas_ambix/gs/elliptic.py (incomplete Π, 1e-12 vs mpmath) and
+  imas_ambix/gs/polygon.py (analytic axisymmetric polygon-section ψ/B_R/B_Z; A_φ from
+  Urankar Part V per-edge antiderivative + 1-D arc quadrature, B as exact complex-step
+  curl of ψ). Validated: rectangle→cylinder_greens 1e-10, slanted→filament oracle ~1e-6,
+  Ampere + invariance (12 tests). D3 is the make-or-break accuracy/cost benchmark vs the
+  multi-filament proxy that the operator/collapse gate uses for non-rectangular sections.
+
+State to read (CODE / FILES)
+  imas_ambix/gs/polygon.py            (the analytic kernel: polygon_greens)
+  tests/gs/test_polygon.py            (_oracle_fields = exact affine-tiled filament sum,
+                                       the converged ground truth to benchmark against)
+  imas_ambix/gs/cylinder.py           (rectangular kernel; far-field switch precedent)
+  docs/archive/polygonal-section-coil-fields-d1d2-landed.html  (what D1/D2 delivered)
+  the nonaxisymmetric-field-subtraction plan (collapse gate / passive layer = the consumer)
+
+Scope / constraints
+  numpy/scipy-only. Benchmark section shapes: rectangle (sanity), parallelogram (P2 arms,
+  ~45°), steep crown (~65°), trapezoid, decomposed L / hollow frame. Field points at
+  realistic sensor distances (near-band and far). Report per shape: analytic-vs-oracle
+  agreement, proxy N to reach 1e-3/1e-4/1e-5, wall-cost ratio (analytic vs proxy at matched
+  accuracy). Heavy sweeps on SLURM *_debug, OPENBLAS/OMP/MKL=1. Deliver docs figure under
+  docs/figures/polygonal-section-coil-fields/ + a JSON artifact. Do NOT wire the operator yet
+  (that is D5).
+
+Done-when
+  1. benchmark harness + JSON artifact + figure committed; per-shape accuracy/cost table
+  2. proxy-retirement decision resolved with the numbers (replace proxy at these shapes, or
+     keep proxy as guarded fallback where robustness edge cases remain)
+  3. D4 robustness tests added (near-edge/near-vertical/grazing targets) OR queued with a
+     concrete followup; D5 (geometry section-type wiring for the ~8 slanted pf_passive
+     elements) queued with a followup
+  4. this followup resolved</pre>
+    </article>
 </section>
 
 </main>

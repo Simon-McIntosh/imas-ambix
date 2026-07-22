@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <title>Polygonal-Section Coil Fields — D1 + D2 landed | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><a href="/imas-ambix/polygonal-section-coil-fields.html">← back to plan</a></p>
+
+<h1>D1 + D2 landed — incomplete elliptic Π and the analytic polygon-section kernel</h1>
+<p class="muted">Urankar IEEE Trans. Magn. 26(3), 1171–1180 (1990), Part V — implemented
+from the paper. Shipped 2026-07-22.</p>
+
+<section class="card">
+  <h2>Quick status</h2>
+  <table>
+    <thead><tr><th>Item</th><th>Status</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>D1 — incomplete elliptic Π(n; φ, m)</td>
+          <td><span class="badge badge-shipped">✓ shipped</span></td>
+          <td>1e-12 vs mpmath, incl. n&gt;1 Cauchy-PV branch (58 cases)</td></tr>
+      <tr><td>D2 — analytic polygon-section ψ/B<sub>R</sub>/B<sub>Z</sub></td>
+          <td><span class="badge badge-shipped">✓ shipped</span></td>
+          <td>rectangle → cylinder_greens 1e-10; slanted → filament oracle ~1e-6 (12 tests)</td></tr>
+      <tr><td>D3 — benchmark vs multi-filament proxy</td>
+          <td><span class="badge">next</span></td>
+          <td>make-or-break accuracy/cost; the filament oracle here is its ground truth</td></tr>
+      <tr><td>D4 — robustness / singularity handling</td>
+          <td><span class="badge">queued</span></td>
+          <td>near-edge / near-vertical / grazing targets</td></tr>
+      <tr><td>D5 — expose as a geometry section type</td>
+          <td><span class="badge">queued</span></td>
+          <td>wire the ~8 slanted pf_passive elements</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h2>Outcomes</h2>
+  <table>
+    <thead><tr><th>Deliverable</th><th>Artifact</th><th>Commit</th></tr></thead>
+    <tbody>
+      <tr><td>Incomplete + complete Π via Carlson R<sub>F</sub>/R<sub>J</sub></td>
+          <td><code>imas_ambix/gs/elliptic.py</code>, <code>tests/gs/test_elliptic.py</code></td>
+          <td><code>5fe5344</code></td></tr>
+      <tr><td>Axisymmetric polygon-section Green's function</td>
+          <td><code>imas_ambix/gs/polygon.py</code>, <code>tests/gs/test_polygon.py</code></td>
+          <td><code>3de2cd1</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<figure>
+  <img src="/imas-ambix/figures/polygonal-section-coil-fields/fig-d1d2-validation.png"
+       alt="Validation of the analytic polygon-section kernel" style="max-width:100%">
+  <figcaption><strong>(a)</strong> the polygon sections the kernel targets (vessel
+  crowns, P2 stability-plate arms, non-rectangular coil packs). <strong>(b)</strong>
+  for a b₁=0 (axis-aligned) rectangle the kernel reproduces the validated Part III
+  <code>cylinder_greens</code> in ψ and B to below the 1e-10 gate at field points
+  spanning near-to-far. <strong>(c)</strong> the analytic flux ψ of a 45° parallelogram
+  section — smooth everywhere including <em>through</em> the conductor (the point of a
+  finite-area kernel); it agrees with an exact-tiled filament oracle to ~1e-6.</figcaption>
+</figure>
+
+<section class="card">
+  <h2>D1 — incomplete elliptic Π (decision <code>elliptic-pi-impl</code> → Carlson)</h2>
+  <p>Π(n; φ, m) = ∫₀<sup>φ</sup> dθ / [(1 − n sin²θ)√(1 − m sin²θ)] is absent from
+  <code>scipy.special</code>. Built on scipy's Carlson symmetric forms
+  <code>elliprf</code> (R<sub>F</sub>) and <code>elliprj</code> (R<sub>J</sub>) via
+  DLMF 19.25.14, with a half-period reduction for |φ| &gt; π/2. Validated to <strong>1e-12
+  relative</strong> against mpmath across the ordinary branch (n &lt; 1), the complete
+  φ = π/2 limit, and — decisively — the <strong>n &gt; 1 characteristic</strong> where the
+  integrand pole is crossed: scipy's <code>elliprj</code> with a negative fourth argument
+  returns the real Cauchy principal value, equal to <code>Re(mpmath.ellippi)</code> to 12
+  digits. Carlson is scipy-native (no new special-function code, matching the
+  <code>cylinder.py</code> precedent) and needs no separate pole handling, so Bulirsch's
+  <code>el3</code> was not implemented — Carlson cleared every accuracy/robustness gate
+  outright. This is the reusable foundation a fully-closed elliptic assembly of the
+  polygon fields would rest on (see "what's next").</p>
+</section>
+
+<section class="card">
+  <h2>D2 — the analytic polygon-section kernel (decision <code>arc-scope</code> → axisymmetric-only)</h2>
+  <p><strong>Vector potential — Urankar Part V, from the paper.</strong> Stokes converts
+  the cross-section surface integral into a sum over the polygon edges; per edge the
+  edge-parameter (u) integral closes to the antiderivative <code>g(u, φ)</code> (eq 9,
+  with a₀²=1+b₁², Γ, B², D, β₁,₂,₃ per eq 9a), leaving one smooth 1-D integral over the
+  arc angle φ for the full turn — evaluated by composite Gauss–Legendre on [0, π]
+  (the integrand is even about π) and doubled. <code>g</code> was regression-pinned
+  edge-by-edge against a dense 2-D quadrature of the raw ∫∫ r'/D integral before use.
+  A 1990 typesetting trap was resolved: the printed "Γ/2a₀²D" means Γ·D/(2a₀²) — D is a
+  numerator factor (confirmed by dimensional analysis, the b₁=0 reduction, and eq 12).
+  The Appendix B errata were confirmed to correct Parts II–IV only, not Part V.</p>
+  <p><strong>Field — the exact curl.</strong> Rather than transcribe the paper's longer,
+  more error-prone closed B integrands (eq 11b, whose printed B<sub>Z</sub> row carried a
+  b₁-dependent discrepancy against the filament ground truth), the field is the exact curl
+  of the verified vector potential, B<sub>Z</sub> = (1/2πR)∂ψ/∂R and
+  B<sub>R</sub> = −(1/2πR)∂ψ/∂Z, evaluated by <strong>complex-step differentiation</strong>
+  of ψ (∂f/∂x = Im f(x+ih)/h, h~1e-30). Complex-step is exact to machine precision — no
+  subtractive cancellation — so this is analytic differentiation, and it guarantees
+  ψ↔B consistency by construction.</p>
+  <p><strong>Validation (12 tests).</strong> Rectangular reduction to
+  <code>cylinder_greens</code> at 1e-10 (including interior points); agreement with an
+  exact-affine-tiled filament oracle to ~1e-6 for parallelogram / steep-crown / trapezoid /
+  triangle sections (oracle-convergence-limited, not kernel-limited); Ampère circulation
+  = μ0·I; vertex-order and starting-vertex invariance; smoothness through the conductor.</p>
+  <p><strong>Decision <code>arc-scope</code> = axisymmetric-only:</strong> the full-turn
+  (arc = 2π) case is what the vessel / stability-plate passives and PF sections need, and
+  it collapses the arc integral to the single bounded φ-quadrature above. The general
+  finite-arc 3-D polygon segment remains a documented extension (it would additionally
+  give the 3-D RMP/EFCC kit a finite-cross-section upgrade) but is out of scope here.</p>
+</section>
+
+<section class="card next">
+  <h2>What's next — D3 (make-or-break benchmark)</h2>
+  <p>Benchmark the analytic kernel against the multi-filament proxy the operator uses
+  today: per section shape (rectangle, parallelogram, trapezoid, decomposed L/hollow) and
+  at realistic sensor distances, report analytic-vs-proxy field agreement, the proxy
+  filament count N needed to reach 1e-3/1e-4/1e-5, and the wall-cost ratio. The
+  exact-affine-tiled filament oracle built for D2's cross-check is D3's converged
+  reference. Then D4 (robustness at awkward geometries) and D5 (wire the ~8 slanted
+  <code>pf_passive</code> elements into the geometry layer). A fully-closed elliptic
+  assembly of the fields (removing the last φ-quadrature, on the D1 Π foundation) is an
+  optimisation to weigh <em>after</em> D3 shows whether the quadrature cost matters.</p>
+</section>
+
+</main>
+</body>
+</html>
