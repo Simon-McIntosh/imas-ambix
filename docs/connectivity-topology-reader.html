@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-22">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="18">
+<meta name="plan-version" content="19">
 <meta name="plan-informs" content="interior-closure-hardening,gpu-accelerated-labeler">
 </head>
 <body>
@@ -248,10 +248,14 @@
     completion 0.914 vs 0.638 (converged 90%, reseed 1%), flat-top shape 2.6–3.8 cm in 4/5 classes
     (validated band 1.8–5.0 cm; sn-lower 8.0, 64%-late draw), and paired axis Δ negative in ALL
     five classes — the centroid pin + ψ-diffusion prior <em>worsen</em> both shape (4/5) and axis
-    (5/5) vs the plain spine → chain pin/prior joins the basin pass as a retirement candidate
-    (f-ctr-12). Axis vs own seed still degrades everywhere (bare 2.4–7.1 → spine 3.9–23.2 cm):
-    the axis deficit is the profile solve's interior null → interior-closure-hardening §2; the
-    &gt;23000 late-band 2–3× collapse stands → f-ctr-13. Full record:
+    (5/5) vs the plain spine on this draw. <strong>Interpretation deliberately withheld</strong>
+    (lead direction 2026-07-22): the pin targets a centroid derived from the same magnetics, so a
+    degraded/miswired late-campaign sensor layer would make the pin faithfully AMPLIFY a corrupted
+    datum — "pin worse" and "data layer worse" are confounded on this census alone; the prior and
+    passive currents carry genuine physics. Retirement is NOT decided here — it waits on the
+    per-era sensor scorecard (f-ctr-15) + curated-cohort ablation (f-ctr-12). Axis vs own seed
+    still degrades everywhere (bare 2.4–7.1 → spine 3.9–23.2 cm) → interior-closure-hardening §2;
+    the &gt;23000 late-band 2–3× collapse stands → f-ctr-13/f-ctr-15. Full record:
     <a href="connectivity-topology-reader-engine-crossval-rca.html#spine">RCA §11</a>;
     verdicts <code>production_spine</code> in <code>topology_full_engine_verdicts-v0.json</code>.
   </p>
@@ -1001,7 +1005,71 @@ Done-when
   2. Verdict recorded: does D2 hold the basin corpus-wide (axis + completion
      vs the chain&#x27;s 0.638) — routed into the axis work + the map plan
   3. Plan + RCA doc updated; followup written + this one resolved</pre>
-    <p class="r-fu-outcome">Production-spine census arm landed (commits 4a104e6/3de6b8e; 300 shots, 6,250 slices). The anchored spine HOLDS the basin corpus-wide where the chain does not: completion 0.914 vs 0.638 (converged 90%, reseed 1%), flat-top shape 2.6-3.8 cm in 4/5 classes (validated band 1.8-5.0; sn-lower 8.0 on a 64%-late draw), paired axis delta negative in ALL five classes — the centroid pin + psi-diffusion prior worsen shape (4/5) and axis (5/5) vs the plain spine and join the basin pass as retirement candidates (f-ctr-12 scope now covers pin+prior necessity). Axis vs own seed still degrades everywhere (2.4-7.1 -> 3.9-23.2 cm): the axis deficit is the profile solve's interior null -> interior-closure-hardening §2; the >23000 late-band 2-3x collapse stands -> f-ctr-13. Record: RCA §11 + production_spine block in topology_full_engine_verdicts-v0.json.</p>
+    <p class="r-fu-outcome">Production-spine census arm landed (commits 4a104e6/3de6b8e; 300 shots, 6,250 slices). The anchored spine HOLDS the basin corpus-wide where the chain does not: completion 0.914 vs 0.638 (converged 90%, reseed 1%), flat-top shape 2.6-3.8 cm in 4/5 classes (validated band 1.8-5.0; sn-lower 8.0 on a 64%-late draw), paired axis delta negative in ALL five classes — the centroid pin + psi-diffusion prior worsen shape (4/5) and axis (5/5) vs the plain spine and join the basin pass as retirement candidates (f-ctr-12 scope now covers pin+prior necessity). Axis vs own seed still degrades everywhere (2.4-7.1 -&gt; 3.9-23.2 cm): the axis deficit is the profile solve's interior null -&gt; interior-closure-hardening §2; the &gt;23000 late-band 2-3x collapse stands -&gt; f-ctr-13. Record: RCA §11 + production_spine block in topology_full_engine_verdicts-v0.json.</p>
+    </article>
+<article class="r-fu" data-id="f-ctr-15" data-status="open" data-tier="opus" data-written-by="reckon-ship (lead direction 2026-07-22)" data-written-at="2026-07-22 09:20" data-recommends-skill="/reckon-ship connectivity-topology-reader" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Per-era magnetics scorecard from vacuum shots — score every sensor against the fleet, detect gain drift / rewiring / moved sensors, and audit channel completeness</h4>
+    <div class="r-fu-body">The spine-census arm showed the chain's pin+prior underperform the plain spine, but the pin targets a centroid derived from the same magnetics — a degraded late-campaign sensor layer would make the pin amplify a corrupted datum, so pin/prior retirement is withheld. On coil-only (vacuum) intervals the measured magnetics are LINEAR in the known coil currents with zero plasma DOF, so each channel can be scored against the model constrained by the others, per campaign era. Extends the single-era 48-shot vacuum_coil_response_audit corpus-wide. Also audits whether ALL archived magnetics channels are entering the frozen geometry table (sensor count erodes 103->74 by masking) and tests the standing prior that a catalogued sensor keeps its position and wiring across the efm-frozen span 13370-30463.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    connectivity-topology-reader (standing census-crossval harness)
+Section: per-era magnetics scorecard (vacuum-shot instrument characterisation)
+Tier:    opus
+
+Context
+  The production-spine census arm (RCA doc s11) left pin/prior retirement
+  deliberately undecided: the late-band (&gt;23000) drift could be physics-config
+  OR a degraded/miswired/moved sensor layer, and the pin propagates any
+  magnetics bias with weight. Vacuum (coil-only) intervals have zero plasma
+  DOF - measured = G @ I_coil (+ eddy dI/dt terms) - so per-channel residuals
+  give an instrument characterisation with no inversion and no EFIT.
+
+State to read
+  scripts/vacuum_coil_response_audit.py  (existing single-era 48-shot machinery:
+    per-coil scale k_c, per-(coil,sensor) geometry-error residuals, eddy-aware
+    quasi-static vs dI/dt-augmented dual fit - REUSE, extend per era)
+  scripts/static_calibration_audit.py    (per-channel affine gain/offset pattern)
+  scripts/solenoid_response_attribution.py (the 8.25% solenoid scale precedent)
+  docs/connectivity-topology-reader-engine-crossval-rca.html s11 (why this gates
+    the pin/prior verdict)
+  mast-machine-configuration-map plan (campaign map; efm signature frozen
+    13370-30463 while 12-&gt;18 RMP coils landed unmodeled; sensors 103-&gt;74)
+
+Deliverables
+  1. Corpus-wide vacuum-interval discovery: coil-only shots + pre-breakdown /
+     post-quench windows of plasma shots, binned by campaign era (target: every
+     era with enough windows for per-channel CIs; report eras with none).
+  2. Per-(era, channel) scorecard: gain + offset + CI vs the finite-area
+     cylinder Green&#x27;s model constrained by the other channels (leave-one-out
+     so one bad channel cannot poison its own reference); sign flips flagged.
+  3. Rewiring / relocation detection: for channels whose residual pattern is
+     structured (not a scalar gain), match the measured response vector across
+     a coil-current sweep against the Green&#x27;s columns of ALL catalogued sensor
+     positions - a best-fit at a DIFFERENT position = candidate rewire/swap; a
+     stable best-fit position offset = candidate moved sensor. Report per era.
+  4. Channel-completeness audit: diff the archived magnetics channel inventory
+     (L1/L2 groups) against the frozen geometry-table channels per era - are we
+     dropping usable sensors; where did 103-&gt;74 losses actually go (dead vs
+     masked vs never ingested)?
+  5. Re-read the spine-census late-band drift through the scorecard: does
+     correcting/excluding flagged channels move the &gt;23000 axis displacement
+     (paired re-score on a subset)? This is the pin/prior confound resolver.
+  6. Figures (mandate): per-era gain-drift heatmap (channel x era), flagged-
+     channel gallery, scorecard-corrected vs raw late-band residuals.
+
+Scope locks / constraints
+  Firewall: raw magnetics + coil currents + geometry model only - no EFIT, no
+  plasma inversion anywhere in the scorecard. Vacuum fits are leakage-free by
+  construction (pool all shots). SLURM debug fleet for the corpus sweep; pin
+  OPENBLAS/OMP/MKL_NUM_THREADS=1 in every sbatch wrap. Do NOT touch the frozen
+  spine config or the census artifacts; the scorecard is a new artifact family.
+
+Done-when
+  1. Scorecard artifact per era + flagged-channel ledger (gain drift, sign,
+     rewire/move candidates) with CIs
+  2. Verdict on the pin/prior confound: late-band drift attributable to
+     flagged channels YES/NO/PARTIAL, with the paired re-score as evidence
+  3. Plan + RCA doc updated; followup written + this one resolved
+</pre>
     </article>
 </section>
 
