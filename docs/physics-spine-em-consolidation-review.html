@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="doc">
+  <meta name="plan-slug"     content="physics-spine-em-consolidation-review">
+  <meta name="plan-title"    content="Physics-spine EM infrastructure — consolidation review">
+  <meta name="plan-summary"  content="Read-only architecture survey of the GS forward / physics-spine electromagnetic stack: the Biot-Savart kernels, the coupling-matrix assembly wrappers, the machine-description / circuit layer, and module liveness. Maps what is already well-factored (one shared finite-area kernel; intentional observer-model divergence), the seven duplicated wrappers, the dead / superseded / test-only leaves, and two stale-cache hazards, then proposes a tiered consolidation roadmap toward a single geometry-coupling generator. Analysis only — no code moved.">
+  <meta name="plan-status"   content="reference">
+  <meta name="plan-roi"      content="high">
+  <meta name="plan-effort"   content="L">
+  <meta name="plan-tier"     content="opus">
+  <meta name="plan-owner"    content="Simon McIntosh">
+  <title>Physics-spine EM infrastructure — consolidation review | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p class="lede">The GS forward / physics-spine EM infrastructure (~8k LOC in
+<code>imas_ambix/gs/</code>, ~19k in <code>imas_ambix/latent/</code>) has grown
+organically through many superseding approaches. This is a <strong>read-only
+survey</strong> — four parallel subsystem passes plus direct verification — of
+the Biot–Savart kernels, the coupling-matrix assembly, the machine-description
+/ circuit layer, and module liveness. It separates <em>what is already
+well-factored and must not be broken</em> from the genuine duplication, the dead
+/ superseded code, and two stale-cache correctness hazards, then proposes a
+tiered consolidation roadmap. <strong>No code was moved</strong> — the trigger
+was noticing that two functions build passive couplings from the same circuits;
+the finding is that the fix is smaller and more surgical than it first looks.</p>
+
+<figure>
+  <img src="/imas-ambix/figures/physics-spine-consolidation/fig-em-stack-map.png"
+       alt="Three-tier map of the EM stack: kernels, coupling-assembly wrappers, machine description and consumers, with duplication and dead-code annotations"
+       style="max-width:100%">
+  <figcaption>The EM stack in three tiers. <strong>Kernels</strong> (bottom):
+  one shared finite-area primitive (<code>hybrid_greens</code>) plus its
+  point-filament zero-size limit and the polygon generalisation; <code>elliptic.py</code>
+  is dead. <strong>Coupling assembly</strong> (middle): four wrappers that each
+  re-walk the circuit set — the duplication tier. <strong>Machine description</strong>
+  + <strong>consumers</strong>: one live reader (<code>build_table_for_shot</code>),
+  two dead/unwired readers, and the layered boundary reads (connectivity/disc
+  live; moment/harmonic superseded to basis + anchor providers).</figcaption>
+</figure>
+
+<h2 id="s1">§1 — Scope &amp; method</h2>
+<p>Four parallel read-only passes, each cited to <code>file:line</code>, then
+cross-checked by hand on the physically-load-bearing paths:</p>
+<ul>
+  <li><strong>Kernels</strong> — every ψ / B / A primitive in
+    <code>gs/{elliptic,cylinder,polygon,filaments3d}.py</code> and the point
+    kernels in <code>operator.py</code>.</li>
+  <li><strong>Coupling assembly</strong> — every site that builds a Green's /
+    coupling matrix or column from circuits + geometry.</li>
+  <li><strong>Machine description</strong> — <code>GeometryTable</code>, the
+    circuit role taxonomy, <code>circuits.py</code>, the reader implementations,
+    and the version / cache keying.</li>
+  <li><strong>Liveness</strong> — external-import counts across
+    <code>imas_ambix/</code>, <code>scripts/</code>, <code>tests/</code> to
+    classify each physics module CORE / ACTIVE / STUDY-ONLY / TEST-ONLY /
+    ORPHAN, and to locate the live vs superseded boundary reads.</li>
+</ul>
+
+<h2 id="s2">§2 — What is already well-factored (do not break)</h2>
+<p>The subsystem is not a mess; several things are done right and any reorg must
+preserve them:</p>
+<ul>
+  <li><strong>One shared finite-area kernel.</strong> <code>hybrid_greens</code>
+    (<code>cylinder.py:188</code>) is the single production finite-area
+    primitive — it blends the exact rectangular thick-cylinder near-field with
+    the point-filament far-field. <code>build_operator</code>,
+    <code>passive_coupling_matrices</code>, and the inductance path all bottom
+    out in it. The <em>kernel</em> layer is consolidated; the duplication lives
+    in the wrappers above it.</li>
+  <li><strong>The two flagged functions already share their sensor/grid
+    couplings.</strong> <code>build_passive_circuit_system</code>
+    (<code>temporal_operator.py</code>) does <em>not</em> re-derive
+    <code>a_circ</code>/<code>g_circ</code> — it <em>delegates</em> straight to
+    <code>passive_coupling_matrices</code> (<code>boundary_disc.py</code>). What
+    it adds is the circuit×circuit inductance <code>L</code> and
+    <code>m_coil_circ</code>, which use a <em>different, intentional</em>
+    observer model (see below). So the user-observed duplication is real for
+    circuit iteration but the coupling math is already shared.</li>
+  <li><strong>The observer-model divergence is physics, not sloppiness.</strong>
+    Sensor / grid couplings use a <em>point observer</em> with a finite-area
+    source; the inductance <code>L</code> and drive-linkage <code>lam</code> use
+    a <em>two-section averaged observer</em> (a midpoint sub-grid over the target
+    section) because the flux a large vessel element links varies materially
+    across its own cross-section. The <code>0.01 m</code> source floor (a
+    flux-integration guard) vs the <code>1e-4 m</code> observer-placement floor
+    is likewise deliberate. A naive "one kernel call everywhere" merge would be
+    <em>wrong</em>.</li>
+  <li><strong><code>circuits.py</code> ↔ <code>classify_circuits</code> is a
+    clean split.</strong> <code>circuits.py</code> is a static transcription of
+    <code>pfSystems.xml</code> (13 active + 10 case circuits, no logic, no data
+    reads); <code>operator.classify_circuits</code> is the sole role-assigner and
+    consumes it. No duplicated classification.</li>
+  <li><strong>The point-filament path is a legitimate fast path</strong>, not a
+    bug-duplicate — it is the zero-size limit reached by the plasma-basis columns
+    and by <code>hybrid_greens</code>' own far-field fallback; one
+    implementation, two dispatch entries.</li>
+</ul>
+
+<h2 id="s3">§3 — Duplication hotspots</h2>
+<p>Seven wrappers re-implement the same glue around the shared kernel. Ranked by
+copy-count; the "byte-identical?" column decides whether a merge is mechanical or
+needs care.</p>
+<figure>
+  <table>
+    <thead><tr><th>#</th><th>Duplicated block</th><th>Copies (file:line)</th><th>Byte-identical?</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>classify_circuits</code> + <code>by_circ</code>
+        grouping + passive-role selection</td>
+        <td>~8: operator.py:747 · boundary_disc.py:234 · temporal_operator.py:95,169,294 · geometry.py:256,463 · operator.py:975</td>
+        <td><strong>Yes</strong> — freely unifiable; classify is also re-run
+        with no memoisation</td></tr>
+      <tr><td>2</td><td>channel-merge (<code>pf_by_chan</code> average +
+        <code>SOLENOID_RESPONSE_SCALE</code>)</td>
+        <td>3: operator.py:775 · temporal_operator.py:238,299</td>
+        <td><strong>No</strong> — <code>build_drive_linkage</code> adds a
+        <code>/n_merge</code> reciprocal normalisation (both axes merged); must
+        be a parameter, not dropped</td></tr>
+      <tr><td>3</td><td>sensor-row projection <code>where(is_flux, ψ, B_R cosθ +
+        B_Z sinθ)</code></td>
+        <td>5: operator.py:705,731 (via <code>_project_bprobe</code>) ·
+        boundary_disc.py:126,247,259 (inlined ×3)</td>
+        <td>Math-identical; boundary_disc inlines instead of calling the helper.
+        Return-tuple order differs (<code>greens_bz_br</code>→(bz,br) vs
+        <code>hybrid/polygon</code>→(ψ,br,bz))</td></tr>
+      <tr><td>4</td><td>sensor-row array build (sr, sz, sang, is_flux)</td>
+        <td>2: operator.py:640 (<code>_sensor_rows</code>) ·
+        boundary_disc.py:104 (<code>sensor_signature_arrays</code>)</td>
+        <td>Row geometry identical; one also emits channel/flag/exclude
+        metadata</td></tr>
+      <tr><td>5</td><td>per-filament finite-area extents + kernel
+        (<code>max(abs(w),0.01)</code> → <code>hybrid_greens</code>)</td>
+        <td>3: operator.py:758 · boundary_disc.py:256 · temporal_operator.py:562</td>
+        <td>Source side identical; <strong>observer model intentionally
+        differs</strong> (§2)</td></tr>
+      <tr><td>6</td><td>PolygonSection override (<code>poly_by_circ</code> +
+        box/polygon branch)</td>
+        <td>3: operator.py:800 · boundary_disc.py:240 · temporal_operator.py:193</td>
+        <td>Same intent; sensors/grid use the shaped observed field, the L
+        observer keeps the box (deliberate)</td></tr>
+      <tr><td>7</td><td>plasma→circuit / plasma-node flux linkage (point kernel +
+        xmult + bincount)</td>
+        <td>2: operator.py:829 · temporal_operator.py:404</td>
+        <td>Same reduction, both point-kernel</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Hotspots 1 and 4 are mechanical (byte-identical). Hotspots 2, 5,
+  6 carry <em>intentional</em> physics divergences that a consolidation must
+  express as explicit parameters/strategies, never erase.</figcaption>
+</figure>
+<p>A latent 8th: the coil→channel map is transcribed twice —
+<code>circuits.py</code> <code>ActiveCircuit.preferred_current_channel</code>
+and <code>operator._PF_COIL_AMC</code> — kept equal only by a test.</p>
+
+<h2 id="s4">§4 — Dead / superseded / test-only</h2>
+<figure>
+  <table>
+    <thead><tr><th>Module / symbol</th><th>LOC</th><th>Status</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr><td><code>gs/elliptic.py</code></td><td>79</td><td><strong>DEAD in
+        production</strong></td>
+        <td>Only <code>test_elliptic</code> imports it; <code>ellippi_complete</code>
+        is byte-duplicated by <code>cylinder._ellipp</code>;
+        <code>polygon_greens</code> uses complex-step, not Π</td></tr>
+      <tr><td><code>gs/q1_detect.py</code></td><td>870</td><td><strong>TEST-ONLY</strong></td>
+        <td>Only <code>tests/gs/test_residual.py</code>; no production/script
+        caller</td></tr>
+      <tr><td><code>latent/patch_observation.py</code></td><td>280</td>
+        <td><strong>ORPHAN</strong></td>
+        <td>Only its own test; the live patch path is
+        <code>structure_residual.py</code> + <code>patch_inverse.py</code></td></tr>
+      <tr><td><code>filaments3d</code> rdp/decimate,
+        <code>mutual_inductance</code>, <code>maxwell_mutual</code></td><td>—</td>
+        <td>TEST-ONLY helpers</td>
+        <td>No production caller; <code>maxwell_mutual</code> is a pure test
+        oracle</td></tr>
+      <tr><td><code>MastZarrGeometryReader</code></td><td>—</td><td>TEST-ONLY
+        (passthrough)</td>
+        <td>Only the byte-identity test constructs it</td></tr>
+      <tr><td><code>imas_geometry.ImasGeometryReader</code></td><td>442</td>
+        <td>UNWIRED / experimental</td>
+        <td>No <code>imas_ambix/</code> or <code>scripts/</code> caller;
+        <code>classify_circuits</code> is hardcoded MAST so its tables cannot be
+        classified downstream yet</td></tr>
+      <tr><td><code>latent/boundary_moment.py</code></td><td>424</td>
+        <td>SUPERSEDED read; basis reused</td>
+        <td><code>boundary_disc.py:2-5</code> names it replaced; only the moment
+        <em>basis</em> is still imported</td></tr>
+      <tr><td><code>latent/boundary_harmonic.py</code></td><td>978</td>
+        <td>SUPERSEDED read; anchor reused</td>
+        <td>Superseded as a read; still feeds <code>boundary_prior</code>'s
+        optional soft-prior anchor (<code>gs_solve.py:1686</code>)</td></tr>
+      <tr><td><code>latent/topology_objectives.py</code></td><td>348</td>
+        <td>STUDY/TEST-only</td>
+        <td>Only <code>train_temporal_operator.py</code> + its test</td></tr>
+      <tr><td><code>latent/{plasma_screening,passive_resistance}.py</code></td>
+        <td>934+932</td><td>ACTIVE, study-scoped</td>
+        <td>Not in <code>engine.py</code>/<code>gs_solve.py</code>/<code>runner</code>;
+        consumed only by passive/vacuum gate scripts — the newest superseding
+        arm, not yet promoted into the production spine</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Live boundary-read chain confirmed: moment → harmonic →
+  connectivity/disc. <code>connectivity_boundary.boundary_read_smooth</code> is
+  the in-solve LCFS read; <code>boundary_disc.disc_read</code> is the harness
+  read; <code>boundary_moment</code>/<code>boundary_harmonic</code> survive only
+  as a basis provider and an optional anchor.</figcaption>
+</figure>
+
+<h2 id="s5">§5 — Stale-cache hazards (correctness, found incidentally)</h2>
+<p>Two binary caches are keyed by <code>SetupSignature.key</code> but <strong>not</strong>
+by the version strings that gate their contents — so a
+<code>GEOMETRY_TABLE_VERSION</code> / <code>COIL_MODEL_VERSION</code> bump
+silently reuses stale geometry:</p>
+<ul>
+  <li><strong><code>temporal_operator</code> circuit-system / eigenbasis
+    <code>.npz</code></strong> (<code>save_circuit_system</code>,
+    <code>save_eigenbasis</code>) embed <em>no</em> version string; filename is
+    campaign+k only. Built from <code>classify_circuits</code> + the merge, so a
+    coil-model bump is invisible to them. <em>This is exactly the hazard the
+    D3 slanted-passive work hit</em> — the geometry bump to
+    <code>amb-schema-canonical-v3</code> required moving these caches aside by
+    hand.</li>
+  <li><strong><code>PatchBasis</code> <code>g_pg</code> cache</strong>
+    (<code>patch_basis.py:224</code>) keyed on signature + nr + nz; validates
+    array shape only, not version. Lower risk (grid-only) but a geometry-table
+    bump that changes the limiter/plasma basis is not caught.</li>
+</ul>
+<p>The JSON operator summaries and grounded-latent checkpoints <em>do</em> carry
+and check both version strings, so the hazard is confined to these two
+<code>.npz</code> paths. Folding the version strings into the cache key is a
+small, high-value correctness fix independent of any reorg.</p>
+
+<h2 id="s6">§6 — Consolidation roadmap (proposed; not yet actioned)</h2>
+<p>Ordered by risk. Tiers 0/1/4 are safe and mechanical; Tier 2 is the real
+design the user is after; Tier 3 needs physics judgement.</p>
+
+<h3 id="t0">Tier 0 — Dead-code removal (zero-risk)</h3>
+<ul>
+  <li>Retire <code>elliptic.py</code> (or reduce it to the single
+    <code>cylinder._ellipp</code> definition it duplicates) — it is unused in
+    production and <code>polygon_greens</code> needs no incomplete Π.</li>
+  <li>Retire or wire <code>q1_detect.py</code> (870 LOC test-only) and
+    <code>patch_observation.py</code> (280 LOC orphan) after confirming intent.</li>
+  <li>Keep <code>filaments3d</code>'s <code>maxwell_mutual</code> as a labelled
+    test oracle; drop or fold the unused rdp/decimate if the EFCC path never
+    defeatures.</li>
+  <li>Decide the fate of the unwired cross-machine reader seam
+    (<code>MastZarrGeometryReader</code>, <code>ImasGeometryReader</code>): keep
+    as a forward-looking protocol (documented) or remove until the IMAS bridge
+    lands.</li>
+</ul>
+
+<h3 id="t1">Tier 1 — Mechanical de-duplication (byte-identical copies)</h3>
+<ul>
+  <li>One <code>grouped_passive_circuits(table)</code> / memoised
+    <code>classify_circuits</code> to kill the ~8 <code>by_circ</code> copies
+    (hotspot 1).</li>
+  <li>One sensor-row builder feeding both <code>_sensor_rows</code> and
+    <code>sensor_signature_arrays</code> (hotspot 4).</li>
+  <li>Route <code>boundary_disc</code>'s inline projections through
+    <code>_project_bprobe</code> and normalise the kernel return-tuple order
+    (hotspot 3).</li>
+  <li>One PolygonSection-override resolver (hotspot 6), parameterised by whether
+    the observer is shaped or box.</li>
+</ul>
+
+<h3 id="t2">Tier 2 — The geometry-coupling generator (the real design)</h3>
+<p>A single builder — call it a <code>CouplingBuilder</code> / geometry-operator
+class — that owns circuit classification + the source-side channel merge once,
+and exposes the observed coupling as an explicit choice of <em>(source set,
+observer model, output shape)</em>. The four wrappers
+(<code>build_operator</code>, <code>passive_coupling_matrices</code>,
+<code>build_passive_circuit_system</code>, <code>build_drive_linkage</code>)
+become thin callers selecting a configuration. <strong>Binding constraints the
+design must encode explicitly, not erase</strong>: the point vs two-section
+observer model; the <code>/n_merge</code> reciprocal normalisation for
+drive–drive matrices; the <code>0.01</code> source floor vs <code>1e-4</code>
+observer-placement floor; the shaped-vs-box observer choice for polygon
+sections. Unify the coil→channel map (<code>circuits.py</code> ↔
+<code>_PF_COIL_AMC</code>) as its single source of truth.</p>
+
+<h3 id="t3">Tier 3 — Superseded-read consolidation (physics judgement)</h3>
+<ul>
+  <li>Reduce <code>boundary_moment.py</code> and <code>boundary_harmonic.py</code>
+    to the pieces still live (the moment <em>basis</em>; the harmonic
+    <em>anchor</em>), moving them behind clearly-named provider functions and
+    retiring the superseded standalone read paths + their study scripts.</li>
+  <li>Audit the <code>gs_solve.py</code> "historical"/"legacy" reproducibility
+    branches (grid-delstar substrate, hard topology read, boundary-continuation
+    arm) — decide which remain load-bearing vs candidate removals.</li>
+  <li>Clarify the status of the study-scoped passive/eddy arm
+    (<code>plasma_screening.py</code>, <code>passive_resistance.py</code>): these
+    are active experiments feeding the gates, not dead — the question is whether
+    any is ready to promote into the production spine or should stay study-side.</li>
+</ul>
+
+<h3 id="t4">Tier 4 — Cache-key hardening (correctness)</h3>
+<p>Fold <code>GEOMETRY_TABLE_VERSION</code> + <code>COIL_MODEL_VERSION</code> into
+the <code>.npz</code> cache filenames/payloads for the temporal-operator circuit
+system/eigenbasis and the <code>PatchBasis</code> <code>g_pg</code> cache, so a
+version bump auto-invalidates rather than silently reusing stale geometry (§5).</p>
+
+<h2 id="s7">§7 — Recommended next step</h2>
+<p>This survey is the input to a proper reorganisation <em>plan</em> (a separate,
+future step — no code moved here). Recommended sequencing when that plan is
+authored: Tier 0 + Tier 4 first (safe, immediate clarity + a real correctness
+fix), then Tier 1 (mechanical, test-guarded), then Tier 2 (the generator, the
+bulk of the value), and Tier 3 last (physics judgement, largest blast radius).
+Every tier is gated by the existing <code>gs</code> + <code>latent</code> suites
+and, for anything touching solver inputs, a spine sanity check. The load-bearing
+invariants of §2 are the acceptance guard: the reorg is correct only if the
+shared kernel, the delegation, and the intentional observer divergences survive
+byte-for-byte where they matter.</p>
+
+</main>
+</body>
+</html>
