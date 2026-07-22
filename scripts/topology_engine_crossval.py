@@ -748,12 +748,15 @@ def spine_rows_for_shot(
     table = _campaign_table(int(shot))
     if table is None:
         return _all("chain-unavailable", "no-campaign-geometry")
+    # chain-arm payload budget: the SAME per-shot slice thinning the gated
+    # chain saw, so the paired chain-vs-spine delta shares a maximal common
+    # (shot, k) cover and the per-shot cost stays inside a debug-queue wall
     payload = factory_shot_payloads(
         int(shot),
         nr=nr,
         nz=nz,
-        max_slices=MAX_PAYLOAD_SLICES,
-        min_ip_ka=MIN_IP_KA,
+        max_slices=CHAIN_MAX_SLICES,
+        min_ip_ka=CHAIN_MIN_IP_KA,
         table=table,
         cache_grid=True,
     )
