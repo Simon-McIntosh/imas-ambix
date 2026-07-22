@@ -2,8 +2,11 @@
 
 A lattice of co-current filaments filling a rectangle has the same field as a
 single finite-cross-section cylinder carrying the summed current -- the collapse
-must reproduce that field (area-conservation gate), leave sparse/non-rectangular
-circuits alone, and preserve the summed weight/turns.
+must reproduce that field (a multipole-match gate: dipole + quadrupole), leave
+staggered / hollow / sparse circuits as their exact lattice, and preserve the
+summed weight/turns.  The gate tolerates benign inter-winding insulation gaps
+(a regular grid stays field-equivalent to a uniform rectangle) while rejecting a
+current distribution that is genuinely off-centre or not box-uniform.
 """
 
 from __future__ import annotations
@@ -91,3 +94,59 @@ def test_single_filament_passes_through():
     fils = [PFFilament(0.5, 0.0, 1.0, 0.05, 0.05, 4, 1.0)]
     out = collapse_rectangular_circuits(fils)
     assert len(out) == 1 and out[0] is fils[0]
+
+
+def _gapped_pack(circuit, r0, z0, w, h, nr, nz, gap):
+    """A regular nr x nz lattice with a uniform insulation gap: each conductor
+    is ``gap`` narrower than its cell, so the pack is a real coil winding (fill
+    < 1) but still tiles the box uniformly."""
+    dr, dz = w / nr, h / nz
+    out = []
+    for i in range(nr):
+        for j in range(nz):
+            out.append(
+                PFFilament(
+                    r=r0 - w / 2 + (i + 0.5) * dr,
+                    z=z0 - h / 2 + (j + 0.5) * dz,
+                    turns=1.0,
+                    width=dr * (1.0 - gap),
+                    height=dz * (1.0 - gap),
+                    circuit=circuit,
+                    xmult=0.5,
+                )
+            )
+    return out
+
+
+def test_regular_gapped_lattice_still_collapses():
+    # a real winding: 4x12 grid, conductors 20% narrower than the cell (fill
+    # ~0.64) — benign insulation gaps, uniform tiling, centred current.  The
+    # multipole gate must still collapse it (area-fill alone would reject it).
+    fils = _gapped_pack(circuit=6, r0=0.5, z0=0.1, w=0.12, h=0.6, nr=4, nz=12, gap=0.2)
+    out = collapse_rectangular_circuits(fils)
+    assert len(out) == 1, f"gapped-but-regular pack should collapse, got {len(out)}"
+
+
+def test_staggered_pack_not_collapsed():
+    # off-centre current: two filled columns on the left, one on the right —
+    # the current-weighted centroid sits left of the bounding-box centre (the
+    # P4/P5 ragged-winding signature).  A single rectangle would mis-place it.
+    fils = []
+    for i, rr in enumerate((0.46, 0.48)):  # left block (more current)
+        for zz in (-0.02, 0.0, 0.02):
+            fils.append(PFFilament(rr, zz, 1.0, 0.02, 0.02, 8, 1.0))
+    for zz in (-0.02, 0.0, 0.02):  # single right column, far side
+        fils.append(PFFilament(0.56, zz, 1.0, 0.02, 0.02, 8, 1.0))
+    out = collapse_rectangular_circuits(fils)
+    assert len(out) == len(fils), "staggered pack must keep its exact lattice"
+
+
+def test_hollow_frame_not_collapsed():
+    # a case-like hollow frame: current on the box perimeter, empty centre —
+    # centroid is central but the 2nd moment far exceeds a uniform box.
+    fils = []
+    for r in (0.40, 0.60):
+        for z in np.linspace(-0.2, 0.2, 5):
+            fils.append(PFFilament(r, float(z), 1.0, 0.02, 0.02, 14, 1.0))
+    out = collapse_rectangular_circuits(fils)
+    assert len(out) == len(fils), "hollow frame must keep its exact lattice"

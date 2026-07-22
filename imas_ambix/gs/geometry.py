@@ -209,28 +209,44 @@ class PFFilament:
 def collapse_rectangular_circuits(
     filaments: list[PFFilament],
     *,
-    fill_tol: float = 0.25,
+    pos_tol: float = 0.01,
+    mom_tol: float = 0.15,
     floor: float = 0.01,
 ) -> list[PFFilament]:
-    """Replace each circuit whose filaments FILL an axis-aligned rectangle with
-    one equivalent thick-cylinder filament (bounding box, ``xmult`` summed).
+    """Replace a circuit's filament lattice with one equivalent thick-cylinder
+    filament ONLY when that single rectangle reproduces the lattice's field.
 
     A coil pack described as a lattice of many co-current filaments has the
     SAME far and near field as a single finite-cross-section cylinder carrying
     the summed current (the analytic double-Newton / Biot-Savart integral is
     over the whole cross-section either way) -- but one cylinder is O(N) cheaper
-    to evaluate and drops the Riemann-sum granularity of the filament tiling.
-    The collapse is applied only where the geometry warrants it, gated by a
-    cross-section-area conservation check: the sum of the filament areas must
-    equal the bounding-box area to within ``fill_tol`` (a filled rectangle),
-    and all filaments must carry the same-sign weight (a uniform pack).  A
-    sparse / ring / L-shaped circuit fails the fill check and is left untouched.
+    to evaluate.  The equivalence holds only when the filaments actually TILE a
+    uniform rectangle; it fails for a staggered / ragged / hollow pack, where a
+    single bounding-box rectangle would mis-place the current or over-state the
+    cross-section.  The gate is therefore a FIELD-FIDELITY (multipole-match)
+    check, not a crude area-fill count — raw area fill conflates benign
+    inter-winding insulation gaps (a regular grid is still field-equivalent to
+    a uniform rectangle) with a genuine shape feature (which is not).
+
+    A circuit collapses iff all three hold:
+      * all filaments carry same-sign weight (a uniform pack), AND
+      * the current-weighted centroid coincides with the bounding-box centre to
+        within ``pos_tol`` of the box size (dipole match — rejects staggered
+        packs whose current sits off-centre), AND
+      * the current-weighted second moments ⟨Δr²⟩, ⟨Δz²⟩ (including each
+        filament's own w²/12, h²/12) match those of a uniform filled rectangle
+        of the bounding box (``W²/12``, ``H²/12``) to within ``mom_tol``
+        (quadrupole match — rejects hollow frames and gapped packs whose current
+        is not uniformly spread over the box).
+    Anything that fails is left as its exact filament lattice (the ground-truth
+    field), the ``Σ w·greens`` the operator sums over the circuit regardless.
 
     The single cylinder takes the bounding-box centre and extents, ``xmult`` =
-    Σ``xmult`` (so ``Σ w·greens`` is preserved: N unit-current small cylinders
-    tiling the box ≈ one N-current box cylinder), and ``turns`` = Σ``turns``.
-    Single-filament circuits pass through unchanged.  ``floor`` is the physical
-    size floor (matches the coil-column build) used when a pack extent is thin.
+    Σ``xmult`` (so ``Σ w·greens`` is preserved), and ``turns`` = Σ``turns``;
+    because it collapses only when the centroid is box-centred, box centre and
+    current centroid coincide.  Single-filament circuits pass through unchanged.
+    ``floor`` is the physical size floor (matches the coil-column build) used
+    when a pack extent is thin.
     """
     by_circ: dict[int, list[PFFilament]] = {}
     order: list[int] = []
@@ -256,20 +272,37 @@ def collapse_rectangular_circuits(
         r_lo, r_hi = (r - w / 2).min(), (r + w / 2).max()
         z_lo, z_hi = (z - h / 2).min(), (z + h / 2).max()
         box_w, box_h = r_hi - r_lo, z_hi - z_lo
-        box_area = box_w * box_h
-        area_sum = float((w * h).sum())
-        if box_area <= 0.0 or abs(area_sum / box_area - 1.0) > fill_tol:
-            out.extend(fs)  # not a filled rectangle — keep the filament lattice
+        if box_w <= 0.0 or box_h <= 0.0:
+            out.extend(fs)  # degenerate box — keep the filament lattice
+            continue
+        r_c, z_c = 0.5 * (r_lo + r_hi), 0.5 * (z_lo + z_hi)
+        # dipole match: current-weighted centroid vs bounding-box centre
+        wsum = float(xm.sum())
+        cw_r = float((xm * r).sum() / wsum)
+        cw_z = float((xm * z).sum() / wsum)
+        pos_off = max(abs(cw_r - r_c) / box_w, abs(cw_z - z_c) / box_h)
+        # quadrupole match: current-weighted 2nd moment about box centre
+        # (incl. each filament's own w²/12, h²/12) vs a uniform filled box
+        mom_r = float((xm * ((r - r_c) ** 2 + w**2 / 12.0)).sum() / wsum)
+        mom_z = float((xm * ((z - z_c) ** 2 + h**2 / 12.0)).sum() / wsum)
+        mom_dev = max(
+            abs(mom_r / (box_w**2 / 12.0) - 1.0),
+            abs(mom_z / (box_h**2 / 12.0) - 1.0),
+        )
+        if pos_off > pos_tol or mom_dev > mom_tol:
+            # staggered / hollow / gapped pack — a single rectangle would
+            # mis-place or mis-size the current; keep the exact lattice
+            out.extend(fs)
             continue
         out.append(
             PFFilament(
-                r=0.5 * (r_lo + r_hi),
-                z=0.5 * (z_lo + z_hi),
+                r=r_c,
+                z=z_c,
                 turns=float(sum(f.turns for f in fs)),
                 width=box_w,
                 height=box_h,
                 circuit=circ,
-                xmult=float(xm.sum()),
+                xmult=wsum,
             )
         )
     return out
