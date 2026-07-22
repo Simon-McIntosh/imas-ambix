@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="doc">
+  <meta name="plan-slug"     content="nonaxisymmetric-field-subtraction-gate-ga-landed">
+  <meta name="plan-title"    content="Landed — Gate G-A adjudicated: the bay-loop anomaly is NOT passive; route to layer C per-era cross-calibration">
+  <meta name="plan-summary"  content="The already-fitted vessel passive R (vacuum-aggregate-excellent, 28x held-out mag-loss drop) does NOT reproduce the P4/P5 bay-loop coupling deficit: on the coil-sweep cohort the modelled vessel eddy explains only ~9% of the bay-loop signal and does not restore the gain, while the centre-column control loops behave. Combined with the case being a few-% term, neither passive layer reproduces the bay-loop bimodality. Gate G-A takes its pre-defined fail branch: the correction is layer C (per-era cross-calibration on the stable far set), not a passive subtraction.">
+  <meta name="plan-informs"  content="nonaxisymmetric-field-subtraction">
+  <title>Landed — Gate G-A: bay-loop anomaly is layer C, not passive | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p class="lede">The vessel passive R was already fitted
+(<code>vacuum_passive_resistance_fit.json</code>, 2026-07-17): it drops the
+held-out vacuum <em>aggregate</em> magnetics loss 28× (0.337→0.012). Gate G-A
+asks the narrower, decisive question: does that modelled vessel eddy reproduce
+the <strong>scorecard's P4/P5 bay-loop coupling deficit</strong> — the −30–50 %
+"gain collapse" that biases the pin? The answer is <strong>no</strong>, on both
+the fit's own held-out pool and the scorecard's own coil-sweep regime.</p>
+
+<h2 id="s1">§1 — The test</h2>
+<p><code>scripts/passive_bay_loop_gate.py</code> takes the frozen resistance
+calibration and, per bay loop, pools the coil-only vacuum slices to compute the
+effective coil gain (empirical/model) <strong>before</strong> the eddy model
+(the scorecard's collapsed gain) and <strong>after</strong> adding the tuned
+vessel eddy, plus the fraction of the bay-loop eddy-signal variance the model
+explains. The centre-column control loops (<code>fl_cc*</code>, era-stable in
+the scorecard) are the discriminator: a physical correction must leave them
+≈1. Firewall: coil-only vacuum, raw amb + raw amc winding drives + geometry
+operator + frozen calibration; cases are held-back state; no EFIT; operator
+unchanged.</p>
+
+<h2 id="s2">§2 — Result: the vessel eddy does not carry the bay loops</h2>
+<figure>
+  <img src="/imas-ambix/figures/nonaxisymmetric-field-subtraction/fig-passive-bay-loop-gate.png"
+       alt="Effective bay-loop coil gain before/after the tuned vessel eddy, with controls"
+       style="max-width:100%">
+  <figcaption>Effective coil gain before (no eddy) vs after (tuned vessel R).
+  Controls (right) stay ≈1; bay loops (left) are not moved toward 1 by the eddy
+  model.</figcaption>
+</figure>
+<figure>
+  <table>
+    <thead><tr><th>family</th><th>gain before</th><th>gain after</th>
+      <th>eddy var. explained</th><th>eddy/coil RMS</th></tr></thead>
+    <tbody>
+      <tr><td><strong>bay loops (P4/P5)</strong></td><td>1.10 (bimodal 0.98–1.60)</td>
+        <td>1.17</td><td><strong>0.09</strong></td><td>0.63</td></tr>
+      <tr><td>centre-column controls (<code>fl_cc</code>)</td><td>0.97</td>
+        <td>0.97</td><td>0.16</td><td>0.05</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Coil-sweep cohort, 76 pooled coil-only records (a cross-regime
+  held-out test — R was fit on CS-precharge preludes). The tuned vessel eddy
+  explains ~9 % of the bay-loop signal and nudges the gain the wrong way
+  (1.10→1.17); the bimodality (fl_p5u_1 at 1.60, others near 1) is the §2
+  two-mode signature, unmoved. The CS-prelude held-out pool gives the same
+  qualitative verdict (controls clean, bay loops unexplained).</figcaption>
+</figure>
+<p>Cross-checks that make this a real negative, not a harness artefact: the
+control loops behave (gain 0.97, eddy 5 % of their coil signal, correctly tiny),
+and the same vessel calibration that fails here reduces the <em>aggregate</em>
+held-out vacuum magnetics loss 28× — i.e. the vessel eddy is real and modelable,
+but its 28× win is carried by the near-vessel probes, <strong>not</strong> the
+bay loops. This also matches the reconstruction-neutral dynamic-passive result
+(tuned R gives axis skill Δ≈−0.2, flat-top no better).</p>
+
+<h2 id="s3">§3 — Verdict: layer C, not layer A</h2>
+<p>Gate G-A was defined make-or-break: passive reproduces the collapse → subtract
+it (layer A); it cannot → the collapse re-routes to <strong>layer C</strong>
+(instrument / effective-area), corrected by per-era cross-calibration anchored on
+the stable far set. The passive model — case <em>and</em> vessel — explains
+&lt; 10 % of the bay-loop deficit, so <strong>G-A takes the layer-C branch</strong>.
+Combined with this session's earlier results, the bay-loop bimodal anomaly is:</p>
+<ul>
+  <li><strong>not</strong> a case-channel units/turns/name bug (all verified correct);</li>
+  <li><strong>not</strong> the case passive R (the case is a few-% sensor term);</li>
+  <li><strong>not</strong> the vessel passive R (explains &lt; 10 %, gate G-A fail);</li>
+  <li>⇒ a <strong>time-invariant, coil-specific coupling / effective-area error
+    (layer C/D)</strong> exposed by drive mix (the §2 bimodality), whose correction
+    is a per-era gain recalibration of the bay loops against the era-stable far
+    set (centre-column loops + <code>obr</code>), applied upstream of the fit (D5),
+    <em>not</em> a passive-eddy subtraction.</li>
+</ul>
+<p>The vessel passive model stays in the engine for what it genuinely does
+(near-vessel probe eddy on ramps); it is simply not the bay-loop lever. The 3D
+RMP geometry (D2) is not required to close this question.</p>
+
+<p class="meta">Artifacts:
+<code>imas_ambix/latent/artifacts/patch_gate/passive_bay_loop_gate.json</code>;
+figure <code>docs/figures/nonaxisymmetric-field-subtraction/fig-passive-bay-loop-gate.png</code>;
+harness <code>scripts/passive_bay_loop_gate.py</code>. Reuses the frozen
+<code>passive_resistance_calibration.json</code> (2026-07-17); no re-fit, no 3D
+geometry, operator unchanged.</p>
+
+</main>
+</body>
+</html>

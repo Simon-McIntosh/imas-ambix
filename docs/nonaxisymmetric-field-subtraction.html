@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-22">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="5">
 <meta name="plan-impl" content="0.45">
 </head>
 <body>
@@ -132,6 +132,39 @@
     <a href="archive/nonaxisymmetric-field-subtraction-p3case-passive-landed.html">P3 case passive re-attribution</a>.
     Next: fold the case R/τ fit into D3 (passive circuit-coupled eddy; resolve
     <code>idle-ivc-circuit-state</code>), then D5 subtraction → gate G-A (f-nfs-d2).
+  </p>
+</section>
+
+<section class="section-landed" id="landed-gate-ga">
+  <header>
+    <span class="badge badge-shipped">✓ landed 2026-07-22</span>
+    <h2>Gate G-A adjudicated — the bay-loop anomaly is NOT passive; route to layer C per-era cross-calibration</h2>
+  </header>
+  <p class="landed-summary">
+    The vessel passive R is already fitted
+    (<code>vacuum_passive_resistance_fit.json</code>, 2026-07-17): it drops the
+    held-out <em>aggregate</em> vacuum magnetics loss <strong>28×</strong>
+    (0.337→0.012). But it does <strong>not</strong> reproduce the P4/P5 bay-loop
+    coupling deficit — the make-or-break G-A question.
+    <code>scripts/passive_bay_loop_gate.py</code> (coil-sweep cohort, 76 pooled
+    coil-only records; cross-regime held-out since R was fit on CS preludes):
+    the tuned vessel eddy explains only <strong>~9%</strong> of the bay-loop
+    signal and nudges the effective coil gain the wrong way (1.10→1.17), with the
+    bimodality (fl_p5u_1 1.60, others ≈1) unmoved; the centre-column control
+    loops behave (gain 0.97, eddy 5%) — so the method is sound and the far set is
+    clean. Neither the case passive R (a few-% sensor term) nor the vessel passive
+    R carries the bay loops. <strong>Gate G-A takes its pre-defined fail branch:
+    the bay-loop correction is layer C</strong> — a time-invariant coil-specific
+    effective-area/coupling error exposed by drive mix (§2), corrected by
+    <strong>per-era gain recalibration against the era-stable far set</strong>
+    (centre-column loops + <code>obr</code>) applied upstream of the fit (D5),
+    <em>not</em> a passive-eddy subtraction. Consistent with the tuned-R
+    dynamic-passive gate being reconstruction-neutral (axis Δ≈−0.2). The vessel
+    model stays for near-vessel probe eddy; D2 3D RMP geometry is not needed to
+    close this. Commit <code>__GATEGA_SHA__</code>. Full record:
+    <a href="archive/nonaxisymmetric-field-subtraction-gate-ga-landed.html">gate G-A adjudicated</a>.
+    Next: implement the layer-C per-era bay-loop cross-calibration in D5
+    (f-nfs-layerc), then hand the corrected layer to the census re-score (f-ctr-18).
   </p>
 </section>
 
@@ -748,8 +781,14 @@ Context
   by f-nfs-p3case to a PASSIVE R/τ effect: the P3 case current obeys an L/R
   circuit driven by the coils (dynamic-ramp fit R²=0.93, R≈7-9 mΩ, τ≈1.0-1.2 ms;
   scripts/case_circuit_resistance_fit.py). NO channel/units fix exists; the
-  operator is unchanged; gate G-A is layer A (passive). D3 below MUST reproduce
-  it, and the recovered per-case R/τ is the starting point.
+  operator is unchanged. Gate G-A is now ADJUDICATED (f-nfs-layerc): neither the
+  case nor the vessel passive R reproduces the bay-loop deficit (vessel eddy
+  explains ~9% of the bay-loop signal; scripts/passive_bay_loop_gate.py), so the
+  bay-loop correction is LAYER C (per-era far-set cross-calibration), NOT a
+  passive subtraction. D3's passive model stays only for near-vessel probe eddy;
+  D2/D4's remaining value is the layer-B probe/saddle correction, not the bay
+  loops. So this followup's D3 gate-G-A sub-goal is closed; its live scope is D2
+  geometry + D4 absolute EFCC/probe calibration.
 
 Deliverables (in order)
   1. D2: era-keyed 3D geometry as plain versioned in-tree data — 12-coil M7
@@ -835,6 +874,59 @@ Done-when
   2. gs suite green + spine sanity check (no unexplained reconstruction shift)
   3. Result fed to gate G-A as the layer-D verdict; plan updated; this resolved</pre>
     <p class="r-fu-outcome">OVERTURNED premise — no upstream channel fix exists; the P3 case 'k≈2.3' is a passive R/τ effect, not a drive-data amplitude bug. Evidence (scripts/case_circuit_resistance_fit.py + case_circuit_resistance_fit.json, 150-shot dynamic cohort; commit 129c064): (1) every candidate root cause is already correct — units (kA→×1000→A, 1 turn), Σxmult=1, efm↔pfSystems id map (16=p3u/17=p3l), g_case/g_coil=0.98; (2) the archived *_case_current is an Analysed/induced eddy (Lenz, corr −0.7 with dI_coil/dt); (3) the static 'k' is ill-posed — case/coil columns 98% collinear, so k swings 0.9 global ↔ 2.3 bay-loop ↔ −1.6..+4.7 per-sensor, which a scalar channel error cannot do; (4) modelling it as a passive loop L·dI/dt+R·I=−ΣM·dI_coil/dt (L,M from magnetics; R the lever) and fitting on the DYNAMIC ramps recovers R cleanly — P3 circuit-fit R²=0.93, R≈7-9 mΩ, τ=L/R≈1.0-1.2 ms (all 8 cases fit); (5) sensor-anchored isolation is confounded (case = 2.6-4.8% of the vessel-eddy-dominated bay-loop ramp residual → absolute R needs the D3 vessel model). GATE G-A REVERSED: layer A (passive), not layer D (drive-data) — G-A must reproduce it. Operator UNCHANGED (no fix to apply; per-case scale rejected); gs suite 211 passed. Route: fold the case R/τ into D3 + resolve idle-ivc-circuit-state (carried by f-nfs-d2). Archive: nonaxisymmetric-field-subtraction-p3case-passive-landed.html.</p>
+    </article>
+<article class="r-fu" data-id="f-nfs-layerc" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-22 16:45" data-recommends-skill="/reckon-ship nonaxisymmetric-field-subtraction" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Gate G-A adjudicated → LAYER C: implement the per-era bay-loop cross-calibration on the stable far set (D5), hand corrected layer to f-ctr-18</h4>
+    <div class="r-fu-body"><p>Gate G-A is decided. The already-fitted vessel passive R (vacuum-aggregate 28×) does NOT reproduce the P4/P5 bay-loop coupling deficit — <code>scripts/passive_bay_loop_gate.py</code> (coil-sweep cohort, 76 records; cross-regime held-out): the tuned vessel eddy explains only ~9% of the bay-loop signal and does not restore the gain (1.10→1.17), while the centre-column controls behave (0.97, eddy 5%). Combined with the case being a few-% term (f-nfs-p3case), <strong>neither passive layer carries the bay loops</strong>. Per the plan's pre-defined G-A fail branch the bay-loop correction is <strong>layer C</strong>: a time-invariant coil-specific effective-area/coupling error exposed by drive mix (§2 bimodality), corrected by a per-era gain recalibration of the bay loops against the era-stable far set (centre-column loops + obr), applied upstream of the fit (D5). The passive model stays for near-vessel probe eddy; D2 3D RMP geometry is NOT required for this. Consistent with the tuned-R dynamic-passive gate being reconstruction-neutral.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    nonaxisymmetric-field-subtraction (http://localhost:8765/imas-ambix/nonaxisymmetric-field-subtraction.html)
+Section: layer-C per-era bay-loop cross-calibration (D5), gate G-A already adjudicated
+Tier:    opus
+
+Context
+  Gate G-A is decided against the passive hypothesis. scripts/passive_bay_loop_gate.py
+  (+ passive_bay_loop_gate.json) showed the frozen vessel-R calibration
+  (passive_resistance_calibration.json, 2026-07-17; vacuum-aggregate held-out
+  mag loss 0.337-&gt;0.012) explains only ~9% of the bay-loop coupling deficit and
+  does not move the effective coil gain toward 1 (bay 1.10-&gt;1.17, bimodal
+  0.98-1.60), while the centre-column control loops behave (0.97, eddy 5%). The
+  case passive R is a few-% sensor term (f-nfs-p3case). So the bay-loop bimodal
+  anomaly is LAYER C (instrument / effective-area), not passive (layer A) and
+  not a case-channel bug. The correction is a per-era gain recalibration of the
+  bay loops predicted from the era-stable far set (centre-column loops + obr),
+  which the scorecard showed are stable &lt;1% over 8 years; a bay probe cannot
+  correct a bay loop, but the far set can (plan §2/§5).
+
+Deliverables
+  1. Build the far-set -&gt; bay-loop cross-prediction: on the per-era coil-only
+     vacuum pool, regress each bay loop&#x27;s flux on the stable far-set channels
+     (+ the coil model) and derive the per-era effective-area/gain correction
+     that recalibrates the bay loop to the far-set-consistent value. Machine-
+     agnostic (far set chosen by scorecard stability, not hardcoded).
+  2. Wire it as the layer-C step of D5: measured&#x27; = gain_era^-1 . measured on
+     the bay loops, upstream of every fit, era-keyed; leave probes/saddles to
+     the layer-B (energised) correction and the vessel eddy to its existing
+     passive sidecar.
+  3. Hand the corrected sensor layer to the census re-score
+     (connectivity-topology-reader f-ctr-18) and check the &gt;23000 late-band
+     axis-displacement contraction (gate G-B).
+
+State to read
+  scripts/passive_bay_loop_gate.py + passive_bay_loop_gate.json (G-A verdict)
+  imas_ambix/latent/artifacts/patch_gate/vacuum_passive_resistance_fit.json
+  docs/connectivity-topology-reader-magnetics-era-scorecard.html (far-set stability, bay-loop drift)
+  scripts/flux_loop_column_decomposition.py (bay-loop set, cohort selector)
+
+Scope locks / constraints
+  Firewall: raw magnetics + coil currents + geometry; EFIT referee only. No
+  passive-subtraction of the bay loops (G-A said no). Heavy sweeps on SLURM
+  *_debug, OPENBLAS/OMP/MKL_NUM_THREADS=1.
+
+Done-when
+  1. Per-era far-set-&gt;bay-loop gain correction fitted + validated (held-out
+     bay-loop flux predicted from the far set to the noise floor)
+  2. Wired as the D5 layer-C step, era-keyed, upstream of the fit
+  3. Corrected layer handed to f-ctr-18; gate G-B checked; plan updated; resolved</pre>
     </article>
 </section>
 
