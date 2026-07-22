@@ -145,10 +145,62 @@ family to noise. The measured exposure ladder — saddles ≫ obv &gt; obr/ccbv
 of the validation (zero where zero, nonzero where nonzero) now exist
 empirically. Since the error-field coils are energised in essentially every
 shot, this probe contamination sits in every reconstruction today, unmodelled;
-and because the scorecard's vacuum fits did not carry EF-current regressors,
+and because the scorecard's vacuum fits did not carry the EF currents at all,
 part of the probe-family era drift (obr10, the strongest EF responder, was a
-flagged drifter) may be EF-usage aliasing — adding EF nuisance columns to the
-scorecard is a cheap immediate hardening, queued in D4.</p>
+flagged drifter) may be EF-usage aliasing. The EF currents are archived
+corpus-wide in calibrated <strong>kA·turn</strong> (channels
+<code>error_field_a/b</code> in M5–M6, relabelled
+<code>error_field_02/05</code> by ~18500), so this is not a statistical
+nuisance to regress away — it is <strong>real, modelable physics</strong>: the
+CC coils get Biot-Savart Green's columns in the forward model exactly like the
+PF coils (a stronger physics spine), with the fitted per-sensor EF response
+columns serving only as the interim empirical stand-in (and later the
+validation target) until the D2 geometry lands. No CC coil geometry exists
+in-tree or in <code>efm</code> — D2 sources it from drawings/literature.
+Measured CC-current behaviour (430-shot sweep): energised in 52–80 % of shots
+in <em>every</em> era (not always on — good: on/off contrast is
+identifiability), median 1–3 kA·turn with <strong>large within-campaign
+variation</strong> (M7: <code>ef_a</code> median 0.20, max 14.3 kA·turn) that
+tightens to a clamped programme in M8 (max 1.6 / 3.9); energised in vacuum
+shots and pre-breakdown windows alike, so the validation seams cover it
+directly.</p>
+
+<p><strong>Step-vs-ramp test at the install boundaries — the passive-layer
+story does NOT survive it.</strong> If installing the IVC conductors changed
+MAST's passive response, the bay-loop vacuum gain must step at 19031 and
+25404. A 430-shot per-shot-resolved sweep (dense ±600-shot windows at both
+boundaries) shows neither a step nor a ramp: the bay-loop gain is
+<strong>bimodal in every era including M5–M6</strong> (two co-existing
+populations at ≈1.6 and ≈0.6, controls tight at 0.95–1.0 throughout), with a
+mid-M7 median "recovery" to pre-install values that no hardware story can
+produce. The scorecard's era-median drift is therefore a
+<strong>population-mixture shift</strong>: campaign programming changed which
+drive families dominate the coil-only windows, and a per-shot scalar gain
+lands on whichever mode the drive mix selects.</p>
+<figure>
+  <img src="/imas-ambix/figures/nonaxisymmetric-field-subtraction/fig-pershot-gain-trajectory.png"
+       alt="Per-shot vacuum gain trajectories across the RMP install boundaries"
+       style="max-width:100%">
+  <figcaption>Per-shot vacuum gain vs shot number. Top: RMP-bay loops — two
+  stable gain modes coexist from M5 onward; no step at the install boundaries
+  (dashed). Middle: centre-column control loops, tight at 1. Bottom: flagged
+  outboard probes. The era-median "collapse" is the mixture weighting
+  shifting, not the machine changing.</figcaption>
+</figure>
+<p><strong>Prime suspect re-routed: a time-invariant, coil-specific coupling
+error (layer D).</strong> Two stable modes for the same sensor mean the loop's
+modelled response to a <em>specific drive column</em> is wrong by a large
+factor at all times — drive-side channel semantics (the amc coil/case/feed
+"pseudo coil current" definitions) or a model-column error for the adjacent
+P4/P5 circuits — and shot programming decides how often it is exposed. The
+early 85-shot audit already measured case-circuit scale factors of 0.66–0.71
+and −0.04. First D3 rung, redefined: a per-era, per-(sensor, coil)
+<code>G_emp</code> decomposition on the sweep cohort to identify WHICH column
+carries the factor, separating drive-data error from geometry error from any
+genuine passive term. The passive circuit model remains in scope for what it
+can genuinely do (ramp-phase eddy on all conductors), but it is no longer the
+presumed explanation of the loop anomaly — gate G-A now adjudicates layer D
+first.</p>
 
 <p><strong>Flux-loop drift question (answered).</strong> Loops and probes do
 <em>not</em> suffer the same problem: the degradation is a property of
@@ -273,10 +325,13 @@ predicted on the three plasma-free seams: the 864 dedicated-vacuum candidates
 several coils individually), the always-on error-field pre-breakdown windows
 (corpus-wide), and post-disruption tails (quench + vessel-decay gating, ELM
 Rogowski still swinging — prototype detector exists). Quick first rung
-(pre-geometry): add the <code>error_field_02/05</code> currents as nuisance
-regressors to the era scorecard and re-run — this both de-aliases the
-probe-family drift estimates and yields empirical per-sensor EF response
-columns to validate the D2 geometry against. By-product: with the
+(pre-geometry): add the <code>error_field_a/b → 02/05</code> currents
+(kA·turn, corpus-wide) to the era scorecard's design as drive columns and
+re-run — this de-aliases the probe-family drift estimates and yields the
+empirical per-sensor EF response columns that the D2 Biot-Savart geometry
+must then reproduce (the CC coils are physics in the forward model, on the
+same footing as the PF coils — the empirical columns are scaffolding, not the
+end state). By-product: with the
 toroidally-localised fields validated, re-run the Hole et al. signed assignment
 on these intervals — the archive's route from the degenerate C≈0.03 to the
 paper's C&gt;0.97 sensor-identity audit (connectivity-topology-reader
