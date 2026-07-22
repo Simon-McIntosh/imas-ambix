@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <title>Polygonal-Section Coil Fields — D3 + D4 + D5 landed | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><a href="/imas-ambix/polygonal-section-coil-fields.html">← back to plan</a></p>
+
+<h1>D3 + D4 + D5 landed — proxy retired, robustness pinned, wired as a section type</h1>
+<p class="muted">Benchmark vs the multi-filament proxy, numerical robustness, and the
+forward-operator section-type wiring. Shipped 2026-07-22.</p>
+
+<section class="card">
+  <h2>Quick status</h2>
+  <table>
+    <thead><tr><th>Item</th><th>Status</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>D3 — benchmark vs multi-filament proxy</td>
+          <td><span class="badge badge-shipped">✓ shipped</span></td>
+          <td>analytic exact ~1e-13; proxy needs 3k–40k filaments for 1e-4 and is
+              3–14× the wall-cost at matched accuracy → <code>proxy-retirement</code> = REPLACE</td></tr>
+      <tr><td>D4 — robustness / singularity handling</td>
+          <td><span class="badge badge-shipped">✓ shipped</span></td>
+          <td>machine-precise &gt;1 cm off edge, ≤1e-6 to 1 mm; on-edge/vertex finite;
+              large-slope &amp; thin plate hold — no kernel fix needed</td></tr>
+      <tr><td>D5 — expose as a geometry section type</td>
+          <td><span class="badge badge-shipped">✓ shipped</span></td>
+          <td><code>PolygonSection</code> + <code>build_operator</code> dispatch; opt-in,
+              byte-identical when empty; 240 gs tests pass</td></tr>
+      <tr><td>real 8-element ingestion + loop-gain rerun</td>
+          <td><span class="badge">next</span></td>
+          <td>seam into <a href="/imas-ambix/nonaxisymmetric-field-subtraction.html">non-axisymmetric
+              field subtraction</a> (gate G-A) — the empirical question</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h2>Outcomes</h2>
+  <table>
+    <thead><tr><th>Deliverable</th><th>Artifact</th><th>Commit</th></tr></thead>
+    <tbody>
+      <tr><td>Accuracy / cost benchmark harness + JSON + figure</td>
+          <td><code>scripts/polygon_proxy_benchmark.py</code>,
+              <code>docs/figures/polygonal-section-coil-fields/proxy-benchmark.json</code></td>
+          <td><code>5c37404</code></td></tr>
+      <tr><td>Robustness tests + near-boundary accuracy note</td>
+          <td><code>tests/gs/test_polygon.py</code>, <code>imas_ambix/gs/polygon.py</code></td>
+          <td><code>8d63659</code></td></tr>
+      <tr><td>Polygon section type + operator dispatch + vertex builder</td>
+          <td><code>imas_ambix/gs/geometry.py</code>, <code>imas_ambix/gs/operator.py</code>,
+              <code>tests/gs/test_operator_polygon.py</code></td>
+          <td><code>dc1b89c</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<figure>
+  <img src="/imas-ambix/figures/polygonal-section-coil-fields/fig-proxy-benchmark.png"
+       alt="Analytic polygon kernel vs multi-filament proxy — accuracy, filament budget, cost"
+       style="max-width:100%">
+  <figcaption><strong>(a)</strong> proxy field error vs filament count N (mid band): the
+  staircased rectangular lattice descends slowly and non-monotonically (thin-rail aliasing),
+  while the analytic kernel sits at a ~1e-13 floor (dotted). <strong>(b)</strong> the reliable
+  filament budget N the proxy needs for 1e-4 agreement — thousands for the slanted shapes,
+  ~38k for the hollow frame. <strong>(c)</strong> wall-cost ratio proxy/analytic at matched
+  1e-4 accuracy (&gt;1 ⇒ analytic wins): 3–14× on every non-rectangular shape. <strong>(d)</strong>
+  the analytic kernel's own accuracy vs the independent 1e-9 ground truth — machine precision
+  everywhere, tuning-free.</figcaption>
+</figure>
+
+<section class="card">
+  <h2>D3 — the make-or-break benchmark (decision <code>proxy-retirement</code> → REPLACE)</h2>
+  <p><strong>What was measured.</strong> Against an <em>independent</em> ground truth —
+  the exact affine-tiled filament sum (area-conserving centroid tiling, converges O(1/n²)),
+  Richardson-extrapolated in 1/n² from n=280,560 to ~1e-9 — the analytic
+  <code>polygon_greens</code> and the operator's real fallback (a slanted section can only be
+  tiled by <em>axis-aligned</em> <code>PFFilament</code> rectangles, so the lattice staircases
+  the boundary) were compared per section shape and per sensor-distance band. Because the
+  staircase makes the proxy error non-monotone in N (a thin rail aliases with the grid — the
+  hollow frame swings ~30000× between adjacent resolutions), the reported "N to reach a
+  tolerance" is the <strong>suffix-max envelope</strong> — the honest "commit at least this
+  many filaments" count — and the cost race tunes the analytic φ-quadrature to the tolerance
+  too, for a fair matched-accuracy comparison.</p>
+  <table>
+    <thead><tr><th>shape</th><th>analytic err</th><th>proxy N @1e-4</th><th>proxy N @1e-5</th>
+      <th>cost ratio (proxy/analytic @1e-4)</th></tr></thead>
+    <tbody>
+      <tr><td>rectangle</td><td>~1e-13</td><td>24–40</td><td>~200–400</td>
+          <td>0.6–0.8 (rectangle → the cylinder kernel already covers it)</td></tr>
+      <tr><td>parallelogram 45°</td><td>~1e-13</td><td>~3,100</td><td>~39,500</td><td><strong>3.4–5.0×</strong></td></tr>
+      <tr><td>crown 65°</td><td>~1e-13</td><td>~10,100</td><td>~42–47k</td><td><strong>9–12×</strong></td></tr>
+      <tr><td>trapezoid</td><td>~1e-13</td><td>~2,700</td><td>~17–49k</td><td><strong>3–5×</strong></td></tr>
+      <tr><td>L (decomposed)</td><td>~1e-13</td><td>~5,200</td><td>~6,100</td><td><strong>2.9–3.9×</strong></td></tr>
+      <tr><td>hollow frame</td><td>~1e-13</td><td>~37,700</td><td>~43,700</td><td><strong>9.6–13.9×</strong></td></tr>
+    </tbody>
+  </table>
+  <p><strong>Verdict.</strong> The analytic kernel is exact (~1e-13) with no tuning and no
+  tolerance dependence, while the staircased proxy needs <strong>thousands-to-tens-of-thousands
+  of filaments</strong> for the shapes we actually have and is <strong>3–14× more wall-time
+  even at matched accuracy</strong>. It therefore <strong>REPLACES</strong> the multi-filament
+  proxy as the representation for non-rectangular sections: the retained-lattice fallback in the
+  filament-collapse gate becomes an analytic polygon section for any decomposable slanted /
+  trapezoidal / hollow shape. The multi-filament lattice survives only as the general fallback
+  for genuinely irregular packs that are not a clean polygon (mixed-sign windings, non-decomposable
+  staggered packs), where <code>collapse_rectangular_circuits</code> already keeps the exact
+  lattice; a true axis-aligned rectangle keeps the cheaper <code>cylinder_greens</code> kernel.</p>
+</section>
+
+<section class="card">
+  <h2>D4 — numerical robustness (no kernel fix needed)</h2>
+  <p>The field is the complex-step curl of a semi-analytic ψ that is analytic for every target
+  <em>off</em> the section boundary (D² ≥ r²sin²φ &gt; 0 at the interior φ nodes), which makes
+  the kernel robust by construction — the stresses the plan flagged all pass with the default
+  16×48 rule:</p>
+  <ul>
+    <li><strong>Near-boundary accuracy.</strong> Machine-precise (~1e-13 relative) for targets
+      more than ~1 cm off a slanted edge; ≲1e-6 down to 1 mm — tighter than any physical sensor
+      standoff. Sub-millimetre targets recover full accuracy by raising <code>n_panels</code>/
+      <code>n_nodes</code> (both exposed), and the self-convergence test confirms the knob works.</li>
+    <li><strong>On the boundary.</strong> A target exactly on an edge midpoint or vertex stays
+      finite — the complex-step increment (h~1e-30·i) nudges the evaluation off the real
+      singularity.</li>
+    <li><strong>Awkward geometry.</strong> A near-horizontal slanted edge (slope b₁≈20) and a
+      thin 1 cm × 30 cm slanted plate both stay finite, match the exact-tiling oracle to 1e-4,
+      and satisfy the Ampère circulation |∮B·dl| = μ0·I.</li>
+  </ul>
+  <p>The elliptic characteristic-value singularity the plan anticipated is moot for this kernel:
+  the field comes from the complex-step curl of ψ (arcsinh / arctan integrand), not from a
+  closed elliptic Π assembly, so there is no pole to handle. The near-boundary accuracy floor is
+  now documented in the module docstring.</p>
+</section>
+
+<section class="card">
+  <h2>D5 — wired as a forward-operator section type</h2>
+  <p><strong>Plumbing.</strong> A frozen <code>PolygonSection</code> dataclass (keyed to an fcoil
+  <code>circuit</code>, carrying the (n,2) vertices + current-share <code>xmult</code>) sits beside
+  <code>PFFilament</code>/<code>PassiveStructure</code>; <code>GeometryTable</code> gains a
+  <code>polygon_sections</code> field defaulting to <code>[]</code>; and
+  <code>parallelogram_vertices(r, z, width, height, angle)</code> turns the MAST catalog's
+  <code>*_r/_z/_width/_height/_shapeAngle</code> parametrisation of the slanted passives into
+  explicit vertices.</p>
+  <p><strong>Dispatch.</strong> <code>build_operator</code> now routes any passive circuit that
+  carries a <code>PolygonSection</code> through <code>polygon_section_column</code> (the analytic
+  Urankar kernel, same sign/units contract as <code>hybrid_greens</code>) in place of its
+  axis-aligned bounding-box cylinder. The override is <strong>opt-in</strong>: an empty
+  <code>polygon_sections</code> leaves every column byte-identical (tested); a box polygon
+  reproduces the rectangular-kernel column in the finite-area near band to 1e-9 (tested); a
+  slanted polygon reshapes the passive column, matching the direct kernel exactly (tested).
+  All 240 <code>tests/gs</code> tests pass.</p>
+  <p><strong>What this plan deliberately stops at.</strong> The exact kernel and its section-type
+  wiring are done. Populating the 8 real elements' vertices per-shot (reading the catalog
+  <code>shapeAngle</code> channels — the vertices are not yet ingested; they die in
+  <code>read_amm_passive</code>'s centroid regex today) and re-running the passive-resistivity /
+  loop-gain extraction on the faithful shaped geometry is the empirical question the
+  <a href="/imas-ambix/nonaxisymmetric-field-subtraction.html">non-axisymmetric field
+  subtraction</a> plan (gate G-A / passive layer) owns — queued as the next followup. Extending
+  the same dispatch to a non-rectangular <em>active</em> coil/case pack is a one-line addition in
+  the KNOWN block when a coil needs it.</p>
+</section>
+
+<section class="card next">
+  <h2>What's next — ingest the 8 elements &amp; rerun on shaped geometry</h2>
+  <p>Read the botcol/topcol crowns and P2 arm/divertor-plate vertices from the MAST data catalog
+  (the <code>*_shapeAngle1/2/width/height/r/z</code> channels in <code>l2_inventory.json</code>),
+  build them via <code>parallelogram_vertices</code>, attach them as <code>polygon_sections</code>
+  (keyed to their <code>inferred_passive</code> circuits, <code>xmult</code> matched) in
+  <code>build_table_for_shot</code>, and re-run the passive-resistivity re-extraction /
+  ramp-up loop-gain on the shaped geometry — the seam into non-axisymmetric field subtraction
+  gate G-A. Also mirror the polygon area into
+  <code>latent/temporal_operator.build_passive_circuit_system</code> so the re-extracted ring
+  resistance sits on the true section area rather than the bounding box.</p>
+</section>
+
+</main>
+</body>
+</html>
