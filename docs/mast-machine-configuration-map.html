@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="mast-machine-configuration-map">
+  <meta name="plan-title" content="MAST Machine-Configuration Map — campaign-aware geometry, sensors, and setup for every solve">
+  <meta name="plan-summary" content="Build the authoritative per-shot machine-configuration registry for the MAST archive (M5-M9, shots 11695-30473) and route every solve, label, and evaluation through it. Motivation: the census RCA localised reconstruction degradation to machine history our geometry layer cannot see — the efm setup signature is CONSTANT from shot 13370 to 30463 while the real machine gained 12 in-vessel RMP coils (M7, shot 19031) then 18 (M8, 25404), the magnetics geometry descends from a pre-2004 detectors file, working sensors erode 103->74 channels, and the amm eddy-data availability collapses over 21k-29k. Registry fuses FAIR-MAST API metadata (campaign map, divertor/heating/rmp fields, per-shot signal quality), local zarr scans (sensor inventories, amm presence, geometry digests), and the cited literature chronology (RMP install/upgrade, MSE from ~20400, Thomson upgrades). Deliverables: the shot-map artifact + accessor, era-aware geometry tables, RMP-era passive-model remediation, evaluation stratification by configuration era (retiring the ad-hoc 23000 constant), and the measured-centroid boundary-metric tolerance calibration (centroid datum locked as the stable frame, implemented 5393ded).">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
+  <meta name="plan-tier" content="opus">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>MAST Machine-Configuration Map | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<h2 id="s1">§1 — Why: the machine changed and our geometry layer cannot see it</h2>
+<p>The census-crossval RCA
+(<a href="/imas-ambix/connectivity-topology-reader-engine-crossval-rca.html">connectivity-topology-reader-engine-crossval-rca</a>)
+exonerated the solve chain and localised the remaining real systematic to
+machine history: reconstruction residuals degrade ~2.5–3× in every topology
+class on later campaigns, and even the linear disc-seed read misplaces the
+field null there. This plan closes the root cause: <strong>we solve every
+shot with a machine description that stopped evolving at shot 13370</strong>,
+while the real machine kept changing underneath it.</p>
+<figure>
+  <img src="/imas-ambix/figures/mast-machine-configuration/fig-residual-vs-shot.png"
+       alt="Census flat-top boundary-shape and axis residuals binned by shot number with machine events overlaid: a spike at the M7 RMP-coil installation and a monotonic climb from mid-M7 through M9.">
+  <figcaption>Census flat-top residuals vs shot number (750-shot bins, all
+  classes pooled, own-axis shape + axis distance) with the documented machine
+  events overlaid. Shape residual is flat at 2–4 cm through M5–M6, spikes at
+  the M7 boundary — the shutdown that installed the 12 in-vessel RMP coils —
+  recovers, then climbs monotonically from mid-M7 through M9 while the axis
+  error reaches ~21 cm. The degradation tracks machine history, not a single
+  threshold; the ad-hoc "shot 23000" split used so far is an approximation of
+  this structure.</figcaption>
+</figure>
+
+<h3>The three-layer finding (evidence: corpus survey + literature chronology + FAIR-MAST API)</h3>
+<ul>
+  <li><strong>The modeled machine is frozen.</strong> The efm setup signature
+  is a single constant value from shot 13370 to 30463 (~96% of the corpus; 3
+  signatures total, all transitions ≤13400). The energised coil complement
+  (P1 solenoid, P2–P6, TF, error-field correction) is identical in every era —
+  <strong>no PF or central-solenoid module was ever added or removed on
+  MAST</strong>; the solenoid rebuild belongs to the MAST→MAST-U upgrade
+  (2013–2020), outside this archive. The EFIT reference grid is 65×65
+  throughout. The magnetics geometry descends from <code>detectors.dat_M4</code>
+  — a pre-2004 configuration file.</li>
+  <li><strong>The real machine changed.</strong> The 2007-08→2008-04 shutdown
+  installed <strong>12 in-vessel RMP/ELM coils between P4 and P5</strong>
+  (M7 start, shot ≥19031; Kirk/Nardon PPCF 51 124010); the set was upgraded to
+  <strong>18 coils (6 upper + 12 lower)</strong> at the M7/M8 boundary
+  (~25404, 2011; Kirk NF 53 043007) — new in-vessel conductors (eddy-current
+  paths) the passive model does not contain, and non-axisymmetric applied
+  fields an axisymmetric solve cannot represent when they are energised.
+  Off-axis NBI on MAST was achieved by displacing the plasma vertically up to
+  0.3 m (M7+), stressing position reconstruction in exactly those campaigns.</li>
+  <li><strong>The data layer drifts.</strong> Working magnetics erode
+  monotonically from ~103 channels (M5) to ~74 (M9), with named
+  <code>ccbv*/obr*/obv*/fl_*</code> losses accumulating each era. The amm
+  passive-structure group is absent from the shots' own zarr over a 21k–29k
+  availability hole (0% at 23–25k, back to 100% at ≥29000) — a data gap, not
+  hardware, and the residual does NOT recover where amm returns, so it is not
+  the primary driver. MSE appears at ~20400; the error-field channels were
+  relabelled at ~16–18k; the passive model itself was coarsened once at
+  ~13455 (55→21 structures, 167→101 circuits).</li>
+</ul>
+
+<h3>Authoritative campaign map (FAIR-MAST API, per-shot campaign + timestamp)</h3>
+<figure>
+  <table>
+    <thead><tr><th>Campaign</th><th>Shots</th><th>Dates</th><th>Machine / diagnostics deltas</th></tr></thead>
+    <tbody>
+      <tr><td>M5</td><td>11695–14706</td><td>2004-12 → 2005-12</td>
+        <td>archive starts (post-2004 divertor/centre-column rebuild baked in);
+        commissioning-era geometry signatures ≤13400; passive model coarsened
+        at ~13455</td></tr>
+      <tr><td>M6</td><td>14708–19026</td><td>2006-01 → 2007-08</td>
+        <td>external error-field-correction coils used for first RMP work;
+        error-field channel relabel ~16–18k</td></tr>
+      <tr><td>M7</td><td>19031–25403</td><td>2008-04 → 2011-01 (3 years)</td>
+        <td><strong>12 in-vessel RMP coils installed</strong> (the 8-month
+        shutdown before it); MSE from ~20400; Thomson Nd:YAG upgrade ~2009-10;
+        amm availability hole begins ~21k; empirical residual break ~23000
+        sits mid-campaign (2009-08)</td></tr>
+      <tr><td>M8</td><td>25404–28355</td><td>2011-01 → 2012-01</td>
+        <td><strong>RMP set 12→18</strong> (lower row doubled; n=3,4,6);
+        API metadata (plasma_shape / heating / rmp_coil / scenario) populated
+        from here</td></tr>
+      <tr><td>M9</td><td>28390–30473</td><td>2012-03 → 2013-09</td>
+        <td>final campaign; sensor set at its most eroded (~74–80 working
+        channels); amm returns ~29000</td></tr>
+    </tbody>
+  </table>
+  <figcaption>M1–M4 predate the open archive. Full evidence + citations:
+  <a href="/imas-ambix/mast-campaign-research-notes.html">mast-campaign-research-notes</a>
+  (literature chronology + local-corpus survey, 2026-07-22).</figcaption>
+</figure>
+
+<h2 id="s2">§2 — Deliverable 1: the per-shot configuration registry (the shot map)</h2>
+<p>One versioned artifact mapping every archive shot to its machine and
+diagnostic configuration, with an accessor module so every consumer asks the
+registry instead of hard-coding shot thresholds. Per-shot record:</p>
+<ul>
+  <li><strong>Campaign + era</strong>: campaign label (API), configuration era
+  (registry-defined boundaries: 13370 geometry-freeze, 19031 RMP-12, ~20400
+  MSE, 25404 RMP-18, plus the amm-availability bands) — eras are the
+  registry's own enumeration, each with a mechanism note and citation.</li>
+  <li><strong>Coil/conductor state</strong>: geometry signature digest; RMP
+  era (none / 12-coil / 18-coil); RMP energisation per shot where
+  determinable (API <code>rmp_coil</code> for M8+; the RMP coil-current
+  signals for M7 — signal identification is a rung task).</li>
+  <li><strong>Sensor inventory</strong>: working pickup/flux-loop channel set
+  (names) per shot from the local zarr scan; counts per group
+  (amb/ama/amc/amm presence).</li>
+  <li><strong>Diagnostics</strong>: MSE availability, Thomson era, per-shot
+  signal-quality flags (API signals endpoint) for the channels the engine
+  consumes.</li>
+  <li><strong>Heating &amp; scenario</strong> (future consumers): NBI SW/SS
+  power fields (all eras), heating/plasma_shape/scenario/divertor_config
+  (M8+ from the API; earlier eras from NBI power fields + preshot text where
+  needed).</li>
+</ul>
+<p>Sources fused: FAIR-MAST bulk parquet + REST API (note: filters use
+<code>$eq/$geq</code>; several <code>mcs_*</code> fields 500 on select;
+plasma_shape/heating/rmp_coil/scenario null before M8), the local level-1/2
+zarr scans (the corpus-survey scripts are the seed), and the literature
+chronology. Storage: a parquet/JSON manifest under the project's data
+manifests with the accessor in <code>imas_ambix</code>; exact location is an
+open decision below.</p>
+
+<h2 id="s3">§3 — Deliverable 2: era-aware geometry and the unmodeled-conductor fix</h2>
+<ul>
+  <li><strong>Registry-driven tables.</strong> <code>build_table_for_shot</code>
+  / campaign representatives key on the registry era, not the (too-coarse)
+  efm signature alone: a table request for shot 26000 must know it is an
+  18-coil RMP-era machine even though its efm signature equals shot 13370's.</li>
+  <li><strong>RMP conductor remediation.</strong> Add the in-vessel RMP coil
+  casings/conductors to the passive model for shots ≥19031 (12-coil) and
+  ≥25404 (18-coil): geometry from the FAIR-MAST geometry files/configuration
+  PDFs (fair-mast GitHub); validate on vacuum/known-drive shots per era
+  (the sensor-model residual instrument from the connectivity-topology-reader
+  data-layer followup — that audit becomes this plan's validation rung).</li>
+  <li><strong>RMP-energised handling.</strong> Registry flags RMP-energised
+  shots; the axisymmetric solve either excludes them from gates or treats the
+  n&gt;0 applied field as a known nuisance (measured coil currents through
+  their Green's columns for the axisymmetric component; the rest documented
+  as out-of-model).</li>
+  <li><strong>Sensor-set hygiene.</strong> Per-era channel sets from the
+  registry (drop long-dead channels instead of fitting them; audit surviving
+  channels' calibration on vacuum shots per era).</li>
+</ul>
+
+<h2 id="s4">§4 — Deliverable 3: evaluation and metric integration</h2>
+<ul>
+  <li><strong>Stratification by configuration era.</strong> The census,
+  crossval, label factory, and benchmark suites consume registry eras;
+  the ad-hoc <code>VALIDATED_BAND_MAX_SHOT = 23000</code> constant retires in
+  favour of registry-defined bands (geometry-freeze / RMP-12 / RMP-18 ×
+  amm-availability).</li>
+  <li><strong>Centroid-frame tolerance calibration.</strong> The measured
+  current centroid is the locked stable datum for boundary metrics (decision
+  below; implemented as <code>centroid_dmed_cm</code> in the crossval harness,
+  commit <code>5393ded</code>). Re-score the validated cohorts (the 128-slice
+  spine split and the census validated-era band) in the centroid frame to
+  calibrate its tolerance, then gate boundary quality on it.</li>
+  <li><strong>Cohort cards.</strong> Every future evaluation reports its
+  era composition (the RCA showed per-class numbers are meaningless without
+  it).</li>
+</ul>
+
+<h2 id="s5">§5 — Scope &amp; non-goals</h2>
+<ul>
+  <li>MAST only (shots 11695–30473). MAST-U (new solenoid, +17–19 coils,
+  Super-X) is a different registry when we get there — the schema should not
+  preclude it.</li>
+  <li>No solver-physics changes in this plan: the interior-null/axis work
+  stays with interior-closure-hardening; ramp coupling with
+  gpu-accelerated-labeler. This plan fixes what the solver is <em>told</em>
+  about the machine.</li>
+  <li>M1–M4 out of scope (not in the archive).</li>
+</ul>
+
+<section data-reckon="decisions" id="decisions" class="r-decisions">
+  <h2><span class="sec">§</span> Decisions</h2>
+  <div class="r-dec" data-key="boundary-metric-datum" data-choice="measured-current-centroid" data-by="smc" data-when="2026-07-22">
+    <p class="r-dec-q">Which fixed origin does the stable boundary metric use?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="measured-current-centroid">measured current centroid</button>
+      <button class="r-opt" data-value="efit-axis">EFIT axis</button>
+      <button class="r-opt" data-value="engine-axis">engine axis</button>
+    </p>
+    <p class="r-dec-rat">User directive 2026-07-22: the current centroid is
+    magnetics-derived, available on every shot, and independent of either
+    reconstruction — a frozen datum. Implemented as the third residual frame
+    (<code>centroid_dmed_cm</code>) in commit <code>5393ded</code>; becomes
+    the gating metric once its tolerance is calibrated on the validated
+    cohorts (§4).</p>
+  </div>
+  <div class="r-dec" data-key="registry-storage" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Where does the shot-map registry live?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="work-manifest-parquet">/work manifests parquet (beside the split manifests)</button>
+      <button class="r-opt" data-value="repo-artifact-json">in-repo JSON artifact (versioned with code)</button>
+      <button class="r-opt" data-value="both-parquet-plus-repo-summary">parquet + thin in-repo era summary</button>
+    </p>
+    <p class="r-dec-rat"></p>
+  </div>
+  <div class="r-dec" data-key="rmp-passive-treatment" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">How are the unmodeled in-vessel RMP conductors handled in the passive model?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="add-conductors-per-era">add era-gated conductors to the passive geometry</button>
+      <button class="r-opt" data-value="per-era-calibration">absorb via per-era sensor-model calibration</button>
+      <button class="r-opt" data-value="flag-only">registry flag only; document as out-of-model</button>
+    </p>
+    <p class="r-dec-rat"></p>
+  </div>
+</section>
+
+<section data-reckon="followups" id="followups" class="r-followups">
+  <h2><span class="sec">§</span> Followups</h2>
+  <article class="r-fu" data-id="f-mcm-01" data-status="open" data-tier="opus" data-written-by="reckon-create (machine-map research 2026-07-22)" data-written-at="2026-07-22T04:30:00+00:00" data-recommends-skill="/reckon-ship mast-machine-configuration-map §2">
+    <h3 class="r-fu-title">Build the shot-map registry extraction pipeline (§2)</h3>
+    <div class="r-fu-body">The research base is in place:
+    <a href="/imas-ambix/mast-campaign-research-notes.html">mast-campaign-research-notes</a>
+    carries the authoritative campaign map + API field caveats, the local
+    sensor/geometry timelines, and the cited hardware chronology. Build the
+    extraction pipeline that fuses the three sources into the per-shot
+    registry artifact + accessor, with the era enumeration (13370
+    geometry-freeze, 19031 RMP-12, ~20400 MSE, 25404 RMP-18, amm bands) and
+    per-shot sensor sets. Resolve the registry-storage decision at the start
+    of the work.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    mast-machine-configuration-map
+Section: §2 (registry pipeline)
+Tier:    opus
+
+Context
+  The census RCA traced late-campaign reconstruction degradation to machine
+  history the geometry layer cannot see (efm signature constant 13370-30463
+  while the machine gained in-vessel RMP coils and lost ~30% of its working
+  magnetics). The registry is the fix's foundation. (Honour the locked /
+  surface the open decisions shown live above - do not re-list them.)
+
+State to read
+  docs/mast-machine-configuration-map.html (this plan, esp. section 2 record schema)
+  docs/mast-campaign-research-notes.html (evidence base: chronology + corpus survey)
+  docs/connectivity-topology-reader-engine-crossval-rca.html (motivation)
+  imas_ambix/gs/geometry.py (setup_signature, build_table_for_shot)
+  imas_ambix/statespace/enkf_baseline.py (_campaign_representatives)
+  scripts/topology_engine_crossval.py (VALIDATED_BAND_MAX_SHOT - to retire)
+  FAIR-MAST: https://mastapp.site/json/shots (filters use $eq/$geq; fields
+  plasma_shape/heating/rmp_coil/scenario are null before M8; some mcs_*
+  fields 500 on select; bulk parquet downloads exist - prefer them for the
+  full sweep)
+
+Scope locks / constraints
+  Registry is data-layer only - no solver changes. Local zarr scans run on
+  the login node (light metadata reads, sparse sampling patterns from the
+  corpus-survey scripts) or a debug-partition job for the full sweep.
+  Firewall unchanged: EFIT stays referee-only for evaluations.
+
+Done-when
+  1. Registry artifact (per-shot campaign/era/RMP-state/sensor-set/amm/MSE/
+     heating fields) built for 11695-30473 + accessor module with tests
+  2. Era enumeration documented with citations in the artifact itself
+  3. Registry-vs-corpus spot-validation (sensor counts, amm bands) green
+  4. Plan updated (section 2 outcome recorded); followup written for section 3
+     (era-aware tables + RMP conductor remediation); this followup resolved</pre>
+  </article>
+</section>
+
+</main>
+</body>
+</html>

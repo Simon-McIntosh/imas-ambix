@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="mast-campaign-research-notes">
+  <meta name="plan-title" content="MAST campaign research notes — machine chronology (M5-M9) + local-corpus configuration survey">
+  <meta name="plan-summary" content="Evidence base for the machine-configuration-map plan (2026-07-22). Two coordinated surveys: (1) cited literature + FAIR-MAST chronology of machine changes across MAST campaigns M5-M9 — authoritative campaign/shot map, the in-vessel RMP coil install (12 coils, M7 start, shot >=19031) and upgrade (18 coils, ~25404), the pre-2004 detectors.dat_M4 provenance of the magnetics geometry, NBI/MSE/Thomson history, and the finding that NO central-solenoid or PF module changed within the archive era (the CS rebuild is MAST->MAST-U); (2) local-corpus survey — efm setup signature constant from shot 13370 to 30463 (3 signatures total, transitions <=13400 only), coil complement identical in every era, sensor-set erosion 103->74 working channels, amm passive-data availability hole over 21k-29k (0% at 23-25k, fails the recovery test as a residual driver), MSE group from ~20400, passive model coarsened 55->21 structures at ~13455.">
+  <meta name="plan-informs" content="mast-machine-configuration-map,connectivity-topology-reader">
+  <title>MAST campaign research notes | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Research notes</strong> feeding
+<a href="/imas-ambix/mast-machine-configuration-map.html">mast-machine-configuration-map</a>.
+Two coordinated surveys run 2026-07-22: a cited literature/API chronology of
+MAST machine changes, and a local-corpus scan of what our geometry layer
+actually sees. Headline agreements: the archive-era machine gained in-vessel
+hardware (RMP coils) and lost working sensors while the modeled geometry
+stayed frozen; no central-solenoid or PF coil module ever changed within
+M5–M9 (that hypothesis maps to the MAST-U rebuild, outside the archive).</p>
+
+<h2 id="s1">§1 — Campaign map and hardware chronology (literature + FAIR-MAST API)</h2>
+<figure>
+  <table>
+    <thead><tr><th>Campaign</th><th>First shot / date</th><th>Last shot / date</th><th>Key changes</th></tr></thead>
+    <tbody>
+      <tr><td>M1–M4</td><td colspan="2">not in the open archive (1999–2004)</td>
+        <td>first plasma ~1999-12; 2004 divertor + centre-column rebuild
+        (annular imbricated tile plates, thickened CC armour, 12-sector lower
+        plate with 6 electrically-isolated sectors) lands just before M5 and
+        is baked into every archived shot</td></tr>
+      <tr><td>M5</td><td>11695 / 2004-12-13</td><td>14706 / 2005-12-14</td>
+        <td>archive begins; commissioning-era geometry signatures ≤13400;
+        EFIT passive model coarsened at ~13455</td></tr>
+      <tr><td>M6</td><td>14708 / 2006-01-24</td><td>19026 / 2007-08-03</td>
+        <td>external error-field-correction coils used for n=1,2 RMP
+        experiments (2007); MSE pilot 2006</td></tr>
+      <tr><td>M7</td><td>19031 / 2008-04-01</td><td>25403 / 2011-01-19</td>
+        <td>longest campaign (~3 yr). The ~8-month M6→M7 shutdown installed
+        <strong>12 in-vessel RMP/ELM coils (2×6 rows, between P4 and P5,
+        inside the vessel)</strong>; MSE routine from ~2009-10; Thomson
+        Nd:YAG 130-point + rebuilt Ruby ~2009-10; shot 23000 ≈ 2009-08-27
+        (mid-campaign)</td></tr>
+      <tr><td>M8</td><td>25404 / 2011-01-20</td><td>28355 / 2012-01-27</td>
+        <td><strong>RMP set upgraded 12→18</strong> (lower row doubled;
+        n=3 variable-pitch, n=4, n=6)</td></tr>
+      <tr><td>M9</td><td>28390 / 2012-03-06</td><td>30473 / 2013-09-27</td>
+        <td>final original-MAST campaign; disassembly from 2013-10</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Boundaries from the FAIR-MAST per-shot campaign + timestamp
+  fields (mastapp.site/json/shots). M6→M7 gap ~8 months (the RMP install
+  shutdown); M8→M9 ~5 weeks.</figcaption>
+</figure>
+
+<h3>Coil set — constant within the archive</h3>
+<p>P1 (central solenoid), P2 (divertor field), P3 (startup rings), P4/P5
+(symmetric shaping), P6 (antisymmetric vertical control): no documented
+addition, removal, or rewiring within M5–M9. <strong>The CS/centre-column
+rebuild (0.9→1.7 Vs solenoid, +17–19 PF coils, Super-X divertor coils) is the
+MAST→MAST-U upgrade (2013–2020)</strong> — outside this archive. The
+in-vessel RMP coils are the archive era's only coil-hardware change, and they
+are absent from the efm model our solves consume.</p>
+
+<h3>Magnetics geometry provenance</h3>
+<p>The archive's flux-loop geometry derives from <code>detectors.dat_M4</code>
+— a pre-2004 configuration file (per the FAIR-MAST geometry documentation and
+its referenced configuration PDFs: XMB_SAD, XMC_OMV, CCMV, CCMT, XMA_OBV_OBR,
+XMA_CCBV). The fixed sensor geometry therefore predates every archive-era
+hardware change. Per-campaign recalibration records are NOT in the open
+literature (uncertain — flagged for confirmation from MAST calibration
+records/UDA in the registry work).</p>
+
+<h3>Heating &amp; profile diagnostics</h3>
+<ul>
+  <li><strong>NBI</strong>: two positive-ion injectors (South = SS on-axis,
+  South-West = SW), ~75 keV D, ~2.5 MW each; long-pulse upgrade from 2003;
+  P_NBI ≤ 3.8 MW by 2009. Off-axis deposition was achieved by displacing the
+  plasma vertically up to 0.3 m (M7+) — not by moving the beamline — so
+  off-axis-NBI shots are systematically vertically-shifted equilibria.</li>
+  <li><strong>MSE</strong>: pilot 2006; full 35-channel system routine by
+  2010 (2.5 cm / 1 ms); local corpus sees the ams group from ~shot 20400.</li>
+  <li><strong>Thomson</strong>: ~2009-10 major upgrade — rebuilt Ruby (512
+  points) + new 130-point Nd:YAG core (8×30 Hz, 240 Hz) + edge system.</li>
+</ul>
+
+<h3>Ranked relevance to magnetics-based reconstruction</h3>
+<ol>
+  <li><strong>In-vessel RMP coils + casings (≥19031; 12→18 at ~25404)</strong> —
+  unmodeled conducting structure between P4 and P5 plus non-axisymmetric
+  applied fields when energised.</li>
+  <li><strong>Frozen pre-2004 sensor/geometry model</strong> — drift grows
+  wherever the real machine diverged (M7+).</li>
+  <li><strong>Vertically-displaced off-axis-NBI plasmas (M7+)</strong> —
+  stress position reconstruction and the P6 model.</li>
+  <li><strong>Possible mid-2009 / 2011 magnetics recalibration
+  (UNCERTAIN)</strong> — would explain a sharp mid-M7 break; confirm from MAST
+  records.</li>
+  <li>(ruled out) CS/solenoid segmentation change within M5–M9.</li>
+</ol>
+
+<h2 id="s2">§2 — Local-corpus configuration survey (what our geometry layer sees)</h2>
+
+<h3>Setup-signature census (efm static geometry)</h3>
+<figure>
+  <table>
+    <thead><tr><th>Signature</th><th>B-probes</th><th>flux loops</th><th>PF filaments</th><th>circuits</th><th>limiter pts</th><th>span</th></tr></thead>
+    <tbody>
+      <tr><td><code>9425ae4a…</code></td><td>78</td><td>46</td><td>1004</td><td>167</td><td>37</td><td>11695 – ~12400</td></tr>
+      <tr><td><code>edd753d2…</code></td><td>78</td><td>46</td><td>1004</td><td>167</td><td>37</td><td>~12410 – ~13360 (interleaved commissioning zone)</td></tr>
+      <tr><td><code>1cb6f2ee…</code></td><td>78</td><td>46</td><td>938</td><td>101</td><td>37</td><td><strong>13370 – 30463 (permanent, ~96% of corpus)</strong></td></tr>
+    </tbody>
+  </table>
+  <figcaption>Three signatures total; the only transitions are ≤13400
+  (a ≤12 mm B-probe-Z recalibration, then a 66-filament simplification of the
+  passive/eddy model coincident with the amm structure coarsening 55→21 named
+  elements / 167→101 circuits). <strong>No signature boundary anywhere near
+  the ~23000 residual break; no coil ever added or removed; sol_current is
+  one circuit in every era.</strong> EFIT reference grid constant 65×65
+  throughout.</figcaption>
+</figure>
+
+<h3>Sensor-inventory timeline (working channels in the shot zarr)</h3>
+<figure>
+  <table>
+    <thead><tr><th>Shots</th><th>amb (pickup+flux loops)</th><th>ama</th><th>amc</th><th>amm present</th><th>ams (MSE)</th></tr></thead>
+    <tbody>
+      <tr><td>11695–12200</td><td>83–84</td><td>6</td><td>44</td><td>yes</td><td>no</td></tr>
+      <tr><td>12450–12950</td><td>103–105</td><td>6</td><td>44</td><td>yes</td><td>no</td></tr>
+      <tr><td>13455–19300</td><td>102→96</td><td>6</td><td>44</td><td>yes</td><td>no</td></tr>
+      <tr><td>19600–22700</td><td>~100</td><td>6</td><td>44</td><td>fading</td><td>from ~20400</td></tr>
+      <tr><td>22970–24900</td><td>98→96</td><td>6</td><td>44</td><td><strong>mostly absent</strong></td><td>intermittent</td></tr>
+      <tr><td>25700–27500</td><td>90→82</td><td>7</td><td>45</td><td>mostly absent</td><td>intermittent</td></tr>
+      <tr><td>28800–30463</td><td>80→74</td><td>7</td><td>45</td><td>yes again</td><td>intermittent</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Monotone attrition of working magnetics (~103→74; named
+  ccbv*/obr*/obv*/fl_* losses accumulate each era, steepening after ~25700).
+  amm availability by 2000-shot bin: [11–21k) ≈100%, [21–23k) 48%,
+  [23–25k) <strong>0%</strong>, [25–27k) 37%, [27–29k) 19%, [29–31k) 100%.
+  The census residual does NOT recover at ≥29000 where amm returns, so the
+  amm gap fails the recovery test as the primary residual driver. The
+  error-field channels relabel a/b → 02/05 at ~16–18k; amc gains a
+  <code>version</code> key late.</figcaption>
+</figure>
+
+<h3>Interpretation for the shot map</h3>
+<ul>
+  <li>The efm signature is necessary but <strong>far too coarse</strong> as a
+  configuration key: it is blind to the RMP installs, the sensor erosion, the
+  MSE onset, and the amm availability bands.</li>
+  <li>The registry's era enumeration therefore needs at minimum: 13370
+  (geometry freeze), 19031 (RMP-12), ~20400 (MSE), 25404 (RMP-18), the amm
+  bands, and the per-shot working-channel sets.</li>
+  <li>Level-2 equilibrium reference is present in every era (65×65 grid) —
+  referee availability is not an era confound.</li>
+</ul>
+
+<h2 id="s3">§3 — Sources</h2>
+<ul>
+  <li>FAIR-MAST: <a href="https://mastapp.site/">mastapp.site</a> catalog,
+  <a href="https://mastapp.site/json/shots">REST API</a>,
+  <a href="https://mastapp.site/geometry_plotting.html">geometry docs</a>,
+  <a href="https://github.com/ukaea/fair-mast/">ukaea/fair-mast</a>,
+  SoftwareX 2024 paper (Jackson et al.).</li>
+  <li>Machine: The Mega Amp Spherical Tokamak (FED 1999,
+  <a href="https://www.sciencedirect.com/science/article/abs/pii/S0920379699000319">S0920379699000319</a>);
+  The MAST improved divertor (FED,
+  <a href="https://www.researchgate.net/publication/242634305_The_MAST_improved_divertor">2004 rebuild</a>);
+  MAST-U upgrade (IAEA FEC 2010
+  <a href="https://www-pub.iaea.org/mtcd/meetings/pdfplus/2010/cn180/cn180_papers/icc_p5-06.pdf">ICC/P5-06</a>;
+  construction status <a href="https://arxiv.org/pdf/1503.06677">arXiv:1503.06677</a>).</li>
+  <li>RMP/ELM coils: Kirk/Nardon PPCF 51 124010 (2009,
+  <a href="https://iopscience.iop.org/article/10.1088/0741-3335/51/12/124010">12 in-vessel coils</a>);
+  Nardon/Kirk NF 50 034008 (2010,
+  <a href="https://iopscience.iop.org/article/10.1088/0029-5515/50/3/034008">external+internal</a>);
+  Kirk NF 53 043007 (2013,
+  <a href="https://iopscience.iop.org/article/10.1088/0029-5515/53/4/043007">18-coil set</a>);
+  <a href="https://arxiv.org/abs/1305.3061">arXiv:1305.3061</a>,
+  <a href="https://arxiv.org/abs/1410.2473">arXiv:1410.2473</a>,
+  <a href="https://arxiv.org/abs/1312.6507">arXiv:1312.6507</a>.</li>
+  <li>Diagnostics: MSE pilot (RSI 77 10E905,
+  <a href="https://scientific-publications.ukaea.uk/wp-content/uploads/Published/Miss99.pdf">UKAEA</a>);
+  MSE 35-channel (RSI 81 10D738,
+  <a href="https://scientific-publications.ukaea.uk/wp-content/uploads/Published/RSIVOL81p10d738.pdf">UKAEA</a>);
+  Thomson 130-point Nd:YAG (RSI 81 10D520,
+  <a href="https://scientific-publications.ukaea.uk/wp-content/uploads/Published/RSIVOL81p10d520.pdf">UKAEA</a>).</li>
+  <li>NBI: system (FED 2001,
+  <a href="https://www.sciencedirect.com/science/article/abs/pii/S092037960100343X">S092037960100343X</a>);
+  long-pulse upgrade (FED 2005,
+  <a href="https://www.sciencedirect.com/science/article/abs/pii/S0920379605002188">S0920379605002188</a>);
+  off-axis NBCD
+  (<a href="https://www.researchgate.net/publication/251198555_Off_axis_neutral_beam_heating_and_current_drive_on_MAST">MAST</a>);
+  Meyer NF 49 104017 (2009,
+  <a href="https://scientific-publications.ukaea.uk/wp-content/uploads/Published/Miss116.pdf">overview</a>).</li>
+  <li>MAST-U magnetics (contrast):
+  <a href="https://pubmed.ncbi.nlm.nih.gov/37404097/">RSI 2023</a>;
+  <a href="https://arxiv.org/abs/2407.12432">arXiv:2407.12432</a>.</li>
+</ul>
+
+</main>
+</body>
+</html>
