@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="doc">
+  <meta name="plan-slug"     content="nonaxisymmetric-field-subtraction-p3case-passive-landed">
+  <meta name="plan-title"    content="Landed — the P3 case-current anomaly is a passive R/τ effect, not a drive-data channel bug">
+  <meta name="plan-summary"  content="Per-stage record: the P3 coil-case bay-loop 'k≈2.3' is not a units/turns/name channel bug (all verified correct) but a passive induced-eddy current. Its resistance R and time constant τ=L/R are recovered from the dynamic vacuum ramps (P3 circuit-fit R²=0.93, R≈7-9 mΩ, τ≈1.0-1.2 ms). The static per-slice 'k' is ill-posed (case/coil columns 98% collinear; the case is only a few-% sensor term). Gate G-A verdict reversed: layer A (passive), not layer D (drive-data). Operator left unchanged; the R/τ calibration folds into D3.">
+  <meta name="plan-informs"  content="nonaxisymmetric-field-subtraction">
+  <title>Landed — P3 case anomaly is passive R/τ, not a channel bug | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p class="lede">The <code>f-nfs-p3case</code> followup was written to fix a
+<strong>drive-data amplitude bug</strong> — audit the P3 <code>*_case_current</code>
+channel's turns/xmult/units/name upstream so the vacuum scale <em>k</em>→1. The
+audit found no such bug: every candidate is already correct, and the real
+mechanism is a <strong>passive induced-eddy current</strong> whose resistance
+<strong>R</strong> (equivalently τ = L/R) is the only free lever and is
+recoverable from the <em>dynamic</em> ramps. This overturns the premise and
+re-routes the anomaly to the passive layer (gate G-A / D3). The frozen operator
+is <strong>not</strong> modified.</p>
+
+<h2 id="s1">§1 — Every candidate "upstream channel fix" is already correct</h2>
+<p>Firewall: coil-only vacuum slices, raw <code>amb</code> magnetics + raw
+<code>amc</code> currents + the geometry-only operator; no EFIT.</p>
+<figure>
+  <table>
+    <thead><tr><th>Candidate root cause</th><th>Direct check</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>Units</td><td><code>amc_*_case_current</code> is stored in <code>kA</code>
+        (array attr <code>units='kA'</code>); the operator applies the flat
+        ×1000 → A; the case is one physical turn, so amps = amp-turns</td>
+        <td>correct</td></tr>
+      <tr><td>Turns / xmult</td><td>Σ<code>xmult</code> = 1.0000 for every case
+        circuit (co-located, one-turn-equivalent lattice)</td><td>correct</td></tr>
+      <tr><td>Name / id</td><td>efm fcoil circuit 16 = P3U case (centroid
+        R≈1.10, Z≈+1.10), 17 = P3L case (Z≈−1.10) — matches
+        <code>pfSystems.xml</code> ids 16/17 and the up/down assignment</td>
+        <td>correct</td></tr>
+      <tr><td>Geometry column</td><td>g<sub>case</sub>/g<sub>coil</sub> = 0.97–1.00
+        at every bay loop (the case column is the validated winding column at the
+        same location)</td><td>correct</td></tr>
+    </tbody>
+  </table>
+  <figcaption>No units/turns/name/xmult/geometry defect exists to fix. A scalar
+  channel-amplitude error is further ruled out because it would be identical on
+  every sensor, whereas the static "case scale" is sensor-dependent (next
+  section).</figcaption>
+</figure>
+
+<h2 id="s2">§2 — Why the static "k≈2.3" is ill-posed, and what it really is</h2>
+<p>The archived <code>*_case_current</code> is an <strong>Analysed</strong>
+(derived) signal, and the current it reports is an <strong>induced eddy</strong>
+in the coil case: it tracks −dI<sub>coil</sub>/dt (Lenz), with
+corr(case, dI<sub>coil</sub>/dt) ≈ −0.7 on P3 across shots. Because the case
+Green's column and its co-located winding column are ~98 % collinear, a
+per-slice <em>static</em> regression cannot cleanly split them:</p>
+<ul>
+  <li>the exposed-bay-loop estimator lands at <em>k</em>≈2.3 (the value the
+    followup inherited),</li>
+  <li>the global all-sensor estimator lands at <em>k</em>≈0.9 (the old 85-shot
+    audit's sub-1 band),</li>
+  <li>a free per-sensor OLS scatters from −1.6 to +4.7 with sign flips.</li>
+</ul>
+<p>A genuine channel-amplitude error is sensor-independent by construction, so
+this spread proves the "k" is not a channel scale — it is the resistive-regime
+coupling <em>M/R</em> of an induced current, read through a near-degenerate
+static split. The P3 cases are the <em>only</em> ones the vacuum data resolves
+at all (P2 unexposed; P4/P5 vary sensor-to-sensor), so "why P3?" is an
+observability answer, not a P3-specific defect.</p>
+
+<h2 id="s3">§3 — R and τ pulled from the dynamic vacuum ramps (the fix's real home)</h2>
+<p><code>scripts/case_circuit_resistance_fit.py</code> models each coil case as a
+passive shorted loop driven by the measured windings,
+<code>L·dI_case/dt + R·I_case = −Σ_k M_{c,k}·dI_coil,k/dt</code>, with the
+mutuals <em>L</em>, <em>M</em> from the trusted axisymmetric magnetics
+(<code>greens_psi</code>) and <em>R</em> the single free lever. Fit on the
+dynamic ramp slices of a 150-shot coil-only vacuum cohort (artifact
+<code>case_circuit_resistance_fit.json</code>, figure
+<code>fig-case-circuit-resistance.png</code>):</p>
+<figure>
+  <img src="/imas-ambix/figures/nonaxisymmetric-field-subtraction/fig-case-circuit-resistance.png"
+       alt="Per-case resistance R, time constant τ=L/R, and the few-percent sensor exposure"
+       style="max-width:100%">
+  <figcaption>(a) circuit-level case resistance R; (b) τ = L/R; (c) the case is
+  only a few-percent term of the (vessel-eddy-dominated) bay-loop ramp residual.</figcaption>
+</figure>
+<figure>
+  <table>
+    <thead><tr><th>case</th><th>R [mΩ]</th><th>τ = L/R [ms]</th>
+      <th>circuit-fit R²</th><th>case fraction of bay-loop ramp residual</th></tr></thead>
+    <tbody>
+      <tr><td><strong>p3l</strong></td><td>9.25</td><td>1.01</td><td><strong>0.93</strong></td><td>0.026</td></tr>
+      <tr><td><strong>p3u</strong></td><td>7.02</td><td>1.19</td><td><strong>0.93</strong></td><td>0.048</td></tr>
+      <tr><td>p4l</td><td>3.68</td><td>3.82</td><td>0.74</td><td>0.014</td></tr>
+      <tr><td>p4u</td><td>3.66</td><td>3.93</td><td>0.74</td><td>0.087</td></tr>
+      <tr><td>p5l</td><td>4.12</td><td>3.86</td><td>0.69</td><td>0.014</td></tr>
+      <tr><td>p5u</td><td>4.49</td><td>3.53</td><td>0.69</td><td>0.025</td></tr>
+      <tr><td>p2l</td><td>1.11</td><td>1.64</td><td>0.65</td><td>—</td></tr>
+      <tr><td>p2u</td><td>0.89</td><td>2.43</td><td>0.61</td><td>—</td></tr>
+    </tbody>
+  </table>
+  <figcaption>The archived P3 case current is described by the L/R passive
+  circuit to R²=0.93 (R≈7–9 mΩ, τ≈1.0–1.2 ms) — R is cleanly recoverable from the
+  dynamics, which the static slice fit could never give. τ is a shape property,
+  robust to any absolute-amplitude miscalibration of the derived channel. The
+  fitted self-inductance (≈8–9 µH for P3) is order-consistent with a
+  bounding-box geometric estimate (4.6 µH); an exact finite-section self-L is a
+  D3 refinement.</figcaption>
+</figure>
+
+<h2 id="s4">§4 — Sensor-anchored isolation is confounded (honest negative → needs D3)</h2>
+<p>Fitting R against the bay-loop flux <em>directly</em> (bypassing the derived
+channel) is confounded: on P3's own exposed bay loops the geometry-built
+passive-case shape explains only <strong>2.6 % (p3l) / 4.8 % (p3u)</strong> of
+the ramp flux residual left after the active windings. That residual is
+dominated by <em>vessel</em> eddy, not the coil case, so the case's absolute R
+cannot be pinned from the flux alone — it requires the full D3 vessel passive
+model alongside the case circuits. The circuit-level fit above (anchored on the
+case-current channel's dynamics) is therefore the clean source of R/τ for now.</p>
+
+<h2 id="s5">§5 — Verdict and routing</h2>
+<ul>
+  <li><strong>Gate G-A input reversed.</strong> The P3 bay-loop case anomaly is
+    <strong>layer A (passive induced eddy)</strong>, not layer D (drive-data
+    channel amplitude). G-A's passive circuit model must reproduce it; it does
+    not bypass it. This corrects the tentative "drive-data, not passive
+    screening" note carried from <code>f-nfs-lever2</code>.</li>
+  <li><strong>No operator change.</strong> There is no units/turns/name fix to
+    apply (all correct), and a per-case operator scale is the rejected option —
+    doubly so now that the "k" is shown ill-posed. The frozen operator is
+    unchanged; <code>gs</code> suite green (211 passed, the unrelated
+    <code>test_polygon.py</code> collection error belongs to the concurrent
+    polygon-section work).</li>
+  <li><strong>Route.</strong> The case R/τ calibration folds into <strong>D3</strong>
+    (passive circuit-coupled eddy; the <code>idle-ivc-circuit-state</code>
+    decision applies) and its sensor-level subtraction into D5 — carried by
+    <code>f-nfs-d2</code>. The recovered R/τ per case is the starting point.</li>
+</ul>
+
+<p class="meta">Artifacts: <code>imas_ambix/latent/artifacts/patch_gate/case_circuit_resistance_fit.json</code>;
+figure <code>docs/figures/nonaxisymmetric-field-subtraction/fig-case-circuit-resistance.png</code>;
+harness <code>scripts/case_circuit_resistance_fit.py</code>.</p>
+
+</main>
+</body>
+</html>
