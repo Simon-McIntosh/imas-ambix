@@ -72,15 +72,53 @@ no Riemann error, usable wherever a rectangle is not the truth.</p>
 </figure>
 
 <h2 id="s2">§2 — The source method (Urankar Part V) and what exists in-tree</h2>
-<p><strong>Primary reference.</strong> L. K. Urankar, <em>"Vector potential and
+<p><strong>Primary reference (read 2026-07-22; PDF in
+<code>references/</code>).</strong> L. K. Urankar, <em>"Vector potential and
 magnetic field of current-carrying finite arc segment in analytical form. V.
 Polygon cross section,"</em> IEEE Trans. Magn. <strong>26(3), 1171–1180 (1990)</strong>.
-Part V of Urankar's arc-segment series gives the vector potential <em>A</em> and
-field <em>B</em> of a finite circular arc conductor whose cross section is an
-arbitrary polygon, in closed analytic form via complete and incomplete elliptic
-integrals of the first, second and third kind plus arcsinh terms. The
-<strong>axisymmetric coil is the full-turn (arc = 2π) special case</strong> —
-the regime we need for the vessel / stability-plate passives and the PF sections.</p>
+Part V gives the vector potential <em>A</em> and field <em>B</em> of a finite
+circular arc conductor of arbitrary polygon cross section and constant azimuthal
+current density. The <strong>axisymmetric coil is the full-turn (arc = 2π)
+special case</strong> — the regime we need for the vessel / stability-plate
+passives and the PF sections.</p>
+<p><strong>Method (confirmed from the paper).</strong> The cross-section surface
+integral is converted by Stokes's theorem into a <strong>contour integral over
+the polygon edges</strong> (eq. 6: <code>f(φ) = Σ_v f_v(φ)</code>); each edge
+<em>v₁→v₂</em> is parametrised <code>r'(t)=r'₁+tΔr, z'(t)=z'₁+tΔz</code> with
+<strong>slope b₁ = Δr/Δz</strong> (and <code>r₁=r'₁−b₁·…</code>, <code>a₀²=1+b₁²</code>)
+— exactly nova <code>biot/polygon.py</code>'s fingerprint. Crucially,
+<strong>b₁ = 0 collapses the result back to Part III (rectangular)</strong> — the
+regression gate against <code>cylinder.py</code>. Then the arc-angle integration
+is done in closed form via the substitution <code>φ = π − 2α</code> to Jacobian
+elliptic functions.</p>
+<p><strong>Special functions used:</strong> Jacobian elliptic functions
+<code>sn/cn/dn</code>; incomplete elliptic integrals of the 1st
+(<code>K(α,k)</code>) and 2nd (<code>E(α,k)</code>) kind; the
+<strong>incomplete elliptic integral of the third kind Π(α, η², k)</strong> (the
+piece absent from scipy — the pacing item); a standard integral
+<code>I(η²)=η²∫ sn·cn/(1−η² sn²u) du</code>; and recursion relations for the
+Jacobian-elliptic integrals <code>I_m</code>, <code>E_lm</code> (Byrd &amp;
+Friedman, <em>Handbook of Elliptic Integrals</em>, is Urankar's ref [9] — needed
+for the recurrences).</p>
+<p><strong>Two nuances the implementation MUST respect (from a close read):</strong></p>
+<ul>
+  <li><strong>A_φ is semi-analytic, B is fully closed-form.</strong> The
+    φ-component of the vector potential carries two terms
+    <code>g_p(α)=∫ arsinh β_p(α) dα</code> (p=1,2) that Urankar states
+    <em>"evade an analytical treatment"</em> and are evaluated by 1-D numerical
+    quadrature (eq. 14e). Since our axisymmetric <strong>flux/ψ = 2πR·A_φ</strong>
+    needs A_φ, ψ is semi-analytic (one bounded 1-D quadrature per edge); the
+    B<sub>r</sub>/B<sub>z</sub> field components are fully closed-form. This
+    tempers the "exact" claim for flux and slightly raises the ψ cost — still
+    far below a converged filament proxy.</li>
+  <li><strong>Apply the published errata.</strong> Appendix B collects
+    corrections to Parts II–IV, and the paper itself carries in-line errata to
+    several of its own equations (e.g. "in (16a) read (r'−r)² instead of
+    (r'²+r²) in the z component"; corrected <code>n²_q=2r/(r∓c)</code>). The
+    raw printed formulae contain typos — transcribe against Appendix B AND
+    cross-check the numerics against Babic (2005), or the field will be subtly
+    wrong in ways the rectangular-reduction gate alone won't catch.</li>
+</ul>
 <p><strong>Series + follow-up context</strong> (read alongside Part V — the
 polygon result builds on the earlier machinery and the later robustness work):</p>
 <ul>
@@ -269,27 +307,35 @@ Context
   as you go with the spikes described.
 
 State to read  (CODE / FILES / DATA)
+  references/Vector_potential..._V._Polygon_cross_section.pdf  (THE paper, in-repo;
+                                        read Appendix B errata + the in-line errata
+                                        on p.1180 BEFORE transcribing any equation)
   imas_ambix/gs/cylinder.py            (rectangular axisymmetric kernel; the
-                                        reduction target + interface to mirror)
+                                        b1=0 reduction target + interface to mirror)
   tests/gs/test_collapse_circuits.py   (how sections/filaments are represented)
   ~/Code/nova nova/biot/polygon.py     (abandoned attempt: sloped-edge b1=dR/dZ,
                                         Gamma/B2/D2/beta1..3, zeta arcsinh — a
                                         fingerprint for the algebra ONLY, unvalidated)
   ~/Code/nova nova/biot/zeta.py, constants.py (arcsinh integrand, K/E via scipy)
-  The paper PDF (user-held): Urankar Part V. Cross-check Babic 2005 for numerics.
+  Babic et al. 2005 (Int. J. Numer. Model. 18) — numerical cross-check / robustness.
 
 Scope locks / constraints  (non-decision)
   numpy/scipy-only (cylinder.py precedent); no nova import (cross-check oracle).
   New module under imas_ambix/gs/ beside cylinder.py. Validate Pi against mpmath
-  (dev-only). No operator/frozen-spine wiring in D1/D2 — that is D5, gated by the
-  D3 benchmark. Heavy sweeps (if any) on SLURM *_debug, OPENBLAS/OMP/MKL=1.
+  (dev-only). APPLY the paper's Appendix B + p.1180 errata (raw printed formulae
+  have typos). A_phi carries two terms g_p=INT arsinh(beta_p) dalpha (eq 14e) with
+  NO closed form -> one bounded 1-D quadrature per edge; B_r/B_z are fully closed.
+  No operator/frozen-spine wiring in D1/D2 — that is D5, gated by the D3 benchmark.
+  Heavy sweeps (if any) on SLURM *_debug, OPENBLAS/OMP/MKL=1.
 
 Done-when
   1. incomplete + complete Pi(n; phi, k) validated to 1e-12 vs mpmath across the
      needed ranges incl. n&gt;1 principal-value branch; unit tests committed
-  2. Urankar Part V full-turn A_phi/B_r/B_z (+ psi) implemented as the sloped-edge
-     sum; reduces to cylinder.hybrid_greens for a rectangular section to 1e-10
-     (regression test committed)
+  2. Urankar Part V full-turn B_r/B_z (closed) + A_phi/psi (closed + the g_p
+     quadrature) implemented as the sloped-edge sum with the errata applied;
+     reduces to cylinder.hybrid_greens for a rectangular (b1=0) section to 1e-10
+     (regression test committed); an independent point cross-check vs a converged
+     filament sum agrees at a non-edge field point
   3. arc-scope + elliptic-pi decisions resolved with the spike evidence
   4. followup written for D3 (benchmark vs multi-filament proxy) + this one resolved</pre>
 </article>

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="doc">
+  <meta name="plan-slug"     content="nonaxisymmetric-field-subtraction-case-attribution-geometry-landed">
+  <meta name="plan-title"    content="Landed — case-current attribution + geometry-fidelity + corrected passive picture">
+  <meta name="plan-summary"  content="Per-stage record: the bay-loop bimodality is a drive-data amplitude error on the P3 case-current columns (fix upstream, no blanket scale); the filament-collapse gate is now field-fidelity (moment-match) so staggered P4/P5 packs keep exact filaments; and the vessel + stability plates were found already ingested as field sources (0.0mm), with a targeted parallelogram refinement routed to a new polygon-section plan.">
+  <meta name="plan-informs"  content="nonaxisymmetric-field-subtraction,polygonal-section-coil-fields">
+  <title>Landed — case attribution + geometry fidelity | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<h2 id="s1">§1 — f-nfs-lever2: bay-loop bimodality attributed to the P3 case-current columns</h2>
+<p>The vacuum-window per-case scale fit (<code>scripts/case_scale_vacuum_fit.py</code>,
+artifact <code>case_scale_vacuum_fit.json</code>, commit <code>e47a561</code>) fit a
+multiplicative scale <em>k</em> (empirical ≈ <em>k</em>·model) for all 8 measured
+coil-case <code>G_pf</code> columns on the 430-shot coil-only vacuum cohort,
+controlling for the co-located coil winding. Firewall: coil-only vacuum slices,
+raw <code>amb</code> magnetics + raw <code>amc</code> currents + geometry-only
+operator; no EFIT, no plasma inversion.</p>
+<ul>
+  <li><strong>Attribution — case, not winding.</strong> The bimodal systematic
+    sits on the <code>*_case_current</code> columns: <code>p3l_case_current</code>
+    <em>k</em>≈2.32, <code>p3u_case_current</code> <em>k</em>≈1.77, constant across
+    each case's exposed sensors (drive-data class). The co-located
+    <code>*_coil_current</code> windings carry only milder, separate offsets
+    (0.61–1.19, geometry class) — not the bimodality carrier.</li>
+  <li><strong>One common case scale does NOT hold</strong> across the 8 cases
+    (dispersion fails the CI-overlap test); only the P3 cases are cleanly
+    identifiable — the P2/P4/P5 cases are non-identifiable nuisances on vacuum
+    data.</li>
+  <li><strong>k≈2.40 vs the old 0.66–0.71 reconciled</strong> — no sign flip. The
+    exposed-sensor estimator (k≈2.40, reproduces the lever-1 bay-loop value) is
+    the coupling on the sensors that actually see the case; the global single
+    scale (k≈0.66) is dragged toward zero by the many sensors that barely see it,
+    plus the old audit predated the dedicated 1-turn case column. The gap is
+    sensor-set dependence of a case column whose geometry pattern is imperfect
+    off the bay loops.</li>
+  <li><strong>Decision (b): fix upstream, no blanket scale.</strong> Route the P3
+    case-channel amplitude to an upstream audit (turns / xmult / units + name
+    assignment before <code>G_pf</code> assembly) so <em>k</em>→1; leave the other
+    6 cases as fitted nuisances; do NOT bake a per-case SOLENOID_RESPONSE_SCALE
+    analogue (the one-scale hypothesis failed). <strong>Gate G-A input:</strong>
+    the bay-loop anomaly is a <em>drive-data</em> amplitude error on the P3 case
+    columns — layer D — NOT a passive-screening mechanism, so G-A should not
+    expect the passive eddy model to have to reproduce it.</li>
+</ul>
+
+<h2 id="s2">§2 — Geometry-fidelity: field-fidelity collapse gate</h2>
+<p>Commit <code>3fc81a1</code>. The filament-lattice collapse
+(<code>collapse_rectangular_circuits</code>) previously gated on a crude area-fill
+count (fill ∈ [0.75, 1.25]), which smeared the staggered P4/P5 coil packs into a
+bounding-box cylinder that mis-placed their current by 3–5&nbsp;mm. It now gates on a
+<strong>multipole-match</strong> test: a circuit collapses to one equivalent
+cylinder only when its current-weighted centroid coincides with the box centre
+(dipole match — rejects staggered packs) AND its second moments match a uniform
+filled box (quadrupole match — rejects hollow frames and gapped packs). Regular
+windings with uniform insulation gaps (solenoid 4×164, P2, P3) still collapse;
+the staggered P4/P5 packs and the hollow coil cases now keep their exact filament
+lattice. Affected coil columns shift 0.5–2.4%, in the direction of correctness;
+153 gs tests pass. This implements the "single rectangle for a true rectangle,
+exact filaments for the extra bits" requirement at the coil level.</p>
+
+<h2 id="s3">§3 — Corrected passive picture: vessel + stability plates already ingested</h2>
+<p>The geometry audit against the MAST Data Catalog reference (commit
+<code>80898e2</code>) initially reported the vessel structures as "not field
+sources". That was <strong>incorrect</strong> — it inspected the <code>amm</code>
+point-only passive (genuinely diagnostic-only) and missed the efm structural
+circuits. Direct check: the operator carries <strong>80 inferred passive
+field-source columns</strong> (<code>g_passive</code> 73×80, circuits 22–101), and
+the <strong>78 mastapp <code>pf_passive</code> vessel + stability-plate elements</strong>
+(<code>botcol</code>, <code>topcol</code>, endcrowns, <code>incon</code>,
+<code>lhorw</code>, <code>uhorw</code>, <code>mid</code>, <code>vertw</code>,
+<code>ring</code>, <code>rodgr</code>, and the P2 arms <code>p2larm</code>/<code>p2uarm</code>
++ divertor plates <code>p2ldivpl</code>/<code>p2udivpl</code>) match them to
+<strong>0.0&nbsp;mm</strong> — element-identical, same EFIT source. <code>passive_resistance.py</code>
+already fits vessel regions (<code>vessel:inboard/outboard/ends/mid</code>).</p>
+<p><strong>Consequence for the earlier ramp-up null:</strong> the case+vessel
+resistivity extraction that showed no ramp-up gain <em>already included</em> the
+vessel + stability plates — as axis-aligned bounding boxes. It was not missing
+them. The genuine remaining gap is a geometry-<em>fidelity</em> one: <strong>~8
+elements are true slanted parallelograms</strong> in the reference (crowns
+±64.7°; P2 arms 45°/40°; P2 divertor plates) carried as axis-aligned boxes by efm.
+Refining those is a targeted improvement, routed to the new
+<a href="/imas-ambix/polygonal-section-coil-fields.html">polygonal-section-coil-fields</a>
+plan (analytic axisymmetric polygon-section Green's from Urankar Part V), which
+replaces both the bounding-box smear and the multi-filament proxy with an exact
+kernel — the principled way to represent the slanted passives before re-running
+the resistivity extraction.</p>
+
+<h2 id="s4">§4 — Commits</h2>
+<ul>
+  <li><code>e47a561</code> — vacuum-window per-case scale fit + verdict (f-nfs-lever2)</li>
+  <li><code>3fc81a1</code> — field-fidelity (moment-match) filament-collapse gate + tests</li>
+  <li><code>80898e2</code> — geometry audit vs MAST Data Catalog (corrected here re: vessel)</li>
+  <li><code>11a8b38</code> — new plan scaffold: polygonal-section-coil-fields (Urankar Part V)</li>
+</ul>
+
+</main>
+</body>
+</html>

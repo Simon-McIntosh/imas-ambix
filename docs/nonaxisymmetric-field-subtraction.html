@@ -62,6 +62,46 @@
   </p>
 </section>
 
+<section class="section-landed" id="landed-case-geometry">
+  <header>
+    <span class="badge badge-shipped">✓ landed 2026-07-22</span>
+    <h2>Case-current attribution (f-nfs-lever2) + geometry-fidelity + corrected passive picture — landed</h2>
+  </header>
+  <p class="landed-summary">
+    <strong>f-nfs-lever2 — attribution + decision.</strong> A vacuum-window
+    per-case scale fit over all 8 measured case columns (430-shot coil-only
+    cohort) puts the bay-loop bimodal systematic on the <strong>case-current
+    columns</strong> — <code>p3l_case_current</code> k≈2.32,
+    <code>p3u_case_current</code> k≈1.77, constant across each case's exposed
+    sensors (drive-data class) — <em>not</em> the co-located coil windings
+    (0.61–1.19, geometry class). A single common case scale does <strong>not</strong>
+    hold across the 8 (only P3 identifiable); k≈2.40 (exposed-sensor) vs the old
+    0.66 (global scale, dragged to zero by sensors that barely see the case)
+    reconcile as sensor-set dependence, no sign flip. <strong>Decision (b):</strong>
+    fix the P3 case-channel amplitude upstream (turns/xmult/units), leave the
+    other 6 cases fitted nuisances, bake <em>no</em> blanket per-case scale. Gate
+    G-A input: the bay-loop anomaly is a drive-data amplitude error (layer D),
+    not passive screening (<code>case_scale_vacuum_fit.json</code>, commit
+    <code>e47a561</code>).
+    <strong>Geometry fidelity.</strong> The filament-collapse gate is now a
+    field-fidelity (dipole+quadrupole moment-match) test, not area-fill: the
+    staggered P4/P5 packs (which a bounding-box cylinder mis-placed by 3–5 mm)
+    and the hollow coil cases keep their exact filament lattices, while regular
+    windings with insulation gaps still collapse; 153 gs tests pass (commit
+    <code>3fc81a1</code>).
+    <strong>Corrected passive picture.</strong> The vessel + stability-plate
+    structures are <em>already</em> field sources — 78 mastapp <code>pf_passive</code>
+    elements match our 80 inferred-passive circuits to 0.0 mm, and the earlier
+    no-ramp-up-gain resistivity result already included them (as boxes). The one
+    real gap — ~8 slanted parallelogram elements (crowns + P2 arms/divertor
+    plates) carried as axis-aligned boxes — is routed to the new
+    <a href="/imas-ambix/polygonal-section-coil-fields.html">polygonal-section-coil-fields</a>
+    plan (analytic Urankar Part V kernel).
+    Full record: <a href="archive/nonaxisymmetric-field-subtraction-case-attribution-geometry-landed.html">case attribution + geometry landed</a>.
+    Next: audit the P3 case-channel amplitude upstream, then D2 geometry → gate G-A (f-nfs-d2).
+  </p>
+</section>
+
 <h2 id="s1">§1 — The problem: axisymmetric reconstruction from a non-axisymmetric machine</h2>
 <p>Every equilibrium solve in this project fits an <em>axisymmetric</em> field
 model to sensors that are (a) non-axisymmetrically placed 3D objects, (b)
