@@ -221,6 +221,7 @@ def passive_coupling_matrices(
     measured-case circuits held back as prediction targets.
     """
     from imas_ambix.gs import operator as op  # noqa: PLC0415
+    from imas_ambix.gs.polygon import polygon_greens  # noqa: PLC0415
 
     sr, sz, sang, is_flux = sensor_signature_arrays(table)
     ang = np.deg2rad(sang)
@@ -233,8 +234,22 @@ def passive_coupling_matrices(
     by_circ: dict[int, list] = {}
     for f in table.pf_filaments:
         by_circ.setdefault(f.circuit, []).append(f)
+    # a wired PolygonSection replaces its circuit's box couplings with the exact
+    # shaped (Urankar) field — the same override the forward operator applies
+    # (build_operator passive block); untouched circuits stay box-kernel.
+    poly_by_circ = {ps.circuit: ps for ps in table.polygon_sections}
     a_cols, g_cols = [], []
     for circ in passive_circuits:
+        ps = poly_by_circ.get(circ)
+        if ps is not None:
+            psi_s, br_s, bz_s = polygon_greens(sr, sz, ps.vertices)
+            a = ps.xmult * np.where(
+                is_flux, psi_s, br_s * np.cos(ang) + bz_s * np.sin(ang)
+            )
+            g = ps.xmult * polygon_greens(grid.flat_r, grid.flat_z, ps.vertices)[0]
+            a_cols.append(a)
+            g_cols.append(g)
+            continue
         a = np.zeros(sr.size)
         g = np.zeros(grid.flat_r.size)
         for f in by_circ[circ]:

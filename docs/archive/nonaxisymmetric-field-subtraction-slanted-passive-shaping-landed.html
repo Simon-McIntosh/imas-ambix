@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="doc">
+  <meta name="plan-slug"     content="nonaxisymmetric-field-subtraction-slanted-passive-shaping-landed">
+  <meta name="plan-title"    content="Landed — D3 slanted-passive shaping: 8 vessel/P2 parallelograms ingested, gate G-A reconstruction-neutral">
+  <meta name="plan-summary"  content="The eight slanted MAST in-vessel passives (botcol/topcol crowns + P2 arm/divertor plates) are ingested as analytic PolygonSections keyed to their inferred_passive circuits and the temporal_operator inductance is area-corrected. Their true parallelogram area already equalled the box area, so the ring resistance is unchanged; only the source-side field shape shifts (<=7.5% on 8 of 80 passive columns). Re-running gate G-A on the shaped geometry leaves the verdict unchanged: the passive eddy still does not reproduce the P4/P5 bay-loop deficit (eddy var explained 3.9%, gain not restored) - the bay-loop anomaly remains layer C.">
+  <meta name="plan-informs"  content="nonaxisymmetric-field-subtraction">
+  <title>Landed — D3 slanted-passive shaping (gate G-A neutral) | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p class="lede">The polygonal-section kernel (Urankar Part V) and its
+forward-operator wiring shipped in the
+<a href="/imas-ambix/polygonal-section-coil-fields.html">polygonal-section-coil-fields</a>
+plan; this is the real-data application (tracked as <code>f-psc-03</code>). The
+eight slanted MAST in-vessel passives — the <code>botcol</code>/<code>topcol</code>
+vessel end-column crowns and the P2 arm / divertor plates — were carried as
+axis-aligned boxes because their vertices were never ingested. They are now
+attached as analytic <code>PolygonSection</code>s and the passive inductance
+path is area-corrected. The question this closes for gate G-A: <strong>does
+faithful shaping of these elements move the passive-layer result?</strong>
+Answer: <strong>no</strong> — it is reconstruction-neutral.</p>
+
+<h2 id="s1">§1 — What landed</h2>
+<ul>
+  <li><strong>Convention confirmed against the catalog.</strong> The MAST Data
+    Catalog <code>pf_passive</code> shape-angle rule (<code>*_shapeAngle1/2</code>)
+    was transcribed as <code>geometry.shaped_section_vertices</code> and verified
+    to machine precision against <code>parallelogram_vertices(90−a₂)</code> for
+    the side-edge shear; the top/bottom (a₁) shear is the transposed case the
+    R-shear helper cannot express, so the two-angle rule is used directly.</li>
+  <li><strong>Eight elements ingested.</strong>
+    <code>geometry.mast_slanted_polygon_sections</code> matches each catalog
+    slanted element to its <code>inferred_passive</code> fcoil circuit by
+    centroid (all eight match to &lt; 1 mm, single-filament) and builds the true
+    parallelogram; <code>build_table_for_shot</code> now populates
+    <code>polygon_sections</code>. <code>GEOMETRY_TABLE_VERSION</code> → v3.</li>
+  <li><strong>Area was already correct.</strong> The efm <code>width/height</code>
+    store the true parallelogram edge lengths, so box area ≡ parallelogram area
+    to machine precision. The ring resistance <code>2πRρ/(w·h)</code> and the
+    <code>section_scale</code> are therefore <em>unchanged</em> — the correction
+    is purely the source-side field <em>shape</em>, not the area.</li>
+  <li><strong>Shaped couplings wired</strong> in the two passive paths that
+    consume geometry: <code>boundary_disc.passive_coupling_matrices</code>
+    (sensor + grid) and <code>temporal_operator.build_passive_circuit_system</code>
+    (the inductance <code>L</code> source column). The two-section observer of
+    the inductance path deliberately keeps the box — the flux another circuit
+    links over these small sections varies negligibly across the shear.</li>
+  <li><strong>Tests green:</strong> 246 <code>gs</code> tests (incl. 6 new
+    slanted-passive unit tests + the polygon byte-identity baselines);
+    <code>tests/latent/test_temporal_operator.py</code> 23/23.</li>
+</ul>
+
+<h2 id="s2">§2 — Magnitude of the shaping</h2>
+<p>Measured directly at the real sensor set (shot 30421), box vs polygon column
+norms for the eight shaped circuits: the shift is <strong>0.3–7.5%</strong> on
+<strong>8 of 80</strong> passive columns, largest for the strongly-tilted vessel
+crowns (<code>botcol</code> 7.5%, <code>topcol</code> 6.3%) and small for the P2
+plates (0.3–1.5%). Absolute ψ couplings are ~10⁻⁶–10⁻⁷ Wb/A. Real, bounded, and
+confined to the vessel end-column + P2 structures — <em>not</em> the P4/P5-adjacent
+conductors that would screen the bay loops.</p>
+
+<h2 id="s3">§3 — Gate G-A on the shaped geometry: unchanged</h2>
+<p>The bay-loop gate (<code>scripts/passive_bay_loop_gate.py</code>, coil-sweep
+cohort, 430 coil-only records; the stale box circuit-system caches were moved
+aside so the systems rebuilt shaped) gives the same verdict as the box geometry:</p>
+<figure>
+  <table>
+    <thead><tr><th>metric (bay loops P4/P5)</th><th>value (shaped)</th><th>reading</th></tr></thead>
+    <tbody>
+      <tr><td>effective coil gain before eddy</td><td>1.064</td><td>the deficit</td></tr>
+      <tr><td>effective coil gain after vessel eddy</td><td>1.129</td><td>moves the <em>wrong</em> way</td></tr>
+      <tr><td>eddy variance explained</td><td>3.9%</td><td>passive eddy carries almost none of it</td></tr>
+      <tr><td>control loops (fl_cc*) gain</td><td>0.95 → 0.96</td><td>controls behave — method sound</td></tr>
+      <tr><td><strong>gate_pass</strong></td><td><strong>False</strong></td><td>passive hypothesis not rescued</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Shaped-geometry gate G-A. The passive eddy explains ~4% of the
+  bay-loop signal and does not restore the coil gain toward 1, exactly as with
+  the box geometry — the modest (≤7.5%) reshaping of the vessel-crown / P2
+  columns is far too small, and in the wrong location, to close a −30…−50%
+  bay-loop deficit.</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/nonaxisymmetric-field-subtraction/fig-passive-bay-loop-gate.png"
+       alt="Gate G-A bay-loop gains before/after vessel eddy, shaped geometry"
+       style="max-width:100%">
+  <figcaption>Bay-loop vs control-loop effective coil gain, before and after the
+  tuned vessel eddy, on the shaped passive geometry.</figcaption>
+</figure>
+
+<h2 id="s4">§4 — Verdict &amp; consequence</h2>
+<p>Faithful shaping of the eight slanted passives is <strong>reconstruction-neutral
+for gate G-A</strong>. This <em>strengthens</em> the already-adjudicated verdict:
+the bay-loop coupling deficit is <strong>layer C</strong> (a per-era
+effective-area / coupling recalibration against the stable far set), not a
+passive-eddy effect — the exact geometry of the vessel/P2 structures does not
+carry it. The shaped geometry is the more faithful forward model to keep (the
+crowns and P2 plates are genuinely slanted and now modelled as such), but it is
+not the mechanism behind the scorecard's P4/P5 loop-gain collapse. The layer-C
+per-era cross-calibration (<code>f-nfs-layerc</code>) remains the route.</p>
+
+<p><strong>Note (cache-key hazard).</strong> The passive circuit-system
+<code>.npz</code> caches are keyed by geometry signature but not by
+<code>GEOMETRY_TABLE_VERSION</code>, so the v3 bump required moving them aside by
+hand for this rerun. Folding the version string into those cache keys is filed
+in the <a href="/imas-ambix/physics-spine-em-consolidation-review.html">physics-spine
+consolidation review</a> (Tier 4).</p>
+
+</main>
+</body>
+</html>

@@ -138,7 +138,7 @@ never opens any other efm array (no ``psirz``, no ``*_c`` / ``*_x`` fitted
 currents, no profiles, no shape parameters).
 """
 
-GEOMETRY_TABLE_VERSION = "amb-schema-canonical-v2"
+GEOMETRY_TABLE_VERSION = "amb-schema-canonical-v3"
 """Bump whenever the derivation of :class:`GeometryTable` (its sensor channel
 SET in particular) changes for a FIXED efm geometry / signature digest — a
 downstream cache keyed only on ``SetupSignature.key`` would otherwise silently
@@ -147,7 +147,12 @@ is geometry-determined (see :func:`canonical_amb_channels`) rather than an
 artifact of one shot's own ``amb`` zarr schema.  ``v2``: filled rectangular
 coil packs are collapsed to one thick-cylinder filament each
 (:func:`collapse_rectangular_circuits`) — same finite-cross-section field,
-fewer sources.
+fewer sources.  ``v3``: the eight slanted vessel/P2 passive sections
+(crowns + P2 arms/divertor plates) carry their true parallelogram cross-section
+as a :class:`PolygonSection` (:func:`mast_slanted_polygon_sections`) instead of
+the axis-aligned bounding box — same area (hence same ring resistance), shaped
+field. A downstream ``.npz`` cache keyed only on ``SetupSignature.key`` (the
+passive circuit system) must be rebuilt across this bump.
 """
 
 # Sensor-name → expected orientation (degrees).  Bv (vertical) probes read the
@@ -370,6 +375,123 @@ def parallelogram_vertices(
             (r - hw + dr, z + hh),
         ]
     )
+
+
+def shaped_section_vertices(
+    r: float, z: float, width: float, height: float, angle1: float, angle2: float
+) -> np.ndarray:
+    """(4, 2) parallelogram corners under the MAST Data Catalog shape-angle rule.
+
+    Transcribes the ``pf_passive`` vertex convention the catalog publishes for a
+    sheared section (``*_shapeAngle1`` / ``*_shapeAngle2`` in degrees):
+    ``angle1`` tilts the top/bottom edges (a Z-shear that grows with the radial
+    offset), ``angle2`` tilts the side edges (an R-shear that grows with the
+    vertical offset); ``0`` for both is an axis-aligned rectangle.  The enclosed
+    area stays ``width·height`` for either shear, so the conductor's true
+    cross-section — and therefore its ring resistance — is unchanged from the
+    bounding box; only the field distribution shifts.
+
+    The ``angle1 = 0`` case is exactly :func:`parallelogram_vertices` at
+    ``angle_deg = 90 − angle2`` (verified to machine precision), the pure side-
+    edge shear the crown sections use; the transposed ``angle2 = 0`` branch (the
+    P2-arm shear) is not expressible through that R-shear helper, hence this
+    faithful two-angle transcription.
+    """
+    dr, dz = abs(width), abs(height)
+    a1t = np.tan(np.deg2rad(angle1)) if angle1 > 0 else 0.0
+    a2t = 1.0 / np.tan(np.deg2rad(angle2)) if angle2 > 0 else 0.0
+    rr = np.array(
+        [
+            r - dr / 2 - dz / 2 * a2t,
+            r + dr / 2 - dz / 2 * a2t,
+            r + dr / 2 + dz / 2 * a2t,
+            r - dr / 2 + dz / 2 * a2t,
+        ]
+    )
+    zz = np.array(
+        [
+            z - dz / 2 - dr / 2 * a1t,
+            z - dz / 2 + dr / 2 * a1t,
+            z + dz / 2 + dr / 2 * a1t,
+            z + dz / 2 - dr / 2 * a1t,
+        ]
+    )
+    return np.column_stack([rr, zz])
+
+
+#: The eight slanted MAST in-vessel passive sections — the vessel end-column
+#: crowns and the P2 arm / divertor-plate structures — as published by the MAST
+#: Data Catalog ``pf_passive`` group (authoritative machine geometry, constant
+#: across campaigns).  Each entry is ``(name, ref_r, ref_z, shapeAngle1,
+#: shapeAngle2)`` in metres / degrees; the reference centroid matches the entry
+#: to its ``inferred_passive`` fcoil circuit, and the shear angles reshape that
+#: circuit's box into its true parallelogram.  The remaining ~70 passive
+#: sections are genuine axis-aligned rectangles (both shape angles zero) and
+#: need no override.
+_MAST_SLANTED_PASSIVES: tuple[tuple[str, float, float, float, float], ...] = (
+    ("botcol", 0.2354, -2.0250, 0.0, 295.324),
+    ("topcol", 0.2356, 2.0250, 0.0, 64.676),
+    ("p2larm", 0.3532, -1.6308, 45.0, 0.0),
+    ("p2larm_out", 0.6827, -1.6506, 0.0, 320.0),
+    ("p2ldivpl", 0.6198, -1.6337, 320.0, 0.0),
+    ("p2uarm", 0.3532, 1.6308, 315.0, 0.0),
+    ("p2uarm_out", 0.6827, 1.6506, 0.0, 40.0),
+    ("p2udivpl", 0.6198, 1.6337, 40.0, 0.0),
+)
+
+#: match tolerance between a catalog reference centroid and an fcoil circuit
+#: centroid [m] — the eight elements match their circuit to < 1 mm; a loose
+#: 1 cm guard tolerates minor per-campaign discretisation drift while never
+#: mis-attaching to a neighbouring structure.
+_SLANTED_MATCH_TOL_M = 0.01
+
+
+def mast_slanted_polygon_sections(
+    pf_filaments: list[PFFilament],
+) -> list[PolygonSection]:
+    """:class:`PolygonSection` overrides for MAST's eight slanted passives.
+
+    Matches each catalog slanted element (:data:`_MAST_SLANTED_PASSIVES`) to the
+    nearest fcoil circuit by centroid and builds its true parallelogram section
+    from that circuit's own filament ``(r, z, width, height)`` plus the catalog
+    shear angles — co-located with the box it replaces (identical centroid and
+    area, so the dipole moment and ring resistance are unchanged; only the shape
+    differs).  A circuit that is not a single filament, or whose centroid sits
+    beyond :data:`_SLANTED_MATCH_TOL_M`, is skipped (verify-and-flag: never
+    fabricate a match).  Empty for a non-MAST filament set.
+    """
+    by_circ: dict[int, list[PFFilament]] = {}
+    for f in pf_filaments:
+        by_circ.setdefault(f.circuit, []).append(f)
+    centroids = {
+        c: (float(np.mean([f.r for f in g])), float(np.mean([f.z for f in g])))
+        for c, g in by_circ.items()
+    }
+    out: list[PolygonSection] = []
+    for name, ref_r, ref_z, a1, a2 in _MAST_SLANTED_PASSIVES:
+        best_c, best_d = None, np.inf
+        for c, (cr, cz) in centroids.items():
+            d = float(np.hypot(cr - ref_r, cz - ref_z))
+            if d < best_d:
+                best_c, best_d = c, d
+        if best_c is None or best_d > _SLANTED_MATCH_TOL_M:
+            continue
+        group = by_circ[best_c]
+        if len(group) != 1:
+            continue  # slanted passives are single-filament in the efm set
+        f = group[0]
+        vertices = shaped_section_vertices(
+            f.r, f.z, abs(f.width), abs(f.height), a1, a2
+        )
+        out.append(
+            PolygonSection(
+                circuit=best_c,
+                vertices=vertices,
+                xmult=sum(x.xmult for x in group),
+                name=name,
+            )
+        )
+    return out
 
 
 @dataclass(frozen=True)
@@ -951,6 +1073,7 @@ def build_table_for_shot(
         passive_structures=passive,
         amc_current_channels=amc_channels,
         unmatched_amb=unmatched,
+        polygon_sections=mast_slanted_polygon_sections(pf_filaments),
     )
 
 

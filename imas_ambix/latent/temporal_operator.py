@@ -154,6 +154,7 @@ def build_passive_circuit_system(
     """
     from imas_ambix.gs import operator as op  # noqa: PLC0415
     from imas_ambix.gs.cylinder import hybrid_greens  # noqa: PLC0415
+    from imas_ambix.gs.polygon import polygon_greens  # noqa: PLC0415
     from imas_ambix.latent.boundary_disc import (  # noqa: PLC0415
         passive_coupling_matrices,
     )
@@ -183,11 +184,27 @@ def build_passive_circuit_system(
         [np.sqrt(sum(abs(f.width * f.height) for f in g)) for g in groups]
     )
 
+    # a wired PolygonSection reshapes its circuit's SOURCE field to the exact
+    # parallelogram (crowns + P2 arms) — same area (hence r_diag and
+    # circuit_scale below are unchanged) but shaped mutual/self linkage.  The
+    # observer sub-grid stays the axis-aligned box: the flux another circuit
+    # links across these small sections varies negligibly over the shear, and
+    # the symmetrise step averages the shaped-source and box-observer estimates.
+    poly_by_circ = {ps.circuit: ps for ps in table.polygon_sections}
     section_delta = section_scale_frac * _median_section_scale(groups)
     pr, pz, wt, owner = _section_grid(groups, section_delta, section_n_max)
     lmat = np.zeros((n_pass, n_pass))
-    for j, gj in enumerate(groups):
-        lmat[:, j] = _linked_flux_columns(gj, pr, pz, wt, owner, n_pass, hybrid_greens)
+    for j, (circ_j, gj) in enumerate(zip(passive, groups, strict=True)):
+        ps = poly_by_circ.get(circ_j)
+        if ps is not None:
+            psi_p, _br, _bz = polygon_greens(pr, pz, ps.vertices)
+            lmat[:, j] = ps.xmult * np.bincount(
+                owner, weights=wt * psi_p, minlength=n_pass
+            )
+        else:
+            lmat[:, j] = _linked_flux_columns(
+                gj, pr, pz, wt, owner, n_pass, hybrid_greens
+            )
     # the analytic source + quadrature observer linkage is symmetric up to
     # observer-quadrature error — symmetrise, then guard SPD (physical L is)
     lmat = 0.5 * (lmat + lmat.T)
