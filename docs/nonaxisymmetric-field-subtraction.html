@@ -18,8 +18,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-22">
-<meta name="plan-version" content="2">
-<meta name="plan-impl" content="0.35">
+<meta name="plan-version" content="3">
+<meta name="plan-impl" content="0.45">
 </head>
 <body>
 <main class="plan-doc">
@@ -648,9 +648,9 @@ Done-when
      EFCC Green&#x27;s columns validated on EFCC-off/on + locked-mode-ramp shots
   3. Plan updated (levers 1-3 collapsed with results); followup for the
      remaining rungs written + this one resolved</pre>
-    <p class="r-fu-outcome">Levers 1+2 + D1 kernels + EFCC first rung landed (commits 1647a29, 805c60a, 3b82d9e). LEVER 1 (flux_loop_column_decomposition.json, 430-shot cohort): the bay-loop bimodality is a DRIVE-DATA amplitude error on p3l_case_current — empirical/model scale k≈2.40, constant across all 4 bay loops (rel spread 0.02), and a SEPARABLE column (only coupled set is p3l+p3u coil-current); routed fix = audit the case channel turns/xmult scaling + name assignment before G_pf assembly. LEVER 2 (coil_circuit_semantic_ledger.json): the 0.66-0.71/-0.04 case-k class = the 8 measured coil-CASE columns (pfSystems ids 14-21), each already its own G_pf column with CASE semantics; amc inventory + semantics time-invariant M5-M9 (only error_field a/b->02/05 relabel mid-M6). Convergence: the named column IS a case column — exactly the class lever 2 resolved. D1 (filaments3d.py): in-tree line + adaptive-arc Biot-Savart (A and B) + polyline/Conductor + sensor coupling + RDP decimator; 12 tests pass (nova cross-check importorskip-guarded, nova needs pandas). EFCC (efcc_greens_columns.json): Kirk-geometry Green's columns confirm full-loop n!=0 cancellation to 3e-15 (matches measured immunity) + coarse exposure ladder reproduced (outboard probes 37G >> ccbv 1.1G >> loops 0 @ 15kAt), sector-2 sign convention satisfied; obv-vs-obr fine ordering NOT reproducible from axisymmetric geometry (toroidal probe position + coil z-extent — a D2 input).</p>
+    <p class="r-fu-outcome">Levers 1+2 + D1 kernels + EFCC first rung landed (commits 1647a29, 805c60a, 3b82d9e). LEVER 1 (flux_loop_column_decomposition.json, 430-shot cohort): the bay-loop bimodality is a DRIVE-DATA amplitude error on p3l_case_current — empirical/model scale k≈2.40, constant across all 4 bay loops (rel spread 0.02), and a SEPARABLE column (only coupled set is p3l+p3u coil-current); routed fix = audit the case channel turns/xmult scaling + name assignment before G_pf assembly. LEVER 2 (coil_circuit_semantic_ledger.json): the 0.66-0.71/-0.04 case-k class = the 8 measured coil-CASE columns (pfSystems ids 14-21), each already its own G_pf column with CASE semantics; amc inventory + semantics time-invariant M5-M9 (only error_field a/b-&gt;02/05 relabel mid-M6). Convergence: the named column IS a case column — exactly the class lever 2 resolved. D1 (filaments3d.py): in-tree line + adaptive-arc Biot-Savart (A and B) + polyline/Conductor + sensor coupling + RDP decimator; 12 tests pass (nova cross-check importorskip-guarded, nova needs pandas). EFCC (efcc_greens_columns.json): Kirk-geometry Green's columns confirm full-loop n!=0 cancellation to 3e-15 (matches measured immunity) + coarse exposure ladder reproduced (outboard probes 37G &gt;&gt; ccbv 1.1G &gt;&gt; loops 0 @ 15kAt), sector-2 sign convention satisfied; obv-vs-obr fine ordering NOT reproducible from axisymmetric geometry (toroidal probe position + coil z-extent — a D2 input).</p>
     </article>
-<article class="r-fu" data-id="f-nfs-lever2" data-status="open" data-tier="opus" data-written-by="lever2-ledger" data-written-at="2026-07-22 12:00" data-recommends-skill="/reckon-ship nonaxisymmetric-field-subtraction" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-nfs-lever2" data-status="resolved" data-tier="opus" data-written-by="lever2-ledger" data-written-at="2026-07-22 12:00" data-recommends-skill="/reckon-ship nonaxisymmetric-field-subtraction" data-resolved-at="2026-07-22T13:12:12+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Fold the coil-circuit semantic ledger into the drive-column verdict — case-k belongs to the 8 measured case-current columns, present in every era</h4>
     <div class="r-fu-body"><p>The per-era coil-circuit semantic ledger is built and committed (scripts/coil_circuit_semantic_ledger.py, artifact coil_circuit_semantic_ledger.json, fig-coil-circuit-ledger.png). It resolves the 0.66-0.71/-0.04 case-k class: those factors belong to the 8 measured coil-CASE circuits (pfSystems ids 14-21: P2U/P2L/P3U/P3L/P4U/P4L/P5U/P5L case-current), each of which the operator already carries as its OWN dedicated G_pf column driven by *_case_current (CASE semantics = induced structural current), never merged with the co-located coil winding. P6U/P6L cases are constrained-zero (no channel). The solenoid keeps its uniform k_sol=1.0825.</p><p>Key implication for lever 1: the amc channel inventory is time-invariant across M5-M9 — all 13 active (coil) + 8 case columns are present with identical semantics in every era; the ONLY per-era amc change is the error-field drive relabel error_field_a/b to error_field_02/05 mid-M6. So the bay-loop bimodality cannot be a channel-existence or case-column-appearance effect; it is a fixed coupling/gain error in the P4/P5 coil-or-case column response exposed differently by drive mix. Next: cross the named bimodal column (lever 1) against this ledger to decide whether the factor sits on the coil-winding column or the case column, and whether the case-k factors should be applied to the 8 case G_pf columns.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -693,10 +693,11 @@ Done-when
      with the ledger + decomposition as joint evidence
   2. Case-k application decision made + backed by a vacuum-window fit
   3. Plan updated; this followup resolved</pre>
+    <p class="r-fu-outcome">Landed (commit e47a561, fit; c60cd6e, docs). ATTRIBUTION: the bay-loop bimodal systematic sits on the *_case_current columns — p3l_case k≈2.32, p3u_case k≈1.77, constant across each case's exposed sensors (drive-data class) — NOT the co-located coil windings (0.61-1.19, geometry class). ONE-SCALE test FAILS across the 8 cases; only P3 is cleanly identifiable (P2/P4/P5 cases are non-identifiable nuisances on vacuum). RECONCILIATION of k≈2.40 vs old 0.66 (no sign flip): exposed-sensor estimator (2.40, reproduces lever-1) vs global single scale (0.66, dragged to zero by sensors barely seeing the case) + old audit predating the dedicated 1-turn case column. DECISION (b): fix the P3 case-channel amplitude UPSTREAM (turns/xmult/units + name assignment), leave the other 6 cases fitted nuisances, bake NO blanket per-case scale. GATE G-A input: the bay-loop anomaly is a drive-data amplitude error (layer D), not passive screening. Artifact case_scale_vacuum_fit.json + fig-case-scale-vacuum-fit.png. ALSO this session: collapse gate made field-fidelity/moment-match (3fc81a1, staggered P4/P5 + hollow cases keep exact filaments); geometry audit corrected — vessel + stability plates are ALREADY field sources (78 mastapp pf_passive elems = our 80 inferred-passive circuits to 0.0mm; the earlier no-ramp-up result already included them as boxes), only ~8 slanted elements need box->parallelogram fidelity, routed to the new polygonal-section-coil-fields plan (Urankar Part V, paper read + in references/).</p>
     </article>
 <article class="r-fu" data-id="f-nfs-d2" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-22 13:20" data-recommends-skill="/reckon-ship nonaxisymmetric-field-subtraction" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">D2 era-keyed 3D geometry (RMP/ELM/EFCC + toroidal sensor positions), then D3 passive gate G-A and D4 full seams</h4>
-    <div class="r-fu-body"><p>The 3D kernels (D1) and the EFCC forward model (D4 first rung) are landed and validated on what axisymmetric geometry can constrain. The next rung is D2: build the era-keyed centreline+cross-section models — 12-coil (>=19031) and 18-coil (>=25404) RMP sets, ELM rows, the EFCC coils with a PINNED vertical extent, and crucially the TOROIDAL sensor positions the EFCC obv-vs-obr fine ordering needs. That unblocks (a) absolute per-probe EFCC calibration, (b) the D3 passive circuit-coupled eddy model whose gate G-A must reproduce the P4/P5 loop-gain collapse from first principles, and (c) D5 subtraction into the reconstruction chain.</p></div>
+    <div class="r-fu-body"><p>The 3D kernels (D1) and the EFCC forward model (D4 first rung) are landed and validated on what axisymmetric geometry can constrain. The next rung is D2: build the era-keyed centreline+cross-section models — 12-coil (&gt;=19031) and 18-coil (&gt;=25404) RMP sets, ELM rows, the EFCC coils with a PINNED vertical extent, and crucially the TOROIDAL sensor positions the EFCC obv-vs-obr fine ordering needs. That unblocks (a) absolute per-probe EFCC calibration, (b) the D3 passive circuit-coupled eddy model whose gate G-A must reproduce the P4/P5 loop-gain collapse from first principles, and (c) D5 subtraction into the reconstruction chain.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    nonaxisymmetric-field-subtraction (http://localhost:8765/imas-ambix/nonaxisymmetric-field-subtraction.html)
 Section: D2 geometry -&gt; D3 passive (gate G-A) -&gt; D4 full seams -&gt; D5 subtraction
@@ -754,6 +755,49 @@ Done-when
   3. Gate G-A adjudicated (passive reproduces the loop collapse, or it routes
      to layer C per-era calibration); idle-circuit-state decision locked
   4. Plan updated; this followup resolved</pre>
+    </article>
+<article class="r-fu" data-id="f-nfs-p3case" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-22 15:30" data-recommends-skill="/reckon-ship nonaxisymmetric-field-subtraction" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Audit + fix the P3 case-channel amplitude upstream so k-&gt;1 (the routed drive-data fix), then feed gate G-A</h4>
+    <div class="r-fu-body"><p>The vacuum-window fit (f-nfs-lever2) attributed the bay-loop bimodal systematic to the P3 <code>*_case_current</code> columns as a constant-across-exposed-sensors amplitude error (drive-data): <code>p3l_case</code> k&#x2248;2.32, <code>p3u_case</code> k&#x2248;1.77. Decision (b) routed the fix upstream: audit the P3 case channel's turns / xmult / units and its name assignment before <code>G_pf</code> assembly, so the model column matches and k&#x2192;1 — rather than baking a per-case scale (the one-scale hypothesis failed; the other 6 cases stay fitted nuisances). This is the layer-D input to gate G-A: the bay-loop anomaly is a drive-data amplitude error, not passive screening, so G-A should NOT require the passive eddy model to reproduce it.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    nonaxisymmetric-field-subtraction (http://localhost:8765/imas-ambix/nonaxisymmetric-field-subtraction.html)
+Section: P3 case-channel upstream amplitude fix (the layer-D drive-data fix feeding gate G-A)
+Tier:    opus
+
+Context
+  f-nfs-lever2 attributed the bay-loop bimodal systematic to the P3
+  *_case_current columns (p3l_case k~=2.32, p3u_case k~=1.77), constant across
+  each case&#x27;s exposed sensors = a drive-DATA amplitude error, NOT the coil
+  windings and NOT passive screening. Decision (b): fix the channel amplitude
+  upstream so k-&gt;1; do not bake a per-case scale; leave the other 6 cases as
+  fitted nuisances. This is a candidate correction to the frozen operator, so
+  it is gated by validation, not applied blind.
+
+State to read  (CODE / FILES / DATA)
+  imas_ambix/latent/artifacts/patch_gate/case_scale_vacuum_fit.json  (the fit + verdict)
+  scripts/case_scale_vacuum_fit.py                                    (the fit harness)
+  imas_ambix/gs/circuits.py   (CaseCircuit rows 16/17 = P3U/P3L case; supply_scaling_a,
+                               l1_case_channel, turns convention)
+  imas_ambix/gs/operator.py   (build_operator case-column assembly, _KA_TURN_TO_A,
+                               SOLENOID_RESPONSE_SCALE precedent, classify_circuits)
+  imas_ambix/latent/artifacts/patch_gate/coil_circuit_semantic_ledger.json (semantics)
+
+Scope locks / constraints  (non-decision)
+  Firewall: coil-only vacuum slices, raw amb + raw amc + geometry-only operator;
+  no EFIT. Any change to the frozen operator must pass the gs suite AND a spine
+  sanity check before commit (geometry change affects solver inputs). Find the
+  ROOT of the ~2.3x on P3 specifically (why P3 and not the other cases?): units/
+  turns on amc_p3{u,l} case current, xmult on the efm P3-case circuit, or a
+  name-assignment swap. Verify against the raw amc channel scaling on sample
+  shots (docs/mast-coil-circuits.html precedent). Heavy sweeps on SLURM *_debug,
+  OPENBLAS/OMP/MKL_NUM_THREADS=1.
+
+Done-when
+  1. Root cause of the P3 case-column ~2.3x amplitude error identified with
+     evidence (units/turns/xmult/name), the fix applied so the P3 case columns&#x27;
+     vacuum k-&gt;1, other cases unchanged
+  2. gs suite green + spine sanity check (no unexplained reconstruction shift)
+  3. Result fed to gate G-A as the layer-D verdict; plan updated; this resolved</pre>
     </article>
 </section>
 
