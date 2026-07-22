@@ -266,6 +266,61 @@ precedent). Finite-section <code>beam</code>/<code>bow</code> ported only if the
 filament limit proves insufficient at real sensor–conductor separations
 (measure, don't assume).</p>
 
+<h3 id="d2a">Published geometry &amp; measured 3D facts — Kirk et al., arXiv:1312.6507
+(CCFE, 2013): "Measurement, correction and implications of the intrinsic error
+fields on MAST"</h3>
+<p>The paper supplies most of D2's inputs and a methodology precedent
+identical to this plan's idiom (each PF-coil turn modelled as a single closed
+loop with vector-transform distortions, field by segment-discretised
+Biot-Savart):</p>
+<ul>
+  <li><strong>EFCC geometry (the CC coils):</strong> four ex-vessel coils
+    arranged symmetrically outside the vessel at r ≈ 2.9 m (Fig 1), each
+    spanning <strong>83° toroidally</strong>, <strong>3 turns</strong>, max
+    <strong>15 kA·turns</strong>; wired as two opposite-in-series pairs —
+    <code>EFCC_2_8</code> (sectors 2/8, centred 45°/225°) and
+    <code>EFCC_5_11</code> (sectors 5/11, centred 315°/135°) — on independent
+    supplies (arbitrary n=1 phase; odd-n spectrum: n=1 dominant, small n=3
+    sideband, no even-n). Sign conventions documented (positive
+    <code>EFCC_2</code> → B<sub>r</sub>&lt;0 at sector 2). This decodes our
+    channel names: <code>error_field_02</code>/<code>_05</code> = the 2–8 and
+    5–11 pair currents (early <code>_a/_b</code> = the same two pairs).
+    Exact r/z extents to be confirmed from Howell et al. NF 47 1336 (2007) or
+    drawings.</li>
+  <li><strong>Intrinsic PF-coil error fields, measured and parameterised
+    (Table 1):</strong> Hall-probe survey of P4U/P4L/P5U/P5L at −3.5 kA
+    (−80.5 kAt) flat-top; each coil's 3D distortion fitted as shift + tilt +
+    ellipticity + banana bowing + n=3 wobble. Headline values: P5L z-shift
+    <strong>13.07 mm</strong>, P4L z-shift 6.64 mm, tilts ≤ 0.12°, deformations
+    2–5 mm. Intrinsic field at the q=2 radius ~10 G peak-to-peak (n=1 <em>and</em>
+    sizeable n=2; the n=2 residual is uncorrected on MAST). At the sensors this
+    is a &lt;1 % effect (±3 G on 440 G in the survey) — it cannot produce our
+    factor-2.7 bimodality, cleanly separating the published intrinsic error
+    field from layer D.</li>
+  <li><strong>ELM coil complement confirmed:</strong> in-vessel between P4 and
+    P5, two rows — 12 lower (all sectors) + 6 upper (odd sectors) — max
+    5.6 kA·turns; n=1-capable configurations documented (full and 1/√2
+    currents).</li>
+  <li><strong>A measured passive time constant:</strong> the EFCC field
+    penetrates the vessel wall with <strong>τ = 31 ms</strong> — a direct,
+    published anchor for D3's L/R circuit fits.</li>
+  <li><strong>EF ∝ PF by design:</strong> the MAST plasma control system
+    applies I<sub>EFCC</sub> = α·I<sub>P4</sub> + β·I<sub>P5</sub>
+    (α₂₈ = −0.010, β₂₈ = 0.021, α₅₁₁ = −0.001, β₅₁₁ = 0.028), replacing an
+    earlier static Ip/B<sub>t</sub>-scaled correction. The EF–PF collinearity
+    in our fits is therefore <em>by construction</em> in the campaigns running
+    this algorithm (and explains the clamped M8 EF programme); identifiability
+    must come from shots with EFCC off, from locked-mode ramp experiments, and
+    from the pre-algorithm campaigns.</li>
+  <li><strong>Saddle array confirmed as the locked-mode detector</strong>
+    (outer-midplane radial-field array — our <code>xmb/sad_out_*</code>), and a
+    caveat for any plasma-facing use of the vacuum model: empirically optimal
+    EFCC currents are ~3× the vacuum-model prediction (plasma response,
+    MARS-F, closes most of the gap) — irrelevant to our sensor-level vacuum
+    subtraction, but binding if the correction is ever evaluated at rational
+    surfaces.</li>
+</ul>
+
 <h3 id="d2">D2 — 3D geometry of the in-vessel coil set and sensors, era-keyed</h3>
 <p>Build centreline + cross-section models for: the 12-coil M7 RMP set and the
 18-coil M8+ set (Kirk/Nardon PPCF 51 124010; Kirk NF 53 043007), their leads
