@@ -19,7 +19,14 @@ Two chains share the harness:
     ``eddy``    the per-shot vessel-eddy trajectory precomputed from the
                 measured drives and injected as a KNOWN drive through the
                 frozen passive Green's columns (pinned amplitudes, sensor +
-                Picard field consistent).
+                Picard field consistent);
+    ``spine``   the production label-factory interior solve (frozen spine:
+                disc soft-anchor priors, non-negative ladder, passive
+                sidecar, axis reseed — no centroid pin, no ψ-diffusion
+                prior), solved per census slice with the factory's
+                warm-start-in-time-order chain — measures whether the
+                anchored spine that manufactures training labels holds the
+                confined basin corpus-wide (report-only, never gates).
 
 Verdict keys (module glossary — code below is named by mechanism):
   T-F3   bare-chain characterisation (landed; kept for reproduction).
@@ -111,6 +118,17 @@ CHAIN_MIN_IP_KA = 60.0  # the engine's operating floor (gate value)
 
 RAMP_END_S = 0.2  # early-phase bin boundary [s]
 
+# ---- production-spine arm (the frozen label-factory interior solve) --------
+# The ``spine`` arm runs the EXACT configuration the label factory ships to
+# training (scripts/spine_label_factory.run_shot): disc soft-anchor priors,
+# non-negative ladder profile, rank-k passive sidecar, axis reseed — solved
+# per payload slice with the factory's warm-start-in-time-order chain.  No
+# centroid pin and no ψ-diffusion prior: this measures whether the anchored
+# spine itself holds the confined basin corpus-wide, separating the label
+# config's fidelity from the gate chain's.
+SPINE_CONVERGENCE_LIMIT = 5e-3  # the factory's Picard convergence gate
+SPINE_RETRY_MAX_ITERATIONS = 160  # the factory's one-retry Picard budget
+
 # Campaign-band split for stratified reporting.  The spine's BOUNDARY-
 # fidelity validation cohort (the 128-slice held-out split behind the
 # 1.5–2.1 cm flat-top envelope) tops out at shot 18559; the 112-shot
@@ -136,10 +154,17 @@ EDDY_N_MODES = 12  # eigenbasis rank (the dynamic-passive rung's value)
 
 # drop reasons the ENGINE owns (count against completion); everything else is
 # harness / referee accounting (reported, not attempted)
-ENGINE_FAILURE_REASONS = frozenset({
-    "solve-error", "solve-no-ring", "chain-failed", "fit-not-scored",
-    "unconfined-axis", "seed-in-wall", "read-not-found",
-})
+ENGINE_FAILURE_REASONS = frozenset(
+    {
+        "solve-error",
+        "solve-no-ring",
+        "chain-failed",
+        "fit-not-scored",
+        "unconfined-axis",
+        "seed-in-wall",
+        "read-not-found",
+    }
+)
 
 
 def engine_rows_for_shot(
@@ -249,8 +274,11 @@ def engine_rows_for_shot(
         efit_axis = (float(eq["magnetic_axis_r"][k]), float(eq["magnetic_axis_z"][k]))
         efit_radii_own = polygon_ray_radii(lcfs, efit_axis, LCFS_ANGLES)
         ok_s = np.isfinite(eng.radii) & np.isfinite(efit_radii_own)
-        shape_cm = (100.0 * np.abs(eng.radii[ok_s] - efit_radii_own[ok_s])
-                    if ok_s.any() else None)
+        shape_cm = (
+            100.0 * np.abs(eng.radii[ok_s] - efit_radii_own[ok_s])
+            if ok_s.any()
+            else None
+        )
         u_x = np.array(
             [
                 (rec["u_x_lo"], rec["x_lo_r"], rec["x_lo_z"]),
@@ -270,10 +298,12 @@ def engine_rows_for_shot(
                 "phase": "ramp" if t_ref < RAMP_END_S else "flattop",
                 "radii_dmed_cm": float(np.median(dr_cm)),
                 "radii_dmax_cm": float(np.max(dr_cm)),
-                "shape_dmed_cm": (float(np.median(shape_cm))
-                                  if shape_cm is not None else float("nan")),
-                "shape_dmax_cm": (float(np.max(shape_cm))
-                                  if shape_cm is not None else float("nan")),
+                "shape_dmed_cm": (
+                    float(np.median(shape_cm)) if shape_cm is not None else float("nan")
+                ),
+                "shape_dmax_cm": (
+                    float(np.max(shape_cm)) if shape_cm is not None else float("nan")
+                ),
                 "axis_d_cm": 100.0
                 * float(
                     np.hypot(eng.axis[0] - efit_axis[0], eng.axis[1] - efit_axis[1])
@@ -312,12 +342,18 @@ def _eddy_center_builder(shot: int, payload: dict):
     if raw is None:
         return None, None
     eigen = shot_eigenbasis_sectionavg(
-        payload, payload["table"].signature.key, EDDY_N_MODES)
+        payload, payload["table"].signature.key, EDDY_N_MODES
+    )
 
     def centers_fn(label_times, i_cell_seq):
         centers, _i_circ = _trajectory_centers(
-            eigen, modes, raw, np.asarray(label_times, dtype=np.float64),
-            np.asarray(i_cell_seq, dtype=np.float64), 1.0)
+            eigen,
+            modes,
+            raw,
+            np.asarray(label_times, dtype=np.float64),
+            np.asarray(i_cell_seq, dtype=np.float64),
+            1.0,
+        )
         return centers
 
     return sidecar, centers_fn
@@ -381,12 +417,12 @@ def _bare_read_fields(p, grid, table, basis, eq, k: int, lcfs) -> dict | None:
         centroid = (float(inv.centroid_r), float(inv.centroid_z))
         if not (np.isfinite(centroid[0]) and centroid[0] <= 1.4):
             return None
-        eng = boundary_read(np.asarray(inv.psi_tot, dtype=np.float64), grid,
-                            centroid, lcfs_norm=1.0)
+        eng = boundary_read(
+            np.asarray(inv.psi_tot, dtype=np.float64), grid, centroid, lcfs_norm=1.0
+        )
         if not eng.found:
             return None
-        efit_axis = (float(eq["magnetic_axis_r"][k]),
-                     float(eq["magnetic_axis_z"][k]))
+        efit_axis = (float(eq["magnetic_axis_r"][k]), float(eq["magnetic_axis_z"][k]))
         radii_frame = polygon_ray_radii(lcfs, eng.axis, LCFS_ANGLES)
         radii_own = polygon_ray_radii(lcfs, efit_axis, LCFS_ANGLES)
         ok_f = np.isfinite(eng.radii) & np.isfinite(radii_frame)
@@ -394,20 +430,27 @@ def _bare_read_fields(p, grid, table, basis, eq, k: int, lcfs) -> dict | None:
         if not (ok_f.any() and ok_s.any()):
             return None
         psi = np.asarray(inv.psi_tot, dtype=np.float64)
-        radii_cen = _ray_radii_about(psi, grid, centroid, eng.psi_lcfs,
-                                     LCFS_ANGLES)
+        radii_cen = _ray_radii_about(psi, grid, centroid, eng.psi_lcfs, LCFS_ANGLES)
         efit_cen = polygon_ray_radii(lcfs, centroid, LCFS_ANGLES)
         ok_c = np.isfinite(radii_cen) & np.isfinite(efit_cen)
         return {
-            "radii_dmed_cm": float(np.median(
-                100.0 * np.abs(eng.radii[ok_f] - radii_frame[ok_f]))),
-            "shape_dmed_cm": float(np.median(
-                100.0 * np.abs(eng.radii[ok_s] - radii_own[ok_s]))),
-            "centroid_dmed_cm": (float(np.median(
-                100.0 * np.abs(radii_cen[ok_c] - efit_cen[ok_c])))
-                if ok_c.any() else float("nan")),
-            "axis_d_cm": 100.0 * float(np.hypot(
-                eng.axis[0] - efit_axis[0], eng.axis[1] - efit_axis[1])),
+            "radii_dmed_cm": float(
+                np.median(100.0 * np.abs(eng.radii[ok_f] - radii_frame[ok_f]))
+            ),
+            "shape_dmed_cm": float(
+                np.median(100.0 * np.abs(eng.radii[ok_s] - radii_own[ok_s]))
+            ),
+            "centroid_dmed_cm": (
+                float(np.median(100.0 * np.abs(radii_cen[ok_c] - efit_cen[ok_c])))
+                if ok_c.any()
+                else float("nan")
+            ),
+            "axis_d_cm": 100.0
+            * float(np.hypot(eng.axis[0] - efit_axis[0], eng.axis[1] - efit_axis[1])),
+            # the disc read's current centroid — the magnetics-derived datum
+            # the chain pins to; callers use it as the shared fixed origin
+            # for the centroid frame (stripped before the row merge)
+            "centroid_rz": [centroid[0], centroid[1]],
         }
     except Exception:  # noqa: BLE001 — a missing baseline must not drop the row
         return None
@@ -439,16 +482,26 @@ def full_engine_rows_for_shot(
         # one shot-level entry; n_slices bounds the attempted count honestly
         # (the chain solves at most CHAIN_MAX_SLICES of the shot's census rows)
         return [], [
-            {"shot": int(shot), "reason": reason, "detail": detail,
-             "n_slices": int(min(len(recs), CHAIN_MAX_SLICES))}
+            {
+                "shot": int(shot),
+                "reason": reason,
+                "detail": detail,
+                "n_slices": int(min(len(recs), CHAIN_MAX_SLICES)),
+            }
         ]
 
     table = _campaign_table(int(shot))
     if table is None:
         return _all("chain-unavailable", "no-campaign-geometry")
     payload = factory_shot_payloads(
-        int(shot), nr=nr, nz=nz, max_slices=CHAIN_MAX_SLICES,
-        min_ip_ka=CHAIN_MIN_IP_KA, table=table, cache_grid=True)
+        int(shot),
+        nr=nr,
+        nz=nz,
+        max_slices=CHAIN_MAX_SLICES,
+        min_ip_ka=CHAIN_MIN_IP_KA,
+        table=table,
+        cache_grid=True,
+    )
     if payload is None:
         return _all("chain-unavailable", "no-sensor-windows")
 
@@ -463,14 +516,23 @@ def full_engine_rows_for_shot(
 
     try:
         chain = coupled_solve_chain(
-            int(shot), nr=nr, nz=nz, sigma=CHAIN_SIGMA_M,
+            int(shot),
+            nr=nr,
+            nz=nz,
+            sigma=CHAIN_SIGMA_M,
             eta_params=list(frozen_eta_params()),
-            prior_weight=CHAIN_PRIOR_WEIGHT, n_sub=CHAIN_N_SUB,
-            par_weight=CHAIN_PAR_WEIGHT, n_rho=CHAIN_N_RHO,
-            max_slices=CHAIN_MAX_SLICES, min_ip_ka=CHAIN_MIN_IP_KA,
-            skip_basin=(arm == "nobasin"), passive=passive,
+            prior_weight=CHAIN_PRIOR_WEIGHT,
+            n_sub=CHAIN_N_SUB,
+            par_weight=CHAIN_PAR_WEIGHT,
+            n_rho=CHAIN_N_RHO,
+            max_slices=CHAIN_MAX_SLICES,
+            min_ip_ka=CHAIN_MIN_IP_KA,
+            skip_basin=(arm == "nobasin"),
+            passive=passive,
             passive_centers_fn=centers_fn,
-            passive_weight=EDDY_KNOWN_DRIVE_WEIGHT, cache_grid=True)
+            passive_weight=EDDY_KNOWN_DRIVE_WEIGHT,
+            cache_grid=True,
+        )
     except Exception as exc:  # noqa: BLE001 — a dead chain is named, not fatal
         return _all("chain-failed", f"{type(exc).__name__}: {exc}"[:160])
     if not chain["slices"]:
@@ -485,8 +547,9 @@ def full_engine_rows_for_shot(
     # payload slices the engine tried (each counted ONCE) that carry a valid
     # census reference — never per census rec, which over-counts a dropped
     # payload slice every time a nearby census rec maps to it.
-    fit_by_payload = {int(s["k"]): (s, chain["fits"][j])
-                      for j, s in enumerate(chain["slices"])}
+    fit_by_payload = {
+        int(s["k"]): (s, chain["fits"][j]) for j, s in enumerate(chain["slices"])
+    }
     rec_times = np.array([float(r["time_s"]) for r in recs])
 
     g = zarr.open_group(str(LEVEL2_SHOTS / f"{shot}.zarr"), mode="r")
@@ -496,9 +559,16 @@ def full_engine_rows_for_shot(
     used_rec: set[int] = set()
 
     def _drop(rec, reason: str, detail: str = "") -> None:
-        drops.append({"shot": int(shot), "k": int(rec["k"]),
-                      "cls": _rec_class(rec), "time_s": float(rec["time_s"]),
-                      "reason": reason, "detail": detail})
+        drops.append(
+            {
+                "shot": int(shot),
+                "k": int(rec["k"]),
+                "cls": _rec_class(rec),
+                "time_s": float(rec["time_s"]),
+                "reason": reason,
+                "detail": detail,
+            }
+        )
 
     for p_idx in range(len(payloads)):
         t_p = float(payloads[p_idx].time_s)
@@ -520,8 +590,11 @@ def full_engine_rows_for_shot(
             _drop(rec, "unconfined-axis", f"R={axis_r:.3f}")
             continue
         psi = np.asarray(f.psi, dtype=np.float64)
-        seed = ((axis_r, axis_z) if np.isfinite(axis_z) else
-                (float(s["centroid"][0]), float(s["centroid"][1])))
+        seed = (
+            (axis_r, axis_z)
+            if np.isfinite(axis_z)
+            else (float(s["centroid"][0]), float(s["centroid"][1]))
+        )
         try:
             eng = boundary_read(psi, grid, seed, lcfs_norm=1.0)
         except ValueError as exc:
@@ -555,54 +628,322 @@ def full_engine_rows_for_shot(
         efit_axis = (float(eq["magnetic_axis_r"][k]), float(eq["magnetic_axis_z"][k]))
         efit_radii_own = polygon_ray_radii(lcfs, efit_axis, LCFS_ANGLES)
         ok_s = np.isfinite(eng.radii) & np.isfinite(efit_radii_own)
-        shape_cm = (100.0 * np.abs(eng.radii[ok_s] - efit_radii_own[ok_s])
-                    if ok_s.any() else None)
+        shape_cm = (
+            100.0 * np.abs(eng.radii[ok_s] - efit_radii_own[ok_s])
+            if ok_s.any()
+            else None
+        )
         # centroid frame — both boundaries as radii about the MEASURED current
         # centroid (the pin target): a magnetics-derived datum available on
         # every shot, so the origin is fixed and shared rather than tied to
         # either reconstruction's axis
         cen = (float(s["centroid"][0]), float(s["centroid"][1]))
-        eng_radii_cen = _ray_radii_about(psi, grid, cen, eng.psi_lcfs,
-                                         LCFS_ANGLES)
+        eng_radii_cen = _ray_radii_about(psi, grid, cen, eng.psi_lcfs, LCFS_ANGLES)
         efit_radii_cen = polygon_ray_radii(lcfs, cen, LCFS_ANGLES)
         ok_c = np.isfinite(eng_radii_cen) & np.isfinite(efit_radii_cen)
-        cen_cm = (100.0 * np.abs(eng_radii_cen[ok_c] - efit_radii_cen[ok_c])
-                  if ok_c.any() else None)
+        cen_cm = (
+            100.0 * np.abs(eng_radii_cen[ok_c] - efit_radii_cen[ok_c])
+            if ok_c.any()
+            else None
+        )
         # paired bare-seed baseline on the SAME slice (same payload, same
         # reference, same reads) — the seed the chain starts from, so the
         # chain's value-added is measured without draw or phase mismatch
-        bare = _bare_read_fields(payloads[p_idx], grid, chain["table"],
-                                 chain["basis"], eq, k, lcfs)
-        u_x = np.array([
-            (rec["u_x_lo"], rec["x_lo_r"], rec["x_lo_z"]),
-            (rec["u_x_hi"], rec["x_hi_r"], rec["x_hi_z"]),
-        ])
+        bare = _bare_read_fields(
+            payloads[p_idx], grid, chain["table"], chain["basis"], eq, k, lcfs
+        )
+        u_x = np.array(
+            [
+                (rec["u_x_lo"], rec["x_lo_r"], rec["x_lo_z"]),
+                (rec["u_x_hi"], rec["x_hi_r"], rec["x_hi_z"]),
+            ]
+        )
         binding = np.abs(u_x[:, 0] - 1.0) <= X_BIND_U
-        rows.append({
-            "shot": int(shot), "k": k, "time_s": t_ref,
-            "ip_ka": float(rec["ip_ka"]), "cls": _rec_class(rec),
-            "phase": "ramp" if t_ref < RAMP_END_S else "flattop",
-            "radii_dmed_cm": float(np.median(dr_cm)),
-            "radii_dmax_cm": float(np.max(dr_cm)),
-            "shape_dmed_cm": (float(np.median(shape_cm))
-                              if shape_cm is not None else float("nan")),
-            "shape_dmax_cm": (float(np.max(shape_cm))
-                              if shape_cm is not None else float("nan")),
-            "centroid_dmed_cm": (float(np.median(cen_cm))
-                                 if cen_cm is not None else float("nan")),
-            "centroid_dmax_cm": (float(np.max(cen_cm))
-                                 if cen_cm is not None else float("nan")),
-            "axis_d_cm": 100.0 * float(
-                np.hypot(eng.axis[0] - efit_axis[0], eng.axis[1] - efit_axis[1])),
-            "xset_d_cm": _xset_match_cm(eng.xset, u_x[binding][:, 1:]),
-            "dev_is_diverted": bool(eng.is_diverted),
-            "class_margin": float(np.clip(eng.class_margin, -1.0, 1.0)),
-            **{f"bare_{kk}": vv for kk, vv in (bare or {}).items()},
-        })
+        rows.append(
+            {
+                "shot": int(shot),
+                "k": k,
+                "time_s": t_ref,
+                "ip_ka": float(rec["ip_ka"]),
+                "cls": _rec_class(rec),
+                "phase": "ramp" if t_ref < RAMP_END_S else "flattop",
+                "radii_dmed_cm": float(np.median(dr_cm)),
+                "radii_dmax_cm": float(np.max(dr_cm)),
+                "shape_dmed_cm": (
+                    float(np.median(shape_cm)) if shape_cm is not None else float("nan")
+                ),
+                "shape_dmax_cm": (
+                    float(np.max(shape_cm)) if shape_cm is not None else float("nan")
+                ),
+                "centroid_dmed_cm": (
+                    float(np.median(cen_cm)) if cen_cm is not None else float("nan")
+                ),
+                "centroid_dmax_cm": (
+                    float(np.max(cen_cm)) if cen_cm is not None else float("nan")
+                ),
+                "axis_d_cm": 100.0
+                * float(
+                    np.hypot(eng.axis[0] - efit_axis[0], eng.axis[1] - efit_axis[1])
+                ),
+                "xset_d_cm": _xset_match_cm(eng.xset, u_x[binding][:, 1:]),
+                "dev_is_diverted": bool(eng.is_diverted),
+                "class_margin": float(np.clip(eng.class_margin, -1.0, 1.0)),
+                **{
+                    f"bare_{kk}": vv
+                    for kk, vv in (bare or {}).items()
+                    if kk != "centroid_rz"
+                },
+            }
+        )
     n_thinned = int(len(recs) - len(used_rec))  # census slices past the budget
     if n_thinned:
-        drops.append({"shot": int(shot), "reason": "not-attempted-thinning",
-                      "detail": "payload slice budget", "n_slices": n_thinned})
+        drops.append(
+            {
+                "shot": int(shot),
+                "reason": "not-attempted-thinning",
+                "detail": "payload slice budget",
+                "n_slices": n_thinned,
+            }
+        )
+    return rows, drops
+
+
+def spine_rows_for_shot(
+    shot: int, recs, *, nr: int, nz: int
+) -> tuple[list[dict], list[dict]]:
+    """Run the production-spine interior solve per census slice and score it.
+
+    The label factory's exact frozen configuration (disc soft-anchor priors,
+    non-negative ladder profile, rank-k passive sidecar, axis reseed) solved
+    at every payload slice that carries a census reference, warm-started in
+    time order exactly like the factory chain.  Slices are otherwise
+    independent — there is no centroid pin, basin pass, or ψ-diffusion prior —
+    so completion accounting is per slice, like the bare arm.
+    """
+    import zarr  # noqa: PLC0415
+
+    from imas_ambix.latent.connectivity_boundary import boundary_read  # noqa: PLC0415
+    from imas_ambix.worldmodel.equilibrium_labels import LCFS_ANGLES  # noqa: PLC0415
+    from scripts.closure_gate_eval import (  # noqa: PLC0415
+        _shot_passive_sidecar,
+        fit_and_read_slice,
+    )
+    from scripts.heldout_mse_gate_eval import _campaign_table  # noqa: PLC0415
+    from scripts.spine_label_factory import (  # noqa: PLC0415
+        factory_shot_payloads,
+        frozen_spine_config,
+    )
+    from scripts.topology_census import X_BIND_U  # noqa: PLC0415
+
+    def _all(reason: str, detail: str = "") -> tuple[list[dict], list[dict]]:
+        return [], [
+            {
+                "shot": int(shot),
+                "reason": reason,
+                "detail": detail,
+                "n_slices": int(len(recs)),
+            }
+        ]
+
+    table = _campaign_table(int(shot))
+    if table is None:
+        return _all("chain-unavailable", "no-campaign-geometry")
+    payload = factory_shot_payloads(
+        int(shot),
+        nr=nr,
+        nz=nz,
+        max_slices=MAX_PAYLOAD_SLICES,
+        min_ip_ka=MIN_IP_KA,
+        table=table,
+        cache_grid=True,
+    )
+    if payload is None:
+        return _all("chain-unavailable", "no-sensor-windows")
+
+    spine, _sha = frozen_spine_config()
+    isolve = spine["interior_solve"]
+    spc = dict(spine["soft_priors"])
+    spc["boundary_prior"] = spc.pop("boundary_prior", "disc")
+    try:
+        sidecar = _shot_passive_sidecar(payload, int(isolve["passive_k"]))
+    except Exception as exc:  # noqa: BLE001 — the sidecar is part of the config
+        return _all("chain-failed", f"passive-sidecar: {exc}"[:160])
+
+    grid, basis = payload["grid"], payload["basis"]
+    payloads = payload["payloads"]
+    rec_times = np.array([float(r["time_s"]) for r in recs])
+
+    g = zarr.open_group(str(LEVEL2_SHOTS / f"{shot}.zarr"), mode="r")
+    eq = g["equilibrium"]
+
+    rows, drops = [], []
+    used_rec: set[int] = set()
+    warm_jphi = None
+
+    def _drop(rec, reason: str, detail: str = "") -> None:
+        drops.append(
+            {
+                "shot": int(shot),
+                "k": int(rec["k"]),
+                "cls": _rec_class(rec),
+                "time_s": float(rec["time_s"]),
+                "reason": reason,
+                "detail": detail,
+            }
+        )
+
+    # payloads ascend in time, so iterating in index order carries the
+    # factory's warm start across the solved slices in time order
+    for p_idx in range(len(payloads)):
+        t_p = float(payloads[p_idx].time_s)
+        ir = int(np.argmin(np.abs(rec_times - t_p)))
+        if abs(rec_times[ir] - t_p) > TIME_MATCH_S:
+            continue  # no census-valid reference at this payload slice
+        if ir in used_rec:
+            continue  # this reference already scored from a nearer slice
+        used_rec.add(ir)
+        rec = recs[ir]
+        t_ref = float(rec["time_s"])
+        p = payloads[p_idx]
+        try:
+            f = fit_and_read_slice(
+                grid,
+                table,
+                p,
+                beta0_grid=(0.5,),
+                alpha_grid=(1.0,),
+                cost_limit=float("inf"),
+                convergence_limit=SPINE_CONVERGENCE_LIMIT,
+                retry_max_iterations=SPINE_RETRY_MAX_ITERATIONS,
+                fit_mode="ladder",
+                n_p=int(isolve["n_p"]),
+                n_f=int(isolve["n_f"]),
+                smoothness=float(isolve["smoothness"]),
+                nonneg=isolve["profile_kind"] == "monomial-nonneg",
+                passive=sidecar,
+                passive_ridge=1.0,
+                warm_jphi=warm_jphi,
+                reseed_axis_r_max=float(isolve["reseed_axis_r_max"]),
+                keep_psi=True,
+                keep_jphi=True,
+                basis=basis,
+                meta={},
+                soft_prior_cfg=spc,
+                boundary_read=isolve["boundary_read_scoring"],
+            )
+        except Exception as exc:  # noqa: BLE001 — sweep on, record the cause
+            _drop(rec, "solve-error", f"{type(exc).__name__}: {exc}"[:160])
+            continue
+        if not (f.scored and f.psi is not None):
+            _drop(rec, "fit-not-scored", str(getattr(f, "reason", ""))[:120])
+            continue
+        if f.converged:  # the factory chain warm-starts on strict-converged
+            warm_jphi = f.jphi_flat
+        axis_r, axis_z = _fit_axis(f)
+        if not (np.isfinite(axis_r) and np.isfinite(axis_z) and axis_r <= 1.4):
+            _drop(rec, "unconfined-axis", f"R={axis_r:.3f}")
+            continue
+        psi = np.asarray(f.psi, dtype=np.float64)
+        try:
+            eng = boundary_read(psi, grid, (axis_r, axis_z), lcfs_norm=1.0)
+        except ValueError as exc:
+            _drop(rec, "seed-in-wall", str(exc)[:120])
+            continue
+        if not eng.found:
+            _drop(rec, "read-not-found")
+            continue
+        k = int(rec["k"])
+        lcfs = np.c_[
+            np.asarray(eq["lcfs_r"][:, k], dtype=np.float64),
+            np.asarray(eq["lcfs_z"][:, k], dtype=np.float64),
+        ]
+        lcfs = lcfs[np.isfinite(lcfs).all(axis=1) & (lcfs[:, 0] > 0)]
+        if lcfs.shape[0] < 8:
+            _drop(rec, "efit-lcfs-degenerate")
+            continue
+        efit_radii = polygon_ray_radii(lcfs, eng.axis, LCFS_ANGLES)
+        ok = np.isfinite(eng.radii) & np.isfinite(efit_radii)
+        if not ok.any():
+            _drop(rec, "no-finite-radii-pair")
+            continue
+        dr_cm = 100.0 * np.abs(eng.radii[ok] - efit_radii[ok])
+        efit_axis = (float(eq["magnetic_axis_r"][k]), float(eq["magnetic_axis_z"][k]))
+        efit_radii_own = polygon_ray_radii(lcfs, efit_axis, LCFS_ANGLES)
+        ok_s = np.isfinite(eng.radii) & np.isfinite(efit_radii_own)
+        shape_cm = (
+            100.0 * np.abs(eng.radii[ok_s] - efit_radii_own[ok_s])
+            if ok_s.any()
+            else None
+        )
+        # paired bare disc read on the SAME slice — the seed baseline AND the
+        # source of the measured-centroid datum (the chain arms' pin target)
+        bare = _bare_read_fields(p, grid, table, basis, eq, k, lcfs)
+        cen_cm = None
+        if bare is not None:
+            cen = (float(bare["centroid_rz"][0]), float(bare["centroid_rz"][1]))
+            eng_radii_cen = _ray_radii_about(psi, grid, cen, eng.psi_lcfs, LCFS_ANGLES)
+            efit_radii_cen = polygon_ray_radii(lcfs, cen, LCFS_ANGLES)
+            ok_c = np.isfinite(eng_radii_cen) & np.isfinite(efit_radii_cen)
+            cen_cm = (
+                100.0 * np.abs(eng_radii_cen[ok_c] - efit_radii_cen[ok_c])
+                if ok_c.any()
+                else None
+            )
+        u_x = np.array(
+            [
+                (rec["u_x_lo"], rec["x_lo_r"], rec["x_lo_z"]),
+                (rec["u_x_hi"], rec["x_hi_r"], rec["x_hi_z"]),
+            ]
+        )
+        binding = np.abs(u_x[:, 0] - 1.0) <= X_BIND_U
+        rows.append(
+            {
+                "shot": int(shot),
+                "k": k,
+                "time_s": t_ref,
+                "ip_ka": float(rec["ip_ka"]),
+                "cls": _rec_class(rec),
+                "phase": "ramp" if t_ref < RAMP_END_S else "flattop",
+                "radii_dmed_cm": float(np.median(dr_cm)),
+                "radii_dmax_cm": float(np.max(dr_cm)),
+                "shape_dmed_cm": (
+                    float(np.median(shape_cm)) if shape_cm is not None else float("nan")
+                ),
+                "shape_dmax_cm": (
+                    float(np.max(shape_cm)) if shape_cm is not None else float("nan")
+                ),
+                "centroid_dmed_cm": (
+                    float(np.median(cen_cm)) if cen_cm is not None else float("nan")
+                ),
+                "centroid_dmax_cm": (
+                    float(np.max(cen_cm)) if cen_cm is not None else float("nan")
+                ),
+                "axis_d_cm": 100.0
+                * float(
+                    np.hypot(eng.axis[0] - efit_axis[0], eng.axis[1] - efit_axis[1])
+                ),
+                "xset_d_cm": _xset_match_cm(eng.xset, u_x[binding][:, 1:]),
+                "dev_is_diverted": bool(eng.is_diverted),
+                "class_margin": float(np.clip(eng.class_margin, -1.0, 1.0)),
+                "converged": bool(f.converged),
+                "reseeded": f.reason == "scored-reseeded",
+                **{
+                    f"bare_{kk}": vv
+                    for kk, vv in (bare or {}).items()
+                    if kk != "centroid_rz"
+                },
+            }
+        )
+    n_unmatched = int(len(recs) - len(used_rec))  # no payload at census time
+    if n_unmatched:
+        drops.append(
+            {
+                "shot": int(shot),
+                "reason": "no-payload-at-time",
+                "detail": "payload time cover",
+                "n_slices": n_unmatched,
+            }
+        )
     return rows, drops
 
 
@@ -674,8 +1015,7 @@ def score_class(
         "n_dropped": len(drops),
         "drop_counts": dict(sorted(drop_counts.items(), key=lambda kv: -kv[1])),
         "radii_dmed_cm": _agg([r["radii_dmed_cm"] for r in rows]),
-        "shape_dmed_cm": _agg(
-            [r.get("shape_dmed_cm", float("nan")) for r in rows]),
+        "shape_dmed_cm": _agg([r.get("shape_dmed_cm", float("nan")) for r in rows]),
         "axis_d_cm": _agg([r["axis_d_cm"] for r in rows]),
         "xset_d_cm": _agg([r["xset_d_cm"] for r in rows]),
         "class_agreement": float(np.mean(class_hits)) if class_hits else None,
@@ -707,19 +1047,35 @@ def class_verdict(res: dict) -> dict:
 def _full_worker(job: tuple) -> tuple[int, list[dict], list[dict]]:
     shot, recs, nr, nz, arm = job
     try:
-        rows, drops = full_engine_rows_for_shot(shot, recs, nr=nr, nz=nz, arm=arm)
+        if arm == "spine":
+            rows, drops = spine_rows_for_shot(shot, recs, nr=nr, nz=nz)
+        else:
+            rows, drops = full_engine_rows_for_shot(shot, recs, nr=nr, nz=nz, arm=arm)
     except Exception as exc:  # noqa: BLE001 — a dead shot is named, not fatal
-        rows, drops = [], [
-            {"shot": int(shot), "reason": "chain-failed",
-             "detail": f"{type(exc).__name__}: {exc}"[:160],
-             "n_slices": int(min(len(recs), CHAIN_MAX_SLICES))}
-        ]
+        rows, drops = (
+            [],
+            [
+                {
+                    "shot": int(shot),
+                    "reason": "chain-failed",
+                    "detail": f"{type(exc).__name__}: {exc}"[:160],
+                    "n_slices": int(min(len(recs), CHAIN_MAX_SLICES)),
+                }
+            ],
+        )
     return int(shot), rows, drops
 
 
 def run_full_chain_class(
-    cname: str, shots: list[int], census_rows: np.ndarray, *,
-    nr: int, nz: int, arm: str, workers: int, checkpoint: Path | None
+    cname: str,
+    shots: list[int],
+    census_rows: np.ndarray,
+    *,
+    nr: int,
+    nz: int,
+    arm: str,
+    workers: int,
+    checkpoint: Path | None,
 ) -> dict:
     """Four-pass engine over one class's stratified shots, all census recs.
 
@@ -734,7 +1090,8 @@ def run_full_chain_class(
 
     invalid_ci = CLASSES.index("invalid")
     valid = (census_rows["cls"] != invalid_ci) & (
-        np.abs(census_rows["ip_ka"]) >= CHAIN_MIN_IP_KA)
+        np.abs(census_rows["ip_ka"]) >= CHAIN_MIN_IP_KA
+    )
 
     rows: list[dict] = []
     drops: list[dict] = []
@@ -758,9 +1115,17 @@ def run_full_chain_class(
 
     def _flush() -> None:
         if checkpoint is not None:
-            checkpoint.write_text(json.dumps(
-                {"class": cname, "arm": arm, "rows": rows, "drops": drops,
-                 "done_shots": sorted(done)}))
+            checkpoint.write_text(
+                json.dumps(
+                    {
+                        "class": cname,
+                        "arm": arm,
+                        "rows": rows,
+                        "drops": drops,
+                        "done_shots": sorted(done),
+                    }
+                )
+            )
 
     if workers > 1 and len(jobs) > 1:
         with ProcessPoolExecutor(max_workers=workers) as ex:
@@ -771,8 +1136,14 @@ def run_full_chain_class(
                 drops += sdrops
                 done.add(shot)
                 if (i + 1) % 4 == 0 or (i + 1) == len(futs):
-                    logger.info("  %s/%s: %d/%d shots, %d rows",
-                                cname, arm, len(done), len(shots), len(rows))
+                    logger.info(
+                        "  %s/%s: %d/%d shots, %d rows",
+                        cname,
+                        arm,
+                        len(done),
+                        len(shots),
+                        len(rows),
+                    )
                 _flush()
     else:
         for j in jobs:
@@ -782,17 +1153,28 @@ def run_full_chain_class(
             done.add(shot)
             _flush()
     _flush()
-    return {"class": cname, "arm": arm, "n_shots": len(shots),
-            "rows": rows, "drops": drops}
+    return {
+        "class": cname,
+        "arm": arm,
+        "n_shots": len(shots),
+        "rows": rows,
+        "drops": drops,
+    }
 
 
 ARTIFACT_DIR = Path("imas_ambix/latent/artifacts/patch_gate")
 FIGURE_DIR = Path("docs/figures/connectivity-topology-reader")
-FULL_ARMS = ("plain", "nobasin", "eddy")
+FULL_ARMS = ("plain", "nobasin", "eddy", "spine")
 VERDICT_ARTIFACT = ARTIFACT_DIR / "topology_full_engine_verdicts-v0.json"
 
-ALL_CLASSES = ("limited", "sn-lower", "sn-upper", "connected-dn", "marginal-dn",
-               "snowflake-candidate")
+ALL_CLASSES = (
+    "limited",
+    "sn-lower",
+    "sn-upper",
+    "connected-dn",
+    "marginal-dn",
+    "snowflake-candidate",
+)
 
 
 def _full_class_artifact(arm: str, cname: str) -> Path:
@@ -805,8 +1187,9 @@ def _load_arm_rows(arm: str) -> dict | None:
     rows: list[dict] = []
     drops: list[dict] = []
     found = False
-    for path in sorted(ARTIFACT_DIR.glob(
-            f"topology_full_engine_crossval-{arm}-*.json")):
+    for path in sorted(
+        ARTIFACT_DIR.glob(f"topology_full_engine_crossval-{arm}-*.json")
+    ):
         found = True
         d = json.loads(path.read_text())
         rows += d.get("rows", [])
@@ -834,8 +1217,7 @@ def _phase_aggs(prows: list[dict]) -> dict:
         "n": len(prows),
         "radii_dmed_cm": _agg([r["radii_dmed_cm"] for r in prows]),
         "shape_dmed_cm": _agg([r.get("shape_dmed_cm", nan) for r in prows]),
-        "centroid_dmed_cm": _agg(
-            [r.get("centroid_dmed_cm", nan) for r in prows]),
+        "centroid_dmed_cm": _agg([r.get("centroid_dmed_cm", nan) for r in prows]),
         "axis_d_cm": _agg([r["axis_d_cm"] for r in prows]),
         "xset_d_cm": _agg([r["xset_d_cm"] for r in prows]),
     }
@@ -854,21 +1236,26 @@ def _class_phase_table(rows: list[dict]) -> dict:
         crows = [r for r in rows if r["cls"] == cname]
         entry: dict = {"n": len(crows)}
         for phase in ("flattop", "ramp", "all"):
-            prows = (crows if phase == "all"
-                     else [r for r in crows if r["phase"] == phase])
+            prows = (
+                crows if phase == "all" else [r for r in crows if r["phase"] == phase]
+            )
             entry[phase] = _phase_aggs(prows)
         ft = [r for r in crows if r["phase"] == "flattop"]
         entry["flattop_validated_band"] = _phase_aggs(
-            [r for r in ft if r["shot"] <= VALIDATED_BAND_MAX_SHOT])
+            [r for r in ft if r["shot"] <= VALIDATED_BAND_MAX_SHOT]
+        )
         entry["flattop_late_band"] = _phase_aggs(
-            [r for r in ft if r["shot"] > VALIDATED_BAND_MAX_SHOT])
+            [r for r in ft if r["shot"] > VALIDATED_BAND_MAX_SHOT]
+        )
         expected_div = cname != "limited"
         hits = [r["dev_is_diverted"] == expected_div for r in crows]
         entry["class_agreement"] = float(np.mean(hits)) if hits else None
-        hits_ft = [r["dev_is_diverted"] == expected_div
-                   for r in crows if r["phase"] == "flattop"]
-        entry["class_agreement_flattop"] = (
-            float(np.mean(hits_ft)) if hits_ft else None)
+        hits_ft = [
+            r["dev_is_diverted"] == expected_div
+            for r in crows
+            if r["phase"] == "flattop"
+        ]
+        entry["class_agreement_flattop"] = float(np.mean(hits_ft)) if hits_ft else None
         out[cname] = entry
     return out
 
@@ -900,7 +1287,8 @@ def _completion(rows: list[dict], drops: list[dict]) -> dict:
     shot_fail = {s: d for s, d in shot_fail.items() if s not in scored_shots}
     n_scored = len(scored)
     n_failed = len(per_slice_fail) + sum(
-        int(d.get("n_slices", 1)) for d in shot_fail.values())
+        int(d.get("n_slices", 1)) for d in shot_fail.values()
+    )
     attempted = n_scored + n_failed
     failures = list(per_slice_fail.values()) + list(shot_fail.values())
     return {
@@ -911,7 +1299,8 @@ def _completion(rows: list[dict], drops: list[dict]) -> dict:
         "bar": COMPLETION_BAR,
         "failures_named": failures,
         "harness_accounting": _drop_counts(
-            [d for d in drops if d["reason"] not in ENGINE_FAILURE_REASONS]),
+            [d for d in drops if d["reason"] not in ENGINE_FAILURE_REASONS]
+        ),
     }
 
 
@@ -931,7 +1320,7 @@ def _drop_counts(drops: list[dict]) -> dict:
         else:
             per_shot[(int(d["shot"]), r)] = int(d.get("n_slices", 1))
     out: dict[str, int] = {}
-    for (_s, _k, r) in per_slice:
+    for _s, _k, r in per_slice:
         out[r] = out.get(r, 0) + 1
     for (_s, r), n in per_shot.items():
         out[r] = out.get(r, 0) + n
@@ -939,7 +1328,9 @@ def _drop_counts(drops: list[dict]) -> dict:
 
 
 def _paired_class_delta(
-    rows_a: list[dict], rows_b: list[dict], phase: str | None = None,
+    rows_a: list[dict],
+    rows_b: list[dict],
+    phase: str | None = None,
     field: str = "shape_dmed_cm",
 ) -> dict:
     """Per-class median of paired (b − a) boundary residuals on common slices.
@@ -1007,7 +1398,9 @@ def aggregate_verdicts() -> dict:
         }
         quality[cname]["pass"] = (
             bool(quality[cname]["radii_ok"] and quality[cname]["class_ok"])
-            if supported else None)
+            if supported
+            else None
+        )
     supported_q = [q for q in quality.values() if q["supported"]]
     quality_pass = bool(supported_q) and all(q["pass"] for q in supported_q)
 
@@ -1018,9 +1411,11 @@ def aggregate_verdicts() -> dict:
         flattop_delta = _paired_class_delta(plain["rows"], eddy_rows, "flattop")
         ramp_delta = _paired_class_delta(plain["rows"], eddy_rows, "ramp")
         regressions = {
-            c: d for c, d in flattop_delta.items()
+            c: d
+            for c, d in flattop_delta.items()
             if d["delta_med_cm"] is not None
-            and d["delta_med_cm"] > EDDY_REGRESSION_BAND_CM}
+            and d["delta_med_cm"] > EDDY_REGRESSION_BAND_CM
+        }
         eddy_verdict = {
             "table": _class_phase_table(eddy_rows),
             "flattop_delta_vs_plain_cm": flattop_delta,
@@ -1049,18 +1444,69 @@ def aggregate_verdicts() -> dict:
                 "flattop_shape_med_cm": med,
                 "flattop_class_agreement": acc,
                 "holds": bool(
-                    med is not None and med <= FLATTOP_LCFS_TOL_CM
-                    and acc is not None and acc >= FULL_CLASS_ACC_TOL),
+                    med is not None
+                    and med <= FLATTOP_LCFS_TOL_CM
+                    and acc is not None
+                    and acc >= FULL_CLASS_ACC_TOL
+                ),
             }
         evaluated = [v for v in per_class.values() if v["holds"] is not None]
         basin_verdict = {
             "table": nb_table,
             "completion": nb_completion,
             "flattop_delta_vs_plain_cm": _paired_class_delta(
-                plain["rows"], nb_rows, "flattop"),
+                plain["rows"], nb_rows, "flattop"
+            ),
             "per_class_within_tolerances": per_class,
-            "basin_pass_retirable": (bool(evaluated)
-                                     and all(v["holds"] for v in evaluated)),
+            "basin_pass_retirable": (
+                bool(evaluated) and all(v["holds"] for v in evaluated)
+            ),
+        }
+
+    # production-spine arm (report-only): does the frozen label-factory
+    # config hold the confined basin corpus-wide?  Judged per class against
+    # the SAME pre-declared flat-top tolerances as the gated chain, with a
+    # paired chain-vs-spine delta (shape AND axis) on common slices.
+    spine_verdict = None
+    if "spine" in arms:
+        sp_rows = arms["spine"]["rows"]
+        sp_table = _class_phase_table(sp_rows)
+        sp_completion = _completion(sp_rows, arms["spine"]["drops"])
+        per_class = {}
+        for cname in ALL_CLASSES:
+            e = sp_table[cname]
+            med = e["flattop"]["shape_dmed_cm"]["med"]
+            acc = e["class_agreement_flattop"]
+            if e["flattop"]["n"] == 0:
+                per_class[cname] = {"holds": None, "n": 0}
+                continue
+            per_class[cname] = {
+                "n": e["flattop"]["n"],
+                "flattop_shape_med_cm": med,
+                "flattop_centroid_med_cm": e["flattop"]["centroid_dmed_cm"]["med"],
+                "flattop_axis_med_cm": e["flattop"]["axis_d_cm"]["med"],
+                "flattop_class_agreement": acc,
+                "holds": bool(
+                    med is not None
+                    and med <= FLATTOP_LCFS_TOL_CM
+                    and acc is not None
+                    and acc >= FULL_CLASS_ACC_TOL
+                ),
+            }
+        evaluated = [v for v in per_class.values() if v["holds"] is not None]
+        spine_verdict = {
+            "table": sp_table,
+            "completion": sp_completion,
+            "flattop_shape_delta_vs_plain_cm": _paired_class_delta(
+                plain["rows"], sp_rows, "flattop"
+            ),
+            "flattop_axis_delta_vs_plain_cm": _paired_class_delta(
+                plain["rows"], sp_rows, "flattop", field="axis_d_cm"
+            ),
+            "per_class_within_tolerances": per_class,
+            "holds_basin_corpus_wide": (
+                bool(evaluated) and all(v["holds"] for v in evaluated)
+            ),
         }
 
     # bare-initialiser baseline comparison (the measured value of the chain).
@@ -1070,34 +1516,39 @@ def aggregate_verdicts() -> dict:
     baseline_cmp = {}
     nan = float("nan")
     for cname in ALL_CLASSES:
-        ft = [r for r in plain["rows"]
-              if r["cls"] == cname and r["phase"] == "flattop"
-              and np.isfinite(r.get("bare_shape_dmed_cm", nan))]
+        ft = [
+            r
+            for r in plain["rows"]
+            if r["cls"] == cname
+            and r["phase"] == "flattop"
+            and np.isfinite(r.get("bare_shape_dmed_cm", nan))
+        ]
         if not ft:
             continue
         baseline_cmp[cname] = {
             "n_paired_flattop": len(ft),
-            "bare_shape_med_cm": float(np.median(
-                [r["bare_shape_dmed_cm"] for r in ft])),
-            "full_shape_med_cm": float(np.median(
-                [r["shape_dmed_cm"] for r in ft])),
-            "bare_axis_med_cm": float(np.median(
-                [r["bare_axis_d_cm"] for r in ft])),
-            "full_axis_med_cm": float(np.median(
-                [r["axis_d_cm"] for r in ft])),
-            "paired_shape_delta_med_cm": float(np.median(
-                [r["shape_dmed_cm"] - r["bare_shape_dmed_cm"] for r in ft])),
-            "paired_axis_delta_med_cm": float(np.median(
-                [r["axis_d_cm"] - r["bare_axis_d_cm"] for r in ft])),
+            "bare_shape_med_cm": float(
+                np.median([r["bare_shape_dmed_cm"] for r in ft])
+            ),
+            "full_shape_med_cm": float(np.median([r["shape_dmed_cm"] for r in ft])),
+            "bare_axis_med_cm": float(np.median([r["bare_axis_d_cm"] for r in ft])),
+            "full_axis_med_cm": float(np.median([r["axis_d_cm"] for r in ft])),
+            "paired_shape_delta_med_cm": float(
+                np.median([r["shape_dmed_cm"] - r["bare_shape_dmed_cm"] for r in ft])
+            ),
+            "paired_axis_delta_med_cm": float(
+                np.median([r["axis_d_cm"] - r["bare_axis_d_cm"] for r in ft])
+            ),
         }
 
     verdict = {
         "verdict_keys": {
-            "G-E1": (completion["completion"] is not None
-                     and completion["completion"] >= COMPLETION_BAR),
+            "G-E1": (
+                completion["completion"] is not None
+                and completion["completion"] >= COMPLETION_BAR
+            ),
             "G-E2": quality_pass,
-            "G-E3": (eddy_verdict["no_class_regression"]
-                     if eddy_verdict else None),
+            "G-E3": (eddy_verdict["no_class_regression"] if eddy_verdict else None),
         },
         "tolerances": {
             "flattop_lcfs_med_cm": FLATTOP_LCFS_TOL_CM,
@@ -1111,6 +1562,7 @@ def aggregate_verdicts() -> dict:
         "per_class_quality": quality,
         "eddy_ablation": eddy_verdict,
         "basin_ablation": basin_verdict,
+        "production_spine": spine_verdict,
         "baseline_comparison": baseline_cmp,
     }
     VERDICT_ARTIFACT.write_text(json.dumps(verdict, indent=2, default=float))
@@ -1126,28 +1578,36 @@ def _aggregate_figures(verdict: dict, arms: dict) -> None:
     import matplotlib.pyplot as plt  # noqa: PLC0415
 
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
-    classes = [c for c in ALL_CLASSES
-               if verdict["class_phase_table"][c]["n"] > 0]
+    classes = [c for c in ALL_CLASSES if verdict["class_phase_table"][c]["n"] > 0]
     x = np.arange(len(classes))
 
     # ---- full engine vs bare-initialiser baseline (paired, same slices) ----
     cmp_ = verdict.get("baseline_comparison") or {}
     if cmp_:
         fig, ax = plt.subplots(figsize=(7.2, 4.2))
-        bare = [cmp_.get(c, {}).get("bare_shape_med_cm", np.nan)
-                for c in classes]
-        full_ft = [cmp_.get(c, {}).get("full_shape_med_cm", np.nan)
-                   for c in classes]
-        ax.bar(x - 0.2, bare, width=0.38, color="#c66",
-               label="bare disc-read seed (paired, same slices)")
-        ax.bar(x + 0.2, full_ft, width=0.38, color="#268",
-               label="four-pass engine")
-        ax.axhline(FLATTOP_LCFS_TOL_CM, color="k", ls="--", lw=0.9,
-                   label=f"pre-declared tolerance {FLATTOP_LCFS_TOL_CM} cm")
+        bare = [cmp_.get(c, {}).get("bare_shape_med_cm", np.nan) for c in classes]
+        full_ft = [cmp_.get(c, {}).get("full_shape_med_cm", np.nan) for c in classes]
+        ax.bar(
+            x - 0.2,
+            bare,
+            width=0.38,
+            color="#c66",
+            label="bare disc-read seed (paired, same slices)",
+        )
+        ax.bar(x + 0.2, full_ft, width=0.38, color="#268", label="four-pass engine")
+        ax.axhline(
+            FLATTOP_LCFS_TOL_CM,
+            color="k",
+            ls="--",
+            lw=0.9,
+            label=f"pre-declared tolerance {FLATTOP_LCFS_TOL_CM} cm",
+        )
         ax.set_xticks(x, classes, fontsize=8, rotation=12)
         ax.set_ylabel("flat-top median boundary-shape residual [cm]")
-        ax.set_title("own-axis boundary shape, engine vs its disc seed — "
-                     "paired per slice", fontsize=9)
+        ax.set_title(
+            "own-axis boundary shape, engine vs its disc seed — paired per slice",
+            fontsize=9,
+        )
         ax.legend(fontsize=7)
         fig.tight_layout()
         fig.savefig(FIGURE_DIR / "fig-full-engine-vs-baseline.png", dpi=130)
@@ -1156,19 +1616,29 @@ def _aggregate_figures(verdict: dict, arms: dict) -> None:
     # ---- residual frames: shape vs placement vs axis (flat-top) ----
     fig, ax = plt.subplots(figsize=(7.2, 4.2))
     for off, field, col, lab in (
-            (-0.27, "shape_dmed_cm", "#268", "boundary shape (own-axis)"),
-            (0.0, "radii_dmed_cm", "#89b", "boundary placement (engine-frame)"),
-            (0.27, "axis_d_cm", "#c66", "axis distance")):
-        med = [verdict["class_phase_table"][c]["flattop"][field]["med"]
-               or np.nan for c in classes]
+        (-0.27, "shape_dmed_cm", "#268", "boundary shape (own-axis)"),
+        (0.0, "radii_dmed_cm", "#89b", "boundary placement (engine-frame)"),
+        (0.27, "axis_d_cm", "#c66", "axis distance"),
+    ):
+        med = [
+            verdict["class_phase_table"][c]["flattop"][field]["med"] or np.nan
+            for c in classes
+        ]
         ax.bar(x + off, med, width=0.25, color=col, label=lab)
-    ax.axhline(FLATTOP_LCFS_TOL_CM, color="k", ls="--", lw=0.9,
-               label=f"shape tolerance {FLATTOP_LCFS_TOL_CM} cm")
+    ax.axhline(
+        FLATTOP_LCFS_TOL_CM,
+        color="k",
+        ls="--",
+        lw=0.9,
+        label=f"shape tolerance {FLATTOP_LCFS_TOL_CM} cm",
+    )
     ax.set_xticks(x, classes, fontsize=8, rotation=12)
     ax.set_ylabel("flat-top median vs EFIT [cm]")
-    ax.set_title("boundary shape vs placement vs axis — the placement "
-                 "residual tracks the axis error, the shape does not",
-                 fontsize=9)
+    ax.set_title(
+        "boundary shape vs placement vs axis — the placement "
+        "residual tracks the axis error, the shape does not",
+        fontsize=9,
+    )
     ax.legend(fontsize=7)
     fig.tight_layout()
     fig.savefig(FIGURE_DIR / "fig-shape-vs-placement.png", dpi=130)
@@ -1177,12 +1647,23 @@ def _aggregate_figures(verdict: dict, arms: dict) -> None:
     # ---- campaign-band split (flat-top, shape metric) ----
     fig, ax = plt.subplots(figsize=(7.2, 4.2))
     for off, band, col, lab in (
-            (-0.2, "flattop_validated_band", "#268",
-             f"validated-era shots (≤{VALIDATED_BAND_MAX_SHOT})"),
-            (0.2, "flattop_late_band", "#e90",
-             f"later campaigns (>{VALIDATED_BAND_MAX_SHOT})")):
-        med = [verdict["class_phase_table"][c][band]["shape_dmed_cm"]["med"]
-               or np.nan for c in classes]
+        (
+            -0.2,
+            "flattop_validated_band",
+            "#268",
+            f"validated-era shots (≤{VALIDATED_BAND_MAX_SHOT})",
+        ),
+        (
+            0.2,
+            "flattop_late_band",
+            "#e90",
+            f"later campaigns (>{VALIDATED_BAND_MAX_SHOT})",
+        ),
+    ):
+        med = [
+            verdict["class_phase_table"][c][band]["shape_dmed_cm"]["med"] or np.nan
+            for c in classes
+        ]
         n = [verdict["class_phase_table"][c][band]["n"] for c in classes]
         ax.bar(x + off, med, width=0.38, color=col, label=lab)
         for xi, (m, ni) in zip(x + off, zip(med, n, strict=True), strict=True):
@@ -1191,8 +1672,11 @@ def _aggregate_figures(verdict: dict, arms: dict) -> None:
     ax.axhline(FLATTOP_LCFS_TOL_CM, color="k", ls="--", lw=0.9)
     ax.set_xticks(x, classes, fontsize=8, rotation=12)
     ax.set_ylabel("flat-top median boundary-shape residual [cm]")
-    ax.set_title("campaign-band split — per-class draws mix the bands "
-                 "differently, so the bands are reported apart", fontsize=9)
+    ax.set_title(
+        "campaign-band split — per-class draws mix the bands "
+        "differently, so the bands are reported apart",
+        fontsize=9,
+    )
     ax.legend(fontsize=7)
     fig.tight_layout()
     fig.savefig(FIGURE_DIR / "fig-campaign-band-split.png", dpi=130)
@@ -1201,8 +1685,10 @@ def _aggregate_figures(verdict: dict, arms: dict) -> None:
     # ---- phase split ----
     fig, ax = plt.subplots(figsize=(7.2, 4.2))
     for off, phase, col in ((-0.2, "flattop", "#268"), (0.2, "ramp", "#e90")):
-        med = [verdict["class_phase_table"][c][phase]["shape_dmed_cm"]["med"]
-               or np.nan for c in classes]
+        med = [
+            verdict["class_phase_table"][c][phase]["shape_dmed_cm"]["med"] or np.nan
+            for c in classes
+        ]
         n = [verdict["class_phase_table"][c][phase]["n"] for c in classes]
         ax.bar(x + off, med, width=0.38, color=col, label=phase)
         for xi, (m, ni) in zip(x + off, zip(med, n, strict=True), strict=True):
@@ -1211,8 +1697,7 @@ def _aggregate_figures(verdict: dict, arms: dict) -> None:
     ax.axhline(FLATTOP_LCFS_TOL_CM, color="k", ls="--", lw=0.9)
     ax.set_xticks(x, classes, fontsize=8, rotation=12)
     ax.set_ylabel("median boundary-shape residual [cm]")
-    ax.set_title(f"four-pass engine per phase (ramp = t < {RAMP_END_S} s)",
-                 fontsize=9)
+    ax.set_title(f"four-pass engine per phase (ramp = t < {RAMP_END_S} s)", fontsize=9)
     ax.legend(fontsize=7)
     fig.tight_layout()
     fig.savefig(FIGURE_DIR / "fig-full-engine-phase.png", dpi=130)
@@ -1222,19 +1707,30 @@ def _aggregate_figures(verdict: dict, arms: dict) -> None:
     ev = verdict.get("eddy_ablation")
     if ev:
         fig, ax = plt.subplots(figsize=(7.2, 4.2))
-        for off, key, col in ((-0.2, "ramp_delta_vs_plain_cm", "#e90"),
-                              (0.2, "flattop_delta_vs_plain_cm", "#268")):
-            d = [ev[key][c]["delta_med_cm"] if ev[key][c]["delta_med_cm"]
-                 is not None else np.nan for c in classes]
-            ax.bar(x + off, d, width=0.38, color=col,
-                   label=key.split("_")[0])
+        for off, key, col in (
+            (-0.2, "ramp_delta_vs_plain_cm", "#e90"),
+            (0.2, "flattop_delta_vs_plain_cm", "#268"),
+        ):
+            d = [
+                ev[key][c]["delta_med_cm"]
+                if ev[key][c]["delta_med_cm"] is not None
+                else np.nan
+                for c in classes
+            ]
+            ax.bar(x + off, d, width=0.38, color=col, label=key.split("_")[0])
         ax.axhline(0, color="k", lw=0.8)
-        ax.axhline(EDDY_REGRESSION_BAND_CM, color="#c66", ls="--", lw=0.9,
-                   label="regression band")
+        ax.axhline(
+            EDDY_REGRESSION_BAND_CM,
+            color="#c66",
+            ls="--",
+            lw=0.9,
+            label="regression band",
+        )
         ax.set_xticks(x, classes, fontsize=8, rotation=12)
         ax.set_ylabel("Δ median shape residual (eddy − plain) [cm]")
-        ax.set_title("vessel-eddy known-drive ablation (negative = eddy helps)",
-                     fontsize=9)
+        ax.set_title(
+            "vessel-eddy known-drive ablation (negative = eddy helps)", fontsize=9
+        )
         ax.legend(fontsize=7)
         fig.tight_layout()
         fig.savefig(FIGURE_DIR / "fig-eddy-ablation.png", dpi=130)
@@ -1244,14 +1740,27 @@ def _aggregate_figures(verdict: dict, arms: dict) -> None:
     bv = verdict.get("basin_ablation")
     if bv:
         fig, ax = plt.subplots(figsize=(7.2, 4.2))
-        full_ft = [verdict["class_phase_table"][c]["flattop"]
-                   ["shape_dmed_cm"]["med"] or np.nan for c in classes]
-        nb_ft = [bv["table"][c]["flattop"]["shape_dmed_cm"]["med"] or np.nan
-                 for c in classes]
-        ax.bar(x - 0.2, full_ft, width=0.38, color="#268",
-               label="two-pass (basin + profile)")
-        ax.bar(x + 0.2, nb_ft, width=0.38, color="#9b6",
-               label="profile-only (disc cold start)")
+        full_ft = [
+            verdict["class_phase_table"][c]["flattop"]["shape_dmed_cm"]["med"] or np.nan
+            for c in classes
+        ]
+        nb_ft = [
+            bv["table"][c]["flattop"]["shape_dmed_cm"]["med"] or np.nan for c in classes
+        ]
+        ax.bar(
+            x - 0.2,
+            full_ft,
+            width=0.38,
+            color="#268",
+            label="two-pass (basin + profile)",
+        )
+        ax.bar(
+            x + 0.2,
+            nb_ft,
+            width=0.38,
+            color="#9b6",
+            label="profile-only (disc cold start)",
+        )
         ax.axhline(FLATTOP_LCFS_TOL_CM, color="k", ls="--", lw=0.9)
         ax.set_xticks(x, classes, fontsize=8, rotation=12)
         ax.set_ylabel("flat-top median boundary-shape residual [cm]")
@@ -1259,6 +1768,119 @@ def _aggregate_figures(verdict: dict, arms: dict) -> None:
         ax.legend(fontsize=7)
         fig.tight_layout()
         fig.savefig(FIGURE_DIR / "fig-basin-ablation.png", dpi=130)
+        plt.close(fig)
+
+    # ---- production spine vs gate chain vs bare seed (flat-top) ----
+    sv = verdict.get("production_spine")
+    if sv:
+        fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.2))
+        sp_bare = [
+            (
+                float(
+                    np.median(
+                        [
+                            r["bare_shape_dmed_cm"]
+                            for r in arms["spine"]["rows"]
+                            if r["cls"] == c
+                            and r["phase"] == "flattop"
+                            and np.isfinite(r.get("bare_shape_dmed_cm", float("nan")))
+                        ]
+                    )
+                )
+                if any(
+                    r["cls"] == c
+                    and r["phase"] == "flattop"
+                    and np.isfinite(r.get("bare_shape_dmed_cm", float("nan")))
+                    for r in arms["spine"]["rows"]
+                )
+                else np.nan
+            )
+            for c in classes
+        ]
+        for ax, field, ylab in (
+            (axes[0], "shape_dmed_cm", "flat-top median boundary-shape residual [cm]"),
+            (axes[1], "axis_d_cm", "flat-top median axis distance [cm]"),
+        ):
+            spine_med = [
+                sv["table"][c]["flattop"][field]["med"] or np.nan for c in classes
+            ]
+            chain_med = [
+                verdict["class_phase_table"][c]["flattop"][field]["med"] or np.nan
+                for c in classes
+            ]
+            if field == "shape_dmed_cm":
+                ax.bar(
+                    x - 0.27,
+                    sp_bare,
+                    width=0.25,
+                    color="#c66",
+                    label="bare disc-read seed (paired)",
+                )
+            ax.bar(
+                x + (0.0 if field == "shape_dmed_cm" else -0.14),
+                spine_med,
+                width=0.25,
+                color="#7a4",
+                label="production spine (label config)",
+            )
+            ax.bar(
+                x + (0.27 if field == "shape_dmed_cm" else 0.14),
+                chain_med,
+                width=0.25,
+                color="#268",
+                label="gate chain (centroid pin + diffusion prior)",
+            )
+            if field == "shape_dmed_cm":
+                ax.axhline(
+                    FLATTOP_LCFS_TOL_CM,
+                    color="k",
+                    ls="--",
+                    lw=0.9,
+                    label=f"tolerance {FLATTOP_LCFS_TOL_CM} cm",
+                )
+            ax.set_xticks(x, classes, fontsize=8, rotation=12)
+            ax.set_ylabel(ylab)
+            ax.legend(fontsize=7)
+        fig.suptitle(
+            "production label-spine vs gate chain on the census "
+            "(flat-top medians per class)",
+            fontsize=10,
+        )
+        fig.tight_layout()
+        fig.savefig(FIGURE_DIR / "fig-production-spine-vs-chain.png", dpi=130)
+        plt.close(fig)
+
+        # campaign-band split for the spine arm alone
+        fig, ax = plt.subplots(figsize=(7.2, 4.2))
+        for off, band, col, lab in (
+            (
+                -0.2,
+                "flattop_validated_band",
+                "#7a4",
+                f"validated-era shots (≤{VALIDATED_BAND_MAX_SHOT})",
+            ),
+            (
+                0.2,
+                "flattop_late_band",
+                "#e90",
+                f"later campaigns (>{VALIDATED_BAND_MAX_SHOT})",
+            ),
+        ):
+            med = [
+                sv["table"][c][band]["shape_dmed_cm"]["med"] or np.nan for c in classes
+            ]
+            n = [sv["table"][c][band]["n"] for c in classes]
+            ax.bar(x + off, med, width=0.38, color=col, label=lab)
+            for xi, (m, ni) in zip(x + off, zip(med, n, strict=True), strict=True):
+                if np.isfinite(m):
+                    ax.text(xi, m, f"n={ni}", ha="center", va="bottom", fontsize=6)
+        ax.axhline(FLATTOP_LCFS_TOL_CM, color="k", ls="--", lw=0.9)
+        ax.set_xticks(x, classes, fontsize=8, rotation=12)
+        ax.set_ylabel("flat-top median boundary-shape residual [cm]")
+        ax.set_title("production spine, campaign-band split", fontsize=9)
+        ax.legend(fontsize=7)
+        fig.tight_layout()
+        fig.savefig(FIGURE_DIR / "fig-production-spine-band-split.png", dpi=130)
         plt.close(fig)
     logger.info("figures -> %s", FIGURE_DIR)
 
@@ -1279,13 +1901,17 @@ def main() -> None:
     ap.add_argument("--nr", type=int, default=65)
     ap.add_argument("--nz", type=int, default=97)
     ap.add_argument("--chain", choices=("bare", "full"), default="full")
-    ap.add_argument("--arm", choices=("plain", "nobasin", "eddy"),
-                    default="plain")
+    ap.add_argument(
+        "--arm", choices=("plain", "nobasin", "eddy", "spine"), default="plain"
+    )
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--classes", nargs="*", default=None)
     ap.add_argument("--per-class", type=int, default=None, help="cap shots per class")
-    ap.add_argument("--aggregate", action="store_true",
-                    help="fold arm artifacts into gate verdicts + figures")
+    ap.add_argument(
+        "--aggregate",
+        action="store_true",
+        help="fold arm artifacts into gate verdicts + figures",
+    )
     args = ap.parse_args()
 
     if args.aggregate:
@@ -1297,10 +1923,14 @@ def main() -> None:
         sel = stratified_selection(census_rows)
         ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
         config = {
-            "sigma_m": CHAIN_SIGMA_M, "prior_weight": CHAIN_PRIOR_WEIGHT,
-            "n_sub": CHAIN_N_SUB, "n_rho": CHAIN_N_RHO,
-            "max_slices": CHAIN_MAX_SLICES, "min_ip_ka": CHAIN_MIN_IP_KA,
-            "eddy_weight": EDDY_KNOWN_DRIVE_WEIGHT, "eddy_n_modes": EDDY_N_MODES,
+            "sigma_m": CHAIN_SIGMA_M,
+            "prior_weight": CHAIN_PRIOR_WEIGHT,
+            "n_sub": CHAIN_N_SUB,
+            "n_rho": CHAIN_N_RHO,
+            "max_slices": CHAIN_MAX_SLICES,
+            "min_ip_ka": CHAIN_MIN_IP_KA,
+            "eddy_weight": EDDY_KNOWN_DRIVE_WEIGHT,
+            "eddy_n_modes": EDDY_N_MODES,
         }
         for cname, recs in sel.items():
             if args.classes and cname not in args.classes:
@@ -1313,26 +1943,37 @@ def main() -> None:
             out = args.out or _full_class_artifact(args.arm, cname)
             ckpt = out.with_name(out.stem + "_checkpoint.json")
             res = run_full_chain_class(
-                cname, shots, census_rows, nr=args.nr, nz=args.nz,
-                arm=args.arm, workers=args.workers, checkpoint=ckpt)
+                cname,
+                shots,
+                census_rows,
+                nr=args.nr,
+                nz=args.nz,
+                arm=args.arm,
+                workers=args.workers,
+                checkpoint=ckpt,
+            )
             rows_d = _dedup_rows(res["rows"])
             artifact = {
-                "chain": "full", "arm": args.arm, "class": cname,
+                "chain": "full",
+                "arm": args.arm,
+                "class": cname,
                 "config": config,
-                "n_shots": len(shots), "n_rows": len(rows_d),
+                "n_shots": len(shots),
+                "n_rows": len(rows_d),
                 "class_phase_table": _class_phase_table(rows_d),
                 "completion": _completion(rows_d, res["drops"]),
-                "rows": res["rows"], "drops": res["drops"],
+                "rows": res["rows"],
+                "drops": res["drops"],
             }
             out.write_text(json.dumps(artifact, indent=1, default=float))
-            logger.info("%s/%s -> %s (%d rows)",
-                        args.arm, cname, out, len(rows_d))
+            logger.info("%s/%s -> %s (%d rows)", args.arm, cname, out, len(rows_d))
         return
 
     rows = np.load(args.census)["rows"]
     sel = stratified_selection(rows)
     out = args.out or Path(
-        "imas_ambix/latent/artifacts/patch_gate/topology_engine_crossval-v0.json")
+        "imas_ambix/latent/artifacts/patch_gate/topology_engine_crossval-v0.json"
+    )
     args.out = out
     results, verdicts = {}, {}
     for cname, recs in sel.items():
