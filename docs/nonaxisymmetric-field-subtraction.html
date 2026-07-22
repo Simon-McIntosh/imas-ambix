@@ -132,6 +132,24 @@ This cleanly separates the two RMP effects: the scorecard's 30–50 % loop-gain
 collapse comes from the coils being <em>installed</em> (layer A, passive), not
 <em>energised</em> (layer B).</p>
 
+<p><strong>Probes and saddles DO respond to energised in-vessel coils —
+measured.</strong> The same vacuum-IVC shots, refit jointly on PF + IVC drive
+terms (ΔR² = the variance the IVC terms actually explain — robust to
+collinearity inflation): saddle sensors ΔR² = 0.18–0.32 (up to a third of
+their total variance is energised CC-coil field; amplitudes to 12.7 σ), obv
+probes ΔR² = 0.063–0.065 (to 5.6 σ on obv09/obv11 via
+<code>error_field_05</code>), obr/ccbv 0.002–0.011, healthy full loops
+0.0007–0.007. The control shot (25836, error-field not driven) drops every
+family to noise. The measured exposure ladder — saddles ≫ obv &gt; obr/ccbv
+&gt; loops ≈ 0 — is exactly the ordering the 3D geometry predicts: both halves
+of the validation (zero where zero, nonzero where nonzero) now exist
+empirically. Since the error-field coils are energised in essentially every
+shot, this probe contamination sits in every reconstruction today, unmodelled;
+and because the scorecard's vacuum fits did not carry EF-current regressors,
+part of the probe-family era drift (obr10, the strongest EF responder, was a
+flagged drifter) may be EF-usage aliasing — adding EF nuisance columns to the
+scorecard is a cheap immediate hardening, queued in D4.</p>
+
 <p><strong>Flux-loop drift question (answered).</strong> Loops and probes do
 <em>not</em> suffer the same problem: the degradation is a property of
 <em>location</em> (proximity to the new conductors), not of the sensing
@@ -254,7 +272,11 @@ predicted on the three plasma-free seams: the 864 dedicated-vacuum candidates
 (<code>ivc_vacuum_candidates.json</code>; the 27394–27560 M8 series steps
 several coils individually), the always-on error-field pre-breakdown windows
 (corpus-wide), and post-disruption tails (quench + vessel-decay gating, ELM
-Rogowski still swinging — prototype detector exists). By-product: with the
+Rogowski still swinging — prototype detector exists). Quick first rung
+(pre-geometry): add the <code>error_field_02/05</code> currents as nuisance
+regressors to the era scorecard and re-run — this both de-aliases the
+probe-family drift estimates and yields empirical per-sensor EF response
+columns to validate the D2 geometry against. By-product: with the
 toroidally-localised fields validated, re-run the Hole et al. signed assignment
 on these intervals — the archive's route from the degenerate C≈0.03 to the
 paper's C&gt;0.97 sensor-identity audit (connectivity-topology-reader

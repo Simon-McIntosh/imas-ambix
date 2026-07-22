@@ -1,16 +1,25 @@
 #!/usr/bin/env python
-"""Empirical flux-loop immunity test on vacuum shots with in-vessel coils live.
+"""Empirical sensor exposure ladder on vacuum shots with in-vessel coils live.
 
 Full toroidal flux loops should reject n!=0 energised fields exactly (the
 toroidal line integral of an n!=0 field vanishes), while toroidally-partial
-sensors (pickup probes, saddle loops) see them fully.  This checks the loop
-side empirically: on dedicated-vacuum shots where the error-field correction
-coils, ELM/RMP coils and horseshoe coils are driven, fit each ``fl_*`` loop on
-the PF currents and measure how much of the residual is coherent with the IVC
-drive channels.  Immunity holds when the IVC-coherent residual is a negligible
-fraction of the signal.
+sensors (pickup probes, saddle loops) see them fully.  Two tests on the
+dedicated-vacuum shots where the error-field correction coils, ELM/RMP coils
+and horseshoe coils are driven:
 
-Firewall: raw L1 amb/amc/xma only — no EFIT, no inversion.
+1. LOOP IMMUNITY — fit each ``fl_*`` loop on the PF currents alone; the
+   IVC-coherent fraction of the residual bounds any energised coupling.
+2. EXPOSURE LADDER — for every sensor family (loops, ccbv/obr/obv probes,
+   sad_out saddle sensors), joint LSQ on PF + IVC drives; report the variance
+   the IVC terms actually explain (delta-R2, robust to collinearity) and the
+   strongest IVC term's amplitude in units of the sensor's signal std.
+
+Measured verdict (2026-07-22): saddles dR2 0.18-0.32 >> obv 0.063-0.065 >
+obr/ccbv 0.002-0.011 > healthy loops 0.0007-0.007 — exactly the exposure
+ordering the 3D coil/sensor geometry predicts, with a no-drive control shot
+dropping every family to noise.
+
+Firewall: raw L1 amb/amc/xmb/xma only — no EFIT, no inversion.
 """
 
 from __future__ import annotations
@@ -108,6 +117,82 @@ def check_shot(shot: int) -> list[dict]:
     return out
 
 
+#: sensor families for the exposure ladder: (zarr group, channel prefix)
+FAMILIES = {
+    "full_loops": ("amb", "fl_"),
+    "ccbv_probes": ("amb", "ccbv"),
+    "obr_probes": ("amb", "obr"),
+    "obv_probes": ("amb", "obv"),
+    "saddle_sensors": ("xmb", "sad_out"),
+}
+
+
+def exposure_ladder(shot: int) -> dict:
+    """Joint PF+IVC fit per sensor; per-family delta-R2 and peak IVC amplitude."""
+    g = zarr.open_group(str(LEVEL1_DIR / f"{shot}.zarr"), mode="r")
+    t = _grp_time(g, "amc")
+
+    def on_grid(grp, k):
+        gt = _grp_time(g, grp)
+        try:
+            a = np.asarray(g[grp][k], float)
+            if gt is None or a.shape != gt.shape:
+                return None
+            return np.interp(t, gt, a)
+        except Exception:  # noqa: BLE001
+            return None
+
+    pf_cols = [v for k in PF if (v := on_grid("amc", k)) is not None
+               and np.nanstd(v) > 0]
+    ivc_cols, ivc_names = [], []
+    for grp, keys in (("amc", IVC_AMC), ("xma", IVC_XMA)):
+        for k in keys:
+            v = on_grid(grp, k)
+            if v is not None and np.nanstd(v) > 1e-6:
+                ivc_cols.append(v)
+                ivc_names.append(k)
+    x_pf = np.column_stack(pf_cols + [np.ones_like(t)])
+    x_all = np.column_stack(pf_cols + ivc_cols + [np.ones_like(t)])
+    n_pf = len(pf_cols)
+
+    fam_out: dict[str, dict] = {}
+    for fam, (grp, pref) in FAMILIES.items():
+        if grp not in g:
+            continue
+        rows = []
+        for k in sorted(g[grp].array_keys()):
+            if not k.startswith(pref):
+                continue
+            y = on_grid(grp, k)
+            if y is None or np.nanstd(y) == 0:
+                continue
+            good = np.isfinite(y) & np.all(np.isfinite(x_all), axis=1)
+            if good.sum() < 300:
+                continue
+            sig = float(np.std(y[good]))
+            b0, *_ = np.linalg.lstsq(x_pf[good], y[good], rcond=None)
+            r0 = y[good] - x_pf[good] @ b0
+            b1, *_ = np.linalg.lstsq(x_all[good], y[good], rcond=None)
+            r1 = y[good] - x_all[good] @ b1
+            dr2 = float((np.var(r0) - np.var(r1)) / np.var(y[good]))
+            amp, aname = 0.0, ""
+            for j, nm in enumerate(ivc_names):
+                a = abs(b1[n_pf + j]) * float(np.std(ivc_cols[j][good])) / (sig + 1e-30)
+                if a > amp:
+                    amp, aname = a, nm
+            rows.append({"sensor": k, "delta_r2": dr2,
+                         "ivc_amp_over_sigma": amp, "strongest_drive": aname})
+        if rows:
+            dr2s = np.array([r["delta_r2"] for r in rows])
+            fam_out[fam] = {
+                "n": len(rows),
+                "delta_r2_median": float(np.median(dr2s)),
+                "delta_r2_max": float(dr2s.max()),
+                "top": sorted(rows, key=lambda r: -r["delta_r2"])[:4],
+            }
+    return fam_out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--shots", type=int, nargs="*", default=DEFAULT_SHOTS)
@@ -136,8 +221,14 @@ def main() -> int:
         "healthy_bound_p95": float(np.percentile(bounds, 95)),
         "healthy_bound_max": float(bounds.max()),
         "healthy_immune_at_2pct": bool(bounds.max() < 0.02),
+        "exposure_ladder": {},
         "rows": rows,
     }
+    for s in args.shots:
+        try:
+            verdict["exposure_ladder"][str(s)] = exposure_ladder(s)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("shot %s exposure ladder failed (%s)", s, exc)
     out = ARTIFACTS / "flux_loop_ivc_immunity.json"
     out.write_text(json.dumps(verdict, indent=2))
     logger.info(
