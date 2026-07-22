@@ -18,8 +18,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-22">
-<meta name="plan-version" content="5">
-<meta name="plan-impl" content="0.45">
+<meta name="plan-version" content="6">
+<meta name="plan-impl" content="0.5">
 </head>
 <body>
 <main class="plan-doc">
@@ -165,6 +165,39 @@
     <a href="archive/nonaxisymmetric-field-subtraction-gate-ga-landed.html">gate G-A adjudicated</a>.
     Next: implement the layer-C per-era bay-loop cross-calibration in D5
     (f-nfs-layerc), then hand the corrected layer to the census re-score (f-ctr-18).
+  </p>
+</section>
+
+<section class="section-landed" id="landed-slanted-shaping">
+  <header>
+    <span class="badge badge-shipped">✓ landed 2026-07-22</span>
+    <h2>D3 slanted-passive shaping — 8 vessel/P2 parallelograms ingested; gate G-A reconstruction-neutral (f-psc-03)</h2>
+  </header>
+  <p class="landed-summary">
+    Consuming the shipped
+    <a href="/imas-ambix/polygonal-section-coil-fields.html">polygon kernel</a>,
+    the eight slanted MAST in-vessel passives (<code>botcol</code>/<code>topcol</code>
+    crowns + P2 arm/divertor plates) are now ingested as analytic
+    <code>PolygonSection</code>s keyed to their <code>inferred_passive</code>
+    circuits (<code>geometry.shaped_section_vertices</code> transcribes the
+    data-catalog shape-angle rule, verified to machine precision;
+    <code>mast_slanted_polygon_sections</code> matches each to its circuit
+    &lt;1&nbsp;mm), with the passive inductance path area-corrected
+    (<code>boundary_disc</code> + <code>temporal_operator</code>). The efm
+    <code>width/height</code> already store the true parallelogram area, so ring
+    resistance is <em>unchanged</em>; only the source-side field shape shifts —
+    <strong>0.3–7.5 % on 8 of 80 passive columns</strong> (largest for the tilted
+    crowns). Re-running gate G-A on the shaped geometry (430-shot coil-sweep
+    cohort) is <strong>reconstruction-neutral</strong>: bay eddy-variance-explained
+    <strong>3.9 %</strong>, gain 1.06→1.13 (not restored), <code>gate_pass=False</code>,
+    controls behave — so faithful shaping does <em>not</em> rescue the passive
+    hypothesis, and the bay-loop anomaly <strong>remains layer C</strong> (the
+    slanted elements are vessel crowns / P2, not the P4/P5-adjacent screening
+    path). <code>gs</code> 246 tests pass (+6 new); temporal 23/23. Commit
+    <code>fd67a21</code>. Full record:
+    <a href="archive/nonaxisymmetric-field-subtraction-slanted-passive-shaping-landed.html">D3 slanted-passive shaping landed</a>.
+    Next: layer-C per-era bay-loop cross-calibration (f-nfs-layerc); D2 era-keyed
+    3D geometry + absolute EFCC/probe calibration (f-nfs-d2).
   </p>
 </section>
 
@@ -785,9 +818,9 @@ Context
   case nor the vessel passive R reproduces the bay-loop deficit (vessel eddy
   explains ~9% of the bay-loop signal; scripts/passive_bay_loop_gate.py), so the
   bay-loop correction is LAYER C (per-era far-set cross-calibration), NOT a
-  passive subtraction. D3's passive model stays only for near-vessel probe eddy;
-  D2/D4's remaining value is the layer-B probe/saddle correction, not the bay
-  loops. So this followup's D3 gate-G-A sub-goal is closed; its live scope is D2
+  passive subtraction. D3&#x27;s passive model stays only for near-vessel probe eddy;
+  D2/D4&#x27;s remaining value is the layer-B probe/saddle correction, not the bay
+  loops. So this followup&#x27;s D3 gate-G-A sub-goal is closed; its live scope is D2
   geometry + D4 absolute EFCC/probe calibration.
 
 Deliverables (in order)
