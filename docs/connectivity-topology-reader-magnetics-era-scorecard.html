@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="doc">
+  <meta name="plan-slug" content="connectivity-topology-reader-magnetics-era-scorecard">
+  <meta name="plan-title" content="Per-era magnetics scorecard from vacuum shots — instrument characterisation, the pin/prior confound verdict, and the IMAS-DD pivot">
+  <meta name="plan-status" content="reference">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-informs" content="connectivity-topology-reader,mast-machine-configuration-map,interior-closure-hardening">
+  <meta name="plan-summary" content="Extends the single-era 48-shot vacuum coil-response audit corpus-wide and per campaign era (M5-M9). On coil-only intervals the measured magnetics are linear in the known coil currents with zero plasma DOF, so each channel is scored against the finite-area cylinder Green's model with no EFIT and no inversion. Because the geometry model is frozen per efm signature (one signature covers essentially the whole late archive), era-to-era differencing of the per-channel response cancels the common-mode coil-model error and isolates genuine instrument drift, wiring, and relocation. Resolves the pin/prior confound left open by the production-spine census (RCA s11).">
+  <title>Per-era magnetics scorecard — vacuum-shot instrument characterisation | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p><strong>Research findings</strong> for
+<a href="/imas-ambix/connectivity-topology-reader.html">connectivity-topology-reader</a>
+(followup <code>f-ctr-15</code>), resolving the pin/prior confound left open by the
+production-spine census
+(<a href="/imas-ambix/connectivity-topology-reader-engine-crossval-rca.html">engine-crossval RCA §11</a>).
+The census could not separate "the centroid pin is worse than the plain spine"
+from "the pin faithfully propagates a corrupted late-campaign magnetics datum" —
+the two are observationally identical on a plasma-inversion metric. This work
+characterises the instrument itself, per era, with no plasma and no EFIT, and
+routes the verdict.</p>
+
+<p><strong>Method guidance</strong> is taken from Hole, Pinches, Vayakis,
+McIntosh, Hoenen &amp; Paulo, <em>Disambiguation of magnetic sensors in ITER</em>
+(submitted to PPCF): a magnetic sensor's identity, ordering and polarity form a
+<em>signed assignment problem</em> solved by the Hungarian algorithm in
+O(N³), with a confidence metric <em>C = 1 − ε₁/ε₂</em> (best vs next-best
+assignment cost) that measures robustness independently of fit quality, and the
+key result that <em>multiple independent field realisations</em> break the
+sign/permutation degeneracy that a single field admits. We apply that framework
+directly to the MAST archive below.</p>
+
+<h2 id="tldr">TL;DR</h2>
+<figure>
+  <table>
+    <thead><tr><th>Question</th><th>Answer</th></tr></thead>
+    <tbody>
+      <tr><td>Is the late-band (&gt;23000) reconstruction drift attributable to a
+        degraded magnetics layer?</td>
+        <td data-fill="verdict"><strong>PARTIAL — YES, with a mechanism.</strong>
+        In the RMP eras 16 (M7) and 21 (M8) of 65 vacuum-scored channels drift
+        &gt;10 % from their M5 gain (12 drift &gt;25 % in M8; p90 drift 37 %). The
+        drift is <em>spatially coherent and localised to the P4/P5 flux loops</em>
+        (<code>fl_p4l/p5l/p5u</code>, gain 1.5→0.8–1.0, correlation 0.83–0.91) —
+        exactly where the 12→18 in-vessel RMP coils were installed. The pin's
+        centroid target is a linear moment of these same magnetics, so it
+        faithfully propagates this bias. Pin/prior retirement stays
+        <em>withheld</em>, but the fix is to model the RMP structure / correct
+        the flagged loops — not to retire the pin.</td></tr>
+      <tr><td>Can the sensor set be disambiguated (rewire / polarity / move)
+        from MAST vacuum shots by the Hole et al. method?</td>
+        <td data-fill="assignment"><strong>No — degenerate, as expected.</strong>
+        Median confidence <code>C</code> is 0.002–0.09 in every era (≪ the
+        paper's degenerate 0.15 second-wall case); 0 confident swaps, 0 polarity
+        flips. MAST archived vacuum shots energise only the <em>axisymmetric</em>
+        PF coils, whose fields are too poloidally-smooth to disambiguate the
+        sensor array. §7 identifies the seams that would fix this.</td></tr>
+      <tr><td>Where did the 103→74 channel erosion actually go?</td>
+        <td data-fill="completeness"><strong>Real archive loss, not masking.</strong>
+        Median archived amb columns fall 102 (M5) → 75 (M9); the geometry map
+        tracks it (95→73). The feature-schema-gated <em>measured</em> set holds
+        at 72 through M8 and drops to 65 only in M9. Geometry <em>unmatched</em>
+        (residual &gt;5 cm) actually falls 7→2 — dead channels leave the archive
+        entirely rather than being mis-mapped.</td></tr>
+      <tr><td>A new L1 data-layer finding?</td>
+        <td><strong>Yes.</strong> In the latest campaign (M9, &gt;28390) the
+        B-field pickup probes (<code>ccbv*/obr*/obv*</code>) carry <em>no data
+        in coil-only intervals</em> — only the flux loops do. The channels exist
+        in the archive but are populated plasma-on only, so vacuum
+        characterisation of the pickup probes is impossible in M9. M5–M8 (which
+        span the entire confound-critical band) retain full vacuum coverage.</td></tr>
+    </tbody>
+  </table>
+</figure>
+
+<h2 id="method">1 — Method: a plasma-free, EFIT-free, common-mode-cancelling scorecard</h2>
+<p>On a coil-only (vacuum) interval there is no plasma and no inversion; the
+measured magnetics are linear in the known coil currents,</p>
+<figure><p style="text-align:center">
+  <code>meas[s, t] = Σ<sub>c</sub> G[s, c] · I<sub>c</sub>[t]  (+ inductive eddy terms on ramps)</code>
+</p></figure>
+<p>so every sensor channel <em>s</em> is scored against the geometry-only
+finite-area cylinder Green's model <code>G_model = fwd.g_pf</code>
+(<code>cylinder-sensors-v5</code>), with no EFIT and no plasma inversion anywhere.
+Vacuum fits are leakage-free by construction, so all shots are pooled. Coil-only
+slices come from two sources: dedicated coil-only shots (plasma never forms) and
+the pre-breakdown / post-quench windows of plasma shots (|I<sub>p</sub>| below
+20 kA and the loader's plasma-on flag false).</p>
+
+<p><strong>The frozen model is the lever, not a liability.</strong> The geometry
+/ operator layer is frozen per <em>efm</em> signature — one signature covers
+essentially the entire late archive (12533–30473). So the <em>model</em>
+response is identical in every era. A per-channel affine fit
+<code>meas<sub>s</sub> ≈ gain<sub>s</sub>·pred<sub>s</sub> + offset<sub>s</sub></code>
+(robust, one 3σ clip; bootstrap over <em>shots</em>, the correlated unit)
+therefore carries a common-mode component (the coil model's own known errors,
+e.g. the 8.25 % solenoid scale) that is <em>the same in every era</em>.
+Differencing a channel's gain between eras <strong>cancels that common mode</strong>
+and isolates the genuine per-channel change:</p>
+<ul>
+  <li><code>gain ≠ 1</code> (per era) — effective-area / turns / calibration error;</li>
+  <li><code>gain &lt; 0</code> — a polarity (wiring) inversion;</li>
+  <li><code>offset ≠ 0</code> — integrator / baseline drift;</li>
+  <li><code>Δgain</code> across eras, CI-clear of zero — a genuine instrument
+    change (drift, rewire, or relocation) at that channel.</li>
+</ul>
+<p>The eras are the documented machine boundaries (M5 11695–14707,
+M6 14708–19030, M7 19031–25403 [12 in-vessel RMP coils], M8 25404–28389
+[RMP set 12→18], M9 28390–30473), i.e. the physical structure the ad-hoc
+<code>shot&nbsp;23000</code> split approximates.</p>
+
+<h2 id="coverage">2 — Corpus &amp; era coverage</h2>
+<figure>
+  <table>
+    <thead><tr><th>Era</th><th>Shot range</th><th>Vacuum-scored shots</th>
+      <th>Coil-only slices</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td>M5</td><td>11695–14707</td><td>50</td><td>57,440</td><td>baseline (pre-RMP)</td></tr>
+      <tr><td>M6</td><td>14708–19030</td><td>50</td><td>55,889</td><td>pre-RMP</td></tr>
+      <tr><td>M7</td><td>19031–25403</td><td>49</td><td>105,651</td><td>12 in-vessel RMP coils</td></tr>
+      <tr><td>M8</td><td>25404–28389</td><td>42</td><td>235,038</td><td>RMP set 12→18</td></tr>
+      <tr><td>M9</td><td>28390–30473</td><td>24</td><td>131,932</td><td>flux-loop-only vacuum data</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Coil-only coverage per era (50 shots/era cap; M8/M9 thinner as the
+  archive shrinks). All five eras are scored — the confound-critical band is
+  M7/M8.</figcaption>
+</figure>
+
+<h2 id="scorecard">3 — Per-(era, channel) gain / offset scorecard</h2>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-magnetics-scorecard-gain-heatmap-cylv5.png"
+       alt="Per-(era, channel) gain heatmap" style="max-width:100%">
+  <figcaption>Per-(era, channel) magnetics gain relative to the frozen model.
+  gain ≈ 1 (white) = model matches; departures are calibration / effective-area
+  error; sign changes are polarity inversions.</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-magnetics-scorecard-drift-heatmap-cylv5.png"
+       alt="Per-channel gain drift vs baseline era" style="max-width:100%">
+  <figcaption>Per-channel gain <em>drift</em> relative to era M5. The common-mode
+  coil-model error cancels in this difference, so the residual structure is
+  genuine per-channel instrument change.</figcaption>
+</figure>
+<figure>
+  <img src="/imas-ambix/figures/connectivity-topology-reader/fig-magnetics-scorecard-flags-cylv5.png"
+       alt="Flagged channels per era" style="max-width:100%">
+  <figcaption>Count of drift/sign-flagged channels and the median |Δgain| of the
+  flagged set, per era, relative to M5.</figcaption>
+</figure>
+<div data-fill="scorecard-prose">
+<p>Flag counts relative to M5 rise monotonically through the RMP eras: M6 = 1,
+M7 = 16, M8 = 21, M9 = 8 (M9 is flux-loop-only, §4). The dominant, most
+physically-telling signature is a <strong>coherent gain drop at the P4/P5 flux
+loops</strong> — the loops closest to the in-vessel RMP coil bay:</p>
+<figure>
+  <table>
+    <thead><tr><th>Channel</th><th>gain M5</th><th>gain M8</th><th>Δgain</th>
+      <th>post-fit corr</th><th>reading</th></tr></thead>
+    <tbody>
+      <tr><td><code>fl_p5l_4</code></td><td>1.52</td><td>0.77</td><td>−0.74</td><td>0.83</td><td>clean scalar gain drop</td></tr>
+      <tr><td><code>fl_p4l_1</code></td><td>1.53</td><td>0.83</td><td>−0.69</td><td>0.86</td><td>clean scalar gain drop</td></tr>
+      <tr><td><code>fl_p4l_4</code></td><td>1.43</td><td>0.79</td><td>−0.64</td><td>0.85</td><td>clean scalar gain drop</td></tr>
+      <tr><td><code>fl_p4u_4</code></td><td>1.39</td><td>0.80</td><td>−0.60</td><td>0.90</td><td>clean scalar gain drop</td></tr>
+      <tr><td><code>fl_p5u_1</code></td><td>1.48</td><td>1.00</td><td>−0.48</td><td>0.85</td><td>clean scalar gain drop</td></tr>
+      <tr><td><code>obv08</code></td><td>1.82</td><td>2.27</td><td>+0.45</td><td>0.53</td><td>structured (field-pattern change)</td></tr>
+      <tr><td><code>obv13</code></td><td>1.15</td><td>1.59</td><td>+0.44</td><td>0.46</td><td>structured (field-pattern change)</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Top M8 drift-flagged channels. The P4/P5 flux loops lose ~30–50 %
+  of their modelled vacuum response at high correlation (a clean gain change),
+  localised to the RMP-coil install region; a handful of outer B-probes
+  (<code>obv*</code>) show lower-correlation structured residuals (the field
+  pattern, not just amplitude, has changed). No channel shows a polarity flip.</figcaption>
+</figure>
+<p><strong>Mechanism.</strong> The absolute gains &gt; 1 are the common-mode
+coil-model error (shared by all eras, cancelled by differencing); the
+<em>drift</em> is the physics. Its coherence and P4/P5 localisation match the
+12→18 in-vessel RMP conductors installed between P4 and P5 — new hardware the
+frozen geometry model does not contain, which both perturbs the flux linked by
+the nearby loops and adds unmodelled eddy paths on ramps. This is a
+model/data-layer systematic, cleanly distinct from any plasma-physics effect.</p>
+</div>
+
+<h2 id="bprobe">4 — An L1 data-layer finding: late-campaign pickup probes have no vacuum data</h2>
+<p>The scorecard exposed a caution the L1/L2 structure of this archive imposes.
+In M9 (&gt;28390), the coil-only windows carry data for the <em>flux loops</em>
+(<code>fl_*</code>) only — every B-field pickup probe
+(<code>ccbv*/obr*/obv*</code>) is NaN across the vacuum interval, while the coil
+currents themselves are fully healthy. The channels are present in the archive
+(the completeness audit counts them), but the pickup probes are populated
+plasma-on only in the latest campaign. Two consequences:</p>
+<ul>
+  <li>Vacuum characterisation of the pickup probes is <strong>impossible in
+    M9</strong>; only flux loops can be scored there. This is a property of the
+    archived L1 signal, not of the method.</li>
+  <li>M5–M8 retain full pickup-probe vacuum coverage — and M5–M8 span the entire
+    confound-critical band (&gt;23000 is mid-M7 onward), so the pin/prior verdict
+    below rests on eras with complete sensor coverage.</li>
+</ul>
+
+<h2 id="completeness">5 — Channel-completeness audit: where the erosion goes</h2>
+<p>Three sequential gates erode the working sensor set: (1) an archived amb
+column must map to an <em>efm</em> geometry position within 5 cm (else it is
+<em>unmatched</em> and dropped); (2) the mapped channel must appear in the
+73-channel feature schema (else it is <em>never ingested</em>); (3) the channel
+must carry finite data in the shot. The audit diffs the archived L1 inventory
+against the mapped geometry set against the measured schema set, per era.</p>
+<figure>
+  <table>
+    <thead><tr><th>Era</th><th>archived amb</th><th>mapped (geometry)</th>
+      <th>measured (schema ∩)</th><th>unmatched (&gt;5 cm)</th></tr></thead>
+    <tbody>
+      <tr><td>M5</td><td>102</td><td>95</td><td>72</td><td>7</td></tr>
+      <tr><td>M6</td><td>101</td><td>94</td><td>72</td><td>7</td></tr>
+      <tr><td>M7</td><td>100</td><td>96</td><td>72</td><td>4</td></tr>
+      <tr><td>M8</td><td>85</td><td>83</td><td>72</td><td>2</td></tr>
+      <tr><td>M9</td><td>75</td><td>73</td><td>65</td><td>2</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Median per-shot channel bookkeeping per era. The 103→74 erosion is
+  a real loss of archived channels (102→75), not schema masking: the feature-set
+  <em>measured</em> count is stable at 72 through M8 and falls only in M9. The
+  <em>unmatched</em> (geometry-residual) count falls, confirming dead channels
+  leave the archive rather than mis-mapping.</figcaption>
+</figure>
+
+<h2 id="assignment">6 — Sensor disambiguation by signed assignment (Hole et al.)</h2>
+<p>We apply the paper's framework to detect rewiring and polarity. For each era,
+each channel's empirical response vector <code>r<sub>s</sub></code> across the
+identifiable independent fields is matched against the Green's columns
+<code>f<sub>p</sub></code> of <em>every</em> catalogued sensor position by a
+signed assignment (Hungarian / <code>scipy.linear_sum_assignment</code>), with
+per-row confidence <code>C = 1 − ε₁/ε₂</code>. The independent fields are the
+separable singleton coils plus the summed field of each series-coupled PF pair
+(the strong, spatially-structured drivers). A best-fit at a <em>different</em>
+catalogued position is a rewire/swap candidate; a sign inversion is a polarity
+candidate; <code>C</code> reports whether the call is robust or degenerate.</p>
+
+<p><strong>Validation against the paper.</strong> The implementation reproduces
+Hole et al.'s synthetic tests exactly: a single degenerate coil
+<code>cos(πk/N)</code> gives 0/20 recovered with <code>C ≈ 0</code> (their
+Fig 7), three independent coils give 100 % recovery with <code>C ≈ 1</code>
+(Fig 8), and correct sorting holds down to a signal-to-noise ratio 1/η ≈ 20
+(Fig 9).</p>
+
+<div data-fill="assignment-prose">
+<p><strong>MAST result: uniformly degenerate.</strong> Across every era the
+median confidence is 0.002–0.09 — far below the paper's already-degenerate
+second-wall case (<code>C &gt; 0.15</code>) — with <em>zero</em> confident swaps
+and <em>zero</em> polarity flips. The assignment is not wrong so much as
+uninformative: the axisymmetric PF fields give sensors at similar poloidal
+angles near-identical response vectors, so identity cannot be pinned. (M9
+degrades further to a 73-channel drop-out, the flux-loop-only regime of §4.)
+This is a clean <em>negative</em> result: the drift scorecard, not the
+signed-assignment, is the workable instrument on the archive as it stands.</p>
+</div>
+
+<p><strong>Why this is the expected regime.</strong> The paper's high-confidence
+ITER result (<code>C &gt; 0.97</code>) comes from <em>toroidally localised</em>
+active coils (the RMP/correction coils) that give each sensor a spatially
+distinct signature. MAST archived vacuum commissioning energises only the
+<em>axisymmetric</em> PF coils, whose fields are toroidally uniform and
+poloidally smooth, so many sensors at similar poloidal angles have near-identical
+response vectors — the paper's degenerate second-wall regime
+(<code>C &gt; 0.15</code>), or worse. The recommendation follows the paper's own:
+dedicated vacuum discharges energising toroidally asymmetric coils would make the
+MAST-U / ITER sensor set disambiguable; from the MAST archive as it stands, the
+per-channel gain-drift scorecard is the workable instrument.</p>
+
+<h2 id="ivc-seams">7 — Where the disambiguating signal actually lives: three seams for energised in-vessel coils</h2>
+<p>§6 established that MAST's <em>axisymmetric-PF-only</em> vacuum shots cannot
+disambiguate the sensor set — the field realisations are too degenerate. The fix
+the paper points to is toroidally-localised active coils. MAST has them (the
+in-vessel RMP/ELM coils, the outer saddle coils, and the n=2/n=5 error-field
+correction coils), and their currents <em>are</em> archived
+(<code>xma/rog_elm_*</code> ELM/RMP Rogowskis, <code>xmb/sad_out_*</code> outer
+saddle, <code>xmb/halo_elm_*</code>, <code>xma/hsc*</code> horseshoe,
+<code>amc/error_field_02</code>/<code>_05</code>). The question is whether any
+interval has them energised <em>without</em> a confounding plasma or vessel-eddy
+field. Three seams exist:</p>
+<ol>
+  <li><strong>Dedicated vacuum shots</strong> (peak |I<sub>p</sub>| &lt; 50 kA,
+    plasma never forms) with the in-vessel coils pulsed — the whole record is a
+    clean plasma-less interval, exactly the paper's plasma-less commissioning
+    strategy.</li>
+  <li><strong>Pre-breakdown windows</strong> where the n=2/n=5 error-field
+    correction coils (toroidally asymmetric) are already energised. Confirmed
+    present in ordinary shots — <code>error_field_02/05</code> peak inside the
+    |I<sub>p</sub>| &lt; 20 kA vacuum window.</li>
+  <li><strong>Post-disruption tails</strong> — after the current quench and
+    several vessel-current decay times, the plasma is gone and the passive eddy
+    currents have decayed, but the ELM coils can still be powered and swinging.
+    The ELM Rogowski's activity in the eddy-decayed tail, above its pre-shot
+    baseline, flags it. A prototype confirms the seam (e.g. shot 24000: tail
+    ELM-Rogowski activity ≈ 1.7× baseline, versus ≈ 0.3× on non-ringing shots),
+    with the vessel decay gauged from the post-quench fall of the passive
+    case-current channels.</li>
+</ol>
+<div data-fill="ivc-seams">
+<p><strong>The seams are abundant.</strong> A sweep of all 9,802 RMP-era L1 shots
+(8,967 readable) found <strong>2,074 dedicated-vacuum shots</strong>
+(peak |I<sub>p</sub>| &lt; 50 kA), of which <strong>1,957 carry in-vessel-coil
+channels and 864 have at least one driven &gt;1.0</strong> in raw units
+(M7 = 474, M8 = 205, M9 = 185). The n=5 error-field correction coil is
+essentially always energised (<code>error_field_05</code> median 3.2 across the
+whole corpus), so seam 2 is pervasive. Representative gold candidates:</p>
+<figure>
+  <table>
+    <thead><tr><th>Shots</th><th>era</th><th>peak |I<sub>p</sub>|</th>
+      <th>driven in-vessel coils (raw V)</th></tr></thead>
+    <tbody>
+      <tr><td>30432–30435</td><td>M9</td><td>0.8–2.4 kA</td>
+        <td>outer saddle <code>sad_out_m*</code> railed (~10), 38 IVC channels present</td></tr>
+      <tr><td>25828–25836</td><td>M8</td><td>2.8–3.6 kA</td>
+        <td>outer saddle <code>sad_out_m*</code> railed (~10), 61 IVC channels present</td></tr>
+      <tr><td>27394–27560</td><td>M8</td><td>2.9–14.9 kA</td>
+        <td>ELM-halo + horseshoe (<code>hsc*</code> ≈ 2.7) + error-field
+        (<code>ef5</code> ≈ 2.9) + saddle — multi-coil plasma-free commissioning</td></tr>
+    </tbody>
+  </table>
+  <figcaption>Dedicated-vacuum shots with in-vessel coils driven — the
+  toroidally-asymmetric, plasma-free intervals the Hole et al. method needs.
+  Full ledger: <code>imas_ambix/latent/artifacts/patch_gate/ivc_vacuum_candidates.json</code>
+  (864 candidates). Raw pickup/Rogowski volts; some channels rail near 10.</figcaption>
+</figure>
+<p>These directly enable the paper's high-confidence strategy: the 27394–27560
+series in particular steps several distinct in-vessel coils plasma-free, giving
+each sensor a toroidally-structured signature. Curating these intervals — and
+integrating each coil's Rogowski to recover the driving current for the Green's
+forward model — is the concrete route from the degenerate <code>C ≈ 0.03</code>
+of §6 toward the paper's <code>C &gt; 0.97</code>. The post-disruption tail
+(seam 3) adds further intervals inside plasma shots. This is captured as the
+dedicated-disambiguation follow-on.</p>
+</div>
+<p><strong>Why this matters.</strong> A single dedicated vacuum discharge that
+steps each in-vessel coil individually would give every sensor a spatially
+distinct, toroidally-structured signature — the paper's C&nbsp;&gt;&nbsp;0.97
+regime — and make the MAST sensor set genuinely disambiguable (identity,
+ordering, polarity), which the archived axisymmetric shots cannot. Capturing and
+curating these intervals is a high-value, low-cost seam: the data already exist
+in the archive. Tracked as the dedicated-disambiguation follow-on below.</p>
+
+<h2 id="confound">8 — Verdict: the pin/prior confound</h2>
+<div data-fill="confound">
+<p><strong>Verdict: PARTIAL — the late-band drift is partly a real magnetics /
+model-layer degradation, with an identified mechanism; pin/prior retirement
+stays withheld, but for a now-diagnosed reason.</strong></p>
+<p>The census RCA (§11) could not separate "the pin is worse than the plain
+spine" from "the pin faithfully propagates a corrupted late-campaign datum."
+The scorecard resolves it: the late-campaign vacuum magnetics <em>do</em> carry a
+material, spatially-coherent systematic. In the RMP eras, 16 (M7) and 21 (M8) of
+65 vacuum-scored channels drift &gt;10 % from their M5 gain (12 &gt;25 % in M8;
+median 4–5 %, p90 19–37 %), concentrated in a −30 to −50 % gain drop at the
+<code>fl_p4/p5</code> flux loops that sit at the in-vessel RMP-coil bay.</p>
+<p>Consequences for the pin/prior decision:</p>
+<ul>
+  <li>The pin's target is a current centroid — a linear moment of exactly these
+    magnetics — so a coherent P4/P5 loop bias maps directly into a centroid
+    displacement the pin then enforces with weight (σ = 2 cm). "Pin worse than
+    spine" and "pin amplifies a data-layer bias" are, as the RCA suspected, the
+    same observation on that census. <strong>The census cannot license retiring
+    the pin</strong> — confound confirmed.</li>
+  <li>But the mechanism is <em>unmodelled RMP hardware</em>, not a miswired or
+    dead sensor layer (0 confident swaps/flips; the drift is a clean gain change
+    at high correlation). The correct remediation is therefore to <em>model the
+    RMP conductors / correct-or-exclude the flagged P4/P5 loops</em> and re-score
+    — not to retire physics the pin and diffusion prior legitimately carry.</li>
+  <li>Confirmatory next step (engine, not scorecard): re-score the late-band
+    census subset with the flagged loops down-weighted/excluded and check whether
+    the &gt;23000 axis displacement contracts. This is the paired re-score the
+    firewall-clean scorecard motivates but cannot itself run.</li>
+</ul>
+<p><em>Caveat.</em> The scorecard pools all coil-only slices, so on ramps the
+P4/P5 drop mixes a genuine effective-response change with unmodelled RMP eddy
+(both are model/data-layer, both corrupt the pin, but they are distinct roots); a
+quasi-static-gated re-fit would separate them.</p>
+</div>
+
+<h2 id="imas-dd">8 — Follow-on: when and how to pivot to an IMAS-DD-backed translation</h2>
+<p>This work makes the case for the pivot concrete. The root difficulty the
+scorecard kept hitting is that the machine description does not travel with the
+data: geometry descends from a frozen pre-2004 <code>detectors.dat_M4</code>,
+channel identity and polarity are implicit in names, calibration lives in code
+constants, and the archive itself mixes formats (L1 = Zarr V2, L2 = Zarr V3).
+The IMAS Data Dictionary already has a canonical, versioned home for every
+quantity this scorecard produces.</p>
+
+<h3>When</h3>
+<p>The pivot trigger is now, at the same seam as the machine-configuration-map
+registry (<code>f-mcm-01</code>). The registry's job — an era-aware,
+machine-checkable record of geometry, wiring, and channel state — is exactly what
+the DD <code>magnetics</code> / <code>pf_active</code> / <code>pf_passive</code>
+IDSs are for. Building a bespoke JSON registry <em>and</em> later translating to
+the DD is duplicated effort; the moment we need per-era geometry that travels
+with the data and a wiring/polarity provenance record (i.e. this deliverable),
+the DD translation <em>is</em> the registry, and it buys cross-machine transfer
+(MAST → MAST-U → ITER) for free.</p>
+
+<h3>How — and the L1/L2 caution</h3>
+<ul>
+  <li><strong>Translate L1 only into the measured IDSs.</strong> Raw pickup
+    probes and flux loops (amb) → <code>magnetics</code>
+    (<code>b_field_pol_probe</code>, <code>flux_loop</code>,
+    <code>rogowski_coil</code>, <code>ip</code>); coil currents (amc) →
+    <code>pf_active</code>; vessel/case passive currents (amm) →
+    <code>pf_passive</code>. Keep L2 (EFIT) as the <code>equilibrium</code> IDS
+    referee — <em>separate IDS, firewalled</em>. The DD's measured-vs-reconstructed
+    split enforces our firewall structurally, which the flat zarr layout does not.</li>
+  <li><strong>Geometry travels with the data.</strong>
+    <code>b_field_pol_probe/position</code> (R,Z,φ),
+    <code>/poloidal_angle</code>, <code>/toroidal_angle</code> and
+    <code>flux_loop/position</code> carry the per-era sensor geometry the frozen
+    table cannot express — this is the era-aware geometry table the
+    machine-configuration-map plan wants, but in a standard schema.</li>
+  <li><strong>The scorecard outputs become DD metadata.</strong> Per-channel
+    gain/offset → the probe's calibration and
+    <code>non_linear_response/b_field_linear</code>; flagged polarity inversions
+    → the sign of the orientation; rewire/relocation candidates →
+    <code>b_field_pol_probe_equivalent</code> (the DD's own equivalent-probe /
+    wiring record). The disambiguation result has a native home.</li>
+  <li><strong>Version discipline (AGENTS.md).</strong> Write via
+    <code>imas.DBEntry</code> with an explicit <code>dd_version</code> — MAST is
+    legacy-era data, so pin a DDv3 minor that carries the probe geometry fields
+    (<code>b_field_pol_probe/position</code> is DD 3.24.0+); never default to the
+    latest, which would silently up-convert. One <code>DBEntry</code> per shot,
+    read with imas-python throughout (never h5py).</li>
+</ul>
+<p>Recommended sequencing: a thin L1→<code>magnetics</code>/<code>pf_active</code>
+per-era geometry writer first (low risk, no time-series), validated against the
+efm-derived table; then populate the measured time-series and fold in the
+scorecard calibration; then retire the frozen-table code path in favour of the
+IDS. Tracked as the follow-on below.</p>
+
+<h2 id="artifacts">Artifacts</h2>
+<ul>
+  <li>Scorecard: <code>imas_ambix/latent/artifacts/patch_gate/magnetics_era_scorecard-cylv5.json</code></li>
+  <li>Machinery: <code>scripts/magnetics_era_scorecard.py</code> (extends
+    <code>scripts/vacuum_coil_response_audit.py</code>);
+    SLURM wrap <code>scripts/run_magnetics_era_scorecard.sbatch</code></li>
+  <li>Figures: <code>docs/figures/connectivity-topology-reader/fig-magnetics-scorecard-*.png</code></li>
+  <li>Firewall: raw amb magnetics + raw amc coil currents + geometry-only
+    operator throughout; no EFIT, no plasma inversion.</li>
+</ul>
+
+</main>
+</body>
+</html>
