@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-23">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="6">
 </head>
 <body>
   <main class="plan-doc">
@@ -379,31 +379,31 @@
       </p>
     <p class="r-dec-rat">User decision 2026-07-23: keep nova&#x27;s name, identity, history, and core test set; assembly is live and continues on the 1.x line while the 2.0 core refactor proceeds on a separate branch; assembly later extracts to its own repository with a hardened byte-identity gate (belts + braces: frozen baseline branch AND golden characterization suite carried to the new repo).</p>
     </div>
-<div class="r-dec" data-key="cache-backend" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="cache-backend" data-choice="zarr" data-by="smc" data-when="2026-07-23T09:33:05+00:00">
     <p class="r-dec-q">Identity-cache storage backend: zarr store (recommended — group deletion works, matches ambix&#x27;s existing dependency, chunked/lazy reads) or keep nova&#x27;s netCDF-group layout (proven, but eviction rewrites whole files)?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="zarr">zarr</button>
+      <button class="r-opt chosen" data-value="zarr">zarr</button>
       <button class="r-opt" data-value="netcdf-groups">netCDF groups</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">User confirmation 2026-07-23: content-hash keyed zarr store — native group deletion/eviction (netCDF4 cannot drop groups; nova today rewrites the whole file), chunked lazy reads, and one store technology shared with the standard-name signal data plane. Operators remain exportable to netCDF for interchange.</p>
     </div>
-<div class="r-dec" data-key="frame-migration-path" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="frame-migration-path" data-choice="direct-columnar" data-by="smc" data-when="2026-07-23T09:33:05+00:00">
     <p class="r-dec-q">Frame-core migration path: build the columnar store directly (recommended — the SoA store is already latent in metaframe.data and the consumer API is narrow) or ship a composition-over-pandas wrapper first and hollow it out behind the accessor API?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="direct-columnar">direct columnar store</button>
+      <button class="r-opt chosen" data-value="direct-columnar">direct columnar store</button>
       <button class="r-opt" data-value="composition-first">composition wrapper first</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">User confirmation 2026-07-23: build the SoA columnar store as primary from day one — it is already latent in metaframe.data + ArrayLocIndexer, the external API is narrow (insert, Loc/sloc, aloc/saloc), and nova&#x27;s transferred frame tests are the acceptance suite. One rewrite, no interim pandas dependency, immediate convergence with the JAX pytree shape.</p>
     </div>
-<div class="r-dec" data-key="assembly-repo-name" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="assembly-repo-name" data-choice="norma" data-by="smc" data-when="2026-07-23T09:26:57+00:00">
     <p class="r-dec-q">Name for the extracted ITER-assembly project (GP fiducial interpolation + SSAT/in-pit coil fitting, vault spectral proxy). Family style of codex (manuscript — discovery/mapping) and ambix (alembic — distillation): a classical instrument or concept named for what the project does. First round (groma, gnomon, tekton) rejected 2026-07-23 — groma inelegant, tekton too close to wood/stone craft. Current candidates: dioptra = the Greek precision sighting/alignment instrument (Hero of Alexandria wrote its treatise) — surveying, levelling, angle transfer, exactly this project&#x27;s function, and elegant (recommended); norma = the Latin square by which things are set true — the root of &quot;norm&quot;, short and severe; harmonia = the Greek shipwright&#x27;s term for a precise joint, the act of fitting together — the origin of &quot;harmony&quot; (assembly in one word, though more abstract); libella = the Roman level, root of &quot;level&quot;.</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="dioptra">dioptra (precision alignment instrument)</button>
-      <button class="r-opt" data-value="norma">norma (the square; root of &quot;norm&quot;)</button>
+      <button class="r-opt chosen" data-value="norma">norma (the square; root of &quot;norm&quot;)</button>
       <button class="r-opt" data-value="harmonia">harmonia (the precise joint; fitting-together)</button>
       <button class="r-opt" data-value="libella">libella (the level)</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">User selection 2026-07-23: norma — the Latin square by which things are set true, root of &quot;norm&quot;; short, elegant, and functionally exact for assembly metrology. Round-1 candidates (groma/gnomon/tekton) rejected for elegance/craft connotations; dioptra was the session recommendation, norma chosen. Family reads: codex discovers, ambix distils, norma aligns, nova computes.</p>
     </div>
 <div class="r-dec" data-key="io-contract-home" data-choice="isnc-semantics-nova-store" data-by="smc" data-when="2026-07-23T08:27:11+00:00">
     <p class="r-dec-q">Where the IMAS/zarr IO layer lives, given the codex → distil → ambix pipeline (codex discovers facility data + generates mapping transformations; ambix distils to tensorized stores and trains). Corrected 2026-07-23 after user direction: the standard-name schema does NOT enter nova — name semantics live in the already-managed ISN (machinery) + ISNC (catalog, fork RC near first upstream release). Remaining split: store mechanics (zarr layout, transcoders, round-trip validators, machine-description ingest/egress) in nova.io depending on ISN/ISNC; distil pipelines in ambix; codex emits facility maps against ISN&#x27;s published schema.</p>
@@ -415,15 +415,15 @@
       </p>
     <p class="r-dec-rat">User direction 2026-07-23: standard-name schema stays out of nova — semantics are managed and hardened in ISN (machinery) + ISNC (catalog; data-only, zero runtime deps, python≥3.13, fork RC near first upstream release). nova.io keeps only store mechanics (zarr layout, transcoders, round-trip validators, machine-description ingest/egress) and depends on the fork RCs — primary: test-PyPI wheels with uv explicit index pinning (rehearses the upstream release path); fallback: git-tag pins (ISNC&#x27;s own dev group already uses this pattern); flips to real PyPI ranges on upstream release. Pre-release hardening flagged in §7: ISN fastmcp → [mcp] extra; python-floor reconciliation (nova 2.0 → 3.13).</p>
     </div>
-<div class="r-dec" data-key="assembly-data-registry" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="assembly-data-registry" data-choice="ghcr-oras" data-by="smc" data-when="2026-07-23T09:33:05+00:00">
     <p class="r-dec-q">Versioned registry for the recorded assembly fit corpus (Excel scans, CCL data, Fourier/vault files) — valuable data that should not live in the repo but must be versioned and content-addressed. Recommended: OCI artifacts on GHCR pushed with ORAS — immutable content digests (what run records reference), campaign tags, private packages under existing GitHub auth, CI-pullable, no repo bloat. Alternatives: git-lfs (simplest, quota-priced, couples data churn to repo), private GitHub Releases (simple, coarse), DVC (extra tool, useful if data-science workflows grow). Manifest references items by digest, so the choice is swappable.</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="ghcr-oras">GHCR OCI artifacts via ORAS</button>
+      <button class="r-opt chosen" data-value="ghcr-oras">GHCR OCI artifacts via ORAS</button>
       <button class="r-opt" data-value="git-lfs">git-lfs in the assembly repo</button>
       <button class="r-opt" data-value="gh-releases">private GitHub Releases</button>
       <button class="r-opt" data-value="dvc">DVC with a remote</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">User confirmation 2026-07-23: OCI artifacts on GHCR pushed with ORAS — immutable content digests (what goldens manifests and run records reference), campaign tags, private packages under existing GitHub auth, CI-pullable, no repo bloat. Swappable later because manifests reference digests, not locations.</p>
     </div>
 </section>
 
