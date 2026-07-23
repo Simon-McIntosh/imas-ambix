@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="doc">
+  <meta name="plan-slug"     content="nova-scoping-review">
+  <meta name="plan-title"    content="Nova Scoping Review — Physics-Spine Strategy">
+  <meta name="plan-summary"  content="Deep scoping review of the nova codebase vs imas-ambix: pandas-weld anatomy, Biot/IMAS/caching jewels, IO benchmarks, and the imas-nova extraction verdict">
+  <meta name="plan-informs"  content="imas-nova-transfer">
+  <title>Nova Scoping Review — Physics-Spine Strategy | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Executive summary and recommendation</h2>
+    <p><strong>Recommendation: create a new, importable <code>imas-nova</code> package</strong> — nova's extracted
+    equilibrium core plus imas-ambix's curated physics elements — and make it the shared physics spine that both
+    projects consume. Do not import nova as-is (dependency stack + pandas weld), and stop the piecewise porting
+    (the duplication cost is real and already visible three times over). The evidence from six parallel
+    code-review streams (nova frame, nova biot, nova imas/caching, nova triage, ambix census, IMAS IO
+    benchmarks) converges on four load-bearing facts:</p>
+    <ul>
+      <li><strong>The split out of nova is unusually cheap.</strong> There are <em>zero</em> live import-time
+      dependencies from the keep-set (biot, frame, imas, geometry, jax, linalg, database, graphics, utilities,
+      control — ~35k LOC) into the leave-set (assembly, structural, thermalhydralic, dina, design, projects —
+      ~55k LOC). Only three cosmetic <code>__main__</code>-guarded demo imports cross the line, and nova's own
+      wheel build already excludes the leave-set (<code>pyproject.toml:133-142</code>).</li>
+      <li><strong>The pandas weld does not reach the hot path.</strong> Nova's per-timestep loop is already
+      numpy: dynamic quantities (<code>Ic</code>, <code>nturn</code>) live in a nova-owned numpy dict
+      (<code>metaframe.data</code>) behind the <code>aloc</code>/<code>saloc</code> accessors, evaluation is a
+      single matvec, and a jitted JAX operator (<code>nova/jax/operate.py</code>) already exists. Pandas is the
+      construction substrate and labelling convenience — replaceable by a typed columnar store without touching
+      the physics.</li>
+      <li><strong>The porting strategy is already paying a duplication tax.</strong> ambix has re-implemented
+      nova's cylinder kernel, its line/arc 3-D Biot–Savart, and its null-finder; meanwhile the polygon-section
+      kernel flowed the other way (ambix completed what nova abandoned at an <code>assert False</code> stub).
+      Two codebases, one author, three re-derivations and counting.</li>
+      <li><strong>The IO wall is AoS reconstruction, not disk.</strong> Measured: a 400-slice/15 MB equilibrium
+      costs 530 ms via HDF5 full <code>get()</code> but 53 ms via the netCDF backend and ~1 ms via warm
+      <code>xarray</code> reads of the same bytes; lazy get is ~100×. A standard-name-keyed flat signal cache
+      with the Access Layer only at ingest/egress removes the blocker for a real-time-adjacent spine.</li>
+    </ul>
+    <p>Nova keeps its name and remains the home of the ITER machine-assembly and structural work (its recent
+    commit history is entirely assembly-side); once <code>imas-nova</code> is stable, nova can depend on it and
+    shed its duplicated core — the dependency then points the right way (assembly → physics spine, matching the
+    existing one-way leave→keep import direction). The detailed staged transfer is in the companion plan
+    <code>imas-nova-transfer</code>.</p>
+
+    <figure>
+      <svg viewBox="0 0 920 470" role="img" style="max-width:100%;height:auto;font-family:system-ui">
+        <text x="460" y="24" text-anchor="middle" font-size="15" font-weight="600" fill="#111">The imas-nova split — what moves, what stays</text>
+        <!-- nova column -->
+        <rect x="20" y="48" width="270" height="392" fill="none" stroke="#9ca3af" stroke-width="1"/>
+        <text x="155" y="70" text-anchor="middle" font-size="14" font-weight="600" fill="#111">nova (~100k LOC)</text>
+        <rect x="36" y="84" width="238" height="168" fill="#eff6ff" stroke="#2563eb" stroke-width="1"/>
+        <text x="155" y="104" text-anchor="middle" font-size="13" font-weight="600" fill="#1e40af">extract (~35k LOC)</text>
+        <text x="48" y="124" font-size="13" fill="#111">biot — kernels, operators, turns</text>
+        <text x="48" y="142" font-size="13" fill="#111">frame — schema, subspace, energize</text>
+        <text x="48" y="160" font-size="13" fill="#111">imas — machine build, ids readers</text>
+        <text x="48" y="178" font-size="13" fill="#111">database — identity cache (xxhash)</text>
+        <text x="48" y="196" font-size="13" fill="#111">jax — jitted operator + topology</text>
+        <text x="48" y="214" font-size="13" fill="#111">geometry, linalg, graphics (Plot),</text>
+        <text x="48" y="232" font-size="13" fill="#111">utilities, control</text>
+        <rect x="36" y="264" width="238" height="160" fill="none" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4 3"/>
+        <text x="155" y="284" text-anchor="middle" font-size="13" font-weight="600" fill="#374151">stays in nova (~55k LOC)</text>
+        <text x="48" y="304" font-size="13" fill="#374151">assembly (ITER SSAT, fiducials)</text>
+        <text x="48" y="322" font-size="13" fill="#374151">structural, thermalhydralic</text>
+        <text x="48" y="340" font-size="13" fill="#374151">dina, design, projects, ansys</text>
+        <text x="48" y="366" font-size="12" fill="#6b7280">zero live imports into extract set;</text>
+        <text x="48" y="382" font-size="12" fill="#6b7280">later: nova depends on imas-nova</text>
+        <!-- imas-nova column -->
+        <rect x="330" y="90" width="260" height="300" fill="none" stroke="#2563eb" stroke-width="1.5"/>
+        <text x="460" y="114" text-anchor="middle" font-size="14" font-weight="600" fill="#1e40af">imas-nova (physics spine)</text>
+        <text x="344" y="140" font-size="13" fill="#111">Biot kernels + operator assembly</text>
+        <text x="344" y="158" font-size="13" fill="#111">4-block plasma / dynamic turns</text>
+        <text x="344" y="176" font-size="13" fill="#111">columnar frame core (no pandas)</text>
+        <text x="344" y="194" font-size="13" fill="#111">machine description + identity cache</text>
+        <text x="344" y="212" font-size="13" fill="#111">JAX evaluation, nulls, topology,</text>
+        <text x="344" y="230" font-size="13" fill="#111">free-boundary GS, FSA (batched)</text>
+        <text x="344" y="248" font-size="13" fill="#111">IMAS ingest/egress + standard-name</text>
+        <text x="344" y="266" font-size="13" fill="#111">signal cache (zarr/xarray)</text>
+        <text x="344" y="284" font-size="13" fill="#111">Plot mixin plotting</text>
+        <text x="344" y="310" font-size="12" fill="#6b7280">deps: numpy≥2, scipy, xarray, zarr,</text>
+        <text x="344" y="326" font-size="12" fill="#6b7280">shapely, contourpy, netcdf4, xxhash,</text>
+        <text x="344" y="342" font-size="12" fill="#6b7280">imas-python, matplotlib; jax extra</text>
+        <text x="344" y="366" font-size="12" fill="#6b7280">fast unit tests only (no live DB)</text>
+        <!-- ambix column -->
+        <rect x="630" y="48" width="270" height="392" fill="none" stroke="#9ca3af" stroke-width="1"/>
+        <text x="765" y="70" text-anchor="middle" font-size="14" font-weight="600" fill="#111">imas-ambix</text>
+        <rect x="646" y="84" width="238" height="150" fill="#eff6ff" stroke="#2563eb" stroke-width="1"/>
+        <text x="765" y="104" text-anchor="middle" font-size="13" font-weight="600" fill="#1e40af">moves (~12k LOC)</text>
+        <text x="658" y="124" font-size="13" fill="#111">gs/ — cylinder, polygon (Urankar V),</text>
+        <text x="658" y="142" font-size="13" fill="#111">filaments3d, operator, geometry</text>
+        <text x="658" y="160" font-size="13" fill="#111">latent physics — gs_solve (JAX),</text>
+        <text x="658" y="178" font-size="13" fill="#111">connectivity boundary, FSA,</text>
+        <text x="658" y="196" font-size="13" fill="#111">stencil nulls, topology, disc read</text>
+        <text x="658" y="214" font-size="13" fill="#111">spine_bench harness</text>
+        <rect x="646" y="246" width="238" height="178" fill="none" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4 3"/>
+        <text x="765" y="266" text-anchor="middle" font-size="13" font-weight="600" fill="#374151">stays (ML / GPU / training)</text>
+        <text x="658" y="286" font-size="13" fill="#374151">model, train, worldmodel, camdyn</text>
+        <text x="658" y="304" font-size="13" fill="#374151">tokenizer, statespace, eval harness</text>
+        <text x="658" y="322" font-size="13" fill="#374151">torch decoders (wrap imas-nova math)</text>
+        <text x="658" y="348" font-size="12" fill="#6b7280">one seam today: tokenizer reads</text>
+        <text x="658" y="364" font-size="12" fill="#6b7280">geometry features from gs/</text>
+        <text x="658" y="380" font-size="12" fill="#6b7280">no import cycles anywhere</text>
+        <!-- arrows -->
+        <line x1="274" y1="168" x2="330" y2="200" stroke="#2563eb" stroke-width="1.5"/>
+        <polygon points="330,200 320,193 322,203" fill="#2563eb"/>
+        <line x1="646" y1="160" x2="590" y2="200" stroke="#2563eb" stroke-width="1.5"/>
+        <polygon points="590,200 600,203 598,193" fill="#2563eb"/>
+      </svg>
+      <figcaption>Extraction map. Blue-outlined blocks move into the new <code>imas-nova</code> package; dashed
+      blocks remain in their current homes. Nova's keep→leave import count is zero, and ambix's physics/ML
+      boundary has exactly one seam (tokenizer → geometry features), so neither donor split is blocked by
+      entanglement.</figcaption>
+    </figure>
+
+    <h2 id="s2">§2 — The two codebases today</h2>
+    <p><strong>Nova (~100k LOC)</strong> is two projects in one repository. The equilibrium core — biot (6.8k),
+    frame (7.3k), imas (10.7k), geometry (4.9k), jax (1.6k), linalg, database, graphics, utilities, control —
+    totals ~35k LOC. The ITER machine-assembly and structural analysis side — assembly (16.9k), projects
+    (23.7k), structural, thermalhydralic, dina, design — totals ~55k LOC and is where all recent development
+    activity sits (SSAT targets, fiducial assessment, gap analysis). The full cross-import audit found exactly
+    three keep→leave references, all inside <code>if __name__ == "__main__"</code> demo blocks
+    (<code>frame/itergeom.py:227</code>, <code>geometry/polyline.py:652</code>,
+    <code>geometry/frenet.py:194</code>) — dead at import time. All leave→keep imports run the safe direction.
+    Nova's hatch wheel config already excludes the leave-set, and its coverage config matches: <em>the packaging
+    boundary of imas-nova is already half-drawn inside nova itself</em>.</p>
+    <p><strong>imas-ambix</strong> carries ~8.6k LOC of pure numpy/scipy EM kernels and machine description in
+    <code>imas_ambix/gs/</code>, plus ~13k LOC of physics inside <code>imas_ambix/latent/</code> (the JAX
+    free-boundary GS solver, connectivity boundary/LCFS, flux-surface averaging, null finding, boundary reads),
+    alongside the ML stack (model/train/worldmodel/tokenizer/statespace, ~50k+). The layering is verified clean:
+    <code>gs/</code> imports nothing from <code>latent/</code> or the ML side; <code>latent/</code> imports
+    <code>gs/</code> downward; the sole ML→physics seam is the tokenizer reading geometry features
+    (<code>tokenizer/geometry_reader.py:36</code>). Nova appears only as an <code>importorskip</code>-guarded
+    test oracle — never a runtime import.</p>
+    <p><strong>The duplication ledger</strong> (same author, both sides):</p>
+    <ul>
+      <li><code>gs/cylinder.py</code> re-implements nova's <code>biot/{constants,cylinder,zeta}.py</code>
+      (docstring: "extracted from the nova.biot cylinder formulation… validated against golden values generated
+      from nova itself").</li>
+      <li><code>gs/filaments3d.py</code> re-implements nova's <code>biot/{line,arc}.py</code> +
+      <code>geometry/{polyline,rdp}.py</code>.</li>
+      <li><code>latent/stencil_nulls.py</code> ports <code>nova.jax.select</code>; <code>latent/topology.py</code>
+      re-derives <code>nova/biot/fieldnull.py</code>.</li>
+      <li>Reverse flow: <code>gs/polygon.py</code> completes the Urankar Part V polygon-section Green's function
+      that nova's <code>biot/polygon.py</code> abandoned mid-implementation (<code>assert False</code> at
+      <code>polygon.py:124</code>) — the newest and only place where ambix leads nova on kernels.</li>
+      <li>ambix even duplicates itself: <code>gs/elliptic.py</code> re-implements <code>cylinder._ellipp</code>
+      and is dead in production.</li>
+    </ul>
+
+    <h2 id="s3">§3 — The pandas weld: anatomy and replacement verdict</h2>
+    <p>Nova builds a seven-deep DataFrame subclass tower — <code>pandas.DataFrame → FrameAttrs → DataFrame →
+    DataArray → FrameLink → FrameSpace → BiotFrame</code> — each layer overriding
+    <code>__getitem__</code>/<code>__setitem__</code>/<code>__setattr__</code>. Three design facts determine the
+    replacement strategy:</p>
+    <ul>
+      <li><strong>Metadata lives beside pandas, not inside it.</strong> The schema (~90 physics column defaults,
+      units, column groups), the lock machinery, and the fast-access cache are all held in a plain
+      <code>MetaFrame</code> dataclass stored in <code>frame.attrs</code> (<code>metaframe.py:73</code>). The
+      service layers — <code>Energize</code> (It ⇄ Ic·nturn coupling), <code>SubSpace</code> (independent-DOF
+      projection), <code>Select</code>, <code>MultiPoint</code> — are plain dataclasses that <em>reference</em> a
+      frame. They survive any store swap almost verbatim.</li>
+      <li><strong>The hot path already bypasses pandas.</strong> "Array" columns (<code>Ic</code>,
+      <code>nturn</code>, plasma flags) live as numpy arrays in <code>metaframe.data</code>; the
+      <code>aloc</code>/<code>saloc</code> accessors read/write them directly; operator evaluation is
+      <code>source_target @ saloc["Ic"]</code> (<code>biot/operate.py:51</code>); cache invalidation is an xxhash
+      of the numpy buffer. Zero pandas per timestep.</li>
+      <li><strong>The genuinely fragile construct is not CoW — it is the indexer metaprogramming.</strong>
+      <code>frame/indexer.py:26-42</code> manufactures subclasses of pandas' <em>private</em>
+      <code>pandas.core.indexing._LocationIndexer</code> at runtime and injects per-layer mixins. That breaks
+      unpredictably across pandas minors regardless of CoW. The actual CoW-incompatible call sites are few
+      (~a dozen: <code>.values</code> assignment at <code>dataframe.py:311</code>, subclassed
+      <code>inplace=True</code> at <code>dataframe.py:86</code> and <code>framelink.py:204</code>) and sit on the
+      construct/store path, not the compute path. Notably, the triage grep found <em>no</em> API-removal forcing
+      the <code>pandas&lt;2.2</code> pin — it is precautionary headroom around exactly these idioms.</li>
+    </ul>
+    <p>The consumer surface is narrow and columnar: across nova, frame access is dominated by
+    columns-as-numpy-arrays (<code>aloc</code>/<code>saloc</code>, ~104 sites), label reads/writes of currents
+    (<code>sloc</code>/<code>Loc</code>, ~99 sites), and coil construction (<code>.insert(</code>, 129 sites).
+    Genuine relational operations are rare and confined to <code>nova/imas/</code> glue. The Biot subsystem
+    touches geometry through exactly one method (<code>BiotFrame.__call__</code>, tiling a column into a
+    (target, source) matrix) and imports pandas directly in only one file (<code>biot/reduce.py</code>, for an
+    <code>Index</code>).</p>
+    <p><strong>Verdict on the data model (options ranked):</strong></p>
+    <ol>
+      <li><strong>Typed columnar store (recommended).</strong> Promote what already exists —
+      <code>metaframe.data</code> + the <code>MetaFrame</code> schema + the array accessors — to the primary
+      store: <code>index: ndarray[str]</code>, <code>columns: dict[str, ndarray]</code>, schema. Construction
+      becomes array concatenation; label reads are <code>get_loc</code> + slice (both already implemented in
+      <code>indexer.py:113-137</code> / <code>framesetloc.py:35-60</code>). Pandas disappears from every
+      evaluation-path operation; the manufactured private-API indexers are deleted; the metamethod/subspace/energize
+      dataclasses carry over nearly unchanged. Where a migration cushion is wanted, a composition wrapper
+      (plain DataFrame held as an attribute behind the same <code>insert</code>/<code>Loc</code>/<code>aloc</code>
+      API) is the intermediate step — consumers never see the difference because they already go through the
+      accessors.</li>
+      <li><strong>xarray — yes, but only at the boundaries.</strong> Nova already stores solved Biot operators as
+      xarray Datasets and serialises frames through <code>to_xarray → netCDF</code>. Keep and extend that: xarray
+      is the right at-rest and interchange format (and the right shape for the IO layer in §6). It is the wrong
+      primary <em>row store</em>: one-coil-at-a-time <code>insert</code> is its worst access pattern, the frame's
+      heterogeneous dtypes (strings, bools, floats, shapely <code>poly</code> objects) fight its model, and
+      label-alignment overhead lands exactly where the numpy cache exists to avoid it. The empty
+      <code>nova/xarray/</code> directory was an accessor experiment (renamed to <code>nova/dataset/</code>), not
+      an abandoned store migration — the historical intent matches this verdict.</li>
+      <li><strong>Fixing pandas subclassing in place — rejected.</strong> Pandas 3.0 makes CoW mandatory and the
+      private indexer surface keeps moving; the maintenance tax is unbounded and buys no architectural
+      improvement. Polars is also rejected: immutability and the absence of numpy-view aliasing defeat the
+      in-place <code>Ic</code>/cached-operator design, and there is no object dtype for shapely geometry.</li>
+    </ol>
+
+    <h2 id="s4">§4 — The Biot subsystem: what extraction looks like</h2>
+    <p>The element zoo is mature and tested: <code>circle</code> (complete elliptic), <code>cylinder</code>
+    (rectangular section, K/E/Π + zeta quadrature — the kernel ambix already extracted), <code>arc</code> and
+    <code>bow</code> (3-D filament/rectangular-section arcs, incomplete elliptic + Jacobi), <code>line</code> and
+    <code>beam</code> (closed-form 3-D straight elements). The shared <code>constants.py</code> coefficient
+    library (Carlson-form Π on <code>elliprf/elliprj</code>, singularity nudging) is the crown jewel and is
+    nearly dependency-clean already. Validation runs against analytic solenoid fields and ITER sub-inductance
+    matrices (<code>tests/test_biotsavart.py</code> and friends — a real regression net that transfers).</p>
+    <p>The operator architecture is the part ambix has <em>not</em> re-implemented and should not: per-element
+    Green's matrices (<code>matrix.py:245-292</code>) fold turns and <code>reduceat</code> grouping/link
+    reduction, while <em>splitting the plasma row/column/corner into separate unit-turn sub-matrices</em>; the
+    ensemble assembler (<code>solve.py</code>) stores the four-block decomposition; and
+    <code>Operator.update_turns</code> (<code>operate.py:61-82</code>) rewrites only the plasma blocks when the
+    separatrix moves — ~99% of the coupling matrix is never recomputed. Version-hash guards (xxhash of the
+    <code>Ic</code> buffer, <code>nturn</code> version counters) drive invalidation. This is the "update the
+    plasma turns matrix dynamically while not touching the other calculated aspects" capability, and it is
+    already numpy-native end to end.</p>
+    <p><strong>The serial-topology complaint is already half-solved inside nova.</strong> The wired-in
+    <code>biot/fieldnull.py</code> is a numba double-loop Kuijper saddle-count with per-null Python refinement —
+    serial, unbatchable, non-differentiable. But <code>nova/jax/null.py</code> + <code>jax/topology.py</code>
+    re-implement the same categorisation with <code>lax.scan</code>/<code>vmap</code>, fixed-size outputs,
+    limiter/diverted adjudication under <code>lax.cond</code>, and demonstrated <code>jax.grad</code> through the
+    O-point position — all jitted, just never wired in (<code>grid.py:22</code> carries the commented-out
+    import). Combined with ambix's own device-native stack (<code>gs_solve</code>,
+    <code>connectivity_boundary</code>, <code>flux_surface_connectivity</code>, <code>stencil_nulls</code> —
+    built fixed-shape for vmap-over-shots), the batched topology problem is solved; the extraction just has to
+    pick one canonical implementation per function.</p>
+    <p><strong>Extraction shape:</strong> lift <code>constants</code> + the six kernels + the
+    <code>matrix/solve</code> assembly near-verbatim; replace <code>BiotFrame</code> with a ~100-line
+    data-provider protocol; adopt ambix's <code>polygon.py</code> and <code>hybrid_greens</code> blend as the
+    canonical additions; delete the serial null-finder in favour of the JAX path; consolidate the three
+    <code>zeta</code> implementations to one; add the missing shot-axis <code>vmap</code>. Effort is ~55%
+    mechanical rebinding guarded by existing analytic tests. Top performance blockers to remove at extraction
+    time: the serial null-finder wiring, the absent batch dimension, and the numba dependency in
+    <code>zeta</code>.</p>
+
+    <h2 id="s5">§5 — IMAS integration, identity caching, and the plot mixins (the jewels)</h2>
+    <p><strong>Jewel 1 — machine-description compilation.</strong> Nova reads machine geometry via imas-python
+    AL5 (URI + <code>DBEntry</code>, lazy-by-default) and maps the DD's <code>geometry_type</code> integers to
+    typed cross-sections through a clean dispatch (<code>machine.py:274-306</code>: outline, rectangle, oblique,
+    annulus, thick-line — with battle-earned multi-machine fallbacks for WEST and MAST-U data quirks). Builders
+    for <code>pf_active</code>, <code>pf_passive</code>, <code>wall</code>, ELM coils and
+    <code>coils_non_axisymmetric</code> compile a single coherent machine dataset. The geometry→shapely side
+    lifts cleanly; only the frame-insert step is pandas-coupled and gets re-pointed at the columnar store.</p>
+    <p><strong>Jewel 2 — identity caching of data <em>and</em> solved model.</strong> The cache key is a content
+    hash: xxh32 over the identity attrs <em>plus per-source IDS content hashes plus Biot discretisation</em>,
+    used as the netCDF group name; nova version and <code>$IMAS_VERSION</code> are baked into the appdirs cache
+    path. On a hit, <code>Operate.load_operators</code> rehydrates solved interaction matrices directly — no
+    recomputation. The miss handler is a clean try-load / except get+build+store. Carry this design wholesale,
+    with three hardenings: canonical serialisation instead of <code>str(dict)</code> hashing; make the DD version
+    part of the hash rather than only the path; and replace netCDF group-delete-and-rewrite (netCDF4 cannot drop
+    groups) — a zarr store keyed the same way removes that wart and matches ambix's existing zarr dependency.
+    Ambix's own cache experience reinforces the lesson: its <code>SetupSignature</code>-keyed <code>.npz</code>
+    caches omit the geometry/coil-model version strings from the key and have already caused silent stale-reuse
+    incidents.</p>
+    <p><strong>Jewel 3 — inheritance-attached plotting.</strong> The pattern the user values — downstream classes
+    inheriting rich plot/processing methods — works because <code>Plot</code>
+    (<code>graphics/plot.py:341-485</code>) is a <em>fieldless, __post_init__-less</em> dataclass mixin: placed
+    leftmost it never disturbs the cooperative init chain, and its state is lazy <code>cached_property</code>.
+    Keep it verbatim. Two tidy-ups on the way in: standardise the cooperative <code>__post_init__</code>
+    termination (the guard idiom appears 19 times, inconsistently), and pick a single plotting-attachment
+    mechanism (today the <code>Plot</code> mixin coexists with a parallel metamethod loader — the main
+    comprehension hazard in the MRO).</p>
+
+    <h2 id="s6">§6 — IO layer: measured reality and the standard-names architecture</h2>
+    <p>Benchmarked on this venv (imas-python 2.2.0, IMAS-Core 5.7.0, DD 4.1.1) with a synthetic 400-slice /
+    15 MB equilibrium written to both backends:</p>
+
+    <figure>
+      <svg viewBox="0 0 860 300" role="img" style="max-width:100%;height:auto;font-family:system-ui">
+        <text x="430" y="22" text-anchor="middle" font-size="15" font-weight="600" fill="#111">Reading the same 400-slice equilibrium (15 MB) — log scale</text>
+        <g font-size="13" fill="#111">
+          <text x="240" y="66" text-anchor="end">get_slice loop ×400 (HDF5)</text>
+          <rect x="252" y="52" width="551" height="20" fill="#e5e7eb" stroke="#9ca3af" stroke-width="1"/>
+          <text x="796" y="66" text-anchor="end" font-weight="600">~2.7 s</text>
+          <text x="240" y="106" text-anchor="end">full get() (HDF5, AoS rebuild)</text>
+          <rect x="252" y="92" width="438" height="20" fill="#e5e7eb" stroke="#9ca3af" stroke-width="1"/>
+          <text x="698" y="106" font-weight="600">530 ms</text>
+          <text x="240" y="146" text-anchor="end">full get() (netCDF backend)</text>
+          <rect x="252" y="132" width="277" height="20" fill="#e5e7eb" stroke="#9ca3af" stroke-width="1"/>
+          <text x="537" y="146" font-weight="600">53 ms</text>
+          <text x="240" y="186" text-anchor="end">lazy get() — touched leaves only</text>
+          <rect x="252" y="172" width="115" height="20" fill="#e5e7eb" stroke="#9ca3af" stroke-width="1"/>
+          <text x="375" y="186" font-weight="600">5.2 ms</text>
+          <text x="240" y="226" text-anchor="end">warm xarray read of cached store</text>
+          <rect x="252" y="212" width="18" height="20" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/>
+          <text x="278" y="226" font-weight="600" fill="#1e40af">1.3 ms</text>
+        </g>
+        <text x="252" y="258" font-size="12" fill="#6b7280">Same bytes throughout — the 530 ms is Python AoS-node reconstruction, not disk. Streaming write: memory-backend put_slice = 0.14 ms/slice.</text>
+        <text x="252" y="276" font-size="12" fill="#6b7280">Blue = the spine's hot-read path after a one-time transcode into the standard-name-keyed cache.</text>
+      </svg>
+      <figcaption>Measured IMAS access-pattern costs (login node, imas-python 2.2.0). Per-slice
+      <code>get_slice</code> loops are the worst bulk pattern; a flat cached store restores raw-numpy speed.</figcaption>
+    </figure>
+
+    <p><strong>Key facts for the architecture:</strong> the netCDF backend already performs exactly the
+    AoS-flattening the spine wants (each DD leaf becomes one dense variable, AoS index promoted to a leading
+    dimension) and its files open directly in xarray via <code>group="equilibrium/0"</code>;
+    <code>imas.util.to_xarray</code> does the same from memory. Lazy <code>get(lazy=True)</code> is ~100–300×
+    for subset reads (read-only objects, DBEntry must stay open). <code>put_slice</code> works on
+    memory/HDF5/MDSplus (0.14 ms/slice measured) for incremental writes in increasing time order; the netCDF
+    backend is batch-only. The IMAS Standard Names project
+    (<code>iterorganization/imas-standard-names</code> + catalog) provides versioned per-quantity names with
+    units and DD-path links — young and incompletely covered, so imas-nova should <em>own</em> its mapping table
+    (versioned YAML: <code>standard_name → ids, dd_path, occurrence, unit, cocos</code>), seeded from the catalog
+    and contributed back opportunistically, rather than depending on upstream completeness.</p>
+    <p><strong>Recommended IO architecture (three boundaries; the Access Layer never in the hot path):</strong></p>
+    <ul>
+      <li><strong>Ingest, once per shot:</strong> whole-IDS full <code>get()</code> + bulk numpy extraction
+      (never per-slice loops), or lazy get for a few channels; transcode immediately into a
+      standard-name-keyed zarr/xarray signal store (reusing the AL's own tensorizer). Warm re-reads then cost
+      ~1 ms/variable instead of 530 ms — the transcode pays for itself the second time a shot is read.</li>
+      <li><strong>Hot path:</strong> dense numpy/JAX arrays and device buffers only; for live operation a ring
+      buffer fed by memory-backend <code>put_slice</code> or direct appends.</li>
+      <li><strong>Egress:</strong> assemble fresh IDSs via <code>IDSFactory</code> and <code>put()</code> once at
+      end of run (true IMAS data out); <code>put_slice</code> is the sanctioned path for streaming write-out
+      later.</li>
+    </ul>
+    <p>This answers the netCDF-vs-AoS concern directly: the AoS layout does <em>not</em> invalidate the netCDF
+    layer — the backend's tensorization is precisely the flat representation needed, and the measured 10× win
+    over the HDF5 AL read confirms it. The per-signal standard-names interface then addresses signals physically
+    while a single owned mapping table is the only component that knows DD paths.</p>
+
+    <h2 id="s7">§7 — Options analysis</h2>
+    <p><strong>Option A — import nova as-is and fix in place.</strong> Rejected. The dependency stack (30+ hard
+    deps including a provably dead <code>optax</code>, abandoned <code>descartes</code>, and heavy viz packages),
+    the <code>numpy&lt;2</code>/<code>pandas&lt;2.2</code>/<code>py&lt;3.13</code> ceilings, and the pandas
+    subclass tower would all flow into the spine. Fixing nova-side means chasing pandas' private indexing API
+    indefinitely while carrying 55k LOC of assembly code the spine never uses. (Worth noting: the numpy 2 ceiling
+    traces to a <em>single line</em>, <code>graphics/plot.py:614</code> — nova-side hygiene is cheap, but it
+    doesn't change the architecture verdict.)</p>
+    <p><strong>Option B — keep porting piecemeal.</strong> Rejected as the steady state. Three re-derivations
+    have already been paid, the projects drift (ambix's polygon kernel and JAX topology improvements aren't
+    reaching nova), and each new port re-solves operator assembly, caching, and machine description — nova's
+    hardest-won, least-glamorous parts.</p>
+    <p><strong>Option C — a shared <code>imas-nova</code> physics-spine package.</strong> Recommended. One
+    canonical home for kernels, operators, machine description, identity caching, IO, and batched topology;
+    ambix keeps the ML/GPU side and consumes the spine; nova keeps machine assembly and later consumes the spine
+    too (killing the duplication permanently, and delivering the polygon kernel back to nova's users). On
+    naming/mechanics: prefer a <em>new repository</em> populated by curated transfer over renaming the existing
+    nova repo — nova's active assembly work and its ITER remotes stay undisturbed, the new package gets a clean
+    dependency/CI/test baseline (numpy≥2, python≥3.12, no pandas in core), and git history for transferred files
+    can be preserved where valuable. The name <code>imas-nova</code> aligns it with the imas-* family and states
+    the IMAS-native contract.</p>
+    <p><strong>Risks and mitigations.</strong> (1) <em>Big-bang risk</em> — mitigated by the composition wrapper
+    step and by nova's analytic test suite transferring first, so every kernel/operator port lands against known
+    goldens. (2) <em>Two-home drift during transition</em> — mitigated by declaring imas-nova canonical per
+    component as it lands and deleting the donor copy in the same series (no <code>_v2</code> families).
+    (3) <em>torch-coupled physics in ambix's latent/</em> (patch basis, structure residual, current diffusion…)
+    — physics by content, ML by dependency; these stay in ambix initially and migrate only when re-expressed on
+    the spine's numpy/JAX API, so <code>torch</code> never enters imas-nova. (4) <em>Standard-names immaturity</em>
+    — owned mapping table decouples the spine from upstream catalog pace.</p>
+
+    <h2 id="s8">§8 — Target architecture of imas-nova</h2>
+    <ul>
+      <li><strong>Data model:</strong> typed columnar SoA frame core (schema from <code>MetaFrame</code>;
+      subspace/energize/multipoint services carried); pandas absent from core (export shims only); xarray at
+      rest and at interchange.</li>
+      <li><strong>Kernels:</strong> nova's constants + circle/cylinder/arc/bow/line/beam + ambix's polygon and
+      hybrid blend; one canonical zeta; provider-protocol seam instead of BiotFrame.</li>
+      <li><strong>Operators:</strong> nova's four-block plasma decomposition, turns/reduce/link machinery, and
+      dynamic-turns update; JAX evaluation as the primary path with a shot/time batch axis; numpy fallback.</li>
+      <li><strong>Topology:</strong> the JAX null/topology/connectivity/FSA stack (merged nova-jax + ambix
+      implementations), fixed-shape and vmap-safe throughout.</li>
+      <li><strong>Machine description:</strong> IDS readers + geometry_type dispatch + compilation into the
+      frame core; identity cache (content-hash keyed, version-segmented, zarr-backed) caching frames <em>and</em>
+      solved operators.</li>
+      <li><strong>IO:</strong> standard-name mapping table (owned YAML); ingest transcoder → zarr signal cache;
+      egress IDS assembly + put; ring-buffer interface reserved for streaming operation.</li>
+      <li><strong>Plotting:</strong> the fieldless <code>Plot</code> mixin family as the single attachment
+      mechanism; matplotlib as an optional extra rather than a core import.</li>
+      <li><strong>Tests:</strong> nova's ~72 keep-set test files + ambix's ~20 gs/latent physics test files,
+      curated to a fast, no-live-DB unit lane (synthetic fixtures for the handful of DB-bound tests); asv
+      benchmarks for operator assembly/evaluation carried over.</li>
+    </ul>
+    <p>Full staging, section-by-section deliverables, and test-transfer detail live in the companion plan:
+    <strong>imas-nova-transfer</strong>.</p>
+
+    <h2 id="s9">§9 — Evidence base</h2>
+    <p>This review synthesises six parallel read-only research streams executed 2026-07-23: nova frame/pandas
+    deep-dive, nova biot deep-dive, nova IMAS/caching deep-dive, nova scope-triage (imports, dependencies,
+    tests, pins), imas-ambix physics census, and IMAS IO benchmarking (measured numbers quoted in §6; benchmark
+    scripts retained in the session scratchpad). File:line citations throughout refer to
+    <code>~/Code/nova</code> at commit <code>ae6385c0</code> and <code>~/Code/imas-ambix</code> at commit
+    <code>72022d5</code>. Related prior art in this repo: <code>docs/physics-spine-em-consolidation-review.html</code>
+    (whose Tier-2 coupling-generator consolidation is the natural first refactor on the ambix side, and whose §5
+    stale-cache-key hazard the new identity cache must fix by construction).</p>
+
+  </main>
+</body>
+</html>
