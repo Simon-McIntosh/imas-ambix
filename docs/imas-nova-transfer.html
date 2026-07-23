@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-07-23">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="3">
 </head>
 <body>
   <main class="plan-doc">
@@ -77,7 +77,10 @@
     fast lane; reckon docs infrastructure synced into nova (<code>/reckon-sync</code>). Core dependencies
     (grep-attributed from the donor keep-sets): <code>numpy≥2</code>, <code>scipy</code>, <code>xarray</code>,
     <code>zarr</code>, <code>netcdf4</code>, <code>shapely</code>, <code>contourpy</code>, <code>xxhash</code>,
-    <code>appdirs</code>, <code>imas-python</code>, <code>h5py</code>, <code>tqdm</code>, <code>packaging</code>.
+    <code>appdirs</code>, <code>imas-python</code>, <code>h5py</code>, <code>tqdm</code>, <code>packaging</code>,
+    plus <code>imas-standard-names</code> + <code>imas-standard-names-catalog</code> as fork-RC pins per §7
+    (test-PyPI wheels via uv explicit index, git-tag fallback; flips to PyPI on the upstream release). Python
+    floor 3.13 (ISNC requires ≥3.13; supersedes the earlier ≥3.12 pillar unless ISNC relaxes).
     Extras: <code>jax</code> (cuda12 on Linux), <code>matplotlib</code> (plotting), <code>pyvista/vedo</code>
     (3-D viz), <code>numba</code> (legacy), <code>bokeh</code>. Explicitly absent from core: <code>pandas</code>
     (dev/test extra at most), <code>torch</code>, and the deps proven dead or leave-set-only
@@ -219,10 +222,30 @@
 
     <h2 id="s7">§7 — IMAS IO layer (standard names)</h2>
     <ul>
-      <li>Author the owned mapping table: versioned YAML of
-      <code>standard_name → (ids, dd_path, occurrence, unit, cocos_transform)</code> for the spine's core
-      signal set (~30–50 entries: pf_active currents, magnetics probes/loops, equilibrium ψ/Ip/axis/boundary…),
-      seeded from <code>imas-standard-names-catalog</code> where entries exist.</li>
+      <li><strong>Name semantics come from ISN/ISNC — nova owns no standard-name schema.</strong> The
+      controlled vocabulary, grammar, units authority, and DD-path links live in the already-managed
+      <code>imas-standard-names</code> (ISN — machinery: strictyaml/pydantic/pint validation, name API) and
+      <code>imas-standard-names-catalog</code> (ISNC — the catalog: data-only, zero runtime deps, pre-built
+      SQLite, 18 domain files including equilibrium and both magnetics domains). Both are fork RCs converging
+      on a first upstream release. Spine signals missing from the catalog are contributed to the ISNC fork
+      (it stabilises fast), never authored as a nova-side YAML. What <code>nova.io</code> keeps is strictly the
+      <em>consumption</em> side: the zarr store layout, the ingest/egress transcoders, the round-trip
+      validators, and the application of codex-discovered facility-signal → standard-name maps.</li>
+      <li><strong>Dependency mechanics on the fork RCs (recommendation):</strong> primary path is
+      <strong>test-PyPI wheels with uv explicit index pinning</strong> — <code>[[tool.uv.index]]</code> entry
+      for test.pypi with <code>explicit = true</code> plus <code>[tool.uv.sources]</code> routing only
+      <code>imas-standard-names</code>/<code>imas-standard-names-catalog</code> through it, exact
+      <code>==X.Y.ZrcN</code> pins — this rehearses the very packaging path the upstream release will use and
+      gives consumers real wheel semantics, while explicit indexing prevents test.pypi from leaking into any
+      other resolution. Fallback wherever test-PyPI friction bites (retention, publish overhead):
+      <strong>git-tag pins on the forks</strong> (<code>pkg @ git+https://…@vX.Y.ZrcN</code> — the pattern
+      ISNC's own dev group already uses for ISN). Vendoring a catalog snapshot into nova is rejected (schema
+      drift — the exact failure the user's correction forecloses). Convergence: when the upstream PR lands and
+      releases to real PyPI, the pins flip to normal PyPI ranges (<code>&gt;=1,&lt;2</code>) in one commit.
+      Two hardening items to land in the forks before upstream release: move ISN's <code>fastmcp</code> hard
+      dependency to an <code>[mcp]</code> extra (the spine needs name lookup + pint units, not an MCP server
+      stack), and reconcile the python floor — ISNC requires <code>&gt;=3.13</code>, so nova 2.0's floor
+      becomes 3.13 (harmless here; ambix already runs 3.14) unless ISNC relaxes to 3.12.</li>
       <li>Ingest transcoder: whole-IDS full <code>get()</code> + bulk extraction (lazy get for selective
       channels) → standard-name-keyed zarr/xarray signal store, reusing the AL tensorizer semantics; cache
       keyed by URI + DD version.</li>
@@ -236,14 +259,15 @@
       boundary by the egress builder. Guardrail: a round-trip test (zarr → IDS → <code>validate()</code> → zarr)
       runs in CI so the store cannot drift into a private schema; COCOS/units/provenance are carried as store
       attrs.</li>
-      <li><strong>Placement in the codex → distil → ambix pipeline</strong> (see the io-contract-home decision):
+      <li><strong>Placement in the codex → distil → ambix pipeline</strong> (io-contract-home decision):
       imas-codex discovers facility data and generates the mapping transformations (the standard-names LLM
-      pipelines build off it); imas-ambix distils to the tensorized store and trains. The recommended split puts
-      the store <em>contract</em> — standard-name schema, mapping-table format, zarr layout, round-trip
-      validators — plus machine-description ingest/egress in <code>nova.io</code> (the spine consumes the same
-      store, and nova is already the shared dependency); the facility-specific distil <em>pipelines</em> stay in
-      ambix; codex emits mapping tables against a published JSON schema without a package dependency. A third
-      micro-package is deferred until a consumer needs the contract without nova's physics stack.</li>
+      pipelines build off it); imas-ambix distils to the tensorized store and trains. The four-layer split:
+      <em>name semantics</em> in ISN/ISNC (managed there, hardened there — see above);
+      <em>store mechanics</em> — zarr layout, ingest/egress transcoders, round-trip validators,
+      machine-description ingest — in <code>nova.io</code>, depending on ISN/ISNC;
+      <em>facility mapping discovery</em> in codex (emitting maps that validate against ISN's published
+      schema, no nova dependency); <em>distil pipelines</em> in ambix. No new repository is created — the
+      "third repo" for semantics already exists as ISN/ISNC.</li>
     </ul>
     <p><em>Done-when:</em> a MAST or ITER test shot ingests once and re-reads at cached-store speed (≥100×
     the AL full-get, per the measured baseline); a synthetic run's results egress as a valid IMAS equilibrium
@@ -335,14 +359,15 @@
       </p>
     <p class="r-dec-rat"></p>
     </div>
-<div class="r-dec" data-key="io-contract-home" data-choice="" data-by="" data-when="">
-    <p class="r-dec-q">Where the IMAS/zarr IO layer lives, given the codex → distil → ambix pipeline (codex discovers facility data + generates mapping transformations and standard names; ambix distils to tensorized stores and trains). Recommended split: the store CONTRACT (standard-name schema, mapping-table format, zarr layout, round-trip validators) plus machine-description ingest/egress live in nova.io (nova is already the shared physics dependency and the spine consumes the same store); facility-specific DISTIL PIPELINES live in ambix; codex only emits mapping tables conforming to a published JSON schema (no package dependency). A third micro-package is warranted only when a consumer needs the contract without nova&#x27;s physics stack.</p>
+<div class="r-dec" data-key="io-contract-home" data-choice="isnc-semantics-nova-store" data-by="smc" data-when="2026-07-23T08:27:11+00:00">
+    <p class="r-dec-q">Where the IMAS/zarr IO layer lives, given the codex → distil → ambix pipeline (codex discovers facility data + generates mapping transformations; ambix distils to tensorized stores and trains). Corrected 2026-07-23 after user direction: the standard-name schema does NOT enter nova — name semantics live in the already-managed ISN (machinery) + ISNC (catalog, fork RC near first upstream release). Remaining split: store mechanics (zarr layout, transcoders, round-trip validators, machine-description ingest/egress) in nova.io depending on ISN/ISNC; distil pipelines in ambix; codex emits facility maps against ISN&#x27;s published schema.</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="nova-io-contract">contract in nova.io, pipelines in ambix</button>
+      <button class="r-opt chosen" data-value="isnc-semantics-nova-store">semantics in ISN/ISNC; store mechanics in nova.io; pipelines in ambix</button>
+      <button class="r-opt" data-value="nova-io-contract">contract incl. schema in nova.io</button>
       <button class="r-opt" data-value="ambix-owns-io">all IO in ambix</button>
-      <button class="r-opt" data-value="third-repo">third micro-package</button>
+      <button class="r-opt" data-value="third-repo">new third micro-package</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">User direction 2026-07-23: standard-name schema stays out of nova — semantics are managed and hardened in ISN (machinery) + ISNC (catalog; data-only, zero runtime deps, python≥3.13, fork RC near first upstream release). nova.io keeps only store mechanics (zarr layout, transcoders, round-trip validators, machine-description ingest/egress) and depends on the fork RCs — primary: test-PyPI wheels with uv explicit index pinning (rehearses the upstream release path); fallback: git-tag pins (ISNC&#x27;s own dev group already uses this pattern); flips to real PyPI ranges on upstream release. Pre-release hardening flagged in §7: ISN fastmcp → [mcp] extra; python-floor reconciliation (nova 2.0 → 3.13).</p>
     </div>
 </section>
 
