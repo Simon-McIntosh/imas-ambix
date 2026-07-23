@@ -7,8 +7,8 @@
   <meta name="reckon-type"   content="doc">
   <meta name="plan-slug"     content="nova-scoping-review">
   <meta name="plan-title"    content="Nova Scoping Review — Physics-Spine Strategy">
-  <meta name="plan-summary"  content="Deep scoping review of the nova codebase vs imas-ambix: pandas-weld anatomy, Biot/IMAS/caching jewels, IO benchmarks, and the imas-nova extraction verdict">
-  <meta name="plan-informs"  content="imas-nova-transfer">
+  <meta name="plan-summary"  content="Deep scoping review of the nova codebase vs imas-ambix: pandas-weld anatomy, Biot/IMAS/caching jewels, IO benchmarks, and the physics-spine extraction verdict">
+  <meta name="plan-informs"  content="nova-spine-refactor">
   <title>Nova Scoping Review — Physics-Spine Strategy | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
@@ -17,7 +17,7 @@
   <main class="plan-doc">
 
     <h2 id="s1">§1 — Executive summary and recommendation</h2>
-    <p><strong>Recommendation: create a new, importable <code>imas-nova</code> package</strong> — nova's extracted
+    <p><strong>Recommendation: extract a dedicated, importable physics-spine package</strong> — nova's
     equilibrium core plus imas-ambix's curated physics elements — and make it the shared physics spine that both
     projects consume. Do not import nova as-is (dependency stack + pandas weld), and stop the piecewise porting
     (the duplication cost is real and already visible three times over). The evidence from six parallel
@@ -44,20 +44,21 @@
       <code>xarray</code> reads of the same bytes; lazy get is ~100×. A standard-name-keyed flat signal cache
       with the Access Layer only at ingest/egress removes the blocker for a real-time-adjacent spine.</li>
     </ul>
-    <p>Nova keeps its name and remains the home of the ITER machine-assembly and structural work (its recent
-    commit history is entirely assembly-side); once <code>imas-nova</code> is stable, nova can depend on it and
-    shed its duplicated core — the dependency then points the right way (assembly → physics spine, matching the
-    existing one-way leave→keep import direction). The detailed staged transfer is in the companion plan
-    <code>imas-nova-transfer</code>.</p>
+    <p><strong>Outcome (locked 2026-07-23):</strong> the spine is realised as an <strong>in-place refactor of
+    nova</strong> (assessed in §7a) — nova keeps its name and identity (an imas- package prefix was considered
+    and retired), the 2.0 core develops on a branch, and the live assembly/structural work extracts to its own
+    repository under a µm-tolerance characterization gate; the dependency then points the right way (assembly →
+    physics spine, matching the existing one-way leave→keep import direction). The detailed staged transfer is
+    in the companion plan <code>nova-spine-refactor</code>.</p>
 
     <figure>
       <svg viewBox="0 0 920 470" role="img" style="max-width:100%;height:auto;font-family:system-ui">
-        <text x="460" y="24" text-anchor="middle" font-size="15" font-weight="600" fill="#111">The imas-nova split — what moves, what stays</text>
+        <text x="460" y="24" text-anchor="middle" font-size="15" font-weight="600" fill="#111">The physics-spine split — what moves, what stays</text>
         <!-- nova column -->
         <rect x="20" y="48" width="270" height="392" fill="none" stroke="#9ca3af" stroke-width="1"/>
-        <text x="155" y="70" text-anchor="middle" font-size="14" font-weight="600" fill="#111">nova (~100k LOC)</text>
+        <text x="155" y="70" text-anchor="middle" font-size="14" font-weight="600" fill="#111">nova 1.x (~100k LOC)</text>
         <rect x="36" y="84" width="238" height="168" fill="#eff6ff" stroke="#2563eb" stroke-width="1"/>
-        <text x="155" y="104" text-anchor="middle" font-size="13" font-weight="600" fill="#1e40af">extract (~35k LOC)</text>
+        <text x="155" y="104" text-anchor="middle" font-size="13" font-weight="600" fill="#1e40af">core → spine (~35k LOC)</text>
         <text x="48" y="124" font-size="13" fill="#111">biot — kernels, operators, turns</text>
         <text x="48" y="142" font-size="13" fill="#111">frame — schema, subspace, energize</text>
         <text x="48" y="160" font-size="13" fill="#111">imas — machine build, ids readers</text>
@@ -66,15 +67,15 @@
         <text x="48" y="214" font-size="13" fill="#111">geometry, linalg, graphics (Plot),</text>
         <text x="48" y="232" font-size="13" fill="#111">utilities, control</text>
         <rect x="36" y="264" width="238" height="160" fill="none" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4 3"/>
-        <text x="155" y="284" text-anchor="middle" font-size="13" font-weight="600" fill="#374151">stays in nova (~55k LOC)</text>
+        <text x="155" y="284" text-anchor="middle" font-size="13" font-weight="600" fill="#374151">extracts to assembly repo (~55k LOC)</text>
         <text x="48" y="304" font-size="13" fill="#374151">assembly (ITER SSAT, fiducials)</text>
         <text x="48" y="322" font-size="13" fill="#374151">structural, thermalhydralic</text>
         <text x="48" y="340" font-size="13" fill="#374151">dina, design, projects, ansys</text>
         <text x="48" y="366" font-size="12" fill="#6b7280">zero live imports into extract set;</text>
-        <text x="48" y="382" font-size="12" fill="#6b7280">later: nova depends on imas-nova</text>
-        <!-- imas-nova column -->
+        <text x="48" y="382" font-size="12" fill="#6b7280">spine keeps the nova name (2.0)</text>
+        <!-- spine column -->
         <rect x="330" y="90" width="260" height="300" fill="none" stroke="#2563eb" stroke-width="1.5"/>
-        <text x="460" y="114" text-anchor="middle" font-size="14" font-weight="600" fill="#1e40af">imas-nova (physics spine)</text>
+        <text x="460" y="114" text-anchor="middle" font-size="14" font-weight="600" fill="#1e40af">nova 2.0 (physics spine)</text>
         <text x="344" y="140" font-size="13" fill="#111">Biot kernels + operator assembly</text>
         <text x="344" y="158" font-size="13" fill="#111">4-block plasma / dynamic turns</text>
         <text x="344" y="176" font-size="13" fill="#111">columnar frame core (no pandas)</text>
@@ -103,7 +104,7 @@
         <text x="765" y="266" text-anchor="middle" font-size="13" font-weight="600" fill="#374151">stays (ML / GPU / training)</text>
         <text x="658" y="286" font-size="13" fill="#374151">model, train, worldmodel, camdyn</text>
         <text x="658" y="304" font-size="13" fill="#374151">tokenizer, statespace, eval harness</text>
-        <text x="658" y="322" font-size="13" fill="#374151">torch decoders (wrap imas-nova math)</text>
+        <text x="658" y="322" font-size="13" fill="#374151">torch decoders (wrap spine math)</text>
         <text x="658" y="348" font-size="12" fill="#6b7280">one seam today: tokenizer reads</text>
         <text x="658" y="364" font-size="12" fill="#6b7280">geometry features from gs/</text>
         <text x="658" y="380" font-size="12" fill="#6b7280">no import cycles anywhere</text>
@@ -113,7 +114,7 @@
         <line x1="646" y1="160" x2="590" y2="200" stroke="#2563eb" stroke-width="1.5"/>
         <polygon points="590,200 600,203 598,193" fill="#2563eb"/>
       </svg>
-      <figcaption>Extraction map. Blue-outlined blocks move into the new <code>imas-nova</code> package; dashed
+      <figcaption>Extraction map. Blue-outlined blocks form the nova 2.0 spine; dashed
       blocks remain in their current homes. Nova's keep→leave import count is zero, and ambix's physics/ML
       boundary has exactly one seam (tokenizer → geometry features), so neither donor split is blocked by
       entanglement.</figcaption>
@@ -129,7 +130,7 @@
     (<code>frame/itergeom.py:227</code>, <code>geometry/polyline.py:652</code>,
     <code>geometry/frenet.py:194</code>) — dead at import time. All leave→keep imports run the safe direction.
     Nova's hatch wheel config already excludes the leave-set, and its coverage config matches: <em>the packaging
-    boundary of imas-nova is already half-drawn inside nova itself</em>.</p>
+    boundary of the spine is already half-drawn inside nova itself</em>.</p>
     <p><strong>imas-ambix</strong> carries ~8.6k LOC of pure numpy/scipy EM kernels and machine description in
     <code>imas_ambix/gs/</code>, plus ~13k LOC of physics inside <code>imas_ambix/latent/</code> (the JAX
     free-boundary GS solver, connectivity boundary/LCFS, flux-surface averaging, null finding, boundary reads),
@@ -316,9 +317,9 @@
     memory/HDF5/MDSplus (0.14 ms/slice measured) for incremental writes in increasing time order; the netCDF
     backend is batch-only. The IMAS Standard Names project
     (<code>iterorganization/imas-standard-names</code> + catalog) provides versioned per-quantity names with
-    units and DD-path links — young and incompletely covered, so imas-nova should <em>own</em> its mapping table
-    (versioned YAML: <code>standard_name → ids, dd_path, occurrence, unit, cocos</code>), seeded from the catalog
-    and contributed back opportunistically, rather than depending on upstream completeness.</p>
+    units and DD-path links — young in its public form. (Placement corrected 2026-07-23: name semantics are owned and hardened in the
+    user-managed ISN/ISNC fork RCs — see the transfer plan §7 — never as a nova-side table; the spine consumes
+    them as pinned dependencies.)</p>
     <p><strong>Recommended IO architecture (three boundaries; the Access Layer never in the hot path):</strong></p>
     <ul>
       <li><strong>Ingest, once per shot:</strong> whole-IDS full <code>get()</code> + bulk numpy extraction
@@ -368,15 +369,15 @@
     have already been paid, the projects drift (ambix's polygon kernel and JAX topology improvements aren't
     reaching nova), and each new port re-solves operator assembly, caching, and machine description — nova's
     hardest-won, least-glamorous parts.</p>
-    <p><strong>Option C — a shared <code>imas-nova</code> physics-spine package.</strong> Recommended. One
+    <p><strong>Option C — a shared, dedicated physics-spine package.</strong> Recommended. One
     canonical home for kernels, operators, machine description, identity caching, IO, and batched topology;
     ambix keeps the ML/GPU side and consumes the spine; nova keeps machine assembly and later consumes the spine
     too (killing the duplication permanently, and delivering the polygon kernel back to nova's users). On
     naming/mechanics: prefer a <em>new repository</em> populated by curated transfer over renaming the existing
     nova repo — nova's active assembly work and its ITER remotes stay undisturbed, the new package gets a clean
     dependency/CI/test baseline (numpy≥2, python≥3.12, no pandas in core), and git history for transferred files
-    can be preserved where valuable. The name <code>imas-nova</code> aligns it with the imas-* family and states
-    the IMAS-native contract.</p>
+    can be preserved where valuable. (A naming idea from this round — an imas- prefix for the package — was
+    subsequently retired: the spine keeps the nova name.)</p>
     <h3 id="s7a">§7a — Option C variant: in-place nova refactor on a branch (assessed 2026-07-23)</h3>
     <p>A third mechanics route, raised after the initial review: <strong>keep nova, perform the major refactor
     in-tree</strong> — the current state parks on a protected legacy branch (assembly development continues
@@ -399,7 +400,7 @@
     the legacy branch should be tagged as the 1.x maintenance line explicitly. The trunk-based multi-agent
     workflow also needs a temporary two-branch exception spelled out in nova's AGENTS.md. On balance: if the
     assembly-extraction commitment is credible, in-place refactor is the better expression of "nova supports
-    imas-ambix" — one name, one history, no imas-nova/nova naming split; the new-repo route remains the safer
+    imas-ambix" — one name, one history, no naming split; the new-repo route remains the safer
     fallback if the legacy-branch constraint proves awkward.</p>
     <p><strong>IMAS-interface cost under this route:</strong> small — it is one of the cheapest parts of the
     refactor. The AL hookup (<code>dataset.py</code> ladder, <code>database.py</code>, <code>uri.py</code>,
@@ -410,14 +411,14 @@
     is. Order weeks, not months; the frame-core rewrite is the long pole, not IMAS.</p>
     <p><strong>Risks and mitigations.</strong> (1) <em>Big-bang risk</em> — mitigated by the composition wrapper
     step and by nova's analytic test suite transferring first, so every kernel/operator port lands against known
-    goldens. (2) <em>Two-home drift during transition</em> — mitigated by declaring imas-nova canonical per
+    goldens. (2) <em>Two-home drift during transition</em> — mitigated by declaring the spine canonical per
     component as it lands and deleting the donor copy in the same series (no <code>_v2</code> families).
     (3) <em>torch-coupled physics in ambix's latent/</em> (patch basis, structure residual, current diffusion…)
     — physics by content, ML by dependency; these stay in ambix initially and migrate only when re-expressed on
-    the spine's numpy/JAX API, so <code>torch</code> never enters imas-nova. (4) <em>Standard-names immaturity</em>
+    the spine's numpy/JAX API, so <code>torch</code> never enters the spine. (4) <em>Standard-names immaturity</em>
     — owned mapping table decouples the spine from upstream catalog pace.</p>
 
-    <h2 id="s8">§8 — Target architecture of imas-nova</h2>
+    <h2 id="s8">§8 — Target architecture of the spine (nova 2.0)</h2>
     <ul>
       <li><strong>Data model:</strong> typed columnar SoA frame core (schema from <code>MetaFrame</code>;
       subspace/energize/multipoint services carried); pandas absent from core (export shims only); xarray at
@@ -440,7 +441,7 @@
       benchmarks for operator assembly/evaluation carried over.</li>
     </ul>
     <p>Full staging, section-by-section deliverables, and test-transfer detail live in the companion plan:
-    <strong>imas-nova-transfer</strong>.</p>
+    <strong>nova-spine-refactor</strong>.</p>
 
     <h2 id="s9">§9 — Evidence base</h2>
     <p>This review synthesises six parallel read-only research streams executed 2026-07-23: nova frame/pandas
