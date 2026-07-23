@@ -4,28 +4,34 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="imas-nova-transfer">
-  <meta name="plan-title"     content="imas-nova Transfer">
-  <meta name="plan-summary"   content="Stand up the imas-nova physics-spine package: nova's extracted equilibrium core + ambix's curated physics, pandas-free, batch/GPU-ready, fast tests only">
-  <meta name="plan-status"    content="draft">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="XL">
-  <meta name="plan-tier"      content="opus">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="imas-nova-transfer">
+  <meta name="plan-title" content="Nova Spine Refactor (in-place)">
+  <meta name="plan-summary" content="In-place refactor of nova into the pandas-free physics spine: 2.0 core on develop, live 1.x assembly line protected by byte-identity goldens, hardened assembly extraction to its own repo">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="XL">
+  <meta name="plan-tier" content="opus">
+  <meta name="plan-owner" content="Simon McIntosh">
   <title>imas-nova Transfer | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-23">
+<meta name="plan-version" content="2">
 </head>
 <body>
   <main class="plan-doc">
 
     <h2 id="s1">§1 — Objective and strategy</h2>
-    <p>Create <strong><code>imas-nova</code></strong>: a new, importable, dependency-light physics-spine package
-    holding the canonical Biot kernels, operator assembly, machine-description compilation, identity caching,
-    batched topology, and IMAS IO — sourced by curated transfer from nova's keep-set (~35k LOC) and imas-ambix's
-    physics tier (~12k LOC). The evidence base and option analysis are in the research doc
-    <strong>nova-scoping-review</strong>; this plan is the execution record. Strategy pillars, fixed unless a
+    <p><strong>Refactor nova in place into the physics-spine package</strong> (repo-mechanics decision locked
+    2026-07-23): nova keeps its name, identity, history, and core test set; the 2.0 core — canonical Biot
+    kernels, operator assembly, machine-description compilation, identity caching, batched topology, IMAS IO —
+    is built on a <code>develop</code> branch from nova's keep-set (~35k LOC) plus imas-ambix's physics tier
+    (~12k LOC), while the live 1.x line continues to support the ongoing ITER-assembly work until that work
+    extracts to its own repository. The evidence base and option analysis are in the research doc
+    <strong>nova-scoping-review</strong> (§7a assesses this route); this plan is the execution record.
+    <strong>Priority zero is the protection of the GP-interpolation and SSAT/in-pit coil-fitting code</strong> —
+    §2a's byte-identity golden harness lands before any branch surgery. Strategy pillars, fixed unless a
     decision below reopens them:</p>
     <ul>
       <li><strong>One canonical home, curated transfer.</strong> Whether the spine lives in a new repo or in a
@@ -46,20 +52,87 @@
       HDF5 fixtures or left behind.</li>
     </ul>
 
-    <h2 id="s2">§2 — Repository bootstrap</h2>
-    <p>Stand up the <code>imas-nova</code> repository: uv-managed <code>pyproject.toml</code>; trunk-based on
-    <code>main</code>; ruff; pytest with a default fast lane; reckon docs infrastructure synced. Core
-    dependencies (grep-attributed from the donor keep-sets): <code>numpy≥2</code>, <code>scipy</code>,
-    <code>xarray</code>, <code>zarr</code>, <code>netcdf4</code>, <code>shapely</code>, <code>contourpy</code>,
-    <code>xxhash</code>, <code>appdirs</code>, <code>imas-python</code>, <code>h5py</code>, <code>tqdm</code>,
-    <code>packaging</code>. Extras: <code>jax</code> (cuda12 on Linux), <code>matplotlib</code> (plotting),
-    <code>pyvista/vedo</code> (3-D viz), <code>numba</code> (legacy), <code>bokeh</code>. Explicitly absent from
-    core: <code>pandas</code> (dev/test extra at most), <code>torch</code>, and the nova deps proven dead or
-    leave-set-only (<code>optax</code>, <code>descartes</code>, <code>altair</code>, <code>pillow</code>,
-    <code>rich</code>, <code>moviepy</code>…). Package skeleton mirrors the target architecture:
-    <code>frame/ biot/ topology/ machine/ io/ graphics/ testing/</code>.</p>
-    <p><em>Done-when:</em> repo builds an installable wheel; CI runs an empty-but-wired fast test lane;
-    AGENTS.md and the CLAUDE.md loader present; reckon synced.</p>
+    <h2 id="s2">§2 — Nova branch restructure and 2.0 bootstrap</h2>
+    <p><strong>Branch model (upstream is Simon-McIntosh/nova on GitHub — verified not a fork of
+    iterorganization; the git.iter.org URL exists only in pyproject metadata, no such remote is configured).</strong>
+    Housekeeping first: the live line is currently the <code>jax</code> branch, 196 commits ahead of a stale
+    <code>main</code> — fast-forward <code>main</code> to the <code>jax</code> tip and retire the
+    <code>jax</code> branch name, so the live 1.x trunk is properly named. Then adopt a gitflow-style split for
+    the transition period:</p>
+    <ul>
+      <li><code>main</code> = the live 1.x line. Assembly work continues here uninterrupted; nova's AGENTS.md
+      gains an explicit two-branch exception to the trunk-based rule for the duration.</li>
+      <li><code>legacy/v1</code> + tag <code>v1-assembly-baseline</code> = the frozen state, cut at the commit
+      where the §2a golden harness first runs green. Branch-protected on GitHub (no force-push, no deletion).
+      This is the belts half of belts + braces — the braces are the goldens themselves, which travel.</li>
+      <li><code>develop</code> = the 2.0 refactor line, branched from <code>main</code> after the baseline.
+      Here the leave-set (assembly, structural, thermalhydralic, dina, design, projects, development —
+      ~55k LOC) is deleted up front (zero live imports make this safe), the dependency floor resets
+      (python ≥ 3.12, numpy ≥ 2 — the one-line <code>np.float_</code> fix — no pandas in core), and §§3–9
+      execute. When assembly has extracted to its own repository and the 2.0 gate passes, <code>develop</code>
+      merges to <code>main</code> (develop's deletions stand — main's assembly line will already live in the
+      new repo) and nova returns to single-trunk operation.</li>
+    </ul>
+    <p>Bootstrap on <code>develop</code>: uv-managed <code>pyproject.toml</code>; ruff; pytest with a default
+    fast lane; reckon docs infrastructure synced into nova (<code>/reckon-sync</code>). Core dependencies
+    (grep-attributed from the donor keep-sets): <code>numpy≥2</code>, <code>scipy</code>, <code>xarray</code>,
+    <code>zarr</code>, <code>netcdf4</code>, <code>shapely</code>, <code>contourpy</code>, <code>xxhash</code>,
+    <code>appdirs</code>, <code>imas-python</code>, <code>h5py</code>, <code>tqdm</code>, <code>packaging</code>.
+    Extras: <code>jax</code> (cuda12 on Linux), <code>matplotlib</code> (plotting), <code>pyvista/vedo</code>
+    (3-D viz), <code>numba</code> (legacy), <code>bokeh</code>. Explicitly absent from core: <code>pandas</code>
+    (dev/test extra at most), <code>torch</code>, and the deps proven dead or leave-set-only
+    (<code>optax</code>, <code>descartes</code>, <code>altair</code>, <code>pillow</code>, <code>rich</code>,
+    <code>moviepy</code>…).</p>
+    <p><strong>Plan hosting:</strong> this ambix plan remains the umbrella strategy record; repo-local execution
+    plans are authored in the repo whose code they change — the 2.0 refactor and assembly-protection plans in
+    nova's <code>docs/</code> once reckon is synced there, the assembly repo's plans in that repo when it
+    exists, and §10 (ambix adoption) stays here. Cross-repo linkage via <code>plan-informs</code>.</p>
+    <p><em>Done-when:</em> main fast-forwarded and live; <code>legacy/v1</code> + baseline tag protected on
+    GitHub; <code>develop</code> cut with leave-set removed, floors reset, wheel building, fast lane green;
+    reckon synced in nova with the repo-local refactor plan scaffolded.</p>
+
+    <h2 id="s2a">§2a — Assembly protection: byte-identity goldens and hardened extraction (priority)</h2>
+    <p><strong>Protected scope:</strong> the GP-interpolation and coil-fitting cluster for SSAT and in-pit
+    operations — <code>nova/assembly/gaussianprocessregressor.py</code>, <code>fiducialfit.py</code>,
+    <code>fiducialfit_relative.py</code>, <code>fiducialpit.py</code> (2.8k), <code>fiducialsector.py</code>
+    (1.5k), <code>fiducialccl.py</code>, <code>fiducialtransform.py</code>, <code>sectordata.py</code>,
+    <code>sectorfile.py</code>, <code>windingpack.py</code>/<code>uniformwindingpack.py</code>,
+    <code>SM6_fit.py</code> (~8.7k LOC), plus the recorded fit corpus (<code>input/ITER/*.xlsx</code> —
+    CCL_Deformed_Coils, TFC18_asbuilt, TFC1_CL… — and <code>data/Assembly/</code> fixtures). This code supports
+    live ITER work; its behaviour must be provably unchanged across every branch and repo move.</p>
+    <p><strong>Golden characterization harness (lands on <code>main</code> before any branch surgery):</strong></p>
+    <ul>
+      <li><strong>Inventory:</strong> enumerate every fitting entry point (sector fit, pit fit, relative fit,
+      CCL transform, winding-pack fit, GP regressor predict) and pair each with its recorded inputs from the
+      Excel/data corpus.</li>
+      <li><strong>Canonical outputs:</strong> each entry point runs on its recorded inputs and serialises
+      results to a canonical form — float64 numpy arrays in sorted-key <code>.npz</code> (or netCDF) with a
+      deterministic layout. The goldens manifest (JSON) records: input file + sha256, entry point, output
+      artifact + sha256 of the canonical byte stream, and the environment lock hash.</li>
+      <li><strong>Byte-identity is an environment contract:</strong> pin single-threaded BLAS
+      (<code>OPENBLAS_NUM_THREADS=1</code>, <code>OMP_NUM_THREADS=1</code>), fix all seeds, and capture
+      <code>uv.lock</code> alongside the manifest — GP fits (Cholesky/LAPACK order) are reproducible to the
+      byte only under a pinned stack. Same lock ⇒ assert exact equality (sha256 of
+      <code>array.tobytes()</code>); a deliberate dependency bump gets a documented tolerance ladder (exact →
+      <code>rtol 1e-12</code> → investigate before accepting) and re-baselines the manifest in its own
+      commit.</li>
+      <li><strong>Excel handling:</strong> the sheets are the traceable record — snapshot them read-only as
+      test fixtures and load via openpyxl <em>cell values</em> (full float precision, never display strings);
+      tests assert on the canonical arrays, not on xlsx bytes (Excel serialisation is not byte-stable).
+      Replacing Excel as the operational interchange (netCDF/parquet) is future work for the assembly repo —
+      the recorded goldens themselves are never converted, they are the record.</li>
+    </ul>
+    <p><strong>Hardened extraction sequence (belts + braces):</strong> (1) goldens harness green in nova CI on
+    <code>main</code>; (2) cut <code>legacy/v1</code> + tag at that commit, branch-protect; (3) create the
+    assembly repository (name under the assembly-repo-name decision) via <code>git filter-repo</code> so
+    <code>nova/assembly</code> + its data/input trees carry full history; (4) the <em>same</em> goldens suite
+    and manifest run in the new repo — the byte-identical gate that must pass before the new repo is declared
+    canonical; (5) a dual-run window where both repos' CI execute the goldens on every commit; (6) a
+    wheel-install check (the packaged product passes, not just the working tree); only then does assembly work
+    switch homes and nova <code>main</code> drop the assembly tree.</p>
+    <p><em>Done-when:</em> goldens manifest + harness committed and green on nova main; baseline tag + protected
+    branch exist; the new assembly repo passes the identical manifest byte-for-byte under the pinned lock;
+    dual-run window observed; extraction sign-off recorded here.</p>
 
     <h2 id="s3">§3 — Columnar frame core</h2>
     <p>Port the frame layer onto a typed columnar store, preserving the public API surface consumers actually
@@ -163,6 +236,14 @@
       boundary by the egress builder. Guardrail: a round-trip test (zarr → IDS → <code>validate()</code> → zarr)
       runs in CI so the store cannot drift into a private schema; COCOS/units/provenance are carried as store
       attrs.</li>
+      <li><strong>Placement in the codex → distil → ambix pipeline</strong> (see the io-contract-home decision):
+      imas-codex discovers facility data and generates the mapping transformations (the standard-names LLM
+      pipelines build off it); imas-ambix distils to the tensorized store and trains. The recommended split puts
+      the store <em>contract</em> — standard-name schema, mapping-table format, zarr layout, round-trip
+      validators — plus machine-description ingest/egress in <code>nova.io</code> (the spine consumes the same
+      store, and nova is already the shared dependency); the facility-specific distil <em>pipelines</em> stay in
+      ambix; codex emits mapping tables against a published JSON schema without a package dependency. A third
+      micro-package is deferred until a consumer needs the contract without nova's physics stack.</li>
     </ul>
     <p><em>Done-when:</em> a MAST or ITER test shot ingests once and re-reads at cached-store speed (≥100×
     the AL full-get, per the measured baseline); a synthetic run's results egress as a valid IMAS equilibrium
@@ -209,56 +290,76 @@
     <p><em>Done-when:</em> imas-ambix imports the spine from the package; no physics kernels remain in-tree;
     spine_bench numbers match pre-split baselines; full ambix test suite green.</p>
 
-    <h2 id="s11">§11 — Nova upstream convergence (deferred, tracked)</h2>
-    <p>After the spine stabilises: nova adds <code>imas-nova</code> as a dependency, deletes its duplicated core
-    (biot/frame/imas/jax/database keep-set), and continues as the machine-assembly/structural project — gaining
-    the polygon-section kernel, the batched topology, and the pandas-free core its users need for current
-    pandas/numpy releases. This is deliberately last: it touches nova's users and should land against a proven
-    package. Until then nova stays frozen as the oracle for cross-check tests.</p>
+    <h2 id="s11">§11 — Convergence: assembly extraction and return to single trunk</h2>
+    <p>End state under the locked in-place route: the assembly project (GP fitting + SSAT/in-pit, per §2a's
+    hardened extraction) lives in its own repository and, where it needs frame/geometry/graphics services,
+    depends on nova 2.0 — the dependency finally pointing the right way (assembly → spine, matching the
+    one-way leave→keep import direction that already exists). <code>develop</code> merges to <code>main</code>
+    once the 2.0 gate (§9 suite + §10 ambix adoption green) and the §2a extraction sign-off are both recorded;
+    nova returns to single-trunk operation and the 1.x line survives as <code>legacy/v1</code> + tag for
+    archaeology and as the oracle for cross-check tests during the transition.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="repo-mechanics" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Repository mechanics — three viable routes: (a) new imas-nova repo populated by curated transfer (clean dependency/CI baseline; nova untouched); (b) in-place major refactor of nova — current state parks on a protected legacy branch (assembly work continues there, destined for its own repo), main becomes the refactored core as a 2.0 (keeps the nova name, identity, history, and test set; assembly branch is frozen against the old frame API until extracted); (c) rename nova → imas-nova and strip later. The refactor content is identical in all three — this decision is identity, history, and branch-discipline mechanics.</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="refactor-in-place">in-place refactor, legacy branch for assembly</button>
-          <button class="r-opt" data-value="new-repo">new repo, curated transfer</button>
-          <button class="r-opt" data-value="rename-nova">rename nova → imas-nova, strip later</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="cache-backend" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Identity-cache storage backend: zarr store (recommended — group deletion works, matches ambix's existing dependency, chunked/lazy reads) or keep nova's netCDF-group layout (proven, but eviction rewrites whole files)?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="zarr">zarr</button>
-          <button class="r-opt" data-value="netcdf-groups">netCDF groups</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="frame-migration-path" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Frame-core migration path: build the columnar store directly (recommended — the SoA store is already latent in metaframe.data and the consumer API is narrow) or ship a composition-over-pandas wrapper first and hollow it out behind the accessor API?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="direct-columnar">direct columnar store</button>
-          <button class="r-opt" data-value="composition-first">composition wrapper first</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="repo-mechanics" data-choice="refactor-in-place" data-by="smc" data-when="2026-07-23T08:05:06+00:00">
+    <p class="r-dec-q">Repository mechanics — three viable routes: (a) new imas-nova repo populated by curated transfer (clean dependency/CI baseline; nova untouched); (b) in-place major refactor of nova — current state parks on a protected legacy branch (assembly work continues there, destined for its own repo), main becomes the refactored core as a 2.0 (keeps the nova name, identity, history, and test set; assembly branch is frozen against the old frame API until extracted); (c) rename nova → imas-nova and strip later. The refactor content is identical in all three — this decision is identity, history, and branch-discipline mechanics.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="refactor-in-place">in-place refactor, legacy branch for assembly</button>
+      <button class="r-opt" data-value="new-repo">new repo, curated transfer</button>
+      <button class="r-opt" data-value="rename-nova">rename nova → imas-nova, strip later</button>
+      </p>
+    <p class="r-dec-rat">User decision 2026-07-23: keep nova&#x27;s name, identity, history, and core test set; assembly is live and continues on the 1.x line while the 2.0 core refactor proceeds on a separate branch; assembly later extracts to its own repository with a hardened byte-identity gate (belts + braces: frozen baseline branch AND golden characterization suite carried to the new repo).</p>
+    </div>
+<div class="r-dec" data-key="cache-backend" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Identity-cache storage backend: zarr store (recommended — group deletion works, matches ambix&#x27;s existing dependency, chunked/lazy reads) or keep nova&#x27;s netCDF-group layout (proven, but eviction rewrites whole files)?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="zarr">zarr</button>
+      <button class="r-opt" data-value="netcdf-groups">netCDF groups</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="frame-migration-path" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Frame-core migration path: build the columnar store directly (recommended — the SoA store is already latent in metaframe.data and the consumer API is narrow) or ship a composition-over-pandas wrapper first and hollow it out behind the accessor API?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="direct-columnar">direct columnar store</button>
+      <button class="r-opt" data-value="composition-first">composition wrapper first</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="assembly-repo-name" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Name for the extracted ITER-assembly project (GP fiducial interpolation + SSAT/in-pit coil fitting). Family style of codex (manuscript — discovery/mapping) and ambix (alembic — distillation): a classical instrument named for what the project does. groma = Roman surveying instrument for laying out alignments on construction sites (recommended — this IS machine-assembly metrology); gnomon = the measuring indicator/carpenter&#x27;s square; tekton = builder/craftsman.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="groma">groma (surveying/alignment instrument)</button>
+      <button class="r-opt" data-value="gnomon">gnomon (measuring indicator)</button>
+      <button class="r-opt" data-value="tekton">tekton (builder)</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="io-contract-home" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Where the IMAS/zarr IO layer lives, given the codex → distil → ambix pipeline (codex discovers facility data + generates mapping transformations and standard names; ambix distils to tensorized stores and trains). Recommended split: the store CONTRACT (standard-name schema, mapping-table format, zarr layout, round-trip validators) plus machine-description ingest/egress live in nova.io (nova is already the shared physics dependency and the spine consumes the same store); facility-specific DISTIL PIPELINES live in ambix; codex only emits mapping tables conforming to a published JSON schema (no package dependency). A third micro-package is warranted only when a consumer needs the contract without nova&#x27;s physics stack.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="nova-io-contract">contract in nova.io, pipelines in ambix</button>
+      <button class="r-opt" data-value="ambix-owns-io">all IO in ambix</button>
+      <button class="r-opt" data-value="third-repo">third micro-package</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-int-01" data-status="open" data-tier="opus" data-written-by="nova-scoping-review synthesis" data-written-at="2026-07-23">
-        <h4 class="r-fu-title">Bootstrap the imas-nova repository (§2)</h4>
-        <div class="r-fu-body"><p>Blocked only on the three decisions above (repo mechanics, cache backend, frame path). Once locked, stand up the repository per §2 and begin §3/§4 in parallel — the frame core and the kernel lift are independent workstreams meeting at the provider protocol.</p></div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-int-01" data-status="resolved" data-tier="opus" data-written-by="nova-scoping-review synthesis" data-written-at="2026-07-23" data-recommends-skill="" data-resolved-at="2026-07-23T08:07:33+00:00" data-resolved-by="smc">
+    <h4 class="r-fu-title">Bootstrap the imas-nova repository (§2)</h4>
+    <div class="r-fu-body"><p>Blocked only on the three decisions above (repo mechanics, cache backend, frame path). Once locked, stand up the repository per §2 and begin §3/§4 in parallel — the frame core and the kernel lift are independent workstreams meeting at the provider protocol.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    imas-nova-transfer (http://localhost:8765/imas-ambix/imas-nova-transfer.html)
 Section: §2
 Tier:    opus
 
 Context
   The nova-scoping-review research doc locked the strategy: a new imas-nova
-  physics-spine package sourced from nova's keep-set and ambix's physics tier.
-  This followup executes the repository bootstrap once the plan's three
+  physics-spine package sourced from nova&#x27;s keep-set and ambix&#x27;s physics tier.
+  This followup executes the repository bootstrap once the plan&#x27;s three
   decisions are locked.
 
 State to read
@@ -267,7 +368,7 @@ State to read
   ~/Code/imas-ambix/pyproject.toml (donor dep attribution)
 
 Scope locks / constraints
-  python >= 3.12, numpy >= 2, no pandas/torch in core deps.
+  python &gt;= 3.12, numpy &gt;= 2, no pandas/torch in core deps.
   Trunk-based main; uv; ruff; pytest fast lane default.
   Do not move any donor code yet — skeleton, packaging, CI, reckon-sync only.
 
@@ -275,8 +376,44 @@ Done-when
   1. imas-nova repo builds an installable wheel with the §2 dependency set
   2. CI fast lane wired and green (empty suite acceptable)
   3. followup written into plan + this followup marked resolved</pre>
-      </article>
-    </section>
+    <p class="r-fu-outcome">Superseded: repo-mechanics locked to refactor-in-place (2026-07-23); the new-repo bootstrap brief no longer applies. Replaced by the branch-restructure + goldens-baseline followup.</p>
+    </article>
+<article class="r-fu" data-id="f-int-02" data-status="open" data-tier="opus" data-written-by="smc/session 2026-07-23" data-written-at="2026-07-23" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Nova branch restructure + assembly goldens baseline (§2 + §2a)</h4>
+    <div class="r-fu-body"><p>Repo-mechanics locked to in-place refactor. Priority order: land the §2a golden characterization harness on nova main FIRST (it defines the protected baseline), then perform the §2 branch surgery (fast-forward main to the jax tip, cut legacy/v1 + tag at the goldens-green commit, branch develop). Blocked on the assembly-repo-name, cache-backend and frame-migration-path decisions only for later sections — not for this work.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    imas-nova-transfer (http://localhost:8765/imas-ambix/imas-nova-transfer.html)
+Section: §2 + §2a
+Tier:    opus
+
+Context
+  In-place nova refactor is locked. The GP-interpolation and SSAT/in-pit
+  coil-fitting code is live ITER work and must be provably byte-identical
+  across every branch and repo move — the goldens harness lands before any
+  branch surgery.
+
+State to read
+  ~/Code/imas-ambix/docs/nova-scoping-review.html (§7a in-place assessment)
+  ~/Code/nova/nova/assembly/{gaussianprocessregressor,fiducialfit,fiducialfit_relative,fiducialpit,fiducialsector,fiducialccl,fiducialtransform,sectordata,sectorfile,windingpack,uniformwindingpack,SM6_fit}.py
+  ~/Code/nova/input/ITER/*.xlsx and ~/Code/nova/data/Assembly/ (recorded fit corpus)
+  ~/Code/nova/tests/test_assembly.py, test_transform.py (existing assembly tests)
+
+Scope locks / constraints
+  Read-only toward assembly source — the harness observes, it does not refactor.
+  Pinned env: OPENBLAS_NUM_THREADS=1, OMP_NUM_THREADS=1, fixed seeds, uv.lock
+  captured beside the manifest. Excel fixtures loaded via openpyxl cell values.
+  Branch surgery only AFTER the harness is green on main; legacy/v1 protected
+  on GitHub before develop is cut.
+
+Done-when
+  1. Goldens manifest (inputs+sha256, entry points, canonical outputs+sha256,
+     env-lock hash) + harness committed and green in nova CI on main
+  2. main fast-forwarded to the jax tip; legacy/v1 + v1-assembly-baseline tag
+     created at the goldens-green commit and branch-protected
+  3. develop cut; reckon synced in nova; repo-local refactor plan scaffolded
+  4. followup written into plan + this followup marked resolved</pre>
+    </article>
+</section>
 
   </main>
 </body>
