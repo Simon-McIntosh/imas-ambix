@@ -28,9 +28,10 @@
     <strong>nova-scoping-review</strong>; this plan is the execution record. Strategy pillars, fixed unless a
     decision below reopens them:</p>
     <ul>
-      <li><strong>New repository, curated transfer.</strong> Nova keeps its name and its assembly mission; each
-      component becomes canonical in imas-nova as it lands and the donor copy is deleted in the same series —
-      no parallel version families, no long-lived duplication.</li>
+      <li><strong>One canonical home, curated transfer.</strong> Whether the spine lives in a new repo or in a
+      refactored nova (see the repo-mechanics decision), each component becomes canonical in the spine as it
+      lands and the donor copy is deleted in the same series — no parallel version families, no long-lived
+      duplication. Assembly/structural work is out of scope for the spine in every variant.</li>
       <li><strong>Pandas-free core.</strong> The frame layer is rebuilt as a typed columnar store (schema +
       dict-of-numpy-columns + accessor objects); pandas and xarray appear only as export/interchange shims.
       Modern floors: python ≥ 3.12, numpy ≥ 2.</li>
@@ -156,6 +157,12 @@
       (HDF5 or netCDF); coordinate-ordering handled so <code>validate()</code> passes.</li>
       <li>Streaming seam (interface now, implementation later): ring-buffer signal API compatible with
       memory-backend <code>put_slice</code> feed for real-time-adjacent operation.</li>
+      <li><strong>The zarr signal store is the primary data plane, not just a cache</strong> ("IMAS in all but
+      AL"): world-model training loaders and the spine both consume the standard-name-keyed tensorized zarr
+      store directly; true IMAS pulses (HDF5 / IMAS-netCDF) are the interchange format materialised at the
+      boundary by the egress builder. Guardrail: a round-trip test (zarr → IDS → <code>validate()</code> → zarr)
+      runs in CI so the store cannot drift into a private schema; COCOS/units/provenance are carried as store
+      attrs.</li>
     </ul>
     <p><em>Done-when:</em> a MAST or ITER test shot ingests once and re-reads at cached-store speed (≥100×
     the AL full-get, per the measured baseline); a synthetic run's results egress as a valid IMAS equilibrium
@@ -212,8 +219,9 @@
     <section data-reckon="decisions" id="decisions" class="r-decisions">
       <h2><span class="sec">§</span> Decisions</h2>
       <div class="r-dec" data-key="repo-mechanics" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Repository mechanics: new imas-nova repo populated by curated transfer (recommended — nova's remotes, assembly users, and history stay undisturbed; clean dependency/CI baseline), or rename the existing nova repo to imas-nova and strip the assembly side out later?</p>
+        <p class="r-dec-q">Repository mechanics — three viable routes: (a) new imas-nova repo populated by curated transfer (clean dependency/CI baseline; nova untouched); (b) in-place major refactor of nova — current state parks on a protected legacy branch (assembly work continues there, destined for its own repo), main becomes the refactored core as a 2.0 (keeps the nova name, identity, history, and test set; assembly branch is frozen against the old frame API until extracted); (c) rename nova → imas-nova and strip later. The refactor content is identical in all three — this decision is identity, history, and branch-discipline mechanics.</p>
         <p class="r-dec-opts">
+          <button class="r-opt" data-value="refactor-in-place">in-place refactor, legacy branch for assembly</button>
           <button class="r-opt" data-value="new-repo">new repo, curated transfer</button>
           <button class="r-opt" data-value="rename-nova">rename nova → imas-nova, strip later</button>
         </p>

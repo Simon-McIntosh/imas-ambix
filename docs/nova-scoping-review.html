@@ -335,6 +335,26 @@
     layer — the backend's tensorization is precisely the flat representation needed, and the measured 10× win
     over the HDF5 AL read confirms it. The per-signal standard-names interface then addresses signals physically
     while a single owned mapping table is the only component that knows DD paths.</p>
+    <h3 id="s6a">§6a — "IMAS in all but AL": the zarr store as the primary data plane (assessed 2026-07-23)</h3>
+    <p><strong>Verdict: workable, and the right call for the training workload.</strong> The proposal — store
+    data tensorized in zarr object stores under Standard Names, with true IMAS materialised only at the
+    boundaries — is the §6 ingest cache promoted from cache to canonical data plane, and the measured numbers
+    justify the promotion: at 4.5 TB / H200-training scale the AL cannot sit in a loader path (530 ms per
+    AoS-reconstructing get vs ~1 ms flat reads; the WM loaders already train from FAIR-MAST zarr today, so for
+    MAST the pipeline is zarr→zarr re-keying plus unit/name normalisation — the AL enters only for ITER/WEST-style
+    sources and for egress). Semantically nothing is lost: the transform is the same tensorization the IMAS
+    netCDF backend performs (dense arrays, AoS index promoted to a leading dimension), just held in zarr and
+    keyed by standard name instead of dot-joined DD path.</p>
+    <p>Interoperability — the "converge on a single data model" requirement — is preserved by two disciplines,
+    both cheap: (1) the <em>owned, versioned mapping table</em> (standard_name → DD path/unit/COCOS) is the only
+    component that knows AoS layout, so the store remains mechanically convertible to a true IMAS pulse; (2) a
+    <em>round-trip CI test</em> (zarr → IDS assembly → <code>validate()</code> → re-ingest) prevents the store
+    drifting into a private schema — the known failure mode of "IMAS-like" stores. COCOS, units, and provenance
+    ride as store attributes (nova's <code>metadata.py</code> stamping pattern). The single data model is then:
+    <em>standard-name-keyed tensorized xarray-on-zarr with DD-compatible metadata</em>, consumed identically by
+    the physics spine and the world-model loaders; IMAS pulses are the interchange format at the boundary, not
+    the working format. This is recorded in the transfer plan's IO section as a strategy pillar rather than an
+    open decision — no measured evidence points the other way.</p>
 
     <h2 id="s7">§7 — Options analysis</h2>
     <p><strong>Option A — import nova as-is and fix in place.</strong> Rejected. The dependency stack (30+ hard
@@ -357,6 +377,37 @@
     dependency/CI/test baseline (numpy≥2, python≥3.12, no pandas in core), and git history for transferred files
     can be preserved where valuable. The name <code>imas-nova</code> aligns it with the imas-* family and states
     the IMAS-native contract.</p>
+    <h3 id="s7a">§7a — Option C variant: in-place nova refactor on a branch (assessed 2026-07-23)</h3>
+    <p>A third mechanics route, raised after the initial review: <strong>keep nova, perform the major refactor
+    in-tree</strong> — the current state parks on a protected legacy branch (assembly development continues
+    there, destined for extraction into its own repository), and <code>main</code> becomes the refactored core
+    released as a 2.x. <strong>Verdict: workable, and competitive with the new-repo route.</strong> The refactor
+    <em>content</em> is identical in either case (columnar frame core, provider protocol, JAX topology wiring,
+    dependency prune); the decision is purely identity, history, and branch mechanics. What the in-place route
+    buys: the nova name and identity are retained, the mature kernels keep native git history
+    (blame/archaeology over <code>constants.py</code> and the element kernels has real value), the core test set
+    stays in place, and the polygon/topology back-flow from ambix lands directly where nova's users are. The
+    structural facts make it cheap: zero live keep→leave imports means the ~55k LOC leave-set can be deleted
+    from the refactor branch on day one, and the wheel already ships only the core.</p>
+    <p>Two costs to accept with eyes open. <em>First, the legacy branch is a freeze, not a fork that merges
+    back:</em> assembly imports the frame/geometry/graphics layers whose API the refactor rewrites, so
+    assembly-side commits on the legacy branch can never merge into the refactored main — the branch is a
+    holding pattern that only ends when assembly moves to its own repo (git subtree-split / filter-repo carries
+    its history out cleanly). If assembly extraction slips indefinitely, the repo runs two permanently-diverged
+    lines, which is the failure mode to guard against — put a date or trigger on the extraction. <em>Second,
+    version discipline:</em> the 2.0 core breaks 1.x consumers (numpy ≥ 2, python ≥ 3.12, no pandas frame), so
+    the legacy branch should be tagged as the 1.x maintenance line explicitly. The trunk-based multi-agent
+    workflow also needs a temporary two-branch exception spelled out in nova's AGENTS.md. On balance: if the
+    assembly-extraction commitment is credible, in-place refactor is the better expression of "nova supports
+    imas-ambix" — one name, one history, no imas-nova/nova naming split; the new-repo route remains the safer
+    fallback if the legacy-branch constraint proves awkward.</p>
+    <p><strong>IMAS-interface cost under this route:</strong> small — it is one of the cheapest parts of the
+    refactor. The AL hookup (<code>dataset.py</code> ladder, <code>database.py</code>, <code>uri.py</code>,
+    <code>metadata.py</code>) is numpy + imas-python and carries unchanged; the identity cache carries with the
+    three §5 hardenings; only the machine-compilation insert step re-points at the new frame store, behind an
+    unchanged <code>insert()</code> signature. The genuinely new IMAS work (either route) is the
+    standard-names mapping table + ingest transcoder + egress builders — bounded, and where the measured value
+    is. Order weeks, not months; the frame-core rewrite is the long pole, not IMAS.</p>
     <p><strong>Risks and mitigations.</strong> (1) <em>Big-bang risk</em> — mitigated by the composition wrapper
     step and by nova's analytic test suite transferring first, so every kernel/operator port lands against known
     goldens. (2) <em>Two-home drift during transition</em> — mitigated by declaring imas-nova canonical per
