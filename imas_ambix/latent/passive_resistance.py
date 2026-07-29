@@ -6,7 +6,7 @@ so the nominal ring resistances misstate the true conducting paths.  On a
 coil-only interval there is no plasma: the measured magnetics minus the
 static coil prediction is PURE eddy signal, the drives are measured, and the
 only unknowns are a few bounded resistance multipliers — classical parameter
-estimation, done standalone so every downstream rung inherits a calibrated R
+estimation, done standalone so every downstream consumer inherits a calibrated R
 instead of re-learning it.
 
 Case-current holdback (binding contract): the measured ``*_case_current``
@@ -240,7 +240,7 @@ class VacuumShotData:
     meas_resid: np.ndarray  # (T, S) measured − non-case static prediction
     sigma: np.ndarray  # (S,) per-shot robust channel scale
     case_meas: np.ndarray  # (T, n_case) measured case currents [A]; NaN absent
-    #: (T, C) drive-channel currents [A·turn] in the system's coil_channels
+    #: (T, C) drive-channel currents [A·turn] in the system's channels
     #: order — required by the structure discovery (drive-column edits and
     #: galvanic voltage terms are functions of the raw drives, not of the
     #: precomputed ``psi_circ``); None on data prepared before the field
@@ -264,20 +264,16 @@ class ModeMaps:
 def campaign_mode_maps(
     system: PassiveCircuitSystem, multipliers: np.ndarray
 ) -> ModeMaps:
-    """Solve the generalised eigenproblem for one candidate resistance model."""
-    from scipy.linalg import eigh  # noqa: PLC0415
-
-    r_diag = system.r_diag * np.asarray(multipliers, dtype=np.float64)
-    w, v = eigh(np.diag(r_diag), system.lmat)
-    tau = 1.0 / np.clip(w, 1e-12, None)
+    """Read Nova's mode system for one candidate resistance model."""
+    tau, v = system.mode_system(np.asarray(multipliers, dtype=np.float64))
     case_rows = np.array(
-        [system.case_channel_row[ch] for ch in sorted(system.case_channel_row)],
+        [system.measured_channel_row[ch] for ch in sorted(system.measured_channel_row)],
         dtype=np.int64,
     )
     return ModeMaps(
         tau=tau,
         v=v,
-        a_sens_modes=system.a_circ @ v,
+        a_sens_modes=system.a_circuit @ v,
         case_v=v[case_rows] if case_rows.size else np.zeros((0, v.shape[0])),
     )
 
@@ -291,8 +287,8 @@ def shot_loss_terms(
     """Whitened sum-of-squares terms of one shot under one resistance model.
 
     Magnetics: eddy-signal residual ``meas_resid − a_sens·i(t)``, per-channel
-    mean removed over the interval (an offset-nuisance intercept, as the
-    static vacuum audit fits), whitened by the pooled channel scale.
+    mean removed over the interval (the offset-nuisance intercept used by the
+    static vacuum fit), whitened by the pooled channel scale.
     Case currents: held-back measured vs predicted, per-channel mean removed
     (instrumental zero offset), whitened by the pooled case scale.
     Returns ``(ss_mag, n_mag, ss_case, n_case)``.
@@ -368,8 +364,8 @@ def pooled_loss(
 #
 # The magnetic L is exact geometry and never touched; what the vacuum data can
 # still falsify is the CONDUCTOR TOPOLOGY the diagonal-R isolated-ring model
-# assumes.  Three structured hypothesis families (locked decision
-# passive-structure-discovery-scope = structured-library):
+# assumes. Three structured, physically constrained hypothesis families are
+# supported:
 #
 # * case-coil galvanic wiring — the measured sibling identity
 #   ``<coil>_current = <coil>_coil_current + <coil>_case_current`` (exact on
@@ -384,8 +380,8 @@ def pooled_loss(
 #   resistance multiplier absorb the diagonal part.
 #
 # * pair wiring as constraint REDUCTIONS — series (I_i = I_j) / anti-series
-#   (I_i = −I_j) merges of the measured case pairs (the audit's coupled sets
-#   show the P3 case pair moving as one circuit), expressed as a reduction
+#   (I_i = −I_j) merges of measured case pairs that move as one circuit,
+#   expressed as a reduction
 #   map C with L→CᵀLC, R→CᵀRC, drives→Cᵀ·; and common/differential drive-
 #   gain corrections for the un-separable up/down coil pairs.
 #
@@ -578,8 +574,8 @@ def coil_pair_channels(coil_channels: list[str]) -> list[tuple[str, str]]:
 
     A channel pairs with the one whose coil label differs only in the final
     ``u``/``l`` position (``p4u_coil_current`` ↔ ``p4l_coil_current``,
-    ``p6u_current`` ↔ ``p6l_current``) — the un-separable pairs the coil
-    audit measured.  Returned as (upper, lower), sorted by label.
+    ``p6u_current`` ↔ ``p6l_current``) among the measured drive channels.
+    Returned as (upper, lower), sorted by label.
     """
     bases = {ch.split("_")[0]: ch for ch in coil_channels}
     pairs: list[tuple[str, str]] = []
@@ -613,8 +609,8 @@ def build_structure_hypothesis(
     for ch_i, ch_j, sign in case_series or []:
         row_pairs.append(
             (
-                system.case_channel_row[ch_i],
-                system.case_channel_row[ch_j],
+                system.measured_channel_row[ch_i],
+                system.measured_channel_row[ch_j],
                 int(sign),
             )
         )
@@ -622,9 +618,9 @@ def build_structure_hypothesis(
 
     wiring_cases = list(wiring_cases or [])
     n_wire = len(wiring_cases)
-    n_drive = len(system.coil_channels)
+    n_drive = len(system.channels)
     wiring_rows = np.array(
-        [system.case_channel_row[ch] for ch in wiring_cases], dtype=np.int64
+        [system.measured_channel_row[ch] for ch in wiring_cases], dtype=np.int64
     )
     wiring_lam = np.zeros((n_wire, n_drive))
     wiring_sel = np.zeros((n_wire, n_drive))
@@ -633,9 +629,9 @@ def build_structure_hypothesis(
             raise ValueError("wiring_cases needs the drive_linkage (channels, lam)")
         lam_channels, lam = drive_linkage
         lam_row = {ch: i for i, ch in enumerate(lam_channels)}
-        col_of = {ch: i for i, ch in enumerate(system.coil_channels)}
+        col_of = {ch: i for i, ch in enumerate(system.channels)}
         for w_i, case_ch in enumerate(wiring_cases):
-            parents = case_parent_coil_channels(case_ch, system.coil_channels)
+            parents = case_parent_coil_channels(case_ch, system.channels)
             if not parents:
                 raise ValueError(f"no parent winding channels for {case_ch}")
             for p in parents:
@@ -647,7 +643,7 @@ def build_structure_hypothesis(
 
     pair_cols: list[tuple[int, int]] = []
     for ch_u, ch_l in pair_channels or []:
-        col_of = {ch: i for i, ch in enumerate(system.coil_channels)}
+        col_of = {ch: i for i, ch in enumerate(system.channels)}
         pair_cols.append((col_of[ch_u], col_of[ch_l]))
 
     return StructureHypothesis(
@@ -696,7 +692,7 @@ def structured_mode_maps(
     tau = 1.0 / np.clip(w, 1e-12, None)
     v_phys = c @ v_red
 
-    m_eff = system.m_coil_circ
+    m_eff = system.m_channel
     volt_cols = None
     if g_v is not None and hyp.wiring_rows.size:
         m_eff = m_eff.copy()
@@ -704,29 +700,29 @@ def structured_mode_maps(
         # (the mode drive is −dΨ/dt)
         m_eff[hyp.wiring_rows] -= np.asarray(g_v)[:, np.newaxis] * hyp.wiring_lam
     if r_w is not None and hyp.wiring_rows.size:
-        volt_cols = np.zeros((n, len(system.coil_channels)))
+        volt_cols = np.zeros((n, len(system.channels)))
         volt_cols[hyp.wiring_rows] = np.asarray(r_w)[:, np.newaxis] * hyp.wiring_sel
     if pair_gains is not None and hyp.pair_cols:
-        if m_eff is system.m_coil_circ:
+        if m_eff is system.m_channel:
             m_eff = m_eff.copy()
         for (cu, cl), (gc, gd) in zip(
             hyp.pair_cols, np.asarray(pair_gains).reshape(-1, 2), strict=True
         ):
-            col_u = system.m_coil_circ[:, cu]
-            col_l = system.m_coil_circ[:, cl]
+            col_u = system.m_channel[:, cu]
+            col_l = system.m_channel[:, cl]
             common = 0.5 * (col_u + col_l)
             differ = 0.5 * (col_u - col_l)
             m_eff[:, cu] += gc * common + gd * differ
             m_eff[:, cl] += gc * common - gd * differ
 
     case_rows = np.array(
-        [system.case_channel_row[ch] for ch in sorted(system.case_channel_row)],
+        [system.measured_channel_row[ch] for ch in sorted(system.measured_channel_row)],
         dtype=np.int64,
     )
     return StructuredModeMaps(
         tau=tau,
         v_phys=v_phys,
-        a_sens_modes=system.a_circ @ v_phys,
+        a_sens_modes=system.a_circuit @ v_phys,
         case_map=(
             v_phys[case_rows] if case_rows.size else np.zeros((0, v_phys.shape[1]))
         ),
@@ -794,10 +790,10 @@ def structure_hypothesis_parts(
     case_series = [
         (p["channels"][0], p["channels"][1], int(p["sign"]))
         for p in structure.case_series_pairs
-        if all(ch in system.case_channel_row for ch in p["channels"])
+        if all(ch in system.measured_channel_row for ch in p["channels"])
     ]
     wiring_cases = sorted(
-        ch for ch in structure.case_wiring if ch in system.case_channel_row
+        ch for ch in structure.case_wiring if ch in system.measured_channel_row
     )
     if wiring_cases and drive_linkage is None:
         raise ValueError(
@@ -806,7 +802,7 @@ def structure_hypothesis_parts(
     pair_channels = [
         (p["channels"][0], p["channels"][1])
         for p in structure.pair_drive_gains
-        if all(ch in system.coil_channels for ch in p["channels"])
+        if all(ch in system.channels for ch in p["channels"])
     ]
     row_of = {int(c): i for i, c in enumerate(system.circuits)}
     edges: list[tuple[int, int]] = []
@@ -845,7 +841,7 @@ def structure_hypothesis_parts(
             [
                 (p["common"], p["differential"])
                 for p in structure.pair_drive_gains
-                if all(ch in system.coil_channels for ch in p["channels"])
+                if all(ch in system.channels for ch in p["channels"])
             ]
         ).reshape(-1, 2)
     if edges:
@@ -863,13 +859,13 @@ def structured_reduced_basis(
     campaign: str | None = None,
     drive_linkage: tuple[list[str], np.ndarray] | None = None,
 ):
-    """Mode-reduced eigenbasis of a structured system (the re-gate hook).
+    """Mode-reduced eigenbasis of a structured circuit system.
 
     Same k-mode history-relevance selection as
     :func:`~imas_ambix.latent.temporal_operator.reduce_passive_system`
     (``τ·‖a_sens/scale‖``, slowest-first), computed over the STRUCTURED
     eigenmodes; drive couplings carry the wiring flux edits and pair gains,
-    and ``volt_coil`` carries the galvanic terms for the raw trajectory.
+    and ``volt_channel`` carries the galvanic terms for the raw trajectory.
     """
     from imas_ambix.latent.temporal_operator import (  # noqa: PLC0415
         PassiveEigenbasis,
@@ -885,19 +881,19 @@ def structured_reduced_basis(
     )
     keep = np.argsort(relevance)[::-1][: int(k)]
     keep = keep[np.argsort(smaps.tau[keep])[::-1]]  # slowest-first
-    g_modes = system.g_circ @ smaps.v_phys[:, keep]
+    g_modes = system.g_grid @ smaps.v_phys[:, keep]
     volt = None
     if smaps.drive_volt is not None and np.any(smaps.drive_volt):
         volt = smaps.drive_volt[keep]
     return PassiveEigenbasis(
         tau=smaps.tau[keep],
         v=smaps.v_phys[:, keep],
-        a_sens=smaps.a_sens_modes[:, keep],
+        a_sensor=smaps.a_sens_modes[:, keep],
         g_grid=g_modes,
-        m_coil=smaps.drive_flux[keep],
-        m_cells=g_modes[np.asarray(cells)].T,
+        m_channel=smaps.drive_flux[keep],
+        m_cell=g_modes[np.asarray(cells)].T,
         resistivity=float(system.resistivity),
-        volt_coil=volt,
+        volt_channel=volt,
     )
 
 

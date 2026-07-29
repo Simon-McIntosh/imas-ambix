@@ -4,7 +4,7 @@ Load-bearing contracts:
 
 * the vectorised uniform-cadence ZOH response equals the exact integrator;
 * a uniform resistance multiplier maps every τ → τ/s with unchanged
-  eigenvectors (the tau_scale equivalence the 1-DOF rung generalises);
+  eigenvectors;
 * group labels honour the case identity and the normalised region rule;
 * calibration application fails loud on an unknown group;
 * on a synthetic two-circuit system with a known resistance multiplier, the
@@ -49,21 +49,22 @@ def test_zoh_mode_response_matches_exact_integrator():
 def _toy_system(n_case: int = 1) -> PassiveCircuitSystem:
     lmat = np.array([[2.0, 0.6], [0.6, 1.5]]) * 1e-6
     r_diag = np.array([4.0e-5, 8.0e-5])
-    a_circ = RNG.normal(size=(5, 2)) * 1e-6
-    g_circ = RNG.normal(size=(12, 2)) * 1e-6
-    m_coil = RNG.normal(size=(2, 3)) * 1e-5
+    a_circuit = RNG.normal(size=(5, 2)) * 1e-6
+    g_grid = RNG.normal(size=(12, 2)) * 1e-6
+    m_channel = RNG.normal(size=(2, 3)) * 1e-5
     return PassiveCircuitSystem(
         circuits=np.array([101, 14]),
         centroid_r=np.array([0.3, 1.5]),
         centroid_z=np.array([0.0, 1.1]),
         lmat=lmat,
         r_diag=r_diag,
-        a_circ=a_circ,
-        g_circ=g_circ,
-        m_coil_circ=m_coil,
-        coil_channels=["a_current", "b_current", "sol_current"],
-        case_channel_row={"p2u_case_current": 1} if n_case else {},
+        a_circuit=a_circuit,
+        g_grid=g_grid,
+        m_channel=m_channel,
+        channels=["a_current", "b_current", "sol_current"],
+        measured_channel_row={"p2u_case_current": 1} if n_case else {},
         resistivity=7.2e-7,
+        section_scale=np.array([0.1, 0.1]),
     )
 
 
@@ -129,7 +130,7 @@ def _simulate_shot(system, theta_true, seed=0, n_t=1200, dt=1e-3):
     held-back target; magnetics carry the same truth plus noise."""
     rng = np.random.default_rng(seed)
     i_drive = np.cumsum(rng.normal(0, 30.0, size=(n_t, 3)), axis=0)
-    psi_circ = i_drive @ system.m_coil_circ.T
+    psi_circ = i_drive @ system.m_channel.T
     maps = campaign_mode_maps(system, theta_true)
     a = zoh_mode_response(maps.tau, dt, psi_circ @ maps.v)
     case = a @ maps.case_v.T + rng.normal(0, 0.05, size=(n_t, 1))
@@ -200,7 +201,10 @@ def test_shot_loss_case_supervision_is_holdback_only():
 
 def test_mode_maps_case_rows_follow_sorted_channels():
     system = _toy_system()
-    system.case_channel_row = {"p2u_case_current": 1, "a2l_case_current": 0}
+    system.measured_channel_row = {
+        "p2u_case_current": 1,
+        "a2l_case_current": 0,
+    }
     maps = campaign_mode_maps(system, np.ones(2))
     assert isinstance(maps, ModeMaps)
     # sorted channel order: a2l first → row 0's eigen-row first
@@ -320,11 +324,11 @@ def _toy_system3() -> PassiveCircuitSystem:
         centroid_z=np.array([0.0, 0.08, 1.0]),
         lmat=lmat,
         r_diag=r_diag,
-        a_circ=rng.normal(size=(5, 3)) * 1e-6,
-        g_circ=rng.normal(size=(12, 3)) * 1e-6,
-        m_coil_circ=rng.normal(size=(3, 3)) * 1e-5,
-        coil_channels=["p4l_coil_current", "p4u_coil_current", "sol_current"],
-        case_channel_row={"p4u_case_current": 2},
+        a_circuit=rng.normal(size=(5, 3)) * 1e-6,
+        g_grid=rng.normal(size=(12, 3)) * 1e-6,
+        m_channel=rng.normal(size=(3, 3)) * 1e-5,
+        channels=["p4l_coil_current", "p4u_coil_current", "sol_current"],
+        measured_channel_row={"p4u_case_current": 2},
         resistivity=7.2e-7,
         section_scale=np.array([0.1, 0.1, 0.05]),
     )
@@ -340,7 +344,7 @@ def test_structured_maps_reduce_to_diagonal_model_when_structure_empty():
     # identical drive response: psi_m @ decay == via base maps on a test drive
     rng = np.random.default_rng(0)
     i_drive = np.cumsum(rng.normal(size=(400, 3)), axis=0) * 10.0
-    psi_circ = i_drive @ system.m_coil_circ.T
+    psi_circ = i_drive @ system.m_channel.T
     a_base = zoh_mode_response(base.tau, 1e-3, psi_circ @ base.v)
     pred_base = a_base @ base.a_sens_modes.T
     a_s = zoh_mode_response(smaps.tau, 1e-3, i_drive @ smaps.drive_flux.T)
@@ -363,7 +367,7 @@ def test_adjacency_stamp_couples_and_preserves_spd():
 
 def test_wiring_flux_edit_and_voltage_term():
     system = _toy_system3()
-    lam_channels = list(system.coil_channels)
+    lam_channels = list(system.channels)
     lam = np.array([[5.0, 1.0, 0.3], [1.0, 4.0, 0.2], [0.3, 0.2, 8.0]]) * 1e-5
     hyp = build_structure_hypothesis(
         system,
@@ -377,7 +381,7 @@ def test_wiring_flux_edit_and_voltage_term():
     g_v, r_w = np.array([2.0]), np.array([3e-3])
     smaps = structured_mode_maps(hyp, np.ones(3), g_v=g_v, r_w=r_w)
     # flux edit lands only on the case row: m_eff = m − g_v·lam_parent
-    m_eff_expected = system.m_coil_circ.copy()
+    m_eff_expected = system.m_channel.copy()
     m_eff_expected[2] -= 2.0 * lam[1]
     np.testing.assert_allclose(
         smaps.drive_flux, smaps.v_phys.T @ m_eff_expected, rtol=1e-12
@@ -391,7 +395,7 @@ def test_structured_loss_recovers_true_wiring_gain():
     """Synthetic truth with a galvanic case wiring: the structured loss is
     minimised at the true g_v — from held-back case supervision alone."""
     system = _toy_system3()
-    lam_channels = list(system.coil_channels)
+    lam_channels = list(system.channels)
     lam = np.array([[5.0, 1.0, 0.3], [1.0, 4.0, 0.2], [0.3, 0.2, 8.0]]) * 1e-5
     hyp = build_structure_hypothesis(
         system,
@@ -411,7 +415,7 @@ def test_structured_loss_recovers_true_wiring_gain():
         campaign="toy",
         stratum="dedicated_vacuum",
         dt=1e-3,
-        psi_circ=i_drive @ system.m_coil_circ.T,
+        psi_circ=i_drive @ system.m_channel.T,
         meas_resid=meas,
         sigma=np.full(5, 1e-5),
         case_meas=case,
@@ -444,7 +448,7 @@ def test_structured_loss_requires_i_drive_and_preserves_holdback():
         campaign="toy",
         stratum="fleet",
         dt=1e-3,
-        psi_circ=i_drive @ system.m_coil_circ.T,
+        psi_circ=i_drive @ system.m_channel.T,
         meas_resid=a @ smaps.a_sens_modes.T,
         sigma=np.full(5, 1e-5),
         case_meas=a @ smaps.case_map.T,
@@ -464,7 +468,10 @@ def test_structured_loss_requires_i_drive_and_preserves_holdback():
 
 def test_series_constrained_case_pair_predicts_both_channels_equal():
     system = _toy_system3()
-    system.case_channel_row = {"p4u_case_current": 2, "p4l_case_current": 1}
+    system.measured_channel_row = {
+        "p4u_case_current": 2,
+        "p4l_case_current": 1,
+    }
     hyp = build_structure_hypothesis(
         system,
         np.arange(3),
@@ -481,7 +488,7 @@ def test_series_constrained_case_pair_predicts_both_channels_equal():
 
 def test_structured_reduced_basis_matches_diagonal_reduction():
     """Empty structure → byte-comparable to reduce_passive_system; wiring →
-    volt_coil present and the flux columns carry the g_v edit."""
+    voltage-channel terms present and the flux columns carry the wiring edit."""
     from imas_ambix.latent.passive_resistance import (
         structure_hypothesis_parts,
         structured_reduced_basis,
@@ -521,9 +528,9 @@ def test_structured_reduced_basis_matches_diagonal_reduction():
     )
     np.testing.assert_allclose(got.tau, ref.tau, rtol=1e-12)
     np.testing.assert_allclose(np.abs(got.v), np.abs(ref.v), rtol=1e-9)
-    np.testing.assert_allclose(np.abs(got.m_coil), np.abs(ref.m_coil), rtol=1e-9)
-    np.testing.assert_allclose(np.abs(got.m_cells), np.abs(ref.m_cells), rtol=1e-9)
-    assert got.volt_coil is None
+    np.testing.assert_allclose(np.abs(got.m_channel), np.abs(ref.m_channel), rtol=1e-9)
+    np.testing.assert_allclose(np.abs(got.m_cell), np.abs(ref.m_cell), rtol=1e-9)
+    assert got.volt_channel is None
 
     wired = PassiveStructure(
         case_series_pairs=[],
@@ -548,9 +555,9 @@ def test_structured_reduced_basis_matches_diagonal_reduction():
         sensor_scale=scale,
         k=3,
         cells=_Grid.cells,
-        drive_linkage=(list(system.coil_channels), lam),
+        drive_linkage=(list(system.channels), lam),
     )
-    assert got_w.volt_coil is not None and got_w.volt_coil.shape == (3, 3)
+    assert got_w.volt_channel is not None and got_w.volt_channel.shape == (3, 3)
     with pytest.raises(ValueError, match="drive_linkage"):
         structured_reduced_basis(
             system, wired, sensor_scale=scale, k=2, cells=_Grid.cells

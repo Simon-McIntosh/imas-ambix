@@ -1,9 +1,9 @@
-"""Tests for the flux-diffusion transport prior (the §7a temporal anchor).
+"""Tests for the flux-diffusion transport prior.
 
 The transport prior is the temporal counterpart of the GS spatial anchor: it
 constrains ∂ψ/∂t through a soft, learned flux/current-diffusion operator with
-the arrow of time baked in.  The properties pinned here are the ones the gate
-(§2 item 3) makes verifiable:
+the arrow of time baked in. The properties pinned here make the physical
+contract verifiable:
 
 * the learned diffusivity is **strictly positive** (η∥>0 ⇒ D≥0) by construction
   — parabolic, forward-well-posed — for ANY latent input, even adversarial ones;
@@ -25,11 +25,62 @@ from __future__ import annotations
 import torch
 
 from imas_ambix.latent.transport import FluxDiffusionPrior
+from imas_ambix.physics import (
+    CurrentDiffusion,
+    FluxSurfaceGeometry,
+    current_diffusion_from_mapping,
+)
 
 
 def _prior(nrho=32, cmd_dim=2, feat_dim=8):
     torch.manual_seed(0)
     return FluxDiffusionPrior(nrho=nrho, cmd_dim=cmd_dim, feat_dim=feat_dim)
+
+
+def _physical_solver(nrho: int = 4) -> CurrentDiffusion:
+    face = torch.linspace(0.0, 1.0, nrho + 1).numpy()
+    cell = 0.5 * (face[:-1] + face[1:])
+    return current_diffusion_from_mapping(
+        {
+            "rho_face": face,
+            "rho_cell": cell,
+            "psi_face": face.copy(),
+            "psi_n_face": face,
+            "psi_n_cell": cell,
+            "vpr_face": face,
+            "vpr_cell": cell,
+            "g2_face": 1.0 + face,
+            "g3_face": 1.0 + face,
+            "g3_cell": 1.0 + cell,
+            "f_face": 1.0 + face,
+            "f_cell": 1.0 + cell,
+            "b2_cell": 1.0 + cell,
+            "inv_r_cell": 1.0 + cell,
+            "phi_b": 0.8,
+            "r0": 0.9,
+            "ip_amperes": 5.0e5,
+            "axis_psi": 0.0,
+            "boundary_psi": 1.0,
+            "volume": 8.0,
+            "q_face": 1.0 + face,
+            "flux_sign": 1.0,
+        },
+        {"eta0": 8.0e-8, "contrast": 1.5, "shape": 2.0},
+    )
+
+
+def test_prior_carries_nova_physical_transport_context():
+    solver = _physical_solver()
+    prior = FluxDiffusionPrior(
+        nrho=solver.geometry.rho_cell.size,
+        cmd_dim=2,
+        feat_dim=8,
+        current_diffusion=solver,
+    )
+
+    assert isinstance(prior.current_diffusion, CurrentDiffusion)
+    assert isinstance(prior.physical_geometry, FluxSurfaceGeometry)
+    assert prior.physical_geometry is solver.geometry
 
 
 def test_diffusivity_is_strictly_positive_for_any_input():
