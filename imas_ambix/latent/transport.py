@@ -1,4 +1,4 @@
-"""The temporal anchor: a soft, learned flux-diffusion transport prior (§7a).
+"""The temporal anchor: a soft, learned flux-diffusion transport prior.
 
 The GS operator anchors ψ *spatially* (force balance at an instant) but says
 nothing about how ψ evolves in time.  The physically-correct temporal
@@ -41,6 +41,8 @@ from __future__ import annotations
 import torch
 from torch import nn
 
+from imas_ambix.physics import CurrentDiffusion, FluxSurfaceGeometry
+
 MU0 = 4.0e-7 * 3.141592653589793
 """Vacuum permeability [T·m/A]."""
 
@@ -63,6 +65,10 @@ class FluxDiffusionPrior(nn.Module):
     diffusivity_floor:
         Strictly-positive floor added to the softplus diffusivity so ``D>0``
         holds for *any* input (η∥>0 ⇒ D≥0 by construction).
+    current_diffusion:
+        Optional Nova physical current-diffusion solver for the same interval.
+        Its :class:`FluxSurfaceGeometry` is the immutable machine/equilibrium
+        metric context; the learned closure remains Ambix-owned.
     """
 
     def __init__(
@@ -74,13 +80,28 @@ class FluxDiffusionPrior(nn.Module):
         hidden: int = 64,
         diffusivity_floor: float = 1e-6,
         mu0: float = MU0,
+        current_diffusion: CurrentDiffusion | None = None,
     ) -> None:
         super().__init__()
+        if current_diffusion is not None and not isinstance(
+            current_diffusion, CurrentDiffusion
+        ):
+            raise TypeError("current_diffusion must be a Nova CurrentDiffusion")
         self.nrho = int(nrho)
         self.cmd_dim = int(cmd_dim)
         self.feat_dim = int(feat_dim)
         self.mu0 = float(mu0)
         self.diffusivity_floor = float(diffusivity_floor)
+        self.current_diffusion = current_diffusion
+
+        if (
+            current_diffusion is not None
+            and current_diffusion.geometry.rho_cell.size != self.nrho
+        ):
+            raise ValueError(
+                "current-diffusion geometry cell count "
+                f"{current_diffusion.geometry.rho_cell.size} != nrho {self.nrho}"
+            )
 
         # learned resistivity/diffusivity closure D = η∥/μ₀ (per-ρ, strictly > 0)
         self.eta_net = nn.Sequential(
@@ -94,6 +115,13 @@ class FluxDiffusionPrior(nn.Module):
         # INDUCTIVE source — the COMMAND channel (loop voltage / current drive);
         # no bias so a zero command yields a zero inductive source (load-bearing).
         self.inductive = nn.Linear(cmd_dim, nrho, bias=False)
+
+    @property
+    def physical_geometry(self) -> FluxSurfaceGeometry | None:
+        """Nova-owned physical geometry associated with this learned prior."""
+        return (
+            None if self.current_diffusion is None else self.current_diffusion.geometry
+        )
 
     # ---- learned closures ----
 

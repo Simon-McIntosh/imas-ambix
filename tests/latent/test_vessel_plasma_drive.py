@@ -86,12 +86,13 @@ def _ring_system() -> PassiveCircuitSystem:
         centroid_z=np.array([RING_Z]),
         lmat=np.array([[L_RING]]),
         r_diag=np.array([R_RING]),
-        a_circ=np.zeros((0, 1)),
-        g_circ=np.zeros((1, 1)),
-        m_coil_circ=np.zeros((1, 0)),
-        coil_channels=[],
-        case_channel_row={},
+        a_circuit=np.zeros((0, 1)),
+        g_grid=np.zeros((1, 1)),
+        m_channel=np.zeros((1, 0)),
+        channels=[],
+        measured_channel_row={},
         resistivity=7.2e-7,
+        section_scale=np.array([0.04]),
     )
 
 

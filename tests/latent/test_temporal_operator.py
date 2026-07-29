@@ -14,6 +14,8 @@ The load-bearing contracts:
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 import torch
@@ -21,14 +23,43 @@ import torch
 from imas_ambix.latent.temporal_operator import (
     PassiveEigenbasis,
     TemporalOperator,
+    _sensor_set,
     integrate_eddy_ode,
     load_checkpoint,
     physical_eddy_history,
     raw_eddy_trajectory,
     save_checkpoint,
 )
+from imas_ambix.physics import PassiveEigenbasis as NovaPassiveEigenbasis
 
 RNG = np.random.default_rng(11)
+
+
+def test_temporal_operator_uses_nova_passive_basis_type():
+    assert PassiveEigenbasis is NovaPassiveEigenbasis
+
+
+def test_axisymmetric_sensor_projection_requires_field_orientation():
+    missing = SimpleNamespace(
+        amb_channel="probe",
+        kind="b_probe",
+        r=1.0,
+        z=0.0,
+        angle_deg=None,
+    )
+    with pytest.raises(ValueError, match="probe"):
+        _sensor_set(SimpleNamespace(sensor_map=[missing]))
+
+    flux_loop = SimpleNamespace(
+        amb_channel="loop",
+        kind="flux_loop",
+        r=1.0,
+        z=0.0,
+        angle_deg=None,
+    )
+    sensors = _sensor_set(SimpleNamespace(sensor_map=[flux_loop]))
+    assert sensors.is_flux.tolist() == [True]
+    assert sensors.angle.tolist() == [0.0]
 
 
 def _toy_basis(k: int = 3, n_coil: int = 4, n_cells: int = 20) -> PassiveEigenbasis:
@@ -36,10 +67,10 @@ def _toy_basis(k: int = 3, n_coil: int = 4, n_cells: int = 20) -> PassiveEigenba
     return PassiveEigenbasis(
         tau=tau,
         v=RNG.normal(size=(7, k)),
-        a_sens=RNG.normal(size=(9, k)),
+        a_sensor=RNG.normal(size=(9, k)),
         g_grid=RNG.normal(size=(48, k)),
-        m_coil=RNG.normal(size=(k, n_coil)),
-        m_cells=RNG.normal(size=(k, n_cells)) * 1e-3,
+        m_channel=RNG.normal(size=(k, n_coil)),
+        m_cell=RNG.normal(size=(k, n_cells)) * 1e-3,
         resistivity=7.2e-7,
     )
 
@@ -47,16 +78,16 @@ def _toy_basis(k: int = 3, n_coil: int = 4, n_cells: int = 20) -> PassiveEigenba
 def _sequences(basis, n_t=16, seed=0):
     rng = np.random.default_rng(seed)
     times = np.cumsum(rng.uniform(0.008, 0.03, size=n_t))
-    i_pf = np.cumsum(rng.normal(0, 50.0, size=(n_t, basis.m_coil.shape[1])), axis=0)
-    i_cell = np.abs(rng.normal(0, 100.0, size=(n_t, basis.m_cells.shape[1])))
+    i_pf = np.cumsum(rng.normal(0, 50.0, size=(n_t, basis.m_channel.shape[1])), axis=0)
+    i_cell = np.abs(rng.normal(0, 100.0, size=(n_t, basis.m_cell.shape[1])))
     return times, i_pf, i_cell
 
 
 def test_eddy_history_zero_drive_is_zero():
     basis = _toy_basis()
     times = np.linspace(0.0, 0.3, 12)
-    i_pf = np.ones((12, basis.m_coil.shape[1])) * 3.0e3  # constant → dΨ = 0
-    i_cell = np.ones((12, basis.m_cells.shape[1])) * 40.0
+    i_pf = np.ones((12, basis.m_channel.shape[1])) * 3.0e3  # constant → dΨ = 0
+    i_cell = np.ones((12, basis.m_cell.shape[1])) * 40.0
     a, u = physical_eddy_history(basis, times, i_pf, i_cell)
     assert np.abs(a).max() == 0.0
     assert np.abs(u).max() == 0.0
@@ -68,7 +99,7 @@ def test_eddy_history_matches_dense_integration():
     times, i_pf, i_cell = _sequences(basis, n_t=10)
     a, _u = physical_eddy_history(basis, times, i_pf, i_cell)
 
-    psi = i_pf @ basis.m_coil.T + i_cell @ basis.m_cells.T  # (T, k)
+    psi = i_pf @ basis.m_channel.T + i_cell @ basis.m_cell.T  # (T, k)
     a_ref = np.zeros(basis.n_modes)
     for t in range(1, times.size):
         dt = times[t] - times[t - 1]
@@ -88,10 +119,10 @@ def test_eddy_history_pure_decay_after_drive_stops():
     basis = PassiveEigenbasis(
         tau=basis.tau,
         v=basis.v,
-        a_sens=basis.a_sens,
+        a_sensor=basis.a_sensor,
         g_grid=basis.g_grid,
-        m_coil=RNG.normal(size=(3, 1)),
-        m_cells=np.zeros((3, 2)),
+        m_channel=RNG.normal(size=(3, 1)),
+        m_cell=np.zeros((3, 2)),
         resistivity=basis.resistivity,
     )
     i_cell = np.zeros((4, 2))
@@ -107,7 +138,7 @@ def test_integrator_reproduces_physical_history_at_label_cadence():
     basis = _toy_basis()
     times, i_pf, i_cell = _sequences(basis, n_t=12)
     a_ref, u_ref = physical_eddy_history(basis, times, i_pf, i_cell)
-    psi_m = i_pf @ basis.m_coil.T + i_cell @ basis.m_cells.T
+    psi_m = i_pf @ basis.m_channel.T + i_cell @ basis.m_cell.T
     a, u = integrate_eddy_ode(basis.tau, times, psi_m)
     np.testing.assert_array_equal(a, a_ref)
     np.testing.assert_array_equal(u, u_ref)
@@ -144,20 +175,18 @@ def test_raw_trajectory_pinned_against_dense_substepping():
     rng = np.random.default_rng(7)
     raw_times = np.linspace(0.0, 0.12, 121)
     i_pf_raw = np.cumsum(
-        rng.normal(0, 30.0, size=(raw_times.size, basis.m_coil.shape[1])), axis=0
+        rng.normal(0, 30.0, size=(raw_times.size, basis.m_channel.shape[1])), axis=0
     )
     label_times = raw_times[40::20]
-    i_cell = np.abs(
-        rng.normal(0, 80.0, size=(label_times.size, basis.m_cells.shape[1]))
-    )
+    i_cell = np.abs(rng.normal(0, 80.0, size=(label_times.size, basis.m_cell.shape[1])))
     a_lab, a_raw = raw_eddy_trajectory(basis, raw_times, i_pf_raw, label_times, i_cell)
 
-    psi = i_pf_raw @ basis.m_coil.T
-    psi_cell_lab = i_cell @ basis.m_cells.T
+    psi = i_pf_raw @ basis.m_channel.T
+    psi_cell_lab = i_cell @ basis.m_cell.T
     for m in range(basis.n_modes):
         psi[:, m] += np.interp(raw_times, label_times, psi_cell_lab[:, m])
     before = raw_times < label_times[0]
-    psi[before, :] = i_pf_raw[before] @ basis.m_coil.T  # no ip_raw → zero plasma
+    psi[before, :] = i_pf_raw[before] @ basis.m_channel.T  # no ip_raw → zero plasma
     a_ref = np.zeros(basis.n_modes)
     for t in range(1, raw_times.size):
         dt = raw_times[t] - raw_times[t - 1]
@@ -175,9 +204,9 @@ def test_raw_trajectory_prelabel_plasma_follows_measured_ip():
     the first label's flux pattern (shape-frozen, amplitude-following)."""
     basis = _toy_basis()
     raw_times = np.linspace(0.0, 0.1, 101)
-    i_pf_raw = np.zeros((raw_times.size, basis.m_coil.shape[1]))  # coil-quiet
+    i_pf_raw = np.zeros((raw_times.size, basis.m_channel.shape[1]))  # coil-quiet
     label_times = np.array([0.05, 0.08])
-    i_cell = np.abs(RNG.normal(0, 50.0, size=(2, basis.m_cells.shape[1])))
+    i_cell = np.abs(RNG.normal(0, 50.0, size=(2, basis.m_cell.shape[1])))
     ip_raw = np.clip(np.interp(raw_times, [0.02, 0.05], [0.0, 2.0e5]), 0, None)
 
     _, a_with = raw_eddy_trajectory(
@@ -196,10 +225,10 @@ def test_raw_trajectory_tau_scale_scales_decay():
     invariant): pure post-drive decay compares as exp(−r·Δt/τ)."""
     basis = _toy_basis()
     raw_times = np.linspace(0.0, 0.2, 201)
-    i_pf_raw = np.zeros((raw_times.size, basis.m_coil.shape[1]))
+    i_pf_raw = np.zeros((raw_times.size, basis.m_channel.shape[1]))
     i_pf_raw[raw_times >= 0.01] = 1.0e3  # one step at t=0.01, then flat
     label_times = np.array([0.15, 0.19])
-    i_cell = np.zeros((2, basis.m_cells.shape[1]))
+    i_cell = np.zeros((2, basis.m_cell.shape[1]))
     r = 2.0
     _, a1 = raw_eddy_trajectory(basis, raw_times, i_pf_raw, label_times, i_cell)
     _, a2 = raw_eddy_trajectory(
@@ -537,7 +566,7 @@ def test_real_geometry_eigenbasis_taus_in_vessel_range():
     assert basis.tau.max() > 0.010
     assert basis.tau.max() < 0.100
     assert basis.tau.min() > 1e-4
-    assert basis.a_sens.shape == (len(table.sensor_map), 12)
+    assert basis.a_sensor.shape == (len(table.sensor_map), 12)
     assert basis.g_grid.shape == (grid.flat_r.size, 12)
-    assert basis.m_cells.shape == (12, grid.cells.size)
+    assert basis.m_cell.shape == (12, grid.cells.size)
     assert np.all(np.diff(basis.tau) <= 1e-12)  # slowest-first ordering

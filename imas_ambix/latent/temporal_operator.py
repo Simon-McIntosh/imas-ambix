@@ -6,8 +6,9 @@ featurizer as :mod:`imas_ambix.latent.residual_operator`) and two heads emit
 only physics-degenerate DOF:
 
 * profile-DOF corrections ``dc`` about the classical solution, decoded through
-  the exact Green's layer (:class:`ProfileGreensDecoder`) — identical contract
-  to the static operator;
+  the exact Green's layer
+  (:class:`~imas_ambix.latent.profile_greens_decoder.ProfileGreensDecoder`) —
+  identical contract to the static operator;
 * vessel-eddy mode amplitudes ``da`` that enter the field as MORE EXTERNAL
   CURRENTS through the exact passive Green's columns — the boundary push-out
   readout is unchanged by construction.
@@ -32,7 +33,6 @@ finite-area Green's kernels throughout (never point-filament).
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -40,6 +40,19 @@ import torch
 from torch import nn
 
 from imas_ambix.latent.residual_operator import TOKEN_FEATURES
+from imas_ambix.physics import (
+    PassiveCircuitSystem,
+    PassiveEigenbasis,
+    SensorSet,
+    circuit_table_from_metadata,
+    emit_circuit_coupling,
+)
+from imas_ambix.physics import (
+    build_passive_circuit_system as build_nova_passive_circuit_system,
+)
+from imas_ambix.physics import (
+    reduce_passive_system as reduce_nova_passive_system,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -49,88 +62,68 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-#: nominal stainless-steel resistivity [Ω·m] for the vessel L/R times — the
-#: decay constants are learnable, so this sets the INITIALISATION scale only
+#: Nominal stainless-steel resistivity [Ω·m] used to initialise vessel L/R
+#: times. The resistance calibration and learned decay constants may scale it.
 STEEL_RESISTIVITY = 7.2e-7
 
 
-# ---------------------------------------------------------------------------
-# Passive L/R eigenbasis — pure geometry (+ nominal resistivity), per campaign
-# ---------------------------------------------------------------------------
-@dataclass
-class PassiveEigenbasis:
-    """L/R eigenmodes of the passive conductors, reduced to the k modes kept.
+def _active_coil_centroids(table: GeometryTable) -> dict[str, tuple[float, float]]:
+    """Current-share-weighted coil centroids from the physical conductor table."""
+    from imas_ambix.gs.circuits import active_circuits  # noqa: PLC0415
 
-    ``tau`` are the physical decay times [s]; ``v`` (n_passive, k) is the
-    L-orthonormal eigenvector block; ``a_sens`` (S, k) / ``g_grid`` (nz·nr, k)
-    map a mode amplitude to sensors / grid flux; ``m_coil`` (k, C) and
-    ``m_cells`` (k, n_cells) are the flux linkages each mode picks up per
-    ampere of coil channel / plasma cell current — the eddy DRIVE couplings.
-    Mode amplitudes are in the L-orthonormal eigencoordinates throughout.
+    centroids: dict[str, tuple[float, float]] = {}
+    for active in active_circuits():
+        members = [
+            filament
+            for filament in table.pf_filaments
+            if filament.circuit == active.circuit_id
+        ]
+        if not members:
+            continue
+        weight = np.asarray([member.xmult for member in members], dtype=np.float64)
+        total = float(weight.sum())
+        if total == 0.0:
+            weight = np.ones_like(weight)
+            total = float(weight.sum())
+        centroids[active.coil_label] = (
+            float(np.dot(weight, [member.r for member in members]) / total),
+            float(np.dot(weight, [member.z for member in members]) / total),
+        )
+    return centroids
+
+
+def _sensor_set(table: GeometryTable) -> SensorSet:
+    """Project mapped diagnostics into Nova's axisymmetric sensor inputs.
+
+    Field probes require an explicit poloidal-plane orientation. Flux-loop
+    angles are ignored by :class:`SensorSet`, so their numeric value is only a
+    solver placeholder. This projection is not an authoritative 3-D diagnostic
+    geometry description.
     """
-
-    tau: np.ndarray
-    v: np.ndarray
-    a_sens: np.ndarray
-    g_grid: np.ndarray
-    m_coil: np.ndarray
-    m_cells: np.ndarray
-    resistivity: float
-    #: (k, C) voltage-drive couplings [Ω] — the galvanic case-wiring EMF per
-    #: ampere of drive channel current (``volt_m = i_pf @ volt_coil.T``);
-    #: None when the basis carries no discovered galvanic terms
-    volt_coil: np.ndarray | None = None
-
-    @property
-    def n_modes(self) -> int:
-        return int(self.tau.size)
-
-
-def _passive_circuit_filaments(table: GeometryTable) -> list[list]:
-    """Filament groups of every ``inferred_passive`` circuit (sorted order)."""
-    from imas_ambix.gs import operator as op  # noqa: PLC0415
-
-    classes = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
-    passive = sorted(c.circuit for c in classes if c.role == "inferred_passive")
-    by_circ: dict[int, list] = {}
-    for f in table.pf_filaments:
-        by_circ.setdefault(f.circuit, []).append(f)
-    return [by_circ[c] for c in passive]
-
-
-@dataclass
-class PassiveCircuitSystem:
-    """Circuit-space L/R system of the passive set, before eigen-reduction.
-
-    The resistance DOF live HERE: ``r_diag`` is diagonal in circuit space
-    (toroidal rings share no conductor path), so a candidate resistance model
-    is a per-circuit multiplier vector applied to ``r_diag`` followed by one
-    cheap generalised eigensolve — the geometry-exact ``lmat`` and all
-    couplings never change.  ``case_channel_row`` is non-empty only when the
-    measured-case circuits were moved INTO the passive set (their measured
-    ``*_case_current`` channels then supply held-back per-circuit targets,
-    never drives — ``coil_channels`` excludes them).
-    """
-
-    circuits: np.ndarray  # (P,) sorted circuit ids
-    centroid_r: np.ndarray  # (P,) xmult-weighted circuit centroids [m]
-    centroid_z: np.ndarray  # (P,)
-    lmat: np.ndarray  # (P, P) SPD-guarded two-section flux linkage [Wb/A]
-    r_diag: np.ndarray  # (P,) nominal toroidal-ring resistances [Ω]
-    a_circ: np.ndarray  # (S, P) per-ampere sensor couplings
-    g_circ: np.ndarray  # (nz·nr, P) per-ampere grid flux couplings
-    m_coil_circ: np.ndarray  # (P, C) coil-channel flux linkage [Wb/A]
-    coil_channels: list[str]  # C driven channel names (sorted)
-    case_channel_row: dict[str, int]  # held-back case channel -> circuit row
-    resistivity: float
-    #: (P,) per-circuit conducting cross-section scale sqrt(Σ|w·h|) [m] — the
-    #: geometric size that normalises the adjacency-neighbour rule; None on
-    #: systems cached before the field existed (rebuild the cache to use it)
-    section_scale: np.ndarray | None = None
-
-    @property
-    def n_circuits(self) -> int:
-        return int(self.circuits.size)
+    missing_orientation = [
+        sensor.amb_channel
+        for sensor in table.sensor_map
+        if sensor.kind != "flux_loop" and sensor.angle_deg is None
+    ]
+    if missing_orientation:
+        raise ValueError(
+            f"field probes lack physical orientation: {sorted(missing_orientation)}"
+        )
+    return SensorSet(
+        r=np.asarray([sensor.r for sensor in table.sensor_map], dtype=np.float64),
+        z=np.asarray([sensor.z for sensor in table.sensor_map], dtype=np.float64),
+        angle=np.asarray(
+            [
+                0.0 if sensor.kind == "flux_loop" else np.deg2rad(sensor.angle_deg)
+                for sensor in table.sensor_map
+            ],
+            dtype=np.float64,
+        ),
+        is_flux=np.asarray(
+            [sensor.kind == "flux_loop" for sensor in table.sensor_map],
+            dtype=bool,
+        ),
+    )
 
 
 def build_passive_circuit_system(
@@ -142,129 +135,51 @@ def build_passive_circuit_system(
     section_n_max: int = 6,
     hold_back_cases: bool = False,
 ) -> PassiveCircuitSystem:
-    """Circuit-space L, R, and couplings of the passive set — pure geometry.
+    """Build Nova's circuit system from Ambix machine-description records."""
+    from imas_ambix.gs import circuits as circuit_metadata  # noqa: PLC0415
+    from imas_ambix.gs.operator import SOLENOID_RESPONSE_SCALE  # noqa: PLC0415
 
-    Inductance and resistance exactly as :func:`build_passive_eigenbasis`
-    documents (two-section gridded linkage, true-area ring resistance).  With
-    ``hold_back_cases`` the measured-case circuits (``known_case`` role) are
-    re-classified into the passive set: their currents become STATE predicted
-    from the remaining drives through the mutual couplings, their measured
-    channels leave ``coil_channels``, and ``case_channel_row`` records which
-    circuit row each held-back channel measures.
-    """
-    from imas_ambix.gs import operator as op  # noqa: PLC0415
-    from imas_ambix.gs.cylinder import hybrid_greens  # noqa: PLC0415
-    from imas_ambix.gs.polygon import polygon_greens  # noqa: PLC0415
-    from imas_ambix.latent.boundary_disc import (  # noqa: PLC0415
-        passive_coupling_matrices,
+    metadata = circuit_table_from_metadata(
+        circuit_metadata.active_circuits(),
+        circuit_metadata.case_circuits(),
+        _active_coil_centroids(table),
     )
-
-    classes = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
-    passive_roles = (
-        ("inferred_passive", "known_case") if hold_back_cases else ("inferred_passive",)
-    )
-    passive = sorted(c.circuit for c in classes if c.role in passive_roles)
-    if not passive:
-        raise ValueError("table has no passive circuits under the selected roles")
-    by_circ: dict[int, list] = {}
-    for f in table.pf_filaments:
-        by_circ.setdefault(f.circuit, []).append(f)
-    groups = [by_circ[c] for c in passive]
-    n_pass = len(groups)
-
-    case_channel_row = {
-        c.amc_channel: passive.index(c.circuit)
-        for c in classes
-        if hold_back_cases and c.role == "known_case"
-    }
-    class_of = {c.circuit: c for c in classes}
-    centroid_r = np.array([class_of[c].centroid_r for c in passive])
-    centroid_z = np.array([class_of[c].centroid_z for c in passive])
-    circuit_scale = np.array(
-        [np.sqrt(sum(abs(f.width * f.height) for f in g)) for g in groups]
-    )
-
-    # a wired PolygonSection reshapes its circuit's SOURCE field to the exact
-    # parallelogram (crowns + P2 arms) — same area (hence r_diag and
-    # circuit_scale below are unchanged) but shaped mutual/self linkage.  The
-    # observer sub-grid stays the axis-aligned box: the flux another circuit
-    # links across these small sections varies negligibly over the shear, and
-    # the symmetrise step averages the shaped-source and box-observer estimates.
-    poly_by_circ = {ps.circuit: ps for ps in table.polygon_sections}
-    section_delta = section_scale_frac * _median_section_scale(groups)
-    pr, pz, wt, owner = _section_grid(groups, section_delta, section_n_max)
-    lmat = np.zeros((n_pass, n_pass))
-    for j, (circ_j, gj) in enumerate(zip(passive, groups, strict=True)):
-        ps = poly_by_circ.get(circ_j)
-        if ps is not None:
-            psi_p, _br, _bz = polygon_greens(pr, pz, ps.vertices)
-            lmat[:, j] = ps.xmult * np.bincount(
-                owner, weights=wt * psi_p, minlength=n_pass
-            )
-        else:
-            lmat[:, j] = _linked_flux_columns(
-                gj, pr, pz, wt, owner, n_pass, hybrid_greens
-            )
-    # the analytic source + quadrature observer linkage is symmetric up to
-    # observer-quadrature error — symmetrise, then guard SPD (physical L is)
-    lmat = 0.5 * (lmat + lmat.T)
-    w0, u0 = np.linalg.eigh(lmat)
-    lmat = (u0 * np.clip(w0, 1e-4 * w0.max(), None)) @ u0.T
-
-    r_diag = np.array(
+    measured_channels = (
         [
-            sum(
-                2.0
-                * np.pi
-                * f.r
-                * resistivity
-                / max(abs(f.width) * abs(f.height), 1e-8)
-                * f.xmult**2
-                for f in g
-            )
-            for g in groups
+            case.l1_case_channel
+            for case in circuit_metadata.case_circuits()
+            if case.l1_case_channel in table.amc_current_channels
         ]
+        if hold_back_cases
+        else ()
     )
-
-    a_circ, g_circ = passive_coupling_matrices(grid, table, circuits=passive)
-
-    # coil channel → circuit flux linkage, mirroring build_operator's channel
-    # merge (average same-channel circuits; solenoid response scale applied);
-    # held-back case channels never become drive columns
-    pf_by_chan: dict[str, list[int]] = {}
-    for cc in classes:
-        if cc.role in op._KNOWN_ROLES:  # noqa: SLF001 — canonical role list
-            if hold_back_cases and cc.role == "known_case":
-                continue
-            pf_by_chan.setdefault(cc.amc_channel, []).append(cc.circuit)
-    coil_channels = sorted(pf_by_chan)
-    m_coil_circ = np.zeros((n_pass, len(coil_channels)))
-    for c_idx, chan in enumerate(coil_channels):
-        cols = []
-        for circ in sorted(pf_by_chan[chan]):
-            cols.append(
-                _linked_flux_columns(
-                    by_circ[circ], pr, pz, wt, owner, n_pass, hybrid_greens
-                )
-            )
-        col = np.mean(np.asarray(cols), axis=0)
-        if chan == "sol_current":
-            col = col * op.SOLENOID_RESPONSE_SCALE
-        m_coil_circ[:, c_idx] = col
-
-    return PassiveCircuitSystem(
-        circuits=np.asarray(passive, dtype=np.int64),
-        centroid_r=centroid_r,
-        centroid_z=centroid_z,
-        lmat=lmat,
-        r_diag=r_diag,
-        a_circ=a_circ,
-        g_circ=g_circ,
-        m_coil_circ=m_coil_circ,
-        coil_channels=coil_channels,
-        case_channel_row=case_channel_row,
-        resistivity=float(resistivity),
-        section_scale=circuit_scale,
+    polygon_sections = [
+        {
+            "circuit": section.circuit,
+            "vertices": section.vertices,
+            "current_share": section.xmult,
+        }
+        for section in table.polygon_sections
+    ]
+    coupling = emit_circuit_coupling(
+        table.pf_filaments,
+        table.amc_current_channels,
+        metadata,
+        measured_channels=measured_channels,
+        polygon_sections=polygon_sections,
+    )
+    return build_nova_passive_circuit_system(
+        coupling.conductors,
+        _sensor_set(table),
+        grid.flat_r,
+        grid.flat_z,
+        passive_circuits=coupling.passive_circuits,
+        channel_circuits=coupling.channel_circuits,
+        measured_circuits=coupling.measured_circuits,
+        channel_gain={"sol_current": SOLENOID_RESPONSE_SCALE},
+        resistivity=resistivity,
+        section_scale_frac=section_scale_frac,
+        section_n_max=section_n_max,
     )
 
 
@@ -287,17 +202,24 @@ def build_drive_linkage(
     the winding rows: the flux a coil circuit links from every measured
     drive is the inductive part of its terminal voltage.
     """
-    from imas_ambix.gs import operator as op  # noqa: PLC0415
+    from imas_ambix.gs import circuits as circuit_metadata  # noqa: PLC0415
     from imas_ambix.gs.cylinder import hybrid_greens  # noqa: PLC0415
+    from imas_ambix.gs.operator import SOLENOID_RESPONSE_SCALE  # noqa: PLC0415
 
-    classes = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
+    metadata = circuit_table_from_metadata(
+        circuit_metadata.active_circuits(),
+        circuit_metadata.case_circuits(),
+        _active_coil_centroids(table),
+    )
+    coupling = emit_circuit_coupling(
+        table.pf_filaments,
+        table.amc_current_channels,
+        metadata,
+    )
     by_circ: dict[int, list] = {}
     for f in table.pf_filaments:
         by_circ.setdefault(f.circuit, []).append(f)
-    by_chan: dict[str, list[int]] = {}
-    for cc in classes:
-        if cc.role in op._KNOWN_ROLES:  # noqa: SLF001 — canonical role list
-            by_chan.setdefault(cc.amc_channel, []).append(cc.circuit)
+    by_chan = coupling.channel_circuits
     channels = sorted(by_chan)
     groups = [
         [f for circ in sorted(by_chan[ch]) for f in by_circ[circ]] for ch in channels
@@ -314,7 +236,7 @@ def build_drive_linkage(
             )
         col = np.mean(np.asarray(cols), axis=0)
         if chan == "sol_current":
-            col = col * op.SOLENOID_RESPONSE_SCALE
+            col = col * SOLENOID_RESPONSE_SCALE
         lam[:, j] = col
     # merged-observer normalisation: an averaged same-channel merge must also
     # average (not sum) on the observer side, mirroring the source merge
@@ -353,22 +275,19 @@ def predict_vessel_currents(
     Returns ``(i_coil (T, P), i_full (T, P))`` — the coil-only and the
     coil+plasma-driven circuit states in ``system.circuits`` order
     (identical when the plasma drive is omitted).  The flux a downstream
-    consumer injects is ``system.g_circ @ i_full[t]`` (grid) or
-    ``system.a_circ @ i_full[t]`` (sensors).
+    consumer injects is ``system.g_grid @ i_full[t]`` (grid) or
+    ``system.a_circuit @ i_full[t]`` (sensors).
     """
-    from scipy.linalg import eigh  # noqa: PLC0415
-
     from imas_ambix.gs.operator import greens_psi  # noqa: PLC0415
 
     times = np.asarray(times, dtype=np.float64)
     i_pf_full = np.asarray(i_pf_full, dtype=np.float64)
-    chan_idx = {ch: j for j, ch in enumerate(system.coil_channels)}
+    chan_idx = {ch: j for j, ch in enumerate(system.channels)}
     m_vc = np.zeros((system.n_circuits, len(channels)))
     for j, chan in enumerate(channels):
         if chan in chan_idx:
-            m_vc[:, j] = system.m_coil_circ[:, chan_idx[chan]]
-    w, vv = eigh(np.diag(system.r_diag), system.lmat)
-    tau = 1.0 / np.clip(w, 1e-12, None)
+            m_vc[:, j] = system.m_channel[:, chan_idx[chan]]
+    tau, vv = system.mode_system()
     psi_coil = i_pf_full @ m_vc.T
     a_coil, _u = integrate_eddy_ode(tau, times, psi_coil @ vv)
     i_coil = a_coil @ vv.T
@@ -424,43 +343,16 @@ def reduce_passive_system(
     ``r_multipliers`` (P,) scales the diagonal circuit resistances — the
     calibrated-resistance hook: the geometry-exact L and every coupling stay
     fixed while the data-led resistance model reshapes the eigenmodes.  With
-    ``None`` (nominal R) this reproduces :func:`build_passive_eigenbasis`
-    exactly.
+    ``None`` (nominal R) this reproduces :func:`build_passive_eigenbasis`.
+    The physical reduction is owned by Nova; Ambix supplies only its grid-cell
+    index and sensor scaling.
     """
-    from scipy.linalg import eigh  # noqa: PLC0415
-
-    r_diag = system.r_diag
-    if r_multipliers is not None:
-        mult = np.asarray(r_multipliers, dtype=np.float64)
-        if mult.shape != r_diag.shape:
-            raise ValueError(
-                f"r_multipliers shape {mult.shape} != circuits {r_diag.shape}"
-            )
-        if np.any(~np.isfinite(mult)) or np.any(mult <= 0):
-            raise ValueError("r_multipliers must be finite and positive")
-        r_diag = r_diag * mult
-    w, v = eigh(np.diag(r_diag), system.lmat)  # R v = (1/τ) L v ; v L-orthonormal
-    tau = 1.0 / np.clip(w, 1e-12, None)
-
-    a_modes = system.a_circ @ v  # (S, n_pass)
-    scale = np.clip(np.asarray(sensor_scale, dtype=np.float64), 1e-12, None)
-    relevance = tau * np.linalg.norm(a_modes / scale[:, np.newaxis], axis=0)
-    keep = np.argsort(relevance)[::-1][: int(k)]
-    keep = keep[np.argsort(tau[keep])[::-1]]  # slowest-first for readability
-
-    v_k = v[:, keep]
-    g_modes = system.g_circ @ v_k
-    m_cells = g_modes[grid.cells, :].T  # reciprocity: (k, n_cells)
-    m_coil = v_k.T @ system.m_coil_circ  # (k, C)
-
-    return PassiveEigenbasis(
-        tau=tau[keep],
-        v=v_k,
-        a_sens=a_modes[:, keep],
-        g_grid=g_modes,
-        m_coil=m_coil,
-        m_cells=m_cells,
-        resistivity=float(system.resistivity),
+    return reduce_nova_passive_system(
+        system,
+        sensor_scale=sensor_scale,
+        n_modes=k,
+        cell_index=grid.cells,
+        r_multipliers=r_multipliers,
     )
 
 
@@ -601,16 +493,16 @@ def build_passive_eigenbasis(
     ``R v = (1/τ) L v`` with L-orthonormal ``v``.
 
     Mode selection keeps the ``k`` modes with the largest history-relevance
-    ``τ_m · ||a_sens_m / scale||`` — a slow mode the sensors can see is
+    ``τ_m · ||a_sensor_m / scale||`` — a slow mode the sensors can see is
     exactly a mode whose history the static fit cannot absorb.  Drive
-    couplings by reciprocity: ``m_cells = g_grid[cells].T`` (flux a mode links
+    couplings by reciprocity: ``m_cell = g_grid[cells].T`` (flux a mode links
     per ampere of plasma cell current == flux the cell sees per mode ampere).
 
     ``r_multipliers`` (per passive circuit, sorted-circuit order) applies a
     calibrated resistance model on top of the nominal ring resistances —
     see :func:`reduce_passive_system`.  ``hold_back_cases`` moves the
     measured-case circuits into the passive set (their channels leave the
-    ``m_coil`` drive columns) — see :func:`build_passive_circuit_system`.
+    ``m_channel`` drive columns) — see :func:`build_passive_circuit_system`.
     """
     system = build_passive_circuit_system(
         table,
@@ -680,7 +572,7 @@ def physical_eddy_history(
     """Exact-ZOH integration of the mode eddy ODE along a slice sequence.
 
     Mode dynamics (L-orthonormal coordinates): ``da/dt + a/τ = −dΨ/dt`` with
-    ``Ψ_m(t) = m_coil_m · i_pf(t) + m_cells_m · i_cell(t)`` the external flux
+    ``Ψ_m(t) = m_channel_m · i_pf(t) + m_cell_m · i_cell(t)`` the external flux
     the mode links.  Returns ``(a_phys (T, k), u_drive (T, k))`` — the
     physical eddy state and the per-step flux swing ``−ΔΨ`` (the drive
     feature).  ``a_phys[0] = 0``: the first labelled slice is taken as the
@@ -690,8 +582,8 @@ def physical_eddy_history(
     start).
     """
     psi_m = (
-        np.asarray(i_pf, dtype=np.float64) @ basis.m_coil.T
-        + np.asarray(i_cell, dtype=np.float64) @ basis.m_cells.T
+        np.asarray(i_pf, dtype=np.float64) @ basis.m_channel.T
+        + np.asarray(i_cell, dtype=np.float64) @ basis.m_cell.T
     )  # (T, k)
     return integrate_eddy_ode(basis.tau, times, psi_m)
 
@@ -715,13 +607,13 @@ def raw_eddy_trajectory(
     precharge, breakdown flux swing — instead of the ``a[0] = 0``
     label-cadence approximation.
 
-    Coil term: ``m_coil · i_pf_raw(t)`` per raw sample (measured drives).
-    Plasma term: the exact per-label mode flux ``m_cells · i_cell(t_label)``
+    Coil term: ``m_channel · i_pf_raw(t)`` per raw sample (measured drives).
+    Plasma term: the exact per-label mode flux ``m_cell · i_cell(t_label)``
     — the FULL time-varying current distribution, so the changing plasma
     shape / position / internal inductance enters the flux swing as
     ``d(M(t)·I_p(t))/dt``, never the fixed-mutual approximation
     ``M·dI_p/dt`` — linearly interpolated to the raw cadence (interpolation
-    commutes with the fixed linear map ``m_cells``).  Before the first label
+    commutes with the fixed linear map ``m_cell``).  Before the first label
     the first label's flux pattern is amplitude-followed with the measured
     plasma current (``ip_raw``, same raw grid; shape-frozen); with no
     ``ip_raw`` the plasma term is zero-ramped from the raw start.
@@ -741,10 +633,10 @@ def raw_eddy_trajectory(
     """
     raw_times = np.asarray(raw_times, dtype=np.float64)
     label_times = np.asarray(label_times, dtype=np.float64)
-    psi_coil = np.asarray(i_pf_raw, dtype=np.float64) @ basis.m_coil.T  # (T_raw, k)
+    psi_coil = np.asarray(i_pf_raw, dtype=np.float64) @ basis.m_channel.T  # (T_raw, k)
 
     psi_cell_lab = (
-        np.asarray(i_cell_labels, dtype=np.float64) @ basis.m_cells.T
+        np.asarray(i_cell_labels, dtype=np.float64) @ basis.m_cell.T
     )  # (T_lab, k)
     psi_cell_raw = np.empty_like(psi_coil)
     for m in range(psi_coil.shape[1]):
@@ -789,12 +681,12 @@ def save_circuit_system(path: Path | str, system: PassiveCircuitSystem) -> None:
         centroid_z=system.centroid_z,
         lmat=system.lmat,
         r_diag=system.r_diag,
-        a_circ=system.a_circ,
-        g_circ=system.g_circ,
-        m_coil_circ=system.m_coil_circ,
-        coil_channels=np.array(system.coil_channels),
-        case_channel_row=np.frombuffer(
-            json.dumps(system.case_channel_row).encode(), dtype=np.uint8
+        a_circuit=system.a_circuit,
+        g_grid=system.g_grid,
+        m_channel=system.m_channel,
+        channels=np.array(system.channels),
+        measured_channel_row=np.frombuffer(
+            json.dumps(system.measured_channel_row).encode(), dtype=np.uint8
         ),
         resistivity=np.float64(system.resistivity),
         **extra,
@@ -811,30 +703,47 @@ def load_circuit_system(path: Path | str) -> PassiveCircuitSystem:
             centroid_z=z["centroid_z"],
             lmat=z["lmat"],
             r_diag=z["r_diag"],
-            a_circ=z["a_circ"],
-            g_circ=z["g_circ"],
-            m_coil_circ=z["m_coil_circ"],
-            coil_channels=[str(c) for c in z["coil_channels"]],
-            case_channel_row={
+            a_circuit=z["a_circuit"] if "a_circuit" in z.files else z["a_circ"],
+            g_grid=z["g_grid"] if "g_grid" in z.files else z["g_circ"],
+            m_channel=(z["m_channel"] if "m_channel" in z.files else z["m_coil_circ"]),
+            channels=[
+                str(c)
+                for c in (
+                    z["channels"] if "channels" in z.files else z["coil_channels"]
+                )
+            ],
+            measured_channel_row={
                 k: int(v)
-                for k, v in json.loads(z["case_channel_row"].tobytes()).items()
+                for k, v in json.loads(
+                    (
+                        z["measured_channel_row"]
+                        if "measured_channel_row" in z.files
+                        else z["case_channel_row"]
+                    ).tobytes()
+                ).items()
             },
             resistivity=float(z["resistivity"]),
-            section_scale=(z["section_scale"] if "section_scale" in z.files else None),
+            section_scale=(
+                z["section_scale"]
+                if "section_scale" in z.files
+                else np.zeros(z["circuits"].shape, dtype=np.float64)
+            ),
         )
 
 
 def save_eigenbasis(path: Path | str, basis: PassiveEigenbasis) -> None:
     """Persist a campaign eigenbasis (the build is minutes of kernel sums)."""
-    extra = {"volt_coil": basis.volt_coil} if basis.volt_coil is not None else {}
+    extra = (
+        {"volt_channel": basis.volt_channel} if basis.volt_channel is not None else {}
+    )
     np.savez_compressed(
         path,
         tau=basis.tau,
         v=basis.v,
-        a_sens=basis.a_sens,
+        a_sensor=basis.a_sensor,
         g_grid=basis.g_grid,
-        m_coil=basis.m_coil,
-        m_cells=basis.m_cells,
+        m_channel=basis.m_channel,
+        m_cell=basis.m_cell,
         resistivity=np.float64(basis.resistivity),
         **extra,
     )
@@ -845,12 +754,16 @@ def load_eigenbasis(path: Path | str) -> PassiveEigenbasis:
         return PassiveEigenbasis(
             tau=z["tau"],
             v=z["v"],
-            a_sens=z["a_sens"],
+            a_sensor=z["a_sensor"] if "a_sensor" in z.files else z["a_sens"],
             g_grid=z["g_grid"],
-            m_coil=z["m_coil"],
-            m_cells=z["m_cells"],
+            m_channel=z["m_channel"] if "m_channel" in z.files else z["m_coil"],
+            m_cell=z["m_cell"] if "m_cell" in z.files else z["m_cells"],
             resistivity=float(z["resistivity"]),
-            volt_coil=(z["volt_coil"] if "volt_coil" in z.files else None),
+            volt_channel=(
+                z["volt_channel"]
+                if "volt_channel" in z.files
+                else (z["volt_coil"] if "volt_coil" in z.files else None)
+            ),
         )
 
 
@@ -865,7 +778,8 @@ class TemporalOperator(nn.Module):
     firewall-safe globals, the step Δt, and the physically-integrated eddy
     features (state + drive, standardised).  Outputs per step:
 
-    * ``dc`` (B, T, n_dof) — bounded profile-DOF corrections (as R1);
+    * ``dc`` (B, T, n_dof) — bounded profile-DOF corrections matching the
+      static residual operator;
     * ``da`` (B, T, k) — eddy mode amplitudes in PHYSICAL mode units
       (standardised internally, rescaled by ``eddy_std`` on output).
 
