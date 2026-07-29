@@ -7,7 +7,7 @@ name = "imas-ambix"
 dynamic = ["version"]
 description = "Fusion World Model — distilling experimental data into physics-informed generative models"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 authors = [{ name = "Simon McIntosh", email = "simon.mcintosh@iter.org" }]
 license = { text = "LGPL-3.0-or-later" }
 keywords = [
@@ -26,8 +26,6 @@ classifiers = [
     "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Physics",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -66,6 +64,7 @@ dependencies = [
     "pydantic>=2.10",
     "tqdm>=4.67",
     "torax>=1.1.1",
+    "nova-stella @ git+https://github.com/Simon-McIntosh/nova.git@7ba65a59e2a8d38669214f0ba52b33bb9464c566",
 ]
 
 [project.optional-dependencies]
@@ -126,6 +125,9 @@ imas-ink = { path = "../imas-ink", editable = true }
 [tool.hatch.version]
 source = "vcs"
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.build.targets.wheel]
 packages = ["imas_ambix"]
 
@@ -138,7 +140,7 @@ default_profile = "deepseek-v4-flash"
 url = "http://98dci4-gpu-0003:18800"
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py314"
 line-length = 88
 src = [".", "tests"]
 
@@ -169,5 +171,5 @@ testpaths = ["tests"]
 addopts = "-ra --strict-markers"
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 strict = true
