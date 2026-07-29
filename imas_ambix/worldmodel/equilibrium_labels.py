@@ -162,7 +162,7 @@ class EquilibriumGeometry:
         ``(F,)`` camera frame times (s) the labels were interpolated onto.
     target:
         ``(F, 14)`` float32 geometry labels in METRES (see module docstring
-        for the component layout — axis, LOWER/UPPER X-point, 8 LCFS radii).
+        for the component layout — axis, two unordered null slots, 8 LCFS radii).
         Masked components are NaN.
     finite_mask:
         ``(F, 14)`` bool — True where the component is a real, finite label
