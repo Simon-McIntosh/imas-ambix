@@ -19,7 +19,7 @@ from imas_ambix.worldmodel.equilibrium_labels import (
     XPOINT_SENTINEL,
     build_geometry_from_arrays,
     resample_lcfs_radii,
-    select_primary_xpoint,
+    xpoint_null_set,
 )
 
 # ---------------------------------------------------------------------------
@@ -72,35 +72,53 @@ def test_resample_lcfs_radii_too_few_points_is_nan():
 
 
 # ---------------------------------------------------------------------------
-# Primary X-point selection (lower null, sentinel handling)
+# X-point null-set extraction
 # ---------------------------------------------------------------------------
 
 
-def test_select_primary_xpoint_lower_null():
-    """Picks the most-negative-Z real null; sentinels/NaN -> NaN."""
-    # 3 slices: both real (pick lower), one sentinel, one all-NaN.
+def test_xpoint_null_set_keeps_up_to_two_real_nulls():
+    """Both real nulls survive while sentinels and invalid coordinates are masked."""
     xr = np.array(
         [
-            [0.50, XPOINT_SENTINEL, np.nan],  # row 0 (upper at slice 0)
-            [0.52, 0.55, np.nan],  # row 1 (lower at slice 0)
+            [0.50, XPOINT_SENTINEL, np.nan, 2.50],
+            [0.52, 0.55, np.nan, 0.60],
         ]
     )
     xz = np.array(
         [
-            [1.0, XPOINT_SENTINEL, np.nan],  # +Z upper
-            [-1.0, -0.9, np.nan],  # -Z lower
+            [1.0, XPOINT_SENTINEL, np.nan, 0.20],
+            [-1.0, -0.9, np.nan, -0.80],
         ]
     )
-    r, z = select_primary_xpoint(xr, xz)
-    assert r.shape == (3,)
-    # slice 0: lower null is row 1 (z=-1.0)
-    assert r[0] == pytest.approx(0.52)
-    assert z[0] == pytest.approx(-1.0)
-    # slice 1: only row 1 real
-    assert r[1] == pytest.approx(0.55)
-    assert z[1] == pytest.approx(-0.9)
-    # slice 2: no real null
-    assert np.isnan(r[2]) and np.isnan(z[2])
+    set_r, set_z = xpoint_null_set(xr, xz)
+    assert set_r.shape == (2, 4)
+    assert set_z.shape == (2, 4)
+    np.testing.assert_allclose(set_r[:, 0], [0.50, 0.52])
+    np.testing.assert_allclose(set_z[:, 0], [1.0, -1.0])
+    np.testing.assert_allclose(set_r[:, 1], [0.55, np.nan], equal_nan=True)
+    np.testing.assert_allclose(set_z[:, 1], [-0.9, np.nan], equal_nan=True)
+    assert np.isnan(set_r[:, 2]).all()
+    assert np.isnan(set_z[:, 2]).all()
+    # The first candidate is outside the coarse vessel bounds, so the second
+    # candidate is packed into the first available unordered slot.
+    np.testing.assert_allclose(set_r[:, 3], [0.60, np.nan], equal_nan=True)
+    np.testing.assert_allclose(set_z[:, 3], [-0.80, np.nan], equal_nan=True)
+
+
+def test_xpoint_null_set_is_invariant_as_an_unordered_set():
+    xr = np.array([[0.50], [0.52]])
+    xz = np.array([[1.0], [-1.0]])
+    set_r, set_z = xpoint_null_set(xr, xz)
+    swapped_r, swapped_z = xpoint_null_set(xr[::-1], xz[::-1])
+
+    original = {
+        (float(r), float(z)) for r, z in zip(set_r[:, 0], set_z[:, 0], strict=True)
+    }
+    swapped = {
+        (float(r), float(z))
+        for r, z in zip(swapped_r[:, 0], swapped_z[:, 0], strict=True)
+    }
+    assert original == swapped
 
 
 # ---------------------------------------------------------------------------
@@ -111,8 +129,8 @@ def test_select_primary_xpoint_lower_null():
 def _synthetic_equilibrium(nt=10, n_bdy=40):
     """A synthetic shot: plasma defined on slices [3, 7), NaN elsewhere.
 
-    Axis at (0.9, 0.05); circular LCFS radius 0.4; lower X-point at
-    (0.55, -1.0).  Time base 200 Hz starting at 0.0 s.
+    Axis at (0.9, 0.05); circular LCFS radius 0.4; two nulls at
+    (0.50, 1.0) and (0.55, -1.0). Time base 200 Hz starting at 0.0 s.
     """
     t_eq = 0.005 * np.arange(nt)  # 200 Hz
     axis_r = np.full(nt, np.nan)
@@ -129,8 +147,8 @@ def _synthetic_equilibrium(nt=10, n_bdy=40):
         axis_z[i] = 0.05
         lcfs_r[:, i] = 0.9 + 0.4 * np.cos(phi)
         lcfs_z[:, i] = 0.05 + 0.4 * np.sin(phi)
-        xr[0, i], xz[0, i] = 0.50, 1.0  # upper null
-        xr[1, i], xz[1, i] = 0.55, -1.0  # lower null (primary)
+        xr[0, i], xz[0, i] = 0.50, 1.0
+        xr[1, i], xz[1, i] = 0.55, -1.0
     return t_eq, axis_r, axis_z, xr, xz, lcfs_r, lcfs_z
 
 
@@ -174,10 +192,84 @@ def test_build_geometry_values_in_defined_window():
     tgt = geo.target[0]
     assert tgt[0] == pytest.approx(0.9, abs=1e-3)  # axis_R
     assert tgt[1] == pytest.approx(0.05, abs=1e-3)  # axis_Z
-    assert tgt[2] == pytest.approx(0.55, abs=1e-3)  # xpt_R (lower null)
-    assert tgt[3] == pytest.approx(-1.0, abs=1e-3)  # xpt_Z
+    np.testing.assert_allclose(
+        tgt[2:6].reshape(2, 2),
+        [[0.50, 1.0], [0.55, -1.0]],
+        atol=1e-3,
+    )
     # 8 LCFS radii all ~0.4 (circle)
-    np.testing.assert_allclose(tgt[4:], 0.4, atol=1e-2)
+    np.testing.assert_allclose(tgt[6:14], 0.4, atol=1e-2)
+
+
+def test_build_geometry_null_slots_are_swap_invariant_as_a_set():
+    t_eq, axis_r, axis_z, xr, xz, lcfs_r, lcfs_z = _synthetic_equilibrium()
+    kwargs = {
+        "shot_id": 1,
+        "frame_times": np.array([0.025]),
+        "t_eq": t_eq,
+        "axis_r": axis_r,
+        "axis_z": axis_z,
+        "lcfs_r": lcfs_r,
+        "lcfs_z": lcfs_z,
+    }
+    geo = build_geometry_from_arrays(x_point_r=xr, x_point_z=xz, **kwargs)
+    swapped = build_geometry_from_arrays(
+        x_point_r=xr[::-1], x_point_z=xz[::-1], **kwargs
+    )
+
+    np.testing.assert_allclose(geo.target[:, :2], swapped.target[:, :2])
+    np.testing.assert_allclose(geo.target[:, 6:14], swapped.target[:, 6:14])
+    original_set = {tuple(point) for point in geo.target[0, 2:6].reshape(2, 2)}
+    swapped_set = {tuple(point) for point in swapped.target[0, 2:6].reshape(2, 2)}
+    assert original_set == swapped_set
+
+
+def test_build_geometry_absent_null_slot_is_masked():
+    t_eq, axis_r, axis_z, xr, xz, lcfs_r, lcfs_z = _synthetic_equilibrium()
+    xr[0, 5] = XPOINT_SENTINEL
+    xz[0, 5] = XPOINT_SENTINEL
+    geo = build_geometry_from_arrays(
+        shot_id=1,
+        frame_times=np.array([t_eq[5]]),
+        t_eq=t_eq,
+        axis_r=axis_r,
+        axis_z=axis_z,
+        x_point_r=xr,
+        x_point_z=xz,
+        lcfs_r=lcfs_r,
+        lcfs_z=lcfs_z,
+    )
+
+    np.testing.assert_allclose(geo.target[0, 2:4], [0.55, -1.0])
+    assert geo.finite_mask[0, 2:4].all()
+    assert np.isnan(geo.target[0, 4:6]).all()
+    assert not geo.finite_mask[0, 4:6].any()
+    assert geo.finite_mask[0, :2].all()
+    assert geo.finite_mask[0, 6:14].all()
+
+
+def test_build_geometry_uses_nearest_native_null_set_without_interpolation():
+    t_eq, axis_r, axis_z, xr, xz, lcfs_r, lcfs_z = _synthetic_equilibrium()
+    xr[:, 4], xz[:, 4] = [0.40, 0.45], [0.80, -0.80]
+    xr[:, 5], xz[:, 5] = [0.60, 0.65], [1.20, -1.20]
+    geo = build_geometry_from_arrays(
+        shot_id=1,
+        frame_times=np.array([0.023]),
+        t_eq=t_eq,
+        axis_r=axis_r,
+        axis_z=axis_z,
+        x_point_r=xr,
+        x_point_z=xz,
+        lcfs_r=lcfs_r,
+        lcfs_z=lcfs_z,
+    )
+
+    # 0.023 s is nearer the 0.025 s native slice than the 0.020 s slice.
+    np.testing.assert_allclose(
+        geo.target[0, 2:6].reshape(2, 2),
+        [[0.60, 1.20], [0.65, -1.20]],
+        atol=1e-3,
+    )
 
 
 def test_build_geometry_masks_plasma_off_frames():
