@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="nonaxisymmetric-field-subtraction">
   <meta name="plan-title" content="Non-Axisymmetric Field Subtraction — validated 3D EM modeling of in-vessel coils and sensors">
   <meta name="plan-summary" content="We reconstruct axisymmetric equilibria from non-axisymmetric diagnostics operating in non-axisymmetric magnetic fields. The per-era vacuum scorecard localised a 30-50% flux-loop coupling collapse to the in-vessel RMP-coil bay; the 3D conductor set (RMP/ELM coils, saddle coils, error-field correction coils, leads) is unmodelled. This plan ports nova&#x27;s 3D polyline+arc Biot-Savart kernels and its RDP line/arc defeaturing, models the IVC set and the 3D sensor geometry, validates on the plasma-free measurements already identified (864 vacuum-IVC shots, always-on error-field windows, post-disruption tails), and subtracts the 3D components — passive (circuit-coupled eddy) and energised (n!=0 applied) — so that axisymmetric equilibria are fit to axisymmetric measurements only.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="superseded">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="XL">
   <meta name="plan-tier" content="opus">
@@ -17,8 +17,8 @@
   <title>Non-Axisymmetric Field Subtraction | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-22">
-<meta name="plan-version" content="6">
+<meta name="plan-modified" content="2026-07-29">
+<meta name="plan-version" content="7">
 <meta name="plan-impl" content="0.5">
 </head>
 <body>
@@ -794,7 +794,7 @@ Done-when
   3. Plan updated; this followup resolved</pre>
     <p class="r-fu-outcome">Landed (commit e47a561, fit; c60cd6e, docs). ATTRIBUTION: the bay-loop bimodal systematic sits on the *_case_current columns — p3l_case k≈2.32, p3u_case k≈1.77, constant across each case's exposed sensors (drive-data class) — NOT the co-located coil windings (0.61-1.19, geometry class). ONE-SCALE test FAILS across the 8 cases; only P3 is cleanly identifiable (P2/P4/P5 cases are non-identifiable nuisances on vacuum). RECONCILIATION of k≈2.40 vs old 0.66 (no sign flip): exposed-sensor estimator (2.40, reproduces lever-1) vs global single scale (0.66, dragged to zero by sensors barely seeing the case) + old audit predating the dedicated 1-turn case column. DECISION (b): fix the P3 case-channel amplitude UPSTREAM (turns/xmult/units + name assignment), leave the other 6 cases fitted nuisances, bake NO blanket per-case scale. GATE G-A input: the bay-loop anomaly is a drive-data amplitude error (layer D), not passive screening. Artifact case_scale_vacuum_fit.json + fig-case-scale-vacuum-fit.png. ALSO this session: collapse gate made field-fidelity/moment-match (3fc81a1, staggered P4/P5 + hollow cases keep exact filaments); geometry audit corrected — vessel + stability plates are ALREADY field sources (78 mastapp pf_passive elems = our 80 inferred-passive circuits to 0.0mm; the earlier no-ramp-up result already included them as boxes), only ~8 slanted elements need box-&gt;parallelogram fidelity, routed to the new polygonal-section-coil-fields plan (Urankar Part V, paper read + in references/).</p>
     </article>
-<article class="r-fu" data-id="f-nfs-d2" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-22 13:20" data-recommends-skill="/reckon-ship nonaxisymmetric-field-subtraction" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-nfs-d2" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-22 13:20" data-recommends-skill="/reckon-ship nonaxisymmetric-field-subtraction" data-resolved-at="2026-07-29T09:18:02+00:00" data-resolved-by="codex">
     <h4 class="r-fu-title">D2 era-keyed 3D geometry (RMP/ELM/EFCC + toroidal sensor positions), then D3 passive gate G-A and D4 full seams</h4>
     <div class="r-fu-body"><p>The 3D kernels (D1) and the EFCC forward model (D4 first rung) are landed and validated on what axisymmetric geometry can constrain. The next rung is D2: build the era-keyed centreline+cross-section models — 12-coil (&gt;=19031) and 18-coil (&gt;=25404) RMP sets, ELM rows, the EFCC coils with a PINNED vertical extent, and crucially the TOROIDAL sensor positions the EFCC obv-vs-obr fine ordering needs. That unblocks (a) absolute per-probe EFCC calibration, (b) the D3 passive circuit-coupled eddy model whose gate G-A must reproduce the P4/P5 loop-gain collapse from first principles, and (c) D5 subtraction into the reconstruction chain.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -863,6 +863,7 @@ Done-when
   3. Gate G-A adjudicated (passive reproduces the loop collapse, or it routes
      to layer C per-era calibration); idle-circuit-state decision locked
   4. Plan updated; this followup resolved</pre>
+    <p class="r-fu-outcome"><p>Re-homed to Nova mast-nonaxisymmetric-physics. The Ambix results and locked decisions remain historical research/evidence; production 3D geometry and passive physics will be implemented in Nova.</p></p>
     </article>
 <article class="r-fu" data-id="f-nfs-p3case" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-22 15:30" data-recommends-skill="/reckon-ship nonaxisymmetric-field-subtraction" data-resolved-at="2026-07-22T14:13:33+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Audit + fix the P3 case-channel amplitude upstream so k-&gt;1 (the routed drive-data fix), then feed gate G-A</h4>
@@ -908,7 +909,7 @@ Done-when
   3. Result fed to gate G-A as the layer-D verdict; plan updated; this resolved</pre>
     <p class="r-fu-outcome">OVERTURNED premise — no upstream channel fix exists; the P3 case 'k≈2.3' is a passive R/τ effect, not a drive-data amplitude bug. Evidence (scripts/case_circuit_resistance_fit.py + case_circuit_resistance_fit.json, 150-shot dynamic cohort; commit 129c064): (1) every candidate root cause is already correct — units (kA→×1000→A, 1 turn), Σxmult=1, efm↔pfSystems id map (16=p3u/17=p3l), g_case/g_coil=0.98; (2) the archived *_case_current is an Analysed/induced eddy (Lenz, corr −0.7 with dI_coil/dt); (3) the static 'k' is ill-posed — case/coil columns 98% collinear, so k swings 0.9 global ↔ 2.3 bay-loop ↔ −1.6..+4.7 per-sensor, which a scalar channel error cannot do; (4) modelling it as a passive loop L·dI/dt+R·I=−ΣM·dI_coil/dt (L,M from magnetics; R the lever) and fitting on the DYNAMIC ramps recovers R cleanly — P3 circuit-fit R²=0.93, R≈7-9 mΩ, τ=L/R≈1.0-1.2 ms (all 8 cases fit); (5) sensor-anchored isolation is confounded (case = 2.6-4.8% of the vessel-eddy-dominated bay-loop ramp residual → absolute R needs the D3 vessel model). GATE G-A REVERSED: layer A (passive), not layer D (drive-data) — G-A must reproduce it. Operator UNCHANGED (no fix to apply; per-case scale rejected); gs suite 211 passed. Route: fold the case R/τ into D3 + resolve idle-ivc-circuit-state (carried by f-nfs-d2). Archive: nonaxisymmetric-field-subtraction-p3case-passive-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-nfs-layerc" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-22 16:45" data-recommends-skill="/reckon-ship nonaxisymmetric-field-subtraction" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-nfs-layerc" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-22 16:45" data-recommends-skill="/reckon-ship nonaxisymmetric-field-subtraction" data-resolved-at="2026-07-29T09:18:02+00:00" data-resolved-by="codex">
     <h4 class="r-fu-title">Gate G-A adjudicated → LAYER C: implement the per-era bay-loop cross-calibration on the stable far set (D5), hand corrected layer to f-ctr-18</h4>
     <div class="r-fu-body"><p>Gate G-A is decided. The already-fitted vessel passive R (vacuum-aggregate 28×) does NOT reproduce the P4/P5 bay-loop coupling deficit — <code>scripts/passive_bay_loop_gate.py</code> (coil-sweep cohort, 76 records; cross-regime held-out): the tuned vessel eddy explains only ~9% of the bay-loop signal and does not restore the gain (1.10→1.17), while the centre-column controls behave (0.97, eddy 5%). Combined with the case being a few-% term (f-nfs-p3case), <strong>neither passive layer carries the bay loops</strong>. Per the plan's pre-defined G-A fail branch the bay-loop correction is <strong>layer C</strong>: a time-invariant coil-specific effective-area/coupling error exposed by drive mix (§2 bimodality), corrected by a per-era gain recalibration of the bay loops against the era-stable far set (centre-column loops + obr), applied upstream of the fit (D5). The passive model stays for near-vessel probe eddy; D2 3D RMP geometry is NOT required for this. Consistent with the tuned-R dynamic-passive gate being reconstruction-neutral.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -960,9 +961,15 @@ Done-when
      bay-loop flux predicted from the far set to the noise floor)
   2. Wired as the D5 layer-C step, era-keyed, upstream of the fit
   3. Corrected layer handed to f-ctr-18; gate G-B checked; plan updated; resolved</pre>
+    <p class="r-fu-outcome"><p>Re-homed to Nova mast-nonaxisymmetric-physics, with Ambix retaining only label-consumer calibration and uncertainty policy.</p></p>
     </article>
 </section>
 
+<section data-reckon="research" id="research" class="r-research-list">
+<h2><span class="sec">§</span> Research</h2>
+<div class="r-research" data-id="r-nfs-transition" data-type="source-plan" data-source="nova" data-added-by="codex" data-when="2026-07-29" data-url="/nova/mast-nonaxisymmetric-physics.html">
+    <span class="r-research-title"><a href="/nova/mast-nonaxisymmetric-physics.html">Nova MAST Non-axisymmetric Physics Plan</a></span></div>
+</section>
 </main>
 </body>
 </html>

@@ -1,5 +1,5 @@
 {
-  "updated": "2026-07-03T10:06:04",
+  "updated": "2026-07-29T11:18:02",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
@@ -257,7 +257,7 @@
       },
       {
         "id": "S10",
-        "status": "active",
+        "status": "done",
         "theme": "Stage-3b \u2014 Strong physics baseline + internal-current diagnostics (before ML)",
         "items": [
           {
@@ -284,11 +284,12 @@
         ],
         "starts": "2026-06-02",
         "ends": "2026-06-20",
-        "description": "The oracle proved the binding constraint on MSE-free current recovery is interior INFORMATION, not the ML architecture (time-history adds nothing; near-axis interior model-failure-floored ~0.41 rad for magnetics+all multimodal). So shore up a STRONG physics baseline AND chain the one real new interior lever (kinetic pressure via GS-p'), BEFORE any ML. Frame: sure wins (sequential full-state EnKF: fixes cov90/q0/late-time-noise, approaches the ~0.19 ceiling) + one decisive bet (does GS-p' pressure beat the ~0.41 near-axis interior ceiling on the 45-shot cohort?). ML (Koopman/learned-gain successors to the RKN) is surveyed now, built later on the stronger baseline + richer data."
+        "description": "The oracle proved the binding constraint on MSE-free current recovery is interior INFORMATION, not the ML architecture (time-history adds nothing; near-axis interior model-failure-floored ~0.41 rad for magnetics+all multimodal). So shore up a STRONG physics baseline AND chain the one real new interior lever (kinetic pressure via GS-p'), BEFORE any ML. Frame: sure wins (sequential full-state EnKF: fixes cov90/q0/late-time-noise, approaches the ~0.19 ceiling) + one decisive bet (does GS-p' pressure beat the ~0.41 near-axis interior ceiling on the 45-shot cohort?). ML (Koopman/learned-gain successors to the RKN) is surveyed now, built later on the stronger baseline + richer data.",
+        "summary": "Closed administratively 2026-07-29 without asserting unfinished items shipped; remaining ML work stays in its source plans and physics ownership moves to Nova."
       },
       {
         "id": "S11",
-        "status": "active",
+        "status": "done",
         "theme": "OPS \u00b7 GPU-drain coordinated-window campaign (backward-bisect + SLURM-side capture)",
         "items": [
           {
@@ -301,7 +302,8 @@
         ],
         "starts": "2026-06-03",
         "ends": "2026-06-17",
-        "description": "The drain RCAs rest on an UNOBSERVED causal half: every doc inferred 'D-state -> Kill task failed -> drain' from the training process and never read slurmd's own view, and the deliberate reproductions all bisected forward from a clean node (0/13; version stack did NOT drift, so that's not the excuse). New direction: backward-bisect the one confirmed artifact (1209813) and close the SLURM-side gap, inside a single coordinated admin window (Track C deterministic non-GPU warm-up validates harness+SLURM-chain+admin-loop, then Track A on the GPU; Track B reserved). Parallel, no window: an auto-recovery admin proposal so any future drain self-heals in minutes. Workers: Sonnet; reasoning/synthesis: Opus."
+        "description": "The drain RCAs rest on an UNOBSERVED causal half: every doc inferred 'D-state -> Kill task failed -> drain' from the training process and never read slurmd's own view, and the deliberate reproductions all bisected forward from a clean node (0/13; version stack did NOT drift, so that's not the excuse). New direction: backward-bisect the one confirmed artifact (1209813) and close the SLURM-side gap, inside a single coordinated admin window (Track C deterministic non-GPU warm-up validates harness+SLURM-chain+admin-loop, then Track A on the GPU; Track B reserved). Parallel, no window: an auto-recovery admin proposal so any future drain self-heals in minutes. Workers: Sonnet; reasoning/synthesis: Opus.",
+        "summary": "Closed administratively 2026-07-29; unresolved operational work remains in drain-window-campaign rather than a second active sprint."
       },
       {
         "id": "S12",
@@ -425,6 +427,22 @@
         "starts": "2026-06-24",
         "ends": "2026-07-18",
         "description": "The ground-up redesign (parent: machine-agnostic-latent-world-model; North Star refined in physics-world-model-strategy \u00a71a). A closed-loop latent state-space world model (LAE-EnKF correction + space-time transformer prior) over absolute-calibrated, sensor-geometry-tagged multi-modal tokens, grounded in raw magnetics via the EFIT-free GS operator (spatial anchor) + a soft learned flux-diffusion transport prior with sign/irreversibility constraints (temporal anchor). Four sequential v0 child plans, each a verifiable goal+gate; deferred upgrades (neural-SDE kernel, cross-machine transfer, structure discovery) tracked as parent followups. Supersedes the camera-as-state-carrier direction (S14/S15)."
+      },
+      {
+        "id": "S17",
+        "status": "planned",
+        "theme": "Consume the Nova physics spine",
+        "items": [
+          {
+            "slug": "nova-physics-consumer-integration",
+            "why_now": "All physics ownership is moving to Nova; Ambix needs one explicit adapter, parity and donor-retirement plan.",
+            "tier": "opus",
+            "done_when": "Pinned Nova dependency, thin CPU/GPU adapters, end-to-end label parity and donor deletion gates pass with evidence."
+          }
+        ],
+        "starts": "2026-09-20",
+        "ends": "2026-10-10",
+        "description": "After Nova freezes and validates its production APIs, turn Ambix into the label-orchestration and ML consumer and retire duplicated physics donors."
       }
     ],
     "blockers": [
@@ -516,6 +534,11 @@
         "when": "2026-07-03",
         "who": "Simon McIntosh (via orchestrator)",
         "what": "patch-current-force-balance plan opened (S16/M4) \u2014 pivot to Nova-style patch-current interaction matrices with force balance as a differentiable structure residual. Scoping landed same-day: 2pi source-scale defect found+fixed in gs_solve.py (plasma well was 6.3x too shallow); corrected gate-2 re-measure 12/160 @ 5.9 cm; training-free patch inverse 12/12 scored @ 4.5 cm median vs 8.7 cm train-mean."
+      },
+      {
+        "when": "2026-07-29",
+        "who": "codex",
+        "what": "S17 queued for the evidence-gated Nova consumer cutover; S16 remains the sole active sprint"
       }
     ],
     "milestones": [
@@ -526,6 +549,6 @@
         "pct": 0
       }
     ],
-    "_version": 29
+    "_version": 30
   }
 }

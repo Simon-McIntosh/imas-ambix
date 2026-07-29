@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="gpu-accelerated-labeler">
   <meta name="plan-title" content="GPU-Accelerated Equilibrium Engine — batched causal rollout on the H200 node (labeler + real-time)">
   <meta name="plan-summary" content="Re-architect the reanalysis engine GPU-first for the H200 node, across THREE deployment dimensions that share one on-device batched causal-rollout substrate: (A) offline corpus labeling for the world model (batch over shots — throughput-max), (B) post-shot single reconstruction (single-shot parallel-in-time, latency-tolerant), (C) in-pulse real-time streaming to the control room during a long (ITER-scale, ~3000s) pulse (causal sliding-window batched PinT, bounded latency, keep pace with a high data rate). A per-solve GPU port is a confirmed DEAD END (grid-free matvec 1.67x slower than the cached grid solve at batch-1; a prior jax GPU port of nova flatlined) — one equilibrium is a batch-1 memory-bound GEMV ~600x below the tensor-core ridge, a sequential fixed-point chain of tiny kernels with a per-iteration HOST round-trip for the topology read, an anti-pattern nested twice (GS fixed point AND time integration). Three independent expert reviews converge on the cure: batch over the independent axis so the GEMV becomes a GEMM (compute-bound past B~600), express the whole rollout on-device as one vmap x scan x fixed-point graph, and move the topology read on-device (nova stencil null-finder + smooth mask; NO connected-components). Build order: single-shot rollout first (the inner object), then wrap it in the outer batch for offline and the sliding window for in-pulse. Precision is tiered GPU-first: bf16/tf32 GEMM (the dominant arithmetic, ~14x over fp64 on H200 tensor cores), fp32 topology, fp64 cross-slice recurrent state. jax is presumptive for its autograd: the differentiable rollout is a strategic asset (self-calibration of eta/passive-R/priors; a 4D-Var successor to EnKF; a physics-in-the-loop layer for the world model) — NOT a superseded EnKF. The engine already beats persistence and approaches EnKF WITHOUT ML, folding in dynamics + measured moments single-slice EFIT ignores: a green-field substrate with the potential to outperform EFIT before ML closes the residual. Lands AFTER greens-filament-solver (its grid-free substrate is the port target). Honest ceiling: 1-2 orders of magnitude, corpus ~37 core-days -&gt; well under an hour on 8xH200, bounded by the sequential per-step thin-ops, not the matvec."> well under an hour on 8xH200, bounded by the sequential per-step thin-ops, not the matvec.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="superseded">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="XL">
   <meta name="plan-tier" content="opus">
@@ -18,9 +18,9 @@
   <title>GPU-Accelerated Equilibrium Engine | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-21">
+<meta name="plan-modified" content="2026-07-29">
 <meta name="plan-impl" content="0.33">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="5">
 </head>
 <body>
 <main class="plan-doc">
@@ -472,7 +472,7 @@ Done-when
      with pre-declared gates; this followup resolved.</pre>
     <p class="r-fu-outcome">S3 landed on the H200 (shot 21978, 48 slices) - commits bb1d13a..b6e0b20. The load-bearing finding: the disc seed alone is NOT basin insurance (the unpinned fixed-theta chain corner-locks to R~1.77 even on host) - the centroid pin was folded INTO the device map as a per-sweep closed-form basin-solve LSQ, after which the march holds the confined basin on all 48 slices (GPU/CPU parity 2.9e-15 m, 0 fabricated). G-B FAIL (qualified): march vs host pinned basin solve 4.12 cm median, n=18 (bar 2 cm; ~2.8 cm is the known hard-vs-smooth read fixed-point gap); PinT (coarse pre-march + 3 batched continuation outers) converges 0.99-&gt;0.42 cm on well-posed slices (PASS &lt;=0.5) at 2.44x (3-5x MISS - the sequential chain is load-bearing; measured 5-config pareto); fp64 carry kernels (Thomas psi-diffusion 1.6e-15, exact modal ZOH 4.4e-18) PASS, threaded in one scan. Batched-sweep economics (B=48 sweep = 0.65x a B=1 sweep) validate the S4 batch-over-shots wrap. Anderson on the pinned map: tie (retained with residual-growth safeguard). Record: docs/archive/gpu-accelerated-labeler-s3-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-gal-03" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-21T11:00:00+00:00" data-recommends-skill="/reckon-ship gpu-accelerated-labeler §4" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-gal-03" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-21T11:00:00+00:00" data-recommends-skill="/reckon-ship gpu-accelerated-labeler §4" data-resolved-at="2026-07-29T09:18:02+00:00" data-resolved-by="codex">
     <h4 class="r-fu-title">Ship §4 — offline corpus labeling: vmap the sequential march over shots (gate G-C)</h4>
     <div class="r-fu-body"><p>§3 validated the inner object: the disc-seeded, centroid-pinned (per-sweep basin-solve LSQ), warm-chained sequential march on device — confined on all 48 held-out slices, GPU/CPU parity 2.9e-15 m, with the honest negatives quantified (4.12 cm anchor gap = read difference + basin-solve formulation; single-shot PinT capped at 2.44x by the load-bearing chain). §4 wraps the march in vmap/shard over SHOTS — the batch that breaks no chain (a B=48 batched sweep already costs 0.65x a B=1 sweep). Open items inherited: same-read host anchor (--host-reads both) or the ladder profile family on device to close the anchor gap; tf32-lane label gate at corpus scale (trajectory chaining amplifies tf32 to ~0.9 cm median vs 0.004 cm single-solve); Z-anchoring on the under-determined class.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -527,8 +527,9 @@ Done-when
      measured corpus wall-clock; figures committed.
   2. Plan updated same-session: §4 outcome + collapse; §5 (in-pulse streaming) followup
      queued with pre-declared gates; this followup resolved.</pre>
+    <p class="r-fu-outcome"><p>Re-homed to Nova mast-catalog-gpu-solve. Ambix retains the landed H200 artifacts as research/evidence inputs and will consume Nova through nova-physics-consumer-integration.</p></p>
     </article>
-<article class="r-fu" data-id="f-gal-04" data-status="open" data-tier="opus" data-written-by="reckon-edit (orientation review 2026-07-21)" data-written-at="2026-07-21T14:10:00+00:00" data-recommends-skill="/reckon-ship gpu-accelerated-labeler §6" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-gal-04" data-status="resolved" data-tier="opus" data-written-by="reckon-edit (orientation review 2026-07-21)" data-written-at="2026-07-21T14:10:00+00:00" data-recommends-skill="/reckon-ship gpu-accelerated-labeler §6" data-resolved-at="2026-07-29T09:18:02+00:00" data-resolved-by="codex">
     <h4 class="r-fu-title">Own the PinT multi-rate alternation: couple the fp64 dynamics carry into the windowed equilibrium re-solve</h4>
     <div class="r-fu-body"><p>The lead's short-term PinT architecture — solve 1D dynamics (η-diffusion + passive ZOH) at HIGH time frequency out from a frozen equilibrium, then re-solve a time-windowed set of equilibria on the INTERPOLATED dynamics, then repeat — is locked as two decisions (time-support=interpolated-smoother, transport-cadence=multi-rate) but has NO owning section: §3's B3 fp64 carry kernels (batched Thomas ψ-diffusion 1.6e-15, exact modal ZOH 4.4e-18) are parity-validated but explicitly NOT fed back into the per-sweep profile update, and the validated CPU coupling (mse-gated-reanalysis §3: diffusion-evolved coefficients re-entering as a soft prior at weight 0.3, confinement 88→94%) exists only off-device. This followup owns the wiring: the diffusion-evolved coefficient prior becomes rows in the per-sweep K-profile LSQ inside the windowed device solve, alternating with high-frequency substeps on interpolated flux-surface geometry. This edge is also what batched-newton-accelerator §5's coupled-KKT clause ('when the temporal engine supplies one') is waiting on.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -581,6 +582,7 @@ Done-when
   1. Coupled multi-rate windowed rollout committed; G-D1..G-D3 recorded honestly; figures.
   2. batched-newton-accelerator §5 informed (its F_θ diffusion-prior row is now supplied).
   3. Plan updated same-session; this followup resolved; next followup queued.</pre>
+    <p class="r-fu-outcome"><p>Re-homed to Nova physics-spine-adoption and mast-catalog-gpu-solve. Production multi-rate transport and GPU rollout ownership now belongs to Nova.</p></p>
     </article>
 </section>
 
@@ -588,6 +590,8 @@ Done-when
 <h2><span class="sec">§</span> Research</h2>
 <div class="r-research" data-id="r-gal-01" data-type="" data-source="" data-added-by="" data-when="">
     <span class="r-research-title">Eddy-known-drive-first is the PinT backbone (lead directive 2026-07-21): the passive state is computable for the FULL pulse before any equilibrium solve</span></div>
+<div class="r-research" data-id="r-gal-transition" data-type="transition-audit" data-source="nova" data-added-by="codex" data-when="2026-07-29" data-url="/nova/physics-spine-transition-audit.html">
+    <span class="r-research-title"><a href="/nova/physics-spine-transition-audit.html">Physics Spine Transition Audit</a></span></div>
 </section>
 </main>
 </body>

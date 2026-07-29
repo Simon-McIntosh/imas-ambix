@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="nova-physics-consumer-integration">
+  <meta name="plan-title" content="Nova Physics Consumer Integration">
+  <meta name="plan-summary" content="Turn Ambix into a thin Nova consumer for labeling and ML pipelines, then retire duplicated physics implementations.">
+  <meta name="plan-status" content="pending">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
+  <meta name="plan-tier" content="opus">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint" content="S17">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-informs" content="nova-scoping-review">
+  <title>Nova Physics Consumer Integration | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-07-29">
+<meta name="plan-version" content="1">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — Target boundary</h2>
+    <p>Nova becomes the sole production owner of equilibrium reconstruction, the physics spine, plasma transport, passive structures and circuits, machine-description and IMAS mechanics, and CPU/GPU execution of those capabilities. Ambix owns corpus selection, label orchestration, label-store policy, ML training and evaluation, and thin adapters that call Nova. Existing Ambix physics remains only as a frozen comparison oracle until parity evidence allows deletion.</p>
+    <figure>
+      <img src="/imas-ambix/figures/nova-physics-consumer-integration/ownership-flow.svg" alt="Research informs Nova physics plans, Nova produces evidence-backed physics artifacts, and Ambix consumes them in labeling and ML pipelines.">
+      <figcaption>Research feeds the Nova implementation plans; evidence follows each landed stage; Ambix consumes versioned Nova APIs and artifacts.</figcaption>
+    </figure>
+
+    <h2 id="s2">§2 — Work packages</h2>
+    <ol>
+      <li><strong>Dependency and adapter:</strong> add a pinned Nova dependency and an <code>imas_ambix.physics</code> compatibility layer whose public calls are labeler-oriented, not a second physics API.</li>
+      <li><strong>Consumer rewiring:</strong> route equilibrium, topology, passive-circuit, screening-circuit, current-diffusion, machine-description and IMAS calls through Nova. Preserve Ambix dataset identities, batching, retry and label-store semantics.</li>
+      <li><strong>GPU label path:</strong> move the H200 JAX kernels and rollout substrate into Nova. Ambix submits and monitors batches, while Nova selects CPU/GPU backends and returns stable standard-name-keyed results.</li>
+      <li><strong>Parity and deletion:</strong> compare old Ambix and Nova paths on frozen shots, topology classes and transient windows. Delete donor implementations only after API, numerical, performance and provenance gates pass.</li>
+    </ol>
+
+    <h2 id="s3">§3 — Research and evidence gates</h2>
+    <p>Every work package starts with a research document that records source code, scientific references, data cohorts, numerical conventions and acceptance thresholds. Every landing produces a separate evidence document linked back to this plan and to the relevant Nova source plan. Evidence includes commit SHAs, environment and dependency lock, test commands, machine/shot cohorts, numerical tolerances, benchmark artifacts and negative results. Neither research nor evidence carries an implementation percentage.</p>
+    <ul>
+      <li><strong>G1 API:</strong> Ambix imports Nova from a pinned package and no longer imports migrated donor modules directly.</li>
+      <li><strong>G2 science:</strong> frozen CPU parity holds for axis, LCFS, profiles, topology, flux/current ledgers, transport state and passive-current trajectories.</li>
+      <li><strong>G3 GPU:</strong> the Nova backend reproduces the validated CPU path within declared tolerances and reports H200 throughput and memory use.</li>
+      <li><strong>G4 ownership:</strong> repository searches and dependency tests prove there is one maintained implementation; Ambix contains only adapters, orchestration and frozen fixtures.</li>
+    </ul>
+
+    <h2 id="s4">§4 — Launch order</h2>
+    <p>This plan does not start implementation until Nova finishes its convergence sprint and publishes the Wave 3 reconstruction/transport APIs. Then run two independent consumer tracks in parallel: the CPU/parity adapter and the batch/GPU label-store adapter. Merge them only after the shared Nova API contract is frozen. Donor deletion is a final, serial stage after all evidence gates pass.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="ownership-boundary" data-choice="nova-owns-physics" data-by="Simon McIntosh" data-when="2026-07-29">
+    <p class="r-dec-q">Where does production physics live after the transition?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="nova-owns-physics">Nova owns physics; Ambix consumes it</button>
+      <button class="r-opt" data-value="dual-maintenance">Maintain both implementations</button>
+      </p>
+    <p class="r-dec-rat">The user set the boundary explicitly: Nova owns all physics-spine, equilibrium, transport, circuits/passives, IMAS and GPU physics work; Ambix is primarily a labeler and ML consumer.</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-npci-01" data-status="open" data-tier="opus" data-written-by="codex" data-written-at="2026-07-29" data-recommends-skill="/reckon-ship nova-physics-consumer-integration §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Integrate the Nova consumer after the Nova API freeze</h4>
+    <div class="r-fu-body"><p>Wait for the Nova convergence and physics-adoption prerequisites. Then implement the pinned dependency, thin adapters, parity harness and staged donor retirement with research-before and evidence-after gates.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    nova-physics-consumer-integration (http://localhost:8765/imas-ambix/nova-physics-consumer-integration.html)
+Section: §2
+Tier:    opus
+
+Context
+  Nova is becoming the sole production physics owner. Ambix must consume its stable
+  APIs without duplicating equilibrium, transport, circuit, IMAS or GPU kernels.
+
+State to read
+  pyproject.toml, uv.lock, imas_ambix/gs/, imas_ambix/latent/
+  Nova transition research and the live Nova migration plans
+
+Scope locks / constraints
+  Research document before implementation; evidence document after every landing.
+  Preserve Ambix corpus, label-store, ML and evaluation semantics.
+
+Done-when
+  1. Pinned Nova dependency and thin adapters land with CPU/GPU parity evidence
+  2. tests still green
+  3. followup written + this followup marked resolved</pre>
+    </article>
+</section>
+  <section data-reckon="research" id="research" class="r-research-list">
+<h2><span class="sec">§</span> Research</h2>
+<div class="r-research" data-id="r-npci-01" data-type="scoping-review" data-source="imas-ambix" data-added-by="codex" data-when="2026-07-29" data-url="/imas-ambix/nova-scoping-review.html">
+    <span class="r-research-title"><a href="/imas-ambix/nova-scoping-review.html">Nova Scoping Review</a></span></div>
+<div class="r-research" data-id="r-npci-02" data-type="transition-audit" data-source="nova" data-added-by="codex" data-when="2026-07-29" data-url="/nova/physics-spine-transition-audit.html">
+    <span class="r-research-title"><a href="/nova/physics-spine-transition-audit.html">Physics Spine Transition Audit</a></span></div>
+</section>
+</main>
+</body>
+</html>
