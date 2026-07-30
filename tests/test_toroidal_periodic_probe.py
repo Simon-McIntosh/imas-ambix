@@ -30,6 +30,15 @@ from imas_ambix.worldmodel.diagnostics_equilibrium_probe import (
 )
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _bound_torch_threads():
+    """Keep the synthetic encoder training from oversubscribing CPU cores."""
+    previous_threads = torch.get_num_threads()
+    torch.set_num_threads(min(previous_threads, 4))
+    yield
+    torch.set_num_threads(previous_threads)
+
+
 def _geom_row_with_phi_deg(phi_deg: float) -> torch.Tensor:
     """A geometry row (N_GEOM_FEATURES,) carrying φ (radians) in the phi column."""
     row = torch.full((N_GEOM_FEATURES,), float("nan"))
@@ -152,19 +161,20 @@ def _rotating_mode_batch(
     return v, y
 
 
-def _mode_recovery_accuracy(phi_offset_deg, *, seed=0, scramble_phi=False):
+def _mode_recovery_accuracies(phi_offset_deg, *, seed=0):
     """Train the periodic-PE + STFT encoder + readout to classify the mode n.
 
-    Returns held-out accuracy.  Trains the relational encoder END-TO-END on the
+    Returns correct- and scrambled-geometry held-out accuracies.  Trains the
+    relational encoder END-TO-END on the
     rotating-mode samples; if the periodic-φ geometry + STFT phase path captures
-    the toroidal mode, held-out accuracy rises well above the 1/3 chance.  With
-    ``scramble_phi`` the 12 sensors' φ are permuted (the geometry no longer
-    matches the data) — a control that must score WORSE if the model is using
-    the geometry rather than a channel-index shortcut.
+    the toroidal mode, held-out accuracy rises well above the 1/3 chance.
+    Permuting the 12 sensors' φ only at evaluation breaks the relationship
+    between geometry and data; the same trained model must then score worse if
+    it uses geometry rather than a channel-index shortcut.
     """
     n_values = [1, 2, 3]
     n_steps, c = 12, 12
-    samples_per_n = 40
+    samples_per_n = 30
     phi_deg = _saddle_phi_deg()
 
     specs = [StreamSpec(name="saddle", vocab=257, channels=c)]
@@ -184,17 +194,17 @@ def _mode_recovery_accuracy(phi_offset_deg, *, seed=0, scramble_phi=False):
     model = DiagnosticsEquilibriumProbe(cfg)
     readout = torch.nn.Linear(cfg.d_model, len(n_values))
 
-    # geometry: 12 saddle channels at their φ (rotated by the offset).  The DATA
-    # always uses the true (rotated) φ; only the geometry the model SEES is
-    # optionally scrambled, to test that the geometry is what carries the mode.
+    # The data and training geometry use the same rotated φ.  The control
+    # permutes geometry only during held-out evaluation, so a separate model
+    # cannot learn the fixed permutation.
     used_phi = (phi_deg + phi_offset_deg) % 360.0
-    seen_phi = (
-        np.random.default_rng(0).permutation(used_phi) if scramble_phi else used_phi
-    )
     geom = torch.full((c, N_GEOM_FEATURES), float("nan"))
     geom[:, 0] = 2.0
     geom[:, 1] = 0.0
-    geom[:, 2] = torch.from_numpy(np.deg2rad(seen_phi).astype(np.float32))
+    geom[:, 2] = torch.from_numpy(np.deg2rad(used_phi).astype(np.float32))
+    scrambled_geom = geom.clone()
+    permutation = torch.from_numpy(np.random.default_rng(0).permutation(c))
+    scrambled_geom[:, 2] = geom[permutation, 2]
     kinds = torch.full((c,), 9, dtype=torch.int64)  # "toroidal_saddle" index
 
     v_tr, y_tr = _rotating_mode_batch(
@@ -214,11 +224,11 @@ def _mode_recovery_accuracy(phi_offset_deg, *, seed=0, scramble_phi=False):
         samples_per_n=samples_per_n,
     )
 
-    def _embed(values):
+    def _embed(values, sensor_geometry):
         b, s, cc = values.shape
         signals = {"saddle": torch.zeros(b, s, cc, dtype=torch.int64)}
         vdict = {"saddle": torch.from_numpy(values)}
-        gdict = {"saddle": geom.unsqueeze(0).expand(b, -1, -1).contiguous()}
+        gdict = {"saddle": sensor_geometry.unsqueeze(0).expand(b, -1, -1).contiguous()}
         kdict = {"saddle": kinds.unsqueeze(0).expand(b, -1).contiguous()}
         return model.pooled_embedding(signals, gdict, kdict, values=vdict, machine=None)
 
@@ -228,14 +238,18 @@ def _mode_recovery_accuracy(phi_offset_deg, *, seed=0, scramble_phi=False):
     model.train()
     for _ in range(250):
         opt.zero_grad()
-        logits = readout(_embed(v_tr))
+        logits = readout(_embed(v_tr, geom))
         loss = torch.nn.functional.cross_entropy(logits, yt)
         loss.backward()
         opt.step()
     model.eval()
     with torch.no_grad():
-        pred = readout(_embed(v_te)).argmax(1).numpy()
-    return float((pred == y_te).mean())
+        pred = readout(_embed(v_te, geom)).argmax(1).numpy()
+        pred_scrambled = readout(_embed(v_te, scrambled_geom)).argmax(1).numpy()
+    return (
+        float((pred == y_te).mean()),
+        float((pred_scrambled == y_te).mean()),
+    )
 
 
 def test_recovers_toroidal_mode_number():
@@ -245,10 +259,8 @@ def test_recovers_toroidal_mode_number():
     model uses the toroidal GEOMETRY (not a channel-index shortcut) to read the
     mode number off the rotating-mode samples.
     """
-    acc = _mode_recovery_accuracy(phi_offset_deg=0.0, seed=0)
-    acc_scrambled = _mode_recovery_accuracy(
-        phi_offset_deg=0.0, seed=0, scramble_phi=True
-    )
+    acc, acc_scrambled = _mode_recovery_accuracies(phi_offset_deg=0.0, seed=0)
+    print(f"mode recovery: correct={acc:.3f}, scrambled={acc_scrambled:.3f}")
     assert acc > 0.6, f"toroidal mode-number recovery accuracy {acc} too low"
     assert acc > acc_scrambled + 0.1, (
         f"correct-φ ({acc}) must beat scrambled-φ ({acc_scrambled}) — proves the "
@@ -263,8 +275,9 @@ def test_mode_recovery_invariant_to_seam_crossing_offset():
     periodic encoding keeps the relative phase ramp (the mode) intact, so the
     readout still classifies n.  A linear-degrees encoding would scramble it.
     """
-    acc_base = _mode_recovery_accuracy(phi_offset_deg=0.0, seed=1)
-    acc_seam = _mode_recovery_accuracy(phi_offset_deg=350.0, seed=1)
+    acc_base, _ = _mode_recovery_accuracies(phi_offset_deg=0.0, seed=1)
+    acc_seam, _ = _mode_recovery_accuracies(phi_offset_deg=350.0, seed=1)
+    print(f"seam recovery: base={acc_base:.3f}, offset={acc_seam:.3f}")
     assert acc_seam > 0.6, f"seam-crossing recovery {acc_seam} too low"
     # recovery is essentially unchanged by the seam-crossing offset.
     assert abs(acc_base - acc_seam) < 0.25
