@@ -388,12 +388,27 @@ def test_serving_slugs_marks_running_serve(monkeypatch):
         cli_mod,
         "_running_jobs",
         lambda site: [
-            {"jobid": "1", "name": "glm-5-2", "state": "RUNNING", "time": "1:00",
-             "node": "98dci4-gpu-0003"},
-            {"jobid": "2", "name": "download-glm-5-2", "state": "RUNNING",
-             "time": "1:00", "node": "sirius-1"},
-            {"jobid": "3", "name": "kimi-k2-6", "state": "PENDING", "time": "0:00",
-             "node": "(Resources)"},
+            {
+                "jobid": "1",
+                "name": "glm-5-2",
+                "state": "RUNNING",
+                "time": "1:00",
+                "node": "98dci4-gpu-0003",
+            },
+            {
+                "jobid": "2",
+                "name": "download-glm-5-2",
+                "state": "RUNNING",
+                "time": "1:00",
+                "node": "sirius-1",
+            },
+            {
+                "jobid": "3",
+                "name": "kimi-k2-6",
+                "state": "PENDING",
+                "time": "0:00",
+                "node": "(Resources)",
+            },
         ],
     )
     serving = cli_mod._serving_slugs(SiteConfig())
@@ -434,8 +449,13 @@ def test_status_running_serve_shows_connection(monkeypatch):
         cli_mod,
         "_running_jobs",
         lambda site: [
-            {"jobid": "42", "name": "glm-5-2", "state": "RUNNING", "time": "5:00",
-             "node": "98dci4-gpu-0003"},
+            {
+                "jobid": "42",
+                "name": "glm-5-2",
+                "state": "RUNNING",
+                "time": "5:00",
+                "node": "98dci4-gpu-0003",
+            },
         ],
     )
     monkeypatch.setattr(cli_mod, "_read_key_file", lambda path: "supersecretkey1234")
@@ -458,8 +478,13 @@ def test_status_reveal_shows_full_key(monkeypatch):
         cli_mod,
         "_running_jobs",
         lambda site: [
-            {"jobid": "42", "name": "glm-5-2", "state": "RUNNING", "time": "5:00",
-             "node": "98dci4-gpu-0003"},
+            {
+                "jobid": "42",
+                "name": "glm-5-2",
+                "state": "RUNNING",
+                "time": "5:00",
+                "node": "98dci4-gpu-0003",
+            },
         ],
     )
     monkeypatch.setattr(cli_mod, "_read_key_file", lambda path: "supersecretkey1234")
@@ -481,8 +506,13 @@ def test_status_key_no_access(monkeypatch):
         cli_mod,
         "_running_jobs",
         lambda site: [
-            {"jobid": "42", "name": "glm-5-2", "state": "RUNNING", "time": "5:00",
-             "node": "98dci4-gpu-0003"},
+            {
+                "jobid": "42",
+                "name": "glm-5-2",
+                "state": "RUNNING",
+                "time": "5:00",
+                "node": "98dci4-gpu-0003",
+            },
         ],
     )
     monkeypatch.setattr(cli_mod, "_read_key_file", _denied)
@@ -501,14 +531,20 @@ def test_status_uses_direct_url(monkeypatch):
         cli_mod,
         "_running_jobs",
         lambda site: [
-            {"jobid": "42", "name": "glm-5-2", "state": "RUNNING", "time": "33:10",
-             "node": "98dci4-gpu-0003"},
+            {
+                "jobid": "42",
+                "name": "glm-5-2",
+                "state": "RUNNING",
+                "time": "33:10",
+                "node": "98dci4-gpu-0003",
+            },
         ],
     )
     monkeypatch.setattr(cli_mod, "_read_key_file", lambda path: "k")
     seen = {}
     monkeypatch.setattr(
-        cli_mod, "_probe_endpoint",
+        cli_mod,
+        "_probe_endpoint",
         lambda url, key, **kw: seen.setdefault("url", url) and "ready" or "ready",
     )
     runner = CliRunner()
@@ -526,12 +562,19 @@ def test_status_uptime_formatted(monkeypatch):
         cli_mod,
         "_running_jobs",
         lambda site: [
-            {"jobid": "42", "name": "glm-5-2", "state": "RUNNING", "time": "33:10",
-             "node": "98dci4-gpu-0003"},
+            {
+                "jobid": "42",
+                "name": "glm-5-2",
+                "state": "RUNNING",
+                "time": "33:10",
+                "node": "98dci4-gpu-0003",
+            },
         ],
     )
     monkeypatch.setattr(cli_mod, "_read_key_file", lambda path: "k")
-    monkeypatch.setattr(cli_mod, "_probe_endpoint", lambda url, key, **kw: "unreachable")
+    monkeypatch.setattr(
+        cli_mod, "_probe_endpoint", lambda url, key, **kw: "unreachable"
+    )
     runner = CliRunner()
     result = runner.invoke(main, ["agent", "status"])
     assert result.exit_code == 0
@@ -546,8 +589,13 @@ def test_status_engine_facts_use_served_context(monkeypatch):
         cli_mod,
         "_running_jobs",
         lambda site: [
-            {"jobid": "42", "name": "glm-5-2", "state": "RUNNING", "time": "5:00",
-             "node": "98dci4-gpu-0003"},
+            {
+                "jobid": "42",
+                "name": "glm-5-2",
+                "state": "RUNNING",
+                "time": "5:00",
+                "node": "98dci4-gpu-0003",
+            },
         ],
     )
     monkeypatch.setattr(cli_mod, "_read_key_file", lambda path: "k")
@@ -1250,8 +1298,8 @@ def test_engine_pyproject_bundled():
         assert f"ambix-agent-{engine}" in content
 
 
-def test_litellm_config_is_secret_free_and_routes_six_models():
-    """The generated routing YAML maps local + haiku (local) and sonnet/opus/gpt-5.5/glm-5.2 (OR)."""
+def test_litellm_config_is_secret_free_and_routes_models():
+    """Map the served model locally and pinned gateway models remotely."""
     import yaml
 
     from imas_ambix.agent.litellm_config import generate_litellm_config
@@ -1261,15 +1309,21 @@ def test_litellm_config_is_secret_free_and_routes_six_models():
     assert "os.environ/OPENROUTER_API_KEY" in cfg  # OR key via env
     data = yaml.safe_load(cfg)
     names = {m["model_name"] for m in data["model_list"]}
-    assert names == {"local", "or-opus", "or-sonnet", "or-gpt-5.5", "or-glm-5.2"}
-    # local → local endpoint; or-* → OpenRouter.
+    assert names == {
+        "deepseek-v4-flash",
+        "or-opus-4.8",
+        "or-sonnet-4.6",
+        "or-gpt-5.5",
+        "or-glm-5.2",
+    }
+    # The served model uses the local endpoint; gateway models use OpenRouter.
     by = {m["model_name"]: m["litellm_params"]["api_base"] for m in data["model_list"]}
-    assert by["local"] == SiteConfig().default_url
-    for n in ["or-opus", "or-sonnet", "or-gpt-5.5", "or-glm-5.2"]:
+    assert by["deepseek-v4-flash"] == SiteConfig().default_url
+    for n in ["or-opus-4.8", "or-sonnet-4.6", "or-gpt-5.5", "or-glm-5.2"]:
         assert "openrouter" in by[n], f"{n} should route to OpenRouter"
     # model_info carries the served model name for proxy metadata queries.
     info = {m["model_name"]: m.get("model_info", {}) for m in data["model_list"]}
-    assert "deepseek-v4-flash" in info["local"].get("description", "")
+    assert "deepseek-v4-flash" in info["deepseek-v4-flash"].get("description", "")
 
 
 def test_siteconfig_launcher_paths():
