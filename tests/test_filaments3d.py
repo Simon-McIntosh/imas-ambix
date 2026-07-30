@@ -24,19 +24,17 @@ from imas_ambix.gs.filaments3d import (
     maxwell_mutual,
     mutual_inductance,
     picture_frame,
-    polyline_A,
     polyline_B,
     probe_response,
     rdp,
     segment_B,
 )
 
-
 # ------------------------------------------------------------------ primitives
 
 
 def test_square_loop_centre_field():
-    """C1: field at a square loop's centre = 2√2·μ0·I/(π·a) (exact)."""
+    """Field at a square loop's centre = 2√2·μ0·I/(π·a) (exact)."""
     a_side, current = 0.6, 1000.0
     sq = np.array(
         [[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0], [-1, -1, 0]], float
@@ -48,20 +46,22 @@ def test_square_loop_centre_field():
 
 
 def test_coaxial_circles_mutual_vs_maxwell():
-    """C2: coaxial-circles mutual via ∮A·dl matches Maxwell's elliptic formula."""
+    """Coaxial-circles mutual via ∮A·dl matches Maxwell's elliptic formula."""
     m_num = flux_through_loop(circle(1.0, 0.0), 1.0, circle(0.5, 0.3))
     m_ana = maxwell_mutual(1.0, 0.5, 0.3)
     assert abs(m_num - m_ana) / abs(m_ana) < 1e-4
 
 
 def test_segment_field_perpendicular_bisector():
-    """Straight-segment field on its perpendicular bisector = μ0 I L/(2π ρ √(L²+4ρ²))."""
+    """Check the straight-segment field on its perpendicular bisector."""
     a = np.array([-0.5, 0.0, 0.0])
     b = np.array([0.5, 0.0, 0.0])
     rho, current = 0.2, 500.0
     length = 1.0
     bvec = segment_B(np.array([[0.0, rho, 0.0]]), a, b, current)[0]
-    analytic = MU0 * current * length / (2 * np.pi * rho * np.sqrt(length**2 + 4 * rho**2))
+    analytic = (
+        MU0 * current * length / (2 * np.pi * rho * np.sqrt(length**2 + 4 * rho**2))
+    )
     assert abs(np.linalg.norm(bvec) - analytic) / analytic < 1e-12
 
 
@@ -70,7 +70,9 @@ def test_segment_field_perpendicular_bisector():
 
 def test_arc_field_converges_to_polyline():
     """The adaptive arc field converges to the fine-polyline limit as tol tightens."""
-    arc = Arc.from_center((0.0, 0.0, 0.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.2), np.deg2rad(150.0))
+    arc = Arc.from_center(
+        (0.0, 0.0, 0.0), (0.0, 0.0, 1.0), (1.0, 0.0, 0.2), np.deg2rad(150.0)
+    )
     pts = np.array([[0.3, 0.1, 0.5], [1.4, -0.2, -0.3], [0.0, 0.0, 1.0]])
     fine = polyline_B(pts, arc.sample(8000), 1000.0)
     coarse = arc.field(pts, 1000.0, tol=1e-4)
@@ -82,7 +84,7 @@ def test_arc_field_converges_to_polyline():
 
 
 def test_full_circle_on_axis_field():
-    """A full circle assembled from four arcs reproduces the analytic on-axis loop field."""
+    """A four-arc circle reproduces the analytic on-axis loop field."""
     radius, current = 0.8, 1234.0
     quarters = [
         Arc.from_center((0, 0, 0), (0, 0, 1), (radius, 0, 0), np.deg2rad(90.0)),
@@ -139,7 +141,9 @@ def test_picture_frame_decimates_to_two_arcs_two_lines():
     )
     b_decimated = Conductor(segments).field(probes, 1.0)
     b_dense = polyline_B(
-        probes, picture_frame(0.0, np.deg2rad(40.0), r, z_lo, z_hi, n_arc=400, n_leg=200), 1.0
+        probes,
+        picture_frame(0.0, np.deg2rad(40.0), r, z_lo, z_hi, n_arc=400, n_leg=200),
+        1.0,
     )
     rel = np.abs(b_decimated - b_dense).max() / np.abs(b_dense).max()
     assert rel < 1e-4
@@ -149,18 +153,24 @@ def test_picture_frame_decimates_to_two_arcs_two_lines():
 
 
 def test_probe_response_projects_field():
-    """``probe_response`` returns the field projected onto the (normalised) pickup normal."""
+    """Project the probe response onto the normalised pickup normal."""
     loop = circle(0.5, 0.0)
     point = np.array([0.0, 0.0, 0.3])
-    resp = probe_response(loop, 1000.0, point, np.array([0.0, 0.0, 2.0]))  # +z, unnormalised
+    resp = probe_response(
+        loop, 1000.0, point, np.array([0.0, 0.0, 2.0])
+    )  # +z, unnormalised
     b = polyline_B(point[None, :], loop, 1000.0)[0]
     assert abs(resp - b[2]) < 1e-15
 
 
 def test_mutual_inductance_matches_maxwell_and_is_symmetric():
-    """Circuit-level mutual between two coaxial ring conductors matches Maxwell and reciprocates."""
-    ring_a = Conductor([Arc.from_center((0, 0, 0.0), (0, 0, 1), (1.0, 0, 0.0), 2 * np.pi)])
-    ring_b = Conductor([Arc.from_center((0, 0, 0.3), (0, 0, 1), (0.5, 0, 0.3), 2 * np.pi)])
+    """Coaxial ring mutual matches Maxwell's formula and reciprocates."""
+    ring_a = Conductor(
+        [Arc.from_center((0, 0, 0.0), (0, 0, 1), (1.0, 0, 0.0), 2 * np.pi)]
+    )
+    ring_b = Conductor(
+        [Arc.from_center((0, 0, 0.3), (0, 0, 1), (0.5, 0, 0.3), 2 * np.pi)]
+    )
     m_ab = mutual_inductance(ring_a, ring_b, source_arc_points=1440, loop_points=1440)
     m_ba = mutual_inductance(ring_b, ring_a, source_arc_points=1440, loop_points=1440)
     m_ana = maxwell_mutual(1.0, 0.5, 0.3)
@@ -168,14 +178,17 @@ def test_mutual_inductance_matches_maxwell_and_is_symmetric():
     assert abs(m_ab - m_ba) / abs(m_ab) < 1e-3
 
 
-def test_full_loop_flux_consistent_between_A_and_surface_B():
-    """∮A·dl through a loop equals the surface integral of B·n̂ (validates the A gauge)."""
+def test_full_loop_flux_consistent_between_a_and_surface_b():
+    """The line integral of A equals the surface integral of B."""
     src = circle(1.0, 0.0)
     # sensor loop: small circle in the x=0.3 plane, normal +x
     t = np.linspace(0, 2 * np.pi, 400 + 1)
     r = 0.15
     c = np.array([0.0, 0.0, 0.4])
-    loop = c + r * (np.cos(t)[:, None] * np.array([1.0, 0, 0]) + np.sin(t)[:, None] * np.array([0.0, 1, 0]))
+    loop = c + r * (
+        np.cos(t)[:, None] * np.array([1.0, 0, 0])
+        + np.sin(t)[:, None] * np.array([0.0, 1, 0])
+    )
     flux_a = flux_through_loop(src, 1000.0, loop)
     # surface integral of B_z over the disk (normal +z)
     nrad, nth = 30, 90
@@ -194,10 +207,9 @@ def test_full_loop_flux_consistent_between_A_and_surface_B():
 #
 # One picture-frame coil (phi0=0, dphi=40°, R=1.45 m, z∈[-1.0,-0.6], unit current)
 # evaluated at three general-position probe points.  The golden field below was
-# generated from ``nova`` in its own environment via ``nova.frame.coilset.CoilSet``
-# with ``winding.insert`` (decimated to 2 arcs + 2 legs) and ``point.solve`` — the
-# same subprocess-driver pattern as ``scripts/nova_coil_greens_check.py``.  Bz at the
-# second probe is ~0 because z=-0.8 is the coil's up-down symmetry plane.
+# generated from ``nova`` by decimating the winding to 2 arcs + 2 legs and
+# evaluating its independent analytic line/arc kernels.  Bz at the second probe
+# is ~0 because z=-0.8 is the coil's up-down symmetry plane.
 
 _FRAME_KW = dict(phi0=0.0, dphi=np.deg2rad(40.0), radius=1.45, z_lo=-1.0, z_hi=-0.6)
 NOVA_PROBES = np.array([[1.85, 0.10, -0.15], [1.55, 0.12, -0.80], [2.00, 0.40, -0.50]])
@@ -236,17 +248,44 @@ def test_nova_cross_check_probe_field_golden():
 
 
 def test_nova_live_cross_check():
-    """Live ``nova`` cross-check of the picture-frame probe field (skipped when ``nova`` absent)."""
+    """Cross-check the picture-frame probe field against live ``nova``."""
     pytest.importorskip("nova")
-    from nova.frame.coilset import CoilSet  # noqa: PLC0415
+    from nova.biot.arc import Arc as NovaArc  # noqa: PLC0415
+    from nova.biot.biotframe import Source, Target  # noqa: PLC0415
+    from nova.biot.line import Line as NovaLine  # noqa: PLC0415
+    from nova.geometry.polyline import PolyLine  # noqa: PLC0415
 
     dense = picture_frame(**_FRAME_KW, n_arc=60, n_leg=40)
-    cs = CoilSet(dcoil=-1, dplasma=-1, field_attrs=["Bx", "By", "Bz"])
-    cs.winding.insert(dense, {"c": (0, 0, 0.005)}, minimum_arc_nodes=4, rdp_eps=1e-4, Ic=1.0)
-    ic = np.asarray(cs.sloc["Ic"], dtype=float)
-    cs.point.solve(NOVA_PROBES)
-    b_nova = np.column_stack(
-        [np.asarray(cs.point.data[k].values) @ ic for k in ("Bx", "By", "Bz")]
+    polyline = PolyLine(dense, minimum_arc_nodes=4, rdp_eps=1e-4)
+    geometry = polyline.path_geometry
+    for axis in "xyz":
+        geometry[axis] = geometry[f"{axis}0"]
+    source = Source(geometry, nturn=1)
+    target = Target(
+        dict(zip("xyz", NOVA_PROBES.T, strict=True)),
+        available=[],
     )
+
+    b_nova = np.zeros_like(NOVA_PROBES)
+    source_segments = np.asarray(source["segment"])
+    for segment, kernel in (("arc", NovaArc), ("line", NovaLine)):
+        mask = source_segments == segment
+        segment_source = Source(
+            {column: np.asarray(source[column])[mask] for column in source.columns},
+            index=list(np.asarray(source.index)[mask]),
+        )
+        operator = kernel(
+            segment_source,
+            target,
+            turns=False,
+            reduce=False,
+        )
+        b_nova += np.stack(
+            [operator.Bx, operator.By, operator.Bz],
+            axis=-1,
+        ).sum(axis=1)
+
+    assert np.count_nonzero(source_segments == "arc") == 2
+    assert np.count_nonzero(source_segments == "line") == 2
     b_tree = _exact_picture_frame_conductor(**_FRAME_KW).field(NOVA_PROBES, 1.0)
     assert np.allclose(b_tree, b_nova, atol=1e-13, rtol=1e-4)
