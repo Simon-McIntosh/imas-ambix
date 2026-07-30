@@ -14,17 +14,22 @@ Crucially the encode runs **one process per group** (see the
 ``scripts/slurm/signal_tokenizer.sbatch`` — each group is a separate
 ``encode`` invocation with its own fresh :data:`registry`).  Each process
 restarts its allocation at the control range, so on disk **every group's
-patch block begins at id 4 and the groups OVERLAP in global id space**::
+patch block begins at id 4 and the groups OVERLAP in global id space**.  The
+deployed corpus records continuous bottlenecks for xma and xim (codebook size
+1) and a 1024-entry VQ bottleneck for xsx::
 
-    on disk:   xma_patch  ∈ [4, 5)        (codebook_size 1)
-               xim_patch  ∈ [4, 12804)    (codebook_size 12800)
-               xsx_patch  ∈ [4, 1028)     (codebook_size 1024)
+    on disk:   xma_patch  ∈ [4, 5)        (continuous)
+               xim_patch  ∈ [4, 5)        (continuous)
+               xsx_patch  ∈ [4, 1028)     (VQ)
+
+These sizes describe the deployed stores, not registry constants.
+Reconstruction reads ``metadata.codebook_size`` from the stores so a corpus
+encoded with different bottlenecks produces the corresponding ranges.
 
 The registry packs a flat contiguous range only **within a single
 process** — it never produces one global stream across groups, because no
-single process ever encodes more than one group.  The flat-vocabulary
-picture from earlier versions of this docstring is therefore NOT what is
-realised on disk.
+single process ever encodes more than one group.  A flat vocabulary across
+groups is therefore not realised on disk.
 
 What this means for a consumer (the CONTRACT)
 ---------------------------------------------
