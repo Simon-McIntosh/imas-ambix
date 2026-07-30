@@ -55,12 +55,12 @@ def test_vocab_version_not_bumped():
 
 # The real, model-derived codebook sizes the on-disk v2 corpus uses.  These
 # are NOT a fictional 256 table — they are the values written into each store's
-# ``metadata.codebook_size`` by the in-flight encode (xma continuous → 1, xim
-# FSQ → 12800, xsx VQ → 1024).  The smoke / cross-check tests read them BACK
+# ``metadata.codebook_size`` by the corpus encode (xma/xim continuous → 1,
+# xsx VQ → 1024).  The smoke / cross-check tests read them BACK
 # off disk and assert these match, so a future model retrain that changes a
 # codebook size fails loudly rather than silently producing an overlapping L2
 # namespace.
-REAL_CODEBOOK_SIZES = {"xma": 1, "xim": 12800, "xsx": 1024}
+REAL_CODEBOOK_SIZES = {"xma": 1, "xim": 1, "xsx": 1024}
 
 
 def test_reconstruct_namespace_matches_per_group_process_layout():
@@ -88,11 +88,11 @@ def test_reconstruct_namespace_matches_per_group_process_layout():
     # Each group's encode process restarts at control end (4).
     assert reg.block_range(BLOCK_XMA_PATCH) == (4, 4 + 1)
     assert reg.block_range(BLOCK_XMA_MODE) == (4 + 1, 4 + 2)
-    assert reg.block_range(BLOCK_XIM_PATCH) == (4, 4 + 12800)
+    assert reg.block_range(BLOCK_XIM_PATCH) == (4, 4 + 1)
     assert reg.block_range(BLOCK_XSX_PATCH) == (4, 4 + 1024)
     assert reg.block_range(BLOCK_XSX_PROFILE) == (4 + 1024, 4 + 1025)
-    # The xim patch is the deepest block — its end is the union maximum.
-    assert reg.max_block_end() == 4 + 12800 == 12804
+    # The xsx profile is the deepest block — its end is the union maximum.
+    assert reg.max_block_end() == 4 + 1025 == 1029
 
 
 def test_l2_block_is_strictly_above_every_corpus_id_and_splits_to_l2():
