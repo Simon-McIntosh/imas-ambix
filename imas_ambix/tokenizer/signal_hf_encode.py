@@ -499,6 +499,7 @@ def _geometry_features_for(
     cache: dict,
     *,
     group: str | None = None,
+    resolve_identity: bool = False,
 ) -> tuple[np.ndarray | None, tuple[str, ...], tuple[str, ...]]:
     """Build the ``(n_channels, N_GEOMETRY_FEATURES)`` geometry array for a shot.
 
@@ -546,11 +547,16 @@ def _geometry_features_for(
         # Per-shot static-geometry table is the cheap thing; the signature keys
         # the (expensive-to-flatten) GeometryFields cache.
         table = build_table_for_shot(shot_id)
+        # The cache is keyed by the SETUP SIGNATURE, not the machine's physical
+        # identity: the flattened rows are per-channel positions of one
+        # discretization, so two subdivisions of one machine need two entries.
         sig = table.signature.key
         fields = cache.get(sig)
         if fields is None:
             fields = build_geometry_fields_from_table(
-                table, extra_channel_names=channel_names
+                table,
+                extra_channel_names=channel_names,
+                resolve_identity=resolve_identity,
             )
             cache[sig] = fields
         feats, kinds = fields.feature_matrix(channel_names)

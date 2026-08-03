@@ -255,6 +255,16 @@ class EquilibriumGrid:
     def from_table(
         cls, table: GeometryTable, *, nr: int = 65, nz: int = 97, cache: bool = False
     ) -> EquilibriumGrid:
+        """Build the campaign grid and its interaction matrices from a table.
+
+        The build cache is keyed by the setup signature and the resolution, and
+        deliberately NOT by the machine's physical identity: every matrix it
+        holds is a function of the discretization (filament count and positions,
+        limiter vertices, sensor map), so two representations of the same machine
+        need two different cached grids. Physical identity answers which machine
+        a table describes -- see :mod:`imas_ambix.gs.machine_identity` -- and is
+        never a compute-cache address.
+        """
         key = None
         if cache:
             sig = getattr(getattr(table, "signature", None), "key", None)
@@ -1478,7 +1488,7 @@ def _bounded_profile_lsq(
     lb = np.concatenate([np.zeros(k_dof), np.full(kp, -np.inf)])
     try:
         res = optimize.lsq_linear(a, b, bounds=(lb, np.full(k_dof + kp, np.inf)))
-    except (ValueError, np.linalg.LinAlgError):
+    except ValueError, np.linalg.LinAlgError:
         return None
     return res.x if np.isfinite(res.x).all() else None
 

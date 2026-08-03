@@ -485,6 +485,13 @@ class ForwardOperator:
     flagged_channels: list[str]  # non-unique amb (predicted at index, flagged)
     r0: float = MAST_R0
     minor_radius: float = MAST_A
+    #: The Nova registry physical digest of the machine this operator describes,
+    #: when it was resolved.  ``signature_key`` above identifies the
+    #: DISCRETIZATION the matrices were built on; this identifies the MACHINE, so
+    #: two operators built at different subdivisions of one device are
+    #: recognisable as the same hardware.  Empty when identity was not resolved,
+    #: which keeps an operator built without registry access fully usable.
+    physical_digest: str = ""
 
     # ---- forward apply ----
 
@@ -535,8 +542,12 @@ class ForwardOperator:
     # ---- summary ----
 
     def shapes(self) -> dict[str, Any]:
+        identity = (
+            {"physical_digest": self.physical_digest} if self.physical_digest else {}
+        )
         return {
             "signature_key": self.signature_key,
+            **identity,
             "n_sensor": len(self.sensor_channels),
             "n_flux_loop": self.sensor_kind.count("flux_loop"),
             "n_b_probe": self.sensor_kind.count("b_probe"),
@@ -732,13 +743,22 @@ def polygon_section_column(
     return xmult * np.where(is_flux, psi, bproj)
 
 
-def build_operator(table: GeometryTable) -> ForwardOperator:
+def build_operator(
+    table: GeometryTable, *, resolve_identity: bool = False
+) -> ForwardOperator:
     """Build the per-campaign :class:`ForwardOperator` from a T1 geometry table.
 
     Pure geometry: assembles ``G_pf`` (KNOWN PF coils, columns = active circuits
     with their filaments weighted by ``xmult``), ``G_plasma`` (INFERRED plasma
     basis on the limiter-masked grid), and ``G_passive`` (INFERRED passive/eddy
     nodes — the fcoil structural circuits, NOT amm currents).  CPU-tiny.
+
+    ``resolve_identity`` additionally stamps the machine's physical digest from
+    the Nova registry onto the operator.  Off by default so the historical build
+    neither reads the registry nor changes its summary; the matrices are
+    identical either way, because identity is provenance here and never an input.
+    A registry miss is non-fatal — the operator is still correct geometry, it just
+    carries no physical identity.
     """
     channels, kinds, srz_r, srz_z, srz_ang, excluded, flagged = _sensor_rows(table)
     is_flux = np.array([k == "flux_loop" for k in kinds], dtype=bool)
@@ -844,8 +864,21 @@ def build_operator(table: GeometryTable) -> ForwardOperator:
         else np.zeros((srz_r.size, 0), dtype=np.float64)
     )
 
+    physical_digest = ""
+    if resolve_identity:
+        from imas_ambix.gs.machine_identity import (  # noqa: PLC0415
+            MachineIdentityError,
+            identity_for_table,
+        )
+
+        try:
+            physical_digest = identity_for_table(table).physical_digest
+        except MachineIdentityError, ImportError, OSError, ValueError:
+            physical_digest = ""
+
     return ForwardOperator(
         signature_key=table.signature.key,
+        physical_digest=physical_digest,
         sensor_channels=channels,
         sensor_kind=kinds,
         g_pf=g_pf,

@@ -224,6 +224,11 @@ class GeometryFields:
     shots: list[int]
     machine: MachineGeometry
     channels: dict[str, ChannelGeometry] = field(default_factory=dict)
+    #: The Nova registry physical digest of the machine, when resolved.
+    #: ``signature_key`` guards against mixing incompatible DISCRETIZATIONS;
+    #: this records which MACHINE the geometry describes.  Empty when identity
+    #: was not resolved, which leaves the exported payload byte-unchanged.
+    physical_digest: str = ""
 
     def get(self, channel_name: str) -> ChannelGeometry | None:
         """Look up a channel by name (separator-insensitive)."""
@@ -257,6 +262,11 @@ class GeometryFields:
             "schema": "sensor-geometry-fields",
             "source": "efm-static-geometry",
             "signature_key": self.signature_key,
+            **(
+                {"physical_digest": self.physical_digest}
+                if self.physical_digest
+                else {}
+            ),
             "shots": self.shots,
             "feature_names": list(GEOMETRY_FEATURE_NAMES),
             "sensor_kinds": list(SENSOR_KINDS),
@@ -415,6 +425,7 @@ def build_geometry_fields_from_table(
     table: GeometryTable,
     *,
     extra_channel_names: Iterable[str] | None = None,
+    resolve_identity: bool = False,
 ) -> GeometryFields:
     """Flatten a :class:`GeometryTable` to a per-channel geometry table.
 
@@ -425,6 +436,11 @@ def build_geometry_fields_from_table(
 
     Channel-name keying is separator-insensitive, so a re-encoded store's
     ``ccbv_01`` resolves to the amb ``ccbv01`` sensor.
+
+    ``resolve_identity`` stamps the machine's Nova physical digest onto the
+    result.  Off by default: the feature rows are unaffected either way, since
+    identity is provenance and never feeds the encoding.  A registry miss is
+    non-fatal, matching the surrounding best-effort geometry contract.
     """
     centroids, pf_r, pf_z = _pf_circuit_centroids(table)
     machine = MachineGeometry(
@@ -461,8 +477,21 @@ def build_geometry_fields_from_table(
             continue
         channels[key] = _scalar_or_chord_row(name)
 
+    physical_digest = ""
+    if resolve_identity:
+        from imas_ambix.gs.machine_identity import (  # noqa: PLC0415
+            MachineIdentityError,
+            identity_for_table,
+        )
+
+        try:
+            physical_digest = identity_for_table(table).physical_digest
+        except MachineIdentityError, ImportError, OSError, ValueError:
+            physical_digest = ""
+
     return GeometryFields(
         signature_key=table.signature.key,
+        physical_digest=physical_digest,
         shots=list(table.shots),
         machine=machine,
         channels=channels,
