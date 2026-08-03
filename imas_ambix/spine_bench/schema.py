@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 #: latency percentiles, and the complete-run wall — the GPU-vs-CPU throughput/latency
 #: story lives in these.  1.2 added the CONNECTIVITY (accelerator-native, contour-free
 #: JAX) flux-surface-averaging d-roughness alongside the host coarea baseline, so a
-#: single stamp compares the two FSA reads head-to-head (greens-filament-solver §3).
+#: single stamp compares the two FSA reads head-to-head.
 #: 1.3 added the ``topology_read`` dimension (hard host read vs the continuous
 #: connectivity/smooth-mask read that makes the fixed-point map differentiable),
 #: its reproduction metrics, and the batched-GPU foundation metrics (GEMM
@@ -110,7 +110,7 @@ METRICS: dict[str, Metric] = {
             description="Median normalised RMS between the grid-free and grid-GS "
             "jphi(rho_hat) profile on the same slice (well-determined slices).",
         ),
-        # --- physics quality: FSA integrity (greens-filament-solver §3 motivation) ---
+        # --- physics quality: FSA integrity ---
         Metric(
             name="fsa_d_roughness_nrho32",
             unit="normalised",
@@ -124,16 +124,16 @@ METRICS: dict[str, Metric] = {
             unit="normalised",
             direction="lower_better",
             description="Same d-roughness at n_rho=96; compare to nrho32 for the "
-            "resolution trend (the greens-filament-solver §3 plan claims the "
-            "cell-binned FSA worsens 0.45→0.72 with n_rho — this metric measures "
-            "the trend on the actual contour-integrated geo.d_face).",
+            "resolution trend. A cell-binned FSA is expected to worsen with n_rho; "
+            "this metric measures the trend on the contour-integrated geo.d_face, "
+            "where it does not.",
         ),
         Metric(
             name="fsa_d_roughness_resolution_slope",
             unit="Δrough/Δlog2(n_rho)",
             direction="lower_better",
             description="Slope of d-roughness vs log2(n_rho) over {16,32,64,96}; "
-            "positive = degrades with resolution (the §3-claimed pathology), "
+            "positive = degrades with resolution, "
             "≤0 = stable/improving. Measured, not assumed.",
         ),
         # --- FSA integrity: CONNECTIVITY (accelerator-native, contour-free) read ---
@@ -158,7 +158,7 @@ METRICS: dict[str, Metric] = {
             unit="Δrough/Δlog2(n_rho)",
             direction="lower_better",
             description="Slope of the connectivity-FSA d-roughness vs log2(n_rho) "
-            "over {16,32,64,96}; ≤0 = resolution-stable (the §3 gate G2b).",
+            "over {16,32,64,96}; ≤0 = resolution-stable.",
         ),
         # --- topology-read reproduction (continuous/smooth vs hard host read) ---
         Metric(
@@ -329,7 +329,7 @@ class SpineBenchmarkStamp(BaseModel):
     benchmark_name: str = "physics-spine"
     created_utc: str  # ISO-8601, stamped by the caller
     #: What is timed. The per-slice static solve is the GPU inner-loop target; the
-    #: dynamics-coupled label rollout (§3 diffusion + passive + temporal warm-start)
+    #: dynamics-coupled label rollout (diffusion + passive + temporal warm-start)
     #: is the label-factory throughput — a distinct mode, added before the corpus run.
     bench_scope: str = (
         "per-slice static free-boundary solve (basin solve + profile solve)"

@@ -1,8 +1,8 @@
 """Run the physics-spine benchmark on the frozen shot set → a versioned YAML stamp.
 
-Reuses the VALIDATED greens-filament-solver §2 gate solve path (the basin
-solve + profile solve, both substrates) so the benchmark measures exactly
-the engine the gate proved, not a parallel re-derivation.
+Reuses the VALIDATED grid-free gate solve path (the basin solve + profile
+solve, both substrates) so the benchmark measures exactly the engine the gate
+proved, not a parallel re-derivation.
 """
 
 from __future__ import annotations
@@ -83,7 +83,7 @@ def _env_info(engine_cfg_name: str, engine_cfg_sha: str) -> EnvInfo:
     )
 
 
-# --- the FSA quality metric (the §3 motivation) -----------------------------
+# --- the FSA quality metric ------------------------------------------------
 
 
 def _d_roughness(d_face: np.ndarray) -> float:
@@ -104,7 +104,7 @@ def _d_roughness(d_face: np.ndarray) -> float:
 
 
 #: The FSA reads compared head-to-head: the host coarea binning (baseline) and
-#: the accelerator-native, contour-free JAX kernel-coarea (greens-filament-solver §3).
+#: the accelerator-native, contour-free JAX kernel-coarea.
 _FSA_MODES = ("coarea", "connectivity")
 
 
@@ -534,19 +534,18 @@ def run_stamp(
             "dynamics-coupled label rollout (diffusion + passive + temporal "
             "warm-start) is a distinct mode to add before the corpus GPU run.",
             "FSA d-roughness = rms(2nd-diff of d_face)/rms(d_face), interior faces. "
-            "RECONCILE: the greens-filament-solver s3 plan cites a cell-binned "
-            "d-roughness ~0.5 worsening 0.45->0.72 with n_rho; on the current "
-            "CONTOUR-INTEGRATED geo.d_face the slope measured here is <=0 — no "
-            "committed diagnostic backs the plan's number, so s3 should re-baseline.",
+            "A cell-binned d-roughness is expected to worsen with n_rho; on the "
+            "CONTOUR-INTEGRATED geo.d_face the slope measured here is <=0, and no "
+            "committed diagnostic reproduces the worsening trend.",
             "Per-component / GPU-device memory is added with the GPU rollout; "
             "peak_rss_gb here is process-level. Held-out-MSE pitch is tracked "
             "separately (heldout_mse_gate_eval).",
             "CAVEAT (corpus extrapolation): per-slice metrics are on the CACHED "
             "Green's matrix (built once per shot, warmup-excluded), so a corpus-cost "
             "extrapolation from throughput_slices_per_core_s ASSUMES campaign-scope "
-            "Green's caching (greens-filament-solver §4). Today the grid+matrices are "
-            "rebuilt per shot (only ~2 campaign signatures exist), adding ~2% at "
-            "corpus scale until §4 lands.",
+            "Green's caching. Today the grid+matrices are rebuilt per shot (only "
+            "~2 campaign signatures exist), adding ~2% at corpus scale until that "
+            "caching lands.",
         ],
     )
 
