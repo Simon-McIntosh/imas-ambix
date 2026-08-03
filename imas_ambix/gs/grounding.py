@@ -444,6 +444,8 @@ class GroundingContext:
 
 def build_operators_for_shots(
     shot_ids: list[int],
+    *,
+    resolve_identity: bool = False,
 ) -> tuple[dict[str, ForwardOperator], dict[int, str]]:
     """Build the per-campaign ForwardOperators covering ``shot_ids``.
 
@@ -452,6 +454,13 @@ def build_operators_for_shots(
     Shots whose table cannot be built (``amm`` passive geometry absent, ~⅓ of
     shots) are simply ABSENT from ``campaign_of`` → they train Dα-only (the
     ungrounded path is untouched for them).
+
+    The grouping stays keyed by signature: each operator's matrices are built on
+    one discretization, so a window must find the operator built from ITS
+    geometry, not merely from the same machine.  ``resolve_identity`` stamps the
+    machine's physical digest onto each operator as provenance, which is what
+    makes a corpus spanning two real configurations detectable rather than
+    silent.
     """
     from imas_ambix.gs.geometry import build_table_for_shot  # noqa: PLC0415
 
@@ -466,7 +475,7 @@ def build_operators_for_shots(
             continue
         key = table.signature.key
         if key not in operators:
-            operators[key] = build_operator(table)
+            operators[key] = build_operator(table, resolve_identity=resolve_identity)
         campaign_of[int(s)] = key
         n_ok += 1
     logger.info(

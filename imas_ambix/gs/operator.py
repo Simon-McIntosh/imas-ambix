@@ -935,9 +935,14 @@ def read_amc_currents_at_index(shot_id: int, t_index: int) -> dict[str, float]:
 
 def build_all_operators(
     tables: dict[str, GeometryTable],
+    *,
+    resolve_identity: bool = False,
 ) -> dict[str, ForwardOperator]:
     """Build one :class:`ForwardOperator` per campaign signature."""
-    return {key: build_operator(t) for key, t in tables.items()}
+    return {
+        key: build_operator(t, resolve_identity=resolve_identity)
+        for key, t in tables.items()
+    }
 
 
 def write_operator_summary(
