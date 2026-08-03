@@ -73,8 +73,9 @@ def main() -> int:
     path = write_yaml(stamp, Path(args.out_dir))
 
     logger.info(
-        "\n=== aggregate (median across %d frozen shots) ===",
+        "\n=== aggregate (median across %d %s shots) ===",
         len({s.shot_id for s in stamp.shots}),
+        stamp.shotset_version,
     )
     logger.info(json.dumps(stamp.aggregate, indent=2))
     logger.info("\nwrote %s", path)

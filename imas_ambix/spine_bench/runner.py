@@ -21,7 +21,7 @@ from imas_ambix.spine_bench.schema import (
     ShotStamp,
     SpineBenchmarkStamp,
 )
-from imas_ambix.spine_bench.shots import FROZEN_SHOTSET, SHOTSET_VERSION
+from imas_ambix.spine_bench.shots import FROZEN_SHOTSET, resolve_shotset_version
 
 CONFINED_AXIS_R_MAX = 1.4
 _NRHO_SWEEP = (16, 32, 64, 96)
@@ -168,6 +168,10 @@ def run_stamp(
     (greens-matvec) substrate: ``("hard",)`` is the historical two-arm stamp;
     include ``"connectivity"`` to bench the continuous (smooth-map) read
     head-to-head, with its reproduction metrics vs the hard-read solve.
+
+    ``shots`` overrides the frozen set. The stamp is then labelled by
+    :func:`resolve_shotset_version`, so an override cannot be written under the
+    frozen metric's name.
     """
     from imas_ambix.latent.boundary_disc import disc_read
     from imas_ambix.latent.gs_solve import (
@@ -180,6 +184,7 @@ def run_stamp(
     from scripts.spine_label_factory import factory_shot_payloads, frozen_spine_config
 
     shotset = shots if shots is not None else FROZEN_SHOTSET
+    shotset_version = resolve_shotset_version(shots)
     spine, spine_sha = frozen_spine_config()
     iso = spine["interior_solve"]
     n_p, n_f = int(iso["n_p"]), int(iso["n_f"])
@@ -459,7 +464,7 @@ def run_stamp(
     env = _env_info("closure-spine-D2", spine_sha)
     return SpineBenchmarkStamp(
         schema_version=SCHEMA_VERSION,
-        shotset_version=SHOTSET_VERSION,
+        shotset_version=shotset_version,
         created_utc=created_utc,
         complete_run_wall_s=round(time.perf_counter() - run_t0, 2),
         peak_rss_gb=peak_rss_gb,

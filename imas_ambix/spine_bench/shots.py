@@ -18,6 +18,11 @@ from pydantic import BaseModel
 #: Bump when the frozen set (shots or roles) changes.
 SHOTSET_VERSION = "v0-mast-heldout-6"
 
+#: The label a stamp carries when it did NOT measure the frozen set. Stamps are
+#: named by their shot-set version, so an override that reused the frozen label
+#: would produce a file indistinguishable from the real metric.
+AD_HOC_SHOTSET_VERSION = "ad-hoc"
+
 
 class BenchShot(BaseModel):
     """One pinned benchmark shot and its role in the set."""
@@ -35,3 +40,19 @@ FROZEN_SHOTSET: list[BenchShot] = [
     BenchShot(shot_id=21989, role="flat-top representative"),
     BenchShot(shot_id=22086, role="flat-top representative (campaign-edge)"),
 ]
+
+
+def resolve_shotset_version(shots: list[BenchShot] | None) -> str:
+    """Return the shot-set label that honestly names what will be measured.
+
+    A stamp's filename and its comparability guard both come from this label, so
+    it must be derived from the shot set actually solved rather than assumed.
+    Anything other than the frozen shots in their frozen order with their frozen
+    roles is :data:`AD_HOC_SHOTSET_VERSION`, which keeps an override from ever
+    landing in the results directory under the frozen metric's name.
+    """
+    if shots is None:
+        return SHOTSET_VERSION
+    frozen = [(shot.shot_id, shot.role) for shot in FROZEN_SHOTSET]
+    given = [(int(shot.shot_id), shot.role) for shot in shots]
+    return SHOTSET_VERSION if given == frozen else AD_HOC_SHOTSET_VERSION
