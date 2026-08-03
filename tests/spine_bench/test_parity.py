@@ -20,11 +20,30 @@ from imas_ambix.spine_bench.shots import (
 RESULTS = Path(__file__).parents[2] / "imas_ambix" / "spine_bench" / "results"
 
 
+def _load(name: str) -> SpineBenchmarkStamp:
+    payload = yaml.safe_load((RESULTS / name).read_text())
+    return SpineBenchmarkStamp.model_validate(payload)
+
+
 @pytest.fixture
 def reference() -> SpineBenchmarkStamp:
-    """The committed stamp every tolerance is derived from."""
-    payload = yaml.safe_load((RESULTS / parity.REFERENCE_STAMP).read_text())
-    return SpineBenchmarkStamp.model_validate(payload)
+    """A stamp whose every metric IS the registered reference for that metric.
+
+    The absolute table spans two committed stamps, because the sensor-space
+    misfit was registered at a later schema version than the other thirteen
+    tolerances and the older stamp therefore does not measure it.  This fixture
+    puts the two together: the historical reference, carrying the misfit values
+    the current-schema stamp measured.  Every test below that perturbs one metric
+    by a multiple of its budget depends on that identity holding -- otherwise the
+    arithmetic is against one number and the gate against another.
+    """
+    stamp = _load(parity.REFERENCE_STAMP)
+    misfit = _load(parity.BEFORE_PATH_STAMP).aggregate
+    for arm in parity.GATED_ARMS:
+        stamp.aggregate[arm][parity.MAGNETICS_RESIDUAL_METRIC] = misfit[arm][
+            parity.MAGNETICS_RESIDUAL_METRIC
+        ]
+    return stamp
 
 
 def _without(stamp: SpineBenchmarkStamp, **overrides) -> SpineBenchmarkStamp:
@@ -219,8 +238,7 @@ def test_the_reference_stamp_is_structurally_admissible(reference):
 @pytest.fixture
 def before_path() -> SpineBenchmarkStamp:
     """The measured before-path an after-path run must reproduce."""
-    payload = yaml.safe_load((RESULTS / parity.BEFORE_PATH_STAMP).read_text())
-    return SpineBenchmarkStamp.model_validate(payload)
+    return _load(parity.BEFORE_PATH_STAMP)
 
 
 def test_the_before_path_stamp_is_a_genuine_clean_two_arm_frozen_run(before_path):

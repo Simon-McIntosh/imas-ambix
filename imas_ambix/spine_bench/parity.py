@@ -7,12 +7,20 @@ must satisfy before its numbers mean anything at all.
 
 Reference values
 ----------------
-Every reference is the aggregate median of the committed stamp
+Every reference EXCEPT the sensor-space misfit is the aggregate median of the
+committed stamp
 ``results/physics-spine-v0-mast-heldout-6-0447fb2e0d-98dci4-clu-3141.yaml``
 (schema ``spine-bench/1.3``, 18 rows, ``git_dirty: false``, all six frozen shots
 under one campaign signature).  That stamp is also the SLOWEST of the four
 committed stamps on both gated arms, so using it as the timing reference cannot
 be gamed by comparing against a lucky fast run.
+
+The sensor-space misfit did not exist at schema 1.3, so its reference is the
+earliest stamp that measures it -- :data:`BEFORE_PATH_STAMP` at schema 1.4.
+Every deterministic metric in that stamp is bit-identical to the 1.3 stamp it
+succeeds, which is what makes the two references mutually consistent: the run
+that first measured the misfit reproduced everything already gated, digit for
+digit, so the new number describes the same engine the older references do.
 
 Which arms are gated
 --------------------
@@ -63,12 +71,45 @@ is deliberately not registered -- one number, one gate.  ``latency_ms_p99`` is
 also ungated: it spread up to 30%, is a tail statistic over at most five timed
 slices per shot, and carries no parity information.
 
-Not yet gateable
-----------------
-The parent contract also asks for a field/flux residual.  No such metric exists
-in :mod:`imas_ambix.spine_bench.schema`, so none is registered here; adding one
-means a new metric, a ``SCHEMA_VERSION`` bump and a fresh reference stamp, and a
-gate cannot be invented ahead of the measurement it scores.
+**Sensor-space misfit** (``magnetics_residual_whitened_rms``) is the fourth
+class and needs its own mechanism, because it is the only registered metric that
+is an ABSOLUTE misfit rather than a difference between two solves.  A change
+budget expressed as a multiple of the reference would be meaningless here: four
+times a misfit that already sits near one whitened sigma admits an equilibrium
+with no relationship to the magnetics at all.  The margin is therefore a
+fractional one, derived the way the timing margin is -- from the measured spread
+of the quantity under a change that is not the one being gated.
+
+That spread is available directly, because a stamp measures the residual twice.
+``grid-delstar`` and ``greens-matvec`` solve the same equilibrium from the same
+measurements on the same geometry through two different substrates -- a gridded
+elliptic inversion and an analytic Green's matvec -- and their residuals differ
+by 7.3e-4 in relative terms (0.739561 against 0.740103).  A two-slice ad-hoc run
+put the same figure at 1.3e-3.  That is what this number does when the
+reconstruction path changes and the machine does not, which is the perturbation
+class a geometry-source cutover belongs to, so it is the floor a margin must
+clear.
+
+The ceiling was measured rather than assumed, because a fractional budget has no
+grid cell to calibrate against the way the reproduction budget does.  Displacing
+every sensor radially and recomputing the residual on the SAME converged
+equilibrium moves the median by 0.20% at 1 mm, 0.88% at 5 mm, 1.65% at 10 mm and
+3.86% at one radial grid cell (26.6 mm).  Those figures are lower bounds: the
+probe holds the known-coil vacuum term fixed, so a real change of geometry source
+moves the number by more than the same displacement does here.
+
+``MAGNETICS_RESIDUAL_REGRESSION_BUDGET`` therefore allows 1%.  That is about
+eight times the observed cross-path spread and below the 1.65% a 10 mm sensor
+displacement costs, so the gate fires on any geometry error from roughly a
+quarter of a grid cell upward while leaving substrate-level differences alone.  A
+5% budget would have admitted a whole-cell displacement, which is the error this
+metric exists to catch.  The gate is one-sided, matching the metric's direction:
+a run that fits the magnetics BETTER than the before-path is not a parity
+failure.
+
+Both hard-read arms carry it, like solve health and throughput: the misfit is an
+absolute property of each arm's own equilibrium, not a cross-arm comparison, so
+each arm's number stands on its own.
 """
 
 from __future__ import annotations
@@ -88,7 +129,11 @@ REFERENCE_STAMP = "physics-spine-v0-mast-heldout-6-0447fb2e0d-98dci4-clu-3141.ya
 #: separate them, over which the reproduction metrics moved (axis 0.0234 to
 #: 0.0253 cm, profile RMS 0.0162 to 0.0190) while staying far inside the change
 #: budget, which is the budget absorbing real solver evolution as designed.
-BEFORE_PATH_STAMP = "physics-spine-v0-mast-heldout-6-ca82e50d2f-98dci4-clu-3141.yaml"
+#: The stamp named here is the schema-1.4 re-run of that same engine state: it
+#: reproduces every deterministic metric of the ca82e50d2f stamp bit for bit and
+#: adds the sensor-space misfit, which is why it can serve as the before-path for
+#: a comparison that includes the new metric.
+BEFORE_PATH_STAMP = "physics-spine-v0-mast-heldout-6-08ae0dee74-98dci4-clu-3141.yaml"
 
 #: Arms carrying the gate: the hard-topology-read solves on both substrates.
 GATED_ARMS = ("grid-delstar", "greens-matvec")
@@ -98,6 +143,12 @@ REPRODUCTION_CHANGE_BUDGET = 4.0
 
 #: Throughput may fall this fraction below its reference before failing.
 THROUGHPUT_REGRESSION_BUDGET = 0.25
+
+#: The whitened magnetics misfit may rise this fraction above its reference.
+MAGNETICS_RESIDUAL_REGRESSION_BUDGET = 0.01
+
+#: The metric scored under the sensor-space-misfit margin mechanism.
+MAGNETICS_RESIDUAL_METRIC = "magnetics_residual_whitened_rms"
 
 
 @dataclass(frozen=True)
@@ -166,6 +217,22 @@ def _throughput(arm: str, reference: float) -> ParityTolerance:
     )
 
 
+def _magnetics_residual(arm: str, reference: float) -> ParityTolerance:
+    return ParityTolerance(
+        metric=MAGNETICS_RESIDUAL_METRIC,
+        arm=arm,
+        reference=reference,
+        bound=reference * (1.0 + MAGNETICS_RESIDUAL_REGRESSION_BUDGET),
+        lower_better=True,
+        basis=(
+            "absolute misfit, so the margin is fractional rather than a change "
+            f"budget; {MAGNETICS_RESIDUAL_REGRESSION_BUDGET:.0%} sits above the "
+            "7.3e-4 cross-substrate spread and below the 1.65% a 10 mm sensor "
+            "displacement costs"
+        ),
+    )
+
+
 #: The registered gate. Reproduction metrics live on ``greens-matvec`` because
 #: that arm is the one scored against the grid baseline; solve health and
 #: throughput are gated on both hard-read arms.
@@ -183,6 +250,8 @@ PARITY_TOLERANCES: tuple[ParityTolerance, ...] = (
     _solve_health("confined_fraction", "grid-delstar"),
     _throughput("greens-matvec", 0.1903098833334077),
     _throughput("grid-delstar", 0.3206149571463025),
+    _magnetics_residual("greens-matvec", 0.7401030841611733),
+    _magnetics_residual("grid-delstar", 0.7395612732950347),
 )
 
 
@@ -316,6 +385,8 @@ def tolerances_from(stamp) -> tuple[ParityTolerance, ...]:
             )
         if tolerance.metric == "throughput_slices_per_core_s":
             derived.append(_throughput(tolerance.arm, reference))
+        elif tolerance.metric == MAGNETICS_RESIDUAL_METRIC:
+            derived.append(_magnetics_residual(tolerance.arm, reference))
         elif tolerance.reference == 1.0 and not tolerance.lower_better:
             derived.append(_solve_health(tolerance.metric, tolerance.arm))
         else:

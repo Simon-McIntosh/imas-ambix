@@ -120,3 +120,82 @@ def test_a_channel_with_no_measurement_is_left_out_rather_than_poisoning_the_rms
     assert _magnetics_residual(fit, grid, "geometry", payload) == pytest.approx(
         expected
     )
+
+
+# --- the registered gate -----------------------------------------------------
+
+
+def _tolerances():
+    from imas_ambix.spine_bench import parity
+
+    return [t for t in parity.PARITY_TOLERANCES if t.metric == METRIC]
+
+
+def test_both_gated_arms_carry_the_misfit():
+    from imas_ambix.spine_bench import parity
+
+    assert sorted(t.arm for t in _tolerances()) == sorted(parity.GATED_ARMS)
+
+
+def test_the_margin_is_fractional_rather_than_a_change_budget():
+    """A change budget on an absolute misfit would admit an unrelated equilibrium."""
+    from imas_ambix.spine_bench import parity
+
+    for tolerance in _tolerances():
+        assert tolerance.lower_better
+        assert tolerance.bound == pytest.approx(
+            tolerance.reference * (1.0 + parity.MAGNETICS_RESIDUAL_REGRESSION_BUDGET)
+        )
+        assert tolerance.bound < tolerance.reference * parity.REPRODUCTION_CHANGE_BUDGET
+
+
+def test_the_margin_clears_the_measured_cross_substrate_spread():
+    """The two arms differ by 7.3e-4; the budget must sit well above that floor."""
+    from imas_ambix.spine_bench import parity
+
+    arms = {t.arm: t.reference for t in _tolerances()}
+    spread = abs(arms["greens-matvec"] - arms["grid-delstar"]) / min(arms.values())
+
+    assert spread < 1e-3
+    assert 10.0 * spread < parity.MAGNETICS_RESIDUAL_REGRESSION_BUDGET
+
+
+def test_the_banked_before_path_clears_every_registered_tolerance():
+    from pathlib import Path
+
+    import yaml
+
+    from imas_ambix.spine_bench import parity
+    from imas_ambix.spine_bench.schema import SpineBenchmarkStamp
+
+    path = Path("imas_ambix/spine_bench/results") / parity.BEFORE_PATH_STAMP
+    stamp = SpineBenchmarkStamp(**yaml.safe_load(path.read_text()))
+
+    assert stamp.schema_version == SCHEMA_VERSION
+    assert not stamp.env.git_dirty
+    report = parity.evaluate(stamp)
+    assert report.ok, report.describe()
+    assert report.checked == len(parity.PARITY_TOLERANCES)
+
+
+def test_comparing_paths_scores_the_misfit_too():
+    """An after-path that drifts past the budget must fail, not pass quietly."""
+    import copy
+    from pathlib import Path
+
+    import yaml
+
+    from imas_ambix.spine_bench import parity
+    from imas_ambix.spine_bench.schema import SpineBenchmarkStamp
+
+    path = Path("imas_ambix/spine_bench/results") / parity.BEFORE_PATH_STAMP
+    before = SpineBenchmarkStamp(**yaml.safe_load(path.read_text()))
+
+    assert parity.compare_paths(before, before).ok
+
+    after = copy.deepcopy(before)
+    for arm in parity.GATED_ARMS:
+        after.aggregate[arm][METRIC] *= 1.10
+    report = parity.compare_paths(before, after)
+    assert not report.ok
+    assert {f.metric for f in report.failures} == {METRIC}

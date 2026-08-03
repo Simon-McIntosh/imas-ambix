@@ -269,6 +269,22 @@ def test_the_guard_passes_a_fully_sourced_table():
     ag.require_resolved_turns(_table([10.0, 5.0]))
 
 
+# --- the campaign-side inputs the artifact cannot supply ---------------------
+
+
+def test_the_sensor_arrays_are_presented_in_the_shape_the_mapper_reads():
+    from imas_ambix.gs.geometry import BProbe, FluxLoop
+
+    arrays = ag.sensor_position_arrays(
+        [BProbe(index=0, r=1.0, z=0.5, angle_deg=90.0, length=0.02)],
+        [FluxLoop(index=0, r=1.4, z=-0.3)],
+    )
+
+    assert set(arrays) == {"magpr_r", "magpr_z", "magpr_ang", "silop_r", "silop_z"}
+    assert arrays["magpr_ang"].tolist() == [90.0]
+    assert arrays["silop_r"].tolist() == [1.4]
+
+
 # --- integration against a published artifact --------------------------------
 
 _CACHE = os.environ.get("AMBIX_MACHINE_ARTIFACT_CACHE", "")
@@ -443,3 +459,53 @@ def test_the_flux_loop_coverage_difference_is_bounded_and_known(
     assert (nearest < 1e-3).sum() >= 26
     assert (nearest < 1e-2).sum() >= 39
     assert (nearest > 0.05).sum() <= 7
+
+
+@_skip_no_artifact
+def test_a_campaign_channel_set_is_what_makes_the_table_drivable():
+    """The artifact describes conductors; it does not describe an acquisition system.
+
+    Without the campaign's measured coil-current channels no circuit is
+    classified as driven and the vacuum coil block is empty, so the reader takes
+    them from the caller.  This pins that the pass-through is what turns a
+    geometry table into one a forward operator can build a coil block from.
+    """
+    from imas_ambix.gs import operator as op
+    from imas_ambix.gs.geometry import read_amc_current_channels
+
+    channels = tuple(read_amc_current_channels(_SHOT))
+    assert channels
+
+    bare = ag.MachineArtifactGeometryReader(
+        cache_directory=_CACHE, digest=_DIGEST, shot=_SHOT
+    ).read()
+    driven = ag.MachineArtifactGeometryReader(
+        cache_directory=_CACHE,
+        digest=_DIGEST,
+        shot=_SHOT,
+        amc_current_channels=channels,
+    ).read()
+
+    assert op.build_operator(bare).pf_merged_circuits == []
+    assert len(op.build_operator(driven).pf_merged_circuits) == 13
+
+
+@_skip_no_artifact
+def test_the_carried_channel_set_does_not_map_onto_this_revision():
+    """Carrying the campaign's amb channels onto artifact geometry loses most of them.
+
+    ``map_amb_sensors`` picks its B-probe candidates by exact equality against
+    the orientation a channel's name implies.  This revision stores every
+    poloidal angle in radians, so the degree value lands 2e-4 away from a whole
+    degree and matches nothing; the radial channels then have no candidate at
+    all, because no probe here is radial.  The mapping is therefore not usable
+    as published, which is a blocker to record rather than a tolerance to widen.
+    """
+    from imas_ambix.gs.geometry import canonical_amb_channels
+
+    channels = tuple(canonical_amb_channels([_SHOT]))
+    table = ag.MachineArtifactGeometryReader(
+        cache_directory=_CACHE, digest=_DIGEST, shot=_SHOT, amb_channels=channels
+    ).read()
+
+    assert len(table.unmatched_amb) > len(table.sensor_map)
