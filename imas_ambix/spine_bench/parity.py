@@ -80,6 +80,16 @@ from imas_ambix.spine_bench.shots import FROZEN_SHOTSET, SHOTSET_VERSION
 #: The reference stamp every tolerance below is derived from.
 REFERENCE_STAMP = "physics-spine-v0-mast-heldout-6-0447fb2e0d-98dci4-clu-3141.yaml"
 
+#: The measured before-path: the frozen gate run on the engine as it stands at
+#: the cutover, clean-tree and two-arm.  The absolute table above is the floor a
+#: run must clear on its own; this stamp is what an after-path run is compared
+#: AGAINST, because parity asks whether the new path reproduces the path being
+#: replaced, not one that predates it.  The two differ: 94 engine commits
+#: separate them, over which the reproduction metrics moved (axis 0.0234 to
+#: 0.0253 cm, profile RMS 0.0162 to 0.0190) while staying far inside the change
+#: budget, which is the budget absorbing real solver evolution as designed.
+BEFORE_PATH_STAMP = "physics-spine-v0-mast-heldout-6-ca82e50d2f-98dci4-clu-3141.yaml"
+
 #: Arms carrying the gate: the hard-topology-read solves on both substrates.
 GATED_ARMS = ("grid-delstar", "greens-matvec")
 
@@ -261,10 +271,9 @@ def check_admissibility(stamp) -> tuple[str, ...]:
     return tuple(reasons)
 
 
-def evaluate(stamp) -> ParityReport:
-    """Score a benchmark stamp against the registered tolerances."""
+def _score(stamp, tolerances) -> list[ParityFailure]:
     failures = []
-    for tolerance in PARITY_TOLERANCES:
+    for tolerance in tolerances:
         measured = stamp.aggregate.get(tolerance.arm, {}).get(
             tolerance.metric, float("nan")
         )
@@ -278,8 +287,56 @@ def evaluate(stamp) -> ParityReport:
                     reference=tolerance.reference,
                 )
             )
+    return failures
+
+
+def evaluate(stamp) -> ParityReport:
+    """Score a benchmark stamp against the registered tolerances."""
     return ParityReport(
         admissibility=check_admissibility(stamp),
-        failures=tuple(failures),
+        failures=tuple(_score(stamp, PARITY_TOLERANCES)),
         checked=len(PARITY_TOLERANCES),
+    )
+
+
+def tolerances_from(stamp) -> tuple[ParityTolerance, ...]:
+    """Re-derive the registered table against a measured stamp.
+
+    Same metrics, same arms, same margin policy -- only the reference values move
+    to what ``stamp`` measured.  This is how an after-path run is gated against
+    the before-path it must reproduce rather than against a historical anchor.
+    """
+    derived: list[ParityTolerance] = []
+    for tolerance in PARITY_TOLERANCES:
+        reference = stamp.aggregate.get(tolerance.arm, {}).get(tolerance.metric)
+        if reference is None:
+            raise KeyError(
+                f"stamp does not measure {tolerance.arm}/{tolerance.metric}, so it "
+                "cannot serve as a parity reference"
+            )
+        if tolerance.metric == "throughput_slices_per_core_s":
+            derived.append(_throughput(tolerance.arm, reference))
+        elif tolerance.reference == 1.0 and not tolerance.lower_better:
+            derived.append(_solve_health(tolerance.metric, tolerance.arm))
+        else:
+            derived.append(_reproduction(tolerance.metric, tolerance.arm, reference))
+    return tuple(derived)
+
+
+def compare_paths(before, after) -> ParityReport:
+    """Score an after-path stamp against the before-path it must reproduce.
+
+    Both stamps must be admissible frozen-set runs, because a comparison between
+    two differently-scoped runs is not a parity measurement.  The after-path is
+    then held to the same margin policy with the before-path's numbers as the
+    reference, so a cutover that leaves the equilibrium unchanged passes and one
+    that moves it by a multiple of the change budget does not.
+    """
+    admissibility = [f"before-path: {reason}" for reason in check_admissibility(before)]
+    admissibility += [f"after-path: {reason}" for reason in check_admissibility(after)]
+    tolerances = tolerances_from(before)
+    return ParityReport(
+        admissibility=tuple(admissibility),
+        failures=tuple(_score(after, tolerances)),
+        checked=len(tolerances),
     )

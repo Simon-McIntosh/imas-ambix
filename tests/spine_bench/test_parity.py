@@ -211,3 +211,83 @@ def test_the_reference_stamp_is_structurally_admissible(reference):
     """Guards the admissibility rules against being unsatisfiable in practice."""
     assert parity.check_admissibility(reference) == ()
     assert reference.shotset_version == SHOTSET_VERSION
+
+
+# --- the before-path and the old-vs-new comparison ------------------------
+
+
+@pytest.fixture
+def before_path() -> SpineBenchmarkStamp:
+    """The measured before-path an after-path run must reproduce."""
+    payload = yaml.safe_load((RESULTS / parity.BEFORE_PATH_STAMP).read_text())
+    return SpineBenchmarkStamp.model_validate(payload)
+
+
+def test_the_before_path_stamp_is_a_genuine_clean_two_arm_frozen_run(before_path):
+    """A stamp with a dirty tree or a partial arm cannot anchor a comparison."""
+    assert parity.check_admissibility(before_path) == ()
+    assert before_path.env.git_dirty is False
+    assert {row.substrate for row in before_path.shots} == set(parity.GATED_ARMS)
+    assert {row.topology_read for row in before_path.shots} == {"hard"}
+    assert all(
+        row.n_slices_scored == row.n_slices_attempted for row in before_path.shots
+    )
+
+
+def test_the_before_path_clears_the_registered_absolute_table(before_path):
+    """The engine at the cutover satisfies the gate it will be measured under."""
+    assert parity.evaluate(before_path).ok
+
+
+def test_a_path_compared_against_itself_is_perfect_parity(before_path):
+    """The comparison's fixed point: identical stamps cannot fail."""
+    assert parity.compare_paths(before_path, before_path).ok
+
+
+def test_the_comparison_rebases_the_reference_onto_the_before_path(before_path):
+    """Tolerances must follow the measured before-path, not the historical anchor."""
+    derived = {
+        (t.arm, t.metric): t.reference for t in parity.tolerances_from(before_path)
+    }
+    measured = before_path.aggregate["greens-matvec"]["axis_reproduce_cm"]
+    assert derived[("greens-matvec", "axis_reproduce_cm")] == measured
+    assert measured != pytest.approx(
+        next(
+            t.reference
+            for t in parity.PARITY_TOLERANCES
+            if t.arm == "greens-matvec" and t.metric == "axis_reproduce_cm"
+        )
+    )
+
+
+def test_an_after_path_that_moves_the_equilibrium_fails_the_comparison(before_path):
+    """The check the cutover exists to survive."""
+    after = copy.deepcopy(before_path)
+    after.aggregate["greens-matvec"]["axis_reproduce_cm"] *= (
+        parity.REPRODUCTION_CHANGE_BUDGET + 1.0
+    )
+    report = parity.compare_paths(before_path, after)
+    assert not report.ok
+    assert [f.metric for f in report.failures] == ["axis_reproduce_cm"]
+
+
+def test_an_after_path_that_loses_a_slice_fails_the_comparison(before_path):
+    after = copy.deepcopy(before_path)
+    after.aggregate["greens-matvec"]["converged_fraction"] = 5.0 / 6.0
+    assert not parity.compare_paths(before_path, after).ok
+
+
+def test_an_inadmissible_after_path_fails_even_with_matching_numbers(before_path):
+    """Identical metrics over the wrong shot set is not parity."""
+    after = _without(before_path, shotset_version=AD_HOC_SHOTSET_VERSION)
+    report = parity.compare_paths(before_path, after)
+    assert not report.ok
+    assert any("after-path" in reason for reason in report.admissibility)
+
+
+def test_a_stamp_missing_a_gated_metric_cannot_serve_as_a_reference(before_path):
+    """A reference with a hole would silently drop a gate item."""
+    incomplete = copy.deepcopy(before_path)
+    del incomplete.aggregate["greens-matvec"]["axis_reproduce_cm"]
+    with pytest.raises(KeyError, match="cannot serve as a parity reference"):
+        parity.tolerances_from(incomplete)
