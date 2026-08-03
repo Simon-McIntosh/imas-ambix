@@ -146,6 +146,44 @@ def _fsa_roughness_sweep(
     return out
 
 
+# --- the sensor-space misfit (reconstruction vs measurement) ----------------
+
+
+def _magnetics_residual(fit, grid, table, payload) -> float:
+    """Whitened field/flux misfit of one converged equilibrium against its slice.
+
+    ``rms((pred - meas)/scale)`` over the channels the payload marks mapped and
+    measured, with ``pred`` the known-coil vacuum prediction plus the
+    cell→sensor Green's matvec of the converged plasma cell currents.  Rows of
+    that Green's matrix follow ``table.sensor_map``, which is the order the
+    payload's ``measured`` / ``vacuum`` / ``scale`` / ``mask`` vectors are built
+    in, so no re-alignment is needed.
+
+    The payload's own mask is used, not the all-off mask the frozen spine solves
+    under: these channels are never consumed by the solve, which is what makes
+    the number an independent forward-model check.  Sensor positions, probe
+    orientations, coil filaments and the limiter all enter through ``grid`` and
+    ``table``, so a change of geometry source shows up here.
+    """
+    if not (fit.scored and fit.jphi_flat is not None):
+        return float("nan")
+    mask = np.asarray(payload.mask, dtype=bool)
+    if not mask.any():
+        return float("nan")
+    g_sens, _channels = grid.sensor_greens(table)
+    i_cell = np.asarray(fit.jphi_flat, dtype=np.float64)[grid.cells] * (
+        grid.dr * grid.dz
+    )
+    pred = np.asarray(payload.vacuum, dtype=np.float64) + g_sens @ i_cell
+    meas = np.asarray(payload.measured, dtype=np.float64)
+    scale = np.asarray(payload.scale, dtype=np.float64)
+    ok = mask & np.isfinite(meas) & np.isfinite(pred) & (scale > 0.0)
+    if not ok.any():
+        return float("nan")
+    resid = (pred[ok] - meas[ok]) / scale[ok]
+    return float(np.sqrt(np.mean(resid * resid)))
+
+
 def _median(xs: list[float]) -> float:
     xs = [x for x in xs if x is not None and np.isfinite(x)]
     return float(np.median(xs)) if xs else float("nan")
@@ -242,6 +280,7 @@ def run_stamp(
                 "conf": [],
                 "conv": [],
                 "rough": [],
+                "mag_resid": [],
                 "e2e": [],
                 "ph_disc": [],
                 "ph_basin": [],
@@ -322,6 +361,9 @@ def run_stamp(
                     a["conf"].append(1.0 if cr <= CONFINED_AXIS_R_MAX else 0.0)
                     if rough:
                         a["rough"].append(rough)
+                    mag = _magnetics_residual(fit, g, tbl, p)
+                    if np.isfinite(mag):
+                        a["mag_resid"].append(mag)
                 else:
                     a["conv"].append(0.0)
 
@@ -377,6 +419,8 @@ def run_stamp(
                 metrics["converged_fraction"] = float(np.mean(a["conv"]))
             if a["conf"]:
                 metrics["confined_fraction"] = float(np.mean(a["conf"]))
+            if a["mag_resid"]:
+                metrics["magnetics_residual_whitened_rms"] = _median(a["mag_resid"])
             _fsa_names = {
                 "coarea": (
                     "fsa_d_roughness_nrho32",
@@ -481,6 +525,11 @@ def run_stamp(
             "+ profile solve.",
             "Reproduction (axis/lcfs/profile) validates the greens-matvec dev spine "
             "against the grid-delta* baseline check on the same slice (greens row).",
+            "magnetics_residual_whitened_rms scores the converged equilibrium "
+            "against the RAW magnetics, which the frozen spine never fits (mask "
+            "OFF), so it is a forward-model check on the machine geometry rather "
+            "than a fit residual; its floor is the static coil / sensor "
+            "calibration misfit.",
             "bench_scope = per-slice STATIC solve (the GPU inner-loop target); the "
             "dynamics-coupled label rollout (diffusion + passive + temporal "
             "warm-start) is a distinct mode to add before the corpus GPU run.",

@@ -21,7 +21,10 @@ from pydantic import BaseModel, Field
 #: connectivity/smooth-mask read that makes the fixed-point map differentiable),
 #: its reproduction metrics, and the batched-GPU foundation metrics (GEMM
 #: crossover + batched on-device inner-solve throughput/reproduction/precision).
-SCHEMA_VERSION = "spine-bench/1.3"
+#: 1.4 added ``magnetics_residual_whitened_rms`` — the sensor-space field/flux
+#: misfit of the converged equilibrium, the first metric that scores the
+#: reconstruction against the measurement rather than against another solve.
+SCHEMA_VERSION = "spine-bench/1.4"
 
 
 class Metric(BaseModel):
@@ -218,6 +221,28 @@ METRICS: dict[str, Metric] = {
             description="Median axis shift when the inner-solve GEMM drops to "
             "bf16 (fp32 accumulate) vs the fp64 on-device baseline; topology "
             "read and cross-iteration state stay >= fp32/fp64.",
+        ),
+        # --- physics quality: sensor-space misfit against the measurement ---
+        Metric(
+            name="magnetics_residual_whitened_rms",
+            unit="normalised",
+            direction="lower_better",
+            description="Median over scored slices of the whitened field/flux "
+            "residual rms((pred - meas)/scale) over the slice's mapped and "
+            "measured magnetics channels, where pred = the known-coil vacuum "
+            "prediction + the cell-to-sensor Green's matvec of the converged "
+            "plasma cell currents (jphi over in-limiter cells x cell area), "
+            "meas = the raw amb magnetics, and scale = the per-channel robust "
+            "signal scale that puts flux loops [Wb] and B-probes [T] into one "
+            "dimensionless population. Every other physics metric compares one "
+            "solve against another solve; this one compares the reconstruction "
+            "against the measurement, so it is the metric that moves when the "
+            "machine geometry behind the Green's functions moves. The frozen "
+            "spine solves with the magnetics mask OFF (it consumes Ip, the "
+            "measured current centroid and the source-free boundary read), so "
+            "these channels are never fitted and the number is a forward-model "
+            "check rather than a fit residual: its floor is the static coil and "
+            "sensor-calibration misfit, not the solver tolerance.",
         ),
         # --- solve health ---
         Metric(
