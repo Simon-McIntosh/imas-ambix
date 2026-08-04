@@ -359,6 +359,41 @@ class PolygonSection:
     name: str = ""
 
 
+@dataclass(frozen=True)
+class CircuitDrive:
+    """The measured channel that supplies one circuit, and how hard it drives it.
+
+    A source that publishes an electrical description says which channel feeds
+    which conductor and what one ampere of it means there, because that
+    conversion differs per channel: a channel measuring a conductor's own
+    current drives its turn count, one already multiplied out before publication
+    drives one ampere turn per ampere, and one feeding parallel branches splits
+    between them.  Reconstructing that from position and a turn count is what
+    :func:`~imas_ambix.gs.operator.classify_circuits` has to do for a source
+    that states none of it; where a source does state it, this carries the
+    statement through unchanged.
+
+    ``ampere_turns_per_ampere`` is the TOTAL the circuit carries per ampere of
+    ``channel``, and it is already folded into the circuit's per-filament
+    :attr:`PFFilament.xmult` -- how it divides between a multi-element conductor
+    is a property of the elements, not of the channel.  It is retained here
+    because a weight is a claim about the machine, and a consumer comparing two
+    descriptions needs the number the source stated rather than a product it has
+    to unpick.  ``evidence`` records how that claim was arrived at, so a fitted
+    weight stays distinguishable from a measured one.
+
+    A stated weight SUPERSEDES both the conductor's turn count and any
+    calibration a consumer derived to correct another source's turn count; see
+    :data:`~imas_ambix.gs.operator.SOLENOID_RESPONSE_SCALE`.
+    """
+
+    circuit: int
+    channel: str
+    ampere_turns_per_ampere: float
+    evidence: str = ""
+    conductor: str = ""
+
+
 def parallelogram_vertices(
     r: float, z: float, width: float, height: float, angle_deg: float
 ) -> np.ndarray:
@@ -638,6 +673,18 @@ class GeometryTable:
     Empty means the source does not distinguish, which leaves the geometric
     classification exactly as it was -- so every existing reader's operator is
     byte-identical."""
+    circuit_drives: list[CircuitDrive] = field(default_factory=list)
+    """Which measured channel supplies each circuit, where the SOURCE states it.
+
+    This is the stronger form of :attr:`active_circuits`: that says a circuit is
+    supplied, this says by what and at what scale.  Classification takes these
+    verbatim -- no centroid match, no channel-name convention, no case-id table
+    -- because all three exist to reconstruct what a declaration already
+    contains, and a source that resolves its structure finely enough to name
+    element groups is exactly the source those reconstructions fail on.
+
+    Empty means the source declares no drives, leaving classification as it was.
+    """
     polygon_sections: list[PolygonSection] = field(default_factory=list)
     """Analytic polygon cross-sections that REPLACE the axis-aligned bounding box
     of specific fcoil circuits in the forward operator (keyed by

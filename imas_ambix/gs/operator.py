@@ -71,6 +71,7 @@ from imas_ambix.gs import circuits as circuits_mod
 from imas_ambix.gs.geometry import (
     MAST_A,
     MAST_R0,
+    CircuitDrive,
     GeometryTable,
     PFFilament,
 )
@@ -79,7 +80,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-COIL_MODEL_VERSION = "cylinder-sensors-v5"
+COIL_MODEL_VERSION = "source-stated-drives"
 """Version marker for the circuit -> current-channel assignment + ``G_pf``
 column construction (``classify_circuits`` / ``build_operator``).  Bump this
 any time either changes -- e.g. a different geometric match radius, a new
@@ -96,7 +97,12 @@ the finite-area cylinder kernel for near-pack B-probes; ``"-v4"`` applies
 :data:`SOLENOID_RESPONSE_SCALE` to the P1 solenoid column; ``"-v5"`` collapses
 filled rectangular coil packs to one thick-cylinder filament each
 (:func:`imas_ambix.gs.geometry.collapse_rectangular_circuits`), changing the
-G_pf column source set for a fixed physical coil."""
+G_pf column source set for a fixed physical coil.  ``"source-stated-drives"``
+takes a source's own circuit -> channel -> ampere-turn declaration
+(:attr:`~imas_ambix.gs.geometry.GeometryTable.circuit_drives`) in place of every
+positional rule, and withholds :data:`SOLENOID_RESPONSE_SCALE` from a column
+whose weight the source stated.  A table declaring no drives assembles exactly
+as under ``"-v5"``."""
 
 SOLENOID_RESPONSE_SCALE = 1.0825
 """Multiplicative correction to the P1 central-solenoid ``G_pf`` column.
@@ -114,7 +120,15 @@ under-drive → ``k < 1``); the residual is a turn-count (effective amp-turns
 ``Σxmult = 328`` ≈ 8% low) or a ``sol_current`` channel-scale — degenerate in
 the forward map, so it is carried here as one response constant on the column,
 applied by default (a vacuum-derived machine-description correction, never
-per-shot tuning).  Set to ``1.0`` to recover the un-corrected ``-v3`` column."""
+per-shot tuning).  Set to ``1.0`` to recover the un-corrected ``-v3`` column.
+
+Because that residual is degenerate between a turn count and a channel scale,
+this constant IS an amp-turn statement under another name: it says the
+solenoid's effective weight is ``328 × 1.0825 = 355.06`` ampere turns per
+ampere of ``sol_current``.  A source that states the weight itself therefore
+supersedes it, and :func:`build_operator` skips the correction on any column
+whose weight came from the source -- otherwise the same 8% enters twice, once
+as a turn count and once as a response."""
 
 # --- Physical constants -----------------------------------------------
 
@@ -293,16 +307,87 @@ class CircuitClass:
     coil_label: str  # "" for inferred
     amc_channel: str  # "" for inferred
     flag: str  # "" if confident, else a reason (verify-and-flag, never fabricate)
+    source_stated_weight: bool = False
+    """Whether the SOURCE supplied this column's ampere-turns-per-ampere.
+
+    A stated weight is the machine description's own claim, so a calibration a
+    consumer fitted to correct a DIFFERENT source's weight must not also be
+    applied to it -- that would count the same correction twice."""
 
 
 _KNOWN_ROLES = ("known_pf", "known_case")
 """Roles carrying a real (non-fabricated) driven current -> a G_pf column."""
 
 
+def _declared_classes(
+    by_circ: dict[int, list[PFFilament]],
+    circuit_drives: Sequence[CircuitDrive],
+    amc_channels: Sequence[str],
+) -> list[CircuitClass]:
+    """Classify from the source's own circuit -> channel declaration.
+
+    Every reconstruction below this is skipped, because each exists to recover
+    part of what a declaration states outright: the centroid radius recovers
+    which conductors are supplied, the channel-name convention recovers which
+    channel supplies one, and the case-id table recovers the coil/case split the
+    radius cannot see.  Running any of them against a declaration can only
+    disagree with it.
+
+    A declared circuit whose channel this campaign does not publish is INFERRED
+    with the missing channel named: the description says the conductor is
+    supplied, and the acquisition set says nothing measured it here, and both are
+    true.  Nothing is substituted for the absent measurement.
+    """
+    avail = set(amc_channels)
+    by_circuit = {drive.circuit: drive for drive in circuit_drives}
+    out: list[CircuitClass] = []
+    for circ in sorted(by_circ):
+        fs = by_circ[circ]
+        w = np.array([f.xmult for f in fs], dtype=np.float64)
+        rr = np.array([f.r for f in fs], dtype=np.float64)
+        zz = np.array([f.z for f in fs], dtype=np.float64)
+        wsum = float(w.sum())
+        cr = float((w * rr).sum() / wsum) if wsum else float(rr.mean())
+        cz = float((w * zz).sum() / wsum) if wsum else float(zz.mean())
+
+        role, coil_label, amc_channel, flag = "inferred_passive", "", "", ""
+        stated = False
+        drive = by_circuit.get(circ)
+        if drive is not None:
+            if drive.channel in avail:
+                role = "known_case" if "_case_current" in drive.channel else "known_pf"
+                coil_label = drive.conductor
+                amc_channel = drive.channel
+                stated = True
+            else:
+                flag = (
+                    f"source declares circuit {circ} driven by "
+                    f"'{drive.channel}' at {drive.ampere_turns_per_ampere:g} "
+                    "ampere turns per ampere, but this campaign does not publish "
+                    "that channel -> INFERRED"
+                )
+        out.append(
+            CircuitClass(
+                circuit=circ,
+                centroid_r=cr,
+                centroid_z=cz,
+                n_filament=len(fs),
+                sum_xmult=wsum,
+                role=role,
+                coil_label=coil_label,
+                amc_channel=amc_channel,
+                flag=flag,
+                source_stated_weight=stated,
+            )
+        )
+    return out
+
+
 def classify_circuits(
     filaments: Sequence[PFFilament],
     amc_channels: Sequence[str],
     active_circuits: Sequence[int] = (),
+    circuit_drives: Sequence[CircuitDrive] = (),
 ) -> list[CircuitClass]:
     """Classify each fcoil circuit as KNOWN active PF, KNOWN case, or INFERRED.
 
@@ -355,7 +440,20 @@ def classify_circuits(
     that supply.  One that files every case as passive states that it does not,
     and those conductors keep inferred currents rather than borrowing a
     channel on the strength of a centroid match.
+
+    Sources that also state WHICH channel supplies each conductor
+    -------------------------------------------------------------------------
+    ``circuit_drives`` is the full declaration -- circuit, channel and the
+    ampere turns one ampere of it drives -- and it displaces every rule above;
+    see :func:`_declared_classes`.  Supplying it makes ``active_circuits``
+    redundant, since a declared drive is what being supplied means.
     """
+    if circuit_drives:
+        by_circ_declared: dict[int, list[PFFilament]] = {}
+        for f in filaments:
+            by_circ_declared.setdefault(f.circuit, []).append(f)
+        return _declared_classes(by_circ_declared, circuit_drives, amc_channels)
+
     avail = set(amc_channels)
     declared_active = set(active_circuits)
     by_circ: dict[int, list[PFFilament]] = {}
@@ -790,7 +888,10 @@ def build_operator(
     is_flux = np.array([k == "flux_loop" for k in kinds], dtype=bool)
 
     classes = classify_circuits(
-        table.pf_filaments, table.amc_current_channels, table.active_circuits
+        table.pf_filaments,
+        table.amc_current_channels,
+        table.active_circuits,
+        table.circuit_drives,
     )
     by_circ: dict[int, list[PFFilament]] = {}
     for f in table.pf_filaments:
@@ -821,9 +922,13 @@ def build_operator(
     # case current, never the co-located active coil's) so it always lands in
     # its own column here — never merged with the active coil it sits next to.
     pf_by_chan: dict[str, list[int]] = {}
+    stated_weight: dict[str, bool] = {}
     for cc in classes:
         if cc.role in _KNOWN_ROLES:
             pf_by_chan.setdefault(cc.amc_channel, []).append(cc.circuit)
+            stated_weight[cc.amc_channel] = (
+                stated_weight.get(cc.amc_channel, False) or cc.source_stated_weight
+            )
 
     pf_circuits: list[int] = []  # representative (lowest) circuit per coil column
     pf_amc: list[str] = []
@@ -833,8 +938,12 @@ def build_operator(
         circs = sorted(pf_by_chan[chan])
         cols = [_circ_col(c) for c in circs]
         merged = np.mean(cols, axis=0)  # redundant representations → average
-        if chan == "sol_current":
-            # vacuum-measured solenoid response correction (SOLENOID_RESPONSE_SCALE)
+        if chan == "sol_current" and not stated_weight.get(chan, False):
+            # The solenoid's amp-turns-per-ampere is not stated by this source,
+            # so the column carries the vacuum-measured response correction that
+            # stands in for it (SOLENOID_RESPONSE_SCALE).  A source that states
+            # the weight has already answered the question the correction was
+            # measured to answer, and applying both counts it twice.
             merged = merged * SOLENOID_RESPONSE_SCALE
         pf_circuits.append(circs[0])
         pf_amc.append(chan)
@@ -1039,7 +1148,10 @@ def passive_amm_coincidence(
     ``amm`` current VALUES are never read (adjudication).
     """
     classes = classify_circuits(
-        table.pf_filaments, table.amc_current_channels, table.active_circuits
+        table.pf_filaments,
+        table.amc_current_channels,
+        table.active_circuits,
+        table.circuit_drives,
     )
     passive = [c for c in classes if c.role == "inferred_passive"]
     amm = np.array([[p.r, p.z] for p in table.passive_structures], dtype=np.float64)

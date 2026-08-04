@@ -110,7 +110,9 @@ def _magnetics(angles: list[float | None], loop_positions: list[list[tuple]]):
 
 
 def test_unsourced_winding_becomes_nan_not_a_number(synthetic_pf_active):
-    filaments, sections, flags = ag.read_artifact_pf_active(synthetic_pf_active)
+    filaments, sections, _drives, flags = ag.read_artifact_pf_active(
+        synthetic_pf_active
+    )
 
     unsourced = [f for f in filaments if f.circuit == 0]
     assert len(unsourced) == 1
@@ -121,7 +123,9 @@ def test_unsourced_winding_becomes_nan_not_a_number(synthetic_pf_active):
 
 
 def test_a_filled_winding_keeps_its_value_and_sign(synthetic_pf_active):
-    filaments, _sections, _flags = ag.read_artifact_pf_active(synthetic_pf_active)
+    filaments, _sections, _drives, _flags = ag.read_artifact_pf_active(
+        synthetic_pf_active
+    )
 
     sourced = [f for f in filaments if f.circuit == 1]
     assert len(sourced) == 2
@@ -129,7 +133,9 @@ def test_a_filled_winding_keeps_its_value_and_sign(synthetic_pf_active):
 
 
 def test_a_coil_is_one_circuit(synthetic_pf_active):
-    filaments, _sections, _flags = ag.read_artifact_pf_active(synthetic_pf_active)
+    filaments, _sections, _drives, _flags = ag.read_artifact_pf_active(
+        synthetic_pf_active
+    )
 
     assert sorted({f.circuit for f in filaments}) == [0, 1]
 
@@ -137,7 +143,9 @@ def test_a_coil_is_one_circuit(synthetic_pf_active):
 def test_the_outline_survives_beside_the_box_that_stands_in_for_it(
     synthetic_pf_active,
 ):
-    filaments, sections, _flags = ag.read_artifact_pf_active(synthetic_pf_active)
+    filaments, sections, _drives, _flags = ag.read_artifact_pf_active(
+        synthetic_pf_active
+    )
 
     first = filaments[0]
     assert first.r == pytest.approx(1.5)
@@ -149,7 +157,9 @@ def test_the_outline_survives_beside_the_box_that_stands_in_for_it(
 
 
 def test_a_repeated_closing_vertex_is_not_kept_as_a_corner(synthetic_pf_active):
-    _filaments, sections, _flags = ag.read_artifact_pf_active(synthetic_pf_active)
+    _filaments, sections, _drives, _flags = ag.read_artifact_pf_active(
+        synthetic_pf_active
+    )
 
     closed = [s for s in sections if s.circuit == 1]
     assert all(s.vertices.shape == (4, 2) for s in closed)
@@ -159,7 +169,7 @@ def test_a_repeated_closing_vertex_is_not_kept_as_a_corner(synthetic_pf_active):
 
 
 def test_each_passive_element_is_its_own_circuit(synthetic_pf_passive):
-    filaments, sections, structures, flags = ag.read_artifact_pf_passive(
+    filaments, sections, structures, _drives, flags = ag.read_artifact_pf_passive(
         synthetic_pf_passive, first_circuit=7
     )
 
@@ -172,12 +182,189 @@ def test_each_passive_element_is_its_own_circuit(synthetic_pf_passive):
 def test_a_passive_element_without_a_shape_is_dropped_and_named(
     synthetic_pf_passive,
 ):
-    filaments, _sections, _structures, flags = ag.read_artifact_pf_passive(
+    filaments, _sections, _structures, _drives, flags = ag.read_artifact_pf_passive(
         synthetic_pf_passive, first_circuit=0
     )
 
     assert len(filaments) == 2
     assert any("shapeless" in flag and "dropped" in flag for flag in flags)
+
+
+# --- the electrical drive map ------------------------------------------------
+
+
+def _drive(
+    conductor: str,
+    elements: tuple[int, ...],
+    weight: float,
+    *,
+    channel: str = "",
+    container: str = "pf_active",
+    distribution: str = "single",
+    evidence: str = "measured",
+) -> ag.ResolvedDrive:
+    return ag.ResolvedDrive(
+        channel=channel or f"{conductor}_current",
+        container=container,
+        conductor=conductor,
+        elements=elements,
+        weight=weight,
+        distribution=distribution,
+        evidence=evidence,
+    )
+
+
+def test_a_stated_weight_supersedes_the_conductors_turn_count(synthetic_pf_active):
+    """A drive weight and a turn count answer the same question; applying both
+    scales the winding by its turns twice."""
+    drive = _drive("sourced_winding", (0, 1), 5.0, distribution="section_area")
+    filaments, _sections, drives, _flags = ag.read_artifact_pf_active(
+        synthetic_pf_active, [drive]
+    )
+
+    driven = [f for f in filaments if f.circuit == 1]
+    assert sum(f.xmult for f in driven) == pytest.approx(5.0)
+    # the turn count is still recorded, and is NOT what scaled the column
+    assert all(f.turns == -12.0 for f in driven)
+    assert drives[0].ampere_turns_per_ampere == pytest.approx(5.0)
+
+
+def test_a_conductor_no_drive_names_keeps_unit_weight(synthetic_pf_active):
+    filaments, _sections, drives, _flags = ag.read_artifact_pf_active(
+        synthetic_pf_active,
+        [_drive("sourced_winding", (0, 1), 5.0, distribution="section_area")],
+    )
+
+    undriven = [f for f in filaments if f.circuit == 0]
+    assert [f.xmult for f in undriven] == [1.0]
+    assert [d.conductor for d in drives] == ["sourced_winding"]
+
+
+def test_a_drive_reaching_one_element_leaves_the_others_unpowered(
+    synthetic_pf_active,
+):
+    """A conductor's element the drive does not name carries none of its current."""
+    filaments, _sections, _drives, _flags = ag.read_artifact_pf_active(
+        synthetic_pf_active, [_drive("sourced_winding", (0,), 3.0)]
+    )
+
+    driven = [f for f in filaments if f.circuit == 1]
+    assert [f.xmult for f in driven] == [3.0, 0.0]
+
+
+def test_a_group_the_drive_names_is_one_circuit_split_by_section_area(
+    synthetic_pf_passive,
+):
+    """A drive is the passive topology the artifact otherwise leaves unsourced:
+    these plates carry ONE measured current, shared out by cross-section."""
+    pp = synthetic_pf_passive
+    # widen the second element so the two sections differ 4:1 in area
+    outline = pp.loop[0].element[1].geometry.outline
+    outline.r = [1.76, 1.84, 1.84, 1.76]
+    outline.z = [0.46, 0.46, 0.54, 0.54]
+
+    drive = _drive(
+        "vessel",
+        (0, 1),
+        1.0,
+        container="pf_passive",
+        distribution="section_area",
+        evidence="generated",
+    )
+    filaments, sections, structures, drives, flags = ag.read_artifact_pf_passive(
+        pp, first_circuit=7, drives=[drive]
+    )
+
+    assert {f.circuit for f in filaments} == {7}
+    assert sum(f.xmult for f in filaments) == pytest.approx(1.0)
+    areas = [0.04 * 0.04, 0.08 * 0.08]
+    expected = [a / sum(areas) for a in areas]
+    assert [f.xmult for f in filaments] == pytest.approx(expected)
+    assert [d.circuit for d in drives] == [7]
+    assert [s.name for s in structures] == ["vessel_0", "vessel_1"]
+    # a section replaces ONE circuit's box, so a grouped circuit gets none
+    assert sections == []
+    assert any("split by section area" in flag for flag in flags)
+
+
+def test_an_element_outside_every_drive_keeps_its_own_circuit(synthetic_pf_passive):
+    drive = _drive("vessel", (0,), 1.0, container="pf_passive", evidence="generated")
+    filaments, sections, _structures, drives, _flags = ag.read_artifact_pf_passive(
+        synthetic_pf_passive, first_circuit=7, drives=[drive]
+    )
+
+    assert [f.circuit for f in filaments] == [7, 8]
+    assert [f.xmult for f in filaments] == [1.0, 1.0]
+    assert [d.circuit for d in drives] == [7]
+    # only the induced element keeps a polygon section
+    assert [s.circuit for s in sections] == [8]
+
+
+class _FakeDrive:
+    def __init__(self, channel, container, conductor, elements, weight, evidence):
+        self.channel = channel
+        self.container = container
+        self.conductor = conductor
+        self.elements = elements
+        self.ampere_turns_per_ampere = weight
+        self.distribution = "single" if len(elements) == 1 else "section_area"
+        self.evidence = evidence
+
+
+class _FakeDriveMap:
+    def __init__(self, drives):
+        self.drives = tuple(drives)
+
+    def select(self, channels):
+        wanted = set(channels)
+        return _FakeDriveMap([d for d in self.drives if d.channel in wanted])
+
+
+class _FakeManifest:
+    def __init__(self, drives):
+        self.channel_drive = tuple(drives)
+        self.drive_map = _FakeDriveMap(drives)
+
+
+def test_a_conductor_measured_twice_is_one_column_read_once():
+    """A coil's own current and the feed current behind it reach the same
+    elements, so they are one column -- and the direct measurement is what it
+    is read through, never the fitted conversion standing in for one."""
+    manifest = _FakeManifest(
+        [
+            _FakeDrive(
+                "p4u_coil_current", "pf_active", "p4_upper", (0,), 1.0, "measured"
+            ),
+            _FakeDrive(
+                "p4u_feed_current", "pf_active", "p4_upper", (0,), 22.15, "fitted"
+            ),
+        ]
+    )
+
+    resolved, flags = ag.resolve_drives(manifest)
+
+    assert len(resolved) == 1
+    assert resolved[0].channel == "p4u_coil_current"
+    assert resolved[0].weight == pytest.approx(1.0)
+    assert flags == []
+
+
+def test_a_column_this_campaign_does_not_record_is_left_induced():
+    """The description saying a conductor is supplied and the acquisition set
+    saying nothing measured it are both true; no weight stands in."""
+    manifest = _FakeManifest(
+        [
+            _FakeDrive(
+                "p4u_coil_current", "pf_active", "p4_upper", (0,), 1.0, "measured"
+            ),
+            _FakeDrive("p7_coil_current", "pf_active", "p7", (0,), 1.0, "measured"),
+        ]
+    )
+
+    resolved, flags = ag.resolve_drives(manifest, ["p4u_coil_current"])
+
+    assert [d.conductor for d in resolved] == ["p4_upper"]
+    assert any("left induced" in flag and "pf_active/p7" in flag for flag in flags)
 
 
 # --- magnetics ---------------------------------------------------------------
@@ -292,7 +479,7 @@ _DIGEST = os.environ.get("AMBIX_MACHINE_ARTIFACT_DIGEST", "")
 _PHYSICAL_DIGEST = "76cf833561e602a7"
 _REGISTRY_DIGEST = "73ecabaa030a476d80cc24c1fe35d038876a12454ebd7b0c7055aac1d3cf3ab2"
 _SEMANTIC_IDENTITY = (
-    "sha256:c3847ffcae362be35d883adb511ab2e68ed57455cf3e84064be57a14d30e7306"
+    "sha256:68f64209385139beb78f1135b29398eca569b5589216a403e6fa1589cf6cf351"
 )
 _SHOT = 21983
 
@@ -538,7 +725,7 @@ def test_a_campaign_channel_set_is_what_makes_the_table_drivable():
     ).read()
 
     assert op.build_operator(bare).pf_merged_circuits == []
-    assert len(op.build_operator(driven).pf_merged_circuits) == 13
+    assert len(op.build_operator(driven).pf_merged_circuits) == 21
 
 
 @_skip_no_artifact
@@ -609,12 +796,13 @@ def test_the_supplied_conductors_are_the_ones_the_source_files_as_active(
 ):
     """Position alone would drive the structure around a coil with its current.
 
-    The artifact resolves each passive element into its own circuit, and many
-    of those sit closer to a winding than the radius a positional classifier
-    matches within -- so classifying on geometry alone promotes 43 of the 78
-    circuits to driven coils, three times the 13 the machine actually supplies,
-    each fed a winding's measured current.  The table states which circuits are
-    supplied, and that statement is what the classification takes.
+    The artifact resolves its structure far more finely than the campaign
+    arrays do, and much of it sits closer to a winding than the radius a
+    positional classifier matches within -- so classifying on geometry alone
+    promotes far more circuits to driven coils than the machine supplies, each
+    fed a winding's measured current.  The source states which conductors it
+    supplies and through which channel, and that statement is what the
+    classification takes.
     """
     from imas_ambix.gs import operator as op
     from imas_ambix.gs.geometry import read_amc_current_channels
@@ -627,14 +815,133 @@ def test_the_supplied_conductors_are_the_ones_the_source_files_as_active(
         amc_current_channels=channels,
     ).read()
 
-    assert len(table.active_circuits) == 13
+    assert len(table.active_circuits) == 13  # the pf_active windings
     stated = op.classify_circuits(
-        table.pf_filaments, table.amc_current_channels, table.active_circuits
+        table.pf_filaments,
+        table.amc_current_channels,
+        table.active_circuits,
+        table.circuit_drives,
     )
     positional = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
 
     known = [c for c in stated if c.role != "inferred_passive"]
-    assert [c.circuit for c in known] == sorted(table.active_circuits)
-    assert all(c.role == "known_pf" for c in known)
-    assert len({c.amc_channel for c in known}) == 13
-    assert sum(1 for c in positional if c.role != "inferred_passive") == 43
+    assert [c.circuit for c in known] == sorted(d.circuit for d in table.circuit_drives)
+    assert len({c.amc_channel for c in known}) == 21
+    assert all(c.source_stated_weight for c in known)
+    # every declared column is driven by its own channel, never a neighbour's
+    assert {c.amc_channel for c in known} == {d.channel for d in table.circuit_drives}
+    # position alone over-promotes, which is the whole reason the source is read
+    assert sum(1 for c in positional if c.role != "inferred_passive") > len(known)
+
+
+@pytest.fixture(scope="module")
+def driven_operators():
+    """The artifact operator and the campaign operator, on shared sensor rows."""
+    from imas_ambix.gs import operator as op
+    from imas_ambix.gs.geometry import canonical_amb_channels
+
+    efm = build_table_for_shot(_SHOT)
+    artifact = ag.MachineArtifactGeometryReader(
+        cache_directory=_CACHE,
+        digest=_DIGEST,
+        shot=_SHOT,
+        amb_channels=tuple(canonical_amb_channels([_SHOT])),
+        amc_current_channels=tuple(efm.amc_current_channels),
+    ).read()
+    op_efm, op_art = op.build_operator(efm), op.build_operator(artifact)
+    rows = {channel: i for i, channel in enumerate(op_efm.sensor_channels)}
+    shared_art = [
+        i for i, channel in enumerate(op_art.sensor_channels) if channel in rows
+    ]
+    shared_efm = [
+        rows[channel] for channel in op_art.sensor_channels if channel in rows
+    ]
+    return op_art, op_efm, shared_art, shared_efm
+
+
+def _column_ratio(op_art, op_efm, shared_art, shared_efm, channel: str) -> float:
+    """Least-squares scale between the two operators' columns for one channel."""
+    j = op_art.pf_amc_channels.index(channel)
+    k = op_efm.pf_amc_channels.index(channel)
+    a = op_art.g_pf[shared_art, j]
+    e = op_efm.g_pf[shared_efm, k]
+    return float(a @ e / (e @ e))
+
+
+@_skip_no_artifact
+def test_the_two_descriptions_drive_the_same_columns(driven_operators):
+    """Both sources supply the same 21 conductors through the same channels."""
+    op_art, op_efm, _shared_art, _shared_efm = driven_operators
+
+    assert len(op_art.pf_amc_channels) == 21
+    assert sorted(op_art.pf_amc_channels) == sorted(op_efm.pf_amc_channels)
+
+
+@_skip_no_artifact
+def test_every_coil_column_reproduces_the_campaigns(driven_operators):
+    """The twelve PF windings agree to better than a percent.
+
+    They are the columns both sources describe the same way -- a measured
+    channel already in ampere turns driving one winding -- so what is left is
+    the difference between the two discretisations of the same conductor.
+    """
+    op_art, op_efm, shared_art, shared_efm = driven_operators
+
+    coils = [
+        channel
+        for channel in op_art.pf_amc_channels
+        if channel.endswith("_current")
+        and "_case_" not in channel
+        and channel != "sol_current"
+    ]
+    assert len(coils) == 12
+    for channel in coils:
+        ratio = _column_ratio(op_art, op_efm, shared_art, shared_efm, channel)
+        assert ratio == pytest.approx(1.0, abs=0.01), channel
+
+
+@_skip_no_artifact
+def test_every_case_column_reproduces_the_campaigns(driven_operators):
+    """The eight case groups agree once the drive supplies their topology.
+
+    The artifact files every case as passive structure; the drive map is what
+    says which plates share a measured current, and splitting that current by
+    section area is the same non-uniform share the campaign arrays carry.  The
+    residual few percent is discretisation -- the two sources cut the same
+    enclosures into different numbers of plates.
+    """
+    op_art, op_efm, shared_art, shared_efm = driven_operators
+
+    cases = [c for c in op_art.pf_amc_channels if c.endswith("_case_current")]
+    assert len(cases) == 8
+    for channel in cases:
+        ratio = _column_ratio(op_art, op_efm, shared_art, shared_efm, channel)
+        assert ratio == pytest.approx(1.0, abs=0.05), channel
+
+
+@_skip_no_artifact
+def test_the_solenoid_weight_the_source_states_replaces_the_fitted_correction(
+    driven_operators,
+):
+    """The two sources agree on the solenoid to 3%, not the 5% a raw turn
+    count suggests.
+
+    The campaign arrays carry 328 ampere turns per ampere of ``sol_current``
+    and the operator multiplies that column by
+    :data:`~imas_ambix.gs.operator.SOLENOID_RESPONSE_SCALE`, a vacuum-measured
+    correction its own documentation records as degenerate with a turn count.
+    The campaign's EFFECTIVE weight is therefore ``328 x 1.0825 = 355.06``,
+    which the artifact's fitted ``344.657`` sits within 3% of -- and inside the
+    fitted interval, where the raw 328 is not.  Applying the correction to a
+    stated weight as well would put the two 5% apart in the other direction,
+    which is the same 8% counted twice.
+    """
+    from imas_ambix.gs.operator import SOLENOID_RESPONSE_SCALE
+
+    op_art, op_efm, shared_art, shared_efm = driven_operators
+    ratio = _column_ratio(op_art, op_efm, shared_art, shared_efm, "sol_current")
+
+    assert ratio == pytest.approx(344.657 / (328.0 * SOLENOID_RESPONSE_SCALE), abs=0.01)
+    assert ratio == pytest.approx(0.971, abs=0.01)
+    # the correction is withheld, so the disagreement is 3% and not 5%
+    assert abs(ratio - 1.0) < abs(ratio * SOLENOID_RESPONSE_SCALE - 1.0)

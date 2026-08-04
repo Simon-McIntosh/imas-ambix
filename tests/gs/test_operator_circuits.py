@@ -35,7 +35,7 @@ def test_coil_model_version_bumped_for_the_case_circuit_fix():
     coil-model fixes -- pin that the marker exists and is neither the implicit
     pre-fix baseline nor any retired intermediate."""
     assert op.COIL_MODEL_VERSION not in ("", "case-circuits-v1", "case-circuits-v2")
-    assert op.COIL_MODEL_VERSION == "cylinder-sensors-v5"
+    assert op.COIL_MODEL_VERSION == "source-stated-drives"
 
 
 def test_operator_summary_reports_coil_model_version(tmp_path):
@@ -396,3 +396,78 @@ def test_a_source_that_states_nothing_keeps_the_geometric_classification():
 
     assert stated == inherited
     assert [c.role for c in inherited] == ["known_pf", "known_case"]
+    assert not any(c.source_stated_weight for c in inherited)
+
+
+def test_a_declared_drive_displaces_every_positional_rule():
+    """A drive names the channel outright, so neither the centroid radius nor
+    the case-id table is consulted -- both exist to reconstruct it."""
+    filaments = [
+        _filament(_P4U_R, _P4U_Z, circuit=8),
+        _filament(_P4U_CASE_R, _P4U_CASE_Z, circuit=18),
+    ]
+    channels = ["p4u_coil_current", "p4u_case_current"]
+    # deliberately CROSSED against what position would conclude
+    drives = [
+        gsg.CircuitDrive(
+            circuit=8,
+            channel="p4u_case_current",
+            ampere_turns_per_ampere=1.0,
+            evidence="generated",
+        ),
+        gsg.CircuitDrive(
+            circuit=18,
+            channel="p4u_coil_current",
+            ampere_turns_per_ampere=1.0,
+            evidence="measured",
+        ),
+    ]
+
+    declared = op.classify_circuits(filaments, channels, (), drives)
+
+    assert [c.amc_channel for c in declared] == [
+        "p4u_case_current",
+        "p4u_coil_current",
+    ]
+    assert [c.role for c in declared] == ["known_case", "known_pf"]
+    assert all(c.source_stated_weight for c in declared)
+
+
+def test_a_declared_channel_this_campaign_lacks_stays_inferred():
+    """A conductor the source says is supplied, that nothing measured here,
+    keeps an induced current rather than borrowing another channel."""
+    filaments = [_filament(_P4U_R, _P4U_Z, circuit=8)]
+    drives = [
+        gsg.CircuitDrive(
+            circuit=8,
+            channel="p4u_coil_current",
+            ampere_turns_per_ampere=1.0,
+            evidence="measured",
+        )
+    ]
+
+    declared = op.classify_circuits(filaments, ["p3u_coil_current"], (), drives)
+
+    assert [c.role for c in declared] == ["inferred_passive"]
+    assert "does not publish that channel" in declared[0].flag
+
+
+def test_a_stated_weight_withholds_the_fitted_solenoid_correction():
+    """The correction and a stated weight are the same claim; both is twice."""
+    sol_r, sol_z = op._PF_COIL_CENTROID["sol"]
+    filaments = [_filament(sol_r, sol_z, circuit=1)]
+    table_inferred = _table(filaments, ["sol_current"])
+    table_stated = _table(filaments, ["sol_current"])
+    table_stated.circuit_drives = [
+        gsg.CircuitDrive(
+            circuit=1,
+            channel="sol_current",
+            ampere_turns_per_ampere=1.0,
+            evidence="fitted",
+        )
+    ]
+
+    inferred = op.build_operator(table_inferred).g_pf[:, 0]
+    stated = op.build_operator(table_stated).g_pf[:, 0]
+
+    assert inferred == pytest.approx(stated * op.SOLENOID_RESPONSE_SCALE)

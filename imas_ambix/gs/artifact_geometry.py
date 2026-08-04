@@ -48,11 +48,28 @@ that is not still gets a co-located conductor of the right extent.
 Electrical grouping
 -------------------
 Each ``pf_active`` coil is one circuit: its elements are the same winding and
-carry the same current.  Each ``pf_passive`` **element** is its own circuit,
-because grouping a loop's elements would impose a series constraint the artifact
-does not source (its manifest records passive electrical topology as unresolved)
-and an axisymmetric passive element carries an independently induced current.
-Both choices are recorded in the table's provenance flags.
+carry the same current.  A ``pf_passive`` **element** is its own circuit unless
+the drive map names it in a group, because grouping a loop's elements otherwise
+imposes a series constraint the artifact does not source (its manifest records
+passive electrical topology as unresolved) and an axisymmetric passive element
+carries an independently induced current.  Both choices are recorded in the
+table's provenance flags.
+
+The electrical drive map
+------------------------
+The artifact also publishes, per measured channel, which conductor it supplies
+and the ampere turns one of its amperes drives there -- the conversion a
+machine description alone cannot give, because it is a property of the
+acquisition system rather than of the machine.  :func:`resolve_drives` reduces
+that map to one channel per driven conductor set (strongest evidence wins where
+a coil publishes both its own current and the feed current behind it: they are
+one column, and only one may be read), and the reader folds each weight into its
+elements' ``xmult`` and declares the circuit on the table.
+
+A stated weight **supersedes** the conductor's ``turns_with_sign``, and it
+equally supersedes a response calibration a consumer fitted to correct a
+different source's turn count -- both describe the same ampere turns, and
+applying two of them multiplies the winding by the correction twice.
 
 The ``pf_active`` circuits are also published on the table as its
 :attr:`~imas_ambix.gs.geometry.GeometryTable.active_circuits`, because this
@@ -82,6 +99,7 @@ import numpy as np
 
 from imas_ambix.gs.geometry import (
     BProbe,
+    CircuitDrive,
     FluxLoop,
     GeometryTable,
     PassiveStructure,
@@ -174,25 +192,144 @@ def _element_vertices(geometry: Any) -> np.ndarray | None:
     return _rectangle_vertices(geometry)
 
 
+def _polygon_area(vertices: np.ndarray) -> float:
+    """Return the enclosed area of an ``(n, 2)`` outline, orientation-independent."""
+    r, z = vertices[:, 0], vertices[:, 1]
+    return 0.5 * abs(float(np.dot(r, np.roll(z, -1)) - np.dot(z, np.roll(r, -1))))
+
+
+# --- the electrical drive map -----------------------------------------------
+
+#: Preference order when several channels drive the SAME conductor set.  Two
+#: channels publishing one coil at different scales -- a conductor current and
+#: the feed current behind it -- are one column and only one may be read, so the
+#: choice is made on how each weight was arrived at: a measurement of the
+#: conductor's own current needs no conversion, while a feed weight is a fitted
+#: turns-and-topology claim standing in for one.  Strongest evidence wins.
+_EVIDENCE_RANK = ("measured", "published", "generated", "fitted")
+
+
+def _drive_rank(drive: Any) -> tuple[int, str]:
+    state = str(drive.evidence)
+    rank = (
+        _EVIDENCE_RANK.index(state) if state in _EVIDENCE_RANK else len(_EVIDENCE_RANK)
+    )
+    return rank, drive.channel
+
+
+@dataclass(frozen=True)
+class ResolvedDrive:
+    """One conductor set, the channel chosen to drive it, and the weight it carries."""
+
+    channel: str
+    container: str
+    conductor: str
+    elements: tuple[int, ...]
+    weight: float
+    distribution: str
+    evidence: str
+
+    def shares(self, areas: Sequence[float]) -> list[float]:
+        """Split :attr:`weight` across the drive's elements.
+
+        ``single`` puts the whole weight on the one element.  ``section_area``
+        divides it in proportion to cross-section, which is what a uniform
+        current density in one connected conductor does -- a group of plates
+        sharing an enclosure carries one current between them, and each plate's
+        share follows from its own section rather than from a fit.
+        """
+        if self.distribution == "single":
+            return [self.weight]
+        total = float(sum(areas))
+        if total <= 0.0:
+            return [self.weight / len(areas)] * len(areas)
+        return [self.weight * float(a) / total for a in areas]
+
+
+def resolve_drives(
+    manifest: Any, available_channels: Sequence[str] = ()
+) -> tuple[list[ResolvedDrive], list[str]]:
+    """Pick one channel per driven conductor set from the artifact's drive map.
+
+    ``available_channels`` restricts the map to what a campaign actually
+    publishes; empty means take the map whole.  A conductor set reachable only
+    through channels this campaign does not record is dropped with its column
+    named, because the description saying a conductor is supplied and the
+    acquisition set saying nothing measured it are both true, and no weight
+    stands in for the missing measurement.
+    """
+    drive_map = manifest.drive_map
+    if available_channels:
+        drive_map = drive_map.select(available_channels)
+    by_column: dict[tuple[str, str, tuple[int, ...]], list[Any]] = {}
+    for drive in drive_map.drives:
+        column = (drive.container, drive.conductor, tuple(drive.elements))
+        by_column.setdefault(column, []).append(drive)
+
+    resolved: list[ResolvedDrive] = []
+    for column in sorted(by_column):
+        chosen = sorted(by_column[column], key=_drive_rank)[0]
+        resolved.append(
+            ResolvedDrive(
+                channel=chosen.channel,
+                container=chosen.container,
+                conductor=chosen.conductor,
+                elements=tuple(chosen.elements),
+                weight=float(chosen.ampere_turns_per_ampere),
+                distribution=str(chosen.distribution),
+                evidence=str(chosen.evidence),
+            )
+        )
+
+    flags: list[str] = []
+    published = {
+        (drive.container, drive.conductor, tuple(drive.elements))
+        for drive in manifest.channel_drive
+    }
+    dropped = sorted(published - set(by_column))
+    if dropped:
+        flags.append(
+            f"{len(dropped)} driven column(s) the artifact publishes carry no "
+            "channel this campaign records and are left induced: "
+            + ", ".join(
+                f"{container}/{conductor}" for container, conductor, _ in dropped
+            )
+        )
+    return resolved, flags
+
+
 # --- pf_active --------------------------------------------------------------
 
 
 def read_artifact_pf_active(
-    pf_active: Any,
-) -> tuple[list[PFFilament], list[PolygonSection], list[str]]:
+    pf_active: Any, drives: Sequence[ResolvedDrive] = ()
+) -> tuple[list[PFFilament], list[PolygonSection], list[CircuitDrive], list[str]]:
     """One filament + one polygon section per ``(coil, element)``; one circuit per coil.
 
     Turns are carried as :data:`UNRESOLVED_TURNS` wherever the artifact leaves
     ``turns_with_sign`` unfilled, with the coil named in a provenance flag.  A
     filled value is used as-is, sign included.
+
+    Where a drive names this coil, its weight becomes the elements' ``xmult`` and
+    the coil is returned as a declared :class:`CircuitDrive`.  The weight
+    SUPERSEDES ``turns_with_sign``: it already states the ampere turns one ampere
+    of the channel drives, so scaling it by the turn count again would square the
+    winding.  Turns stay on the filaments as the description's own record of the
+    conductor, unread by the operator wherever a drive exists.
     """
+    by_conductor: dict[str, ResolvedDrive] = {
+        drive.conductor: drive for drive in drives if drive.container == "pf_active"
+    }
     filaments: list[PFFilament] = []
     sections: list[PolygonSection] = []
+    declared: list[CircuitDrive] = []
     flags: list[str] = []
     unresolved: list[str] = []
     for circuit in range(len(pf_active.coil)):
         coil = pf_active.coil[circuit]
         name = str(coil.name)
+        drive = by_conductor.get(name)
+        kept: list[tuple[int, np.ndarray, float]] = []
         for index in range(len(coil.element)):
             element = coil.element[index]
             turns = float(element.turns_with_sign)
@@ -207,6 +344,10 @@ def read_artifact_pf_active(
                     f"{int(element.geometry.geometry_type)}) -- dropped"
                 )
                 continue
+            kept.append((index, vertices, turns))
+
+        weights = _element_weights(kept, drive)
+        for (_index, vertices, turns), xmult in zip(kept, weights, strict=True):
             r, z, width, height = _bounding_box(vertices)
             filaments.append(
                 PFFilament(
@@ -216,11 +357,23 @@ def read_artifact_pf_active(
                     width=width,
                     height=height,
                     circuit=circuit,
-                    xmult=1.0,
+                    xmult=xmult,
                 )
             )
             sections.append(
-                PolygonSection(circuit=circuit, vertices=vertices, xmult=1.0, name=name)
+                PolygonSection(
+                    circuit=circuit, vertices=vertices, xmult=xmult, name=name
+                )
+            )
+        if drive is not None and kept:
+            declared.append(
+                CircuitDrive(
+                    circuit=circuit,
+                    channel=drive.channel,
+                    ampere_turns_per_ampere=drive.weight,
+                    evidence=drive.evidence,
+                    conductor=name,
+                )
             )
     if unresolved:
         flags.append(
@@ -231,31 +384,71 @@ def read_artifact_pf_active(
     flags.append(
         "pf_active circuits are one per coil (a coil's elements share its current)"
     )
-    return filaments, sections, flags
+    return filaments, sections, declared, flags
+
+
+def _element_weights(
+    kept: Sequence[tuple[int, np.ndarray, float]], drive: ResolvedDrive | None
+) -> list[float]:
+    """Return the per-element current-share weight for one conductor.
+
+    Without a drive every element carries unit weight, which is the conductor's
+    own multiplicity and nothing more.  With one, the stated ampere turns are
+    divided over exactly the elements the drive names; an element of the same
+    conductor the drive does not reach carries none of it.
+    """
+    if drive is None:
+        return [1.0] * len(kept)
+    named = [row for row in kept if row[0] in drive.elements]
+    shares = drive.shares([_polygon_area(vertices) for _, vertices, _ in named])
+    by_index = dict(zip([row[0] for row in named], shares, strict=True))
+    return [by_index.get(index, 0.0) for index, _, _ in kept]
 
 
 # --- pf_passive -------------------------------------------------------------
 
 
 def read_artifact_pf_passive(
-    pf_passive: Any, first_circuit: int
-) -> tuple[list[PFFilament], list[PolygonSection], list[PassiveStructure], list[str]]:
+    pf_passive: Any, first_circuit: int, drives: Sequence[ResolvedDrive] = ()
+) -> tuple[
+    list[PFFilament],
+    list[PolygonSection],
+    list[PassiveStructure],
+    list[CircuitDrive],
+    list[str],
+]:
     """One filament, section and structure entry per ``pf_passive`` element.
 
-    Each element is its own circuit: the artifact does not source passive
-    electrical topology, and an axisymmetric passive element carries an
-    independently induced current, so grouping a loop's elements would impose a
-    series constraint nothing backs.  Passive turns are read as filled (they
-    describe a conductor's own multiplicity, not an unsourced winding).
+    An element the drive map does not reach is its own circuit: the artifact
+    does not source passive electrical topology, and an axisymmetric passive
+    element carries an independently induced current, so grouping a loop's
+    elements would impose a series constraint nothing backs.  Passive turns are
+    read as filled (they describe a conductor's own multiplicity, not an
+    unsourced winding).
+
+    A drive is exactly the missing topology for the elements it names, and only
+    for those: it states that this group of plates carries ONE measured current
+    between them.  Each such group therefore becomes a single circuit whose
+    elements split the weight by section area, which is the same non-uniform
+    share a uniform current density gives.  Elements of the same loop outside
+    every drive keep their independent per-element circuits.
     """
+    by_conductor: dict[str, list[ResolvedDrive]] = {}
+    for drive in drives:
+        if drive.container == "pf_passive":
+            by_conductor.setdefault(drive.conductor, []).append(drive)
+
     filaments: list[PFFilament] = []
     sections: list[PolygonSection] = []
     structures: list[PassiveStructure] = []
+    declared: list[CircuitDrive] = []
     flags: list[str] = []
     circuit = first_circuit
+    grouped = 0
     for loop_index in range(len(pf_passive.loop)):
         loop = pf_passive.loop[loop_index]
         name = str(loop.name)
+        kept: dict[int, tuple[np.ndarray, float]] = {}
         for index in range(len(loop.element)):
             element = loop.element[index]
             vertices = _element_vertices(element.geometry)
@@ -272,6 +465,51 @@ def read_artifact_pf_passive(
                     f"pf_passive loop {name!r} element {index}: turns_with_sign "
                     "unfilled -> 1 (a passive element is a single conductor)"
                 )
+            kept[index] = (vertices, turns)
+
+        loop_drives = sorted(by_conductor.get(name, []), key=lambda d: d.channel)
+        driven_indices: set[int] = set()
+        for drive in loop_drives:
+            members = [index for index in drive.elements if index in kept]
+            if not members:
+                flags.append(
+                    f"pf_passive loop {name!r}: drive '{drive.channel}' names no "
+                    "element this reader could read -- left induced"
+                )
+                continue
+            driven_indices.update(members)
+            shares = drive.shares([_polygon_area(kept[index][0]) for index in members])
+            for index, xmult in zip(members, shares, strict=True):
+                vertices, turns = kept[index]
+                r, z, width, height = _bounding_box(vertices)
+                filaments.append(
+                    PFFilament(
+                        r=r,
+                        z=z,
+                        turns=turns,
+                        width=width,
+                        height=height,
+                        circuit=circuit,
+                        xmult=xmult,
+                    )
+                )
+                structures.append(
+                    PassiveStructure(name=f"{name}_{index}", r=r, z=z, obsolete=False)
+                )
+            declared.append(
+                CircuitDrive(
+                    circuit=circuit,
+                    channel=drive.channel,
+                    ampere_turns_per_ampere=drive.weight,
+                    evidence=drive.evidence,
+                    conductor=name,
+                )
+            )
+            grouped += 1
+            circuit += 1
+
+        for index in sorted(set(kept) - driven_indices):
+            vertices, turns = kept[index]
             r, z, width, height = _bounding_box(vertices)
             element_name = name if len(loop.element) == 1 else f"{name}_{index}"
             filaments.append(
@@ -295,10 +533,17 @@ def read_artifact_pf_passive(
             )
             circuit += 1
     flags.append(
-        "pf_passive circuits are one per ELEMENT: the artifact does not source "
-        "passive electrical topology, so no series grouping is imposed"
+        "pf_passive circuits are one per ELEMENT except where a drive states "
+        f"otherwise: {grouped} element group(s) carry a measured current between "
+        "them and are one circuit each, split by section area"
     )
-    return filaments, sections, structures, flags
+    if grouped:
+        flags.append(
+            f"the {grouped} driven passive group(s) are evaluated as bounding-box "
+            "conductors, not polygon sections: a section replaces ONE circuit's "
+            "box, and a group is several elements sharing a circuit"
+        )
+    return filaments, sections, structures, declared, flags
 
 
 # --- magnetics --------------------------------------------------------------
@@ -579,10 +824,25 @@ class MachineArtifactGeometryReader:
         finally:
             entry.close()
 
-        active, active_sections, active_flags = read_artifact_pf_active(pf_active)
+        drives, drive_flags = resolve_drives(
+            artifact.manifest, self.amc_current_channels
+        )
+        active, active_sections, active_drives, active_flags = read_artifact_pf_active(
+            pf_active, drives
+        )
         n_active_circuit = 1 + max((f.circuit for f in active), default=-1)
-        passive, passive_sections, structures, passive_flags = read_artifact_pf_passive(
-            pf_passive, n_active_circuit
+        (
+            passive,
+            passive_sections,
+            structures,
+            passive_drives,
+            passive_flags,
+        ) = read_artifact_pf_passive(pf_passive, n_active_circuit, drives)
+        circuit_drives = active_drives + passive_drives
+        drive_flags.append(
+            f"the source states {len(circuit_drives)} driven column(s) with their "
+            "ampere turns per ampere; those weights supersede turns_with_sign and "
+            "any response calibration fitted to another source's turn count"
         )
         limiter_r, limiter_z, wall_flags = read_artifact_limiter(wall)
         b_probes, flux_loops, magnetics_flags = read_artifact_magnetics(magnetics)
@@ -626,8 +886,10 @@ class MachineArtifactGeometryReader:
             amc_current_channels=list(self.amc_current_channels),
             unmatched_amb=unmatched,
             active_circuits=list(range(n_active_circuit)),
+            circuit_drives=circuit_drives,
             provenance_flags=(
                 _provenance_lines(provenance)
+                + drive_flags
                 + active_flags
                 + passive_flags
                 + wall_flags
@@ -701,12 +963,14 @@ def _provenance_lines(provenance: dict[str, Any]) -> list[str]:
 __all__ = [
     "UNRESOLVED_TURNS",
     "MachineArtifactGeometryReader",
+    "ResolvedDrive",
     "UnresolvedTurnsError",
     "read_artifact_limiter",
     "read_artifact_magnetics",
     "read_artifact_pf_active",
     "read_artifact_pf_passive",
     "require_resolved_turns",
+    "resolve_drives",
     "sensor_position_arrays",
     "unresolved_turn_circuits",
 ]
