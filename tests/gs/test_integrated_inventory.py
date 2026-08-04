@@ -1,4 +1,4 @@
-"""Unit tests for imas_ambix.gs.integrated_inventory (T9 feasibility scoping).
+"""Unit tests for imas_ambix.gs.integrated_inventory (feasibility scoping).
 
 All tests run on a tiny SYNTHETIC ``InventoryResult`` + synthetic regime
 scalars + a synthetic OOD box — no GPFS, no Zarr open, no per-shot read.

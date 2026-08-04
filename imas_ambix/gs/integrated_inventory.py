@@ -1,24 +1,22 @@
-"""Integrated-input feasibility scoping for the GS-grounded engine (T9).
+"""Integrated-input feasibility scoping for the GS-grounded engine.
 
 Why this module exists
 ----------------------
-T6 showed that the magnetics-only latent cannot ground the *internal* current
-profile (near-vacuum c_plasma ratio 0.98) — this is the classic
-equilibrium-reconstruction under-determination: external magnetics fix the
-boundary, total current and the low moments, but NOT p′/FF′ internally.  The
-fix (user direction, comment ``c-s8-integrated-direction``) is to *widen the
-engine's input set* with INTERNAL diagnostics (MSE → current/q; Thomson →
-pressure) plus broadly-available emission (bolometer, soft-xray) and the
-visible camera, so the integrated Bayesian filter + GS soft prior can ground
-the latent — a learned, temporal Minerva/IDA-style equilibrium+kinetic
-inference.
+A magnetics-only latent cannot ground the *internal* current profile — the
+grounding head reaches a near-vacuum c_plasma ratio of 0.98 — because this is
+the classic equilibrium-reconstruction under-determination: external magnetics
+fix the boundary, total current and the low moments, but NOT p′/FF′ internally.
+The fix is to *widen the engine's input set* with INTERNAL diagnostics
+(MSE → current/q; Thomson → pressure) plus broadly-available emission
+(bolometer, soft-xray) and the visible camera, so the integrated Bayesian filter
++ GS soft prior can ground the latent — a learned, temporal Minerva/IDA-style
+equilibrium+kinetic inference.
 
-Co-availability is the *binding* constraint (as it was in S7.1): widening the
-input set shrinks the co-available corpus, and a too-small calibration set
-makes split-conformal coverage high-variance.  This module is the FEASIBILITY
-scoping that quantifies that trade-off so the orchestrator can LOCK the
-integrated input set.  It does NOT retrain anything and does NOT decide the
-input set — it recommends.
+Co-availability is the *binding* constraint: widening the input set shrinks the
+co-available corpus, and a too-small calibration set makes split-conformal
+coverage high-variance.  This module is the FEASIBILITY scoping that quantifies
+that trade-off so the input set can be chosen against measured corpus sizes.  It
+does NOT retrain anything and does NOT decide the input set — it recommends.
 
 What it computes
 ----------------
@@ -26,30 +24,31 @@ What it computes
    GS internal-profile quantity each constrains, and level-1 shot coverage.
 2. A co-availability matrix: for each candidate input combo, the co-available
    shot count vs the Dα target (``xim``) — both whole-corpus and restricted to
-   the GS-geometry-campaign envelope — then split through the *locked v0 OOD
-   box* (joint_p84, by-current-density) into train / calibration / test sizes,
+   the GS-geometry-campaign envelope — then split through the pinned OOD box
+   (joint_p84, by-current-density) into train / calibration / test sizes,
    with the conformal-viability flag (cal < ~200).
 3. A multi-rate time-alignment plan per diagnostic vs the 1000 Hz engine grid.
 4. A camera-feature plan (rbb fed as a compact feature, not raw pixels).
 5. A recommendation: 2-3 concrete integrated-input-set options with corpus N's.
 
 Reuse (import-only — this module owns nothing it imports):
-    * :class:`imas_ambix.statespace.inventory.InventoryResult` — the S7.1
-      per-shot family co-availability (loaded from the persisted artifact).
+    * :class:`imas_ambix.statespace.inventory.InventoryResult` — the per-shot
+      family co-availability (loaded from the persisted artifact).
     * :class:`imas_ambix.statespace.splits.RegimeBox` / ``build_splits`` /
-      ``CorpusNReport`` — the locked train/cal/ood split machinery.
-    * The persisted regime scalars + the locked v0 OOD box (so the expensive
+      ``CorpusNReport`` — the train/cal/ood split machinery.
+    * The persisted regime scalars + the pinned OOD box (so the expensive
       per-shot amc/ane read is NOT repeated, and the by-current-density axis
-      stays identical across combos and with the v0 baseline).
+      stays identical across combos and with the magnetics-only baseline).
 
-Locked decisions honoured
--------------------------
-* Raw signals only.  ``efm`` is GEOMETRY-only (T1); ``esm``/``xdc`` excluded;
-  ``amm`` (Omaha) currents excluded.  Solver outputs are NEVER inputs/labels.
+Constraints honoured
+--------------------
+* Raw signals only.  ``efm`` supplies GEOMETRY and nothing else; ``esm``/``xdc``
+  excluded; ``amm`` (Omaha) currents excluded.  Solver outputs are NEVER inputs
+  or labels.
 * Held-out target stays Dα (``xim``).
-* regime-split axis = by-current-density (the locked v0 joint_p84 box).
-* The integrated input set SUPERSEDES the Stage-1 ``mag+ane`` lock for the
-  *grounded* engine.
+* regime-split axis = by-current-density (the joint_p84 box).
+* The integrated input set supersedes the magnetics-only ``mag+ane`` input set
+  for the *grounded* engine.
 
 Usage
 -----
@@ -101,9 +100,9 @@ CAL_VIABILITY_FLOOR = 200
 # sampled spans from gs_geometry_summary.json: [11764,12342] ∪ [12417,13349]
 # ∪ [12533,30473]).  Used as a CHEAP proxy for "matches a GS-geometry
 # campaign" — exact per-shot setup-signature matching (opening efm) is
-# deferred to T10, where the corpus is already small.  efm-coverage (14633)
-# >> the binding MSE coverage (4882), so this restriction is non-binding (see
-# the artifact's gs_envelope_note).
+# deferred to the training step, where the corpus is already small.
+# efm-coverage (14633) >> the binding MSE coverage (4882), so this restriction
+# is non-binding (see the artifact's gs_envelope_note).
 GS_CAMPAIGN_SHOT_MIN = 11764
 GS_CAMPAIGN_SHOT_MAX = 30473
 
@@ -297,7 +296,7 @@ def default_combos() -> list[InputCombo]:
             label="mag+ane (v0 baseline)",
             require_groups=(*MAG_GROUPS, "ane"),
             rationale=(
-                "The Stage-1 input-modality-v0 lock the grounded engine supersedes."
+                "The magnetics-only input set the grounded engine supersedes."
             ),
         ),
         InputCombo(
@@ -384,7 +383,7 @@ def _combo_shots(
 
 @dataclass
 class IntegratedFeasibilityReport:
-    """The compact T9 feasibility artifact."""
+    """The compact feasibility artifact."""
 
     diagnostic_inventory: list[dict] = field(default_factory=list)
     coavailability_matrix: list[dict] = field(default_factory=list)
@@ -440,7 +439,7 @@ def _load_inventory(path: Path = FAMILY_INVENTORY) -> InventoryResult:
 
 
 def _load_regime_scalars(path: Path = REGIME_SCALARS) -> dict[int, dict[str, float]]:
-    """Load the persisted per-shot {ip_mean, ne_mean} (the expensive S7.1 read)."""
+    """Load the persisted per-shot {ip_mean, ne_mean} (the expensive read)."""
     d = json.loads(path.read_text(encoding="utf-8"))
     if "regime_scalars" in d:  # tolerate a wrapped form
         d = d["regime_scalars"]
@@ -448,7 +447,7 @@ def _load_regime_scalars(path: Path = REGIME_SCALARS) -> dict[int, dict[str, flo
 
 
 def _load_locked_ood_box(path: Path = SPLITS_DALPHA_V0) -> RegimeBox:
-    """Load the LOCKED v0 OOD box (joint_p84, by-current-density)."""
+    """Load the pinned OOD box (joint_p84, by-current-density)."""
     from imas_ambix.statespace.splits import RegimeBox  # noqa: PLC0415
 
     d = json.loads(path.read_text(encoding="utf-8"))
@@ -480,9 +479,9 @@ def build_feasibility(
 
     All heavy inputs default to the persisted artifacts so the call performs
     NO per-shot Zarr reads (the regime scalars — the expensive amc/ane read —
-    are reused from S7.1).  The OOD box is the LOCKED v0 joint_p84 box, applied
-    identically to every combo so the columns stay comparable with each other
-    and with the v0 baseline.
+    are reused).  The OOD box is the pinned joint_p84 box, applied identically
+    to every combo so the columns stay comparable with each other and with the
+    magnetics-only baseline.
 
     Parameters left as ``None`` are loaded from the canonical manifest paths;
     tests inject small synthetic objects instead.
@@ -542,7 +541,7 @@ def build_feasibility(
         shots_total = _combo_shots(inv, combo, restrict_gs_envelope=False)
         shots_gs = _combo_shots(inv, combo, restrict_gs_envelope=True)
         # Build splits on the GS-envelope-restricted set (the corpus the
-        # grounded engine will actually train on), with the LOCKED box.
+        # grounded engine will actually train on), with the pinned box.
         splits = build_splits(
             co_available_shots=shots_gs,
             regime_scalars=scalars,
@@ -592,7 +591,7 @@ def build_feasibility(
 
     # --- meta ---------------------------------------------------------------
     report.meta = {
-        "task": "T9 integrated-input feasibility scoping",
+        "task": "integrated-input feasibility scoping",
         "n_shots_inventory": inv.n_shots,
         "n_shots_with_regime_scalars": sum(
             1 for v in scalars.values() if "ip_mean" in v and "ne_mean" in v
@@ -608,11 +607,12 @@ def build_feasibility(
             "3 campaign sampled-spans). It is NON-BINDING: all MSE/Thomson shots "
             "fall inside the envelope and have efm, so n_gs_envelope ≈ "
             "n_total_coavailable. Exact per-shot setup-signature matching is "
-            "deferred to T10 (cheap there — the corpus is already small)."
+            "deferred to the retrain step (cheap there — the corpus is already "
+            "small)."
         ),
         "locks_honoured": [
             "raw signals only (no efm/esm/xdc/amm outputs as inputs or labels)",
-            "efm GEOMETRY-only (T1)",
+            "efm supplies geometry only",
             "target = Dα (xim)",
             "regime-split = by-current-density",
             "integrated input set SUPERSEDES mag+ane for the grounded engine",
@@ -768,10 +768,11 @@ def _recommendation(matrix: list[dict]) -> dict:
             ),
         },
         "orchestrator_action": (
-            "LOCK ONE integrated-input-set option above as the grounded-engine input "
-            "modality (it supersedes input-modality-v0=mag+ane), then dispatch T10 "
-            "(integrated-grounding retrain) gated on the locked set. uq-level-v0 and "
-            "extrapolation-coordinates remain OPEN and must be settled before T10."
+            "Choose ONE integrated-input-set option above as the grounded-engine "
+            "input modality, superseding the magnetics-only mag+ane set, then run "
+            "the integrated-grounding retrain against that set. The uncertainty "
+            "level and the extrapolation coordinates are still open and must be "
+            "settled before that retrain."
         ),
     }
 
@@ -785,9 +786,7 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    p = argparse.ArgumentParser(
-        description="GS integrated-input feasibility scoping (T9)"
-    )
+    p = argparse.ArgumentParser(description="GS integrated-input feasibility scoping")
     p.add_argument(
         "--out",
         type=Path,

@@ -1,7 +1,7 @@
-"""MAST PF-coil power-supply / circuit description (machine-description D).
+"""MAST PF-coil power-supply / circuit description.
 
-This module answers two questions the geometry (T1) and operator (T2) modules
-do not: *which power supply drives which coil, and by what raw-channel path*,
+This module answers two questions the geometry and operator modules do not:
+*which power supply drives which coil, and by what raw-channel path*,
 and *is every coil actually powered, or are some circuits structural/passive*.
 It is sourced from the MAST control-system machine description —
 ``pfSystems.xml`` (``efitpp-jet/utilities/machine/mast/inputPreparation/
@@ -40,24 +40,25 @@ Two circuit families
   "unknown for MAST, constrained to 0" (``scalingFactor=0``) and this is
   confirmed by their absence from every sampled shot's ``amc`` listing.
 
-Geometry-classifier caveat (measured, not fixed here — flagged for the T2 owner)
----------------------------------------------------------------------------------
-:func:`imas_ambix.gs.operator.classify_circuits` labels an ``efm`` fcoil
-circuit as a known PF coil purely by 8 cm nearest-centroid match to
-:data:`imas_ambix.gs.operator._PF_COIL_CENTROID`.  Measured directly (three
+Why the classifier needs this table and not just geometry
+--------------------------------------------------------
+A case sits a couple of centimetres from the winding it encloses, so a
+nearest-centroid rule cannot tell the two apart.  Measured directly (three
 sample shots, two ``fcoil`` signatures): each of the 8 non-P6 case circuits'
-filament centroid lands within 8 cm of its co-located active coil (e.g. the
-"P2U case" circuit's filaments, R≈0.50 Z≈1.77, sit 2 cm from the P2IU coil
-centroid) and is therefore silently merged into that coil's ``G_pf`` column as
-a "redundant discretisation" and driven by the ACTIVE coil's amc current — not
-by its own dedicated (and physically distinct, usually much smaller induced)
-case-current channel.  For the two P6 cases this happens to be harmless
-because the case current is genuinely zero; for the other 8 it substitutes the
-coil current for the (unread) real case current.  :attr:`CaseCircuit.
-geometry_confusable_with` records exactly which active ``coil_label`` each
-case circuit will be folded into, so a consumer can audit or correct this.
-This module does not change ``operator.py`` (out of this module's scope) — it
-only records the fact so the ambiguity is auditable rather than silent.
+filament centroid lands within the 8 cm match radius of its co-located active
+coil — the "P2U case" filaments, R≈0.50 Z≈1.77, sit 2 cm from the P2IU coil
+centroid.  On geometry alone every one of them reads as a redundant
+discretisation of the active coil and would be merged into that coil's ``G_pf``
+column, driven by the coil's amp-turn channel instead of by its own much
+smaller induced case current.
+
+:attr:`CaseCircuit.geometry_confusable_with` records which active ``coil_label``
+each case circuit is confusable with, and
+:func:`case_circuit_for_active_coil` resolves the correspondence the other way.
+:func:`imas_ambix.gs.operator.classify_circuits` consults it before accepting a
+centroid match, so a case circuit keeps its own column and its own measured
+``*_case_current`` channel.  Only this transcribed id correspondence can make
+that distinction.
 """
 
 from __future__ import annotations

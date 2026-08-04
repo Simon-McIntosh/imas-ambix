@@ -1,4 +1,4 @@
-"""Tests for the MAST PF power-supply / circuit description (machine-description D).
+"""Tests for the MAST PF power-supply / circuit description.
 
 Pure-logic tests only (no mirror, no network): the circuit topology is a
 hardcoded machine description (like ``operator._PF_COIL_CENTROID``), so its

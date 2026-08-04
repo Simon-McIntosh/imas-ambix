@@ -1,17 +1,16 @@
 """GS grounding head: latent z → restricted GS currents → predicted raw magnetics.
 
-S8-T6 (re-scoped to GROUNDING VALUE).  Q1 (the standalone GS residual detector,
-T3) was physics-native but beaten by the trivial ``|dB/dt|`` baseline; the user
-re-scoped the GS prior's purpose to GROUNDING the Stage-1 RKN latent in raw
-magnetics via the (validated) T2 forward operator, judged on grounding value —
-NOT on ``|dB/dt|`` detection (plan comment ``c-s8-q1-decision``; engine retrain
-authorised).
+The GS prior earns its place here by GROUNDING the RKN latent in raw magnetics
+through the forward operator, not by detecting transients.  Read as a standalone
+detector (:mod:`imas_ambix.gs.residual`) the GS force-balance residual is
+physics-native but loses to a trivial ``|dB/dt|`` baseline, so detection is not
+what this head is judged on.
 
 What this module is
 -------------------
 A torch ``GroundingHead`` that maps the RKN latent ``z`` (L-d) to the INFERRED
-GS currents in the LOCKED restricted basis and pushes them through the T2
-forward operator to predict the RAW trustworthy magnetics:
+GS currents in the restricted basis and pushes them through the forward
+operator to predict the RAW trustworthy magnetics:
 
     θ_plasma (n_dof)   = head_plasma(z)          # 3 DOF at profile order-1
     ψ_passive (rank)   = head_passive(z)         # rank-4 passive SVD modes
@@ -109,8 +108,8 @@ _VAR_FLOOR = 1e-6
 class CampaignGrounding:
     """Everything needed to evaluate L_data + L_GS for one campaign signature.
 
-    All matrices are PRECOMPUTED at build time (pure geometry + the locked
-    restricted basis); per-window evaluation is a tiny batched matmul.
+    All matrices are PRECOMPUTED at build time (pure geometry + the restricted
+    basis); per-window evaluation is a tiny batched matmul.
     """
 
     signature_key: str
@@ -138,7 +137,7 @@ class CampaignGrounding:
     n_dof: int
     rank: int
     n_row: int
-    profile_order: int = 1  # locked order-1 default (real builder passes explicitly)
+    profile_order: int = 1  # order-1 default (real builder passes explicitly)
     # diagnostics: per-row fraction of imputed (absent) values across train data
     imputation_rate: float = 0.0
     # the raw numpy operator + target + scale, kept for the near-vacuum sanity
@@ -173,10 +172,10 @@ def build_campaign_grounding(
 
     Parameters
     ----------
-    operator : the T2 ForwardOperator for this campaign signature.
+    operator : the ForwardOperator for this campaign signature.
     stats : the engine's ChannelStats (per-X-column mean/std for de-norm).
     feature_schema : baseline._FEATURE_SCHEMA_MAG_ANE (column layout).
-    profile_order, passive_rank, lam : the LOCKED restricted-basis config (the
+    profile_order, passive_rank, lam : the restricted-basis config (the
         head emits exactly these DOF so it inherits the frontier's near-vacuum
         soundness; lam scales the L_GS soft prior, NOT the design).
     quiescent_raw_trust : (n_q, n_row) optional raw amb at the (kept) trustworthy
@@ -237,7 +236,7 @@ def build_campaign_grounding(
     pf_mean = fmean[pf_x_cols_safe]
     pf_std = fstd[pf_x_cols_safe]
 
-    # --- the locked restricted basis (SAME as residual.InverseSolver) -------
+    # --- the restricted basis (SAME as residual.InverseSolver) --------------
     b_poly = plasma_poly_basis(
         operator.plasma_rz, profile_order, operator.r0, operator.minor_radius
     )  # (n_plasma_node, n_dof)
@@ -307,7 +306,7 @@ class GroundingHead(nn.Module):
     """Latent z → restricted GS current amplitudes (θ_plasma, ψ_passive).
 
     Two small linear heads off the latent mean.  The amplitudes are emitted in
-    the LOCKED restricted basis (order-1 plasma poly DOF + rank-4 passive SVD),
+    the restricted basis (order-1 plasma poly DOF + rank-4 passive SVD),
     so the inferred current field is structurally low-DOF and smooth — the same
     instrument resolution the standalone frontier found, now PREDICTED FROM z
     rather than solved per-slice.  A single learned emission log-scale sets the

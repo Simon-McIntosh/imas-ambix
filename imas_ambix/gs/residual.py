@@ -1,70 +1,65 @@
-"""Standalone GS force-balance RESIDUAL monitor (T3 of the GS-prior track).
+"""Standalone GS force-balance RESIDUAL monitor.
 
-This is the regularised INVERSE of the T2 forward operator
-(:mod:`imas_ambix.gs.operator`).  T2 gives the geometry-only forward map
+This is the regularised INVERSE of the forward operator
+(:mod:`imas_ambix.gs.operator`), which gives the geometry-only forward map
 
     pred = G_pf · I_pf  +  G_plasma · c_plasma  +  G_passive · c_passive
 
-with ``I_pf`` KNOWN (raw amc coil currents).  T3 **inverts** it: given the raw
-``amb`` magnetics at one slice and the known PF term, solve for the INFERRED
-``c_plasma`` / ``c_passive`` against the TRUSTWORTHY sensor target, then form the
-GS force-balance residual ``r`` = the fractional reconstruction misfit that
-remains after the best GS-constrained current model.  A small ``r`` means the
-slice is consistent with a smooth, low-DOF axisymmetric current distribution in
-force balance; a large ``r`` means force balance has BROKEN (the transient /
-off-normal signature Q1 detects).
+with ``I_pf`` KNOWN (raw amc coil currents).  This module **inverts** it: given
+the raw ``amb`` magnetics at one slice and the known PF term, solve for the
+INFERRED ``c_plasma`` / ``c_passive`` against the TRUSTWORTHY sensor target, then
+form the GS force-balance residual ``r`` = the fractional reconstruction misfit
+that remains after the best GS-constrained current model.  A small ``r`` means
+the slice is consistent with a smooth, low-DOF axisymmetric current distribution
+in force balance; a large ``r`` means force balance has BROKEN — the transient /
+off-normal signature a departure monitor reads off this residual.
 
-This is the ``standalone-first`` monitor (``gs-grounding-sequencing`` LOCKED):
-NO ``engine.py`` retrain — the residual is computed directly from raw signals +
-the T2 operator, de-risking before any joint grounding head (T5/T6, gated on the
-Q1 verdict).
+The residual is computed directly from raw signals plus the forward operator,
+with no ``engine.py`` retrain, so it stands on its own before any joint
+grounding head (:mod:`imas_ambix.gs.grounding`) is trained against it.
 
-Why a regulariser is MANDATORY (the first thing T3 confronts)
--------------------------------------------------------------
-The T2 forward map is intentionally OVER-COMPLETE — ~84 plasma + 78..144 passive
+Why a regulariser is MANDATORY
+------------------------------
+The forward map is intentionally OVER-COMPLETE — ~84 plasma + 78..144 passive
 columns vs ~77 trustworthy sensors — so a pointwise-free / unconstrained solve
-drives ``r → 0`` and measures NOTHING (locked
-``gs-soft-weight-lambda-x-profile-dof = 2d-sweep``).  But the nominal column
-count is MISLEADING: Green's functions from clustered filaments are highly
-correlated (smooth kernels), so the *effective* rank of the row-scaled design is
-tiny — measured ~5 (plasma), ~2 (passive), ~6 (combined) at 99 % energy with
-condition numbers up to 1e19.  The instrument resolution therefore comes from
-TWO explicit restrictions, reported as the locked 2-D frontier:
+drives ``r → 0`` and measures NOTHING.  But the nominal column count is
+MISLEADING: Green's functions from clustered filaments are highly correlated
+(smooth kernels), so the *effective* rank of the row-scaled design is tiny —
+measured ~5 (plasma), ~2 (passive), ~6 (combined) at 99 % energy with condition
+numbers up to 1e19.  The instrument resolution therefore comes from TWO explicit
+restrictions, swept together and reported as a 2-D frontier:
 
 1. **profile-DOF on the plasma block** — ``c_plasma = B_poly · θ`` with a 2-D
    polynomial basis in dimensionless ``(R−R0)/a, Z/a`` over the plasma nodes.
-   This is the current-space translation of the locked ``p′/FF′`` profile-DOF in
-   the locked ``current-distribution-greens`` representation:
+   This is the current-space translation of the ``p′/FF′`` profile-DOF under a
+   current-distribution Green's representation:
    order-1 = {1, ρ_R, ρ_Z} (3 DOF), order-2 = +{ρ_R², ρ_Rρ_Z, ρ_Z²} (6 DOF),
-   order-4 ≈ 15 DOF.  (We do NOT re-decide the representation — this is the
-   faithful current-space mapping of the locked decision; documented in the
-   artifact, not chosen here.)
+   order-4 ≈ 15 DOF.  The representation is not re-decided here; this is its
+   faithful current-space mapping.
 2. **a low-rank passive basis + λ ridge** — the passive block (78 ≈ 77 sensors)
    is the REAL ``r → 0`` driver: a free 78-column passive basis alone can nearly
    fit 77 sensors, so restricting plasma while passive runs free still gives
    trivial ``r``.  The passive amplitudes are therefore restricted to a
    truncated-SVD low-rank basis (``passive_rank``) AND penalised by λ.
 
-λ acts on the COLUMN-NORMALISED design (each block's columns whitened to unit
-norm on the trustworthy rows, λ applied, then rescaled back) — exactly the trap
-T8 (``discovery_sindy.py`` commit ``c9154e3``) hit, where un-normalised columns
-made a single scalar threshold incoherent.  The frontier ``λ × profile-DOF``
+λ MUST act on the COLUMN-NORMALISED design — each block's columns whitened to
+unit norm on the trustworthy rows, λ applied, then rescaled back.  Against
+un-normalised columns a single scalar λ is incoherent, because it then penalises
+each block in that block's own arbitrary units.  The frontier ``λ × profile-DOF``
 defines the instrument's resolution: the min plasma-DOF that gives a NON-trivial
 quiescent ``r`` (the floor) and the max DOF before ``r → 0`` (the ceiling).
 
 The residual is a RECONSTRUCTION MISFIT under the GS-constrained (smooth,
-low-DOF) current model — it is NOT an explicit ``Δ*ψ`` grid residual (that is the
-``coarse-psi-grid`` fallback we are deliberately NOT building).
+low-DOF) current model — it is NOT an explicit ``Δ*ψ`` grid residual.
 
-SI / framing (``extrapolation-coordinates`` OPEN — surfaced, NOT locked)
-------------------------------------------------------------------------
+SI and framing
+--------------
 The operator works in raw SI (Wb / T / A).  The residual is reported in a
 **fractional / dimensionless** form ``||W(pred−raw)|| / ||W·raw||`` with ``W`` a
-per-sensor robust scale — required both for dimensional coherence (mixing 76
-B-probe Tesla rows + 1 flux-loop Wb row in one norm) and because Q2 deconfounding
-needs a fractional residual (a raw-Tesla residual reconstructs the Ip²/ne label
-axes).  This BEARS ON ``extrapolation-coordinates`` (raw-Tesla vs fractional);
-it is surfaced here, NOT locked.
+per-sensor robust scale.  Fractional is required twice over: for dimensional
+coherence, because one norm mixes 76 B-probe Tesla rows with a flux-loop Wb row;
+and to keep the residual from reconstructing the very labels a deconfounding
+study holds out, since a raw-Tesla residual carries the Ip²/ne axes directly.
 """
 
 from __future__ import annotations
@@ -80,14 +75,14 @@ if TYPE_CHECKING:
 
     from imas_ambix.gs.operator import ForwardOperator
 
-# --- locked sweep grid (gs-soft-weight-lambda-x-profile-dof = 2d-sweep) ----
+# --- the swept frontier grid --------------------------------------------
 
 LAMBDA_GRID: tuple[float, ...] = (0.0, 1e-3, 1e-2, 1e-1)
-"""The locked λ axis of the 2-D frontier."""
+"""The λ axis of the 2-D frontier."""
 
 PROFILE_DOF_GRID: tuple[int, ...] = (1, 2, 4)
-"""The locked profile-DOF axis: polynomial order 1 / 2 / 4 (3 / 6 / 15 plasma
-basis DOF).  These are the current-space translation of the locked p′/FF′ DOF."""
+"""The profile-DOF axis: polynomial order 1 / 2 / 4 (3 / 6 / 15 plasma basis
+DOF).  These are the current-space translation of the p′/FF′ DOF."""
 
 _PASSIVE_RANK_DEFAULT = 4
 """Default truncated-SVD rank for the passive nuisance basis.
@@ -113,7 +108,7 @@ def plasma_poly_basis(
 
     ``c_plasma = B · θ`` restricts the inferred ``jφ(R, Z)`` to a low-order
     polynomial in dimensionless ``ρ_R = (R−R0)/a``, ``ρ_Z = Z/a`` — the
-    current-space translation of the locked p′/FF′ profile-DOF restriction:
+    current-space translation of the p′/FF′ profile-DOF restriction:
 
     * order-1 → {1, ρ_R, ρ_Z}                              (3 DOF)
     * order-2 → + {ρ_R², ρ_Rρ_Z, ρ_Z²}                     (6 DOF)
@@ -400,7 +395,7 @@ def sweep_frontier(
     passive_rank_grid: tuple[int, ...] | None = None,
     target: TrustTarget | None = None,
 ) -> dict[str, Any]:
-    """Report the locked λ × profile-DOF frontier on a set of slices.
+    """Report the λ × profile-DOF frontier on a set of slices.
 
     For each ``(profile_order, λ)`` cell, solve every slice and report the
     QUIESCENT-slice residual statistics — the frontier is read on quiescent
@@ -459,7 +454,8 @@ def sweep_frontier(
 
     # operating-point selection (ANTI-TUNING): the MIN profile-DOF whose
     # quiescent residual is NON-trivial (not collapsed to ~0) at the SMALLEST λ.
-    # NOT the cell that maximises Q1 AUROC — that is the subtle "tune to pass".
+    # NOT the cell that maximises detection AUROC — that is the subtle
+    # "tune to pass".
     op_point = _select_operating_point(cells)
     return {
         "schema": "gs-frontier-v0",
@@ -482,7 +478,7 @@ def sweep_frontier(
 
 
 # Anti-tuning thresholds — WRITTEN BEFORE THE RUN (operating-point selection
-# is by the SANITY rule, never by Q1 AUROC).
+# is by the SANITY rule, never by detection AUROC).
 _TRIVIAL_FLOOR = 0.02
 """A quiescent median residual below this is TRIVIAL (the DOF over-fit r→0)."""
 _STARVED_CEILING = 0.9
@@ -492,14 +488,14 @@ _STARVED_CEILING = 0.9
 def _select_operating_point(
     cells: list[dict[str, Any]], require_near_vacuum: bool = False
 ) -> dict[str, Any]:
-    """Select the Q1 operating point by the SANITY rule (anti-tuning).
+    """Select the operating point by the SANITY rule (anti-tuning).
 
     The min profile-DOF whose quiescent median residual is NON-trivial
     (``> _TRIVIAL_FLOOR``) and not starved (``< _STARVED_CEILING``) AND — when
     ``require_near_vacuum`` — whose cell is near-vacuum-SOUND (``near_vacuum_ok``;
     the inferred plasma current at near-vacuum is a small fraction of flat-top),
     at the SMALLEST λ that keeps it in band.  Near-vacuum soundness is a
-    correctness criterion defined with ZERO reference to the Q1 labels, so
+    correctness criterion defined with ZERO reference to the detection labels, so
     gating on it is sound regularisation, not tuning (it pushes λ off the
     least-regularised λ=0 corner, which is correct).  Returns ``selected=False``
     (caller reports FAIL) if no cell qualifies — an honest negative.
@@ -533,7 +529,7 @@ def _select_operating_point(
             f"min plasma-DOF with non-trivial quiescent r (>{_TRIVIAL_FLOOR:g}) "
             f"and not starved (<{_STARVED_CEILING:g})"
             f"{' AND near-vacuum-sound' if require_near_vacuum else ''}, smallest "
-            "lambda; selected by SANITY not Q1 AUROC"
+            "lambda; selected by SANITY not detection AUROC"
         ),
     }
 
@@ -558,7 +554,7 @@ def residual_series(
 
     ``statistic`` selects ``"residual_frac"`` (the dimensionless
     ``||W(pred-raw)||/||W*raw||``) or ``"residual_abs"`` (the absolute whitened
-    misfit ``||W(pred-raw)||``).  Both are reported by Q1 — the fractional form's
+    misfit ``||W(pred-raw)||``).  Both are reported: the fractional form's
     instantaneous denominator partly tracks 1/field, a detection confound; the
     absolute form is the physically-motivated departure magnitude.
 
