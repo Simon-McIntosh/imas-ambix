@@ -28,7 +28,7 @@ from imas_ambix.gs.machine_identity import (
 #: The frozen benchmark campaign's setup digest and the machine it describes.
 FROZEN_REPRESENTATION_DIGEST = "1cb6f2ee742c4ee4"
 FROZEN_REPRESENTATION_KEY = "mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4"
-MAST_PHYSICAL_DIGEST = "76cf833561e602a7"
+MAST_PHYSICAL_DIGEST = "ca06c8f64481114f"
 
 #: The frozen benchmark shots, whose identity must resolve without the alias table.
 FROZEN_SHOTS = (21978, 21983, 21985, 21986, 21989, 22086)
