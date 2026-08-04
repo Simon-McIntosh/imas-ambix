@@ -292,7 +292,7 @@ _DIGEST = os.environ.get("AMBIX_MACHINE_ARTIFACT_DIGEST", "")
 _PHYSICAL_DIGEST = "76cf833561e602a7"
 _REGISTRY_DIGEST = "73ecabaa030a476d80cc24c1fe35d038876a12454ebd7b0c7055aac1d3cf3ab2"
 _SEMANTIC_IDENTITY = (
-    "sha256:680076be575bf625a8f546ba90c11563a5e9e22b81aa3dd6388f6f64be1d276e"
+    "sha256:c3847ffcae362be35d883adb511ab2e68ed57455cf3e84064be57a14d30e7306"
 )
 _SHOT = 21983
 
@@ -319,6 +319,19 @@ def efm_table():
     return build_table_for_shot(_SHOT)
 
 
+@pytest.fixture(scope="module")
+def carried_artifact_table():
+    """The artifact table with the campaign's own sensor channels carried onto it."""
+    from imas_ambix.gs.geometry import canonical_amb_channels
+
+    return ag.MachineArtifactGeometryReader(
+        cache_directory=_CACHE,
+        digest=_DIGEST,
+        shot=_SHOT,
+        amb_channels=tuple(canonical_amb_channels([_SHOT])),
+    ).read()
+
+
 @_skip_no_artifact
 def test_the_table_carries_the_identity_it_was_built_from(artifact_table):
     flags = "\n".join(artifact_table.provenance_flags)
@@ -328,17 +341,35 @@ def test_the_table_carries_the_identity_it_was_built_from(artifact_table):
     assert _REGISTRY_DIGEST in flags
     assert "dictionary pin 4.1.1" in flags
     assert "registry evidence for the selected shot: observed" in flags
-    assert "forward-model blocker: pf_active/coil/element/turns_with_sign" in flags
+    assert "forward-model blocker: pf_active/coil(p6_upper)/element/" in flags
+    assert "forward-model blocker: pf_active/coil(p6_lower)/element/" in flags
 
 
 @_skip_no_artifact
-def test_the_published_winding_is_unresolved_and_blocks_an_operator(artifact_table):
-    circuits = ag.unresolved_turn_circuits(artifact_table)
+def test_only_the_two_windings_the_fit_could_not_reach_are_unresolved(artifact_table):
+    """The turn counts are sourced except where the vacuum fit had no leverage.
 
-    assert len(circuits) == 13, "every active coil's winding is unsourced"
+    An earlier revision left every active winding unsourced; this one carries a
+    fitted count for all but the P6 pair, whose supplies the campaign holds at
+    zero, so no measured current ever excites them and no fit can separate their
+    turns.  Those two remain NaN rather than taking a plausible number, and the
+    guard still names them, because a consumer that scales with turns must not
+    proceed on a guess for any coil.
+    """
+    circuits = ag.unresolved_turn_circuits(artifact_table)
+    sections = {s.circuit: s.name for s in artifact_table.polygon_sections}
+
+    assert sorted(sections[c] for c in circuits) == ["p6_lower", "p6_upper"]
     assert all(
         np.isnan(f.turns) for f in artifact_table.pf_filaments if f.circuit in circuits
     )
+    resolved = [
+        f
+        for f in artifact_table.pf_filaments
+        if f.circuit in artifact_table.active_circuits and f.circuit not in circuits
+    ]
+    assert len(resolved) == 11
+    assert all(np.isfinite(f.turns) and f.turns != 0.0 for f in resolved)
     with pytest.raises(ag.UnresolvedTurnsError):
         ag.require_resolved_turns(artifact_table)
 
@@ -382,25 +413,41 @@ def test_the_probe_positions_match_the_efm_reader(artifact_table, efm_table):
 
 
 @_skip_no_artifact
-def test_the_probe_orientations_do_not_yet_match_the_efm_reader(
-    artifact_table, efm_table
-):
-    """The artifact revision records one sensitive axis for every probe.
+def test_the_probe_orientations_match_the_efm_reader(artifact_table, efm_table):
+    """Both sources split the same probes between the same two sensitive axes.
 
-    ``efm`` carries a mixed set -- outboard radial probes at 0 degrees beside
-    vertical probes at 90 -- so the two sources disagree on which field
-    component those rows measure.  That is a much larger error than any
-    positional tolerance would catch, and the reader flags it from the data
-    alone.  This test is the standing record of the disagreement: it fails, and
-    must be rewritten to assert agreement, when a revision resolves the
-    orientations.
+    A poloidal probe enters the operator as ``B_R cos(theta) + B_Z sin(theta)``,
+    so an orientation decides which field component a row measures, not merely
+    how it is scaled -- an error of the whole 90 degrees, far above anything a
+    positional tolerance would catch.  An earlier revision authored every probe
+    on one axis; this one places the outboard radial family along R, and the
+    two sources now agree probe for probe on the assignment and on how many
+    probes each axis carries.  The residual disagreement is the fraction of a
+    degree a source holding radians rounds to.
     """
     efm_angles = np.array([p.angle_deg for p in efm_table.b_probes])
     art_angles = np.array([p.angle_deg for p in artifact_table.b_probes])
+    assert art_angles.size == efm_angles.size
 
-    assert np.unique(np.round(np.mod(art_angles, 180.0), 3)).size == 1
-    assert np.unique(np.round(np.mod(efm_angles, 180.0), 3)).size > 1
-    assert any("cannot separate" in flag for flag in artifact_table.provenance_flags)
+    efm_axes, efm_counts = np.unique(np.round(efm_angles, 0), return_counts=True)
+    art_axes, art_counts = np.unique(np.round(art_angles, 0), return_counts=True)
+    assert efm_axes.tolist() == [0.0, 90.0]
+    assert art_axes.tolist() == efm_axes.tolist()
+    assert art_counts.tolist() == efm_counts.tolist() == [19, 59]
+
+    # co-located radial/vertical pairs make any position-only pairing ambiguous,
+    # so compare the (position, axis) triples as sets: that is the statement
+    # that each probe carries the same axis in both sources, without depending
+    # on either side's ordering
+    def triples(probes):
+        return sorted(
+            (round(p.r, 6), round(p.z, 6), round(p.angle_deg, 0)) for p in probes
+        )
+
+    assert triples(artifact_table.b_probes) == triples(efm_table.b_probes)
+    assert not any(
+        "cannot separate" in flag for flag in artifact_table.provenance_flags
+    )
 
 
 @_skip_no_artifact
@@ -422,7 +469,11 @@ def test_each_coil_outline_reproduces_the_efm_winding_envelope(
     filament_h = np.array([abs(f.height) for f in efm_table.pf_filaments])
     points = np.column_stack([filament_r, filament_z])
 
-    active = [f for f in artifact_table.pf_filaments if np.isnan(f.turns)]
+    active = [
+        f
+        for f in artifact_table.pf_filaments
+        if f.circuit in set(artifact_table.active_circuits)
+    ]
     sections = {s.circuit: s for s in artifact_table.polygon_sections}
     assert len(active) == 13
 
@@ -491,21 +542,99 @@ def test_a_campaign_channel_set_is_what_makes_the_table_drivable():
 
 
 @_skip_no_artifact
-def test_the_carried_channel_set_does_not_map_onto_this_revision():
-    """Carrying the campaign's amb channels onto artifact geometry loses most of them.
+def test_the_carried_channel_set_resolves_onto_the_same_sensors(
+    carried_artifact_table, efm_table
+):
+    """The campaign's channels land on artifact geometry as they do on ``efm``.
 
-    ``map_amb_sensors`` picks its B-probe candidates by exact equality against
-    the orientation a channel's name implies.  This revision stores every
-    poloidal angle in radians, so the degree value lands 2e-4 away from a whole
-    degree and matches nothing; the radial channels then have no candidate at
-    all, because no probe here is radial.  The mapping is therefore not usable
-    as published, which is a blocker to record rather than a tolerance to widen.
+    This is the statement that lets one campaign's acquisition be read against
+    a published machine description: the same 96 channels map and the same four
+    do not, each mapped channel keeps its kind, and the sensor it resolves to is
+    the same physical sensor -- probes to within tens of nanometres and a
+    fraction of a degree, flux loops to within the few millimetres by which the
+    two sources place a loop that both carry.
     """
-    from imas_ambix.gs.geometry import canonical_amb_channels
+    table = carried_artifact_table
+    art = {m.amb_channel: m for m in table.sensor_map}
+    efm = {m.amb_channel: m for m in efm_table.sensor_map}
+    assert set(art) == set(efm)
+    assert sorted(table.unmatched_amb) == sorted(efm_table.unmatched_amb)
+    assert all(art[c].kind == efm[c].kind for c in art)
 
-    channels = tuple(canonical_amb_channels([_SHOT]))
+    def offset(kind):
+        return max(
+            np.hypot(art[c].r - efm[c].r, art[c].z - efm[c].z)
+            for c in art
+            if art[c].kind == kind
+        )
+
+    assert offset("b_probe") < 1e-6
+    assert offset("flux_loop") < 1e-2
+    assert (
+        max(
+            abs(art[c].angle_deg - efm[c].angle_deg)
+            for c in art
+            if art[c].kind == "b_probe"
+        )
+        < 1e-3
+    )
+
+
+@_skip_no_artifact
+def test_the_extra_artifact_flux_loops_never_reach_the_forward_model(
+    carried_artifact_table, efm_table
+):
+    """A source may describe more loops than a campaign acquired, and that is fine.
+
+    The artifact carries 80 flux loops against ``efm``'s 46, which asks whether
+    a parity comparison has to restrict the loop set by hand.  It does not: the
+    forward operator's rows come from the sensor map, which is keyed by the
+    campaign's own channels, so a loop no channel names is never given a row.
+    Both sources therefore present the same 19 flux-loop rows, and the loops
+    only one source describes are simply unused rather than a coverage gap.
+    """
+    art_mapped = [m for m in carried_artifact_table.sensor_map if m.kind == "flux_loop"]
+    efm_mapped = [m for m in efm_table.sensor_map if m.kind == "flux_loop"]
+
+    assert len(carried_artifact_table.flux_loops) > len(efm_table.flux_loops)
+    assert [m.amb_channel for m in art_mapped] == [m.amb_channel for m in efm_mapped]
+    assert len({m.efm_index for m in art_mapped}) == len(
+        {m.efm_index for m in efm_mapped}
+    )
+
+
+@_skip_no_artifact
+def test_the_supplied_conductors_are_the_ones_the_source_files_as_active(
+    artifact_table,
+):
+    """Position alone would drive the structure around a coil with its current.
+
+    The artifact resolves each passive element into its own circuit, and many
+    of those sit closer to a winding than the radius a positional classifier
+    matches within -- so classifying on geometry alone promotes 43 of the 78
+    circuits to driven coils, three times the 13 the machine actually supplies,
+    each fed a winding's measured current.  The table states which circuits are
+    supplied, and that statement is what the classification takes.
+    """
+    from imas_ambix.gs import operator as op
+    from imas_ambix.gs.geometry import read_amc_current_channels
+
+    channels = tuple(read_amc_current_channels(_SHOT))
     table = ag.MachineArtifactGeometryReader(
-        cache_directory=_CACHE, digest=_DIGEST, shot=_SHOT, amb_channels=channels
+        cache_directory=_CACHE,
+        digest=_DIGEST,
+        shot=_SHOT,
+        amc_current_channels=channels,
     ).read()
 
-    assert len(table.unmatched_amb) > len(table.sensor_map)
+    assert len(table.active_circuits) == 13
+    stated = op.classify_circuits(
+        table.pf_filaments, table.amc_current_channels, table.active_circuits
+    )
+    positional = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
+
+    known = [c for c in stated if c.role != "inferred_passive"]
+    assert [c.circuit for c in known] == sorted(table.active_circuits)
+    assert all(c.role == "known_pf" for c in known)
+    assert len({c.amc_channel for c in known}) == 13
+    assert sum(1 for c in positional if c.role != "inferred_passive") == 43

@@ -302,6 +302,7 @@ _KNOWN_ROLES = ("known_pf", "known_case")
 def classify_circuits(
     filaments: Sequence[PFFilament],
     amc_channels: Sequence[str],
+    active_circuits: Sequence[int] = (),
 ) -> list[CircuitClass]:
     """Classify each fcoil circuit as KNOWN active PF, KNOWN case, or INFERRED.
 
@@ -331,8 +332,32 @@ def classify_circuits(
     (P6U/P6L: ``pfSystems.xml`` constrains them to zero, no amc channel at all)
     or an absent channel falls back to INFERRED, exactly like any other
     unmapped circuit.
+
+    Sources that state which conductors are supplied
+    -------------------------------------------------------------------------
+    Both passes above reconstruct, from position, a fact the ``efm`` filament
+    list does not record: which circuits carry a supplied current.  A source
+    that records it — an IMAS ``pf_active`` / ``pf_passive`` split — passes its
+    supplied circuits as ``active_circuits``, and those become the only
+    candidates for a KNOWN role; every other circuit is induced structure and
+    is INFERRED regardless of how near a coil centroid it sits.  That is what
+    the centroid radius cannot decide on such a source: its structure is
+    resolved into per-element circuits, many of which lie inside
+    :data:`_COIL_MATCH_M` of the winding they enclose, so the geometric pass
+    alone promotes a coil's own case, supports and neighbouring segments to
+    driven columns and drives them all with the winding's measured current.
+    The case correction cannot rescue those either — :data:`_CASE_BY_CIRCUIT_ID`
+    is keyed by ``efm``'s circuit numbering, which no other source shares — so
+    it is not consulted when the source has stated the split itself.
+
+    Whether a structural conductor that IS separately supplied on the machine
+    can be driven by its measured channel then depends on the source recording
+    that supply.  One that files every case as passive states that it does not,
+    and those conductors keep inferred currents rather than borrowing a
+    channel on the strength of a centroid match.
     """
     avail = set(amc_channels)
+    declared_active = set(active_circuits)
     by_circ: dict[int, list[PFFilament]] = {}
     for f in filaments:
         by_circ.setdefault(f.circuit, []).append(f)
@@ -356,8 +381,9 @@ def classify_circuits(
                 best_label, best_d = label, d
 
         role, coil_label, amc_channel, flag = "inferred_passive", "", "", ""
-        if best_d <= _COIL_MATCH_M:
-            case = _CASE_BY_CIRCUIT_ID.get(circ)
+        eligible = (circ in declared_active) if declared_active else True
+        if eligible and best_d <= _COIL_MATCH_M:
+            case = None if declared_active else _CASE_BY_CIRCUIT_ID.get(circ)
             if case is not None and case.geometry_confusable_with == best_label:
                 # This efm circuit IS the coil's dedicated case circuit (id
                 # matches pfSystems.xml 1:1) — never drive it by the active
@@ -763,7 +789,9 @@ def build_operator(
     channels, kinds, srz_r, srz_z, srz_ang, excluded, flagged = _sensor_rows(table)
     is_flux = np.array([k == "flux_loop" for k in kinds], dtype=bool)
 
-    classes = classify_circuits(table.pf_filaments, table.amc_current_channels)
+    classes = classify_circuits(
+        table.pf_filaments, table.amc_current_channels, table.active_circuits
+    )
     by_circ: dict[int, list[PFFilament]] = {}
     for f in table.pf_filaments:
         by_circ.setdefault(f.circuit, []).append(f)
@@ -1010,7 +1038,9 @@ def passive_amm_coincidence(
     overlap so a downstream consumer does not double-count passive elements.
     ``amm`` current VALUES are never read (adjudication).
     """
-    classes = classify_circuits(table.pf_filaments, table.amc_current_channels)
+    classes = classify_circuits(
+        table.pf_filaments, table.amc_current_channels, table.active_circuits
+    )
     passive = [c for c in classes if c.role == "inferred_passive"]
     amm = np.array([[p.r, p.z] for p in table.passive_structures], dtype=np.float64)
     n_coin = 0

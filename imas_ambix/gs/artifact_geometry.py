@@ -54,6 +54,16 @@ does not source (its manifest records passive electrical topology as unresolved)
 and an axisymmetric passive element carries an independently induced current.
 Both choices are recorded in the table's provenance flags.
 
+The ``pf_active`` circuits are also published on the table as its
+:attr:`~imas_ambix.gs.geometry.GeometryTable.active_circuits`, because this
+source states which conductors are supplied instead of leaving it to be
+inferred from position.  That statement matters most where the geometric
+inference is weakest: the artifact resolves the structure surrounding a coil
+into its own circuits, several of which sit closer to the winding than the
+match radius a positional classifier uses, so without the declaration a coil's
+case and supports are promoted to driven columns and fed the winding's measured
+current.
+
 Access-layer rules (binding)
 ----------------------------
 Every IDS is read through imas-python at the artifact's own pinned dictionary
@@ -615,6 +625,7 @@ class MachineArtifactGeometryReader:
             passive_structures=structures,
             amc_current_channels=list(self.amc_current_channels),
             unmatched_amb=unmatched,
+            active_circuits=list(range(n_active_circuit)),
             provenance_flags=(
                 _provenance_lines(provenance)
                 + active_flags

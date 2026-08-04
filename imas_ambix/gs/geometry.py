@@ -170,6 +170,14 @@ _RZ_RE = re.compile(r"r\s*=\s*(-?\d+\.?\d*)\s*,?\s*z\s*=\s*(-?\d+\.?\d*)", re.I)
 _AMBIGUOUS_M = 5e-3  # 2nd-nearest within 5 mm of nearest → ambiguous
 _MAX_RESIDUAL_M = 0.05  # nearest > 50 mm → unmatched (no plausible sensor)
 
+# How far a stored orientation may sit from the angle a channel name implies and
+# still describe the same sensitive axis.  A poloidal set separates its axes by
+# 90°, so any band far below that resolves the same radial/vertical pair; the
+# band exists because a stored angle is only as exact as its source's units — a
+# value held in radians and converted to degrees lands a fraction of a degree
+# off a whole number, which is a rounding artefact and not a different axis.
+_ORIENTATION_MATCH_DEG = 1.0
+
 # amb columns that are NOT sensors (time bases / status flags).  These vary by
 # campaign — later campaigns add a ``timesec`` array — so exclude by name.
 _AMB_NON_SENSOR = ("time", "timesec", "status")
@@ -614,6 +622,22 @@ class GeometryTable:
     "empty" value coerced to zero, or a non-axisymmetric sensor approximated
     by a single point.  Always ``[]`` for the MAST reader (nothing to flag);
     populated by :mod:`imas_ambix.gs.imas_geometry` where it applies."""
+    active_circuits: list[int] = field(default_factory=list)
+    """The circuits the SOURCE states are actively supplied conductors.
+
+    A source that separates its supplied windings from its induced structure --
+    an IMAS ``pf_active`` / ``pf_passive`` split, say -- can name the supplied
+    ones here, and :func:`~imas_ambix.gs.operator.classify_circuits` then takes
+    that statement instead of inferring the split from where a circuit's
+    centroid falls.  The inference exists because a source like ``efm``'s
+    ``fcoil`` table is one undifferentiated filament list in which a coil's
+    structural neighbours are indistinguishable from the winding by position
+    alone; where a source does make the distinction, guessing it again can only
+    lose information.
+
+    Empty means the source does not distinguish, which leaves the geometric
+    classification exactly as it was -- so every existing reader's operator is
+    byte-identical."""
     polygon_sections: list[PolygonSection] = field(default_factory=list)
     """Analytic polygon cross-sections that REPLACE the axis-aligned bounding box
     of specific fcoil circuits in the forward operator (keyed by
@@ -789,7 +813,11 @@ def map_amb_sensors(
     candidate set **restricted to the name-expected orientation subset** so
     co-located radial/vertical pairs (``obrNN`` ⟂ ``obvNN`` at identical
     ``(R, Z)``) resolve to the correct member — plain nearest-neighbour on
-    ``(R, Z)`` alone is degenerate there and grabs the wrong orientation.
+    ``(R, Z)`` alone is degenerate there and grabs the wrong orientation.  The
+    restriction admits any stored angle within :data:`_ORIENTATION_MATCH_DEG`
+    of the expected one, so a source holding its orientations in radians maps
+    as well as one holding whole degrees; the two axes are 90° apart, so the
+    band cannot merge them.
 
     Flux loops (``fl_*``) map to ``silop`` by nearest-neighbour (no
     orientation).  amb flux-loop descriptions are known to carry placeholder /
@@ -828,7 +856,11 @@ def map_amb_sensors(
             # restrict the magpr candidate set to the name-expected orientation
             # so co-located radial/vertical probes resolve to the correct
             # member; fall back to all magpr for an unknown B-probe family.
-            cand = np.arange(mr.size) if exp is None else np.where(mang == exp)[0]
+            cand = (
+                np.arange(mr.size)
+                if exp is None
+                else np.where(np.abs(mang - exp) <= _ORIENTATION_MATCH_DEG)[0]
+            )
             if cand.size == 0:
                 unmatched.append(channel)
                 continue
@@ -843,7 +875,7 @@ def map_amb_sensors(
                 continue
             if (d1 - d0) < _AMBIGUOUS_M:
                 flag = f"ambiguous: 2nd-nearest within {_AMBIGUOUS_M * 1e3:.0f}mm"
-            if exp is not None and abs(float(mang[i]) - exp) > 1.0:
+            if exp is not None and abs(float(mang[i]) - exp) > _ORIENTATION_MATCH_DEG:
                 flag = (flag + "; " if flag else "") + "name/angle mismatch"
             mappings.append(
                 SensorMapping(
@@ -978,7 +1010,7 @@ def canonical_amb_channels(
     for s in ids:
         try:
             chans = read_amb_channels(int(s))
-        except (KeyError, FileNotFoundError, OSError, ValueError):
+        except KeyError, FileNotFoundError, OSError, ValueError:
             continue
         for name, desc in chans:
             seen.setdefault(name, desc)
@@ -1112,7 +1144,7 @@ def discover_signatures(
             if "magpr_r" not in geom or "fcoil_r" not in geom:
                 continue
             sig = setup_signature(geom)
-        except (KeyError, FileNotFoundError, OSError, ValueError):
+        except KeyError, FileNotFoundError, OSError, ValueError:
             continue
         key = sig.key
         if key not in groups:
@@ -1146,7 +1178,7 @@ def extract_campaign_tables(
             try:
                 table = build_table_for_shot(rep, amb_channels=canonical_amb)
                 break
-            except (KeyError, FileNotFoundError, OSError, ValueError):
+            except KeyError, FileNotFoundError, OSError, ValueError:
                 continue
         if table is None:
             continue

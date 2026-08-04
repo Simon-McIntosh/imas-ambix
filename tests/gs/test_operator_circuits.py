@@ -330,3 +330,69 @@ def test_write_case_circuit_impact_artifact_schema():
     assert payload["per_probe"]
     for row in payload["per_probe"]:
         assert {"channel", "max_abs_delta_T", "frac_of_sensor_scale"} <= row.keys()
+
+
+# --- a source that states which conductors are supplied --------------------
+
+
+def test_a_declared_active_set_is_what_decides_a_known_role():
+    """A structural circuit inside the match radius is not promoted by position.
+
+    A source that resolves the structure around a coil into its own circuits
+    puts several of them closer to the winding than the centroid radius, so the
+    geometric pass alone would drive each of them with the winding's measured
+    current.  When such a source states which circuits it supplies, only those
+    may take a known role, however near the others sit.
+    """
+    filaments = [
+        _filament(_P4U_R, _P4U_Z, circuit=0),
+        _filament(_P4U_CASE_R, _P4U_CASE_Z, circuit=1),
+        _filament(_P4U_R, _P4U_Z + 0.03, circuit=2),
+    ]
+
+    classes = op.classify_circuits(
+        filaments, ["p4u_coil_current", "p4u_case_current"], active_circuits=[0]
+    )
+
+    by_circ = {c.circuit: c for c in classes}
+    assert by_circ[0].role == "known_pf"
+    assert by_circ[0].amc_channel == "p4u_coil_current"
+    assert by_circ[1].role == "inferred_passive"
+    assert by_circ[2].role == "inferred_passive"
+    assert by_circ[1].amc_channel == ""
+    assert by_circ[2].amc_channel == ""
+
+
+def test_the_efm_case_id_table_is_not_applied_to_another_sources_numbering():
+    """Circuit ids only mean something within the numbering that assigned them.
+
+    ``_CASE_BY_CIRCUIT_ID`` is keyed by ``efm``'s circuit numbering, so reading
+    it against a source with its own numbering would label whichever circuit
+    happened to land on id 18 a P4U case.  A declared active set is the signal
+    that the ids came from elsewhere, so the table is not consulted: circuit 18
+    here is the supplied winding and keeps the winding's own channel.
+    """
+    filaments = [_filament(_P4U_R, _P4U_Z, circuit=18)]
+
+    classes = op.classify_circuits(
+        filaments, ["p4u_coil_current", "p4u_case_current"], active_circuits=[18]
+    )
+
+    assert classes[0].role == "known_pf"
+    assert classes[0].coil_label == "p4u"
+    assert classes[0].amc_channel == "p4u_coil_current"
+
+
+def test_a_source_that_states_nothing_keeps_the_geometric_classification():
+    """The declaration is opt-in: an empty one must leave ``efm`` untouched."""
+    filaments = [
+        _filament(_P4U_R, _P4U_Z, circuit=8),
+        _filament(_P4U_CASE_R, _P4U_CASE_Z, circuit=18),
+    ]
+    channels = ["p4u_coil_current", "p4u_case_current"]
+
+    stated = op.classify_circuits(filaments, channels, active_circuits=())
+    inherited = op.classify_circuits(filaments, channels)
+
+    assert stated == inherited
+    assert [c.role for c in inherited] == ["known_pf", "known_case"]

@@ -123,6 +123,52 @@ def test_orientation_from_magpr_ang_resolves_colocated_pair():
     assert not by_ch["obr06"].flag
 
 
+def test_an_orientation_held_in_radians_still_resolves_the_colocated_pair():
+    """A whole-degree orientation is not what the mapper is entitled to assume.
+
+    A source holding poloidal angles in radians and rounding them there hands
+    back a degree value a fraction of a degree off a whole number -- pi/2 stored
+    to four decimals is 90.00021 degrees.  That is the same sensitive axis, not
+    a different one, so the same channel must resolve to the same probe.  The
+    two axes are 90 degrees apart, so admitting the offset cannot merge them:
+    the radial channel must still land on the radial probe.
+    """
+    geom = _synthetic_geom()
+    geom["magpr_ang"] = np.array([90.00021, 90.00021, 0.0, 0.0])
+    amb = [
+        ("obv06", "Outer coil r=1.850, z=0.300"),
+        ("obr06", "Outer coil r=1.850, z=0.300"),
+    ]
+
+    mappings, unmatched = gsg.map_amb_sensors(geom, amb)
+
+    by_ch = {m.amb_channel: m for m in mappings}
+    assert not unmatched
+    assert by_ch["obv06"].angle_deg == pytest.approx(90.0, abs=1e-3)
+    assert by_ch["obr06"].angle_deg == 0.0
+    assert by_ch["obv06"].efm_index != by_ch["obr06"].efm_index
+    assert not by_ch["obv06"].flag
+    assert not by_ch["obr06"].flag
+
+
+def test_an_orientation_a_degree_off_the_named_axis_is_not_that_axis():
+    """The band is narrow: a probe genuinely off its named axis is not a match.
+
+    Widening candidate selection must not turn into accepting any orientation.
+    A vertical channel whose only vertical-looking candidate sits five degrees
+    off is left unmatched rather than mapped to a probe measuring a different
+    projection of the field.
+    """
+    geom = _synthetic_geom()
+    geom["magpr_ang"] = np.array([85.0, 85.0, 0.0, 0.0])
+    amb = [("obv06", "Outer coil r=1.850, z=0.300")]
+
+    mappings, unmatched = gsg.map_amb_sensors(geom, amb)
+
+    assert not mappings
+    assert unmatched == ["obv06"]
+
+
 def test_name_says_radial_but_ang_says_vertical_is_authoritative():
     """If a probe NAME implies vertical but efm ang is the only truth, ang wins.
 
