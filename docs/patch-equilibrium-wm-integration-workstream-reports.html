@@ -277,7 +277,7 @@
       and geometry-derived r0=6.168&nbsp;m / a=2.226&nbsp;m (baked constants fixed on this path). PatchBasis
       assembles (full-resolution g_pg in 264.7&nbsp;s on a sun_debug node); the vacuum sanity checks pass —
       far-field exact vs the analytic loop, ψ finite on 1617/1617 grid points, near-coil sensors responding 9.6×
-      over far (artifact <code>imas_ambix/gs/artifacts/imas_geometry_iter.json</code>). <strong>The one measured
+      over far. <strong>The one measured
       gap, queued as a followup:</strong> <code>operator.classify_circuits</code> is MAST-hardcoded (centroids +
       amc names), so ITER circuits classify as inferred-passive and <code>m_coil</code> is empty — coil-circuit
       classification must become machine-description-driven before a second machine's KNOWN coil block populates
@@ -405,8 +405,10 @@
         <code>gate_n1000_closureoff_final.json</code>.</li>
       <li><strong>Filter operator (B4):</strong> <code>imas_ambix/latent/patch_observation.py</code>, commit
         <code>ba612ef</code>.</li>
-      <li><strong>Cross-machine (C):</strong> <code>imas_ambix/gs/imas_geometry.py</code>,
-        <code>gs/artifacts/imas_geometry_iter.json</code>; commits <code>1ef55c2</code>/<code>ed653d6</code>/<code>7fc1859</code>.</li>
+      <li><strong>Cross-machine (C):</strong> commits <code>1ef55c2</code>/<code>ed653d6</code>/<code>7fc1859</code>.
+        The loose-IDS ITER reader and its gate record were retired in <code>ae728ad</code> once
+        <code>gs/artifact_geometry.py</code> superseded them by reading the same IDSs from a published,
+        content-addressed set; both files are recoverable from that commit's parent.</li>
       <li><strong>Coil audit (D):</strong> <code>imas_ambix/gs/circuits.py</code>,
         <code>gs/artifacts/mast_pf_circuits.json</code>; report
         <a href="/imas-ambix/mast-coil-circuits.html">mast-coil-circuits</a>; commits <code>5fcbd2a</code> +
