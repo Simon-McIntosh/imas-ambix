@@ -1,7 +1,7 @@
 """Per-campaign machine-geometry table for the GS Green's-function operator.
 
-Stage-2 grounds the Stage-1 latent in raw magnetics.  The Green's-function
-forward operator (T2) predicts the ``amb`` flux-loops + B-probes from a
+The Green's-function forward operator (:mod:`imas_ambix.gs.operator`)
+predicts the ``amb`` flux-loops + B-probes from a
 toroidal current distribution; doing so needs the *machine geometry* — every
 sensor's ``(R, Z)`` + orientation, the PF-coil + passive-structure filament
 ``(R, Z, turns)``, and the limiter contour.  That geometry is the one piece
@@ -327,8 +327,8 @@ class PassiveStructure:
 
     The amm current *values* are EFIT-wall-model OUTPUTS (the amm group's own
     description: "calculated induced currents in toroidal vessel elements for
-    input to EFIT").  T1 captures only the geometry ``(R, Z)``; whether the amm
-    currents may be used as a "known source" by the operator (T2) is flagged
+    input to EFIT").  This captures only the geometry ``(R, Z)``; whether the amm
+    currents may be used as a "known source" by the operator is flagged
     for the orchestrator — it bears on the never-efm principle.
     """
 
@@ -630,7 +630,7 @@ class GeometryTable:
 
     Holds the static geometry (B-probes, flux loops, PF filaments, limiter)
     plus the sensor → geometry mapping and the enumerated current-source
-    channel names (MAST: amc PF/plasma, amm passive).  The operator (T2)
+    channel names (MAST: amc PF/plasma, amm passive).  The operator
     consumes this; readers only tabulate.  Produced by any
     :class:`MachineGeometryReader` implementation -- the MAST fields
     (``sensor_map`` identity mapping, ``amc_current_channels``) are a MAST

@@ -1,8 +1,7 @@
 """Geometry-only Green's-function FORWARD operator for the GS soft-prior.
 
-This is T2 of the Stage-2 GS-prior track.  T1 (:mod:`imas_ambix.gs.geometry`)
-landed the per-campaign machine-geometry table; this module turns that fixed
-geometry into the linear forward map
+:mod:`imas_ambix.gs.geometry` tabulates the per-campaign machine geometry;
+this module turns that fixed geometry into the linear forward map
 
     prediction(sensor)  =  G_pf · I_pf  +  G_plasma · c_plasma  +  G_passive · c_passive
 
@@ -18,12 +17,12 @@ where each ``G_·`` is a **geometry-only** matrix (one per campaign signature) a
                   and are EXCLUDED — never a known source; only the passive
                   *geometry* is used).
 
-**Scope boundary (T2 vs T3).**  T2 builds all three column blocks (pure
+**Scope boundary.**  This module builds all three column blocks (pure
 geometry), assembles the KNOWN ``I_pf`` term, and validates the vacuum
 round-trip (PF-only, no plasma).  *Solving* for ``c_plasma`` / ``c_passive``
-and the ``λ × profile-DOF`` sweep are **T3** — not done here.  The default
+and the ``λ × profile-DOF`` sweep belong to the solver, not here.  The default
 plasma basis is a documented coarse limiter-masked grid so ``G`` is a complete
-forward map; the basis resolution is a T3 tuning knob.
+forward map; the basis resolution is the solver's to tune.
 
 Physics — axisymmetric circular-filament Green's functions (Jackson §5.5 /
 FreeGS).  Each PF/plasma/passive element is a toroidal current loop at
@@ -31,8 +30,8 @@ FreeGS).  Each PF/plasma/passive element is a toroidal current loop at
 
 * poloidal flux ``ψ`` [Wb per A]   — for flux-loop sensors;
 * field components ``B_R``, ``B_Z`` [T per A] — projected onto the probe
-  orientation ``B = B_R·cos θ + B_Z·sin θ`` with ``θ = angle_deg`` from the T1
-  table (``magpr_ang`` — a 90° probe reads ``B_Z``, a 0° probe reads ``B_R``).
+  orientation ``B = B_R·cos θ + B_Z·sin θ`` with ``θ = angle_deg`` from the
+  geometry table (``magpr_ang`` — a 90° probe reads ``B_Z``, a 0° probe reads ``B_R``).
 
 with ``m = k² = 4aR / ((a+R)² + (Z−z0)²)`` (scipy ``ellipk``/``ellipe`` take
 the parameter ``m``, **not** the modulus ``k`` — getting this wrong silently
@@ -49,12 +48,12 @@ the MAST ``fcoil`` table, so the per-filament weight is exactly ``xmult``), so
 **not** non-dimensionalise here: a raw-SI forward map is the framing-neutral
 choice and leaves the open ``extrapolation-coordinates`` decision (dimensionless
 ``R/R0``, ``ψ/(μ0 Ip R0)``, …) to a later consumer.  The fixed MAST constants
-``MAST_R0`` / ``MAST_A`` are carried through from the T1 table for that later
+``MAST_R0`` / ``MAST_A`` are carried through from the geometry table for that later
 framing but are **not** used to rescale ``G`` here.
 
 Never reads any reconstructed EFIT output (no ``psirz`` / profiles / separatrix);
-geometry comes from the T1 table only, and the only signal DATA read is the RAW
-``amc`` coil currents for the KNOWN term.
+geometry comes from the geometry table only, and the only signal DATA read is
+the RAW ``amc`` coil currents for the KNOWN term.
 """
 
 from __future__ import annotations
@@ -220,7 +219,7 @@ def _project_bprobe(
     (``magpr_ang = 90`` → vertical/Bv) reads ``B_Z``; a 0° probe (``= 0`` →
     radial/Br) reads ``B_R``.  The general projection (not a two-branch
     if/else) handles oblique probes and is pinned to those two cases by a test.
-    This is the crux T1's orientation-constrained mapping exists to protect:
+    This is the crux the table's orientation-constrained mapping exists to protect:
     co-located ``obr``/``obv`` pairs differ ONLY by ``angle_deg``.
     """
     th = np.deg2rad(np.asarray(angle_deg, dtype=np.float64))
@@ -234,7 +233,7 @@ def _project_bprobe(
 # RAW amc current channel that drives it.  We map ONLY the active PF coils +
 # solenoid we can identify by geometry; everything else is INFERRED nuisance.
 # Verified by geometric centroid in :func:`classify_circuits` (verify-and-flag,
-# never fabricate — the T1 ethos).  The keys are the canonical coil labels; the
+# never fabricate).  The keys are the canonical coil labels; the
 # values are the preferred ``*_current`` amc channel for that coil.
 _PF_COIL_AMC = {
     "sol": "sol_current",  # P1 central solenoid (circuit 1; Rc≈0.14)
@@ -260,7 +259,8 @@ channel are flagged and INFERRED, never guessed."""
 # Approximate (Rc, Zc) centroids of the MAST PF coils [m], from the MAST machine
 # description (device geometry, NOT EFIT reconstruction).  Used ONLY to label a
 # circuit's amc channel by nearest centroid; the actual filament (R, Z) always
-# come from the T1 table.  A circuit unmatched within _COIL_MATCH_M is INFERRED.
+# come from the geometry table.  A circuit unmatched within _COIL_MATCH_M is
+# INFERRED.
 _PF_COIL_CENTROID = {
     "sol": (0.14, 0.0),
     "p2iu": (0.475, 1.75),
@@ -391,7 +391,7 @@ def classify_circuits(
 ) -> list[CircuitClass]:
     """Classify each fcoil circuit as KNOWN active PF, KNOWN case, or INFERRED.
 
-    Verify-and-flag (never fabricate, per the T1 ethos): a circuit is labelled
+    Verify-and-flag (never fabricate): a circuit is labelled
     KNOWN only when its filament centroid sits within :data:`_COIL_MATCH_M` of
     a known MAST coil centroid AND its driving ``amc`` channel actually exists
     for this campaign.  Every other circuit — the singleton structural
@@ -544,7 +544,7 @@ def _default_plasma_basis(
     The INFERRED plasma ``jφ(R, Z)`` is parameterised on this grid (one column of
     ``G_plasma`` per retained node).  The resolution (``nr × nz``) is a documented
     DEFAULT so ``G`` is a complete forward map; the actual basis-DOF + the GS
-    ``λ`` are a **T3** sweep, NOT decided here.  Nodes outside the limiter contour
+    ``λ`` are the solver's sweep, NOT decided here.  Nodes outside the limiter contour
     are dropped (a plasma current element cannot live in the structure).
     """
     lr = np.asarray(table.limiter_r, dtype=np.float64)
@@ -605,7 +605,7 @@ class ForwardOperator:
     plasma_rz: np.ndarray  # (n_plasma_node, 2) basis node (R, Z)
     passive_rz: np.ndarray  # (n_passive_node, 2) passive element (R, Z)
     circuit_classes: list[CircuitClass]
-    excluded_channels: list[str]  # T1-unmatched amb flux loops (not predicted)
+    excluded_channels: list[str]  # table-unmatched amb flux loops (not predicted)
     flagged_channels: list[str]  # non-unique amb (predicted at index, flagged)
     r0: float = MAST_R0
     minor_radius: float = MAST_A
@@ -630,7 +630,7 @@ class ForwardOperator:
         ``i_pf`` : KNOWN PF-coil currents [A], one per :attr:`pf_circuits` column
         (use :meth:`assemble_pf_currents` to build from raw amc).  ``c_plasma`` /
         ``c_passive`` : the INFERRED amplitudes [A] (default zero → vacuum/PF-only
-        prediction).  Solving for them is T3.
+        prediction).  Solving for them belongs to the solver.
         """
         i_pf = np.asarray(i_pf, dtype=np.float64)
         pred = self.g_pf @ i_pf
@@ -757,10 +757,10 @@ def _sensor_rows(
 ) -> tuple[
     list[str], list[str], np.ndarray, np.ndarray, np.ndarray, list[str], list[str]
 ]:
-    """Select the PREDICTED sensor rows + their (R, Z, angle) from the T1 map.
+    """Select the PREDICTED sensor rows + their (R, Z, angle) from the table's map.
 
     Predicts the cleanly-mapped flux loops + all mapped B-probes.  EXCLUDES the
-    T1-unmatched flux loops (``fl_p2*`` placeholder/displaced — cannot predict);
+    Table-unmatched flux loops (``fl_p2*`` placeholder/displaced — cannot predict);
     the non-unique flagged flux loops (``fl_cc*`` etc. sharing a placeholder
     silop index) are predicted at the index but listed in ``flagged_channels``
     because the amb identity is ambiguous (kept OUT of any comparison target by
@@ -870,7 +870,7 @@ def polygon_section_column(
 def build_operator(
     table: GeometryTable, *, resolve_identity: bool = False
 ) -> ForwardOperator:
-    """Build the per-campaign :class:`ForwardOperator` from a T1 geometry table.
+    """Build the per-campaign :class:`ForwardOperator` from a geometry table.
 
     Pure geometry: assembles ``G_pf`` (KNOWN PF coils, columns = active circuits
     with their filaments weighted by ``xmult``), ``G_plasma`` (INFERRED plasma
@@ -1108,7 +1108,7 @@ def write_operator_summary(
             "INFERRED nuisance (fcoil structural circuits, not amm-read)"
         ),
         "plasma_current": (
-            "INFERRED (low-dim jphi basis); measured Ip is a T3 constraint,"
+            "INFERRED (low-dim jphi basis); measured Ip is a solver constraint,"
             " not a known term"
         ),
         "known_pf_merge": (
