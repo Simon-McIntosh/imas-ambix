@@ -63,8 +63,8 @@ real singularity.  This mirrors the in-tree
 precedent: the rectangle kernel itself carries a 785-point arcsinh (ζ)
 quadrature inside its "closed" antiderivative, so a smooth bounded 1-D
 quadrature per edge is the established cost model.  (A fully-elliptic closed
-assembly via complete/incomplete K/E/Π — :mod:`imas_ambix.gs.elliptic` — remains
-available as a later optimisation if the accuracy/cost benchmark asks for it.)
+assembly via complete/incomplete K/E/Π stays a possible later optimisation if
+the accuracy/cost benchmark ever asks for one.)
 
 Sign/units conventions match :func:`imas_ambix.gs.cylinder.cylinder_greens`
 (and hence the point-filament ``greens_psi``/``greens_bz_br``), per ampere of

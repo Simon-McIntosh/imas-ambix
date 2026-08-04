@@ -1,6 +1,6 @@
 """Tests for the artifact-backed machine-geometry reader.
 
-Two layers, matching ``tests/gs/test_imas_geometry.py``:
+Two layers:
 
 * **Pure logic** builds a tiny synthetic ``pf_active`` / ``pf_passive`` /
   ``wall`` / ``magnetics`` set with imas-python and drives the reader's parsing

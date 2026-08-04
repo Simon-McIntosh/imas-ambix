@@ -656,7 +656,7 @@ class GeometryTable:
     never fabricate) -- e.g. an unsupported element shape dropped, a sentinel
     "empty" value coerced to zero, or a non-axisymmetric sensor approximated
     by a single point.  Always ``[]`` for the MAST reader (nothing to flag);
-    populated by :mod:`imas_ambix.gs.imas_geometry` where it applies."""
+    populated by :mod:`imas_ambix.gs.artifact_geometry` where it applies."""
     active_circuits: list[int] = field(default_factory=list)
     """The circuits the SOURCE states are actively supplied conductors.
 
@@ -752,9 +752,9 @@ class GeometryTable:
 # machine plug in: implement ``read() -> GeometryTable`` against whatever
 # machine-native format that device's static geometry lives in, and nothing
 # downstream of the table changes.  :class:`MastZarrGeometryReader` below
-# adapts the existing FAIR-MAST efm reader to this interface with NO change
-# to its read logic; :mod:`imas_ambix.gs.imas_geometry` implements the same
-# interface against IMAS pf_active / wall / magnetics static IDSs.
+# adapts the FAIR-MAST efm reader to this interface with NO change to its read
+# logic; :mod:`imas_ambix.gs.artifact_geometry` implements the same interface
+# against a published, content-addressed set of IMAS static IDSs.
 
 
 @runtime_checkable

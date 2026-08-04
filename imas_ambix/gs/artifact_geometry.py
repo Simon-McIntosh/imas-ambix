@@ -1,14 +1,13 @@
 """Build a :class:`GeometryTable` from a content-addressed machine-description artifact.
 
-Third implementation of
+Second implementation of
 :class:`~imas_ambix.gs.geometry.MachineGeometryReader`.  The first
 (:class:`~imas_ambix.gs.geometry.MastZarrGeometryReader`) reads MAST geometry out
-of the per-shot FAIR-MAST ``efm`` arrays; the second
-(:class:`~imas_ambix.gs.imas_geometry.ImasGeometryReader`) reads loose IMAS
-static IDSs by path.  This one reads a *published artifact*: a verified,
-content-addressed directory of DD 4.1.1 IDSs whose manifest carries the physical
-identity of the machine configuration, the registry it was authored from, and a
-per-field evidence ledger saying which of its numbers are sourced.
+of the per-shot FAIR-MAST ``efm`` arrays.  This one reads a *published
+artifact*: a verified, content-addressed directory of DD 4.1.1 IDSs whose
+manifest carries the physical identity of the machine configuration, the
+registry it was authored from, and a per-field evidence ledger saying which of
+its numbers are sourced.
 
 Why that difference matters.  The ``efm`` arrays are one campaign's
 discretization of the machine and carry no statement about where any number came
