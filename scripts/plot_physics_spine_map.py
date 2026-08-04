@@ -4,9 +4,10 @@
 A read-only diagnostic figure for the consolidation review: it lays out the
 electromagnetic stack in three tiers (kernels -> coupling assembly ->
 machine-description + consumers) and annotates the duplicated wrappers, the
-dead/superseded modules, and the shared primitives.  No project code is
-imported — the layout is hand-encoded from the survey so the figure never
-drifts if a module moves.
+shared primitives, the superseded boundary reads, and the readers that are
+implemented but carry no product caller.  No project code is imported — the
+layout is hand-encoded from the survey so the figure never drifts if a module
+moves, which also means a box only disappears when someone edits this file.
 
 Output: docs/figures/physics-spine-consolidation/fig-em-stack-map.png
 """
@@ -28,6 +29,7 @@ LIVE = "#2f7f4f"      # green — core/live
 SHARED = "#1565c0"    # blue — shared primitive
 DUP = "#c77800"       # amber — duplicated wrapper
 DEAD = "#b0392b"      # red — dead / test-only / superseded
+UNWIRED = "#6a3d9a"   # purple — implemented but no product caller
 BG = "#f4f4f2"
 
 
@@ -67,7 +69,7 @@ def main() -> None:
             ha="center", fontsize=13.5, fontweight="bold")
     ax.text(0.5, 0.945,
             "one shared finite-area kernel · duplicated assembly wrappers · "
-            "layered boundary reads · dead/test-only leaves",
+            "layered boundary reads · two machine readers, one of them uncalled",
             ha="center", fontsize=8.6, color="#444", style="italic")
 
     # ---- Tier labels ----
@@ -109,9 +111,12 @@ def main() -> None:
     box(ax, 0.05, 0.15, 0.20, 0.10, "geometry.py", "GeometryTable · readers\nbuild_table_for_shot (LIVE)", LIVE)
     box(ax, 0.27, 0.15, 0.15, 0.10, "circuits.py", "pfSystems.xml table\n(Active/Case)", LIVE)
     box(ax, 0.44, 0.15, 0.17, 0.10, "operator.classify_circuits", "role assignment\n(only assigner)", LIVE)
-    box(ax, 0.63, 0.19, 0.15, 0.055, "MastZarrGeometryReader", "test-only (dead)", DEAD, alpha=0.10)
-    box(ax, 0.63, 0.125, 0.15, 0.055, "imas_geometry reader", "unwired / experimental", DEAD, alpha=0.10)
-    ax.text(0.865, 0.175, "parallel coil→channel\nmap: _PF_COIL_AMC ↔\nActiveCircuit (pinned)",
+    box(ax, 0.63, 0.21, 0.20, 0.075, "MastZarrGeometryReader",
+        "efm read — every product caller", LIVE, alpha=0.10)
+    box(ax, 0.63, 0.115, 0.20, 0.075, "artifact_geometry.py",
+        "artifact read — no product caller", UNWIRED, alpha=0.12)
+    ax.text(0.78, 0.335,
+            "parallel coil→channel map:\n_PF_COIL_AMC ↔ ActiveCircuit (pinned)",
             ha="center", va="center", fontsize=6.4, color=DUP,
             bbox=dict(boxstyle="round,pad=0.3", fc="#fff6e8", ec=DUP, lw=0.8))
 
@@ -120,7 +125,6 @@ def main() -> None:
     box(ax, 0.21, 0.02, 0.17, 0.085, "cylinder_greens\n→ hybrid_greens", "finite-area RECT\nPRIMARY shared", SHARED, alpha=0.20)
     box(ax, 0.40, 0.02, 0.15, 0.085, "polygon_greens", "finite-area POLYGON\n(rect = 4-vertex)", SHARED)
     box(ax, 0.57, 0.02, 0.15, 0.085, "filaments3d", "3D line/arc\n(EFCC; rdp test-only)", LIVE, alpha=0.10)
-    box(ax, 0.74, 0.02, 0.14, 0.085, "elliptic.py", "DEAD (test-only)\n_ellipp byte-dup", DEAD, alpha=0.12)
 
     # ---- flows ----
     arrow(ax, 0.15, 0.44, 0.15, 0.25, DUP)          # assembly -> machine desc
@@ -140,7 +144,8 @@ def main() -> None:
         ("core / live", LIVE),
         ("shared primitive", SHARED),
         ("duplicated wrapper", DUP),
-        ("dead / superseded / test-only", DEAD),
+        ("superseded read", DEAD),
+        ("no product caller", UNWIRED),
     ]
     # place legend swatches along the top
     lx = 0.055
