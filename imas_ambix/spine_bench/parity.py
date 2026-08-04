@@ -110,10 +110,78 @@ failure.
 Both hard-read arms carry it, like solve health and throughput: the misfit is an
 absolute property of each arm's own equilibrium, not a cross-arm comparison, so
 each arm's number stands on its own.
+
+Comparing two descriptions of one machine
+-----------------------------------------
+The 1% budget above is a SAME-SOURCE number: its floor and its ceiling were both
+measured with one description of the machine held fixed while the reconstruction
+substrate or the engine moved.  Scoring a change of geometry SOURCE against it
+asks a different question, because two independent descriptions of one machine
+disagree about the machine itself, and that disagreement is measurable before any
+equilibrium is solved.
+
+For the pair this module carries -- the campaign tables of
+:data:`BEFORE_PATH_STAMP` against the machine-artifact reader of
+:data:`AFTER_PATH_STAMP` -- every driven Green's column was tabulated on both
+sides over the 95 channels both map.  The columns agree to 1.2% or better on the
+twelve poloidal-field windings, to 2.9% on the solenoid (an amplitude
+difference: the sources state different turn weights), and to between 1.8% and
+13.0% on the eight case circuits, whose section discretisation differs.
+
+That disagreement reaches the misfit without a solve, because the vacuum term is
+linear in the driven currents.  Exchanging all 21 columns at the measured
+currents perturbs the whitened prediction by a median 0.0777 per slice against a
+before-path residual of 0.7401, and reducing the perturbed residual the way the
+runner does moves the metric by 2.85%.  That propagation is arithmetic on the
+two sources' tables and the before-path residual -- it reads nothing from the
+after-path solve -- and it reproduces the instrumented exchange-all-columns
+measurement to every printed digit, which is what makes it a prediction rather
+than a fit.
+
+Three things the propagation cannot see set the margin, and each is measured:
+
+**Alignment.**  The propagation adds the perturbation at whatever alignment the
+before-path solution happens to give it.  The same perturbation moves the metric
+by 0.55% if it is orthogonal to the residual and by 12.6% if it is parallel (the
+per-slice triangle bound), so the propagated value carries no margin of its own:
+alignment alone spans more than an order of magnitude, and re-solving is free to
+rotate it.
+
+**Solve feedback.**  How far re-solving rotates it was measured directly.
+Restoring one source's winding filament lattices into the other's machine and
+RE-SOLVING moved the metric to the opposite side of the prediction the same swap
+made with the solve held fixed: -0.0184 predicted against +0.0065 measured, a
+discrepancy of 3.37% of the reference.  The case-discretisation swap put the
+same discrepancy at 0.06%.  ``SOLVE_FEEDBACK_ALLOWANCE`` takes the larger,
+because it is the one a vacuum-term change of this size actually produced.
+
+**Stated-weight calibration.**  The incumbent path carries a solenoid response
+scale fitted against the very magnetics this metric scores, while a path that
+takes its weights from the source is judged on fidelity alone.  Sweeping the
+solenoid weight across the interval the two sources jointly admit moves the
+misfit by 0.93% to 1.71% of the reference, which is the size of the advantage
+the fitted path holds over the source-stated one.
+
+:data:`SOURCE_CUTOVER_RESIDUAL_BUDGET` is the sum of those three and nothing
+else.  It does not answer the question the 1% budget answers, and deliberately
+gives up that budget's discrimination against a localised geometry defect: this
+pair's ADMITTED case-section disagreement already costs more than a whole-cell
+sensor displacement does, so no cross-source budget wide enough to accept the
+pair can also reject a displacement that small.  What carries that duty across a
+cutover is the column census -- both paths driving the same columns, channel for
+channel -- and not this metric.  What the budget does still catch is a source
+read that loses or mis-weights a column: the first artifact read of this pair
+entered the solenoid at 1/328 of its stated weight and scored 1.210, 63% above
+the reference and eight times the budget.
+
+The choice of budget is a property of the comparison, not of the stamp, so it is
+named at the call: :class:`ComparisonKind` selects which of the two the misfit is
+scored under, and every other tolerance is identical in both.
 """
 
 from __future__ import annotations
 
+import enum
 from dataclasses import dataclass
 
 from imas_ambix.spine_bench.shots import FROZEN_SHOTSET, SHOTSET_VERSION
@@ -135,8 +203,32 @@ REFERENCE_STAMP = "physics-spine-v0-mast-heldout-6-0447fb2e0d-98dci4-clu-3141.ya
 #: a comparison that includes the new metric.
 BEFORE_PATH_STAMP = "physics-spine-v0-mast-heldout-6-08ae0dee74-98dci4-clu-3141.yaml"
 
+#: The measured after-path: the same frozen gate run with the machine read from
+#: its own description instead of the campaign tables.  It is named here because
+#: the cross-source budget below was propagated from THIS pair's tabulated
+#: Green's columns, so the pair is what makes that derivation reproducible.
+AFTER_PATH_STAMP = "physics-spine-v0-mast-heldout-6-e76b0dc65c-98dci4-clu-3141.yaml"
+
 #: Arms carrying the gate: the hard-topology-read solves on both substrates.
 GATED_ARMS = ("grid-delstar", "greens-matvec")
+
+
+class ComparisonKind(enum.StrEnum):
+    """What differs between the two stamps, which fixes the misfit's budget.
+
+    Every other tolerance is identical in both: a reproduction metric, a solve
+    fraction and a throughput are properties of one arm's own solve and do not
+    know where the geometry came from.  Only the sensor-space misfit does,
+    because it is the one metric a change of machine description moves without
+    any error being present.
+    """
+
+    #: One description of the machine; the substrate, engine or schema moved.
+    SAME_SOURCE = "same-source"
+
+    #: Two independent descriptions of one machine.
+    SOURCE_CUTOVER = "source-cutover"
+
 
 #: A deterministic reproduction metric may reach this multiple of its reference.
 REPRODUCTION_CHANGE_BUDGET = 4.0
@@ -146,6 +238,33 @@ THROUGHPUT_REGRESSION_BUDGET = 0.25
 
 #: The whitened magnetics misfit may rise this fraction above its reference.
 MAGNETICS_RESIDUAL_REGRESSION_BUDGET = 0.01
+
+#: Exchanging every driven Green's column between the two descriptions, at the
+#: measured currents and with the plasma solve held at the before-path solution,
+#: moves the misfit this fraction.  Arithmetic on the two sources' tabulated
+#: columns and the before-path residual; no after-path solve is read.
+CROSS_SOURCE_COLUMN_PROPAGATION = 0.0285
+
+#: What the hold-fixed propagation misses by ignoring the solve re-adapting to
+#: the changed vacuum term.  Measured on the winding-lattice swap, that
+#: re-adaptation landed this fraction of the reference away from the hold-fixed
+#: prediction of the same swap, and on the far side of it.
+SOLVE_FEEDBACK_ALLOWANCE = 0.0337
+
+#: The advantage a path holds when its solenoid response scale was fitted
+#: against the scored magnetics.  Sweeping that weight across the interval the
+#: two descriptions jointly admit moves the misfit by up to this fraction.
+STATED_WEIGHT_CALIBRATION_ALLOWANCE = 0.0171
+
+#: The whitened magnetics misfit may rise this fraction above its reference when
+#: the two paths read different descriptions of one machine.  It is the sum of
+#: the propagated column disagreement and the two mechanisms that propagation
+#: cannot see -- nothing is added for roundness.
+SOURCE_CUTOVER_RESIDUAL_BUDGET = (
+    CROSS_SOURCE_COLUMN_PROPAGATION
+    + SOLVE_FEEDBACK_ALLOWANCE
+    + STATED_WEIGHT_CALIBRATION_ALLOWANCE
+)
 
 #: The metric scored under the sensor-space-misfit margin mechanism.
 MAGNETICS_RESIDUAL_METRIC = "magnetics_residual_whitened_rms"
@@ -231,6 +350,33 @@ def _magnetics_residual(arm: str, reference: float) -> ParityTolerance:
             "displacement costs"
         ),
     )
+
+
+def _cross_source_magnetics_residual(arm: str, reference: float) -> ParityTolerance:
+    return ParityTolerance(
+        metric=MAGNETICS_RESIDUAL_METRIC,
+        arm=arm,
+        reference=reference,
+        bound=reference * (1.0 + SOURCE_CUTOVER_RESIDUAL_BUDGET),
+        lower_better=True,
+        basis=(
+            "two descriptions of one machine, so the margin is the measured "
+            "column disagreement propagated through the metric "
+            f"({CROSS_SOURCE_COLUMN_PROPAGATION:.2%}) plus what that "
+            f"propagation cannot see: solve feedback "
+            f"({SOLVE_FEEDBACK_ALLOWANCE:.2%}) and the stated-weight "
+            f"calibration asymmetry ({STATED_WEIGHT_CALIBRATION_ALLOWANCE:.2%})"
+        ),
+    )
+
+
+#: Which misfit mechanism each comparison kind scores under.  Every other
+#: tolerance is built the same way for both, so this mapping is the whole of the
+#: difference between them.
+_RESIDUAL_TOLERANCE = {
+    ComparisonKind.SAME_SOURCE: _magnetics_residual,
+    ComparisonKind.SOURCE_CUTOVER: _cross_source_magnetics_residual,
+}
 
 
 #: The registered gate. Reproduction metrics live on ``greens-matvec`` because
@@ -368,13 +514,21 @@ def evaluate(stamp) -> ParityReport:
     )
 
 
-def tolerances_from(stamp) -> tuple[ParityTolerance, ...]:
+def tolerances_from(
+    stamp, kind: ComparisonKind = ComparisonKind.SAME_SOURCE
+) -> tuple[ParityTolerance, ...]:
     """Re-derive the registered table against a measured stamp.
 
     Same metrics, same arms, same margin policy -- only the reference values move
     to what ``stamp`` measured.  This is how an after-path run is gated against
     the before-path it must reproduce rather than against a historical anchor.
+
+    ``kind`` states what differs between the two runs being compared, which
+    selects the misfit's budget: a substrate or engine change is scored against
+    the same-source spread, a change of machine description against the column
+    disagreement the two descriptions themselves carry.
     """
+    residual_tolerance = _RESIDUAL_TOLERANCE[kind]
     derived: list[ParityTolerance] = []
     for tolerance in PARITY_TOLERANCES:
         reference = stamp.aggregate.get(tolerance.arm, {}).get(tolerance.metric)
@@ -386,7 +540,7 @@ def tolerances_from(stamp) -> tuple[ParityTolerance, ...]:
         if tolerance.metric == "throughput_slices_per_core_s":
             derived.append(_throughput(tolerance.arm, reference))
         elif tolerance.metric == MAGNETICS_RESIDUAL_METRIC:
-            derived.append(_magnetics_residual(tolerance.arm, reference))
+            derived.append(residual_tolerance(tolerance.arm, reference))
         elif tolerance.reference == 1.0 and not tolerance.lower_better:
             derived.append(_solve_health(tolerance.metric, tolerance.arm))
         else:
@@ -394,18 +548,24 @@ def tolerances_from(stamp) -> tuple[ParityTolerance, ...]:
     return tuple(derived)
 
 
-def compare_paths(before, after) -> ParityReport:
+def compare_paths(
+    before, after, kind: ComparisonKind = ComparisonKind.SAME_SOURCE
+) -> ParityReport:
     """Score an after-path stamp against the before-path it must reproduce.
 
     Both stamps must be admissible frozen-set runs, because a comparison between
     two differently-scoped runs is not a parity measurement.  The after-path is
-    then held to the same margin policy with the before-path's numbers as the
-    reference, so a cutover that leaves the equilibrium unchanged passes and one
-    that moves it by a multiple of the change budget does not.
+    then held to the margin policy ``kind`` names, with the before-path's numbers
+    as the reference, so a cutover that leaves the equilibrium unchanged passes
+    and one that moves it by a multiple of the change budget does not.
+
+    The default is the stricter of the two.  A caller comparing across geometry
+    sources must say so, because the wider budget is only derivable once the two
+    descriptions' Green's columns have been tabulated against each other.
     """
     admissibility = [f"before-path: {reason}" for reason in check_admissibility(before)]
     admissibility += [f"after-path: {reason}" for reason in check_admissibility(after)]
-    tolerances = tolerances_from(before)
+    tolerances = tolerances_from(before, kind)
     return ParityReport(
         admissibility=tuple(admissibility),
         failures=tuple(_score(after, tolerances)),

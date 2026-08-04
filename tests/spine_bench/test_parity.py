@@ -309,3 +309,148 @@ def test_a_stamp_missing_a_gated_metric_cannot_serve_as_a_reference(before_path)
     del incomplete.aggregate["greens-matvec"]["axis_reproduce_cm"]
     with pytest.raises(KeyError, match="cannot serve as a parity reference"):
         parity.tolerances_from(incomplete)
+
+
+# --- comparing two descriptions of one machine ----------------------------
+
+
+@pytest.fixture
+def after_path() -> SpineBenchmarkStamp:
+    """The same frozen run with the machine read from its own description."""
+    return _load(parity.AFTER_PATH_STAMP)
+
+
+def test_the_cutover_budget_is_the_sum_of_its_three_measured_terms():
+    """Nothing may be added for roundness: each term names a measurement."""
+    assert (
+        pytest.approx(
+            parity.CROSS_SOURCE_COLUMN_PROPAGATION
+            + parity.SOLVE_FEEDBACK_ALLOWANCE
+            + parity.STATED_WEIGHT_CALIBRATION_ALLOWANCE
+        )
+        == parity.SOURCE_CUTOVER_RESIDUAL_BUDGET
+    )
+
+
+def test_the_propagated_disagreement_is_the_largest_term_the_gate_can_predict():
+    """The margin exists for what propagation misses, not to swamp it.
+
+    Neither unpropagated mechanism may exceed the propagated column
+    disagreement itself; a margin larger than the effect it corrects would mean
+    the budget is being set by the allowance rather than by the measurement.
+    """
+    for allowance in (
+        parity.SOLVE_FEEDBACK_ALLOWANCE,
+        parity.STATED_WEIGHT_CALIBRATION_ALLOWANCE,
+    ):
+        assert allowance <= 2.0 * parity.CROSS_SOURCE_COLUMN_PROPAGATION
+
+
+def test_a_source_cutover_is_scored_more_widely_than_a_substrate_change():
+    """Two descriptions disagree about the machine; one description does not."""
+    assert (
+        parity.SOURCE_CUTOVER_RESIDUAL_BUDGET
+        > parity.MAGNETICS_RESIDUAL_REGRESSION_BUDGET
+    )
+
+
+def test_the_same_source_budget_is_the_default(before_path):
+    """The wider budget must be asked for, never fallen into."""
+    default = parity.tolerances_from(before_path)
+    named = parity.tolerances_from(before_path, parity.ComparisonKind.SAME_SOURCE)
+    assert default == named
+
+
+def test_the_comparison_kind_moves_only_the_sensor_space_misfit(before_path):
+    """A reproduction metric or a solve fraction cannot know its geometry source."""
+    same = parity.tolerances_from(before_path, parity.ComparisonKind.SAME_SOURCE)
+    cutover = parity.tolerances_from(before_path, parity.ComparisonKind.SOURCE_CUTOVER)
+    moved = {
+        (a.metric, a.arm)
+        for a, b in zip(same, cutover, strict=True)
+        if a.bound != b.bound
+    }
+    assert moved == {
+        (parity.MAGNETICS_RESIDUAL_METRIC, arm) for arm in parity.GATED_ARMS
+    }
+
+
+def test_each_budget_class_bounds_the_misfit_at_its_own_fraction(before_path):
+    """The registered fraction is what the bound is built from, on both arms."""
+    for kind, budget in (
+        (
+            parity.ComparisonKind.SAME_SOURCE,
+            parity.MAGNETICS_RESIDUAL_REGRESSION_BUDGET,
+        ),
+        (
+            parity.ComparisonKind.SOURCE_CUTOVER,
+            parity.SOURCE_CUTOVER_RESIDUAL_BUDGET,
+        ),
+    ):
+        for tolerance in parity.tolerances_from(before_path, kind):
+            if tolerance.metric == parity.MAGNETICS_RESIDUAL_METRIC:
+                assert tolerance.bound == pytest.approx(
+                    tolerance.reference * (1.0 + budget)
+                )
+
+
+def test_the_after_path_clears_the_cutover_budget_on_both_arms(before_path, after_path):
+    """The banked pair, scored under the budget its own columns predict."""
+    report = parity.compare_paths(
+        before_path, after_path, parity.ComparisonKind.SOURCE_CUTOVER
+    )
+    assert report.ok, report.describe()
+    assert report.checked == len(parity.PARITY_TOLERANCES)
+
+
+def test_the_after_path_does_not_clear_the_same_source_budget(before_path, after_path):
+    """Which is why the two classes exist: the cutover moves the misfit and only it."""
+    report = parity.compare_paths(before_path, after_path)
+    assert not report.ok
+    assert {f.metric for f in report.failures} == {parity.MAGNETICS_RESIDUAL_METRIC}
+    assert {f.arm for f in report.failures} == set(parity.GATED_ARMS)
+
+
+def test_a_lost_column_fails_even_the_cutover_budget(before_path, after_path):
+    """A source read that drops a driven column is not a description difference.
+
+    Entering the solenoid at a fraction of its stated weight took this pair's
+    misfit to 1.210 -- far outside anything the two descriptions' column
+    disagreement can produce, which is the failure the wider budget still owes.
+    """
+    broken = copy.deepcopy(after_path)
+    for arm in parity.GATED_ARMS:
+        broken.aggregate[arm][parity.MAGNETICS_RESIDUAL_METRIC] = 1.210
+    report = parity.compare_paths(
+        before_path, broken, parity.ComparisonKind.SOURCE_CUTOVER
+    )
+    assert not report.ok
+    assert {f.metric for f in report.failures} == {parity.MAGNETICS_RESIDUAL_METRIC}
+
+
+def test_the_cutover_budget_loosens_nothing_but_the_misfit(before_path, after_path):
+    """A moved equilibrium fails under either class; only the misfit is rebased."""
+    moved = copy.deepcopy(after_path)
+    moved.aggregate["greens-matvec"]["axis_reproduce_cm"] = before_path.aggregate[
+        "greens-matvec"
+    ]["axis_reproduce_cm"] * (parity.REPRODUCTION_CHANGE_BUDGET + 1.0)
+    moved.aggregate["grid-delstar"]["converged_fraction"] = 5.0 / 6.0
+    report = parity.compare_paths(
+        before_path, moved, parity.ComparisonKind.SOURCE_CUTOVER
+    )
+    assert not report.ok
+    assert {f.metric for f in report.failures} == {
+        "axis_reproduce_cm",
+        "converged_fraction",
+    }
+
+
+def test_the_after_path_stamp_is_a_genuine_clean_two_arm_frozen_run(after_path):
+    """A budget adjudication on a partial or dirty run would decide nothing."""
+    assert parity.check_admissibility(after_path) == ()
+    assert after_path.env.git_dirty is False
+    assert {row.substrate for row in after_path.shots} == set(parity.GATED_ARMS)
+    assert {row.topology_read for row in after_path.shots} == {"hard"}
+    assert all(
+        row.n_slices_scored == row.n_slices_attempted for row in after_path.shots
+    )
