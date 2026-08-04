@@ -42,6 +42,13 @@ wandb/
 # from some `sun`-partition compute nodes)
 imas_ambix/latent/artifacts/patch_encoder/corpus_cache/
 
+# patch-basis Green's cache, computed on first use per geometry key and grid size and
+# reused thereafter. Its default directory is a RELATIVE path, so the file lands in
+# whatever directory the run was launched from — the repo root for any benchmark or
+# gate run — at a couple of hundred megabytes each. It is derived from the geometry it
+# is keyed by and can always be recomputed, so it must never be committable.
+imas_ambix/latent/artifacts/patch_scoping/
+
 # Data (tracked separately) — anchored to repo root so it doesn't
 # shadow imas_ambix/data/ (the FAIR-MAST acquisition Python package).
 /data/
