@@ -14,9 +14,15 @@ component geometry, and the registry carries a
 ``representation_aliases`` table mapping historical setup digests onto the
 configuration they actually describe.  For MAST all three recorded
 representation digests -- including the frozen benchmark's
-``1cb6f2ee742c4ee4`` -- alias onto the single configuration
-``76cf833561e602a7``, which is the identity rule working as intended: three
-discretizations, one machine.
+``1cb6f2ee742c4ee4`` -- alias onto one physical configuration, which is the
+identity rule working as intended: three discretizations, one machine.  That
+configuration's digest is deliberately not written down here: being addressed
+over the component geometry, it moves whenever a measured position is
+corrected.  Read it from ``registry.configurations`` instead, which is keyed by
+it -- so a digest that a correction has retired is simply absent and raises,
+rather than quietly selecting a machine whose geometry has since changed.  The
+registry's ``provenance['superseded_physical_digests']`` says which correction
+retired it.
 
 Selecting on physical identity therefore MERGES campaign groups; it never renames
 one.  Anything keyed by representation stays exactly where it is, which is what

@@ -14,7 +14,7 @@ from nova.transport import CurrentDiffusion as NovaCurrentDiffusion
 
 from imas_ambix import physics
 
-NOVA_REVISION = "28872e4f96f32737718ccdfe87d10c174f20ec26"
+NOVA_REVISION = "58c81059ad7e850afc2cf13dd9cb429acad49bd7"
 ROOT = Path(__file__).parents[2]
 
 
