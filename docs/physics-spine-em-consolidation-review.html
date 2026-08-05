@@ -32,27 +32,60 @@ tiered consolidation roadmap. <strong>No code was moved</strong> — the trigger
 was noticing that two functions build passive couplings from the same circuits;
 the finding is that the fix is smaller and more surgical than it first looks.</p>
 
+<aside style="border:1px solid #c9d4c9;border-left:4px solid #4f7a4f;border-radius:6px;
+              background:#f3f7f3;padding:12px 16px;margin:18px 0">
+  <p style="margin:0 0 8px"><strong>Landed since this survey (as of 2026-08-05).</strong>
+  Part of the Tier 0 dead-code removal has been actioned; the survey's measurements
+  are kept as measured and the affected rows and recommendations are marked in place.</p>
+  <ul style="margin:0;padding-left:20px">
+    <li><code>gs/elliptic.py</code> (79 LOC), <code>gs/q1_detect.py</code> (870 LOC) and
+      <code>gs/imas_geometry.py</code>'s <code>ImasGeometryReader</code> (442 LOC) were
+      <strong>retired in <code>ae728ad</code></strong> — 2 100 lines deleted after an AST
+      import census confirmed no importer outside each module's own tests. The
+      published-artifact reader (<code>gs/artifact_geometry.py</code>) supersedes the
+      loose-IDS reader, so the reader seam now has two implementations, not three.</li>
+    <li>The stack-map figure below was <strong>regenerated at <code>db0545d</code></strong>
+      to match: it is hand-encoded, so it had gone on drawing the deleted boxes. Its
+      caption is updated accordingly.</li>
+    <li><strong>Still open:</strong> <code>latent/patch_observation.py</code> (280 LOC,
+      orphan), the <code>filaments3d</code> test-only helpers, all of §3's duplication
+      hotspots, and both §5 cache hazards. §6's Tiers 1–4 are untouched.</li>
+  </ul>
+</aside>
+
 <figure>
   <img src="/imas-ambix/figures/physics-spine-consolidation/fig-em-stack-map.png"
        alt="Three-tier map of the EM stack: kernels, coupling-assembly wrappers, machine description and consumers, with duplication and dead-code annotations"
        style="max-width:100%">
-  <figcaption>The EM stack in three tiers. <strong>Kernels</strong> (bottom):
-  one shared finite-area primitive (<code>hybrid_greens</code>) plus its
-  point-filament zero-size limit and the polygon generalisation; <code>elliptic.py</code>
-  is dead. <strong>Coupling assembly</strong> (middle): four wrappers that each
-  re-walk the circuit set — the duplication tier. <strong>Machine description</strong>
-  + <strong>consumers</strong>: one live reader (<code>build_table_for_shot</code>),
-  two dead/unwired readers, and the layered boundary reads (connectivity/disc
-  live; moment/harmonic superseded to basis + anchor providers).</figcaption>
+  <figcaption>The EM stack in three tiers, as redrawn at <code>db0545d</code>.
+  <strong>Kernels</strong> (bottom): one shared finite-area primitive
+  (<code>cylinder_greens</code> → <code>hybrid_greens</code>) plus its point-filament
+  zero-size limit (<code>greens_psi</code>/<code>greens_bz_br</code>), the polygon
+  generalisation, and the 3-D line/arc kernels. <code>elliptic.py</code> was dead and is
+  now retired (<code>ae728ad</code>), so it no longer appears.
+  <strong>Coupling assembly</strong> (middle): four wrappers that each re-walk the circuit
+  set — the duplication tier. <strong>Machine description</strong>: the two readers that
+  exist, each labelled by what reaches it — <code>MastZarrGeometryReader</code> fronts the
+  <code>efm</code> read every product caller arrives through (via
+  <code>build_table_for_shot</code>), while <code>artifact_geometry.py</code> is implemented
+  and test-verified but has no product caller yet, which is why it carries a colour of its
+  own rather than being folded in with either live or superseded code. Plus the layered
+  boundary reads (connectivity/disc live; moment/harmonic superseded to basis + anchor
+  providers).</figcaption>
 </figure>
 
 <h2 id="s1">§1 — Scope &amp; method</h2>
 <p>Four parallel read-only passes, each cited to <code>file:line</code>, then
-cross-checked by hand on the physically-load-bearing paths:</p>
+cross-checked by hand on the physically-load-bearing paths. The line numbers are as
+measured when the survey ran and some have since drifted by a few lines as the files
+changed; the symbol names beside them are the durable anchors, and each one below was
+re-confirmed to resolve in the tree.</p>
 <ul>
   <li><strong>Kernels</strong> — every ψ / B / A primitive in
     <code>gs/{elliptic,cylinder,polygon,filaments3d}.py</code> and the point
-    kernels in <code>operator.py</code>.</li>
+    kernels in <code>operator.py</code>. (<code>gs/elliptic.py</code> was in scope when the
+    survey ran and has since been retired — see the note above; the surviving three are
+    where to look now.)</li>
   <li><strong>Coupling assembly</strong> — every site that builds a Green's /
     coupling matrix or column from circuits + geometry.</li>
   <li><strong>Machine description</strong> — <code>GeometryTable</code>, the
@@ -165,13 +198,18 @@ and <code>operator._PF_COIL_AMC</code> — kept equal only by a test.</p>
     <thead><tr><th>Module / symbol</th><th>LOC</th><th>Status</th><th>Evidence</th></tr></thead>
     <tbody>
       <tr><td><code>gs/elliptic.py</code></td><td>79</td><td><strong>DEAD in
-        production</strong></td>
-        <td>Only <code>test_elliptic</code> imports it; <code>ellippi_complete</code>
-        is byte-duplicated by <code>cylinder._ellipp</code>;
-        <code>polygon_greens</code> uses complex-step, not Π</td></tr>
-      <tr><td><code>gs/q1_detect.py</code></td><td>870</td><td><strong>TEST-ONLY</strong></td>
+        production</strong> → <strong>RETIRED <code>ae728ad</code></strong></td>
+        <td>Only <code>test_elliptic</code> imported it; <code>ellippi_complete</code>
+        was byte-duplicated by <code>cylinder._ellipp</code> (which survives, and is still
+        the only Π in the tree); <code>polygon_greens</code> uses complex-step, not Π.
+        Deleted with its test; <code>polygon.py</code>'s docstring reference to it was
+        rewritten to name the optimisation rather than the module</td></tr>
+      <tr><td><code>gs/q1_detect.py</code></td><td>870</td><td><strong>TEST-ONLY</strong>
+        → <strong>RETIRED <code>ae728ad</code></strong></td>
         <td>Only <code>tests/gs/test_residual.py</code>; no production/script
-        caller</td></tr>
+        caller. That import was not idle — six test functions covered AUROC, the
+        disruption label and the near-vacuum sanity check, and they were deleted with
+        the module they exercised</td></tr>
       <tr><td><code>latent/patch_observation.py</code></td><td>280</td>
         <td><strong>ORPHAN</strong></td>
         <td>Only its own test; the live patch path is
@@ -182,13 +220,21 @@ and <code>operator._PF_COIL_AMC</code> — kept equal only by a test.</p>
         <td>No production caller; <code>maxwell_mutual</code> is a pure test
         oracle</td></tr>
       <tr><td><code>MastZarrGeometryReader</code></td><td>—</td><td>TEST-ONLY
-        (passthrough)</td>
-        <td>Only the byte-identity test constructs it</td></tr>
+        (passthrough) — <strong>KEPT</strong></td>
+        <td>Only the byte-identity test constructs it, and that still holds. But this is
+        a count of constructions, not of reach: the <code>efm</code> read it fronts
+        <em>is</em> the live path, entered by every product caller through
+        <code>build_table_for_shot</code>. Reading the count as "dead" is the mislabel
+        <code>db0545d</code> corrected in the figure — not a retirement candidate</td></tr>
       <tr><td><code>imas_geometry.ImasGeometryReader</code></td><td>442</td>
-        <td>UNWIRED / experimental</td>
+        <td>UNWIRED / experimental → <strong>RETIRED <code>ae728ad</code></strong></td>
         <td>No <code>imas_ambix/</code> or <code>scripts/</code> caller;
-        <code>classify_circuits</code> is hardcoded MAST so its tables cannot be
-        classified downstream yet</td></tr>
+        <code>classify_circuits</code> is hardcoded MAST so its tables could not be
+        classified downstream. Superseded by <code>gs/artifact_geometry.py</code>, which
+        reads the same IDSs from a published, content-addressed set whose manifest states
+        the machine identity and a per-field evidence ledger. The
+        <code>classify_circuits</code> gap it exposed is unchanged and is recorded in the
+        surviving reader's docstring</td></tr>
       <tr><td><code>latent/boundary_moment.py</code></td><td>424</td>
         <td>SUPERSEDED read; basis reused</td>
         <td><code>boundary_disc.py:2-5</code> names it replaced; only the moment
@@ -242,20 +288,30 @@ small, high-value correctness fix independent of any reorg.</p>
 <p>Ordered by risk. Tiers 0/1/4 are safe and mechanical; Tier 2 is the real
 design the user is after; Tier 3 needs physics judgement.</p>
 
-<h3 id="t0">Tier 0 — Dead-code removal (zero-risk)</h3>
+<h3 id="t0">Tier 0 — Dead-code removal (zero-risk) — <em>largely LANDED at
+<code>ae728ad</code></em></h3>
 <ul>
-  <li>Retire <code>elliptic.py</code> (or reduce it to the single
+  <li><strong>DONE.</strong> Retire <code>elliptic.py</code> (or reduce it to the single
     <code>cylinder._ellipp</code> definition it duplicates) — it is unused in
-    production and <code>polygon_greens</code> needs no incomplete Π.</li>
-  <li>Retire or wire <code>q1_detect.py</code> (870 LOC test-only) and
-    <code>patch_observation.py</code> (280 LOC orphan) after confirming intent.</li>
-  <li>Keep <code>filaments3d</code>'s <code>maxwell_mutual</code> as a labelled
-    test oracle; drop or fold the unused rdp/decimate if the EFCC path never
+    production and <code>polygon_greens</code> needs no incomplete Π.
+    <em>Deleted outright; <code>cylinder._ellipp</code> is now the tree's only Π.</em></li>
+  <li><strong>PARTLY DONE.</strong> Retire or wire <code>q1_detect.py</code> (870 LOC
+    test-only) and <code>patch_observation.py</code> (280 LOC orphan) after confirming
+    intent. <em><code>q1_detect.py</code> retired with its six tests;
+    <code>patch_observation.py</code> is still present and still an orphan — the live
+    patch path remains <code>structure_residual.py</code> + <code>patch_inverse.py</code>,
+    so this one is the remaining Tier 0 item.</em></li>
+  <li><strong>OPEN.</strong> Keep <code>filaments3d</code>'s <code>maxwell_mutual</code> as
+    a labelled test oracle; drop or fold the unused rdp/decimate if the EFCC path never
     defeatures.</li>
-  <li>Decide the fate of the unwired cross-machine reader seam
+  <li><strong>DONE.</strong> Decide the fate of the unwired cross-machine reader seam
     (<code>MastZarrGeometryReader</code>, <code>ImasGeometryReader</code>): keep
     as a forward-looking protocol (documented) or remove until the IMAS bridge
-    lands.</li>
+    lands. <em>Decided both ways, per reader: <code>ImasGeometryReader</code> removed
+    because the published-artifact reader supersedes it;
+    <code>MastZarrGeometryReader</code> kept, because the read it fronts is the live
+    <code>efm</code> path. The seam itself is retained as the documented protocol with two
+    implementations.</em></li>
 </ul>
 
 <h3 id="t1">Tier 1 — Mechanical de-duplication (byte-identical copies)</h3>
@@ -314,6 +370,10 @@ future step — no code moved here). Recommended sequencing when that plan is
 authored: Tier 0 + Tier 4 first (safe, immediate clarity + a real correctness
 fix), then Tier 1 (mechanical, test-guarded), then Tier 2 (the generator, the
 bulk of the value), and Tier 3 last (physics judgement, largest blast radius).
+<strong>Tier 0 is now largely spent</strong> (<code>ae728ad</code>; the orphan
+<code>patch_observation.py</code> and the <code>filaments3d</code> helpers are what
+remain of it), so the next unspent safe step is <strong>Tier 4</strong> — the cache-key
+hardening, which is the only correctness fix in the list.
 Every tier is gated by the existing <code>gs</code> + <code>latent</code> suites
 and, for anything touching solver inputs, a spine sanity check. The load-bearing
 invariants of §2 are the acceptance guard: the reorg is correct only if the
