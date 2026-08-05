@@ -24,7 +24,13 @@ from pydantic import BaseModel, Field
 #: 1.4 added ``magnetics_residual_whitened_rms`` — the sensor-space field/flux
 #: misfit of the converged equilibrium, the first metric that scores the
 #: reconstruction against the measurement rather than against another solve.
-SCHEMA_VERSION = "spine-bench/1.4"
+#: 1.5 added ``geometry_source`` + ``geometry_provenance``: which description of
+#: the machine supplied the geometry, and its identity.  The sensor-space misfit
+#: moves when the machine behind the Green's functions moves, so two stamps that
+#: differ only in geometry source are measuring different things — and before
+#: this field the only trace of that was the signature string, which a reader had
+#: to recognise.  A run now states its source rather than being identified by it.
+SCHEMA_VERSION = "spine-bench/1.5"
 
 
 class Metric(BaseModel):
@@ -336,6 +342,30 @@ class SpineBenchmarkStamp(BaseModel):
     )
     complete_run_wall_s: float = 0.0  # end-to-end wall of the whole benchmark run
     peak_rss_gb: float = 0.0  # peak process RSS over the run (ru_maxrss); run-level
+    #: Which description of the machine supplied the geometry behind the Green's
+    #: functions.  ``'efm-campaign'`` is the campaign's own static arrays (the
+    #: historical default, which is why it is the default here — stamps written
+    #: before this field carry it implicitly); a machine-description artifact
+    #: names itself instead.  Two stamps are only a like-for-like comparison of
+    #: the ENGINE when this agrees; when it differs they measure a change of
+    #: machine description, which is the wider-budget comparison in
+    #: :mod:`imas_ambix.spine_bench.parity`.
+    geometry_source: str = "efm-campaign"
+    #: Which REVISION of that source, when the source is revised independently of
+    #: the engine.  This is the ONLY field that separates two republications of one
+    #: machine description: the setup signature hashes conductor positions, sensor
+    #: positions and the limiter, so a republication that restates a TURN COUNT
+    #: moves the forward model — and therefore the sensor-space misfit — while
+    #: leaving the signature, the physical digest and the shot set all unchanged.
+    #: A stamp identified only by its signature is ambiguous across such revisions.
+    #: Empty when the source has no revision of its own.
+    geometry_revision: str = ""
+    #: The identity of that description — for an artifact, the digest triple and
+    #: evidence state resolution verified before any IDS was opened.  Free-form
+    #: because each source has its own identity; recorded so a stamp can be
+    #: traced back to the exact machine it measured rather than to a cache path
+    #: that may since have been repopulated.
+    geometry_provenance: dict[str, object] = Field(default_factory=dict)
     machine: MachineInfo
     env: EnvInfo
     shots: list[ShotStamp] = Field(default_factory=list)

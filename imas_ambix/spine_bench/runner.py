@@ -3,6 +3,13 @@
 Reuses the VALIDATED grid-free gate solve path (the basin solve + profile
 solve, both substrates) so the benchmark measures exactly the engine the gate
 proved, not a parallel re-derivation.
+
+The machine geometry enters through a named :class:`GeometrySource`, so which
+description of the machine a run measured is an argument to the run and a field
+on its stamp rather than something a reader has to infer from a signature
+string.  :class:`CampaignGeometrySource` is the default and reads the campaign's
+own efm arrays; :mod:`imas_ambix.spine_bench.machine_artifact_arm` reads a
+published machine description instead.
 """
 
 from __future__ import annotations
@@ -10,7 +17,9 @@ from __future__ import annotations
 import platform
 import socket
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Protocol
 
 import numpy as np
 
@@ -189,6 +198,62 @@ def _median(xs: list[float]) -> float:
     return float(np.median(xs)) if xs else float("nan")
 
 
+# --- where the machine comes from -------------------------------------------
+
+
+class GeometrySource(Protocol):
+    """One description of the machine, ready to hand the runner a table per shot.
+
+    Every geometry-dependent quantity the benchmark reports — the coil Green's
+    columns, the sensor positions and orientations, the limiter contour — reaches
+    the solve through this table, so the source IS the machine under measurement.
+    :attr:`label` names it on the stamp and :meth:`provenance` records the
+    identity that lets a later reader tell two runs apart, both of which matter
+    because ``magnetics_residual_whitened_rms`` moves when the description moves
+    with no error present anywhere.
+    """
+
+    label: str
+
+    #: The revision of this source, when it is revised independently of the
+    #: engine.  Empty for a source that has none.
+    revision: str
+
+    def table_for(self, shot: int) -> Any | None:
+        """Return the geometry table for ``shot``; ``None`` drops the shot."""
+
+    def provenance(self) -> dict[str, Any]:
+        """Return the identity of the description being read."""
+
+
+@dataclass(frozen=True)
+class CampaignGeometrySource:
+    """The campaign's own static efm arrays — the historical benchmark geometry.
+
+    Delegates to the held-out gate's per-campaign table cache rather than
+    building a table directly, so the benchmark and the gate read the machine
+    through one code path and a campaign's passive structure is resolved from
+    the same representative shot in both.
+    """
+
+    label: str = "efm-campaign"
+    #: The campaign arrays are versioned with the shot data, not separately from
+    #: the engine, so this source has no revision of its own to record.
+    revision: str = ""
+
+    def table_for(self, shot: int) -> Any | None:
+        from scripts.heldout_mse_gate_eval import _campaign_table  # noqa: PLC0415
+
+        return _campaign_table(shot)
+
+    def provenance(self) -> dict[str, Any]:
+        return {
+            "source": self.label,
+            "reader": "imas_ambix.gs.geometry.read_efm_geometry",
+            "identity": "the per-campaign setup signature the table carries",
+        }
+
+
 # --- the benchmark ----------------------------------------------------------
 
 
@@ -199,6 +264,7 @@ def run_stamp(
     sigma: float = 0.02,
     shots=None,
     topology_reads: tuple[str, ...] = ("hard",),
+    geometry_source: GeometrySource | None = None,
 ) -> SpineBenchmarkStamp:
     """Solve the frozen shot set under both substrates and assemble the stamp.
 
@@ -210,6 +276,12 @@ def run_stamp(
     ``shots`` overrides the frozen set. The stamp is then labelled by
     :func:`resolve_shotset_version`, so an override cannot be written under the
     frozen metric's name.
+
+    ``geometry_source`` selects which description of the machine is measured,
+    defaulting to :class:`CampaignGeometrySource`.  Its label and provenance go
+    onto the stamp, and the per-shot ``campaign_signature`` is read off the table
+    the source actually returned, so a run states the geometry it measured
+    instead of inheriting the campaign's name for it.
     """
     from imas_ambix.latent.boundary_disc import disc_read
     from imas_ambix.latent.gs_solve import (
@@ -217,10 +289,13 @@ def run_stamp(
         SUBSTRATE_GRID,
         EquilibriumGrid,
     )
-    from scripts.heldout_mse_gate_eval import _campaign_table, shot_bt0
+    from scripts.heldout_mse_gate_eval import shot_bt0
     from scripts.position_controlled_solve_gate import _disc_seed_flat
     from scripts.spine_label_factory import factory_shot_payloads, frozen_spine_config
 
+    source = (
+        geometry_source if geometry_source is not None else CampaignGeometrySource()
+    )
     shotset = shots if shots is not None else FROZEN_SHOTSET
     shotset_version = resolve_shotset_version(shots)
     spine, spine_sha = frozen_spine_config()
@@ -258,7 +333,7 @@ def run_stamp(
     stamps: list[ShotStamp] = []
     for bs in shotset:
         shot = int(bs.shot_id)
-        table = _campaign_table(shot)
+        table = source.table_for(shot)
         if table is None:
             continue
         payload = factory_shot_payloads(
@@ -512,6 +587,9 @@ def run_stamp(
         created_utc=created_utc,
         complete_run_wall_s=round(time.perf_counter() - run_t0, 2),
         peak_rss_gb=peak_rss_gb,
+        geometry_source=source.label,
+        geometry_revision=source.revision,
+        geometry_provenance=source.provenance(),
         machine=_machine_info(),
         env=env,
         shots=stamps,
@@ -550,16 +628,40 @@ def run_stamp(
     )
 
 
+#: Characters of a source revision kept in a stamp's filename.  The full value
+#: is recorded in the stamp; this is only what makes two revisions' files
+#: distinguishable at a glance.
+_REVISION_TAG_CHARS = 12
+
+
 def write_yaml(stamp: SpineBenchmarkStamp, out_dir: Path) -> Path:
-    """Persist the stamp as YAML keyed by commit + machine."""
+    """Persist the stamp as YAML keyed by commit + machine + geometry source.
+
+    The geometry source and its revision join the key because one engine revision
+    can be stamped against several descriptions of the machine, and those runs are
+    not interchangeable — they differ in the sensor-space misfit by design.  Keyed
+    on commit and host alone, the second such run would silently overwrite the
+    first, and the setup signature cannot be relied on to separate them: it hashes
+    positions and the limiter, so two revisions that restate a turn count carry the
+    same signature while predicting different fields.  The campaign source
+    contributes no suffix, which keeps the
+    historical series of filenames — the ones the parity module names as its
+    before-path and reference — continuous.
+    """
     import yaml
 
     out_dir.mkdir(parents=True, exist_ok=True)
     commit = stamp.env.git_commit[:10]
     host = stamp.machine.hostname.split(".")[0]
     dirty = "-dirty" if stamp.env.git_dirty else ""
+    source = stamp.geometry_source
+    suffix = "" if source == CampaignGeometrySource.label else f"-{source}"
+    if suffix and stamp.geometry_revision:
+        tag = stamp.geometry_revision.rsplit(":", 1)[-1][:_REVISION_TAG_CHARS]
+        suffix = f"{suffix}-{tag}"
     path = (
-        out_dir / f"physics-spine-{stamp.shotset_version}-{commit}{dirty}-{host}.yaml"
+        out_dir
+        / f"physics-spine-{stamp.shotset_version}-{commit}{dirty}-{host}{suffix}.yaml"
     )
     path.write_text(yaml.safe_dump(stamp.model_dump(), sort_keys=False, width=100))
     return path

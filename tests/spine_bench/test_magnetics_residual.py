@@ -25,8 +25,13 @@ def test_the_metric_is_registered_with_a_unit_and_a_direction():
 
 
 def test_the_schema_version_moved_with_the_registry():
-    """A metric may not appear without a version bump: 1.3 stamps lack it."""
-    assert SCHEMA_VERSION == "spine-bench/1.4"
+    """Neither a metric nor a record field may appear without a version bump.
+
+    Pinned to the literal so a bump is a deliberate edit rather than a side
+    effect: 1.3 stamps lack this metric, and 1.4 stamps lack the geometry-source
+    fields that say which description of the machine a run measured.
+    """
+    assert SCHEMA_VERSION == "spine-bench/1.5"
 
 
 # --- the measurement ---------------------------------------------------------
@@ -171,7 +176,13 @@ def test_the_banked_before_path_clears_every_registered_tolerance():
     path = Path("imas_ambix/spine_bench/results") / parity.BEFORE_PATH_STAMP
     stamp = SpineBenchmarkStamp(**yaml.safe_load(path.read_text()))
 
-    assert stamp.schema_version == SCHEMA_VERSION
+    # What qualifies this stamp as the before-path is that it MEASURES the misfit
+    # on both gated arms, which is the guarantee its schema carries.  Asserted on
+    # the metric rather than on the current schema version, because a later bump
+    # for an unrelated field does not stop a banked stamp measuring what it
+    # measured -- pinning the version would demand a re-run for every bump.
+    for arm in parity.GATED_ARMS:
+        assert METRIC in stamp.aggregate[arm]
     assert not stamp.env.git_dirty
     report = parity.evaluate(stamp)
     assert report.ok, report.describe()
