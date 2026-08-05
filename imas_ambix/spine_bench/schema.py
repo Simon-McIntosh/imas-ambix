@@ -30,7 +30,16 @@ from pydantic import BaseModel, Field
 #: differ only in geometry source are measuring different things — and before
 #: this field the only trace of that was the signature string, which a reader had
 #: to recognise.  A run now states its source rather than being identified by it.
-SCHEMA_VERSION = "spine-bench/1.5"
+#: 1.6 added ``measurement_read``: the acquisition range setting divided out of
+#: each magnetics channel before the misfit was formed.  This is a MEASUREMENT
+#: DISCONTINUITY rather than a new field beside an unchanged number — nineteen
+#: probe channels were recorded at more than one setting, so 1.5 and earlier
+#: stamps score the equilibrium against amplitudes that step by up to a factor of
+#: two across the frozen set.  A 1.5 residual and a 1.6 residual are therefore
+#: not comparable in either direction, which is what this bump exists to say.
+#: Both arms were re-baselined together at one commit, so the comparison BETWEEN
+#: arms — which is what the closure criterion reads — survives the discontinuity.
+SCHEMA_VERSION = "spine-bench/1.6"
 
 
 class Metric(BaseModel):
@@ -238,7 +247,10 @@ METRICS: dict[str, Metric] = {
             "measured magnetics channels, where pred = the known-coil vacuum "
             "prediction + the cell-to-sensor Green's matvec of the converged "
             "plasma cell currents (jphi over in-limiter cells x cell area), "
-            "meas = the raw amb magnetics, and scale = the per-channel robust "
+            "meas = the amb magnetics with each channel's acquisition range "
+            "setting divided out (schema 1.6; earlier stamps scored the recorded "
+            "amplitudes, which step by up to a factor of two across the frozen "
+            "set on nineteen channels), and scale = the per-channel robust "
             "signal scale that puts flux loops [Wb] and B-probes [T] into one "
             "dimensionless population. Every other physics metric compares one "
             "solve against another solve; this one compares the reconstruction "
@@ -366,6 +378,14 @@ class SpineBenchmarkStamp(BaseModel):
     #: traced back to the exact machine it measured rather than to a cache path
     #: that may since have been repopulated.
     geometry_provenance: dict[str, object] = Field(default_factory=dict)
+    #: What the measurement read did to the magnetics channels before the misfit
+    #: was formed: which acquisition range settings were divided out, on which
+    #: shots, and what warranted each one.  The geometry fields above say which
+    #: machine was predicted; this says which measurement it was scored against,
+    #: and the two together are what make a residual reproducible.  Empty for a
+    #: run that read the archive exactly as published — which every stamp before
+    #: schema 1.6 did, and none of them could say so.
+    measurement_read: dict[str, object] = Field(default_factory=dict)
     machine: MachineInfo
     env: EnvInfo
     shots: list[ShotStamp] = Field(default_factory=list)

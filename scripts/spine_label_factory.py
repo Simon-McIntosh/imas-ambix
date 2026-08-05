@@ -144,6 +144,10 @@ def factory_shot_payloads(
         "channels": channels,
         "sensor_geometry": (sr, sz, sang, is_flux),
         "campaign": table.signature.key,
+        # one warrant per operator sensor channel for the acquisition setting the
+        # measured amplitudes were referred to, so a consumer scoring against
+        # them records what the read did instead of assuming it
+        "scale_corrections": w.scale_corrections,
     }
 
 

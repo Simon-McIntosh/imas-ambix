@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 
-from imas_ambix.spine_bench.runner import _magnetics_residual
+from imas_ambix.spine_bench.runner import _magnetics_residual, _measurement_read
 from imas_ambix.spine_bench.schema import METRICS, SCHEMA_VERSION
 
 METRIC = "magnetics_residual_whitened_rms"
@@ -28,10 +28,61 @@ def test_the_schema_version_moved_with_the_registry():
     """Neither a metric nor a record field may appear without a version bump.
 
     Pinned to the literal so a bump is a deliberate edit rather than a side
-    effect: 1.3 stamps lack this metric, and 1.4 stamps lack the geometry-source
-    fields that say which description of the machine a run measured.
+    effect: 1.3 stamps lack this metric, 1.4 stamps lack the geometry-source
+    fields that say which description of the machine a run measured, and 1.5
+    stamps scored the recorded amplitudes rather than amplitudes referred to one
+    acquisition range setting — the last of those changes what the number MEANS,
+    so a 1.5 residual and a 1.6 residual are not comparable in either direction.
     """
-    assert SCHEMA_VERSION == "spine-bench/1.5"
+    assert SCHEMA_VERSION == "spine-bench/1.6"
+
+
+def test_the_metric_says_the_measurement_is_range_normalised():
+    """A description still claiming 'raw' would misread every stamp from here on."""
+    assert "acquisition range setting divided out" in METRICS[METRIC].description
+
+
+# --- what the measurement was read at ----------------------------------------
+
+
+@dataclass
+class _Warrant:
+    """The shape of one nova ``ScaleCorrection`` the summary reads."""
+
+    channel: str
+    scale: float
+    disposition: str
+    applied: bool
+
+
+def test_a_stamp_records_the_settings_its_measurement_was_read_at():
+    """Without this a residual names the geometry it predicted but not the
+    measurement it was scored against, and the two are equally free to move."""
+    read = _measurement_read(
+        {
+            17000: (
+                _Warrant("obv04", 2.0, "measured", True),
+                _Warrant("obr01", 1.0, "measured", True),
+            ),
+            18000: (
+                _Warrant("obv04", 1.0, "bracketed", True),
+                _Warrant("obr01", 1.0, "unmeasured", False),
+            ),
+        }
+    )
+
+    assert read["channels_divided"] == ["obv04"]
+    assert read["settings_divided_out"] == {"obv04": {"17000": 2.0}}
+    assert read["warrant_counts"] == {"bracketed": 1, "measured": 2, "unmeasured": 1}
+    assert read["shots_read"] == [17000, 18000]
+
+
+def test_a_setting_measured_to_be_unity_is_not_reported_as_a_correction():
+    """Reporting it would make an untouched channel look like a divided one."""
+    read = _measurement_read({17000: (_Warrant("obr01", 1.0, "measured", True),)})
+
+    assert read["channels_divided"] == []
+    assert read["warrant_counts"] == {"measured": 1}
 
 
 # --- the measurement ---------------------------------------------------------

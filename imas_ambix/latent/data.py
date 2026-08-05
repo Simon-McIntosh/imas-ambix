@@ -7,7 +7,10 @@ Turns MAST level-1 shots into the aligned per-slice arrays the engine needs:
 * **raw magnetics** — the ``amb`` flux-loop [Wb] / B-probe [T] channels aligned
   BY NAME to a campaign :class:`~imas_ambix.gs.operator.ForwardOperator`'s
   ``sensor_channels`` (the GS observation targets), with a per-sensor mask for
-  channels the operator predicts but the shot does not carry;
+  channels the operator predicts but the shot does not carry, and with each
+  channel referred to one acquisition range setting
+  (:func:`divide_out_acquisition_scale`) so an amplitude means the same thing on
+  every shot;
 * **known PF currents ``i_pf``** — the ``amc`` coil channels assembled to
   amperes via :meth:`ForwardOperator.assemble_pf_currents`;
 * **anchored raw scalars** — Ip (Rogowski) + line-averaged density n_e;
@@ -105,13 +108,17 @@ class ShotWindows:
     shot_id: int
     campaign: str
     features_raw: np.ndarray  # (T, n_feat) raw SI input features
-    raw_mag: np.ndarray  # (T, S) raw magnetics on operator rows (NaN if unmeasured)
+    raw_mag: np.ndarray  # (T, S) magnetics on operator rows (NaN if unmeasured),
+    # with each channel's acquisition range setting divided out
     mag_mask: np.ndarray  # (T, S) bool — operator sensor is measured this shot
     i_pf: np.ndarray  # (T, C) KNOWN PF-coil currents [A]
     anchored: np.ndarray  # (T, n_anchored) raw scalars [Ip(kA), n_e(m^-2)]
     times: np.ndarray  # (T,) seconds (shared 1 kHz grid)
     ref_target: np.ndarray | None = None  # (T, 14) firewalled EFIT geometry (eval)
     ref_mask: np.ndarray | None = None  # (T, 14) bool
+    #: One warrant per operator sensor channel for the setting ``raw_mag`` was
+    #: divided by — what the read did and what justified it.
+    scale_corrections: tuple = ()
 
 
 # --- anchored raw scalars (resolved BY NAME from the schema, never by index:
@@ -209,6 +216,53 @@ def load_shot_slices_raw(
     return x, times, plasma_on
 
 
+def divide_out_acquisition_scale(
+    values: np.ndarray,
+    sensor_channels: list[str],
+    shot: int,
+    *,
+    table=None,
+) -> tuple[np.ndarray, tuple]:
+    """Refer every channel's amplitude to one acquisition range setting.
+
+    Nineteen MAST probe channels were not recorded at a single setting: each sits
+    at one range for a run of shots, steps by a rung of a binary ladder, holds,
+    and steps back.  A channel like that means a different number of tesla per
+    stored unit depending on which shot is being read, so a forward model that
+    predicts the field correctly still misses the recorded value by the rung —
+    and a misfit metric charges that arithmetic to the description.  Dividing the
+    rung out here refers every shot to the same setting, which is what makes a
+    residual over a mixed set of shots a statement about the machine.
+
+    ``table`` supplies the settings; the promoted table nova carries is the
+    default, and an empty :class:`~nova.imas.mast_block_scale.BlockScaleTable`
+    reads the archive exactly as published.  A channel is divided only where a
+    measurement warrants it: a block whose step is not a ladder rung is refused
+    rather than rounded onto one, and a shot falling in the gap between two
+    blocks is left alone because the switch could be on either side of it.  So an
+    unchanged column is not evidence of a unit setting — the returned warrants
+    are, one per channel, and they are what a consumer records.
+
+    Only the measurement is corrected.  The encoder's feature block carries the
+    same channels at the amplitudes its corpus statistics and checkpoints were
+    fitted on, so moving those is a retraining decision rather than a read one.
+    """
+    if table is None:
+        from nova.imas.mast_block_scale import (  # noqa: PLC0415
+            promoted_block_scales,
+        )
+
+        table = promoted_block_scales()
+    corrected = np.array(values, dtype=np.float64)
+    warrants = table.corrections(int(shot), sensor_channels)
+    by_channel = {row.channel: row for row in warrants}
+    for column, channel in enumerate(sensor_channels):
+        warrant = by_channel.get(channel)
+        if warrant is not None and warrant.applied:
+            corrected[:, column] = warrant.normalise(corrected[:, column])
+    return corrected, tuple(by_channel[channel] for channel in sensor_channels)
+
+
 def load_shot_windows(
     shot_id: int,
     operator,  # ForwardOperator for the shot's campaign
@@ -232,6 +286,10 @@ def load_shot_windows(
 
     ``mag_mask`` is derived from the pre-fill raw array, so a sensor absent on
     this shot is honestly masked out of the GS residual (never imputed).
+
+    ``raw_mag`` comes back with each channel's acquisition range setting divided
+    out and one warrant per channel in ``scale_corrections``; a channel with no
+    measured setting is unchanged and says so through its warrant.
     """
     del target_channels  # kept in the signature for call-site compatibility
     loaded = load_shot_slices_raw(
@@ -259,6 +317,9 @@ def load_shot_windows(
     if op_rows.size:
         raw_mag[:, op_rows] = x[:, offsets["amb"] + x_cols]
         mag_mask[:, op_rows] = np.isfinite(raw_mag[:, op_rows])
+    raw_mag, scale_corrections = divide_out_acquisition_scale(
+        raw_mag, list(operator.sensor_channels), int(shot_id)
+    )
 
     # i_pf per slice via the operator's amc assembly (kA·turn → A inside);
     # a NaN coil current contributes zero (assemble_pf_currents skips missing).
@@ -291,6 +352,7 @@ def load_shot_windows(
         times=times,
         ref_target=ref_target,
         ref_mask=ref_mask,
+        scale_corrections=scale_corrections,
     )
 
 

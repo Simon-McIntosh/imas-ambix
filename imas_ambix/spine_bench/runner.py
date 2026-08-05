@@ -193,6 +193,37 @@ def _magnetics_residual(fit, grid, table, payload) -> float:
     return float(np.sqrt(np.mean(resid * resid)))
 
 
+def _measurement_read(warrants_by_shot: dict[int, tuple]) -> dict[str, Any]:
+    """State which acquisition range settings the scored measurement was read at.
+
+    The residual is a comparison, so it is reproducible only if both sides are
+    recorded.  ``geometry_provenance`` pins the predicted side; this pins the
+    measured one, because a channel recorded at two settings across the frozen
+    set scores one equilibrium against amplitudes a factor apart.
+
+    Reports the settings actually divided out, per channel and shot, and counts
+    every channel-read by the warrant it carried — a refusal and an unmeasured
+    gap both leave an amplitude alone, and a reader must be able to tell either
+    from a setting measured to be unity.
+    """
+    divided: dict[str, dict[str, float]] = {}
+    counts: dict[str, int] = {}
+    for shot, warrants in sorted(warrants_by_shot.items()):
+        for warrant in warrants:
+            counts[warrant.disposition] = counts.get(warrant.disposition, 0) + 1
+            if warrant.applied and warrant.scale != 1.0:
+                divided.setdefault(warrant.channel, {})[str(shot)] = float(
+                    warrant.scale
+                )
+    return {
+        "table": "nova.imas.mast_block_scale.promoted_block_scales",
+        "channels_divided": sorted(divided),
+        "settings_divided_out": divided,
+        "warrant_counts": dict(sorted(counts.items())),
+        "shots_read": sorted(warrants_by_shot),
+    }
+
+
 def _median(xs: list[float]) -> float:
     xs = [x for x in xs if x is not None and np.isfinite(x)]
     return float(np.median(xs)) if xs else float("nan")
@@ -331,6 +362,7 @@ def run_stamp(
 
     run_t0 = time.perf_counter()
     stamps: list[ShotStamp] = []
+    warrants_by_shot: dict[int, tuple] = {}
     for bs in shotset:
         shot = int(bs.shot_id)
         table = source.table_for(shot)
@@ -341,6 +373,7 @@ def run_stamp(
         )
         if payload is None:
             continue
+        warrants_by_shot[shot] = tuple(payload.get("scale_corrections", ()))
         grid_gs = payload["grid"]
         tbl, basis = payload["table"], payload["basis"]
         grid_free = EquilibriumGrid.from_table(tbl, nr=65, nz=97)
@@ -590,6 +623,7 @@ def run_stamp(
         geometry_source=source.label,
         geometry_revision=source.revision,
         geometry_provenance=source.provenance(),
+        measurement_read=_measurement_read(warrants_by_shot),
         machine=_machine_info(),
         env=env,
         shots=stamps,
@@ -604,10 +638,12 @@ def run_stamp(
             "Reproduction (axis/lcfs/profile) validates the greens-matvec dev spine "
             "against the grid-delta* baseline check on the same slice (greens row).",
             "magnetics_residual_whitened_rms scores the converged equilibrium "
-            "against the RAW magnetics, which the frozen spine never fits (mask "
-            "OFF), so it is a forward-model check on the machine geometry rather "
-            "than a fit residual; its floor is the static coil / sensor "
-            "calibration misfit.",
+            "against magnetics the frozen spine never fits (mask OFF), so it is a "
+            "forward-model check on the machine geometry rather than a fit "
+            "residual; its floor is the static coil / sensor calibration misfit. "
+            "The channels are read with their acquisition range setting divided "
+            "out (measurement_read records which), so a residual pooled over "
+            "shots is not carrying a range switch.",
             "bench_scope = per-slice STATIC solve (the GPU inner-loop target); the "
             "dynamics-coupled label rollout (diffusion + passive + temporal "
             "warm-start) is a distinct mode to add before the corpus GPU run.",
