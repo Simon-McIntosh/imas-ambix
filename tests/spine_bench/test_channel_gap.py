@@ -8,7 +8,12 @@ no floor measured in its units.
 
 from __future__ import annotations
 
-from imas_ambix.spine_bench.channel_gap import _pooled_floor, summarise_channels
+from imas_ambix.spine_bench.channel_gap import (
+    _median_of_shot_medians,
+    _pooled_floor,
+    _pooled_slice_rms,
+    summarise_channels,
+)
 
 
 def test_the_shares_add_to_one_so_the_split_accounts_for_the_whole_misfit():
@@ -53,6 +58,22 @@ def test_a_channel_with_no_measured_floor_reports_none_rather_than_a_number():
     assert rows[0]["gap_over_floor"] is None
     assert rows[0]["noise_floor"] is None
     assert rows[0]["unit"] == "Wb"
+
+
+def test_the_stamp_metric_is_reproduced_by_medians_of_shot_medians():
+    """The stamp takes a median per shot and then a median over shots, so a single
+    pooled median over every slice is a DIFFERENT number and would look like a
+    disagreement with the gate rather than a different average of the same data."""
+    per_shot = {21978: [1.0, 2.0, 9.0], 21983: [3.0, 4.0]}
+
+    assert _median_of_shot_medians(per_shot) == 2.75
+    assert _pooled_slice_rms(per_shot) == 3.0
+
+
+def test_no_scored_slice_reports_not_a_number_rather_than_zero():
+    """Zero would read as a perfect fit."""
+    assert _median_of_shot_medians({}) != _median_of_shot_medians({})
+    assert _pooled_slice_rms({}) != _pooled_slice_rms({})
 
 
 def test_the_pooled_floor_is_the_quadratic_mean_of_the_channel_floors():

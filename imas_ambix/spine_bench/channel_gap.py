@@ -143,7 +143,7 @@ def channel_residuals(source, *, max_slices: int = 6, sigma: float = 0.02) -> di
 
     whitened: dict[str, list[float]] = {}
     physical: dict[str, list[float]] = {}
-    slice_rms: list[float] = []
+    slice_rms: dict[int, list[float]] = {}
     warrants_by_shot: dict[int, tuple] = {}
     n_slices = 0
     for bench_shot in FROZEN_SHOTSET:
@@ -218,7 +218,9 @@ def channel_residuals(source, *, max_slices: int = 6, sigma: float = 0.02) -> di
                 continue
             n_slices += 1
             gap = pred - meas
-            slice_rms.append(float(np.sqrt(np.mean((gap[ok] / scale[ok]) ** 2))))
+            slice_rms.setdefault(shot, []).append(
+                float(np.sqrt(np.mean((gap[ok] / scale[ok]) ** 2)))
+            )
             for column in np.flatnonzero(ok):
                 channel = channels[int(column)]
                 whitened.setdefault(channel, []).append(
@@ -241,12 +243,35 @@ def channel_residuals(source, *, max_slices: int = 6, sigma: float = 0.02) -> di
         "geometry_provenance": source.provenance(),
         "measurement_read": _read_record(warrants_by_shot),
         "n_slices_scored": n_slices,
-        # the metric the stamp reports, recomputed here as a cross-check that
-        # this decomposition ran on the same equilibria
-        "median_slice_rms": float(np.median(slice_rms)) if slice_rms else float("nan"),
+        # the stamp's own metric, reproduced by its own aggregation: median over
+        # shots of the median over that shot's slices.  This must equal the
+        # stamp's aggregate, and it is the only check that this decomposition
+        # scored the same equilibria the gate scored.
+        "stamp_metric_reproduced": _median_of_shot_medians(slice_rms),
+        "per_shot_median_slice_rms": {
+            str(shot): float(np.median(values))
+            for shot, values in sorted(slice_rms.items())
+        },
+        # the same residuals pooled over every slice at once.  It sits above the
+        # metric because the per-slice distribution is right-skewed, which is
+        # exactly why the metric takes medians -- recorded so the two are never
+        # mistaken for each other.
+        "pooled_slice_rms": _pooled_slice_rms(slice_rms),
         "pooled_noise_floor_t": _pooled_floor(floors),
         "channels": rows,
     }
+
+
+def _median_of_shot_medians(slice_rms: dict[int, list[float]]) -> float:
+    """Aggregate per-slice residuals the way the stamp's metric aggregates them."""
+    per_shot = [float(np.median(values)) for values in slice_rms.values() if values]
+    return float(np.median(per_shot)) if per_shot else float("nan")
+
+
+def _pooled_slice_rms(slice_rms: dict[int, list[float]]) -> float:
+    """Median over every scored slice at once, ignoring which shot it came from."""
+    flat = [value for values in slice_rms.values() for value in values]
+    return float(np.median(flat)) if flat else float("nan")
 
 
 def _read_record(warrants_by_shot: dict[int, tuple]) -> dict[str, Any]:
@@ -311,7 +336,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     path.write_text(json.dumps(record, indent=1, sort_keys=False) + "\n")
     top = record["channels"][:6]
-    logger.info("median slice rms: %.7f", record["median_slice_rms"])
+    logger.info(
+        "stamp metric %.7f  (pooled %.7f)",
+        record["stamp_metric_reproduced"],
+        record["pooled_slice_rms"],
+    )
     for row in top:
         logger.info(
             "%-8s share %5.1f%%  rms %.4g %s  floor %s  ratio %s",
