@@ -7,7 +7,7 @@
   <meta name="reckon-type" content="plan">
   <meta name="plan-slug" content="cocos-convention-hardening">
   <meta name="plan-title" content="COCOS Convention Hardening — pin the working sign convention and build one fail-loud normalisation boundary at the IMAS seam">
-  <meta name="plan-summary" content="The MAST-only equilibrium pipeline is sign-SOUND and empirically verified (forward PF chain correlates 0.83-0.87 with raw magnetics, LS slope 0.86-0.99 on a real vacuum slice), so no current work is blocked. But the one real convention mismatch — MAST EFIT is COCOS-3-like (axis = flux MAXIMUM for Ip&gt;0), while IMAS is COCOS-11 (axis = flux minimum) — is a LATENT hazard that goes live the moment MAST (or any machine) is ingested through the IMAS readers, whose poloidal-angle assumption (imas_geometry.py:74) is currently unverified. This plan declares and pins the pipeline&#x27;s working COCOS with a regression test, verifies the IMAS magnetics-angle assumption against a real COCOS-11 IDS, builds ONE fail-loud COCOS-normalisation boundary in the IMAS readers (never a silent auto-convert), and adds a cross-convention self-consistency gate. It is a North-Star prerequisite for the machine-agnostic world model, not a current blocker.">0), while IMAS is COCOS-11 (axis = flux minimum) — is a LATENT hazard that goes live the moment MAST (or any machine) is ingested through the IMAS readers, whose poloidal-angle assumption (imas_geometry.py:74) is currently unverified. This plan declares and pins the pipeline's working COCOS with a regression test, verifies the IMAS magnetics-angle assumption against a real COCOS-11 IDS, builds ONE fail-loud COCOS-normalisation boundary in the IMAS readers (never a silent auto-convert), and adds a cross-convention self-consistency gate. It is a North-Star prerequisite for the machine-agnostic world model, not a current blocker.">
+  <meta name="plan-summary" content="The MAST-only equilibrium pipeline is sign-SOUND and empirically verified (forward PF chain correlates 0.83-0.87 with raw magnetics, LS slope 0.86-0.99 on a real vacuum slice), so no current work is blocked. But the one real convention mismatch — MAST EFIT is COCOS-3-like (axis = flux MAXIMUM for Ip&gt;0), while IMAS is COCOS-11 (axis = flux minimum) — is a LATENT hazard that goes live the moment MAST (or any machine) is ingested through the IMAS readers, whose poloidal-angle assumption (artifact_geometry.read_artifact_magnetics) is currently unverified. This plan declares and pins the pipeline&#x27;s working COCOS with a regression test, verifies the IMAS magnetics-angle assumption against a real COCOS-11 IDS, builds ONE fail-loud COCOS-normalisation boundary in the IMAS readers (never a silent auto-convert), and adds a cross-convention self-consistency gate. It is a North-Star prerequisite for the machine-agnostic world model, not a current blocker.">
   <meta name="plan-status" content="active">
   <meta name="plan-roi" content="mid">
   <meta name="plan-effort" content="M">
@@ -19,8 +19,8 @@
   <title>COCOS Convention Hardening | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-07">
-<meta name="plan-version" content="1">
+<meta name="plan-modified" content="2026-08-05">
+<meta name="plan-version" content="2">
 </head>
 <body>
   <main class="plan-doc">
@@ -53,10 +53,18 @@
       cannot be that selective. The LCFS −6.26 is the representation artifact the
       <a href="/imas-ambix/equilibrium-topology-fidelity.html">equilibrium-topology-fidelity</a> plan
       identifies, addressed there by thread 1, not here.</li>
-      <li><strong>The unverified assumption.</strong> The IMAS magnetics reader
-      (<code>imas_ambix/gs/imas_geometry.py:74</code>) <em>assumes</em>
-      <code>b_field_pol_probe.poloidal_angle</code> follows MAST's <code>magpr_ang</code> convention
-      into the same projection — documented, flagged, but never checked against real COCOS-11 data.</li>
+      <li><strong>The unverified assumption.</strong> The IMAS magnetics read
+      (<code>read_artifact_magnetics</code>, <code>imas_ambix/gs/artifact_geometry.py:602</code>)
+      <em>assumes</em> <code>b_field_pol_probe.poloidal_angle</code> follows MAST's
+      <code>magpr_ang</code> convention into the same projection: it converts the stored radians to
+      degrees and hands the result to <code>sensor_position_arrays</code> under the
+      <code>magpr_ang</code> key, so the two conventions are equated by the array name alone and
+      never checked against real COCOS-11 data. The assumption previously lived in the loose-IDS
+      reader, whose module docstring stated it explicitly as flagged-but-unverified; that reader was
+      retired in <code>ae728ad</code> when the published-artifact reader superseded it, and the
+      written caveat went with it. The surviving reader documents its drop-if-absent rule but not the
+      convention equivalence, so the assumption is now unverified <em>and</em> unwritten — this plan
+      is the only place it is recorded.</li>
     </ul>
 
     <figure>
@@ -80,15 +88,26 @@
     silent sign regression a red test, not a slow-burning skill drop.</p>
 
     <h2 id="s3">§3 — Verify the IMAS poloidal-angle assumption against a real COCOS-11 IDS</h2>
-    <p>Resolve <code>imas_geometry.py:74</code>: obtain (or synthesise from the MAST geometry) a
-    COCOS-11 <code>magnetics</code> IDS, read <code>b_field_pol_probe.poloidal_angle</code> through the
-    IMAS reader, and confirm the resulting probe projection reproduces the same physical
+    <p><strong>Target moved, concern live.</strong> This section was written against
+    <code>imas_geometry.py:74</code>, a loose-IDS reader retired in <code>ae728ad</code>. The
+    retirement did <em>not</em> moot the concern: it moved. The same equation of
+    <code>b_field_pol_probe.poloidal_angle</code> with MAST's <code>magpr_ang</code> is made by the
+    surviving published-artifact reader at
+    <code>imas_ambix/gs/artifact_geometry.py:602</code>
+    (<code>read_artifact_magnetics</code> → <code>sensor_position_arrays</code>, §1), and that reader
+    is the one the benchmark seam actually reaches — so the assumption now sits on a <em>live</em>
+    path rather than an unwired one.</p>
+    <p>The work is unchanged in substance: obtain (or synthesise from the MAST geometry) a COCOS-11
+    <code>magnetics</code> IDS, read <code>b_field_pol_probe.poloidal_angle</code> through the artifact
+    reader, and confirm the resulting probe projection reproduces the same physical
     <code>B_R cosθ + B_Z sinθ</code> as the MAST <code>magpr_ang</code> path — or measure the exact
-    offset/sign transform needed. Replace the assumption with a checked fact.</p>
+    offset/sign transform needed. Replace the assumption with a checked fact, and restore the written
+    caveat to the surviving reader so the gap is visible from the source and not only from this plan.</p>
 
     <h2 id="s4">§4 — One fail-loud COCOS-normalisation boundary in the IMAS readers</h2>
     <p>Add a single, explicit COCOS-normalisation step at the IMAS ingestion boundary
-    (<code>ImasGeometryReader</code> and any future IMAS signal reader): detect the stored COCOS from
+    (<code>MachineArtifactGeometryReader</code>, <code>artifact_geometry.py:727</code>, and any future
+    IMAS signal reader): detect the stored COCOS from
     the IDS, and normalise into the pipeline's declared working convention (§2) — or
     <strong>raise</strong> if the stored COCOS is unknown / unhandled. Never rely on imas-python's
     silent auto-conversion. This is the machine-agnostic seam: it is what lets MAST, JET, and ITER
@@ -104,10 +123,13 @@
     the model sees the same physics regardless of the ingestion convention.</p>
 
     <h2 id="s6">§6 — Document the abs(Ip) plasma-on detector</h2>
-    <p>Small but real: <code>data.py:205</code> takes <code>abs(ip)</code>. This is a plasma-on
-    detector (thresholding the Rogowski magnitude), not a sign convention — the physics inverse keeps
-    I<sub>p</sub> signed (<code>patch_inverse.py:204,209</code>). Document it in place so it is not
-    mistaken for a sign choice by a future reader.</p>
+    <p>Small but real: <code>load_shot_slices_raw</code> (<code>latent/data.py:212</code>) takes
+    <code>np.abs(ip)</code>. This is a plasma-on detector (thresholding the Rogowski magnitude against
+    a 50 kA floor), not a sign convention — the physics inverse keeps I<sub>p</sub> signed
+    (<code>SlicePayload.ip_amperes</code>, <code>patch_inverse.py:194</code>, consumed with an explicit
+    <code>np.sign(ip_amperes)</code> in <code>negative_current_fraction</code>,
+    <code>patch_inverse.py:79</code>). Document it in place so it is not mistaken for a sign choice by
+    a future reader.</p>
 
     <h2 id="s7">§7 — Relationship to the other plans</h2>
     <p>This plan is <strong>decoupled from</strong> the boundary/interior work of
@@ -134,7 +156,7 @@
 <h2><span class="sec">§</span> Followups</h2>
 <article class="r-fu" data-id="f-cocos-01" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-06" data-recommends-skill="/reckon-ship cocos-convention-hardening §2" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Pin the working COCOS with a sign-regression test (§2), then verify the IMAS poloidal-angle assumption (§3)</h4>
-    <div class="r-fu-body"><p>Start with the zero-risk, high-value rungs: declare the pipeline's working convention as a single checkable fact and lock the verified forward-coherence result as a regression test (§2), then resolve the unverified <code>imas_geometry.py:74</code> poloidal-angle assumption against a real/synthetic COCOS-11 magnetics IDS (§3). §4/§5 (the fail-loud normalisation boundary + cross-convention self-consistency gate) follow once a second-machine ingest is actually wired.</p></div>
+    <div class="r-fu-body"><p>Start with the zero-risk, high-value rungs: declare the pipeline's working convention as a single checkable fact and lock the verified forward-coherence result as a regression test (§2), then resolve the unverified poloidal-angle assumption — now carried by <code>read_artifact_magnetics</code> in <code>imas_ambix/gs/artifact_geometry.py</code>, the loose-IDS reader that originally held it having been retired in <code>ae728ad</code> — against a real/synthetic COCOS-11 magnetics IDS (§3). §4/§5 (the fail-loud normalisation boundary + cross-convention self-consistency gate) follow once a second-machine ingest is actually wired.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    cocos-convention-hardening (http://localhost:8765/imas-ambix/cocos-convention-hardening.html)
 Section: §2 declare + pin working COCOS (regression test); §3 verify IMAS poloidal-angle assumption
@@ -147,11 +169,20 @@ Context
   IMAS seam. The IMAS reader assumes b_field_pol_probe.poloidal_angle == MAST magpr_ang, unverified.
   See docs/mast-imas-cocos-evaluation.html and scripts/mast_cocos_audit.py for the evidence + audit.
 
+  Read the reader before you start: the loose-IDS reader this plan was authored against
+  (gs/imas_geometry.py) was RETIRED in ae728ad. The same poloidal_angle == magpr_ang assumption is now
+  made by the published-artifact reader, which is a LIVE path (the benchmark seam reaches it), and the
+  explicit flagged-but-unverified caveat was lost with the deleted module -- restoring it to the
+  surviving reader is part of this work.
+
 State to read
   scripts/mast_cocos_audit.py                 (the forward-coherence + COCOS-detect audit already built)
   imas_ambix/gs/operator.py                    (greens_psi, B-probe projection, kA.turn-&gt;A, mu0)
-  imas_ambix/gs/imas_geometry.py:74            (the unverified poloidal-angle assumption)
-  imas_ambix/latent/patch_inverse.py:204,209   (signed Ip); imas_ambix/latent/data.py:205 (abs Ip detector)
+  imas_ambix/gs/artifact_geometry.py:602        (read_artifact_magnetics -- the unverified poloidal-angle
+                                               assumption; :648 sensor_position_arrays maps it onto
+                                               magpr_ang; :727 MachineArtifactGeometryReader is the seam §4 hardens)
+  imas_ambix/latent/patch_inverse.py:194,79     (signed Ip: SlicePayload.ip_amperes, negative_current_fraction)
+  imas_ambix/latent/data.py:212                 (abs Ip plasma-on detector in load_shot_slices_raw)
   docs/mast-imas-cocos-evaluation.html         (verdict, convention table, figures)
 
 Scope locks / constraints
@@ -162,8 +193,9 @@ Scope locks / constraints
 Done-when
   1. Working COCOS declared as a single documented fact + a sign-regression test (vacuum-slice
      forward coherence: positive correlation, near-unit LS slope) added and green (§2).
-  2. The imas_geometry.py:74 poloidal-angle assumption verified against a real/synthetic COCOS-11
-     magnetics IDS -- confirmed or the exact transform measured (§3).
+  2. The artifact_geometry.py:602 poloidal-angle assumption verified against a real/synthetic COCOS-11
+     magnetics IDS -- confirmed or the exact transform measured -- and the caveat written back into
+     read_artifact_magnetics so the source states it too (§3).
   3. cocos-normalisation-target decision resolved; plan updated same-turn with the outcome + a figure;
      this followup resolved and the next (§4/§5) queued.</pre>
     </article>
