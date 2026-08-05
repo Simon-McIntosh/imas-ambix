@@ -30,15 +30,16 @@ from pydantic import BaseModel, Field
 #: differ only in geometry source are measuring different things — and before
 #: this field the only trace of that was the signature string, which a reader had
 #: to recognise.  A run now states its source rather than being identified by it.
-#: 1.6 added ``measurement_read``: the acquisition range setting divided out of
-#: each magnetics channel before the misfit was formed.  This is a MEASUREMENT
-#: DISCONTINUITY rather than a new field beside an unchanged number — nineteen
-#: probe channels were recorded at more than one setting, so 1.5 and earlier
-#: stamps score the equilibrium against amplitudes that step by up to a factor of
-#: two across the frozen set.  A 1.5 residual and a 1.6 residual are therefore
-#: not comparable in either direction, which is what this bump exists to say.
-#: Both arms were re-baselined together at one commit, so the comparison BETWEEN
-#: arms — which is what the closure criterion reads — survives the discontinuity.
+#: 1.6 added ``measurement_read``: which acquisition range setting was divided out
+#: of each magnetics channel before the misfit was formed.  Nineteen probe channels
+#: were recorded at more than one setting, so this had to be treated as a possible
+#: break in what the residual MEANS — and both arms were re-stamped together at one
+#: commit to find out.  They came back bit-identical to their 1.5 values: on all
+#: six frozen shots every channel with a measured setting sits in a block recorded
+#: at the reference rung, so the read divides by exactly one.  The frozen residual
+#: is therefore CONTINUOUS across this bump and 1.5 stamps stay directly
+#: comparable.  What changed is that the read now guarantees the amplitude
+#: convention this curated shot set happened to satisfy, and each stamp says so.
 SCHEMA_VERSION = "spine-bench/1.6"
 
 

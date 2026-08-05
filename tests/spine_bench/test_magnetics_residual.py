@@ -30,9 +30,10 @@ def test_the_schema_version_moved_with_the_registry():
     Pinned to the literal so a bump is a deliberate edit rather than a side
     effect: 1.3 stamps lack this metric, 1.4 stamps lack the geometry-source
     fields that say which description of the machine a run measured, and 1.5
-    stamps scored the recorded amplitudes rather than amplitudes referred to one
-    acquisition range setting — the last of those changes what the number MEANS,
-    so a 1.5 residual and a 1.6 residual are not comparable in either direction.
+    stamps do not state which acquisition range setting the scored amplitudes were
+    referred to.  On the frozen set that last one is measurably a no-op -- the
+    re-baselined pair reproduces the 1.5 residuals bit for bit -- so this bump is
+    for the record shape rather than for a moved number.
     """
     assert SCHEMA_VERSION == "spine-bench/1.6"
 
