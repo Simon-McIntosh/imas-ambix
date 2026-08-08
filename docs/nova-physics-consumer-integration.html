@@ -11,7 +11,6 @@
   <meta name="plan-status" content="pending">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
-  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
   <meta name="plan-sprint" content="S17">
   <meta name="plan-owner" content="Simon McIntosh">
@@ -19,9 +18,11 @@
   <title>Nova Physics Consumer Integration | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-29">
-<meta name="plan-version" content="2">
+<meta name="plan-modified" content="2026-08-08">
+<meta name="plan-version" content="3">
 <meta name="plan-depends-on" content="nova:nova-spine-refactor,nova:physics-spine-adoption,nova:mast-nonaxisymmetric-physics">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
   <main class="plan-doc">
@@ -66,7 +67,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-npci-01" data-status="open" data-tier="opus" data-written-by="codex" data-written-at="2026-07-29" data-recommends-skill="/reckon-ship nova-physics-consumer-integration §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-npci-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="codex" data-written-at="2026-07-29" data-recommends-skill="/reckon-ship nova-physics-consumer-integration §2" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Integrate the Nova consumer after the Nova API freeze</h4>
     <div class="r-fu-body"><p>Wait for the Nova convergence and physics-adoption prerequisites. Then implement the pinned dependency, thin adapters, parity harness and staged donor retirement with research-before and evidence-after gates.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -90,6 +91,44 @@ Done-when
   1. Pinned Nova dependency and thin adapters land with CPU/GPU parity evidence
   2. tests still green
   3. followup written + this followup marked resolved</pre>
+    </article>
+<article class="r-fu" data-id="f-npci-02" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-08" data-recommends-skill="/reckon-ship nova-physics-consumer-integration §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Migrate the table-source tranche onto the identity-resolved description</h4>
+    <div class="r-fu-body"><p>The migration ladder's first rung is open: default artifact resolution and physical-identity machine selection landed (imas-ambix c0d5821) with a float-equal 15/15 six-shot gate, and the census counts artifact_geometry importers at 2. The next tranche is measured: 42 table-source files (39 excluding tests), all but three a one-line build_table_for_shot substitution. Three measured blockers govern sequencing: the pinned description carries NaN turns on the P6 pair (require_resolved_turns raises — a nova-side sourcing dependency); the artifact signature (fc70) differs from the campaign signature (fc938) under one physical digest, so every efm-keyed compute cache and checkpoint rebuilds and that cost must be scheduled; circuits.py needs no port — the artifact table declares 21 circuit_drives + 13 active_circuits itself, so migrated consumers bypass it and retirement follows the tranche.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    nova-physics-consumer-integration (http://localhost:8765/imas-ambix/nova-physics-consumer-integration.html)
+Section: §2 — table-source tranche
+Capability: orchestrator
+Requirements: deep reasoning, strict verification
+
+Context
+  Identity-based resolution and machine selection are landed and gated
+  (imas-ambix c0d5821; float-equal six-shot stamp banked). This rung migrates
+  the table-source consumers off read_efm_geometry onto the resolved
+  description, leaf-first, with the frozen six-shot gate run per tranche
+  under the appropriate budget class.
+
+State to read
+  imas_ambix/gs/{artifact_resolution,machine_selection,artifact_geometry}.py
+  ~/.cache/ambix-artifact-wiring/{census_now.txt,tranche.txt} (the measured
+  importer graph and tranche list)
+  nova docs/archive/physics-spine-adoption-artifact-wiring-landed.html
+
+Scope locks / constraints
+  P6 turns are NaN in the pinned description: consumers that scale with turns
+  wait on the nova-side P6 sourcing — do not fake a weight. The fc938-&gt;fc70
+  signature change rebuilds every efm-keyed cache/checkpoint: enumerate the
+  affected stores and schedule the rebuild explicitly before flipping any
+  default. Do not migrate the efm-vs-source consistency script or the two
+  addressing-only files (acquisition facts). circuits.py retires as a
+  consequence of the tranche, with zero-import census proof, never before.
+
+Done-when
+  1. Tranche migrated leaf-first; per-tranche gate recorded; caches rebuilt or
+     scheduled with the cost stated.
+  2. Suites green; census re-run banked; donor retirements carry zero-import
+     proof.
+  3. Followup written for the remaining consumers + this one resolved.</pre>
     </article>
 </section>
   <section data-reckon="research" id="research" class="r-research-list">
