@@ -110,11 +110,11 @@ class ArtifactMachineSelector:
     """Selects machine geometry by physical identity and reads it from a description.
 
     Built once and reused: a description is a statement about a device, not about
-    a campaign, so every shot resolving to one physical identity is handed the
-    same table.  That is not a cache standing in for per-shot work -- there is no
-    per-shot geometry to resolve -- but the registry EVIDENCE state is per-shot,
-    so each selection records the evidence for the shot that asked rather than
-    inheriting whichever shot arrived first.
+    a campaign, so every shot resolving to one physical identity gets the same
+    geometry.  Reads are cached per evidence shot rather than shared outright,
+    because the registry EVIDENCE state is the one part of a selection that IS
+    per-shot -- a table must record the evidence for the shot that asked, not
+    inherit whichever shot arrived first.
 
     ``channel_shots`` names the shots whose acquisition channel sets are unioned
     to address the description's sensors.  Scanning more than one keeps the
