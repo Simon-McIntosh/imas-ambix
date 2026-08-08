@@ -17,8 +17,11 @@ find.
 
 Run it as::
 
-    AMBIX_MACHINE_ARTIFACT_CACHE=... AMBIX_MACHINE_ARTIFACT_DIGEST=sha256:... \\
-        python -m imas_ambix.spine_bench.channel_gap --source artifact
+    python -m imas_ambix.spine_bench.channel_gap --source artifact
+
+The artifact source needs no environment: it resolves the pinned machine
+description, and ``AMBIX_MACHINE_ARTIFACT_CACHE`` / ``AMBIX_MACHINE_ARTIFACT_DIGEST``
+override that when a different revision is to be decomposed.
 
 Only the primary ``greens-matvec`` arm is decomposed: it is the arm the residual
 tolerances gate, and the grid-Δ* arm agrees with it to the fourth decimal, so a
@@ -301,9 +304,9 @@ def _commit() -> str:
 
 def _source(name: str):
     if name == "artifact":
-        from imas_ambix.spine_bench.machine_artifact_arm import source_from_environment
+        from imas_ambix.spine_bench.machine_artifact_arm import resolve_geometry_source
 
-        source = source_from_environment()
+        source = resolve_geometry_source()
         source.build()
         return source
     from imas_ambix.spine_bench.runner import CampaignGeometrySource
