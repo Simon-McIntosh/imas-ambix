@@ -9,20 +9,20 @@ Two layers:
   and a named failure, never a number; an outline keeps its true corners beside
   the box that stands in for it; a probe with no orientation is dropped rather
   than pointed at an assumed axis.
-* **Integration** resolves a real published artifact and cross-checks its
-  geometry against the ``efm`` reader for the same machine.  It is skipped
-  unless the cache is named in the environment, because the artifact is
-  content-addressed in a local cache rather than committed.
+* **Integration** resolves the pinned published artifact through
+  :mod:`imas_ambix.gs.artifact_resolution` and cross-checks its geometry against
+  the ``efm`` reader for the same machine.  The artifact is content-addressed in
+  a local cache rather than committed, and resolution authors it where no cache
+  holds it, so these run without anything being named from outside.
 """
 
 from __future__ import annotations
-
-import os
 
 import numpy as np
 import pytest
 
 from imas_ambix.gs import artifact_geometry as ag
+from imas_ambix.gs import artifact_resolution as resolution
 from imas_ambix.gs.geometry import GeometryTable, SetupSignature, build_table_for_shot
 
 imas = pytest.importorskip("imas")
@@ -474,27 +474,28 @@ def test_the_sensor_arrays_are_presented_in_the_shape_the_mapper_reads():
 
 # --- integration against a published artifact --------------------------------
 
-_CACHE = os.environ.get("AMBIX_MACHINE_ARTIFACT_CACHE", "")
-_DIGEST = os.environ.get("AMBIX_MACHINE_ARTIFACT_DIGEST", "")
-_PHYSICAL_DIGEST = "ca06c8f64481114f"
-_REGISTRY_DIGEST = "7083e8029c879310d4b811ecc58f5eefdd40b2bfe01b4a1714b177b03a307366"
-_SEMANTIC_IDENTITY = (
-    "sha256:18c75c19493714108fc71f88a55cc775836218e489e073f43942fd007d937bdc"
-)
+_PHYSICAL_DIGEST = resolution.PINNED_PHYSICAL_DIGEST
+_REGISTRY_DIGEST = resolution.PINNED_REGISTRY_DIGEST
+_SEMANTIC_IDENTITY = resolution.PINNED_SEMANTIC_IDENTITY
 _SHOT = 21983
-
-_skip_no_artifact = pytest.mark.skipif(
-    not (_CACHE and _DIGEST),
-    reason="no machine-description artifact named in the environment "
-    "(AMBIX_MACHINE_ARTIFACT_CACHE + AMBIX_MACHINE_ARTIFACT_DIGEST)",
-)
 
 
 @pytest.fixture(scope="module")
-def artifact_table():
+def described_machine():
+    """The pinned description, resolved however this machine can supply it.
+
+    Nothing is read from the environment: the identity below is a property of the
+    description, so a test asserting on it must be able to obtain that description
+    anywhere rather than only where a cache has been exported by hand.
+    """
+    return resolution.resolve_machine_description()
+
+
+@pytest.fixture(scope="module")
+def artifact_table(described_machine):
     return ag.MachineArtifactGeometryReader(
-        cache_directory=_CACHE,
-        digest=_DIGEST,
+        cache_directory=described_machine.cache_directory,
+        digest=described_machine.digest,
         shot=_SHOT,
         expected_physical_digest=_PHYSICAL_DIGEST,
         expected_registry_digest=_REGISTRY_DIGEST,
@@ -507,19 +508,18 @@ def efm_table():
 
 
 @pytest.fixture(scope="module")
-def carried_artifact_table():
+def carried_artifact_table(described_machine):
     """The artifact table with the campaign's own sensor channels carried onto it."""
     from imas_ambix.gs.geometry import canonical_amb_channels
 
     return ag.MachineArtifactGeometryReader(
-        cache_directory=_CACHE,
-        digest=_DIGEST,
+        cache_directory=described_machine.cache_directory,
+        digest=described_machine.digest,
         shot=_SHOT,
         amb_channels=tuple(canonical_amb_channels([_SHOT])),
     ).read()
 
 
-@_skip_no_artifact
 def test_the_table_carries_the_identity_it_was_built_from(artifact_table):
     flags = "\n".join(artifact_table.provenance_flags)
 
@@ -532,7 +532,6 @@ def test_the_table_carries_the_identity_it_was_built_from(artifact_table):
     assert "forward-model blocker: pf_active/coil(p6_lower)/element/" in flags
 
 
-@_skip_no_artifact
 def test_only_the_two_windings_the_fit_could_not_reach_are_unresolved(artifact_table):
     """The turn counts are sourced except where the vacuum fit had no leverage.
 
@@ -561,7 +560,6 @@ def test_only_the_two_windings_the_fit_could_not_reach_are_unresolved(artifact_t
         ag.require_resolved_turns(artifact_table)
 
 
-@_skip_no_artifact
 def test_the_limiter_contour_matches_the_efm_reader(artifact_table, efm_table):
     """The plasma-facing boundary is the same contour to a few microns."""
     efm_r = np.asarray(efm_table.limiter_r)
@@ -581,7 +579,6 @@ def test_the_limiter_contour_matches_the_efm_reader(artifact_table, efm_table):
     assert enclosed(art_r, art_z) == pytest.approx(enclosed(efm_r, efm_z), rel=1e-5)
 
 
-@_skip_no_artifact
 def test_the_probe_positions_match_the_efm_reader(artifact_table, efm_table):
     """Position is a bijection to well under a millimetre."""
     from scipy.optimize import linear_sum_assignment
@@ -599,7 +596,6 @@ def test_the_probe_positions_match_the_efm_reader(artifact_table, efm_table):
     assert distance[rows, columns].max() < 1e-6
 
 
-@_skip_no_artifact
 def test_the_probe_orientations_match_the_efm_reader(artifact_table, efm_table):
     """Both sources split the same probes between the same two sensitive axes.
 
@@ -637,7 +633,6 @@ def test_the_probe_orientations_match_the_efm_reader(artifact_table, efm_table):
     )
 
 
-@_skip_no_artifact
 def test_each_coil_outline_reproduces_the_efm_winding_envelope(
     artifact_table, efm_table
 ):
@@ -675,7 +670,6 @@ def test_each_coil_outline_reproduces_the_efm_winding_envelope(
         assert height == pytest.approx(coil.height, abs=1e-4)
 
 
-@_skip_no_artifact
 def test_the_flux_loop_coverage_difference_is_bounded_and_known(
     artifact_table, efm_table
 ):
@@ -699,8 +693,7 @@ def test_the_flux_loop_coverage_difference_is_bounded_and_known(
     assert (nearest > 0.05).sum() <= 7
 
 
-@_skip_no_artifact
-def test_a_campaign_channel_set_is_what_makes_the_table_drivable():
+def test_a_campaign_channel_set_is_what_makes_the_table_drivable(described_machine):
     """The artifact describes conductors; it does not describe an acquisition system.
 
     Without the campaign's measured coil-current channels no circuit is
@@ -715,11 +708,13 @@ def test_a_campaign_channel_set_is_what_makes_the_table_drivable():
     assert channels
 
     bare = ag.MachineArtifactGeometryReader(
-        cache_directory=_CACHE, digest=_DIGEST, shot=_SHOT
+        cache_directory=described_machine.cache_directory,
+        digest=described_machine.digest,
+        shot=_SHOT,
     ).read()
     driven = ag.MachineArtifactGeometryReader(
-        cache_directory=_CACHE,
-        digest=_DIGEST,
+        cache_directory=described_machine.cache_directory,
+        digest=described_machine.digest,
         shot=_SHOT,
         amc_current_channels=channels,
     ).read()
@@ -728,7 +723,6 @@ def test_a_campaign_channel_set_is_what_makes_the_table_drivable():
     assert len(op.build_operator(driven).pf_merged_circuits) == 21
 
 
-@_skip_no_artifact
 def test_the_carried_channel_set_resolves_onto_the_same_sensors(
     carried_artifact_table, efm_table
 ):
@@ -767,7 +761,6 @@ def test_the_carried_channel_set_resolves_onto_the_same_sensors(
     )
 
 
-@_skip_no_artifact
 def test_the_extra_artifact_flux_loops_never_reach_the_forward_model(
     carried_artifact_table, efm_table
 ):
@@ -790,9 +783,9 @@ def test_the_extra_artifact_flux_loops_never_reach_the_forward_model(
     )
 
 
-@_skip_no_artifact
 def test_the_supplied_conductors_are_the_ones_the_source_files_as_active(
     artifact_table,
+    described_machine,
 ):
     """Position alone would drive the structure around a coil with its current.
 
@@ -809,8 +802,8 @@ def test_the_supplied_conductors_are_the_ones_the_source_files_as_active(
 
     channels = tuple(read_amc_current_channels(_SHOT))
     table = ag.MachineArtifactGeometryReader(
-        cache_directory=_CACHE,
-        digest=_DIGEST,
+        cache_directory=described_machine.cache_directory,
+        digest=described_machine.digest,
         shot=_SHOT,
         amc_current_channels=channels,
     ).read()
@@ -835,15 +828,15 @@ def test_the_supplied_conductors_are_the_ones_the_source_files_as_active(
 
 
 @pytest.fixture(scope="module")
-def driven_operators():
+def driven_operators(described_machine):
     """The artifact operator and the campaign operator, on shared sensor rows."""
     from imas_ambix.gs import operator as op
     from imas_ambix.gs.geometry import canonical_amb_channels
 
     efm = build_table_for_shot(_SHOT)
     artifact = ag.MachineArtifactGeometryReader(
-        cache_directory=_CACHE,
-        digest=_DIGEST,
+        cache_directory=described_machine.cache_directory,
+        digest=described_machine.digest,
         shot=_SHOT,
         amb_channels=tuple(canonical_amb_channels([_SHOT])),
         amc_current_channels=tuple(efm.amc_current_channels),
@@ -868,7 +861,6 @@ def _column_ratio(op_art, op_efm, shared_art, shared_efm, channel: str) -> float
     return float(a @ e / (e @ e))
 
 
-@_skip_no_artifact
 def test_the_two_descriptions_drive_the_same_columns(driven_operators):
     """Both sources supply the same 21 conductors through the same channels."""
     op_art, op_efm, _shared_art, _shared_efm = driven_operators
@@ -877,7 +869,6 @@ def test_the_two_descriptions_drive_the_same_columns(driven_operators):
     assert sorted(op_art.pf_amc_channels) == sorted(op_efm.pf_amc_channels)
 
 
-@_skip_no_artifact
 def test_every_coil_column_reproduces_the_campaigns(driven_operators):
     """The twelve PF windings agree to better than a percent.
 
@@ -900,7 +891,6 @@ def test_every_coil_column_reproduces_the_campaigns(driven_operators):
         assert ratio == pytest.approx(1.0, abs=0.01), channel
 
 
-@_skip_no_artifact
 def test_every_case_column_reproduces_the_campaigns(driven_operators):
     """The eight case groups agree once the drive supplies their topology.
 
@@ -919,7 +909,6 @@ def test_every_case_column_reproduces_the_campaigns(driven_operators):
         assert ratio == pytest.approx(1.0, abs=0.05), channel
 
 
-@_skip_no_artifact
 def test_the_solenoid_weight_the_source_states_replaces_the_fitted_correction(
     driven_operators,
 ):
