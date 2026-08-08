@@ -2,10 +2,12 @@
 
 The benchmark's sensor-space misfit is a forward-model check on the machine
 geometry, so which description supplied that geometry decides what the number
-means.  These tests cover the seam that makes the choice explicit (a run states
-its source, and a stamp records it) and, where a published artifact is named in
-the environment, that the arm's table is the committed reader's own output rather
-than a parallel construction of it.
+means.  These tests cover the seam that makes the choice explicit -- a run states
+its source, a stamp records it, and the machine is chosen by physical identity
+rather than by the address a description was found at -- and that the arm's table
+is the committed reader's own output rather than a parallel construction of it.
+The description is resolved from the pinned identity, so none of this needs an
+artifact to be named from outside.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from imas_ambix.gs import artifact_resolution as resolution
 from imas_ambix.spine_bench import machine_artifact_arm as arm
 from imas_ambix.spine_bench.runner import CampaignGeometrySource, write_yaml
 from imas_ambix.spine_bench.schema import EnvInfo, MachineInfo, SpineBenchmarkStamp
@@ -102,21 +105,34 @@ def test_two_revisions_of_one_description_do_not_overwrite_each_other(tmp_path):
     assert "3aba565a2e40" in second.name
 
 
-def test_an_unnamed_artifact_refuses_to_build_a_source(monkeypatch):
-    """Refusing beats defaulting: a run that quietly measured a different machine
-    than the caller meant is worse than one that does not start."""
+def test_an_unnamed_artifact_still_names_a_machine(monkeypatch):
+    """A source built from nothing measures the description this package pins.
+
+    The objection defaulting has to answer is that a run might quietly measure a
+    different machine than the caller meant.  What answers it is that the default
+    is not a filesystem path but a pinned identity, verified after resolution: a
+    source that was told nothing is still pinned to one machine, and says which.
+    """
     monkeypatch.delenv(arm.CACHE_ENV, raising=False)
     monkeypatch.delenv(arm.DIGEST_ENV, raising=False)
 
-    with pytest.raises(ValueError, match="no machine-description artifact named"):
-        arm.source_from_environment()
+    source = arm.resolve_geometry_source()
+
+    assert source.cache_directory is None
+    assert source.digest is None
+    assert source.expected_physical_digest == arm.PINNED_PHYSICAL_DIGEST
+    assert source.expected_registry_digest == arm.PINNED_REGISTRY_DIGEST
 
 
 def test_the_source_reads_the_artifact_named_in_the_environment(monkeypatch):
+    """Naming one explicitly overrides the pin, which is how a second revision of
+    the same machine is benched against it."""
     monkeypatch.setenv(arm.CACHE_ENV, "/somewhere/cache")
     monkeypatch.setenv(arm.DIGEST_ENV, "sha256:feed")
 
-    source = arm.source_from_environment()
+    source = arm.resolve_geometry_source(
+        os.environ[arm.CACHE_ENV], os.environ[arm.DIGEST_ENV]
+    )
 
     assert source.cache_directory == "/somewhere/cache"
     assert source.digest == "sha256:feed"
@@ -125,40 +141,25 @@ def test_the_source_reads_the_artifact_named_in_the_environment(monkeypatch):
     assert source.expected_registry_digest == arm.PINNED_REGISTRY_DIGEST
 
 
-def test_the_channel_shots_span_the_whole_frozen_set(monkeypatch):
+def test_the_channel_shots_span_the_whole_frozen_set():
     """A one-shot channel scan would make the sensor set an artifact of that
     shot's own acquisition gaps rather than of the geometry."""
-    monkeypatch.setenv(arm.CACHE_ENV, "/somewhere/cache")
-    monkeypatch.setenv(arm.DIGEST_ENV, "sha256:feed")
-
-    source = arm.source_from_environment()
+    source = arm.resolve_geometry_source()
 
     assert source.channel_shots == tuple(int(s.shot_id) for s in FROZEN_SHOTSET)
     assert source.evidence_shot == FROZEN_SHOTSET[0].shot_id
 
 
-# --- integration against a published artifact --------------------------------
-
-_CACHE = os.environ.get(arm.CACHE_ENV, "")
-_DIGEST = os.environ.get(arm.DIGEST_ENV, "")
-
-_skip_no_artifact = pytest.mark.skipif(
-    not (_CACHE and _DIGEST),
-    reason=(
-        "no machine-description artifact named in the environment "
-        f"({arm.CACHE_ENV} + {arm.DIGEST_ENV})"
-    ),
-)
+# --- integration against the pinned published artifact -----------------------
 
 
 @pytest.fixture(scope="module")
 def source() -> arm.MachineArtifactGeometrySource:
-    built = arm.source_from_environment()
+    built = arm.resolve_geometry_source()
     built.build()
     return built
 
 
-@_skip_no_artifact
 def test_the_arm_reads_the_table_the_committed_reader_produces(source):
     """The arm must not be a second construction of the geometry.
 
@@ -170,10 +171,11 @@ def test_the_arm_reads_the_table_the_committed_reader_produces(source):
     from imas_ambix.gs.artifact_geometry import MachineArtifactGeometryReader
     from imas_ambix.gs.geometry import canonical_amb_channels, read_amc_current_channels
 
+    described = resolution.resolve_machine_description()
     shots = [int(s.shot_id) for s in FROZEN_SHOTSET]
     direct = MachineArtifactGeometryReader(
-        cache_directory=_CACHE,
-        digest=_DIGEST,
+        cache_directory=described.cache_directory,
+        digest=described.digest,
         shot=shots[0],
         amb_channels=tuple(canonical_amb_channels(shots)),
         amc_current_channels=tuple(read_amc_current_channels(shots[0])),
@@ -195,17 +197,50 @@ def test_the_arm_reads_the_table_the_committed_reader_produces(source):
     }
 
 
-@_skip_no_artifact
 def test_the_machine_is_pinned_so_a_swapped_cache_cannot_be_benched(source):
     provenance = source.provenance()
 
     assert provenance["physical_digest"] == arm.PINNED_PHYSICAL_DIGEST
     assert provenance["registry_digest"] == arm.PINNED_REGISTRY_DIGEST
     assert provenance["source"] == arm.ARTIFACT_SOURCE_LABEL
-    assert provenance["artifact_digest"] == _DIGEST
+    assert provenance["artifact_digest"] == (
+        resolution.resolve_machine_description().digest
+    )
 
 
-@_skip_no_artifact
+def test_the_machine_was_chosen_by_identity_rather_than_by_address(source):
+    """What the stamp has to record for the selection to be auditable.
+
+    The address a description was found at says nothing about which machine it
+    describes -- that is the whole reason selection moved onto the physical
+    digest.  So the stamp carries the shot that selected, the digest it resolved
+    to, and the registry's evidence for it, and a reader can check the machine
+    without knowing anything about the cache.
+    """
+    provenance = source.provenance()
+
+    assert provenance["selected_by"] == "physical"
+    assert provenance["selected_shot"] == FROZEN_SHOTSET[0].shot_id
+    assert provenance["registry_evidence"] == "observed"
+    assert provenance["matches_pinned_description"] is True
+    assert provenance["semantic_identity"] == resolution.PINNED_SEMANTIC_IDENTITY
+
+
+def test_the_compute_key_stays_the_setup_signature_the_geometry_determines(source):
+    """The dual read, asserted where a cutover would break it.
+
+    Selection moved to the physical digest; every cached matrix downstream is a
+    function of the discretization and must stay keyed by the signature, because
+    two representations of one machine carry different filament counts and a
+    digest-keyed cache would hand a caller the wrong filament set.
+    """
+    provenance = source.provenance()
+    table = source.build()
+
+    assert provenance["table_signature"] == table.signature.key
+    assert provenance["table_signature"] != provenance["physical_digest"]
+
+
 def test_the_revision_is_the_identity_that_moves_on_republication(source):
     """The semantic identity, not the physical digest: a republication of the same
     conductors leaves the physical digest and the signature untouched."""
@@ -216,7 +251,6 @@ def test_the_revision_is_the_identity_that_moves_on_republication(source):
     assert source.revision != provenance["physical_digest"]
 
 
-@_skip_no_artifact
 def test_the_signature_alone_cannot_say_which_revision_was_measured(source):
     """Why the stamp records the revision and keys its filename on it.
 
@@ -236,7 +270,6 @@ def test_the_signature_alone_cannot_say_which_revision_was_measured(source):
     assert turns and not any(str(round(t, 4)) in table.signature.key for t in turns)
 
 
-@_skip_no_artifact
 def test_the_description_stands_for_the_machine_on_every_frozen_shot(source):
     """One table for every shot -- a machine description is a statement about the
     device, so unlike the campaign arrays it has no per-campaign geometry to
@@ -248,7 +281,6 @@ def test_the_description_stands_for_the_machine_on_every_frozen_shot(source):
     assert source.provenance()["evidence_shot"] == FROZEN_SHOTSET[0].shot_id
 
 
-@_skip_no_artifact
 def test_the_drive_map_is_read_from_the_description_not_a_position_match(source):
     """Every driven column comes from a stated weight, which is what lets the
     campaign's channel names address the artifact's conductors without the
