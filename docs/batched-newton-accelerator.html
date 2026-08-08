@@ -8,10 +8,9 @@
   <meta name="plan-slug" content="batched-newton-accelerator">
   <meta name="plan-title" content="Batched Newton Accelerator — GEMM-native convergence on the temperature-smoothed pinned map">
   <meta name="plan-summary" content="Recover a GPU-batch (GEMM) compatible convergence accelerator for the free-boundary solve on the now fully differentiable topology read. The prior accelerator study ran before the temperature-smoothed read existed: the device rollout&#x27;s map still binds at the exact min with a boolean flood mask, and on that map safeguarded Anderson ties relaxed Picard (~49% of warm slices converge at a 20-sweep budget) — convergence rate is the corpus engine&#x27;s wall. A measured probe on the rollout&#x27;s own staged shot (48 cold-seed slices) shows what the smooth read + exact autograd tangents buy: Jacobian-free Newton-Krylov with jax.linearize tangents and fixed-shape GMRES converts 62% of slices at a 40-evaluation budget with median final residual 3.4e-5 (30x under tolerance) vs 10% for the production relaxed Picard and 19% for smooth-map Picard; Anderson ties Picard on both maps on this class; every NK operation is a Green&#x27;s-GEMM column or a tiny fixed-shape dense solve, so the scheme vmaps over slices unchanged. Plan: re-point the solve and rollout maps at the smooth read (tau operating point measured), adopt and budget-tune the batched NK, lift the rich profile coefficients into a coupled KKT Newton state so under-constrained higher-order fits stop thrashing (smooth softplus nonneg, ridge+prior rows inside the Jacobian), demonstrate the batched B&gt;=512 form on the H200, and integrate into the corpus engine. Binding corpus objective: the whole MAST corpus (~600k slices) labelled in &lt;=1 hour on the 8xH200 node — the measured foundations (76.4 solves/s at B=512 on ONE card, before NK and before the read-cost removals; the topology read is ~99.7% of each evaluation and has a &gt;=5x removal path) put the inner solve at ~16 minutes on 8 cards, so the hour budgets the full pipeline. Firewall unchanged: GS force balance, physics + measured channels only, no EFIT.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="superseded">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
-  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="connectivity-topology-reader,differentiable-solve-accelerator">
@@ -19,9 +18,11 @@
   <title>Batched Newton Accelerator | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-21">
+<meta name="plan-modified" content="2026-08-08">
 <meta name="plan-impl" content="0.17">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
 <main class="plan-doc">
@@ -286,7 +287,7 @@
 
   <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-bna-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-21T11:30:00+00:00" data-recommends-skill="/reckon-ship batched-newton-accelerator §2" data-resolved-at="2026-07-21T11:53:43+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-bna-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-07-21T11:30:00+00:00" data-recommends-skill="/reckon-ship batched-newton-accelerator §2" data-resolved-at="2026-07-21T11:53:43+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §2 — re-point the solve + rollout maps at the temperature-smoothed read; calibrate τ</h4>
     <div class="r-fu-body"><p>The probe evidence is in (62% NK vs 10% Picard on the cold class); the first shippable rung swaps <code>boundary_read_smooth_jax</code> into <code>gs_solve</code>'s connectivity path and the device rollout's slice step (opt-in, hard default byte-unchanged), re-gates reproduction/monotonicity on the new kernel, and measures the τ operating point (single temperature vs continuation) on the full staged shot.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -325,7 +326,7 @@ Done-when
      read-equivalence + ≥5× gates pre-declared; this followup resolved.</pre>
     <p class="r-fu-outcome">§2 landed — commits 655e68f (code) + 0447fb2 (measurements). Both consumers re-pointed opt-in (gs_solve connectivity path on boundary_read_smooth with smooth_temperature=1e-3; rollout --device-read smooth), hard defaults byte-identical (13/13 tests). Gates PASS: production rollout step reproduces the probe exactly (Picard 19% cold-seed, resid 6.3e-4, vs 10% hard; jvp-vs-FD ~1e-9); every τ schedule's emit accuracy equals the τ=1e-3 read. τ locked single 1e-3 (continuation +1 slice only). D-A re-stamp + spine-bench arm track the interim baseline (axis 4.00→4.00 / 4.78 vs 5.52 cm; worst-case monotone 0.30 vs 0.06) at 4.5× hard-read host cost — the §3 read wall. Record: docs/archive/batched-newton-accelerator-s2-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-bna-02" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-21T18:30:00+00:00" data-recommends-skill="/reckon-ship batched-newton-accelerator §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-bna-02" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-21T18:30:00+00:00" data-recommends-skill="/reckon-ship batched-newton-accelerator §3" data-resolved-at="2026-08-08T16:42:19+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §3 — remove the read wall (warm-started binding, log-depth flood, iteration-resolution read)</h4>
     <div class="r-fu-body"><p>The read is ~99.7% of every map evaluation and the §2 stamp measured the smooth kernel at 4.5× the hard read's host cost — this rung cuts the read cost FIRST so §4 accelerator tuning, §5 coupled-profile and §6 batched-demo all iterate on the fast read. Three removals, each with a read-equivalence check: warm-started binding search (bracket around the previous sweep's level, cold sweep only on first eval / bracket miss), dilate-by-doubling flood fill (~log₂(nr+nz) steps, same fixed point), and a coarser iteration-resolution read with the calibrated τ=10⁻³ full-resolution read at emit only.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -364,6 +365,7 @@ Done-when (the plan&#x27;s pre-declared §3 gates)
      count reported); emitted read byte-comparable to the §2 kernel on every slice.
   3. Plan updated same-session: §3 outcome + collapse; §4 (NK budget-tune) followup
      queued; this followup resolved.</pre>
+    <p class="r-fu-outcome">Superseded on owner direction 2026-08-08: nova owns all physics solves, so the read-wall removals, the exact-tangent NK adoption, the coupled-KKT profile state and the batched demonstration relocate to nova as nova:spine-boundary-accelerator (which records this plan as superseded and carries its two open decisions and the measured evidence ladder). A port audit (nova docs/research/boundary-push-port-audit.html) verified the boundary-push kernel is code-identical in nova and that sections 3-7 here are genuinely unbuilt on both sides, so no work is stranded. The corpus-labeling objective is owned by nova:mast-catalog-gpu-solve, gated by nova:spine-efit-parity.</p>
     </article>
 </section>
 
