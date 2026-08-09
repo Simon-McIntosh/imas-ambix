@@ -22,7 +22,7 @@ from nova.transport import (
 
 from imas_ambix import physics
 
-NOVA_REVISION = "9c18d31f8bf0f424bd94d0a5c4ce5f1622d9fd8f"
+NOVA_REVISION = "fdbfd15b179ffbd562a2ac2b6e4961cc7442ab1e"
 ROOT = Path(__file__).parents[2]
 
 
