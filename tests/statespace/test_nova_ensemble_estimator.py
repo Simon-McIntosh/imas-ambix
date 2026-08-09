@@ -154,6 +154,10 @@ def test_runtime_merge_and_schema_failures_are_rejected(
         ),
         (lambda row: row["provenance"].update(backend="gpu"), "backend"),
         (lambda row: row["provenance"].update(dtype="float32"), "dtype"),
+        (
+            lambda row: row["estimator_config"].update(observation_noise=0.5),
+            "configuration",
+        ),
         (lambda row: row["shape"]["truth"].__setitem__(0, config.steps - 1), "shape"),
         (lambda row: row.update(failure=True), "failed shard"),
     )
@@ -175,6 +179,58 @@ def test_runtime_merge_and_schema_failures_are_rejected(
 
     metadata_output, array_output = merge_shards(tmp_path, tmp_path / "complete")
     assert metadata_output.is_file()
+    merged_metadata = json.loads(metadata_output.read_text())
+    merged_metrics = merged_metadata["metrics"]
+    assert merged_metadata["shape"]["causal_analysis"] == [
+        config.steps,
+        config.members,
+        4,
+    ]
+    assert merged_metadata["estimator_config"]["observation_noise"] == (
+        config.observation_noise
+    )
+    assert merged_metrics["physics"]["finite_members"] == config.members
+    assert merged_metrics["physics"]["aggregation_rule"] == (
+        "maximum physical error across shards"
+    )
+    for key in (
+        "innovation_rmse",
+        "proper_score",
+        "horizons",
+        "uncertainty",
+        "actuator_response",
+    ):
+        actual = merged_metrics[key]
+        expected = result.metrics[key]
+        if key == "horizons":
+            for horizon in actual:
+                for measure in actual[horizon]:
+                    np.testing.assert_allclose(
+                        actual[horizon][measure],
+                        expected[horizon][measure],
+                        rtol=0.0,
+                        atol=1.0e-15,
+                    )
+        else:
+            for measure in actual:
+                np.testing.assert_allclose(
+                    actual[measure],
+                    expected[measure],
+                    rtol=0.0,
+                    atol=1.0e-15,
+                )
+    comparator = merged_metrics["comparators"]["conventional_enkf"]
+    assert comparator["identity"] == "random_walk_ensemble_kalman_filter"
+    assert comparator["ensemble_shape"] == [config.steps, config.members, 4]
+    runtime = merged_metrics["runtime"]
+    assert len(runtime["per_shard"]) == 2
+    assert runtime["parallel_wall_time_s"] is None
+    assert runtime["aggregate_member_steps_per_s"] is None
+    assert "were not measured" in runtime["aggregation_rule"]
+    assert runtime["serial_elapsed_sum_s"] == sum(
+        row["elapsed_s"] for row in runtime["per_shard"]
+    )
+    assert runtime["member_steps_total"] == config.members * config.steps
     with np.load(array_output) as merged:
         for key in ("clock", "truth", "observations"):
             np.testing.assert_array_equal(merged[key], getattr(result, key))

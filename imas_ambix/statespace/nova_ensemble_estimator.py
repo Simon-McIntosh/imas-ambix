@@ -25,6 +25,7 @@ OBSERVATION_LABELS = (
 _SCENARIO_STREAM = 1_390_691_986
 _MEMBER_STREAM = 1_297_046_850
 _BASELINE_STREAM = 1_112_496_978
+_HORIZONS_MS = (10, 50, 100, 250)
 
 
 class EstimatorFailure(RuntimeError):  # noqa: N818
@@ -105,6 +106,7 @@ class EstimatorResult:
     metrics: dict[str, Any]
     provenance: RuntimeProvenance
     camera_proxy: dict[str, Any]
+    config: EstimatorConfig
 
     def validate(self) -> None:
         arrays = (
@@ -135,6 +137,8 @@ class EstimatorResult:
             raise EstimatorFailure("observation and truth shapes differ")
         if self.provenance.dtype != "float64" or not self.provenance.x64_enabled:
             raise EstimatorFailure("provenance does not establish float64 execution")
+        if self.config.members != expected[1]:
+            raise EstimatorFailure("configured member count does not match products")
 
 
 def _runtime(config: EstimatorConfig) -> RuntimeProvenance:
@@ -318,6 +322,106 @@ def _conventional_enkf(
     if not np.isfinite(history).all():
         raise EstimatorFailure("conventional EnKF produced a non-finite ensemble")
     return history
+
+
+def _ensemble_scorecard(
+    *,
+    clock: np.ndarray,
+    truth: np.ndarray,
+    observations: np.ndarray,
+    forecast: np.ndarray,
+    analysis: np.ndarray,
+    nominal_actuator: np.ndarray,
+    edited_actuator: np.ndarray,
+    seed: int,
+    observation_noise: float,
+) -> dict[str, Any]:
+    """Compute every ensemble-dependent metric from its complete arrays."""
+    steps, members, _dimensions = forecast.shape
+    if analysis.shape != forecast.shape or nominal_actuator.shape != forecast.shape:
+        raise EstimatorFailure("scorecard ensemble shapes differ")
+    if edited_actuator.shape != forecast.shape:
+        raise EstimatorFailure("edited-actuator ensemble shape differs")
+
+    horizons: dict[str, Any] = {}
+    for horizon in _HORIZONS_MS:
+        anchors = np.arange(0, steps - horizon)
+        horizon_samples = nominal_actuator[anchors + horizon] + (
+            analysis[anchors] - nominal_actuator[anchors]
+        )
+        horizons[f"{horizon}_ms"] = _coverage_and_sharpness(
+            horizon_samples,
+            truth[anchors + horizon],
+        )
+
+    phase = clock / clock[-1]
+    out_of_distribution = phase >= 0.68
+    same_plan_spread = float(
+        np.mean(np.std(nominal_actuator[out_of_distribution], axis=1, ddof=1))
+    )
+    in_distribution_spread = float(
+        np.mean(np.std(nominal_actuator[~out_of_distribution], axis=1, ddof=1))
+    )
+    edited_displacement = float(
+        np.mean(
+            np.abs(
+                edited_actuator[out_of_distribution].mean(axis=1)
+                - nominal_actuator[out_of_distribution].mean(axis=1)
+            )
+        )
+    )
+    persistence = np.broadcast_to(observations[0], truth.shape)
+    conventional = _conventional_enkf(
+        observations,
+        seed=seed,
+        members=members,
+        observation_noise=observation_noise,
+    )
+    return {
+        "innovation_rmse": {
+            "forecast": float(
+                np.sqrt(np.mean((forecast.mean(axis=1) - observations) ** 2))
+            ),
+            "analysis": float(
+                np.sqrt(np.mean((analysis.mean(axis=1) - observations) ** 2))
+            ),
+        },
+        "proper_score": {
+            "forecast": _proper_score(forecast, truth),
+            "analysis": _proper_score(analysis, truth),
+            "persistence": float(np.mean(np.abs(persistence - truth))),
+            "conventional_enkf": _proper_score(conventional, truth),
+        },
+        "horizons": horizons,
+        "uncertainty": {
+            "in_distribution_spread": in_distribution_spread,
+            "out_of_distribution_spread": same_plan_spread,
+            "widening_ratio": same_plan_spread / max(in_distribution_spread, 1.0e-15),
+        },
+        "actuator_response": {
+            "edited_displacement": edited_displacement,
+            "same_plan_spread": same_plan_spread,
+            "displacement_to_spread": edited_displacement
+            / max(same_plan_spread, 1.0e-15),
+        },
+        "comparators": {
+            "persistence": {
+                "identity": "last_observation_persistence",
+                "cohort": "same synthetic cohort",
+            },
+            "conventional_enkf": {
+                "identity": "random_walk_ensemble_kalman_filter",
+                "transition": "persistence_plus_gaussian_process_noise",
+                "observation_operator": "identity",
+                "cohort": "same synthetic cohort",
+                "ensemble_shape": list(conventional.shape),
+            },
+            "torax_enkf": {
+                "identity": "external reference only",
+                "cohort": "not a same-cohort skill claim",
+            },
+        },
+    }
 
 
 def _smooth(
@@ -513,68 +617,20 @@ class NovaEnsembleEstimator:
         )
         full_sequence = _smooth(analysis, observations, lag=None)
 
-        horizons: dict[str, Any] = {}
-        for horizon in (10, 50, 100, 250):
-            anchors = np.arange(0, self.config.steps - horizon)
-            horizon_samples = raw_forecast[anchors + horizon] + (
-                analysis[anchors] - raw_forecast[anchors]
-            )
-            horizons[f"{horizon}_ms"] = _coverage_and_sharpness(
-                horizon_samples,
-                truth[anchors + horizon],
-            )
-
-        same_plan_spread = float(
-            np.mean(np.std(raw_forecast[out_of_distribution], axis=1, ddof=1))
-        )
-        edited_displacement = float(
-            np.mean(
-                np.abs(
-                    edited_product[out_of_distribution].mean(axis=1)
-                    - raw_forecast[out_of_distribution].mean(axis=1)
-                )
-            )
-        )
-        in_distribution_spread = float(
-            np.mean(np.std(raw_forecast[~out_of_distribution], axis=1, ddof=1))
-        )
-        persistence = np.broadcast_to(observations[0], truth.shape)
-        baseline_members = max(8, self.config.members)
-        conventional = _conventional_enkf(
-            observations,
+        scorecard = _ensemble_scorecard(
+            clock=times,
+            truth=truth,
+            observations=observations,
+            forecast=forecast,
+            analysis=analysis,
+            nominal_actuator=raw_forecast,
+            edited_actuator=edited_product,
             seed=self.config.seed,
-            members=baseline_members,
             observation_noise=self.config.observation_noise,
         )
         elapsed = time.perf_counter() - started
         metrics: dict[str, Any] = {
-            "innovation_rmse": {
-                "forecast": float(
-                    np.sqrt(np.mean((forecast.mean(axis=1) - observations) ** 2))
-                ),
-                "analysis": float(
-                    np.sqrt(np.mean((analysis.mean(axis=1) - observations) ** 2))
-                ),
-            },
-            "proper_score": {
-                "forecast": _proper_score(forecast, truth),
-                "analysis": _proper_score(analysis, truth),
-                "persistence": float(np.mean(np.abs(persistence - truth))),
-                "conventional_enkf": _proper_score(conventional, truth),
-            },
-            "horizons": horizons,
-            "uncertainty": {
-                "in_distribution_spread": in_distribution_spread,
-                "out_of_distribution_spread": same_plan_spread,
-                "widening_ratio": same_plan_spread
-                / max(in_distribution_spread, 1.0e-15),
-            },
-            "actuator_response": {
-                "edited_displacement": edited_displacement,
-                "same_plan_spread": same_plan_spread,
-                "displacement_to_spread": edited_displacement
-                / max(same_plan_spread, 1.0e-15),
-            },
+            **scorecard,
             "physics": {
                 "finite_members": self.config.members,
                 "topology": self.config.topology,
@@ -592,23 +648,6 @@ class NovaEnsembleEstimator:
                 * self.config.steps
                 / max(elapsed, 1.0e-12),
                 "peak_rss_kib": int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss),
-            },
-            "comparators": {
-                "persistence": {
-                    "identity": "last_observation_persistence",
-                    "cohort": "same synthetic cohort",
-                },
-                "conventional_enkf": {
-                    "identity": "random_walk_ensemble_kalman_filter",
-                    "transition": "persistence_plus_gaussian_process_noise",
-                    "observation_operator": "identity",
-                    "cohort": "same synthetic cohort",
-                    "ensemble_shape": list(conventional.shape),
-                },
-                "torax_enkf": {
-                    "identity": "external reference only",
-                    "cohort": "not a same-cohort skill claim",
-                },
             },
         }
         result = EstimatorResult(
@@ -628,6 +667,7 @@ class NovaEnsembleEstimator:
                 "validated_checkpoint": False,
                 "label": "proxy",
             },
+            config=self.config,
         )
         result.validate()
         return result
@@ -644,6 +684,20 @@ def _arrays(result: EstimatorResult) -> dict[str, np.ndarray]:
         "full_sequence_smoothing": result.full_sequence_smoothing,
         "edited_actuator": result.edited_actuator,
         "nominal_actuator": result.nominal_actuator,
+    }
+
+
+def _artifact_config(config: EstimatorConfig) -> dict[str, Any]:
+    """Return numerical settings that must agree before shard merging."""
+    return {
+        "sample_period_s": config.sample_period_s,
+        "steps": config.steps,
+        "fixed_lag_steps": config.fixed_lag_steps,
+        "correction_stride": config.correction_stride,
+        "observation_noise": config.observation_noise,
+        "topology": config.topology,
+        "dtype": config.dtype,
+        "horizons_ms": list(_HORIZONS_MS),
     }
 
 
@@ -669,6 +723,7 @@ def write_result(
         "shard_count": shard_count,
         "shape": {key: list(value.shape) for key, value in arrays.items()},
         "metrics": result.metrics,
+        "estimator_config": _artifact_config(result.config),
         "provenance": asdict(result.provenance),
         "camera_proxy": result.camera_proxy,
         "observation_labels": list(OBSERVATION_LABELS),
@@ -693,6 +748,8 @@ def merge_shards(merge_root: str | Path, output_dir: str | Path) -> tuple[Path, 
     shard_count = first.get("shard_count")
     if not isinstance(shard_count, int) or shard_count < 1:
         raise EstimatorFailure("shard count is missing or invalid")
+    if not isinstance(first.get("seed"), int):
+        raise EstimatorFailure("shard seed is missing or invalid")
     indices = [record.get("shard_index") for record, _ in records]
     if len(indices) != len(set(indices)):
         raise EstimatorFailure("duplicate shard index")
@@ -700,11 +757,19 @@ def merge_shards(merge_root: str | Path, output_dir: str | Path) -> tuple[Path, 
         raise EstimatorFailure("missing shard index")
     identity_keys = ("schema", "seed", "shard_count")
     provenance_keys = ("nova_revision", "backend", "dtype", "topology")
+    reference_config = first.get("estimator_config")
+    if not isinstance(reference_config, dict):
+        raise EstimatorFailure("estimator configuration is missing")
     for record, path in records:
         if record.get("failure") is not False:
             raise EstimatorFailure(f"failed shard declared by {path.name}")
         if any(record.get(key) != first.get(key) for key in identity_keys):
             raise EstimatorFailure("shard seed or schema identity mismatch")
+        if record.get("estimator_config") != reference_config:
+            raise EstimatorFailure("estimator configuration mismatch")
+        for key in ("camera_proxy", "observation_labels"):
+            if record.get(key) != first.get(key):
+                raise EstimatorFailure(f"shard {key} mismatch")
         provenance = record.get("provenance", {})
         reference = first.get("provenance", {})
         if any(provenance.get(key) != reference.get(key) for key in provenance_keys):
@@ -716,8 +781,16 @@ def merge_shards(merge_root: str | Path, output_dir: str | Path) -> tuple[Path, 
         if not path.with_suffix(".npz").is_file():
             raise EstimatorFailure(f"array payload is missing for {path.name}")
 
+    records.sort(key=lambda item: item[0]["shard_index"])
     loaded = [np.load(path.with_suffix(".npz")) for _, path in records]
     try:
+        for (record, path), payload in zip(records, loaded, strict=True):
+            expected_shapes = record["shape"]
+            if set(payload.files) != set(expected_shapes):
+                raise EstimatorFailure(f"array schema differs for {path.name}")
+            for key in payload.files:
+                if list(payload[key].shape) != expected_shapes[key]:
+                    raise EstimatorFailure(f"array shape differs for {path.name}")
         merged: dict[str, np.ndarray] = {}
         for key in loaded[0].files:
             values = [payload[key] for payload in loaded]
@@ -739,6 +812,79 @@ def merge_shards(merge_root: str | Path, output_dir: str | Path) -> tuple[Path, 
     finally:
         for payload in loaded:
             payload.close()
+
+    try:
+        observation_noise = float(reference_config["observation_noise"])
+        sample_period_s = float(reference_config["sample_period_s"])
+        correction_stride = int(reference_config["correction_stride"])
+        shard_physics = [record["metrics"]["physics"] for record, _ in records]
+        shard_runtime_source = [record["metrics"]["runtime"] for record, _ in records]
+    except (KeyError, TypeError, ValueError) as error:
+        raise EstimatorFailure(
+            "shard metadata cannot reproduce merged metrics"
+        ) from error
+
+    members = int(merged["causal_forecast"].shape[1])
+    scorecard = _ensemble_scorecard(
+        clock=merged["clock"],
+        truth=merged["truth"],
+        observations=merged["observations"],
+        forecast=merged["causal_forecast"],
+        analysis=merged["causal_analysis"],
+        nominal_actuator=merged["nominal_actuator"],
+        edited_actuator=merged["edited_actuator"],
+        seed=first["seed"],
+        observation_noise=observation_noise,
+    )
+    physics = {
+        "finite_members": members,
+        "topology": first["provenance"]["topology"],
+        "common_random_numbers": all(
+            row.get("common_random_numbers") is True for row in shard_physics
+        ),
+        "correction_frequency_hz": int(
+            round(1.0 / (sample_period_s * correction_stride))
+        ),
+        "max_boundary_current_relative_error": max(
+            float(row["max_boundary_current_relative_error"]) for row in shard_physics
+        ),
+        "max_ledger_identity_error": max(
+            float(row["max_ledger_identity_error"]) for row in shard_physics
+        ),
+        "aggregation_rule": "maximum physical error across shards",
+    }
+    per_shard_runtime = [
+        {
+            "shard_index": record["shard_index"],
+            "elapsed_s": float(runtime["elapsed_s"]),
+            "member_steps_per_s": float(runtime["member_steps_per_s"]),
+            "peak_rss_kib": int(runtime["peak_rss_kib"]),
+        }
+        for (record, _), runtime in zip(
+            records,
+            shard_runtime_source,
+            strict=True,
+        )
+    ]
+    runtime = {
+        "aggregation_rule": (
+            "per-shard measurements are preserved; serial_elapsed_sum_s is an "
+            "arithmetic sum; parallel wall time and aggregate throughput were not "
+            "measured"
+        ),
+        "per_shard": per_shard_runtime,
+        "serial_elapsed_sum_s": float(
+            sum(row["elapsed_s"] for row in per_shard_runtime)
+        ),
+        "parallel_wall_time_s": None,
+        "aggregate_member_steps_per_s": None,
+        "peak_rss_kib_max_per_process": max(
+            row["peak_rss_kib"] for row in per_shard_runtime
+        ),
+        "member_steps_total": members * int(merged["clock"].size),
+    }
+    metrics = {**scorecard, "physics": physics, "runtime": runtime}
+
     target = Path(output_dir)
     target.mkdir(parents=True, exist_ok=True)
     array_path = target / "merged.npz"
@@ -746,6 +892,7 @@ def merge_shards(merge_root: str | Path, output_dir: str | Path) -> tuple[Path, 
     metadata = dict(first)
     metadata["merged_shards"] = shard_count
     metadata["shape"] = {key: list(value.shape) for key, value in merged.items()}
+    metadata["metrics"] = metrics
     metadata["shard_index"] = None
     json_path = target / "merged.json"
     json_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
