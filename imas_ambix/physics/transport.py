@@ -10,9 +10,9 @@ from nova.transport import (
     CurrentDiffusion,
     EtaProfile,
     FluxSurfaceGeometry,
-    assemble_flux_surface_geometry_jax,
     flux_surface_geometry,
-    flux_surface_geometry_jax,
+    traced_assemble_flux_surface_geometry,
+    traced_flux_surface_geometry,
 )
 
 if TYPE_CHECKING:
@@ -67,9 +67,9 @@ __all__ = [
     "CurrentDiffusion",
     "EtaProfile",
     "FluxSurfaceGeometry",
-    "assemble_flux_surface_geometry_jax",
     "current_diffusion_from_mapping",
     "flux_surface_geometry",
     "flux_surface_geometry_from_mapping",
-    "flux_surface_geometry_jax",
+    "traced_assemble_flux_surface_geometry",
+    "traced_flux_surface_geometry",
 ]

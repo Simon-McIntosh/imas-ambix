@@ -54,11 +54,11 @@ from imas_ambix.physics.transport import (
     CurrentDiffusion,
     EtaProfile,
     FluxSurfaceGeometry,
-    assemble_flux_surface_geometry_jax,
     current_diffusion_from_mapping,
     flux_surface_geometry,
     flux_surface_geometry_from_mapping,
-    flux_surface_geometry_jax,
+    traced_assemble_flux_surface_geometry,
+    traced_flux_surface_geometry,
 )
 
 __all__ = [
@@ -98,7 +98,6 @@ __all__ = [
     "ScreeningBasis",
     "SensorSet",
     "SliceMeasurement",
-    "assemble_flux_surface_geometry_jax",
     "build_passive_circuit_system",
     "build_passive_eigenbasis",
     "build_plasma_circuit",
@@ -110,10 +109,11 @@ __all__ = [
     "emit_circuit_coupling",
     "flux_surface_geometry",
     "flux_surface_geometry_from_mapping",
-    "flux_surface_geometry_jax",
     "magnetics_from_records",
     "profile_reconstructor",
     "reduce_passive_system",
     "screening_eigenbasis",
     "screening_trajectory",
+    "traced_assemble_flux_surface_geometry",
+    "traced_flux_surface_geometry",
 ]

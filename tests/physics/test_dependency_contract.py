@@ -10,11 +10,19 @@ from nova.circuit import PassiveCircuitSystem as NovaPassiveCircuitSystem
 from nova.equilibrium import ReconstructProfile as NovaReconstructProfile
 from nova.equilibrium.harmonic import HarmonicConfig as NovaHarmonicConfig
 from nova.equilibrium.moment import MomentConfig as NovaMomentConfig
-from nova.transport import CurrentDiffusion as NovaCurrentDiffusion
+from nova.transport import (
+    CurrentDiffusion as NovaCurrentDiffusion,
+)
+from nova.transport import (
+    traced_assemble_flux_surface_geometry as nova_traced_assemble_geometry,
+)
+from nova.transport import (
+    traced_flux_surface_geometry as nova_traced_geometry,
+)
 
 from imas_ambix import physics
 
-NOVA_REVISION = "55dab4d8cf86f75c92838ce4cd8480945b05c925"
+NOVA_REVISION = "9c18d31f8bf0f424bd94d0a5c4ce5f1622d9fd8f"
 ROOT = Path(__file__).parents[2]
 
 
@@ -41,6 +49,10 @@ def test_facade_types_are_owned_by_nova():
     assert physics.PassiveCircuitSystem is NovaPassiveCircuitSystem
     assert physics.CircuitCoupling is NovaCircuitCoupling
     assert physics.CurrentDiffusion is NovaCurrentDiffusion
+    assert (
+        physics.traced_assemble_flux_surface_geometry is nova_traced_assemble_geometry
+    )
+    assert physics.traced_flux_surface_geometry is nova_traced_geometry
 
 
 def test_installed_nova_distribution_comes_from_the_pinned_commit():

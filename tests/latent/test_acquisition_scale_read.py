@@ -139,9 +139,11 @@ def test_the_promoted_table_is_what_a_read_applies_by_default():
     table = promoted_block_scales()
     assert len(table.stepping) == 19
     channel = table.corrected[0]
-    block = next(row for row in table.blocks[channel] if row.rung != 1.0)
-    values, warrants = divide_out_acquisition_scale(
-        np.ones((1, 1)), [channel], block.first_shot
+    setting = next(
+        row for row in table.settings[channel] if not row.refused and row.rung != 1.0
     )
-    assert warrants[0].scale == block.rung
-    assert values[0, 0] == 1.0 / block.rung
+    values, warrants = divide_out_acquisition_scale(
+        np.ones((1, 1)), [channel], setting.pulse_start
+    )
+    assert warrants[0].scale == setting.rung
+    assert values[0, 0] == 1.0 / setting.rung
