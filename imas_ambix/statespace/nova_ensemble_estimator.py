@@ -45,7 +45,7 @@ class EstimatorConfig:
     fixed_lag_steps: int = 100
     correction_stride: int = 10
     observation_noise: float = 0.004
-    topology: str = "single-null"
+    topology: str = "circular-nested-flux-surfaces"
     dtype: str = "float64"
     member_offset: int = 0
 
@@ -66,8 +66,10 @@ class EstimatorConfig:
             raise ValueError("correction_stride must be positive")
         if self.observation_noise <= 0.0:
             raise ValueError("observation_noise must be positive")
-        if self.topology != "single-null":
-            raise ValueError("the synthetic harness supports one single-null topology")
+        if self.topology != "circular-nested-flux-surfaces":
+            raise ValueError(
+                "the synthetic harness supports circular nested flux surfaces"
+            )
         if self.dtype != "float64":
             raise ValueError("Nova and JAX must run explicitly in float64")
         if self.member_offset < 0:
@@ -103,6 +105,8 @@ class EstimatorResult:
     full_sequence_smoothing: np.ndarray
     edited_actuator: np.ndarray
     nominal_actuator: np.ndarray
+    equilibrium_flux: np.ndarray
+    edited_equilibrium_flux: np.ndarray
     metrics: dict[str, Any]
     provenance: RuntimeProvenance
     camera_proxy: dict[str, Any]
@@ -119,6 +123,8 @@ class EstimatorResult:
             self.full_sequence_smoothing,
             self.edited_actuator,
             self.nominal_actuator,
+            self.equilibrium_flux,
+            self.edited_equilibrium_flux,
         )
         if not all(np.isfinite(value).all() for value in arrays):
             raise EstimatorFailure("result contains a non-finite value")
@@ -135,6 +141,15 @@ class EstimatorResult:
             raise EstimatorFailure("truth shape is incompatible with products")
         if self.observations.shape != self.truth.shape:
             raise EstimatorFailure("observation and truth shapes differ")
+        flux_shape = self.equilibrium_flux.shape
+        if len(flux_shape) != 3 or flux_shape[:2] != expected[:2]:
+            raise EstimatorFailure(
+                "equilibrium-flux shape is incompatible with products"
+            )
+        if flux_shape[2] < 3:
+            raise EstimatorFailure("equilibrium flux requires multiple radial faces")
+        if self.edited_equilibrium_flux.shape != flux_shape:
+            raise EstimatorFailure("edited equilibrium-flux shape differs")
         if self.provenance.dtype != "float64" or not self.provenance.x64_enabled:
             raise EstimatorFailure("provenance does not establish float64 execution")
         if self.config.members != expected[1]:
@@ -533,6 +548,8 @@ class NovaEnsembleEstimator:
 
         nominal_members: list[np.ndarray] = []
         edited_members: list[np.ndarray] = []
+        nominal_flux_members: list[np.ndarray] = []
+        edited_flux_members: list[np.ndarray] = []
         ledgers: list[dict[str, float]] = []
         boundary_errors: list[float] = []
         for member in range(self.config.members):
@@ -581,11 +598,19 @@ class NovaEnsembleEstimator:
                 raise EstimatorFailure("Nova boundary-current constraint was violated")
             nominal_members.append(_observation(geometry, nominal_step["psi_face"]))
             edited_members.append(_observation(geometry, edited_step["psi_face"]))
+            nominal_flux_members.append(
+                np.asarray(nominal_step["psi_face"], dtype=np.float64)
+            )
+            edited_flux_members.append(
+                np.asarray(edited_step["psi_face"], dtype=np.float64)
+            )
             ledgers.append(ledger)
             boundary_errors.append(float(relative_error))
 
         raw_forecast = np.stack(nominal_members, axis=1)
         edited_product = np.stack(edited_members, axis=1)
+        equilibrium_flux = np.stack(nominal_flux_members, axis=1)
+        edited_equilibrium_flux = np.stack(edited_flux_members, axis=1)
         phase = times / times[-1]
         out_of_distribution = phase >= 0.68
         centre = reference_forecast[:, None, :]
@@ -660,6 +685,8 @@ class NovaEnsembleEstimator:
             full_sequence_smoothing=np.asarray(full_sequence, dtype=np.float64),
             edited_actuator=np.asarray(edited_product, dtype=np.float64),
             nominal_actuator=np.asarray(raw_forecast, dtype=np.float64),
+            equilibrium_flux=equilibrium_flux,
+            edited_equilibrium_flux=edited_equilibrium_flux,
             metrics=metrics,
             provenance=provenance,
             camera_proxy={
@@ -684,6 +711,8 @@ def _arrays(result: EstimatorResult) -> dict[str, np.ndarray]:
         "full_sequence_smoothing": result.full_sequence_smoothing,
         "edited_actuator": result.edited_actuator,
         "nominal_actuator": result.nominal_actuator,
+        "equilibrium_flux": result.equilibrium_flux,
+        "edited_equilibrium_flux": result.edited_equilibrium_flux,
     }
 
 
@@ -727,6 +756,27 @@ def write_result(
         "provenance": asdict(result.provenance),
         "camera_proxy": result.camera_proxy,
         "observation_labels": list(OBSERVATION_LABELS),
+        "equilibrium_products": {
+            "equilibrium_flux": {
+                "source": "Nova CurrentDiffusion.evolve psi_face",
+                "axes": ["clock", "member", "radial_face"],
+                "units": "Wb",
+                "description": (
+                    "member-wise one-dimensional poloidal-flux profiles on nested "
+                    "radial faces; not a two-dimensional Grad-Shafranov map"
+                ),
+            },
+            "edited_equilibrium_flux": {
+                "source": "Nova CurrentDiffusion.evolve psi_face",
+                "axes": ["clock", "member", "radial_face"],
+                "units": "Wb",
+                "description": (
+                    "member-wise one-dimensional poloidal-flux profiles under the "
+                    "edited actuator trajectory; not a two-dimensional "
+                    "Grad-Shafranov map"
+                ),
+            },
+        },
     }
     json_path = target / f"{name}.json"
     array_path = target / f"{name}.npz"
@@ -767,7 +817,7 @@ def merge_shards(merge_root: str | Path, output_dir: str | Path) -> tuple[Path, 
             raise EstimatorFailure("shard seed or schema identity mismatch")
         if record.get("estimator_config") != reference_config:
             raise EstimatorFailure("estimator configuration mismatch")
-        for key in ("camera_proxy", "observation_labels"):
+        for key in ("camera_proxy", "observation_labels", "equilibrium_products"):
             if record.get(key) != first.get(key):
                 raise EstimatorFailure(f"shard {key} mismatch")
         provenance = record.get("provenance", {})
@@ -801,6 +851,8 @@ def merge_shards(merge_root: str | Path, output_dir: str | Path) -> tuple[Path, 
                 "full_sequence_smoothing",
                 "edited_actuator",
                 "nominal_actuator",
+                "equilibrium_flux",
+                "edited_equilibrium_flux",
             }:
                 merged[key] = np.concatenate(values, axis=1)
             else:

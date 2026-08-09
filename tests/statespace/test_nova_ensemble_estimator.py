@@ -37,14 +37,33 @@ def test_physical_and_provenance_contract(conditioned_products):
     assert result.provenance.backend == "cpu"
     assert result.provenance.x64_enabled
     assert result.provenance.dtype == "float64"
-    assert result.provenance.topology == "single-null"
+    assert result.provenance.topology == "circular-nested-flux-surfaces"
     assert result.provenance.clock_hz == 1000
+    assert result.truth.shape == (config.steps, 4)
+    assert result.observations.shape == (config.steps, 4)
     assert result.causal_forecast.dtype == np.float64
     assert result.metrics["physics"]["finite_members"] == config.members
     assert result.metrics["physics"]["max_ledger_identity_error"] <= 1.0e-12
     assert result.metrics["physics"]["max_boundary_current_relative_error"] < 0.04
     assert result.metrics["physics"]["common_random_numbers"] is True
     assert result.metrics["physics"]["correction_frequency_hz"] == 100
+    expected_flux_shape = (config.steps, config.members, 21)
+    assert result.equilibrium_flux.shape == expected_flux_shape
+    assert result.edited_equilibrium_flux.shape == expected_flux_shape
+    assert result.equilibrium_flux.dtype == np.float64
+    assert result.edited_equilibrium_flux.dtype == np.float64
+    assert np.isfinite(result.equilibrium_flux).all()
+    assert np.isfinite(result.edited_equilibrium_flux).all()
+    np.testing.assert_array_equal(
+        result.equilibrium_flux[0], result.edited_equilibrium_flux[0]
+    )
+    assert (
+        np.mean(
+            result.edited_equilibrium_flux[-1, :, -1]
+            - result.equilibrium_flux[-1, :, -1]
+        )
+        > 0.0
+    )
     assert result.camera_proxy == {
         "product": "flux_surface_emissivity_proxy",
         "validated_checkpoint": False,
@@ -83,6 +102,14 @@ def test_causal_products_ignore_future_observations_while_smoother_responds(
     )
     np.testing.assert_array_equal(
         ordinary.causal_analysis[:180], changed_future.causal_analysis[:180]
+    )
+    np.testing.assert_array_equal(
+        ordinary.equilibrium_flux,
+        changed_future.equilibrium_flux,
+    )
+    np.testing.assert_array_equal(
+        ordinary.edited_equilibrium_flux,
+        changed_future.edited_equilibrium_flux,
     )
     assert not np.array_equal(
         ordinary.full_sequence_smoothing[:180],
@@ -186,6 +213,26 @@ def test_runtime_merge_and_schema_failures_are_rejected(
         config.members,
         4,
     ]
+    assert merged_metadata["shape"]["equilibrium_flux"] == [
+        config.steps,
+        config.members,
+        21,
+    ]
+    assert merged_metadata["shape"]["edited_equilibrium_flux"] == [
+        config.steps,
+        config.members,
+        21,
+    ]
+    equilibrium_metadata = merged_metadata["equilibrium_products"]
+    assert equilibrium_metadata["equilibrium_flux"]["axes"] == [
+        "clock",
+        "member",
+        "radial_face",
+    ]
+    assert (
+        "not a two-dimensional Grad-Shafranov map"
+        in equilibrium_metadata["equilibrium_flux"]["description"]
+    )
     assert merged_metadata["estimator_config"]["observation_noise"] == (
         config.observation_noise
     )
@@ -241,5 +288,7 @@ def test_runtime_merge_and_schema_failures_are_rejected(
             "full_sequence_smoothing",
             "edited_actuator",
             "nominal_actuator",
+            "equilibrium_flux",
+            "edited_equilibrium_flux",
         ):
             np.testing.assert_array_equal(merged[key], getattr(result, key))
