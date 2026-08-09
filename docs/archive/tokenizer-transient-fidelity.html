@@ -9,7 +9,6 @@
 <meta name="plan-slug" content="tokenizer-transient-fidelity">
 <meta name="plan-roi" content="high">
 <meta name="plan-effort" content="L">
-<meta name="plan-tier" content="opus">
 <meta name="plan-summary" content="Make the decoder good on transient frames (ELMs, L-H transitions, filaments) — the physics-relevant ones the world model will need. Mean rFID is misleading because it averages over quiescent and transient frames; stratified rFID with a transient-specific gate replaces it. Combined with importance sampling and per-class loss weighting to make transient frames a first-class training citizen, not a tail.">
 <meta name="plan-milestone" content="M1">
 <meta name="plan-sprint" content="S6">
@@ -19,9 +18,11 @@
 <link rel="stylesheet" href="/_shared/foundation.css">
 <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-title" content="Tokenizer transient-frame fidelity">
-<meta name="plan-modified" content="2026-05-29">
-<meta name="plan-version" content="5">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-version" content="7">
 <meta name="plan-status" content="archived">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
 <main class="plan-doc">
@@ -287,7 +288,7 @@ work but thresholds need re-calibration.</li>
 
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-rebench-1209004-stratified-2026-05-28" data-status="open" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-rebench-1209004-stratified-2026-05-28" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Re-bench 1209004 weights with stratified rFID to decide v1 scope</h4>
     <div class="r-fu-body">Once 1209004 finishes, re-bench plasma-decoder-v1-merged.ckpt with v0-rbb-100shot-finetune.yaml (which already enables rfid_stratified). The resulting rfid_quiescent vs rfid_transient gap is the data point that decides whether this plan is v1-mandatory or v1.5-polish (§5).</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -325,32 +326,36 @@ Done-when
 
 <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s5" data-id="c-20260528T185310985520" data-who="agent/opus (coordinator)" data-when="2026-05-28T18:53:10+00:00">
-    <div class="r-comment-body">**2026-05-28 — scenario classification BLOCKED on pipeline mismatches; awaiting 1209092.**
+    <div class="r-comment-body"><strong>2026-05-28 — scenario classification BLOCKED on pipeline mismatches; awaiting 1209092.</strong>
 
 Cannot yet apply the §5 scenario matrix.  The bench numbers we have are not trustworthy — three training/bench mismatches identified, two fixed, one running.
 
 | Bench | Decoder ckpt | rFID overall | rFID quiescent | rFID transient | rFID blank | Trustworthy? |
 |---|---|---|---|---|---|---|
 | 1208918 | baseline (no fine-tune) | 16.25 | – | – | – | yes |
-| 1209047 | 1209004 (pre-C5) | 27.40 | 40.82 | 28.92 | 2.95 | **no** (PIL/F.interp mismatch) |
-| 1209084 | 1209073 (C5 fix) | 28.87 | 43.20 | 29.98 | 3.10 | **no** (C6+C7 mismatches remain) |
+| 1209047 | 1209004 (pre-C5) | 27.40 | 40.82 | 28.92 | 2.95 | <strong>no</strong> (PIL/F.interp mismatch) |
+| 1209084 | 1209073 (C5 fix) | 28.87 | 43.20 | 29.98 | 3.10 | <strong>no</strong> (C6+C7 mismatches remain) |
 | (pending) | 1209092 (C5+C6+C7) | TBD | TBD | TBD | TBD | should be trustworthy |
 
-**Mismatches identified between fine-tune training and bench/corpus pipelines**:
-- C5 (resize operator): training used `PIL.Image.resize`; corpus and bench use `F.interpolate(bilinear, no antialias)`.  Fixed in commit `2649370` — but not sufficient alone.
-- C6 (encoder forward batch): training fed encoder at `batch=16`; corpus and bench use `MODEL_FORWARD_BATCH=4` (&quot;bit-exact contract&quot; per `stream_encode.py:159`).  LFQ quantizer is batch-size sensitive.  Fixed in commit `78c9786`.
-- C7 (encoder mode): training had encoder in `train()` mode (via `model.train()` at loop top); bench uses `eval()`.  BatchNorm / Dropout could differ.  Fixed in commit `78c9786`.
+<strong>Mismatches identified between fine-tune training and bench/corpus pipelines</strong>:
+<ul>
+<li>C5 (resize operator): training used `PIL.Image.resize`; corpus and bench use `F.interpolate(bilinear, no antialias)`.  Fixed in commit `2649370` — but not sufficient alone.</li>
+<li>C6 (encoder forward batch): training fed encoder at `batch=16`; corpus and bench use `MODEL_FORWARD_BATCH=4` ("bit-exact contract" per `stream_encode.py:159`).  LFQ quantizer is batch-size sensitive.  Fixed in commit `78c9786`.</li>
+<li>C7 (encoder mode): training had encoder in `train()` mode (via `model.train()` at loop top); bench uses `eval()`.  BatchNorm / Dropout could differ.  Fixed in commit `78c9786`.</li>
+</ul>
 
-C2 (per-shot normalization) **NOT** the issue — empirically verified 200-sample (lo, hi) is byte-identical to ALL-frames (lo, hi) on 5 test shots spanning 76 → 12380 frames.
+C2 (per-shot normalization) <strong>NOT</strong> the issue — empirically verified 200-sample (lo, hi) is byte-identical to ALL-frames (lo, hi) on 5 test shots spanning 76 → 12380 frames.
 
-**§5 scenario classification will fire on 1209092&#x27;s stratified re-bench result.**  Until then, the f-rebench-1209004-stratified followup is on hold (would need to be re-pointed at 1209092&#x27;s merged ckpt before resolution).</div>
+<strong>§5 scenario classification will fire on 1209092's stratified re-bench result.</strong>  Until then, the f-rebench-1209004-stratified followup is on hold (would need to be re-pointed at 1209092's merged ckpt before resolution).</div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-20260529T084853245293" data-who="agent/opus (coordinator)" data-when="2026-05-29T08:48:53+00:00">
-    <div class="r-comment-body">**2026-05-29 — REDIRECTED to the spatiotemporal track (NOT superseded by a negative finding). Archiving this plan; its goal moves to the pivot plan.** plasma-decoder-finetune is shipped-negative (job 1209184 confirmed the fine-tune genuinely regresses rFID; bf16 ruled out). This plan&#x27;s original *mechanism* — reweighting a frozen-encoder 2D decoder&#x27;s loss toward transient frames — is therefore not the route. **Transient fidelity remains a first-class v1 goal**; it is redirected to [tokenizer-spatiotemporal-pivot](/imas-ambix/tokenizer-spatiotemporal-pivot.html):
-- 3D/video tokenizers (Cosmos-DV) natively encode temporal structure — the natural home for transient capture (pivot §2, followup `f-cosmos-dv-video-zeroshot`).
-- A transient-specific **temporal/rollout metric** (pivot §3, followup `f-rollout-temporal-metric`) replaces stratified-rFID-on-a-2D-decoder — because rFID is per-frame and temporally blind.
+    <div class="r-comment-body"><strong>2026-05-29 — REDIRECTED to the spatiotemporal track (NOT superseded by a negative finding). Archiving this plan; its goal moves to the pivot plan.</strong> plasma-decoder-finetune is shipped-negative (job 1209184 confirmed the fine-tune genuinely regresses rFID; bf16 ruled out). This plan's original *mechanism* — reweighting a frozen-encoder 2D decoder's loss toward transient frames — is therefore not the route. <strong>Transient fidelity remains a first-class v1 goal</strong>; it is redirected to <a href="/imas-ambix/tokenizer-spatiotemporal-pivot.html">tokenizer-spatiotemporal-pivot</a>:
+<ul>
+<li>3D/video tokenizers (Cosmos-DV) natively encode temporal structure — the natural home for transient capture (pivot §2, followup `f-cosmos-dv-video-zeroshot`).</li>
+<li>A transient-specific <strong>temporal/rollout metric</strong> (pivot §3, followup `f-rollout-temporal-metric`) replaces stratified-rFID-on-a-2D-decoder — because rFID is per-frame and temporally blind.</li>
+</ul>
 
-The stratified-rFID classifier built here (`frame_activity_class` / `rfid_stratified` in `imas_ambix/eval/metrics.py`) carries forward and is reused by the pivot&#x27;s temporal metric. The §Decisions here (transient-loss-weight, importance-sampling-alpha, …) are specific to the closed 2D-decoder route and are moot.</div>
+The stratified-rFID classifier built here (`frame_activity_class` / `rfid_stratified` in `imas_ambix/eval/metrics.py`) carries forward and is reused by the pivot's temporal metric. The §Decisions here (transient-loss-weight, importance-sampling-alpha, …) are specific to the closed 2D-decoder route and are moot.</div>
 </div>
 </section>
 </main>

@@ -17,13 +17,14 @@
 <meta name="plan-effort" content="M">
 <meta name="plan-milestone" content="M1">
 <meta name="plan-sprint" content="S2">
-<meta name="plan-tier" content="opus">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-29">
+<meta name="plan-modified" content="2026-08-09">
 <meta name="plan-depends-on" content="STRATEGY,tokenizers,compute">
 <meta name="plan-blocks" content="world-model-v0">
 <meta name="plan-impl" content="0.78">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
 <main class="plan-doc">
@@ -491,7 +492,7 @@ records the failure mode in a new feedback memory.</p>
 </section>
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-v0-2026-05-21" data-status="resolved" data-tier="" data-written-by="Simon McIntosh" data-written-at="2026-05-20 18:02" data-recommends-skill="/plan-edit v0-runway --section 5" data-resolved-at="2026-05-26T14:35:59+00:00" data-resolved-by="Agent C (Opus coordinator)">
+<article class="r-fu" data-id="f-v0-2026-05-21" data-status="resolved" data-written-by="Simon McIntosh" data-written-at="2026-05-20 18:02" data-recommends-skill="/plan-edit v0-runway --section 5" data-resolved-at="2026-05-26T14:35:59+00:00" data-resolved-by="Agent C (Opus coordinator)">
     <h4 class="r-fu-title">Coordinator review of the 4-agent parallel batch outputs</h4>
     <div class="r-fu-body">All 4 Sonnet agents have committed their work. Review each output against the §5 rubric and either accept the commits or flag for rework. Update §2 ROI ranking with the new items the batch produced.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -506,7 +507,7 @@ For each of the 4 commits, score against §5 review rubric:
 Output a §3.1 summary table; flag any rework as new followups on the owning plan.</pre>
     <p class="r-fu-outcome">All 4 S2 batch commits accepted. Rubric scores: 5e7c5fc (decoder fine-tune scaffold) — 1:pass 2:pass 3:pass 4:fail; 72c0e0a (alignment + padding) — 1:pass 2:pass 3:pass 4:fail; dec0082 (bench YAML configs) — 1:pass 2:pass 3:pass 4:fail; d3896e5 (quality recalibration) — 1:pass 2:pass 3:pass 4:fail. All 4 failed item (4) — followup chain not updated (known Sonnet fleet pattern). 368 tests collected clean (EXIT=0), 1 GPU skip. §1 refreshed to 2026-05-26. §2 bulk-encode now ACTIVE. §3.1 table written to v0-runway.html. impl advanced to 0.78.</p>
     </article>
-<article class="r-fu" data-id="f-v0-2026-05-26" data-status="open" data-tier="opus" data-written-by="Agent C (Opus coordinator)" data-written-at="2026-05-26" data-recommends-skill="/reckon-ship v0-runway" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-v0-2026-05-26" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="Agent C (Opus coordinator)" data-written-at="2026-05-26" data-recommends-skill="/reckon-ship v0-runway" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Second coordinator review — gate the 125M smoke-run dispatch</h4>
     <div class="r-fu-body">Agent D bulk-encode and Agent A training-grade derivation are both in flight. Once they land, review their outputs and dispatch the 125M smoke training run. Verify: (1) bulk-encode token count is plausible (expect ~9k tokens/shot * 11k shots), (2) training-grade-shots.json is populated with shot IDs + quality flags, (3) SLURM wrappers from Agent B are present and functional, (4) smoke run can be dispatched on 1 GPU with 100 shots.</div>
     <pre class="r-fu-prompt">Project: imas-ambix

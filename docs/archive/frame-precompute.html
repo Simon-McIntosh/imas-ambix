@@ -17,13 +17,14 @@
 <meta name="plan-effort" content="M">
 <meta name="plan-milestone" content="M1">
 <meta name="plan-sprint" content="S4">
-<meta name="plan-tier" content="sonnet">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-28">
+<meta name="plan-modified" content="2026-08-09">
 <meta name="plan-depends-on" content="data-acquisition,zarr-consolidate">
 <meta name="plan-blocks" content="tokenizers,world-model-v0">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="14">
+<meta name="plan-version" content="15">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="general">
 </head>
 <body>
 <main class="plan-doc">
@@ -120,7 +121,7 @@ path for shots without a precomputed cache.</p>
 </section>
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-fp-2026-05-26" data-status="resolved" data-tier="sonnet" data-written-by="Simon McIntosh" data-written-at="2026-05-26 18:30" data-recommends-skill="/reckon-ship frame-precompute --section 3" data-resolved-at="2026-05-27T07:25:09+00:00" data-resolved-by="agent/sonnet (supervisor)">
+<article class="r-fu" data-id="f-fp-2026-05-26" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="Simon McIntosh" data-written-at="2026-05-26 18:30" data-recommends-skill="/reckon-ship frame-precompute --section 3" data-resolved-at="2026-05-27T07:25:09+00:00" data-resolved-by="agent/sonnet (supervisor)">
     <h4 class="r-fu-title">Implement preprocess.py + run on full rbb corpus</h4>
     <div class="r-fu-body">Wait for zarr-consolidate to land first (depends_on). Then write preprocess.py + CLI hook, validate bit-exact on 5 shots, then sbatch a CPU array (sun_debug, 16 cores × 4 tasks) to chew through 9,527 shots. Total expected wall: ~30 min on 64 CPUs.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -147,7 +148,7 @@ Done-when
   6. data.impl → 1.0, status → shipped, plan §5 updated with measured speedup.</pre>
     <p class="r-fu-outcome">Code shipped 2026-05-26 (commit 46d86e7): imas_ambix/data/preprocess.py + `ambix data preprocess-frames` CLI + scripts/slurm/preprocess_frames.sbatch + tests/test_preprocess.py. Bit-exact normalise validated 4/4 reachable shots. q1 resolved → torch backend (resize-backend decision locked). Full-corpus run is now in flight as job 1208031 (sun, torch) — tracked by successor followup f-fp-run-2026-05-26.</p>
     </article>
-<article class="r-fu" data-id="f-fp-run-2026-05-26" data-status="resolved" data-tier="sonnet" data-written-by="agent (Sonnet 4.6)" data-written-at="2026-05-26" data-recommends-skill="/reckon-ship frame-precompute" data-resolved-at="2026-05-28T08:15:10+00:00" data-resolved-by="agent/sonnet (Agent B)">
+<article class="r-fu" data-id="f-fp-run-2026-05-26" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="agent (Sonnet 4.6)" data-written-at="2026-05-26" data-recommends-skill="/reckon-ship frame-precompute" data-resolved-at="2026-05-28T08:15:10+00:00" data-resolved-by="agent/sonnet (Agent B)">
     <h4 class="r-fu-title">Run preprocess_frames.sbatch once L1 zarr-consolidate (1207977) lands</h4>
     <div class="r-fu-body">preprocess.py + CLI + sbatch script are written and validated (4/4 shots with rbb data pass bit-exact; shot 25000 has no rbb group — expected data gap). Full-corpus run (9,527 shots) is blocked on zarr-consolidate job 1207977 finishing on sun partition. Once that completes, submit scripts/slurm/preprocess_frames.sbatch. Open decision q1 (cv2 vs torch F.interpolate) should be settled with a 100-shot A/B before the full run.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -189,13 +190,13 @@ Done-when
 <section data-reckon="questions" id="questions" class="r-questions">
 <h2><span class="sec">§</span> Open questions</h2>
 <div class="r-q" data-id="q1" data-section="3 implementation" data-status="resolved" data-opened-by="Simon McIntosh" data-opened-at="2026-05-26" data-resolved-at="2026-05-27" data-resolved-by="Simon McIntosh">
-    <p class="r-q-body">Use cv2.resize(INTER_LINEAR) on CPU or pre-load to GPU and use torch.nn.functional.interpolate? cv2 is simpler and saves the GPU for actual encode; F.interpolate matches the daemon&#x27;s resize path byte-for-byte. Worth a 100-shot A/B for token-id divergence count.</p>
+    <p class="r-q-body">Use cv2.resize(INTER_LINEAR) on CPU or pre-load to GPU and use torch.nn.functional.interpolate? cv2 is simpler and saves the GPU for actual encode; F.interpolate matches the daemon's resize path byte-for-byte. Worth a 100-shot A/B for token-id divergence count.</p>
     <p class="r-q-resolution">RESOLVED 2026-05-27 → torch (see decisions §resize-backend). cv2 absent from venv + torch byte-exact match made the A/B unnecessary.</p>
     </div>
 </section>
 <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s3" data-id="c-20260527T074035629800" data-who="agent/sonnet (supervisor)" data-when="2026-05-27T07:40:35+00:00">
-    <div class="r-comment-body">Full-corpus run job 1208031 OOM&#x27;d (OUT_OF_MEMORY, exit 0:125) after only ~95/9527 shots. Cause: 36 ProcessPool workers each holding a uint16 (T,536,560) load + float32 normalise intermediate + uint8 RGB output + torch resize buffers — peak ~1-2 GB/worker × 36 &gt;&gt; the 64 GB request. Fix for re-run: drop --workers to 12-16 AND/OR raise --mem to 256G on sun. f-fp-run-2026-05-26 stays open. NOTE: now that the GPU node has recovered (cuInit rc=0, torch 2.5.1 working), frame-precompute is an optimisation not a blocker — the §12.5 bulk-encode can run via the legacy path immediately; precompute just makes it ~2× faster.</div>
+    <div class="r-comment-body">Full-corpus run job 1208031 OOM'd (OUT_OF_MEMORY, exit 0:125) after only ~95/9527 shots. Cause: 36 ProcessPool workers each holding a uint16 (T,536,560) load + float32 normalise intermediate + uint8 RGB output + torch resize buffers — peak ~1-2 GB/worker × 36 &gt;&gt; the 64 GB request. Fix for re-run: drop --workers to 12-16 AND/OR raise --mem to 256G on sun. f-fp-run-2026-05-26 stays open. NOTE: now that the GPU node has recovered (cuInit rc=0, torch 2.5.1 working), frame-precompute is an optimisation not a blocker — the §12.5 bulk-encode can run via the legacy path immediately; precompute just makes it ~2× faster.</div>
 </div>
 </section>
 </main>

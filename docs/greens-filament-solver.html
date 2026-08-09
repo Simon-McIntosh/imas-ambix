@@ -11,7 +11,6 @@
   <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="XL">
-  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="mse-gated-reanalysis">
@@ -19,10 +18,12 @@
   <title>Grid-Free Green's-Filament Equilibrium Solver | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-20">
+<meta name="plan-modified" content="2026-08-09">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
 <meta name="plan-informs" content="connectivity-topology-reader,gpu-accelerated-labeler">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
 <main class="plan-doc">
@@ -258,7 +259,7 @@
 
   <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-gfs-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-20T00:00:00+00:00" data-recommends-skill="/reckon-ship greens-filament-solver §2" data-resolved-at="2026-07-20T07:14:42+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-gfs-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-07-20T00:00:00+00:00" data-recommends-skill="/reckon-ship greens-filament-solver §2" data-resolved-at="2026-07-20T07:14:42+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §2 — the grid-free Green&#x27;s/filament solver spike (go/no-go)</h4>
     <div class="r-fu-body"><p>Port the nova free-boundary mechanism into the engine as an opt-in solver on the existing plasma Green's machinery: add the plasma→plasma self-ψ and plasma→target ψ Green's blocks (hybrid_greens finite-area), and the force-balance turn-update Newton–Krylov fixed point (filament turns sum to 1 → net = Ip; axis/X-point matrix-free; LCFS by contour). Prove it against the frozen grid-GS on held-out slices — the go/no-go that gates the whole plan. Gates pre-declared in the prompt.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -307,7 +308,7 @@ Done-when
   2. Plan updated same-session: §2 outcome recorded + collapsed; §3 (FSA on the analytic ψ) followup queued WITH pre-declared gates; this followup resolved.</pre>
     <p class="r-fu-outcome">§2 landed GO — the analytic Green's-matvec substrate reproduces the frozen grid-GS equilibria on 8 held-out shots / 63 paired slices: axis 0.016 cm median (warm 0.019, p90 0.036), LCFS radii 0.006 cm, jφ(ρ̂) profile 0.019 RMS flat-top (G1a PASS); force balance 100% converged (G1b PASS); grid._lu is None — no Δ* assembled (G1c PASS); T1 7/7 units. Honest finding: matvec is 1.67× SLOWER per single CPU solve (dense matvec loses to cached sparse-LU at batch-1) — §2 proves physical reproduction, NOT per-solve speed; the throughput payoff is FSA integrity (§3) + a batched-GPU labeler (follow-on gpu-accelerated-labeler). Stop rule not invoked; solver-substrate decision = GO. Commits 6c41817 (substrate) + f6528e9 (gate+threading); archive docs/archive/greens-filament-solver-s2-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-gfs-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T09:15:00+00:00" data-recommends-skill="/reckon-ship greens-filament-solver §3" data-resolved-at="2026-07-20T10:16:54+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-gfs-02" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-20T09:15:00+00:00" data-recommends-skill="/reckon-ship greens-filament-solver §3" data-resolved-at="2026-07-20T10:16:54+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §3 — flux-surface averaging on the analytic ψ</h4>
     <div class="r-fu-body"><p>§2 landed GO: the analytic Green's-matvec substrate reproduces the frozen grid-GS equilibria (sub-mm axis, ~60μm LCFS, ~2% profile RMS). §3 re-bases the flux-surface geometry (V′, g2, g3, ⟨1/R⟩, d) that drives the resistive diffusion on the smooth analytic ψ — GPU-NATIVE and CONTOUR-FREE from inception (NO contourpy / marching-squares / level-set walk; those don't batch on a GPU), on the same connectivity/flood-fill flux-surface machinery as connectivity-topology-reader, smooth + differentiable. RECONCILE FIRST: the "d roughness 0.45→0.72 worsening with resolution" figure has no committed diagnostic; the committed spine_bench metric shows it improving with resolution — re-baseline against spine_bench before claiming a fix. Gate G2: GPU-native/contour-free FSA metrics reach a target smoothness AND do not degrade with resolution (vs the spine_bench baseline); the mse-gated-reanalysis §3 dynamics coupling does not regress.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -368,7 +369,7 @@ Done-when
      followup queued WITH pre-declared gates; this followup resolved.</pre>
     <p class="r-fu-outcome">§3 PASS. Contour-free JAX FSA (flood-fill core + smooth-CDF coarea; jit/vmap/grad-safe, fixed-shape, fp64) landed as opt-in fsa_mode='connectivity' — coarea default byte-unchanged (14/14 current_diffusion tests + 7/7 new). RECONCILE: the cited 0.45→0.72 worsening pathology is NOT reproduced — the committed coarea metric is already smooth (0.34→0.17) and improves with resolution. Connectivity is materially smoother regardless: 6-shot d-roughness 0.126/0.129 (n32/n96) vs coarea 0.346/0.171, flat across resolution slope -0.037 (G2a/G2b PASS); contour-free + on-device (G2c PASS: flood-fill == scipy.ndimage.label, AST-checked, fixed-shape); dynamics coupling no-regress — confinement identical (0.939/0.879), tracking improves 2.18→1.85 cm (G2d PASS). DEMONSTRATED ON H200: batched jax.vmap over 1024 equilibria on a CudaDevice, fp64, GPU/CPU parity 1e-13 (scripts/fsa_gpu_capability.py). spine_bench schema 1.2 tracks both FSA reads; imas_ambix/spine_bench/AGENTS.md codifies the H200 benchmark policy. Commits 2e35d09 (kernel+wiring+bench+tests), ab22215 (GPU demo+policy+G2d harness), 59c4744 (figures), 88a3610 (stamp+record); archive docs/archive/greens-filament-solver-s3-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-gfs-04" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T12:20:00+00:00" data-recommends-skill="/reckon-ship greens-filament-solver §4" data-resolved-at="2026-07-20T12:41:52+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-gfs-04" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-20T12:20:00+00:00" data-recommends-skill="/reckon-ship greens-filament-solver §4" data-resolved-at="2026-07-20T12:41:52+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §4 — performance to corpus scale (campaign-cached matvec + accelerator + ≥3× throughput)</h4>
     <div class="r-fu-body"><p>§3 PASS: the FSA read is now contour-free and device-batchable (H200 demo: 1024 equilibria/vmap, GPU/CPU parity 1e-13), and the analytic-ψ substrate (§2 GO) feeds it cleanly. §4 turns the substrate into throughput: cache the Green's/interaction matrices at CAMPAIGN scope (build once, reuse across every shot+slice — the spine_bench corpus-extrapolation caveat assumes this), collapse the label-production solve to what label production actually needs (fewer than the 3 solves/slice the §3 chain runs), and settle the fixed-point accelerator (Newton–Krylov primary, Anderson-accelerated Picard as the interpretable fallback). Gate G3: ≥3× the current baseline throughput (slices/core-hour) with equilibria byte-comparable to the adopted solver. Track it on spine_bench (throughput_slices_per_core_s + the new campaign-cache path) and demonstrate the batched path on the H200 per spine_bench/AGENTS.md.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -413,7 +414,7 @@ Done-when
   2. Plan updated same-session: §4 outcome recorded + collapsed; §5 (adopt + integrate + re-score) followup queued; this followup resolved.</pre>
     <p class="r-fu-outcome">§4 landed. Campaign-scope grid/matrix cache LANDED (opt-in cache=; cold build 2718ms → cache hit 0.04ms/shot, wired into the corpus factory) — the corpus-extrapolation caveat satisfied. Accelerator study honest: warm-rollout NOT a lever (0.53×; same-slice basin solve is the better seed, warm diverges ~1.15cm); safeguarded Anderson-Picard ~1.3× on well-posed slices byte-comparably (agree 0.2–0.6cm), can't help under-determined interior-null slices; Newton–Krylov erratic on the non-smooth map (2/5 fixed-shape slices diverge, axis 47–70cm off) and host-scipy. Root cause: the hard-threshold host topology read (ndimage.label + critical-points) makes the map non-differentiable (corrupts NK's Jacobian + Anderson's history) and the hard slices are under-determined (centroid pin holds the branch; the axis–pin gap is the physical Shafranov shift). G3 (≥3× on CPU) = HONEST NEGATIVE per the pre-declared stop rule — no per-solve CPU iterator clears 3× (the ceiling is the sequential non-smooth host topology read, not the arithmetic); the 3×+ routes to the batched-over-shots GPU path (gpu-accelerated-labeler) gated on the differentiable topology (connectivity-topology-reader). G3b reported; Anderson adopted as opt-in, NK retained. §5 (adopt+re-score) folded into the GPU path (ONE jax engine). Commit 1faf3ab; archive docs/archive/greens-filament-solver-s4-landed.html. Plan SHIPPED (§2 GO, §3 PASS, §4 cache+honest-ceiling).</p>
     </article>
-<article class="r-fu" data-id="f-gfs-05" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T14:40:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-gfs-05" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-20T14:40:00+00:00" data-recommends-skill="/reckon-ship connectivity-topology-reader §2" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Next: the continuous/differentiable topology read (connectivity-topology-reader) — the unblocker</h4>
     <div class="r-fu-body"><p>greens-filament-solver SHIPPED: grid-free substrate (GO), contour-free GPU-native FSA (PASS), campaign cache landed, and the §4 finding that no CPU per-solve iterator clears 3× because the non-smooth, host topology read (ndimage.label core-mask + critical-points) is the wall — it corrupts both Newton–Krylov's Jacobian and Anderson's history, and forces a per-iteration host round-trip. The cure is already planned: connectivity-topology-reader makes the topology read continuous/differentiable (flood-fill boundary + smooth core mask, GPU-native, continuous through the marginal transition). Landing it (i) makes the free-boundary map differentiable so the fixed-point accelerator schemes are revisited cleanly on a solvable map, and (ii) makes the map vmap-batchable so the GEMV becomes a corpus GEMM — the prerequisite the gpu-accelerated-labeler 3×+ throughput and the §5 corpus adopt+re-score both depend on. Ship connectivity-topology-reader next.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix

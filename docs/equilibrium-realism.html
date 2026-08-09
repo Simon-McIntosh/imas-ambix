@@ -11,16 +11,17 @@
   <meta name="plan-status" content="superseded">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
-  <meta name="plan-tier" content="opus">
   <meta name="plan-blocks" content="learned-equilibrium-operator">
   <meta name="plan-owner" content="Simon McIntosh">
   <title>Equilibrium Realism | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-21">
-<meta name="plan-version" content="8">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-version" content="9">
 <meta name="plan-impl" content="0.75">
 <meta name="plan-depends-on" content="plasma-screening-dynamics,temporal-physics-spine">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
 <main class="plan-doc">
@@ -431,7 +432,7 @@
 
   <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-eqr-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-18" data-recommends-skill="/reckon-ship equilibrium-realism §2" data-resolved-at="2026-07-18T21:36:53+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-eqr-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-07-18" data-recommends-skill="/reckon-ship equilibrium-realism §2" data-resolved-at="2026-07-18T21:36:53+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §2 — V1 analytic force-balance diagnosis: Shafranov balance + decay index at measured states, branch decision locked</h4>
     <div class="r-fu-body"><p>First full session. Build the analytic pins (unit tests on known filament/coil-pair cases), then the measured-state sweep (11766 + ≥2 train-split shots, ramp-spanning slices): model vacuum B_z at the measured axis vs the Shafranov requirement, decay index vs the stability window, per-coil-group waterfall, and the reconstruction-mode axis-hold probe. Lock the <code>attractor-branch</code> decision by the pre-declared G1a/G1b rules — or invoke the ambiguity extension, never a guess. Figures mandatory. Per the session protocol, the landing MUST queue the next-session followup with its own pre-declared gates and tests.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -502,7 +503,7 @@ Done-when
      resolved</pre>
     <p class="r-fu-outcome">§2 landed — commits cc02ac6/7d70c37/173671c/3989388. G1a fired: attractor-branch = coil-side locked (flat-top median 15.2% &gt; 15% after the pre-declared +3-shot extension; waterfall 85% to p5+p4; probe exonerates the solve at 1.6 cm axis hold). Lead's passive-structure hypothesis tested in-session: conductors present vs L2 pf_passive IDS; missing term = plasma-driven vessel-eddy drive (ramp deficit 27.5%→17.6% when folded). 13 analytic pins green; artifact + 4 figures committed; archive docs/archive/equilibrium-realism-s2-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-eqr-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-18" data-recommends-skill="/reckon-ship equilibrium-realism §2.5" data-resolved-at="2026-07-19T08:50:46+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-eqr-02" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-18" data-recommends-skill="/reckon-ship equilibrium-realism §2.5" data-resolved-at="2026-07-19T08:50:46+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §2.5 — coil-side fix rung: plasma-driven eddy fold, identity band, per-coil audit; V2-precondition confinement gate</h4>
     <div class="r-fu-body"><p>The §2 diagnosis locked coil-side and decomposed the deficit: a missing plasma-driven vessel-eddy drive (closes ramp 27.5→17.6%) plus a residual ~15–18% field-side gap that the large-aspect identity's own uncertainty may partly absorb. This rung lands the eddy fold in the forward chain, brackets the identity with an elongation-corrected band, audits the p4/p5/p6 winding representation identity-independently, and gates on the V2 precondition: a confined fixed point on shot 11766's measured flat-top pattern. Gates pre-declared in the prompt per the session protocol.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -582,7 +583,7 @@ Done-when
      queued WITH its own pre-declared gates; this followup resolved</pre>
     <p class="r-fu-outcome">§2.5 landed — commits a4dd8a2 (eddy fold + one-interaction-matrix flux solve + elongated Shafranov + T1 pins, 24 green), 69f5905 (per-coil winding audit CLEAN, &lt;0.5% all coils), 573cb7c (attribution-hygiene scrub), plus the profile-free confinement harness. Fix gates: eddy fold reproduces ramp 17.6% byte-exact; winding audit clean; eddy-folded flat-top residual +0.5% vs the elongation-corrected requirement (coil model exonerated at the axis). Sign investigation (lead-triggered): the whole chain is correct — Ip +466 kA COCOS-3, Ip≈|P4|+|P5| amp-turns, divertor P6 same-sign as Ip, P4/P5 opposite as required; flipping the relative sign destroys confinement. G-V2-pre REVERSED to PASS: the 'no confined fixed point' was a fixed-two-term artifact; the profile-free solve confines in every config (23/23 flat-top slices within 15 cm, median 3.8 cm; forward known-physics-only 16/23 at 32.6 cm = interior-null). Decision v2-precondition-verdict=confines-profile-free locked; attractor-branch reinterpreted solve/representation-side. Archive docs/archive/equilibrium-realism-s2.5-landed.html. Premise reversal propagated to forward plans.</p>
     </article>
-<article class="r-fu" data-id="f-eqr-03" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-19" data-recommends-skill="/reckon-ship equilibrium-realism §3" data-resolved-at="2026-07-19T10:23:17+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-eqr-03" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-19" data-recommends-skill="/reckon-ship equilibrium-realism §3" data-resolved-at="2026-07-19T10:23:17+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §3 — complete V2 across the shot set with full circuit dynamics; characterise the interior-null</h4>
     <div class="r-fu-body"><p>§2.5 met the V2 precondition: the profile-free solve confines on the measured program (23/23 flat-top slices within 15 cm). §3 completes V2 — extend the profile-free solve across the train-split shot set on ramp AND flat-top with the full circuit dynamics folded (predicted vessel-eddy prior on ramp slices via solve_pinned_plasma_circuit, plasma flux-diffusion screening modes stacked), score confinement + axis + κ + limiter-class vs the referee, and characterise the interior-null (forward axis ~22 cm outboard) that the learned/temporal operator must resolve. Gates pre-declared in the prompt.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -649,7 +650,7 @@ Done-when
      followup resolved</pre>
     <p class="r-fu-outcome">Superseded by f-eqr-04. The §3 framing here ('V2 precondition met, characterise the interior-null') rested on the §2.5 over-claim that the forward operator confines. The deeper warm-start test (magnetics off, seeded at recon 0.82 → drifts to 1.77) showed V2-forward is NOT passed: the forward operator has a spurious outboard attractor. §3 is re-scoped to fixing that attractor (f-eqr-04).</p>
     </article>
-<article class="r-fu" data-id="f-eqr-04" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-19" data-recommends-skill="/reckon-ship equilibrium-realism §3" data-resolved-at="2026-07-19T12:09:13+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-eqr-04" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-19" data-recommends-skill="/reckon-ship equilibrium-realism §3" data-resolved-at="2026-07-19T12:09:13+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §3 — fix the forward solve&#x27;s spurious outboard attractor (V2-forward)</h4>
     <div class="r-fu-body"><p>Corrected §3 after the V2-forward verdict was walked back. The physical equilibrium exists and is inboard (recon 0.82, reality 0.9, rigid-ring 0.88), but the FREE-BOUNDARY forward solve drifts to a spurious outboard attractor (R=1.77) even warm-started at 0.82 with magnetics off — the plasma falls into a flux pocket near the in-vessel P4/P5/P6 coils. Not a sign error (ruled out 5 ways). V2-forward is NOT passed. §3 must make the forward operator independently hold the physical equilibrium, per the locked vertical-stability-treatment=feedback-forward-only decision (Z-feedback/attractor control in forward mode; reconstruction mode already confines and needs none). Gates pre-declared in the prompt.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -719,7 +720,7 @@ Done-when
      pre-declared gates; this followup resolved</pre>
     <p class="r-fu-outcome">§3 landed as an honest negative + mechanism correction. V2-forward FAILS, but NOT by the §2.5 mechanism. Instrumented across 3 shots / 36 slices (scripts/forward_confinement_diagnostic.py + artifact + 2 figures): the forward drift is purely RADIAL — axis |Z| ≤ 0.37 cm at every slice (0 over 0.5 cm), so the n=0 vertical mode is stable and the locked feedback-forward-only Z-controller is a NO-OP for V2-forward (it belongs to §4 dynamics). The forward axis is a genuine conductor-clear O-point at every slice (0/36 on a coil pocket) — NOT the §2.5 'flux pocket at the P4/P5/P6 coils' (mechanism corrected). The forward current centroid sits near physical (flat-top median 0.98 m) while the magnetic axis is Shafranov-shifted outboard (flat-top median +0.10 m) by the profile peakedness — the RADIAL interior-null, externally undetermined without magnetics or a learned prior (flat-top forward-vs-referee gap min 18.3 / median 22.5 / max 56.5 cm, every flat slice over the 15 cm gate → G3a FAIL). The §2.5 'R=1.77' is a legacy boundary-continuation seed artefact (compact-seed forward = 1.14 m; recon = 0.82 m). G3b: no coil-pocket capture (corrected). G3c: no pins / no magnetics confirmed. STOP RULE invoked: no machine-agnostic forward fix closes the interior-null without magnetics (reconstruction mode, passing 23/23) or a learned profile prior (the learned operator this plan blocks). V2 IS met in reconstruction mode. Archive docs/archive/equilibrium-realism-s3-landed.html. Lead decision on the V2 reframe queued (f-eqr-05).</p>
     </article>
-<article class="r-fu" data-id="f-eqr-05" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-19T14:20:00+00:00" data-recommends-skill="/reckon-edit equilibrium-realism" data-resolved-at="2026-07-19T16:38:10+00:00" data-resolved-by="lead">
+<article class="r-fu" data-id="f-eqr-05" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-19T14:20:00+00:00" data-recommends-skill="/reckon-edit equilibrium-realism" data-resolved-at="2026-07-19T16:38:10+00:00" data-resolved-by="lead">
     <h4 class="r-fu-title">Lead decision: reframe V2 (forward failure is the radial interior-null, not the vertical mode or a coil pocket), then build §4</h4>
     <div class="r-fu-body"><p>§3 measured V2-forward failing as the RADIAL interior-null: the forward magnetic axis is Shafranov-shifted outboard by the profile peakedness (β_p+l_i/2, externally undetermined), the forward current centroid is near physical, the axis Z is stable at every slice (n=0 is NOT the failure → the locked feedback-forward-only Z-controller is a no-op for V2-forward), and the in-vessel coil O-points are excluded at every slice (NOT a flux pocket — corrects §2.5). No machine-agnostic forward fix closes it without magnetics or a learned profile prior. V2 IS met in reconstruction mode (23/23 flat-top ≤ 15 cm, median 3.8 cm). Two asks for the lead: (1) re-lock <code>v2-precondition-verdict</code>'s rationale to the corrected mechanism (radial interior-null; not a coil-flux pocket at the P4/P5/P6 coils); (2) decide the V2 reframe — (A) accept reconstruction-mode V2 as the binding gate and unblock §4 (the stability-honest forward truth chain, where the modeled Z-controller lives as scenario dynamics for the n=0 mode) + the learned operator (which resolves the interior-null the forward solve cannot), or (B) retain V2-forward as an aspirational gate only a profile prior can meet.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix

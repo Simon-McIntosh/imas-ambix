@@ -9,7 +9,6 @@
 <meta name="plan-slug" content="tokenizer-frame-quality-filter">
 <meta name="plan-roi" content="high">
 <meta name="plan-effort" content="M">
-<meta name="plan-tier" content="sonnet">
 <meta name="plan-summary" content="Corpus-side sidecar mask flagging blank/degenerate camera frames so fine-tune, bench, and world-model all skip them. Empirical 2026-05-28 audit (30-shot sample) found 1.79% blank frames concentrated in specific shots; no filter exists today, so the decoder wastes capacity learning to reproduce near-zero tensors and rFID is artificially deflated by easy-to-reconstruct blanks. Implementation is non-invasive: token rows stay intact, only a per-shot valid_mask is added.">
 <meta name="plan-milestone" content="M1">
 <meta name="plan-sprint" content="S6">
@@ -17,6 +16,12 @@
 <title>Frame-quality filter (sidecar mask) | imas-ambix</title>
 <link rel="stylesheet" href="/_shared/foundation.css">
 <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-title" content="Frame-quality filter (sidecar mask)">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="general">
+<meta name="plan-version" content="2">
+<meta name="plan-status" content="superseded">
 </head>
 <body>
 <main class="plan-doc">
@@ -217,43 +222,40 @@ in-process bench (~9 min) using the same SLURM pattern as
 
 <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-
 <div class="r-dec" data-key="degenerate-shot-handling" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">How should entirely-degenerate shots (valid_fraction = 0) be handled?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt" data-value="drop">drop the shot entirely from train + val + bench pools</button>
-    <button class="r-opt" data-value="quarantine">keep tokens but quarantine to a separate audit pool for inspection</button>
-    <button class="r-opt" data-value="report-only">v1 reports them but doesn't drop; deciders revisit per-shot</button>
-  </p>
-  <p class="r-dec-rat"></p>
-</div>
-
+    <p class="r-dec-q">How should entirely-degenerate shots (valid_fraction = 0) be handled?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="drop">drop the shot entirely from train + val + bench pools</button>
+      <button class="r-opt" data-value="quarantine">keep tokens but quarantine to a separate audit pool for inspection</button>
+      <button class="r-opt" data-value="report-only">v1 reports them but doesn&#x27;t drop; deciders revisit per-shot</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
 <div class="r-dec" data-key="mask-recompute-trigger" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">When should sidecar masks be recomputed?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt" data-value="schema-bump">only when schema_version is bumped (manual)</button>
-    <button class="r-opt" data-value="zarr-mtime">when the source zarr's mtime exceeds the sidecar's computed_at</button>
-    <button class="r-opt" data-value="never">never automatically; treat sidecar as ground truth once written</button>
-  </p>
-  <p class="r-dec-rat"></p>
-</div>
-
+    <p class="r-dec-q">When should sidecar masks be recomputed?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="schema-bump">only when schema_version is bumped (manual)</button>
+      <button class="r-opt" data-value="zarr-mtime">when the source zarr&#x27;s mtime exceeds the sidecar&#x27;s computed_at</button>
+      <button class="r-opt" data-value="never">never automatically; treat sidecar as ground truth once written</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
 <div class="r-dec" data-key="heuristic-thresholds" data-choice="" data-by="" data-when="">
-  <p class="r-dec-q">Are the audit-derived thresholds (mean&lt;5, std&lt;1) appropriate for production, or do we need per-camera tuning?</p>
-  <p class="r-dec-opts">
-    <button class="r-opt" data-value="keep-audit">keep audit thresholds across all cameras (simple, defensible from data)</button>
-    <button class="r-opt" data-value="per-camera">allow per-camera override in the CLI (rir has different dynamic range)</button>
-  </p>
-  <p class="r-dec-rat"></p>
-</div>
+    <p class="r-dec-q">Are the audit-derived thresholds (mean&lt;5, std&lt;1) appropriate for production, or do we need per-camera tuning?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="keep-audit">keep audit thresholds across all cameras (simple, defensible from data)</button>
+      <button class="r-opt" data-value="per-camera">allow per-camera override in the CLI (rir has different dynamic range)</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
 </section>
 
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-phase1-2026-05-28" data-status="open" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28">
-  <h4 class="r-fu-title">Phase 1: land imas_ambix/data/frame_quality.py + CLI</h4>
-  <div class="r-fu-body">Module with compute_shot_quality(); CLI ambix data frame-quality-scan; uses in-process streaming pattern from stream_encode.py with the STOP-FILE contract from AGENTS.md §2a-cancel. Phases 2-5 cannot start until this lands.</div>
-  <pre class="r-fu-prompt">Project: imas-ambix
+<article class="r-fu" data-id="f-phase1-2026-05-28" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Phase 1: land imas_ambix/data/frame_quality.py + CLI</h4>
+    <div class="r-fu-body">Module with compute_shot_quality(); CLI ambix data frame-quality-scan; uses in-process streaming pattern from stream_encode.py with the STOP-FILE contract from AGENTS.md §2a-cancel. Phases 2-5 cannot start until this lands.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    tokenizer-frame-quality-filter (http://localhost:8765/imas-ambix/tokenizer-frame-quality-filter.html)
 Section: §4 Phase 1
 Tier:    sonnet
@@ -287,7 +289,7 @@ Done-when
   4. Test on shot 24827: expect n_blank in [1100, 1200], valid_fraction in [0.83, 0.86]
   5. Test on shot 22719: expect valid_fraction = 0
   6. This followup resolved; phase-2 followup written</pre>
-</article>
+    </article>
 </section>
 
 </main>

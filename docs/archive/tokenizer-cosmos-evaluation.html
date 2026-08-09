@@ -9,7 +9,6 @@
 <meta name="plan-slug" content="tokenizer-cosmos-evaluation">
 <meta name="plan-roi" content="mid">
 <meta name="plan-effort" content="L">
-<meta name="plan-tier" content="opus">
 <meta name="plan-summary" content="Evaluate NVIDIA Cosmos-Tokenizer DI16x16 (FSQ, 64K codebook) as a candidate replacement for Open-MAGVIT2 if v1 transient-fidelity work doesn&#x27;t close the rFID gate. NOT a &#x27;switch to Cosmos&#x27; plan — Cosmos image rFID is actually WORSE than Open-MAGVIT2 on standard benchmarks, but its FSQ codebook structurally avoids the 2.5%-utilisation problem we hit on plasma. Includes head-to-head comparison vs MGVQ and MambaVideo (2025 alternatives) before committing.">
 <meta name="plan-milestone" content="M1">
 <meta name="plan-sprint" content="S6">
@@ -18,9 +17,11 @@
 <link rel="stylesheet" href="/_shared/foundation.css">
 <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-title" content="Cosmos-Tokenizer evaluation (FSQ alternative)">
-<meta name="plan-modified" content="2026-05-29">
-<meta name="plan-version" content="5">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-version" content="7">
 <meta name="plan-status" content="archived">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
 <main class="plan-doc">
@@ -438,7 +439,7 @@ training cost.</li>
 
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-phase0-trigger-check-2026-05-28" data-status="open" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-phase0-trigger-check-2026-05-28" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Phase 0: re-bench 1209004 with stratified rFID before deciding evaluate-trigger</h4>
     <div class="r-fu-body">Cannot decide whether Phase 1 is justified until we see what the stratified rFID looks like on plasma-decoder-v1-merged.ckpt. This followup IS the trigger-condition check — it gates the entire plan.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -476,7 +477,7 @@ Done-when
        - either is already &lt; 5: gate met, both v1 plans deferred
   5. Resolve THIS followup with the classification + recommended next plan to activate</pre>
     </article>
-<article class="r-fu" data-id="f-jit-load-test-2026-05-28" data-status="resolved" data-tier="sonnet" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28" data-recommends-skill="" data-resolved-at="2026-05-28T21:41:51+00:00" data-resolved-by="agent/opus (coordinator)">
+<article class="r-fu" data-id="f-jit-load-test-2026-05-28" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="agent/opus (coordinator)" data-written-at="2026-05-28" data-recommends-skill="" data-resolved-at="2026-05-28T21:41:51+00:00" data-resolved-by="agent/opus (coordinator)">
     <h4 class="r-fu-title">De-risk: test Cosmos .jit load in our torch 2.5.1 magvit2 venv</h4>
     <div class="r-fu-body">Before committing to Phase 1, verify the .jit archives actually load. JIT cross-version load is a known failure mode. 30-min experiment, no GPU needed (CPU load + smoke forward should be enough). De-risks the entire plan.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -513,66 +514,72 @@ Done-when
 
 <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s1" data-id="c-20260528T185246849145" data-who="agent/opus (coordinator)" data-when="2026-05-28T18:52:46+00:00">
-    <div class="r-comment-body">**2026-05-28 — `f-phase0-trigger-check` BLOCKED on C5/C6/C7 pipeline mismatches; awaiting 1209092.**
+    <div class="r-comment-body"><strong>2026-05-28 — `f-phase0-trigger-check` BLOCKED on C5/C6/C7 pipeline mismatches; awaiting 1209092.</strong>
 
-Cannot yet decide whether this plan&#x27;s Phase 1 (Cosmos evaluation) is justified.  The expected trigger — the stratified rFID of `plasma-decoder-v1-merged.ckpt` — has been measured TWICE but the measurement was untrustworthy both times due to a training/bench pipeline misalignment chain:
+Cannot yet decide whether this plan's Phase 1 (Cosmos evaluation) is justified.  The expected trigger — the stratified rFID of `plasma-decoder-v1-merged.ckpt` — has been measured TWICE but the measurement was untrustworthy both times due to a training/bench pipeline misalignment chain:
 
 | Run | Decoder weights | Bench rFID | Status |
 |---|---|---|---|
-| 1208918 (baseline) | imagenet, untrained | **16.25** | floor we need to beat |
-| 1209047 | 1209004&#x27;s ckpt (pre-C5) | **27.40** | regression — PIL resize used in training, F.interpolate at bench |
-| 1209084 | 1209073&#x27;s ckpt (C5 fix) | **28.87** | still regression — C5 alone insufficient |
+| 1208918 (baseline) | imagenet, untrained | <strong>16.25</strong> | floor we need to beat |
+| 1209047 | 1209004's ckpt (pre-C5) | <strong>27.40</strong> | regression — PIL resize used in training, F.interpolate at bench |
+| 1209084 | 1209073's ckpt (C5 fix) | <strong>28.87</strong> | still regression — C5 alone insufficient |
 | 1209092 (running) | C5+C6+C7 fix | TBD | committed `78c9786`; expected ~1 h |
 
-**Diagnosis:** three mismatches identified between the fine-tune training pipeline and the corpus/bench encoder pipeline.  C5 (resize operator) landed in commit 2649370 but was alone insufficient.  C6 (encoder forward batch size 16 in training vs `MODEL_FORWARD_BATCH=4` bit-exact contract in corpus) and C7 (encoder + quantize modules in train() mode during fine-tune vs eval() in bench) landed in commit 78c9786.
+<strong>Diagnosis:</strong> three mismatches identified between the fine-tune training pipeline and the corpus/bench encoder pipeline.  C5 (resize operator) landed in commit 2649370 but was alone insufficient.  C6 (encoder forward batch size 16 in training vs `MODEL_FORWARD_BATCH=4` bit-exact contract in corpus) and C7 (encoder + quantize modules in train() mode during fine-tune vs eval() in bench) landed in commit 78c9786.
 
-**C2/normalization ruled out:** empirically verified 200-sample (lo, hi) byte-identical to ALL-frames (lo, hi) on 5 shots spanning 76 → 12380 frames.  Detector saturation values present in every 200-stride sample.
+<strong>C2/normalization ruled out:</strong> empirically verified 200-sample (lo, hi) byte-identical to ALL-frames (lo, hi) on 5 shots spanning 76 → 12380 frames.  Detector saturation values present in every 200-stride sample.
 
-**Stratified numbers from 1209084 (still untrustworthy):**
-- `rfid_overall` = 28.87
-- `rfid_quiescent` = 43.20, `rfid_transient` = 29.98, `rfid_blank` = 3.10
-- `count_blank`=74, `count_quiescent`=362, `count_transient`=362
-- `codebook_util` = 2.53 % (unchanged across runs — encoder frozen)
+<strong>Stratified numbers from 1209084 (still untrustworthy):</strong>
+<ul>
+<li>`rfid_overall` = 28.87</li>
+<li>`rfid_quiescent` = 43.20, `rfid_transient` = 29.98, `rfid_blank` = 3.10</li>
+<li>`count_blank`=74, `count_quiescent`=362, `count_transient`=362</li>
+<li>`codebook_util` = 2.53 % (unchanged across runs — encoder frozen)</li>
+</ul>
 
 Both v1 plans (this one + transient-fidelity) remain dormant until the 1209092 stratified re-bench produces a trustworthy baseline.  Plan re-activates from the same `f-phase0-trigger-check` followup once we have that number.</div>
 </div>
 <div class="r-comment" data-section="s1" data-id="c-20260528T214134385954" data-who="agent/opus (coordinator)" data-when="2026-05-28T21:41:34+00:00">
-    <div class="r-comment-body">**2026-05-28 23:22 — COSMOS-WORSE verdict from zero-shot bench 1209109.**
+    <div class="r-comment-body"><strong>2026-05-28 23:22 — COSMOS-WORSE verdict from zero-shot bench 1209109.</strong>
 
-Phase 1 (download + JIT load) + Phase 2 (zero-shot bench on the 100-shot rbb config with C8 frame selection) executed.  The hypothesis that the FSQ codebook structurally solves Open-MAGVIT2&#x27;s 2.5%-utilisation problem is **disproved on plasma data**.
+Phase 1 (download + JIT load) + Phase 2 (zero-shot bench on the 100-shot rbb config with C8 frame selection) executed.  The hypothesis that the FSQ codebook structurally solves Open-MAGVIT2's 2.5%-utilisation problem is <strong>disproved on plasma data</strong>.
 
 | Bench | Decoder | rfid_overall | quiescent | transient | blank | PSNR | LPIPS |
 |---|---|---|---|---|---|---|---|
-| 1209100 | OMAG2 baseline (untrained) | **17.04** | 26.36 | 23.57 | 0.00 | 35.54 | 0.131 |
+| 1209100 | OMAG2 baseline (untrained) | <strong>17.04</strong> | 26.36 | 23.57 | 0.00 | 35.54 | 0.131 |
 | 1209101 | OMAG2 C5+C6+C7 fine-tuned | 26.22 | 39.61 | 32.09 | 1.44 | 36.41 | 0.153 |
-| **1209109** | **Cosmos DI16x16 zero-shot** | **47.52** | **58.54** | **52.12** | **71.77** | **33.10** | **0.166** |
+| <strong>1209109</strong> | <strong>Cosmos DI16x16 zero-shot</strong> | <strong>47.52</strong> | <strong>58.54</strong> | <strong>52.12</strong> | <strong>71.77</strong> | <strong>33.10</strong> | <strong>0.166</strong> |
 
-Cosmos is **catastrophically worse than even untrained Open-MAGVIT2** on plasma.  All rFID classes worse; PSNR and LPIPS also worse.  `rfid_blank=71.77` (vs OMAG2 baseline 0.00) is particularly damning — Cosmos cannot even reconstruct dark frames to near-zero, which OMAG2 does trivially.
+Cosmos is <strong>catastrophically worse than even untrained Open-MAGVIT2</strong> on plasma.  All rFID classes worse; PSNR and LPIPS also worse.  `rfid_blank=71.77` (vs OMAG2 baseline 0.00) is particularly damning — Cosmos cannot even reconstruct dark frames to near-zero, which OMAG2 does trivially.
 
-**Mechanism**: Cosmos was trained on natural-image/video distribution.  Plasma frames are far OOD.  The Cosmos encoder maps plasma frames to tokens that the Cosmos decoder reconstructs to &quot;natural-image-like&quot; output, which is further from the plasma target than Open-MAGVIT2&#x27;s reconstructions.  FSQ&#x27;s structural utilisation guarantee is at the *training* distribution — on OOD data, all 64 K codes are visited but the mapping isn&#x27;t aligned with plasma structure.
+<strong>Mechanism</strong>: Cosmos was trained on natural-image/video distribution.  Plasma frames are far OOD.  The Cosmos encoder maps plasma frames to tokens that the Cosmos decoder reconstructs to "natural-image-like" output, which is further from the plasma target than Open-MAGVIT2's reconstructions.  FSQ's structural utilisation guarantee is at the *training* distribution — on OOD data, all 64 K codes are visited but the mapping isn't aligned with plasma structure.
 
-**Mean centroid MSE 271.73** (vs OMAG2 baseline ~24) — Cosmos reconstructions don&#x27;t preserve brightness centroids; physically meaningless.
+<strong>Mean centroid MSE 271.73</strong> (vs OMAG2 baseline ~24) — Cosmos reconstructions don't preserve brightness centroids; physically meaningless.
 
-**mean_chord_nrmse = Infinity** — chord-length-normalized errors overflow because reconstructed plasma cross-sections are degenerate.
+<strong>mean_chord_nrmse = Infinity</strong> — chord-length-normalized errors overflow because reconstructed plasma cross-sections are degenerate.
 
-**Conclusion**: codebook architecture (FSQ vs LFQ) is **not** the bottleneck for Open-MAGVIT2&#x27;s 17.04 plasma baseline.  Open-MAGVIT2&#x27;s 2.5%-utilised 262 K LFQ codebook is genuinely a better plasma representation than Cosmos&#x27;s 100%-utilised 64 K FSQ codebook.
+<strong>Conclusion</strong>: codebook architecture (FSQ vs LFQ) is <strong>not</strong> the bottleneck for Open-MAGVIT2's 17.04 plasma baseline.  Open-MAGVIT2's 2.5%-utilised 262 K LFQ codebook is genuinely a better plasma representation than Cosmos's 100%-utilised 64 K FSQ codebook.
 
-**Phase 3+ (decoder fine-tune on plasma) for Cosmos is NOT worth pursuing.**  Even if fine-tuning could reduce 47.52 → 17 (matching OMAG2 baseline), that&#x27;s the same number Open-MAGVIT2 already achieves without any fine-tune.  The structural advantage is undone by the OOD encoder distribution.
+<strong>Phase 3+ (decoder fine-tune on plasma) for Cosmos is NOT worth pursuing.</strong>  Even if fine-tuning could reduce 47.52 → 17 (matching OMAG2 baseline), that's the same number Open-MAGVIT2 already achieves without any fine-tune.  The structural advantage is undone by the OOD encoder distribution.
 
-**Decisions effectively locked by this result** (will record formally if user confirms):
-- `evaluate-trigger` → `defer` (Cosmos is not the right path)
-- `variant-choice` → moot (DI16x16 evaluated, eliminated)
-- `encoder-fine-tune-budget` → `reject` (Phase 4 not worth it given Phase 2 catastrophic failure)
-- `comparison-scope` → moot (no need to compare MGVQ/MambaVideo if Cosmos already disproves the codebook-architecture hypothesis)
+<strong>Decisions effectively locked by this result</strong> (will record formally if user confirms):
+<ul>
+<li>`evaluate-trigger` → `defer` (Cosmos is not the right path)</li>
+<li>`variant-choice` → moot (DI16x16 evaluated, eliminated)</li>
+<li>`encoder-fine-tune-budget` → `reject` (Phase 4 not worth it given Phase 2 catastrophic failure)</li>
+<li>`comparison-scope` → moot (no need to compare MGVQ/MambaVideo if Cosmos already disproves the codebook-architecture hypothesis)</li>
+</ul>
 
-**Followups resolved**:
-- `f-jit-load-test-2026-05-28` — JIT loaded cleanly in torch 2.5.1+cu124 on both CPU and CUDA. Will resolve formally.
-- `f-phase0-trigger-check-2026-05-28` — partial: trigger check was for OMAG2-side baseline (1209092→1209099 verdict, also still bad), but Cosmos has now been tested zero-shot and ruled out.</div>
+<strong>Followups resolved</strong>:
+<ul>
+<li>`f-jit-load-test-2026-05-28` — JIT loaded cleanly in torch 2.5.1+cu124 on both CPU and CUDA. Will resolve formally.</li>
+<li>`f-phase0-trigger-check-2026-05-28` — partial: trigger check was for OMAG2-side baseline (1209092→1209099 verdict, also still bad), but Cosmos has now been tested zero-shot and ruled out.</li>
+</ul></div>
 </div>
 <div class="r-comment" data-section="s1" data-id="c-20260529T084847212914" data-who="agent/opus (coordinator)" data-when="2026-05-29T08:48:47+00:00">
-    <div class="r-comment-body">**2026-05-29 — CLOSED for the IMAGE path; the VIDEO path lives on in the pivot plan. Archiving this plan (folded into a successor, NOT abandoned).** The decode-precision diagnostic (job 1209184) confirmed the Open-MAGVIT2 decoder fine-tune genuinely regresses rFID (bf16 ruled out), so plasma-decoder-finetune is shipped-negative. Combined with the zero-shot Cosmos **DI16x16 (image)** result here (rFID 47.52, catastrophic), the *image*-tokenizer-swap hypothesis is conclusively closed — image-phase decisions (evaluate-trigger, variant-choice, encoder-fine-tune-budget, comparison-scope) are moot.
+    <div class="r-comment-body"><strong>2026-05-29 — CLOSED for the IMAGE path; the VIDEO path lives on in the pivot plan. Archiving this plan (folded into a successor, NOT abandoned).</strong> The decode-precision diagnostic (job 1209184) confirmed the Open-MAGVIT2 decoder fine-tune genuinely regresses rFID (bf16 ruled out), so plasma-decoder-finetune is shipped-negative. Combined with the zero-shot Cosmos <strong>DI16x16 (image)</strong> result here (rFID 47.52, catastrophic), the *image*-tokenizer-swap hypothesis is conclusively closed — image-phase decisions (evaluate-trigger, variant-choice, encoder-fine-tune-budget, comparison-scope) are moot.
 
-**BUT we only ever tested Cosmos&#x27;s IMAGE variant.** The **VIDEO** variants (CV/DV — 4–8× temporal compression, open weights, commercial-OK) were never run and are the single highest-value untested option. That work is now tracked in [tokenizer-spatiotemporal-pivot](/imas-ambix/tokenizer-spatiotemporal-pivot.html) §5 (followup `f-cosmos-dv-video-zeroshot`). This plan is archived as superseded-by-successor; the goal (a better plasma tokenizer) is alive in the pivot plan, not abandoned.</div>
+<strong>BUT we only ever tested Cosmos's IMAGE variant.</strong> The <strong>VIDEO</strong> variants (CV/DV — 4–8× temporal compression, open weights, commercial-OK) were never run and are the single highest-value untested option. That work is now tracked in <a href="/imas-ambix/tokenizer-spatiotemporal-pivot.html">tokenizer-spatiotemporal-pivot</a> §5 (followup `f-cosmos-dv-video-zeroshot`). This plan is archived as superseded-by-successor; the goal (a better plasma tokenizer) is alive in the pivot plan, not abandoned.</div>
 </div>
 </section>
 </main>

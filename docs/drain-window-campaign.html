@@ -7,19 +7,20 @@
   <meta name="reckon-type" content="plan">
   <meta name="plan-slug" content="drain-window-campaign">
   <meta name="plan-title" content="GPU Drain — Coordinated-Window Campaign">
-  <meta name="plan-summary" content="Backward-bisect the one confirmed drain artifact under a coordinated admin window + close the SLURM-side evidence gap; parallel auto-recovery proposal.">
-  <meta name="plan-status" content="shipped">
+  <meta name="plan-summary" content="Closed administratively after the coordinated window did not execute. The preparation and evidence remain as a historical record; unresolved recovery work was not misrepresented as shipped.">
+  <meta name="plan-status" content="superseded">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
-  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="OPS">
   <meta name="plan-sprint" content="S11">
   <meta name="plan-owner" content="Simon McIntosh">
   <title>GPU Drain — Coordinated-Window Campaign | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-06-10">
-<meta name="plan-version" content="7">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-version" content="9">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
   <main class="plan-doc">
@@ -296,7 +297,7 @@
         SDCC admin proposal authored:
         <a href="proposal-drain-auto-recovery.html">proposal-drain-auto-recovery.html</a>
         (commit <code>533d924</code>). Covers: epilog <code>nvidia-smi --gpu-reset</code>
-        + <code>UnkillableStepProgram</code>; auto-resume via
+        and <code>UnkillableStepProgram</code>; auto-resume via
         <code>HealthCheckProgram</code> or cron policy; <code>UnkillableStepTimeout</code>
         review (60 s confirmed pre-window; Track C will validate live timing).
         Full record: <a href="archive/drain-window-campaign-s5-landed.html">§5 recovery landed</a>.
@@ -350,7 +351,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-dwc-pre" data-status="resolved" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-06-03" data-recommends-skill="" data-resolved-at="2026-06-03T08:35:01+00:00" data-resolved-by="reckon-ship/worker-pre">
+<article class="r-fu" data-id="f-dwc-pre" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-06-03" data-recommends-skill="" data-resolved-at="2026-06-03T08:35:01+00:00" data-resolved-by="reckon-ship/worker-pre">
     <h4 class="r-fu-title">§2 — Resolve &quot;did 1209813 actually drain?&quot; + reconfirm version non-drift</h4>
     <div class="r-fu-body">Settle the single fact that reshapes the campaign, before the window. Determine authoritatively whether job 1209813 (2026-06-01, 14:45:33→15:00:50, TIMEOUT) put node 98dci4-gpu-0003 into a DRAINED state, and if so who/what
             resumed it (the next job 1209844 ran 36 min later at
@@ -394,7 +395,7 @@ Done-when
   3. followup written into plan + this followup marked resolved.</pre>
     <p class="r-fu-outcome">VERDICT: 1209813 DID drain a clean node (slurmstepd: 'JOB NOT ENDING WITH SIGNALS'; 'Container 976377 has 5 processes, giving up after 63 sec'; BootTime=15:28:43 = admin reboot 27 min after drain). Contradicts 06-02 cascade-only hypothesis. Collective mismatch is an independent drain trigger requiring no pre-wedge. UnkillableStepTimeout=60s, KillWait=30s confirmed. Version stack confirmed: NCCL 2.21.5+cuda12.4, Torch 2.5.1+cu124. slurmd log still needs admin access.</p>
     </article>
-<article class="r-fu" data-id="f-dwc-cap" data-status="resolved" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-06-03" data-recommends-skill="" data-resolved-at="2026-06-03T08:35:01+00:00" data-resolved-by="reckon-ship/worker-cap">
+<article class="r-fu" data-id="f-dwc-cap" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-06-03" data-recommends-skill="" data-resolved-at="2026-06-03T08:35:01+00:00" data-resolved-by="reckon-ship/worker-cap">
     <h4 class="r-fu-title">§3 — Build the dual-half capture harness (process + SLURM side)</h4>
     <div class="r-fu-body">Extend the existing separate-allocation observer
             ( scripts/drain-tests/instrumented/observe_state.sh / observer.sbatch ) into a harness that captures both halves of the causal chain in one event. Keep the
@@ -445,7 +446,7 @@ Done-when
   3. Committed; followup written into plan + this followup marked resolved.</pre>
     <p class="r-fu-outcome">observe_state.sh + observer.sbatch extended with 4 new streams: slurm_config (one-time), node_state/Reason= (2s), slurmd log (empty — root-only), cgroup v2 PID enumeration (1s). Commit 867b22c. sbatch --test-only confirmed.</p>
     </article>
-<article class="r-fu" data-id="f-dwc-c" data-status="resolved" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-06-03" data-recommends-skill="" data-resolved-at="2026-06-03T08:35:01+00:00" data-resolved-by="reckon-ship/worker-c">
+<article class="r-fu" data-id="f-dwc-c" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-06-03" data-recommends-skill="" data-resolved-at="2026-06-03T08:35:01+00:00" data-resolved-by="reckon-ship/worker-c">
     <h4 class="r-fu-title">§4 Track C — deterministic non-GPU cgroup-wedge reproducer</h4>
     <div class="r-fu-body">Author the Track-C warm-up: a script + sbatch that wedges its own job
             cgroup with a guaranteed permanent uninterruptible D -state
@@ -494,7 +495,7 @@ Done-when
   3. Committed; followup written into plan + this followup marked resolved.</pre>
     <p class="r-fu-outcome">track_c_cgroup_wedge.py + .sbatch + RUNCARD-TRACK-C.md authored. Commit d988338. squashfuse-based FUSE freeze (sshfs absent, squashfuse confirmed on login node). RHEL 10 compute node availability TBC at window time. sbatch --test-only confirmed. PREPARE-ONLY — runs in admin window only.</p>
     </article>
-<article class="r-fu" data-id="f-dwc-a" data-status="resolved" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-06-03" data-recommends-skill="" data-resolved-at="2026-06-03T08:35:01+00:00" data-resolved-by="reckon-ship/worker-a">
+<article class="r-fu" data-id="f-dwc-a" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-06-03" data-recommends-skill="" data-resolved-at="2026-06-03T08:35:01+00:00" data-resolved-by="reckon-ship/worker-a">
     <h4 class="r-fu-title">§4 Track A — resurrect pre-928ed0d MWE-01 v1, frozen + bisection-ready</h4>
     <div class="r-fu-body">Recover the exact MWE-01 code as it existed at commit b3a71b6 (the version that ran as drain artifact 1209813 , before the 928ed0d mismatch fix) into
             a frozen, version-pinned file
@@ -545,7 +546,7 @@ Done-when
   4. Committed; followup written into plan + this followup marked resolved.</pre>
     <p class="r-fu-outcome">track_a_mwe01_v1_frozen.py (verbatim b3a71b6 + header + 1 print) + sbatch + 4 bisect variants (bisect_01..04) + RUNCARD-TRACK-A.md. Commit 679ae7d. Bisect_02 is structural control (first call already symmetric in v1). Bisect_04 holds GPU but no NCCL to test whether blocking collective is required. PREPARE-ONLY — runs in admin window only.</p>
     </article>
-<article class="r-fu" data-id="f-dwc-rec" data-status="resolved" data-tier="sonnet" data-written-by="reckon-create" data-written-at="2026-06-03" data-recommends-skill="" data-resolved-at="2026-06-03T08:35:01+00:00" data-resolved-by="reckon-ship/worker-rec">
+<article class="r-fu" data-id="f-dwc-rec" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-06-03" data-recommends-skill="" data-resolved-at="2026-06-03T08:35:01+00:00" data-resolved-by="reckon-ship/worker-rec">
     <h4 class="r-fu-title">§5 — Recovery-track admin proposal (parallel, no window)</h4>
     <div class="r-fu-body">Draft a written SDCC-admin proposal (a reckon-type=doc under docs/ ) for automated drain recovery, so any future
             drain self-heals in minutes: (1) a SLURM epilog running nvidia-smi --gpu-reset (or targeted per-GPU reset) on job
@@ -588,7 +589,7 @@ Done-when
   3. Committed; followup written into plan + this followup marked resolved.</pre>
     <p class="r-fu-outcome">docs/proposal-drain-auto-recovery.html authored (561 lines, 0 audit errors). Commit 533d924. Covers: epilog gpu-reset, auto-resume HealthCheckProgram/cron, UnkillableStepTimeout review (60s confirmed; Track C placeholder).</p>
     </article>
-<article class="r-fu" data-id="f-dwc-execute" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-06-03" data-recommends-skill="/reckon-ship drain-window-campaign §4" data-resolved-at="2026-06-03T10:42:14+00:00" data-resolved-by="reckon-ship/in-window">
+<article class="r-fu" data-id="f-dwc-execute" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-06-03" data-recommends-skill="/reckon-ship drain-window-campaign §4" data-resolved-at="2026-06-03T10:42:14+00:00" data-resolved-by="reckon-ship/in-window">
     <h4 class="r-fu-title">Execute Track C then Track A in coordinated admin window — capture drain mechanism</h4>
     <div class="r-fu-body">All prep artifacts are ready. Run the window: Track C (non-GPU fuse-freeze warm-up) to validate the capture harness and measure live UnkillableStepTimeout timing; then Track A (frozen MWE-01 v1 verbatim, up to 5 runs, then backward bisection) to isolate the minimal collective-mismatch drain trigger. This is a BLOCKING prereq: admin must be on standby to nvidia-smi --gpu-reset + scontrol resume between runs. Update the plan with the drain verdict and mechanism finding.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -631,7 +632,7 @@ Done-when
   5. This followup resolved + plan status set to shipped or in-progress accordingly</pre>
     <p class="r-fu-outcome">TRACK A RUNS 1+2 COMPLETE — both falsify the code-specific cause. Run 1 (1210688): watchdog fires at 600s, clean exit 0:0, no drain. Run 2 (1210787): watchdog disabled, SLURM --time fires into live hung process, clean TIMEOUT 0:0, no drain. Slurmctld log shows actual 1209813 drain was at t+2:22 (not --time), from step 7 being unkillable. Group B independently drained same node with unrelated code. STABLE MECHANISM: D-state outlives KillWait+UnkillableStepTimeout → Kill task failed → DRAIN (SLURM-documented behavior, environmental/probabilistic, not code-specific). Track A runs 3-5 and bisection ladder CANCELLED — premise invalidated. Track C remains optional.</p>
     </article>
-<article class="r-fu" data-id="f-dwc-close" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-06-03" data-recommends-skill="/reckon-edit drain-window-campaign" data-resolved-at="2026-06-03T16:00:45+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-dwc-close" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-06-03" data-recommends-skill="/reckon-edit drain-window-campaign" data-resolved-at="2026-06-03T16:00:45+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Close campaign: full drain history + RCA finalisation + admin ask</h4>
     <div class="r-fu-body">The in-window campaign converged on the mechanism-agnostic cause. Three items remain to formally close: (1) obtain full slurmctld drain history for all users; (2) write the final RCA doc superseding all prior RCAs; (3) deliver the admin ask (§5 recovery proposal + drain history data).</div>
     <pre class="r-fu-prompt">Project: imas-ambix

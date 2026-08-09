@@ -11,7 +11,6 @@
   <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="M">
-  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="connectivity-topology-reader,greens-filament-solver">
@@ -19,9 +18,11 @@
   <title>Differentiable-Map Fixed-Point Accelerator | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-20">
-<meta name="plan-version" content="2">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-version" content="3">
 <meta name="plan-impl" content="1.0">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
 <main class="plan-doc">
@@ -186,7 +187,7 @@
 
   <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-dsa-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-20T15:00:00+00:00" data-recommends-skill="/reckon-ship differentiable-solve-accelerator §2" data-resolved-at="2026-07-20T21:44:26+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-dsa-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-07-20T15:00:00+00:00" data-recommends-skill="/reckon-ship differentiable-solve-accelerator §2" data-resolved-at="2026-07-20T21:44:26+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §2 — wire the differentiable connectivity read into the free-boundary solve; confirm the map is smooth</h4>
     <div class="r-fu-body"><p>PREREQUISITE: <code>connectivity-topology-reader</code> must have landed (it delivers the differentiable read). Replace the hard-threshold core-mask / axis read inside the free-boundary fixed-point loop with the connectivity-topology-reader smooth read, as an opt-in path (hard-mask solve byte-unchanged when off). The deliverable is smoothness, not speed: the fixed-point map must become differentiable so the residual decreases monotonically instead of limit-cycling as the discrete mask flips. Gate D-A: the smooth-mask solve reproduces the hard-mask converged equilibria on the well-posed population to tolerance, AND the previously-limit-cycling under-determined slices (the greens-filament-solver §4 k4/k6 class) show a monotone residual decrease under plain relaxed Picard (the mask-flip signature gone). This is the direct test of the §4 causal hypothesis before the §3 accelerator retest.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -226,9 +227,9 @@ Done-when
      recorded honestly (reproduction + the monotone-residual smoothness test); figure committed.
   2. Plan updated same-session: §2 outcome recorded + collapsed; §3 (retest NK/Anderson on
      the differentiable map) followup queued WITH pre-declared gates; this followup resolved.</pre>
-    <p class="r-fu-outcome">SS2+SS3+SS4 landed same-session - commits 8fd4c2a/ec8539b/9d4004b. D-A2 smoothness PASS (10/14 previously-cycling slices monotone under plain Picard; mask-flip signature gone); D-A1 reproduction FAIL qualified (hard-read wall quantization + hard-map outboard outliers; smooth read stays opt-in). D-B PASS: Anderson on the smooth map 2.49x on the cycling class / 1.4x well-posed, axis 1.02 cm; NK machine-precision-capable but basin-blind without the pin. SS4 verdict: CPU per-solve stays batching-bound (smooth read 2.63x CPU wall) -> gpu-accelerated-labeler.</p>
+    <p class="r-fu-outcome">SS2+SS3+SS4 landed same-session - commits 8fd4c2a/ec8539b/9d4004b. D-A2 smoothness PASS (10/14 previously-cycling slices monotone under plain Picard; mask-flip signature gone); D-A1 reproduction FAIL qualified (hard-read wall quantization + hard-map outboard outliers; smooth read stays opt-in). D-B PASS: Anderson on the smooth map 2.49x on the cycling class / 1.4x well-posed, axis 1.02 cm; NK machine-precision-capable but basin-blind without the pin. SS4 verdict: CPU per-solve stays batching-bound (smooth read 2.63x CPU wall) -&gt; gpu-accelerated-labeler.</p>
     </article>
-<article class="r-fu" data-id="f-dsa-02" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-20T22:30:00+00:00" data-recommends-skill="/reckon-ship gpu-accelerated-labeler §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-dsa-02" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-20T22:30:00+00:00" data-recommends-skill="/reckon-ship gpu-accelerated-labeler §3" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Consume the smooth-map accelerator finding in the batched GPU rollout; pinned-map NK as a research arm</h4>
     <div class="r-fu-body"><p>The plan is shipped; its finding informs gpu-accelerated-labeler: the inner fixed point on the smooth map is well-behaved (warm-started small sweep budget sound), Anderson-Picard is the inner accelerator of choice, and NK is viable on device only with the current-centroid pin folded into the residual map. The open research thread is a pinned-map NK: wrap the centroid-pinned LSQ map (not the fixed-shape map) in Jacobian-free NK and test whether its machine-precision convergence carries over with basin control.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix

@@ -16,13 +16,14 @@
 <meta name="plan-effort" content="S">
 <meta name="plan-milestone" content="M1">
 <meta name="plan-sprint" content="S4">
-<meta name="plan-tier" content="sonnet">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-27">
+<meta name="plan-modified" content="2026-08-09">
 <meta name="plan-depends-on" content="data-acquisition">
 <meta name="plan-blocks" content="">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="general">
 </head>
 <body>
 <main class="plan-doc">
@@ -78,7 +79,7 @@ bulk-encode driver after consolidation.</p>
 Idempotent — safe to re-run when new shots arrive via the data-acquisition pipeline.</p>
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-zc-2026-05-26" data-status="open" data-tier="sonnet" data-written-by="Simon McIntosh" data-written-at="2026-05-26 18:30" data-recommends-skill="/reckon-ship zarr-consolidate --section 2" data-resolved-at="2026-05-27T03:53:52+00:00" data-resolved-by="agent/sonnet (supervisor)">
+<article class="r-fu" data-id="f-zc-2026-05-26" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="Simon McIntosh" data-written-at="2026-05-26 18:30" data-recommends-skill="/reckon-ship zarr-consolidate --section 2" data-resolved-at="2026-05-27T03:53:52+00:00" data-resolved-by="agent/sonnet (supervisor)">
     <h4 class="r-fu-title">Run zarr.consolidate_metadata() across L1 + L2 corpora</h4>
     <div class="r-fu-body">Single CPU-only run. Idempotent. Should finish in ~15 min and eliminate the RuntimeWarning we see on every Zarr open. Sets the table for the 4-GPU bulk-encode to be GPU-bound rather than I/O-bound.</div>
     <pre class="r-fu-prompt">Project: imas-ambix

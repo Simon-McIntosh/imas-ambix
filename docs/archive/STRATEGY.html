@@ -16,13 +16,14 @@
 <meta name="plan-roi" content="high">
 <meta name="plan-effort" content="S">
 <meta name="plan-milestone" content="M0">
-<meta name="plan-tier" content="opus">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-29">
+<meta name="plan-modified" content="2026-08-09">
 <meta name="plan-depends-on" content="">
 <meta name="plan-blocks" content="v0-runway">
 <meta name="plan-impl" content="0.85">
-<meta name="plan-version" content="8">
+<meta name="plan-version" content="9">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
 <main class="plan-doc">
@@ -336,7 +337,7 @@ Development": <code>../../imas-codex/plans/gpu-cluster-scoping.md</code>.</li>
 </section>
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-strategy-handoff" data-status="open" data-tier="opus" data-written-by="opus-coordinator" data-written-at="2026-05-21 12:55" data-recommends-skill="/plan-status" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-strategy-handoff" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="opus-coordinator" data-written-at="2026-05-21 12:55" data-recommends-skill="/plan-status" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Plan-system redesign landed across dotfiles + imas-ambix + imas-efit</h4>
     <div class="r-fu-body">The HTML-Plans redesign prototype shipped end-to-end on 2026-05-21. Three coordinated commit chains landed:
 
@@ -371,8 +372,8 @@ GitHub renames (irreversible from the prior session):
   iterorganization/efit          → iterorganization/imas-efit
   ~/Code/efitpp                  → ~/Code/imas-efit
   ~/docs-server/mounts.json      now maps imas-efit → /home/ITER/mcintos/Code/imas-efit/docs
-  Old URLs auto-redirect; old shellId=&quot;efit&quot; examples in agents/AGENTS.md
-  intentionally kept (they&#x27;re local shell handles, not URLs).
+  Old URLs auto-redirect; old shellId="efit" examples in agents/AGENTS.md
+  intentionally kept (they're local shell handles, not URLs).
 
 Open decisions surfaced (NOT resolved — see also the redesign-rollout plan):
   • shared-css-delivery        — currently solved by per-repo copies in docs/_shared/
@@ -400,7 +401,7 @@ Known unfinished items:
     when at least one mounted project has a state/&lt;project&gt;/index.json
     with the central-index schema. imas-ambix does NOT yet have an
     index.json — the rollup will show ambix with empty counts until
-    one is authored. imas-efit&#x27;s existing index.json populates fine.
+    one is authored. imas-efit's existing index.json populates fine.
   • The new templates (plan.html, project.html, …) ship verbatim from
     the prototype with React+MOCK wiring. Until /plan-create is updated
     to swap MOCK→state.js calls, scaffolding from these templates

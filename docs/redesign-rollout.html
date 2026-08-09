@@ -15,13 +15,14 @@
 <meta name="plan-roi" content="mid">
 <meta name="plan-effort" content="M">
 <meta name="plan-milestone" content="—">
-<meta name="plan-tier" content="sonnet">
 <meta name="plan-owner" content="">
-<meta name="plan-modified" content="2026-05-29">
+<meta name="plan-modified" content="2026-08-09">
 <meta name="plan-depends-on" content="">
 <meta name="plan-blocks" content="">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="5">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="general">
 </head>
 <body>
 <main class="plan-doc">
@@ -34,10 +35,8 @@ and
 This page exists to <strong>exercise the full plan-system flow</strong>
 end-to-end so the round-trip from human/agent interaction → state JSON
 → rendered page is verified.</p>
-<p>Every interaction below is captured in the plan's
-<a class="link" href="state/imas-ambix/redesign-rollout.json">state JSON</a>.
-That file is the canonical record — the HTML you're reading reads from
-it on mount.</p>
+<p>Every interaction below is captured in the plan's embedded Reckon
+state. This HTML resource is the canonical record served by the dashboard.</p>
 <h2 style="font-size:20px;font-weight:600;text-transform:none;letter-spacing:-0.005em;color:var(--ink);margin:32px 0 10px;">Decisions</h2>
 <div class="decisions" id="decisions">
 <!-- One locked decision, one open. Hydrated from state.json. -->
@@ -103,7 +102,7 @@ it on mount.</p>
 </section>
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-verify-efit-pages" data-status="open" data-tier="haiku" data-written-by="opus-coordinator" data-written-at="2026-05-21 12:48" data-recommends-skill="/plan-status" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-verify-efit-pages" data-status="open" data-capability-version="1.0" data-capability-class="routine" data-written-by="opus-coordinator" data-written-at="2026-05-21 12:48" data-recommends-skill="/plan-status" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Confirm imas-efit pages render via local docs-server (no Pages site)</h4>
     <div class="r-fu-body">imas-efit Pages is disabled — verify rendering only on localhost:8765/imas-efit/. Spot-check top-level (index.html, inventory.html) and one curated/ (build-system-restructure.html), confirming the new _shared/ CSS resolves and the plan-test hook attributes appear in the rendered #plan-meta div.</div>
     <pre class="r-fu-prompt">Project: imas-efit
@@ -120,7 +119,7 @@ Context
   DOM (they don&#x27;t run anything; just need to be present for /plan-test to read).
 
 State to read
-  docs/state/imas-ambix/redesign-rollout.json   (this followup)
+  docs/redesign-rollout.html   (embedded plan state and this followup)
   No imas-efit state file required.
 
 Locked decisions to honour
@@ -151,7 +150,7 @@ Done-when
 <section data-reckon="questions" id="questions" class="r-questions">
 <h2><span class="sec">§</span> Open questions</h2>
 <div class="r-q" data-id="q-css-pages-shared" data-section="shared-css-delivery" data-status="open" data-opened-by="opus-coordinator" data-opened-at="2026-05-21 12:42" data-resolved-at="" data-resolved-by="">
-    <p class="r-q-body">How do we serve /_shared/ on GitHub Pages? Today we copy into each project&#x27;s docs/_shared/ via /plan-style refresh. Is that the long-term answer, or do we want a GitHub Action that syncs from dotfiles automatically?</p>
+    <p class="r-q-body">How do we serve /_shared/ on GitHub Pages? Today we copy into each project's docs/_shared/ via /plan-style refresh. Is that the long-term answer, or do we want a GitHub Action that syncs from dotfiles automatically?</p>
     </div>
 <div class="r-q" data-id="q-react-templates" data-section="templates" data-status="open" data-opened-by="opus-coordinator" data-opened-at="2026-05-21 12:42" data-resolved-at="" data-resolved-by="">
     <p class="r-q-body">The new plan.html/project.html/inventory.html/sprint.html/decisions.html templates use React from CDN. Should new plans actually use them, or stick with the existing vanilla-JS pattern (like this very page)?</p>

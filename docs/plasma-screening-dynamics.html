@@ -11,7 +11,6 @@
   <meta name="plan-status" content="done">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
-  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
   <meta name="plan-sprint" content="S16">
   <meta name="plan-owner" content="Simon McIntosh">
@@ -20,9 +19,11 @@
   <title>Plasma Screening Dynamics | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-18">
-<meta name="plan-version" content="6">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-version" content="7">
 <meta name="plan-impl" content="1.0">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
 <main class="plan-doc">
@@ -327,7 +328,7 @@
 
   <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-psd-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create (lead directive: plasma screening circuit)" data-written-at="2026-07-17" data-recommends-skill="/reckon-ship plasma-screening-dynamics §3" data-resolved-at="2026-07-18T07:32:49+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-psd-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create (lead directive: plasma screening circuit)" data-written-at="2026-07-17" data-recommends-skill="/reckon-ship plasma-screening-dynamics §3" data-resolved-at="2026-07-18T07:32:49+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">S0 + S1 — screening circuit foundations, then the decisive synthetic skin-truth gate</h4>
     <div class="r-fu-body"><p>Build the plasma filament circuit from in-tree kernels (patch tiling, exact mutuals, screening eigenbasis with the 1D-limit identity pin against <code>diffuse_psi</code> and the analytic skin-time pin), then run the pre-declared synthetic gate: skin-current truths must REPRODUCE the measured limited-phase failure signature (leg a) and the dynamic-mode fit must RECOVER at least half the synthetic ramp LCFS gap at oracle η (leg b). No-go rules are pre-declared in §3 — a leg-(a) fail re-opens the diagnosis, a leg-(b) fail stops before any real-data spend.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -383,7 +384,7 @@ Done-when
      pre-declared stop recorded), this followup resolved</pre>
     <p class="r-fu-outcome">S0 SHIPPED (1184c8c): plasma filament circuit + zero-net screening eigenmodes, all four pins green (1D-limit identity vs diffuse_psi to discretisation error; thin-shell tau within 8%; ZOH exact; edge-weighted modes, tau∝s²). S1 verdicts recorded (220b784 + artifacts): leg (a) FAIL on A2 (cost-error Spearman -0.41 vs measured +0.77 — scenario lacks the limited→diverted transition band) with A1/A3/A4 nearly quantitative (a2 +7.4 / a1 -4.6 cm vs measured +5.7 / -3.8; ramp/hold 2.6x; li3 over-read 2.3x); leg (b) B1 FAIL at oracle eta (recovery -0.07 CI-clear) but B2 PASS CI-clear — closure-identified eta recovers 56% of the ramp gap (10.88→6.66 cm, +4.62 [+2.71,+5.29]); flat-eta oracle-scale ablation (47%) attributes the split to the eta CONTRAST in the mode build. Pre-declared stop honoured: no real-data rung queued; S1b refinement queued instead. Record: docs/archive/plasma-screening-dynamics-s0-s1-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-psd-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-18" data-recommends-skill="/reckon-ship plasma-screening-dynamics §3" data-resolved-at="2026-07-18T13:09:15+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-psd-02" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-18" data-recommends-skill="/reckon-ship plasma-screening-dynamics §3" data-resolved-at="2026-07-18T13:09:15+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">S1b — transition-capable scenario + closure-operating-point re-gate (resolve the S1 fails before any real-data spend)</h4>
     <div class="r-fu-body"><p>S1 recorded leg (a) FAIL on A2 only (the synthetic error peaks at lowest Ip because the scenario never forms an X-point; the real hotspot is the limited→diverted transition band) and leg (b) B1 FAIL at oracle η / B2 PASS with 56% CI-clear gap recovery at the misfit-scan-identified η — the flat-η oracle-scale ablation (47%) proves the η CONTRAST in the mode build, not the representation, breaks the oracle arm. S1b must (i) extend the scenario to form a diverted transition (X-point via a stronger/structured shaping ramp) so A2 is testable as measured, and (ii) re-declare the recovery gate at the closure-identified η as the arm's operating point (the real-data rung has no oracle — the closure IS what S2 would run), with the oracle arm retained as a diagnostic. Only a pass here unlocks S2.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -439,7 +440,7 @@ Done-when
      resolved</pre>
     <p class="r-fu-outcome">S1b run and recorded (e95af67 + artifacts): breakdown-start coupled-dynamics chain delivered in full per the lead's directive (vacuum -&gt; 5% Ip catch -&gt; growth from zero; C1 ledger closes 3e-5 with dL/dt share explicit; C3 all dynamics folded; C4 L_eff span 147%; 10/10 sequences). DECISIVE NEGATIVE at the re-declared PRIMARY: closure-eta recovery -0.04, paired CI [-0.37,-0.23] clear on the wrong side; oracle arm -0.02 identical; S1's 56% was the gentler truth family, not the representation. Transition scenario measured infeasible (8 probes - no confined configuration of the operator reads diverted; A2 +0.12 p=0.23 untestable as measured, C2 fail for scenario reasons). Pre-declared stop fires: plan closes, S2/S3 do not run. Basin-scout test re-pinned (b85cf43, 18/18 green). Record: docs/archive/plasma-screening-dynamics-s1b-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-psd-03" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-18" data-recommends-skill="" data-resolved-at="2026-07-18T19:59:19+00:00" data-resolved-by="">
+<article class="r-fu" data-id="f-psd-03" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-18" data-recommends-skill="" data-resolved-at="2026-07-18T19:59:19+00:00" data-resolved-by="">
     <h4 class="r-fu-title">Lead decision: unblock path after the screening-circuit negative (coil-model attractor fix / free-boundary truth chain / richer representation)</h4>
     <div class="r-fu-body"><p>The plan closed on the S1b pre-declared stop: on breakdown-start truths the bounded screening-mode representation recovers none of the ramp gap at any η, and the tune itself pushes the dynamics off. Three measured unblocks, each a separate plan: (i) the coil-model outboard-attractor fix — it blocks BOTH real-pattern anchoring for diverted synthetic truths and (from the temporal-physics-spine evidence) may be part of the real ramp deficit; (ii) a free-boundary-evolution truth chain (S3-class) — the flux-function truth family annihilates 0.73 of the evolved poloidal structure, and the vertical instability the chain measured is exactly the physics it would carry; (iii) a richer interior representation for breakdown-accumulated hollow states — the k-column zero-net form is measured insufficient at the corpus-faithful skin severity. The breakdown-start coupled-circuit infrastructure (ledger-exact, all dynamics folded) is landed and reusable by any successor.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix

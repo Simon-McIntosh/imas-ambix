@@ -5,19 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="docs-project" content="imas-ambix">
 <meta name="plan-slug" content="rca-pil-resize-mismatch-2026-05-28">
-<meta name="reckon-type" content="doc">
+<meta name="reckon-type" content="research">
 <meta name="plan-title" content="RCA — fine-tune pipeline / corpus contract mismatches (C5, C6, C7)">
 <meta name="plan-summary" content="Plasma-decoder fine-tune (job 1209004) measured training-time rFID 12.488 but bench (1209047) measured 27.40 — regression vs baseline 16.25. Root cause: THREE training/bench pipeline mismatches. C5 (PIL vs F.interpolate resize) fixed in commit 2649370 but alone insufficient (1209084 bench still 28.87). C6 (encoder forward batch 16 vs MODEL_FORWARD_BATCH=4 bit-exact contract) and C7 (encoder/quantize in train() mode vs eval()) fixed in commit 78c9786. C2/normalization empirically ruled out. Job 1209092 (C5+C6+C7) running to validate.">
-<meta name="plan-status" content="shipped">
-<meta name="plan-roi" content="high">
-<meta name="plan-effort" content="S">
-<meta name="plan-milestone" content="M1">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-29">
+<meta name="plan-modified" content="2026-08-09">
 <title>RCA — PIL vs F.interpolate resize mismatch (C5) | imas-ambix</title>
 <link rel="stylesheet" href="/_shared/foundation.css">
 <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
+<meta name="plan-archived" content="1">
+<meta name="plan-reviewed-at" content="2026-08-09">
+<meta name="plan-informs" content="camera-dynamics-wm-v0">
 </head>
 <body>
 <main class="plan-doc">

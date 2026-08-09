@@ -11,7 +11,6 @@
   <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
-  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
   <meta name="plan-sprint" content="S16">
   <meta name="plan-owner" content="Simon McIntosh">
@@ -20,9 +19,11 @@
   <title>Patch Equilibrium → World-Model Integration | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-06">
-<meta name="plan-version" content="15">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-version" content="16">
 <meta name="plan-impl" content="1.0">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
   <main class="plan-doc">
@@ -350,7 +351,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-pewi-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-04" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §3" data-resolved-at="2026-07-06T03:39:27+00:00" data-resolved-by="reckon-ship (orchestrator)">
+<article class="r-fu" data-id="f-pewi-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-07-04" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §3" data-resolved-at="2026-07-06T03:39:27+00:00" data-resolved-by="reckon-ship (orchestrator)">
     <h4 class="r-fu-title">Ship Workstream A — corpus cache + full-corpus retrain + per-batch geometry + Gaussian head + LCFS read</h4>
     <div class="r-fu-body"><p>The measured levers from the shipped patch-current-force-balance P4, in priority order,
           with the corpus-assembly cache first (it de-risks everything after). Resolve the
@@ -395,7 +396,7 @@ Done-when
      Workstream B + this one resolved</pre>
     <p class="r-fu-outcome">SHIPPED - all four Workstream-A levers landed: A1/A2 corpus cache + per-batch geometry (all signatures train; corrected 5k encoder 4.3 cm axis, non-monotonic full-corpus scaling recorded), A3 Gaussian head (frozen-mean = zero mean-regression + per-kind sigma-temperature sensor calibration; topology coverage a current-space residual), A4 LCFS read (honest negative, all three arms; deficit interior-structure-driven), plus F floor-sensitivity (rel=0.05 load-bearing). Workstreams B (B1/B2/B3/B4), C (ITER zero-code ingest), D (coil audit) all landed/measured. Full illustrated report: patch-equilibrium-wm-integration-workstream-reports.</p>
     </article>
-<article class="r-fu" data-id="f-pewi-machine-agnostic-circuits" data-status="open" data-tier="sonnet" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-07-04" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §5" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-pewi-machine-agnostic-circuits" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-07-04" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §5" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Make coil-circuit classification machine-description-driven (unblock a second machine&#x27;s KNOWN coil block)</h4>
     <div class="r-fu-body">Workstream C landed: an ITER machine description ingests to a GeometryTable and PatchBasis assembles with zero solver-code change — but operator.classify_circuits hardcodes MAST coil centroids + amc channel names, so all 17 ITER circuits classify inferred_passive and m_coil/psi_coil_grid are empty (pinned by an assertion in tests/gs/test_imas_geometry.py). The corrected MAST path now consumes imas_ambix/gs/circuits.py; the machine-agnostic generalisation is to carry circuit→channel metadata on the GeometryTable (from pf_active circuit/supply structure or a per-machine circuits module) and have classify_circuits consume THAT instead of module constants.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -416,7 +417,7 @@ Done-when
   2. classify_circuits consumes the table metadata; MAST behaviour byte-identical (regression-pinned); the ITER test&#x27;s n_known==0 pin flips to a populated-KNOWN assertion
   3. Tests green; bump COIL_MODEL_VERSION; followup resolved with numbers</pre>
     </article>
-<article class="r-fu" data-id="f-pewi-balanced-sampling" data-status="resolved" data-tier="sonnet" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-07-05" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §3" data-resolved-at="2026-07-05T12:03:44+00:00" data-resolved-by="reckon-ship (orchestrator)">
+<article class="r-fu" data-id="f-pewi-balanced-sampling" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-07-05" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §3" data-resolved-at="2026-07-05T12:03:44+00:00" data-resolved-by="reckon-ship (orchestrator)">
     <h4 class="r-fu-title">Signature/regime-balanced sampling for the full corpus (the measured lever for the non-monotonic axis regression)</h4>
     <div class="r-fu-body">A1/A2 measured a non-monotonic axis scaling: 588→2k→5k halves the axis median (28→9.56→4.3 cm) but 5k→full regresses it (4.3→15.9 cm) even as sensor fit improves (grounding 8.86→20.58×, misfit 0.167→0.069). Root cause is coverage imbalance — the full corpus is 92% fc938, and the metre-scale outliers are a training-data-composition-dependent readout pathology (under-represented regime → spurious topology extremum), NOT a fixed data/geometry defect. Capacity is proven by the superior full-corpus sensor fit; the lever is balanced sampling, not more data.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -438,7 +439,7 @@ Done-when
   3. Verdict recorded either way; tests green</pre>
     <p class="r-fu-outcome">HONEST NEGATIVE (job 1225476, encoder_gate_full-balanced.json): signature+Ip-tercile-balanced sampling did NOT recover the axis — median 17.5 cm (in-sig 16.1, cross-sig 18.7), essentially unchanged from the unbalanced full run (15.9 cm) and far from the 5k point (4.3 cm), while grounding rose AGAIN to 28.3×. The 5k→full axis regression is therefore NOT a data-composition artifact resampling can fix — it is a null-space signature: across 5k→full→full-balanced the magnetics fit tightens monotonically (grounding 8.9→20.6→28.3×) while the axis does not follow, because the interior current is under-constrained by magnetics (A4's conclusion). The magnetics-only encoder is saturated at ~4.3 cm (the 5k checkpoint stays the best readout); closing the axis/topology gap needs INTERIOR DIAGNOSTICS, not more magnetics data or resampling — which is exactly the equilibrium-topology-fidelity plan's interior-diagnostic-fusion thread. Caveat: the Ip-tercile regime proxy is crude (true ramp-up/flat-top/ramp-down labels need a cache-schema bump); a residual chance the negative is proxy-limited rather than fully hypothesis-falsifying, but the monotone grounding-rises-axis-flat pattern points strongly at null-space, not coverage.</p>
     </article>
-<article class="r-fu" data-id="f-pewi-topology-calibration" data-status="open" data-tier="sonnet" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-07-05" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-pewi-topology-calibration" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship (orchestrator)" data-written-at="2026-07-05" data-recommends-skill="/reckon-ship patch-equilibrium-wm-integration §3" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Calibrated topology coverage — current-space heteroscedastic σ (the A3 downstream residual)</h4>
     <div class="r-fu-body">A3 landed: the Gaussian head + per-sensor-kind σ-temperature calibrate the SENSOR predictions (b_probe 0.894 PASS, flux_loop 0.867), and the frozen-mean warm-start makes mean-regression zero by construction. But TOPOLOGY coverage (axis 0.43-0.70, X-point 0.26-0.52) stays under-covered and is mathematically untouchable by a sensor-space temperature — it draws from the current-space distribution. Calibrated topology needs current-space heteroscedastic σ structure (per-cell/per-mode uncertainty that maps through the nonlinear ψ-topology read to axis/X-point spread). This dovetails with equilibrium-topology-fidelity's calibrated-classification thread.</div>
     <pre class="r-fu-prompt">Project: imas-ambix

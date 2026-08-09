@@ -11,7 +11,6 @@
   <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
-  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
   <meta name="plan-sprint" content="S16">
   <meta name="plan-owner" content="Simon McIntosh">
@@ -19,9 +18,11 @@
   <title>Patch-Current Force Balance | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-07">
-<meta name="plan-version" content="8">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-version" content="10">
 <meta name="plan-impl" content="1.0">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
   <main class="plan-doc">
@@ -156,7 +157,7 @@
       Green's field reproduces the source at the FD truncation floor (0.4% RMS); and the Dirichlet
       FD solve agrees with the Green's superposition to <strong>0.02% RMS</strong> on real fitted
       currents and 0.018% on a smooth manufactured current. One forward evaluation (full &psi; grid
-      + all sensors) costs 138&nbsp;ms single-threaded on CPU against 14.4&nbsp;s for a bootstrapped
+      and all sensors) costs 138&nbsp;ms single-threaded on CPU against 14.4&nbsp;s for a bootstrapped
       Picard solve (&times;104 before any GPU batching; the matrices are fixed buffers, so batched
       GPU throughput scales as matmul).
     </p>
@@ -596,7 +597,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-pcfb-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-03" data-recommends-skill="" data-resolved-at="2026-07-03T16:13:01+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-pcfb-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-07-03" data-recommends-skill="" data-resolved-at="2026-07-03T16:13:01+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship P1+P2 — torch patch substrate + structure-residual module with tests</h4>
     <div class="r-fu-body"><p>Scoping landed (§2, commits <code>7607fb1</code>…<code>8df985f</code>); the
           substrate and residual exist as script code in <code>scripts/patch_basis_studies.py</code>
@@ -639,7 +640,7 @@ Done-when
   4. followup written for P3 + this followup resolved</pre>
     <p class="r-fu-outcome">P1+P2 landed — patch_basis.py (d682ebc, 7/7 tests; FD-vs-Green's ≤0.1% RMS gate asserted), structure_residual.py (a1dc751, 10/10 tests incl. gradcheck + disconnected-component fixture), patch_inverse.py weight-policy arms (e340ed6); full latent suite 75 green. H200 throughput + P3 rematch in flight as job 1225016; archive: docs/archive/patch-current-force-balance-p1p2-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-pcfb-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-03" data-recommends-skill="/reckon-ship patch-current-force-balance §5 P3" data-resolved-at="2026-07-03T18:19:32+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-pcfb-02" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-03" data-recommends-skill="/reckon-ship patch-current-force-balance §5 P3" data-resolved-at="2026-07-03T18:19:32+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Record P3 gate-2 rematch results + lock residual-weight-policy</h4>
     <div class="r-fu-body"><p>Job <code>1225016</code> (betelgeuse 1×H200) runs the 160-slice gate-2 rematch under the three weight-policy arms with the batched variational inverse, plus the P1 throughput bench and per-slice closure recovery. When it lands: record throughput (P1 gate close-out), per-arm skills vs the Picard reference (12/160 @ 5.9 cm, axis skill −0.0006), lock <code>residual-weight-policy</code> on the winning arm, produce the gate + closure figures, collapse P3, and re-baseline <code>gs_solve_gate_eval</code>.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -669,7 +670,7 @@ Done-when
   5. P3 collapsed in the evergreen + archive page; followup for P4 written</pre>
     <p class="r-fu-outcome">P3 GATE PASS — winner discrepancy:3:1.5:100 scored 160/160 @ 2.8 cm median, axis skill +0.019 &gt; 0 (leakage-free train-shot selection); throughput 693,599 slices/s (P1 gate ×700); closures recovered with F²≥0 on 160/160; residual-weight-policy locked = discrepancy. Archive: docs/archive/patch-current-force-balance-p3-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-pcfb-03" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-03" data-recommends-skill="/reckon-ship patch-current-force-balance §5 P4" data-resolved-at="2026-07-04T01:08:48+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-pcfb-03" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-03" data-recommends-skill="/reckon-ship patch-current-force-balance §5 P4" data-resolved-at="2026-07-04T01:08:48+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship P4 — amortised patch-current encoder (closes f-ggl-02)</h4>
     <div class="r-fu-body"><p>P1–P3 landed with the gate passed. P4 builds the oracle-recipe encoder (temporal magnetics window + per-sensor geometry positional encoding + finite masks — NOT yet in HybridLatentEncoder, which is a flat per-slice MLP) with a patch-current head, trains on the corpus with whitened magnetics + structure residual + Ip anchor, and evaluates against the 0.5–0.7 abs-magnetics-oracle bar. The <code>patch-head-parametrisation</code> decision is still open — resolve by a 2-arm mini-ablation (direct 5084 vs low-rank+residual) early in training.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -706,7 +707,7 @@ Done-when
      per-quantity calibration reported; results + figures recorded in plan</pre>
     <p class="r-fu-outcome">P4 landed 2026-07-04 — encoder module 7a424cc (8/8 tests), trainer/eval d29745a + a99b663, both head arms trained at 588 and 14,525 examples; patch-head-parametrisation LOCKED=direct; gate: grounding 14.3×/5.54× PASS + 160/160 availability PASS + geometry honest-negative vs the oracle bar (axis −0.256 @ 8.4 cm in-sig; X-point +0.058 first positive amortised quantity) with measured 25×-data→3.2×-median scaling; first measured cross-signature transfer. Closes f-ggl-02. Archive: docs/archive/patch-current-force-balance-p4-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-pcfb-04" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-04" data-recommends-skill="" data-resolved-at="2026-07-04T05:40:31+00:00" data-resolved-by="reckon-ship (strategy pass)">
+<article class="r-fu" data-id="f-pcfb-04" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-04" data-recommends-skill="" data-resolved-at="2026-07-04T05:40:31+00:00" data-resolved-by="reckon-ship (strategy pass)">
     <h4 class="r-fu-title">Close the amortised geometry gap: full-corpus training + per-batch geometry + Gaussian head + LCFS read robustification</h4>
     <div class="r-fu-body"><p>The plan is shipped; the measured follow-on levers for the amortised encoder are: (1) full-corpus training (10,846 train shots ≈ 75k examples, 5× the 2k corpus — the scaling law 25×→3.2× predicts a large bite; assembly ~6 h); (2) per-batch geometry binding so the dropped S=81 signature (3,795 examples) trains too; (3) a Gaussian patch head for per-quantity calibration; (4) boundary-read robustification for the LCFS pathology on free-current ψ (spurious saddles — shared with the P3 record; candidate: current-smoothness soft rung, measured not assumed).</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix

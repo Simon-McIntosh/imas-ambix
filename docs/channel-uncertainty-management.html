@@ -4,18 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="channel-uncertainty-management">
-  <meta name="plan-title"     content="Channel-Level Uncertainty Management">
-  <meta name="plan-summary"   content="Use the solenoidal (source-free) constraint as a per-channel miscalibration detector: campaign-level channel weights from the non-representable residual, folded into the whitening — uncertainty management, not signal rewriting">
-  <meta name="plan-status"    content="draft">
-  <meta name="plan-roi"       content="mid">
-  <meta name="plan-effort"    content="M">
-  <meta name="plan-tier"      content="sonnet">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="channel-uncertainty-management">
+  <meta name="plan-title" content="Channel-Level Uncertainty Management">
+  <meta name="plan-summary" content="Use the solenoidal (source-free) constraint as a per-channel miscalibration detector: campaign-level channel weights from the non-representable residual, folded into the whitening — uncertainty management, not signal rewriting">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="mid">
+  <meta name="plan-effort" content="M">
+  <meta name="plan-owner" content="Simon McIntosh">
   <title>Channel-Level Uncertainty Management | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-sprint" content="S18">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="general">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -89,36 +93,33 @@
     </ol>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="weight-form" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Down-weighting form for flagged channels?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="scale-inflation">smooth scale inflation</button>
-          <button class="r-opt" data-value="hard-mask">hard mask above threshold</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="projector-rank" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Projector rank truncation: numerical rank (1e-8 rel) or an information-motivated cut?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="numerical-rank">numerical rank</button>
-          <button class="r-opt" data-value="gcv-cut">GCV / noise-floor cut</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="weight-form" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Down-weighting form for flagged channels?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="scale-inflation">smooth scale inflation</button>
+      <button class="r-opt" data-value="hard-mask">hard mask above threshold</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="projector-rank" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Projector rank truncation: numerical rank (1e-8 rel) or an information-motivated cut?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="numerical-rank">numerical rank</button>
+      <button class="r-opt" data-value="gcv-cut">GCV / noise-floor cut</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-cum-001" data-status="open" data-tier="sonnet"
-               data-written-by="reckon-create" data-written-at="2026-07-16">
-        <h4 class="r-fu-title">Implement the channel-weight layer (§2) + diagnostic figure</h4>
-        <div class="r-fu-body">
-          <p>Build <code>channel_weights.py</code> (projector, per-channel stats over the train
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-cum-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-07-16" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Implement the channel-weight layer (§2) + diagnostic figure</h4>
+    <div class="r-fu-body"><p>Build <code>channel_weights.py</code> (projector, per-channel stats over the train
           split, frozen weight-map artifact, scale hook, OFF-by-default flag), the per-channel
-          residual figure, and unit tests. Then queue the A/B validation (§3).</p>
-        </div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+          residual figure, and unit tests. Then queue the A/B validation (§3).</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    channel-uncertainty-management (http://localhost:8765/imas-ambix/channel-uncertainty-management.html)
 Section: §2
 Tier:    sonnet
@@ -146,8 +147,8 @@ Done-when
      flagged; clean channels untouched; off = byte-identical)
   2. per-channel residual figure committed
   3. followup written into plan + this one resolved</pre>
-      </article>
-    </section>
+    </article>
+</section>
 
   </main>
 </body>

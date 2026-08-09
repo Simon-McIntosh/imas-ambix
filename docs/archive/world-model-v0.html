@@ -17,13 +17,14 @@
 <meta name="plan-effort" content="L">
 <meta name="plan-milestone" content="M2">
 <meta name="plan-sprint" content="S2">
-<meta name="plan-tier" content="opus">
 <meta name="plan-owner" content="Simon McIntosh">
-<meta name="plan-modified" content="2026-05-29">
+<meta name="plan-modified" content="2026-08-09">
 <meta name="plan-depends-on" content="tokenizers,compute,data-quality">
 <meta name="plan-blocks" content="demo">
 <meta name="plan-impl" content="0.18">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="8">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
 <main class="plan-doc">
@@ -307,15 +308,15 @@ Tokenizing 2-D fields is a v1 task.</li>
 </section>
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-wm-2026-05-21" data-status="resolved" data-tier="" data-written-by="Simon McIntosh" data-written-at="2026-05-21 09:00" data-recommends-skill="/reckon-edit world-model-v0 --decision model-size-curriculum" data-resolved-at="2026-05-26T14:13:42+00:00" data-resolved-by="Simon McIntosh">
+<article class="r-fu" data-id="f-wm-2026-05-21" data-status="resolved" data-written-by="Simon McIntosh" data-written-at="2026-05-21 09:00" data-recommends-skill="/reckon-edit world-model-v0 --decision model-size-curriculum" data-resolved-at="2026-05-26T14:13:42+00:00" data-resolved-by="Simon McIntosh">
     <h4 class="r-fu-title">Lock model-size-curriculum decision</h4>
     <div class="r-fu-body">tokenizers §12 expansion is closing this week. Before the smoke run can start, we need to commit to either 125M-smoke-first or 500M-direct. Read the decision context and lock it (rationale required).</div>
     <pre class="r-fu-prompt">Lock decision model-size-curriculum on plan world-model-v0. Read §1, §4, and compute reservation status; choose curriculum vs direct.</pre>
     <p class="r-fu-outcome">model-size-curriculum locked → 125M smoke-first. Decision captured 2026-05-26 by Simon McIntosh. Smoke run queued once compute reservation clears (SDCC ticket #4421).</p>
     </article>
-<article class="r-fu" data-id="f-wm-smoke-run" data-status="open" data-tier="opus" data-written-by="claude-sonnet-4-6" data-written-at="2026-05-26 00:00" data-recommends-skill="/reckon-ship world-model-v0 --section 4" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-wm-smoke-run" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="claude-sonnet-4-6" data-written-at="2026-05-26 00:00" data-recommends-skill="/reckon-ship world-model-v0 --section 4" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Kick off 125M smoke training run once tokens land</h4>
-    <div class="r-fu-body">model-size-curriculum locked → 125M smoke-first. Compute is exclusive (Simon authorized 2026-05-26). Once Agent D&#x27;s bulk-encode produces tokens at /work/projects/imas_gpu/mast/tokens/ AND Agent B&#x27;s scripts/slurm/train_exclusive.sbatch lands, queue the 125M smoke run using the §4 training recipe. Eval hooks must all improve by step 10k.</div>
+    <div class="r-fu-body">model-size-curriculum locked → 125M smoke-first. Compute is exclusive (Simon authorized 2026-05-26). Once Agent D's bulk-encode produces tokens at /work/projects/imas_gpu/mast/tokens/ AND Agent B's scripts/slurm/train_exclusive.sbatch lands, queue the 125M smoke run using the §4 training recipe. Eval hooks must all improve by step 10k.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    world-model-v0
 Section: §4 training recipe
@@ -354,12 +355,12 @@ Done-when
 <section data-reckon="questions" id="questions" class="r-questions">
 <h2><span class="sec">§</span> Open questions</h2>
 <div class="r-q" data-id="q1" data-section="4 training recipe" data-status="open" data-opened-by="agent/opus" data-opened-at="2026-05-20" data-resolved-at="" data-resolved-by="">
-    <p class="r-q-body">Should we use HuggingFace&#x27;s accelerate FSDP wrapper or roll our own with torch.distributed.fsdp? The wrapper is simpler but pins us to the HF training loop semantics.</p>
+    <p class="r-q-body">Should we use HuggingFace's accelerate FSDP wrapper or roll our own with torch.distributed.fsdp? The wrapper is simpler but pins us to the HF training loop semantics.</p>
     </div>
 </section>
 <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s1" data-id="c-20260529T084840971275" data-who="agent/opus (coordinator)" data-when="2026-05-29T08:48:40+00:00">
-    <div class="r-comment-body">**2026-05-29 — tokenizer/decoder decision RESOLVED for v0: use the baseline imagenet Open-MAGVIT2 decoder (no fine-tune).** [plasma-decoder-finetune](/imas-ambix/plasma-decoder-finetune.html) is now shipped (negative): decoder fine-tuning was confirmed ~7 pt worse on rFID, robust to rFID pool size (Option D) and decoder precision (job 1209184 ruled out the bf16-artifact hypothesis). The 4.02B-token corpus already encoded with the baseline tokenizer is the v0 input. The tokenizer axis no longer blocks the 125M smoke run (f-wm-smoke-run). **Dynamics for v0 live in THIS stage-2 sequence model** — the per-frame tokenizer is a compressor, not the dynamics learner. A separate forward track, [tokenizer-spatiotemporal-pivot](/imas-ambix/tokenizer-spatiotemporal-pivot.html), evaluates 3D/video tokenization + a temporal metric for v1 and does NOT block v0.</div>
+    <div class="r-comment-body"><strong>2026-05-29 — tokenizer/decoder decision RESOLVED for v0: use the baseline imagenet Open-MAGVIT2 decoder (no fine-tune).</strong> <a href="/imas-ambix/plasma-decoder-finetune.html">plasma-decoder-finetune</a> is now shipped (negative): decoder fine-tuning was confirmed ~7 pt worse on rFID, robust to rFID pool size (Option D) and decoder precision (job 1209184 ruled out the bf16-artifact hypothesis). The 4.02B-token corpus already encoded with the baseline tokenizer is the v0 input. The tokenizer axis no longer blocks the 125M smoke run (f-wm-smoke-run). <strong>Dynamics for v0 live in THIS stage-2 sequence model</strong> — the per-frame tokenizer is a compressor, not the dynamics learner. A separate forward track, <a href="/imas-ambix/tokenizer-spatiotemporal-pivot.html">tokenizer-spatiotemporal-pivot</a>, evaluates 3D/video tokenization + a temporal metric for v1 and does NOT block v0.</div>
 </div>
 </section>
 </main>

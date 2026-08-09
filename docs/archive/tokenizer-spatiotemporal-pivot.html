@@ -5,18 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"  content="imas-ambix">
   <meta name="plan-archived" content="1">
-  <meta name="reckon-type"   content="plan">
-  <meta name="plan-slug"     content="tokenizer-spatiotemporal-pivot">
-  <meta name="plan-roi"      content="high">
-  <meta name="plan-effort"   content="L">
-  <meta name="plan-tier"     content="opus">
-  <meta name="plan-summary"  content="Assess pivoting the fusion world-model tokenizer from per-frame 2D (Open-MAGVIT2) to 3D spatiotemporal tokenization, and whether rFID is the right north-star. De-risk via cheap zero-shot video-tokenizer evals before any wholesale pivot.">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="tokenizer-spatiotemporal-pivot">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
+  <meta name="plan-summary" content="Assess pivoting the fusion world-model tokenizer from per-frame 2D (Open-MAGVIT2) to 3D spatiotemporal tokenization, and whether rFID is the right north-star. De-risk via cheap zero-shot video-tokenizer evals before any wholesale pivot.">
   <meta name="plan-milestone" content="M2">
-  <meta name="plan-sprint"   content="S5">
+  <meta name="plan-sprint" content="S5">
   <meta name="plan-depends-on" content="tokenizer-spatiotemporal-survey,plasma-decoder-finetune,tokenizer-benchmarks">
   <title>Spatiotemporal Tokenizer Pivot Assessment | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-title" content="Spatiotemporal Tokenizer Pivot Assessment">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
+<meta name="plan-version" content="2">
+<meta name="plan-status" content="superseded">
 </head>
 <body>
   <main class="plan-doc">
@@ -171,52 +176,48 @@
     decision only after the bf16 verdict and the Cosmos-DV result.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-
-      <div class="r-dec" data-key="v0-tokenizer" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which tokenizer powers world-model-v0?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="stay-2d-omagvit2">stay-2d-omagvit2 (recommended for v0 — corpus already encoded)</button>
-          <button class="r-opt" data-value="pivot-3d-now">pivot-3d-now (re-tokenize corpus with a video tokenizer)</button>
-        </p>
-        <p class="r-dec-rat">Recommend stay-2d for v0: dynamics live in stage-2, the 4.02B-token corpus exists, and a pivot should be evidence-driven (gated on the Cosmos-DV zero-shot + bf16 verdict). Do not lock until both land.</p>
-      </div>
-
-      <div class="r-dec" data-key="spatiotemporal-first-eval" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which 3D / spatiotemporal approach do we evaluate FIRST?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="cosmos-dv-zero-shot">cosmos-dv-zero-shot (recommended — open, commercial-OK, closes the image-only gap)</button>
-          <button class="r-opt" data-value="vidtok-zero-shot">vidtok-zero-shot (MIT)</button>
-          <button class="r-opt" data-value="magvit2-video-repro">magvit2-video-repro (community weights only)</button>
-          <button class="r-opt" data-value="jepa-spike">jepa-spike (non-reconstructive paradigm)</button>
-        </p>
-        <p class="r-dec-rat">Recommend Cosmos-DV4x8x8 zero-shot: lowest risk, open weights, directly tests whether temporal compression preserves plasma transients. VidTok as a second data point.</p>
-      </div>
-
-      <div class="r-dec" data-key="tokenizer-north-star-metric" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">What metric should gate tokenizer decisions for a DYNAMICS world model?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="add-rollout-metric">add-rollout-metric (recommended — downstream multi-step prediction of physics quantities)</button>
-          <button class="r-opt" data-value="rfid-plus-rfvd">rfid-plus-rfvd (add temporal FVD; cheap but content-biased)</button>
-          <button class="r-opt" data-value="rfid-only">rfid-only (status quo — per-frame, temporally blind)</button>
-        </p>
-        <p class="r-dec-rat">rFID alone is per-frame, OOD, and temporally blind. Recommend adding a rollout/temporal-consistency metric as the real north-star; rFVD is a cheap interim addition but carries known content-bias.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="v0-tokenizer" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Which tokenizer powers world-model-v0?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="stay-2d-omagvit2">stay-2d-omagvit2 (recommended for v0 — corpus already encoded)</button>
+      <button class="r-opt" data-value="pivot-3d-now">pivot-3d-now (re-tokenize corpus with a video tokenizer)</button>
+      </p>
+    <p class="r-dec-rat">Recommend stay-2d for v0: dynamics live in stage-2, the 4.02B-token corpus exists, and a pivot should be evidence-driven (gated on the Cosmos-DV zero-shot + bf16 verdict). Do not lock until both land.</p>
+    </div>
+<div class="r-dec" data-key="spatiotemporal-first-eval" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Which 3D / spatiotemporal approach do we evaluate FIRST?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="cosmos-dv-zero-shot">cosmos-dv-zero-shot (recommended — open, commercial-OK, closes the image-only gap)</button>
+      <button class="r-opt" data-value="vidtok-zero-shot">vidtok-zero-shot (MIT)</button>
+      <button class="r-opt" data-value="magvit2-video-repro">magvit2-video-repro (community weights only)</button>
+      <button class="r-opt" data-value="jepa-spike">jepa-spike (non-reconstructive paradigm)</button>
+      </p>
+    <p class="r-dec-rat">Recommend Cosmos-DV4x8x8 zero-shot: lowest risk, open weights, directly tests whether temporal compression preserves plasma transients. VidTok as a second data point.</p>
+    </div>
+<div class="r-dec" data-key="tokenizer-north-star-metric" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">What metric should gate tokenizer decisions for a DYNAMICS world model?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="add-rollout-metric">add-rollout-metric (recommended — downstream multi-step prediction of physics quantities)</button>
+      <button class="r-opt" data-value="rfid-plus-rfvd">rfid-plus-rfvd (add temporal FVD; cheap but content-biased)</button>
+      <button class="r-opt" data-value="rfid-only">rfid-only (status quo — per-frame, temporally blind)</button>
+      </p>
+    <p class="r-dec-rat">rFID alone is per-frame, OOD, and temporally blind. Recommend adding a rollout/temporal-consistency metric as the real north-star; rFVD is a cheap interim addition but carries known content-bias.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-
-      <article class="r-fu" data-id="f-cosmos-dv-video-zeroshot" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29">
-        <h4 class="r-fu-title">Cosmos DV4x8x8 VIDEO zero-shot bench on MAST rbb (closes the image-only gap)</h4>
-        <div class="r-fu-body">Our Cosmos trial only ever used the image variant DI16x16 (rFID 47.52, catastrophic). The VIDEO variants (CV/DV) with 4–8× temporal compression were never tested. Download DV4x8x8 + run a clip-based zero-shot bench; report rFVD and a qualitative transient-preservation check, NOT just per-frame rFID. Gated on the betelgeuse reservation being free (do not contend with the in-flight decode-precision diagnostic 1209184).</div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-cosmos-dv-video-zeroshot" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus" data-written-at="2026-05-29" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Cosmos DV4x8x8 VIDEO zero-shot bench on MAST rbb (closes the image-only gap)</h4>
+    <div class="r-fu-body">Our Cosmos trial only ever used the image variant DI16x16 (rFID 47.52, catastrophic). The VIDEO variants (CV/DV) with 4–8× temporal compression were never tested. Download DV4x8x8 + run a clip-based zero-shot bench; report rFVD and a qualitative transient-preservation check, NOT just per-frame rFID. Gated on the betelgeuse reservation being free (do not contend with the in-flight decode-precision diagnostic 1209184).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    tokenizer-spatiotemporal-pivot (http://localhost:8765/imas-ambix/tokenizer-spatiotemporal-pivot.html)
 Section: §5 / decision spatiotemporal-first-eval
 Tier:    opus
 
 Context
-  We have only ever benched Cosmos in IMAGE mode (DI16x16 -> rFID 47.52, catastrophic).
+  We have only ever benched Cosmos in IMAGE mode (DI16x16 -&gt; rFID 47.52, catastrophic).
   The VIDEO variants (CV/DV, 4-8x temporal compression) are the real test of the
   spatiotemporal hypothesis and were never run. Only DI16x16 is downloaded.
 
@@ -238,12 +239,11 @@ Done-when
   1. DV4x8x8 encodes+decodes MAST rbb clips; rFVD + transient check recorded in this plan.
   2. Verdict: does 4x temporal compression preserve plasma transients vs the 2D OMAG2 baseline?
   3. Followup written; this followup resolved.</pre>
-      </article>
-
-      <article class="r-fu" data-id="f-rollout-temporal-metric" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29">
-        <h4 class="r-fu-title">Add a temporal / rollout metric to the bench (the real north-star)</h4>
-        <div class="r-fu-body">rFID is per-frame and temporally blind; for a dynamics WM the gate should be downstream multi-step prediction fidelity of physics-relevant quantities. Add a temporal-consistency metric (e.g. frame-to-frame latent/optical-flow consistency) and, when stage-2 exists, a rollout-prediction metric on centroid/chord/mode-amplitude. Interim: add rFVD alongside rFID (cheap, but note content-bias arXiv:2404.12391).</div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+    </article>
+<article class="r-fu" data-id="f-rollout-temporal-metric" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus" data-written-at="2026-05-29" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Add a temporal / rollout metric to the bench (the real north-star)</h4>
+    <div class="r-fu-body">rFID is per-frame and temporally blind; for a dynamics WM the gate should be downstream multi-step prediction fidelity of physics-relevant quantities. Add a temporal-consistency metric (e.g. frame-to-frame latent/optical-flow consistency) and, when stage-2 exists, a rollout-prediction metric on centroid/chord/mode-amplitude. Interim: add rFVD alongside rFID (cheap, but note content-bias arXiv:2404.12391).</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    tokenizer-spatiotemporal-pivot (http://localhost:8765/imas-ambix/tokenizer-spatiotemporal-pivot.html)
 Section: §3 / decision tokenizer-north-star-metric
 Tier:    opus
@@ -267,12 +267,11 @@ Steps
 
 Done-when
   Temporal metric(s) available in the bench and documented; recommendation on the north-star recorded.</pre>
-      </article>
-
-      <article class="r-fu" data-id="f-jepa-spike" data-status="open" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29">
-        <h4 class="r-fu-title">(Stretch) V-JEPA-2 latent-dynamics feasibility spike</h4>
-        <div class="r-fu-body">Evaluate the non-reconstructive paradigm: learn plasma dynamics by predicting masked spatiotemporal latent regions, no pixel decoder, no rFID. Requires a defined downstream task (e.g. ELM-onset classification, disruption precursor detection) and a check that MAST data volume suffices for fine-tuning. Stage only if the Cosmos-DV result and stage-2 progress justify the paradigm shift.</div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+    </article>
+<article class="r-fu" data-id="f-jepa-spike" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus" data-written-at="2026-05-29" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">(Stretch) V-JEPA-2 latent-dynamics feasibility spike</h4>
+    <div class="r-fu-body">Evaluate the non-reconstructive paradigm: learn plasma dynamics by predicting masked spatiotemporal latent regions, no pixel decoder, no rFID. Requires a defined downstream task (e.g. ELM-onset classification, disruption precursor detection) and a check that MAST data volume suffices for fine-tuning. Stage only if the Cosmos-DV result and stage-2 progress justify the paradigm shift.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    tokenizer-spatiotemporal-pivot (http://localhost:8765/imas-ambix/tokenizer-spatiotemporal-pivot.html)
 Section: §5 option D
 Tier:    opus
@@ -284,8 +283,8 @@ Context
 Done-when
   A short feasibility note: candidate downstream task(s) for plasma, data-volume sufficiency,
   and a go/no-go on a full spike. Do NOT start a full implementation without user sign-off.</pre>
-      </article>
-    </section>
+    </article>
+</section>
   </main>
 </body>
 </html>

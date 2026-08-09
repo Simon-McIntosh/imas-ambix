@@ -4,15 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project" content="imas-ambix">
-  <meta name="reckon-type" content="doc">
+  <meta name="reckon-type" content="research">
   <meta name="plan-slug" content="connectivity-topology-reader-boundary-findings">
   <meta name="plan-title" content="Connectivity Boundary Read — GPU-native reproduction findings">
-  <meta name="plan-status" content="reference">
-  <meta name="plan-summary" content="Findings for the GPU-native connectivity boundary read (connectivity-topology-reader §2): a fixed-shape, jit/vmap/grad-safe device reimplementation of the shipped host lcfs_contour (flood-fill from the axis + candidate-level sweep + bisection), replacing host contourpy. On 36 held-out MAST slices (18 diverted / 18 limited) the device LCFS radii reproduce the host to 0.09 cm median (< 3 cm bar; limited 0.06 cm, diverted 0.46 cm, p90 max 2.14 cm) and the scalar psi_bnd to 0.02% of the axis-boundary flux span (p90 1.77%), both classes on the y=x line — T-B1 PASS. The binding is read at the mean of an inner and an outer escape test (unbiased for the diverted X-point saddle, psi_N=1); a limited plasma's wall tangency is refined sub-grid as the minimum interpolated psi_N over the wall boundary points (limited vs diverted told apart by the region size jump across the binding). On-device batch is one jax.vmap (byte-parity, 46 ms/slice CPU), imports no contourpy/ndimage/argwhere — T-B2 PASS. On a synthetic limited-to-diverted sweep the connectivity psi_bnd is continuous (0.5% max step of span) where the classify-first boundary steps 9.2% at the X-point appearance — T-B3 PASS.">
+  <meta name="plan-summary" content="Findings for the GPU-native connectivity boundary read (connectivity-topology-reader §2): a fixed-shape, jit/vmap/grad-safe device reimplementation of the shipped host lcfs_contour (flood-fill from the axis + candidate-level sweep + bisection), replacing host contourpy. On 36 held-out MAST slices (18 diverted / 18 limited) the device LCFS radii reproduce the host to 0.09 cm median (&lt; 3 cm bar; limited 0.06 cm, diverted 0.46 cm, p90 max 2.14 cm) and the scalar psi_bnd to 0.02% of the axis-boundary flux span (p90 1.77%), both classes on the y=x line — T-B1 PASS. The binding is read at the mean of an inner and an outer escape test (unbiased for the diverted X-point saddle, psi_N=1); a limited plasma&#x27;s wall tangency is refined sub-grid as the minimum interpolated psi_N over the wall boundary points (limited vs diverted told apart by the region size jump across the binding). On-device batch is one jax.vmap (byte-parity, 46 ms/slice CPU), imports no contourpy/ndimage/argwhere — T-B2 PASS. On a synthetic limited-to-diverted sweep the connectivity psi_bnd is continuous (0.5% max step of span) where the classify-first boundary steps 9.2% at the X-point appearance — T-B3 PASS.">
   <meta name="plan-owner" content="Simon McIntosh">
   <title>Connectivity Boundary Read — GPU-native reproduction findings | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-reviewed-at" content="2026-08-09">
+<meta name="plan-informs" content="connectivity-topology-reader,equilibrium-topology-fidelity">
+<meta name="plan-version" content="1">
 </head>
 <body>
 <main class="plan-doc">

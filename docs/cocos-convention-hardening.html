@@ -11,7 +11,6 @@
   <meta name="plan-status" content="active">
   <meta name="plan-roi" content="mid">
   <meta name="plan-effort" content="M">
-  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-impl" content="0.0">
@@ -19,8 +18,11 @@
   <title>COCOS Convention Hardening | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-05">
-<meta name="plan-version" content="2">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-version" content="3">
+<meta name="plan-sprint" content="S17">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
   <main class="plan-doc">
@@ -154,7 +156,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-cocos-01" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-06" data-recommends-skill="/reckon-ship cocos-convention-hardening §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-cocos-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-06" data-recommends-skill="/reckon-ship cocos-convention-hardening §2" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Pin the working COCOS with a sign-regression test (§2), then verify the IMAS poloidal-angle assumption (§3)</h4>
     <div class="r-fu-body"><p>Start with the zero-risk, high-value rungs: declare the pipeline's working convention as a single checkable fact and lock the verified forward-coherence result as a regression test (§2), then resolve the unverified poloidal-angle assumption — now carried by <code>read_artifact_magnetics</code> in <code>imas_ambix/gs/artifact_geometry.py</code>, the loose-IDS reader that originally held it having been retired in <code>ae728ad</code> — against a real/synthetic COCOS-11 magnetics IDS (§3). §4/§5 (the fail-loud normalisation boundary + cross-convention self-consistency gate) follow once a second-machine ingest is actually wired.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix

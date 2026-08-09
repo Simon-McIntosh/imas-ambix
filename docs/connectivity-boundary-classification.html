@@ -11,7 +11,6 @@
   <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="M">
-  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="toroidal-harmonic-annulus-read">
@@ -20,9 +19,11 @@
   <title>LCFS by Outermost Closed Flux Contour | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-14">
-<meta name="plan-version" content="3">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-version" content="4">
 <meta name="plan-impl" content="1.0">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
   <main class="plan-doc">
@@ -296,7 +297,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-cbc-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-14" data-recommends-skill="/reckon-ship connectivity-boundary-classification" data-resolved-at="2026-07-14T21:06:42+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-cbc-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-07-14" data-recommends-skill="/reckon-ship connectivity-boundary-classification" data-resolved-at="2026-07-14T21:06:42+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Implement the continuous outermost-closed-contour LCFS read + score held-out</h4>
     <div class="r-fu-body"><p>Implement the §3 algorithm: push the flux offset outward from the axis (starting outside the masked near-pole garbage), keep the outermost closed axis-enclosing ring inside the limiter as the LCFS (contourpy), read the 8 radii from it. THEN — as emergent diagnostics — find the <code>find_critical_points</code> saddles and set diverted/limited + the X-point slots by proximity to the boundary ring (soft; NaN near the transition). Factor into a tested <code>topology.py</code> function; swap into <code>hybrid_target_harmonic</code> in place of the innermost-X-point + limiter-fallback block. Score LCFS (primary) held-out; report the limited/diverted agreement as a diagnostic. Honour the §7 scope guard. Resolve <code>contour-library</code>, <code>xpoint-role</code>, <code>read-location</code> at kickoff.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -343,9 +344,9 @@ Done-when
      limited/diverted agreement reported as a diagnostic; X-point emergent read reported (not chased).
   4. imas-ink figures (LCFS + all nested flux surfaces across breakdown-&gt;termination); plan updated
      same-turn; this followup resolved; toroidal-harmonic-annulus-read informed (f-thar-connectivity-ptr).</pre>
-    <p class="r-fu-outcome">§3–§6 landed (commits a1a667f, ea1f64d, 7c8c8ed, 1af19ca). lcfs_contour + emergent_xpoints in topology.py (contourpy push, radii off the ring via resample_lcfs_radii, class/X emergent by proximity); 4 TDD scenarios green; swapped into hybrid_target_harmonic. Held-out (n=160, firewalled EFIT, 2000-boot CIs): LCFS skill -3.159 -> -1.958 (clears -2.48 bar), X-set -5.923 -> -1.797, offset 7.3 -> 6.7 cm; emergent diverted fraction 0.40 all / 0.625 flat-top. §7 scope guard held (one push, one ring test, one inside-limiter test; no classifier/cap/X-gate). PERF: plan's 0.34 ms was trace-only; measured full push 5.5 ms/slice (51 ms before vectorising _inside_polygon), 2.2x faster than the old crit+ray-cast chain (12.3 ms). Decisions contour-library/xpoint-role/read-location all honoured. Archive: docs/archive/connectivity-boundary-classification-landed.html.</p>
+    <p class="r-fu-outcome">§3–§6 landed (commits a1a667f, ea1f64d, 7c8c8ed, 1af19ca). lcfs_contour + emergent_xpoints in topology.py (contourpy push, radii off the ring via resample_lcfs_radii, class/X emergent by proximity); 4 TDD scenarios green; swapped into hybrid_target_harmonic. Held-out (n=160, firewalled EFIT, 2000-boot CIs): LCFS skill -3.159 -&gt; -1.958 (clears -2.48 bar), X-set -5.923 -&gt; -1.797, offset 7.3 -&gt; 6.7 cm; emergent diverted fraction 0.40 all / 0.625 flat-top. §7 scope guard held (one push, one ring test, one inside-limiter test; no classifier/cap/X-gate). PERF: plan's 0.34 ms was trace-only; measured full push 5.5 ms/slice (51 ms before vectorising _inside_polygon), 2.2x faster than the old crit+ray-cast chain (12.3 ms). Decisions contour-library/xpoint-role/read-location all honoured. Archive: docs/archive/connectivity-boundary-classification-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-cbc-02" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-14" data-recommends-skill="/reckon-edit connectivity-boundary-classification" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-cbc-02" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-14" data-recommends-skill="/reckon-edit connectivity-boundary-classification" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Adopt the contour LCFS read in the moment + free-current arms; feed the fixed-boundary interior spine</h4>
     <div class="r-fu-body"><p>The shared <code>lcfs_contour</code> now wins in the harmonic gate. Next: adopt it in the moment and free-current boundary gates (one boundary read across all arms per the <code>read-location</code> lock) and wire the resulting continuous LCFS shape into the fixed-boundary interior spine (<code>equilibrium-boundary-closure</code>). Separately, flag the philosophy to imas-efit as a candidate <code>contour_tree.f90</code> simplification (a careful boundary-logic proposal, NOT a drop-in — EFIT has a globally-valid psi and needs the X-point for strike-point outputs).</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix

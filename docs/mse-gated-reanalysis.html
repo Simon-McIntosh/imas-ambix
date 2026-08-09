@@ -11,16 +11,17 @@
   <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="XL">
-  <meta name="plan-tier" content="opus">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="equilibrium-realism">
   <meta name="plan-blocks" content="greens-filament-solver">
   <title>MSE-Gated Reanalysis | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-20">
+<meta name="plan-modified" content="2026-08-09">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="5">
+<meta name="plan-version" content="6">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
 <main class="plan-doc">
@@ -290,7 +291,7 @@
 
   <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-mgr-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-19T15:30:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §2" data-resolved-at="2026-07-19T18:57:22+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-mgr-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-07-19T15:30:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §2" data-resolved-at="2026-07-19T18:57:22+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §2 — the well-posed position-controlled free-boundary solve (R+Z centroid moment constraint)</h4>
     <div class="r-fu-body"><p>Make the free-boundary GS solve hold the physical equilibrium on the measured coils by constraining the R+Z current centroid (a firewall-safe measured moment), so it stops drifting outboard through the n&gt;3/2 coil band. Prototype-validated this session (recovers the reconstruction axis to a few cm from Ip+centroid alone); this rung lands it in the frozen-spine machinery across the shot set with a compact-seed + temporal warm-start, and confirms seed robustness. This is the label engine's spine — §3 (dynamics) and §4 (the MSE gate) build on it. Gates pre-declared in the prompt.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -360,7 +361,7 @@ Done-when
      coupling) followup queued WITH pre-declared gates; this followup resolved</pre>
     <p class="r-fu-outcome">§2 landed (PASS). Disc seed + R/Z current-centroid moment constraint holds the physical inboard branch: position solve (Ip+centroid only, no full magnetics) reproduces the reconstruction axis to per-shot median 2.45/2.38/2.05 cm across 11766/11767/11772 (G2a ≤5cm PASS); outboard-seed recovered 36/36 (G2b PASS); firewall Ip+centroid only, profile free, no z-pin/EFIT (G2c PASS, unit-tested). Free solve drifts to ~1.76 m every slice. Stable free-sign basin solve; now the DEFAULT position solve, drifting free solve retired. Commits f805348/75a9be0/beddc87; archive docs/archive/mse-gated-reanalysis-s2-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-mgr-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-19T21:00:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §3" data-resolved-at="2026-07-19T19:54:14+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-mgr-02" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-19T21:00:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §3" data-resolved-at="2026-07-19T19:54:14+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §3 — dynamics coupling: earn the internal profile from measured histories</h4>
     <div class="r-fu-body"><p>Position is now well-posed (§2 landed on the disc-seed + centroid position-controlled spine). The internal profile (pitch/q) is the remaining open DOF and it is not free in time: couple successive slices via 1D resistive ψ diffusion driven by the measured loop voltage + Ip (η(ψ_N) the low-DOF unknown), promote the passive eddy trajectory to a circuit-integrated constraint, and keep SOL-current freedom — re-pointing the reduced-order dynamics machinery (temporal_operator.py + the 1D current diffusion) at the position-controlled spine. Gates G3a-G3c pre-declared. §4 (the binding held-out-MSE gate) scores what this earns.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -409,7 +410,7 @@ Done-when
   2. Plan updated same-session: §3 outcome recorded + collapsed; §4 (held-out MSE gate) followup queued WITH pre-declared gates; this followup resolved.</pre>
     <p class="r-fu-outcome">§3 landed (QUALIFIED PASS). 1D resistive ψ-diffusion couples successive slices on the §2 position spine: the stable basin solve selects the confined basin and warm-starts the profile solve (non-negative ladder, n_p=n_f=3, jφ≥0 + smoothness ridge — GS + regularization, not an assumed profile), flux-surface geometry drives diffuse_psi over each measured interval (measured Ip drive, η(ψ_N) the low-DOF unknown), and the evolved current projects back onto the profile basis as a soft coeff_prior. G3a QUALIFIED PASS: coupling lifts profile-basis confinement 88→94% (rescues 2 fast-ramp slices, regresses 0), ships 0 NaN, tracks position to 2.18 cm median across 11766/11767/11772 (33 slices); it does not match the rigid basin solve's 100% (a basis-fragility trade-off — 2 fast-ramp slices flagged, never shipped). G3b PASS: synthetic exact-η split recovery 0.084 (bar 0.120); loses to the 0.044 independent-slice spine where synthetic magnetics are informative — the coupling's value is the real-data interior null. G3c PASS 47/47 module pins. Stop rule not invoked. Commit fbdfdff; archive docs/archive/mse-gated-reanalysis-s3-landed.html.</p>
     </article>
-<article class="r-fu" data-id="f-mgr-03" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-19T22:15:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §4" data-resolved-at="2026-07-19T21:34:59+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-mgr-03" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-19T22:15:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §4" data-resolved-at="2026-07-19T21:34:59+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Ship §4 — the binding gate: held-out MSE pitch</h4>
     <div class="r-fu-body"><p>§3 landed: the internal profile is earned from measured dynamics on the position spine (finite, physical, position-tracking on the confined population; under-determined slices flagged). §4 is the binding gate — score the coupled engine's internal pitch prediction on the locked, leakage-audited 112-shot held-out MSE split through the shared harness (mse_eval.score), on the same ruler as persistence (0.719) and the EnKF bar (0.225). This is where η(ψ_N) is calibrated against the measured drives (the eta-fit path) and the circuit-integrated passive_prior is activated — both scored, never assumed. The label-honesty gate binds: emit the internal profile ONLY where the coupled solve clears G4a; elsewhere the label records position+shape and flags the profile under-determined. Gates G4a-G4c + label-honesty pre-declared.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -457,7 +458,7 @@ Done-when
   2. Plan updated same-session: §4 outcome recorded + collapsed; §5 (learned-operator handoff) followup queued (resuming learned-equilibrium-operator) WITH pre-declared gates; this followup resolved.</pre>
     <p class="r-fu-outcome">§4 landed (QUALIFIED PASS) — the binding gate. Scored the §3 dynamics-coupled engine's earned internal profile on the locked 112-shot held-out MSE pitch split through the shared kind='j' jphi(rho_hat) readout (EnKF's ruler). 101/112 shots scored; 11 flagged under-determined (too few confined slices) + unconfined slices masked — label-honesty UPHELD, 0 fabricated readouts. G4a (beat persistence — binding/stop-rule): PASS CI-clear — engine pitch RMSE 0.362 rad vs persistence 0.731 (live, same shots)/0.719 (ref), paired shot-bootstrap Δ 0.369, CI95 [0.314,0.427]; the dynamics recover real internal-field info (≈halve error in both windows). Coverage sub-gate FAIL: cov90 0.297 &lt; 0.88 (a UQ gap; classical EnKF itself 0.465). G4b (match EnKF): MISS — gap 0.137 to 0.225. G4c: near-axis residual 0.434 ≈ 0.41 interior floor; frontier gap 0.172. η frozen from the tune-split measured-drive calibration (re-run + reproduced exactly this session); MSE never entered a fit. Stop rule not invoked. Loader fix: per-campaign geometry table lets amm-absent held-out shots load (0 failures). Commit ec82027; archive docs/archive/mse-gated-reanalysis-s4-landed.html. Engine BUILT + PROVEN — §5 (learned-operator handoff) queued.</p>
     </article>
-<article class="r-fu" data-id="f-mgr-04" data-status="open" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-19T20:35:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §5" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-mgr-04" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-19T20:35:00+00:00" data-recommends-skill="/reckon-ship mse-gated-reanalysis §5" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Ship §5 — learned-operator handoff: the high-bandwidth magic sauce</h4>
     <div class="r-fu-body"><p>The reanalysis engine is BUILT and PROVEN: §2 made position well-posed, §3 earned the internal profile from measured dynamics, and §4 scored it on the held-out MSE pitch split — beating persistence CI-clear (0.362 rad) but sitting 0.137 rad short of the classical EnKF bar (0.225) with a near-axis 0.41 interior floor. §5 resumes learned-equilibrium-operator (R1 landed, R2 sustained-negative, re-planned through the closed temporal-physics-spine): train the cross-machine operator on these MSE-validated labels (emitted only where the dynamics earned the profile — label-honesty binding), then fold in the high-frequency / high-bandwidth channels EnKF/TORAX/EFIT ignore (fast cameras, fast magnetics) as OPTIONAL conditioning, and measure whether they push held-out pitch below the EnKF bar toward the 0.19 frontier — the plan's decisive win. Gates G5a–G5c pre-declared.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
