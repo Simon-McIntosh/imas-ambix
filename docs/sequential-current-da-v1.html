@@ -11,17 +11,19 @@
   <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
-  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M3">
   <meta name="plan-sprint" content="S10">
   <meta name="plan-owner" content="Simon McIntosh">
-  <meta name="plan-depends-on" content="mse-free-current-recovery-v0,probabilistic-state-space-methods">
+  <meta name="plan-depends-on" content="mse-free-current-recovery-v0">
   <title>Strong Sequential Full-State Current-Profile Data Assimilation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-06-05">
+<meta name="plan-modified" content="2026-08-09">
 <meta name="plan-impl" content="0.35">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="3">
+<meta name="plan-informs" content="probabilistic-state-space-methods,hybrid-generative-state-estimation">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
   <main class="plan-doc">
@@ -259,7 +261,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-scda-v1-substrate" data-status="open" data-tier="opus" data-written-by="agent/opus (S10 author)" data-written-at="2026-06-02 09:00" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-scda-v1-substrate" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus (S10 author)" data-written-at="2026-06-02 09:00" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Implement the reduced-EKF substrate + split-conformal calibration; score the v1 bar</h4>
     <div class="r-fu-body">Build the strong sequential baseline: the reduced 1-D ψ-diffusion EKF, the localized analysis update, per-shot geometry, and the split-conformal calibration. Validate the reduced model against TORAX <code>q(ρ,t)</code> on a few shots first, then run the full filter and report the v1 bar with bootstrap CIs against the v0 EnKF (0.225) and persistence (0.719). This is the substrate the pressure experiment and the neural-KF survey both depend on.</div>
     <pre class="r-fu-prompt">Project: imas-ambix

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="iter-first-plasma-rehearsal">
+  <meta name="plan-title" content="ITER First-Plasma Rehearsal">
+  <meta name="plan-summary" content="Rehearse first-day ITER state estimation by transferring the validated Nova-led probabilistic model to ITER geometry and proposed coil/actuator trajectories, producing calibrated equilibrium and diagnostic ensembles before ITER-specific training data exist.">
+  <meta name="plan-status" content="pending">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="XL">
+  <meta name="plan-milestone" content="M5">
+  <meta name="plan-sprint" content="S20">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-impl" content="0">
+  <meta name="plan-depends-on" content="controllable-forecast-and-gate,joint-multimodal-plasma-wm,nova-physics-consumer-integration">
+  <meta name="plan-informs" content="physics-world-model-strategy">
+  <meta name="plan-modified" content="2026-08-09">
+  <meta name="plan-version" content="1">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <title>ITER First-Plasma Rehearsal | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>ITER First-Plasma Rehearsal</h1>
+  <p><strong>Goal.</strong> Before ITER supplies a useful empirical corpus, place the validated machine-portable estimator on ITER geometry, feed proposed coil and actuator trajectories, and ask what it would forecast, reconstruct from commissioning-grade signals and learn from its first surprises. This is a rehearsal and uncertainty exercise, not a claim to know burning-plasma closures in advance.</p>
+
+  <h2 id="products">Required products</h2>
+  <ul>
+    <li>Ensemble equilibria and flux maps for nominal, perturbed and counterfactual coil/current trajectories.</li>
+    <li>Forecast, causal analysis and fixed-lag/full-shot smoothed state products with unmistakable provenance labels.</li>
+    <li>Expected magnetics, flux-surface averages and available diagnostic signals; conditional camera streams as a by-product where an ITER observation geometry exists.</li>
+    <li>Innovation and OOD dashboards that distinguish transferable closure uncertainty from machine-description, calibration, missing-source and topology hypotheses.</li>
+    <li>A first-shot update protocol: how evidence changes the closure posterior without modifying conservation or force-balance laws.</li>
+  </ul>
+
+  <h2 id="gates">Transfer gates</h2>
+  <ol>
+    <li>Leave-one-machine-out tests on current machines demonstrate zero-shot and limited-adaptation skill separately.</li>
+    <li>Dimensionless/invariant coordinates and diagnostic geometry are load-bearing under machine holdout.</li>
+    <li>The Nova revision carries independent GHCR parity evidence and CPU/GPU agreement before its results enter Ambix.</li>
+    <li>ITER scenarios remain finite, physically valid and uncertainty-aware under geometry and actuator perturbations.</li>
+    <li>The direct learned generative challenger may propose or distil trajectories, but the Nova-led ensemble remains the reference until parity is earned.</li>
+  </ol>
+
+  <h2 id="h200">H200 rehearsal workload</h2>
+  <p>Use the eight H200s to run wide scenario ensembles, topology branches, complete-shot smoothers and camera/diagnostic decoding in parallel. Maintain CPU and one-H200 reference cases and report weak/strong scaling separately from scientific skill. The workload should exploit the server fully without coupling the deployed ITER estimator irreducibly to eight cards.</p>
+
+  <section data-reckon="followups" id="followups" class="r-followups">
+    <h2><span class="sec">§</span> Followups</h2>
+    <article class="r-fu" data-id="f-ifpr-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="codex" data-written-at="2026-08-09" data-recommends-skill="/reckon-ship iter-first-plasma-rehearsal" data-resolved-at="" data-resolved-by="">
+      <h4 class="r-fu-title">Assemble the ITER rehearsal after cross-machine gates pass</h4>
+      <div class="r-fu-body"><p>Bind ITER geometry, diagnostic descriptions and proposed actuator trajectories to the validated Nova-led estimator; generate scenario ensembles and the first-shot update playbook.</p></div>
+      <pre class="r-fu-prompt">Project: imas-ambix
+Plan: iter-first-plasma-rehearsal
+Capability: orchestrator
+
+Prerequisites
+  Hybrid forecast/analysis/smoother gates pass.
+  Controllable joint diagnostic generation passes on present-machine holdouts.
+  Nova publishes independent GHCR parity evidence for the consumed revision.
+
+Done when
+  The required products and five transfer gates carry evidence. The rehearsal
+  bundle is reproducible from exact machine-description and Nova identities.
+  Uncertainties do not claim unsupported ITER closure knowledge.</pre>
+    </article>
+  </section>
+
+  <section data-reckon="research" id="research" class="r-research-list">
+    <h2><span class="sec">§</span> Research</h2>
+    <div class="r-research" data-id="r-ifpr-001" data-type="architecture" data-source="imas-ambix" data-added-by="codex" data-when="2026-08-09" data-url="/imas-ambix/research/hybrid-generative-state-estimation.html">
+      <span class="r-research-title"><a href="/imas-ambix/research/hybrid-generative-state-estimation.html">Hybrid Generative State Estimation with Nova</a></span>
+    </div>
+  </section>
+</main>
+</body>
+</html>

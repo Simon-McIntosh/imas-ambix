@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="hybrid-generative-state-estimation">
+  <meta name="plan-title" content="Hybrid Generative State Estimation with Nova">
+  <meta name="plan-summary" content="Research synthesis and operating envelope for one Nova-led probabilistic model that forecasts, reconstructs and smooths plasma state, learns transferable closures from model-signal innovation, and generates equilibria and diagnostic streams under new actuator trajectories.">
+  <meta name="plan-informs" content="physics-world-model-strategy,machine-agnostic-latent-world-model,hybrid-state-estimation-smoke,closed-loop-latent-filter,controllable-forecast-and-gate,nova-physics-consumer-integration,iter-first-plasma-rehearsal">
+  <meta name="plan-modified" content="2026-08-09">
+  <meta name="plan-version" content="2">
+  <title>Hybrid Generative State Estimation with Nova | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-status" content="reference">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>Hybrid Generative State Estimation with Nova</h1>
+  <p><strong>Decision synthesis.</strong> Ambix should pursue a GenCast-like probabilistic forecast capability <em>through</em> a Nova-in-the-loop transition, not choose between a purely learned forecaster and a purely deterministic physics loop. Nova carries the transferable laws and geometry. Ambix represents uncertainty in the assumptions that physics does not determine, conditions the resulting ensemble on signals, and distils repeatable model–data mismatch into transferable closures.</p>
+
+  <figure>
+    <img src="/imas-ambix/figures/hybrid-generative-state-estimation/architecture.svg" alt="Actuator scenarios and stochastic transferable closures drive Nova; signal innovations condition the ensemble in Ambix; forecast, reconstruction, smoothing and generated diagnostics share one posterior.">
+    <figcaption>One model, three conditionings. Nova is the transition and observation operator; Ambix owns the stochastic closure, conditioning, calibration and generative product layers.</figcaption>
+  </figure>
+
+  <h2 id="north-star">North Star</h2>
+  <p><strong>Build an ITER-ready, machine-portable probabilistic plasma state estimator in which known physics transfers exactly and learned uncertainty transfers explicitly.</strong> Conservation, force balance, circuit laws and coordinate transformations are not rediscovered by ML. Nova evaluates those laws quickly for the machine geometry and commanded coil or actuator trajectory. The ensemble varies the quantities that remain uncertain: transport and closure coefficients, sources, calibration states, boundary decisions and—where a Gaussian average would be unphysical—discrete topology branches.</p>
+  <p>The primary learning signal is the <strong>innovation</strong>: measured signal-carrying data minus Nova's observation of its predicted state. A persistent, cross-shot and cross-machine mismatch is a candidate missing closure or transferable coefficient. A one-off mismatch may instead be calibration drift, a bad channel, a geometry error, a numerical approximation or a regime outside support. Ambix must classify these alternatives before calling any residual “discovered physics.”</p>
+  <p>The purpose of the fast Nova loop is transfer. A new machine geometry and new coil currents produce a new physical flux map without retraining the laws. Learned closure distributions and boundary policies transfer only where their dimensionless context and uncertainty say they should. Surprise on the new machine expands the posterior and supplies the next learning signal. Robustness on present machines is therefore a rehearsal for useful state estimates from ITER's first plasma, before an ITER-specific empirical history exists.</p>
+
+  <h2 id="one-model">One distribution, three estimator products</h2>
+  <p>The authoritative object is a joint conditional distribution over plasma state <em>x</em>, diagnostics <em>y</em>, machine geometry <em>g</em>, actuator trajectory <em>u</em>, and uncertain closure/boundary state <em>c</em>. The same trained components expose three EnKF-class products by changing which observations are admitted:</p>
+  <table>
+    <thead><tr><th>Product</th><th>Conditioning</th><th>Meaning</th><th>Required label</th></tr></thead>
+    <tbody>
+      <tr><td>Forecast</td><td>Signals through the anchor time; known or proposed future commands</td><td>Probabilistic future state and diagnostics</td><td>Causal forecast</td></tr>
+      <tr><td>Reconstruction / analysis</td><td>Signals through the state time</td><td>Best causal present-state estimate</td><td>Causal analysis</td></tr>
+      <tr><td>Smoothing</td><td>Signals from the complete fixed lag or complete shot</td><td>Best retrospective trajectory and reanalysis corpus</td><td>Non-causal smoothed estimate</td></tr>
+    </tbody>
+  </table>
+  <p>A smoothed posterior is useful training data but is not ground truth. It must be provenance-tagged and excluded from causal forecast evaluation. Forecast, analysis and smoothed products must never share an unlabeled artifact namespace.</p>
+
+  <h2 id="weather-synthesis">GenCast sharpness and NeuralGCM structure are complementary</h2>
+  <p><a href="https://www.nature.com/articles/s41586-024-08252-9">GenCast</a> demonstrates the value of learning a stochastic transition distribution whose individual samples remain sharp and whose ensemble is calibrated. <a href="https://www.nature.com/articles/s41586-024-07744-y">NeuralGCM</a> demonstrates the complementary value of retaining a differentiable physical core while learning unresolved process representations. For Ambix, these become two responsibilities inside one system:</p>
+  <ul>
+    <li><strong>GenCast-like responsibility:</strong> generate a sharp, calibrated joint distribution over future equilibria and measurements, not a blurry ensemble mean and not a deterministic trajectory with noise added afterward.</li>
+    <li><strong>Physics-led responsibility:</strong> each primary ensemble member is advanced by Nova under explicit geometry, currents and transferable closure samples. Conservation and force balance remain inspectable.</li>
+    <li><strong>Conditioning responsibility:</strong> an EnKF/ensemble-smoother layer—or particles for genuinely multimodal topology—uses signal innovation to reconstruct and smooth while preserving the same forecast model.</li>
+  </ul>
+  <p>A direct learned state-to-state generative emulator is a later challenger, proposal engine or distillation target. It becomes authoritative only after it earns physical parity, calibration and extrapolation skill against the Nova-led ensemble. Speed alone does not promote it.</p>
+
+  <h2 id="envelope">Proposed operating envelope</h2>
+  <p>This envelope is a measurable starting hypothesis. Throughput smoke tests may move its numbers; they must not silently change its semantics.</p>
+  <table>
+    <thead><tr><th>Dimension</th><th>Initial envelope</th><th>Stretch</th><th>Reason</th></tr></thead>
+    <tbody>
+      <tr><td>Canonical signal clock</td><td>1 kHz</td><td>Preserve native fast-channel timestamps alongside it</td><td>Matches the existing Ambix state-space clock and keeps millisecond transients visible.</td></tr>
+      <tr><td>Innovation front end</td><td>1 kHz causal ingestion</td><td>Sub-millisecond selected fast channels</td><td>Signal quality and surprise detection should not wait for a full equilibrium solve.</td></tr>
+      <tr><td>Full Nova ensemble correction</td><td>100 Hz, or every 10 samples</td><td>1 kHz when measured throughput permits</td><td>A two-rate loop is realistic before the current Nova solve is benchmarked at ensemble scale.</td></tr>
+      <tr><td>Forecast horizons</td><td>10, 50, 100 and 250 ms</td><td>1 s scenario rollouts</td><td>Separates control-relevant near horizons from deliberately uncertain scenario planning.</td></tr>
+      <tr><td>Online smoothing</td><td>100 ms fixed lag</td><td>Adaptive lag around transients</td><td>Provides a bounded-delay high-quality state without confusing it with causal analysis.</td></tr>
+      <tr><td>Offline smoothing</td><td>Complete shot</td><td>Cross-shot hierarchical reanalysis</td><td>Produces the best discovery corpus and closure posteriors.</td></tr>
+      <tr><td>Ensemble width</td><td>16–32 CPU; 128 one H200</td><td>About 1,024 sharded across eight H200s</td><td>Small paths support tests and portability; the exclusive server buys posterior breadth and topology branches.</td></tr>
+      <tr><td>Camera products</td><td>Native 100–400 Hz output cadence</td><td>Event-adaptive higher cadence</td><td>Camera generation follows its information bandwidth; it need not dictate the 1 kHz state clock.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="h200">Eight H200s: decisive advantage, architectural constraint</h2>
+  <p>The exclusive H200 server should be saturated where additional parallelism buys scientific evidence: wide independent Nova ensemble propagation; stochastic closure and observation-model training; complete-shot smoothers and reanalysis; camera decoding; bootstrap scorecards; and multi-machine ablations. Runs should load models once, shard ensemble members or data cleanly, checkpoint frequently, resume safely and demonstrate CPU/one-GPU parity before scaling.</p>
+  <p>The resource does <strong>not</strong> decide the model family. Every scientific claim needs a small CPU reference, a one-H200 capability demonstration and a measured eight-H200 scaling result. If a design only works by coupling eight cards into one irreducible state, it has compromised the ITER operations path. Conversely, refusing to widen an ensemble or complete a reanalysis when eight cards are idle wastes a genuine experimental advantage.</p>
+
+  <h2 id="ownership">Repository ownership and independent validation</h2>
+  <table>
+    <thead><tr><th>Nova owns</th><th>Ambix owns</th></tr></thead>
+    <tbody>
+      <tr><td>Equilibrium, topology, transport, circuits, passive structures, machine descriptions, IMAS mechanics and CPU/GPU physics execution</td><td>Corpus and split policy, observation models, stochastic closures, filter/smoother orchestration, calibration, proper scores, generative diagnostic products and discovery attribution</td></tr>
+      <tr><td>Independent solver validation and the imas-efit GHCR campaign test sets</td><td>Consumption of versioned Nova evidence; no duplicate production physics implementation</td></tr>
+    </tbody>
+  </table>
+  <p>The imas-efit GHCR validation sets belong with Nova because they establish the fidelity of the physics engine independently of Ambix training or evaluation. They should test geometry/topology classes, axis and boundary placement, profiles, flux/current ledgers and CPU/GPU parity. Ambix must pin an exact validated Nova revision, record its evidence identity and test its thin consumer contract continuously while both repositories evolve. Waiting for a final API freeze would make tandem development artificial; silently following a moving branch would make experiments irreproducible.</p>
+
+  <h2 id="scorecard">Scorecard and anti-shortcut rules</h2>
+  <ul>
+    <li>Score forecast ensembles with CRPS or energy score, calibration/coverage, sharpness and event-conditioned tail skill; always compare persistence and the current EnKF baseline.</li>
+    <li>Score reconstruction and smoothing separately. A smoother win cannot be reported as an online estimator win.</li>
+    <li>Score physical validity per member before averaging: force balance, conservation ledgers, current and boundary constraints, topology validity and CPU/GPU parity.</li>
+    <li>Use actuator interventions and excitation-curated windows. History-only prediction on passive flat-top data does not establish controllability.</li>
+    <li>Evaluate cross-machine transfer with train-machine holdout and dimensionless context. Fine-tuning may be reported separately but cannot masquerade as zero-shot transfer.</li>
+    <li>Partition innovation into sensor/calibration, geometry, numerical approximation, missing source, uncertain closure and topology hypotheses. Only repeated held-out evidence earns “discovery.”</li>
+  </ul>
+
+  <h2 id="smoke">Current capability smoke, 2026-08-09</h2>
+  <p>A single CPU run against the newly updated Nova pin exercised six focused capabilities and passed all six in 348.02 s:</p>
+  <ol>
+    <li>Ambix constructs and evolves Nova circuit/transport objects through the thin physics adapters.</li>
+    <li>The existing Ambix state-space engine exposes forecast, causal filtering and non-causal smoothing with valid shapes and positive variances.</li>
+    <li>The camera modality flows through tokens, embedding, prediction head, loss reduction and checkpoint round-trip.</li>
+    <li>Actuator conditioning becomes load-bearing under a deliberately identifiable synthetic intervention.</li>
+    <li>The controllable RSSM evaluation produces the expected full-rollout and controllability artifact structure.</li>
+    <li>The exact pinned Nova dependency remains compatible across this combined slice.</li>
+  </ol>
+  <p>Two warnings were non-fatal: the login node cannot initialise the installed CUDA stack, as expected for this CPU run, and one test converts a gradient-bearing tensor to a scalar for an assertion. This smoke proves that the required pieces exist and coexist. It does <strong>not</strong> yet prove a Nova-propagated ensemble, physical posterior improvement, real-shot controllability or cross-machine transfer. Those are the gates in <a href="/imas-ambix/plans/hybrid-state-estimation-smoke.html">hybrid-state-estimation-smoke</a>.</p>
+  <p>A separate H200 capability run (SLURM job 1242807) used all five cards that were free while leaving three live service GPUs undisturbed. Five independent fp64 Nova-facing flux-surface workers processed batches of 128, 256, 512, 1,024 and 2,048 equilibria. Every worker selected the GPU backend, reported 100% well-posed surfaces and agreed with its CPU reference to a worst-case absolute difference of 1.14×10<sup>−13</sup>. Per-worker throughput ranged from 93,366 to 206,987 equilibria/s as batch size increased. This demonstrates clean ensemble partitioning and substantial kernel headroom; it is not yet an eight-card strong-scaling result or a full Nova equilibrium-solve benchmark.</p>
+
+  <h2 id="risks">Principal risks</h2>
+  <table>
+    <thead><tr><th>Risk</th><th>Failure signature</th><th>Guard</th></tr></thead>
+    <tbody>
+      <tr><td>Gaussian EnKF across topology branches</td><td>Averaged ensemble member is not a valid topology</td><td>Mixture or particle branch outside the within-branch ensemble update</td></tr>
+      <tr><td>Residual called innovation too early</td><td>Learned closure absorbs sensor drift or a geometry defect</td><td>Fault hypotheses, independent diagnostics and held-out cross-shot/machine recurrence</td></tr>
+      <tr><td>Physics model dominates data</td><td>Calibration fails while force-balance residual looks good</td><td>Soft uncertain closures and honest likelihoods; immutable laws only where actually immutable</td></tr>
+      <tr><td>Learned model ignores commands</td><td>Wrong-plan and right-plan rollouts are indistinguishable</td><td>Excitation curation, counterfactual gates and command-withholding ablations</td></tr>
+      <tr><td>H200 throughput becomes the goal</td><td>Large opaque model with no portable estimator path</td><td>CPU and one-GPU references; scaling reported as capability, not scientific skill</td></tr>
+      <tr><td>Reanalysis leaks into forecast evaluation</td><td>Impossibly strong causal scores</td><td>Provenance firewalls and time-causal split audits</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="sources">Primary sources and local evidence</h2>
+  <ul>
+    <li><a href="https://www.nature.com/articles/s41586-024-08252-9">GenCast: probabilistic weather forecasting with machine learning</a>.</li>
+    <li><a href="https://www.nature.com/articles/s41586-024-07744-y">NeuralGCM: a hybrid machine-learning weather model</a>.</li>
+    <li><a href="/imas-ambix/probabilistic-state-space-methods.html">Probabilistic state-space methods and fusion precedents</a>.</li>
+    <li><a href="/imas-ambix/nova-scoping-review.html">Nova scoping and ownership review</a>.</li>
+    <li><a href="/imas-ambix/physics-world-model-strategy.html">Physics world-model strategy and North Star</a>.</li>
+  </ul>
+</main>
+</body>
+</html>

@@ -11,19 +11,20 @@
   <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="XL">
-  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-sprint" content="S16">
+  <meta name="plan-sprint" content="S18">
   <meta name="plan-owner" content="Simon McIntosh">
-  <meta name="plan-depends-on" content="equilibrium-boundary-closure,temporal-physics-spine,interior-closure-hardening,gpu-accelerated-labeler">
+  <meta name="plan-depends-on" content="interior-closure-hardening">
   <meta name="plan-blocks" content="equilibrium-topology-fidelity">
-  <meta name="plan-informs" content="machine-agnostic-latent-world-model,closed-loop-latent-filter,learned-closure-current-diffusion-v0">
+  <meta name="plan-informs" content="machine-agnostic-latent-world-model,nova-physics-consumer-integration,hybrid-generative-state-estimation">
   <title>Learned Equilibrium Operator | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-21">
+<meta name="plan-modified" content="2026-08-09">
 <meta name="plan-impl" content="0.67">
-<meta name="plan-version" content="10">
+<meta name="plan-version" content="12">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
 <main class="plan-doc">
@@ -372,7 +373,7 @@
 
   <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-leo-01" data-status="resolved" data-tier="opus" data-written-by="reckon-create" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="2026-07-16T16:55:02+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-leo-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="2026-07-16T16:55:02+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">R1 — differentiable physics stack + label factory + non-inferiority gate</h4>
     <div class="r-fu-body"><p>First shippable rung. Build the differentiable Green's layer (torch wrapper over the exact cylinder kernels, gradients verified vs analytic), the corpus label factory (disc read + D2 solve as a SLURM CPU-array job; measure slices/node-hour first, then size the cohort), and the R1 static residual learner trained on sensor reconstruction + spine labels. Gate G1: non-inferiority vs the frozen D2 spine (n≥128, paired bootstrap), stack verified, ≥10³ labelled slices demonstrated. R1 exists so R2's wins are attributable to the time axis, not plumbing.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -409,7 +410,7 @@ Done-when
      this followup resolved</pre>
     <p class="r-fu-outcome">§2 R1 landed — commits f5782d9…6eed4a3. Differentiable Green's stack gradient-pinned (autograd == closed form, dc=0 round-trip exact); label factory 4,301 slices / 158 train shots at 5.8 s/slice measured (~4,900 slices/node-hour @ 8 chains); G1 PASS n=128/128 vs byte-exact frozen spine — CI-clear superiority: Δaxis +0.049 [+0.023,+0.070], ΔLCFS +0.061 [+0.034,+0.088], flat-top LCFS 1.50→1.15 cm. Archive: docs/archive/learned-equilibrium-operator-s2-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-leo-03" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (hand edit — reckon MCP down, Bash safety-classifier outage 2026-07-16)" data-written-at="2026-07-16T21:30:00+00:00" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="2026-07-16T20:08:21+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-leo-03" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship (hand edit — reckon MCP down, Bash safety-classifier outage 2026-07-16)" data-written-at="2026-07-16T21:30:00+00:00" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="2026-07-16T20:08:21+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">R2 handoff — fix-cycle job in flight; take the G2 verdict and close the §2 record</h4>
     <div class="r-fu-body"><p>Mid-flight handoff (session ended by a Bash safety-classifier outage; all state
     below). R2 is BUILT and the full measurement chain is PROVEN: temporal operator (causal transformer +
@@ -474,7 +475,7 @@ Done-when
      CI from n=8 shot-level paired bootstrap.</pre>
     <p class="r-fu-outcome">Handoff premise corrected and record closed. The lead's fix-cycle sbatch never fired (classifier outage) — job 1229616 WAS the crippled run. This session committed the pending fixes (c047ab6/c424b2a/7ea857f), root-caused the real NaN (empty-timestep max-pool sentinel in padded batches, NOT the fp64 decode; NaN×0 masking spread it batch-wide; fix + regression test test_fully_masked_padded_tail_stays_finite_and_padding_invariant), and ran the definitive fix-cycle (job 1229626): 0 skipped steps at every sweep point. G2 verdict taken honestly: FAIL. Archive: docs/archive/learned-equilibrium-operator-s2-r2-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-leo-02" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="2026-07-16T20:08:21+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-leo-02" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="2026-07-16T20:08:21+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">R2 — temporal operator over sensor history (the thesis rung)</h4>
     <div class="r-fu-body"><p>R1 proved the plumbing (G1 PASS, CI-clear); every remaining error mode is temporal. Build the causal sequence model over sensor history with the L/R-eigenmode-structured latent eddy state entering as external currents through the same Green's layer. First: lock the temporal-backbone decision (SSM vs causal transformer vs structured GRU — the eddy block is literally a diagonal SSM); scale the label factory toward the full corpus (throughput measured: ~4,900 slices/node-hour per node at 8 chains); pretrain the eddy latent on synthetic_truth sequences with known L/R histories. Gate G2: beat the disc read flat-top (1.4–2.1 cm) CI-clear AND ramp-up &lt;5 cm median AND axis &lt;5.1 cm; p′/FF′ split scored on synthetic truth. H200 becomes load-bearing here.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -515,7 +516,7 @@ Done-when
   3. Plan updated same-turn; R3 followup written; this followup resolved</pre>
     <p class="r-fu-outcome">R2 built + first VALID test recorded — G2 FAIL (honest negative). Temporal operator (causal transformer + L/R diagonal-SSM eddy block, taus 35.8→4.1 ms, byte-exact spine at init, 23 tests green); corpus 503 shards / 14,441 slices; synthetic pretraining R² +0.25 vs −0.27 raw. Clean training (0 skipped steps): flat-top op−disc +0.90 cm CI [−0.63,+2.33]; ramp-up 8.18 cm vs 5 cm bar; axis 6.11 vs 5.1 cm; non-inferiority vs spine FAIL (axis CI [−0.058,+0.080], X-point [−0.100,−0.004] cross the −0.05 margin). Mechanism: val sensor misfit improves 5.87→4.38 but ALL sweep points exceed the 0.75 cm flat-top drift bound (0.83–3.95 cm; tightest-regularisation fallback selected) — the self-supervised sensor signal does not buy boundary skill; selected model is spine-adjacent. p′/FF′ split operator arm NaN (separate open defect in the ladder refit). Archive: docs/archive/learned-equilibrium-operator-s2-r2-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-leo-04" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-16T22:20:00+00:00" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="2026-07-16T20:52:26+00:00" data-resolved-by="reckon-ship (lead review)">
+<article class="r-fu" data-id="f-leo-04" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-16T22:20:00+00:00" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="2026-07-16T20:52:26+00:00" data-resolved-by="reckon-ship (lead review)">
     <h4 class="r-fu-title">R2 iteration — put boundary fidelity into the training signal (one bounded attempt)</h4>
     <div class="r-fu-body"><p>The first valid R2 test failed G2 with a clear mechanism: the operator improves whitened sensor misfit (5.87→4.38 val) but every leash/ridge sweep point trades flat-top boundary drift past the 0.75 cm bound — nothing in the self-supervised loss rewards boundary fidelity, so selection falls back to the most-regularised, spine-adjacent model and the temporal irreducibles stay unexploited. One bounded iteration on the objective/selection: differentiable boundary-consistency term through the existing ψ decode, drift-aware selection on a skill proxy, wider leash/ridge range, the locked direct-DOF ablation arm; fix the split-path NaN so p′/FF′ can score. If flat-top Δ and ramp-up median do not move materially, record a sustained negative and re-plan the temporal thesis rather than iterating blind.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -562,7 +563,7 @@ Done-when
      this followup resolved, next followup written</pre>
     <p class="r-fu-outcome">Superseded by f-leo-05 before any work started: lead review folded topological terminator/null-integrity terms into the iteration as first-class objectives (terminator-consistency anchor at spine-trusted slices + critical-point integrity regulariser; hard class supervision banned per the emergent-class decision). No other change of intent.</p>
     </article>
-<article class="r-fu" data-id="f-leo-05" data-status="resolved" data-tier="opus" data-written-by="reckon-ship (lead review 2026-07-16)" data-written-at="2026-07-16T22:35:00+00:00" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="2026-07-16T22:15:50+00:00" data-resolved-by="reckon-ship">
+<article class="r-fu" data-id="f-leo-05" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship (lead review 2026-07-16)" data-written-at="2026-07-16T22:35:00+00:00" data-recommends-skill="/reckon-ship learned-equilibrium-operator §2" data-resolved-at="2026-07-16T22:15:50+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">R2 iteration — boundary + topological terms in the training signal (one bounded attempt)</h4>
     <div class="r-fu-body"><p>Supersedes f-leo-04 (topological terms made first-class at lead review). The first valid R2 test failed G2 with a clear mechanism: sensor misfit improves 5.87→4.38 but every sweep point trades flat-top boundary drift past the 0.75 cm bound — the loss rewards sensors, not boundaries, and the X-point-set skill CI [−0.100,−0.004] shows the corrections wiggle the saddles. One bounded iteration on the objective/selection with the topology of a valid boundary (terminates at a limiter tangency OR an X-point) driving the design: (1) terminator-consistency anchor on spine-trusted slices — pointwise |∇ψ|² at the spine's X-point / limiter-tangency condition + boundary-flux softmin consistency, phrased as a penalty on the CHANGE the correction induces (frozen-ψ_N honesty), cheap via Green's rows at a few points; (2) critical-point integrity regulariser — penalise spurious interior O-points/saddles, label-free; (3) ring-drift penalty as fallback; plus skill-aware selection, wider sweep, the locked direct-DOF ablation arm, and the split-path NaN fix. Hard class supervision is BANNED (emergent-class decision). Stop rule: no material movement on flat-top Δ or ramp-up median → sustained negative, re-plan the temporal thesis.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -643,7 +644,7 @@ Done-when
      this followup resolved, next followup written</pre>
     <p class="r-fu-outcome">Iteration executed in full (commits dbceba0/ef44cc1, pipeline job 1229633) — G2 FAIL SUSTAINED. Terminator-consistency anchor (9,819 spine-trusted slices, delta form, unit-tested vs the cylinder-kernel pointwise field) + label-free critical-point integrity regulariser + drift-aware composite selection over leash{3,10,30}×ridge{0.3,3}×tw{1,10}. The anchors work as designed: selected model (leash 10/ridge 0.3/tw 10) holds drift 0.70 cm IN bound at val misfit 4.62 vs spine 5.87, non-inferiority vs spine RESTORED (axis +0.026 [−0.006,+0.044], LCFS +0.006 [−0.024,+0.040]), 0 skipped steps, byte-exact spine at eval. Headline gate unmoved: flat-top op−disc +0.64 cm CI [−0.71,+1.83]; ramp-up 7.87 cm vs 5 cm bar (spine 8.37); axis 6.18 vs 5.1 cm. Split scorer finite with this checkpoint: operator 0.201 vs spine 0.120 — LOSES. Direct-DOF ablation: flat-top +11.9 cm, axis 13.7 cm — residual-first locked empirically. Per the stop rule: sustained negative recorded, no further training-signal iterations; re-planning followup f-leo-06 opened. Archive: docs/archive/learned-equilibrium-operator-s2-r2-landed.html</p>
     </article>
-<article class="r-fu" data-id="f-leo-06" data-status="resolved" data-tier="opus" data-written-by="reckon-ship" data-written-at="2026-07-17T00:30:00+00:00" data-recommends-skill="/reckon-edit learned-equilibrium-operator" data-resolved-at="2026-07-17T03:41:02+00:00" data-resolved-by="reckon-edit">
+<article class="r-fu" data-id="f-leo-06" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-17T00:30:00+00:00" data-recommends-skill="/reckon-edit learned-equilibrium-operator" data-resolved-at="2026-07-17T03:41:02+00:00" data-resolved-by="reckon-edit">
     <h4 class="r-fu-title">Re-plan the temporal thesis — where can the time axis actually enter the equilibrium?</h4>
     <div class="r-fu-body"><p>R2 is closed as a SUSTAINED negative after two clean, fully-instrumented tests: the operator reliably converts sensor history into ~21% whitened sensor-misfit gains, and with the topology terms those gains come without boundary drift, saddle damage, or spine regression — yet none of it converts into referee-measured skill (flat-top, ramp-up, axis, p′/FF′ split all unmoved; the ramp-up advantage over the disc read is inherited from the D2 spine). Objective degeneracy and plumbing are now controlled and are NOT the bottleneck. The re-plan must decide where temporal information can enter at all: (a) the frozen-ψ_N linearised decode caps boundary movement exactly where the spine is wrong (ramp-up) — an iterated/self-consistent decode may be required; (b) real-data boundary truth is unavailable by construction (EFIT firewalled) — synthetic-truth sequences with exact boundaries/eddies may need to become the PRIMARY supervised signal with domain transfer, not a pretrainer; (c) an information-ceiling probe on synthetic machines (can ANY function of sensor history beat the per-slice solve at a known-truth referee?) would test the thesis directly before more training; (d) the gate could re-scope to ramp-up where the irreducibles provably live. Lead decision needed on direction before any further R2-class training.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix

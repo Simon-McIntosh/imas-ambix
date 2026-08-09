@@ -4,21 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="learned-closure-current-diffusion-v0">
-  <meta name="plan-title"     content="Learned Closures in the Differentiable Current-Diffusion Filter — q Without MSE">
-  <meta name="plan-summary"   content="Put the ML inside the physics: parameterize the uncertain closures of the 1-D poloidal-flux-diffusion model (parallel resistivity correction, effective Zeff, bootstrap multiplier) as small positivity-constrained networks, train them MSE-free end-to-end through a differentiable solver against observable losses (magnetics via the GS operator, Ip), amortized across thousands of shots on 4×H200, and validate on held-out MSE via the locked D1 harness against the frozen sequential-EKF v1 bar.">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="L">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="learned-closure-current-diffusion-v0">
+  <meta name="plan-title" content="Learned Closures in the Differentiable Current-Diffusion Filter — q Without MSE">
+  <meta name="plan-summary" content="Put the ML inside the physics: parameterize the uncertain closures of the 1-D poloidal-flux-diffusion model (parallel resistivity correction, effective Zeff, bootstrap multiplier) as small positivity-constrained networks, train them MSE-free end-to-end through a differentiable solver against observable losses (magnetics via the GS operator, Ip), amortized across thousands of shots on 4×H200, and validate on held-out MSE via the locked D1 harness against the frozen sequential-EKF v1 bar.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
   <meta name="plan-milestone" content="M3">
-  <meta name="plan-sprint"    content="S15">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-sprint" content="S18">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="sequential-current-da-v1,internal-current-diagnostics-v0,mse-free-current-recovery-v0,neural-kf-architecture-survey">
   <title>Learned Closures in the Differentiable Current-Diffusion Filter | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -273,52 +276,51 @@
     </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="closure-set" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which closures are learnable in v0?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="eta-zeff">η-correction + bounded Zeff_eff (recommended — minimal, attributable)</button>
-          <button class="r-opt" data-value="eta-only">η-correction only</button>
-          <button class="r-opt" data-value="eta-zeff-bootstrap">η-correction + Zeff_eff + bootstrap multiplier</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="solver-framework" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which autodiff framework hosts the differentiable solver?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="torch">torch (recommended — repo GPU stack, bf16/H200 path, torch.func.vmap; TORAX stays cross-check only per the da-substrate lock)</button>
-          <button class="r-opt" data-value="jax">JAX (TORAX-adjacent vmap/scan ergonomics; second stack to maintain)</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="amortization" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">How are closure parameters fit?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="amortized-encoder">Amortized encoder across the train split (recommended — the generalization + H200 thesis)</button>
-          <button class="r-opt" data-value="per-shot-variational">Per-shot variational fit (no cross-shot sharing)</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="loss-set-v0" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which MSE-free observables form the v0 training loss?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="mag-ip">Whitened GS-operator magnetics innovation + Ip consistency (recommended v0)</button>
-          <button class="r-opt" data-value="mag-ip-pprime">+ GS-p′ Thomson pressure from the start (couples to S10 delivery risk)</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="closure-set" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Which closures are learnable in v0?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="eta-zeff">η-correction + bounded Zeff_eff (recommended — minimal, attributable)</button>
+      <button class="r-opt" data-value="eta-only">η-correction only</button>
+      <button class="r-opt" data-value="eta-zeff-bootstrap">η-correction + Zeff_eff + bootstrap multiplier</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="solver-framework" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Which autodiff framework hosts the differentiable solver?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="torch">torch (recommended — repo GPU stack, bf16/H200 path, torch.func.vmap; TORAX stays cross-check only per the da-substrate lock)</button>
+      <button class="r-opt" data-value="jax">JAX (TORAX-adjacent vmap/scan ergonomics; second stack to maintain)</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="amortization" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">How are closure parameters fit?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="amortized-encoder">Amortized encoder across the train split (recommended — the generalization + H200 thesis)</button>
+      <button class="r-opt" data-value="per-shot-variational">Per-shot variational fit (no cross-shot sharing)</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="loss-set-v0" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Which MSE-free observables form the v0 training loss?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="mag-ip">Whitened GS-operator magnetics innovation + Ip consistency (recommended v0)</button>
+      <button class="r-opt" data-value="mag-ip-pprime">+ GS-p′ Thomson pressure from the start (couples to S10 delivery risk)</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-lcc-d0-diff-solver" data-status="open" data-tier="opus"
-               data-written-by="agent/opus (S13 author)" data-written-at="2026-06-10">
-        <h4 class="r-fu-title">D0+D1 — differentiable ψ-diffusion core + constrained closure modules</h4>
-        <div class="r-fu-body"><p>The gate for the H200 phase: a torch implementation of the
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-lcc-d0-diff-solver" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus (S13 author)" data-written-at="2026-06-10" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">D0+D1 — differentiable ψ-diffusion core + constrained closure modules</h4>
+    <div class="r-fu-body"><p>The gate for the H200 phase: a torch implementation of the
           reduced ψ-diffusion solver with adjoint gradients, numerically matched to the
           <code>sequential_da.py</code> reduced model and TORAX-validated, plus the
           positivity/bound-constrained closure modules with their Sauter-only ablation path.</p></div>
-        <pre class="r-fu-prompt">Project: imas-ambix
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    learned-closure-current-diffusion-v0 (http://localhost:8765/imas-ambix/learned-closure-current-diffusion-v0.html)
 Section: §5 D0 + D1
 Tier:    opus
@@ -340,22 +342,22 @@ State to read
 
 Scope locks / constraints
   - psi(rho) is the state; j/q/pitch derive post-hoc via pitch_from_current_profile.
-  - Hard constraints by construction: eta_par = Sauter * softplus(g) > 0; Zeff_eff in [1,6];
+  - Hard constraints by construction: eta_par = Sauter * softplus(g) &gt; 0; Zeff_eff in [1,6];
     monotone-psi guard. Unit tests must prove the constraints cannot be violated.
   - Implicit banded step + adjoint (or autograd through the implicit solve); torch.autograd
     gradcheck green on a small case is the acceptance gate.
   - MSE (ams) never enters; EFIT never enters. CPU-first (uv run, /work access node);
     no GPU in this task.
-  - Validate vs TORAX q(rho,t) on >=3 representative shots incl. one stiff/high-Ip shot;
+  - Validate vs TORAX q(rho,t) on &gt;=3 representative shots incl. one stiff/high-Ip shot;
     commit the agreement artifact.
 
 Done-when
   1. Differentiable solver + closure modules committed with gradcheck + constraint tests green.
-  2. TORAX q(rho,t) agreement artifact committed (>=3 shots).
+  2. TORAX q(rho,t) agreement artifact committed (&gt;=3 shots).
   3. A followup written for D2 (amortized MSE-free training on 4xH200, hardened sbatch per
      AGENTS.md 2a/2a-cancel/2a-cancel-time) using the §05 template + this one resolved.</pre>
-      </article>
-    </section>
+    </article>
+</section>
 
   </main>
 </body>

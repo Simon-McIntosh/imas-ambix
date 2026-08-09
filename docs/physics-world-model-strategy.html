@@ -8,29 +8,32 @@
   <meta name="plan-slug" content="physics-world-model-strategy">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="XL">
-  <meta name="plan-tier" content="opus">
-  <meta name="plan-summary" content="Foundational objective: a MACHINE-AGNOSTIC, data-led probabilistic state-space world model of the tokamak plasma — ingesting absolute-calibrated, geometry-tagged multi-modal diagnostic tokens into a shared latent whose dynamics are learned by space-time transformers (advection/diffusion) — that turns scarce shots into controllable dreams, state estimation, what-if forecasting, and discovered structure, and transfers across machines (MAST -&gt; JET -&gt; ITER) by construction via diagnostic-geometry positional encoding + dimensionless/invariant coordinates.">
+  <meta name="plan-summary" content="North Star: an ITER-ready, machine-portable probabilistic plasma state estimator. Nova transfers conservation, force balance, circuits and geometry exactly; Ambix learns uncertain closures, sources, transport coefficients and boundary decisions from classified model-signal innovation. One model exposes calibrated forecast, causal reconstruction and non-causal smoothing, with equilibrium and camera generation as by-products under new actuator trajectories.">
   <meta name="plan-milestone" content="M0">
   <meta name="plan-sprint" content="S7">
-  <meta name="plan-depends-on" content="probabilistic-state-space-methods">
+  <meta name="plan-depends-on" content="">
   <title>Physics World Model — Strategy &amp; North Star | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-title" content="Physics World Model — Strategy &amp; North Star">
-<meta name="plan-modified" content="2026-06-24">
-<meta name="plan-version" content="7">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-version" content="9">
 <meta name="plan-status" content="active">
 <meta name="plan-impl" content="0.7">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
+<meta name="plan-informs" content="probabilistic-state-space-methods,hybrid-generative-state-estimation">
 </head>
 <body>
   <main class="plan-doc">
     <h1>Physics World Model — Strategy &amp; North Star</h1>
-    <p><em>The foundational objective the rest of the project hangs from. Authored 2026-05-29 after a working dialogue that re-founded the project away from a generative camera-video model toward a learned probabilistic state-space model. Methods + precedents: <a href="/imas-ambix/probabilistic-state-space-methods.html">probabilistic-state-space-methods</a>. First experiment: <a href="/imas-ambix/plasma-state-space-v0.html">plasma-state-space-v0</a>.</em></p>
+    <p><em>The foundational objective the rest of the project hangs from. Refounded 2026-05-29 around probabilistic state estimation; sharpened 2026-08-09 around a fast Nova transition, learned model–signal innovation and ITER first-day transfer. Architecture synthesis: <a href="/imas-ambix/research/hybrid-generative-state-estimation.html">hybrid-generative-state-estimation</a>.</em></p>
 
-    <h2 id="s1">§1 — North star</h2>
-    <p><strong>A data-led, physics-aware dynamical model of the tokamak plasma — flexible enough to be right where our equations are wrong, and structured in invariant/dimensionless terms enough to extrapolate to ITER and beyond — that turns scarce, expensive experimental shots into predictive understanding and a faster path to high performance.</strong></p>
-    <p>The deliverable is twofold and inseparable: an <em>operational</em> model (state estimation, what-if forecasting, calibrated uncertainty) <strong>and</strong> <em>understanding</em> (the reduced structure and coefficients the model reveals). We demonstrate understanding by building a model that works — and the model that works is the instrument that reveals the structure.</p>
-    <p>What this is <strong>not</strong>: predictive simulation of known equations, integrated modelling, or data labelling. We are not re-solving MHD. We are learning the plasma's effective dynamics from data and extracting transferable structure.</p>
+    <h2 id="s1">§1 — North Star</h2>
+    <p><strong>Build an ITER-ready, machine-portable probabilistic plasma state estimator in which physics that is physics transfers exactly, while uncertainty in closures, sources, transport coefficients and boundary decisions is learned from the difference between Nova's fast prediction and signal-carrying data.</strong></p>
+    <p>Conservation, force balance, circuit laws and geometry transforms are the transferable substrate. Nova advances them under each machine geometry and proposed coil or actuator trajectory. Ambix carries distributions over the assumptions those laws do not determine, conditions the resulting ensemble on magnetics, profiles, flux-surface averages, cameras and other signals, and distils repeated held-out mismatch into candidate transferable closures. Surprise is evidence to classify—not automatically discovery: calibration drift, bad geometry, missing sources, numerical error and out-of-support regimes remain competing explanations.</p>
+    <p>The operational model and the scientific instrument are one system. With observations withheld it produces a sharp, calibrated GenCast-like forecast ensemble. With observations through the current time it produces a causal reconstruction or analysis. With future observations admitted it produces a clearly labelled non-causal smoother and reanalysis corpus. The same posterior generates equilibrium maps and diagnostic streams under new commands; camera generation is a useful by-product, not the state or the project's guiding objective.</p>
+    <p>The reason to place fast Nova inside the inference chain is transfer: new geometry and coil currents generate new physical flux maps immediately, while closure and boundary posteriors transfer only as their invariant context and uncertainty permit. Robust cross-machine learning on present devices is our rehearsal for useful estimates from ITER's first plasma. The exclusive eight-H200 server buys ensemble breadth, complete-shot smoothing and training throughput; it accelerates this North Star without defining it.</p>
 
     <h2 id="s1a">§1a — North star, refined (2026-06-24): a <em>machine-agnostic</em> general fusion world model</h2>
     <p><em>Refined after the joint-generative-WM sprint produced a robust negative and a sharp feasibility map. New <code>/goal</code> (user, 2026-06-24): "discover the underlying latent dynamics and a physics-faithful, data-led world model capable of controllable dreams" — and, as the long-horizon destination, <strong>one model that is not MAST-specific but transfers across machines toward ITER</strong>.</em></p>
@@ -243,22 +246,22 @@
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="uq-level-v0" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="uq-level-v0" data-choice="ensemble-plus-conformal" data-by="Simon McIntosh" data-when="2026-08-09T15:55:45+00:00">
     <p class="r-dec-q">What level of probabilistic machinery for the Stage-1 engine?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="ensemble-plus-conformal">deep-ensemble + conformal calibration (recommended — lightest genuinely-calibrated level)</button>
+      <button class="r-opt chosen" data-value="ensemble-plus-conformal">deep-ensemble + conformal calibration (recommended — lightest genuinely-calibrated level)</button>
       <button class="r-opt" data-value="deterministic-first">deterministic observer first, add UQ later</button>
       <button class="r-opt" data-value="full-variational">full variational/Bayesian filter from the start</button>
       </p>
-    <p class="r-dec-rat">Recommend deep-ensemble + conformal intervals for v0: honest, distribution-free coverage guarantees, cheap, no MCMC. Escalate to a variational filter only if calibration/assimilation demands it. Keeps us from over-committing to Bayes (§3).</p>
+    <p class="r-dec-rat">The lead requires robust GenCast-like probabilistic forecasts plus forecast, analysis and smoothing. Start with a stochastic Nova-propagated ensemble, proper-score calibration and conformal coverage checks; add richer variational machinery only when measured posterior structure requires it.</p>
     </div>
-<div class="r-dec" data-key="extrapolation-coordinates" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="extrapolation-coordinates" data-choice="design-for-invariance" data-by="Simon McIntosh" data-when="2026-08-09T15:55:45+00:00">
     <p class="r-dec-q">Do we build toward dimensionless/invariant latent coordinates now, or defer?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="design-for-invariance">design for invariance from v0 (recommended — extrapolation is a v0 design constraint, even if not exercised yet)</button>
+      <button class="r-opt chosen" data-value="design-for-invariance">design for invariance from v0 (recommended — extrapolation is a v0 design constraint, even if not exercised yet)</button>
       <button class="r-opt" data-value="defer-to-stage2">raw coordinates for v0; introduce invariance in Stage 2</button>
       </p>
-    <p class="r-dec-rat">Recommend designing the state representation so dimensionless scaling can be imposed/learned, even if cross-machine extrapolation isn&#x27;t tested until later — retrofitting invariance is costly.</p>
+    <p class="r-dec-rat">Cross-machine transfer and useful ITER estimates from first plasma are first-order design constraints. Diagnostic geometry and invariant or dimensionless context must be load-bearing from the start.</p>
     </div>
 <div class="r-dec" data-key="camera-role" data-choice="one-modality" data-by="Simon McIntosh" data-when="2026-05-29">
     <p class="r-dec-q">What is the camera&#x27;s role in the world model?</p>
@@ -268,11 +271,35 @@
       </p>
     <p class="r-dec-rat">Locked by the user 2026-05-29: &quot;eventually it would be nice to also have the facility to generate camera streams - but this is a byproduct and is in no way our guiding goal.&quot; Camera is one input modality to the state estimator.</p>
     </div>
+<div class="r-dec" data-key="transition-authority" data-choice="nova-led-ensemble" data-by="Simon McIntosh" data-when="2026-08-09T15:55:45+00:00">
+    <p class="r-dec-q">What is the authoritative forecast transition?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="nova-led-ensemble">Nova advances every reference ensemble member; learning supplies uncertain closures and observations</button>
+      <button class="r-opt" data-value="direct-learned-primary">A learned state-to-state generator is authoritative</button>
+      </p>
+    <p class="r-dec-rat">Known physics transfers across machines. A direct learned generator may later challenge, propose or distil, but it must earn parity against the Nova-led ensemble before becoming authoritative.</p>
+    </div>
+<div class="r-dec" data-key="estimator-products" data-choice="forecast-analysis-smoothing" data-by="Simon McIntosh" data-when="2026-08-09T15:55:45+00:00">
+    <p class="r-dec-q">Which state-estimation products are required?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="forecast-analysis-smoothing">Causal forecast, causal analysis/reconstruction and explicitly non-causal smoothing</button>
+      <button class="r-opt" data-value="forecast-only">Forecast only</button>
+      </p>
+    <p class="r-dec-rat">The lead requires the full EnKF-class capability envelope: prediction, reconstruction and smoothing from one probabilistic system.</p>
+    </div>
+<div class="r-dec" data-key="h200-role" data-choice="accelerator-not-architect" data-by="Simon McIntosh" data-when="2026-08-09T15:55:45+00:00">
+    <p class="r-dec-q">How should the exclusive eight-H200 resource influence the design?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="accelerator-not-architect">Exploit all cards for ensembles, smoothing and training while preserving CPU and one-GPU references</button>
+      <button class="r-opt" data-value="eight-card-native">Let the eight-card topology define the model</button>
+      </p>
+    <p class="r-dec-rat">The server is a decisive throughput advantage and should be fully used, but the scientific direction and deployed estimator must remain portable.</p>
+    </div>
 </section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-stage1-engine" data-status="resolved" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29" data-recommends-skill="" data-resolved-at="2026-05-30T09:20:37+00:00" data-resolved-by="agent/opus (S7 orchestrator)">
+<article class="r-fu" data-id="f-stage1-engine" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus" data-written-at="2026-05-29" data-recommends-skill="" data-resolved-at="2026-05-30T09:20:37+00:00" data-resolved-by="agent/opus (S7 orchestrator)">
     <h4 class="r-fu-title">Execute Stage-1 engine — see plasma-state-space-v0 (the sprint home)</h4>
     <div class="r-fu-body">The Stage-1 demonstrator (separatrix shape parameters from raw diagnostics with calibrated uncertainty) is specified in plasma-state-space-v0 and is the home of sprint S7. This followup tracks Stage-1 closure against the strategy.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -285,7 +312,7 @@ Done-when
   Stage-1 acceptance met in plasma-state-space-v0; Stage-2 go/no-go recorded here.</pre>
     <p class="r-fu-outcome">Stage-1 MET under the re-scoped bar (sprint S7, plasma-state-space-v0, engine_metrics_v1.json): (1) filtering calibrated 0.914; (2) forecasting-through-transients dynamics win via NLL at h&gt;=5 (engine bounds the loss where the static persistence-of-nowcast is confidently-catastrophic on caught ELMs: h=20 engine +1.28 vs static +13.2); (3) OOD honesty — coverage non-collapse 0.944-&gt;0.788 + predictive-sigma inflation x3.6 + engine wins OOD-aggregate forecast CRPS at all horizons. QUALIFIED: transient &amp; bulk CRPS still lose to the persistence nowcast (single-Gaussian head; 96.8%-stationary target) — the dynamics earn their keep on the SAFETY-relevant axes this strategy targets (calibrated catastrophic-miss-avoidance + OOD-regime forecasting + honest uncertainty inflation), NOT on bulk in-distribution accuracy. STAGE-2 GO/NO-GO = GO, but SEQUENCED AFTER S7.5 (user decision 2026-05-30: engine-refine-first). S7.5 (plasma-state-space-v0 f-s7-5-engine-refinement, dispatched) adds a Student-t emission head (principled fix for the transient/bulk-CRPS loss a Gaussian can't win), an engine-native OOD score (the 0.81 AUROC was the STATIC ensemble's, not the engine's), and a drift-reg perf fix — giving Stage-2's GS prior a CRPS-competitive, cleanly-measured base. f-stage2-gs-discovery remains gated: now on S7.5 completion. uq-level-v0 + extrapolation-coordinates stay OPEN, surfaced for Stage-2.</p>
     </article>
-<article class="r-fu" data-id="f-stage2-gs-discovery" data-status="resolved" data-tier="opus" data-written-by="agent/opus" data-written-at="2026-05-29" data-recommends-skill="" data-resolved-at="2026-05-31T11:38:01+00:00" data-resolved-by="agent/opus (S9 orchestrator)">
+<article class="r-fu" data-id="f-stage2-gs-discovery" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus" data-written-at="2026-05-29" data-recommends-skill="" data-resolved-at="2026-05-31T11:38:01+00:00" data-resolved-by="agent/opus (S9 orchestrator)">
     <h4 class="r-fu-title">Stage-2 — self-applied GS prior + structure discovery</h4>
     <div class="r-fu-body">After the engine is validated: add Grad–Shafranov as a soft falsifiable prior on raw magnetics; ground the latent physically; stand up GS-residual monitoring as a discovery instrument; apply SINDy/Koopman to the latent transition kernel toward dimensionless coordinates. Do NOT start before Stage-1 calibration is demonstrated.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -298,7 +325,7 @@ Done-when
   GS-residual departure detector demonstrated on known transient shots; first discovered reduced-structure result documented.</pre>
     <p class="r-fu-outcome">Stage-2 (plasma-gs-prior-v0, sprint S8) closed 2026-05-31 with HONEST NEGATIVES that re-founded the direction. (1) Q1 FAIL — the GS force-balance residual genuinely detects transients but is BEATEN by the trivial |dB/dt| baseline (ELM AUROC 0.68 vs 0.76; disruption 0.67 vs 0.92). (2) T6 grounding — Dα PRESERVED (filtering CRPS -6.4%, within the single-seed/thread floor) but NO fθ-enrichment (discovery gap 0.78% &lt; T8 baseline 1.28%) and near-vacuum from-z current ratio 0.98 FAIL: confirms magnetics+boundary CANNOT constrain the internal current profile (classic equilibrium under-determination, not a bug). (3) The integrated-grounding fix (T10) was only HALF-testable — MSE is unusable from level-1 as a dense input (gamma ~99% NaN, beam-on only; ~0.86% finite verified). DURABLE ASSET: a validated, EFIT-free GS Green's-function forward operator (gs/operator.py), already wired as a differentiable observation operator. These findings re-centred the project on its founding multi-modal motivation → Stage-3 (the pivot): MSE-FREE multi-modal current-profile recovery beating an EnKF baseline, validated on held-out raw MSE. See f-stage3-current-recovery + plan mse-free-current-recovery-v0 (sprint S9). Grounded in the 7-reader deep review (workflow wpy0754zv, 2026-05-31).</p>
     </article>
-<article class="r-fu" data-id="f-stage3-current-recovery" data-status="open" data-tier="opus" data-written-by="agent/opus (S9 orchestrator)" data-written-at="2026-05-31 11:30" data-recommends-skill="/reckon-ship mse-free-current-recovery-v0" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-stage3-current-recovery" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus (S9 orchestrator)" data-written-at="2026-05-31 11:30" data-recommends-skill="/reckon-ship mse-free-current-recovery-v0" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Stage-3 — MSE-free multi-modal current-profile recovery (the pivot)</h4>
     <div class="r-fu-body">Stage-1 + Stage-2 closed with honest results that re-founded the project on MSE-free multi-modal current recovery. Stage-3 is owned by mse-free-current-recovery-v0 (sprint S9). This followup tracks Stage-3 closure against the strategy north-star.</div>
     <pre class="r-fu-prompt">Project: imas-ambix

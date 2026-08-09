@@ -4,21 +4,25 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="controllable-forecast-and-gate">
-  <meta name="plan-title"     content="Excitation-Curated Training + Controllability + Raw-Held-Out Eval">
-  <meta name="plan-summary"   content="v0 stage 4 of the machine-agnostic latent world model — THE goal gate. Train the closed-loop engine on the full v0 modality set (magnetics + plan + interferometer + SXR + all five cameras + HF), excitation-curated; run the powered controllability gate on EXCITED held-out windows (the bar the prior camera/RSSM work failed) and raw-held-out prediction vs persistence + the EnKF bar.">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="XL">
-  <meta name="plan-tier"      content="opus">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="controllable-forecast-and-gate">
+  <meta name="plan-title" content="Excitation-Curated Training + Controllability + Raw-Held-Out Eval">
+  <meta name="plan-summary" content="Scale and judge the Nova-led probabilistic model on excitation-bearing data. One checkpoint must produce calibrated 10/50/100/250 ms forecasts, causal analyses and non-causal smoothers; beat persistence and EnKF/EnKS baselines on proper scores; respond physically to edited coil and actuator trajectories; and emit equilibrium plus multi-diagnostic ensembles, including cameras as a by-product. Cross-machine skill and CPU/one/eight-H200 evidence are separate gates.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="XL">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-sprint"    content="S16">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-sprint" content="S18">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="machine-agnostic-latent-world-model,closed-loop-latent-filter">
   <title>Excitation-Curated Training + Controllability + Raw-Held-Out Eval | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
+<meta name="plan-version" content="3">
+<meta name="plan-informs" content="hybrid-generative-state-estimation">
 </head>
 <body>
 <main class="plan-doc">
@@ -30,24 +34,17 @@ honesty hierarchy), glossary, and locked decisions are in the parent
 delivered controllable dreams.</p>
 
 <h2 id="s1">§1 — Objective &amp; scope</h2>
-<p>Train the stage-3 closed-loop engine at scale on the full v0 modality set — magnetics + plan +
-interferometer + SXR + all five cameras + HF signals — <strong>excitation-curated</strong> (up-weight /
-preferentially sample windows with genuine actuator excitation: coil ramps, |dI/dt| transients, plan changes,
-ramp-up/down), with the observation-withholding schedule so filter and forecast train jointly. Then run the
-honesty-spine evaluation: the powered controllability gate on excited held-out windows, and raw-held-out
-prediction against persistence + the EnKF bar. EFIT stays the firewalled referee.</p>
+<p>Train the Nova-led closed-loop engine at scale on absolute, geometry-tagged magnetics, plan, interferometer, SXR, camera and fast-signal streams. Excitation curation makes coil and actuator commands identifiable. Observation-withholding trains the same components for causal forecast, causal analysis and non-causal smoothing. The output target is a <strong>sharp, calibrated joint ensemble</strong> of physical state and raw observations—not a deterministic mean and not a camera-only dream.</p>
+<p>The scorecard separates scientific skill from compute: persistence, the current EnKF/EnKS baseline, unconditioned Nova ensembles and any direct learned challenger receive the same horizons, commands and held-out observations. Cross-machine and OOD strata are reported separately. EFIT remains a firewalled referee; independent physics parity belongs to Nova.</p>
 
 <h2 id="s2">§2 — The gate (verifiable done-when)</h2>
 <ol>
-  <li>Trained checkpoint on the full v0 modality set; excitation-curated + observation-withholding.</li>
-  <li><strong>Powered ΔN-M controllability gate PASSES on excited held-out windows</strong> — the true plan
-  moves the latent more than a random plan, CI clear of the noise floor (n=10). This is the bar the prior
-  camera/RSSM work failed. Report ratio + CI + pass-fraction.</li>
-  <li><strong>Raw-held-out signal prediction beats persistence AND the EnKF current-recovery bar</strong> —
-  report per-modality (the strong tier of the validation honesty hierarchy: predict raw observables the model
-  never saw).</li>
-  <li>Honest controlled-vs-stochastic decomposition + interior-current under-determination reported
-  (calibrated "I don't know" where the data cannot pin it); predict-vs-reality figure(s); plan collapsed.</li>
+  <li><strong>Three products, one model:</strong> forecast, analysis/reconstruction and fixed-lag/full-shot smoothing pass causality and provenance tests.</li>
+  <li><strong>Probabilistic forecast skill:</strong> CRPS or energy score, calibration, sharpness and transient-tail skill beat persistence and the current EnKF forecast bar at the declared 10/50/100/250 ms horizons; individual members remain physically valid and sharp.</li>
+  <li><strong>Powered controllability:</strong> on excited held-out windows, edited coil/actuator trajectories move the equilibrium and diagnostic ensemble more than same-plan stochastic spread, with a bootstrap interval clear of the floor.</li>
+  <li><strong>Raw held-out skill:</strong> predict signal families the model did not observe at the anchor, reporting per-modality scores and calibrated “I do not know” behavior where internal state is underdetermined.</li>
+  <li><strong>Generative products:</strong> publish equilibrium ensembles and diagnostic trajectories for nominal and counterfactual plans; camera streams are included as a conditional by-product and never used as the sole controllability claim.</li>
+  <li><strong>Transfer and scaling:</strong> report leave-one-machine-out behavior plus CPU, one-H200 and eight-H200 throughput/parity. Eight-card speedup cannot compensate for a skill or physics failure.</li>
 </ol>
 
 <h2 id="s3">§3 — Approach</h2>
@@ -79,10 +76,10 @@ observation-withholding are the locked training approach (parent §9). No new ar
 
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-cfg-01" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24">
-  <h4 class="r-fu-title">Excitation-curated full-modality training + the powered controllability + raw-held-out gate</h4>
-  <div class="r-fu-body">Train the stage-3 engine on the full v0 modality set, excitation-curated, then run the powered ΔN-M controllability gate on excited held-out windows + raw-held-out prediction vs persistence/EnKF. This is the goal gate the prior camera/RSSM work failed.</div>
-  <pre class="r-fu-prompt">Project: imas-ambix
+<article class="r-fu" data-id="f-cfg-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Excitation-curated full-modality training + the powered controllability + raw-held-out gate</h4>
+    <div class="r-fu-body">Train the stage-3 engine on the full v0 modality set, excitation-curated, then run the powered ΔN-M controllability gate on excited held-out windows + raw-held-out prediction vs persistence/EnKF. This is the goal gate the prior camera/RSSM work failed.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
 Plan:    controllable-forecast-and-gate (§2/§3)
 Section: §3
 Tier:    opus
@@ -98,7 +95,7 @@ State to read
 Scope locks / constraints
   EFIT outputs FIREWALLED (referee only, never training). Controllability gate = powered n=10 dN-M on the
   LATENT, on EXCITED held-out windows. Report honest controlled-vs-stochastic + interior-current
-  under-determination (calibrated 'I don't know'). GPU per AGENTS.md §1/§2/§2a/§2b: request ALL 8 cards (free
+  under-determination (calibrated &#x27;I don&#x27;t know&#x27;). GPU per AGENTS.md §1/§2/§2a/§2b: request ALL 8 cards (free
   while DSv4 down — check squeue); srun --test-only CPU probe first; resume-safe; clean SIGTERM; fast takedown.
 
 Done-when (the gate)
@@ -107,7 +104,7 @@ Done-when (the gate)
      than random; CI clear of the floor) — report ratio + CI + pass-fraction.
   3. Raw-held-out signal prediction beats persistence AND the EnKF bar — per-modality.
   4. predict-vs-reality figure(s); followup written + this one resolved; plan collapsed to a landed summary.</pre>
-</article>
+    </article>
 </section>
 
 </main>

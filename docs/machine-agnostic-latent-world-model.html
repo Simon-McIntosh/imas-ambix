@@ -7,20 +7,22 @@
   <meta name="reckon-type" content="plan">
   <meta name="plan-slug" content="machine-agnostic-latent-world-model">
   <meta name="plan-title" content="Machine-Agnostic Latent State-Space Plasma World Model">
-  <meta name="plan-summary" content="Ground-up redesign: a data-led probabilistic latent state-space world model whose state is estimated by a closed-loop learned filter (LAE-EnKF) and rolled by a space-time transformer transition kernel, ingesting absolute-calibrated, sensor-geometry-tagged multi-modal tokens. The poloidal flux is anchored SPATIALLY by an EFIT-free Grad-Shafranov operator and TEMPORALLY by a soft, learned, irreversible flux-diffusion transport prior (sign/arrow-of-time constraints: resistivity&gt;0 =&gt; diffusivity&gt;=0, dissipation&gt;=0, Volt-second budget). Filters, forecasts (controllable dreams), and transfers MAST-&gt;JET-&gt;ITER by construction. Dual-purpose educational document.">0 => diffusivity>=0, dissipation>=0, Volt-second budget). Filters, forecasts (controllable dreams), and transfers MAST->JET->ITER by construction. Dual-purpose educational document.">
+  <meta name="plan-summary" content="Machine-portable probabilistic state-space model with Nova as the authoritative conservation/force-balance/circuit/transport transition, Ambix learning uncertain closures and observation models from classified innovation, and one posterior exposing forecast, causal analysis and non-causal smoothing. Absolute SI signals, diagnostic geometry and invariant context support MAST-to-JET-to-ITER transfer; generated equilibria and cameras follow actuator scenarios as by-products.">0 => diffusivity>=0, dissipation>=0, Volt-second budget). Filters, forecasts (controllable dreams), and transfers MAST->JET->ITER by construction. Dual-purpose educational document.">
   <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="XL">
-  <meta name="plan-tier" content="opus">
   <meta name="plan-milestone" content="M4">
   <meta name="plan-sprint" content="S16">
   <meta name="plan-owner" content="Simon McIntosh">
-  <meta name="plan-depends-on" content="physics-world-model-strategy,probabilistic-state-space-methods,multimodal-tokenisation-substrate,neural-kf-architecture-survey,sequential-current-da-v1,patch-current-force-balance,patch-equilibrium-wm-integration,equilibrium-topology-fidelity">
+  <meta name="plan-depends-on" content="sequential-current-da-v1,equilibrium-topology-fidelity">
   <title>Machine-Agnostic Latent State-Space Plasma World Model | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-07-16">
-<meta name="plan-version" content="8">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-version" content="9">
+<meta name="plan-informs" content="physics-world-model-strategy,probabilistic-state-space-methods,hybrid-generative-state-estimation">
+<meta name="plan-capability-version" content="1.0">
+<meta name="plan-capability-class" content="orchestrator">
 </head>
 <body>
 <main class="plan-doc">
@@ -1018,27 +1020,27 @@ corpus re-encode. P2–P4 are coherence-critical model development — single-au
       </p>
     <p class="r-dec-rat">Locked by the lead 2026-06-24. GS anchors ψ spatially (force balance at an instant) but there was no transport anchor on ∂ψ/∂t. Add a SOFT, learned-closure flux-diffusion prior (η∥ and non-inductive sources learned; the command enters via the loop-voltage / current-drive source term) PLUS sign/inequality constraints that encode irreversibility — resistivity&gt;0 ⇒ diffusivity≥0 (parabolic, forward-well-posed = the arrow of time), non-negative resistive dissipation (monotone magnetic-energy decay), and the Volt-second / flux budget (inductive supply − resistive consumption). Inequality/sign priors are guard-rails: they forbid the unphysical without prescribing a trajectory, so they cannot over-constrain. This is the structural backbone the §12 neural-SDE drift inherits. See §7a.</p>
     </div>
-<div class="r-dec" data-key="transfer-timing" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="transfer-timing" data-choice="from-start" data-by="Simon McIntosh" data-when="2026-08-09T15:56:35+00:00">
     <p class="r-dec-q">When do we bring a second machine&#x27;s data in (exercise transfer)?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="after-v0">after the v0 MAST build validates (recommended — design-for-transfer now, exercise later)</button>
-      <button class="r-opt" data-value="from-start">acquire + co-train a second machine from the start</button>
+      <button class="r-opt chosen" data-value="from-start">acquire + co-train a second machine from the start</button>
       </p>
-    <p class="r-dec-rat">Open. v0 is MAST-only but geometry-parameterised + dimensionless so a second machine drops in without re-architecting; the timing of acquiring/co-training the second device is a later decision.</p>
+    <p class="r-dec-rat">Machine transfer and useful ITER state estimates from first plasma are design constraints, so geometry conditioning and invariant context enter before the first integrated model even though the first measured gate remains on current machines.</p>
     </div>
-<div class="r-dec" data-key="dimensionless-coordinate-set" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="dimensionless-coordinate-set" data-choice="learned-soft" data-by="Simon McIntosh" data-when="2026-08-09T15:56:35+00:00">
     <p class="r-dec-q">Which dimensionless groups define the latent coordinates, and how strictly imposed?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="learned-soft">learn the mapping with a soft dimensionless regulariser (recommended — flexible)</button>
+      <button class="r-opt chosen" data-value="learned-soft">learn the mapping with a soft dimensionless regulariser (recommended — flexible)</button>
       <button class="r-opt" data-value="hard-imposed">hard-impose a fixed dimensionless basis (ρ*, β, ν*, a/R)</button>
       </p>
-    <p class="r-dec-rat">Open — a v0-design detail. The North Star extrapolation-coordinates decision pulls toward design-for-invariance; the exact basis + softness is to be set when the encoder is built.</p>
+    <p class="r-dec-rat">Exact physical coordinates and laws remain explicit, while the learned latent may discover which invariant or dimensionless combinations best transfer. Soft representation is testable and avoids hardcoding uncertain closure scalings.</p>
     </div>
 </section>
 
 <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-malwm-01" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-malwm-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="/reckon-ship absolute-geometry-token-substrate" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Absolute-calibration + sensor-geometry token substrate upgrade</h4>
     <div class="r-fu-body"><strong>v0 stage 1.</strong> Extend the token substrate so every token carries an absolute (corpus-level, SI) value AND its sensor geometry (R,Z,φ, orientation, integration geometry) + machine geometry. Repairs the scale-free blocker and supplies the cross-machine positional encoding. <strong>Proposed child plan:</strong> <code>absolute-geometry-token-substrate</code> (this sprint).</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -1067,7 +1069,7 @@ Done-when (the gate)
      scale-free blocker is fixed) — report the number.
   4. tests green; followup written + this one resolved.</pre>
     </article>
-<article class="r-fu" data-id="f-malwm-02" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="/reckon-ship gs-grounded-latent-engine" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-malwm-02" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="/reckon-ship gs-grounded-latent-engine" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">GS-grounded ψ latent + transport / irreversibility anchor</h4>
     <div class="r-fu-body"><strong>v0 stage 2</strong> (after stage 1). Build the hybrid latent (anchored raw-supervised block + ψ + free block, dimensionless) and its physics anchors: the EFIT-free GS observation operator (spatial, §8) + the soft learned flux-diffusion transport prior with sign/irreversibility constraints (temporal, §7a). Boundary/X-point emerge as ψ readouts, label-free. <strong>Proposed child plan:</strong> <code>gs-grounded-latent-engine</code>.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -1097,7 +1099,7 @@ Done-when (the gate)
      active; command enters via the source term; load-bearing test (zero the source -&gt; ψ evolution changes).
   4. tests green; followup written + this one resolved.</pre>
     </article>
-<article class="r-fu" data-id="f-malwm-03" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="/reckon-ship closed-loop-latent-filter" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-malwm-03" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="/reckon-ship closed-loop-latent-filter" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Closed-loop LAE-EnKF filter + space-time transformer prior (the engine)</h4>
     <div class="r-fu-body"><strong>v0 stage 3</strong> (after stage 2). The inference engine: command-conditioned space-time transformer PRIOR + small LAE-EnKF ensemble CORRECTION; one model, observation-withholding toggles dream (roll prior) vs track (correct); calibrated probabilistic belief. The structural fix for the open-loop persistence collapse. <strong>Proposed child plan:</strong> <code>closed-loop-latent-filter</code>.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -1122,7 +1124,7 @@ Done-when (the gate)
   3. Calibrated coverage in [0.88,0.92] on held-out; uncertainty inflates in dream mode.
   4. dream + track both run from one checkpoint via observation-withholding; tests green; followup written + resolved.</pre>
     </article>
-<article class="r-fu" data-id="f-malwm-04" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="/reckon-ship controllable-forecast-and-gate" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-malwm-04" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="/reckon-ship controllable-forecast-and-gate" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Excitation-curated corpus training + controllability + raw-held-out eval (THE goal gate)</h4>
     <div class="r-fu-body"><strong>v0 stage 4 — the goal gate</strong> (after stage 3). Train the engine on the full v0 modality set (magnetics + plan + interferometer + SXR + all 5 cameras + HF), excitation-curated; run the powered controllability gate on EXCITED held-out windows + raw-held-out prediction vs persistence/EnKF. This is the gate the prior camera/RSSM work FAILED. <strong>Proposed child plan:</strong> <code>controllable-forecast-and-gate</code>.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -1150,7 +1152,7 @@ Done-when (the gate)
   3. Raw-held-out signal prediction beats persistence AND the EnKF current-recovery bar — per-modality.
   4. predict-vs-reality figure(s); followup written + resolved; child plan collapsed to a landed summary.</pre>
     </article>
-<article class="r-fu" data-id="f-malwm-05" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="/reckon-ship neural-sde-transition-kernel" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-malwm-05" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="/reckon-ship neural-sde-transition-kernel" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Neural-SDE transition-kernel upgrade (deferred)</h4>
     <div class="r-fu-body"><strong>Deferred upgrade</strong> (gated on stage 4 landing). Replace/augment the transformer transition kernel with a neural SDE: drift = the dissipative flux-diffusion operator (§7a), the diffusion/noise term = stochastic transport (an explicit discovery target), both respecting D≥0. Makes the dynamics continuous-time + intrinsically stochastic. <strong>Proposed child plan:</strong> <code>neural-sde-transition-kernel</code>.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -1176,7 +1178,7 @@ Done-when (the gate)
      ELM/transient statistics (CRPS) without breaking calibration.
   3. followup written + this one resolved.</pre>
     </article>
-<article class="r-fu" data-id="f-malwm-06" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="/reckon-ship cross-machine-transfer" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-malwm-06" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="/reckon-ship cross-machine-transfer" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Cross-machine transfer (deferred)</h4>
     <div class="r-fu-body"><strong>Deferred</strong> (gated on stage 4). Bring a second machine's geometry-tagged data; test zero/few-shot transfer on RAW held-out observables (the gold-standard eval). Resolves the open <code>transfer-timing</code> decision. <strong>Proposed child plan:</strong> <code>cross-machine-transfer</code>.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -1202,7 +1204,7 @@ Done-when (the gate)
      from-scratch baseline.
   3. followup written + this one resolved.</pre>
     </article>
-<article class="r-fu" data-id="f-malwm-07" data-status="open" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="/reckon-ship latent-structure-discovery" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-malwm-07" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-24" data-recommends-skill="/reckon-ship latent-structure-discovery" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Latent-structure discovery (deferred)</h4>
     <div class="r-fu-body"><strong>Deferred</strong> (gated on stage 4). Apply SINDy / Koopman to the learned transition kernel toward dimensionless reduced structure; use the GS + flux-diffusion residuals as force-balance / transport departure detectors (residual-as-discovery). <strong>Proposed child plan:</strong> <code>latent-structure-discovery</code>.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -1227,7 +1229,7 @@ Done-when (the gate)
   2. GS + flux-diffusion residuals demonstrated as departure detectors on known transient shots.
   3. followup written + this one resolved.</pre>
     </article>
-<article class="r-fu" data-id="f-malwm-08" data-status="resolved" data-tier="opus" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship evaluation-and-controllability-harness" data-resolved-at="2026-06-25T06:03:37+00:00" data-resolved-by="reckon-ship (orchestrator)">
+<article class="r-fu" data-id="f-malwm-08" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="agent/opus (orchestrator)" data-written-at="2026-06-25" data-recommends-skill="/reckon-ship evaluation-and-controllability-harness" data-resolved-at="2026-06-25T06:03:37+00:00" data-resolved-by="reckon-ship (orchestrator)">
     <h4 class="r-fu-title">Evaluation, firewall &amp; controllability harness (parallel enabling track P0)</h4>
     <div class="r-fu-body"><strong>Parallel enabling track (P0)</strong> — runs alongside f-malwm-01 from day one; model-independent (reads EFIT as a firewalled referee, raw signals, the plan). Builds the eval spine that GATES f-malwm-02 (the absolute-magnetics oracle) and f-malwm-04 (the raw-held-out + ΔN-M gate), plus the excitation-window selector. Fleet-suitable (5 non-overlapping components). <strong>Child plan:</strong> <code>evaluation-and-controllability-harness</code>. See §14.</div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -1259,7 +1261,7 @@ Done-when
   4. tests green; followup written + this one resolved.</pre>
     <p class="r-fu-outcome">Child plan evaluation-and-controllability-harness SHIPPED 2026-06-25: all five eval-spine components built + unit-tested (54 tests green) and the bars frozen on existing data — firewalled EFIT referee (boundary guard proven), absolute-magnetics oracle (skill ≈0.5–0.7, the stage-2 / f-malwm-02 bar), raw-held-out + EnKF bar (EnKF 0.225 &lt; persistence 0.719, the stage-4 / f-malwm-04 bar), powered n=10 ΔN-M latent gate (noise floor 1.001 CI[0.985,1.018]), excitation-window selector + excited held-out cohort + leakage audit. The gates for f-malwm-02 and f-malwm-04 now have their targets. Modules under imas_ambix/eval/.</p>
     </article>
-<article class="r-fu" data-id="f-malwm-spine-unblocked" data-status="open" data-tier="opus" data-written-by="close-out" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship equilibrium-boundary-closure §4" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-malwm-spine-unblocked" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="close-out" data-written-at="2026-07-16" data-recommends-skill="/reckon-ship equilibrium-boundary-closure §4" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Physics-spine dependency CLEARED — equilibrium feeder ready (frozen classical baselines + label factory)</h4>
     <div class="r-fu-body">equilibrium-boundary-closure §1–§3 froze 2026-07-16 (closure_spine_frozen.json): staged-disc boundary read (flat-tops 1.4–2.1 cm vs firewalled EFIT, never catastrophic) + D2 disc-anchored GS solve (flat-top LCFS 1.50 cm, skill −0.209 CI-touching-zero, attractor 0%). This was the last physics dependency before this plan's equilibrium line. The spine enters the ML models in BOTH roles, by design: (1) LOAD-BEARING structural components — exact cylinder-Green's coil/passive field operators and sensor/coil geometry encodings as fixed differentiable layers + GS force-balance residual as physics loss; the network learns only the physics-degenerate residuals (p′/FF′ split, axis shift, eddy L/R history — all need the arrow of time, exactly what the latent SSM supplies); (2) LABEL FACTORY — the spine is EFIT-independent, so it manufactures firewall-clean boundary/ψ training targets over the full cross-machine corpus (+ gs_solve forward mode for synthetic pretraining); EFIT stays referee-only at eval. Next: the learned-equilibrium-operator feeder plan is scoped by equilibrium-boundary-closure f-ebc-11 (single-session authoring), then H200 training resumes on this plan's substrate.</div>
     <pre class="r-fu-prompt">See equilibrium-boundary-closure followup f-ebc-11 — the §4 scoping brief creates the learned-equilibrium-operator feeder plan for this world-model line (architecture ladder, label factory, H200 footprint, gates vs the frozen classical baselines).</pre>

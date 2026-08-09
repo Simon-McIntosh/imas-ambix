@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="hybrid-state-estimation-smoke">
+  <meta name="plan-title" content="Nova–Ambix Hybrid State-Estimation Smoke">
+  <meta name="plan-summary" content="Join current Nova propagation to Ambix ensemble conditioning and prove forecast, causal reconstruction and non-causal smoothing from one probabilistic model, with equilibrium and diagnostic samples under changed coil and actuator trajectories.">
+  <meta name="plan-status" content="pending">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="M">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint" content="S16">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-impl" content="0.0">
+  <meta name="plan-informs" content="closed-loop-latent-filter,controllable-forecast-and-gate,nova-physics-consumer-integration">
+  <meta name="plan-modified" content="2026-08-09">
+  <meta name="plan-version" content="2">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <title>Nova–Ambix Hybrid State-Estimation Smoke | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>Nova–Ambix Hybrid State-Estimation Smoke</h1>
+  <p><strong>Purpose.</strong> Replace architectural debate with an executable thin slice. The smoke must show that an ML inference workflow can keep Nova in its inner loop, learn from signal innovation, and expose all three state-estimation products without duplicating Nova physics.</p>
+  <figure>
+    <img src="/imas-ambix/figures/hybrid-generative-state-estimation/architecture.svg" alt="The Nova transition and Ambix ensemble conditioner supporting forecast, reconstruction, smoothing and generated products.">
+    <figcaption>The smoke implements the narrow central loop and records where the current throughput and identifiability limits actually sit.</figcaption>
+  </figure>
+
+  <h2 id="scope">Scope</h2>
+  <ol>
+    <li><strong>Scenario:</strong> a small physically meaningful machine geometry with measured or synthetic coil/current trajectories and a deliberately withheld future segment.</li>
+    <li><strong>Ensemble:</strong> samples over bounded resistivity/transport, source and boundary parameters. Every member advances through the pinned Nova APIs and carries a stable provenance record.</li>
+    <li><strong>Observation:</strong> Nova-predicted magnetics, flux/profile summaries and signal-carrying flux-surface averages are compared with a held-out synthetic truth first, then one independent real-data slice where available.</li>
+    <li><strong>Conditioning:</strong> Ambix updates the closure/state ensemble from innovation, with topology branches kept discrete when necessary.</li>
+    <li><strong>Products:</strong> forecast, causal analysis and fixed-lag/full-sequence smoothing from the same transition and observation components.</li>
+    <li><strong>Generative by-products:</strong> sample equilibrium maps and diagnostic trajectories under edited coil/actuator plans. Camera output uses the existing conditional camera model only when a compatible checkpoint is available; a flux-surface emissivity proxy must be labeled as a proxy.</li>
+  </ol>
+
+  <h2 id="gates">Evidence gates</h2>
+  <table>
+    <thead><tr><th>Measure</th><th>Required smoke evidence</th></tr></thead>
+    <tbody>
+      <tr><td>Physics contract</td><td>Exact Nova revision, finite members, current/boundary constraints and ledger checks; CPU and H200 numerical agreement within declared tolerances.</td></tr>
+      <tr><td>Conditioning</td><td>Analysis innovation and proper score improve over the unconditioned ensemble on withheld observations; persistence and current EnKF baselines reported.</td></tr>
+      <tr><td>Three modes</td><td>Causality test for forecast and analysis; future-data perturbation changes the smoother but cannot change earlier causal products.</td></tr>
+      <tr><td>Uncertainty</td><td>Coverage, CRPS or energy score, sharpness and OOD widening reported per horizon; no single best-member cherry-pick.</td></tr>
+      <tr><td>Actuator response</td><td>Edited-plan ensemble displacement exceeds same-plan sampling spread on an excitation-bearing cohort.</td></tr>
+      <tr><td>H200 capability</td><td>One-H200 parity plus an eight-H200 ensemble-throughput and memory measurement; CPU reference remains runnable.</td></tr>
+      <tr><td>Artifacts</td><td>Self-describing JSON/array bundle and a figure showing innovation, uncertainty, equilibrium samples and the three estimator trajectories.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="envelope">Starting envelope</h2>
+  <p>Use a 1 kHz observation clock, 100 Hz full Nova correction, forecast horizons of 10/50/100/250 ms, a 100 ms fixed-lag smoother and a complete-shot offline smoother. Begin with 16–32 CPU members, measure 128 on one H200 and target approximately 1,024 sharded members across eight H200s. These values are hypotheses to measure, not acceptance thresholds to tune around.</p>
+
+  <h2 id="current-evidence">Banked substrate evidence</h2>
+  <p>The 2026-08-09 CPU capability smoke passed six focused checks in 348.02 s: pinned Nova circuit/transport integration; Ambix forecast/filter/smoother interfaces; camera-token training and checkpoint round-trip; actuator conditioning under an identifiable intervention; and controllable rollout artifact structure.</p>
+  <p>The same day, job <code>1242807</code> used all five H200s not occupied by live services. Five independent fp64 JAX shards ran the Nova-facing connectivity/FSA kernel at batches 128/256/512/1024/2048. Every shard reported a GPU backend, 100% well-posed batches and CPU parity; the worst absolute difference was <code>1.14e-13</code>. Per-card throughput ranged from 93,366 equilibria/s at batch 128 to 206,987 equilibria/s at batch 2,048. This proves H200 execution, parity and ensemble partitionability, not five-card strong scaling and not full equilibrium-solve throughput.</p>
+  <p>This plan starts where those results stop: the integrated Nova-propagated posterior, state-estimation skill and measured multi-card scaling of the complete path.</p>
+
+  <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-hses-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="codex" data-written-at="2026-08-09" data-recommends-skill="/reckon-ship hybrid-state-estimation-smoke" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Execute the Nova-propagated ensemble smoke and H200 capability run</h4>
+    <div class="r-fu-body"><p>Implement the smallest end-to-end Nova transition → Ambix ensemble update → forecast/analysis/smoother loop. Bank CPU, one-H200 and eight-H200 evidence before expanding the architecture.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan: hybrid-state-estimation-smoke
+Capability: orchestrator
+
+Read first
+  docs/research/hybrid-generative-state-estimation.html
+  imas_ambix/physics/, imas_ambix/statespace/, current Nova transport and equilibrium APIs
+
+Scope locks
+  Nova owns the physics transition and observation operators.
+  Ambix owns ensemble conditioning, calibration and artifacts.
+  Forecast and analysis are causal; smoothing is explicitly non-causal.
+  Keep CPU and one-H200 references; use all eight H200s for the scaling measurement.
+  A camera proxy is labeled as a proxy and never reported as a validated synthetic camera.
+
+Done when
+  Physics, conditioning, three-mode, uncertainty, actuator-response, H200 and
+  artifact gates carry measured evidence. Negative results remain visible. The
+  followup and plan resolve or narrow to a concrete blocker.</pre>
+    </article>
+</section>
+
+  <section data-reckon="research" id="research" class="r-research-list">
+<h2><span class="sec">§</span> Research</h2>
+<div class="r-research" data-id="r-hses-001" data-type="architecture" data-source="imas-ambix" data-added-by="codex" data-when="2026-08-09" data-url="/imas-ambix/research/hybrid-generative-state-estimation.html">
+    <span class="r-research-title"><a href="/imas-ambix/research/hybrid-generative-state-estimation.html">Hybrid Generative State Estimation with Nova</a></span></div>
+</section>
+</main>
+</body>
+</html>

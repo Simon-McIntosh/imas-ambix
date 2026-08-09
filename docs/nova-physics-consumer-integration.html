@@ -7,20 +7,20 @@
   <meta name="reckon-type" content="plan">
   <meta name="plan-slug" content="nova-physics-consumer-integration">
   <meta name="plan-title" content="Nova Physics Consumer Integration">
-  <meta name="plan-summary" content="Turn Ambix into a thin Nova consumer for labeling and ML pipelines, then retire duplicated physics implementations.">
+  <meta name="plan-summary" content="Keep Ambix on exact reviewed Nova revisions while both repositories evolve: migrate API changes continuously, run the thin consumer contract, link each pin to Nova-owned independent GHCR and CPU/GPU evidence, and retire duplicated Ambix physics only after parity. First checkpoint landed at Nova 9c18d31f with 48 Nova-facing Ambix tests.">
   <meta name="plan-status" content="pending">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
   <meta name="plan-milestone" content="M4">
   <meta name="plan-sprint" content="S17">
   <meta name="plan-owner" content="Simon McIntosh">
-  <meta name="plan-informs" content="nova-scoping-review">
+  <meta name="plan-informs" content="nova-scoping-review,hybrid-generative-state-estimation,nova:mast-nonaxisymmetric-physics">
   <title>Nova Physics Consumer Integration | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-08">
-<meta name="plan-version" content="3">
-<meta name="plan-depends-on" content="nova:nova-spine-refactor,nova:physics-spine-adoption,nova:mast-nonaxisymmetric-physics">
+<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-version" content="5">
+<meta name="plan-depends-on" content="">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
 </head>
@@ -50,8 +50,9 @@
       <li><strong>G4 ownership:</strong> repository searches and dependency tests prove there is one maintained implementation; Ambix contains only adapters, orchestration and frozen fixtures.</li>
     </ul>
 
-    <h2 id="s4">§4 — Launch order</h2>
-    <p>This plan does not start implementation until Nova finishes its convergence sprint and publishes the Wave 3 reconstruction/transport APIs. Then run two independent consumer tracks in parallel: the CPU/parity adapter and the batch/GPU label-store adapter. Merge them only after the shared Nova API contract is frozen. Donor deletion is a final, serial stage after all evidence gates pass.</p>
+    <h2 id="s4">§4 — Continuous tandem integration</h2>
+    <p>Ambix follows exact, reviewed Nova revisions rather than waiting for a final API freeze or tracking an unrecorded moving branch. Each integration checkpoint updates the exact Nova SHA, migrates changed APIs, runs the focused consumer contract and records the corresponding Nova validation identity. Optional in-flight capabilities stay capability-gated; they do not block unrelated Ambix inference work. Donor deletion remains serial and waits for scientific, numerical, performance and provenance parity.</p>
+    <p>The first tandem checkpoint is banked: Ambix moved to Nova <code>9c18d31f8bf0f424bd94d0a5c4ce5f1622d9fd8f</code>, adopted the traced flux-surface geometry API and canonical correction-scale contract, and passed 48 Nova-facing tests before commit <code>1b7e341</code>. Independent imas-efit GHCR validation remains Nova-owned; Ambix consumes its evidence rather than reproducing that solver-validation campaign.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -67,7 +68,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-npci-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="codex" data-written-at="2026-07-29" data-recommends-skill="/reckon-ship nova-physics-consumer-integration §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-npci-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="codex" data-written-at="2026-07-29" data-recommends-skill="/reckon-ship nova-physics-consumer-integration §2" data-resolved-at="2026-08-09T15:58:52+00:00" data-resolved-by="Simon McIntosh">
     <h4 class="r-fu-title">Integrate the Nova consumer after the Nova API freeze</h4>
     <div class="r-fu-body"><p>Wait for the Nova convergence and physics-adoption prerequisites. Then implement the pinned dependency, thin adapters, parity harness and staged donor retirement with research-before and evidence-after gates.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -91,6 +92,7 @@ Done-when
   1. Pinned Nova dependency and thin adapters land with CPU/GPU parity evidence
   2. tests still green
   3. followup written + this followup marked resolved</pre>
+    <p class="r-fu-outcome">The wait-for-API-freeze sequencing is superseded by continuous tandem integration. The first exact-SHA checkpoint landed at Nova 9c18d31f8bf0f424bd94d0a5c4ce5f1622d9fd8f with the traced geometry and canonical correction-scale migrations; 48 Nova-facing Ambix tests passed and Ambix commit 1b7e341 was pushed. The remaining migration inventory moves to the continuous-checkpoint followup.</p>
     </article>
 <article class="r-fu" data-id="f-npci-02" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-08" data-recommends-skill="/reckon-ship nova-physics-consumer-integration §2" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Migrate the table-source tranche onto the identity-resolved description</h4>
@@ -129,6 +131,28 @@ Done-when
   2. Suites green; census re-run banked; donor retirements carry zero-import
      proof.
   3. Followup written for the remaining consumers + this one resolved.</pre>
+    </article>
+<article class="r-fu" data-id="f-npci-continuous" data-status="open" data-written-by="codex" data-written-at="2026-08-09" data-recommends-skill="/reckon-ship nova-physics-consumer-integration §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Maintain continuous validated Nova integration checkpoints</h4>
+    <div class="r-fu-body">Continue tandem development through exact reviewed Nova SHAs, changed-interface migrations, focused Ambix contract tests and linked Nova-owned GHCR/parity evidence. Capability-gate in-flight APIs and retire donors only after parity.</div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan: nova-physics-consumer-integration
+Capability: orchestrator
+
+Context
+  The first checkpoint updated to Nova 9c18d31f8bf0f424bd94d0a5c4ce5f1622d9fd8f,
+  migrated traced geometry and correction-scale APIs, and passed 48 Nova-facing tests.
+
+Scope locks
+  Nova owns production physics and independent imas-efit GHCR validation.
+  Ambix owns thin adapters, inference, corpus/evaluation and generative products.
+  Pin exact reviewed SHAs; record validation identity; capability-gate in-flight APIs.
+  Delete no donor until CPU/GPU science and provenance parity pass.
+
+Done-when
+  Every consumed Nova capability has an exact revision, contract tests and linked Nova
+  evidence; remaining donors have explicit parity/deletion gates; the migration inventory
+  is zero or narrowed to documented active Nova capabilities.</pre>
     </article>
 </section>
   <section data-reckon="research" id="research" class="r-research-list">
