@@ -1,0 +1,676 @@
+"""Nova-propagated ensemble conditioning with causal and smoothed products."""
+
+from __future__ import annotations
+
+import importlib.metadata
+import json
+import os
+import resource
+import sys
+import time
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+NOVA_REVISION = "fdbfd15b179ffbd562a2ac2b6e4961cc7442ab1e"
+SCHEMA = "nova-ensemble-estimator"
+OBSERVATION_LABELS = (
+    "enclosed_current_inner",
+    "enclosed_current_mid",
+    "enclosed_current_outer",
+    "enclosed_current_edge",
+)
+
+
+class EstimatorFailure(RuntimeError):  # noqa: N818
+    """Raised when numerical, runtime, physical, or artifact checks fail."""
+
+
+@dataclass(frozen=True)
+class EstimatorConfig:
+    """Validated controls for one deterministic ensemble experiment."""
+
+    members: int = 16
+    seed: int = 17
+    backend: str = "cpu"
+    devices: int = 1
+    sample_period_s: float = 0.001
+    steps: int = 280
+    fixed_lag_steps: int = 100
+    correction_stride: int = 10
+    observation_noise: float = 0.004
+    topology: str = "single-null"
+    dtype: str = "float64"
+    member_offset: int = 0
+
+    def __post_init__(self) -> None:
+        if self.members < 4:
+            raise ValueError("members must be at least four")
+        if self.backend not in {"cpu", "gpu"}:
+            raise ValueError("backend must be 'cpu' or 'gpu'")
+        if self.devices < 1:
+            raise ValueError("devices must be positive")
+        if self.sample_period_s != 0.001:
+            raise ValueError("the estimator contract requires a 1 kHz clock")
+        if self.steps <= 250:
+            raise ValueError("steps must cover the 250 ms forecast horizon")
+        if not 1 <= self.fixed_lag_steps < self.steps:
+            raise ValueError("fixed_lag_steps must lie inside the clock")
+        if self.correction_stride < 1:
+            raise ValueError("correction_stride must be positive")
+        if self.observation_noise <= 0.0:
+            raise ValueError("observation_noise must be positive")
+        if self.topology != "single-null":
+            raise ValueError("the synthetic harness supports one single-null topology")
+        if self.dtype != "float64":
+            raise ValueError("Nova and JAX must run explicitly in float64")
+        if self.member_offset < 0:
+            raise ValueError("member_offset cannot be negative")
+
+
+@dataclass(frozen=True)
+class RuntimeProvenance:
+    """Exact dependency and accelerator identity for a result."""
+
+    nova_version: str
+    nova_revision: str
+    jax_version: str
+    backend: str
+    available_devices: int
+    selected_devices: int
+    x64_enabled: bool
+    dtype: str
+    topology: str
+    clock_hz: int
+
+
+@dataclass(frozen=True)
+class EstimatorResult:
+    """Self-describing arrays, scorecard, and runtime provenance."""
+
+    clock: np.ndarray
+    truth: np.ndarray
+    observations: np.ndarray
+    causal_forecast: np.ndarray
+    causal_analysis: np.ndarray
+    fixed_lag_smoothing: np.ndarray
+    full_sequence_smoothing: np.ndarray
+    edited_actuator: np.ndarray
+    nominal_actuator: np.ndarray
+    metrics: dict[str, Any]
+    provenance: RuntimeProvenance
+    camera_proxy: dict[str, Any]
+
+    def validate(self) -> None:
+        arrays = (
+            self.clock,
+            self.truth,
+            self.observations,
+            self.causal_forecast,
+            self.causal_analysis,
+            self.fixed_lag_smoothing,
+            self.full_sequence_smoothing,
+            self.edited_actuator,
+            self.nominal_actuator,
+        )
+        if not all(np.isfinite(value).all() for value in arrays):
+            raise EstimatorFailure("result contains a non-finite value")
+        if any(value.dtype != np.float64 for value in arrays):
+            raise EstimatorFailure("every numerical product must remain float64")
+        expected = self.causal_forecast.shape
+        if expected != self.causal_analysis.shape:
+            raise EstimatorFailure("causal product shapes differ")
+        if self.fixed_lag_smoothing.shape != expected:
+            raise EstimatorFailure("fixed-lag product shape differs")
+        if self.full_sequence_smoothing.shape != expected:
+            raise EstimatorFailure("full-sequence product shape differs")
+        if self.truth.shape != (expected[0], expected[2]):
+            raise EstimatorFailure("truth shape is incompatible with products")
+        if self.observations.shape != self.truth.shape:
+            raise EstimatorFailure("observation and truth shapes differ")
+        if self.provenance.dtype != "float64" or not self.provenance.x64_enabled:
+            raise EstimatorFailure("provenance does not establish float64 execution")
+
+
+def _runtime(config: EstimatorConfig) -> RuntimeProvenance:
+    expected_platform = "cpu" if config.backend == "cpu" else "cuda"
+    if "jax" not in sys.modules:
+        os.environ["JAX_PLATFORMS"] = expected_platform
+        if config.backend == "cpu":
+            os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    import jax  # noqa: PLC0415
+
+    jax.config.update("jax_enable_x64", True)
+    resolved = jax.default_backend()
+    normalised = "gpu" if resolved in {"cuda", "gpu"} else resolved
+    if normalised != config.backend:
+        raise EstimatorFailure(
+            f"requested backend {config.backend!r} resolved as {normalised!r}"
+        )
+    devices = jax.devices()
+    if len(devices) < config.devices:
+        raise EstimatorFailure(
+            f"requested {config.devices} devices but only {len(devices)} are visible"
+        )
+    if not jax.config.x64_enabled:
+        raise EstimatorFailure("JAX x64 is not enabled")
+
+    distribution = importlib.metadata.distribution("nova-stella")
+    direct_text = distribution.read_text("direct_url.json")
+    if not direct_text:
+        raise EstimatorFailure("nova-stella has no direct_url provenance")
+    direct = json.loads(direct_text)
+    revision = direct.get("vcs_info", {}).get("commit_id")
+    if revision != NOVA_REVISION:
+        raise EstimatorFailure(
+            f"Nova revision {revision!r} does not match the validated pin"
+        )
+    return RuntimeProvenance(
+        nova_version=distribution.version,
+        nova_revision=revision,
+        jax_version=jax.__version__,
+        backend=normalised,
+        available_devices=len(devices),
+        selected_devices=config.devices,
+        x64_enabled=bool(jax.config.x64_enabled),
+        dtype="float64",
+        topology=config.topology,
+        clock_hz=1000,
+    )
+
+
+def _geometry() -> Any:
+    from imas_ambix.physics import flux_surface_geometry_from_mapping  # noqa: PLC0415
+
+    radial_cells = 20
+    rho_face = np.linspace(0.0, 1.0, radial_cells + 1, dtype=np.float64)
+    rho_cell = 0.5 * (rho_face[:-1] + rho_face[1:])
+    major_radius = 3.0
+    minor_radius = 0.5
+    toroidal_field = 2.0
+    current = 5.0e5
+    radius = minor_radius * rho_face
+    toroidal_flux = np.pi * minor_radius**2 * toroidal_field
+    vpr_face = 4.0 * np.pi**2 * major_radius * minor_radius**2 * rho_face
+    mapping = {
+        "rho_face": rho_face,
+        "rho_cell": rho_cell,
+        "psi_face": np.zeros_like(rho_face),
+        "psi_n_face": rho_face**2,
+        "psi_n_cell": rho_cell**2,
+        "vpr_face": vpr_face,
+        "vpr_cell": 0.5 * (vpr_face[:-1] + vpr_face[1:]),
+        "g2_face": 16.0 * np.pi**4 * radius**2,
+        "g3_face": np.full_like(rho_face, 1.0 / major_radius**2),
+        "g3_cell": np.full_like(rho_cell, 1.0 / major_radius**2),
+        "f_face": np.full_like(rho_face, major_radius * toroidal_field),
+        "f_cell": np.full_like(rho_cell, major_radius * toroidal_field),
+        "b2_cell": np.full_like(rho_cell, toroidal_field**2),
+        "inv_r_cell": np.full_like(rho_cell, 1.0 / major_radius),
+        "phi_b": toroidal_flux,
+        "r0": major_radius,
+        "ip_amperes": current,
+        "axis_psi": 0.0,
+        "boundary_psi": 0.0,
+        "volume": 2.0 * np.pi**2 * major_radius * minor_radius**2,
+        "q_face": np.ones_like(rho_face),
+        "flux_sign": 1.0,
+    }
+    empty = flux_surface_geometry_from_mapping(mapping)
+    edge_gradient = empty.ip_edge_gradient(current)
+    mapping["psi_face"] = 0.5 * edge_gradient * rho_face**2
+    mapping["boundary_psi"] = float(mapping["psi_face"][-1])
+    return flux_surface_geometry_from_mapping(mapping)
+
+
+def _plan_current(clock: np.ndarray, nominal: float, *, edited: bool) -> np.ndarray:
+    phase = clock / clock[-1]
+    command = 1.0 + 0.025 * np.sin(4.0 * np.pi * phase)
+    command += 0.11 / (1.0 + np.exp(-80.0 * (phase - 0.68)))
+    if edited:
+        command += 0.24 / (1.0 + np.exp(-90.0 * (phase - 0.55)))
+    return np.asarray(nominal * command, dtype=np.float64)
+
+
+def _observation(geometry: Any, psi_history: np.ndarray) -> np.ndarray:
+    currents = np.stack([geometry.enclosed_current(row) for row in psi_history], axis=0)
+    indices = np.rint(np.array([0.25, 0.5, 0.75, 1.0]) * (currents.shape[1] - 1))
+    selected = currents[:, indices.astype(int)] / geometry.ip_amperes
+    return np.asarray(selected, dtype=np.float64)
+
+
+def _proper_score(samples: np.ndarray, target: np.ndarray) -> float:
+    member_axis = 1
+    count = samples.shape[member_axis]
+    absolute = np.mean(np.abs(samples - target[:, None, :]))
+    ordered = np.sort(samples, axis=member_axis)
+    coefficients = 2.0 * np.arange(1, count + 1) - count - 1.0
+    pair_term = (
+        np.sum(ordered * coefficients[None, :, None], axis=member_axis) / count**2
+    )
+    return float(absolute - np.mean(pair_term))
+
+
+def _coverage_and_sharpness(samples: np.ndarray, truth: np.ndarray) -> dict[str, float]:
+    low, high = np.quantile(samples, [0.05, 0.95], axis=1)
+    coverage = np.mean((truth >= low) & (truth <= high))
+    return {
+        "coverage_90": float(coverage),
+        "sharpness_90": float(np.mean(high - low)),
+        "proper_score": _proper_score(samples, truth),
+    }
+
+
+def _smooth(
+    analysis: np.ndarray,
+    observations: np.ndarray,
+    *,
+    lag: int | None,
+) -> np.ndarray:
+    smoothed = analysis.copy()
+    count = analysis.shape[0]
+    for index in range(count - 1):
+        stop = count if lag is None else min(count, index + lag + 1)
+        future = np.arange(index + 1, stop)
+        if future.size == 0:
+            continue
+        weights = np.exp(-(future - index) / max(1.0, 0.5 * future.size))
+        residual = observations[future] - analysis[future].mean(axis=1)
+        correction = np.average(residual, axis=0, weights=weights)
+        smoothed[index] += 0.35 * correction[None, :]
+    return np.asarray(smoothed, dtype=np.float64)
+
+
+class NovaEnsembleEstimator:
+    """Advance every member with Nova and condition its observable state."""
+
+    def __init__(self, config: EstimatorConfig) -> None:
+        self.config = config
+
+    def run(
+        self,
+        *,
+        clock: np.ndarray | None = None,
+        observation_perturbation: np.ndarray | None = None,
+    ) -> EstimatorResult:
+        started = time.perf_counter()
+        provenance = _runtime(self.config)
+        from imas_ambix.physics import (  # noqa: PLC0415
+            EtaProfile,
+            current_diffusion_from_mapping,
+        )
+
+        geometry = _geometry()
+        times = (
+            np.arange(self.config.steps, dtype=np.float64) * self.config.sample_period_s
+            if clock is None
+            else np.asarray(clock, dtype=np.float64)
+        )
+        if times.shape != (self.config.steps,):
+            raise EstimatorFailure("clock shape does not match configured steps")
+        intervals = np.diff(times)
+        if not np.allclose(
+            intervals,
+            self.config.sample_period_s,
+            rtol=0.0,
+            atol=1.0e-12,
+        ):
+            raise EstimatorFailure("clock must be uniformly sampled at 1 kHz")
+
+        nominal_current = _plan_current(times, geometry.ip_amperes, edited=False)
+        edited_current = _plan_current(times, geometry.ip_amperes, edited=True)
+        random = np.random.default_rng(
+            np.random.SeedSequence([self.config.seed, self.config.member_offset])
+        )
+        eta_log = random.normal(np.log(7.0e-8), 0.23, self.config.members)
+        eta_contrast = np.clip(random.normal(1.8, 0.25, self.config.members), 0.2, 4.0)
+        boundary_scale = random.normal(1.0, 0.018, self.config.members)
+
+        truth_solver = current_diffusion_from_mapping(
+            asdict(geometry),
+            EtaProfile(eta0=6.5e-8, contrast=1.65, shape=2.0),
+            theta=1.0,
+        )
+        truth_solver.precision = "float64"
+        truth_step = truth_solver.evolve(times, nominal_current)
+        truth = _observation(geometry, truth_step["psi_face"])
+        observation_noise = random.normal(
+            0.0,
+            self.config.observation_noise,
+            size=truth.shape,
+        )
+        observations = truth + observation_noise
+        if observation_perturbation is not None:
+            perturbation = np.asarray(observation_perturbation, dtype=np.float64)
+            if perturbation.shape != observations.shape:
+                raise EstimatorFailure("observation perturbation has the wrong shape")
+            observations = observations + perturbation
+
+        nominal_members: list[np.ndarray] = []
+        edited_members: list[np.ndarray] = []
+        ledgers: list[dict[str, float]] = []
+        boundary_errors: list[float] = []
+        for member in range(self.config.members):
+            solver = current_diffusion_from_mapping(
+                asdict(geometry),
+                EtaProfile(
+                    eta0=float(np.exp(eta_log[member])),
+                    contrast=float(eta_contrast[member]),
+                    shape=2.0,
+                ),
+                theta=1.0,
+            )
+            solver.precision = "float64"
+            member_current = nominal_current * boundary_scale[member]
+            try:
+                nominal_step = solver.evolve(times, member_current)
+                edited_step = solver.evolve(
+                    times,
+                    edited_current * boundary_scale[member],
+                )
+                nominal_prediction = solver.predict(nominal_step)
+                ledger = solver.budget(nominal_step)
+            except Exception as error:  # noqa: BLE001
+                raise EstimatorFailure(f"Nova member {member} failed") from error
+            products = (
+                *nominal_step.values(),
+                *edited_step.values(),
+                *nominal_prediction.values(),
+            )
+            if not all(np.isfinite(np.asarray(value)).all() for value in products):
+                raise EstimatorFailure(f"Nova member {member} returned non-finite data")
+            if np.asarray(nominal_step["psi_face"]).dtype != np.float64:
+                raise EstimatorFailure(
+                    "Nova did not resolve the requested float64 precision"
+                )
+            identity_error = abs(
+                ledger["d_psi_bdry"] - ledger["d_psi_axis"] - ledger["d_psi_internal"]
+            )
+            if identity_error > 1.0e-12:
+                raise EstimatorFailure("Nova flux-consumption ledger does not close")
+            final_current = geometry.enclosed_current(nominal_step["psi_face"][-1])[-1]
+            relative_error = (
+                abs(final_current - member_current[-1]) / member_current[-1]
+            )
+            if relative_error > 0.04:
+                raise EstimatorFailure("Nova boundary-current constraint was violated")
+            nominal_members.append(_observation(geometry, nominal_step["psi_face"]))
+            edited_members.append(_observation(geometry, edited_step["psi_face"]))
+            ledgers.append(ledger)
+            boundary_errors.append(float(relative_error))
+
+        raw_forecast = np.stack(nominal_members, axis=1)
+        edited_product = np.stack(edited_members, axis=1)
+        phase = times / times[-1]
+        out_of_distribution = phase >= 0.68
+        centre = raw_forecast.mean(axis=1, keepdims=True)
+        widening = np.where(out_of_distribution, 2.0, 1.0)[:, None, None]
+        raw_forecast = centre + widening * (raw_forecast - centre)
+
+        forecast = np.empty_like(raw_forecast)
+        analysis = np.empty_like(raw_forecast)
+        carried = np.zeros_like(raw_forecast[0])
+        member_noise = random.normal(
+            0.0,
+            self.config.observation_noise,
+            size=raw_forecast.shape,
+        )
+        observation_variance = self.config.observation_noise**2
+        for index in range(self.config.steps):
+            prior = raw_forecast[index] + carried
+            forecast[index] = prior
+            if index % self.config.correction_stride == 0:
+                variance = np.var(prior, axis=0, ddof=1)
+                gain = variance / np.maximum(variance + observation_variance, 1.0e-15)
+                updated = prior + gain[None, :] * (
+                    observations[index][None, :] + member_noise[index] - prior
+                )
+            else:
+                updated = prior
+            analysis[index] = updated
+            carried = updated - raw_forecast[index]
+
+        fixed_lag = _smooth(
+            analysis,
+            observations,
+            lag=self.config.fixed_lag_steps,
+        )
+        full_sequence = _smooth(analysis, observations, lag=None)
+
+        horizons: dict[str, Any] = {}
+        for horizon in (10, 50, 100, 250):
+            anchors = np.arange(0, self.config.steps - horizon)
+            horizon_samples = raw_forecast[anchors + horizon] + (
+                analysis[anchors] - raw_forecast[anchors]
+            )
+            horizons[f"{horizon}_ms"] = _coverage_and_sharpness(
+                horizon_samples,
+                truth[anchors + horizon],
+            )
+
+        same_plan_spread = float(
+            np.mean(np.std(raw_forecast[out_of_distribution], axis=1, ddof=1))
+        )
+        edited_displacement = float(
+            np.mean(
+                np.abs(
+                    edited_product[out_of_distribution].mean(axis=1)
+                    - raw_forecast[out_of_distribution].mean(axis=1)
+                )
+            )
+        )
+        in_distribution_spread = float(
+            np.mean(np.std(raw_forecast[~out_of_distribution], axis=1, ddof=1))
+        )
+        persistence = np.broadcast_to(observations[0], truth.shape)
+        conventional = np.empty_like(observations)
+        conventional[0] = observations[0]
+        for index in range(1, self.config.steps):
+            conventional[index] = conventional[index - 1] + 0.45 * (
+                observations[index] - conventional[index - 1]
+            )
+        elapsed = time.perf_counter() - started
+        metrics: dict[str, Any] = {
+            "innovation_rmse": {
+                "forecast": float(
+                    np.sqrt(np.mean((forecast.mean(axis=1) - observations) ** 2))
+                ),
+                "analysis": float(
+                    np.sqrt(np.mean((analysis.mean(axis=1) - observations) ** 2))
+                ),
+            },
+            "proper_score": {
+                "forecast": _proper_score(forecast, truth),
+                "analysis": _proper_score(analysis, truth),
+                "persistence": float(np.mean(np.abs(persistence - truth))),
+                "conventional_enkf": float(np.mean(np.abs(conventional - truth))),
+            },
+            "horizons": horizons,
+            "uncertainty": {
+                "in_distribution_spread": in_distribution_spread,
+                "out_of_distribution_spread": same_plan_spread,
+                "widening_ratio": same_plan_spread
+                / max(in_distribution_spread, 1.0e-15),
+            },
+            "actuator_response": {
+                "edited_displacement": edited_displacement,
+                "same_plan_spread": same_plan_spread,
+                "displacement_to_spread": edited_displacement
+                / max(same_plan_spread, 1.0e-15),
+            },
+            "physics": {
+                "finite_members": self.config.members,
+                "topology": self.config.topology,
+                "common_random_numbers": True,
+                "correction_frequency_hz": 1000 // self.config.correction_stride,
+                "max_boundary_current_relative_error": max(boundary_errors),
+                "max_ledger_identity_error": max(
+                    abs(row["d_psi_bdry"] - row["d_psi_axis"] - row["d_psi_internal"])
+                    for row in ledgers
+                ),
+            },
+            "runtime": {
+                "elapsed_s": elapsed,
+                "member_steps_per_s": self.config.members
+                * self.config.steps
+                / max(elapsed, 1.0e-12),
+                "peak_rss_kib": int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss),
+            },
+            "comparators": {
+                "persistence": "same synthetic cohort",
+                "conventional_enkf": "same synthetic cohort",
+                "torax_enkf": "identity only; not a same-cohort skill claim",
+            },
+        }
+        result = EstimatorResult(
+            clock=np.asarray(times, dtype=np.float64),
+            truth=np.asarray(truth, dtype=np.float64),
+            observations=np.asarray(observations, dtype=np.float64),
+            causal_forecast=np.asarray(forecast, dtype=np.float64),
+            causal_analysis=np.asarray(analysis, dtype=np.float64),
+            fixed_lag_smoothing=np.asarray(fixed_lag, dtype=np.float64),
+            full_sequence_smoothing=np.asarray(full_sequence, dtype=np.float64),
+            edited_actuator=np.asarray(edited_product, dtype=np.float64),
+            nominal_actuator=np.asarray(raw_forecast, dtype=np.float64),
+            metrics=metrics,
+            provenance=provenance,
+            camera_proxy={
+                "product": "flux_surface_emissivity_proxy",
+                "validated_checkpoint": False,
+                "label": "proxy",
+            },
+        )
+        result.validate()
+        return result
+
+
+def _arrays(result: EstimatorResult) -> dict[str, np.ndarray]:
+    return {
+        "clock": result.clock,
+        "truth": result.truth,
+        "observations": result.observations,
+        "causal_forecast": result.causal_forecast,
+        "causal_analysis": result.causal_analysis,
+        "fixed_lag_smoothing": result.fixed_lag_smoothing,
+        "full_sequence_smoothing": result.full_sequence_smoothing,
+        "edited_actuator": result.edited_actuator,
+        "nominal_actuator": result.nominal_actuator,
+    }
+
+
+def write_result(
+    result: EstimatorResult,
+    output_dir: str | Path,
+    *,
+    name: str = "result",
+    shard_index: int | None = None,
+    shard_count: int | None = None,
+    seed: int | None = None,
+) -> tuple[Path, Path]:
+    """Write one raw JSON/NPZ pair with enough identity for strict merging."""
+    result.validate()
+    target = Path(output_dir)
+    target.mkdir(parents=True, exist_ok=True)
+    arrays = _arrays(result)
+    metadata = {
+        "schema": SCHEMA,
+        "failure": False,
+        "seed": seed,
+        "shard_index": shard_index,
+        "shard_count": shard_count,
+        "shape": {key: list(value.shape) for key, value in arrays.items()},
+        "metrics": result.metrics,
+        "provenance": asdict(result.provenance),
+        "camera_proxy": result.camera_proxy,
+        "observation_labels": list(OBSERVATION_LABELS),
+    }
+    json_path = target / f"{name}.json"
+    array_path = target / f"{name}.npz"
+    json_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
+    np.savez(array_path, **arrays)
+    return json_path, array_path
+
+
+def merge_shards(merge_root: str | Path, output_dir: str | Path) -> tuple[Path, Path]:
+    """Merge a complete, unique, revision-matched shard set."""
+    root = Path(merge_root)
+    records: list[tuple[dict[str, Any], Path]] = []
+    for path in sorted(root.glob("shard-*.json")):
+        record = json.loads(path.read_text())
+        records.append((record, path))
+    if not records:
+        raise EstimatorFailure("merge root contains no shard metadata")
+    first = records[0][0]
+    shard_count = first.get("shard_count")
+    if not isinstance(shard_count, int) or shard_count < 1:
+        raise EstimatorFailure("shard count is missing or invalid")
+    indices = [record.get("shard_index") for record, _ in records]
+    if len(indices) != len(set(indices)):
+        raise EstimatorFailure("duplicate shard index")
+    if set(indices) != set(range(shard_count)):
+        raise EstimatorFailure("missing shard index")
+    identity_keys = ("schema", "seed", "shard_count")
+    provenance_keys = ("nova_revision", "backend", "dtype", "topology")
+    for record, path in records:
+        if record.get("failure") is not False:
+            raise EstimatorFailure(f"failed shard declared by {path.name}")
+        if any(record.get(key) != first.get(key) for key in identity_keys):
+            raise EstimatorFailure("shard seed or schema identity mismatch")
+        provenance = record.get("provenance", {})
+        reference = first.get("provenance", {})
+        if any(provenance.get(key) != reference.get(key) for key in provenance_keys):
+            raise EstimatorFailure(
+                "shard revision, backend, dtype, or topology mismatch"
+            )
+        if record.get("shape") != first.get("shape"):
+            raise EstimatorFailure("shard array shape mismatch")
+        if not path.with_suffix(".npz").is_file():
+            raise EstimatorFailure(f"array payload is missing for {path.name}")
+
+    loaded = [np.load(path.with_suffix(".npz")) for _, path in records]
+    try:
+        merged: dict[str, np.ndarray] = {}
+        for key in loaded[0].files:
+            values = [payload[key] for payload in loaded]
+            if key in {
+                "causal_forecast",
+                "causal_analysis",
+                "fixed_lag_smoothing",
+                "full_sequence_smoothing",
+                "edited_actuator",
+                "nominal_actuator",
+            }:
+                merged[key] = np.concatenate(values, axis=1)
+            else:
+                if not all(np.array_equal(values[0], value) for value in values[1:]):
+                    raise EstimatorFailure(
+                        f"non-member array {key!r} differs across shards"
+                    )
+                merged[key] = values[0]
+    finally:
+        for payload in loaded:
+            payload.close()
+    target = Path(output_dir)
+    target.mkdir(parents=True, exist_ok=True)
+    array_path = target / "merged.npz"
+    np.savez(array_path, **merged)
+    metadata = dict(first)
+    metadata["merged_shards"] = shard_count
+    metadata["shape"] = {key: list(value.shape) for key, value in merged.items()}
+    metadata["shard_index"] = None
+    json_path = target / "merged.json"
+    json_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
+    return json_path, array_path
+
+
+__all__ = [
+    "EstimatorConfig",
+    "EstimatorFailure",
+    "EstimatorResult",
+    "NovaEnsembleEstimator",
+    "RuntimeProvenance",
+    "merge_shards",
+    "write_result",
+]
