@@ -7,6 +7,7 @@ import os
 import shlex
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 from rich.console import Console
@@ -14,6 +15,9 @@ from rich.panel import Panel
 from rich.table import Table
 
 from imas_ambix.agent.profile import SiteConfig, list_profiles, load_profile
+
+if TYPE_CHECKING:
+    from imas_ambix.agent.bench import BenchReport
 
 console = Console()
 
@@ -203,13 +207,18 @@ def info(slug: str | None) -> None:
     table.add_row("Model name", profile.model.name)
     table.add_row("HF repo", profile.model.hf_repo)
     table.add_row("Served name", profile.model.served_name)
-    table.add_row("Engine", _ENGINE_LABELS.get(profile.engine.type, profile.engine.type))
+    table.add_row(
+        "Engine", _ENGINE_LABELS.get(profile.engine.type, profile.engine.type)
+    )
     table.add_row("Tensor parallel", str(profile.engine.tensor_parallel))
     table.add_row("Attention backend", profile.engine.attention_backend)
     table.add_row("Max context", f"{profile.model.max_context:,}")
     table.add_row("Model size", f"{profile.model.size_gb} GB")
-    table.add_row("SLURM", f"{profile.slurm.gpus}×H200 · {profile.slurm.cpus} CPU "
-                  f"· {profile.slurm.memory} · serve {profile.slurm.time_serve}")
+    table.add_row(
+        "SLURM",
+        f"{profile.slurm.gpus}×H200 · {profile.slurm.cpus} CPU "
+        f"· {profile.slurm.memory} · serve {profile.slurm.time_serve}",
+    )
     table.add_row("Model directory", str(site.model_dir(profile)))
     table.add_row("Cache directory", str(site.cache_dir(profile)))
     if profile.engine.ktransformers is not None:
@@ -231,8 +240,13 @@ def info(slug: str | None) -> None:
             "\n".join(f"{key}: {value}" for key, value in parsers.items()),
         )
     console.print(
-        Panel(table, title=f"[bold]{profile.slug}[/] → {profile.model.served_name}",
-              title_align="left", border_style="blue", padding=(0, 1))
+        Panel(
+            table,
+            title=f"[bold]{profile.slug}[/] → {profile.model.served_name}",
+            title_align="left",
+            border_style="blue",
+            padding=(0, 1),
+        )
     )
 
 
@@ -329,9 +343,11 @@ def serve(
         raise click.ClickException(str(exc)) from exc
     key_note = " (API key enabled)" if resolved_key else " (NO AUTH — open endpoint)"
     gpu_note = f" ({profile.slurm.gpus}×GPU)" if gpus is not None else ""
-    console.print(
-        f"Submitted serve job {job_id} for {profile.slug}{gpu_note} on port {resolved_port}{key_note}."
+    message = (
+        f"Submitted serve job {job_id} for {profile.slug}{gpu_note} "
+        f"on port {resolved_port}{key_note}."
     )
+    console.print(message)
 
 
 def _job_node(job: dict[str, str], site: SiteConfig) -> str:
@@ -374,7 +390,9 @@ def status(reveal: bool) -> None:
     summary = f"{len(serve_jobs)} serving"
     if pending:
         summary += f" · {len(pending)} other"
-    console.print(f"[bold]imas-ambix agents[/]  ·  {site.partition}    [dim]{summary}[/]")
+    console.print(
+        f"[bold]imas-ambix agents[/]  ·  {site.partition}    [dim]{summary}[/]"
+    )
 
     # -- One boxed panel per RUNNING serve job -----------------------------
     key: str | None = None
@@ -428,10 +446,15 @@ def status(reveal: bool) -> None:
         )
         console.print()
         console.print(
-            Panel(body, title=title, title_align="left",
-                  subtitle=ready_tag, subtitle_align="right",
-                  border_style="green" if readiness == "ready" else "blue",
-                  padding=(0, 1))
+            Panel(
+                body,
+                title=title,
+                title_align="left",
+                subtitle=ready_tag,
+                subtitle_align="right",
+                border_style="green" if readiness == "ready" else "blue",
+                padding=(0, 1),
+            )
         )
 
     # -- Pending / non-serve jobs (download, setup, queued) ----------------
@@ -443,8 +466,10 @@ def status(reveal: bool) -> None:
         ptable.add_column()
         for job in pending:
             ptable.add_row(
-                job["jobid"], job["name"],
-                f"[yellow]{job['state']}[/]", job["node"],
+                job["jobid"],
+                job["name"],
+                f"[yellow]{job['state']}[/]",
+                job["node"],
             )
         console.print()
         console.print("[dim]other jobs[/]")
@@ -499,7 +524,7 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
         if resolved:
             targets = [(jid, jn) for jid, jn in jobs if jn == resolved]
         else:
-            # No slug and no default — cancel serve jobs (match known profile slugs only)
+            # No slug and no default: match known profile slugs only.
             known = set(list_profiles())
             targets = [(jid, jn) for jid, jn in jobs if jn in known]
 
@@ -512,10 +537,9 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
     for job_id, job_name in targets:
         console.print(f"  {job_id}  {job_name}")
 
-    if not yes:
-        if not click.confirm("Proceed?"):
-            console.print("Aborted.")
-            return
+    if not yes and not click.confirm("Proceed?"):
+        console.print("Aborted.")
+        return
 
     # Cancel jobs
     job_ids = [jid for jid, _ in targets]
@@ -608,7 +632,7 @@ def _probe_endpoint(url: str, api_key: str | None, timeout: float = 4.0) -> str:
         if exc.code in (401, 403):
             return "auth-fail"
         return f"http {exc.code}"
-    except (urllib.error.URLError, TimeoutError, OSError):
+    except urllib.error.URLError, TimeoutError, OSError:
         return "unreachable"
 
 
@@ -870,7 +894,8 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
     except RuntimeError as exc:
         raise click.ClickException(str(exc)) from exc
     console.print(
-        f"Submitted serve job {job_id} for {profile.slug} on port {port} (API key enabled)."
+        f"Submitted serve job {job_id} for {profile.slug} on port {port} "
+        "(API key enabled)."
     )
 
 
@@ -939,7 +964,7 @@ def clive_command(
         console.print(f"Default model: {default_model}")
         console.print("Add to your ~/.bashrc to run as a bare command:")
         console.print(
-            f'  [dim][[ -d {site.clive_path.parent} ]] && '
+            f"  [dim][[ -d {site.clive_path.parent} ]] && "
             f'export PATH="{site.clive_path.parent}:$PATH"[/]'
         )
         return
@@ -1104,9 +1129,11 @@ def restart(
         raise click.ClickException(str(exc)) from exc
     key_note = " (API key enabled)" if resolved_key else ""
     gpu_note = f" ({profile.slurm.gpus}×GPU)" if gpus is not None else ""
-    console.print(
-        f"Submitted serve job {job_id} for {profile.slug}{gpu_note} on port {resolved_port}{key_note}."
+    message = (
+        f"Submitted serve job {job_id} for {profile.slug}{gpu_note} "
+        f"on port {resolved_port}{key_note}."
     )
+    console.print(message)
 
 
 @agent.command()
@@ -1176,7 +1203,7 @@ def bench(
     import urllib.error
     import urllib.request
 
-    from imas_ambix.agent.bench import BenchReport, _auth_headers, run_benchmark
+    from imas_ambix.agent.bench import _auth_headers, run_benchmark
 
     resolved_key = _resolve_api_key(api_key)
 
@@ -1356,7 +1383,7 @@ def _render_concurrency(results: list, repeat: int) -> None:
     table.add_column("Wall Time (s)", justify="right")
     table.add_column("TTFT (ms)", justify="right")
 
-    for test_name, level_results in levels.items():
+    for _test_name, level_results in levels.items():
         n_workers = level_results[0].metadata.get("n_workers", "?")
         ok = [r for r in level_results if r.ok]
         tps_vals = [r.decode_tps for r in ok if r.decode_tps > 0]
@@ -1385,6 +1412,76 @@ def _engine_pyproject(engine: str) -> str:
 
     pkg = resources.files("imas_ambix.agent.envs") / engine / "pyproject.toml"
     return pkg.read_text(encoding="utf-8")
+
+
+def _metadata_version_command(package: str, label: str, *, ok: bool = False) -> str:
+    """Return a shell command that reports installed package metadata."""
+    values = f"{label!r}, m.version({package!r})"
+    if ok:
+        values += ", 'OK'"
+    code = f"import importlib.metadata as m; print({values})"
+    return f'"$PYTHON" -c {shlex.quote(code)}'
+
+
+def _engine_runtime_check_script(
+    engine: str,
+    site: SiteConfig,
+    dependency_job_id: str,
+) -> str:
+    """Return a serving-node check for a completed network install.
+
+    The engine environment is written from a network-enabled compute node but
+    consumed on the GPU node.  Checking it in the producer allocation cannot
+    establish that the serving mount resolves the same directory entries, so
+    this dependent job verifies the consumer-visible path after the producer
+    has exited.
+    """
+    python = site.python_path(engine)
+    python_q = shlex.quote(str(python))
+    lines = [
+        "#!/bin/bash",
+        f"#SBATCH --job-name=ambix-runtime-check-{engine}",
+        f"#SBATCH --partition={site.partition}",
+    ]
+    if site.reservation:
+        lines.append(f"#SBATCH --reservation={site.reservation}")
+    lines += [
+        f"#SBATCH --account={site.account}",
+        f"#SBATCH --dependency=afterok:{dependency_job_id}",
+        "#SBATCH --ntasks=1",
+        "#SBATCH --cpus-per-task=1",
+        "#SBATCH --mem=1G",
+        "#SBATCH --time=00:10:00",
+        f"#SBATCH --output=ambix-runtime-check-{engine}-%j.log",
+        "",
+        "set -euo pipefail",
+        "export TMPDIR=/tmp",
+        "",
+        f"PYTHON={python_q}",
+        'if [ ! -x "$PYTHON" ]; then',
+        '    echo "ERROR: runtime node cannot execute $PYTHON" >&2',
+        '    echo "The network install is not durable on the serving filesystem." >&2',
+        "    exit 1",
+        "fi",
+        "",
+        'stat -Lc "interpreter=%n device=%d inode=%i size=%s" "$PYTHON"',
+        '"$PYTHON" --version',
+    ]
+
+    if engine == "vllm":
+        lines += [
+            _metadata_version_command("vllm", "vLLM", ok=True),
+            _metadata_version_command("torch", "PyTorch"),
+            _metadata_version_command("transformers", "transformers"),
+        ]
+    elif engine == "sglang":
+        lines += [
+            _metadata_version_command("sglang", "SGLang", ok=True),
+            _metadata_version_command("torch", "PyTorch"),
+        ]
+
+    lines += ["", 'echo "=== Runtime verification complete ==="', ""]
+    return "\n".join(lines)
 
 
 @agent.command()
@@ -1436,7 +1533,10 @@ def setup(engine: str, dry_run: bool) -> None:
         "",
         "# Ensure uv is available",
         "if ! command -v uv &>/dev/null; then",
-        '    echo "ERROR: uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"',
+        (
+            '    echo "ERROR: uv not found. Install with: '
+            'curl -LsSf https://astral.sh/uv/install.sh | sh"'
+        ),
         "    exit 1",
         "fi",
         "",
@@ -1469,17 +1569,26 @@ def setup(engine: str, dry_run: bool) -> None:
             "        print(u['url'], fn, m.group(1)); break",
             '")',
             '    if [ -z "${VLLM_WHEEL:-}" ]; then',
-            '        echo "ERROR: could not resolve a vLLM linux x86_64 wheel from PyPI"; exit 1',
+            (
+                '        echo "ERROR: could not resolve a vLLM linux x86_64 '
+                'wheel from PyPI"; exit 1'
+            ),
             "    fi",
             "    # Wheel that uv will install — renamed to manylinux_2_17 only when",
             "    # the source tag (glibc minor) is newer than SDCC's glibc 2.34.",
             '    if [ "$VLLM_GLIBC" -gt 34 ]; then',
-            '        WHEEL_FINAL=$(echo "$VLLM_WHEEL" | sed "s/manylinux_2_${VLLM_GLIBC}/manylinux_2_17/")',
+            (
+                '        WHEEL_FINAL=$(echo "$VLLM_WHEEL" | '
+                'sed "s/manylinux_2_${VLLM_GLIBC}/manylinux_2_17/")'
+            ),
             "    else",
             '        WHEEL_FINAL="$VLLM_WHEEL"',
             "    fi",
             '    if [ ! -f "wheelhouse/$WHEEL_FINAL" ]; then',
-            '        echo "Downloading vLLM wheel $VLLM_WHEEL (glibc 2.$VLLM_GLIBC target)..."',
+            (
+                '        echo "Downloading vLLM wheel $VLLM_WHEEL '
+                '(glibc 2.$VLLM_GLIBC target)..."'
+            ),
             '        curl -fSL "$VLLM_URL" -o "wheelhouse/$VLLM_WHEEL"',
             '        if [ "$WHEEL_FINAL" != "$VLLM_WHEEL" ]; then',
             '            mv "wheelhouse/$VLLM_WHEEL" "wheelhouse/$WHEEL_FINAL"',
@@ -1488,8 +1597,11 @@ def setup(engine: str, dry_run: bool) -> None:
             "    else",
             '        echo "Reusing cached wheelhouse/$WHEEL_FINAL"',
             "    fi",
-            "    # Drop any other cached vLLM wheels so the install glob is unambiguous.",
-            '    find wheelhouse -maxdepth 1 -name "vllm-*.whl" ! -name "$WHEEL_FINAL" -delete',
+            "    # Drop other cached vLLM wheels so the install glob is unambiguous.",
+            (
+                '    find wheelhouse -maxdepth 1 -name "vllm-*.whl" '
+                '! -name "$WHEEL_FINAL" -delete'
+            ),
             "",
         ]
 
@@ -1504,7 +1616,10 @@ def setup(engine: str, dry_run: bool) -> None:
             "",
             'echo "Installing vLLM from local wheelhouse..."',
             "# --no-deps: all dependencies already installed by uv sync above",
-            "uv pip install --no-deps --python .venv/bin/python wheelhouse/vllm-*x86_64.whl",
+            (
+                "uv pip install --no-deps --python .venv/bin/python "
+                "wheelhouse/vllm-*x86_64.whl"
+            ),
         ]
 
     lines += [
@@ -1518,33 +1633,58 @@ def setup(engine: str, dry_run: bool) -> None:
     # Engine-specific smoke tests (version check via metadata — no CUDA needed)
     if engine == "vllm":
         lines += [
-            '"$PYTHON" -c "import importlib.metadata as m; print(f\'vLLM {m.version(\\"vllm\\")} OK\')"',
-            '"$PYTHON" -c "import importlib.metadata as m; print(f\'PyTorch {m.version(\\"torch\\")}\')"',
-            '"$PYTHON" -c "import importlib.metadata as m; print(f\'transformers {m.version(\\"transformers\\")}\')"',
+            _metadata_version_command("vllm", "vLLM", ok=True),
+            _metadata_version_command("torch", "PyTorch"),
+            _metadata_version_command("transformers", "transformers"),
         ]
     elif engine == "sglang":
         lines += [
-            '"$PYTHON" -c "import importlib.metadata as m; print(f\'SGLang {m.version(\\"sglang\\")} OK\')"',
-            '"$PYTHON" -c "import importlib.metadata as m; print(f\'PyTorch {m.version(\\"torch\\")}\')"',
+            _metadata_version_command("sglang", "SGLang", ok=True),
+            _metadata_version_command("torch", "PyTorch"),
         ]
 
     lines.append("")
-    lines.append('echo "=== Setup complete ==="')
+    lines.append('echo "=== Network installation complete ==="')
+    lines.append('echo "The dependent serving-node verification must pass before use."')
     lines.append("")
 
     script = "\n".join(lines)
 
     if dry_run:
         console.print(script, markup=False, highlight=False, soft_wrap=True)
+        console.print(
+            _engine_runtime_check_script(engine, site, "SETUP_JOB_ID"),
+            markup=False,
+            highlight=False,
+            soft_wrap=True,
+        )
         return
 
     try:
         job_id = submit_script(script)
     except RuntimeError as exc:
         raise click.ClickException(str(exc)) from exc
+    runtime_check_script = _engine_runtime_check_script(engine, site, job_id)
+    try:
+        runtime_check_job_id = submit_script(runtime_check_script)
+    except RuntimeError as exc:
+        raise click.ClickException(
+            f"Network install job {job_id} was submitted, but its serving-node "
+            f"verification could not be scheduled: {exc}. The environment is not ready."
+        ) from exc
     console.print(
-        f"Submitted setup job [bold]{job_id}[/] for [cyan]{engine}[/] engine."
+        f"Submitted network install job [bold]{job_id}[/] for [cyan]{engine}[/]."
+    )
+    console.print(
+        f"Submitted dependent runtime verification job [bold]{runtime_check_job_id}[/]."
+    )
+    console.print(
+        f"Environment is not ready until runtime verification job "
+        f"{runtime_check_job_id} passes."
     )
     console.print(f"  Environment: {env_dir}")
-    console.print(f"  Monitor: squeue -j {job_id}")
-    console.print(f"  Logs: ambix-setup-{engine}-{job_id}.log")
+    console.print(f"  Monitor: squeue -j {job_id},{runtime_check_job_id}")
+    console.print(
+        f"  Logs: ambix-setup-{engine}-{job_id}.log, "
+        f"ambix-runtime-check-{engine}-{runtime_check_job_id}.log"
+    )

@@ -1281,6 +1281,70 @@ def test_setup_dry_run_sglang():
     assert "import sglang" in result.output or "sglang" in result.output
 
 
+def test_setup_submits_runtime_check_after_network_install(monkeypatch):
+    """A network install is not complete until the serving node verifies it."""
+    from imas_ambix.agent import slurm as slurm_mod
+
+    scripts = []
+
+    def fake_submit(script):
+        scripts.append(script)
+        return str(4100 + len(scripts))
+
+    monkeypatch.setattr(slurm_mod, "submit_script", fake_submit)
+    runner = CliRunner()
+    result = runner.invoke(main, ["agent", "setup", "vllm"])
+
+    assert result.exit_code == 0
+    assert len(scripts) == 2
+    install_script, runtime_check_script = scripts
+    site = SiteConfig()
+    assert f"#SBATCH --partition={site.download_partition}" in install_script
+    assert f"#SBATCH --partition={site.partition}" in runtime_check_script
+    assert f"#SBATCH --reservation={site.reservation}" in runtime_check_script
+    assert "#SBATCH --dependency=afterok:4101" in runtime_check_script
+    assert str(site.python_path("vllm")) in runtime_check_script
+    assert "not ready until runtime verification job 4102 passes" in result.output
+
+
+def test_setup_runtime_check_fails_when_interpreter_is_not_visible(tmp_path):
+    """Reproduce the cross-node contract failure as a non-zero runtime check."""
+    import subprocess
+
+    from imas_ambix.agent.cli import _engine_runtime_check_script
+
+    site = SiteConfig(base_dir=str(tmp_path))
+    script = _engine_runtime_check_script("vllm", site, dependency_job_id="4101")
+    result = subprocess.run(
+        ["bash"], input=script, capture_output=True, text=True, check=False
+    )
+
+    assert result.returncode != 0
+    assert "runtime node cannot execute" in result.stderr
+    assert str(site.python_path("vllm")) in result.stderr
+
+
+def test_setup_runtime_check_passes_with_durable_interpreter(tmp_path):
+    """The postcondition passes only when the runtime path is executable."""
+    import subprocess
+
+    from imas_ambix.agent.cli import _engine_runtime_check_script
+
+    site = SiteConfig(base_dir=str(tmp_path))
+    python = site.python_path("vllm")
+    python.parent.mkdir(parents=True)
+    python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    python.chmod(0o755)
+
+    script = _engine_runtime_check_script("vllm", site, dependency_job_id="4101")
+    result = subprocess.run(
+        ["bash"], input=script, capture_output=True, text=True, check=False
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Runtime verification complete" in result.stdout
+
+
 def test_setup_invalid_engine():
     """Setup should reject unknown engine types."""
     runner = CliRunner()

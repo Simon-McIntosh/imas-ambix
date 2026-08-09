@@ -186,10 +186,12 @@ prefetch producer/consumer threads — is **PROHIBITED** for production code.
 | `/work/projects/imas_gpu/` | Shared project directory for GPU workloads | GPFS (persistent) | Shared 1.5 PB |
 | `/work/projects/imas_gpu/agents/<slug>/model/` | Model weights per deployment | GPFS | — |
 | `/work/projects/imas_gpu/agents/<slug>/.cache/` | HF download cache per deployment | GPFS | — |
-| `~/.local/share/ambix/agent-venv/` | Shared Python 3.12 venv with inference stack | NFS (home) | ~20 GB |
+| `/work/projects/imas_gpu/agents/{vllm,sglang}/.venv/` | Shared serving environment per engine | GPFS | — |
 | `/scratch_local/` | Fast staging, ephemeral per-node | Local NVMe | 5.9 TB |
 
-**Inference venv contents:** torch 2.11+cu130, sglang 0.5.11, kt-kernel 0.6.1, flashinfer 0.6.8
+Engine versions are established by the serving-node setup verification log.
+Do not infer readiness from files observed only on the network-enabled install
+node.
 
 ## 4. Composable Agent CLI
 
@@ -198,6 +200,7 @@ The `imas-ambix agent` CLI manages LLM deployments via TOML model profiles:
 ```bash
 imas-ambix agent list                          # List available profiles (marks any serving)
 imas-ambix agent info kimi-k2-6               # Show profile details + memory budget
+imas-ambix agent setup vllm                   # Install, then verify on the serving node
 imas-ambix agent download kimi-k2-6           # Submit SLURM download job (sirius partition)
 imas-ambix agent serve kimi-k2-6              # Submit SLURM serve job (betelgeuse partition)
 imas-ambix agent serve kimi-k2-6 --dry-run    # Print script without submitting
@@ -207,6 +210,15 @@ imas-ambix agent clive --deploy               # Generate+deploy the clive launch
 ```
 
 Adding a new model: create a TOML file in `imas_ambix/agent/profiles/<slug>.toml`.
+
+**Setup readiness contract:** `agent setup` submits a network-enabled install
+job followed by a dependent runtime verification job on `betelgeuse`. The
+verification runs after the producer allocation exits and checks the
+consumer-visible interpreter plus engine package metadata. The environment is
+ready only when the runtime verification job reaches `COMPLETED`; an install
+job reaching `COMPLETED` by itself is not readiness. If verification fails,
+do not submit a serve job—the GPFS namespace visible to the serving node does
+not contain an executable environment.
 
 ## 4a. Driving an interactive agent against the local model (`clive`)
 
