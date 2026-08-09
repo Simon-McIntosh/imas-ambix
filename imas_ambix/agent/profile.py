@@ -16,7 +16,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # -- Model identity ----------------------------------------------------------
 
@@ -89,8 +89,14 @@ class EngineConfig(BaseModel):
     # internal name here. Allowed values match SGLang's argparse.
     fp8_gemm_runner_backend: (
         Literal[
-            "auto", "deep_gemm", "flashinfer_trtllm", "flashinfer_cutlass",
-            "flashinfer_deepgemm", "cutlass", "triton", "aiter",
+            "auto",
+            "deep_gemm",
+            "flashinfer_trtllm",
+            "flashinfer_cutlass",
+            "flashinfer_deepgemm",
+            "cutlass",
+            "triton",
+            "aiter",
         ]
         | None
     ) = None
@@ -158,17 +164,27 @@ class ModelProfile(BaseModel):
 # -- Site / cluster configuration ---------------------------------------------
 
 
+def _default_engine_env_root() -> str:
+    """Return the per-user data directory for serving environments."""
+    data_home = os.environ.get("XDG_DATA_HOME")
+    root = Path(data_home) if data_home else Path.home() / ".local" / "share"
+    return str(root / "ambix" / "engine-envs")
+
+
 class SiteConfig(BaseModel):
     """Cluster-specific settings, layered separately from model profiles.
 
     Read from environment variables with ``AMBIX_AGENT_`` prefix.
     Defaults match the ITER SDCC betelgeuse GPU partition.
 
-    Engine venvs live under ``{base_dir}/agents/{engine}/``, each
-    managed by its own ``pyproject.toml`` + ``uv.lock``.
+    Model weights and shared launch artifacts live under the project base.
+    Engine environments use a per-user home-backed root so networked setup
+    nodes and GPU serving nodes resolve the same files.
     """
 
     base_dir: str = "/work/projects/imas_gpu"
+    engine_env_root: str = Field(default_factory=_default_engine_env_root)
+    engine_env_min_free_gb: int = Field(default=32, ge=1)
     partition: str = "betelgeuse"
     download_partition: str = "sirius"
     account: str = "grpa"
@@ -181,14 +197,18 @@ class SiteConfig(BaseModel):
         """Build config from environment, falling back to defaults."""
         return cls(
             base_dir=os.environ.get("AMBIX_AGENT_BASE_DIR", "/work/projects/imas_gpu"),
+            engine_env_root=os.environ.get(
+                "AMBIX_AGENT_ENGINE_ENV_ROOT", _default_engine_env_root()
+            ),
+            engine_env_min_free_gb=int(
+                os.environ.get("AMBIX_AGENT_ENGINE_ENV_MIN_FREE_GB", "32")
+            ),
             partition=os.environ.get("AMBIX_AGENT_PARTITION", "betelgeuse"),
             download_partition=os.environ.get(
                 "AMBIX_AGENT_DOWNLOAD_PARTITION", "sirius"
             ),
             account=os.environ.get("AMBIX_AGENT_ACCOUNT", "grpa"),
-            reservation=os.environ.get(
-                "AMBIX_AGENT_RESERVATION", "gpu_0003_grpA"
-            ),
+            reservation=os.environ.get("AMBIX_AGENT_RESERVATION", "gpu_0003_grpA"),
             default_port=int(os.environ.get("AMBIX_AGENT_PORT", "18800")),
             gpu_host=os.environ.get("AMBIX_AGENT_GPU_HOST", "98dci4-gpu-0003"),
         )
@@ -210,7 +230,7 @@ class SiteConfig(BaseModel):
 
     def env_dir(self, engine_type: str) -> Path:
         """Root of the uv-managed env for *engine_type*."""
-        return Path(self.base_dir) / "agents" / self._engine_key(engine_type)
+        return Path(self.engine_env_root) / self._engine_key(engine_type)
 
     def venv_path(self, engine_type: str) -> Path:
         """Path to the venv for *engine_type*."""
@@ -277,9 +297,7 @@ def list_profiles() -> list[str]:
     """Return sorted slugs of all available model profiles."""
     pkg = resources.files(_PROFILES_PACKAGE)
     return sorted(
-        p.name.removesuffix(".toml")
-        for p in pkg.iterdir()
-        if p.name.endswith(".toml")
+        p.name.removesuffix(".toml") for p in pkg.iterdir() if p.name.endswith(".toml")
     )
 
 

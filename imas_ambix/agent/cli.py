@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import getpass
 import os
+import secrets
 import shlex
 import subprocess
 from pathlib import Path
@@ -1427,6 +1428,7 @@ def _engine_runtime_check_script(
     engine: str,
     site: SiteConfig,
     dependency_job_id: str,
+    expected_identity: str,
 ) -> str:
     """Return a serving-node check for a completed network install.
 
@@ -1438,6 +1440,8 @@ def _engine_runtime_check_script(
     """
     python = site.python_path(engine)
     python_q = shlex.quote(str(python))
+    identity_file_q = shlex.quote(str(site.env_dir(engine) / ".ambix-setup-identity"))
+    expected_identity_q = shlex.quote(expected_identity)
     lines = [
         "#!/bin/bash",
         f"#SBATCH --job-name=ambix-runtime-check-{engine}",
@@ -1458,9 +1462,24 @@ def _engine_runtime_check_script(
         "export TMPDIR=/tmp",
         "",
         f"PYTHON={python_q}",
+        f"IDENTITY_FILE={identity_file_q}",
+        f"EXPECTED_SETUP_IDENTITY={expected_identity_q}",
         'if [ ! -x "$PYTHON" ]; then',
         '    echo "ERROR: runtime node cannot execute $PYTHON" >&2',
         '    echo "The network install is not durable on the serving filesystem." >&2',
+        "    exit 1",
+        "fi",
+        "",
+        'if [ ! -r "$IDENTITY_FILE" ]; then',
+        '    echo "ERROR: runtime node cannot read $IDENTITY_FILE" >&2',
+        "    exit 1",
+        "fi",
+        'ACTUAL_SETUP_IDENTITY=$(cat "$IDENTITY_FILE")',
+        'if [ "$ACTUAL_SETUP_IDENTITY" != "$EXPECTED_SETUP_IDENTITY" ]; then',
+        (
+            '    echo "ERROR: serving environment does not match '
+            'the completed network install" >&2'
+        ),
         "    exit 1",
         "fi",
         "",
@@ -1494,13 +1513,13 @@ def _engine_runtime_check_script(
 def setup(engine: str, dry_run: bool) -> None:
     """Create or sync the uv-managed venv for an engine.
 
-    Copies the engine's pyproject.toml to the workspace directory
-    (e.g. /work/projects/imas_gpu/agents/vllm/) and runs ``uv sync``
-    via a SLURM job on a network-enabled partition.
+    Copies the engine's pyproject.toml to its per-user environment directory
+    and runs ``uv sync`` via a SLURM job on a network-enabled partition.
     """
     site = SiteConfig.from_env()
     env_dir = site.env_dir(engine)
     pyproject_content = _engine_pyproject(engine)
+    setup_identity = secrets.token_hex(16)
 
     from imas_ambix.agent.slurm import submit_script
 
@@ -1525,6 +1544,24 @@ def setup(engine: str, dry_run: bool) -> None:
         f"ENV_DIR={env_dir_q}",
         'mkdir -p "$ENV_DIR"',
         'cd "$ENV_DIR"',
+        "",
+        f"SETUP_IDENTITY={setup_identity}",
+        f"MIN_FREE_KIB=$(({site.engine_env_min_free_gb} * 1024 * 1024))",
+        "AVAILABLE_KIB=$(df -Pk \"$ENV_DIR\" | awk 'NR == 2 {print $4}')",
+        'case "$AVAILABLE_KIB" in',
+        (
+            '    ""|*[!0-9]*) echo "ERROR: could not measure free space '
+            'for $ENV_DIR" >&2; exit 1 ;;'
+        ),
+        "esac",
+        'if [ "$AVAILABLE_KIB" -lt "$MIN_FREE_KIB" ]; then',
+        (
+            '    echo "ERROR: $ENV_DIR has $AVAILABLE_KIB KiB free; '
+            '$MIN_FREE_KIB KiB required" >&2'
+        ),
+        "    exit 1",
+        "fi",
+        'echo "Capacity preflight: $AVAILABLE_KIB KiB free"',
         "",
         "# Write pyproject.toml from bundled package data",
         "cat > pyproject.toml << 'PYPROJECT_EOF'",
@@ -1644,6 +1681,20 @@ def setup(engine: str, dry_run: bool) -> None:
         ]
 
     lines.append("")
+    lines.append('IDENTITY_FILE="$ENV_DIR/.ambix-setup-identity"')
+    lines.append('printf \'%s\\n\' "$SETUP_IDENTITY" > "$IDENTITY_FILE"')
+    lines.append('sync "$IDENTITY_FILE"')
+    lines.append(
+        "ENV_SIZE_BYTES=$(du -s --block-size=1 \"$ENV_DIR\" | awk '{print $1}')"
+    )
+    lines.append('case "$ENV_SIZE_BYTES" in')
+    lines.append(
+        '    ""|*[!0-9]*|0) echo "ERROR: could not measure installed '
+        'environment" >&2; exit 1 ;;'
+    )
+    lines.append("esac")
+    lines.append('echo "Installed environment size: $ENV_SIZE_BYTES bytes"')
+    lines.append("")
     lines.append('echo "=== Network installation complete ==="')
     lines.append('echo "The dependent serving-node verification must pass before use."')
     lines.append("")
@@ -1653,7 +1704,7 @@ def setup(engine: str, dry_run: bool) -> None:
     if dry_run:
         console.print(script, markup=False, highlight=False, soft_wrap=True)
         console.print(
-            _engine_runtime_check_script(engine, site, "SETUP_JOB_ID"),
+            _engine_runtime_check_script(engine, site, "SETUP_JOB_ID", setup_identity),
             markup=False,
             highlight=False,
             soft_wrap=True,
@@ -1664,7 +1715,9 @@ def setup(engine: str, dry_run: bool) -> None:
         job_id = submit_script(script)
     except RuntimeError as exc:
         raise click.ClickException(str(exc)) from exc
-    runtime_check_script = _engine_runtime_check_script(engine, site, job_id)
+    runtime_check_script = _engine_runtime_check_script(
+        engine, site, job_id, setup_identity
+    )
     try:
         runtime_check_job_id = submit_script(runtime_check_script)
     except RuntimeError as exc:
