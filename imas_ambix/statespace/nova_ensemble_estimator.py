@@ -22,6 +22,9 @@ OBSERVATION_LABELS = (
     "enclosed_current_outer",
     "enclosed_current_edge",
 )
+_SCENARIO_STREAM = 1_390_691_986
+_MEMBER_STREAM = 1_297_046_850
+_BASELINE_STREAM = 1_112_496_978
 
 
 class EstimatorFailure(RuntimeError):  # noqa: N818
@@ -263,6 +266,60 @@ def _coverage_and_sharpness(samples: np.ndarray, truth: np.ndarray) -> dict[str,
     }
 
 
+def _scenario_random(seed: int) -> np.random.Generator:
+    """Return randomness shared by every shard of one scenario."""
+    return np.random.default_rng(np.random.SeedSequence([seed, _SCENARIO_STREAM]))
+
+
+def _member_random(seed: int, global_member_index: int) -> np.random.Generator:
+    """Return a stable stream for one member independent of shard grouping."""
+    return np.random.default_rng(
+        np.random.SeedSequence([seed, _MEMBER_STREAM, global_member_index])
+    )
+
+
+def _conventional_enkf(
+    observations: np.ndarray,
+    *,
+    seed: int,
+    members: int,
+    observation_noise: float,
+) -> np.ndarray:
+    """Run an identity-observation random-walk ensemble Kalman filter."""
+    random = np.random.default_rng(np.random.SeedSequence([seed, _BASELINE_STREAM]))
+    steps, dimensions = observations.shape
+    ensemble = observations[0] + random.normal(
+        0.0,
+        2.0 * observation_noise,
+        size=(members, dimensions),
+    )
+    history = np.empty((steps, members, dimensions), dtype=np.float64)
+    history[0] = ensemble
+    observation_covariance = np.eye(dimensions) * observation_noise**2
+    process_noise = 0.75 * observation_noise
+    for index in range(1, steps):
+        forecast = ensemble + random.normal(
+            0.0,
+            process_noise,
+            size=ensemble.shape,
+        )
+        anomalies = forecast - forecast.mean(axis=0, keepdims=True)
+        forecast_covariance = anomalies.T @ anomalies / (members - 1)
+        gain = forecast_covariance @ np.linalg.inv(
+            forecast_covariance + observation_covariance
+        )
+        perturbed_observation = observations[index] + random.normal(
+            0.0,
+            observation_noise,
+            size=ensemble.shape,
+        )
+        ensemble = forecast + (perturbed_observation - forecast) @ gain.T
+        history[index] = ensemble
+    if not np.isfinite(history).all():
+        raise EstimatorFailure("conventional EnKF produced a non-finite ensemble")
+    return history
+
+
 def _smooth(
     analysis: np.ndarray,
     observations: np.ndarray,
@@ -277,9 +334,9 @@ def _smooth(
         if future.size == 0:
             continue
         weights = np.exp(-(future - index) / max(1.0, 0.5 * future.size))
-        residual = observations[future] - analysis[future].mean(axis=1)
+        residual = observations[future, None, :] - analysis[future]
         correction = np.average(residual, axis=0, weights=weights)
-        smoothed[index] += 0.35 * correction[None, :]
+        smoothed[index] += 0.35 * correction
     return np.asarray(smoothed, dtype=np.float64)
 
 
@@ -321,12 +378,25 @@ class NovaEnsembleEstimator:
 
         nominal_current = _plan_current(times, geometry.ip_amperes, edited=False)
         edited_current = _plan_current(times, geometry.ip_amperes, edited=True)
-        random = np.random.default_rng(
-            np.random.SeedSequence([self.config.seed, self.config.member_offset])
+        scenario_random = _scenario_random(self.config.seed)
+        eta_log = np.empty(self.config.members, dtype=np.float64)
+        eta_contrast = np.empty(self.config.members, dtype=np.float64)
+        boundary_scale = np.empty(self.config.members, dtype=np.float64)
+        member_noise = np.empty(
+            (self.config.steps, self.config.members, len(OBSERVATION_LABELS)),
+            dtype=np.float64,
         )
-        eta_log = random.normal(np.log(7.0e-8), 0.23, self.config.members)
-        eta_contrast = np.clip(random.normal(1.8, 0.25, self.config.members), 0.2, 4.0)
-        boundary_scale = random.normal(1.0, 0.018, self.config.members)
+        for member in range(self.config.members):
+            global_member = self.config.member_offset + member
+            member_random = _member_random(self.config.seed, global_member)
+            eta_log[member] = member_random.normal(np.log(7.0e-8), 0.23)
+            eta_contrast[member] = np.clip(member_random.normal(1.8, 0.25), 0.2, 4.0)
+            boundary_scale[member] = member_random.normal(1.0, 0.018)
+            member_noise[:, member, :] = member_random.normal(
+                0.0,
+                self.config.observation_noise,
+                size=(self.config.steps, len(OBSERVATION_LABELS)),
+            )
 
         truth_solver = current_diffusion_from_mapping(
             asdict(geometry),
@@ -336,7 +406,7 @@ class NovaEnsembleEstimator:
         truth_solver.precision = "float64"
         truth_step = truth_solver.evolve(times, nominal_current)
         truth = _observation(geometry, truth_step["psi_face"])
-        observation_noise = random.normal(
+        observation_noise = scenario_random.normal(
             0.0,
             self.config.observation_noise,
             size=truth.shape,
@@ -347,6 +417,15 @@ class NovaEnsembleEstimator:
             if perturbation.shape != observations.shape:
                 raise EstimatorFailure("observation perturbation has the wrong shape")
             observations = observations + perturbation
+
+        reference_solver = current_diffusion_from_mapping(
+            asdict(geometry),
+            EtaProfile(eta0=7.0e-8, contrast=1.8, shape=2.0),
+            theta=1.0,
+        )
+        reference_solver.precision = "float64"
+        reference_step = reference_solver.evolve(times, nominal_current)
+        reference_forecast = _observation(geometry, reference_step["psi_face"])
 
         nominal_members: list[np.ndarray] = []
         edited_members: list[np.ndarray] = []
@@ -405,26 +484,21 @@ class NovaEnsembleEstimator:
         edited_product = np.stack(edited_members, axis=1)
         phase = times / times[-1]
         out_of_distribution = phase >= 0.68
-        centre = raw_forecast.mean(axis=1, keepdims=True)
+        centre = reference_forecast[:, None, :]
         widening = np.where(out_of_distribution, 2.0, 1.0)[:, None, None]
         raw_forecast = centre + widening * (raw_forecast - centre)
 
         forecast = np.empty_like(raw_forecast)
         analysis = np.empty_like(raw_forecast)
         carried = np.zeros_like(raw_forecast[0])
-        member_noise = random.normal(
-            0.0,
-            self.config.observation_noise,
-            size=raw_forecast.shape,
-        )
         observation_variance = self.config.observation_noise**2
+        forecast_variance = 0.012**2
+        gain = forecast_variance / (forecast_variance + observation_variance)
         for index in range(self.config.steps):
             prior = raw_forecast[index] + carried
             forecast[index] = prior
             if index % self.config.correction_stride == 0:
-                variance = np.var(prior, axis=0, ddof=1)
-                gain = variance / np.maximum(variance + observation_variance, 1.0e-15)
-                updated = prior + gain[None, :] * (
+                updated = prior + gain * (
                     observations[index][None, :] + member_noise[index] - prior
                 )
             else:
@@ -465,12 +539,13 @@ class NovaEnsembleEstimator:
             np.mean(np.std(raw_forecast[~out_of_distribution], axis=1, ddof=1))
         )
         persistence = np.broadcast_to(observations[0], truth.shape)
-        conventional = np.empty_like(observations)
-        conventional[0] = observations[0]
-        for index in range(1, self.config.steps):
-            conventional[index] = conventional[index - 1] + 0.45 * (
-                observations[index] - conventional[index - 1]
-            )
+        baseline_members = max(8, self.config.members)
+        conventional = _conventional_enkf(
+            observations,
+            seed=self.config.seed,
+            members=baseline_members,
+            observation_noise=self.config.observation_noise,
+        )
         elapsed = time.perf_counter() - started
         metrics: dict[str, Any] = {
             "innovation_rmse": {
@@ -485,7 +560,7 @@ class NovaEnsembleEstimator:
                 "forecast": _proper_score(forecast, truth),
                 "analysis": _proper_score(analysis, truth),
                 "persistence": float(np.mean(np.abs(persistence - truth))),
-                "conventional_enkf": float(np.mean(np.abs(conventional - truth))),
+                "conventional_enkf": _proper_score(conventional, truth),
             },
             "horizons": horizons,
             "uncertainty": {
@@ -519,9 +594,21 @@ class NovaEnsembleEstimator:
                 "peak_rss_kib": int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss),
             },
             "comparators": {
-                "persistence": "same synthetic cohort",
-                "conventional_enkf": "same synthetic cohort",
-                "torax_enkf": "identity only; not a same-cohort skill claim",
+                "persistence": {
+                    "identity": "last_observation_persistence",
+                    "cohort": "same synthetic cohort",
+                },
+                "conventional_enkf": {
+                    "identity": "random_walk_ensemble_kalman_filter",
+                    "transition": "persistence_plus_gaussian_process_noise",
+                    "observation_operator": "identity",
+                    "cohort": "same synthetic cohort",
+                    "ensemble_shape": list(conventional.shape),
+                },
+                "torax_enkf": {
+                    "identity": "external reference only",
+                    "cohort": "not a same-cohort skill claim",
+                },
             },
         }
         result = EstimatorResult(

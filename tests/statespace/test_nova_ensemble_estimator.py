@@ -53,7 +53,7 @@ def test_physical_and_provenance_contract(conditioned_products):
 
 
 def test_conditioning_reduces_innovation_and_proper_score(conditioned_products):
-    _, result, _ = conditioned_products
+    config, result, _ = conditioned_products
     innovation = result.metrics["innovation_rmse"]
     score = result.metrics["proper_score"]
     assert innovation["analysis"] < innovation["forecast"]
@@ -65,7 +65,13 @@ def test_conditioning_reduces_innovation_and_proper_score(conditioned_products):
         "250_ms",
     }
     assert score["persistence"] > 0.0
-    assert score["conventional_enkf"] > 0.0
+    assert np.isfinite(score["conventional_enkf"])
+    comparator = result.metrics["comparators"]["conventional_enkf"]
+    assert comparator["identity"] == "random_walk_ensemble_kalman_filter"
+    assert comparator["transition"] == "persistence_plus_gaussian_process_noise"
+    assert comparator["observation_operator"] == "identity"
+    assert comparator["cohort"] == "same synthetic cohort"
+    assert comparator["ensemble_shape"] == [config.steps, config.members, 4]
 
 
 def test_causal_products_ignore_future_observations_while_smoother_responds(
@@ -111,8 +117,17 @@ def test_runtime_merge_and_schema_failures_are_rejected(
     with pytest.raises(EstimatorFailure, match="requested backend"):
         NovaEnsembleEstimator(replace(config, backend="gpu")).run()
 
+    shard_members = config.members // 2
+    first_shard = NovaEnsembleEstimator(
+        replace(config, members=shard_members, member_offset=0)
+    ).run()
+    second_shard = NovaEnsembleEstimator(
+        replace(config, members=shard_members, member_offset=shard_members)
+    ).run()
+    np.testing.assert_array_equal(first_shard.truth, second_shard.truth)
+    np.testing.assert_array_equal(first_shard.observations, second_shard.observations)
     write_result(
-        result,
+        first_shard,
         tmp_path,
         name="shard-000",
         shard_index=0,
@@ -122,7 +137,7 @@ def test_runtime_merge_and_schema_failures_are_rejected(
     with pytest.raises(EstimatorFailure, match="missing shard"):
         merge_shards(tmp_path, tmp_path / "incomplete")
     write_result(
-        result,
+        second_shard,
         tmp_path,
         name="shard-001",
         shard_index=1,
@@ -161,4 +176,14 @@ def test_runtime_merge_and_schema_failures_are_rejected(
     metadata_output, array_output = merge_shards(tmp_path, tmp_path / "complete")
     assert metadata_output.is_file()
     with np.load(array_output) as merged:
-        assert merged["causal_analysis"].shape[1] == 2 * config.members
+        for key in ("clock", "truth", "observations"):
+            np.testing.assert_array_equal(merged[key], getattr(result, key))
+        for key in (
+            "causal_forecast",
+            "causal_analysis",
+            "fixed_lag_smoothing",
+            "full_sequence_smoothing",
+            "edited_actuator",
+            "nominal_actuator",
+        ):
+            np.testing.assert_array_equal(merged[key], getattr(result, key))
