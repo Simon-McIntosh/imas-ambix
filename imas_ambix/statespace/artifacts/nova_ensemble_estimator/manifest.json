@@ -1,0 +1,322 @@
+{
+  "gate_verdicts": {
+    "conditioned_analysis_beats_conventional_enkf": {
+      "analysis_proper_score": 0.002084521747708028,
+      "conventional_enkf_proper_score": 0.0015285967381972478,
+      "status": "fail"
+    },
+    "conditioned_analysis_improves_forecast": {
+      "analysis_proper_score": 0.002084521747708028,
+      "forecast_proper_score": 0.0020951564479694874,
+      "status": "pass"
+    },
+    "cpu_gpu_full_array_parity": {
+      "comparison": "CPU versus one-H200, first 32 members, all full arrays",
+      "per_product_max_abs": {
+        "causal_forecast_and_analysis": 3.952393967665557e-14,
+        "clock": 0.0,
+        "edited_actuator": 2.1316282072803006e-14,
+        "edited_equilibrium_flux": 2.90878432451791e-14,
+        "equilibrium_flux": 2.7533531010703882e-14,
+        "fixed_lag_and_full_sequence_smoothing": 3.885780586188048e-14,
+        "nominal_actuator": 3.47499806707674e-14,
+        "truth_and_observations": 1.3988810110276972e-14
+      },
+      "status": "pass",
+      "worst_max_abs": 3.952393967665557e-14
+    },
+    "cpu_ten_millisecond_coverage": {
+      "coverage_90": 0.875,
+      "nominal": 0.9,
+      "status": "fail"
+    },
+    "eight_h200_scaling": {
+      "available_gpus": 5,
+      "classification": "capacity_coordination_blocker",
+      "live_occupancy": [
+        {
+          "gpus": 2,
+          "job_id": 1242792,
+          "reservation_cpus": 15
+        },
+        {
+          "gpus": 1,
+          "job_id": 1229670,
+          "reservation_cpus": 2
+        }
+      ],
+      "next_action": "Run eight ranks of 128 members when all eight H200 cards and sufficient reservation CPUs are simultaneously available.",
+      "occupied_gpus": 3,
+      "occupied_reservation_cpus": 17,
+      "required_gpus": 8,
+      "required_members": 1024,
+      "reservation_cpu_capacity": 30,
+      "scientific_failure": false,
+      "status": "blocked_capacity"
+    },
+    "five_h200_capacity": {
+      "launcher_observed_member_steps_per_s": 4637.3152982858155,
+      "members": 640,
+      "ranks": 5,
+      "status": "pass"
+    },
+    "focused_and_broad_verification": {
+      "bytes": 5777,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/verification/pytest-7d8d61c.txt",
+      "sha256": "d8a38a2e7ad70c2eb06299a9d9fe3d76099b308d5622d80e7be26983c520562b",
+      "status": "pass",
+      "summary": "46 passed in 11.43s"
+    },
+    "latest_pinned_nova": {
+      "revision": "fdbfd15b179ffbd562a2ac2b6e4961cc7442ab1e",
+      "status": "pass",
+      "version": "0.11.0.post1014+gfdbfd15b"
+    },
+    "one_h200_capability": {
+      "speedup_claim": false,
+      "status": "pass"
+    }
+  },
+  "generated_at": "2026-08-09T21:57:32.662283+00:00",
+  "manifest_self_digest": {
+    "reason": "A file cannot embed its own cryptographic digest without recursion.",
+    "sha256": null
+  },
+  "posterior_subset": {
+    "bytes": 1125305,
+    "inventory": {
+      "causal_analysis": {
+        "dtype": "float64",
+        "finite": true,
+        "shape": [
+          280,
+          8,
+          4
+        ]
+      },
+      "causal_forecast": {
+        "dtype": "float64",
+        "finite": true,
+        "shape": [
+          280,
+          8,
+          4
+        ]
+      },
+      "clock": {
+        "dtype": "float64",
+        "finite": true,
+        "shape": [
+          280
+        ]
+      },
+      "edited_actuator": {
+        "dtype": "float64",
+        "finite": true,
+        "shape": [
+          280,
+          8,
+          4
+        ]
+      },
+      "edited_equilibrium_flux": {
+        "dtype": "float64",
+        "finite": true,
+        "shape": [
+          280,
+          8,
+          21
+        ]
+      },
+      "equilibrium_flux": {
+        "dtype": "float64",
+        "finite": true,
+        "shape": [
+          280,
+          8,
+          21
+        ]
+      },
+      "fixed_lag_smoothing": {
+        "dtype": "float64",
+        "finite": true,
+        "shape": [
+          280,
+          8,
+          4
+        ]
+      },
+      "full_sequence_smoothing": {
+        "dtype": "float64",
+        "finite": true,
+        "shape": [
+          280,
+          8,
+          4
+        ]
+      },
+      "nominal_actuator": {
+        "dtype": "float64",
+        "finite": true,
+        "shape": [
+          280,
+          8,
+          4
+        ]
+      },
+      "observations": {
+        "dtype": "float64",
+        "finite": true,
+        "shape": [
+          280,
+          4
+        ]
+      },
+      "selected_member_indices": {
+        "dtype": "float64",
+        "finite": true,
+        "shape": [
+          8
+        ]
+      },
+      "truth": {
+        "dtype": "float64",
+        "finite": true,
+        "shape": [
+          280,
+          4
+        ]
+      }
+    },
+    "path": "imas_ambix/statespace/artifacts/nova_ensemble_estimator/posterior_samples.npz",
+    "selected_member_indices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "selection_rule": "All 280 time samples and all four state/actuator channels; deterministic global CPU member indices 0 through 7; all 21 radial faces; truth and observations are cohort-level arrays.",
+    "sha256": "5ef087719b9fc4f624e09729ddc85384b295b509121b11c317cefca510ad9fac",
+    "source": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/cpu/result.npz"
+  },
+  "qualifications": [
+    {
+      "detail": "The conditioned analysis improves its unconditioned forecast only slightly, but the same-cohort conventional random-walk EnKF has the lower proper score.",
+      "topic": "comparator",
+      "verdict": "qualified_negative"
+    },
+    {
+      "detail": "flux_surface_emissivity_proxy is unvalidated (validated_checkpoint=false); no camera checkpoint claim is made.",
+      "topic": "camera",
+      "verdict": "proxy_only"
+    },
+    {
+      "detail": "equilibrium_flux and edited_equilibrium_flux are direct Nova CurrentDiffusion.evolve psi_face histories in Wb on radial faces; they are not two-dimensional Grad-Shafranov maps.",
+      "topic": "equilibrium",
+      "verdict": "one_dimensional_profiles"
+    },
+    {
+      "detail": "CPU, one-H200, and five-H200 workloads have different member counts and timing envelopes. GPU results demonstrate capability and capacity, not a like-for-like speedup.",
+      "topic": "performance",
+      "verdict": "capability_not_speedup"
+    }
+  ],
+  "raw_sources": [
+    {
+      "bytes": 4798,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/cpu/result.json",
+      "sha256": "7b8b65ea6c7c413e367ae562f8cbd8dd97e45d7658d9c5111e0379cbe80e2408"
+    },
+    {
+      "bytes": 4753942,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/cpu/result.npz",
+      "sha256": "2fecba1692005e51ba42a32b74dcc4aabe5714e6795aad7055134e95d9092608"
+    },
+    {
+      "bytes": 629,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/cpu/cpu-reference.log",
+      "sha256": "ba2c501deaefcbb766c83c141678a64e4c4e38a86cb52e3772c17df5247f63f5"
+    },
+    {
+      "bytes": 4820,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/one-h200/result.json",
+      "sha256": "489adf4a52491a5d6bddc4b80603863939162b14d0b3a3e0c88bfa0b51101560"
+    },
+    {
+      "bytes": 18946582,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/one-h200/result.npz",
+      "sha256": "1be7a4c62373ac86c03f15f57f409d362258239c91da14b1a90c5c1350e17574"
+    },
+    {
+      "bytes": 7604,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/one-h200/reference.log",
+      "sha256": "a13c671f7302d78a677aab4173bf19ca1242e39454ca3d9eecf362753cea14d0"
+    },
+    {
+      "bytes": 6079,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/available-h200/merged/merged.json",
+      "sha256": "ae81d76ac36241b1e636bef459887f3a292a0dbac6c98f780d6458eb3b4879ee"
+    },
+    {
+      "bytes": 94640662,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/available-h200/merged/merged.npz",
+      "sha256": "3da152be8d31cabb94ae2ee640188e77bd54b4f85be60d7c22ed1f654d09bfcc"
+    },
+    {
+      "bytes": 5730,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/available-h200/logs/launcher-1242869.log",
+      "sha256": "9d04d6d9fdf6e41bed401ebace1b217ee15c30b2ae28c2cf19fbb79f242e20b1"
+    },
+    {
+      "bytes": 5777,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/verification/pytest-7d8d61c.txt",
+      "sha256": "d8a38a2e7ad70c2eb06299a9d9fe3d76099b308d5622d80e7be26983c520562b"
+    }
+  ],
+  "schema": "nova-ensemble-estimator-evidence-manifest",
+  "source": {
+    "commit": "7d8d61cc4aca40766a4daf91e4a611c8215ef923",
+    "nova_revision": "fdbfd15b179ffbd562a2ac2b6e4961cc7442ab1e",
+    "nova_version": "0.11.0.post1014+gfdbfd15b",
+    "repository": "imas-ambix",
+    "source_archive_sha256": "99b12ecc5562df44f8d7c1da747784c2fd7e5691190715412232781eed8d1c7a"
+  },
+  "status": "qualified_partial_capacity_blocked",
+  "summary": {
+    "cpu_reference": "complete, 32 members",
+    "eight_h200_scaling": "blocked_capacity, 1024-member run not performed",
+    "maximum_available_h200_scaling": "complete, five ranks and 640 members",
+    "one_h200_reference": "complete, 128 members"
+  },
+  "tracked_files": [
+    {
+      "bytes": 7570,
+      "path": "imas_ambix/statespace/artifacts/nova_ensemble_estimator/cpu_reference.json",
+      "sha256": "b7e5f9642c31a7c7973645b8605320b3105ebbb93adfd645867fe19b923e67ea"
+    },
+    {
+      "bytes": 7413,
+      "path": "imas_ambix/statespace/artifacts/nova_ensemble_estimator/one_h200_reference.json",
+      "sha256": "e165f2960e75a680b8b6b0554ee1f0545116a889fc4288f7b35c83f66bc0ee8c"
+    },
+    {
+      "bytes": 17197,
+      "path": "imas_ambix/statespace/artifacts/nova_ensemble_estimator/available_h200_scaling.json",
+      "sha256": "220a706b955fff516c28629a6183cf554c627a59d27e648a5afd0a0047b2d34d"
+    },
+    {
+      "bytes": 1125305,
+      "path": "imas_ambix/statespace/artifacts/nova_ensemble_estimator/posterior_samples.npz",
+      "sha256": "5ef087719b9fc4f624e09729ddc85384b295b509121b11c317cefca510ad9fac"
+    },
+    {
+      "bytes": 518130,
+      "path": "docs/figures/nova-ensemble-estimator/estimator-summary.png",
+      "sha256": "f9fa1583abc6576a17ff3a6508f4907341d181a58f6d81bed5e861f95252352f"
+    }
+  ]
+}

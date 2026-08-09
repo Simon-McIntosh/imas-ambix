@@ -1,0 +1,263 @@
+{
+  "array_shapes": {
+    "causal_analysis": [
+      280,
+      32,
+      4
+    ],
+    "causal_forecast": [
+      280,
+      32,
+      4
+    ],
+    "clock": [
+      280
+    ],
+    "edited_actuator": [
+      280,
+      32,
+      4
+    ],
+    "edited_equilibrium_flux": [
+      280,
+      32,
+      21
+    ],
+    "equilibrium_flux": [
+      280,
+      32,
+      21
+    ],
+    "fixed_lag_smoothing": [
+      280,
+      32,
+      4
+    ],
+    "full_sequence_smoothing": [
+      280,
+      32,
+      4
+    ],
+    "nominal_actuator": [
+      280,
+      32,
+      4
+    ],
+    "observations": [
+      280,
+      4
+    ],
+    "truth": [
+      280,
+      4
+    ]
+  },
+  "camera_proxy": {
+    "label": "proxy",
+    "product": "flux_surface_emissivity_proxy",
+    "validated_checkpoint": false
+  },
+  "equilibrium_products": {
+    "edited_equilibrium_flux": {
+      "axes": [
+        "clock",
+        "member",
+        "radial_face"
+      ],
+      "description": "member-wise one-dimensional poloidal-flux profiles under the edited actuator trajectory; not a two-dimensional Grad-Shafranov map",
+      "source": "Nova CurrentDiffusion.evolve psi_face",
+      "units": "Wb"
+    },
+    "equilibrium_flux": {
+      "axes": [
+        "clock",
+        "member",
+        "radial_face"
+      ],
+      "description": "member-wise one-dimensional poloidal-flux profiles on nested radial faces; not a two-dimensional Grad-Shafranov map",
+      "source": "Nova CurrentDiffusion.evolve psi_face",
+      "units": "Wb"
+    }
+  },
+  "execution": {
+    "backend": "cpu",
+    "devices": 1,
+    "job_id": 1242861,
+    "members": 32,
+    "node": "98dci4-clu-3141.iter.org",
+    "run_exit": 0,
+    "scheduler_partition": "sun_debug",
+    "verification": {
+      "bytes": 5777,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/verification/pytest-7d8d61c.txt",
+      "sha256": "d8a38a2e7ad70c2eb06299a9d9fe3d76099b308d5622d80e7be26983c520562b",
+      "status": "pass",
+      "summary": "46 passed in 11.43s"
+    }
+  },
+  "gate_verdicts": {
+    "analysis_beats_conventional_enkf": {
+      "analysis_proper_score": 0.002084521747708028,
+      "conventional_enkf_proper_score": 0.0015285967381972478,
+      "margin": -0.0005559250095107803,
+      "status": "fail"
+    },
+    "analysis_improves_forecast": {
+      "absolute_improvement": 1.0634700261459313e-05,
+      "analysis_proper_score": 0.002084521747708028,
+      "forecast_proper_score": 0.0020951564479694874,
+      "status": "pass"
+    },
+    "finite_physics": {
+      "max_boundary_current_relative_error": 0.002291413648776762,
+      "max_ledger_identity_error": 0.0,
+      "status": "pass"
+    },
+    "ten_millisecond_coverage": {
+      "coverage_90": 0.875,
+      "margin": -0.025000000000000022,
+      "nominal": 0.9,
+      "status": "fail"
+    }
+  },
+  "identity": "cpu_reference",
+  "metrics": {
+    "actuator_response": {
+      "displacement_to_spread": 2.417689254096385,
+      "edited_displacement": 0.08973912793533323,
+      "same_plan_spread": 0.037117726268288916
+    },
+    "comparators": {
+      "conventional_enkf": {
+        "cohort": "same synthetic cohort",
+        "ensemble_shape": [
+          280,
+          32,
+          4
+        ],
+        "identity": "random_walk_ensemble_kalman_filter",
+        "observation_operator": "identity",
+        "transition": "persistence_plus_gaussian_process_noise"
+      },
+      "persistence": {
+        "cohort": "same synthetic cohort",
+        "identity": "last_observation_persistence"
+      },
+      "torax_enkf": {
+        "cohort": "not a same-cohort skill claim",
+        "identity": "external reference only"
+      }
+    },
+    "horizons": {
+      "100_ms": {
+        "coverage_90": 0.9583333333333334,
+        "proper_score": 0.004779364347520998,
+        "sharpness_90": 0.04808371308852709
+      },
+      "10_ms": {
+        "coverage_90": 0.875,
+        "proper_score": 0.002302502841736736,
+        "sharpness_90": 0.014625301389307713
+      },
+      "250_ms": {
+        "coverage_90": 1.0,
+        "proper_score": 0.009603695223030423,
+        "sharpness_90": 0.1054285161447641
+      },
+      "50_ms": {
+        "coverage_90": 0.9239130434782609,
+        "proper_score": 0.003373191697471776,
+        "sharpness_90": 0.028557999308994844
+      }
+    },
+    "innovation_rmse": {
+      "analysis": 0.005165804873608765,
+      "forecast": 0.0054992961259238814
+    },
+    "physics": {
+      "common_random_numbers": true,
+      "correction_frequency_hz": 100,
+      "finite_members": 32,
+      "max_boundary_current_relative_error": 0.002291413648776762,
+      "max_ledger_identity_error": 0.0,
+      "topology": "circular-nested-flux-surfaces"
+    },
+    "proper_score": {
+      "analysis": 0.002084521747708028,
+      "conventional_enkf": 0.0015285967381972478,
+      "forecast": 0.0020951564479694874,
+      "persistence": 0.054036221344740225
+    },
+    "runtime": {
+      "elapsed_s": 2.8791868314146996,
+      "member_steps_per_s": 3111.989782058523,
+      "peak_rss_kib": 675488
+    },
+    "uncertainty": {
+      "in_distribution_spread": 0.012764884317817003,
+      "out_of_distribution_spread": 0.037117726268288916,
+      "widening_ratio": 2.9077996591383632
+    }
+  },
+  "provenance": {
+    "available_devices_per_process": 1,
+    "backend": "cpu",
+    "clock_hz": 1000,
+    "dtype": "float64",
+    "jax_version": "0.10.1",
+    "nova_revision": "fdbfd15b179ffbd562a2ac2b6e4961cc7442ab1e",
+    "nova_version": "0.11.0.post1014+gfdbfd15b",
+    "selected_devices_per_process": 1,
+    "source_commit": "7d8d61cc4aca40766a4daf91e4a611c8215ef923",
+    "topology": "circular-nested-flux-surfaces",
+    "x64_enabled": true
+  },
+  "qualifications": [
+    {
+      "detail": "The conditioned analysis improves its unconditioned forecast only slightly, but the same-cohort conventional random-walk EnKF has the lower proper score.",
+      "topic": "comparator",
+      "verdict": "qualified_negative"
+    },
+    {
+      "detail": "flux_surface_emissivity_proxy is unvalidated (validated_checkpoint=false); no camera checkpoint claim is made.",
+      "topic": "camera",
+      "verdict": "proxy_only"
+    },
+    {
+      "detail": "equilibrium_flux and edited_equilibrium_flux are direct Nova CurrentDiffusion.evolve psi_face histories in Wb on radial faces; they are not two-dimensional Grad-Shafranov maps.",
+      "topic": "equilibrium",
+      "verdict": "one_dimensional_profiles"
+    },
+    {
+      "detail": "CPU, one-H200, and five-H200 workloads have different member counts and timing envelopes. GPU results demonstrate capability and capacity, not a like-for-like speedup.",
+      "topic": "performance",
+      "verdict": "capability_not_speedup"
+    }
+  ],
+  "raw_evidence": [
+    {
+      "bytes": 4798,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/cpu/result.json",
+      "sha256": "7b8b65ea6c7c413e367ae562f8cbd8dd97e45d7658d9c5111e0379cbe80e2408"
+    },
+    {
+      "bytes": 4753942,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/cpu/result.npz",
+      "sha256": "2fecba1692005e51ba42a32b74dcc4aabe5714e6795aad7055134e95d9092608"
+    },
+    {
+      "bytes": 629,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/cpu/cpu-reference.log",
+      "sha256": "ba2c501deaefcbb766c83c141678a64e4c4e38a86cb52e3772c17df5247f63f5"
+    }
+  ],
+  "schema": "nova-ensemble-estimator-reference",
+  "status": "complete",
+  "workload": {
+    "members": 32,
+    "radial_faces": 21,
+    "seed": 17,
+    "state_channels": 4,
+    "steps": 280
+  }
+}

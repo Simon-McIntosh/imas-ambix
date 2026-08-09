@@ -1,0 +1,543 @@
+{
+  "array_shapes": {
+    "causal_analysis": [
+      280,
+      640,
+      4
+    ],
+    "causal_forecast": [
+      280,
+      640,
+      4
+    ],
+    "clock": [
+      280
+    ],
+    "edited_actuator": [
+      280,
+      640,
+      4
+    ],
+    "edited_equilibrium_flux": [
+      280,
+      640,
+      21
+    ],
+    "equilibrium_flux": [
+      280,
+      640,
+      21
+    ],
+    "fixed_lag_smoothing": [
+      280,
+      640,
+      4
+    ],
+    "full_sequence_smoothing": [
+      280,
+      640,
+      4
+    ],
+    "nominal_actuator": [
+      280,
+      640,
+      4
+    ],
+    "observations": [
+      280,
+      4
+    ],
+    "truth": [
+      280,
+      4
+    ]
+  },
+  "camera_proxy": {
+    "label": "proxy",
+    "product": "flux_surface_emissivity_proxy",
+    "validated_checkpoint": false
+  },
+  "eight_h200_scaling": {
+    "available_gpus": 5,
+    "classification": "capacity_coordination_blocker",
+    "live_occupancy": [
+      {
+        "gpus": 2,
+        "job_id": 1242792,
+        "reservation_cpus": 15
+      },
+      {
+        "gpus": 1,
+        "job_id": 1229670,
+        "reservation_cpus": 2
+      }
+    ],
+    "next_action": "Run eight ranks of 128 members when all eight H200 cards and sufficient reservation CPUs are simultaneously available.",
+    "occupied_gpus": 3,
+    "occupied_reservation_cpus": 17,
+    "required_gpus": 8,
+    "required_members": 1024,
+    "reservation_cpu_capacity": 30,
+    "scientific_failure": false,
+    "status": "blocked_capacity"
+  },
+  "equilibrium_products": {
+    "edited_equilibrium_flux": {
+      "axes": [
+        "clock",
+        "member",
+        "radial_face"
+      ],
+      "description": "member-wise one-dimensional poloidal-flux profiles under the edited actuator trajectory; not a two-dimensional Grad-Shafranov map",
+      "source": "Nova CurrentDiffusion.evolve psi_face",
+      "units": "Wb"
+    },
+    "equilibrium_flux": {
+      "axes": [
+        "clock",
+        "member",
+        "radial_face"
+      ],
+      "description": "member-wise one-dimensional poloidal-flux profiles on nested radial faces; not a two-dimensional Grad-Shafranov map",
+      "source": "Nova CurrentDiffusion.evolve psi_face",
+      "units": "Wb"
+    }
+  },
+  "identity": "maximum_available_h200_scaling",
+  "launch_receipts": [
+    {
+      "job_id": 1242864,
+      "reason": "Resources: 15 reservation CPUs requested while only 13 were free; cancelled before allocation to reduce to 10 CPUs.",
+      "receipt": {
+        "bytes": 530,
+        "path": "logs/pending-1242864.txt",
+        "sha256": "fc1d8a39430b33aacd8e0bf0ae10c860a5173108a0b86a54c5a7259b384eb82b"
+      },
+      "requested": {
+        "cpus": 15,
+        "cpus_per_task": 3,
+        "gpus": 5,
+        "memory": "160G",
+        "tasks": 5
+      },
+      "scientific_measurement_started": false,
+      "state": "cancelled_while_pending"
+    },
+    {
+      "job_id": 1242865,
+      "reason": "Offline editable build could not derive the package version from the git archive.",
+      "receipt": {
+        "bytes": 526,
+        "path": "logs/failed-launch-1242865.txt",
+        "sha256": "a64d8947022c6e47987115c6dcbeda91e988df1de47070bf740397a038011e0c"
+      },
+      "scientific_measurement_started": false,
+      "state": "launcher_failed_before_estimator"
+    },
+    {
+      "job_id": 1242866,
+      "reason": "Offline editable build still required VCS metadata from the git archive; corrected by syncing locked dependencies without installing the source project.",
+      "receipt": {
+        "bytes": 522,
+        "path": "logs/failed-launch-1242866.txt",
+        "sha256": "2ceb6d0fe3854ec85a4795363843ac8427351d750cf9b2e9f08db6848698736e"
+      },
+      "scientific_measurement_started": false,
+      "state": "launcher_failed_before_estimator"
+    },
+    {
+      "job_id": 1242867,
+      "reason": "Nested srun repeated an inherited GPU-per-task allocation; corrected by inheriting the batch allocation and binding one GPU per rank.",
+      "receipt": {
+        "bytes": 538,
+        "path": "logs/failed-launch-1242867.txt",
+        "sha256": "a5483737f78a600a83cac174173a3607b5501221ecf46c27817ebd5434029ee6"
+      },
+      "scientific_measurement_started": false,
+      "state": "launcher_failed_before_estimator"
+    },
+    {
+      "estimator_entry_reached": true,
+      "job_id": 1242868,
+      "reason": "A nested login shell reset TMPDIR to a nonexistent run-user directory, so the JAX compiler could not create ptxas output. All ranks exited before emitting arrays.",
+      "receipt": {
+        "bytes": 1413,
+        "path": "logs/failed-run-1242868.txt",
+        "sha256": "73671676175975686ee2285333c6af9a3a6a56d4505da969119aeb67a329e8e5"
+      },
+      "scientific_measurement_started": false,
+      "state": "runtime_environment_failed_before_arrays"
+    },
+    {
+      "job_id": 1242869,
+      "reason": "Corrected TMPDIR export inside every rank shell.",
+      "receipt": {
+        "bytes": 5730,
+        "path": "logs/launcher-1242869.log",
+        "sha256": "9d04d6d9fdf6e41bed401ebace1b217ee15c30b2ae28c2cf19fbb79f242e20b1"
+      },
+      "scientific_measurement_completed": true,
+      "scientific_measurement_started": true,
+      "state": "complete"
+    }
+  ],
+  "merged_metrics": {
+    "actuator_response": {
+      "displacement_to_spread": 2.3551054726110783,
+      "edited_displacement": 0.09059005179261914,
+      "same_plan_spread": 0.03846539055093061
+    },
+    "comparators": {
+      "conventional_enkf": {
+        "cohort": "same synthetic cohort",
+        "ensemble_shape": [
+          280,
+          640,
+          4
+        ],
+        "identity": "random_walk_ensemble_kalman_filter",
+        "observation_operator": "identity",
+        "transition": "persistence_plus_gaussian_process_noise"
+      },
+      "persistence": {
+        "cohort": "same synthetic cohort",
+        "identity": "last_observation_persistence"
+      },
+      "torax_enkf": {
+        "cohort": "not a same-cohort skill claim",
+        "identity": "external reference only"
+      }
+    },
+    "horizons": {
+      "100_ms": {
+        "coverage_90": 0.9722222222222222,
+        "proper_score": 0.004518539042213004,
+        "sharpness_90": 0.05271892385222533
+      },
+      "10_ms": {
+        "coverage_90": 0.9444444444444444,
+        "proper_score": 0.002221289283881163,
+        "sharpness_90": 0.015784827023237132
+      },
+      "250_ms": {
+        "coverage_90": 1.0,
+        "proper_score": 0.00918382223574318,
+        "sharpness_90": 0.11473732515599964
+      },
+      "50_ms": {
+        "coverage_90": 0.9565217391304348,
+        "proper_score": 0.0031754068390228256,
+        "sharpness_90": 0.031115108211038384
+      }
+    },
+    "innovation_rmse": {
+      "analysis": 0.005082544651197714,
+      "forecast": 0.00540102532667217
+    },
+    "physics": {
+      "aggregation_rule": "maximum physical error across shards",
+      "common_random_numbers": true,
+      "correction_frequency_hz": 100,
+      "finite_members": 640,
+      "max_boundary_current_relative_error": 0.0023334277411578845,
+      "max_ledger_identity_error": 0.0,
+      "topology": "circular-nested-flux-surfaces"
+    },
+    "proper_score": {
+      "analysis": 0.002022910367999244,
+      "conventional_enkf": 0.001464481342627594,
+      "forecast": 0.002033808483090971,
+      "persistence": 0.05403622134474076
+    },
+    "runtime": {
+      "aggregate_member_steps_per_s": null,
+      "aggregation_rule": "per-shard measurements are preserved; serial_elapsed_sum_s is an arithmetic sum; parallel wall time and aggregate throughput were not measured",
+      "member_steps_total": 179200,
+      "parallel_wall_time_s": null,
+      "peak_rss_kib_max_per_process": 4642140,
+      "per_shard": [
+        {
+          "elapsed_s": 32.387249753344804,
+          "member_steps_per_s": 1106.6083187967702,
+          "peak_rss_kib": 4642140,
+          "shard_index": 0
+        },
+        {
+          "elapsed_s": 32.30801434908062,
+          "member_steps_per_s": 1109.32227566687,
+          "peak_rss_kib": 4635992,
+          "shard_index": 1
+        },
+        {
+          "elapsed_s": 32.28890662128106,
+          "member_steps_per_s": 1109.9787434851844,
+          "peak_rss_kib": 4635616,
+          "shard_index": 2
+        },
+        {
+          "elapsed_s": 37.6354207652621,
+          "member_steps_per_s": 952.2943884044657,
+          "peak_rss_kib": 4638308,
+          "shard_index": 3
+        },
+        {
+          "elapsed_s": 37.61461335606873,
+          "member_steps_per_s": 952.8211724717246,
+          "peak_rss_kib": 4637892,
+          "shard_index": 4
+        }
+      ],
+      "serial_elapsed_sum_s": 172.2342048450373
+    },
+    "uncertainty": {
+      "in_distribution_spread": 0.01339213962484009,
+      "out_of_distribution_spread": 0.03846539055093061,
+      "widening_ratio": 2.8722363736100838
+    }
+  },
+  "provenance": {
+    "available_devices_per_process": 1,
+    "backend": "gpu",
+    "clock_hz": 1000,
+    "dtype": "float64",
+    "jax_version": "0.10.1",
+    "nova_revision": "fdbfd15b179ffbd562a2ac2b6e4961cc7442ab1e",
+    "nova_version": "0.11.0.post1014+gfdbfd15b",
+    "selected_devices_per_process": 1,
+    "source_commit": "7d8d61cc4aca40766a4daf91e4a611c8215ef923",
+    "topology": "circular-nested-flux-surfaces",
+    "x64_enabled": true
+  },
+  "qualifications": [
+    {
+      "detail": "The conditioned analysis improves its unconditioned forecast only slightly, but the same-cohort conventional random-walk EnKF has the lower proper score.",
+      "topic": "comparator",
+      "verdict": "qualified_negative"
+    },
+    {
+      "detail": "flux_surface_emissivity_proxy is unvalidated (validated_checkpoint=false); no camera checkpoint claim is made.",
+      "topic": "camera",
+      "verdict": "proxy_only"
+    },
+    {
+      "detail": "equilibrium_flux and edited_equilibrium_flux are direct Nova CurrentDiffusion.evolve psi_face histories in Wb on radial faces; they are not two-dimensional Grad-Shafranov maps.",
+      "topic": "equilibrium",
+      "verdict": "one_dimensional_profiles"
+    },
+    {
+      "detail": "CPU, one-H200, and five-H200 workloads have different member counts and timing envelopes. GPU results demonstrate capability and capacity, not a like-for-like speedup.",
+      "topic": "performance",
+      "verdict": "capability_not_speedup"
+    }
+  ],
+  "raw_evidence_inventory": [
+    {
+      "bytes": 4486,
+      "path": "launch.sbatch",
+      "sha256": "ab9d72deba7b8a3d6103a202e2e92a53032546f1aa5847dba366f548eecfa8a2"
+    },
+    {
+      "bytes": 526,
+      "path": "logs/failed-launch-1242865.txt",
+      "sha256": "a64d8947022c6e47987115c6dcbeda91e988df1de47070bf740397a038011e0c"
+    },
+    {
+      "bytes": 522,
+      "path": "logs/failed-launch-1242866.txt",
+      "sha256": "2ceb6d0fe3854ec85a4795363843ac8427351d750cf9b2e9f08db6848698736e"
+    },
+    {
+      "bytes": 538,
+      "path": "logs/failed-launch-1242867.txt",
+      "sha256": "a5483737f78a600a83cac174173a3607b5501221ecf46c27817ebd5434029ee6"
+    },
+    {
+      "bytes": 1413,
+      "path": "logs/failed-run-1242868.txt",
+      "sha256": "73671676175975686ee2285333c6af9a3a6a56d4505da969119aeb67a329e8e5"
+    },
+    {
+      "bytes": 3556,
+      "path": "logs/launcher-1242865.log",
+      "sha256": "08410712b5091f4f64c1ecfc97722a2f6a2b46f993aa1d982f57ab54973cd695"
+    },
+    {
+      "bytes": 3556,
+      "path": "logs/launcher-1242866.log",
+      "sha256": "be932b14f590ef6e75d4c94318c2c8d8a1581fef26e66babd55817ecaf4981ec"
+    },
+    {
+      "bytes": 5618,
+      "path": "logs/launcher-1242867.log",
+      "sha256": "72a7691de3d06be40f526b9ce8724634c1da180e954672a64d1c0a1a9610d6c3"
+    },
+    {
+      "bytes": 5804,
+      "path": "logs/launcher-1242868.log",
+      "sha256": "b4ba2bdcb8af9c0d4dde17caa928891fcba6287bb42c908292235e252fe138aa"
+    },
+    {
+      "bytes": 5730,
+      "path": "logs/launcher-1242869.log",
+      "sha256": "9d04d6d9fdf6e41bed401ebace1b217ee15c30b2ae28c2cf19fbb79f242e20b1"
+    },
+    {
+      "bytes": 530,
+      "path": "logs/pending-1242864.txt",
+      "sha256": "fc1d8a39430b33aacd8e0bf0ae10c860a5173108a0b86a54c5a7259b384eb82b"
+    },
+    {
+      "bytes": 2179,
+      "path": "logs/task-0.log",
+      "sha256": "97a521e1bbdb7c51ab472d9caf0cb44d933c0bb351147223e53c132e53012c52"
+    },
+    {
+      "bytes": 2179,
+      "path": "logs/task-1.log",
+      "sha256": "f5b6d9883eee7a1e61d571f6a62bd13c713673ed0a6be1995b6a6b819bb23bb2"
+    },
+    {
+      "bytes": 476,
+      "path": "logs/task-1242869-0.log",
+      "sha256": "38260b4565c7f34e2bd8d014b15ae48fa4db6b327f4cbda28e7a6ba31162443f"
+    },
+    {
+      "bytes": 476,
+      "path": "logs/task-1242869-1.log",
+      "sha256": "a48c24943872f304ea1b75f41a9eaa430e55246955566a32af3639b06b34698c"
+    },
+    {
+      "bytes": 476,
+      "path": "logs/task-1242869-2.log",
+      "sha256": "3a218cae5099091c333f42745ca2a9b3a3abf5d834f27dd6441440f95e5bbbef"
+    },
+    {
+      "bytes": 797,
+      "path": "logs/task-1242869-3.log",
+      "sha256": "1ad41bcb59f5e5556623b16cf8a7940a51f2eb1eb8c504d2de66a6ddf0207c3d"
+    },
+    {
+      "bytes": 797,
+      "path": "logs/task-1242869-4.log",
+      "sha256": "51a81f498153204bfed4893cb5186b09a62b3b00fb339e076ba729c2f45cefa1"
+    },
+    {
+      "bytes": 2179,
+      "path": "logs/task-2.log",
+      "sha256": "0e545f2f5dd9b389a86303ee3524759ac5a33d6977b4b1858b7755c267b61a9d"
+    },
+    {
+      "bytes": 2500,
+      "path": "logs/task-3.log",
+      "sha256": "996a5fb18e44c43476cbf27eed551c60dd50662230221204b0db72d2c982a5c2"
+    },
+    {
+      "bytes": 2500,
+      "path": "logs/task-4.log",
+      "sha256": "a4c792533b085aaa48e9fad6a1a559535a064329e990fc67586056ca3323ca1c"
+    },
+    {
+      "bytes": 6079,
+      "path": "merged/merged.json",
+      "sha256": "ae81d76ac36241b1e636bef459887f3a292a0dbac6c98f780d6458eb3b4879ee"
+    },
+    {
+      "bytes": 94640662,
+      "path": "merged/merged.npz",
+      "sha256": "3da152be8d31cabb94ae2ee640188e77bd54b4f85be60d7c22ed1f654d09bfcc"
+    },
+    {
+      "bytes": 4815,
+      "path": "raw/shard-000.json",
+      "sha256": "e0667d6ef7be31fe7b90c3509352dd1052f9b891fc6bb4f0945e204137cd00ab"
+    },
+    {
+      "bytes": 18946582,
+      "path": "raw/shard-000.npz",
+      "sha256": "1be7a4c62373ac86c03f15f57f409d362258239c91da14b1a90c5c1350e17574"
+    },
+    {
+      "bytes": 4814,
+      "path": "raw/shard-001.json",
+      "sha256": "59521ebaebe45b09b5c962811022bdffd415f5edef0c46df78088b736de5257e"
+    },
+    {
+      "bytes": 18946582,
+      "path": "raw/shard-001.npz",
+      "sha256": "7ae54fb20587c2104f43ca3648ea2987a4bf0830a6f728cd95307866ce357c04"
+    },
+    {
+      "bytes": 4813,
+      "path": "raw/shard-002.json",
+      "sha256": "c6da82136f7dd30742663cb409590b5490f9d3ae2aaf3d43d58724401418fb39"
+    },
+    {
+      "bytes": 18946582,
+      "path": "raw/shard-002.npz",
+      "sha256": "61b341a54107cb8a9e81ec23c591f2938b37c4fa649c33b3a3e2c3dafad4c770"
+    },
+    {
+      "bytes": 4809,
+      "path": "raw/shard-003.json",
+      "sha256": "e8dcefb44a1ab782d7d36ef4ae328a7e529687498c0c9caefaf533d5e12b343c"
+    },
+    {
+      "bytes": 18946582,
+      "path": "raw/shard-003.npz",
+      "sha256": "eb4c027034d1b400ed73585fa8d3861d7d30589ccf608c2ed93a7a4b1c6b7b9b"
+    },
+    {
+      "bytes": 4811,
+      "path": "raw/shard-004.json",
+      "sha256": "3e7e1619a9f2139c1412e7d5d8c85675b58b77e3c92b598d14a475c09e997cff"
+    },
+    {
+      "bytes": 18946582,
+      "path": "raw/shard-004.npz",
+      "sha256": "8cc6ff8261640ab37eeed7223b67b250ecce9cad4469fdcef3bb5cccba0f0f65"
+    }
+  ],
+  "schema": "nova-ensemble-estimator-scaling-reference",
+  "source_archive": {
+    "bytes": 158750720,
+    "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/available-h200/source.tar",
+    "sha256": "99b12ecc5562df44f8d7c1da747784c2fd7e5691190715412232781eed8d1c7a",
+    "source_commit": "7d8d61cc4aca40766a4daf91e4a611c8215ef923"
+  },
+  "status": "complete_available_capacity",
+  "successful_execution": {
+    "aggregate_member_steps": 179200,
+    "allocated_cpus": 10,
+    "allocated_gpus": 5,
+    "allocated_memory": "120G",
+    "gpu_uuids_by_rank": [
+      "GPU-492a2dee-88e3-a142-6707-7ade0192889a",
+      "GPU-a9aae28e-bf8d-4222-1979-bf832e1c54d5",
+      "GPU-a9a60ed1-3e39-a65e-f004-ede343f9b2ae",
+      "GPU-327c3233-06e3-ebef-0391-539cca8ff260",
+      "GPU-d20e4d6a-c6d8-0b1b-6ff6-a6a8908e8386"
+    ],
+    "job_id": 1242869,
+    "launcher_observed_member_steps_per_s": 4637.3152982858155,
+    "members_per_rank": 128,
+    "members_total": 640,
+    "merge_exit": 0,
+    "node": "98dci4-gpu-0003.iter.org",
+    "physics_end_iso": "2026-08-09T23:48:33.560037853+02:00",
+    "physics_exit": 0,
+    "physics_parallel_wall_s": 38.643048504,
+    "physics_start_iso": "2026-08-09T23:47:54.917226850+02:00",
+    "rank_elapsed_s": [
+      33.310866013,
+      33.179848358,
+      33.036444321,
+      38.476732767,
+      38.325534918
+    ],
+    "ranks": 5,
+    "reservation": "gpu_0003_grpA",
+    "scheduler_partition": "betelgeuse",
+    "steps": 280,
+    "timing_qualification": "Derived from the outer launcher physics window. The merge JSON preserves per-shard runtimes and leaves its own parallel timing fields null because the merge process does not receive the outer clock."
+  }
+}

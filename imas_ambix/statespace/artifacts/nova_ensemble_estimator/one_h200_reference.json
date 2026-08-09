@@ -1,0 +1,258 @@
+{
+  "array_shapes": {
+    "causal_analysis": [
+      280,
+      128,
+      4
+    ],
+    "causal_forecast": [
+      280,
+      128,
+      4
+    ],
+    "clock": [
+      280
+    ],
+    "edited_actuator": [
+      280,
+      128,
+      4
+    ],
+    "edited_equilibrium_flux": [
+      280,
+      128,
+      21
+    ],
+    "equilibrium_flux": [
+      280,
+      128,
+      21
+    ],
+    "fixed_lag_smoothing": [
+      280,
+      128,
+      4
+    ],
+    "full_sequence_smoothing": [
+      280,
+      128,
+      4
+    ],
+    "nominal_actuator": [
+      280,
+      128,
+      4
+    ],
+    "observations": [
+      280,
+      4
+    ],
+    "truth": [
+      280,
+      4
+    ]
+  },
+  "camera_proxy": {
+    "label": "proxy",
+    "product": "flux_surface_emissivity_proxy",
+    "validated_checkpoint": false
+  },
+  "equilibrium_products": {
+    "edited_equilibrium_flux": {
+      "axes": [
+        "clock",
+        "member",
+        "radial_face"
+      ],
+      "description": "member-wise one-dimensional poloidal-flux profiles under the edited actuator trajectory; not a two-dimensional Grad-Shafranov map",
+      "source": "Nova CurrentDiffusion.evolve psi_face",
+      "units": "Wb"
+    },
+    "equilibrium_flux": {
+      "axes": [
+        "clock",
+        "member",
+        "radial_face"
+      ],
+      "description": "member-wise one-dimensional poloidal-flux profiles on nested radial faces; not a two-dimensional Grad-Shafranov map",
+      "source": "Nova CurrentDiffusion.evolve psi_face",
+      "units": "Wb"
+    }
+  },
+  "execution": {
+    "backend": "gpu",
+    "devices": 1,
+    "gpu": {
+      "driver_version": "595.58.03",
+      "memory_mib": 143771,
+      "model": "NVIDIA H200 NVL",
+      "uuid": "GPU-492a2dee-88e3-a142-6707-7ade0192889a"
+    },
+    "job_id": 1242862,
+    "members": 128,
+    "node": "98dci4-gpu-0003.iter.org",
+    "performance_claim": "capability_evidence_only",
+    "reservation": "gpu_0003_grpA",
+    "run_exit": 0,
+    "scheduler_partition": "betelgeuse"
+  },
+  "gate_verdicts": {
+    "analysis_beats_conventional_enkf": {
+      "analysis_proper_score": 0.0020201312631511962,
+      "conventional_enkf_proper_score": 0.0014650563183673687,
+      "margin": -0.0005550749447838276,
+      "status": "fail"
+    },
+    "analysis_improves_forecast": {
+      "absolute_improvement": 1.004306101411688e-05,
+      "analysis_proper_score": 0.0020201312631511962,
+      "forecast_proper_score": 0.002030174324165313,
+      "status": "pass"
+    },
+    "finite_physics": {
+      "max_boundary_current_relative_error": 0.0023334277411578845,
+      "max_ledger_identity_error": 0.0,
+      "status": "pass"
+    }
+  },
+  "identity": "one_h200_reference",
+  "metrics": {
+    "actuator_response": {
+      "displacement_to_spread": 2.3860542790050543,
+      "edited_displacement": 0.09108765750485623,
+      "same_plan_spread": 0.03817501483781764
+    },
+    "comparators": {
+      "conventional_enkf": {
+        "cohort": "same synthetic cohort",
+        "ensemble_shape": [
+          280,
+          128,
+          4
+        ],
+        "identity": "random_walk_ensemble_kalman_filter",
+        "observation_operator": "identity",
+        "transition": "persistence_plus_gaussian_process_noise"
+      },
+      "persistence": {
+        "cohort": "same synthetic cohort",
+        "identity": "last_observation_persistence"
+      },
+      "torax_enkf": {
+        "cohort": "not a same-cohort skill claim",
+        "identity": "external reference only"
+      }
+    },
+    "horizons": {
+      "100_ms": {
+        "coverage_90": 0.9722222222222222,
+        "proper_score": 0.004268774668337819,
+        "sharpness_90": 0.05177718656895902
+      },
+      "10_ms": {
+        "coverage_90": 0.9277777777777778,
+        "proper_score": 0.0022074880693387887,
+        "sharpness_90": 0.015401284971591999
+      },
+      "250_ms": {
+        "coverage_90": 1.0,
+        "proper_score": 0.0083864142722327,
+        "sharpness_90": 0.11329313133812387
+      },
+      "50_ms": {
+        "coverage_90": 0.9565217391304348,
+        "proper_score": 0.0030788335127656637,
+        "sharpness_90": 0.030397283788928208
+      }
+    },
+    "innovation_rmse": {
+      "analysis": 0.005084506680483041,
+      "forecast": 0.00540085364815846
+    },
+    "physics": {
+      "common_random_numbers": true,
+      "correction_frequency_hz": 100,
+      "finite_members": 128,
+      "max_boundary_current_relative_error": 0.0023334277411578845,
+      "max_ledger_identity_error": 0.0,
+      "topology": "circular-nested-flux-surfaces"
+    },
+    "proper_score": {
+      "analysis": 0.0020201312631511962,
+      "conventional_enkf": 0.0014650563183673687,
+      "forecast": 0.002030174324165313,
+      "persistence": 0.05403622134474076
+    },
+    "runtime": {
+      "elapsed_s": 30.28608224587515,
+      "member_steps_per_s": 1183.3818487659055,
+      "peak_rss_kib": 4780872
+    },
+    "uncertainty": {
+      "in_distribution_spread": 0.013237302028925976,
+      "out_of_distribution_spread": 0.03817501483781764,
+      "widening_ratio": 2.8838969417180413
+    }
+  },
+  "provenance": {
+    "available_devices_per_process": 1,
+    "backend": "gpu",
+    "clock_hz": 1000,
+    "dtype": "float64",
+    "jax_version": "0.10.1",
+    "nova_revision": "fdbfd15b179ffbd562a2ac2b6e4961cc7442ab1e",
+    "nova_version": "0.11.0.post1014+gfdbfd15b",
+    "selected_devices_per_process": 1,
+    "source_commit": "7d8d61cc4aca40766a4daf91e4a611c8215ef923",
+    "topology": "circular-nested-flux-surfaces",
+    "x64_enabled": true
+  },
+  "qualifications": [
+    {
+      "detail": "The conditioned analysis improves its unconditioned forecast only slightly, but the same-cohort conventional random-walk EnKF has the lower proper score.",
+      "topic": "comparator",
+      "verdict": "qualified_negative"
+    },
+    {
+      "detail": "flux_surface_emissivity_proxy is unvalidated (validated_checkpoint=false); no camera checkpoint claim is made.",
+      "topic": "camera",
+      "verdict": "proxy_only"
+    },
+    {
+      "detail": "equilibrium_flux and edited_equilibrium_flux are direct Nova CurrentDiffusion.evolve psi_face histories in Wb on radial faces; they are not two-dimensional Grad-Shafranov maps.",
+      "topic": "equilibrium",
+      "verdict": "one_dimensional_profiles"
+    },
+    {
+      "detail": "CPU, one-H200, and five-H200 workloads have different member counts and timing envelopes. GPU results demonstrate capability and capacity, not a like-for-like speedup.",
+      "topic": "performance",
+      "verdict": "capability_not_speedup"
+    }
+  ],
+  "raw_evidence": [
+    {
+      "bytes": 4820,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/one-h200/result.json",
+      "sha256": "489adf4a52491a5d6bddc4b80603863939162b14d0b3a3e0c88bfa0b51101560"
+    },
+    {
+      "bytes": 18946582,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/one-h200/result.npz",
+      "sha256": "1be7a4c62373ac86c03f15f57f409d362258239c91da14b1a90c5c1350e17574"
+    },
+    {
+      "bytes": 7604,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/one-h200/reference.log",
+      "sha256": "a13c671f7302d78a677aab4173bf19ca1242e39454ca3d9eecf362753cea14d0"
+    }
+  ],
+  "schema": "nova-ensemble-estimator-reference",
+  "status": "complete",
+  "workload": {
+    "members": 128,
+    "radial_faces": 21,
+    "seed": 17,
+    "state_channels": 4,
+    "steps": 280
+  }
+}
