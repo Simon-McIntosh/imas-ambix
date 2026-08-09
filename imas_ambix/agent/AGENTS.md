@@ -186,12 +186,17 @@ prefetch producer/consumer threads — is **PROHIBITED** for production code.
 | `/work/projects/imas_gpu/` | Shared project directory for GPU workloads | GPFS (persistent) | Shared 1.5 PB |
 | `/work/projects/imas_gpu/agents/<slug>/model/` | Model weights per deployment | GPFS | — |
 | `/work/projects/imas_gpu/agents/<slug>/.cache/` | HF download cache per deployment | GPFS | — |
-| `/work/projects/imas_gpu/agents/{vllm,sglang}/.venv/` | Shared serving environment per engine | GPFS | — |
+| `~/.local/share/ambix/engine-envs/{vllm,sglang}/.venv/` | Per-user serving environment per engine | Home GPFS | — |
 | `/scratch_local/` | Fast staging, ephemeral per-node | Local NVMe | 5.9 TB |
 
 Engine versions are established by the serving-node setup verification log.
 Do not infer readiness from files observed only on the network-enabled install
 node.
+
+The environment root is configured by `AMBIX_AGENT_ENGINE_ENV_ROOT`; its
+default follows `XDG_DATA_HOME` or `~/.local/share`. Setup requires at least
+32 GiB free by default, configurable with
+`AMBIX_AGENT_ENGINE_ENV_MIN_FREE_GB`.
 
 ## 4. Composable Agent CLI
 
@@ -214,11 +219,12 @@ Adding a new model: create a TOML file in `imas_ambix/agent/profiles/<slug>.toml
 **Setup readiness contract:** `agent setup` submits a network-enabled install
 job followed by a dependent runtime verification job on `betelgeuse`. The
 verification runs after the producer allocation exits and checks the
-consumer-visible interpreter plus engine package metadata. The environment is
-ready only when the runtime verification job reaches `COMPLETED`; an install
-job reaching `COMPLETED` by itself is not readiness. If verification fails,
-do not submit a serve job—the GPFS namespace visible to the serving node does
-not contain an executable environment.
+consumer-visible interpreter, an exact per-run identity marker, and engine
+package metadata. The environment is ready only when the runtime verification
+job reaches `COMPLETED`; an install job reaching `COMPLETED` by itself is
+not readiness. If verification fails, do not submit a serve job. Relocation is
+rollback-free: setup writes a new engine-isolated home path and leaves the
+project-backed and shared legacy environments untouched.
 
 ## 4a. Driving an interactive agent against the local model (`clive`)
 

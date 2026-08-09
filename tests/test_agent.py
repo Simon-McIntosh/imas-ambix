@@ -1,5 +1,7 @@
 """Tests for the imas-ambix agent CLI and profile system."""
 
+from pathlib import Path
+
 from click.testing import CliRunner
 
 from imas_ambix.agent.profile import SiteConfig, list_profiles, load_profile
@@ -248,6 +250,10 @@ def test_generate_vllm_2x_serve_script():
 def test_site_config_defaults():
     site = SiteConfig()
     assert site.base_dir == "/work/projects/imas_gpu"
+    assert site.engine_env_root == str(
+        Path.home() / ".local" / "share" / "ambix" / "engine-envs"
+    )
+    assert site.engine_env_min_free_gb == 32
     assert site.partition == "betelgeuse"
     assert site.download_partition == "sirius"
     assert site.account == "grpa"
@@ -262,6 +268,7 @@ def test_site_config_model_dir():
 
 def test_site_config_venv_paths():
     site = SiteConfig()
+    assert site.env_dir("vllm") == Path(site.engine_env_root) / "vllm"
     assert site.python_path("vllm").name == "python"
     assert site.hf_path("vllm").name == "hf"
     assert site.python_path("sglang").name == "python"
@@ -287,10 +294,14 @@ def test_site_config_gpu_host():
 
 def test_site_config_from_env(monkeypatch):
     monkeypatch.setenv("AMBIX_AGENT_BASE_DIR", "/tmp/test")
+    monkeypatch.setenv("AMBIX_AGENT_ENGINE_ENV_ROOT", "/tmp/engine-envs")
+    monkeypatch.setenv("AMBIX_AGENT_ENGINE_ENV_MIN_FREE_GB", "48")
     monkeypatch.setenv("AMBIX_AGENT_PARTITION", "test-partition")
     monkeypatch.setenv("AMBIX_AGENT_DOWNLOAD_PARTITION", "test-dl")
     site = SiteConfig.from_env()
     assert site.base_dir == "/tmp/test"
+    assert site.engine_env_root == "/tmp/engine-envs"
+    assert site.engine_env_min_free_gb == 48
     assert site.partition == "test-partition"
     assert site.download_partition == "test-dl"
 
@@ -1304,6 +1315,13 @@ def test_setup_submits_runtime_check_after_network_install(monkeypatch):
     assert f"#SBATCH --reservation={site.reservation}" in runtime_check_script
     assert "#SBATCH --dependency=afterok:4101" in runtime_check_script
     assert str(site.python_path("vllm")) in runtime_check_script
+    identity_line = next(
+        line
+        for line in install_script.splitlines()
+        if line.startswith("SETUP_IDENTITY=")
+    )
+    identity = identity_line.partition("=")[2]
+    assert f"EXPECTED_SETUP_IDENTITY={identity}" in runtime_check_script
     assert "not ready until runtime verification job 4102 passes" in result.output
 
 
@@ -1313,8 +1331,10 @@ def test_setup_runtime_check_fails_when_interpreter_is_not_visible(tmp_path):
 
     from imas_ambix.agent.cli import _engine_runtime_check_script
 
-    site = SiteConfig(base_dir=str(tmp_path))
-    script = _engine_runtime_check_script("vllm", site, dependency_job_id="4101")
+    site = SiteConfig(base_dir=str(tmp_path), engine_env_root=str(tmp_path / "envs"))
+    script = _engine_runtime_check_script(
+        "vllm", site, dependency_job_id="4101", expected_identity="abc123"
+    )
     result = subprocess.run(
         ["bash"], input=script, capture_output=True, text=True, check=False
     )
@@ -1330,19 +1350,59 @@ def test_setup_runtime_check_passes_with_durable_interpreter(tmp_path):
 
     from imas_ambix.agent.cli import _engine_runtime_check_script
 
-    site = SiteConfig(base_dir=str(tmp_path))
+    site = SiteConfig(base_dir=str(tmp_path), engine_env_root=str(tmp_path / "envs"))
     python = site.python_path("vllm")
     python.parent.mkdir(parents=True)
     python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     python.chmod(0o755)
+    identity = site.env_dir("vllm") / ".ambix-setup-identity"
+    identity.write_text("abc123\n", encoding="utf-8")
 
-    script = _engine_runtime_check_script("vllm", site, dependency_job_id="4101")
+    script = _engine_runtime_check_script(
+        "vllm", site, dependency_job_id="4101", expected_identity="abc123"
+    )
     result = subprocess.run(
         ["bash"], input=script, capture_output=True, text=True, check=False
     )
 
     assert result.returncode == 0, result.stderr
     assert "Runtime verification complete" in result.stdout
+
+
+def test_setup_runtime_check_rejects_stale_environment_identity(tmp_path):
+    """An executable from a different setup run is not a durable postcondition."""
+    import subprocess
+
+    from imas_ambix.agent.cli import _engine_runtime_check_script
+
+    site = SiteConfig(base_dir=str(tmp_path), engine_env_root=str(tmp_path / "envs"))
+    python = site.python_path("vllm")
+    python.parent.mkdir(parents=True)
+    python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    python.chmod(0o755)
+    identity = site.env_dir("vllm") / ".ambix-setup-identity"
+    identity.write_text("stale\n", encoding="utf-8")
+
+    script = _engine_runtime_check_script(
+        "vllm", site, dependency_job_id="4101", expected_identity="current"
+    )
+    result = subprocess.run(
+        ["bash"], input=script, capture_output=True, text=True, check=False
+    )
+
+    assert result.returncode != 0
+    assert "does not match the completed network install" in result.stderr
+
+
+def test_setup_dry_run_checks_capacity_and_records_size():
+    runner = CliRunner()
+    result = runner.invoke(main, ["agent", "setup", "vllm", "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "AVAILABLE_KIB=$(df -Pk" in result.output
+    assert "MIN_FREE_KIB=$((32 * 1024 * 1024))" in result.output
+    assert "ENV_SIZE_BYTES=$(du -s --block-size=1" in result.output
+    assert ".ambix-setup-identity" in result.output
 
 
 def test_setup_invalid_engine():
