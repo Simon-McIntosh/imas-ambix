@@ -18,10 +18,10 @@
   <title>Learned Closures in the Differentiable Current-Diffusion Filter | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-modified" content="2026-08-10">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
 </head>
 <body>
   <main class="plan-doc">
@@ -286,13 +286,13 @@
       </p>
     <p class="r-dec-rat"></p>
     </div>
-<div class="r-dec" data-key="solver-framework" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="solver-framework" data-choice="jax" data-by="reckon-edit" data-when="2026-08-10T14:18:57+00:00">
     <p class="r-dec-q">Which autodiff framework hosts the differentiable solver?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="torch">torch (recommended — repo GPU stack, bf16/H200 path, torch.func.vmap; TORAX stays cross-check only per the da-substrate lock)</button>
-      <button class="r-opt" data-value="jax">JAX (TORAX-adjacent vmap/scan ergonomics; second stack to maintain)</button>
+      <button class="r-opt chosen" data-value="jax">JAX (TORAX-adjacent vmap/scan ergonomics; second stack to maintain)</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">Adjudicated by landed code, recorded here to clear the drift: the ψ-diffusion solver was ported to JAX in nova (jit/vmap/grad-safe Thomas kernel, byte-parity with the torch prototype, &lt;1% RMS vs TORAX) and ambix consumes it through the pinned imas_ambix/physics facade under the nova-owns-physics boundary — a new torch solver would be dual maintenance of retired donor physics. With TORAX (JAX) becoming nova&#x27;s embedded high-fidelity transport rung (nova:flux-function-forward-transport), JAX is the first stack for the differentiable solver, not a second one.</p>
     </div>
 <div class="r-dec" data-key="amortization" data-choice="" data-by="" data-when="">
     <p class="r-dec-q">How are closure parameters fit?</p>

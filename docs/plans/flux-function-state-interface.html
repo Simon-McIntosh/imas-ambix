@@ -20,18 +20,19 @@
   <meta name="plan-sprint" content="S17">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="cocos-convention-hardening">
-  <meta name="plan-informs" content="nova:flux-function-forward-equilibrium">
+  <meta name="plan-informs" content="nova:flux-function-forward-equilibrium,nova:flux-function-forward-transport">
   <title>Flux-Function State Interface | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-10">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="4">
 </head>
 <body>
   <main class="plan-doc">
     <h2 id="s1">§1 — Authority boundary</h2>
     <p><strong>Ambix owns inference, temporal evolution and correction of equilibrium source functions.</strong> It consumes diagnostics, actuators and prior transport state; propagates a causal ensemble; applies learned corrections to uncertain closures; and emits the physical state that makes an axisymmetric equilibrium problem fully specified. Ambix does not choose a free-boundary flux map, classify the resulting topology, fit magnetics inside a Grad–Shafranov iteration, or carry a second copy of Nova's field kernels.</p>
     <p><strong>Nova owns the deterministic physics operator.</strong> It takes conductor currents, machine geometry and the supplied flux-function state; constructs force-balanced current sources; solves the free-boundary fixed point; and reports topology plus force, field and current-conservation diagnostics. This moves the traditional equilibrium-regression boundary upstream: the regression is an Ambix state-estimation concern, while Nova's public solve contains no measurement design matrix and no least-squares profile update.</p>
+    <p><strong>The same authority split covers transport, not only the Grad–Shafranov solve.</strong> Nova owns the deterministic transport forward solve as well: given the flux-surface-averaged geometry record, an initial profile state, actuator waveforms and a declared source and transport-model selection, Nova advances the 1D flux-surface state and returns conservation receipts (<a href="/nova/flux-function-forward-transport.html">nova:flux-function-forward-transport</a>). Transport fidelity — from the native current-diffusion rung to the embedded TORAX multi-channel step — is a declared model selection inside Nova's contract, never a silent approximation the consumer must reverse-engineer. Ambix's role is unchanged on both sides of the loop: it conditions what enters the physics forwards and corrects what leaves them, and a transport-evolved state enters this contract as a first-class causal producer.</p>
 
     <figure>
       <img src="/imas-ambix/figures/flux-function-state-interface/producer-contract.svg" alt="Ambix learns and evolves a flux-function ensemble, emits a typed state, and leaves the equilibrium solve to Nova">
@@ -55,7 +56,7 @@
 
     <h2 id="s3">§3 — Producer adapters</h2>
     <ol>
-      <li><strong>Current-diffusion adapter.</strong> Convert Nova <code>CurrentDiffusion</code> outputs and Ambix learned closure corrections into one causal <code>FluxFunctionState</code>. A projection onto a named representation is permitted only as deterministic state conversion; it must not use equilibrium measurements or re-fit a slice.</li>
+      <li><strong>Transport-forward adapter.</strong> Convert Nova transport forward outputs — <code>CurrentDiffusion</code> today, the multi-channel <code>ForwardTransport</code> rungs as they land — and Ambix learned closure corrections into one causal <code>FluxFunctionState</code>. A projection onto a named representation is permitted only as deterministic state conversion; it must not use equilibrium measurements or re-fit a slice.</li>
       <li><strong>Sequential-estimator adapter.</strong> Batch ensemble members without collapsing them to one mean solve. Preserve forecast, analysis and smoothing labels; only forecast/analysis states qualify for an online handoff.</li>
       <li><strong>New-physics registry.</strong> Admit a term only with a declared force-balance model, independent inputs, units and a manufactured equilibrium. Rotation begins with an isothermal-surface toroidal-flow closure; generic source-basis terms stay diagnostics until physically identified.</li>
       <li><strong>SOL extension.</strong> Represent toroidal SOL current through pressure and toroidal-field-function gradients on topology-qualified open regions. Field-aligned or poloidal current is a separate contract because it requires <code>F(psi)</code> and current closure at material boundaries, not merely a toroidal-current image outside the LCFS.</li>

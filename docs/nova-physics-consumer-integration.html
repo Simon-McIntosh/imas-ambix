@@ -18,8 +18,8 @@
   <title>Nova Physics Consumer Integration | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-09">
-<meta name="plan-version" content="5">
+<meta name="plan-modified" content="2026-08-10">
+<meta name="plan-version" content="6">
 <meta name="plan-depends-on" content="">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
@@ -153,6 +153,11 @@ Done-when
   Every consumed Nova capability has an exact revision, contract tests and linked Nova
   evidence; remaining donors have explicit parity/deletion gates; the migration inventory
   is zero or narrowed to documented active Nova capabilities.</pre>
+    </article>
+<article class="r-fu" data-id="f-npci-03" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-edit" data-written-at="2026-08-10" data-recommends-skill="/reckon-ship nova-physics-consumer-integration §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Lift TORAX consumers onto the Nova transport forward contract and retire the torch donor</h4>
+    <div class="r-fu-body"><p>The transport capability inventory recorded four consumer-side obligations. The statespace estimators call whole-run TORAX on analytic circular geometry with a broad exception handler that silently degrades to zero-filled profiles (up to 128 whole simulations per shot in the ensemble smoother). The torch donor <code>imas_ambix/latent/current_diffusion.py</code> remains in-tree after the Nova JAX port, with two functions never ported (<code>reconstruct_profile_scales</code>, <code>beta_p_coeff_sensitivity</code>). The evolved-profile projection is not wired into the label-solve soft-prior hook it was built for. The learned <code>FluxDiffusionPrior</code> accepts a Nova <code>CurrentDiffusion</code> that is inert in its math. When Nova's <code>ForwardTransport</code> lands (nova:flux-function-forward-transport), lift the estimators onto the step-wise API with Nova-built geometry, make engine failure raise instead of fabricating zeros, port or explicitly retain the two donor functions, and retire the donor with zero-import census proof.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship nova-physics-consumer-integration §2</pre>
     </article>
 </section>
   <section data-reckon="research" id="research" class="r-research-list">
