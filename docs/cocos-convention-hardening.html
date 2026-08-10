@@ -18,8 +18,8 @@
   <title>COCOS Convention Hardening | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-09">
-<meta name="plan-version" content="3">
+<meta name="plan-modified" content="2026-08-10">
+<meta name="plan-version" content="4">
 <meta name="plan-sprint" content="S17">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
@@ -144,13 +144,13 @@
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="cocos-normalisation-target" data-choice="" data-by="" data-when="">
-    <p class="r-dec-q">Which convention is the pipeline&#x27;s canonical internal COCOS that §4 normalises INTO — the pipeline&#x27;s current MAST-native (COCOS-3-like, total-Φ, axis=max) working convention, or IMAS-standard COCOS-11?</p>
+<div class="r-dec" data-key="cocos-normalisation-target" data-choice="cocos17-ddv4" data-by="Simon McIntosh" data-when="2026-08-10T10:46:16+00:00">
+    <p class="r-dec-q">Which convention is the canonical internal contract for Nova and Ambix?</p>
+    <p class="r-dec-ctx">DDv4 defines COCOS 17. Raw facility data remains immutable; source-specific conventions are normalized lazily through reviewed maps at the Ambix read boundary.</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="keep-native">keep the current working convention (total-Φ Wb, axis=flux max) as canonical and normalise IMAS inputs into it — zero churn to the verified MAST forward chain and all downstream reads; the IMAS boundary does the conversion</button>
-      <button class="r-opt" data-value="adopt-cocos11">adopt IMAS COCOS-11 as canonical and convert the MAST raw path into it — aligns internal state with the DD standard and imas-ink, but re-touches the empirically-verified sign chain and the sign-aware topology reads</button>
+      <button class="r-opt chosen" data-value="cocos17-ddv4">Use COCOS 17 and DDv4 as the canonical Nova/Ambix contract; retain raw data unchanged and apply source-to-canonical transformations through lightweight, versioned maps.</button>
       </p>
-    <p class="r-dec-rat">The MAST forward chain and the topology reads are verified in the current convention; making it canonical is zero-churn and confines all conversion to the one IMAS boundary (§4). Adopting COCOS-11 internally is cleaner against the DD but re-opens verified code. Recommend keeping the native working convention canonical and converting at the seam, unless a downstream IMAS-native consumer forces COCOS-11 internally.</p>
+    <p class="r-dec-rat">The user requires Nova and Ambix to be canonical COCOS 17/DDv4. imas-codex discovers source mappings; Ambix distils, versions, compiles, and applies them lazily without rewriting raw data. This supersedes the obsolete COCOS-11 premise.</p>
     </div>
 </section>
 
