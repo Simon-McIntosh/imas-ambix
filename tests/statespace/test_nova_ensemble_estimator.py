@@ -32,7 +32,7 @@ def conditioned_products():
 def test_physical_and_provenance_contract(conditioned_products):
     config, result, _ = conditioned_products
     assert result.provenance.nova_revision == (
-        "fdbfd15b179ffbd562a2ac2b6e4961cc7442ab1e"
+        "de3277a3238513b81be04dbc0980030b200ce420"
     )
     assert result.provenance.backend == "cpu"
     assert result.provenance.x64_enabled
