@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="flux-function-state-interface">
+  <meta name="plan-title" content="Flux-Function State Interface">
+  <meta name="plan-summary" content="Make Ambix the causal producer of typed, uncertainty-bearing core and SOL flux functions while Nova remains the sole owner of deterministic force-balance solves">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="M">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="elevated">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint" content="S17">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-depends-on" content="cocos-convention-hardening">
+  <meta name="plan-informs" content="nova:flux-function-forward-equilibrium">
+  <title>Flux-Function State Interface | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — Authority boundary</h2>
+    <p><strong>Ambix owns inference, temporal evolution and correction of equilibrium source functions.</strong> It consumes diagnostics, actuators and prior transport state; propagates a causal ensemble; applies learned corrections to uncertain closures; and emits the physical state that makes an axisymmetric equilibrium problem fully specified. Ambix does not choose a free-boundary flux map, classify the resulting topology, fit magnetics inside a Grad–Shafranov iteration, or carry a second copy of Nova's field kernels.</p>
+    <p><strong>Nova owns the deterministic physics operator.</strong> It takes conductor currents, machine geometry and the supplied flux-function state; constructs force-balanced current sources; solves the free-boundary fixed point; and reports topology plus force, field and current-conservation diagnostics. This moves the traditional equilibrium-regression boundary upstream: the regression is an Ambix state-estimation concern, while Nova's public solve contains no measurement design matrix and no least-squares profile update.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/flux-function-state-interface/producer-contract.svg" alt="Ambix learns and evolves a flux-function ensemble, emits a typed state, and leaves the equilibrium solve to Nova">
+      <figcaption>One typed seam: Ambix produces the uncertain source state; Nova alone turns it into a force-balanced field.</figcaption>
+    </figure>
+
+    <h2 id="s2">§2 — Contract carried across the seam</h2>
+    <p>The first deliverable is a small immutable <code>FluxFunctionState</code> contract with a stable numpy/JAX boundary. It carries primitives as well as derivatives so a consumer can check calculus consistency instead of trusting two unrelated arrays.</p>
+    <table>
+      <thead><tr><th>Field</th><th>Required meaning</th><th>Failure mode prevented</th></tr></thead>
+      <tbody>
+        <tr><td>radial coordinate</td><td>monotone values, coordinate kind, axis and separatrix references, and the Jacobian needed to obtain derivatives with respect to total poloidal flux</td><td>silently treating a derivative with respect to normalised flux as Pa/Wb</td></tr>
+        <tr><td><code>pressure</code> and <code>dpressure_dpsi</code></td><td>pressure primitive and its physical derivative, with explicit units and one consistency tolerance</td><td>an unconstrained pressure drive that cannot integrate to the stated pressure</td></tr>
+        <tr><td><code>f</code> and <code>f_df_dpsi</code></td><td>toroidal-field function <code>F=R B_phi</code> and <code>F F'</code>, with COCOS and sign provenance</td><td>confusing <code>F'</code> with <code>F F'</code> or flipping signs at the seam</td></tr>
+        <tr><td>optional flow closure</td><td>typed thermodynamic model plus <code>Omega(psi)</code>, temperature and required species assumptions</td><td>calling an unconstrained extra radial-power coefficient “rotation”</td></tr>
+        <tr><td>domain profiles</td><td>core plus common-SOL and private-flux policies, keyed to Nova topology classes rather than a single boolean mask</td><td>applying one <code>psi_N&gt;1</code> profile to physically distinct open-field regions</td></tr>
+        <tr><td>uncertainty and provenance</td><td>ensemble member or covariance identity, causal timestamp, model/checkpoint digest, source diagnostics and validity flags</td><td>reporting a posterior or smoothed profile as a causal prior</td></tr>
+        <tr><td>integral-constraint policy</td><td>absolute-source or an explicit low-dimensional closure carrying its free amplitudes, targets, tolerances and prior; target and achieved <code>I_p</code>, <code>beta_p</code> and <code>l_i</code> remain in the result ledger</td><td>silently turning a forward solve into underdetermined profile inference</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s3">§3 — Producer adapters</h2>
+    <ol>
+      <li><strong>Current-diffusion adapter.</strong> Convert Nova <code>CurrentDiffusion</code> outputs and Ambix learned closure corrections into one causal <code>FluxFunctionState</code>. A projection onto a named representation is permitted only as deterministic state conversion; it must not use equilibrium measurements or re-fit a slice.</li>
+      <li><strong>Sequential-estimator adapter.</strong> Batch ensemble members without collapsing them to one mean solve. Preserve forecast, analysis and smoothing labels; only forecast/analysis states qualify for an online handoff.</li>
+      <li><strong>New-physics registry.</strong> Admit a term only with a declared force-balance model, independent inputs, units and a manufactured equilibrium. Rotation begins with an isothermal-surface toroidal-flow closure; generic source-basis terms stay diagnostics until physically identified.</li>
+      <li><strong>SOL extension.</strong> Represent toroidal SOL current through pressure and toroidal-field-function gradients on topology-qualified open regions. Field-aligned or poloidal current is a separate contract because it requires <code>F(psi)</code> and current closure at material boundaries, not merely a toroidal-current image outside the LCFS.</li>
+      <li><strong>Integral-constraint conditioner.</strong> Treat <code>I_p</code>, <code>beta_p</code> and <code>l_i</code> as observations of the supplied profile state. A one-amplitude shape family may use <code>I_p</code> as an explicit scalar closure. Two or more moment targets require the same number of physically named profile degrees of freedom plus an Ambix prior or covariance; that conditioning occurs before the Nova handoff and retains posterior provenance. Nova supplies the differentiable moment operator and its residual/Jacobian, but does not choose the correction.</li>
+      <li><strong>IMAS egress.</strong> Provide a lossless adapter to equilibrium <code>profiles_1d</code> where the selected Data Dictionary can express the state. Keep model-specific closure and uncertainty metadata in a versioned extension until a standard field exists; do not overload an unrelated IDS quantity.</li>
+    </ol>
+
+    <h2 id="s4">§4 — Acceptance evidence</h2>
+    <ul>
+      <li>Round-trip fixtures preserve coordinate kind, total-flux units, COCOS, pressure, <code>F</code>, both derivatives, core/SOL domain policy and ensemble identity.</li>
+      <li>Finite-difference and analytic derivative checks fail loudly if the primitive and derivative profiles disagree beyond the declared discretisation tolerance.</li>
+      <li>An absolute-source fixture reaches Nova without any current renormalisation; inconsistent target <code>I_p</code>, <code>beta_p</code> or <code>l_i</code> values produce residuals rather than profile mutation.</li>
+      <li>A one-amplitude fixture closes to target <code>I_p</code> with a banked uniqueness/conditioning check. Multi-moment fixtures are rejected unless the declared profile family has sufficient physical degrees of freedom and an Ambix prior; posterior deltas and covariance are preserved.</li>
+      <li>Causal forecast and causal analysis handoffs are distinguishable from fixed-lag and full-sequence smoothing at the type boundary.</li>
+      <li>Static, rotating and SOL-extended manufactured states each drive the Nova forward solve and return finite, force-balanced equilibria with a closed current ledger.</li>
+      <li>The consumer contract test pins one reviewed Nova revision and exercises eager, jitted and batched member paths without importing Nova physics implementation into Ambix.</li>
+    </ul>
+
+    <h2 id="s5">§5 — Explicit exclusions</h2>
+    <p>This plan does not choose a profile basis for learning, train the closure model, solve the Grad–Shafranov equation, or define a sheath/halo-current model. Profile conditioning against <code>I_p</code> or moment observations reuses the existing Ambix current-recovery and learned-closure authority; Nova's <code>ForwardProfile</code> supplies the deterministic observation operator and field, while a future open-field boundary-current model is required for material return currents.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Interview decisions</h2>
+      <div class="r-dec" data-key="radial-coordinate" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which coordinate is canonical at the Ambix–Nova seam? Recommendation: normalised poloidal flux with the physical total-flux Jacobian carried explicitly, because it matches the free-boundary source evaluation while retaining Pa/Wb and T²/Wb derivatives.</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="psi-norm-with-jacobian">psi-norm-with-jacobian</button>
+          <button class="r-opt" data-value="total-poloidal-flux">total-poloidal-flux</button>
+          <button class="r-opt" data-value="rho-tor-with-map">rho-tor-with-map</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="normalisation-owner" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Does Ambix emit absolute physical source functions, or shapes plus a separate plasma-current target? Recommendation: absolute sources by default; allow a one-amplitude <code>I_p</code> closure only as a declared profile family with a target, tolerance, uniqueness receipt and provenance.</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="absolute-sources">absolute-sources</button>
+          <button class="r-opt" data-value="explicit-shape-current">explicit-shape-current</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="moment-constraint-authority" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">If <code>beta_p</code> or <code>l_i</code> must be matched rather than reported, where is the profile correction performed? Recommendation: condition the Ambix profile ensemble using Nova's differentiable moment map; do not add coefficient fitting to <code>ForwardProfile</code>.</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="ambix-profile-conditioning">ambix-profile-conditioning</button>
+          <button class="r-opt" data-value="nova-reconstruct-profile">nova-reconstruct-profile</button>
+          <button class="r-opt" data-value="forward-profile-fitting">forward-profile-fitting</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="sol-current-scope" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">When you say SOL current, is the first target toroidal current density from SOL pressure and <code>F F'</code> gradients, or also poloidal/field-aligned current into material surfaces? Recommendation: toroidal source-function current first; treat field-aligned current as a separately closed boundary-current problem.</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="toroidal-source-first">toroidal-source-first</button>
+          <button class="r-opt" data-value="include-field-aligned">include-field-aligned</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="uncertainty-handoff" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">What is the authoritative uncertainty payload? Recommendation: weighted ensemble members, because Nova can batch the nonlinear solves and preserve non-Gaussian topology changes that a mean/covariance pair cannot.</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="weighted-ensemble">weighted-ensemble</button>
+          <button class="r-opt" data-value="mean-covariance">mean-covariance</button>
+          <button class="r-opt" data-value="both">both</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-ffsi-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-10" data-recommends-skill="/reckon-ship flux-function-state-interface §2">
+        <h4 class="r-fu-title">Define the typed state and bank cross-repository fixtures</h4>
+        <div class="r-fu-body"><p>After the interview decisions are locked and COCOS hardening lands, implement the smallest immutable producer contract, derivative/units checks, causal provenance and synthetic core/rotation/SOL fixtures. The work ends at the Nova call boundary; no equilibrium solver or field kernel enters Ambix.</p></div>
+        <pre class="r-fu-prompt">Project: imas-ambix
+Plan:    flux-function-state-interface (http://localhost:8765/imas-ambix/flux-function-state-interface.html)
+Section: §2–§4
+Capability: orchestrator
+Requirements: deep reasoning, strict scientific and interface verification
+
+Context
+  Ambix is the causal producer of inferred and evolved flux functions; Nova owns the deterministic equilibrium solve. Implement the one typed seam after the interview decisions and COCOS prerequisite are resolved.
+  Honour the Locked decisions and surface the Open decisions shown live above this brief — do not re-list them.
+
+State to read  (CODE / FILES / DATA — not the plan itself; the builder already injects the live plan-state URL above)
+  imas_ambix/statespace/, Nova transport/current_diffusion.py and equilibrium/forward_operator.py at the reviewed pin, tests/statespace/, docs/plans/hybrid-state-estimation-smoke.html
+
+Scope locks / constraints  (non-decision)
+  Ambix owns inference, temporal correction, uncertainty and provenance. Nova owns topology, source assembly, fixed-point solution and conservation diagnostics. Use imas-python for IMAS data and preserve exact DD/COCOS provenance.
+
+Done-when
+  1. Immutable contract, producer adapters and derivative/units/causality checks are committed and pushed
+  2. Static, rotation and topology-qualified SOL fixtures round-trip across the pinned Nova consumer; focused and full relevant tests are green
+  3. Followup written into the plan + this followup marked resolved</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
