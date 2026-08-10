@@ -7,14 +7,14 @@
   <meta name="reckon-type" content="evidence">
   <meta name="plan-slug" content="hybrid-state-estimation-smoke-landed">
   <meta name="plan-title" content="Nova Ensemble Estimator — Measured Evidence">
-  <meta name="plan-summary" content="Verified CPU, one-H200 and maximum-available five-H200 evidence for the Nova-propagated Ambix ensemble estimator; six of seven evidence gates are banked and the eight-card weak-scaling measurement remains capacity-blocked.">
+  <meta name="plan-summary" content="Verified CPU, one-H200, five-H200 and full eight-H200 evidence for the Nova-propagated Ambix ensemble estimator; all seven evidence gates are banked with the comparator, coverage, proxy, equilibrium-product and timing qualifications preserved.">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-recorded-at" content="2026-08-10">
   <meta name="plan-evidence-for" content="hybrid-state-estimation-smoke">
   <meta name="plan-verdict" content="qualified-pass">
-  <meta name="plan-source" content="source 7d8d61cc4aca40766a4daf91e4a611c8215ef923; evidence 1550260530358e2c1ba06519e654284b8c6c7def">
-  <meta name="plan-source-quality" content="independently verified deterministic CPU and GPU artifacts">
-  <meta name="plan-artifacts" content="imas_ambix/statespace/artifacts/nova_ensemble_estimator/manifest.json,imas_ambix/statespace/artifacts/nova_ensemble_estimator/posterior_samples.npz,docs/figures/nova-ensemble-estimator/estimator-summary.png">
+  <meta name="plan-source" content="source 7d8d61cc4aca40766a4daf91e4a611c8215ef923; bounded evidence 3e2cf5c9f972f4fcd55ca9bcc3aacc4fd5dd2489; eight-H200 job 1242905">
+  <meta name="plan-source-quality" content="independently verified deterministic CPU, one-H200, five-H200 and eight-H200 artifacts">
+  <meta name="plan-artifacts" content="imas_ambix/statespace/artifacts/nova_ensemble_estimator/manifest.json,imas_ambix/statespace/artifacts/nova_ensemble_estimator/eight_h200_scaling.json,imas_ambix/statespace/artifacts/nova_ensemble_estimator/posterior_samples.npz,docs/figures/nova-ensemble-estimator/estimator-summary.png">
   <title>Nova Ensemble Estimator — Measured Evidence | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
@@ -22,7 +22,7 @@
 <body>
 <main class="plan-doc">
   <h1>Nova Ensemble Estimator — Measured Evidence</h1>
-  <p><strong>Qualified pass.</strong> The Nova transition, causal forecast and analysis, non-causal fixed-lag/full smoothing, uncertainty reporting, edited-actuator response and bounded artifact bundle are implemented and verified. CPU, one-H200 and five-H200 results use exact Nova revision <code>fdbfd15b179ffbd562a2ac2b6e4961cc7442ab1e</code>, JAX 0.10.1, x64 and float64. The only unbanked requirement is the eight-H200/1,024-member weak-scaling run; three cards remain occupied by live services, so that gate is capacity-blocked rather than scientifically failed.</p>
+  <p><strong>Qualified pass; all seven evidence gates banked.</strong> The Nova transition, causal forecast and analysis, non-causal fixed-lag/full smoothing, uncertainty reporting, edited-actuator response and bounded artifact bundle are implemented and verified. CPU, one-H200, five-H200 and eight-H200 results use exact Nova revision <code>fdbfd15b179ffbd562a2ac2b6e4961cc7442ab1e</code>, JAX 0.10.1, x64 and float64. Full-node job <code>1242905</code> completed eight independent 128-member shards and merged exactly 1,024 members without changing any banked reference.</p>
 
   <figure>
     <img src="/imas-ambix/figures/nova-ensemble-estimator/estimator-summary.png" alt="Six-panel evidence summary showing estimator trajectories, comparator scores, innovation, forecast calibration, direct Nova radial flux profiles and CPU plus H200 capacity receipts.">
@@ -36,39 +36,39 @@
       <tr><td>CPU job <code>1242861</code></td><td>32 members × 280 steps</td><td>2.8792 s; 3,111.990 member-steps/s</td><td>Runnable deterministic reference</td></tr>
       <tr><td>One-H200 job <code>1242862</code></td><td>128 members × 280 steps</td><td>30.2861 s; 1,183.382 member-steps/s</td><td>Accelerator capability, not a speedup claim</td></tr>
       <tr><td>Five-H200 job <code>1242869</code></td><td>5 ranks × 128 members × 280 steps</td><td>38.6430 s outer physics wall; 4,637.315 member-steps/s</td><td>Maximum-available capacity receipt; workloads and timing envelopes differ</td></tr>
-      <tr><td>Eight H200s</td><td>8 ranks × 128 = 1,024 members</td><td><code>blocked_capacity</code></td><td>Jobs <code>1242792</code> and <code>1229670</code> occupy three cards and 17 of 30 reserved CPUs</td></tr>
+      <tr><td>Eight-H200 job <code>1242905</code></td><td>8 ranks × 128 members × 280 steps</td><td>37.2068 s outer physics wall; 7,706.124 member-steps/s</td><td>Verified full-node capacity receipt; eight distinct H200 UUIDs and exact 1,024-member merge</td></tr>
     </tbody>
   </table>
-  <p>The launch sequence is retained without erasure: jobs <code>1242864</code>–<code>1242868</code> record one capacity wait and four environment/launcher corrections; none produced posterior arrays. Job <code>1242869</code> produced the five-shard scientific result. Total allocated accelerator time across all attempts was about 11.83 GPU-minutes, including 5.25 GPU-minutes for the successful job, versus the original eight-GPU × one-hour capacity ceiling. The protected services were never stopped, resized or preempted.</p>
+  <p>The launch sequence is retained without erasure: jobs <code>1242864</code>–<code>1242868</code> record one capacity wait and four environment/launcher corrections; none produced posterior arrays. Job <code>1242869</code> produced the five-shard scientific result. After explicit authority to drain the services, job <code>1242901</code> failed in one second before dependency sync or rank entry because an archive-only source was incorrectly required to contain <code>.git</code>; it produced no scientific artifacts. Corrected job <code>1242905</code> completed. It used 10.533 allocated GPU-minutes, including 4.961 GPU-minutes in the measured outer physics window, against the authorized eight-GPU × one-hour ceiling. DSv4 was restored ready on two H200s at its unchanged endpoint, and embedding was restored on Titan through the repaired imas-codex CLI.</p>
 
   <h2 id="scorecard">Scientific scorecard</h2>
   <table>
-    <thead><tr><th>Measure</th><th>CPU reference</th><th>Five-H200 merged</th><th>Verdict</th></tr></thead>
+    <thead><tr><th>Measure</th><th>CPU reference</th><th>Five-H200 merged</th><th>Eight-H200 merged</th><th>Verdict</th></tr></thead>
     <tbody>
-      <tr><td>Innovation RMSE, forecast → analysis</td><td>0.0054993 → 0.0051658</td><td>0.0054010 → 0.0050825</td><td>Improves</td></tr>
-      <tr><td>Proper score, forecast → analysis</td><td>0.0020952 → 0.0020845</td><td>0.0020338 → 0.0020229</td><td>Modest improvement</td></tr>
-      <tr><td>Conventional EnKF proper score</td><td>0.0015286</td><td>0.0014645</td><td>EnKF remains better; no superiority claim</td></tr>
-      <tr><td>OOD widening ratio</td><td>2.9078</td><td>2.8722</td><td>Uncertainty widens</td></tr>
-      <tr><td>Edited displacement / spread</td><td>2.4177</td><td>2.3551</td><td>Actuator response exceeds same-plan spread</td></tr>
-      <tr><td>10 ms empirical 90% coverage</td><td>0.875</td><td>0.9444</td><td>CPU reference is below nominal 0.90</td></tr>
-      <tr><td>Boundary-current / ledger error</td><td>0.0022914 / 0</td><td>0.0023334 / 0</td><td>Finite physics contract</td></tr>
+      <tr><td>Innovation RMSE, forecast → analysis</td><td>0.0054993 → 0.0051658</td><td>0.0054010 → 0.0050825</td><td>0.0053923 → 0.0050750</td><td>Improves</td></tr>
+      <tr><td>Proper score, forecast → analysis</td><td>0.0020952 → 0.0020845</td><td>0.0020338 → 0.0020229</td><td>0.0020287 → 0.0020179</td><td>Modest improvement</td></tr>
+      <tr><td>Conventional EnKF proper score</td><td>0.0015286</td><td>0.0014645</td><td>0.0014618</td><td>EnKF remains better; no superiority claim</td></tr>
+      <tr><td>OOD widening ratio</td><td>2.9078</td><td>2.8722</td><td>Preserved in the tracked scorecard</td><td>Uncertainty widens</td></tr>
+      <tr><td>Edited displacement / spread</td><td>2.4177</td><td>2.3551</td><td>Preserved in the tracked scorecard</td><td>Actuator response exceeds same-plan spread</td></tr>
+      <tr><td>10 ms empirical 90% coverage</td><td>0.875</td><td>0.9444</td><td>0.9444</td><td>CPU reference is below nominal 0.90</td></tr>
+      <tr><td>Boundary-current / ledger error</td><td>0.0022914 / 0</td><td>0.0023334 / 0</td><td>0.0023575 / 0</td><td>Finite physics contract</td></tr>
     </tbody>
   </table>
-  <p>All eleven CPU and GPU products are finite float64. The first 32 CPU and H200 members agree across every full array to a worst maximum absolute difference of <code>3.9523939676655573e-14</code>. Split shards merge exactly by global member identity. Causality tests pin earlier forecast and analysis against future-observation changes while allowing smoothing to change.</p>
+  <p>All eleven CPU and GPU products are finite float64. The first 32 CPU and H200 members agree across every full array to a worst maximum absolute difference of <code>3.9523939676655573e-14</code>. The eight-card result exactly reproduces the banked one-card rank, the five banked shard arrays and the first 640 members of the five-card merge; all eight shards merge exactly by global member identity. Causality tests pin earlier forecast and analysis against future-observation changes while allowing smoothing to change.</p>
 
   <h2 id="products">Products and qualifications</h2>
   <ul>
     <li><strong>Estimator products:</strong> causal forecast, causal analysis, fixed-lag smoothing and full-sequence smoothing from one Nova-propagated ensemble.</li>
     <li><strong>Equilibrium products:</strong> direct <code>Nova CurrentDiffusion.evolve psi_face</code> histories with axes clock/member/radial-face and units Wb. These are one-dimensional poloidal-flux profiles, not two-dimensional Grad–Shafranov maps.</li>
     <li><strong>Camera product:</strong> <code>flux_surface_emissivity_proxy</code>, label <code>proxy</code>, <code>validated_checkpoint=false</code>.</li>
-    <li><strong>Tracked bundle:</strong> self-describing manifest, three reference JSON documents, an eight-member compact posterior NPZ and the figure above. Manifest SHA-256 is <code>b9c62b5bea41047f0c2118eac64a3b77c6f3f04aba4458a370bd8e81aab050df</code>.</li>
+    <li><strong>Tracked bundle:</strong> self-describing manifest, four runtime/reference JSON documents, an eight-member compact posterior NPZ and the figure above. Manifest SHA-256 is <code>f4cf70b1df9f701bb634c0b3da92c30b30bf64eb2700b46499699f03f34c6198</code>; the eight-H200 receipt SHA-256 is <code>490ccf798a397c08c1700d048844cb58c047d6652060d5415a4227f3a74152b4</code>.</li>
   </ul>
 
   <h2 id="verification">Verification</h2>
-  <p>The final code slice passed <strong>46 tests in 11.43 s</strong> on <code>sun_debug</code>. An independent artifact audit at commit <code>1550260530358e2c1ba06519e654284b8c6c7def</code> found no discrepancies: every tracked and raw checksum/size matched; the compact posterior exactly reproduced CPU members 0–7; five raw shards exactly reconstructed the 640-member merge; the scorecard matched within <code>1.3e-17</code>; the exact parity result reproduced; and the 2,727 × 1,720 PNG passed visual inspection. Receipt: <code>outputs/nova-ensemble-estimator/artifact-verification/verification-receipt.txt</code>, SHA-256 <code>d35e8c82eecd572577b9916d0b5658e1710848c3c27b3bc8b2a4cdda276bbb49</code>.</p>
+  <p>The final code slice passed <strong>46 tests in 11.43 s</strong> on <code>sun_debug</code>. The original artifact audit at commit <code>1550260530358e2c1ba06519e654284b8c6c7def</code> found no discrepancies across CPU, one-card and five-card evidence. A second independent audit of commit <code>3e2cf5c9f972f4fcd55ca9bcc3aacc4fd5dd2489</code> verified every full-node tracked and raw checksum/size, all eight distinct device identities, exact shard concatenation and banked-array continuity, the scorecard to <code>1.734723475976807e-18</code>, and the 2,727 × 1,720 PNG. Receipt: <code>outputs/nova-ensemble-estimator/artifact-verification/eight-h200-tracked-receipt.txt</code>, SHA-256 <code>01b71ba7ff85581691f367a02216f9d502276f3db9349bace09449dcfce66a20</code>.</p>
 
-  <h2 id="remaining">Remaining action</h2>
-  <p>When all eight H200s and sufficient reservation CPUs are simultaneously free, run eight independent 128-member shards from exact source <code>7d8d61c</code>, merge to 1,024 members, verify the same provenance/float64/device/shape/scorecard contracts, and add the measured weak-scaling receipt without replacing the banked CPU, one-card or five-card evidence.</p>
+  <h2 id="completion">Completion</h2>
+  <p>All declared smoke evidence is banked. The plan is shipped with no remaining followup. DSv4 job <code>1242908</code> is ready on two H200s at <code>http://98dci4-gpu-0003:18800</code>; embedding job <code>1242909</code> is healthy on Titan at <code>http://98dci4-gpu-0002:18765</code>, and a real request returned a normalized 256-element vector through the same imas-codex service resolver and port.</p>
 </main>
 </body>
 </html>
