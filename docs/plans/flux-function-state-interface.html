@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-10">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="6">
 </head>
 <body>
   <main class="plan-doc">
@@ -53,6 +53,7 @@
         <tr><td>integral-constraint policy</td><td>absolute-source or an explicit low-dimensional closure carrying its free amplitudes, targets, tolerances and prior; target and achieved <code>I_p</code>, <code>beta_p</code> and <code>l_i</code> remain in the result ledger</td><td>silently turning a forward solve into underdetermined profile inference</td></tr>
       </tbody>
     </table>
+    <p><strong>Temporal extension: the waveform form of the contract.</strong> A transport-coupled consumer exchanges trajectories, not slices. The flux-function waveform carries the same primitives, derivatives, units and provenance on a declared time grid, together with the evolving coordinate map — <code>Phi_b(t)</code> and the axis and separatrix references — and a declared interpolation policy, so temporal interpolation can never silently mix radial coordinates while the boundary moves. Window convergence receipts from Nova's coupled equilibrium–transport solve (iterations, contraction estimate, exit residual, damping) travel with the state as provenance: the assimilation layer classifies them beside the measurement innovation, and an unconverged or damped window is visible evidence, never a silent approximation. Learned corrections enter the coupled solve only as typed inputs — member closure parameters or declared model-error source terms through the new-physics registry — never as patches applied inside the seam.</p>
 
     <h2 id="s3">§3 — Producer adapters</h2>
     <ol>
@@ -71,6 +72,7 @@
       <li>An absolute-source fixture reaches Nova without any current renormalisation; inconsistent target <code>I_p</code>, <code>beta_p</code> or <code>l_i</code> values produce residuals rather than profile mutation.</li>
       <li>A one-amplitude fixture closes to target <code>I_p</code> with a banked uniqueness/conditioning check. Multi-moment fixtures are rejected unless the declared profile family has sufficient physical degrees of freedom and an Ambix prior; posterior deltas and covariance are preserved.</li>
       <li>Causal forecast and causal analysis handoffs are distinguishable from fixed-lag and full-sequence smoothing at the type boundary.</li>
+      <li>A waveform fixture round-trips the time grid, coordinate-map trajectory, interpolation policy and window convergence receipts; interpolating a profile across a window with a moving boundary preserves every coordinate guarantee of the per-slice contract.</li>
       <li>Static, rotating and SOL-extended manufactured states each drive the Nova forward solve and return finite, force-balanced equilibria with a closed current ledger.</li>
       <li>The consumer contract test pins one reviewed Nova revision and exercises eager, jitted and batched member paths without importing Nova physics implementation into Ambix.</li>
     </ul>
