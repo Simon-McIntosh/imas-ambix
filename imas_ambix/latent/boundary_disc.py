@@ -1,10 +1,9 @@
 """Staged-disc plasma boundary read: uniform current disc + gated quadrupole.
 
-The boundary read that replaced both the whole-vessel cell-current moment fit
-(ill-conditioned: its current centroid swings ~0.5 m across fit order) and the
-toroidal-harmonic interior contour (pole-fragile, and a vacuum multipole carries
-no current-EXTENT information, so its interior LCFS over-sizes at any
-regularisation).  Staged, each stage small and well-conditioned:
+Unlike a whole-vessel cell-current moment fit, whose current centroid is
+ill-conditioned across fit order, this read also retains current-extent
+information that a toroidal-harmonic interior contour lacks.  The stages are
+small and well-conditioned:
 
 1. **Ip** — Rogowski (pinned; never fit).
 2. **Current centroid** — a 2-DOF filament-position fit to the coil-subtracted
@@ -39,6 +38,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from imas_ambix.cocos import project_poloidal_field
 from imas_ambix.gs.cylinder import hybrid_greens
 from imas_ambix.latent.boundary_moment import (
     MomentFitConfig,
@@ -123,8 +123,7 @@ def _filament_signature(
 ) -> np.ndarray:
     """Per-ampere sensor signature of one finite-area filament at ``(r0, z0)``."""
     psi, br, bz = hybrid_greens(sr, sz, r0, z0, w, h)
-    ang = np.deg2rad(sang_deg)
-    return np.where(is_flux, psi, br * np.cos(ang) + bz * np.sin(ang))
+    return np.where(is_flux, psi, project_poloidal_field(br, bz, sang_deg))
 
 
 def fit_current_centroid(
@@ -224,7 +223,6 @@ def passive_coupling_matrices(
     from imas_ambix.gs.polygon import polygon_greens  # noqa: PLC0415
 
     sr, sz, sang, is_flux = sensor_signature_arrays(table)
-    ang = np.deg2rad(sang)
     classes = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
     passive_circuits = (
         list(circuits)
@@ -244,7 +242,7 @@ def passive_coupling_matrices(
         if ps is not None:
             psi_s, br_s, bz_s = polygon_greens(sr, sz, ps.vertices)
             a = ps.xmult * np.where(
-                is_flux, psi_s, br_s * np.cos(ang) + bz_s * np.sin(ang)
+                is_flux, psi_s, project_poloidal_field(br_s, bz_s, sang)
             )
             g = ps.xmult * polygon_greens(grid.flat_r, grid.flat_z, ps.vertices)[0]
             a_cols.append(a)
@@ -257,7 +255,7 @@ def passive_coupling_matrices(
             h = max(abs(f.height), 0.01)
             psi_s, br_s, bz_s = hybrid_greens(sr, sz, f.r, f.z, w, h)
             a += f.xmult * np.where(
-                is_flux, psi_s, br_s * np.cos(ang) + bz_s * np.sin(ang)
+                is_flux, psi_s, project_poloidal_field(br_s, bz_s, sang)
             )
             g += f.xmult * hybrid_greens(grid.flat_r, grid.flat_z, f.r, f.z, w, h)[0]
         a_cols.append(a)

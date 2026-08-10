@@ -9,15 +9,11 @@ and the passive structure.  MAST passive geometry (the ``inferred_passive``
 circuits in the geometry table) sets the filaments; all couplings use the
 finite-area cylinder Biot-Savart kernel.
 
-Variants per slice (each ends with the same push-out on the gauged TOTAL flux
-= plasma + coil + passive, and the same boundary-shift over-fit gate):
-
-  V0  production staged-disc read (no passive)             — baseline
-  V1  staged: passive modes fitted on the stage-0 residual, subtracted,
-      THEN quadrupole on what remains
-  V2  joint: [quadrupole | passive modes] fitted together on the stage-0
-      residual (the "shared higher-order shape" split)
-  VP  passive-only (no quadrupole)                          — ablation
+Each variant ends with the same push-out on the gauged total flux (plasma +
+coil + passive) and the same boundary-shift over-fit gate: the production
+baseline has no passive term; the staged fit removes passive modes before the
+quadrupole fit; the joint fit shares the higher-order signature between both;
+and the passive-only ablation omits the quadrupole.
 
 The 80 passive circuits are compressed to their top-k whitened sensor-SVD
 modes (k swept) so the read stays well-conditioned.  Scored vs firewalled EFIT
@@ -33,6 +29,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 import scripts.closure_gate_eval as cg
+from imas_ambix.cocos import project_poloidal_field
 from imas_ambix.gs import operator as op
 from imas_ambix.gs.cylinder import hybrid_greens
 from imas_ambix.latent.boundary_disc import (
@@ -57,7 +54,6 @@ def passive_matrices(grid, table):
     signatures and grid flux columns, finite-area cylinder kernel throughout.
     """
     sr, sz, sang, is_flux = sensor_signature_arrays(table)
-    ang = np.deg2rad(sang)
     classes = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
     passive_circuits = sorted(
         c.circuit for c in classes if c.role == "inferred_passive"
@@ -74,7 +70,7 @@ def passive_matrices(grid, table):
             h = max(abs(f.height), 0.01)
             psi_s, br_s, bz_s = hybrid_greens(sr, sz, f.r, f.z, w, h)
             a += f.xmult * np.where(
-                is_flux, psi_s, br_s * np.cos(ang) + bz_s * np.sin(ang)
+                is_flux, psi_s, project_poloidal_field(br_s, bz_s, sang)
             )
             g += f.xmult * hybrid_greens(grid.flat_r, grid.flat_z, f.r, f.z, w, h)[0]
         a_cols.append(a)
@@ -82,7 +78,7 @@ def passive_matrices(grid, table):
     return np.column_stack(a_cols), np.column_stack(g_cols)
 
 
-def stage0(grid, basis, table, p, cfg):
+def uniform_disc(grid, basis, table, p, cfg):
     """Uniform disc at the robust centroid, self-consistently sized."""
     r0, z0 = fit_current_centroid(p, table, basis, cfg)
     cr = grid.flat_r[grid.cells]
@@ -134,10 +130,21 @@ def stage0(grid, basis, table, p, cfg):
     return ic, s, (r0, z0), rad, push
 
 
-def trial(grid, basis, table, p, a_pas, g_pas, *, k_pas=8, variant="V2", cfg=None):
+def trial(
+    grid,
+    basis,
+    table,
+    p,
+    a_pas,
+    g_pas,
+    *,
+    k_pas=8,
+    variant="joint_passive",
+    cfg=None,
+):
     """One passive-augmented read.  Returns (ring, extras) or None."""
     cfg = cfg or DiscReadConfig()
-    st = stage0(grid, basis, table, p, cfg)
+    st = uniform_disc(grid, basis, table, p, cfg)
     if st is None:
         return None
     ic0, s, (r0, z0), rad, push = st
@@ -175,16 +182,18 @@ def trial(grid, basis, table, p, a_pas, g_pas, *, k_pas=8, variant="V2", cfg=Non
 
     c_pas = np.zeros(k)
     c_quad = np.zeros(3)
-    if variant == "V1":  # staged: passive first, then quad on what remains
+    if variant == "staged_passive":
         c_pas = ridge_fit(a_modes, resid, 1e-3)
         resid2 = resid - a_modes @ c_pas
         c_quad = ridge_fit(a_quad, resid2, 1e-3)
-    elif variant == "V2":  # joint share of the higher-order signal
+    elif variant == "joint_passive":
         a_joint = np.hstack([a_quad, a_modes])
         c = ridge_fit(a_joint, resid, 1e-3)
         c_quad, c_pas = c[:3], c[3:]
-    elif variant == "VP":  # passive only
+    elif variant == "passive_only":
         c_pas = ridge_fit(a_modes, resid, 1e-3)
+    else:
+        raise ValueError(f"unknown passive-fit variant {variant!r}")
 
     i_pas = modes @ c_pas  # per-circuit passive currents [A]
     psi_pas = (g_pas @ i_pas).reshape(grid.nz, grid.nr)
@@ -206,7 +215,7 @@ def trial(grid, basis, table, p, a_pas, g_pas, *, k_pas=8, variant="V2", cfg=Non
         ring_shift_rms(lc_base.ring, lc_full.ring if lc_full.found else None, (r0, z0))
         / rad
     )
-    if variant != "VP" and lc_full.found and shift < cfg.gate_shift_frac:
+    if variant != "passive_only" and lc_full.found and shift < cfg.gate_shift_frac:
         lc, quad_on = lc_full, True
     else:
         lc, quad_on = lc_base, False
@@ -251,22 +260,24 @@ def main():
             p = pls[k]
             from imas_ambix.latent.boundary_disc import disc_read
 
-            v0 = disc_read(p, grid, table, basis)
-            row = {"V0": _rms(v0.ring if v0 else None, efit)}
-            rings = {"V0": v0.ring if v0 else None}
-            for var in ("V1", "V2", "VP"):
+            baseline = disc_read(p, grid, table, basis)
+            row = {"baseline": _rms(baseline.ring if baseline else None, efit)}
+            rings = {"baseline": baseline.ring if baseline else None}
+            for var in ("staged_passive", "joint_passive", "passive_only"):
                 out = trial(grid, basis, table, p, a_pas, g_pas, variant=var)
                 ring = out[0] if out else None
                 row[var] = _rms(ring, efit)
                 rings[var] = ring
-                if var == "V2" and out:
+                if var == "joint_passive" and out:
                     row["quad_on"] = out[1]["quad_on"]
                     row["ipas_kA"] = out[1]["i_pas_max"] / 1e3
             panels.append((f"{shot} {kind}", grid, efit, rings, row))
             print(
-                f"{shot} {kind}: V0={row['V0']:.1f} V1={row['V1']:.1f} "
-                f"V2={row['V2']:.1f} VP={row['VP']:.1f}cm  "
-                f"quadV2={'ON' if row.get('quad_on') else 'off'} "
+                f"{shot} {kind}: baseline={row['baseline']:.1f} "
+                f"staged={row['staged_passive']:.1f} "
+                f"joint={row['joint_passive']:.1f} "
+                f"passive-only={row['passive_only']:.1f}cm "
+                f"joint-quad={'ON' if row.get('quad_on') else 'off'} "
                 f"max|i_pas|={row.get('ipas_kA', 0):.1f}kA"
             )
 
@@ -276,7 +287,12 @@ def main():
     axes = np.atleast_1d(axes).ravel()
     for ax in axes:
         ax.axis("off")
-    colors = {"V0": "g", "V1": "#1f77b4", "V2": "#9467bd", "VP": "#8c564b"}
+    colors = {
+        "baseline": "g",
+        "staged_passive": "#1f77b4",
+        "joint_passive": "#9467bd",
+        "passive_only": "#8c564b",
+    }
     for ax, (title, grid, efit, rings, row) in zip(axes, panels, strict=False):
         ax.axis("on")
         ax.plot(grid.limiter_r, grid.limiter_z, "k-", lw=0.5)
@@ -298,8 +314,8 @@ def main():
         ax.set_title(title, fontsize=8)
         ax.legend(fontsize=5.5, loc="upper right")
     fig.suptitle(
-        "Passive-augmented staged-disc read: V0 none, V1 staged-passive, "
-        "V2 joint quad+passive, VP passive-only — vs EFIT (red)",
+        "Passive-augmented disc read: baseline, staged passive, joint "
+        "quadrupole plus passive, and passive-only — vs EFIT (red)",
         fontsize=11,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.98))

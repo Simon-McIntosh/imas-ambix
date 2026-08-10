@@ -11,7 +11,7 @@ arbitrary grid.  Two invariants pin it:
   :meth:`ForwardOperator.predict` (same Green's physics, torch backend);
 * the ψ-field must be the superposition of the plasma-current basis
   Green's flux + the known-PF Green's flux, and must be differentiable
-  w.r.t. the latent amplitudes θ (autograd), because topology (§3) is read
+  w.r.t. the latent amplitudes θ (autograd), because topology is read
   from the *solved* ψ and the GS residual back-propagates through it.
 
 No mirror / network needed — a synthetic single-coil campaign table is enough.
@@ -31,7 +31,7 @@ from imas_ambix.latent.gs_observation import GSObservation
 def _synthetic_table() -> gsg.GeometryTable:
     """Minimal campaign: 1 vertical + 1 radial probe, 1 flux loop, 1 KNOWN PF
     coil (P4U-like) + 1 passive circuit."""
-    bp_v = gsg.BProbe(index=0, r=1.5, z=0.0, angle_deg=90.0, length=0.025)
+    bp_v = gsg.BProbe(index=0, r=1.5, z=0.0, angle_deg=-90.0, length=0.025)
     bp_r = gsg.BProbe(index=1, r=1.5, z=0.0, angle_deg=0.0, length=0.025)
     fl = gsg.FluxLoop(index=0, r=1.3, z=0.5)
     pf_known = [
@@ -55,7 +55,7 @@ def _synthetic_table() -> gsg.GeometryTable:
         digest="deadbeef00000000",
     )
     sensor_map = [
-        gsg.SensorMapping("obv01", "b_probe", 0, 1.5, 0.0, 90.0, 0.001, ""),
+        gsg.SensorMapping("obv01", "b_probe", 0, 1.5, 0.0, -90.0, 0.001, ""),
         gsg.SensorMapping("obr01", "b_probe", 1, 1.5, 0.0, 0.0, 0.001, ""),
         gsg.SensorMapping("fl_p4u_1", "flux_loop", 0, 1.3, 0.5, None, 0.001, ""),
     ]

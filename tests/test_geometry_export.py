@@ -27,7 +27,7 @@ def _synthetic_table() -> gsg.GeometryTable:
     geom = {
         "magpr_r": np.array([0.18, 1.85, 1.85, 1.44]),
         "magpr_z": np.array([1.0, 0.3, 0.3, -1.2]),
-        "magpr_ang": np.array([90.0, 90.0, 0.0, 0.0]),
+        "magpr_ang": np.array([-90.0, -90.0, 0.0, 0.0]),
         "magpr_len": np.array([0.025, 0.025, 0.025, 0.025]),
         "silop_r": np.array([0.178, 1.163]),
         "silop_z": np.array([1.235, 1.083]),
@@ -118,7 +118,7 @@ def test_feature_schema_is_stable():
 def test_bprobe_rows_carry_correct_rz_angle_and_normal():
     fields = build_geometry_fields_from_table(_synthetic_table())
 
-    # obv06 (vertical, ang=90) and obr06 (radial, ang=0) are co-located in (R,Z)
+    # obv06 (vertical, DD ang=-90) and obr06 (radial, ang=0) are co-located.
     obv = fields.get("obv06")
     obr = fields.get("obr06")
     assert obv is not None and obr is not None
@@ -129,14 +129,13 @@ def test_bprobe_rows_carry_correct_rz_angle_and_normal():
     assert obv.r == 1.85 and obv.z == 0.3
     assert obr.r == 1.85 and obr.z == 0.3
 
-    # orientation: vertical=90, radial=0 (authoritative from magpr_ang)
-    assert obv.angle_deg == 90.0
+    # DDv4 orientation: vertical +Bz=-90, radial +Br=0.
+    assert obv.angle_deg == -90.0
     assert obr.angle_deg == 0.0
 
-    # field-direction normal: vertical reads B_Z -> (cos90, sin90) = (0, 1);
-    # radial reads B_R -> (cos0, sin0) = (1, 0).
+    # DD projection coefficients are (cos(theta), -sin(theta)).
     assert np.isclose(obv.normal_r, 0.0, atol=1e-9)
-    assert np.isclose(obv.normal_z, 1.0, atol=1e-9)
+    assert np.isclose(obv.normal_z, -1.0, atol=1e-9)
     assert np.isclose(obr.normal_r, 1.0, atol=1e-9)
     assert np.isclose(obr.normal_z, 0.0, atol=1e-9)
 
@@ -146,11 +145,11 @@ def test_bprobe_row_matches_source_bprobe_values():
     table = _synthetic_table()
     fields = build_geometry_fields_from_table(table)
     ccbv = fields.get("ccbv01")
-    # ccbv01 maps to magpr index 0 (R=0.18, Z=1.0, ang=90)
+    # ccbv01 maps to magpr index 0 (R=0.18, Z=1.0, ang=-90)
     src = next(m for m in table.sensor_map if m.amb_channel == "ccbv01")
     assert ccbv.r == src.r == 0.18
     assert ccbv.z == src.z == 1.0
-    assert ccbv.angle_deg == src.angle_deg == 90.0
+    assert ccbv.angle_deg == src.angle_deg == -90.0
 
 
 def test_flux_loop_is_point_sensor_nan_angle_and_chord():

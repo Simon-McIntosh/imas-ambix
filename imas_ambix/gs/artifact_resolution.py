@@ -67,7 +67,7 @@ from typing import Any
 #: republished machine description; nothing else in the resolution path names a
 #: revision.
 PINNED_SEMANTIC_IDENTITY = (
-    "sha256:18c75c19493714108fc71f88a55cc775836218e489e073f43942fd007d937bdc"
+    "sha256:ec2f7c6015ac4b193e2f9bb4594b2a90e7ff9650bb5566d214c3aec39f179c88"
 )
 
 #: The machine and diagnostic pose the pinned description states, and the

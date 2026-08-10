@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from imas_ambix.cocos import project_poloidal_field
 from imas_ambix.latent.current_diffusion import (
     EtaProfile,
     FluxSurfaceGeometry,
@@ -221,7 +222,7 @@ def _interior_limiter_fixture():
         conductor_rects=rects,
     )
     probes = [
-        gsg.BProbe(index=i, r=1.95, z=-0.6 + 0.3 * i, angle_deg=90.0, length=0.02)
+        gsg.BProbe(index=i, r=1.95, z=-0.6 + 0.3 * i, angle_deg=-90.0, length=0.02)
         for i in range(5)
     ]
     smap = [
@@ -264,10 +265,9 @@ def _ladder_slice(grid, table, i_pf, ip):
     g_sens, channels = grid.sensor_greens(table)
     vac = np.zeros(len(channels))
     for k, m in enumerate(table.sensor_map):
-        ang = np.deg2rad(m.angle_deg if m.angle_deg is not None else 90.0)
         for f, cur in zip(table.pf_filaments, i_pf, strict=True):
             bz, br = greens_bz_br(np.array([m.r]), np.array([m.z]), f.r, f.z)
-            vac[k] += cur * (br[0] * np.cos(ang) + bz[0] * np.sin(ang))
+            vac[k] += cur * project_poloidal_field(br[0], bz[0], m.angle_deg)
     meas = vac + g_sens @ res.cell_currents
     lf = solve_equilibrium_lsq(
         grid,

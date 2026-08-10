@@ -26,9 +26,9 @@ from imas_ambix.latent.transport import FluxDiffusionPrior
 
 
 def _synthetic_table() -> gsg.GeometryTable:
-    bp_v = gsg.BProbe(index=0, r=1.5, z=0.0, angle_deg=90.0, length=0.025)
+    bp_v = gsg.BProbe(index=0, r=1.5, z=0.0, angle_deg=-90.0, length=0.025)
     bp_r = gsg.BProbe(index=1, r=1.4, z=0.3, angle_deg=0.0, length=0.025)
-    bp_v2 = gsg.BProbe(index=2, r=1.45, z=-0.3, angle_deg=90.0, length=0.025)
+    bp_v2 = gsg.BProbe(index=2, r=1.45, z=-0.3, angle_deg=-90.0, length=0.025)
     fl = gsg.FluxLoop(index=0, r=1.3, z=0.5)
     pf_known = [
         gsg.PFFilament(
@@ -44,9 +44,9 @@ def _synthetic_table() -> gsg.GeometryTable:
         n_bprobe=3, n_fluxloop=1, n_pf_filament=2, n_limiter=4, digest="abcd12340000"
     )
     sensor_map = [
-        gsg.SensorMapping("obv01", "b_probe", 0, 1.5, 0.0, 90.0, 0.001, ""),
+        gsg.SensorMapping("obv01", "b_probe", 0, 1.5, 0.0, -90.0, 0.001, ""),
         gsg.SensorMapping("obr01", "b_probe", 1, 1.4, 0.3, 0.0, 0.001, ""),
-        gsg.SensorMapping("obv02", "b_probe", 2, 1.45, -0.3, 90.0, 0.001, ""),
+        gsg.SensorMapping("obv02", "b_probe", 2, 1.45, -0.3, -90.0, 0.001, ""),
         gsg.SensorMapping("fl_p4u_1", "flux_loop", 0, 1.3, 0.5, None, 0.001, ""),
     ]
     return gsg.GeometryTable(

@@ -463,12 +463,12 @@ def test_the_sensor_arrays_are_presented_in_the_shape_the_mapper_reads():
     from imas_ambix.gs.geometry import BProbe, FluxLoop
 
     arrays = ag.sensor_position_arrays(
-        [BProbe(index=0, r=1.0, z=0.5, angle_deg=90.0, length=0.02)],
+        [BProbe(index=0, r=1.0, z=0.5, angle_deg=-90.0, length=0.02)],
         [FluxLoop(index=0, r=1.4, z=-0.3)],
     )
 
     assert set(arrays) == {"magpr_r", "magpr_z", "magpr_ang", "silop_r", "silop_z"}
-    assert arrays["magpr_ang"].tolist() == [90.0]
+    assert arrays["magpr_ang"].tolist() == [-90.0]
     assert arrays["silop_r"].tolist() == [1.4]
 
 
@@ -535,9 +535,9 @@ def test_the_table_carries_the_identity_it_was_built_from(artifact_table):
 def test_only_the_two_windings_the_fit_could_not_reach_are_unresolved(artifact_table):
     """The turn counts are sourced except where the vacuum fit had no leverage.
 
-    An earlier revision left every active winding unsourced; this one carries a
-    fitted count for all but the P6 pair, whose supplies the campaign holds at
-    zero, so no measured current ever excites them and no fit can separate their
+    The artifact carries a fitted count for all but the P6 pair, whose supplies
+    the campaign holds at zero, so no measured current ever excites them and no
+    fit can separate their
     turns.  Those two remain NaN rather than taking a plausible number, and the
     guard still names them, because a consumer that scales with turns must not
     proceed on a guess for any coil.
@@ -599,12 +599,11 @@ def test_the_probe_positions_match_the_efm_reader(artifact_table, efm_table):
 def test_the_probe_orientations_match_the_efm_reader(artifact_table, efm_table):
     """Both sources split the same probes between the same two sensitive axes.
 
-    A poloidal probe enters the operator as ``B_R cos(theta) + B_Z sin(theta)``,
+    A poloidal probe enters the operator as ``B_R cos(theta) - B_Z sin(theta)``,
     so an orientation decides which field component a row measures, not merely
     how it is scaled -- an error of the whole 90 degrees, far above anything a
-    positional tolerance would catch.  An earlier revision authored every probe
-    on one axis; this one places the outboard radial family along R, and the
-    two sources now agree probe for probe on the assignment and on how many
+    positional tolerance would catch.  The outboard radial family lies along R,
+    and the two sources must agree probe for probe on the assignment and how many
     probes each axis carries.  The residual disagreement is the fraction of a
     degree a source holding radians rounds to.
     """
@@ -614,9 +613,9 @@ def test_the_probe_orientations_match_the_efm_reader(artifact_table, efm_table):
 
     efm_axes, efm_counts = np.unique(np.round(efm_angles, 0), return_counts=True)
     art_axes, art_counts = np.unique(np.round(art_angles, 0), return_counts=True)
-    assert efm_axes.tolist() == [0.0, 90.0]
+    assert efm_axes.tolist() == [-90.0, 0.0]
     assert art_axes.tolist() == efm_axes.tolist()
-    assert art_counts.tolist() == efm_counts.tolist() == [19, 59]
+    assert art_counts.tolist() == efm_counts.tolist() == [59, 19]
 
     # co-located radial/vertical pairs make any position-only pairing ambiguous,
     # so compare the (position, axis) triples as sets: that is the statement

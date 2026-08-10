@@ -2,9 +2,9 @@
 
 A :class:`PolygonSection` replaces the axis-aligned bounding-box column of a
 chosen fcoil circuit with the exact Urankar-Part-V shaped field.  The override
-is opt-in: an operator built from a table with no polygon sections is
-byte-identical to before, and where all sensors sit in the finite-area near
-band a box polygon reproduces the rectangular-kernel column it replaces.
+is opt-in and has no effect when a table declares no polygon sections.  Where
+all sensors sit in the finite-area near band, a box polygon reproduces the
+rectangular-kernel column it replaces.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def test_parallelogram_vertices_area_preserved_and_sheared():
 
 _SR = np.array([1.30, 1.30, 0.70])
 _SZ = np.array([0.30, 0.50, 0.40])
-_SANG = np.array([90.0, 0.0, 0.0])
+_SANG = np.array([-90.0, 0.0, 0.0])
 _ISF = np.array([False, False, True])
 
 
@@ -83,7 +83,7 @@ def _passive_table(polygon_sections=None) -> gsg.GeometryTable:
         digest="deadbeef0000abcd",
     )
     b_probes = [
-        gsg.BProbe(index=0, r=1.30, z=0.30, angle_deg=90.0, length=0.001),
+        gsg.BProbe(index=0, r=1.30, z=0.30, angle_deg=-90.0, length=0.001),
         gsg.BProbe(index=1, r=1.30, z=0.50, angle_deg=0.0, length=0.001),
     ]
     flux_loops = [gsg.FluxLoop(index=0, r=0.70, z=0.40)]
@@ -93,7 +93,7 @@ def _passive_table(polygon_sections=None) -> gsg.GeometryTable:
         )
     ]
     sensor_map = [
-        gsg.SensorMapping("b1", "b_probe", 0, 1.30, 0.30, 90.0, 0.001, ""),
+        gsg.SensorMapping("b1", "b_probe", 0, 1.30, 0.30, -90.0, 0.001, ""),
         gsg.SensorMapping("b2", "b_probe", 1, 1.30, 0.50, 0.0, 0.001, ""),
         gsg.SensorMapping("f1", "flux_loop", 0, 0.70, 0.40, None, 0.001, ""),
     ]
@@ -114,7 +114,7 @@ def _passive_table(polygon_sections=None) -> gsg.GeometryTable:
 
 
 def test_build_operator_empty_polygon_is_baseline():
-    """No polygon sections ⇒ the passive block is byte-identical to before."""
+    """No polygon sections leave the passive block unchanged."""
     base = build_operator(_passive_table())
     same = build_operator(_passive_table(polygon_sections=[]))
     assert base.g_passive.shape == (3, 1)

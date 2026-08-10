@@ -72,7 +72,7 @@ def test_gs_inverse_theta_recovers_known_profile():
             index=i,
             r=1.4 + 0.02 * i,
             z=-0.4 + 0.16 * i,
-            angle_deg=90.0 * (i % 2),
+            angle_deg=-90.0 * (i % 2),
             length=0.02,
         )
         for i in range(8)

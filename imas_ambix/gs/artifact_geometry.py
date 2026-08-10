@@ -1,10 +1,8 @@
 """Build a :class:`GeometryTable` from a content-addressed machine-description artifact.
 
-Second implementation of
-:class:`~imas_ambix.gs.geometry.MachineGeometryReader`.  The first
-(:class:`~imas_ambix.gs.geometry.MastZarrGeometryReader`) reads MAST geometry out
-of the per-shot FAIR-MAST ``efm`` arrays.  This one reads a *published
-artifact*: a verified, content-addressed directory of DD 4.1.1 IDSs whose
+This implementation of :class:`~imas_ambix.gs.geometry.MachineGeometryReader`
+reads a *published
+artifact*: a verified, content-addressed directory of DDv4 IDSs whose
 manifest carries the physical identity of the machine configuration, the
 registry it was authored from, and a per-field evidence ledger saying which of
 its numbers are sourced.
@@ -19,8 +17,7 @@ consumer can therefore tell what it is holding instead of assuming.
 
 Unresolved active turns (the load-bearing gap)
 ----------------------------------------------
-In the artifact revision this reader was built against,
-``pf_active/coil/element/turns_with_sign`` is unsourced -- the manifest reports
+When ``pf_active/coil/element/turns_with_sign`` is unsourced, the manifest reports
 it as a forward-model blocker, and the stored values are the IMAS EMPTY_FLOAT
 sentinel.  Turns scale every PF column of the Green's operator, so a fabricated
 count would silently rescale the whole vacuum field.
@@ -84,9 +81,10 @@ Access-layer rules (binding)
 ----------------------------
 Every IDS is read through imas-python at the artifact's own pinned dictionary
 version -- read from the manifest, never assumed and never the installed default
--- and ``DBEntry`` opens in its constructor.  No h5py, no version guessing: the
-manifest is the authority on the pin, which is the whole point of reading a
-verified artifact rather than a loose directory.
+-- and ``DBEntry`` opens in its constructor.  Reads disable Access Layer
+autoconversion because a hidden dictionary conversion would also hide a COCOS
+boundary.  Ambix accepts only DDv4/COCOS-17 artifacts.  No h5py and no version
+guessing: the manifest is the authority on the pin.
 """
 
 from __future__ import annotations
@@ -96,6 +94,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from imas_ambix.cocos import CANONICAL_COCOS, require_canonical_contract
 from imas_ambix.gs.geometry import (
     BProbe,
     CircuitDrive,
@@ -551,7 +550,7 @@ def read_artifact_pf_passive(
 def _orientation_diversity_flags(b_probes: Sequence[BProbe]) -> list[str]:
     """Flag a probe set that carries only one sensitive-axis orientation.
 
-    A poloidal probe enters the operator as ``B_R cos(theta) + B_Z sin(theta)``,
+    A poloidal probe enters the operator as ``B_R cos(theta) - B_Z sin(theta)``,
     so ``theta`` decides which field component the row measures, not merely how
     it is scaled.  A tokamak's poloidal set normally mixes orientations -- an
     outboard array typically carries radial and vertical probes at the same
@@ -581,7 +580,7 @@ def read_artifact_magnetics(
     """Poloidal probes 1:1; flux loops collapsed to their position centroid.
 
     A probe with no ``poloidal_angle`` is dropped rather than given an assumed
-    orientation: the projection ``B_R cos(theta) + B_Z sin(theta)`` has no
+    orientation: the DDv4 projection ``B_R cos(theta) - B_Z sin(theta)`` has no
     meaning without one, and any default would silently pick an axis.  This is
     also what separates the probes a poloidal forward model can use from the
     channels whose bank position the artifact records as unsourced -- the data
@@ -785,6 +784,7 @@ class MachineArtifactGeometryReader:
             "physical_digest": manifest.physical_digest,
             "registry_digest": manifest.registry_digest,
             "dd_version": manifest.dd_version,
+            "cocos": CANONICAL_COCOS,
             "complete": bool(manifest.complete),
             "evidence_states": ledger.state_counts(),
             "forward_model_blockers": list(manifest.forward_model_blockers()),
@@ -810,16 +810,17 @@ class MachineArtifactGeometryReader:
 
         artifact = self.resolve()
         provenance = self.provenance(artifact)
+        require_canonical_contract(provenance["dd_version"], provenance["cocos"])
         entry = imas.DBEntry(
             f"imas:hdf5?path={artifact.directory}",
             "r",
             dd_version=provenance["dd_version"],
         )
         try:
-            pf_active = entry.get("pf_active")
-            pf_passive = entry.get("pf_passive")
-            wall = entry.get("wall")
-            magnetics = entry.get("magnetics")
+            pf_active = entry.get("pf_active", autoconvert=False)
+            pf_passive = entry.get("pf_passive", autoconvert=False)
+            wall = entry.get("wall", autoconvert=False)
+            magnetics = entry.get("magnetics", autoconvert=False)
         finally:
             entry.close()
 
@@ -941,6 +942,7 @@ def _provenance_lines(provenance: dict[str, Any]) -> list[str]:
         f"machine artifact physical digest {provenance['physical_digest']}",
         f"machine artifact registry digest {provenance['registry_digest']}",
         f"machine artifact dictionary pin {provenance['dd_version']}",
+        f"machine artifact convention COCOS {provenance['cocos']}",
         f"registry evidence for the selected shot: {provenance['shot_evidence']}",
         "artifact evidence states "
         + ", ".join(

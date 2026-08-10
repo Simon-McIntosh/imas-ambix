@@ -56,7 +56,7 @@ def _campaign_table(digest: str, r_shift: float = 0.0) -> gsg.GeometryTable:
             index=i,
             r=1.4 + r_shift + 0.02 * i,
             z=-0.4 + 0.16 * i,
-            angle_deg=90.0 * (i % 2),
+            angle_deg=-90.0 * (i % 2),
             length=0.02,
         )
         for i in range(6)

@@ -1,7 +1,7 @@
 """Tests for the corpus cache + per-batch geometry binding in the amortised
 patch-current encoder trainer (``scripts/train_patch_encoder.py``).
 
-Two levers, both exercised offline (synthetic geometry, no IMAS/MAST access):
+Two mechanisms are exercised offline with synthetic geometry and no IMAS read:
 
 * corpus cache — a signature's example arrays + a FULLY self-contained
   ``PatchBasis`` (every constructor argument is a plain geometry-derived
@@ -56,7 +56,7 @@ def _synthetic_table(n_probe: int, digest: str):
             index=i,
             r=1.35,
             z=-0.6 + (1.2 / max(n_probe - 1, 1)) * i,
-            angle_deg=90.0,
+            angle_deg=-90.0,
             length=0.02,
         )
         for i in range(n_probe)
@@ -575,8 +575,8 @@ def test_ip_regime_buckets_degenerate_constant_ip_falls_back_gracefully():
 
 def test_epoch_batches_balanced_gives_equal_step_budget_per_signature():
     """signature-balanced: every signature gets steps_per_epoch // n_sig
-    batches per epoch, REGARDLESS of its own example count — the fix for
-    natural sampling's batch-count-proportional-to-corpus-size behaviour."""
+    batches per epoch regardless of its own example count, so large corpora do
+    not receive a larger optimisation budget."""
     rng = np.random.default_rng(0)
     corp_small = _make_signature_corpus(5, "feed8001", n_examples=8, seed=1)
     corp_big = _make_signature_corpus(5, "feed8002", n_examples=400, seed=2)

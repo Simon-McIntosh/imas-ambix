@@ -7,10 +7,9 @@ closed flux region (demonstrated on real MAST data).  Localisation is
 inherently nonlinear: the current lives inside the LCFS, the LCFS is a level
 set of ψ, and ψ depends on the current — a fixed point.  That fixed point IS
 the Grad-Shafranov equilibrium, so the ψ used for topology readouts must come
-from an actual GS solve.  This is the pre-authorised fallback of the locked
-``latent-to-psi-representation`` decision ("coarse ψ grid + 5-point Δ* stencil
-+ free-boundary BC from known amc currents") for exactly the underfit condition
-now demonstrated.
+from an actual GS solve.  The implementation uses a coarse psi grid, a
+five-point Grad-Shafranov stencil, and free-boundary conditions from measured
+coil currents.
 
 Scheme (standard free-boundary Picard, FreeGS-style), in TOTAL flux
 Φ = 2π R A_φ [Wb] (the convention every Green's column here carries):
@@ -44,6 +43,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as spla
 from scipy import ndimage  # type: ignore[import-untyped]
 
+from imas_ambix.cocos import project_poloidal_field
 from imas_ambix.gs import operator as op
 from imas_ambix.gs.cylinder import hybrid_greens
 from imas_ambix.latent.topology import (
@@ -122,7 +122,7 @@ class EquilibriumGrid:
         coil_psi_columns: np.ndarray,  # (N, n_coil) ψ per unit coil current
         r0: float,
         conductor_rects: np.ndarray | None = None,  # (n, 4) r0, r1, z0, z1 packs
-        wall_units: list[WallUnit] | None = None,  # arbitrary multi-unit wall (§4)
+        wall_units: list[WallUnit] | None = None,  # arbitrary multi-unit wall
     ) -> None:
         self.rg = rg
         self.zg = zg
@@ -239,8 +239,7 @@ class EquilibriumGrid:
     #: every Green's / interaction matrix are pure functions of the campaign
     #: (limiter + coil geometry + sensor map) and the resolution, so they are
     #: built ONCE per (campaign signature, nr, nz) and reused across every shot
-    #: and slice of that campaign — the greens-filament-solver §4 caching that
-    #: the corpus-cost extrapolation assumes.  Opt-in (``cache=True``) so the
+    #: and slice of that campaign.  Opt-in (``cache=True``) so the
     #: default keeps building an independent grid per call (the gate's
     #: independent-arm invariant that proves ``_lu is None`` on the grid-free
     #: arm relies on distinct instances).
@@ -470,7 +469,11 @@ class EquilibriumGrid:
         cz = self.flat_z[self.cells]
         for m in table.sensor_map:
             row = np.empty(cr.size)
-            ang = np.deg2rad(m.angle_deg if m.angle_deg is not None else 90.0)
+            if m.kind != "flux_loop" and m.angle_deg is None:
+                raise ValueError(
+                    f"poloidal probe {m.amb_channel!r} has no directed angle"
+                )
+            angle_deg = 0.0 if m.angle_deg is None else m.angle_deg
             for k, (a, z0) in enumerate(zip(cr, cz, strict=True)):
                 psi_k, br_k, bz_k = hybrid_greens(
                     np.array([m.r]),
@@ -483,7 +486,7 @@ class EquilibriumGrid:
                 if m.kind == "flux_loop":
                     row[k] = psi_k[0]
                 else:
-                    row[k] = br_k[0] * np.cos(ang) + bz_k[0] * np.sin(ang)
+                    row[k] = project_poloidal_field(br_k[0], bz_k[0], angle_deg)
             rows.append(row)
             channels.append(m.amb_channel)
         g = np.vstack(rows) if rows else np.zeros((0, cr.size))
@@ -501,7 +504,7 @@ class EquilibriumGrid:
         ALL THREE come straight from the finite-area cylinder Biot–Savart kernel
         (the double cross-section integral) — ψ AND its field are analytic, so the
         grad-ψ annulus penalty needs NO finite differences and the matrices match
-        the §2 annulus-consistency metric's own analytic carrier ψ.  The default
+        the annulus-consistency metric's own analytic carrier psi.  The default
         near/far switch is kept deliberately: the annulus is the VACUUM region far
         from every current cell, exactly where the finite-area correction is the
         constant second-moment term (<0.2% in ψ, ~30× below the annulus
@@ -1383,8 +1386,8 @@ def profile_basis(
     × boundary factor — well-conditioned on [0, 1], exactly zero at ψ_N = 1,
     sign-indefinite).  ``kind="monomial-nonneg"``: φ_k(ψ_N) = (1−ψ_N)^e_k
     with the exponent ladder e = (0.5, 1, 1.5, 2, 3) — every basis function
-    ≥ 0, so NON-NEGATIVE coefficients imply jφ ≥ 0 pointwise (the R1
-    unidirectional-current fact imposed at the profile level).  The ladder
+    ≥ 0, so NON-NEGATIVE coefficients imply jφ ≥ 0 pointwise (the
+    unidirectional-current invariant imposed at the profile level).  The ladder
     starts at a SUB-LINEAR exponent because the continuous fit rails at its
     α = 0.4 lower bound (the calibrated magnetics demand a broader-than-
     linear edge-weighted profile); conditioning is poorer than Legendre but
@@ -1540,7 +1543,7 @@ class SoftPriors:
     ``SoftPriors()`` (or ``None``) leaves the solve byte-identical.  Weights and
     caps are dimensionless / geometry-scaled — machine-agnostic.
 
-    Annulus anchor (§3 primary ingredient — the boundary read as a SOFT prior):
+    Annulus anchor (the boundary read as a soft prior):
     ``anchor_form`` selects the gauge-keeping form (``"abs-psi"`` with a rank-1
     offset, or ``"grad-psi"`` field-matching); ``anchor_ann_rows`` are the
     annulus points as positions into ``grid.cells``; the harmonic target at
@@ -1548,7 +1551,7 @@ class SoftPriors:
     (grad-ψ, R then Z stacked).  Robust clip + per-slice uncertainty match the
     read's heavy-tailed consistency.
 
-    Soft SOL edge (A2): ``sol_cap`` > 1 admits current through a C¹ decay foot
+    Soft SOL edge: ``sol_cap`` > 1 admits current through a C¹ decay foot
     to ψ_N ≈ ``sol_cap`` (the axis-connected common-flux region only); the
     profile basis swaps to :func:`profile_regularization.profile_basis_foot`.
 
@@ -1686,7 +1689,7 @@ def _assemble_soft_prior_rows(
             return np.hstack([row2d, np.zeros((row2d.shape[0], n_gauge))])
         return row2d
 
-    # --- annulus boundary anchor (the load-bearing §3 ingredient) ---
+    # --- annulus boundary anchor -------------------------------------------
     anchor_on = (
         sp.anchor_form is not None
         and sp.anchor_weight > 0.0
@@ -1702,7 +1705,7 @@ def _assemble_soft_prior_rows(
             psi_basis_ann = cg["psi"][ann, :] @ u_n
             psi_pass_ann = psi_pass[cells_flat, :] if kp else np.zeros((ann.size, 0))
             # coil ψ is IDENTICAL on both sides (same i_pf, same kernel) and
-            # cancels in the residual (§3.3b), so the anchor compares the
+            # cancels in the residual, so the anchor compares the
             # solve's plasma+passive ψ against the harmonic read directly — the
             # known coil term is not carried as a fixed offset here.  The target
             # (harmonic ψ) likewise excludes the coil field.
@@ -2028,9 +2031,9 @@ class _AndersonMixer:
     magnetics-derived soft prior), so the failure mode is NOT basin escape but
     slow linear convergence: the axis creeps toward its Shafranov-shifted fixed
     point over hundreds of sweeps while the raw residual oscillates ~1e-3.  That
-    oscillation is normal, so no residual-restart is used (an earlier
-    restart-on-growth safeguard misfired on it and sabotaged the acceleration).
-    Two cheap guards (no extra map evaluation) suffice:
+    oscillation is normal, so restart-on-growth would falsely reset the physical
+    branch and sabotage the acceleration.  Two cheap guards (no extra map
+    evaluation) suffice:
 
     * **step cap** — the accepted move ‖x⁺−x‖ is capped at ``kappa``× the
       Picard step ‖βf‖, bounding any single Anderson step against the residual
@@ -2138,7 +2141,7 @@ def solve_equilibrium_lsq(
     whitened linear least squares against the raw magnetics every sweep.
 
     ``soft_priors`` (a :class:`SoftPriors`) folds optional physics priors into
-    each sweep's LSQ: the annulus boundary anchor (the §3 soft prior tying the
+    each sweep's LSQ: the annulus boundary anchor (the soft prior tying the
     near-edge field to the source-free harmonic read), the soft SOL current
     edge (a C¹ decay foot admitting public-SOL current to ψ_N ≈ cap), a q ≥ 1
     sawtooth clamp on the on-axis current density, and the Ip-soft / βp+li/2 /
@@ -2308,10 +2311,10 @@ def solve_equilibrium_lsq(
             psi_n = (psi_flat - axis_psi) / span
 
             # core support: axis-connected component of ψ_N < cap inside the
-            # limiter.  cap = 1 is the hard separatrix mask; cap > 1 (A2 soft SOL
+            # limiter.  cap = 1 is the hard separatrix mask; cap > 1 (soft SOL
             # edge) admits the public-SOL band, and the axis-connected component
             # keeps ONLY the common-flux region (private flux below an X-point is a
-            # separate component that does not contain the axis — §3.3h).
+            # separate component that does not contain the axis).
             closed = ((psi_n < core_cap) & grid.inside_limiter.ravel()).reshape(
                 grid.nz, grid.nr
             )
@@ -2334,7 +2337,7 @@ def solve_equilibrium_lsq(
             # basis images on the current core; L1-normalise each column to
             # carry |Ip| of gross current so the coefficients stay O(1).  In
             # nonneg mode normalisation is SIGNED so c ≥ 0 ⇒ jφ·sign(Ip) ≥ 0
-            # (the R1 fact at the profile level) and the Ip anchor stays
+            # (the non-negative profile invariant) and the Ip anchor stays
             # reachable for either current direction.  With the soft SOL edge
             # the basis swaps to the footed form (current decays through a C¹
             # foot into the SOL band instead of vanishing at ψ_N = 1).
@@ -2614,7 +2617,8 @@ def fit_profile_ladder(
             # branch (measured: free-sign 0.428 vs seeded nonneg 0.434 on the
             # same slice).  The stable free-sign basin solve scouts the branch;
             # the sign-constrained solve then certifies a physical profile
-            # there — Tier-3 instrument guides, Tier-2 carries.
+            # there: the free-sign solve locates the branch and the
+            # sign-constrained solve certifies a physical profile.
             scout = solve_equilibrium_lsq(
                 grid,
                 table,

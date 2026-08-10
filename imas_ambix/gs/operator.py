@@ -10,8 +10,7 @@ where each ``G_·`` is a **geometry-only** matrix (one per campaign signature) a
 * ``I_pf``      — KNOWN active-PF-coil currents, assembled from the RAW ``amc``
                   coil-current channels via each filament's circuit + ``xmult``;
 * ``c_plasma``  — the INFERRED toroidal plasma-current distribution (a low-dim
-                  ``jφ(R, Z)`` basis on a limiter-masked grid — locked
-                  ``latent-to-psi-representation = current-distribution-greens``);
+                  ``jphi(R, Z)`` basis on a limiter-masked grid);
 * ``c_passive`` — the INFERRED passive / eddy currents (a nuisance term — the
                   ``amm`` computed current values are an EFIT-wall-model OUTPUT
                   and are EXCLUDED — never a known source; only the passive
@@ -24,21 +23,21 @@ and the ``λ × profile-DOF`` sweep belong to the solver, not here.  The default
 plasma basis is a documented coarse limiter-masked grid so ``G`` is a complete
 forward map; the basis resolution is the solver's to tune.
 
-Physics — axisymmetric circular-filament Green's functions (Jackson §5.5 /
-FreeGS).  Each PF/plasma/passive element is a toroidal current loop at
+Physics — standard axisymmetric circular-filament Green's functions.  Each
+PF/plasma/passive element is a toroidal current loop at
 ``(a, z0)``; its contribution at a sensor ``(R, Z)`` is
 
 * poloidal flux ``ψ`` [Wb per A]   — for flux-loop sensors;
-* field components ``B_R``, ``B_Z`` [T per A] — projected onto the probe
-  orientation ``B = B_R·cos θ + B_Z·sin θ`` with ``θ = angle_deg`` from the
-  geometry table (``magpr_ang`` — a 90° probe reads ``B_Z``, a 0° probe reads ``B_R``).
+* field components ``B_R``, ``B_Z`` [T per A] — projected onto the DDv4 probe
+  orientation ``B = B_R cos(theta) - B_Z sin(theta)`` from the geometry table
+  (a -90 degree probe reads ``+B_Z`` and a 0 degree probe reads ``B_R``).
 
 with ``m = k² = 4aR / ((a+R)² + (Z−z0)²)`` (scipy ``ellipk``/``ellipe`` take
 the parameter ``m``, **not** the modulus ``k`` — getting this wrong silently
 corrupts every value, so it is pinned by a test).
 
-SI denorm (decision, documented — does NOT pre-empt ``extrapolation-coordinates``)
--------------------------------------------------------------------------------
+SI representation
+-----------------
 The operator works in **raw SI**: currents in amperes, ``μ0`` carried
 explicitly, so ``G`` outputs flux in **Wb** and field in **T** — directly
 comparable to raw ``amb`` (``fl_* : Wb``, ``ccbv/obr/obv : T``).  The ``amc``
@@ -46,8 +45,8 @@ coil channels are stored in ``kA · turn`` (amp-turns; ``turns = 1`` throughout
 the MAST ``fcoil`` table, so the per-filament weight is exactly ``xmult``), so
 ``I_filament[A] = I_amc_circuit[kA·turn] · 1000 · xmult``.  We deliberately do
 **not** non-dimensionalise here: a raw-SI forward map is the framing-neutral
-choice and leaves the open ``extrapolation-coordinates`` decision (dimensionless
-``R/R0``, ``ψ/(μ0 Ip R0)``, …) to a later consumer.  The fixed MAST constants
+choice and leaves dimensionless model-space representations such as
+``R/R0`` and ``psi/(mu0 Ip R0)`` to a later consumer.  The fixed MAST constants
 ``MAST_R0`` / ``MAST_A`` are carried through from the geometry table for that later
 framing but are **not** used to rescale ``G`` here.
 
@@ -65,6 +64,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from scipy.special import ellipe, ellipk  # type: ignore[import-untyped]
 
+from imas_ambix.cocos import project_poloidal_field
 from imas_ambix.data.paths import local_shot_path
 from imas_ambix.gs import circuits as circuits_mod
 from imas_ambix.gs.geometry import (
@@ -86,22 +86,12 @@ any time either changes -- e.g. a different geometric match radius, a new
 circuit special-case, or a change to which circuits get merged into one
 ``G_pf`` column -- so a downstream cache keyed on this string invalidates
 instead of silently mixing predictions built under different assignment
-rules.  ``"case-circuits-v2"`` is the fix that stopped folding MAST's 10
-coil-CASE circuits into their co-located active coil's column (measured
-impact: docs/mast-coil-circuits.html §6,
-:mod:`imas_ambix.gs.artifacts.case_circuit_impact` — median 0.44σ / all 73
-B-probes above 0.05σ / worst probe 17.8σ on shots 18502-18505); the prior,
-unversioned behaviour is implicitly ``"v1"``.  ``"cylinder-sensors-v3"`` added
-the finite-area cylinder kernel for near-pack B-probes; ``"-v4"`` applies
-:data:`SOLENOID_RESPONSE_SCALE` to the P1 solenoid column; ``"-v5"`` collapses
-filled rectangular coil packs to one thick-cylinder filament each
-(:func:`imas_ambix.gs.geometry.collapse_rectangular_circuits`), changing the
-G_pf column source set for a fixed physical coil.  ``"source-stated-drives"``
-takes a source's own circuit -> channel -> ampere-turn declaration
-(:attr:`~imas_ambix.gs.geometry.GeometryTable.circuit_drives`) in place of every
-positional rule, and withholds :data:`SOLENOID_RESPONSE_SCALE` from a column
-whose weight the source stated.  A table declaring no drives assembles exactly
-as under ``"-v5"``."""
+rules.  The current marker covers distinct case-circuit columns, finite-area
+near-pack sensor kernels, the measured solenoid response, collapsed filled
+rectangular packs, and source-stated circuit-to-channel weights.  A stated
+weight supersedes the positional reconstruction and withholds
+:data:`SOLENOID_RESPONSE_SCALE` so the same ampere-turn correction is not
+applied twice."""
 
 SOLENOID_RESPONSE_SCALE = 1.0825
 """Multiplicative correction to the P1 central-solenoid ``G_pf`` column.
@@ -119,7 +109,7 @@ under-drive → ``k < 1``); the residual is a turn-count (effective amp-turns
 ``Σxmult = 328`` ≈ 8% low) or a ``sol_current`` channel-scale — degenerate in
 the forward map, so it is carried here as one response constant on the column,
 applied by default (a vacuum-derived machine-description correction, never
-per-shot tuning).  Set to ``1.0`` to recover the un-corrected ``-v3`` column.
+per-shot tuning).  Set to ``1.0`` to disable the correction for an ablation.
 
 Because that residual is degenerate between a turn count and a channel scale,
 this constant IS an amp-turn statement under another name: it says the
@@ -184,7 +174,7 @@ def greens_bz_br(
 ) -> tuple[np.ndarray, np.ndarray]:
     """``(B_Z, B_R)`` [T per A] at sensors ``(rs, zs)`` from a loop at ``(ar, az)``.
 
-    Standard axisymmetric forms (Jackson §5.5).  On-axis (``R→0``) ``B_R→0`` and
+    Standard axisymmetric circular-loop forms.  On-axis (``R→0``) ``B_R→0`` and
     ``B_Z`` reduces to the textbook ``μ0 a² / (2 (a² + Δz²)^{3/2})`` — pinned by
     :func:`test_on_axis_field_matches_textbook`.
     """
@@ -215,16 +205,14 @@ def _project_bprobe(
 ) -> np.ndarray:
     """Project ``(B_Z, B_R)`` onto each probe orientation.
 
-    ``B_probe = B_R·cos θ + B_Z·sin θ`` with ``θ = angle_deg``.  A 90° probe
-    (``magpr_ang = 90`` → vertical/Bv) reads ``B_Z``; a 0° probe (``= 0`` →
-    radial/Br) reads ``B_R``.  The general projection (not a two-branch
+    ``B_probe = B_R cos(theta) - B_Z sin(theta)`` with the DDv4 directed
+    ``poloidal_angle``.  A -90 degree probe reads ``+B_Z``; a 0 degree probe
+    reads ``B_R``.  The general projection (not a two-branch
     if/else) handles oblique probes and is pinned to those two cases by a test.
     This is the crux the table's orientation-constrained mapping exists to protect:
     co-located ``obr``/``obv`` pairs differ ONLY by ``angle_deg``.
     """
-    th = np.deg2rad(np.asarray(angle_deg, dtype=np.float64))
-    proj: np.ndarray = br * np.cos(th) + bz * np.sin(th)
-    return proj
+    return project_poloidal_field(br, bz, angle_deg)
 
 
 # --- Source-element classification (which circuits are KNOWN PF coils) -
@@ -284,8 +272,8 @@ _CASE_BY_CIRCUIT_ID: dict[int, circuits_mod.CaseCircuit] = {
     c.circuit_id: c for c in circuits_mod.case_circuits()
 }
 """``pfSystems.xml`` case-circuit id -> its :class:`~imas_ambix.gs.circuits.
-CaseCircuit` description.  Measured directly (``docs/mast-coil-circuits.html``
-§6, three sample shots, both ``fcoil`` signatures): the ``efm`` circuit
+CaseCircuit` description.  Measured directly across three sample shots and both
+``fcoil`` signatures (``docs/mast-coil-circuits.html``): the ``efm`` circuit
 numbering for ids 1-23 agrees 1:1 with ``pfSystems.xml``'s own ``pfCircuit``
 numbering — circuit 14 IS "P2U case", exactly as in the machine description.
 :func:`classify_circuits` uses this authoritative id correspondence (never
@@ -400,13 +388,13 @@ def classify_circuits(
     is INFERRED passive / eddy nuisance.  ``amm`` computed currents are NEVER
     read (EFIT-wall-model outputs, not measurements).
 
-    Case-circuit correction (measured, ``docs/mast-coil-circuits.html`` §6)
-    -------------------------------------------------------------------------
+    Case-circuit identification
+    ---------------------------
     8 of MAST's 10 coil-CASE circuits sit within :data:`_COIL_MATCH_M` of their
     co-located ACTIVE coil's centroid (the case is a physically distinct,
     separately-supplied structural conductor a couple of cm from the winding it
     encloses) — geometry alone cannot tell them apart.  The nearest-centroid
-    match below is therefore only the FIRST pass; before accepting it as
+    match below is therefore only a candidate; before accepting it as
     "known_pf", we check :data:`_CASE_BY_CIRCUIT_ID` — the authoritative
     ``pfSystems.xml`` id correspondence (:mod:`imas_ambix.gs.circuits`) — for
     whether THIS SPECIFIC circuit id is actually the matched coil's case, not
@@ -810,7 +798,7 @@ def _green_columns(
     ``src_*`` / ``weights`` are the filament (R, Z) + per-filament weight of ONE
     source (a PF circuit's filaments weighted by ``xmult``, or a single plasma /
     passive node of weight 1).  Flux-loop rows get ``Σ w·ψ``; B-probe rows get
-    ``Σ w·(B_R cosθ + B_Z sinθ)``.
+    ``Σ w·(B_R cos(theta) - B_Z sin(theta))``.
 
     ``src_dr``/``src_dz`` are the conductor cross-section extents [m]: sensors
     within the near band of a winding pack get the finite-area cylinder kernel
@@ -854,7 +842,7 @@ def polygon_section_column(
 
     The exact-shape counterpart of the single-source path in
     :func:`_green_columns`: flux-loop rows get ``xmult·ψ``, B-probe rows get
-    ``xmult·(B_R cosθ + B_Z sinθ)``, with (ψ, B_R, B_Z) from
+    ``xmult·(B_R cos(theta) - B_Z sin(theta))``, with (psi, B_R, B_Z) from
     :func:`imas_ambix.gs.polygon.polygon_greens` per ampere of TOTAL section
     current (the same sign/units contract as ``hybrid_greens``).  Replaces the
     bounding-box column for a slanted / trapezoidal / hollow passive at

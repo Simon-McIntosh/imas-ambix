@@ -1,14 +1,11 @@
-"""Regression tests for the case-circuit fix in ``classify_circuits``.
+"""Regression tests for case-circuit classification.
 
-Before this fix, ``classify_circuits`` labelled any ``efm`` fcoil circuit
-within 8 cm of a known PF-coil centroid as "known_pf" for that coil, with no
-way to tell an ACTIVE coil apart from its co-located, separately-supplied
-CASE circuit (docs/mast-coil-circuits.html §6).  8 of MAST's 10 case circuits
-sit within that 8 cm radius of their active coil and were silently averaged
-into the active coil's G_pf column, driven by the ACTIVE coil's (much larger)
-amc current instead of their own small measured case current.
+Eight of MAST's ten case circuits sit within 8 cm of an active-coil centroid.
+Geometry alone therefore cannot tell an active winding apart from its
+co-located, separately supplied case circuit.  Case circuits must retain their
+own Green's-function columns and measured case currents.
 
-The fix uses the authoritative ``pfSystems.xml`` id correspondence
+Classification uses the authoritative ``pfSystems.xml`` id correspondence
 (:mod:`imas_ambix.gs.circuits`, measured to agree 1:1 with the ``efm`` circuit
 numbering for ids 1-23 on real data, both ``fcoil`` signatures) to recognise a
 case circuit BY ID once geometry has already flagged it as a neighbour of an
@@ -30,10 +27,9 @@ from imas_ambix.gs import operator as op
 # --- coil-model version marker ---------------------------------------------
 
 
-def test_coil_model_version_bumped_for_the_case_circuit_fix():
+def test_coil_model_marker_identifies_source_stated_drives():
     """A downstream cache keying on COIL_MODEL_VERSION must invalidate across
-    coil-model fixes -- pin that the marker exists and is neither the implicit
-    pre-fix baseline nor any retired intermediate."""
+    changes to circuit assignment rules."""
     assert op.COIL_MODEL_VERSION not in ("", "case-circuits-v1", "case-circuits-v2")
     assert op.COIL_MODEL_VERSION == "source-stated-drives"
 
@@ -48,7 +44,7 @@ def test_operator_summary_reports_coil_model_version(tmp_path):
     assert payload["coil_model_version"] == op.COIL_MODEL_VERSION
 
 
-# --- circuits.py cross-check: the ids this fix hinges on ------------------
+# --- circuits.py cross-check: authoritative case ids ----------------------
 
 
 def test_p4u_case_circuit_id_is_18_confusable_with_p4u():
@@ -81,7 +77,7 @@ def _table(
     filaments: list[gsg.PFFilament], amc_channels: list[str]
 ) -> gsg.GeometryTable:
     """A single-vertical-probe geometry table around whatever filaments are given."""
-    bp = gsg.BProbe(index=0, r=1.3, z=0.0, angle_deg=90.0, length=0.025)
+    bp = gsg.BProbe(index=0, r=1.3, z=0.0, angle_deg=-90.0, length=0.025)
     sig = gsg.SetupSignature(
         n_bprobe=1,
         n_fluxloop=0,
@@ -98,7 +94,7 @@ def _table(
         limiter_r=[0.3, 1.6, 1.6, 0.3],
         limiter_z=[-1.0, -1.0, 1.0, 1.0],
         sensor_map=[
-            gsg.SensorMapping("obv01", "b_probe", 0, 1.3, 0.0, 90.0, 0.001, ""),
+            gsg.SensorMapping("obv01", "b_probe", 0, 1.3, 0.0, -90.0, 0.001, ""),
         ],
         passive_structures=[],
         amc_current_channels=amc_channels,
@@ -154,7 +150,7 @@ def test_case_filament_without_its_channel_falls_back_to_inferred():
 def test_p6_case_is_zero_passive_even_if_a_channel_is_injected():
     """P6U/P6L cases are constrained to zero by pfSystems.xml -- they must
     stay INFERRED passive even if a (spurious) case-current channel is
-    present, never become "known_case" (docs/mast-coil-circuits.html §3)."""
+    present and never become ``known_case``."""
     p6u_r, p6u_z = op._PF_COIL_CENTROID["p6u"]
     filaments = [
         _filament(p6u_r, p6u_z, circuit=12),  # P6U active (id 12)
@@ -188,9 +184,7 @@ def test_p6_case_without_any_channel_is_also_inferred_passive():
 
 
 def test_all_13_active_circuits_still_classify_known_pf():
-    """The fix touches ONLY case-circuit ids (14-23); every active circuit
-    (1-13), placed at its real centroid with no case circuit present, must
-    classify exactly as it did before the fix."""
+    """Every active circuit at its real centroid classifies as known PF."""
     filaments = []
     amc_channels = []
     for active in pfc.active_circuits():
@@ -240,18 +234,17 @@ def test_p6_case_drops_out_of_g_pf_into_g_passive():
     assert np.allclose(forward.passive_rz[0], [p6u_r + 0.02, p6u_z])
 
 
-# --- regression pin: the corrected G_pf assembly changes the vacuum -------
-# --- prediction by exactly the hand-computed delta on a mini fixture ------
+# --- separate case-current columns versus an invalid merged model ----------
 
 
-def test_regression_pin_vacuum_prediction_delta_vs_pre_fix_merge():
-    """Recomputes, independently of ``classify_circuits``, what the PRE-FIX
-    merge-by-amc-channel behaviour would have predicted (average the active +
-    case Green's-function columns, drive the average by ONLY the active
-    coil's current) and asserts the FIXED operator's prediction differs from
-    it by exactly that hand-computed delta -- pinning both the sign and the
-    magnitude of the correction so a regression silently re-merging the two
-    circuits is caught."""
+def test_separate_case_current_differs_from_wrong_merged_prediction():
+    """The separate-column model must differ from a merged-column model.
+
+    The comparison is independent of ``classify_circuits``: it averages the
+    active and case Green's-function columns and drives that invalid average
+    only by the active-coil current.  The exact delta pins both the sign and
+    magnitude needed to catch any silent re-merging of the circuits.
+    """
     filaments = [
         _filament(_P4U_R, _P4U_Z, circuit=8),
         _filament(_P4U_CASE_R, _P4U_CASE_Z, circuit=18),
@@ -262,12 +255,14 @@ def test_regression_pin_vacuum_prediction_delta_vs_pre_fix_merge():
     amc_active_ka, amc_case_ka = 100.0, 5.0  # kA*turn, realistic order-of-magnitude
     amc = {"p4u_coil_current": amc_active_ka, "p4u_case_current": amc_case_ka}
     i_pf = forward.assemble_pf_currents(amc)
-    pred_after = forward.vacuum_prediction(i_pf)
+    pred_separate = forward.vacuum_prediction(i_pf)
 
     # independently recompute the two raw Green's-function columns (never via
-    # classify_circuits / build_operator) to build the PRE-FIX prediction.
+    # classify_circuits / build_operator) to build the invalid merged model.
     is_flux = np.array([False])
-    sensor_r, sensor_z, sensor_ang = np.array([1.3]), np.array([0.0]), np.array([90.0])
+    sensor_r = np.array([1.3])
+    sensor_z = np.array([0.0])
+    sensor_ang = np.array([-90.0])
     col_active = op._green_columns(
         np.array([_P4U_R]),
         np.array([_P4U_Z]),
@@ -289,30 +284,25 @@ def test_regression_pin_vacuum_prediction_delta_vs_pre_fix_merge():
     i_active_a = amc_active_ka * op._KA_TURN_TO_A
     i_case_a = amc_case_ka * op._KA_TURN_TO_A
 
-    # FIXED (after): each column driven by its own current -- must match the
-    # operator's actual output exactly.
-    pred_after_hand = col_active * i_active_a + col_case * i_case_a
-    assert np.allclose(pred_after, pred_after_hand, rtol=1e-12)
+    # Each column is driven by its own current and matches the operator output.
+    pred_separate_hand = col_active * i_active_a + col_case * i_case_a
+    assert np.allclose(pred_separate, pred_separate_hand, rtol=1e-12)
 
-    # PRE-FIX (before): both circuits merged (averaged) into ONE column keyed
-    # on the active coil's channel, driven ONLY by the active current -- the
-    # case current never entered the prediction at all.
-    pred_before_hand = 0.5 * (col_active + col_case) * i_active_a
+    # The invalid model merges both circuits and drops the measured case current.
+    pred_merged_hand = 0.5 * (col_active + col_case) * i_active_a
 
-    delta = pred_after - pred_before_hand
+    delta = pred_separate - pred_merged_hand
     expected_delta = 0.5 * i_active_a * (col_active - col_case) + i_case_a * col_case
     assert np.allclose(delta, expected_delta, rtol=1e-12)
     # the correction must be non-trivial for this fixture (case current is
     # 1/20th of active but the case sits at a different, non-degenerate
     # location -- both terms of expected_delta are non-zero).
     assert np.all(np.abs(delta) > 0)
-    assert not np.allclose(pred_after, pred_before_hand)
+    assert not np.allclose(pred_separate, pred_merged_hand)
 
 
 def test_write_case_circuit_impact_artifact_schema():
-    """Smoke-check the shape of the committed measurement artifact so a
-    future re-measurement can't silently drop the fields this fix's impact
-    report depends on."""
+    """The measurement artifact retains the fields needed by its impact report."""
     import json
     from pathlib import Path
 

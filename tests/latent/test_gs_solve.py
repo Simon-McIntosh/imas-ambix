@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from imas_ambix.cocos import project_poloidal_field
 from imas_ambix.latent.gs_solve import (
     EquilibriumGrid,
     profile_jphi_shape,
@@ -42,7 +43,7 @@ def _confining_table():
     from imas_ambix.gs import geometry as gsg
 
     probes = [
-        gsg.BProbe(index=i, r=1.35, z=-0.6 + 0.3 * i, angle_deg=90.0, length=0.02)
+        gsg.BProbe(index=i, r=1.35, z=-0.6 + 0.3 * i, angle_deg=-90.0, length=0.02)
         for i in range(5)
     ]
     sensor_map = [
@@ -91,7 +92,7 @@ def _table_with_interior_coil():
     from imas_ambix.gs import geometry as gsg
 
     probes = [
-        gsg.BProbe(index=i, r=1.9, z=-0.6 + 0.3 * i, angle_deg=90.0, length=0.02)
+        gsg.BProbe(index=i, r=1.9, z=-0.6 + 0.3 * i, angle_deg=-90.0, length=0.02)
         for i in range(5)
     ]
     sensor_map = [
@@ -315,10 +316,10 @@ def test_fit_profile_recovers_generating_beta0():
 
     vac = np.zeros(len(channels))
     for k, m in enumerate(table.sensor_map):
-        ang = np.deg2rad(m.angle_deg if m.angle_deg is not None else 90.0)
+        assert m.angle_deg is not None
         for f, cur in zip(table.pf_filaments, i_pf, strict=True):
             bz, br = greens_bz_br(np.array([m.r]), np.array([m.z]), f.r, f.z)
-            vac[k] += cur * (br[0] * np.cos(ang) + bz[0] * np.sin(ang))
+            vac[k] += cur * project_poloidal_field(br[0], bz[0], m.angle_deg)
     meas = vac + g_sens @ res.cell_currents
     scale = np.abs(meas) + 1e-9
     fit = fit_profile(
@@ -371,10 +372,10 @@ def _synthetic_confining_slice(grid, table, i_pf, ip, beta0, alpha):
     g_sens, channels = grid.sensor_greens(table)
     vac = np.zeros(len(channels))
     for k, m in enumerate(table.sensor_map):
-        ang = np.deg2rad(m.angle_deg if m.angle_deg is not None else 90.0)
+        assert m.angle_deg is not None
         for f, cur in zip(table.pf_filaments, i_pf, strict=True):
             bz, br = greens_bz_br(np.array([m.r]), np.array([m.z]), f.r, f.z)
-            vac[k] += cur * (br[0] * np.cos(ang) + bz[0] * np.sin(ang))
+            vac[k] += cur * project_poloidal_field(br[0], bz[0], m.angle_deg)
     meas = vac + g_sens @ res.cell_currents
     return meas, vac, res
 
@@ -821,8 +822,7 @@ def test_ladder_passive_sidecar_identity_when_off_and_absorbs_passive_signal():
 
 def test_ladder_nonneg_recovers_family_with_nonnegative_current():
     """The sign-constrained ladder recovers a synthetic (β0, α=1) equilibrium
-    (inside the non-negative family) with jφ ≥ 0 everywhere — the R1 fact the
-    free-sign LSQ measured itself violating on real data."""
+    inside the non-negative family with jφ ≥ 0 everywhere."""
     from imas_ambix.latent.gs_solve import fit_profile_ladder
 
     table = _confining_table()

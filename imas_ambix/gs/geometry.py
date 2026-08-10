@@ -7,9 +7,8 @@ sensor's ``(R, Z)`` + orientation, the PF-coil + passive-structure filament
 ``(R, Z, turns)``, and the limiter contour.  That geometry is the one piece
 **not** present in the raw signal data, so we tabulate it here.
 
-Geometry source — ``gs-geometry-source = efm-static-geometry`` (LOCKED, user-
-cleared 2026-05-30)
--------------------------------------------------------------------------------
+Geometry source
+---------------
 We read **only** EFIT's STATIC SETUP / machine-description arrays — the fixed
 *a-priori* every solver is *given*, categorically distinct from EFIT's
 *reconstructed* output.  The discriminator is mechanical and auditable:
@@ -50,24 +49,26 @@ the arrays above), ``psirz``, ``pprime``, ``ffprime``, ``lcfs_r/z``, ``qpsi_c``,
 ``(50, …)`` reconstructed quantity.
 
 Orientation is resolved **authoritatively from ``magpr_ang``**, never from the
-``amb`` channel name/description.  This matters: the ``amb`` ``obv*`` channels
-carry "Br" in their description (a copy-paste bug) yet ``magpr_ang = 90``
-confirms they are *vertical* probes.  See :func:`map_amb_sensors`.
+``amb`` channel name/description.  The source angle is converted at this read
+boundary to the DDv4 directed-angle definition: a source +90 degree vertical
+probe becomes -90 degrees and still reads ``+B_Z``.  See
+:func:`map_amb_sensors`.
 
 Per-campaign keying
 -------------------
-The EFIT setup is not constant across the corpus.  Within the in-use S7 shot
-set the ``fcoil`` discretisation is 1004 *or* 938 filaments, and ``magpr_z``
+The EFIT setup is not constant across the corpus.  The ``fcoil`` discretisation
+is 1004 *or* 938 filaments, and ``magpr_z``
 drifts up to ~13 mm between campaigns (``silop`` positions are stable).  A
 single global table would silently mix incompatible geometries, so every table
 is keyed by a :class:`SetupSignature` — a hash of the rounded valid sensor /
 filament positions + counts.  ``silop`` arrays are sometimes zero-padded to 78
 with trailing ``NaN``; only the valid (finite) entries count.
 
-Dimensionless framing (open: ``extrapolation-coordinates``)
------------------------------------------------------------
-The decision on dimensionless coordinates (R/R0, ψ-normalisation, …) is **not**
-resolved here.  The table carries the raw machine-absolute ``(R, Z, …)`` plus
+Dimensionless framing
+---------------------
+The table does not choose dimensionless coordinates (R/R0, psi normalisation,
+and similar model-space representations).  It carries the raw machine-absolute
+``(R, Z, ...)`` plus
 the fixed MAST major/minor-radius constants (:data:`MAST_R0`, :data:`MAST_A`)
 needed to *later* express geometry in dimensionless groups, without locking
 any particular framing now.
@@ -79,32 +80,31 @@ import hashlib
 import json
 import re
 from dataclasses import asdict, dataclass, field
+from functools import lru_cache
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import numpy as np
 
 from imas_ambix.data.paths import MANIFEST_DIR, local_shot_path
+from imas_ambix.data.signal_map import CompiledSignal, load_packaged_signal_map
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
-    from pathlib import Path
 
-# --- Fixed MAST machine constants (for later dimensionless framing) ----
+# --- Fixed MAST machine constants --------------------------------------
 #
 # These are device constants, not per-shot reconstructions.  They let a
-# downstream consumer express geometry in dimensionless coordinates (R/R0,
-# n/n_Greenwald via the minor radius, q*) WITHOUT re-introducing any EFIT
-# dependency.  We carry them in the artifact but do NOT lock the
-# `extrapolation-coordinates` decision here.
+# downstream consumer express geometry in dimensionless coordinates without
+# re-introducing any EFIT dependency.
 
 MAST_R0 = 0.85
 """MAST nominal plasma major radius [m] (device constant, not per-shot).
 
 A *nominal* value, NOT derived from the limiter contour — a downstream
 consumer that needs a geometry-exact R0/a should derive it from the table's
-``limiter_r`` / ``limiter_z`` instead.  Carried only so a later dimensionless
-framing has a fixed reference; the ``extrapolation-coordinates`` decision is
-left open."""
+``limiter_r`` / ``limiter_z`` instead.  Carried only so a dimensionless framing
+can use a fixed reference."""
 
 MAST_A = 0.65
 """MAST nominal plasma minor radius [m] (device constant; the quantity used by
@@ -138,21 +138,15 @@ never opens any other efm array (no ``psirz``, no ``*_c`` / ``*_x`` fitted
 currents, no profiles, no shape parameters).
 """
 
-GEOMETRY_TABLE_VERSION = "amb-schema-canonical-v3"
+GEOMETRY_TABLE_VERSION = "ddv4-directed-probe-angle"
 """Bump whenever the derivation of :class:`GeometryTable` (its sensor channel
 SET in particular) changes for a FIXED efm geometry / signature digest — a
 downstream cache keyed only on ``SetupSignature.key`` would otherwise silently
-mix tables built under different derivations.  ``v1``: the sensor channel set
-is geometry-determined (see :func:`canonical_amb_channels`) rather than an
-artifact of one shot's own ``amb`` zarr schema.  ``v2``: filled rectangular
-coil packs are collapsed to one thick-cylinder filament each
-(:func:`collapse_rectangular_circuits`) — same finite-cross-section field,
-fewer sources.  ``v3``: the eight slanted vessel/P2 passive sections
-(crowns + P2 arms/divertor plates) carry their true parallelogram cross-section
-as a :class:`PolygonSection` (:func:`mast_slanted_polygon_sections`) instead of
-the axis-aligned bounding box — same area (hence same ring resistance), shaped
-field. A downstream ``.npz`` cache keyed only on ``SetupSignature.key`` (the
-passive circuit system) must be rebuilt across this bump.
+mix tables built under different derivations.  The marker covers the
+geometry-determined sensor set, collapsed finite rectangular coil packs, true
+polygonal passive sections, and DDv4-directed probe angles.  A downstream
+``.npz`` cache keyed only on ``SetupSignature.key`` must also include this
+marker.
 """
 
 # Sensor-name → expected orientation (degrees).  Bv (vertical) probes read the
@@ -188,12 +182,12 @@ _AMB_NON_SENSOR = ("time", "timesec", "status")
 
 @dataclass(frozen=True)
 class BProbe:
-    """A magnetic field probe: ``(R, Z)``, orientation angle, effective length."""
+    """A field probe carrying the DDv4 directed poloidal angle in degrees."""
 
     index: int  # index into the efm magpr_* arrays
     r: float
     z: float
-    angle_deg: float  # authoritative orientation from magpr_ang
+    angle_deg: float  # COCOS-17 poloidal_angle; -90 degrees reads +B_Z
     length: float
 
 
@@ -346,8 +340,8 @@ class PolygonSection:
     of an axis-aligned bounding box or a Riemann-limited multi-filament tiling.
 
     Keyed to the fcoil ``circuit`` whose bounding-box representation it REPLACES
-    in the forward operator (an opt-in override — a table with no polygon
-    sections builds byte-identically to before).  ``vertices`` are the (n, 2)
+    in the forward operator.  The override has no effect when a table declares
+    no polygon sections.  ``vertices`` are the (n, 2)
     corners in either orientation, no repeated closing vertex.  ``xmult`` is the
     current-share weight and MUST equal the replaced circuit's summed ``xmult``
     so the column's per-amplitude scaling is unchanged (only the shape differs).
@@ -563,8 +557,8 @@ class SetupSignature:
     key so geometry from different campaigns -- or different machines -- is
     never silently mixed.
 
-    Machine tagging (byte-stability contract, LOCKED)
-    --------------------------------------------------
+    Machine tagging and byte stability
+    ----------------------------------
     ``machine`` defaults to ``"mast"`` and :attr:`key` special-cases that
     default to the untagged prefix (``mp{..}-fl{..}-fc{..}-lim{..}-{digest}``)
     -- the exact format every MAST signature has always used.  Every existing
@@ -783,17 +777,32 @@ def _open_group(shot_id: int, group: str) -> Any:
     return store[group]
 
 
+@lru_cache(maxsize=1)
+def _mast_probe_angle_conversion() -> CompiledSignal:
+    """Return the reviewed source-to-DD probe-angle operation."""
+
+    return load_packaged_signal_map("mast", "magnetics").compile(0)[
+        "poloidal_field_probe_directed_angle"
+    ]
+
+
 def read_efm_geometry(shot_id: int) -> dict[str, np.ndarray]:
     """Read ONLY the static efm geometry arrays for one shot.
 
     Reads exactly the arrays in :data:`EFM_GEOMETRY_ARRAYS` — the auditable
     read-list — and no others.  Never touches any reconstructed efm output.
+    The reviewed MAST magnetics map normalizes ``magpr_ang`` in memory to the
+    DDv4 directed-angle definition.  The map serves radians; this legacy
+    geometry structure retains degrees internally.  No source chunk is modified.
     """
     efm = _open_group(shot_id, "efm")
     out: dict[str, np.ndarray] = {}
     for name in EFM_GEOMETRY_ARRAYS:
         if name in efm:
             out[name] = np.asarray(efm[name][:], dtype=np.float64)
+    if "magpr_ang" in out:
+        dd_radians = _mast_probe_angle_conversion().apply(out["magpr_ang"])
+        out["magpr_ang"] = np.rad2deg(dd_radians)
     return out
 
 
@@ -840,7 +849,7 @@ def _parse_amb_rz(desc: str) -> tuple[float, float] | None:
 def _expected_angle(channel: str) -> float | None:
     name = channel.lower()
     if name.startswith(_VERTICAL_PREFIXES):
-        return 90.0
+        return -90.0
     if name.startswith(_RADIAL_PREFIXES):
         return 0.0
     return None
@@ -854,7 +863,7 @@ def map_amb_sensors(
 
     ``amb_channels`` is a sequence of ``(channel_name, description)``.  The
     description's ``r=…, z=…`` is used **only** as a lookup key; the stored
-    ``(R, Z, angle)`` always comes from efm.
+    ``(R, Z, angle)`` always comes from efm after conversion to DDv4.
 
     B-probes (``ccbv*`` / ``obr*`` / ``obv*``) map to ``magpr`` with the
     candidate set **restricted to the name-expected orientation subset** so
@@ -1039,9 +1048,8 @@ def canonical_amb_channels(
     per-shot data-acquisition gap (a channel disabled or dropped for that
     shot), not a geometry difference (the efm arrays the digest hashes are
     unaffected).  Resolving a campaign's sensor channel SET from only one
-    shot therefore makes it an artifact of THAT shot's own availability
-    (:func:`build_table_for_shot` calling this shot "unlucky" would silently
-    lose the channel for the whole campaign).  Scanning several shots and
+    shot therefore makes it an artifact of that shot's own availability and
+    can silently lose the channel for the whole campaign.  Scanning several shots and
     taking the union of every discovered ``(name, description)`` pair makes
     the resulting set geometry-determined instead — per-shot absence is left
     to be resolved as a masked-absent value downstream (the raw-signal
@@ -1077,8 +1085,8 @@ def build_table_for_shot(
     shot sharing this campaign's signature to get a sensor channel SET that
     does not depend on which single shot happens to build the table (see its
     docstring).  Defaults to this shot's own :func:`read_amb_channels` when
-    omitted, preserving the original single-shot behaviour for callers that
-    only ever see one shot of a campaign.
+    omitted, using that shot's channel set for callers that only ever see one
+    shot of a campaign.
 
     The geometry is per-campaign-constant, so a single shot of a campaign is a
     valid source for that campaign's table.
@@ -1248,9 +1256,14 @@ def write_tables(
     out_dir = out_dir or MANIFEST_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "gs_geometry_tables.json"
+    angle_map = load_packaged_signal_map("mast", "magnetics")
     payload = {
-        "schema": "gs-geometry-v0",
+        "schema": "gs-geometry",
         "source": "efm-static-geometry",
+        "angle_map_digest": angle_map.digest,
+        "angle_unit": "degree",
+        "target_cocos": angle_map.target_cocos,
+        "target_dd_version": angle_map.target_dd_version,
         "efm_arrays_read": list(EFM_GEOMETRY_ARRAYS),
         "r0": MAST_R0,
         "minor_radius": MAST_A,
@@ -1266,6 +1279,106 @@ def write_tables(
     }
     path.write_text(json.dumps(payload, indent=2))
     return path
+
+
+def load_tables(path: Path | str | None = None) -> dict[str, GeometryTable]:
+    """Load campaign tables and apply any declared source-angle map in memory.
+
+    The external ``gs-geometry-v0`` cache predates directed DDv4 angles and
+    contains the unchanged MAST source direction.  It remains readable through
+    the reviewed magnetics map, but is never rewritten.  Canonical artifacts
+    carry the map digest that produced them and are refused if it differs from
+    the packaged map.
+    """
+
+    source_path = (
+        Path(path) if path is not None else MANIFEST_DIR / "gs_geometry_tables.json"
+    )
+    payload = json.loads(source_path.read_text())
+    schema = payload.get("schema")
+    angle_map = load_packaged_signal_map("mast", "magnetics")
+    conversion: CompiledSignal | None
+    if schema == "gs-geometry-v0":
+        conversion = angle_map.compile(0)["poloidal_field_probe_directed_angle"]
+    elif schema == "gs-geometry":
+        conversion = None
+        expected = {
+            "angle_map_digest": angle_map.digest,
+            "angle_unit": "degree",
+            "target_cocos": angle_map.target_cocos,
+            "target_dd_version": angle_map.target_dd_version,
+        }
+        actual = {key: payload.get(key) for key in expected}
+        if actual != expected:
+            raise ValueError(
+                f"geometry table convention metadata differs: "
+                f"expected={expected}, actual={actual}"
+            )
+    else:
+        raise ValueError(f"unsupported geometry table schema {schema!r}")
+
+    tables: dict[str, GeometryTable] = {}
+    for row in payload["campaigns"].values():
+        probe_rows = [dict(item) for item in row["b_probes"]]
+        sensor_rows = [dict(item) for item in row["sensor_map"]]
+        if conversion is not None:
+            probe_angles = conversion.apply(
+                np.asarray([item["angle_deg"] for item in probe_rows])
+            )
+            canonical_degrees = np.rad2deg(probe_angles)
+            for item, angle in zip(probe_rows, canonical_degrees, strict=True):
+                item["angle_deg"] = float(angle)
+            for item in sensor_rows:
+                if item.get("angle_deg") is not None:
+                    converted = conversion.apply(item["angle_deg"])
+                    item["angle_deg"] = float(np.rad2deg(converted))
+
+        b_probes = [BProbe(**item) for item in probe_rows]
+        flux_loops = [FluxLoop(**item) for item in row["flux_loops"]]
+        pf_filaments = [PFFilament(**item) for item in row["pf_filaments"]]
+        signature_row = dict(row["signature"])
+        if conversion is not None:
+            signature_row["digest"] = _round_hash(
+                [
+                    np.asarray([probe.r for probe in b_probes]),
+                    np.asarray([probe.z for probe in b_probes]),
+                    np.asarray([probe.angle_deg for probe in b_probes]),
+                    np.asarray([loop.r for loop in flux_loops]),
+                    np.asarray([loop.z for loop in flux_loops]),
+                    np.asarray([filament.r for filament in pf_filaments]),
+                    np.asarray([filament.z for filament in pf_filaments]),
+                    np.asarray([filament.turns for filament in pf_filaments]),
+                    np.asarray(row["limiter_r"]),
+                    np.asarray(row["limiter_z"]),
+                ]
+            )
+        table = GeometryTable(
+            signature=SetupSignature(**signature_row),
+            shots=list(row["shots"]),
+            b_probes=b_probes,
+            flux_loops=flux_loops,
+            pf_filaments=pf_filaments,
+            limiter_r=list(row["limiter_r"]),
+            limiter_z=list(row["limiter_z"]),
+            sensor_map=[SensorMapping(**item) for item in sensor_rows],
+            passive_structures=[
+                PassiveStructure(**item) for item in row["passive_structures"]
+            ],
+            amc_current_channels=list(row["amc_current_channels"]),
+            unmatched_amb=list(row["unmatched_amb"]),
+            r0=float(row["r0"]),
+            minor_radius=float(row["minor_radius"]),
+            provenance_flags=list(row.get("provenance_flags", [])),
+            active_circuits=list(row.get("active_circuits", [])),
+            circuit_drives=[
+                CircuitDrive(**item) for item in row.get("circuit_drives", [])
+            ],
+            polygon_sections=[
+                PolygonSection(**item) for item in row.get("polygon_sections", [])
+            ],
+        )
+        tables[table.signature.key] = table
+    return tables
 
 
 def summarise(tables: dict[str, GeometryTable]) -> dict[str, object]:

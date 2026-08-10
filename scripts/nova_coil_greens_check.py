@@ -36,12 +36,18 @@ from pathlib import Path
 
 import numpy as np
 
+from imas_ambix.cocos import project_poloidal_field
+
 REPO = Path(__file__).resolve().parents[1]
 NOVA = Path.home() / "Code" / "nova"
 THIS_FILE = Path(__file__).resolve()
 
 ARTIFACT = (
-    REPO / "imas_ambix" / "latent" / "artifacts" / "patch_gate"
+    REPO
+    / "imas_ambix"
+    / "latent"
+    / "artifacts"
+    / "patch_gate"
     / "nova_coil_greens_check.json"
 )
 FIGDIR = REPO / "docs" / "figures" / "force-balance-spine"
@@ -98,16 +104,19 @@ def _point_col(op, fr, fz, fw, sr, sz, sang, is_flux):
 
 def _cyl_col(cylinder_greens, fr, fz, fw, fdr, fdz, sr, sz, sang, is_flux):
     """One finite-area cylinder column at each sensor (floored extents)."""
-    th = np.deg2rad(sang)
     col = np.zeros(sr.shape)
     for ar, az, w, dr, dz in zip(fr, fz, fw, fdr, fdz, strict=True):
         if w == 0.0:
             continue
         psi, br, bz = cylinder_greens(
-            sr, sz, float(ar), float(az),
-            max(abs(float(dr)), CYL_FLOOR), max(abs(float(dz)), CYL_FLOOR),
+            sr,
+            sz,
+            float(ar),
+            float(az),
+            max(abs(float(dr)), CYL_FLOOR),
+            max(abs(float(dz)), CYL_FLOOR),
         )
-        bproj = br * np.cos(th) + bz * np.sin(th)
+        bproj = project_poloidal_field(br, bz, sang)
         col = col + w * np.where(is_flux, psi, bproj)
     return col
 
@@ -160,9 +169,7 @@ def representative_filaments(table, fwd):
     for f in table.pf_filaments:
         by_circ.setdefault(f.circuit, []).append(f)
     picks = []
-    for circs, chan in zip(
-        fwd.pf_merged_circuits, fwd.pf_amc_channels, strict=True
-    ):
+    for circs, chan in zip(fwd.pf_merged_circuits, fwd.pf_amc_channels, strict=True):
         fs = [f for c in circs for f in by_circ[c]]
         if not fs:
             continue
@@ -182,7 +189,12 @@ def representative_filaments(table, fwd):
     # de-duplicate identical boxes
     seen, uniq = set(), []
     for p in picks:
-        key = (round(p["a"], 6), round(p["z0"], 6), round(p["da"], 6), round(p["dz"], 6))
+        key = (
+            round(p["a"], 6),
+            round(p["z0"], 6),
+            round(p["da"], 6),
+            round(p["dz"], 6),
+        )
         if key in seen:
             continue
         seen.add(key)
@@ -200,8 +212,15 @@ def nova_cross_check(cylinder_greens, table, fwd, sr, sz):
         "targets": [[float(r), float(z)] for r, z in zip(sr, sz, strict=True)],
     }
     proc = subprocess.run(
-        ["uv", "run", "--project", str(NOVA), "python", str(THIS_FILE),
-         "--nova-driver"],
+        [
+            "uv",
+            "run",
+            "--project",
+            str(NOVA),
+            "python",
+            str(THIS_FILE),
+            "--nova-driver",
+        ],
         input=json.dumps(job),
         capture_output=True,
         text=True,
@@ -220,10 +239,10 @@ def nova_cross_check(cylinder_greens, table, fwd, sr, sz):
     for i, f in enumerate(fils):
         psi, br, bz = cylinder_greens(sr, sz, f["a"], f["z0"], f["da"], f["dz"])
         # compare psi (flux loops) and both field comps on all sensor points
-        for label, tree_v, nova_v in (
-            ("psi", psi, nova_psi[i]),
-            ("br", br, nova_br[i]),
-            ("bz", bz, nova_bz[i]),
+        for tree_v, nova_v in (
+            (psi, nova_psi[i]),
+            (br, nova_br[i]),
+            (bz, nova_bz[i]),
         ):
             scale = np.maximum(np.abs(nova_v), 1e-30)
             frac = np.abs(tree_v - nova_v) / scale
@@ -305,9 +324,7 @@ def geometry_audit(op, table, fwd):
         cz = float((w * zz).sum() / w.sum())
         label = cc.coil_label.replace("_case", "")
         ref = op._PF_COIL_CENTROID.get(label)
-        cen_delta_mm = (
-            float(np.hypot(cr - ref[0], cz - ref[1]) * 1e3) if ref else None
-        )
+        cen_delta_mm = float(np.hypot(cr - ref[0], cz - ref[1]) * 1e3) if ref else None
         rows.append(
             {
                 "coil": chan,
@@ -366,16 +383,21 @@ def main():
     g_point, g_cyl = build_columns(op, cylinder_greens, table, fwd)
     max_abs_reproduce = float(np.max(np.abs(g_point - fwd.g_pf)))
     reproduces = bool(np.allclose(g_point, fwd.g_pf, rtol=1e-10, atol=1e-18))
-    print(f"      max|g_point - fwd.g_pf| = {max_abs_reproduce:.3e}  ok={reproduces}",
-          flush=True)
+    print(
+        f"      max|g_point - fwd.g_pf| = {max_abs_reproduce:.3e}  ok={reproduces}",
+        flush=True,
+    )
     if not reproduces:
         raise RuntimeError("point-filament reproduction does not match fwd.g_pf")
 
     print("[3/6] nova cross-check on representative filaments ...", flush=True)
     nova = nova_cross_check(cylinder_greens, table, fwd, sr, sz)
-    print(f"      worst frac(tree cyl vs nova) = "
-          f"{nova['worst_fractional_delta_tree_vs_nova']:.3e} over "
-          f"{nova['n_filament']} filaments", flush=True)
+    print(
+        f"      worst frac(tree cyl vs nova) = "
+        f"{nova['worst_fractional_delta_tree_vs_nova']:.3e} over "
+        f"{nova['n_filament']} filaments",
+        flush=True,
+    )
 
     print("[4/6] channel σ and typical currents ...", flush=True)
     sigma, typ_current = channel_sigma_and_currents(op, fwd)
@@ -385,8 +407,8 @@ def main():
     denom = np.where(np.abs(g_point) > 0, np.abs(g_point), np.nan)
     frac = np.abs(delta) / denom  # fractional (cyl-point)/|point|
     # delta at typical currents, in units of channel σ
-    delta_at_I = np.abs(delta) * typ_current[None, :]  # (S, C) in sensor units
-    delta_sigma = delta_at_I / np.where(sigma > 0, sigma, np.nan)[:, None]
+    delta_at_current = np.abs(delta) * typ_current[None, :]  # sensor units
+    delta_sigma = delta_at_current / np.where(sigma > 0, sigma, np.nan)[:, None]
 
     # worst cells
     def top_cells(mat, kthresh, n=25):
@@ -395,9 +417,17 @@ def main():
             for ci in range(n_coil):
                 v = mat[si, ci]
                 if np.isfinite(v) and v >= kthresh:
-                    flat.append((float(v), chans[si], is_flux[si], fwd.pf_amc_channels[ci],
-                                 float(frac[si, ci]) if np.isfinite(frac[si, ci]) else None,
-                                 float(g_point[si, ci]), float(g_cyl[si, ci])))
+                    flat.append(
+                        (
+                            float(v),
+                            chans[si],
+                            is_flux[si],
+                            fwd.pf_amc_channels[ci],
+                            float(frac[si, ci]) if np.isfinite(frac[si, ci]) else None,
+                            float(g_point[si, ci]),
+                            float(g_cyl[si, ci]),
+                        )
+                    )
         flat.sort(reverse=True)
         return [
             {
@@ -417,10 +447,14 @@ def main():
     worst_sigma = float(np.nanmax(delta_sigma))
     worst_frac = float(np.nanmax(frac))
 
-    print(f"      worst Δ/σ = {worst_sigma:.3f}  worst frac = {worst_frac:.3e}",
-          flush=True)
-    print(f"      #cells > 0.1σ = {len(above_0p1sigma)}  > 1σ = {len(above_1sigma)}",
-          flush=True)
+    print(
+        f"      worst Δ/σ = {worst_sigma:.3f}  worst frac = {worst_frac:.3e}",
+        flush=True,
+    )
+    print(
+        f"      #cells > 0.1σ = {len(above_0p1sigma)}  > 1σ = {len(above_1sigma)}",
+        flush=True,
+    )
 
     print("[6/6] geometry audit ...", flush=True)
     geom = geometry_audit(op, table, fwd)
@@ -501,15 +535,21 @@ def _make_figures(op, table, fwd, payload, npz_path):
 
     # --- heatmap coil × sensor of Δ/σ ---
     fig, ax = plt.subplots(figsize=(14, 8))
-    im = ax.imshow(delta_sigma.T, aspect="auto", cmap="magma",
-                   vmin=0, vmax=max(1.0, np.percentile(delta_sigma, 99.5)))
+    im = ax.imshow(
+        delta_sigma.T,
+        aspect="auto",
+        cmap="magma",
+        vmin=0,
+        vmax=max(1.0, np.percentile(delta_sigma, 99.5)),
+    )
     ax.set_yticks(range(len(coils)))
     ax.set_yticklabels(coils, fontsize=7)
     ax.set_xlabel("sensor row (flux loops + B-probes, operator order)")
     ax.set_ylabel("PF coil column")
+    worst_sigma = payload["delta_summary"]["worst_delta_over_sigma_at_typical_current"]
     ax.set_title(
         f"|Δ(cylinder − point)| / σ at typical coil current  (shot {payload['shot']})\n"
-        f"worst = {payload['delta_summary']['worst_delta_over_sigma_at_typical_current']:.3f}σ  "
+        f"worst = {worst_sigma:.3f}σ  "
         f"| cells >0.1σ: {payload['delta_summary']['n_cells_gt_0p1_sigma']}  "
         f">1σ: {payload['delta_summary']['n_cells_gt_1_sigma']}"
     )
@@ -521,8 +561,15 @@ def _make_figures(op, table, fwd, payload, npz_path):
             ci = coils.index(cell["coil"])
         except ValueError:
             continue
-        ax.text(si, ci, f"{cell['delta_sigma']:.1f}", color="cyan",
-                fontsize=6, ha="center", va="center")
+        ax.text(
+            si,
+            ci,
+            f"{cell['delta_sigma']:.1f}",
+            color="cyan",
+            fontsize=6,
+            ha="center",
+            va="center",
+        )
     fig.tight_layout()
     f1 = FIGDIR / "fig-nova-greens-deltas.png"
     fig.savefig(f1, dpi=110)
@@ -539,36 +586,64 @@ def _make_figures(op, table, fwd, payload, npz_path):
         rr = [f.r for f in fs]
         zz = [f.z for f in fs]
         known = circ in known_circs
-        axg.scatter(rr, zz, s=6,
-                    c=("#1f77b4" if known else "#cccccc"),
-                    label=None, zorder=3 if known else 1)
+        axg.scatter(
+            rr,
+            zz,
+            s=6,
+            c=("#1f77b4" if known else "#cccccc"),
+            label=None,
+            zorder=3 if known else 1,
+        )
     # reference centroids
     for label, (lr, lz) in op._PF_COIL_CENTROID.items():
         axg.scatter([lr], [lz], marker="x", c="red", s=40, zorder=5)
         axg.text(lr + 0.02, lz, label, fontsize=6, color="red")
     # sensors
-    axg.scatter(d["sensor_r"][is_flux], d["sensor_z"][is_flux], marker="o",
-                facecolors="none", edgecolors="green", s=18, label="flux loop")
-    axg.scatter(d["sensor_r"][~is_flux], d["sensor_z"][~is_flux], marker="^",
-                c="orange", s=12, label="B-probe")
+    axg.scatter(
+        d["sensor_r"][is_flux],
+        d["sensor_z"][is_flux],
+        marker="o",
+        facecolors="none",
+        edgecolors="green",
+        s=18,
+        label="flux loop",
+    )
+    axg.scatter(
+        d["sensor_r"][~is_flux],
+        d["sensor_z"][~is_flux],
+        marker="^",
+        c="orange",
+        s=12,
+        label="B-probe",
+    )
     axg.set_aspect("equal")
     axg.set_xlabel("R [m]")
     axg.set_ylabel("Z [m]")
-    axg.set_title("efm filaments (blue=known coil, grey=inferred) +\n"
-                  "reference centroids (red x) + sensors")
+    axg.set_title(
+        "efm filaments (blue=known coil, grey=inferred) +\n"
+        "reference centroids (red x) + sensors"
+    )
     axg.legend(fontsize=7, loc="upper right")
 
     labels = [r["coil"] for r in payload["geometry_audit"]["per_coil"]]
-    cdelta = [r["centroid_delta_mm"] or 0.0
-              for r in payload["geometry_audit"]["per_coil"]]
+    cdelta = [
+        r["centroid_delta_mm"] or 0.0 for r in payload["geometry_audit"]["per_coil"]
+    ]
     axb.barh(range(len(labels)), cdelta, color="#1f77b4")
     axb.set_yticks(range(len(labels)))
     axb.set_yticklabels(labels, fontsize=7)
     axb.set_xlabel("weighted centroid − reference centroid [mm]")
-    axb.set_title("per-coil centroid delta vs operator reference\n"
-                  f"turns all unity: {payload['geometry_audit']['turns_all_unity']}")
-    axb.axvline(_match_mm(op), color="red", ls="--", lw=1,
-                label=f"match tol {_match_mm(op):.0f} mm")
+    axb.set_title(
+        "per-coil centroid delta vs operator reference\n"
+        f"turns all unity: {payload['geometry_audit']['turns_all_unity']}"
+    )
+    axb.axvline(
+        _match_mm(op),
+        color="red",
+        ls="--",
+        lw=1,
+        label=f"match tol {_match_mm(op):.0f} mm",
+    )
     axb.legend(fontsize=7)
     fig.tight_layout()
     f2 = FIGDIR / "fig-nova-geometry-audit.png"
@@ -588,9 +663,8 @@ def _run_nova_driver():
     not imas_ambix.  Drives nova's authoritative Cylinder Biot-Savart via a
     single-coil CoilSet at unit total current — ψ/Br/Bz per ampere at targets.
     """
-    from scipy.constants import mu_0  # noqa: PLC0415
-
     from nova.frame.coilset import CoilSet  # noqa: PLC0415
+    from scipy.constants import mu_0  # noqa: PLC0415
 
     job = json.load(sys.stdin)
     targets = np.asarray(job["targets"], dtype=float)  # (N, 2) -> xz
@@ -598,8 +672,13 @@ def _run_nova_driver():
     for s in job["sources"]:
         cs = CoilSet(dcoil=-1, dplasma=-1, field_attrs=["Br", "Bz", "Psi"])
         cs.coil.insert(
-            s["a"], s["z0"], s["da"], s["dz"],
-            segment="cylinder", turn="r", nturn=1,
+            s["a"],
+            s["z0"],
+            s["da"],
+            s["dz"],
+            segment="cylinder",
+            turn="r",
+            nturn=1,
         )
         cs.saloc["Ic"] = 1.0
         cs.point.solve(targets)

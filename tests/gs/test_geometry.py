@@ -28,10 +28,10 @@ def _synthetic_geom(*, n_pf: int = 8, magpr_z_shift: float = 0.0) -> dict:
     and a small PF/limiter set.  ``magpr_z_shift`` simulates the ~1 cm
     per-campaign drift.
     """
-    # 4 B-probes: 2 vertical (ang=90) + 2 radial (ang=0); one v/r pair colocated
+    # 4 B-probes: 2 vertical (DD ang=-90) + 2 radial (ang=0); one pair colocated
     magpr_r = np.array([0.18, 1.85, 1.85, 1.44])
     magpr_z = np.array([1.0, 0.3, 0.3, -1.2]) + magpr_z_shift
-    magpr_ang = np.array([90.0, 90.0, 0.0, 0.0])  # idx1=vertical, idx2=radial colocated
+    magpr_ang = np.array([-90.0, -90.0, 0.0, 0.0])
     magpr_len = np.array([0.025, 0.025, 0.025, 0.025])
     silop_r = np.array([0.178, 1.163])
     silop_z = np.array([1.235, 1.083])
@@ -108,14 +108,14 @@ def test_orientation_from_magpr_ang_resolves_colocated_pair():
     send the vertical channel to the ang=90 magpr and the radial to ang=0.
     """
     geom = _synthetic_geom()
-    # idx1 (ang=90) and idx2 (ang=0) are co-located at (1.85, 0.3)
+    # idx1 (DD ang=-90) and idx2 (ang=0) are co-located at (1.85, 0.3)
     amb = [
         ("obv06", "Outer coil r=1.850, z=0.300"),  # name says vertical
         ("obr06", "Outer coil r=1.850, z=0.300"),  # name says radial
     ]
     mappings, unmatched = gsg.map_amb_sensors(geom, amb)
     by_ch = {m.amb_channel: m for m in mappings}
-    assert by_ch["obv06"].angle_deg == 90.0
+    assert by_ch["obv06"].angle_deg == -90.0
     assert by_ch["obr06"].angle_deg == 0.0
     # they must map to DIFFERENT efm indices (no collision)
     assert by_ch["obv06"].efm_index != by_ch["obr06"].efm_index
@@ -126,15 +126,15 @@ def test_orientation_from_magpr_ang_resolves_colocated_pair():
 def test_an_orientation_held_in_radians_still_resolves_the_colocated_pair():
     """A whole-degree orientation is not what the mapper is entitled to assume.
 
-    A source holding poloidal angles in radians and rounding them there hands
-    back a degree value a fraction of a degree off a whole number -- pi/2 stored
-    to four decimals is 90.00021 degrees.  That is the same sensitive axis, not
+    A DD source holding poloidal angles in radians and rounding them there hands
+    back a degree value a fraction of a degree off a whole number.  Minus pi/2
+    stored to four decimals is -90.00021 degrees.  That is the same axis, not
     a different one, so the same channel must resolve to the same probe.  The
     two axes are 90 degrees apart, so admitting the offset cannot merge them:
     the radial channel must still land on the radial probe.
     """
     geom = _synthetic_geom()
-    geom["magpr_ang"] = np.array([90.00021, 90.00021, 0.0, 0.0])
+    geom["magpr_ang"] = np.array([-90.00021, -90.00021, 0.0, 0.0])
     amb = [
         ("obv06", "Outer coil r=1.850, z=0.300"),
         ("obr06", "Outer coil r=1.850, z=0.300"),
@@ -144,7 +144,7 @@ def test_an_orientation_held_in_radians_still_resolves_the_colocated_pair():
 
     by_ch = {m.amb_channel: m for m in mappings}
     assert not unmatched
-    assert by_ch["obv06"].angle_deg == pytest.approx(90.0, abs=1e-3)
+    assert by_ch["obv06"].angle_deg == pytest.approx(-90.0, abs=1e-3)
     assert by_ch["obr06"].angle_deg == 0.0
     assert by_ch["obv06"].efm_index != by_ch["obr06"].efm_index
     assert not by_ch["obv06"].flag
@@ -160,7 +160,7 @@ def test_an_orientation_a_degree_off_the_named_axis_is_not_that_axis():
     projection of the field.
     """
     geom = _synthetic_geom()
-    geom["magpr_ang"] = np.array([85.0, 85.0, 0.0, 0.0])
+    geom["magpr_ang"] = np.array([-85.0, -85.0, 0.0, 0.0])
     amb = [("obv06", "Outer coil r=1.850, z=0.300")]
 
     mappings, unmatched = gsg.map_amb_sensors(geom, amb)
@@ -172,14 +172,14 @@ def test_an_orientation_a_degree_off_the_named_axis_is_not_that_axis():
 def test_name_says_radial_but_ang_says_vertical_is_authoritative():
     """If a probe NAME implies vertical but efm ang is the only truth, ang wins.
 
-    Mirrors the real amb obv* copy-paste bug ("Br" in description, ang=90).
-    Here we feed a ccbv-named channel whose ONLY vertical candidate is ang=90;
-    the stored angle must come from efm, never the name/description.
+    Mirrors the real amb obv* copy-paste error ("Br" in its description).  The
+    source +90 degree axis is already mapped to DD -90 degrees here; the stored
+    angle must come from efm, never the name or description.
     """
     geom = _synthetic_geom()
     amb = [("ccbv01", "Centre Column Vertical Bv r=0.180, z=1.000")]
     mappings, _ = gsg.map_amb_sensors(geom, amb)
-    assert mappings[0].angle_deg == 90.0  # from magpr_ang, not parsed from name
+    assert mappings[0].angle_deg == -90.0
     # the stored R,Z come from efm (0.18), not the amb-desc rounding (0.180 here)
     assert mappings[0].r == pytest.approx(0.18)
 
@@ -368,11 +368,9 @@ def test_real_shot_signature_is_one_of_known_campaigns():
 # fl_p6l_1 is a genuine case: present in the amb zarr schema of some fc938
 # shots and entirely absent from others, despite all of them sharing the
 # IDENTICAL SetupSignature digest (the efm geometry it hashes is unaffected —
-# this is a data-acquisition gap, not a geometry difference).  Before the
-# canonical-union fix, build_table_for_shot's sensor channel SET was an
-# artifact of whichever shot happened to build the table; a shard-parallel
-# assembly of the same corpus surfaced the resulting cross-shard merge
-# failure (S=96 vs S=97 for the identical signature.key).
+# this is a data-acquisition gap, not a geometry difference).  A table resolved
+# from one shot alone inherits that shot's availability, while a campaign union
+# gives the identical signature a stable sensor count.
 
 _LUCKY_FC938_SHOT = 17406  # its own amb schema HAS fl_p6l_1
 _UNLUCKY_FC938_SHOT = 12887  # its own amb schema LACKS fl_p6l_1 entirely
@@ -381,17 +379,18 @@ _HAVE_FC938_PAIR = (
     and local_shot_path(_UNLUCKY_FC938_SHOT, tier="level1").exists()
 )
 _skip_no_fc938_pair = pytest.mark.skipif(
-    not _HAVE_FC938_PAIR, reason="fc938 lucky/unlucky reference shots not mirrored (CI)"
+    not _HAVE_FC938_PAIR,
+    reason="fc938 intermittent-channel reference shots not mirrored (CI)",
 )
 
 
 @_skip_no_fc938_pair
 def test_canonical_amb_channels_recovers_intermittently_absent_channel():
-    """Pin the bug itself (per-shot read shows the gap) before pinning the fix."""
-    lucky_only = dict(gsg.read_amb_channels(_LUCKY_FC938_SHOT))
-    unlucky_only = dict(gsg.read_amb_channels(_UNLUCKY_FC938_SHOT))
-    assert "fl_p6l_1" in lucky_only
-    assert "fl_p6l_1" not in unlucky_only  # the actual per-shot gap
+    """A per-shot read exposes the gap; the campaign union restores the channel."""
+    with_channel = dict(gsg.read_amb_channels(_LUCKY_FC938_SHOT))
+    without_channel = dict(gsg.read_amb_channels(_UNLUCKY_FC938_SHOT))
+    assert "fl_p6l_1" in with_channel
+    assert "fl_p6l_1" not in without_channel
 
     canonical = dict(
         gsg.canonical_amb_channels([_LUCKY_FC938_SHOT, _UNLUCKY_FC938_SHOT])
@@ -406,24 +405,23 @@ def test_geometry_determined_channel_set_is_signature_invariant():
     canonical amb schema is used — the count/names must not be a function of
     which shot happens to build the table.
     """
-    lucky = gsg.build_table_for_shot(_LUCKY_FC938_SHOT)
-    unlucky = gsg.build_table_for_shot(_UNLUCKY_FC938_SHOT)
-    assert lucky.signature.key == unlucky.signature.key  # same campaign
+    with_channel = gsg.build_table_for_shot(_LUCKY_FC938_SHOT)
+    without_channel = gsg.build_table_for_shot(_UNLUCKY_FC938_SHOT)
+    assert with_channel.signature.key == without_channel.signature.key
 
     canonical = gsg.canonical_amb_channels([_LUCKY_FC938_SHOT, _UNLUCKY_FC938_SHOT])
-    lucky_fixed = gsg.build_table_for_shot(_LUCKY_FC938_SHOT, amb_channels=canonical)
-    unlucky_fixed = gsg.build_table_for_shot(
+    with_canonical = gsg.build_table_for_shot(_LUCKY_FC938_SHOT, amb_channels=canonical)
+    without_canonical = gsg.build_table_for_shot(
         _UNLUCKY_FC938_SHOT, amb_channels=canonical
     )
 
-    lucky_names = sorted(m.amb_channel for m in lucky_fixed.sensor_map)
-    unlucky_names = sorted(m.amb_channel for m in unlucky_fixed.sensor_map)
-    assert lucky_names == unlucky_names
-    assert "fl_p6l_1" in lucky_names
+    with_names = sorted(m.amb_channel for m in with_canonical.sensor_map)
+    without_names = sorted(m.amb_channel for m in without_canonical.sensor_map)
+    assert with_names == without_names
+    assert "fl_p6l_1" in with_names
 
-    # pin that the UN-fixed (per-shot-schema) default path is where the bug
-    # actually lives, so a change elsewhere can't silently mask this drifting
-    assert len(lucky.sensor_map) != len(unlucky.sensor_map)
+    # The default per-shot path retains the data-availability difference.
+    assert len(with_channel.sensor_map) != len(without_channel.sensor_map)
 
 
 @_skip_no_fc938_pair
@@ -440,15 +438,13 @@ def test_extract_campaign_tables_is_deterministic_regardless_of_shot_order():
 
 
 @_skip_no_mirror
-def test_fc1004_signature_channel_set_unaffected_by_the_fix():
-    """The fc1004 campaigns have no known intermittent-channel gap, so the
-    canonical-union path must reproduce the default single-shot path exactly
-    — the fix must not perturb a signature that was never broken."""
-    default = gsg.build_table_for_shot(_REP_SHOT)
+def test_fc1004_union_matches_single_shot_channel_set():
+    """A one-shot union reproduces that shot's complete channel set exactly."""
+    single = gsg.build_table_for_shot(_REP_SHOT)
     canonical = gsg.canonical_amb_channels([_REP_SHOT])
-    fixed = gsg.build_table_for_shot(_REP_SHOT, amb_channels=canonical)
-    assert [m.amb_channel for m in default.sensor_map] == [
-        m.amb_channel for m in fixed.sensor_map
+    union = gsg.build_table_for_shot(_REP_SHOT, amb_channels=canonical)
+    assert [m.amb_channel for m in single.sensor_map] == [
+        m.amb_channel for m in union.sensor_map
     ]
 
 

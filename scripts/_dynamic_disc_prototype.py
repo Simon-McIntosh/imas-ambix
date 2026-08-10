@@ -30,6 +30,7 @@ import matplotlib.pyplot as plt
 from boundary_harmonic_gate_eval import sensor_arrays
 
 import scripts.closure_gate_eval as cg
+from imas_ambix.cocos import project_poloidal_field
 from imas_ambix.gs.cylinder import hybrid_greens
 from imas_ambix.latent.boundary_moment import MomentFitConfig, fit_moment_currents
 from imas_ambix.latent.data import read_split_shot_lists
@@ -52,7 +53,7 @@ def _rms(ring, efit):
 
 def _fsens(sr, sz, sang, isf, rc, zc):
     psi, br, bz = hybrid_greens(sr, sz, rc, zc, 0.05, 0.05)
-    return np.where(isf, psi, br * np.cos(np.deg2rad(sang)) + bz * np.sin(np.deg2rad(sang)))  # noqa: E501
+    return np.where(isf, psi, project_poloidal_field(br, bz, sang))
 
 
 def _lim_at_z(lr, lz, z0):
@@ -75,7 +76,9 @@ def dynamic_disc(grid, basis, table, p):
     ip = float(p.ip_amperes)
     m1 = fit_moment_currents(basis, p, MomentFitConfig(order=1))
     res = minimize(
-        lambda x: float(np.sum((w * (ip * _fsens(sr, sz, sang, isf, x[0], x[1]) - b)) ** 2)),  # noqa: E501
+        lambda x: float(
+            np.sum((w * (ip * _fsens(sr, sz, sang, isf, x[0], x[1]) - b)) ** 2)
+        ),  # noqa: E501
         [float(m1.centroid_r), float(m1.centroid_z)],
         method="Nelder-Mead",
         options={"xatol": 1e-3, "fatol": 1e-6},
@@ -96,8 +99,13 @@ def dynamic_disc(grid, basis, table, p):
             grid.nz, grid.nr
         )
         lc = lcfs_contour(
-            psi, grid.rg, grid.zg, (r0, z0), clip_legs=True,
-            limiter_r=grid.limiter_r, limiter_z=grid.limiter_z,
+            psi,
+            grid.rg,
+            grid.zg,
+            (r0, z0),
+            clip_legs=True,
+            limiter_r=grid.limiter_r,
+            limiter_z=grid.limiter_z,
         )
         return lc.ring if lc.found else None
 
@@ -123,8 +131,13 @@ def _moment_ring(grid, basis, p):
         grid.nz, grid.nr
     )
     lc = lcfs_contour(
-        psi, grid.rg, grid.zg, (float(mom.centroid_r), float(mom.centroid_z)),
-        clip_legs=True, limiter_r=grid.limiter_r, limiter_z=grid.limiter_z,
+        psi,
+        grid.rg,
+        grid.zg,
+        (float(mom.centroid_r), float(mom.centroid_z)),
+        clip_legs=True,
+        limiter_r=grid.limiter_r,
+        limiter_z=grid.limiter_z,
     )
     return lc.ring if lc.found else None
 
@@ -141,7 +154,10 @@ def main():
             print(f"{shot}: load failed {exc!r}"[:80])
             continue
         grid, basis, table, pls = (
-            pay["grid"], pay["basis"], pay["table"], pay["payloads"]
+            pay["grid"],
+            pay["basis"],
+            pay["table"],
+            pay["payloads"],
         )
         try:
             picks = select_slices(pls, shot)
@@ -154,8 +170,13 @@ def main():
             mring = _moment_ring(grid, basis, p)
             rms_d = _rms(ring, efit)
             rms_m = _rms(mring, efit)
-            panels.append((f"{shot} {kind}", grid, efit, ring, mring, rms_d, rms_m, (r0, z0), rad))  # noqa: E501
-            print(f"{shot} {kind}: dynamic-disc RMS={rms_d:.1f}cm  moment RMS={rms_m:.1f}cm  (R0={r0:.2f} rad={rad:.2f})")  # noqa: E501
+            panels.append(
+                (f"{shot} {kind}", grid, efit, ring, mring, rms_d, rms_m, (r0, z0), rad)
+            )  # noqa: E501
+            print(
+                f"{shot} {kind}: dynamic-disc RMS={rms_d:.1f}cm "
+                f"moment RMS={rms_m:.1f}cm (R0={r0:.2f} rad={rad:.2f})"
+            )
 
     ncol = 4
     nrow = int(np.ceil(len(panels) / ncol))
@@ -170,7 +191,9 @@ def main():
         ax.plot(grid.limiter_r, grid.limiter_z, "k-", lw=0.5)
         ax.set_aspect("equal")
         if efit is not None:
-            ax.plot(efit["lcfs_r"], efit["lcfs_z"], "r-", lw=2.2, label="EFIT", zorder=5)  # noqa: E501
+            ax.plot(
+                efit["lcfs_r"], efit["lcfs_z"], "r-", lw=2.2, label="EFIT", zorder=5
+            )  # noqa: E501
         if mring is not None:
             ax.plot(mring[:, 0], mring[:, 1], "b-", lw=1.0, label=f"moment {rms_m:.0f}")
         if ring is not None:
@@ -182,7 +205,8 @@ def main():
         ax.legend(fontsize=6, loc="upper right")
     fig.suptitle(
         "Dynamic-sizing uniform disc (green) vs cell-current moment (blue) vs "
-        "firewalled EFIT (red); dotted = disc", fontsize=12
+        "firewalled EFIT (red); dotted = disc",
+        fontsize=12,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.98))
     out = "docs/figures/th-boundary-robustness/dynamic-disc-cohort.png"

@@ -38,7 +38,7 @@ def _confining_table():
     from imas_ambix.gs import geometry as gsg
 
     probes = [
-        gsg.BProbe(index=i, r=1.35, z=-0.6 + 0.3 * i, angle_deg=90.0, length=0.02)
+        gsg.BProbe(index=i, r=1.35, z=-0.6 + 0.3 * i, angle_deg=-90.0, length=0.02)
         for i in range(5)
     ]
     sensor_map = [
@@ -77,7 +77,7 @@ def _small_encoder(*, n_coil: int, d_model=32, n_layers=1, n_time=4, head="direc
     geom = sensor_geometry_from_records(
         r=rng.uniform(1.0, 1.5, n_sensor),
         z=rng.uniform(-0.6, 0.6, n_sensor),
-        angle_deg=np.full(n_sensor, 90.0),
+        angle_deg=np.full(n_sensor, -90.0),
         kind=["b_probe"] * n_sensor,
     )
     coils = rng.uniform(0.8, 1.2, (n_coil, 2)) if n_coil else None

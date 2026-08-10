@@ -50,6 +50,7 @@ import numpy as np
 import torch
 from torch import nn
 
+from imas_ambix.cocos import project_poloidal_field
 from imas_ambix.gs import operator as op
 from imas_ambix.gs.cylinder import hybrid_greens
 from imas_ambix.latent.gs_solve import EquilibriumGrid
@@ -111,7 +112,9 @@ def _coil_sensor_matrix(table: GeometryTable) -> np.ndarray:
     n_coil = len(fwd.pf_merged_circuits)
     rows: list[np.ndarray] = []
     for m in table.sensor_map:
-        ang = np.deg2rad(m.angle_deg if m.angle_deg is not None else 90.0)
+        if m.kind != "flux_loop" and m.angle_deg is None:
+            raise ValueError(f"poloidal probe {m.amb_channel!r} has no directed angle")
+        angle_deg = 0.0 if m.angle_deg is None else m.angle_deg
         tr = np.array([m.r], dtype=np.float64)
         tz = np.array([m.z], dtype=np.float64)
         row = np.zeros(n_coil, dtype=np.float64)
@@ -132,7 +135,7 @@ def _coil_sensor_matrix(table: GeometryTable) -> np.ndarray:
                         acc += f.xmult * float(psi_f[0])
                     else:
                         acc += f.xmult * float(
-                            br_f[0] * np.cos(ang) + bz_f[0] * np.sin(ang)
+                            project_poloidal_field(br_f[0], bz_f[0], angle_deg)
                         )
                 per_circ.append(acc)
             row[j] = float(np.mean(per_circ)) if per_circ else 0.0
@@ -266,10 +269,9 @@ class PatchBasis(nn.Module):
     ) -> torch.Tensor:
         """``i_cell @ mat.T + i_pf @ coil_mat.T`` with 1-D → batched promotion.
 
-        Named to avoid colliding with :meth:`torch.nn.Module._apply` (the
-        ``.to()``/``.double()``/``.cuda()`` internal) — a same-named domain
-        method here previously shadowed it and broke any dtype/device cast of
-        a module tree containing a :class:`PatchBasis`.
+        Named to avoid colliding with :meth:`torch.nn.Module._apply`, which
+        ``.to()``, ``.double()``, and ``.cuda()`` need for dtype/device
+        traversal through a module tree containing a :class:`PatchBasis`.
         """
         ic = self._batched(torch.as_tensor(i_cell))
         out = ic @ mat.to(device=ic.device, dtype=ic.dtype).T

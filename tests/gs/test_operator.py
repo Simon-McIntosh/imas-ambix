@@ -1,11 +1,11 @@
-"""Tests for the GS Green's-function forward operator (T2).
+"""Tests for the GS Green's-function forward operator.
 
 Three layers:
 
 * **Physics** tests pin the Green's-function correctness absolutely — the
   on-axis field against the textbook circular-loop formula, the
   ``ellipk``/``ellipe`` ``m = k²`` parameter convention, the orientation
-  projection (Bz at 90°, Br at 0°), and a finite-difference ``∂ψ`` ↔ ``B``
+  projection (Bz at -90°, Br at 0°), and a finite-difference ``∂ψ`` ↔ ``B``
   consistency check.  No mirror / network needed.
 * **Operator-assembly** tests build a :class:`ForwardOperator` from a synthetic
   geometry table and pin the three-block structure, the KNOWN-PF assembly from
@@ -54,10 +54,10 @@ def test_ellipk_parameter_convention():
 
 
 def test_orientation_projection_picks_component():
-    """B-probe projection: 90° reads Bz, 0° reads Br, oblique mixes."""
+    """DDv4 B-probe projection: -90° reads +Bz, 0° reads Br."""
     bz = np.array([2.0, 2.0, 2.0])
     br = np.array([3.0, 3.0, 3.0])
-    ang = np.array([90.0, 0.0, 45.0])
+    ang = np.array([-90.0, 0.0, -45.0])
     proj = op._project_bprobe(bz, br, ang)
     assert proj[0] == pytest.approx(2.0)  # vertical → Bz
     assert proj[1] == pytest.approx(3.0)  # radial → Br
@@ -103,7 +103,7 @@ def _synthetic_table() -> gsg.GeometryTable:
     one KNOWN PF coil (P4U-like centroid) + one passive structural circuit,
     one unmatched + one flagged amb channel."""
     # sensors
-    bp_v = gsg.BProbe(index=0, r=1.5, z=0.0, angle_deg=90.0, length=0.025)
+    bp_v = gsg.BProbe(index=0, r=1.5, z=0.0, angle_deg=-90.0, length=0.025)
     bp_r = gsg.BProbe(index=1, r=1.5, z=0.0, angle_deg=0.0, length=0.025)
     fl = gsg.FluxLoop(index=0, r=1.3, z=0.5)
     # KNOWN PF coil — filaments near the P4U centroid (1.50, 1.10), Σxmult=1
@@ -129,7 +129,7 @@ def _synthetic_table() -> gsg.GeometryTable:
         digest="deadbeef00000000",
     )
     sensor_map = [
-        gsg.SensorMapping("obv01", "b_probe", 0, 1.5, 0.0, 90.0, 0.001, ""),
+        gsg.SensorMapping("obv01", "b_probe", 0, 1.5, 0.0, -90.0, 0.001, ""),
         gsg.SensorMapping("obr01", "b_probe", 1, 1.5, 0.0, 0.0, 0.001, ""),
         gsg.SensorMapping("fl_p4u_1", "flux_loop", 0, 1.3, 0.5, None, 0.001, ""),
         gsg.SensorMapping(
@@ -209,7 +209,7 @@ def test_build_operator_three_blocks_and_rows():
 def test_excluded_and_flagged_channels_handled():
     table = _synthetic_table()
     operator = op.build_operator(table)
-    # the T1-unmatched fl_p2u_1 is EXCLUDED from the prediction rows
+    # the unmatched fl_p2u_1 is excluded from the prediction rows
     assert "fl_p2u_1" not in operator.sensor_channels
     assert operator.excluded_channels == ["fl_p2u_1"]
     # the non-unique fl_cc01 IS a predicted row but listed as flagged
@@ -335,7 +335,7 @@ def test_redundant_circuits_merge_no_double_count():
 
 def test_vacuum_round_trip_single_coil():
     """A single KNOWN PF-coil current produces the expected vacuum-field
-    signature at the probes — no plasma term.  This is the T2 sanity check."""
+    signature at the probes with no plasma term."""
     table = _synthetic_table()
     operator = op.build_operator(table)
     amc = {"p4u_coil_current": 50.0}  # 50 kA·turn
@@ -389,31 +389,9 @@ _skip_no_tables = pytest.mark.skipif(
 
 
 def _load_real_tables() -> dict[str, gsg.GeometryTable]:
-    """Reconstruct GeometryTable objects from the committed full-tables JSON."""
-    import json as _json  # noqa: PLC0415
+    """Load campaign tables through their convention-aware reader."""
 
-    raw = _json.loads((MANIFEST_DIR / "gs_geometry_tables.json").read_text())
-    tables: dict[str, gsg.GeometryTable] = {}
-    for key, t in raw["campaigns"].items():
-        sig = gsg.SetupSignature(**t["signature"])
-        tables[key] = gsg.GeometryTable(
-            signature=sig,
-            shots=t["shots"],
-            b_probes=[gsg.BProbe(**b) for b in t["b_probes"]],
-            flux_loops=[gsg.FluxLoop(**f) for f in t["flux_loops"]],
-            pf_filaments=[gsg.PFFilament(**p) for p in t["pf_filaments"]],
-            limiter_r=t["limiter_r"],
-            limiter_z=t["limiter_z"],
-            sensor_map=[gsg.SensorMapping(**m) for m in t["sensor_map"]],
-            passive_structures=[
-                gsg.PassiveStructure(**p) for p in t["passive_structures"]
-            ],
-            amc_current_channels=t["amc_current_channels"],
-            unmatched_amb=t["unmatched_amb"],
-            r0=t["r0"],
-            minor_radius=t["minor_radius"],
-        )
-    return tables
+    return gsg.load_tables(MANIFEST_DIR / "gs_geometry_tables.json")
 
 
 @_skip_no_tables
@@ -455,8 +433,7 @@ def test_real_operator_known_pf_maps_solenoid_and_pf_coils():
 
 @_skip_no_tables
 def test_real_vacuum_round_trip_matches_raw_amb_at_near_vacuum_slice():
-    """DONE-WHEN #2: at a NEAR-VACUUM slice (|Ip|≈0, coils sizable) the PF-only
-    vacuum prediction must match raw ``amb`` per-probe to ~unity.
+    """At a near-vacuum slice, the PF-only prediction matches raw ``amb``.
 
     This is the ABSOLUTE SI / flux-convention / orientation anchor — it pins
     that the operator's physical units are right end-to-end (raw amc → A,
@@ -465,12 +442,12 @@ def test_real_vacuum_round_trip_matches_raw_amb_at_near_vacuum_slice():
     flux-convention slip (stream-function vs total flux sends the median to
     ~6.7 or ~0.16) or a unit/μ0 error (gross) — both trip the [0.5, 1.5] band.
     The PF-only prediction tracks raw amb here because, with no plasma, the
-    field is vacuum + a small eddy term (the residual T3 will infer).
+    field is vacuum plus a small eddy term inferred by the residual model.
 
-    NOTE: this is NOT the double-count guard — the only clean near-vacuum
+    This is not the double-count guard: the clean near-vacuum
     slices are solenoid-dominated (a singleton circuit the merge does not
-    touch), so a reverted merge only nudges the median.  The deterministic
-    double-count guard is the one-G_pf-column-per-coil structural assertion in
+    touch), so merge errors only nudge the median.  The deterministic
+    guard is the one-G_pf-column-per-coil structural assertion in
     ``test_real_operators_build_for_all_campaigns`` + the merge-math invariant
     in ``test_redundant_circuits_merge_no_double_count``.
     """
@@ -558,7 +535,7 @@ def test_pf_columns_use_finite_area_kernel_near_packs():
     dz = np.array([0.30])
     sens_r = np.array([1.5, 0.19])  # far, adjacent
     sens_z = np.array([0.0, 0.05])
-    ang = np.array([90.0, 90.0])
+    ang = np.zeros(2)
     is_flux = np.array([True, True])
 
     col = _green_columns(

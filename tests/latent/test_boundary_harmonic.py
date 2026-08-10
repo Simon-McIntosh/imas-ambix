@@ -4,19 +4,10 @@ No corpus / zarr is needed: the physics claims are convention-INDEPENDENT
 properties of the basis, so a recall error in the literature harmonic formula
 fails a test rather than shipping.
 
-Correctness ladder (plan §4):
-  T1  each basis column solves the HOMOGENEOUS Grad-Shafranov operator
-      (Delta* psi = psi_RR - psi_R/R + psi_ZZ = 0) to finite-difference floor.
-  T2  a field that IS a low-order harmonic combination is recovered to
-      numerical precision from its noise-free sensor signature.
-  T3  the exact exterior flux of current filaments placed INSIDE the pole is
-      fit to sub-cm-equivalent agreement in the annulus (physical validation);
-      and the exterior-regular P set BEATS the Q set on a far-reaching domain
-      (pins the decaying-set choice).
-  T4  coordinate round-trip is exact and the focal-ring / axis limits hold
-      (pins the cosh-vs-coth transform mistake).
-  T5  the full fit API (SlicePayload -> HarmonicInversion -> psi_on_grid) wires
-      up correctly and honours the sensor mask.
+The checks cover five independent invariants: homogeneous Grad-Shafranov
+columns, exact recovery of a low-order harmonic field, exterior filament-flux
+agreement in the annulus, an exact toroidal-coordinate round trip, and the full
+masked fit API from ``SlicePayload`` through ``psi_on_grid``.
 """
 
 from __future__ import annotations
@@ -32,7 +23,7 @@ from imas_ambix.latent.boundary_harmonic import (
     harmonic_labels,
     harmonic_sensor_matrix,
     mask_invalid_interior,
-    ring_P1,
+    ring_p1,
     toroidal_coords,
 )
 from imas_ambix.latent.patch_inverse import SlicePayload
@@ -58,7 +49,7 @@ def test_fast_ring_matches_mpmath():
         ]
     )
     order = 8
-    fast = ring_P1(order, x)  # (order+1, N)
+    fast = ring_p1(order, x)  # (order+1, N)
     for n in range(order + 1):
         ref = np.array(
             [float(mpmath.re(mpmath.legenp(n - 0.5, 1, float(xi), type=3))) for xi in x]
@@ -68,7 +59,7 @@ def test_fast_ring_matches_mpmath():
         assert rel < 1e-8, f"order {n}: fast-vs-mpmath rel err {rel:.2e}"
 
 
-# --- T4: coordinate transform ----------------------------------------------
+# --- coordinate transform --------------------------------------------------
 
 
 def test_toroidal_roundtrip_exact():
@@ -100,7 +91,7 @@ def test_focal_ring_and_axis_limits():
     assert float(ce_ring[0]) > 50.0
 
 
-# --- T1: homogeneous GS ----------------------------------------------------
+# --- homogeneous GS --------------------------------------------------------
 
 
 def test_columns_solve_homogeneous_gs():
@@ -123,7 +114,7 @@ def test_columns_solve_homogeneous_gs():
         assert rel < 1e-3, f"column {k}: Delta* rel residual {rel:.2e}"
 
 
-# --- T2 / T5: source-free exactness + full fit API -------------------------
+# --- source-free exactness and full fit API --------------------------------
 
 
 def _synthetic_sensors(n=48, seed=0):
@@ -202,7 +193,7 @@ def test_fit_ignores_masked_rows_and_grids():
     assert np.all(np.isfinite(psi))
 
 
-# --- T3: filament recovery + P beats Q -------------------------------------
+# --- filament recovery and exterior-basis comparison -----------------------
 
 
 def _filament_flux(r, z, fils):

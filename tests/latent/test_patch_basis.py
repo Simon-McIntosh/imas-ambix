@@ -31,7 +31,7 @@ def _confining_table():
     from imas_ambix.gs import geometry as gsg
 
     probes = [
-        gsg.BProbe(index=i, r=1.35, z=-0.6 + 0.3 * i, angle_deg=90.0, length=0.02)
+        gsg.BProbe(index=i, r=1.35, z=-0.6 + 0.3 * i, angle_deg=-90.0, length=0.02)
         for i in range(5)
     ]
     sensor_map = [
@@ -129,7 +129,7 @@ def test_smooth_current_matches_dirichlet_fd_solve():
 
     The FD source is Δ*Φ = −2π μ0 R jφ (the total-flux convention); a per-radian
     source would under-weight the plasma well by 2π and this rel-RMS would jump
-    to ~0.2.  This is the P1 gate criterion and the 2π regression pin.
+    to ~0.2, so the check pins the total-flux factor.
     """
     table = _confining_table()
     grid = EquilibriumGrid.from_table(table, nr=49, nz=65)

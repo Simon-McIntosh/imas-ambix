@@ -1,12 +1,11 @@
 """Tests for the Gaussian ("gaussian-direct") patch-encoder head.
 
-The default heads (``"direct"``, ``"lowrank"``) MUST stay byte-identical to
-their pre-Gaussian-head behaviour — a corpus worker has staged retrains in
-flight against them.  This file therefore splits into two concerns:
+The default heads (``"direct"``, ``"lowrank"``) must stay byte-identical when
+the Gaussian head is not selected.  This file splits into two concerns:
 
 * regression: the Gaussian addition changes nothing about the existing head
   construction or forward path when it is not selected;
-* new behaviour: the mean + log-σ head, exact linear sensor-variance
+* Gaussian behaviour: the mean + log-σ head, exact linear sensor-variance
   propagation (``pred_var = i_var @ (m_sens²)ᵀ``, never a full covariance),
   the whitened Gaussian NLL in :func:`amortised_losses`, the log-σ clamp, and
   an overfit smoke test showing the NLL can be driven down on one slice.
@@ -36,7 +35,7 @@ def _confining_table():
     from imas_ambix.gs import geometry as gsg
 
     probes = [
-        gsg.BProbe(index=i, r=1.35, z=-0.6 + 0.3 * i, angle_deg=90.0, length=0.02)
+        gsg.BProbe(index=i, r=1.35, z=-0.6 + 0.3 * i, angle_deg=-90.0, length=0.02)
         for i in range(5)
     ]
     sensor_map = [
@@ -75,7 +74,7 @@ def _small_encoder(*, n_coil: int, d_model=32, n_layers=1, n_time=4, head="direc
     geom = sensor_geometry_from_records(
         r=rng.uniform(1.0, 1.5, n_sensor),
         z=rng.uniform(-0.6, 0.6, n_sensor),
-        angle_deg=np.full(n_sensor, 90.0),
+        angle_deg=np.full(n_sensor, -90.0),
         kind=["b_probe"] * n_sensor,
     )
     coils = rng.uniform(0.8, 1.2, (n_coil, 2)) if n_coil else None
@@ -113,8 +112,7 @@ def _rand_inputs(enc, b=3, *, seed=1):
 
 
 def test_direct_and_lowrank_heads_gain_no_gaussian_only_params():
-    """The default heads must not pick up ``log_sigma_head`` or any other
-    Gaussian-only parameter — construction is exactly what it was before."""
+    """The default heads contain no ``log_sigma_head`` or Gaussian-only parameter."""
     for head in ("direct", "lowrank"):
         enc = _small_encoder(n_coil=2, head=head)
         assert not hasattr(enc, "log_sigma_head")

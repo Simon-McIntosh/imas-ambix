@@ -54,12 +54,27 @@ def test_passive_lowrank_basis_rank_and_orthonormal():
 
 def test_operating_point_selects_min_dof_in_band():
     cells = [
-        {"profile_order": 1, "n_plasma_dof": 3, "passive_rank": 4,
-         "lambda": 0.0, "quiescent_residual_median": 0.5},
-        {"profile_order": 1, "n_plasma_dof": 3, "passive_rank": 4,
-         "lambda": 1e-2, "quiescent_residual_median": 0.6},
-        {"profile_order": 2, "n_plasma_dof": 6, "passive_rank": 4,
-         "lambda": 0.0, "quiescent_residual_median": 0.3},
+        {
+            "profile_order": 1,
+            "n_plasma_dof": 3,
+            "passive_rank": 4,
+            "lambda": 0.0,
+            "quiescent_residual_median": 0.5,
+        },
+        {
+            "profile_order": 1,
+            "n_plasma_dof": 3,
+            "passive_rank": 4,
+            "lambda": 1e-2,
+            "quiescent_residual_median": 0.6,
+        },
+        {
+            "profile_order": 2,
+            "n_plasma_dof": 6,
+            "passive_rank": 4,
+            "lambda": 0.0,
+            "quiescent_residual_median": 0.3,
+        },
     ]
     sel = res._select_operating_point(cells)
     assert sel["selected"]
@@ -71,8 +86,13 @@ def test_operating_point_selects_min_dof_in_band():
 def test_operating_point_fails_when_all_trivial():
     """If every cell collapses to r≈0 (trivial), no operating point is selectable."""
     cells = [
-        {"profile_order": 1, "n_plasma_dof": 3, "passive_rank": 4,
-         "lambda": 0.0, "quiescent_residual_median": 1e-6},
+        {
+            "profile_order": 1,
+            "n_plasma_dof": 3,
+            "passive_rank": 4,
+            "lambda": 0.0,
+            "quiescent_residual_median": 1e-6,
+        },
     ]
     sel = res._select_operating_point(cells)
     assert not sel["selected"]
@@ -164,28 +184,11 @@ _skip_no_tables = pytest.mark.skipif(
 
 
 def _load_real_fc938_operator() -> op.ForwardOperator:
-    import json as _json  # noqa: PLC0415
-
     from imas_ambix.gs import geometry as gsg  # noqa: PLC0415
 
-    raw = _json.loads((MANIFEST_DIR / "gs_geometry_tables.json").read_text())
-    key = next(k for k in raw["campaigns"] if "fc938" in k)
-    t = raw["campaigns"][key]
-    table = gsg.GeometryTable(
-        signature=gsg.SetupSignature(**t["signature"]),
-        shots=t["shots"],
-        b_probes=[gsg.BProbe(**b) for b in t["b_probes"]],
-        flux_loops=[gsg.FluxLoop(**f) for f in t["flux_loops"]],
-        pf_filaments=[gsg.PFFilament(**p) for p in t["pf_filaments"]],
-        limiter_r=t["limiter_r"],
-        limiter_z=t["limiter_z"],
-        sensor_map=[gsg.SensorMapping(**m) for m in t["sensor_map"]],
-        passive_structures=[gsg.PassiveStructure(**p) for p in t["passive_structures"]],
-        amc_current_channels=t["amc_current_channels"],
-        unmatched_amb=t["unmatched_amb"],
-        r0=t["r0"],
-        minor_radius=t["minor_radius"],
-    )
+    tables = gsg.load_tables(MANIFEST_DIR / "gs_geometry_tables.json")
+    key = next(k for k in tables if "fc938" in k)
+    table = tables[key]
     return op.build_operator(table)
 
 

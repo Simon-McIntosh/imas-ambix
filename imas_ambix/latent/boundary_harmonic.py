@@ -54,6 +54,8 @@ from pathlib import Path
 
 import numpy as np
 
+from imas_ambix.cocos import project_poloidal_field
+
 MU0 = 4.0e-7 * np.pi
 """Vacuum permeability [T*m/A]."""
 
@@ -113,7 +115,7 @@ def toroidal_coords(
 # --- half-integer-degree order-1 Legendre (ring) functions ------------------
 
 
-def ring_P1(order: int, x: np.ndarray) -> np.ndarray:
+def ring_p1(order: int, x: np.ndarray) -> np.ndarray:
     """Vectorised ``P^1_{n-1/2}(x)`` for ``n = 0..order``, ``x = cosh eta >= 1``.
 
     The fast path that makes a PER-SLICE pole affordable (mpmath, at ~10 us a
@@ -304,7 +306,7 @@ def _harmonic_columns_uncached(
     # in one call); mpmath only for the Q ablation set.  The fast path is what
     # makes the per-slice pole affordable.
     if cfg.kind == "P":
-        radials = ring_P1(cfg.order, cosh_eta)  # (order+1, N)
+        radials = ring_p1(cfg.order, cosh_eta)  # (order+1, N)
     else:
         radials = np.stack(
             [_ring_fn(n, cfg.kind)(cosh_eta) for n in range(cfg.order + 1)], axis=0
@@ -423,14 +425,14 @@ def harmonic_sensor_matrix(
     """Design matrix ``A`` ``(S, K)``: each harmonic's signature per sensor row.
 
     Flux-loop rows get ``psi_k``; B-probe rows get the orientation-projected
-    field ``B_R,k cos(theta) + B_Z,k sin(theta)`` (theta = ``angle_deg``).  Row
+    DDv4 field ``B_R,k cos(theta) - B_Z,k sin(theta)``.  Row
     order must match the payload's ``measured`` / ``vacuum`` vectors (i.e.
     ``table.sensor_map`` order).
     """
     psi, _ = harmonic_columns(sensor_r, sensor_z, cfg)
     b_r, b_z = harmonic_field_columns(sensor_r, sensor_z, cfg)
-    th = np.deg2rad(np.asarray(sensor_angle_deg, dtype=np.float64))[:, None]
-    bproj = b_r * np.cos(th) + b_z * np.sin(th)
+    angles = np.asarray(sensor_angle_deg, dtype=np.float64)[:, None]
+    bproj = project_poloidal_field(b_r, b_z, angles)
     flux = np.asarray(is_flux, dtype=bool)[:, None]
     return np.where(flux, psi, bproj)
 
@@ -592,9 +594,10 @@ def select_harmonic_terms_cv(
             cn = np.where(cn > 0, cn, 1.0)
             an = aw / cn
             try:
-                c = np.linalg.solve(
-                    an.T @ an + ridge * np.eye(idx.size), an.T @ bw
-                ) / cn
+                c = (
+                    np.linalg.solve(an.T @ an + ridge * np.eye(idx.size), an.T @ bw)
+                    / cn
+                )
             except np.linalg.LinAlgError:
                 return None
             r = (a_sens_max[np.ix_(f, idx)] @ c - b[f]) * w[f]
@@ -653,16 +656,28 @@ def fit_harmonic_adaptive(
         sel = np.ones(n_col, dtype=bool)
     elif mode == "order":
         order = select_order_cv(
-            a_sens_max, measured, vacuum, mask, scale,
-            orders=tuple(range(1, order_max + 1)), ridge=ridge,
-            cv_folds=cv_folds, seed=seed,
+            a_sens_max,
+            measured,
+            vacuum,
+            mask,
+            scale,
+            orders=tuple(range(1, order_max + 1)),
+            ridge=ridge,
+            cv_folds=cv_folds,
+            seed=seed,
         )
         sel = np.zeros(n_col, dtype=bool)
         sel[: 2 * order + 1] = True
     elif mode == "terms":
         sel = select_harmonic_terms_cv(
-            a_sens_max, measured, vacuum, mask, scale,
-            ridge=ridge, cv_folds=cv_folds, seed=seed,
+            a_sens_max,
+            measured,
+            vacuum,
+            mask,
+            scale,
+            ridge=ridge,
+            cv_folds=cv_folds,
+            seed=seed,
         )
     else:  # pragma: no cover
         raise ValueError(f"unknown adaptive mode {mode!r}")
@@ -842,8 +857,8 @@ def mask_invalid_interior(
 
     The toroidal harmonics are physical ONLY in the source-free annulus; toward
     the focal ring (the pole) the P ring functions DIVERGE, so the reconstructed
-    flux blows up inside the plasma where the expansion does not hold (the plan's
-    "validity domain is the annulus only").  Reading the boundary directly off
+    flux blows up inside the plasma where the expansion does not hold.  Reading
+    the boundary directly off
     that field puts spurious saddles and early ray-cast crossings in the invalid
     interior.  This replaces the disk of radius ``radius`` about the pole with a
     single value ``k`` standard deviations past the annulus median on the
@@ -966,7 +981,7 @@ __all__ = [
     "load_frozen_harmonic_prior",
     "save_frozen_harmonic_prior",
     "mask_invalid_interior",
-    "ring_P1",
+    "ring_p1",
     "select_order_cv",
     "select_harmonic_terms_cv",
     "fit_harmonic_adaptive",

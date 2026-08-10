@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from imas_ambix.cocos import project_poloidal_field
 from imas_ambix.gs.operator import MU0, greens_psi
 from imas_ambix.latent.boundary_harmonic import (
     HarmonicFitConfig,
@@ -136,7 +137,7 @@ def test_grad_psi_gauge_invariant():
 
 def _synthetic_gauge_sensors(n_bprobe=48, n_flux=3, noise=0.0, seed=0):
     """A B-probe ring plus a FEW (noisy) flux loops — the weak-DC-pinning regime
-    the plan flags (few flux loops carry the absolute gauge)."""
+    where few flux loops carry the absolute gauge."""
     rng = np.random.default_rng(seed)
     ang = np.linspace(0.0, 2.0 * np.pi, n_bprobe, endpoint=False)
     rad = 0.75
@@ -168,8 +169,7 @@ def _payload_from_filaments(sr, sz, sang, is_flux, cfg, fils=_FILS, noise=0.0, s
         bzc, brc = greens_bz_br(sr, sz, fr, fz)
         br += w * brc
         bz += w * bzc
-    th = np.deg2rad(sang)
-    bproj = br * np.cos(th) + bz * np.sin(th)
+    bproj = project_poloidal_field(br, bz, sang)
     measured = np.where(is_flux, psi, bproj)
     scale = np.where(is_flux, np.abs(psi).mean() or 1.0, np.abs(bproj).mean() or 1.0)
     if noise:
