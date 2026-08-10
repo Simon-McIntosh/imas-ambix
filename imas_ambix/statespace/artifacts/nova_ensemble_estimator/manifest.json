@@ -31,28 +31,19 @@
       "status": "fail"
     },
     "eight_h200_scaling": {
-      "available_gpus": 5,
-      "classification": "capacity_coordination_blocker",
-      "live_occupancy": [
-        {
-          "gpus": 2,
-          "job_id": 1242792,
-          "reservation_cpus": 15
-        },
-        {
-          "gpus": 1,
-          "job_id": 1229670,
-          "reservation_cpus": 2
-        }
-      ],
-      "next_action": "Run eight ranks of 128 members when all eight H200 cards and sufficient reservation CPUs are simultaneously available.",
-      "occupied_gpus": 3,
-      "occupied_reservation_cpus": 17,
-      "required_gpus": 8,
-      "required_members": 1024,
-      "reservation_cpu_capacity": 30,
+      "aggregate_member_steps_per_s": 7706.124437919358,
+      "allocated_gpu_minutes": 10.533333333333333,
+      "allocation_elapsed_s": 79,
+      "gpus": 8,
+      "job_id": 1242905,
+      "members": 1024,
+      "outer_physics_wall_s": 37.206770058,
+      "physics_gpu_minutes": 4.9609026744,
+      "ranks": 8,
       "scientific_failure": false,
-      "status": "blocked_capacity"
+      "speedup_claim": false,
+      "status": "pass",
+      "timing_envelope": "outer launcher physics window"
     },
     "five_h200_capacity": {
       "launcher_observed_member_steps_per_s": 4637.3152982858155,
@@ -77,7 +68,7 @@
       "status": "pass"
     }
   },
-  "generated_at": "2026-08-09T21:57:32.662283+00:00",
+  "generated_at": "2026-08-10T08:39:00+00:00",
   "manifest_self_digest": {
     "reason": "A file cannot embed its own cryptographic digest without recursion.",
     "sha256": null
@@ -220,9 +211,14 @@
       "verdict": "one_dimensional_profiles"
     },
     {
-      "detail": "CPU, one-H200, and five-H200 workloads have different member counts and timing envelopes. GPU results demonstrate capability and capacity, not a like-for-like speedup.",
+      "detail": "CPU, one-H200, five-H200, and eight-H200 workloads have different member counts and timing envelopes. GPU results demonstrate capability and capacity, not a like-for-like speedup or strong-scaling result.",
       "topic": "performance",
       "verdict": "capability_not_speedup"
+    },
+    {
+      "detail": "Job 1242901 failed before estimator entry because an archive-only launch context was incorrectly required to contain .git metadata. It emitted no scientific artifacts; corrected job 1242905 completed all eight ranks.",
+      "topic": "launcher_history",
+      "verdict": "non_scientific_failure_preserved"
     }
   ],
   "raw_sources": [
@@ -275,6 +271,36 @@
       "bytes": 5777,
       "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/verification/pytest-7d8d61c.txt",
       "sha256": "d8a38a2e7ad70c2eb06299a9d9fe3d76099b308d5622d80e7be26983c520562b"
+    },
+    {
+      "bytes": 765,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/eight-h200-20260810/logs/launcher-1242901.log",
+      "sha256": "a423f0ff249cf0f25cb80db7925accac465270963c9fdba319c1dd78424e10fc"
+    },
+    {
+      "bytes": 7810,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/eight-h200-20260810/launch.sbatch",
+      "sha256": "e6e725539a147504d2d4da2200a3d73c376f5355cf503f368e7dd55b854b36c7"
+    },
+    {
+      "bytes": 5836,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/eight-h200-20260810/logs/launcher-1242905.log",
+      "sha256": "7f5ef1bafa7bc0aa2c02273393091bbef790fb6760011f05d01f8afe57683101"
+    },
+    {
+      "bytes": 6625,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/eight-h200-20260810/jobs/1242905/merged/merged.json",
+      "sha256": "b0ddfd9a01e3296fda5554601cf2f4a74b968e239a569db0a8b5c5733bbbc1cb"
+    },
+    {
+      "bytes": 151411222,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/eight-h200-20260810/jobs/1242905/merged/merged.npz",
+      "sha256": "dff2d1b286bf9814e0292aa6d3ba104f32ee47d8e3717d4340ac1cbc53c5180d"
+    },
+    {
+      "bytes": 12924,
+      "path": "/home/ITER/mcintos/Code/imas-ambix/outputs/nova-ensemble-estimator/eight-h200-20260810/jobs/1242905/receipts/independent-verification.txt",
+      "sha256": "331aef55dbfc78d28b62c268e76362bb64cff3de49f6ee84bab4d05801e2cb76"
     }
   ],
   "schema": "nova-ensemble-estimator-evidence-manifest",
@@ -285,10 +311,10 @@
     "repository": "imas-ambix",
     "source_archive_sha256": "99b12ecc5562df44f8d7c1da747784c2fd7e5691190715412232781eed8d1c7a"
   },
-  "status": "qualified_partial_capacity_blocked",
+  "status": "complete_qualified",
   "summary": {
     "cpu_reference": "complete, 32 members",
-    "eight_h200_scaling": "blocked_capacity, 1024-member run not performed",
+    "eight_h200_scaling": "complete and independently verified, eight ranks and 1024 members",
     "maximum_available_h200_scaling": "complete, five ranks and 640 members",
     "one_h200_reference": "complete, 128 members"
   },
@@ -309,14 +335,19 @@
       "sha256": "220a706b955fff516c28629a6183cf554c627a59d27e648a5afd0a0047b2d34d"
     },
     {
+      "bytes": 17542,
+      "path": "imas_ambix/statespace/artifacts/nova_ensemble_estimator/eight_h200_scaling.json",
+      "sha256": "490ccf798a397c08c1700d048844cb58c047d6652060d5415a4227f3a74152b4"
+    },
+    {
       "bytes": 1125305,
       "path": "imas_ambix/statespace/artifacts/nova_ensemble_estimator/posterior_samples.npz",
       "sha256": "5ef087719b9fc4f624e09729ddc85384b295b509121b11c317cefca510ad9fac"
     },
     {
-      "bytes": 518130,
+      "bytes": 487591,
       "path": "docs/figures/nova-ensemble-estimator/estimator-summary.png",
-      "sha256": "f9fa1583abc6576a17ff3a6508f4907341d181a58f6d81bed5e861f95252352f"
+      "sha256": "aa3c33995c07e1e5eb85f3316dda6bd0fab28beb75e432f49f675b07f2feb5c9"
     }
   ]
 }
