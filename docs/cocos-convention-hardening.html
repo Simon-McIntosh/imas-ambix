@@ -6,142 +6,143 @@
   <meta name="docs-project"   content="imas-ambix">
   <meta name="reckon-type" content="plan">
   <meta name="plan-slug" content="cocos-convention-hardening">
-  <meta name="plan-title" content="COCOS Convention Hardening — pin the working sign convention and build one fail-loud normalisation boundary at the IMAS seam">
-  <meta name="plan-summary" content="The MAST-only equilibrium pipeline is sign-SOUND and empirically verified (forward PF chain correlates 0.83-0.87 with raw magnetics, LS slope 0.86-0.99 on a real vacuum slice), so no current work is blocked. But the one real convention mismatch — MAST EFIT is COCOS-3-like (axis = flux MAXIMUM for Ip&gt;0), while IMAS is COCOS-11 (axis = flux minimum) — is a LATENT hazard that goes live the moment MAST (or any machine) is ingested through the IMAS readers, whose poloidal-angle assumption (artifact_geometry.read_artifact_magnetics) is currently unverified. This plan declares and pins the pipeline&#x27;s working COCOS with a regression test, verifies the IMAS magnetics-angle assumption against a real COCOS-11 IDS, builds ONE fail-loud COCOS-normalisation boundary in the IMAS readers (never a silent auto-convert), and adds a cross-convention self-consistency gate. It is a North-Star prerequisite for the machine-agnostic world model, not a current blocker.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-title" content="COCOS 17 / DDv4 Hardening — immutable maps and a lazy canonical data boundary">
+  <meta name="plan-summary" content="Shipped the DD 4.1.1 / COCOS-17 contract for Ambix and Nova: reviewed content-addressed signal maps, a read-only slice-lazy transform view, fail-loud exact-DD artifact reads, canonical directed probe projection, corrected Nova artifact authoring, and a clean-wheel packaging repair. Raw facility data remains unchanged. Stitched validation covers all 2,512 Ambix tests (2,490 passed, 22 skipped); Nova passed 60 tests. Sensor calibration population continues as an explicit follow-up.">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="mid">
   <meta name="plan-effort" content="M">
   <meta name="plan-milestone" content="M4">
   <meta name="plan-owner" content="Simon McIntosh">
-  <meta name="plan-impl" content="0.0">
+  <meta name="plan-impl" content="1.0">
   <meta name="plan-blocks" content="machine-agnostic-latent-world-model">
   <title>COCOS Convention Hardening | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-10">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="6">
 <meta name="plan-sprint" content="S17">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
+<meta name="plan-commits" content="73757bc,5f889c6,8abad30,cb96b40,nova@de3277a3238513b81be04dbc0980030b200ce420">
+<meta name="plan-artifacts" content="imas_ambix/data/maps/mast/magnetics.json#sha256:4fbddbb77729d6443b3234625ebbfcdbbb373909371710c0370af960b89d66e0,docs/figures/cocos-convention-hardening/canonical-data-boundary.svg">
 </head>
 <body>
   <main class="plan-doc">
-    <h1>COCOS Convention Hardening</h1>
-    <p><em>Pin the pipeline's working sign convention, and build one fail-loud COCOS-normalisation
-    boundary at the IMAS ingestion seam — so mapping MAST (and later JET / ITER) data through IMAS
-    realises the machine-agnostic North Star <strong>without</strong> injecting the silent sign hazard
-    that naive mapping would. This plan is the direct action item from the
-    <a href="/imas-ambix/mast-imas-cocos-evaluation.html">MAST↔IMAS COCOS evaluation</a>, which found
-    the MAST-only pipeline sign-sound but the IMAS seam a latent North-Star risk.</em></p>
+    <h1>COCOS 17 / DDv4 Hardening</h1>
+    <p><em>Ambix and Nova now expose one canonical scientific contract: Data Dictionary
+    4.1.1 with COCOS 17. Facility data remains immutable. Small reviewed maps describe
+    source bindings and transforms; Ambix compiles them once per shot and applies the
+    fused affine operation only to requested slices.</em></p>
 
-    <h2 id="s1">§1 — Where we are: sound today, latent risk at the seam</h2>
-    <p>The evaluation settled the lead's fear with evidence, and its verdict re-orders the priority
-    here: <strong>the MAST-only pipeline is sign-sound and empirically verified — no current work is
-    blocked</strong> — but there is exactly one real convention mismatch, and it is dormant only
-    because MAST is read <em>raw from FAIR-MAST zarr</em>, not through IMAS.</p>
-    <ul>
-      <li><strong>Forward sign chain verified end-to-end.</strong> On a genuine pre-breakdown vacuum
-      slice the known-coil prediction <code>G_pf·I_pf</code> correlates 0.83–0.87 with the raw
-      <code>amb</code> magnetics, with a least-squares slope of 0.86–0.99 — sign <em>and</em> magnitude
-      correct, which exercises the kA·turn→A conversion, μ₀, the filament Green's sign, and the
-      <code>B_R cosθ + B_Z sinθ</code> projection together.</li>
-      <li><strong>The one real mismatch: MAST is COCOS-3-like, IMAS is COCOS-11.</strong> All four
-      standing-held-out shots have positive I<sub>p</sub> (+640…+921 kA) yet ψ<sub>axis</sub> &gt;
-      ψ<sub>boundary</sub> (axis is the flux <em>maximum</em>). COCOS-11 requires the axis to be the
-      flux <em>minimum</em> for I<sub>p</sub> &gt; 0, so <code>matches_cocos11 = False</code> for every
-      shot. Harmless for MAST-only work; live the instant a COCOS-11 magnetics IDS is ingested.</li>
-      <li><strong>The boundary negative is NOT a sign flip.</strong> A ψ- or Z-flip would corrupt the
-      axis-R skill too, but axis skill went <em>positive</em> (+0.019) in the same run — a sign fault
-      cannot be that selective. The LCFS −6.26 is the representation artifact the
-      <a href="/imas-ambix/equilibrium-topology-fidelity.html">equilibrium-topology-fidelity</a> plan
-      identifies, addressed there by thread 1, not here.</li>
-      <li><strong>The unverified assumption.</strong> The IMAS magnetics read
-      (<code>read_artifact_magnetics</code>, <code>imas_ambix/gs/artifact_geometry.py:602</code>)
-      <em>assumes</em> <code>b_field_pol_probe.poloidal_angle</code> follows MAST's
-      <code>magpr_ang</code> convention into the same projection: it converts the stored radians to
-      degrees and hands the result to <code>sensor_position_arrays</code> under the
-      <code>magpr_ang</code> key, so the two conventions are equated by the array name alone and
-      never checked against real COCOS-11 data. The assumption previously lived in the loose-IDS
-      reader, whose module docstring stated it explicitly as flagged-but-unverified; that reader was
-      retired in <code>ae728ad</code> when the published-artifact reader superseded it, and the
-      written caveat went with it. The surviving reader documents its drop-if-absent rule but not the
-      convention equivalence, so the assumption is now unverified <em>and</em> unwritten — this plan
-      is the only place it is recorded.</li>
-    </ul>
+    <section class="landed-summary" aria-labelledby="landed">
+      <h2 id="landed">Landed outcome</h2>
+      <p><strong>Shipped.</strong> The obsolete COCOS-11 premise was replaced throughout the
+      active geometry and Green-operator paths. A content-addressed MAST magnetics map,
+      read-only lazy array view, exact DD/COCOS artifact checks, corrected Nova DDv4
+      probe authoring, and regression coverage now make the boundary explicit and
+      fail-loud. No raw Zarr or IMAS data was changed, copied, or eagerly materialised.</p>
+    </section>
 
     <figure>
-      <img src="/imas-ambix/figures/mast-imas-cocos-evaluation/sign-chain-diagram.png"
-           alt="Diagram of the raw MAST zarr -> forward Green's operator -> firewalled EFIT referee sign chain, annotating the COCOS convention at each hop and the single COCOS-3-vs-11 mismatch that becomes live only at the (not-yet-wired) IMAS ingestion seam."
+      <img src="/imas-ambix/figures/cocos-convention-hardening/canonical-data-boundary.svg"
+           alt="Immutable source stores and discovery evidence flow into a reviewed Ambix map, which compiles once per shot and serves requested slices in DDv4 and COCOS 17."
            style="max-width:100%;height:auto;border:1px solid #d0d4da;border-radius:6px">
-      <figcaption style="font-size:12.5px;color:#444">Figure 1 — The sign chain from the MAST↔IMAS COCOS
-      evaluation: raw FAIR-MAST zarr → forward Green's operator → firewalled EFIT referee, with the
-      COCOS convention annotated at each hop. The only mismatch (MAST COCOS-3-like axis = flux max vs
-      IMAS COCOS-11 axis = flux min) is dormant on the raw MAST path and goes live only at the IMAS
-      seam this plan hardens.</figcaption>
+      <figcaption>Figure 1 — imas-codex and Nova produce evidence; Ambix owns the
+      reviewed, Git-versioned map and its lazy application. The source store is never
+      rewritten.</figcaption>
     </figure>
 
-    <h2 id="s2">§2 — Declare and pin the working COCOS (regression test)</h2>
-    <p>The pipeline's convention is currently implicit — correct, but written nowhere as a single
-    checkable fact. Declare it explicitly (total poloidal flux Φ = 2πR·A<sub>φ</sub> [Wb]; μ₀ explicit;
-    ψ<sub>axis</sub> &gt; ψ<sub>boundary</sub>; I<sub>p</sub> signed positive along +φ; B-probe
-    projection <code>B_R cosθ + B_Z sinθ</code>) and lock it with a <strong>sign-regression test</strong>
-    that re-runs the forward-coherence check (a vacuum slice: <code>G_pf·I_pf</code> vs raw
-    <code>amb</code>, asserting positive correlation and near-unit LS slope). This makes any future
-    silent sign regression a red test, not a slow-burning skill drop.</p>
+    <h2 id="contract">1 — Canonical scientific contract</h2>
+    <table>
+      <thead><tr><th>Quantity</th><th>MAST source to canonical</th><th>Canonical meaning</th></tr></thead>
+      <tbody>
+        <tr><td>Poloidal flux</td><td><code>psi × 2pi</code></td><td>Total flux in Wb</td></tr>
+        <tr><td>Derivative with respect to flux</td><td><code>d/dpsi ÷ 2pi</code></td><td>Derivative against total flux</td></tr>
+        <tr><td>Safety factor</td><td><code>q × -1</code></td><td>COCOS-17 handedness</td></tr>
+        <tr><td>Plasma current and toroidal field</td><td><code>× +1</code></td><td>Signed physical quantities retained</td></tr>
+        <tr><td>Probe angle</td><td><code>degree × -pi/180</code></td><td>DDv4 directed angle in radians</td></tr>
+      </tbody>
+    </table>
+    <p>DDv4 defines the probe projection as
+    <code>B_R cos(theta) - B_Z sin(theta)</code>. A MAST source angle of
+    <code>+90 degree</code> therefore maps to <code>-pi/2 rad</code> and still reads
+    <code>+B_Z</code>. The map requires a DD target path and structure index now;
+    <code>standard_name</code> may remain null until the relevant Standard Name is accepted.</p>
 
-    <h2 id="s3">§3 — Verify the IMAS poloidal-angle assumption against a real COCOS-11 IDS</h2>
-    <p><strong>Target moved, concern live.</strong> This section was written against
-    <code>imas_geometry.py:74</code>, a loose-IDS reader retired in <code>ae728ad</code>. The
-    retirement did <em>not</em> moot the concern: it moved. The same equation of
-    <code>b_field_pol_probe.poloidal_angle</code> with MAST's <code>magpr_ang</code> is made by the
-    surviving published-artifact reader at
-    <code>imas_ambix/gs/artifact_geometry.py:602</code>
-    (<code>read_artifact_magnetics</code> → <code>sensor_position_arrays</code>, §1), and that reader
-    is the one the benchmark seam actually reaches — so the assumption now sits on a <em>live</em>
-    path rather than an unwired one.</p>
-    <p>The work is unchanged in substance: obtain (or synthesise from the MAST geometry) a COCOS-11
-    <code>magnetics</code> IDS, read <code>b_field_pol_probe.poloidal_angle</code> through the artifact
-    reader, and confirm the resulting probe projection reproduces the same physical
-    <code>B_R cosθ + B_Z sinθ</code> as the MAST <code>magpr_ang</code> path — or measure the exact
-    offset/sign transform needed. Replace the assumption with a checked fact, and restore the written
-    caveat to the surviving reader so the gap is visible from the source and not only from this plan.</p>
+    <h2 id="ownership">2 — Map ownership, storage, and versioning</h2>
+    <p><strong>imas-codex discovers; Ambix distils and applies.</strong> imas-codex
+    receipts may carry candidate source paths, units, convention evidence, and calibration
+    epochs. Nova contributes measured machine geometry and correction evidence. Those
+    receipts are opaque review inputs, not runtime dependencies. Ambix publishes the
+    accepted result at
+    <code>imas_ambix/data/maps/&lt;machine&gt;/&lt;system&gt;.json</code>.</p>
+    <p>Each map has a semantic <code>set_version</code> and a canonical SHA-256 digest;
+    Git versions the human review and the digest gives cache and artifact identity.
+    A binding records source group/array/unit/COCOS, target DD path/index/unit/COCOS,
+    conversion factors, evidence, blocked signals, and optional shot-valid affine
+    calibration intervals. Compilation resolves an interval once and fuses unit,
+    convention, and calibration factors into one scale and offset.</p>
 
-    <h2 id="s4">§4 — One fail-loud COCOS-normalisation boundary in the IMAS readers</h2>
-    <p>Add a single, explicit COCOS-normalisation step at the IMAS ingestion boundary
-    (<code>MachineArtifactGeometryReader</code>, <code>artifact_geometry.py:727</code>, and any future
-    IMAS signal reader): detect the stored COCOS from
-    the IDS, and normalise into the pipeline's declared working convention (§2) — or
-    <strong>raise</strong> if the stored COCOS is unknown / unhandled. Never rely on imas-python's
-    silent auto-conversion. This is the machine-agnostic seam: it is what lets MAST, JET, and ITER
-    data enter the <em>same</em> latent with one convention, and it is the reason mapping to IMAS is
-    worth it rather than a hazard.</p>
+    <h2 id="virtual-interface">3 — Virtual Zarr interface decision</h2>
+    <p><a href="https://virtualizarr.readthedocs.io/en/latest/usage.html">VirtualiZarr</a>
+    is well suited to inventorying existing chunks from metadata and expressing their
+    references, but its virtual references do not by themselves perform the scientific
+    affine transforms required here. Ambix therefore exposes a small read-only,
+    Virtual-Zarr-style transform view: metadata access performs no chunk read,
+    <code>view[index]</code> forwards exactly that index to the physical array and
+    transforms only the returned values, while implicit whole-array conversion and all
+    writes fail loudly. A future native VirtualiZarr manifest can carry the same map
+    digest without moving transformation authority out of Ambix.</p>
 
-    <h2 id="s5">§5 — Cross-convention self-consistency gate</h2>
-    <p>The end-to-end proof: take one MAST equilibrium, ingest it two ways — (a) raw from FAIR-MAST
-    zarr (today's path), and (b) round-tripped through a synthetic COCOS-11 IMAS
-    <code>magnetics</code>/<code>pf_active</code> IDS through the §4 normalisation boundary — and assert
-    the reconstructed topology (axis, X-point set, LCFS radii) is <em>identical</em> to within
-    numerical tolerance. A passing gate is the guarantee that the convention machinery is transparent:
-    the model sees the same physics regardless of the ingestion convention.</p>
+    <h2 id="performance">4 — Performance contract</h2>
+    <p>On <code>98dci4-clu-3141</code> with Python 3.14.2 and NumPy 2.4.4, an
+    8192 × 64 float32 slice (2 MiB) took 0.603340 ms through a scale map versus
+    0.578455 ms for the exact direct NumPy multiply: 24.885 microseconds overhead,
+    ratio 1.0430, and 3.476 GB/s effective throughput. A fused affine map took
+    0.922165 ms versus 0.882755 ms for the matching multiply-plus-in-place-add
+    baseline: 39.409 microseconds overhead and ratio 1.0446. Packaged map
+    load-plus-validation took 63.182 microseconds; shot compilation took
+    20.322 microseconds. The hot loop contains no schema walk or evidence parsing.</p>
 
-    <h2 id="s6">§6 — Document the abs(Ip) plasma-on detector</h2>
-    <p>Small but real: <code>load_shot_slices_raw</code> (<code>latent/data.py:212</code>) takes
-    <code>np.abs(ip)</code>. This is a plasma-on detector (thresholding the Rogowski magnitude against
-    a 50 kA floor), not a sign convention — the physics inverse keeps I<sub>p</sub> signed
-    (<code>SlicePayload.ip_amperes</code>, <code>patch_inverse.py:194</code>, consumed with an explicit
-    <code>np.sign(ip_amperes)</code> in <code>negative_current_fraction</code>,
-    <code>patch_inverse.py:79</code>). Document it in place so it is not mistaken for a sign choice by
-    a future reader.</p>
+    <h2 id="hardening">5 — Reader, cache, operator, and Nova hardening</h2>
+    <ul>
+      <li>The Green operator and every production projection site use one
+      <code>project_poloidal_field</code> implementation; tests and diagnostics share it.</li>
+      <li>Machine artifacts require DDv4/COCOS 17, read through imas-python at the
+      manifest's exact dictionary version, and disable Access Layer autoconversion.</li>
+      <li>The legacy geometry-table cache remains byte-for-byte untouched. Its source
+      angles are transformed in memory and its canonical signature is recomputed;
+      newly written cache metadata includes the map digest, DD target, and COCOS target.</li>
+      <li>Nova authors MAST source probe directions correctly into DDv4. Its published
+      machine artifact now has semantic identity
+      <code>sha256:ec2f7c6015ac4b193e2f9bb4594b2a90e7ff9650bb5566d214c3aec39f179c88</code>;
+      Ambix pins the corresponding Nova commit.</li>
+    </ul>
 
-    <h2 id="s7">§7 — Relationship to the other plans</h2>
-    <p>This plan is <strong>decoupled from</strong> the boundary/interior work of
-    <a href="/imas-ambix/equilibrium-topology-fidelity.html">equilibrium-topology-fidelity</a> — that
-    plan's negatives are representation/null-space, not sign, so the two proceed in parallel. This plan
-    <strong>blocks</strong> <code>machine-agnostic-latent-world-model</code> only at the point where a
-    <em>second machine</em> (JET/ITER) or an IMAS-native MAST re-ingest is wired in: at that seam §4's
-    fail-loud normalisation and §5's self-consistency gate are prerequisites. Until then it is a
-    queued, non-urgent hardening plan; the MAST-only programme runs unblocked.</p>
+    <h2 id="calibration">6 — Calibration discovery and the remaining distillation</h2>
+    <p>The evidence already supports the convention map: 11,154 MAST shots give
+    unanimous <code>sigma_Bp = -1</code>; <code>sigma_rho_theta_phi = -1</code> is
+    near-unanimous; and 2,662 flux-loop slices across 60 shots give a
+    <code>2pi</code> ratio of 6.3007. Nova has also identified a seven-rung
+    acquisition-scale ladder and measured candidate static gains including
+    <code>obr17 = 0.5011</code>, <code>obv04 = 0.8571</code>,
+    <code>obv05 = 0.9449</code>, and <code>ccbv35 = 0.9474</code>.</p>
+    <p>Those candidate gains are evidence, not automatic authority. The pulse-dependent
+    <code>obr05 = 1.1043</code> candidate and withheld <code>obv11</code> are not
+    promoted. The queued follow-up will distil exact per-campaign source paths,
+    acquisition epochs, reviewed gains, and explicit blocked states into the same
+    lightweight map schema without touching source data or waiting for stable Standard
+    Names.</p>
 
+    <h2 id="validation">7 — Validation receipt</h2>
+    <p>Nova's machine-description suite passed 60 tests. Ambix map and lazy-view tests
+    passed 42 tests. The one-hour full Ambix run produced 2,487 markers before the
+    scheduler stopped the last 1%; its two failures and five setup errors all traced
+    to stale Nova pin constants and passed as a seven-test repair gate. The exact
+    25-test unexecuted tail then passed separately. The stitched receipt therefore
+    covers all 2,512 collected tests: 2,490 passed and 22 skipped. The package was also
+    built from a clean archive and inspected to contain the map, COCOS helper,
+    lazy-view modules, and agent assets.</p>
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="cocos-normalisation-target" data-choice="cocos17-ddv4" data-by="Simon McIntosh" data-when="2026-08-10T10:46:16+00:00">
@@ -156,7 +157,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-cocos-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-06" data-recommends-skill="/reckon-ship cocos-convention-hardening §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-cocos-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-06" data-recommends-skill="/reckon-ship cocos-convention-hardening §2" data-resolved-at="2026-08-10T13:03:20+00:00" data-resolved-by="Simon McIntosh">
     <h4 class="r-fu-title">Pin the working COCOS with a sign-regression test (§2), then verify the IMAS poloidal-angle assumption (§3)</h4>
     <div class="r-fu-body"><p>Start with the zero-risk, high-value rungs: declare the pipeline's working convention as a single checkable fact and lock the verified forward-coherence result as a regression test (§2), then resolve the unverified poloidal-angle assumption — now carried by <code>read_artifact_magnetics</code> in <code>imas_ambix/gs/artifact_geometry.py</code>, the loose-IDS reader that originally held it having been retired in <code>ae728ad</code> — against a real/synthetic COCOS-11 magnetics IDS (§3). §4/§5 (the fail-loud normalisation boundary + cross-convention self-consistency gate) follow once a second-machine ingest is actually wired.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -200,6 +201,62 @@ Done-when
      read_artifact_magnetics so the source states it too (§3).
   3. cocos-normalisation-target decision resolved; plan updated same-turn with the outcome + a figure;
      this followup resolved and the next (§4/§5) queued.</pre>
+    <p class="r-fu-outcome">Canonical target locked to DD 4.1.1 / COCOS 17. The DDv4 directed poloidal-angle transform was measured and implemented, every production probe projection was centralised, exact-DD artifact reads now fail loudly, and regression coverage plus Nova artifact authoring are green.</p>
+    </article>
+<article class="r-fu" data-id="f-cocos-02" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-context="extended" data-capability-tool-autonomy="autonomous" data-capability-verification="strict" data-capability-risk="elevated" data-written-by="reckon-ship" data-written-at="2026-08-10" data-recommends-skill="/reckon-ship cocos-convention-hardening calibration" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Distil discovered sensor scaling and calibration epochs into reviewed maps</h4>
+    <div class="r-fu-body"><p>Populate the lightweight map layer from imas-codex discovery receipts and Nova calibration evidence. Exact source-to-DD bindings, acquisition epochs, reviewed gains, and explicit blocked states are required; Standard Names may remain provisional or null. Raw data stays immutable and transformations remain slice-lazy.</p></div>
+    <pre class="r-fu-prompt">Project: imas-ambix
+Plan: cocos-convention-hardening
+Work: distil sensor scaling and calibration evidence into reviewed lightweight maps
+Skill: /reckon-ship
+
+Scientific contract
+  Ambix and Nova are canonical DD 4.1.1 / COCOS 17.
+  Raw facility data is immutable. Do not rewrite, convert, copy, or eagerly materialise
+  a source dataset. Read IMAS only through imas-python at the exact stored DD version.
+  Standard Names are desirable but nullable until accepted; a DD target path and
+  structure index are mandatory.
+
+Ownership
+  imas-codex discovers source paths, units, acquisition epochs, convention evidence,
+  and calibration candidates. Treat its discovery receipt as immutable evidence.
+  Ambix reviews and distils the accepted result into
+  imas_ambix/data/maps/&lt;machine&gt;/&lt;system&gt;.json, versions it in Git with semantic
+  set_version plus canonical SHA-256, compiles it once per shot, and applies it lazily.
+
+Work to perform
+  1. Reconcile imas-codex discovery receipts with Nova&#x27;s MAST magnetics correction
+     evidence. Bind every accepted channel to its exact source group/array/index,
+     source unit, target DDv4 path/index/unit, and evidence receipt.
+  2. Encode the seven-rung acquisition-scale ladder as non-overlapping shot-valid
+     intervals. Compose inverse acquisition scales with reviewed static gains into
+     the map&#x27;s affine calibration fields; prove the direction with synthetic values.
+  3. Do not promote pulse-dependent obr05 or withheld obv11 static gains. Encode
+     withheld, ambiguous, absent, or refused channels as explicit blocked entries
+     with reasons so no default identity transform can silently accept them.
+  4. Keep standard_name nullable. Where a provisional name exists, retain it as
+     review metadata without making runtime service depend on imas-codex or a stable
+     Standard Names release.
+  5. Add validation for interval boundaries, overlap/gap refusal, calibration
+     composition, source-to-DD format, digest stability, metadata-only access,
+     slice forwarding, no implicit whole-array read, no writes, and no raw mutation.
+  6. Benchmark representative hot slices against the exact NumPy baseline. Compilation
+     is outside the hot loop; report absolute overhead, ratio, throughput, host,
+     Python, NumPy, shape, and dtype.
+
+Known evidence that must remain qualified
+  Static candidates include obr17=0.5011, obv04=0.8571, obv05=0.9449,
+  ccbv35=0.9474. obr05=1.1043 is pulse-dependent/known unsuitable as a static
+  promotion. obv11 is withheld. Preserve these statuses instead of wording them
+  into acceptance.
+
+Done when
+  Reviewed maps cover each discovered campaign epoch without overlap; refused gaps
+  fail loudly; transformed slices serve the DDv4/COCOS-17 format; performance is
+  measured; tests and a clean wheel are green; raw stores are byte-identical; and
+  this follow-up is resolved with representative bindings, calibration status,
+  digests, and benchmark receipts.</pre>
     </article>
 </section>
   </main>
