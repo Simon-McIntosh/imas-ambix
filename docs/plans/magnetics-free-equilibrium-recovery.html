@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="magnetics-free-equilibrium-recovery">
+  <meta name="plan-title"     content="Magnetics-Free Equilibrium Recovery">
+  <meta name="plan-summary"   content="Recover scored equilibria from actuators and Thomson alone — the Sophelio-challenge entry as an ITER-pipeline rehearsal: measurement models, closure calibration from label-derived flux functions, windowed smoother, sealed zero-shot transfer">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="XL">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-context" content="extended">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="elevated">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S21">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="nova:diiid-forward-onboarding">
+  <title>Magnetics-Free Equilibrium Recovery | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — Objective and doctrine</h2>
+    <p>Predict EFIT-scored equilibria (ψ on a 65×65 grid, q<sub>95</sub>, β<sub>N</sub>) from coil
+    currents, plasma current and Thomson scattering alone — no magnetic diagnostics — on DIII-D, with
+    zero-shot transfer to MAST. The purpose is <strong>not the prize</strong>: the challenge is the only
+    available adversarially-scored, cross-machine rehearsal of the ITER data-analysis pipeline before
+    ITER operations, and it stress-tests exactly the seam authority this project already committed to
+    (nova transfers physics exactly; ambix learns closures and corrections from classified innovation).
+    Grounded competition facts, the FAIR-MAST public-access statement, and the full data doctrine live in
+    the research doc <code>sophelio-fusion-equilibrium-challenge</code>; the four doctrine decisions are
+    locked below and bind every phase: the derivative-level firewall, the FAIR-MAST usage boundary
+    (machine descriptions and signal semantics only — no training use, MAST EFIT firewalled), the sealed
+    zero-shot rehearsal, and the two-rung quarantined referee-emission layer.</p>
+    <p>The physics thesis: because T<sub>e</sub> and n<sub>e</sub> are flux functions, every Thomson
+    channel is a soft isoflux constraint — pseudo-magnetics — but only jointly with its chord geometry.
+    Per frame this under-determines the interior; over a shot, current-diffusion inertia makes the
+    interior flux functions slowly-drifting parameters that hundreds of frames of boundary pins
+    over-determine. Thomson pins the boundary and pressure; transport pins the interior; the ensemble
+    lets each fill the other's null space. Vertical placement carries no special constraint: the recorded
+    coil currents are the closed-loop currents, so the converged free-boundary solve (NK-stabilised, in
+    nova) places the plasma where force balance puts it, and any residual LCFS misfit against Thomson is
+    attributed by the smoother across its typed error sources — coil-current nuisances, position and
+    turns corrections, passive currents, flux-function deviations — never absorbed by a solver-side pin.</p>
+
+    <h2 id="s2">§2 — Challenge ingest and label-pedigree probe</h2>
+    <p>Stand up loaders for the parquet corpus (nested per-shot arrays: actuator waveforms, Thomson
+    profiles with chord coordinates, labeled ψ sequences on <code>efit_times</code>, per-shot coil
+    geometry), verify the reported-but-unverified facts from the research doc §5 (frame counts, layout
+    count, retention), and run the pedigree probe on the labels themselves: vacuum-region Δ*ψ≈0 receipts,
+    basis-structure analysis of extracted profiles, and frame-quality flags. The probe's outcome locks the
+    <em>label-pedigree-response</em> decision — how aggressively the interior of extracted flux functions
+    may be trusted for closure tuning.</p>
+    <p><strong>Done-when:</strong> corpus loads end-to-end with schema tests; research-doc §5 facts
+    confirmed or corrected in place; pedigree probe report banked and the decision locked.</p>
+
+    <h2 id="s3">§3 — Thomson measurement models</h2>
+    <p>The observation-model library, built over nova's response kernels (chord→ψ<sub>N</sub> sampling is
+    nova's; everything with a σ, a prior or a decision in it is ours): a pedestal-foot separatrix detector
+    with calibrated uncertainty (trained on ψ<sub>N</sub>-at-chord values from train labels —
+    derivative-level consumption, disclosed), ELM-phase and channel-validity policy (widen σ, don't drop),
+    isoflux pairing of matched-T<sub>e</sub> channels across non-collinear chords, and the
+    isotherm-asymmetry Shafranov-shift operator (a direct β<sub>p</sub>+ℓ<sub>i</sub>/2 measurement that
+    needs no training data — its value on the zero-shot machine is exactly that).</p>
+    <p><strong>Done-when:</strong> detector calibration curves on held-out DIII-D shots are banked
+    (coverage within pre-registered band); validity policy is typed by topology class; each operator has
+    synthetic round-trip tests against nova-solved equilibria.</p>
+
+    <h2 id="s4">§4 — Closure calibration from extracted flux functions</h2>
+    <p>The strongest training signal in the challenge requires no equilibrium solves: applying Δ* to each
+    labeled map gives j<sub>φ</sub>(R,Z), and per-surface radial separation recovers p′(ψ) and FF′(ψ)
+    corpus-wide (nova owns the extraction operator with conditioning-aware uncertainty; this phase owns
+    its statistical use). Integrating p′ gives total pressure, which beside Thomson p<sub>e</sub>
+    calibrates the p<sub>e</sub>→p closure multipliers against collisionality and beam proxies. FF′
+    evolution calibrates the current-diffusion closure — multiplicative, tightly-priored corrections to
+    Sauter/Redl-class dimensionless forms, never free-form profiles, so what is learned is
+    machine-portable by construction. The aspect-ratio extrapolation (DIII-D A≈2.5 → MAST A≈1.3) is this
+    phase's named risk: tuned forms are validated across the jump against nova's own MAST reconstructions
+    before the transfer bet is trusted (validation only — the sealed-rehearsal decision governs; no MAST
+    parameter feedback). This phase supplies the training corpus the
+    <code>learned-closure-current-diffusion-v0</code> plan has been waiting for.</p>
+    <p><strong>Done-when:</strong> transport-evolved FF′ beats the untuned closure against extracted FF′
+    on held-out DIII-D shots by a pre-registered margin; ℓ<sub>i</sub> skill measured (this is the
+    ℓ<sub>i</sub> gate); p<sub>e</sub>→p closure calibration banked with collisionality dependence.</p>
+
+    <h2 id="s5">§5 — Hierarchical nuisance fit and the windowed smoother</h2>
+    <p>Two estimation tiers. <em>Campaign tier, run once on train labels:</em> machine-description
+    corrections that are shot-constant — coil position/turns corrections (ECOILA, bcoil ambiguities),
+    systematic actuator scale factors — fitted hierarchically across the labeled corpus and frozen.
+    <em>Shot tier:</em> a windowed iterated ensemble smoother over ~12–16 parameters per window
+    (p<sub>e</sub>→p multipliers, 3–5 FF′ basis amplitudes as deviations from the transport-evolved mean,
+    Z<sub>eff</sub>, 2–4 vessel-current eigenmodes, tightly-priored actuator nuisances), windows-as-DA-cycles
+    per the seam's waveform-exchange contract, innovations classified and attributed across typed error
+    sources, only NK-converged members admitted (innovation purity). I<sub>p</sub> enters via the
+    contract's integral-constraint policy, not as an observation. Ensemble sizes are set by the
+    measured throughput budget nova publishes, not assumed.</p>
+    <p><strong>Done-when:</strong> flat-top held-out DIII-D R²_ψ meets the pre-registered floor bar —
+    <strong>this gate is the minimum submittable entry</strong>; a first leaderboard submission is made
+    from it; a magnetics-free ablation table (which observation family carries which score term) is
+    banked. If the bar is missed, remaining schedule goes to diagnosis, not to later phases.</p>
+
+    <h2 id="s6">§6 — Limited-phase traversal</h2>
+    <p>Labels for limited frames are deleted corpus-wide, but the transport and eddy state at the first
+    scored (diverted) frame is an integral over the limited ramp — the ramp must be dynamically right,
+    not scored-right. A reduced model (passive circuits + current diffusion, no full free-boundary solve)
+    traverses breakdown to the first diverted frame and hands the smoother its initial state with honest
+    spread. Validation is the standing first-diverted-frame-error vs time-since-transition diagnostic on
+    train. This phase is deliberately general: the same traversal problem is the ITER first-plasma
+    rehearsal's opening move, and the machinery feeds <code>iter-first-plasma-rehearsal</code> directly.</p>
+    <p><strong>Done-when:</strong> first-diverted-frame error is statistically indistinguishable from
+    mid-flat-top error, or its degradation is bounded and reported; ramp-frame score contribution
+    measured on the public leaderboard split.</p>
+
+    <h2 id="s7">§7 — Amortizer on the token substrate</h2>
+    <p>A geometry-conditioned amortized posterior — an extension of the
+    <code>absolute-geometry-token-substrate</code> encoder (tokens carry signal + chord/coil geometry +
+    validity), never a parallel module family — proposes warm-start states so the smoother runs with
+    fewer outer iterations and smaller ensembles. Its training targets on train shots come nearly free
+    from §4's extraction plus §5's frozen campaign tier, not from expensive smoother runs. The network
+    proposes; the smoother disposes — approximation error never touches the scored artifact.</p>
+    <p><strong>Done-when:</strong> warm-started smoother reproduces cold-started results within tolerance
+    at ≥3× throughput on the held-out set.</p>
+
+    <h2 id="s8">§8 — Referee-emission layer (quarantined)</h2>
+    <p>The only map-level EFIT contact in the entry, applied after the physics stack has emitted its
+    equilibrium, and carrying its own provenance flags. Rung 1, deterministic and machine-portable:
+    project our flux functions onto the referee's representation conventions (basis truncation, boundary
+    smoothing, grid/COCOS conventions) and re-solve — on MAST this uses our in-house knowledge of EFIT++
+    conventions, no MAST data involved. Rung 2, learned residual: DIII-D-gated, trained last, switched
+    off for every MAST prediction, justified only by a measured leaderboard delta. Our own model's skill
+    bar remains &gt;1 against raw reality; this layer exists because the competition's scoring function is
+    EFIT agreement, and it is disclosed as such in the methods report.</p>
+    <p><strong>Done-when:</strong> rung-1 delta measured on both machines; automated check proves the
+    MAST emission path is rung-2-free; provenance flags round-trip through the submission format.</p>
+
+    <h2 id="s9">§9 — Sealed zero-shot rehearsal, submission, methods report</h2>
+    <p>Pipeline freeze, then the sealed rehearsal: one pass of the frozen pipeline over MAST challenge
+    inputs, referenced against nova's own MAST equilibrium reconstructions (from magnetics, outside the
+    challenge, MAST EFIT never read), results banked as evidence with no parameter feedback. Then the
+    blind-final submissions (three, Oct 19–26) and the methods report: external-material disclosure
+    (machine descriptions, signal semantics, any archives), the FAIR-MAST statement — publicly accessible,
+    deliberately unused for training — the doctrine decisions, and the provenance trail from receipts.
+    The submission pipeline enforces the no-post-processing rule mechanically (the emitted map is written
+    untouched).</p>
+    <p><strong>Done-when:</strong> sealed-rehearsal evidence doc banked (with the seal's integrity
+    honestly reported); blind-final submissions made; methods report published; a lessons-learned
+    evidence record wires outcomes back to the north-star plan.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="derivative-level-firewall" data-choice="derivative-level-consumption" data-by="Simon McIntosh" data-when="2026-08-11">
+        <p class="r-dec-q">How may EFIT-labeled maps be consumed without breaching the EFIT firewall?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="derivative-level-consumption">Derivative-level only: Δ*-extracted current density and radially-separated flux functions tune physics-parametrized (dimensionless) closures; chord-level ψ_N calibrates detectors; map-level contact only in the quarantined referee layer</button>
+          <button class="r-opt" data-value="map-level-residual">Map-level supervision of the physics stack with free-form absorbers</button>
+          <button class="r-opt" data-value="no-label-use">No label consumption anywhere</button>
+        </p>
+        <p class="r-dec-rat">We operate below the map: labels are mined for physically-typed coefficients
+        that calibrate transport and pressure closures in machine-portable form. The physics stack is never
+        EFIT-supervised at map level; the program's skill bar stays &gt;1 against raw reality, which is the
+        firewall's purpose. Claims of superiority to EFIT must be scored against raw measurements, never
+        against EFIT-derived quantities, to avoid circularity.</p>
+      </div>
+      <div class="r-dec" data-key="fair-mast-usage" data-choice="descriptions-and-semantics-only" data-by="Simon McIntosh" data-when="2026-08-11">
+        <p class="r-dec-q">What may be taken from the publicly accessible FAIR-MAST archive?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="descriptions-and-semantics-only">Machine-description geometry and signal semantics only; no training-derived parameters not discoverable from competition data; MAST EFIT firewalled</button>
+          <button class="r-opt" data-value="full-legal-use">Everything the rules permit with disclosure, including MAST signals as training data</button>
+        </p>
+        <p class="r-dec-rat">Training on public MAST data and claiming zero-shot transfer would make the
+        transfer number meaningless to us, and the transfer number is why we are entering. The public
+        accessibility of FAIR-MAST and our decision not to use it for training are stated in the
+        deliverable (methods report and research doc §6).</p>
+      </div>
+      <div class="r-dec" data-key="sealed-rehearsal-protocol" data-choice="frozen-pipeline-single-pass" data-by="Simon McIntosh" data-when="2026-08-11">
+        <p class="r-dec-q">How is zero-shot transfer demonstrated for ourselves before the blind final?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="frozen-pipeline-single-pass">Freeze the pipeline, run one sealed pass referenced against nova's own MAST reconstructions (never MAST EFIT), bank evidence, no parameter feedback; any seal break is reported</button>
+          <button class="r-opt" data-value="iterative-rehearsal">Iterate against MAST-side references during development</button>
+          <button class="r-opt" data-value="no-rehearsal">No MAST-side validation before the blind final</button>
+        </p>
+        <p class="r-dec-rat">A single sealed pass demonstrates zero-shot in our own accounting without
+        contaminating it; iterating would quietly convert validation into tuning.</p>
+      </div>
+      <div class="r-dec" data-key="referee-layer-scope" data-choice="two-rung-quarantined" data-by="Simon McIntosh" data-when="2026-08-11">
+        <p class="r-dec-q">What form may the competition-facing EFIT correction take?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="two-rung-quarantined">Two rungs at emission only: deterministic convention projection (both machines) + learned residual gated to DIII-D; provenance-flagged; disclosed</button>
+          <button class="r-opt" data-value="physics-stack-correction">Fold EFIT-matching corrections into the physics stack</button>
+        </p>
+        <p class="r-dec-rat">The correction exists to match the referee, not to improve the physics; it
+        therefore lives at emission, quarantined, where it cannot leak into the model whose skill target
+        is better-than-EFIT.</p>
+      </div>
+      <div class="r-dec" data-key="label-pedigree-response" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">How aggressively may the interior of extracted flux functions be trusted for closure tuning, given the §2 pedigree probe outcome (magnetics-only vs MSE-constrained labels)?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="interior-trusted">Interior trusted: full-profile closure tuning</button>
+          <button class="r-opt" data-value="edge-weighted">Edge-weighted: tight low-DOF interior corrections only (default recommendation)</button>
+          <button class="r-opt" data-value="boundary-only">Boundary quantities only; interior rides transport untuned</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="floor-bar-source" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Where does the §5 flat-top floor bar come from?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="own-spread">Pre-registered from our own EFIT-parity spread measurements (recommended — leaderboard is information, not a target)</button>
+          <button class="r-opt" data-value="leaderboard-baseline">Set from the public leaderboard baseline</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-mfer-001" data-status="open"
+               data-capability-version="1.0" data-capability-class="orchestrator"
+               data-written-by="reckon-create" data-written-at="2026-08-11">
+        <h4 class="r-fu-title">Ingest the challenge corpus and run the label-pedigree probe (§2)</h4>
+        <div class="r-fu-body"><p>First executable rung, runnable immediately and in parallel with the
+        nova onboarding plan's early phases: parquet loaders with schema tests, verification of the
+        research doc's §5 reported facts, vacuum-region Δ*ψ receipts and basis-structure analysis of the
+        labels, and the lock of the <em>label-pedigree-response</em> decision. The §4 extraction work is
+        blocked on nova's response-kernel phase; everything else in §2 is self-contained.</p></div>
+        <pre class="r-fu-prompt">/reckon-ship magnetics-free-equilibrium-recovery §2</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

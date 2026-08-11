@@ -24,8 +24,8 @@
   <title>Flux-Function State Interface | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-10">
-<meta name="plan-version" content="6">
+<meta name="plan-modified" content="2026-08-11">
+<meta name="plan-version" content="7">
 </head>
 <body>
   <main class="plan-doc">
@@ -64,6 +64,19 @@
       <li><strong>Integral-constraint conditioner.</strong> Treat <code>I_p</code>, <code>beta_p</code> and <code>l_i</code> as observations of the supplied profile state. A one-amplitude shape family may use <code>I_p</code> as an explicit scalar closure. Two or more moment targets require the same number of physically named profile degrees of freedom plus an Ambix prior or covariance; that conditioning occurs before the Nova handoff and retains posterior provenance. Nova supplies the differentiable moment operator and its residual/Jacobian, but does not choose the correction.</li>
       <li><strong>IMAS egress.</strong> Provide a lossless adapter to equilibrium <code>profiles_1d</code> where the selected Data Dictionary can express the state. Keep model-specific closure and uncertainty metadata in a versioned extension until a standard field exists; do not overload an unrelated IDS quantity.</li>
     </ol>
+
+    <h3 id="s3-response-kernels">Response kernels vs measurement models — produce, don't use</h3>
+    <p>Diagnostic forward models split across the seam on one rule: <strong>Nova produces every
+    deterministic response kernel and fits with none of them</strong> — coupling operators to sensors and
+    grid points (the magnetics design matrix Nova builds but does not use), chord→ψ<sub>N</sub>
+    flux-surface sampling, line-integral synthetic diagnostics, and map-derivative operators such as
+    Δ* extraction — while <strong>everything statistical about a signal stays in Ambix</strong>: noise
+    and calibration nuisances, validity and phase policy, feature detectors, innovation construction and
+    classification. Litmus: differentiable physics with a geometry argument is a Nova kernel; anything
+    carrying a σ, a prior or a decision is an Ambix measurement model. Kinetic-profile diagnostics
+    (Thomson) enter as pseudo-magnetics through exactly this split — the sampling kernel is Nova's, the
+    isoflux claim and its confidence are Ambix's. First consumer:
+    <code>magnetics-free-equilibrium-recovery</code>.</p>
 
     <h2 id="s4">§4 — Acceptance evidence</h2>
     <ul>

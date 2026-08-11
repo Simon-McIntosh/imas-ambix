@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="research">
+  <meta name="plan-slug"     content="sophelio-fusion-equilibrium-challenge">
+  <meta name="plan-title"    content="Sophelio Fusion Equilibrium Challenge — Grounded Facts and Entry Doctrine">
+  <meta name="plan-summary"  content="Verified facts about the magnetics-free DIII-D→MAST equilibrium challenge, the data doctrine governing our entry, and the cross-repository implementation path">
+  <meta name="plan-informs"  content="magnetics-free-equilibrium-recovery,physics-world-model-strategy,learned-closure-current-diffusion-v0,flux-function-state-interface,nova:diiid-forward-onboarding,nova:coil-geometry-inversion">
+  <title>Sophelio Fusion Equilibrium Challenge | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — What the challenge is</h2>
+    <p>The <a href="https://fusion-equilibrium-challenge.sophelio.io/">Sophelio Fusion Equilibrium
+    Challenge</a> asks entrants to predict the EFIT poloidal-flux map ψ(R,Z) on a 65×65 grid, plus
+    q<sub>95</sub> and β<sub>N</sub>, at every labeled timeslice of held-out tokamak shots — from
+    <strong>actuators and Thomson scattering only</strong>. No magnetic diagnostics are provided on
+    either machine; the field names carrying a <code>magnetics_</code> prefix hold coil currents and
+    plasma current, not sensor measurements. Two sub-challenges: intra-machine accuracy on DIII-D,
+    and <strong>zero-shot cross-machine transfer to MAST</strong>, for which no MAST training labels
+    exist by design. The transfer score is the ratio of the MAST score to the DIII-D score, so an
+    entry that memorises DIII-D and collapses on MAST is scored exactly as such.</p>
+    <p>All facts in §1–§4 were verified against the challenge site on 2026-08-11 (landing page, FAQ,
+    and data pages). §5 lists claims that circulated in the design conversation but are <em>not yet</em>
+    verified against the primary source; they are checked at ingest before anything depends on them.</p>
+
+    <h2 id="s2">§2 — Dataset (verified)</h2>
+    <table>
+      <thead><tr><th>Item</th><th>DIII-D</th><th>MAST</th></tr></thead>
+      <tbody>
+        <tr><td>Shots released</td><td>7,915 (7,041 train + 874 public test)</td><td>1,206 — zero training shots by design</td></tr>
+        <tr><td>Coil-current channels (ampere-turns, kA·turn)</td><td>18 F-coils (F1A–F9B) + ECOILA, bcoil</td><td>10 P-coils (P2L–P6U) + solenoid, toroidal field, EFPS</td></tr>
+        <tr><td>Actuator sampling</td><td>480k samples @ 20&nbsp;kHz or ~49k @ 2&nbsp;kHz; I<sub>p</sub> on a separate ADC</td><td>~30k samples per shot</td></tr>
+        <tr><td>Thomson scattering</td><td colspan="2">T<sub>e</sub> (eV) and n<sub>e</sub> (m⁻³), core and edge systems, own time bases</td></tr>
+        <tr><td>Geometry shipped per shot</td><td colspan="2"><code>coil_R</code>, <code>coil_Z</code>, <code>coil_width</code>, <code>coil_height</code>, skew angles for six DIII-D F-coils (parallelogram sections); <code>thomson_chord_R</code>, <code>thomson_chord_Z</code>; <code>efit_grid_R</code>/<code>efit_grid_Z</code> in metres</td></tr>
+        <tr><td>Labels</td><td colspan="2"><code>efit_psirz</code> map sequence on <code>efit_times</code>; q<sub>95</sub>, β<sub>N</sub>; boundary/axis derived by the scorer from the submitted map</td></tr>
+        <tr><td>Label filtering</td><td colspan="2">Diverted slices only — limited frames removed on both machines and all splits, so <code>efit_times</code> is non-contiguous and transition times are unlabeled</td></tr>
+        <tr><td>Not shipped</td><td colspan="2">Magnetic diagnostics (flux loops, probes); wall geometry; passive/vessel structure</td></tr>
+        <tr><td>Format / size / license</td><td colspan="2">Parquet, one row per shot, nested arrays; 9,121 shots, 98&nbsp;GB total; data CC&nbsp;BY&nbsp;4.0, code MIT</td></tr>
+      </tbody>
+    </table>
+    <p>The presence of shipped coil and chord geometry matters: an earlier in-house reference
+    (nova <code>coil-geometry-inversion</code>, dated 2026-08-07) recorded the challenge as publishing
+    <em>no</em> coil geometry. The data page contradicts that — coil positions, section dimensions and
+    skew angles ship per shot. The nova-side sourcing consequences are worked through in the companion
+    research note <code>nova:sophelio-challenge-geometry-sourcing</code>.</p>
+
+    <h2 id="s3">§3 — Scoring and timeline (verified)</h2>
+    <p>The DIII-D score is
+    <code>S = 0.55·R²_ψ + 0.15·R²_(q95,βN) + 0.10·(1 − D_LCFS) + 0.20·Consistency</code>,
+    where Consistency scores scalars the referee derives from the submitted map (including internal
+    inductance ℓ<sub>i</sub>). The transfer score is <code>G = S(MAST)/S(DIII-D)</code>; entries
+    predicting only DIII-D score zero on the transfer challenge. Development phase runs
+    <strong>Jul 27 – Oct 18, 2026</strong> with a public-test leaderboard (5 submissions/day, 100 total);
+    a blind final runs <strong>Oct 19 – 26</strong> with exactly 3 submissions on a hidden leaderboard.
+    Prizes are $500 per challenge plus named co-authorship on a lessons-learned paper and invited
+    NeurIPS talks (Dec 2026). A compute-light badge recognises models training end-to-end in under two
+    hours on a single GPU or CPU.</p>
+
+    <h2 id="s4">§4 — Rules on external material (verified)</h2>
+    <p>The FAQ states, verbatim: <em>"Yes — other public tokamak archives, OMFIT-produced equilibrium
+    tables, and publicly available pre-trained vision or scientific foundation models are all permitted,
+    provided you disclose them in your methods report."</em> External machine descriptions, archives and
+    codes are therefore legal with disclosure. This is the fact our data doctrine (§6) is calibrated
+    against — the doctrine is deliberately <strong>stricter</strong> than the rules.</p>
+
+    <h2 id="s5">§5 — Reported but not yet verified</h2>
+    <p>The following circulated in the design conversation and are plausible but unconfirmed against the
+    primary source; each is checked during ingest and this section updated: the total labeled frame count
+    (~1.55&nbsp;M diverted DIII-D frames); per-machine retention fractions after limited-frame deletion
+    (≈88% DIII-D / ≈66% MAST); the count of distinct per-shot DIII-D Thomson layouts (≈22); the claim that
+    submitted-map post-processing (e.g. 3-decimal rounding) measurably destroys MAST Consistency; and the
+    pedigree of the ground-truth EFITs (magnetics-only vs MSE-constrained — the site says only that labels
+    are "kept exactly as EFIT produced it"). The pedigree question is load-bearing for how hard the
+    interior of extracted profiles can be trusted, so it is a first-week empirical probe in the entry plan
+    (vacuum-region Δ*ψ receipts and basis-structure analysis of the labels themselves).</p>
+
+    <h2 id="s6">§6 — Our objective and data doctrine</h2>
+    <p><strong>The objective is not the prize.</strong> We enter this challenge to strengthen and
+    externally validate the ITER data-analysis pipeline — the Nova/Ambix seam — in advance of ITER
+    operations. The challenge deletes the magnetics design matrix and asks whether state estimation over
+    an exact forward operator can replace it: a harsher version of the bet the seam architecture already
+    makes, and the only funded, adversarially-scored cross-machine transfer benchmark available before
+    first plasma. Compliance with the challenge rules meets this goal; a leaderboard placement bought by
+    weakening our own evidence standards would not.</p>
+    <p><strong>FAIR-MAST statement (deliverable disclosure).</strong> The FAIR-MAST archive is publicly
+    accessible, including MAST magnetics and MAST EFIT reconstructions for the challenge-era campaigns.
+    We could legally train against it with disclosure. <strong>We deliberately do not.</strong> Training
+    on public MAST data and then claiming zero-shot transfer would make the transfer number
+    scientifically meaningless to us — and the transfer number is the reason we are entering. Our
+    permitted uses of FAIR-MAST material are limited to <em>machine-description geometry</em> (conductor
+    and vessel descriptions, already validated in nova) and <em>signal semantics</em> (channel meanings,
+    units, layouts). No parameter of the submitted pipeline may be derived from MAST data that is not
+    discoverable from what the competition itself provides. <strong>MAST EFIT remains firewalled</strong>
+    exactly as before: never read during development, never a tuning target, never a comparison surface.</p>
+    <p><strong>Zero-shot, demonstrated for ourselves.</strong> Because we also want the transfer claim to
+    be true in our own accounting, the MAST side of the pipeline is validated once, late, under a sealed
+    protocol: the pipeline is frozen, a single rehearsal pass runs against <em>nova's own MAST
+    equilibrium reconstructions</em> (built from magnetics outside the challenge, independent of MAST
+    EFIT), results are recorded as evidence, and no parameter feedback flows back. If the rehearsal
+    exposes a defect, the fix is made on DIII-D evidence and the seal is honestly reported as broken in
+    the methods report.</p>
+    <p><strong>The derivative-level firewall.</strong> EFIT-labeled maps are consumed only at the level of
+    derived, physically-typed coefficients: applying the Δ* operator to a labeled map gives the toroidal
+    current density, and per-surface radial separation (j<sub>φ</sub> = R·p′ + FF′/μ₀R) recovers the flux
+    functions p′(ψ) and FF′(ψ) — strong signals for tuning transport-coefficient closures expressed in
+    dimensionless, machine-portable forms (Sauter/Redl-class corrections), which is what transfers between
+    machines. ψ<sub>N</sub>-at-chord values may calibrate observation-model detectors. What is banned is
+    map-level supervision of the physics stack with free-form absorbers. The <em>only</em> map-level EFIT
+    contact in the entire entry is the quarantined referee-emission layer at the very end of the pipeline
+    (convention projection plus a DIII-D-gated learned residual), which exists because the competition's
+    scoring function is EFIT agreement — our own skill bar remains &gt;1 against raw reality, which is the
+    reason the firewall exists at all.</p>
+
+    <h2 id="s7">§7 — Architecture mapping and implementation path</h2>
+    <p>The entry maps one-to-one onto the standing seam authority: nova owns every deterministic forward
+    (free-boundary GS, limiter mode, passive circuits, response kernels including the extraction operator)
+    and produces measurement-space operators it never fits; ambix owns measurement models, the windowed
+    smoother, closure calibration, the amortizer, and the quarantined emission layer. The two entry plans
+    are <code>nova:diiid-forward-onboarding</code> and <code>magnetics-free-equilibrium-recovery</code>
+    (this project). The figure shows the credible path with its decision gates; the flat-top floor bar
+    marks the minimum submittable entry, and everything to its right is a stretch ladder taken only while
+    the floor holds.</p>
+    <figure>
+      <img src="/imas-ambix/figures/magnetics-free-entry/implementation-path.svg"
+           alt="Two-lane implementation path: nova forwards feeding ambix inference, with decision gates and the Oct 18 deadline" style="max-width:100%">
+      <figcaption>Cross-repository implementation path with decision gates. Diamonds carry pre-registered
+      tolerances; the two left-most nova gates (vacuum ψ check, extraction round-trip) are kill gates for
+      the entry premise itself.</figcaption>
+    </figure>
+  </main>
+</body>
+</html>
