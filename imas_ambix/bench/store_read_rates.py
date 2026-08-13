@@ -10,6 +10,7 @@ import os
 import platform
 import random
 import socket
+import subprocess
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -42,6 +43,10 @@ DEFAULT_TRANSPORT_PROBE_COUNT = 24
 DEFAULT_PAYLOAD_SCALES = (16, 64, 256, 1024)
 DEFAULT_BATCH_SIZES = (1, 4, 8)
 DEFAULT_SWEEP_REPETITIONS = 8
+DEFAULT_REFRESH_SHOT_COUNT = 24
+LEVEL2_CORPUS_SHOT_COUNT = 11_573
+DEFAULT_S3_ENDPOINT = "https://s3.echo.stfc.ac.uk"
+DEFAULT_S3_LEVEL2_ROOT = "s3://mast/level2/shots"
 BENCHMARK_SHOTS = (
     11766,
     11767,
@@ -134,6 +139,20 @@ class CrossoverCell:
     throughput_samples_per_second: float
     ratio_to_native_level2: float
     checksum: float
+
+
+@dataclass(frozen=True)
+class MirrorShotReceipt:
+    """Refresh and identity evidence for one mirrored shot store."""
+
+    shot: int
+    live_url: str
+    mapped_path: str
+    live_shape: tuple[int, ...]
+    mapped_shape: tuple[int, ...]
+    arrays_identical: bool
+    mirrored_file_count: int
+    mirrored_bytes: int
 
 
 @dataclass(frozen=True)
@@ -740,6 +759,153 @@ def mapped_shots(
     return tuple(sorted(shots))
 
 
+def refresh_mapped_shots(
+    mirror_root: Path,
+    shots: Sequence[int],
+    array_path: str = "summary/ip",
+    live_root: str = DEFAULT_LIVE_LEVEL2_ROOT,
+    s3_root: str = DEFAULT_S3_LEVEL2_ROOT,
+    s3_endpoint: str = DEFAULT_S3_ENDPOINT,
+    copy_executable: str = "s5cmd",
+) -> list[MirrorShotReceipt]:
+    """Download complete public shot stores and prove one array identical."""
+    if mirror_root.exists():
+        raise FileExistsError(mirror_root)
+    mirror_root.mkdir(parents=True)
+    receipts = []
+    for shot in shots:
+        shot_root = mirror_root / f"{shot}.zarr"
+        subprocess.run(
+            [
+                copy_executable,
+                "--endpoint-url",
+                s3_endpoint,
+                "--no-sign-request",
+                "--numworkers",
+                "32",
+                "cp",
+                f"{s3_root.rstrip('/')}/{shot}.zarr/*",
+                f"{shot_root}/",
+            ],
+            check=True,
+        )
+        mapped_path = shot_root / array_path
+        live_url = f"{live_root.rstrip('/')}/{shot}.zarr/{array_path}"
+        mapped_values = np.asarray(zarr.open_array(mapped_path, mode="r")[:])
+        live_values = np.asarray(zarr.open_array(live_url, mode="r")[:])
+        arrays_identical = bool(
+            mapped_values.shape == live_values.shape
+            and np.array_equal(mapped_values, live_values)
+        )
+        files = tuple(path for path in shot_root.rglob("*") if path.is_file())
+        receipt = MirrorShotReceipt(
+            shot=shot,
+            live_url=live_url,
+            mapped_path=str(mapped_path),
+            live_shape=tuple(live_values.shape),
+            mapped_shape=tuple(mapped_values.shape),
+            arrays_identical=arrays_identical,
+            mirrored_file_count=len(files),
+            mirrored_bytes=sum(path.stat().st_size for path in files),
+        )
+        receipts.append(receipt)
+        print(
+            "MIRROR_REFRESH " + json.dumps(asdict(receipt), sort_keys=True),
+            flush=True,
+        )
+    return receipts
+
+
+def run_mirror_refresh(
+    output_log: Path,
+    mirror_root: Path,
+    source_mirror_root: Path = DEFAULT_LEVEL2_ROOT,
+    refresh_shot_count: int = DEFAULT_REFRESH_SHOT_COUNT,
+    corpus_shot_count: int = LEVEL2_CORPUS_SHOT_COUNT,
+    minimum_identical_shots: int = 20,
+    live_root: str = DEFAULT_LIVE_LEVEL2_ROOT,
+    s3_root: str = DEFAULT_S3_LEVEL2_ROOT,
+    s3_endpoint: str = DEFAULT_S3_ENDPOINT,
+    copy_executable: str = "s5cmd",
+) -> dict[str, Any]:
+    """Persist the scope and exact identity result of a partial mirror refresh."""
+    if output_log.exists():
+        raise FileExistsError(output_log)
+    if refresh_shot_count < minimum_identical_shots:
+        raise ValueError(
+            "refresh shot count must permit the minimum identical-shot evidence"
+        )
+    available_shots = mapped_shots(source_mirror_root)
+    shots = available_shots[:refresh_shot_count]
+    if len(shots) != refresh_shot_count:
+        raise ValueError(
+            f"requested {refresh_shot_count} shots but found {len(shots)} candidates"
+        )
+    print(
+        "MIRROR_SCOPE "
+        + json.dumps(
+            {
+                "selected_shot_count": len(shots),
+                "corpus_shot_count": corpus_shot_count,
+                "coverage_fraction": len(shots) / corpus_shot_count,
+                "shots": shots,
+            },
+            sort_keys=True,
+        ),
+        flush=True,
+    )
+    receipts = refresh_mapped_shots(
+        mirror_root,
+        shots,
+        live_root=live_root,
+        s3_root=s3_root,
+        s3_endpoint=s3_endpoint,
+        copy_executable=copy_executable,
+    )
+    identical_count = sum(receipt.arrays_identical for receipt in receipts)
+    disagreements = [
+        {
+            "shot": receipt.shot,
+            "live_shape": list(receipt.live_shape),
+            "mapped_shape": list(receipt.mapped_shape),
+        }
+        for receipt in receipts
+        if not receipt.arrays_identical
+    ]
+    if identical_count < minimum_identical_shots:
+        raise AssertionError(
+            f"only {identical_count} refreshed shots are numerically identical"
+        )
+    result = {
+        "schema": "imas-ambix-level2-mirror-refresh",
+        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "node": _node_identity(),
+        "environment": _package_versions(),
+        "mirror_root": str(mirror_root),
+        "scope": {
+            "refreshed_shot_count": len(receipts),
+            "corpus_shot_count": corpus_shot_count,
+            "coverage_fraction": len(receipts) / corpus_shot_count,
+            "partial_refresh": len(receipts) < corpus_shot_count,
+            "shots": list(shots),
+        },
+        "identity": {
+            "array_path": "summary/ip",
+            "identical_shot_count": identical_count,
+            "disagreeing_shot_count": len(disagreements),
+            "disagreements": disagreements,
+        },
+        "receipts": [asdict(receipt) for receipt in receipts],
+        "mirrored_file_count": sum(
+            receipt.mirrored_file_count for receipt in receipts
+        ),
+        "mirrored_bytes": sum(receipt.mirrored_bytes for receipt in receipts),
+    }
+    output_log.parent.mkdir(parents=True, exist_ok=True)
+    output_log.write_text(json.dumps(result, indent=2) + "\n")
+    return result
+
+
 def find_matching_transport_payload(
     level2_root: Path,
     shots: Sequence[int],
@@ -963,6 +1129,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--level2-root", type=Path, default=DEFAULT_LEVEL2_ROOT)
     parser.add_argument("--transport-only", action="store_true")
     parser.add_argument("--crossover-only", action="store_true")
+    parser.add_argument("--refresh-only", action="store_true")
+    parser.add_argument("--mirror-root", type=Path)
     parser.add_argument(
         "--transport-probe-count",
         type=int,
@@ -973,6 +1141,11 @@ def _parser() -> argparse.ArgumentParser:
         "--sweep-repetitions",
         type=int,
         default=DEFAULT_SWEEP_REPETITIONS,
+    )
+    parser.add_argument(
+        "--refresh-shot-count",
+        type=int,
+        default=DEFAULT_REFRESH_SHOT_COUNT,
     )
     return parser
 
@@ -985,6 +1158,15 @@ def main() -> None:
             level2_root=args.level2_root,
             probe_count=args.transport_probe_count,
             repetitions=args.transport_repetitions,
+        )
+    elif args.refresh_only:
+        if args.mirror_root is None:
+            raise SystemExit("--mirror-root is required for --refresh-only")
+        result = run_mirror_refresh(
+            args.output_log,
+            args.mirror_root,
+            source_mirror_root=args.level2_root,
+            refresh_shot_count=args.refresh_shot_count,
         )
     elif args.crossover_only:
         if args.payload_root is None:
