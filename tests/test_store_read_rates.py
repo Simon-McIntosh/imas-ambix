@@ -24,10 +24,13 @@ from imas_ambix.bench.store_read_rates import (
     ARMS,
     PATTERNS,
     BenchmarkConfig,
+    CrossoverCell,
     find_matching_transport_payload,
     measure_access_patterns,
+    measure_crossover_grid,
     measure_transport,
     run_transport_comparison,
+    summarize_crossovers,
 )
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
@@ -60,6 +63,81 @@ def test_access_matrix_has_twelve_directly_timed_cells():
     assert all(cell.wall_seconds > 0 for cell in cells)
     assert all(cell.sample_count > 0 for cell in cells)
     assert all(cell.throughput_samples_per_second > 0 for cell in cells)
+
+
+def test_crossover_grid_measures_every_arm_scale_and_batch_cell():
+    shots = tuple(range(8))
+    scales = (2, 4, 8, 32)
+    batch_sizes = (1, 2, 8)
+
+    def reader(shot: int, start: int | None, stop: int | None):
+        values = np.arange(32, dtype=np.float64) + shot
+        return tuple(values[slice(start, stop)] for _ in FIXED_CHANNELS)
+
+    readers = {scale: {arm: reader for arm in ARMS} for scale in scales}
+    cells = measure_crossover_grid(
+        shots,
+        scales,
+        batch_sizes,
+        readers,
+        repetitions=2,
+    )
+
+    assert len(cells) == 36
+    assert {
+        (cell.arm, cell.payload_samples_per_shot, cell.batch_size)
+        for cell in cells
+    } == {
+        (arm, scale, batch_size)
+        for arm in ARMS
+        for scale in scales
+        for batch_size in batch_sizes
+    }
+    assert all(cell.wall_seconds > 0 for cell in cells)
+    assert all(cell.sample_count > 0 for cell in cells)
+    assert all(cell.ratio_to_native_level2 > 0 for cell in cells)
+
+
+def test_crossover_summary_reports_axis_changes_and_native_ratios():
+    scales = (2, 4, 8, 32)
+    batch_sizes = (1, 2, 8)
+    cells = []
+    for scale in scales:
+        for batch_size in batch_sizes:
+            rates = {
+                ARMS[0]: 10.0,
+                ARMS[1]: 20.0 if scale < 8 else 40.0,
+                ARMS[2]: (
+                    40.0
+                    if scale < 8 and batch_size < 8
+                    else 30.0
+                    if batch_size < 8
+                    else 5.0
+                ),
+            }
+            for arm, rate in rates.items():
+                cells.append(
+                    CrossoverCell(
+                        arm=arm,
+                        payload_samples_per_shot=scale,
+                        payload_scalar_count_per_shot=scale * len(FIXED_CHANNELS),
+                        batch_size=batch_size,
+                        repetitions=1,
+                        wall_seconds=1.0,
+                        sample_count=int(rate),
+                        throughput_samples_per_second=rate,
+                        ratio_to_native_level2=rate / rates[ARMS[0]],
+                        checksum=1.0,
+                    )
+                )
+
+    result = summarize_crossovers(cells, scales, batch_sizes)
+
+    assert result["payload_scale"]["crossing_count"] == 2
+    assert result["batch_size"]["crossing_count"] == 4
+    for series in result["payload_scale"]["series"]:
+        for point in series["points"]:
+            assert point["ratios_to_native_level2"][ARMS[0]] == 1.0
 
 
 def test_transport_times_only_identical_live_and_mapped_objects(

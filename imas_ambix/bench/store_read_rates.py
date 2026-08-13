@@ -39,6 +39,9 @@ DEFAULT_LIVE_LEVEL2_ROOT = "https://s3.echo.stfc.ac.uk/mast/level2/shots"
 DEFAULT_BATCH_SIZE = 4
 DEFAULT_SLICE_SIZE = 64
 DEFAULT_TRANSPORT_PROBE_COUNT = 24
+DEFAULT_PAYLOAD_SCALES = (16, 64, 256, 1024)
+DEFAULT_BATCH_SIZES = (1, 4, 8)
+DEFAULT_SWEEP_REPETITIONS = 8
 BENCHMARK_SHOTS = (
     11766,
     11767,
@@ -118,6 +121,22 @@ class TransportProbe:
 
 
 @dataclass(frozen=True)
+class CrossoverCell:
+    """One directly timed point in the payload-scale and batch-size grid."""
+
+    arm: str
+    payload_samples_per_shot: int
+    payload_scalar_count_per_shot: int
+    batch_size: int
+    repetitions: int
+    wall_seconds: float
+    sample_count: int
+    throughput_samples_per_second: float
+    ratio_to_native_level2: float
+    checksum: float
+
+
+@dataclass(frozen=True)
 class PayloadReceipt:
     """Exact-parity evidence for materialized benchmark entries."""
 
@@ -194,6 +213,7 @@ def materialize_payloads(
     level2_root: Path,
     payload_root: Path,
     shots: Sequence[int],
+    sample_stop: int | None = None,
 ) -> tuple[dict[int, int], PayloadReceipt]:
     """Write and strictly re-read both converted arms for the fixed corpus."""
     payload_root.mkdir(parents=True, exist_ok=False)
@@ -212,7 +232,11 @@ def materialize_payloads(
     private_names: tuple[str, ...] = ()
 
     for shot in shots:
-        payload = read_fixed_native_payload(level2_root, shot=shot, sample_stop=None)
+        payload = read_fixed_native_payload(
+            level2_root,
+            shot=shot,
+            sample_stop=sample_stop,
+        )
         ids = payload_to_ids(payload)
         paths = tuple(payload.arrays)
 
@@ -364,6 +388,280 @@ def measure_access_patterns(
             )
         )
     return cells
+
+
+def measure_crossover_grid(
+    shots: Sequence[int],
+    payload_scales: Sequence[int],
+    batch_sizes: Sequence[int],
+    readers_by_scale: Mapping[int, Mapping[str, ReadFunction]],
+    repetitions: int,
+) -> list[CrossoverCell]:
+    """Directly time every arm in a payload-scale by batch-size grid."""
+    cells: list[CrossoverCell] = []
+    for payload_samples in payload_scales:
+        readers = readers_by_scale[payload_samples]
+        if tuple(readers) != ARMS:
+            raise ValueError(f"reader order must be {ARMS!r}")
+        for batch_size in batch_sizes:
+            if batch_size > len(shots):
+                raise ValueError("batch size exceeds the fixed corpus")
+            batch_shots = shots[:batch_size]
+            measured: list[ReadCell] = []
+            for arm, reader in readers.items():
+
+                def read_batch(
+                    reader: ReadFunction = reader,
+                    batch_shots: Sequence[int] = batch_shots,
+                    payload_samples: int = payload_samples,
+                ) -> tuple[np.ndarray, ...]:
+                    return tuple(
+                        array
+                        for shot in batch_shots
+                        for array in reader(shot, 0, payload_samples)
+                    )
+
+                measured.append(
+                    _measure(
+                        arm,
+                        "payload_scale_batch_grid",
+                        read_batch,
+                        repetitions,
+                    )
+                )
+
+            native_rate = measured[0].throughput_samples_per_second
+            expected_count = (
+                payload_samples
+                * len(FIXED_CHANNELS)
+                * batch_size
+                * repetitions
+            )
+            for cell in measured:
+                if cell.sample_count != expected_count:
+                    raise AssertionError(
+                        f"unexpected scalar count for {cell.arm}: "
+                        f"{cell.sample_count} != {expected_count}"
+                    )
+                cells.append(
+                    CrossoverCell(
+                        arm=cell.arm,
+                        payload_samples_per_shot=payload_samples,
+                        payload_scalar_count_per_shot=(
+                            payload_samples * len(FIXED_CHANNELS)
+                        ),
+                        batch_size=batch_size,
+                        repetitions=repetitions,
+                        wall_seconds=cell.wall_seconds,
+                        sample_count=cell.sample_count,
+                        throughput_samples_per_second=(
+                            cell.throughput_samples_per_second
+                        ),
+                        ratio_to_native_level2=(
+                            cell.throughput_samples_per_second / native_rate
+                        ),
+                        checksum=cell.checksum,
+                    )
+                )
+    return cells
+
+
+def summarize_crossovers(
+    cells: Sequence[CrossoverCell],
+    payload_scales: Sequence[int],
+    batch_sizes: Sequence[int],
+) -> dict[str, Any]:
+    """Report observed ranking changes along both dimensions of the grid."""
+
+    def point(
+        payload_samples: int,
+        batch_size: int,
+    ) -> dict[str, Any]:
+        group = [
+            cell
+            for cell in cells
+            if cell.payload_samples_per_shot == payload_samples
+            and cell.batch_size == batch_size
+        ]
+        if {cell.arm for cell in group} != set(ARMS):
+            raise ValueError("every grid point must contain all three storage arms")
+        ranked = sorted(
+            group,
+            key=lambda cell: cell.throughput_samples_per_second,
+            reverse=True,
+        )
+        return {
+            "payload_samples_per_shot": payload_samples,
+            "payload_scalar_count_per_shot": (
+                payload_samples * len(FIXED_CHANNELS)
+            ),
+            "batch_size": batch_size,
+            "ranking_fastest_first": [cell.arm for cell in ranked],
+            "ratios_to_native_level2": {
+                cell.arm: cell.ratio_to_native_level2 for cell in group
+            },
+        }
+
+    payload_series = []
+    payload_crossings = []
+    for batch_size in batch_sizes:
+        points = [point(scale, batch_size) for scale in payload_scales]
+        payload_series.append({"batch_size": batch_size, "points": points})
+        for before, after in zip(points, points[1:], strict=False):
+            if before["ranking_fastest_first"] != after["ranking_fastest_first"]:
+                payload_crossings.append(
+                    {
+                        "batch_size": batch_size,
+                        "after_payload_scalar_count_per_shot": after[
+                            "payload_scalar_count_per_shot"
+                        ],
+                        "bracket_scalar_counts_per_shot": [
+                            before["payload_scalar_count_per_shot"],
+                            after["payload_scalar_count_per_shot"],
+                        ],
+                        "ranking_before": before["ranking_fastest_first"],
+                        "ranking_after": after["ranking_fastest_first"],
+                    }
+                )
+
+    batch_series = []
+    batch_crossings = []
+    for payload_samples in payload_scales:
+        points = [point(payload_samples, size) for size in batch_sizes]
+        batch_series.append(
+            {
+                "payload_scalar_count_per_shot": (
+                    payload_samples * len(FIXED_CHANNELS)
+                ),
+                "points": points,
+            }
+        )
+        for before, after in zip(points, points[1:], strict=False):
+            if before["ranking_fastest_first"] != after["ranking_fastest_first"]:
+                batch_crossings.append(
+                    {
+                        "payload_scalar_count_per_shot": before[
+                            "payload_scalar_count_per_shot"
+                        ],
+                        "after_batch_size": after["batch_size"],
+                        "bracket_batch_sizes": [
+                            before["batch_size"],
+                            after["batch_size"],
+                        ],
+                        "ranking_before": before["ranking_fastest_first"],
+                        "ranking_after": after["ranking_fastest_first"],
+                    }
+                )
+
+    return {
+        "payload_scale": {
+            "crossing_count": len(payload_crossings),
+            "crossings": payload_crossings,
+            "series": payload_series,
+        },
+        "batch_size": {
+            "crossing_count": len(batch_crossings),
+            "crossings": batch_crossings,
+            "series": batch_series,
+        },
+    }
+
+
+def run_crossover_sweep(
+    output_log: Path,
+    payload_root: Path,
+    level2_root: Path = DEFAULT_LEVEL2_ROOT,
+    payload_scales: Sequence[int] = DEFAULT_PAYLOAD_SCALES,
+    batch_sizes: Sequence[int] = DEFAULT_BATCH_SIZES,
+    repetitions: int = DEFAULT_SWEEP_REPETITIONS,
+) -> dict[str, Any]:
+    """Materialize exact payloads and persist the full crossover sweep."""
+    payload_scales = tuple(payload_scales)
+    batch_sizes = tuple(batch_sizes)
+    if len(payload_scales) < 4:
+        raise ValueError("the crossover sweep requires at least four payload scales")
+    if min(payload_scales) <= 0 or max(payload_scales) / min(payload_scales) < 10:
+        raise ValueError("payload scalar counts must span at least tenfold")
+    if len(batch_sizes) < 3 or min(batch_sizes) <= 0:
+        raise ValueError("the crossover sweep requires at least three batch sizes")
+    if repetitions <= 0:
+        raise ValueError("repetitions must be positive")
+    if output_log.exists():
+        raise FileExistsError(output_log)
+    if payload_root.exists():
+        raise FileExistsError(payload_root)
+    output_log.parent.mkdir(parents=True, exist_ok=True)
+    payload_root.mkdir(parents=True)
+
+    shots = BENCHMARK_SHOTS[: max(batch_sizes)]
+    native_reader = _native_reader(level2_root)
+    readers_by_scale: dict[int, dict[str, ReadFunction]] = {}
+    parity_receipts: dict[int, dict[str, Any]] = {}
+    for payload_samples in payload_scales:
+        scale_root = payload_root / f"samples-{payload_samples}"
+        _, receipt = materialize_payloads(
+            level2_root,
+            scale_root,
+            shots,
+            sample_stop=payload_samples,
+        )
+        parity_receipts[payload_samples] = asdict(receipt)
+        readers_by_scale[payload_samples] = {
+            ARMS[0]: native_reader,
+            ARMS[1]: _netcdf_reader(scale_root),
+            ARMS[2]: _zarr_reader(scale_root),
+        }
+
+    cells = measure_crossover_grid(
+        shots,
+        payload_scales,
+        batch_sizes,
+        readers_by_scale,
+        repetitions,
+    )
+    for payload_samples in payload_scales:
+        for batch_size in batch_sizes:
+            checksums = [
+                cell.checksum
+                for cell in cells
+                if cell.payload_samples_per_shot == payload_samples
+                and cell.batch_size == batch_size
+            ]
+            if not np.array_equal(checksums, np.repeat(checksums[0], len(checksums))):
+                raise AssertionError(
+                    "storage-arm checksums differ at "
+                    f"payload_samples={payload_samples}, batch_size={batch_size}"
+                )
+
+    scalar_counts = tuple(scale * len(FIXED_CHANNELS) for scale in payload_scales)
+    result = {
+        "schema": "imas-ambix-store-read-crossover",
+        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "node": _node_identity(),
+        "environment": _package_versions(),
+        "config": {
+            "shots": list(shots),
+            "payload_samples_per_shot": list(payload_scales),
+            "payload_scalar_counts_per_shot": list(scalar_counts),
+            "payload_scalar_range_factor": max(scalar_counts) / min(scalar_counts),
+            "batch_sizes": list(batch_sizes),
+            "repetitions_per_cell": repetitions,
+        },
+        "measurement_contract": {
+            "grid": "three arms by payload scale by batch size",
+            "sample_unit": "one scalar array value returned to the process",
+            "throughput_formula": (
+                "actual accumulated sample_count / perf_counter wall_seconds"
+            ),
+            "assumed_rate_or_size_used": False,
+        },
+        "payload_parity": parity_receipts,
+        "cells": [asdict(cell) for cell in cells],
+        "cell_count": len(cells),
+        "crossovers": summarize_crossovers(cells, payload_scales, batch_sizes),
+    }
+    output_log.write_text(json.dumps(result, indent=2) + "\n")
+    return result
 
 
 def measure_transport(
@@ -664,12 +962,18 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--payload-root", type=Path)
     parser.add_argument("--level2-root", type=Path, default=DEFAULT_LEVEL2_ROOT)
     parser.add_argument("--transport-only", action="store_true")
+    parser.add_argument("--crossover-only", action="store_true")
     parser.add_argument(
         "--transport-probe-count",
         type=int,
         default=DEFAULT_TRANSPORT_PROBE_COUNT,
     )
     parser.add_argument("--transport-repetitions", type=int, default=8)
+    parser.add_argument(
+        "--sweep-repetitions",
+        type=int,
+        default=DEFAULT_SWEEP_REPETITIONS,
+    )
     return parser
 
 
@@ -681,6 +985,15 @@ def main() -> None:
             level2_root=args.level2_root,
             probe_count=args.transport_probe_count,
             repetitions=args.transport_repetitions,
+        )
+    elif args.crossover_only:
+        if args.payload_root is None:
+            raise SystemExit("--payload-root is required for --crossover-only")
+        result = run_crossover_sweep(
+            args.output_log,
+            args.payload_root,
+            level2_root=args.level2_root,
+            repetitions=args.sweep_repetitions,
         )
     else:
         if args.payload_root is None:
