@@ -1,0 +1,86 @@
+{
+  "schema_version": "1.0.0",
+  "dd_version": "4.1.1",
+  "source": "https://github.com/MIT-PSFC/disruption-py",
+  "source_revision": "dec5c58a3e3970bc6817f33efb615fea11057fce",
+  "binding_sets": [
+    {
+      "name": "diii-d-public-signals",
+      "bindings": [
+      {
+        "name": "diii-d-plasma-current",
+        "source_group": "d3d",
+        "source_array": "ip",
+        "source_location": "mdsplus://atlas/d3d/ptdata('ip',{shot})",
+        "dd_path": "summary/global_quantities/ip/value",
+        "source_unit": "A",
+        "target_unit": "A",
+        "sign_convention": "unknown-unvalidated",
+        "evidence": "DisruptionPy commit dec5c58a machine/d3d/physics.py calls ptdata('ip', shot) and treats operational thresholds as amperes."
+      },
+      {
+        "name": "diii-d-safety-factor-95",
+        "source_group": "_efit_tree",
+        "source_array": "q95",
+        "source_location": "mdsplus://atlas/_efit_tree/efit_a_eqdsk:q95",
+        "dd_path": "summary/global_quantities/q_95/value",
+        "source_unit": "1",
+        "target_unit": "1",
+        "sign_convention": "unknown-unvalidated",
+        "evidence": "DisruptionPy commit dec5c58a machine/d3d/efit.py declares q95 at \\efit_a_eqdsk:q95."
+      },
+      {
+        "name": "diii-d-internal-inductance",
+        "source_group": "_efit_tree",
+        "source_array": "li",
+        "source_location": "mdsplus://atlas/_efit_tree/efit_a_eqdsk:li",
+        "dd_path": "summary/global_quantities/li_3/value",
+        "source_unit": "1",
+        "target_unit": "1",
+        "sign_convention": "unknown-unvalidated",
+        "evidence": "DisruptionPy commit dec5c58a machine/d3d/efit.py declares li at \\efit_a_eqdsk:li."
+      },
+      {
+        "name": "diii-d-normalized-beta",
+        "source_group": "_efit_tree",
+        "source_array": "betan",
+        "source_location": "mdsplus://atlas/_efit_tree/efit_a_eqdsk:betan",
+        "dd_path": "summary/global_quantities/beta_tor_norm/value",
+        "source_unit": "1",
+        "target_unit": "1",
+        "sign_convention": "unknown-unvalidated",
+        "evidence": "DisruptionPy commit dec5c58a machine/d3d/efit.py declares normalized beta at \\efit_a_eqdsk:betan."
+      }
+      ]
+    }
+  ],
+  "maps": [
+    {
+      "name": "diii-d-public-map",
+      "machine": "diii-d",
+      "first_shot": 0,
+      "last_shot": 2147483647,
+      "transition": null,
+      "binding_set": "diii-d-public-signals",
+      "validation_state": "source-only"
+    }
+  ],
+  "validation_gaps": [
+    {
+      "binding": "diii-d-plasma-current",
+      "reason": "No DIII-D pulse corpus or authenticated facility PTDATA service is present on this host, so source existence, engineering units, polarity, and shot-range validity were not checked against data."
+    },
+    {
+      "binding": "diii-d-safety-factor-95",
+      "reason": "No DIII-D pulse corpus or authenticated facility MDSplus service is present on this host, so node existence, engineering units, sign, and shot-range validity were not checked against data."
+    },
+    {
+      "binding": "diii-d-internal-inductance",
+      "reason": "No DIII-D pulse corpus or authenticated facility MDSplus service is present on this host, so node existence, engineering units, convention, and shot-range validity were not checked against data."
+    },
+    {
+      "binding": "diii-d-normalized-beta",
+      "reason": "No DIII-D pulse corpus or authenticated facility MDSplus service is present on this host, so node existence, normalization, sign, and shot-range validity were not checked against data."
+    }
+  ]
+}

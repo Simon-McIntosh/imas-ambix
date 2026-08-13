@@ -1,0 +1,140 @@
+id: https://imas-ambix.example/schema/machine-map
+name: machine-map
+title: Declarative machine channel map
+description: >-
+  Range-scoped bindings from immutable store arrays to Data Dictionary leaves.
+  The schema deliberately has no condition, expression, or code-hook slot.
+license: LGPL-3.0-or-later
+version: 1.0.0
+prefixes:
+  linkml: https://w3id.org/linkml/
+  mm: https://imas-ambix.example/schema/machine-map/
+default_prefix: mm
+default_range: string
+imports:
+  - linkml:types
+
+enums:
+  SignConvention:
+    permissible_values:
+      identity:
+        description: Source-positive and target-positive directions coincide.
+      negate:
+        description: Target values are the additive inverse of source values.
+      unknown-unvalidated:
+        description: The public declaration has not been checked against pulse data.
+  ValidationState:
+    permissible_values:
+      corpus-validated:
+        description: Source paths and metadata were checked against a local corpus.
+      source-only:
+        description: Schema and public source were checked without pulse data.
+
+slots:
+  schema_version:
+    required: true
+  dd_version:
+    required: true
+  source:
+    required: true
+  source_revision:
+    required: true
+  binding_sets:
+    range: BindingSet
+    multivalued: true
+    inlined_as_list: true
+    required: true
+  bindings:
+    range: ChannelBinding
+    multivalued: true
+    inlined_as_list: true
+    required: true
+  maps:
+    range: MachineMap
+    multivalued: true
+    inlined_as_list: true
+    required: true
+  validation_gaps:
+    range: ValidationGap
+    multivalued: true
+    inlined_as_list: true
+  name:
+    identifier: true
+    required: true
+  machine:
+    required: true
+  first_shot:
+    range: integer
+    minimum_value: 0
+    required: true
+  last_shot:
+    range: integer
+    minimum_value: 0
+    required: true
+  transition:
+  binding_set:
+    required: true
+  validation_state:
+    range: ValidationState
+    required: true
+  source_group:
+    required: true
+  source_array:
+    required: true
+  source_location:
+    required: true
+  dd_path:
+    required: true
+  source_unit:
+    required: true
+  target_unit:
+    required: true
+  sign_convention:
+    range: SignConvention
+    required: true
+  evidence:
+    required: true
+  binding:
+    required: true
+  reason:
+    required: true
+
+classes:
+  BindingSet:
+    slots:
+      - name
+      - bindings
+  ChannelBinding:
+    slots:
+      - name
+      - source_group
+      - source_array
+      - source_location
+      - dd_path
+      - source_unit
+      - target_unit
+      - sign_convention
+      - evidence
+  MachineMap:
+    slots:
+      - name
+      - machine
+      - first_shot
+      - last_shot
+      - transition
+      - binding_set
+      - validation_state
+  ValidationGap:
+    slots:
+      - binding
+      - reason
+  MachineMapCatalog:
+    tree_root: true
+    slots:
+      - schema_version
+      - dd_version
+      - source
+      - source_revision
+      - binding_sets
+      - maps
+      - validation_gaps
