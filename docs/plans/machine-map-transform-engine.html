@@ -22,7 +22,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-13">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
+<meta name="plan-commits" content="c3cdba3e01ce3bd7e862003790691f3ef7d5114f">
+<meta name="plan-artifacts" content="docs/evidence/archive/machine-map-transform-engine-landed.html,imas_ambix/data/geometry_transitions.py,tests/data/test_geometry_transitions.py">
+<meta name="plan-impl" content="0.25">
 </head>
 <body>
   <main class="plan-doc">
@@ -126,16 +129,16 @@
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="map-expressiveness" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="map-expressiveness" data-choice="range-scoped-maps" data-by="reckon-ship" data-when="2026-08-13T07:46:47+00:00">
     <p class="r-dec-q">When a channel&#x27;s meaning changes mid-corpus, does the map stay purely
           declarative with one map per shot range, or does the schema grow conditional
           expressions?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="range-scoped-maps">one map per shot range, no conditionals</button>
+      <button class="r-opt chosen" data-value="range-scoped-maps">one map per shot range, no conditionals</button>
       <button class="r-opt" data-value="conditional-schema">conditional expressions inside one map</button>
       <button class="r-opt" data-value="map-plus-code">declarative map plus a code hook per machine</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">The transitions partition the corpus exactly with no gap and no overlap, so shot range alone expresses every observed change and no conditional is needed. What the evidence refutes is not the design rule but the assumption that campaign is the natural range: 10 of 11 boundaries fall strictly inside campaign M5, so the rule holds at the cost of more maps than campaigns. Locked on the §3 measurement rather than on the plan&#x27;s stated preference.</p>
     </div>
 </section>
 
@@ -151,6 +154,11 @@
     <pre class="r-fu-prompt">/reckon-ship machine-map-transform-engine §3</pre>
     </article>
 </section>
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s3" data-id="c-20260813-mmte-transitions" data-who="reckon-ship" data-when="2026-08-13">
+    <div class="r-comment-body">mmte-transitions landed — commit c3cdba3 (merged 921069c); gate partition+lookup PASSED; measure 11 named transitions over 11,573 level-2 shots spanning 11766-30471, gap-free and overlap-free, lookup resolved for every shot in span; 10 of 11 boundaries fall strictly INSIDE campaign M5, so campaign is not a usable key for geometry while shot range is. 4 tests added. Qualification: the repeated 1004<->938 PF-filament-count alternation is not physical, so the transition count is an upper bound on real machine changes and some boundaries record EFIT setup-array churn rather than machine change. Artifacts imas_ambix/data/geometry_transitions.py, tests/data/test_geometry_transitions.py, docs/evidence/archive/machine-map-transform-engine-landed.html</div>
+</div>
+</section>
+</main>
 </body>
 </html>

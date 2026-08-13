@@ -22,7 +22,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-13">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
+<meta name="plan-commits" content="b9fb2cf692e5f8c085213a11a71589f30123e493">
+<meta name="plan-artifacts" content="docs/evidence/archive/training-store-read-benchmark-landed.html,imas_ambix/bench/store_arms.py,tests/test_store_arms.py">
+<meta name="plan-impl" content="0.333">
 </head>
 <body>
   <main class="plan-doc">
@@ -140,6 +143,11 @@
     <pre class="r-fu-prompt">/reckon-ship training-store-read-benchmark §2</pre>
     </article>
 </section>
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s3" data-id="c-20260813-tsrb-payloads" data-who="reckon-ship" data-when="2026-08-13">
+    <div class="r-comment-body">tsrb-payloads landed — commit b9fb2cf (merged 0ff5be9); gate parity+seam PASSED; measure 3/3 channels, 64/64 samples each, 192/192 scalar values identical under np.array_equal across native level-2, IMAS-netCDF and DD-annotated zarr; IDSTensorizer subclassing seam VERIFIED, IDSZarrWriter subclasses public imas.backends.netcdf.ids_tensorizer.IDSTensorizer with no single-underscore access; 4 tests added. Two qualifications carried: the seam was measured against imas-python 2.3.0 while the project env resolves 2.2.0, and the payload is a 1-shot parity fixture carrying no read-rate information. Artifacts imas_ambix/bench/store_arms.py, tests/test_store_arms.py, docs/evidence/archive/training-store-read-benchmark-landed.html</div>
+</div>
+</section>
+</main>
 </body>
 </html>

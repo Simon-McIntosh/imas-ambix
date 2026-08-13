@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="training-store-read-benchmark-landed">
+  <meta name="plan-title" content="Training Store Read Benchmark — Measured Evidence">
+  <meta name="plan-summary" content="Execution record for the three-arm storage benchmark: cross-arm payload parity, the IDSTensorizer subclassing verdict, the measured read rates, and the storage-format proposal they decide.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-recorded-at" content="2026-08-13">
+  <meta name="plan-evidence-for" content="training-store-read-benchmark">
+  <meta name="plan-verdict" content="in-progress">
+  <meta name="plan-source-quality" content="worker-committed code with committed tests; measurements pending">
+  <title>Training Store Read Benchmark — Measured Evidence | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>Training Store Read Benchmark — Measured Evidence</h1>
+  <p>Cumulative execution record for
+  <a href="/imas-ambix/plans/training-store-read-benchmark">Training Store Read Benchmark</a>.
+  One anchor per landed node; read rates arrive with the measurement node.</p>
+
+  <h2 id="s3">§3 — Payload parity and the tensorizer seam</h2>
+  <p><strong>Seam VERIFIED. Cross-arm parity exact: 3/3 channels, 64/64 samples each,
+  192/192 scalar values identical under <code>np.array_equal</code> in both converted arms
+  against native level-2.</strong> Commit <code>b9fb2cf</code>, merged as
+  <code>0ff5be9</code>; 4 tests added.</p>
+
+  <p>The question §3 posed was whether a zarr writer can be a <em>sibling subclass</em> of
+  imas-python's tensorizer rather than a reimplementation of the Data Dictionary shape rules,
+  because a hand-rolled twin would diverge silently at the next DD version. It can.
+  <code>IDSZarrWriter</code> subclasses public
+  <code>imas.backends.netcdf.ids_tensorizer.IDSTensorizer</code> — a sibling of
+  <code>imas.backends.netcdf.ids2nc.IDS2NC</code> — and reaches no single-underscore
+  attribute or method anywhere.</p>
+
+  <table>
+    <caption>Public inherited surface the zarr writer calls</caption>
+    <thead><tr><th>Payload kind</th><th>Inherited methods used</th><th>Serialisation</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>dense fixed</td>
+        <td><code>include_coordinate_paths</code>, <code>collect_filled_data</code>,
+            <code>determine_data_shapes</code>, <code>get_dimensions</code>,
+            <code>tensorize</code>, <code>get_attributes</code></td>
+        <td><code>xarray.Dataset.to_zarr(consolidated=False)</code></td>
+      </tr>
+      <tr>
+        <td>sparse</td>
+        <td>the above plus <code>get_shape_dimensions</code>, <code>get_shape_attributes</code></td>
+        <td>as above</td>
+      </tr>
+      <tr>
+        <td>netCDF arm</td>
+        <td><code>imas.DBEntry(path, "w").put(ids)</code>,
+            <code>DBEntry.get(..., autoconvert=False)</code></td>
+        <td>imas-python netCDF backend</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Every emitted zarr array carries its IDS-qualified DD path and units as attributes —
+  <code>summary/time</code> [s], <code>summary/global_quantities/ip/value</code> [A],
+  <code>summary/global_quantities/power_radiated/value</code> [W] — which is the property that
+  makes DD vocabulary separable from the IMAS container.</p>
+
+  <h3>Qualifications carried forward</h3>
+  <ul>
+    <li><strong>The seam verdict is version-scoped.</strong> It was measured against
+    imas-python <code>2.3.0</code> in an isolated environment, while the project environment
+    resolves <code>2.2.0</code>. The verdict is not yet established at the version the training
+    path actually runs, so the measurement node re-runs both arms in the project environment.</li>
+    <li><strong>The payload is a parity fixture, not a benchmark payload.</strong> One shot
+    (11766), the <code>summary</code> IDS, 3 float64 channels over 64 samples. It proves
+    equivalence; it carries no read-rate information, and the netCDF and zarr payloads were
+    deliberately not retained.</li>
+  </ul>
+
+  <p>Tests: 4 passed in 4.83&nbsp;s on <code>sirius_debug</code> job 1245059; <code>ruff
+  check</code> and <code>ruff format --check</code> both pass. Log:
+  <code>~/.cache/tsrb-payloads-pytest-final-clean.log</code>.</p>
+</main>
+</body>
+</html>

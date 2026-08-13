@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="machine-map-transform-engine-landed">
+  <meta name="plan-title" content="Machine Maps and the Transform Engine — Measured Evidence">
+  <meta name="plan-summary" content="Execution record for the machine-map producer: the named geometry transitions over the MAST corpus, the map-expressiveness evidence they carry, the LinkML schema and maps, the format-scoped transform engines, and the three identity assertions.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-recorded-at" content="2026-08-13">
+  <meta name="plan-evidence-for" content="machine-map-transform-engine">
+  <meta name="plan-verdict" content="in-progress">
+  <meta name="plan-source-quality" content="worker-committed code with committed tests over the full local level-2 corpus">
+  <title>Machine Maps and the Transform Engine — Measured Evidence | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>Machine Maps and the Transform Engine — Measured Evidence</h1>
+  <p>Cumulative execution record for
+  <a href="/imas-ambix/plans/machine-map-transform-engine">Machine Maps and the Transform Engine</a>.
+  One anchor per landed node.</p>
+
+  <h2 id="s3">§3 — Named geometry transitions over the corpus</h2>
+  <p><strong>11 named transitions over 11,573 local level-2 shots spanning 11766–30471.
+  10 of the 11 boundaries fall strictly inside campaign M5.</strong> Partition is gap-free and
+  overlap-free; lookup succeeded for every shot number across the full span. Commit
+  <code>c3cdba3</code>, merged as <code>921069c</code>; 4 tests added.</p>
+
+  <p>§3 existed to replace a convention held in someone's head with a declared boundary. It did
+  that, and in doing so it produced the evidence §2's map-expressiveness decision was waiting
+  for — which is the more consequential result.</p>
+
+  <h3>What the boundaries say about campaign as a key</h3>
+  <p>Boundaries: 11766, 12417, 12533, 12561, 12878, 12905, 12964, 12990, 13021, 13049, 13379.
+  Only 11766 coincides with a campaign boundary. <strong>Campaign is therefore not a usable key
+  for geometry</strong> — a map keyed per campaign would smear ten distinct machine
+  descriptions into one. Shot range is a usable key: the ranges partition the corpus exactly,
+  so the design rule §2 states (one map per shot range, no conditionals) is sufficient here and
+  needs no conditional expressions. It simply needs more maps than there are campaigns.</p>
+
+  <table>
+    <caption>Fields that move at the transitions</caption>
+    <thead><tr><th>Transition</th><th>Changed geometry</th></tr></thead>
+    <tbody>
+      <tr><td>first (12417)</td>
+          <td>b-probe Z; flux-loop R and Z; PF-filament R, Z, xmult</td></tr>
+      <tr><td>subsequent (12533 – 13379)</td>
+          <td>b-probe Z; flux-loop Z; PF-filament count, geometry, circuit, weight —
+              including repeated 1004↔938 filament-count changes</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Qualification carried forward</h3>
+  <p><strong>The repeated 1004↔938 filament-count alternation is not physical.</strong> A machine
+  does not swap PF filament counts back and forth across adjacent shot ranges, so at least some
+  of these boundaries record variation in the EFIT setup arrays the signature is sampled from
+  rather than a change in the machine. The partition and lookup invariants hold either way, but
+  the transition <em>count</em> is an upper bound on real machine changes and must not be read
+  as eleven distinct machines. Separating setup-file churn from machine change is work the map
+  authoring node inherits.</p>
+  <p>The boundaries stopping at 13379 is consistent with the independently recorded frozen
+  <code>efm</code> signature from 13370 onward.</p>
+
+  <p>Tests: <code>tests/test_data_probe.py tests/data/test_geometry_transitions.py</code> →
+  29 passed in 15.30&nbsp;s; focused run → 4 passed in 7.11&nbsp;s; <code>ruff check</code> and
+  <code>ruff format --check</code> pass over all three changed paths; live local-corpus invariant
+  probe passes. Artifact: <code>/tmp/mmte_local_geometry_manifest.json</code>.</p>
+</main>
+</body>
+</html>
