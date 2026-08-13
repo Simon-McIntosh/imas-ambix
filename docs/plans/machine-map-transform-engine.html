@@ -4,23 +4,25 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="machine-map-transform-engine">
-  <meta name="plan-title"     content="Machine Maps and the Transform Engine">
-  <meta name="plan-summary"   content="Replace machine-specific readers with declared machine maps applied by generic transform engines scoped to store format, so adding a machine costs a map and adding a store costs one engine; geometry stays a function of shot through named transitions in the shot manifest.">
-  <meta name="plan-status"    content="draft">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="L">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="machine-map-transform-engine">
+  <meta name="plan-title" content="Machine Maps and the Transform Engine">
+  <meta name="plan-summary" content="Replace machine-specific readers with declared machine maps applied by generic transform engines scoped to store format, so adding a machine costs a map and adding a store costs one engine; geometry stays a function of shot through named transitions in the shot manifest.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="L">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="general">
   <meta name="plan-capability-reasoning" content="deep">
   <meta name="plan-capability-verification" content="strict">
-  <meta name="plan-sprint"    content="S22">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-sprint" content="S22">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="training-store-read-benchmark">
   <title>Machine Maps and the Transform Engine | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-08-13">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -123,36 +125,32 @@
     against the descriptions those machines' data actually implies.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="map-expressiveness" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">When a channel's meaning changes mid-corpus, does the map stay purely
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="map-expressiveness" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">When a channel&#x27;s meaning changes mid-corpus, does the map stay purely
           declarative with one map per shot range, or does the schema grow conditional
           expressions?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="range-scoped-maps">one map per shot range, no conditionals</button>
-          <button class="r-opt" data-value="conditional-schema">conditional expressions inside one map</button>
-          <button class="r-opt" data-value="map-plus-code">declarative map plus a code hook per machine</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="range-scoped-maps">one map per shot range, no conditionals</button>
+      <button class="r-opt" data-value="conditional-schema">conditional expressions inside one map</button>
+      <button class="r-opt" data-value="map-plus-code">declarative map plus a code hook per machine</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-mmte-001" data-status="open"
-               data-capability-version="1.0" data-capability-class="general"
-               data-capability-reasoning="deep" data-capability-verification="strict"
-               data-written-by="reckon-create" data-written-at="2026-08-13"
-               data-recommends-skill="/reckon-ship machine-map-transform-engine §3">
-        <h4 class="r-fu-title">Extend the shot manifest with named geometry transitions</h4>
-        <div class="r-fu-body"><p>First rung, and deliberately before the map schema hardens:
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-mmte-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-13" data-recommends-skill="/reckon-ship machine-map-transform-engine §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Extend the shot manifest with named geometry transitions</h4>
+    <div class="r-fu-body"><p>First rung, and deliberately before the map schema hardens:
         the manifest carries campaign per shot but not where geometry actually moved. Name the
         transitions from the per-campaign geometry table so a description is selected by shot
         through a declared boundary. What this exposes about mid-corpus change is the evidence
         the map-expressiveness decision needs.</p></div>
-        <pre class="r-fu-prompt">/reckon-ship machine-map-transform-engine §3</pre>
-      </article>
-    </section>
+    <pre class="r-fu-prompt">/reckon-ship machine-map-transform-engine §3</pre>
+    </article>
+</section>
   </main>
 </body>
 </html>

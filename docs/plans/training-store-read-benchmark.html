@@ -4,23 +4,25 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="training-store-read-benchmark">
-  <meta name="plan-title"     content="Training Store Read Benchmark">
-  <meta name="plan-summary"   content="Measure what each candidate store costs the GPU training path — IMAS-netCDF, zarr carrying DD-path metadata, and the native level-2 form — for static machine description and for streamed experimental data, and propose a storage format for each on the numbers.">
-  <meta name="plan-status"    content="draft">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort"    content="M">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="training-store-read-benchmark">
+  <meta name="plan-title" content="Training Store Read Benchmark">
+  <meta name="plan-summary" content="Measure what each candidate store costs the GPU training path — IMAS-netCDF, zarr carrying DD-path metadata, and the native level-2 form — for static machine description and for streamed experimental data, and propose a storage format for each on the numbers.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="M">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="general">
   <meta name="plan-capability-reasoning" content="deep">
   <meta name="plan-capability-verification" content="strict">
-  <meta name="plan-sprint"    content="S22">
-  <meta name="plan-owner"     content="Simon McIntosh">
-  <meta name="plan-blocks"    content="machine-map-transform-engine">
+  <meta name="plan-sprint" content="S22">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-blocks" content="machine-map-transform-engine">
   <title>Training Store Read Benchmark | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-08-13">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -104,44 +106,40 @@
     locked or explicitly left to the owner with the evidence attached.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="experimental-store-format" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which format stores the experimental data that feeds GPU training?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="zarr-dd">zarr carrying DD-path metadata</button>
-          <button class="r-opt" data-value="imas-netcdf">IMAS-netCDF</button>
-          <button class="r-opt" data-value="native-l2">native level-2, unchanged</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="description-store-format" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which format stores the machine description, given it is read once per
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="experimental-store-format" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Which format stores the experimental data that feeds GPU training?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="zarr-dd">zarr carrying DD-path metadata</button>
+      <button class="r-opt" data-value="imas-netcdf">IMAS-netCDF</button>
+      <button class="r-opt" data-value="native-l2">native level-2, unchanged</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="description-store-format" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Which format stores the machine description, given it is read once per
           run and then turned into geometry?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="imas-netcdf">IMAS-netCDF — publishable as AL-compliant data</button>
-          <button class="r-opt" data-value="zarr-dd">zarr carrying DD-path metadata — one store technology overall</button>
-          <button class="r-opt" data-value="both">both — netCDF as the published form, zarr as the working form</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="imas-netcdf">IMAS-netCDF — publishable as AL-compliant data</button>
+      <button class="r-opt" data-value="zarr-dd">zarr carrying DD-path metadata — one store technology overall</button>
+      <button class="r-opt" data-value="both">both — netCDF as the published form, zarr as the working form</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-tsrb-001" data-status="open"
-               data-capability-version="1.0" data-capability-class="general"
-               data-capability-reasoning="deep" data-capability-verification="strict"
-               data-written-by="reckon-create" data-written-at="2026-08-13"
-               data-recommends-skill="/reckon-ship training-store-read-benchmark §2">
-        <h4 class="r-fu-title">Measure the three arms across the four access patterns and the transport comparison</h4>
-        <div class="r-fu-body"><p>The measurement itself: identical payloads through
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-tsrb-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-13" data-recommends-skill="/reckon-ship training-store-read-benchmark §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Measure the three arms across the four access patterns and the transport comparison</h4>
+    <div class="r-fu-body"><p>The measurement itself: identical payloads through
         IMAS-netCDF, zarr with DD-path attributes, and native level-2, across static description
         load, single-shot slice, batch stream and random access, plus live transfer against a
         mapped on-disk entry. One node class throughout. Report throughput with wall clock and
         sample counts, never a size divided by an assumed rate.</p></div>
-        <pre class="r-fu-prompt">/reckon-ship training-store-read-benchmark §2</pre>
-      </article>
-    </section>
+    <pre class="r-fu-prompt">/reckon-ship training-store-read-benchmark §2</pre>
+    </article>
+</section>
   </main>
 </body>
 </html>
