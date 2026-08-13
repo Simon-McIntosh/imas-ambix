@@ -142,6 +142,54 @@
   the strengthened source-unit assertion 1 passed in 393.60&nbsp;s; fast selection 4 passed in
   2.78&nbsp;s; geometry-transition compatibility 4 passed in 10.38&nbsp;s; <code>ruff check</code>
   and <code>ruff format --check</code> exit 0.</p>
+
+  <h2 id="s1">§1 — The engines, and the ten bindings they refuted</h2>
+  <p><strong>2 engines, 0 machine-name conditionals, 804/804 emissions matching their direct
+  store values under <code>np.array_equal</code>.</strong> Commit <code>0666e54</code>; 4 tests
+  added. The registry is <code>('netcdf', 'zarr')</code> — <strong>engine count equals the number
+  of store formats, not the number of machines</strong>, which is the property the whole design
+  exists to buy.</p>
+  <table>
+    <caption>Emissions per transition range, each shot the first of a distinct declared range</caption>
+    <thead><tr><th>Shot</th><th>zarr arrays</th><th>netCDF arrays</th></tr></thead>
+    <tbody>
+      <tr><td>11766</td><td>133</td><td>123</td></tr>
+      <tr><td>12417</td><td>142</td><td>132</td></tr>
+      <tr><td>12533</td><td>142</td><td>132</td></tr>
+      <tr><td><strong>total</strong></td><td><strong>417</strong></td><td><strong>387</strong></td></tr>
+    </tbody>
+  </table>
+  <p>Floating comparisons use <code>equal_nan=True</code> so identical source fill locations stay
+  comparable. Every netCDF fixture was written by
+  <code>imas_ambix.bench.store_arms.write_imas_netcdf</code> through <code>imas.DBEntry.put</code>
+  and read back before engine dispatch, so no string encoding was hand-authored and the fixture is
+  authoritative rather than an approximation of IMAS-netCDF. The DIII-D catalog dispatched through
+  the same <code>transform_machine_description</code> entry point for both formats, producing 2
+  source-unavailable outcomes with its one declared binding recorded missing — generic dispatch,
+  not a special case.</p>
+
+  <h3>Ten catalog bindings are not representable at their declared DD paths</h3>
+  <p><strong>This is the node's most useful output, and it was invisible to everything upstream.</strong>
+  The zarr/netCDF array-count gap of 30 (10 per shot) is not a rounding difference: ten
+  declarations from the landed catalog cannot round-trip through <code>imas.DBEntry</code>.</p>
+  <ul>
+    <li><strong>Nine saddle-probe arrays</strong> —
+    <code>b_field_tor_probe_saddle_{l,m,u}_{phi,r,z}</code> — each have source shape (12, 28) but
+    target a <em>scalar</em> DD leaf.</li>
+    <li><strong>One coordinate target</strong> — <code>magnetics/b_field_phi_probe/position</code>
+    is a DD <em>structure</em>, not a writable leaf.</li>
+  </ul>
+  <p>The catalog's own validation could not see this. <code>linkml-validate</code> checks schema
+  conformance, not DD representability, and the zarr engine emitted all ten happily with their DD
+  declarations attached. <strong>Only writing through the real Access Layer refuted them.</strong>
+  That is a decision-relevant property of the IMAS-netCDF arm beyond its read rate: it is the arm
+  that cannot silently accept a DD binding that the Data Dictionary does not actually support, so
+  it functions as a validator even where it loses on throughput. The ten were emitted by zarr and
+  recorded missing from the authoritative netCDF fixtures rather than being quietly dropped; the
+  VLEN string fallback was not applicable because none is an encoding failure.</p>
+  <p>Tests: 4 passed in 15.09&nbsp;s; <code>ruff check</code> and <code>ruff format --check</code>
+  pass; <code>git diff --check</code> clean. Receipt:
+  <code>engine_count=2, machine_name_conditional_count=0</code>.</p>
 </main>
 </body>
 </html>

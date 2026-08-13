@@ -22,10 +22,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-13">
-<meta name="plan-version" content="6">
-<meta name="plan-commits" content="c3cdba3e01ce3bd7e862003790691f3ef7d5114f,d73a16e0c04a9851396d264779a5d16253f25b64,e331207548de5bfe8674f5acbb4325e697bd6cc9">
-<meta name="plan-artifacts" content="docs/evidence/archive/machine-map-transform-engine-landed.html,imas_ambix/data/geometry_transitions.py,imas_ambix/data/machine_map.py,imas_ambix/data/machine_maps/schema.yaml,imas_ambix/data/machine_maps/mast.json,imas_ambix/data/machine_maps/diii-d.json,tests/data/test_geometry_transitions.py,tests/data/test_machine_map.py">
-<meta name="plan-impl" content="0.6">
+<meta name="plan-version" content="7">
+<meta name="plan-commits" content="c3cdba3e01ce3bd7e862003790691f3ef7d5114f,d73a16e0c04a9851396d264779a5d16253f25b64,e331207548de5bfe8674f5acbb4325e697bd6cc9,0666e54f04a68504cfd883d0d2b08f1dac796afe">
+<meta name="plan-artifacts" content="docs/evidence/archive/machine-map-transform-engine-landed.html,imas_ambix/data/geometry_transitions.py,imas_ambix/data/machine_map.py,imas_ambix/data/machine_maps/schema.yaml,imas_ambix/data/machine_maps/mast.json,imas_ambix/data/machine_maps/diii-d.json,imas_ambix/data/transform_engine.py,tests/data/test_geometry_transitions.py,tests/data/test_machine_map.py,tests/data/test_transform_engine.py">
+<meta name="plan-impl" content="0.571">
 </head>
 <body>
   <main class="plan-doc">
@@ -168,6 +168,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-20260813-mmte-rebind" data-who="reckon-ship" data-when="2026-08-13">
     <div class="r-comment-body">mmte-rebind landed — commit e331207; gate description-binding-coverage PASSED; measure 145 unique bindings covering every array the local corpus exposes for the description groups (magnetics 71, pf_active 71, wall 3), each declared exactly once with source location, observed source unit, DD 4.1.1 target path/unit and sign convention, giving 1,595 effective range-bound declarations across the 11 transition-aligned maps, whose ranges still equal geometry_transitions output exactly; DIII-D reduced to 0 reconstruction-derived bindings (q95, li, betan removed) leaving 1 source-only public PTDATA plasma-current binding cited to disruption-py dec5c58a; linkml-validate exit 0 over schema and both catalogs; 2 tests added. Schema gained binding-role and not-applicable-sign declarations so identifier and dimension arrays are typed rather than coerced into a signed-measurement shape. Census side-finding: static-description arrays present in 11,557 of 11,573 stores; the 16-store shortfall is a source omission, NOT a configuration split, and must not be read as a machine variant. The §2 shortfall recorded at d73a16e is closed.</div>
+</div>
+<div class="r-comment" data-section="s1" data-id="c-20260813-mmte-engines" data-who="reckon-ship" data-when="2026-08-13">
+    <div class="r-comment-body">mmte-engines landed — commit 0666e54; gate engine-generality PASSED; measure 2 engines with registry ('netcdf','zarr') so engine count equals store-format count not machine count, 0 machine-name conditionals in the engine module, and 804/804 emissions matching their direct FAIR-MAST values under np.array_equal (equal_nan=True for floats). Emitted per first-shot-of-range: 11766 zarr 133 / netCDF 123; 12417 142/132; 12533 142/132; totals 417 zarr, 387 netCDF. Every netCDF fixture written by imas_ambix.bench.store_arms.write_imas_netcdf through imas.DBEntry.put and read back before dispatch, so no string encoding was hand-authored and the fixture is authoritative IMAS-netCDF; DIII-D dispatched through the same transform_machine_description entry point for both formats giving 2 source-unavailable outcomes. 4 tests added. NEW DEFECT FOUND, and invisible upstream: 10 landed catalog declarations are not representable at their declared DD paths — b_field_tor_probe_saddle_{l,m,u}_{phi,r,z} each have source shape (12,28) but target a scalar DD leaf, and coordinate target magnetics/b_field_phi_probe/position is a DD structure not a writable leaf. linkml-validate checks schema conformance not DD representability, and the zarr engine emitted all ten happily; only writing through the real Access Layer refuted them, which makes the IMAS-netCDF arm a validator independent of its read rate. Correction folded in as mmte-dd-bindings. Worker resumed once after a NEEDS-HELP on netCDF string encoding; advice was to reject all three hand-rolled encodings and write the fixture through the already-parity-verified public DBEntry path.</div>
 </div>
 </section>
 </main>
