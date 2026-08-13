@@ -24,8 +24,10 @@ from imas_ambix.bench.store_read_rates import (
     ARMS,
     PATTERNS,
     BenchmarkConfig,
+    find_matching_transport_payload,
     measure_access_patterns,
     measure_transport,
+    run_transport_comparison,
 )
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
@@ -60,7 +62,9 @@ def test_access_matrix_has_twelve_directly_timed_cells():
     assert all(cell.throughput_samples_per_second > 0 for cell in cells)
 
 
-def test_transport_times_identical_live_and_mapped_objects(tmp_path):
+def test_transport_times_only_identical_live_and_mapped_objects(
+    tmp_path, capsys, monkeypatch
+):
     local_array = tmp_path / "local.zarr"
     remote_array = tmp_path / "remote.zarr"
     values = np.arange(128, dtype=np.float64)
@@ -82,6 +86,54 @@ def test_transport_times_identical_live_and_mapped_objects(tmp_path):
     assert evidence["decoded_arrays_identical"] is True
     assert evidence["remote_shape"] == [128]
     assert evidence["mapped_shape"] == [128]
+    assert "TRANSPORT_IDENTITY" in capsys.readouterr().out
+
+    zarr.save_array(remote_array, values[:-1], overwrite=True)
+    monkeypatch.setattr(
+        "imas_ambix.bench.store_read_rates.time.perf_counter",
+        lambda: pytest.fail("timing began before payload equality was established"),
+    )
+    with pytest.raises(ValueError, match="numerically identical"):
+        measure_transport(local_array, str(remote_array), repetitions=3)
+
+
+def test_transport_probe_records_unobtainable_comparison(tmp_path, capsys):
+    mapped_root = tmp_path / "mapped"
+    live_root = tmp_path / "live"
+    for shot, mapped_size, live_size in ((10, 8, 3), (11, 9, 4)):
+        zarr.save_array(
+            mapped_root / f"{shot}.zarr/summary/ip",
+            np.arange(mapped_size),
+        )
+        zarr.save_array(
+            live_root / f"{shot}.zarr/summary/ip",
+            np.arange(live_size),
+        )
+
+    match, probes = find_matching_transport_payload(
+        mapped_root,
+        (10, 11),
+        live_root=str(live_root),
+    )
+    assert match is None
+    assert [probe.mapped_shape for probe in probes] == [(8,), (9,)]
+    assert [probe.live_shape for probe in probes] == [(3,), (4,)]
+
+    output_log = tmp_path / "transport.json"
+    result = run_transport_comparison(
+        output_log,
+        level2_root=mapped_root,
+        shots=(10, 11),
+        probe_count=2,
+        live_root=str(live_root),
+        minimum_negative_probes=2,
+    )
+    assert result["status"] == "unobtainable_without_mirror_refresh"
+    assert result["identity_gate"]["completed_probe_count"] == 2
+    assert result["transport_cells"] == []
+    assert len(result["probes"]) == 2
+    assert output_log.exists()
+    assert capsys.readouterr().out.count("TRANSPORT_PROBE") == 4
 
 
 @pytest.mark.skipif(
