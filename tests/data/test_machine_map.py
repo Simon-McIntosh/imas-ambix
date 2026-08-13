@@ -185,7 +185,7 @@ def test_mast_catalog_accounts_for_every_machine_description_array_in_the_corpus
         "pf_passive": 1,
     }
     assert catalog.qualified_channel_count == 6
-    assert len(catalog.maps) * catalog.bound_channel_count == 2_794
+    assert len(catalog.maps) * catalog.bound_channel_count == 508
     assert catalog.validation_gaps == ()
     assert (
         sum(
@@ -637,12 +637,40 @@ def test_every_mast_map_range_is_one_geometry_transition():
         load_geometry_table_payload(),
     )
 
-    assert len(transitions) == len(catalog.maps) == 11
+    declared_ranges = [
+        (item.first_shot, item.last_shot, item.transition) for item in catalog.maps
+    ]
+    emitted_ranges = [
+        (item.first_shot, item.last_shot, item.name) for item in transitions
+    ]
+    mismatches = set(declared_ranges).symmetric_difference(emitted_ranges)
+
+    assert declared_ranges == [
+        (11_766, 12_416, "mast-geometry-11766-9425ae4a8bf3bc15"),
+        (12_417, 30_471, "mast-geometry-12417-edd753d282903679"),
+    ]
+    assert len(transitions) == len(catalog.maps) == 2
+    assert len(mismatches) == 0
     assert_transition_alignment(catalog, transitions)
+    bindings = catalog.binding_sets["mast-machine-description"]
+    assert all(catalog.bindings_for(item) == bindings for item in catalog.maps)
+    assert len({item.name for item in bindings}) == catalog.bound_channel_count
+    assert len({item.name for item in catalog.source_qualifications}) == (
+        catalog.qualified_channel_count
+    )
+    topology_names = {item.name for item in catalog.drive_topologies}
     for transition in transitions:
         machine_map = map_for_shot(catalog, transition.first_shot)
         assert machine_map.transition == transition.name
         assert machine_map.last_shot == transition.last_shot
+        assert machine_map.drive_topology in topology_names
+    assert len({item.drive_topology for item in catalog.maps}) == 2
+    print(
+        "CATALOG_TRANSITION_ALIGNMENT "
+        f"maps={len(catalog.maps)} transitions={len(transitions)} "
+        f"mismatches={len(mismatches)} executable={dict(catalog.bound_channel_counts)} "
+        f"qualified={dict(catalog.qualified_channel_counts)}"
+    )
 
 
 def test_diii_d_public_map_retains_only_direct_plasma_current():
