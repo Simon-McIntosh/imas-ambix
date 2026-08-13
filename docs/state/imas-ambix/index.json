@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-13T08:47:10",
+  "updated": "2026-08-13T15:24:09",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
@@ -793,6 +793,20 @@
                 "verification": "strict"
               }
             }
+          },
+          {
+            "slug": "machine-map-cocos-transform",
+            "why_now": "The engine now writes to Data Dictionary paths, which is exactly the IMAS ingestion seam the MAST COCOS evaluation flagged as the latent sign risk; the map binds probe orientation angles the DD marks COCOS-dependent, so a name map without a convention transform is a silent sign error rather than a missing feature.",
+            "done_when": "MAST's source convention identified as a COCOS number or explicitly recorded as not COCOS-expressible, asserted against real level-2 data at both current polarities with the per-quantity sign table printed; the Sauter coefficient set and derived factors to COCOS-17 committed as data; the transform applied in the engine for every COCOS-dependent target the catalog binds, with an undeclared source convention on such a target failing loudly; and a both-polarity round-trip test recovering source values.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "general",
+              "requirements": {
+                "reasoning": "deep",
+                "verification": "strict"
+              }
+            }
           }
         ],
         "starts": "2026-08-17",
@@ -920,6 +934,6 @@
         "pct": 0
       }
     ],
-    "_version": 39
+    "_version": 40
   }
 }
