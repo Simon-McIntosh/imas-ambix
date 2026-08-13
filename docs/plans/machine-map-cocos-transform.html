@@ -23,10 +23,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-13">
-<meta name="plan-commits" content="9b3169eeb1cbd6b19c304847de48012d735775d5">
+<meta name="plan-commits" content="9b3169eeb1cbd6b19c304847de48012d735775d5,5501e0a7b422d1446b5429b6e2e61b09a5122997">
 <meta name="plan-artifacts" content="imas_ambix/data/cocos_convention.py,tests/data/test_cocos_convention.py">
-<meta name="plan-impl" content="0.4">
-<meta name="plan-version" content="1">
+<meta name="plan-impl" content="0.75">
+<meta name="plan-version" content="2">
 </head>
 <body>
   <main class="plan-doc">
@@ -160,6 +160,9 @@
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s3" data-id="c-20260813-mmct-convention" data-who="reckon-ship" data-when="2026-08-13">
     <div class="r-comment-body">mmct-convention landed — commit 9b3169e; gate convention-determination PASSED with EXACTLY 1 SURVIVOR. MAST level-2 is COCOS-4. Measured coefficients sigma_Bp=-1, e_Bp=0, sigma_RphiZ=-1, sigma_rhothetaphi=-1, selecting COCOS-4 at each polarity independently AND jointly. Cohort: positive Ip shots 13277 and 13890, negative Ip shots 13471 and 13472 — 2 per polarity as required. Per-shot signs (Ip, Bphi, psi_edge_minus_axis, ordered-LCFS theta, q, eBp): 13277 and 13890 = (+,-,-,CW,+,0); 13471 and 13472 = (-,+,+,CW,+,0). 251 retained slices; 16 canonical candidates scored, and the worker corrected my done-when — Sauter and Medvedev define 16 canonical conventions (1-8 and 11-18), not 11, so all 16 were scored. Derived COCOS-4 to COCOS-17 factors committed as data: psi_like=-2pi, ip_like=-1, b0_like=-1, q_like=+1, dodpsi_like=-1/(2pi), tor_angle_like=-1, pol_angle_like=-1, one_like=+1. Live and committed reports are byte-identical (SHA-256 aa2c0b8f). 2 tests added; the test reproduces the verdict offline and re-reads live stores when mounted. INTERPRETATION to retain: level-2 poloidal direction is taken as the ordered LCFS traversal because the level-2 magnetics group carries no magpr_ang probe-orientation array — independently consistent with magpr_ang having been qualified as source-absent in the catalog. CONSEQUENTIAL DISCREPANCY: imas_ambix/cocos.py declares MAST_SOURCE_COCOS = 3 and the measurement says 4. COCOS 3 and 4 differ in sigma_RphiZ, so ip_like and q_like carry OPPOSITE signs between them, and tests/test_cocos.py currently asserts the COCOS-3 values (ip_like == 1.0, q_like == -1.0) against measured COCOS-4 values (ip_like = -1, q_like = +1). That is a live sign error in already-shipped code, not a new-work gap.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260813-mmct-integrate" data-who="reckon-ship" data-when="2026-08-13">
+    <div class="r-comment-body">mmct-integrate landed — commit 5501e0a; gate transform-applied PASSED. The shipped sign error is CORRECTED: imas_ambix.cocos.MAST_SOURCE_COCOS is now 4 and is asserted equal to the measured four-shot receipt, and tests/test_cocos.py now asserts the COCOS-4 factors psi_like=-2pi, dodpsi_like=-1/(2pi), q_like=+1 and ip_like=-1, replacing the COCOS-3 values it previously asserted (ip_like=+1, q_like=-1 — both opposite in sign). Engine behaviour: it imports MAST_TO_COCOS_17_FACTORS, resolves the nearest DD cocos_label_transformation from each binding target path AND ITS ANCESTORS, applies and records the factor, and never selects by machine name or catalog source — so the transform stays a property of the target path, matching the format-scoped rather than machine-scoped design. Measure: 11 bound COCOS-dependent targets, of which 3 receive a non-unity factor — mast-magnetics-ip, mast-pf-active-coil-current and mast-pf-active-solenoid-current, all ip_like with factor -1. An explicitly undeclared source convention on a COCOS-dependent target raises BindingTransformError rather than passing the value through. Exact engine-then-inverse round trip covers shots 13277, 13890, 13471 and 13472, two per current polarity. Format receipts unchanged: 242/242, 251/251, 251/251, gap 0; description bytes still deterministic over 5 shots and partition checks still cover all 11,573 corpus shots. 4 tests added. OPEN: the source-convention-declaration decision remains unresolved — the engine currently accepts a per-transform source_cocos, defaults it to the measured COCOS-4 for backward-compatible catalog calls, and fails only when explicitly undeclared. That default is a shim; encoding the declaration in the machine-map schema needs imas_ambix/data/machine_map.py and the packaged maps, which were outside this node's fence.</div>
 </div>
 </section>
 </main>
