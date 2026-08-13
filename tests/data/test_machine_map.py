@@ -27,20 +27,60 @@ from imas_ambix.data.machine_map import (
 from imas_ambix.data.manifest import load_index
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
-MACHINE_DESCRIPTION_GROUPS = ("magnetics", "pf_active", "wall")
-EXPECTED_BOUND_CHANNEL_COUNTS = {"magnetics": 61, "pf_active": 71, "wall": 3}
-EXPECTED_QUALIFIED_SOURCES = {
-    "b_field_tor_probe_saddle_l_phi": (12, 28),
-    "b_field_tor_probe_saddle_l_r": (12, 28),
-    "b_field_tor_probe_saddle_l_z": (12, 28),
-    "b_field_tor_probe_saddle_m_phi": (12, 28),
-    "b_field_tor_probe_saddle_m_r": (12, 28),
-    "b_field_tor_probe_saddle_m_z": (12, 28),
-    "b_field_tor_probe_saddle_u_phi": (12, 28),
-    "b_field_tor_probe_saddle_u_r": (12, 28),
-    "b_field_tor_probe_saddle_u_z": (12, 28),
-    "coordinate": (28,),
+MACHINE_DESCRIPTION_GROUPS = ("magnetics", "pf_active", "pf_passive", "wall")
+EXPECTED_BOUND_CHANNEL_COUNTS = {
+    "magnetics": 70,
+    "pf_active": 71,
+    "pf_passive": 110,
+    "wall": 3,
 }
+PASSIVE_LOOP_FAMILIES = (
+    "botcol",
+    "coil_cases",
+    "endcrown_l",
+    "endcrown_u",
+    "incon",
+    "lhorw",
+    "mid",
+    "p2larm",
+    "p2ldivpl",
+    "p2uarm",
+    "p2udivpl",
+    "ring",
+    "rodgr",
+    "topcol",
+    "uhorw",
+    "vertw",
+)
+LEGACY_DESCRIPTION_FIELDS = (
+    "magpr_r",
+    "magpr_z",
+    "magpr_ang",
+    "magpr_len.cc",
+    "magpr_len.ccbv",
+    "magpr_len.obr",
+    "magpr_len.obv",
+    "magpr_len.omv",
+    "silop_r",
+    "silop_z",
+    "pf_active.element.r",
+    "pf_active.element.z",
+    "pf_active.element.width",
+    "pf_active.element.height",
+    "pf_passive.loop.name",
+    "pf_passive.element.name",
+    "pf_passive.element.r",
+    "pf_passive.element.z",
+    "pf_passive.element.width",
+    "pf_passive.element.height",
+    "pf_active.element.turns_with_sign",
+    "pf_passive.element.turns_with_sign",
+    "fcoil_circ",
+    "fcoil_xmult",
+    "amc_current_channels",
+    "limiterr",
+    "limiterz",
+)
 
 
 def _dd_leaf(dd_version: str, path: str):
@@ -111,10 +151,16 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
     assert LINKML_SCHEMA_PATH.name == "schema.yaml"
     assert schema["classes"]["MachineMapCatalog"]["tree_root"] is True
     assert "SourceQualification" in schema["classes"]
+    assert "DriveTopology" in schema["classes"]
+    assert "StructureAssembly" in schema["classes"]
     assert set(schema["enums"]["BindingRole"]["permissible_values"]) == {
         "value",
         "identifier",
         "dimension-coordinate",
+    }
+    assert set(schema["enums"]["SourceStatus"]["permissible_values"]) == {
+        "corpus-observed",
+        "legacy-only",
     }
     forbidden = {"condition", "expression", "code_hook", "transform_code"}
     assert forbidden.isdisjoint(schema["slots"])
@@ -130,11 +176,30 @@ def test_mast_catalog_accounts_for_every_machine_description_array_in_the_corpus
     assert len(shots) == 11_573
     assert (shots[0], shots[-1]) == (11_766, 30_471)
     assert catalog.bound_channel_counts == EXPECTED_BOUND_CHANNEL_COUNTS
-    assert catalog.bound_channel_count == 135
-    assert catalog.qualified_channel_counts == {"magnetics": 10}
+    assert catalog.bound_channel_count == 254
+    assert catalog.qualified_channel_counts == {
+        "magnetics": 4,
+        "pf_active": 2,
+        "pf_passive": 2,
+        "legacy_geometry": 2,
+    }
     assert catalog.qualified_channel_count == 10
-    assert len(catalog.maps) * catalog.bound_channel_count == 1_485
+    assert len(catalog.maps) * catalog.bound_channel_count == 2_794
     assert catalog.validation_gaps == ()
+    assert (
+        sum(
+            item.source_status == "corpus-observed"
+            for item in catalog.source_qualifications
+        )
+        == 1
+    )
+    assert (
+        sum(
+            item.source_status == "legacy-only"
+            for item in catalog.source_qualifications
+        )
+        == 9
+    )
 
     bindings_by_group: dict[str, dict[str, object]] = {
         group: {
@@ -148,7 +213,7 @@ def test_mast_catalog_accounts_for_every_machine_description_array_in_the_corpus
         group: {
             item.source_array: item
             for item in catalog.source_qualifications
-            if item.source_group == group
+            if item.source_group == group and item.source_status == "corpus-observed"
         }
         for group in MACHINE_DESCRIPTION_GROUPS
     }
@@ -198,39 +263,243 @@ def test_every_binding_targets_a_writable_shape_compatible_dd_leaf():
 
                 observation = inventory[binding.source_group][binding.source_array]
                 assert observation["data_kinds"] == {leaf.data_type.name}
+                assert observation["ranks"] == {binding.source_rank}
                 for source_rank in observation["ranks"]:
                     expanded_dimensions = source_rank - leaf.ndim
-                    assert expanded_dimensions in {0, 1}, binding.name
+                    assert expanded_dimensions >= 0, binding.name
                     if expanded_dimensions:
-                        assert _dd_struct_array_count(
+                        assert expanded_dimensions <= _dd_struct_array_count(
                             catalog.dd_version, binding.dd_path
                         ), binding.name
 
 
-def test_unsupported_saddle_outlines_are_explicit_source_qualifications():
+def test_saddle_trajectories_are_twelve_named_loops_with_twenty_eight_points():
     if not LEVEL2_ROOT.is_dir():
         pytest.skip("FAIR-MAST level-2 mirror is not mounted")
     catalog = load_packaged_machine_map("mast")
-    qualifications = {item.source_array: item for item in catalog.source_qualifications}
-    representative_metadata = json.loads(
-        (LEVEL2_ROOT / "12417.zarr" / "zarr.json").read_text()
-    )["consolidated_metadata"]["metadata"]
+    bindings = {
+        item.source_array: item
+        for item in catalog.binding_sets["mast-machine-description"]
+    }
+    qualified_sources = {item.source_array for item in catalog.source_qualifications}
+    metadata = json.loads((LEVEL2_ROOT / "12417.zarr" / "zarr.json").read_text())[
+        "consolidated_metadata"
+    ]["metadata"]
 
-    assert {
-        source: item.source_shape for source, item in qualifications.items()
-    } == EXPECTED_QUALIFIED_SOURCES
-    for source, item in qualifications.items():
-        row = representative_metadata[f"magnetics/{source}"]
-        assert tuple(row["shape"]) == item.source_shape
-        assert "DD 4.1.1" in item.reason
-        assert "writable" in item.reason
-        assert "DD metadata" in item.evidence
-    assert "STRUCTURE" in qualifications["coordinate"].evidence
-    assert all(
-        "FLT_0D" in item.evidence
-        for source, item in qualifications.items()
-        if source != "coordinate"
+    expected_sources = {
+        f"b_field_tor_probe_saddle_{band}_{axis}"
+        for band in "lmu"
+        for axis in ("r", "z", "phi")
+    }
+    assert expected_sources.isdisjoint(qualified_sources)
+    for source in expected_sources:
+        binding = bindings[source]
+        axis = source.rsplit("_", maxsplit=1)[1]
+        assert binding.source_rank == 2
+        assert tuple(metadata[f"magnetics/{source}"]["shape"]) == (12, 28)
+        assert binding.dd_path == f"magnetics/flux_loop/position/{axis}"
+        assert "axis 0 matches the 12" in binding.evidence
+        assert "axis 1 matches coordinate 0..27" in binding.evidence
+
+    saddle_assemblies = {
+        item.name: item
+        for item in catalog.structure_assemblies
+        if item.name.startswith("mast-magnetics-saddle-")
+    }
+    assert len(saddle_assemblies) == 3
+    for band in "lmu":
+        assembly = saddle_assemblies[f"mast-magnetics-saddle-{band}-flux-loops"]
+        assert assembly.structure_path == "magnetics/flux_loop/position"
+        assert assembly.type_path == "magnetics/flux_loop/type/index"
+        assert assembly.type_index == 2
+        name_binding = bindings[f"b_field_tor_probe_saddle_{band}_geometry_channel"]
+        assert assembly.name_binding == name_binding.name
+        assert name_binding.dd_path == "magnetics/flux_loop/name"
+        assert len(assembly.member_bindings) == 3
+
+    coordinate = next(
+        item
+        for item in catalog.source_qualifications
+        if item.source_array == "coordinate"
     )
+    assert coordinate.source_shape == (28,)
+    assert "no writable coordinate-index leaf" in coordinate.reason
+
+
+def test_passive_loop_elements_and_shape_angles_are_executable_oblique_geometry():
+    if not LEVEL2_ROOT.is_dir():
+        pytest.skip("FAIR-MAST level-2 mirror is not mounted")
+    catalog = load_packaged_machine_map("mast")
+    bindings = {
+        item.source_array: item
+        for item in catalog.binding_sets["mast-machine-description"]
+        if item.source_group == "pf_passive"
+    }
+    expected_rectangle_sources = {
+        f"{family}_{suffix}"
+        for family in ("coil_cases",)
+        for suffix in ("geometry_channel", "r", "z", "width", "height")
+    }
+    oblique_families = tuple(
+        family for family in PASSIVE_LOOP_FAMILIES if family != "coil_cases"
+    )
+    expected_oblique_sources = {
+        f"{family}_{suffix}"
+        for family in oblique_families
+        for suffix in (
+            "geometry_channel",
+            "r",
+            "z",
+            "width",
+            "height",
+            "shapeAngle1",
+            "shapeAngle2",
+        )
+    }
+    assert set(bindings) == expected_rectangle_sources | expected_oblique_sources
+    assert len(bindings) == 110
+
+    for family in oblique_families:
+        name_binding = bindings[f"{family}_geometry_channel"]
+        assert name_binding.dd_path == "pf_passive/loop/element/name"
+        expected_targets = {
+            "r": "r",
+            "z": "z",
+            "width": "length_alpha",
+            "height": "length_beta",
+            "shapeAngle1": "alpha",
+            "shapeAngle2": "beta",
+        }
+        for source_suffix, target_suffix in expected_targets.items():
+            binding = bindings[f"{family}_{source_suffix}"]
+            assert binding.dd_path == (
+                "pf_passive/loop/element/geometry/oblique/" + target_suffix
+            )
+        assert "first side inclination" in bindings[f"{family}_shapeAngle1"].evidence
+        assert "second side inclination" in bindings[f"{family}_shapeAngle2"].evidence
+        assert all(
+            "must not be converted as lengths" in bindings[f"{family}_{angle}"].evidence
+            for angle in ("shapeAngle1", "shapeAngle2")
+        )
+
+    metadata = json.loads((LEVEL2_ROOT / "12417.zarr" / "zarr.json").read_text())[
+        "consolidated_metadata"
+    ]["metadata"]
+    for family in oblique_families:
+        for angle in ("shapeAngle1", "shapeAngle2"):
+            binding = bindings[f"{family}_{angle}"]
+            assert binding.source_rank == len(
+                metadata[f"pf_passive/{family}_{angle}"]["shape"]
+            )
+            assert binding.source_unit == "degree"
+
+    oblique_assemblies = {
+        item.name: item
+        for item in catalog.structure_assemblies
+        if item.name.startswith("mast-pf-passive-")
+    }
+    assert len(oblique_assemblies) == 15
+    assert {item.type_index for item in oblique_assemblies.values()} == {3}
+    assert {item.type_path for item in oblique_assemblies.values()} == {
+        "pf_passive/loop/element/geometry/geometry_type"
+    }
+
+
+def test_every_legacy_description_field_has_a_binding_or_qualification():
+    catalog = load_packaged_machine_map("mast")
+    bindings = catalog.binding_sets["mast-machine-description"]
+    binding_names = {
+        (item.source_group, item.source_array): item.name for item in bindings
+    }
+    qualification_names = {
+        (item.source_group, item.source_array): item.name
+        for item in catalog.source_qualifications
+    }
+
+    def binding_matches(group: str, suffix: str) -> tuple[str, ...]:
+        return tuple(
+            item.name
+            for item in bindings
+            if item.source_group == group and item.source_array.endswith(suffix)
+        )
+
+    accounting = {
+        "magpr_r": tuple(
+            item.name
+            for item in bindings
+            if item.source_group == "magnetics"
+            and item.source_array.startswith("b_field_pol_probe_")
+            and item.source_array.endswith("_r")
+        ),
+        "magpr_z": tuple(
+            item.name
+            for item in bindings
+            if item.source_group == "magnetics"
+            and item.source_array.startswith("b_field_pol_probe_")
+            and item.source_array.endswith("_z")
+        ),
+        "magpr_ang": (qualification_names[("magnetics", "magpr_ang")],),
+        "magpr_len.cc": (
+            qualification_names[("magnetics", "b_field_pol_probe_cc_length")],
+        ),
+        "magpr_len.ccbv": (
+            binding_names[("magnetics", "b_field_pol_probe_ccbv_length")],
+        ),
+        "magpr_len.obr": (
+            binding_names[("magnetics", "b_field_pol_probe_obr_length")],
+        ),
+        "magpr_len.obv": (
+            binding_names[("magnetics", "b_field_pol_probe_obv_length")],
+        ),
+        "magpr_len.omv": (
+            qualification_names[("magnetics", "b_field_pol_probe_omv_length")],
+        ),
+        "silop_r": (binding_names[("magnetics", "flux_loop_r")],),
+        "silop_z": (binding_names[("magnetics", "flux_loop_z")],),
+        "pf_active.element.r": binding_matches("pf_active", "_r"),
+        "pf_active.element.z": binding_matches("pf_active", "_z"),
+        "pf_active.element.width": binding_matches("pf_active", "_width"),
+        "pf_active.element.height": binding_matches("pf_active", "_height"),
+        "pf_passive.loop.name": (qualification_names[("pf_passive", "loop_names")],),
+        "pf_passive.element.name": binding_matches("pf_passive", "_geometry_channel"),
+        "pf_passive.element.r": binding_matches("pf_passive", "_r"),
+        "pf_passive.element.z": binding_matches("pf_passive", "_z"),
+        "pf_passive.element.width": binding_matches("pf_passive", "_width"),
+        "pf_passive.element.height": binding_matches("pf_passive", "_height"),
+        "pf_active.element.turns_with_sign": (
+            qualification_names[("pf_active", "turns_with_sign")],
+        ),
+        "pf_passive.element.turns_with_sign": (
+            qualification_names[("pf_passive", "turns_with_sign")],
+        ),
+        "fcoil_circ": (qualification_names[("legacy_geometry", "fcoil_circ")],),
+        "fcoil_xmult": (qualification_names[("legacy_geometry", "fcoil_xmult")],),
+        "amc_current_channels": (
+            qualification_names[("pf_active", "amc_current_channels")],
+        ),
+        "limiterr": (binding_names[("wall", "limiter_r")],),
+        "limiterz": (binding_names[("wall", "limiter_z")],),
+    }
+
+    assert tuple(accounting) == LEGACY_DESCRIPTION_FIELDS
+    unaccounted = []
+    for field, declarations in accounting.items():
+        print(f"LEGACY_FIELD_ACCOUNTING field={field} declarations={declarations}")
+        if not declarations:
+            unaccounted.append(field)
+    assert unaccounted == []
+
+    topology = catalog.drive_topologies[0]
+    assert len(catalog.drive_topologies) == 1
+    assert topology.circuit_identity_source == "fcoil_circ"
+    assert topology.current_scale_source == "fcoil_xmult"
+    assert topology.current_channel_source == "amc_current_channels"
+    assert topology.circuit_identity_qualification == accounting["fcoil_circ"][0]
+    assert topology.current_scale_qualification == accounting["fcoil_xmult"][0]
+    assert (
+        topology.current_channel_qualification == accounting["amc_current_channels"][0]
+    )
+    assert topology.passive_loop_names == PASSIVE_LOOP_FAMILIES
 
 
 def test_every_mast_map_range_is_one_geometry_transition():

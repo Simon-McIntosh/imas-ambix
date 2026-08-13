@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.1.0",
+  "schema_version": "1.3.0",
   "dd_version": "4.1.1",
   "source": "https://github.com/MIT-PSFC/disruption-py",
   "source_revision": "dec5c58a3e3970bc6817f33efb615fea11057fce",
@@ -7,18 +7,19 @@
     {
       "name": "diii-d-public-signals",
       "bindings": [
-      {
-        "name": "diii-d-plasma-current",
-        "source_group": "d3d",
-        "source_array": "ip",
-        "source_role": "value",
-        "source_location": "mdsplus://atlas/d3d/ptdata('ip',{shot})",
-        "dd_path": "magnetics/ip/data",
-        "source_unit": "A",
-        "target_unit": "A",
-        "sign_convention": "unknown-unvalidated",
-        "evidence": "MIT-PSFC/disruption-py commit dec5c58a3e3970bc6817f33efb615fea11057fce disruption_py/machine/d3d/physics.py calls ptdata('ip', shot) and treats operational thresholds as amperes."
-      }
+        {
+          "name": "diii-d-plasma-current",
+          "source_group": "d3d",
+          "source_array": "ip",
+          "source_role": "value",
+          "source_location": "mdsplus://atlas/d3d/ptdata('ip',{shot})",
+          "dd_path": "magnetics/ip/data",
+          "source_unit": "A",
+          "target_unit": "A",
+          "sign_convention": "unknown-unvalidated",
+          "evidence": "MIT-PSFC/disruption-py commit dec5c58a3e3970bc6817f33efb615fea11057fce disruption_py/machine/d3d/physics.py calls ptdata('ip', shot) and treats operational thresholds as amperes.",
+          "source_rank": 1
+        }
       ]
     }
   ],
@@ -39,5 +40,7 @@
       "reason": "No DIII-D pulse corpus or authenticated facility PTDATA service is present on this host, so source existence, engineering units, polarity, and shot-range validity were not checked against data."
     }
   ],
-  "source_qualifications": []
+  "source_qualifications": [],
+  "drive_topologies": [],
+  "structure_assemblies": []
 }

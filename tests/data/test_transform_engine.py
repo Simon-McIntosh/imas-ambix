@@ -20,11 +20,6 @@ from imas_ambix.data.transform_engine import (
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 TRANSITION_SHOTS = (11_766, 12_417, 12_533)
-EXPECTED_EMITTED_COUNTS = {
-    11_766: 123,
-    12_417: 132,
-    12_533: 132,
-}
 
 
 def _assert_array_equal(actual: np.ndarray, expected: np.ndarray) -> None:
@@ -48,20 +43,22 @@ def _array_positions(ids: object, relative_path: str) -> tuple[int, ...]:
 
 def _assign_values(
     ids: object, relative_path: str, values: np.ndarray
-) -> tuple[tuple[str, ...], bool]:
+) -> tuple[tuple[str, ...], tuple[int, ...]]:
     metadata = ids.metadata[relative_path]
     if metadata.data_type in {IDSDataType.STRUCTURE, IDSDataType.STRUCT_ARRAY}:
         raise ValueError("the declared DD path identifies a structure, not a leaf")
 
     extra_dimensions = values.ndim - metadata.ndim
-    if extra_dimensions not in {0, 1}:
+    array_positions = _array_positions(ids, relative_path)
+    if not 0 <= extra_dimensions <= len(array_positions):
         raise ValueError(
             f"source rank {values.ndim} cannot populate DD leaf rank {metadata.ndim}"
         )
 
     components = relative_path.split("/")
-    array_positions = _array_positions(ids, relative_path)
-    expanded_position = array_positions[-1] if extra_dimensions else None
+    expanded_positions = set(
+        array_positions[-extra_dimensions:] if extra_dimensions else ()
+    )
     concrete_paths: list[str] = []
 
     def assign(node: object, index: int, value: object, prefix: str) -> None:
@@ -72,9 +69,9 @@ def _assign_values(
             concrete_paths.append(f"{prefix}{component}")
             return
         if isinstance(child, IDSStructArray):
-            count = len(value) if index == expanded_position else 1
+            count = len(value) if index in expanded_positions else 1
             child.resize(count)
-            if index == expanded_position:
+            if index in expanded_positions:
                 for item_index in range(count):
                     assign(
                         child[item_index],
@@ -93,16 +90,16 @@ def _assign_values(
         assign(child, index + 1, value, f"{prefix}{component}/")
 
     assign(ids, 0, values, "")
-    return tuple(concrete_paths), bool(extra_dimensions)
+    return tuple(concrete_paths), tuple(values.shape[:extra_dimensions])
 
 
 def _binding_ids(
     factory: imas.IDSFactory, binding: ChannelBinding, values: np.ndarray
-) -> tuple[object, tuple[str, ...], bool]:
+) -> tuple[object, tuple[str, ...], tuple[int, ...]]:
     ids_name, relative_path = binding.dd_path.split("/", maxsplit=1)
     ids = factory.new(ids_name)
     ids.ids_properties.homogeneous_time = 1
-    concrete_paths, stack_values = _assign_values(ids, relative_path, values)
+    concrete_paths, structural_shape = _assign_values(ids, relative_path, values)
     metadata = ids.metadata[relative_path]
     if relative_path == "description_2d/limiter/unit/outline/z":
         for concrete_path in concrete_paths:
@@ -113,14 +110,14 @@ def _binding_ids(
         and relative_path != "time"
     ):
         ids.time = np.arange(values.shape[-1], dtype=np.float64)
-    return ids, concrete_paths, stack_values
+    return ids, concrete_paths, structural_shape
 
 
 def _public_netcdf_values(
     source: Path,
     binding: ChannelBinding,
     concrete_paths: tuple[str, ...],
-    stack_values: bool,
+    structural_shape: tuple[int, ...],
     dd_version: str,
 ) -> np.ndarray:
     ids_name = binding.dd_path.split("/", maxsplit=1)[0]
@@ -131,7 +128,9 @@ def _public_netcdf_values(
         dd_version=dd_version,
     )
     values = tuple(arrays[path] for path in concrete_paths)
-    return np.stack(values) if stack_values else values[0]
+    if not structural_shape:
+        return values[0]
+    return np.stack(values).reshape(structural_shape + values[0].shape)
 
 
 def _write_netcdf_fixture(
@@ -141,14 +140,14 @@ def _write_netcdf_fixture(
     values: np.ndarray,
     dd_version: str,
 ) -> None:
-    ids, concrete_paths, stack_values = _binding_ids(factory, binding, values)
+    ids, concrete_paths, structural_shape = _binding_ids(factory, binding, values)
     receipt = write_imas_netcdf(ids, destination, dd_version=dd_version)
     assert receipt.entrypoint == "imas.DBEntry.put"
     authoritative = _public_netcdf_values(
         destination,
         binding,
         concrete_paths,
-        stack_values,
+        structural_shape,
         dd_version,
     )
     _assert_array_equal(authoritative, values)
@@ -163,6 +162,8 @@ def test_two_format_engines_emit_three_range_scoped_descriptions(tmp_path):
     factory = imas.IDSFactory(catalog.dd_version)
     netcdf_root = tmp_path / "netcdf"
     exception_reasons: dict[str, str] = {}
+    singleton_structural_bindings: set[tuple[int, str]] = set()
+    receipts = []
 
     for shot in TRANSITION_SHOTS:
         zarr_result = transform_machine_description(catalog, shot, "zarr", LEVEL2_ROOT)
@@ -170,6 +171,17 @@ def test_two_format_engines_emit_three_range_scoped_descriptions(tmp_path):
         assert zarr_result.machine_map.first_shot == shot
 
         direct_store = zarr.open_group(LEVEL2_ROOT / f"{shot}.zarr", mode="r")
+        declared_bindings = catalog.bindings_for(zarr_result.machine_map)
+        executable_bindings = tuple(
+            binding
+            for binding in declared_bindings
+            if f"{binding.source_group}/{binding.source_array}" in direct_store
+        )
+        unavailable_bindings = tuple(
+            binding
+            for binding in declared_bindings
+            if f"{binding.source_group}/{binding.source_array}" not in direct_store
+        )
         direct_values: dict[str, np.ndarray] = {}
         for emitted in zarr_result.arrays:
             direct = np.asarray(
@@ -177,6 +189,12 @@ def test_two_format_engines_emit_three_range_scoped_descriptions(tmp_path):
             )
             direct_values[emitted.binding_name] = direct
             _assert_array_equal(emitted.values, direct)
+            ids_name, relative_path = emitted.dd_path.split("/", maxsplit=1)
+            if (
+                direct.shape == (1,)
+                and factory.new(ids_name).metadata[relative_path].ndim == 0
+            ):
+                singleton_structural_bindings.add((shot, emitted.binding_name))
 
         shot_directory = netcdf_root / str(shot)
         shot_directory.mkdir(parents=True)
@@ -202,19 +220,60 @@ def test_two_format_engines_emit_three_range_scoped_descriptions(tmp_path):
         )
         assert netcdf_result.status == "emitted"
         assert netcdf_result.machine_map == zarr_result.machine_map
-        assert not exception_reasons
-        assert netcdf_result.emitted_array_count == zarr_result.emitted_array_count
-        assert netcdf_result.emitted_array_count == EXPECTED_EMITTED_COUNTS[shot]
         for emitted in netcdf_result.arrays:
             _assert_array_equal(emitted.values, direct_values[emitted.binding_name])
+        receipts.append(
+            (
+                shot,
+                zarr_result,
+                netcdf_result,
+                executable_bindings,
+                unavailable_bindings,
+            )
+        )
 
+    format_gaps = tuple(
+        zarr_result.emitted_array_count - netcdf_result.emitted_array_count
+        for _, zarr_result, netcdf_result, _, _ in receipts
+    )
+    assert (format_gaps, len(exception_reasons)) == (
+        tuple(0 for _ in receipts),
+        0,
+    )
+    assert singleton_structural_bindings
+    print(f"SINGLETON_STRUCTURAL_ARRAYS count={len(singleton_structural_bindings)}")
+
+    for (
+        shot,
+        zarr_result,
+        netcdf_result,
+        executable_bindings,
+        unavailable_bindings,
+    ) in receipts:
+        executable_binding_names = tuple(
+            binding.name for binding in executable_bindings
+        )
+        unavailable_binding_names = tuple(
+            binding.name for binding in unavailable_bindings
+        )
+        executable_binding_count = len(executable_bindings)
+        assert zarr_result.emitted_array_count == executable_binding_count
+        assert netcdf_result.emitted_array_count == executable_binding_count
+        assert tuple(array.binding_name for array in zarr_result.arrays) == (
+            executable_binding_names
+        )
+        assert tuple(array.binding_name for array in netcdf_result.arrays) == (
+            executable_binding_names
+        )
+        assert zarr_result.missing_bindings == unavailable_binding_names
+        assert netcdf_result.missing_bindings == unavailable_binding_names
         print(
             "EMITTED_ARRAY_COUNT "
             f"shot={shot} zarr={zarr_result.emitted_array_count} "
-            f"netcdf={netcdf_result.emitted_array_count}"
+            f"netcdf={netcdf_result.emitted_array_count} "
+            f"executable_bindings={executable_binding_count} "
+            f"source_unavailable={len(unavailable_bindings)}"
         )
-
-    assert not exception_reasons
 
 
 @pytest.mark.parametrize("store_format", TRANSFORM_ENGINE_FORMATS)
