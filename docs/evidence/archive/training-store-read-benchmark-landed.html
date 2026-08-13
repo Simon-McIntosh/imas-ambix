@@ -234,6 +234,30 @@
   <code>/work/projects/imas_gpu/store-bench/mirror-refresh-public-snapshot-20260813.json</code>
   (sha256 <code>1badcfda…</code>).</p>
 
+  <h3 id="s2-transport-measured">Transport, measured: 41.1×, and the earlier number was 12× too big</h3>
+  <p><strong>Mapped-on-disk beats live HTTPS by 41.136×</strong> on identical payloads —
+  0.0272&nbsp;s for 3,576 scalars (131,447&nbsp;scalars/s) against 1.1191&nbsp;s for the same
+  3,576 scalars (3,195&nbsp;scalars/s), both checksums 978,090,488. Commit <code>c1f7f13</code>;
+  1 test added. Status <code>unobtainable_without_mirror_refresh</code> is gone, replaced by
+  <code>measured_identical_payload</code>.</p>
+  <p>The identity gate fired first, as designed: shot 11766, <code>summary/ip</code>,
+  <code>live_shape [447]</code> and <code>mapped_shape [447]</code>, <code>arrays_identical
+  true</code> printed <em>before</em> either timed cell. <strong>The inadmissible number was
+  481×; the honest one is 41.1×.</strong> Comparing a 447-point live array against a 1652-point
+  mirrored one had inflated the ratio by roughly twelve-fold — which is why the gate exists and
+  why the earlier figure was never allowed into a decision.</p>
+  <p><strong>Two scope limits travel with this number.</strong> It is measured over 24 of 11,573
+  corpus shots (0.207%), the extent of the refreshed mirror. And it ran on the <em>login</em>
+  node class (<code>98dci4-srv-1006</code>), not the <code>sirius_debug</code> class that carries
+  the 12 storage cells: the compute node could see the older level-2 tree but not the new
+  <code>public-snapshot-20260813</code> directory, confirmed by a read-only visibility probe. Both
+  transport routes ran on the same node as each other, so the ratio is internally sound, but it is
+  <strong>not on the same node class as the storage-arm measurements</strong> and must not be
+  composed with them as though it were.</p>
+  <p>Tests: 9 passed in 27.50&nbsp;s on <code>sirius_debug</code> job 1245722. Receipt:
+  <code>/work/projects/imas_gpu/store-bench/transport-rerun-public-snapshot-login-20260813.json</code>
+  (sha256 <code>ad23b643…</code>).</p>
+
   <h2 id="s4">§4 — The proposal</h2>
   <p>Two formats, decided separately, because the two access patterns are not the same problem.</p>
 
