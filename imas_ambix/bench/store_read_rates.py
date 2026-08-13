@@ -35,8 +35,10 @@ if TYPE_CHECKING:
 
 DEFAULT_LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 DEFAULT_OUTPUT_ROOT = Path("/work/projects/imas_gpu/store-bench")
+DEFAULT_LIVE_LEVEL2_ROOT = "https://s3.echo.stfc.ac.uk/mast/level2/shots"
 DEFAULT_BATCH_SIZE = 4
 DEFAULT_SLICE_SIZE = 64
+DEFAULT_TRANSPORT_PROBE_COUNT = 24
 BENCHMARK_SHOTS = (
     11766,
     11767,
@@ -100,6 +102,19 @@ class TransportCell:
     sample_count: int
     throughput_samples_per_second: float
     checksum: int
+
+
+@dataclass(frozen=True)
+class TransportProbe:
+    """Identity evidence for one live and mapped payload pair."""
+
+    shot: int
+    array_path: str
+    live_url: str
+    mapped_path: str
+    live_shape: tuple[int, ...]
+    mapped_shape: tuple[int, ...]
+    arrays_identical: bool
 
 
 @dataclass(frozen=True)
@@ -363,6 +378,16 @@ def measure_transport(
         local_probe.shape == remote_probe.shape
         and np.array_equal(local_probe, remote_probe)
     )
+    identity = {
+        "remote_url": remote_url,
+        "local_path": str(local_array_path),
+        "remote_shape": list(remote_probe.shape),
+        "mapped_shape": list(local_probe.shape),
+        "decoded_arrays_identical": arrays_identical,
+    }
+    print("TRANSPORT_IDENTITY " + json.dumps(identity, sort_keys=True), flush=True)
+    if not arrays_identical:
+        raise ValueError("transport timing requires numerically identical payloads")
 
     live_checksum = 0.0
     live_samples = 0
@@ -398,19 +423,142 @@ def measure_transport(
             checksum=int(mapped_checksum),
         ),
     ]
-    evidence = {
-        "remote_url": remote_url,
-        "local_path": str(local_array_path),
-        "remote_shape": list(remote_probe.shape),
-        "mapped_shape": list(local_probe.shape),
-        "decoded_arrays_identical": arrays_identical,
-        "snapshot_qualification": (
-            "public live object and mapped May mirror have different sample counts"
-            if not arrays_identical
-            else "none"
-        ),
+    return cells, identity
+
+
+def mapped_shots(
+    level2_root: Path,
+    array_path: str = "summary/ip",
+) -> tuple[int, ...]:
+    """List mapped shots containing the requested zarr array."""
+    shots = []
+    for entry in level2_root.glob("*.zarr"):
+        try:
+            shot = int(entry.stem)
+        except ValueError:
+            continue
+        if (entry / array_path).is_dir():
+            shots.append(shot)
+    return tuple(sorted(shots))
+
+
+def find_matching_transport_payload(
+    level2_root: Path,
+    shots: Sequence[int],
+    array_path: str = "summary/ip",
+    live_root: str = DEFAULT_LIVE_LEVEL2_ROOT,
+) -> tuple[TransportProbe | None, list[TransportProbe]]:
+    """Probe live and mapped arrays in order, stopping at exact equality."""
+    probes: list[TransportProbe] = []
+    for shot in shots:
+        mapped_path = level2_root / f"{shot}.zarr" / array_path
+        live_url = f"{live_root.rstrip('/')}/{shot}.zarr/{array_path}"
+        mapped_array = zarr.open_array(mapped_path, mode="r")
+        live_array = zarr.open_array(live_url, mode="r")
+        shapes_equal = mapped_array.shape == live_array.shape
+        arrays_identical = bool(
+            shapes_equal
+            and np.array_equal(
+                np.asarray(mapped_array[:]),
+                np.asarray(live_array[:]),
+            )
+        )
+        probe = TransportProbe(
+            shot=shot,
+            array_path=array_path,
+            live_url=live_url,
+            mapped_path=str(mapped_path),
+            live_shape=tuple(live_array.shape),
+            mapped_shape=tuple(mapped_array.shape),
+            arrays_identical=arrays_identical,
+        )
+        probes.append(probe)
+        print(
+            "TRANSPORT_PROBE " + json.dumps(asdict(probe), sort_keys=True),
+            flush=True,
+        )
+        if arrays_identical:
+            return probe, probes
+    return None, probes
+
+
+def run_transport_comparison(
+    output_log: Path,
+    level2_root: Path = DEFAULT_LEVEL2_ROOT,
+    shots: Sequence[int] | None = None,
+    probe_count: int = DEFAULT_TRANSPORT_PROBE_COUNT,
+    repetitions: int = 8,
+    array_path: str = "summary/ip",
+    live_root: str = DEFAULT_LIVE_LEVEL2_ROOT,
+    minimum_negative_probes: int = 20,
+) -> dict[str, Any]:
+    """Persist an identity-gated live-versus-mapped transport comparison."""
+    if output_log.exists():
+        raise FileExistsError(output_log)
+    output_log.parent.mkdir(parents=True, exist_ok=True)
+    candidate_shots = tuple(shots or mapped_shots(level2_root, array_path))[
+        :probe_count
+    ]
+    match, probes = find_matching_transport_payload(
+        level2_root,
+        candidate_shots,
+        array_path=array_path,
+        live_root=live_root,
+    )
+    if match is None and len(probes) < minimum_negative_probes:
+        raise ValueError(
+            "an unobtainable verdict requires at least "
+            f"{minimum_negative_probes} completed probes"
+        )
+
+    cells: list[TransportCell] = []
+    identity: dict[str, Any] | None = None
+    status = "unobtainable_without_mirror_refresh"
+    if match is not None:
+        print(
+            "TRANSPORT_TIMING_START "
+            + json.dumps(
+                {"shot": match.shot, "array_path": match.array_path},
+                sort_keys=True,
+            ),
+            flush=True,
+        )
+        cells, identity = measure_transport(
+            Path(match.mapped_path),
+            match.live_url,
+            repetitions,
+        )
+        status = "measured_identical_payload"
+
+    result = {
+        "schema": "imas-ambix-identical-payload-transport",
+        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "node": _node_identity(),
+        "environment": _package_versions(),
+        "status": status,
+        "identity_gate": {
+            "array_path": array_path,
+            "candidate_count": len(candidate_shots),
+            "completed_probe_count": len(probes),
+            "minimum_negative_probe_count": minimum_negative_probes,
+            "matching_shot": match.shot if match else None,
+            "agreement_printed_before_timing": match is not None,
+        },
+        "probes": [asdict(probe) for probe in probes],
+        "transport_cells": [asdict(cell) for cell in cells],
+        "transport": identity,
+        "measurement_contract": {
+            "timing_requires_shape_equality": True,
+            "timing_requires_np_array_equal": True,
+            "sample_unit": "one scalar array value returned to the process",
+            "throughput_formula": (
+                "actual accumulated sample_count / perf_counter wall_seconds"
+            ),
+            "assumed_rate_or_size_used": False,
+        },
     }
-    return cells, evidence
+    output_log.write_text(json.dumps(result, indent=2) + "\n")
+    return result
 
 
 def run_benchmark(
@@ -434,16 +582,26 @@ def run_benchmark(
     }
     cells = measure_access_patterns(config, readers, lengths)
 
-    transport_shot = config.shots[0]
-    local_array_path = level2_root / f"{transport_shot}.zarr/summary/ip"
-    remote_url = (
-        f"https://s3.echo.stfc.ac.uk/mast/level2/shots/{transport_shot}.zarr/summary/ip"
+    transport_match, transport_probes = find_matching_transport_payload(
+        level2_root,
+        config.shots,
     )
-    transport_cells, transport_evidence = measure_transport(
-        local_array_path,
-        remote_url,
-        config.transport_repetitions,
-    )
+    transport_cells: list[TransportCell] = []
+    transport_evidence: dict[str, Any] = {
+        "status": "unobtainable_without_mirror_refresh",
+        "probes": [asdict(probe) for probe in transport_probes],
+    }
+    if transport_match is not None:
+        transport_cells, identity = measure_transport(
+            Path(transport_match.mapped_path),
+            transport_match.live_url,
+            config.transport_repetitions,
+        )
+        transport_evidence = {
+            "status": "measured_identical_payload",
+            **identity,
+            "probes": [asdict(probe) for probe in transport_probes],
+        }
 
     versions = _package_versions()
     base_methods = {
@@ -503,14 +661,33 @@ def run_benchmark(
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-log", type=Path, required=True)
-    parser.add_argument("--payload-root", type=Path, required=True)
+    parser.add_argument("--payload-root", type=Path)
     parser.add_argument("--level2-root", type=Path, default=DEFAULT_LEVEL2_ROOT)
+    parser.add_argument("--transport-only", action="store_true")
+    parser.add_argument(
+        "--transport-probe-count",
+        type=int,
+        default=DEFAULT_TRANSPORT_PROBE_COUNT,
+    )
+    parser.add_argument("--transport-repetitions", type=int, default=8)
     return parser
 
 
 def main() -> None:
     args = _parser().parse_args()
-    result = run_benchmark(args.output_log, args.payload_root, args.level2_root)
+    if args.transport_only:
+        result = run_transport_comparison(
+            args.output_log,
+            level2_root=args.level2_root,
+            probe_count=args.transport_probe_count,
+            repetitions=args.transport_repetitions,
+        )
+    else:
+        if args.payload_root is None:
+            raise SystemExit(
+                "--payload-root is required unless --transport-only is set"
+            )
+        result = run_benchmark(args.output_log, args.payload_root, args.level2_root)
     print(json.dumps(result, indent=2))
 
 
