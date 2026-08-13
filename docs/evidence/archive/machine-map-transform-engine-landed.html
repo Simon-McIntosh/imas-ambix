@@ -191,16 +191,60 @@
   pass; <code>git diff --check</code> clean. Receipt:
   <code>engine_count=2, machine_name_conditional_count=0</code>.</p>
 
-  <h3 id="s2-dd-bindings">The ten, resolved: qualified, not rebound</h3>
-  <p><strong>None of the ten could be rebound. All ten became explicit qualifications, and the
-  zarr/netCDF format gap closed from 10 to 0.</strong> Commit <code>12661d1</code>; 2 tests added;
+  <h3 id="s2-dd-bindings">The ten: qualified, then RETRACTED</h3>
+  <p class="note"><strong>⚠ Superseded 2026-08-13. The verdict below is wrong and is retained
+  only as the record of a corrected error.</strong> Nine of the ten arrays <em>are</em>
+  representable in DD 4.1.1 — see <a href="#s2-saddle-retraction">the retraction</a>.</p>
+  <p><s>None of the ten could be rebound. All ten became explicit qualifications</s>, and the
+  zarr/netCDF format gap closed from 10 to 0. Commit <code>12661d1</code>; 2 tests added;
   schema 1.1.0 adds a <code>SourceQualification</code> class.</p>
-  <p>The Data Dictionary simply has no home for them. DD 4.1.1 carries no saddle-probe outline or
-  contour leaf, and <code>b_field_phi_probe/position/r|z|phi</code> are <code>FLT_0D</code> leaves
-  under each probe, so they cannot accept the nine (12, 28) outline arrays;
-  <code>b_field_phi_probe/position</code> is a <code>STRUCTURE</code> and offers no writable leaf
-  for the 28-element outline coordinate. Qualifying them is the correct answer rather than a
-  concession — a binding invented to make the count come out even would be a fiction.</p>
+  <p><s>The Data Dictionary simply has no home for them. DD 4.1.1 carries no saddle-probe outline
+  or contour leaf, and <code>b_field_phi_probe/position/r|z|phi</code> are <code>FLT_0D</code>
+  leaves under each probe, so they cannot accept the nine (12, 28) outline arrays.</s></p>
+
+  <h3 id="s2-saddle-retraction">Retraction: a saddle loop is a flux loop, not a field probe</h3>
+  <p><strong>The nine saddle arrays were qualified against the wrong Data Dictionary structure.</strong>
+  The search that produced the verdict looked under <code>b_field_tor_probe</code> and
+  <code>b_field_phi_probe</code>, following the MAST source names, and correctly found nothing
+  there. It never asked whether a saddle belongs somewhere else in the DD. It does.</p>
+  <table>
+    <caption>The representation that exists</caption>
+    <thead><tr><th>DD path</th><th>Type</th><th>What it gives</th></tr></thead>
+    <tbody>
+      <tr><td><code>magnetics/flux_loop/type</code></td>
+          <td><code>magnetics_flux_loop_type_identifier</code></td>
+          <td>option <strong>2 = <code>saddle</code></strong> (beside 1 = <code>poloidal_flux</code>,
+              3–5 diamagnetic, 6 differential)</td></tr>
+      <tr><td><code>magnetics/flux_loop/position</code></td>
+          <td><code>STRUCT_ARRAY</code>, 1…N</td>
+          <td>"coordinated list of physical points (R, Z, phi) defining the spatial trajectory" —
+              a multi-point loop, not a single location</td></tr>
+      <tr><td><code>…/position/r</code>, <code>/z</code>, <code>/phi</code></td>
+          <td><code>FLT_0D</code> each</td>
+          <td>per-point coordinates, so an (N&nbsp;loops × M&nbsp;points) source is representable</td></tr>
+    </tbody>
+  </table>
+  <p>So a flux loop in the DD is <em>either</em> a full toroidal loop <em>or</em> a saddle,
+  distinguished by its type identifier — and the trajectory structure that the earlier search
+  concluded was missing is exactly what <code>flux_loop/position</code> provides. The correct
+  binding is <code>magnetics/flux_loop[]/position[]/{r,z,phi}</code> with
+  <code>type/index = 2</code>, and the nine <code>SourceQualification</code> records are being
+  removed.</p>
+  <p><strong>The 30 <code>pf_passive</code> shape-angle arrays were about to repeat the same
+  mistake</strong> and were caught before commit. DD 4.1.1 models a parallelogram directly:
+  <code>pf_passive/loop/element/geometry/oblique</code> carries <code>alpha</code> and
+  <code>beta</code> inclination angles with <code>length_alpha</code>, <code>length_beta</code>,
+  <code>r</code>, <code>z</code> and <code>thickness</code>, selected by
+  <code>geometry/geometry_type</code>. A slanted passive element is an oblique element with a beta
+  angle. (Documentation quirk to bind around: <code>alpha</code> and <code>beta</code> are
+  annotated with units <code>m</code> although they are angles.)</p>
+  <p><strong>What this says about the method, not just the result.</strong> "Unrepresentable in the
+  DD" was asserted twice from a search anchored on the source's own naming. Both times the DD had a
+  representation under a different concept — a saddle filed as a loop type, a parallelogram filed as
+  an oblique primitive. A negative representability claim is only as good as the concepts searched,
+  so it needs an explicit search of the DD's own vocabulary before it is recorded, not a failure to
+  find the source name. The full-corpus writable-leaf test remains correct and valuable; it proves a
+  declared target is representable, and never that no target exists.</p>
   <table>
     <caption>MAST catalog after correction — every observed array accounted for</caption>
     <thead><tr><th></th><th>magnetics</th><th>pf_active</th><th>wall</th><th>total</th></tr></thead>
