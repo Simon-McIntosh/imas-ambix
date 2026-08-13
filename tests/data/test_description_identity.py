@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from itertools import islice
 
 import pytest
 
@@ -11,31 +12,43 @@ from imas_ambix.data.description_identity import (
     geometry_description_for_transition,
     machine_description_bytes,
 )
+from imas_ambix.data.geometry_transitions import (
+    GeometryTransition,
+    build_geometry_transitions,
+    load_geometry_table_payload,
+)
 from imas_ambix.data.machine_map import load_packaged_machine_map
+from imas_ambix.data.manifest import load_index
 from imas_ambix.data.paths import LEVEL2_DIR, MANIFEST_DIR
 from imas_ambix.data.transform_engine import transform_machine_description
 
 CORPUS_MANIFEST = MANIFEST_DIR / "level2-all.json"
 GEOMETRY_TABLE = MANIFEST_DIR / "gs_geometry_tables.json"
 DETERMINISM_SHOTS = (11_766, 12_417, 12_533, 12_906, 30_471)
-PARTITION_SAMPLES = (
-    (11_766, 11_767),
-    (12_417, 12_418),
-    (12_533, 12_534),
-    (12_563, 12_564),
-    (12_878, 12_881),
-    (12_906, 12_909),
-    (12_964, 12_965),
-    (12_990, 12_991),
-    (13_021, 13_022),
-    (13_049, 13_050),
-    (13_379, 13_380),
-)
 
 
 def _corpus_shots() -> tuple[int, ...]:
     payload = json.loads(CORPUS_MANIFEST.read_text())
     return tuple(int(shot) for shot in payload["shot_ids"])
+
+
+def _declared_transitions(corpus: tuple[int, ...]) -> tuple[GeometryTransition, ...]:
+    return build_geometry_transitions(
+        corpus,
+        load_index(),
+        load_geometry_table_payload(GEOMETRY_TABLE),
+    )
+
+
+def _partition_samples(
+    corpus: tuple[int, ...], transitions: tuple[GeometryTransition, ...]
+) -> tuple[tuple[int, ...], ...]:
+    samples = tuple(
+        tuple(islice((shot for shot in corpus if transition.contains(shot)), 2))
+        for transition in transitions
+    )
+    assert all(len(range_samples) == 2 for range_samples in samples)
+    return samples
 
 
 def _emit(shot: int):
@@ -78,8 +91,13 @@ def test_description_versions_partition_the_real_corpus_consistently():
     catalog = load_packaged_machine_map("mast")
     corpus = _corpus_shots()
     maps = catalog.maps
+    transitions = _declared_transitions(corpus)
+    partition_samples = _partition_samples(corpus, transitions)
 
-    assert len(maps) == len(PARTITION_SAMPLES) == 11
+    assert [(item.first_shot, item.last_shot, item.transition) for item in maps] == [
+        (item.first_shot, item.last_shot, item.name) for item in transitions
+    ]
+    assert len(maps) == len(transitions) == len(partition_samples)
     assert maps[0].first_shot == min(corpus)
     assert maps[-1].last_shot == max(corpus)
     assert all(
@@ -92,7 +110,7 @@ def test_description_versions_partition_the_real_corpus_consistently():
     )
 
     sampled_shots = 0
-    for machine_map, samples in zip(maps, PARTITION_SAMPLES, strict=True):
+    for machine_map, samples in zip(maps, partition_samples, strict=True):
         first = _emit(samples[0])
         assert first.machine_map == machine_map
         first_bytes = machine_description_bytes(first)
@@ -105,7 +123,7 @@ def test_description_versions_partition_the_real_corpus_consistently():
         assert first_bytes == second_bytes
         sampled_shots += len(samples)
 
-    assert sampled_shots == 22
+    assert sampled_shots == sum(len(samples) for samples in partition_samples)
     print(
         "PARTITION_CONSISTENCY "
         f"corpus_shots={len(corpus)} ranges={len(maps)} "
@@ -120,10 +138,21 @@ def test_description_versions_partition_the_real_corpus_consistently():
 def test_every_declared_boundary_has_a_visible_description_change():
     catalog = load_packaged_machine_map("mast")
     corpus = _corpus_shots()
+    transitions = _declared_transitions(corpus)
     geometry_payload = json.loads(GEOMETRY_TABLE.read_text())
     changed_counts: list[int] = []
+    map_boundaries = tuple(zip(catalog.maps, catalog.maps[1:], strict=False))
+    transition_boundaries = tuple(zip(transitions, transitions[1:], strict=False))
 
-    for before_map, after_map in zip(catalog.maps, catalog.maps[1:], strict=False):
+    assert [
+        (item.first_shot, item.last_shot, item.transition) for item in catalog.maps
+    ] == [(item.first_shot, item.last_shot, item.name) for item in transitions]
+    assert len(map_boundaries) == len(transition_boundaries)
+
+    # Shot 12417 is the only boundary whose element count stays 1004 -> 1004
+    # while its outline moves 0.0217 m, so it survives the discretisation filter
+    # that removes the 1004 -> 938 alternations.
+    for before_map, after_map in map_boundaries:
         before_shot = max(shot for shot in corpus if shot <= before_map.last_shot)
         after_shot = min(shot for shot in corpus if shot >= after_map.first_shot)
         emitted_before_map = _emit(before_shot).machine_map
@@ -147,8 +176,8 @@ def test_every_declared_boundary_has_a_visible_description_change():
             f"fields={','.join(changes)}"
         )
 
-    assert len(changed_counts) == 10
-    assert min(changed_counts) > 0
+    assert len(changed_counts) == len(transition_boundaries)
+    assert all(changed_counts)
     print(
         "VISIBLE_CHANGE_SUMMARY "
         f"boundaries={len(changed_counts)} changed_field_counts={changed_counts}"
