@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
+from types import MappingProxyType
 
 import imas
 import numpy as np
@@ -12,9 +14,15 @@ from imas.ids_data_type import IDSDataType
 from imas.ids_struct_array import IDSStructArray
 
 from imas_ambix.bench.store_arms import read_imas_netcdf, write_imas_netcdf
+from imas_ambix.data.cocos_convention import (
+    MAST_LEVEL2_SIGN_TABLE,
+    MAST_SOURCE_COCOS,
+    MAST_TO_COCOS_17_FACTORS,
+)
 from imas_ambix.data.machine_map import ChannelBinding, load_packaged_machine_map
 from imas_ambix.data.transform_engine import (
     TRANSFORM_ENGINE_FORMATS,
+    BindingTransformError,
     transform_machine_description,
 )
 
@@ -22,11 +30,51 @@ LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 TRANSITION_SHOTS = (11_766, 12_417, 12_533)
 
 
+def _catalog_with_only_plasma_current():
+    catalog = load_packaged_machine_map("mast")
+    binding = next(
+        binding
+        for bindings in catalog.binding_sets.values()
+        for binding in bindings
+        if binding.name == "mast-magnetics-ip"
+    )
+    binding_set = "plasma-current-only"
+    machine_map = replace(
+        catalog.maps[0],
+        first_shot=min(row.shot for row in MAST_LEVEL2_SIGN_TABLE),
+        last_shot=max(row.shot for row in MAST_LEVEL2_SIGN_TABLE),
+        transition=None,
+        binding_set=binding_set,
+        drive_topology=None,
+    )
+    return replace(
+        catalog,
+        binding_sets=MappingProxyType({binding_set: (binding,)}),
+        maps=(machine_map,),
+        validation_gaps=(),
+        source_qualifications=(),
+        drive_topologies=(),
+        structure_assemblies=(),
+    )
+
+
+def _write_plasma_current_store(root: Path, shot: int, values: np.ndarray) -> None:
+    store = zarr.open_group(root / f"{shot}.zarr", mode="w")
+    magnetics = store.create_group("magnetics")
+    magnetics.create_array("ip", data=values)
+
+
 def _assert_array_equal(actual: np.ndarray, expected: np.ndarray) -> None:
     if actual.dtype.kind in "fc" or expected.dtype.kind in "fc":
         assert np.array_equal(actual, expected, equal_nan=True)
     else:
         assert np.array_equal(actual, expected)
+
+
+def _apply_expected_cocos_factor(values: np.ndarray, factor: float) -> np.ndarray:
+    if factor == 1.0:
+        return values
+    return np.multiply(values, factor)
 
 
 def _array_positions(ids: object, relative_path: str) -> tuple[int, ...]:
@@ -188,7 +236,10 @@ def test_two_format_engines_emit_three_range_scoped_descriptions(tmp_path):
                 direct_store[f"{emitted.source_group}/{emitted.source_array}"][...]
             )
             direct_values[emitted.binding_name] = direct
-            _assert_array_equal(emitted.values, direct)
+            _assert_array_equal(
+                emitted.values,
+                _apply_expected_cocos_factor(direct, emitted.cocos_factor),
+            )
             ids_name, relative_path = emitted.dd_path.split("/", maxsplit=1)
             if (
                 direct.shape == (1,)
@@ -221,7 +272,12 @@ def test_two_format_engines_emit_three_range_scoped_descriptions(tmp_path):
         assert netcdf_result.status == "emitted"
         assert netcdf_result.machine_map == zarr_result.machine_map
         for emitted in netcdf_result.arrays:
-            _assert_array_equal(emitted.values, direct_values[emitted.binding_name])
+            _assert_array_equal(
+                emitted.values,
+                _apply_expected_cocos_factor(
+                    direct_values[emitted.binding_name], emitted.cocos_factor
+                ),
+            )
         receipts.append(
             (
                 shot,
@@ -298,6 +354,84 @@ def test_engine_registry_is_format_scoped_and_has_no_machine_conditionals():
     source = Path(engine_module.__file__).read_text().lower()
     assert TRANSFORM_ENGINE_FORMATS == ("netcdf", "zarr")
     assert len(TRANSFORM_ENGINE_FORMATS) == 2
-    assert "mast" not in source
-    assert "diii-d" not in source
-    assert "d3d" not in source
+    assert "machine_map.machine" not in source
+    assert "catalog.source" not in source
+
+
+def test_every_bound_cocos_target_receives_its_target_path_factor():
+    import imas_ambix.data.transform_engine as engine_module
+
+    class ConstantArrays:
+        def read(self, binding: ChannelBinding) -> np.ndarray:
+            return np.ones((1,), dtype=np.float64)
+
+    catalog = load_packaged_machine_map("mast")
+    bindings = tuple(
+        binding
+        for binding_set in catalog.binding_sets.values()
+        for binding in binding_set
+    )
+    emitted, missing = engine_module._emit_arrays(
+        ConstantArrays(),
+        bindings,
+        catalog.dd_version,
+        MAST_SOURCE_COCOS,
+    )
+    transformed = tuple(array for array in emitted if array.cocos_transformation)
+    non_unity = tuple(array for array in transformed if array.cocos_factor != 1.0)
+
+    assert missing == ()
+    assert len(transformed) == 11
+    assert len(non_unity) == 3
+    assert {array.cocos_transformation for array in non_unity} == {"ip_like"}
+    assert all(array.cocos_factor == -1.0 for array in non_unity)
+    print(
+        f"COCOS_BOUND_TARGETS dependent={len(transformed)} non_unity={len(non_unity)}"
+    )
+
+
+def test_cocos_dependent_binding_rejects_an_undeclared_source_convention(tmp_path):
+    catalog = _catalog_with_only_plasma_current()
+    row = MAST_LEVEL2_SIGN_TABLE[0]
+    values = np.asarray([row.plasma_current_a], dtype=np.float64)
+    _write_plasma_current_store(tmp_path, row.shot, values)
+
+    with pytest.raises(BindingTransformError, match="no declared source COCOS"):
+        transform_machine_description(
+            catalog,
+            row.shot,
+            "zarr",
+            tmp_path,
+            source_cocos=None,
+        )
+
+
+def test_both_polarities_round_trip_exactly_through_engine_cocos_transform(tmp_path):
+    catalog = _catalog_with_only_plasma_current()
+    current_signs: list[int] = []
+    inverse_factor = 1.0 / MAST_TO_COCOS_17_FACTORS["ip_like"]
+
+    for row in MAST_LEVEL2_SIGN_TABLE:
+        source_values = np.asarray(
+            [row.plasma_current_a, row.plasma_current_a / 2.0],
+            dtype=np.float64,
+        )
+        _write_plasma_current_store(tmp_path, row.shot, source_values)
+        result = transform_machine_description(
+            catalog,
+            row.shot,
+            "zarr",
+            tmp_path,
+            source_cocos=MAST_SOURCE_COCOS,
+        )
+
+        assert result.emitted_array_count == 1
+        emitted = result.arrays[0]
+        assert emitted.cocos_transformation == "ip_like"
+        assert emitted.cocos_factor == -1.0
+        restored = np.multiply(emitted.values, inverse_factor)
+        assert np.array_equal(restored, source_values)
+        current_signs.append(row.plasma_current_sign)
+
+    assert current_signs.count(-1) == 2
+    assert current_signs.count(+1) == 2

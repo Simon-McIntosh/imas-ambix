@@ -14,6 +14,13 @@ from imas_ambix.cocos import (
     project_poloidal_field,
     require_canonical_contract,
 )
+from imas_ambix.data.cocos_convention import (
+    MAST_SOURCE_COCOS as MEASURED_MAST_SOURCE_COCOS,
+)
+
+MEASURED_CONVENTION_RECEIPT = (
+    "the four-shot FAIR-MAST level-2 sign receipt selects COCOS-4"
+)
 
 
 def test_only_an_exact_ddv4_pin_and_cocos_seventeen_are_canonical():
@@ -28,12 +35,19 @@ def test_only_an_exact_ddv4_pin_and_cocos_seventeen_are_canonical():
 
 
 def test_mast_scalar_factors_land_on_cocos_seventeen():
+    assert MAST_SOURCE_COCOS == MEASURED_MAST_SOURCE_COCOS, MEASURED_CONVENTION_RECEIPT
     psi_factor = canonical_factor("psi_like", source_cocos=MAST_SOURCE_COCOS)
     derivative_factor = canonical_factor("dodpsi_like", source_cocos=MAST_SOURCE_COCOS)
-    assert psi_factor == pytest.approx(2.0 * np.pi)
-    assert derivative_factor == pytest.approx(1.0 / (2.0 * np.pi))
-    assert canonical_factor("q_like", source_cocos=MAST_SOURCE_COCOS) == -1.0
-    assert canonical_factor("ip_like", source_cocos=MAST_SOURCE_COCOS) == 1.0
+    assert psi_factor == pytest.approx(-2.0 * np.pi), MEASURED_CONVENTION_RECEIPT
+    assert derivative_factor == pytest.approx(-1.0 / (2.0 * np.pi)), (
+        MEASURED_CONVENTION_RECEIPT
+    )
+    assert canonical_factor("q_like", source_cocos=MAST_SOURCE_COCOS) == 1.0, (
+        MEASURED_CONVENTION_RECEIPT
+    )
+    assert canonical_factor("ip_like", source_cocos=MAST_SOURCE_COCOS) == -1.0, (
+        MEASURED_CONVENTION_RECEIPT
+    )
 
 
 def test_mast_probe_axis_is_converted_without_changing_its_directed_field():
@@ -65,12 +79,16 @@ def test_both_mast_field_polarities_satisfy_the_canonical_sign_identities(
     q: float,
 ):
     psi_scale = canonical_factor("psi_like", source_cocos=MAST_SOURCE_COCOS)
+    ip_scale = canonical_factor("ip_like", source_cocos=MAST_SOURCE_COCOS)
     q_scale = canonical_factor("q_like", source_cocos=MAST_SOURCE_COCOS)
     canonical_axis = psi_axis * psi_scale
     canonical_boundary = psi_boundary * psi_scale
+    canonical_ip = ip * ip_scale
     canonical_q = q * q_scale
 
-    sigma_bp = int(np.sign(canonical_boundary - canonical_axis) * np.sign(ip))
-    sigma_rho_theta_phi = int(np.sign(canonical_q) * np.sign(ip) * np.sign(b0))
+    sigma_bp = int(np.sign(canonical_boundary - canonical_axis) * np.sign(canonical_ip))
+    sigma_rho_theta_phi = int(
+        np.sign(canonical_q) * np.sign(canonical_ip) * np.sign(b0)
+    )
     assert sigma_bp == -1
     assert sigma_rho_theta_phi == 1

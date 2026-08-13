@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections import defaultdict
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Protocol, Self
@@ -19,6 +20,10 @@ import numpy as np
 import zarr
 from imas.ids_struct_array import IDSStructArray
 
+from imas_ambix.data.cocos_convention import (
+    MAST_SOURCE_COCOS,
+    MAST_TO_COCOS_17_FACTORS,
+)
 from imas_ambix.data.machine_map import (
     ChannelBinding,
     MachineMap,
@@ -70,6 +75,8 @@ class EmittedArray:
     dd_path: str
     source_unit: str
     target_unit: str
+    cocos_transformation: str | None
+    cocos_factor: float
     values: np.ndarray
 
 
@@ -81,6 +88,7 @@ class MachineDescription:
     store_format: str
     machine_map: MachineMap
     dd_version: str
+    source_cocos: int | None
     status: str
     arrays: tuple[EmittedArray, ...]
     missing_bindings: tuple[str, ...]
@@ -264,8 +272,58 @@ def _apply_sign_convention(values: np.ndarray, binding: ChannelBinding) -> np.nd
     return emitted
 
 
+@cache
+def _target_cocos_transformation(dd_version: str, dd_path: str) -> str | None:
+    """Resolve the nearest COCOS class declared on a DD target or its parents."""
+
+    ids_name, relative_path = dd_path.split("/", maxsplit=1)
+    metadata = imas.IDSFactory(dd_version).new(ids_name).metadata
+    components = relative_path.split("/")
+    for size in range(len(components), 0, -1):
+        node = metadata["/".join(components[:size])]
+        transformation = getattr(node, "cocos_label_transformation", None)
+        if transformation:
+            return str(transformation)
+    return None
+
+
+def _apply_cocos_convention(
+    values: np.ndarray,
+    binding: ChannelBinding,
+    dd_version: str,
+    source_cocos: int | None,
+) -> tuple[np.ndarray, str | None, float]:
+    transformation = _target_cocos_transformation(dd_version, binding.dd_path)
+    if transformation is None:
+        return values, None, 1.0
+    if source_cocos is None:
+        raise BindingTransformError(
+            f"binding {binding.name!r} targets COCOS-dependent DD path "
+            f"{binding.dd_path!r} ({transformation}) but has no declared source "
+            "COCOS convention"
+        )
+    if int(source_cocos) != MAST_SOURCE_COCOS:
+        raise BindingTransformError(
+            f"binding {binding.name!r} declares source COCOS {source_cocos!r}; "
+            f"the committed source factors describe COCOS {MAST_SOURCE_COCOS}"
+        )
+    try:
+        factor = float(MAST_TO_COCOS_17_FACTORS[transformation])
+    except KeyError as error:
+        raise BindingTransformError(
+            f"binding {binding.name!r} targets unsupported COCOS transformation "
+            f"{transformation!r} at {binding.dd_path!r}"
+        ) from error
+    emitted = np.multiply(values, factor)
+    emitted.setflags(write=False)
+    return emitted, transformation, factor
+
+
 def _emit_arrays(
-    source: StoreArrays, bindings: tuple[ChannelBinding, ...]
+    source: StoreArrays,
+    bindings: tuple[ChannelBinding, ...],
+    dd_version: str,
+    source_cocos: int | None,
 ) -> tuple[tuple[EmittedArray, ...], tuple[str, ...]]:
     emitted: list[EmittedArray] = []
     missing: list[str] = []
@@ -275,6 +333,13 @@ def _emit_arrays(
         except KeyError:
             missing.append(binding.name)
             continue
+        signed_values = _apply_sign_convention(values, binding)
+        transformed_values, transformation, factor = _apply_cocos_convention(
+            signed_values,
+            binding,
+            dd_version,
+            source_cocos,
+        )
         emitted.append(
             EmittedArray(
                 binding_name=binding.name,
@@ -283,7 +348,9 @@ def _emit_arrays(
                 dd_path=binding.dd_path,
                 source_unit=binding.source_unit,
                 target_unit=binding.target_unit,
-                values=_apply_sign_convention(values, binding),
+                cocos_transformation=transformation,
+                cocos_factor=factor,
+                values=transformed_values,
             )
         )
     return tuple(emitted), tuple(missing)
@@ -294,6 +361,8 @@ def transform_machine_description(
     shot: int,
     store_format: str,
     store_root: Path | str,
+    *,
+    source_cocos: int | None = MAST_SOURCE_COCOS,
 ) -> MachineDescription:
     """Select a map by shot and emit its available arrays through one engine.
 
@@ -308,13 +377,19 @@ def transform_machine_description(
     bindings = catalog.bindings_for(machine_map)
     try:
         with engine.open(store_root, shot_id, catalog.dd_version) as source:
-            arrays, missing = _emit_arrays(source, bindings)
+            arrays, missing = _emit_arrays(
+                source,
+                bindings,
+                catalog.dd_version,
+                source_cocos,
+            )
     except SourceUnavailableError as error:
         return MachineDescription(
             shot=shot_id,
             store_format=engine.format_name,
             machine_map=machine_map,
             dd_version=catalog.dd_version,
+            source_cocos=source_cocos,
             status="source-unavailable",
             arrays=(),
             missing_bindings=tuple(binding.name for binding in bindings),
@@ -326,6 +401,7 @@ def transform_machine_description(
         store_format=engine.format_name,
         machine_map=machine_map,
         dd_version=catalog.dd_version,
+        source_cocos=source_cocos,
         status="emitted",
         arrays=arrays,
         missing_bindings=missing,

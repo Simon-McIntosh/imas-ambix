@@ -25,8 +25,8 @@ CANONICAL_COCOS = 17
 CANONICAL_DD_MAJOR = 4
 """Data Dictionary major version served by Ambix."""
 
-MAST_SOURCE_COCOS = 3
-"""Measured convention of the FAIR-MAST equilibrium reconstruction."""
+MAST_SOURCE_COCOS = 4
+"""Convention selected by the four-shot FAIR-MAST level-2 sign receipt."""
 
 _DD_VERSION = re.compile(r"^(?P<major>[0-9]+)\.(?P<minor>[0-9]+)\.(?P<patch>[0-9]+)$")
 
