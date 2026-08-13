@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-11T21:29:00",
+  "updated": "2026-08-13T08:47:10",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
@@ -760,6 +760,44 @@
         "starts": "2026-10-12",
         "ends": "2026-11-08",
         "description": "Exercise leave-one-machine-out transfer, then bind the validated Nova-led estimator to ITER geometry and proposed coil/actuator trajectories. Produce uncertainty-aware equilibrium and diagnostic scenario ensembles plus a first-shot innovation update playbook."
+      },
+      {
+        "id": "S22",
+        "status": "planned",
+        "theme": "Machine description as data \u2014 measured stores, declared maps, one transform engine",
+        "items": [
+          {
+            "slug": "training-store-read-benchmark",
+            "why_now": "Every other property of a store is affordable only if it keeps four H200s fed; the format decision must be made on measured read rates, not on which container is most standard.",
+            "done_when": "Three arms measured across four access patterns plus the live-versus-mapped transport comparison on one node class, the IDSTensorizer subclassing seam verified or refuted, and a proposal naming a storage format for machine description and for experimental data separately with the numbers that decide each.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "general",
+              "requirements": {
+                "reasoning": "deep",
+                "verification": "strict"
+              }
+            }
+          },
+          {
+            "slug": "machine-map-transform-engine",
+            "why_now": "A reader per machine re-derives storage, semantics and reshaping every time; declared maps plus format-scoped engines make machines and stores vary independently, and the per-campaign geometry table and shot manifest already carry half of what this needs.",
+            "done_when": "A LinkML machine-map schema with MAST and DIII-D maps, transform engines for the formats the benchmark selected, the shot manifest extended with named geometry transitions, the three identity assertions tested over a real multi-campaign corpus, and description emitted for both machines through one code path with no machine-specific reader left.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "general",
+              "requirements": {
+                "reasoning": "deep",
+                "verification": "strict"
+              }
+            }
+          }
+        ],
+        "starts": "2026-08-17",
+        "ends": "2026-09-13",
+        "description": "Move machine-description production out of the physics solver and into a data layer that is measured before it is built. First the read-rate evidence: what IMAS-netCDF, zarr carrying DD-path metadata, and the native level-2 form each cost the GPU training path, for static description and streamed experimental data separately. Then the producer that evidence licenses: declared machine maps applied by transform engines scoped to store format, so adding a machine costs a map and adding a store costs one engine. Geometry stays a function of shot through named transitions in the shot manifest, and identity is asserted as determinism, partition consistency and visible change rather than a global digest a changing machine cannot satisfy. Supersedes the intent of the dangling mast-machine-configuration-map item in S17."
       }
     ],
     "blockers": [
@@ -861,6 +899,11 @@
         "when": "2026-08-11",
         "who": "Simon McIntosh",
         "what": "Sophelio challenge entry committed as an ITER-pipeline rehearsal. Sprint S21 created beside nova S10. Doctrine locked: derivative-level firewall, FAIR-MAST usage boundary, sealed zero-shot rehearsal, quarantined referee layer."
+      },
+      {
+        "when": "2026-08-13",
+        "who": "Simon McIntosh (via reckon-create)",
+        "what": "S22 created \u2014 machine description moves out of nova and becomes a measured, map-driven data layer here. Investigation established the premise: nova's artifact tooling writes only a local content-addressed cache, no machine-description package exists in the registry, and the consumer resolves geometry by importing nova's packaged registry through a git pin 202 commits stale. Benchmark gates the producer because the format decision is a read-rate question, not a standards question. Pairs with nova S11, which retires the surfaces this replaces."
       }
     ],
     "milestones": [
@@ -877,6 +920,6 @@
         "pct": 0
       }
     ],
-    "_version": 38
+    "_version": 39
   }
 }

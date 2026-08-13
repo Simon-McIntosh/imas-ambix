@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="machine-map-transform-engine">
+  <meta name="plan-title"     content="Machine Maps and the Transform Engine">
+  <meta name="plan-summary"   content="Replace machine-specific readers with declared machine maps applied by generic transform engines scoped to store format, so adding a machine costs a map and adding a store costs one engine; geometry stays a function of shot through named transitions in the shot manifest.">
+  <meta name="plan-status"    content="draft">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="L">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint"    content="S22">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="training-store-read-benchmark">
+  <title>Machine Maps and the Transform Engine | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — A reader per machine does not scale; a map per machine does</h2>
+    <p>Machine-specific readers put the same three concerns — where the bytes live, what the
+    channels mean, and how to reshape them — into one module per machine, so every new machine
+    re-derives all three and every store change is edited in as many places as there are
+    machines. The alternative separates them: <strong>a machine map declares what a machine's
+    channels mean</strong>, and <strong>a transform engine, written once per store format,
+    applies any map</strong>. Adding a machine becomes authoring a map. Adding a store becomes
+    writing one engine. Neither costs the other anything.</p>
+    <figure>
+      <svg viewBox="0 0 760 210" role="img" style="max-width:100%;height:auto;font-family:system-ui">
+        <text x="80" y="24" font-size="13" fill="#111">machine maps (declared)</text>
+        <rect x="20" y="36" width="150" height="30" fill="none" stroke="#555" stroke-width="1"/>
+        <text x="95" y="56" text-anchor="middle" font-size="12.5" fill="#111">MAST</text>
+        <rect x="20" y="76" width="150" height="30" fill="none" stroke="#555" stroke-width="1"/>
+        <text x="95" y="96" text-anchor="middle" font-size="12.5" fill="#111">DIII-D</text>
+        <rect x="20" y="116" width="150" height="30" fill="none" stroke="#555" stroke-width="1" stroke-dasharray="4 3"/>
+        <text x="95" y="136" text-anchor="middle" font-size="12.5" fill="#555">next machine</text>
+
+        <text x="300" y="24" font-size="13" fill="#111">transform engines (one per format)</text>
+        <rect x="300" y="36" width="150" height="30" fill="none" stroke="#0a6" stroke-width="1.5"/>
+        <text x="375" y="56" text-anchor="middle" font-size="12.5" fill="#111">zarr</text>
+        <rect x="300" y="76" width="150" height="30" fill="none" stroke="#0a6" stroke-width="1.5"/>
+        <text x="375" y="96" text-anchor="middle" font-size="12.5" fill="#111">netCDF</text>
+        <rect x="300" y="116" width="150" height="30" fill="none" stroke="#0a6" stroke-width="1.5"/>
+        <text x="375" y="136" text-anchor="middle" font-size="12.5" fill="#111">parquet / S3</text>
+
+        <rect x="580" y="76" width="160" height="30" fill="none" stroke="#555" stroke-width="1"/>
+        <text x="660" y="96" text-anchor="middle" font-size="12.5" fill="#111">DD-shaped output</text>
+
+        <line x1="172" y1="51" x2="298" y2="51" stroke="#111" stroke-width="1"/>
+        <line x1="172" y1="91" x2="298" y2="91" stroke="#111" stroke-width="1"/>
+        <line x1="172" y1="131" x2="298" y2="131" stroke="#111" stroke-width="1"/>
+        <line x1="452" y1="91" x2="578" y2="91" stroke="#111" stroke-width="1"/>
+        <polygon points="578,91 570,87 570,95" fill="#111"/>
+        <text x="225" y="170" font-size="11.5" fill="#555">any map × any engine</text>
+      </svg>
+      <figcaption>Maps and engines vary independently: a machine is added on the left, a store
+      on the right, and the cross product needs no new code.</figcaption>
+    </figure>
+
+    <h2 id="s2">§2 — What a map declares, and what it must not become</h2>
+    <p>A map binds each machine channel to its Data Dictionary path, its units and sign
+    convention, and the source location in the store. It is declarative and validated against a
+    LinkML schema, following the precedent already in-house for diagnostic corrections.</p>
+    <p><strong>The risk worth naming up front:</strong> maps that need conditionals — "this
+    channel means one thing before shot N and another after" — stop being data and become a small
+    language, and small languages in schemas are worse than code. This is not hypothetical here,
+    because geometry genuinely changes across and within campaigns. The design rule is therefore
+    that <em>a map is valid for a stated shot range</em>, and change is expressed by having more
+    than one map, never by a conditional inside one. If that rule proves insufficient, the finding
+    is that maps need code beside them, and it should be recorded rather than absorbed by
+    complicating the schema.</p>
+
+    <h2 id="s3">§3 — Geometry is a function of shot, and the manifest already half-knows it</h2>
+    <p>Two pieces already exist and are extended rather than replaced.
+    <code>imas_ambix/gs/geometry.py</code> is a per-campaign machine-geometry table that reads
+    only EFIT's static setup arrays, with a mechanical and auditable discriminator separating
+    that a-priori from reconstructed output; <code>read_efm_geometry(shot_id)</code> already
+    resolves geometry <em>by shot</em>. And the FAIR-MAST shot manifest already carries a campaign
+    column per shot.</p>
+    <p>What is missing is the transition: the manifest records which campaign a shot belongs to
+    but not where the machine's geometry actually changed. This plan extends the manifest to name
+    geometry transitions, so a description is selected by shot through a declared boundary
+    rather than by a convention held in someone's head. The transitions work lands
+    <strong>before</strong> the map schema hardens, because it is the most likely source of the
+    conditional pressure §2 warns about.</p>
+
+    <h2 id="s4">§4 — Identity, without a global digest</h2>
+    <p>A machine that changes has no single identity, so asserting "same machine" globally is the
+    wrong test and is what made the previous digest scheme need repeated cutovers. Three
+    assertions replace it, all of which survive a machine whose geometry moves:</p>
+    <ul>
+      <li><strong>Determinism</strong> — the same inputs produce byte-identical description
+      output.</li>
+      <li><strong>Partition consistency</strong> — every shot declaring a given description
+      version carries an identical description, and the versions partition the corpus at the
+      declared transitions.</li>
+      <li><strong>Visible change</strong> — a transition produces an inspectable diff rather than
+      one description silently smeared across a boundary.</li>
+    </ul>
+    <p>Vendoring follows from this: the description is embedded in the experimental dataset and is
+    <strong>authoritative for reads</strong>, so a pulse is self-contained and portable in the way
+    IMAS semantics already assume; the bare description store is the production and distribution
+    library, not a validation oracle to compare against.</p>
+
+    <h2 id="s5">§5 — Scope boundary</h2>
+    <p>This plan produces machine description only. <code>equilibrium</code> and every other
+    processed or code-output quantity that a result is compared against belongs to the targets
+    builder, not here — mixing a reconstruction into the description is exactly the leak the
+    geometry module's static-versus-reconstructed discriminator exists to prevent.</p>
+    <p><em>Done-when:</em> a LinkML machine-map schema with maps authored for MAST and DIII-D;
+    transform engines for the store formats the benchmark selected, each applying any map; the
+    shot manifest extended with named geometry transitions; the three identity assertions
+    implemented as tests over a real multi-campaign corpus; description emitted for both machines
+    through one code path with no machine-specific reader remaining; and the round trip verified
+    against the descriptions those machines' data actually implies.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="map-expressiveness" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">When a channel's meaning changes mid-corpus, does the map stay purely
+          declarative with one map per shot range, or does the schema grow conditional
+          expressions?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="range-scoped-maps">one map per shot range, no conditionals</button>
+          <button class="r-opt" data-value="conditional-schema">conditional expressions inside one map</button>
+          <button class="r-opt" data-value="map-plus-code">declarative map plus a code hook per machine</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-mmte-001" data-status="open"
+               data-capability-version="1.0" data-capability-class="general"
+               data-capability-reasoning="deep" data-capability-verification="strict"
+               data-written-by="reckon-create" data-written-at="2026-08-13"
+               data-recommends-skill="/reckon-ship machine-map-transform-engine §3">
+        <h4 class="r-fu-title">Extend the shot manifest with named geometry transitions</h4>
+        <div class="r-fu-body"><p>First rung, and deliberately before the map schema hardens:
+        the manifest carries campaign per shot but not where geometry actually moved. Name the
+        transitions from the per-campaign geometry table so a description is selected by shot
+        through a declared boundary. What this exposes about mid-corpus change is the evidence
+        the map-expressiveness decision needs.</p></div>
+        <pre class="r-fu-prompt">/reckon-ship machine-map-transform-engine §3</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

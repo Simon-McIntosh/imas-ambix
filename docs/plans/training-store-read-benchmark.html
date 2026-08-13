@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="training-store-read-benchmark">
+  <meta name="plan-title"     content="Training Store Read Benchmark">
+  <meta name="plan-summary"   content="Measure what each candidate store costs the GPU training path — IMAS-netCDF, zarr carrying DD-path metadata, and the native level-2 form — for static machine description and for streamed experimental data, and propose a storage format for each on the numbers.">
+  <meta name="plan-status"    content="draft">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort"    content="M">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint"    content="S22">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-blocks"    content="machine-map-transform-engine">
+  <title>Training Store Read Benchmark | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — The training path is the constraint, so it sets the format</h2>
+    <p>Every other consideration about where data lives — semantics, portability, publishability
+    — is affordable only if the store keeps four H200s fed. That is the specific question this
+    plan answers, and it is deliberately narrower than "which format is nicest": <strong>what
+    read rate does each candidate deliver into the training loop, and where does it starve the
+    device?</strong> A format that loses on this measurement does not get to win on elegance.</p>
+    <p>The two access patterns are not the same problem and must not be pooled into one verdict.
+    <strong>Static machine description</strong> is read once per run and turned into geometry;
+    its cost is amortised to nothing and almost any format is acceptable. <strong>Experimental
+    data</strong> is streamed, sliced and shuffled for the whole of training; its cost is paid
+    continuously. The working hypothesis is therefore that the answer differs between them, and
+    that a single store for both is a compromise neither needs.</p>
+    <p>One measurement discipline is inherited rather than invented. <code>fast_loader.py</code>
+    already carries a correction where a plan claimed 660&nbsp;kHz for <code>xma</code> against a
+    real 5&nbsp;kHz, because the array length was read as a rate. Every number this plan produces
+    is a measured throughput with its wall clock and its sample count stated, never a size
+    divided by an assumption.</p>
+
+    <h2 id="s2">§2 — Arms</h2>
+    <p>Three storage arms, measured on identical payloads:</p>
+    <table>
+      <thead><tr><th>Arm</th><th>What it is</th><th>Why it is in</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>IMAS-netCDF</td>
+          <td>imas-python's netCDF backend, written and read through <code>DBEntry</code></td>
+          <td>Access-Layer compliant by construction; the only arm that publishes as real IMAS data without a further step</td>
+        </tr>
+        <tr>
+          <td>zarr + DD-path metadata</td>
+          <td>The incumbent zarr store, with each array carrying its Data Dictionary path and units as attributes</td>
+          <td>Tests whether DD semantics are separable from the IMAS container — vocabulary without the I/O</td>
+        </tr>
+        <tr>
+          <td>native level-2</td>
+          <td>The existing MAST level-2 form as read today</td>
+          <td>The incumbent baseline; a new format must beat what is already running</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>Four access patterns per arm: whole-description static load; single-shot multi-signal
+    slice; N-shot batch stream at training batch size; and random access across the corpus.
+    Plus one transport comparison — <strong>live transfer against a mapped data entry already on
+    disk</strong> — which belongs here rather than with the transform engine, because a
+    measurement split across two plans stops being comparable.</p>
+
+    <h2 id="s3">§3 — The IMAS shape is composable, and that changes the build/buy question</h2>
+    <p>The zarr arm need not abandon IMAS semantics, because imas-python has already factored the
+    part that matters. <code>IDSTensorizer</code> is documented as tensorization logic converting
+    IDSs to netCDF files <em>and/or xarray Datasets</em>, and <code>IDS2NC</code> is a subclass of
+    it: the Data-Dictionary-derived dimension naming and tensorization live in a reusable base
+    that already targets xarray, and <code>NCMetadata</code> owns the dimension metadata
+    separately again.</p>
+    <p>So a zarr writer is a <strong>sibling subclass</strong> of the same tensorizer, not a
+    reimplementation of IMAS shape rules — and xarray gives zarr serialisation nearly free from
+    there. Composition is preferred to reimplementation for the ordinary reason that the DD shape
+    rules are the library's job to keep correct across Data Dictionary versions, and a
+    hand-rolled twin would silently diverge at the next one. This plan verifies that seam holds
+    in practice: whether <code>IDSTensorizer</code> can be subclassed without reaching into
+    private behaviour is itself a reportable result, because a negative answer is what would
+    justify reimplementation.</p>
+    <p>The prize for keeping the IMAS shape is concrete rather than theoretical: an
+    Access-Layer-compliant dataset can be published as real IMAS data when that is wanted,
+    without a conversion project.</p>
+
+    <h2 id="s4">§4 — Deliverable</h2>
+    <p>One proposal naming a storage format for machine description and a storage format for
+    experimental data <em>separately</em>, each defended by measured rates, together with the
+    cross-over points where the ranking changes and an explicit finding on what the IMAS shape
+    costs as <strong>storage</strong> versus what it costs as <strong>interchange</strong>. Those
+    are different questions and the proposal must answer both.</p>
+    <p><em>Done-when:</em> all three arms measured across the four access patterns and the
+    transport comparison, on one node class, with throughput, wall clock and sample counts
+    recorded per run to named on-disk logs; the <code>IDSTensorizer</code> subclassing seam
+    verified or refuted with the code path stated; a proposal recorded as an evidence document
+    naming both formats with the numbers that decide them; and the two format decisions below
+    locked or explicitly left to the owner with the evidence attached.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="experimental-store-format" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which format stores the experimental data that feeds GPU training?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="zarr-dd">zarr carrying DD-path metadata</button>
+          <button class="r-opt" data-value="imas-netcdf">IMAS-netCDF</button>
+          <button class="r-opt" data-value="native-l2">native level-2, unchanged</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="description-store-format" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which format stores the machine description, given it is read once per
+          run and then turned into geometry?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="imas-netcdf">IMAS-netCDF — publishable as AL-compliant data</button>
+          <button class="r-opt" data-value="zarr-dd">zarr carrying DD-path metadata — one store technology overall</button>
+          <button class="r-opt" data-value="both">both — netCDF as the published form, zarr as the working form</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-tsrb-001" data-status="open"
+               data-capability-version="1.0" data-capability-class="general"
+               data-capability-reasoning="deep" data-capability-verification="strict"
+               data-written-by="reckon-create" data-written-at="2026-08-13"
+               data-recommends-skill="/reckon-ship training-store-read-benchmark §2">
+        <h4 class="r-fu-title">Measure the three arms across the four access patterns and the transport comparison</h4>
+        <div class="r-fu-body"><p>The measurement itself: identical payloads through
+        IMAS-netCDF, zarr with DD-path attributes, and native level-2, across static description
+        load, single-shot slice, batch stream and random access, plus live transfer against a
+        mapped on-disk entry. One node class throughout. Report throughput with wall clock and
+        sample counts, never a size divided by an assumed rate.</p></div>
+        <pre class="r-fu-prompt">/reckon-ship training-store-read-benchmark §2</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
