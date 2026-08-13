@@ -955,14 +955,14 @@ def run_transport_comparison(
     array_path: str = "summary/ip",
     live_root: str = DEFAULT_LIVE_LEVEL2_ROOT,
     minimum_negative_probes: int = 20,
+    corpus_shot_count: int = LEVEL2_CORPUS_SHOT_COUNT,
 ) -> dict[str, Any]:
     """Persist an identity-gated live-versus-mapped transport comparison."""
     if output_log.exists():
         raise FileExistsError(output_log)
     output_log.parent.mkdir(parents=True, exist_ok=True)
-    candidate_shots = tuple(shots or mapped_shots(level2_root, array_path))[
-        :probe_count
-    ]
+    available_shots = tuple(shots or mapped_shots(level2_root, array_path))
+    candidate_shots = available_shots[:probe_count]
     match, probes = find_matching_transport_payload(
         level2_root,
         candidate_shots,
@@ -977,6 +977,7 @@ def run_transport_comparison(
 
     cells: list[TransportCell] = []
     identity: dict[str, Any] | None = None
+    throughput_ratio: dict[str, float] | None = None
     status = "unobtainable_without_mirror_refresh"
     if match is not None:
         print(
@@ -992,6 +993,12 @@ def run_transport_comparison(
             match.live_url,
             repetitions,
         )
+        rates = {cell.route: cell.throughput_samples_per_second for cell in cells}
+        live_to_mapped = rates["live_https_transfer"] / rates["mapped_on_disk"]
+        throughput_ratio = {
+            "live_to_mapped": live_to_mapped,
+            "mapped_to_live": 1.0 / live_to_mapped,
+        }
         status = "measured_identical_payload"
 
     result = {
@@ -1000,6 +1007,12 @@ def run_transport_comparison(
         "node": _node_identity(),
         "environment": _package_versions(),
         "status": status,
+        "scope": {
+            "mirrored_shot_count": len(available_shots),
+            "corpus_shot_count": corpus_shot_count,
+            "coverage_fraction": len(available_shots) / corpus_shot_count,
+            "partial_mirror": len(available_shots) < corpus_shot_count,
+        },
         "identity_gate": {
             "array_path": array_path,
             "candidate_count": len(candidate_shots),
@@ -1010,6 +1023,7 @@ def run_transport_comparison(
         },
         "probes": [asdict(probe) for probe in probes],
         "transport_cells": [asdict(cell) for cell in cells],
+        "throughput_ratio": throughput_ratio,
         "transport": identity,
         "measurement_contract": {
             "timing_requires_shape_equality": True,
