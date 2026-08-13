@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="training-store-read-benchmark">
   <meta name="plan-title" content="Training Store Read Benchmark">
   <meta name="plan-summary" content="Measure what each candidate store costs the GPU training path — IMAS-netCDF, zarr carrying DD-path metadata, and the native level-2 form — for static machine description and for streamed experimental data, and propose a storage format for each on the numbers.">
-  <meta name="plan-status" content="shipped">
+  <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="M">
   <meta name="plan-capability-version" content="1.0">
@@ -22,10 +22,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-13">
-<meta name="plan-version" content="10">
+<meta name="plan-version" content="11">
 <meta name="plan-commits" content="b9fb2cf692e5f8c085213a11a71589f30123e493,0c970bc680dbc8630b05a17d8b3a7887db9d6c0d,9f073779507b03fa9645e55fad685ab834bae131,c2bbdf4b1802732563311fd243d5a4408335f37f">
 <meta name="plan-artifacts" content="docs/evidence/archive/training-store-read-benchmark-landed.html,imas_ambix/bench/store_arms.py,imas_ambix/bench/store_read_rates.py,tests/test_store_arms.py,tests/test_store_read_rates.py,/work/projects/imas_gpu/store-bench/store-read-rates-sirius-debug-20260813.json">
-<meta name="plan-impl" content="1.0">
+<meta name="plan-impl" content="0.8">
 </head>
 <body>
   <main class="plan-doc">
@@ -153,6 +153,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-20260813-tsrb-transport" data-who="reckon-ship" data-when="2026-08-13">
     <div class="r-comment-body">tsrb-transport landed — commit 9f07377; gate admissible-transport-ranking NOT-RUN, evidence could not be produced. Measure: 24 probed shots (11766-11804), 0 shape matches, 0 np.array_equal matches, 0 timed transport cells. The negative is structural: live shapes span 424-556 while mapped shapes span 1561-2088, so the on-disk mirror is a different snapshot generation of the corpus rather than a stale copy of the current public objects, and no choice of shot makes the routes comparable. Durable fix landed with it: measure_transport prints both shapes and decoded_arrays_identical and raises BEFORE time.perf_counter unless shapes agree and np.array_equal holds, with a committed monkeypatched-perf_counter test proving a mismatch cannot begin timing; recorded status unobtainable_without_mirror_refresh and transport_cells empty. 1 test added. SLURM job 1245138 exit 0. Artifact /work/projects/imas_gpu/store-bench/transport-identical-payload-sirius-debug-20260813.log</div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-20260813-mirror-auth" data-who="reckon-ship" data-when="2026-08-13">
+    <div class="r-comment-body">Mirror refresh AUTHORISED by the owner 2026-08-13, so the authority-required exemption on f-tsrb-002 is lifted and the transport remainder becomes foldable executable work. Plan returns from shipped to active for that one node: the on-disk level-2 mirror is rebuilt from the current public S3 snapshot, then the committed --transport-only command yields the two admissible timed cells. Nothing else reopens — the 12 storage cells and the 36-cell crossover sweep stand as measured, the experimental-store-format lock stands, and the proposal stands. Recorded because a plan that silently stayed shipped while executing new work would misreport its own state.</div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20260813-tsrb-crossover" data-who="reckon-ship" data-when="2026-08-13">
     <div class="r-comment-body">tsrb-crossover landed — commit c2bbdf4; gate crossover-search PASSED; measure 36 cells (3 arms x 4 payload scales x 3 batch sizes, 8 repetitions each) with 0 payload-scale crossings and 0 batch-size crossings: dd_annotated_zarr &gt; imas_netcdf &gt; native_level2 at all 12 grid points. Scalar counts per shot 48/192/768/3072 (64x range), batches 1/4/8, per-cell sample counts 384-196,608, wall clocks 0.0214-1.5021s. Ratios to native overall: netCDF 2.38-3.11x, DD-zarr 9.02-10.28x. Native/netCDF/DD-zarr checksums match exactly at all 12 points; assumed_rate_or_size_used false throughout; run_crossover_sweep enforces &gt;=4 scales, &gt;=10x range, &gt;=3 batch sizes so a future sweep cannot report no-crossover by sweeping too narrowly. 2 tests added. SLURM jobs 1245195 and 1245209 exit 0. Artifact /work/projects/imas_gpu/store-bench/store-read-crossover-sirius-debug-20260813.log sha256 cae935c5. Proposal recorded at docs/evidence/archive/training-store-read-benchmark-landed.html#s4</div>
