@@ -1,0 +1,341 @@
+"""Strict loader for declarative, shot-range-scoped machine maps.
+
+The packaged YAML document is the LinkML authoring contract.  Runtime loading
+keeps the dependency surface small by enforcing the same closed-world slots in
+Python: a map selects one reusable binding set for one inclusive shot range,
+and every binding declares its source location, DD leaf, units, and sign rule.
+No conditional expression or executable hook is accepted.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from types import MappingProxyType
+from typing import Any
+
+import yaml
+
+PACKAGED_MACHINE_MAP_ROOT = Path(__file__).with_name("machine_maps")
+LINKML_SCHEMA_PATH = PACKAGED_MACHINE_MAP_ROOT / "schema.yaml"
+
+_SIGN_CONVENTIONS = {"identity", "negate", "unknown-unvalidated"}
+_VALIDATION_STATES = {"corpus-validated", "source-only"}
+
+
+class MachineMapError(ValueError):
+    """Raised when a machine-map document violates its LinkML contract."""
+
+
+def _object(value: Any, label: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise MachineMapError(f"{label} must be an object")
+    return value
+
+
+def _exact_keys(
+    value: Mapping[str, Any], required: set[str], optional: set[str], label: str
+) -> None:
+    missing = required.difference(value)
+    extra = set(value).difference(required | optional)
+    if missing or extra:
+        raise MachineMapError(
+            f"{label} keys differ: missing={sorted(missing)}, extra={sorted(extra)}"
+        )
+
+
+def _text(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not value or value.strip() != value:
+        raise MachineMapError(f"{label} must be non-empty trimmed text")
+    return value
+
+
+def _integer(value: Any, label: str, *, minimum: int = 0) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+        raise MachineMapError(f"{label} must be an integer >= {minimum}")
+    return value
+
+
+@dataclass(frozen=True)
+class ChannelBinding:
+    """One immutable store-array to Data Dictionary leaf declaration."""
+
+    name: str
+    source_group: str
+    source_array: str
+    source_location: str
+    dd_path: str
+    source_unit: str
+    target_unit: str
+    sign_convention: str
+    evidence: str
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any], label: str) -> ChannelBinding:
+        required = {
+            "name",
+            "source_group",
+            "source_array",
+            "source_location",
+            "dd_path",
+            "source_unit",
+            "target_unit",
+            "sign_convention",
+            "evidence",
+        }
+        _exact_keys(payload, required, set(), label)
+        values = {key: _text(payload[key], f"{label}.{key}") for key in required}
+        if values["sign_convention"] not in _SIGN_CONVENTIONS:
+            raise MachineMapError(
+                f"{label}.sign_convention must be one of {sorted(_SIGN_CONVENTIONS)}"
+            )
+        if "://" not in values["source_location"]:
+            raise MachineMapError(f"{label}.source_location must be an absolute URI")
+        if "/" not in values["dd_path"]:
+            raise MachineMapError(f"{label}.dd_path must include IDS and leaf path")
+        return cls(**values)
+
+
+@dataclass(frozen=True)
+class MachineMap:
+    """One named machine-map selection valid for an inclusive shot range."""
+
+    name: str
+    machine: str
+    first_shot: int
+    last_shot: int
+    transition: str | None
+    binding_set: str
+    validation_state: str
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any], label: str) -> MachineMap:
+        required = {
+            "name",
+            "machine",
+            "first_shot",
+            "last_shot",
+            "transition",
+            "binding_set",
+            "validation_state",
+        }
+        _exact_keys(payload, required, set(), label)
+        transition = payload["transition"]
+        if transition is not None:
+            transition = _text(transition, f"{label}.transition")
+        machine_map = cls(
+            name=_text(payload["name"], f"{label}.name"),
+            machine=_text(payload["machine"], f"{label}.machine"),
+            first_shot=_integer(payload["first_shot"], f"{label}.first_shot"),
+            last_shot=_integer(payload["last_shot"], f"{label}.last_shot"),
+            transition=transition,
+            binding_set=_text(payload["binding_set"], f"{label}.binding_set"),
+            validation_state=_text(
+                payload["validation_state"], f"{label}.validation_state"
+            ),
+        )
+        if machine_map.first_shot > machine_map.last_shot:
+            raise MachineMapError(f"{label} has an inverted shot range")
+        if machine_map.validation_state not in _VALIDATION_STATES:
+            raise MachineMapError(
+                f"{label}.validation_state must be one of {sorted(_VALIDATION_STATES)}"
+            )
+        return machine_map
+
+
+@dataclass(frozen=True)
+class ValidationGap:
+    """One binding whose declaration could not be checked against pulse data."""
+
+    binding: str
+    reason: str
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any], label: str) -> ValidationGap:
+        _exact_keys(payload, {"binding", "reason"}, set(), label)
+        return cls(
+            binding=_text(payload["binding"], f"{label}.binding"),
+            reason=_text(payload["reason"], f"{label}.reason"),
+        )
+
+
+@dataclass(frozen=True)
+class MachineMapCatalog:
+    """A schema-bound collection of maps, bindings, and validation gaps."""
+
+    schema_version: str
+    dd_version: str
+    source: str
+    source_revision: str
+    binding_sets: Mapping[str, tuple[ChannelBinding, ...]]
+    maps: tuple[MachineMap, ...]
+    validation_gaps: tuple[ValidationGap, ...]
+
+    def bindings_for(self, machine_map: MachineMap) -> tuple[ChannelBinding, ...]:
+        """Resolve the binding set selected by ``machine_map``."""
+        return self.binding_sets[machine_map.binding_set]
+
+    @property
+    def bound_channel_count(self) -> int:
+        """Count unique declarations across reusable binding sets."""
+        return sum(len(bindings) for bindings in self.binding_sets.values())
+
+
+def load_linkml_schema(path: Path | str = LINKML_SCHEMA_PATH) -> Mapping[str, Any]:
+    """Load and structurally verify the packaged LinkML schema document."""
+    payload = yaml.safe_load(Path(path).read_text())
+    schema = _object(payload, "LinkML schema")
+    required_classes = {
+        "BindingSet",
+        "ChannelBinding",
+        "MachineMap",
+        "ValidationGap",
+        "MachineMapCatalog",
+    }
+    classes = _object(schema.get("classes"), "LinkML schema.classes")
+    if not required_classes.issubset(classes):
+        raise MachineMapError(
+            "LinkML schema lacks classes: "
+            f"{sorted(required_classes.difference(classes))}"
+        )
+    if schema.get("default_range") != "string":
+        raise MachineMapError("LinkML schema.default_range must be 'string'")
+    return schema
+
+
+def load_machine_map(path: Path | str) -> MachineMapCatalog:
+    """Load a JSON machine-map catalog and validate every declared slot."""
+    load_linkml_schema()
+    try:
+        raw = json.loads(Path(path).read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise MachineMapError(f"cannot read machine map {path!s}: {error}") from error
+    payload = _object(raw, "machine-map catalog")
+    required = {
+        "schema_version",
+        "dd_version",
+        "source",
+        "source_revision",
+        "binding_sets",
+        "maps",
+        "validation_gaps",
+    }
+    _exact_keys(payload, required, set(), "machine-map catalog")
+
+    binding_sets_raw = payload["binding_sets"]
+    if not isinstance(binding_sets_raw, list) or not binding_sets_raw:
+        raise MachineMapError("binding_sets must be a non-empty list")
+    binding_sets: dict[str, tuple[ChannelBinding, ...]] = {}
+    binding_names: set[str] = set()
+    for set_index, raw_set in enumerate(binding_sets_raw):
+        set_context = f"binding_sets[{set_index}]"
+        binding_set = _object(raw_set, set_context)
+        _exact_keys(binding_set, {"name", "bindings"}, set(), set_context)
+        name = _text(binding_set["name"], f"{set_context}.name")
+        if name in binding_sets:
+            raise MachineMapError(f"duplicate binding set {name!r}")
+        entries = binding_set["bindings"]
+        if not isinstance(entries, list) or not entries:
+            raise MachineMapError(f"{set_context}.bindings must be a non-empty list")
+        bindings = tuple(
+            ChannelBinding.from_dict(
+                _object(entry, f"{set_context}.bindings[{index}]"),
+                f"{set_context}.bindings[{index}]",
+            )
+            for index, entry in enumerate(entries)
+        )
+        for binding in bindings:
+            if binding.name in binding_names:
+                raise MachineMapError(f"duplicate binding name {binding.name!r}")
+            binding_names.add(binding.name)
+        binding_sets[name] = bindings
+
+    maps_raw = payload["maps"]
+    if not isinstance(maps_raw, list) or not maps_raw:
+        raise MachineMapError("maps must be a non-empty list")
+    maps = tuple(
+        MachineMap.from_dict(_object(entry, f"maps[{index}]"), f"maps[{index}]")
+        for index, entry in enumerate(maps_raw)
+    )
+    map_names = [item.name for item in maps]
+    if len(map_names) != len(set(map_names)):
+        raise MachineMapError("map names must be unique")
+    for item in maps:
+        if item.binding_set not in binding_sets:
+            raise MachineMapError(
+                f"map {item.name!r} references unknown binding set {item.binding_set!r}"
+            )
+
+    gaps_raw = payload["validation_gaps"]
+    if not isinstance(gaps_raw, list):
+        raise MachineMapError("validation_gaps must be a list")
+    gaps = tuple(
+        ValidationGap.from_dict(
+            _object(entry, f"validation_gaps[{index}]"),
+            f"validation_gaps[{index}]",
+        )
+        for index, entry in enumerate(gaps_raw)
+    )
+    gap_names = [gap.binding for gap in gaps]
+    if len(gap_names) != len(set(gap_names)):
+        raise MachineMapError("validation gap bindings must be unique")
+    if not set(gap_names).issubset(binding_names):
+        raise MachineMapError("validation gaps must name declared bindings")
+
+    catalog = MachineMapCatalog(
+        schema_version=_text(payload["schema_version"], "schema_version"),
+        dd_version=_text(payload["dd_version"], "dd_version"),
+        source=_text(payload["source"], "source"),
+        source_revision=_text(payload["source_revision"], "source_revision"),
+        binding_sets=MappingProxyType(binding_sets),
+        maps=maps,
+        validation_gaps=gaps,
+    )
+    source_only = {
+        binding.name
+        for item in maps
+        if item.validation_state == "source-only"
+        for binding in catalog.bindings_for(item)
+    }
+    if source_only != set(gap_names):
+        raise MachineMapError(
+            "source-only bindings and validation_gaps must agree exactly"
+        )
+    return catalog
+
+
+def load_packaged_machine_map(machine: str) -> MachineMapCatalog:
+    """Load the reviewed catalog for ``machine`` from the package."""
+    component = _text(machine, "machine")
+    if not component.replace("-", "").isalnum():
+        raise MachineMapError("machine must contain only letters, digits, or hyphens")
+    return load_machine_map(PACKAGED_MACHINE_MAP_ROOT / f"{component}.json")
+
+
+def map_for_shot(catalog: MachineMapCatalog, shot: int) -> MachineMap:
+    """Return the single range-scoped map covering ``shot``."""
+    matches = [
+        item for item in catalog.maps if item.first_shot <= shot <= item.last_shot
+    ]
+    if len(matches) != 1:
+        raise LookupError(f"shot {shot} resolves to {len(matches)} machine maps")
+    return matches[0]
+
+
+def assert_transition_alignment(
+    catalog: MachineMapCatalog, transitions: Sequence[Any]
+) -> None:
+    """Require every transition range to have one identically bounded map."""
+    map_ranges = {
+        (item.first_shot, item.last_shot, item.transition) for item in catalog.maps
+    }
+    transition_ranges = {
+        (item.first_shot, item.last_shot, item.name) for item in transitions
+    }
+    if map_ranges != transition_ranges:
+        raise MachineMapError(
+            f"map ranges differ from geometry transitions: "
+            f"maps={sorted(map_ranges)}, transitions={sorted(transition_ranges)}"
+        )

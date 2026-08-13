@@ -1,0 +1,137 @@
+{
+  "schema_version": "1.0.0",
+  "dd_version": "4.1.1",
+  "source": "https://mastapp.site/parquet/level2/shots",
+  "source_revision": "local-level2-11573-shots-11766-30471",
+  "binding_sets": [
+    {
+      "name": "mast-interferometer",
+      "bindings": [
+      {
+        "name": "mast-interferometer-time",
+        "source_group": "interferometer",
+        "source_array": "time",
+        "source_location": "fair-mast://level2/shots/{shot}.zarr/interferometer/time",
+        "dd_path": "interferometer/time",
+        "source_unit": "s",
+        "target_unit": "s",
+        "sign_convention": "identity",
+        "evidence": "Every mounted level-2 interferometer group exposes this coordinate with unit s."
+      },
+      {
+        "name": "mast-interferometer-line-density",
+        "source_group": "interferometer",
+        "source_array": "n_e_line",
+        "source_location": "fair-mast://level2/shots/{shot}.zarr/interferometer/n_e_line",
+        "dd_path": "interferometer/channel/n_e_line/data",
+        "source_unit": "1 / m ** 2",
+        "target_unit": "m^-2",
+        "sign_convention": "identity",
+        "evidence": "FAIR-MAST metadata binds the array to interferometer.channel[:].n_e_line.data; DD 4.1.1 gives the numeric leaf unit m^-2."
+      }
+      ]
+    }
+  ],
+  "maps": [
+    {
+      "name": "mast-map-11766",
+      "machine": "mast",
+      "first_shot": 11766,
+      "last_shot": 12416,
+      "transition": "mast-geometry-11766-9425ae4a8bf3bc15",
+      "binding_set": "mast-interferometer",
+      "validation_state": "corpus-validated"
+    },
+    {
+      "name": "mast-map-12417",
+      "machine": "mast",
+      "first_shot": 12417,
+      "last_shot": 12532,
+      "transition": "mast-geometry-12417-edd753d282903679",
+      "binding_set": "mast-interferometer",
+      "validation_state": "corpus-validated"
+    },
+    {
+      "name": "mast-map-12533",
+      "machine": "mast",
+      "first_shot": 12533,
+      "last_shot": 12560,
+      "transition": "mast-geometry-12533-1cb6f2ee742c4ee4",
+      "binding_set": "mast-interferometer",
+      "validation_state": "corpus-validated"
+    },
+    {
+      "name": "mast-map-12561",
+      "machine": "mast",
+      "first_shot": 12561,
+      "last_shot": 12877,
+      "transition": "mast-geometry-12561-edd753d282903679",
+      "binding_set": "mast-interferometer",
+      "validation_state": "corpus-validated"
+    },
+    {
+      "name": "mast-map-12878",
+      "machine": "mast",
+      "first_shot": 12878,
+      "last_shot": 12904,
+      "transition": "mast-geometry-12878-1cb6f2ee742c4ee4",
+      "binding_set": "mast-interferometer",
+      "validation_state": "corpus-validated"
+    },
+    {
+      "name": "mast-map-12905",
+      "machine": "mast",
+      "first_shot": 12905,
+      "last_shot": 12963,
+      "transition": "mast-geometry-12905-edd753d282903679",
+      "binding_set": "mast-interferometer",
+      "validation_state": "corpus-validated"
+    },
+    {
+      "name": "mast-map-12964",
+      "machine": "mast",
+      "first_shot": 12964,
+      "last_shot": 12989,
+      "transition": "mast-geometry-12964-1cb6f2ee742c4ee4",
+      "binding_set": "mast-interferometer",
+      "validation_state": "corpus-validated"
+    },
+    {
+      "name": "mast-map-12990",
+      "machine": "mast",
+      "first_shot": 12990,
+      "last_shot": 13020,
+      "transition": "mast-geometry-12990-edd753d282903679",
+      "binding_set": "mast-interferometer",
+      "validation_state": "corpus-validated"
+    },
+    {
+      "name": "mast-map-13021",
+      "machine": "mast",
+      "first_shot": 13021,
+      "last_shot": 13048,
+      "transition": "mast-geometry-13021-1cb6f2ee742c4ee4",
+      "binding_set": "mast-interferometer",
+      "validation_state": "corpus-validated"
+    },
+    {
+      "name": "mast-map-13049",
+      "machine": "mast",
+      "first_shot": 13049,
+      "last_shot": 13378,
+      "transition": "mast-geometry-13049-edd753d282903679",
+      "binding_set": "mast-interferometer",
+      "validation_state": "corpus-validated"
+    },
+    {
+      "name": "mast-map-13379",
+      "machine": "mast",
+      "first_shot": 13379,
+      "last_shot": 30471,
+      "transition": "mast-geometry-13379-1cb6f2ee742c4ee4",
+      "binding_set": "mast-interferometer",
+      "validation_state": "corpus-validated"
+    }
+  ],
+  "validation_gaps": []
+}
