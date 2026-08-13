@@ -20,10 +20,7 @@ import numpy as np
 import zarr
 from imas.ids_struct_array import IDSStructArray
 
-from imas_ambix.data.cocos_convention import (
-    MAST_SOURCE_COCOS,
-    MAST_TO_COCOS_17_FACTORS,
-)
+from imas_ambix.cocos import canonical_factor
 from imas_ambix.data.machine_map import (
     ChannelBinding,
     MachineMap,
@@ -45,6 +42,9 @@ class SourceUnavailableError(TransformEngineError):
 
 class BindingTransformError(TransformEngineError):
     """Raised when a declared binding cannot be transformed unambiguously."""
+
+
+_CATALOG_SOURCE_COCOS = object()
 
 
 class StoreArrays(Protocol):
@@ -302,17 +302,13 @@ def _apply_cocos_convention(
             f"{binding.dd_path!r} ({transformation}) but has no declared source "
             "COCOS convention"
         )
-    if int(source_cocos) != MAST_SOURCE_COCOS:
-        raise BindingTransformError(
-            f"binding {binding.name!r} declares source COCOS {source_cocos!r}; "
-            f"the committed source factors describe COCOS {MAST_SOURCE_COCOS}"
-        )
     try:
-        factor = float(MAST_TO_COCOS_17_FACTORS[transformation])
-    except KeyError as error:
+        factor = canonical_factor(transformation, source_cocos=int(source_cocos))
+    except (KeyError, TypeError, ValueError) as error:
         raise BindingTransformError(
             f"binding {binding.name!r} targets unsupported COCOS transformation "
-            f"{transformation!r} at {binding.dd_path!r}"
+            f"{transformation!r} at {binding.dd_path!r} from source COCOS "
+            f"{source_cocos!r}"
         ) from error
     emitted = np.multiply(values, factor)
     emitted.setflags(write=False)
@@ -338,7 +334,11 @@ def _emit_arrays(
             signed_values,
             binding,
             dd_version,
-            source_cocos,
+            (
+                binding.source_cocos_override
+                if binding.source_cocos_override is not None
+                else source_cocos
+            ),
         )
         emitted.append(
             EmittedArray(
@@ -362,7 +362,7 @@ def transform_machine_description(
     store_format: str,
     store_root: Path | str,
     *,
-    source_cocos: int | None = MAST_SOURCE_COCOS,
+    source_cocos: int | None | object = _CATALOG_SOURCE_COCOS,
 ) -> MachineDescription:
     """Select a map by shot and emit its available arrays through one engine.
 
@@ -375,13 +375,18 @@ def transform_machine_description(
     machine_map = map_for_shot(catalog, shot_id)
     engine = get_transform_engine(store_format)
     bindings = catalog.bindings_for(machine_map)
+    declared_source_cocos = (
+        catalog.cocos_for_binding()
+        if source_cocos is _CATALOG_SOURCE_COCOS
+        else source_cocos
+    )
     try:
         with engine.open(store_root, shot_id, catalog.dd_version) as source:
             arrays, missing = _emit_arrays(
                 source,
                 bindings,
                 catalog.dd_version,
-                source_cocos,
+                declared_source_cocos,
             )
     except SourceUnavailableError as error:
         return MachineDescription(
@@ -389,7 +394,7 @@ def transform_machine_description(
             store_format=engine.format_name,
             machine_map=machine_map,
             dd_version=catalog.dd_version,
-            source_cocos=source_cocos,
+            source_cocos=declared_source_cocos,
             status="source-unavailable",
             arrays=(),
             missing_bindings=tuple(binding.name for binding in bindings),
@@ -401,7 +406,7 @@ def transform_machine_description(
         store_format=engine.format_name,
         machine_map=machine_map,
         dd_version=catalog.dd_version,
-        source_cocos=source_cocos,
+        source_cocos=declared_source_cocos,
         status="emitted",
         arrays=arrays,
         missing_bindings=missing,

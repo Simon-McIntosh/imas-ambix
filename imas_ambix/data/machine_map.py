@@ -30,6 +30,8 @@ _SIGN_CONVENTIONS = {
 _SOURCE_ROLES = {"value", "identifier", "dimension-coordinate"}
 _SOURCE_STATUSES = {"corpus-observed", "legacy-only"}
 _VALIDATION_STATES = {"corpus-validated", "source-only"}
+_COCOS_IDENTIFIERS = {*range(1, 9), *range(11, 19)}
+_UNDECLARED_COCOS = 0
 
 
 class MachineMapError(ValueError):
@@ -65,6 +67,15 @@ def _integer(value: Any, label: str, *, minimum: int = 0) -> int:
     return value
 
 
+def _cocos_identifier(value: Any, label: str) -> int:
+    identifier = _integer(value, label, minimum=1)
+    if identifier not in _COCOS_IDENTIFIERS:
+        raise MachineMapError(
+            f"{label} must be a recognised COCOS identifier, got {identifier}"
+        )
+    return identifier
+
+
 def _positive_number(value: Any, label: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
         raise MachineMapError(f"{label} must be a number > 0")
@@ -86,6 +97,7 @@ class ChannelBinding:
     target_unit: str
     sign_convention: str
     evidence: str
+    source_cocos_override: int | None
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any], label: str) -> ChannelBinding:
@@ -102,7 +114,7 @@ class ChannelBinding:
             "sign_convention",
             "evidence",
         }
-        _exact_keys(payload, required, set(), label)
+        _exact_keys(payload, required, {"source_cocos_override"}, label)
         values = {
             key: _text(payload[key], f"{label}.{key}")
             for key in required.difference({"source_rank"})
@@ -121,6 +133,14 @@ class ChannelBinding:
             raise MachineMapError(f"{label}.dd_path must include IDS and target path")
         return cls(
             source_rank=_integer(payload["source_rank"], f"{label}.source_rank"),
+            source_cocos_override=(
+                _cocos_identifier(
+                    payload["source_cocos_override"],
+                    f"{label}.source_cocos_override",
+                )
+                if "source_cocos_override" in payload
+                else None
+            ),
             **values,
         )
 
@@ -411,12 +431,19 @@ class MachineMapCatalog:
     dd_version: str
     source: str
     source_revision: str
+    source_cocos: int | None
     binding_sets: Mapping[str, tuple[ChannelBinding, ...]]
     maps: tuple[MachineMap, ...]
     validation_gaps: tuple[ValidationGap, ...]
     source_qualifications: tuple[SourceQualification, ...]
     drive_topologies: tuple[DriveTopology, ...]
     structure_assemblies: tuple[StructureAssembly, ...]
+
+    def cocos_for_binding(self, binding: ChannelBinding | None = None) -> int | None:
+        """Resolve a binding override before the machine-level declaration."""
+        if binding is not None and binding.source_cocos_override is not None:
+            return binding.source_cocos_override
+        return self.source_cocos
 
     def bindings_for(self, machine_map: MachineMap) -> tuple[ChannelBinding, ...]:
         """Resolve the binding set selected by ``machine_map``."""
@@ -491,6 +518,7 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
         "dd_version",
         "source",
         "source_revision",
+        "source_cocos",
         "binding_sets",
         "maps",
         "validation_gaps",
@@ -499,6 +527,12 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
         "structure_assemblies",
     }
     _exact_keys(payload, required, set(), "machine-map catalog")
+
+    raw_source_cocos = payload["source_cocos"]
+    if raw_source_cocos == _UNDECLARED_COCOS:
+        source_cocos = None
+    else:
+        source_cocos = _cocos_identifier(raw_source_cocos, "source_cocos")
 
     binding_sets_raw = payload["binding_sets"]
     if not isinstance(binding_sets_raw, list) or not binding_sets_raw:
@@ -642,6 +676,7 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
         dd_version=_text(payload["dd_version"], "dd_version"),
         source=_text(payload["source"], "source"),
         source_revision=_text(payload["source_revision"], "source_revision"),
+        source_cocos=source_cocos,
         binding_sets=MappingProxyType(binding_sets),
         maps=maps,
         validation_gaps=gaps,
