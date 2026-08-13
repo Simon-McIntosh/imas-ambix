@@ -26,7 +26,7 @@
 <meta name="plan-commits" content="9b3169eeb1cbd6b19c304847de48012d735775d5,5501e0a7b422d1446b5429b6e2e61b09a5122997">
 <meta name="plan-artifacts" content="imas_ambix/data/cocos_convention.py,tests/data/test_cocos_convention.py">
 <meta name="plan-impl" content="0.75">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="3">
 </head>
 <body>
   <main class="plan-doc">
@@ -132,15 +132,15 @@
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="source-convention-declaration" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="source-convention-declaration" data-choice="per-machine-with-override" data-by="reckon-ship" data-when="2026-08-13T14:38:55+00:00">
     <p class="r-dec-q">Where is a machine&#x27;s source COCOS convention declared — once per
           machine, or per binding?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="per-machine">once per machine map, inherited by every binding</button>
       <button class="r-opt" data-value="per-binding">per binding, no inheritance</button>
-      <button class="r-opt" data-value="per-machine-with-override">once per machine, overridable per binding</button>
+      <button class="r-opt chosen" data-value="per-machine-with-override">once per machine, overridable per binding</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">A source convention is a property of the machine&#x27;s store, so declaring it per binding would repeat one value across 254 declarations and invite exactly the drift the declarative catalog exists to prevent — that rules out per-binding. It is not declared once and made immutable either, because this sprint&#x27;s own evidence shows why: the convention determination allowed for the real possibility that a facility store assembled over decades matches no single COCOS, and a store carrying one subsystem in a different convention is the same phenomenon at smaller scale. Per-machine with an optional per-binding override expresses the common case once and keeps the exception representable without a schema change. The engine currently defaults the value to the measured COCOS-4 for backward-compatible catalog calls, which is a shim rather than a declaration; locking this moves the declaration into the machine map where it is data.</p>
     </div>
 </section>
 
