@@ -21,21 +21,9 @@ from imas_ambix.data.transform_engine import (
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 TRANSITION_SHOTS = (11_766, 12_417, 12_533)
 EXPECTED_EMITTED_COUNTS = {
-    11_766: {"zarr": 133, "netcdf": 123},
-    12_417: {"zarr": 142, "netcdf": 132},
-    12_533: {"zarr": 142, "netcdf": 132},
-}
-NON_REPRESENTABLE_SOURCES = {
-    "b_field_tor_probe_saddle_l_phi",
-    "b_field_tor_probe_saddle_l_r",
-    "b_field_tor_probe_saddle_l_z",
-    "b_field_tor_probe_saddle_m_phi",
-    "b_field_tor_probe_saddle_m_r",
-    "b_field_tor_probe_saddle_m_z",
-    "b_field_tor_probe_saddle_u_phi",
-    "b_field_tor_probe_saddle_u_r",
-    "b_field_tor_probe_saddle_u_z",
-    "coordinate",
+    11_766: 123,
+    12_417: 132,
+    12_533: 132,
 }
 
 
@@ -180,7 +168,6 @@ def test_two_format_engines_emit_three_range_scoped_descriptions(tmp_path):
         zarr_result = transform_machine_description(catalog, shot, "zarr", LEVEL2_ROOT)
         assert zarr_result.status == "emitted"
         assert zarr_result.machine_map.first_shot == shot
-        assert zarr_result.emitted_array_count == EXPECTED_EMITTED_COUNTS[shot]["zarr"]
 
         direct_store = zarr.open_group(LEVEL2_ROOT / f"{shot}.zarr", mode="r")
         direct_values: dict[str, np.ndarray] = {}
@@ -215,9 +202,9 @@ def test_two_format_engines_emit_three_range_scoped_descriptions(tmp_path):
         )
         assert netcdf_result.status == "emitted"
         assert netcdf_result.machine_map == zarr_result.machine_map
-        assert (
-            netcdf_result.emitted_array_count == EXPECTED_EMITTED_COUNTS[shot]["netcdf"]
-        )
+        assert not exception_reasons
+        assert netcdf_result.emitted_array_count == zarr_result.emitted_array_count
+        assert netcdf_result.emitted_array_count == EXPECTED_EMITTED_COUNTS[shot]
         for emitted in netcdf_result.arrays:
             _assert_array_equal(emitted.values, direct_values[emitted.binding_name])
 
@@ -227,15 +214,7 @@ def test_two_format_engines_emit_three_range_scoped_descriptions(tmp_path):
             f"netcdf={netcdf_result.emitted_array_count}"
         )
 
-    assert set(exception_reasons) == NON_REPRESENTABLE_SOURCES
-    assert exception_reasons["coordinate"] == (
-        "the declared DD path identifies a structure, not a leaf"
-    )
-    assert all(
-        reason == "source rank 2 cannot populate DD leaf rank 0"
-        for source, reason in exception_reasons.items()
-        if source != "coordinate"
-    )
+    assert not exception_reasons
 
 
 @pytest.mark.parametrize("store_format", TRANSFORM_ENGINE_FORMATS)

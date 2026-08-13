@@ -5,7 +5,7 @@ description: >-
   Range-scoped bindings from immutable store arrays to Data Dictionary leaves.
   The schema deliberately has no condition, expression, or code-hook slot.
 license: LGPL-3.0-or-later
-version: 1.0.0
+version: 1.1.0
 prefixes:
   linkml: https://w3id.org/linkml/
   mm: https://imas-ambix.example/schema/machine-map/
@@ -68,6 +68,10 @@ slots:
     range: ValidationGap
     multivalued: true
     inlined_as_list: true
+  source_qualifications:
+    range: SourceQualification
+    multivalued: true
+    inlined_as_list: true
   name:
     identifier: true
     required: true
@@ -107,6 +111,10 @@ slots:
     required: true
   evidence:
     required: true
+  source_shape:
+    range: integer
+    multivalued: true
+    required: true
   binding:
     required: true
   reason:
@@ -142,6 +150,19 @@ classes:
     slots:
       - binding
       - reason
+  SourceQualification:
+    description: >-
+      An observed source array excluded because the Data Dictionary has no
+      semantically valid writable leaf for its shape and meaning.
+    slots:
+      - name
+      - source_group
+      - source_array
+      - source_location
+      - source_shape
+      - source_unit
+      - reason
+      - evidence
   MachineMapCatalog:
     tree_root: true
     slots:
@@ -152,3 +173,4 @@ classes:
       - binding_sets
       - maps
       - validation_gaps
+      - source_qualifications
