@@ -6,10 +6,12 @@ import json
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import imas
 import numpy as np
 import pytest
+import zarr
 from imas.ids_struct_array import IDSStructArray
 
 from imas_ambix.data.geometry_transitions import (
@@ -26,6 +28,10 @@ from imas_ambix.data.machine_map import (
     map_for_shot,
 )
 from imas_ambix.data.manifest import load_index
+from imas_ambix.data.transform_engine import (
+    BindingTransformError,
+    transform_machine_description,
+)
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 MACHINE_DESCRIPTION_GROUPS = ("magnetics", "pf_active", "pf_passive", "wall")
@@ -113,6 +119,34 @@ def _source_data_kind(data_type: object) -> str:
     raise AssertionError(f"unsupported source data type {data_type!r}")
 
 
+def _plasma_current_catalog_document(source_cocos: int) -> dict[str, Any]:
+    document = json.loads((LINKML_SCHEMA_PATH.parent / "mast.json").read_text())
+    binding = next(
+        item
+        for item in document["binding_sets"][0]["bindings"]
+        if item["name"] == "mast-magnetics-ip"
+    )
+    document["source_cocos"] = source_cocos
+    document["binding_sets"] = [{"name": "plasma-current-only", "bindings": [binding]}]
+    machine_map = document["maps"][0]
+    machine_map.update(
+        {
+            "name": "plasma-current-only",
+            "first_shot": 1,
+            "last_shot": 1,
+            "transition": None,
+            "binding_set": "plasma-current-only",
+            "drive_topology": None,
+        }
+    )
+    document["maps"] = [machine_map]
+    document["validation_gaps"] = []
+    document["source_qualifications"] = []
+    document["drive_topologies"] = []
+    document["structure_assemblies"] = []
+    return document
+
+
 @lru_cache(maxsize=1)
 def _machine_description_inventory() -> tuple[
     list[int], dict[str, dict[str, dict[str, set[object]]]]
@@ -155,6 +189,8 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
     assert "CircuitConnection" in schema["classes"]
     assert "DriveTopology" in schema["classes"]
     assert "StructureAssembly" in schema["classes"]
+    assert "source_cocos" in schema["classes"]["MachineMapCatalog"]["slots"]
+    assert "source_cocos_override" in schema["classes"]["ChannelBinding"]["slots"]
     assert set(schema["enums"]["BindingRole"]["permissible_values"]) == {
         "value",
         "identifier",
@@ -166,6 +202,67 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
     }
     forbidden = {"condition", "expression", "code_hook", "transform_code"}
     assert forbidden.isdisjoint(schema["slots"])
+
+
+def test_machine_catalogs_declare_source_cocos_without_binding_overrides():
+    mast = load_packaged_machine_map("mast")
+    diii_d = load_packaged_machine_map("diii-d")
+
+    assert mast.source_cocos == 4
+    assert diii_d.source_cocos is None
+    for catalog in (mast, diii_d):
+        overrides = tuple(
+            binding
+            for bindings in catalog.binding_sets.values()
+            for binding in bindings
+            if binding.source_cocos_override is not None
+        )
+        assert overrides == ()
+
+
+def test_engine_uses_catalog_source_cocos_and_binding_override(tmp_path):
+    values = np.asarray([2.0, -3.0], dtype=np.float64)
+    store = zarr.open_group(tmp_path / "stores" / "1.zarr", mode="w")
+    store.create_group("magnetics").create_array("ip", data=values)
+
+    receipts = []
+    for source_cocos, expected_factor in ((1, 1.0), (4, -1.0)):
+        document = _plasma_current_catalog_document(source_cocos)
+        path = tmp_path / f"source-cocos-{source_cocos}.json"
+        path.write_text(json.dumps(document))
+        catalog = load_machine_map(path)
+        result = transform_machine_description(catalog, 1, "zarr", tmp_path / "stores")
+
+        assert result.source_cocos == source_cocos
+        assert result.arrays[0].cocos_factor == expected_factor
+        assert np.array_equal(result.arrays[0].values, values * expected_factor)
+        receipts.append((source_cocos, expected_factor))
+
+    override_document = _plasma_current_catalog_document(4)
+    override_document["binding_sets"][0]["bindings"][0]["source_cocos_override"] = 1
+    override_path = tmp_path / "binding-override.json"
+    override_path.write_text(json.dumps(override_document))
+    override_result = transform_machine_description(
+        load_machine_map(override_path), 1, "zarr", tmp_path / "stores"
+    )
+    assert override_result.arrays[0].cocos_factor == 1.0
+    assert np.array_equal(override_result.arrays[0].values, values)
+    print(f"SOURCE_COCOS_FACTOR_RECEIPT declarations={receipts} override=(1, 1.0)")
+
+
+def test_engine_rejects_undeclared_catalog_cocos_for_dependent_binding(tmp_path):
+    document = _plasma_current_catalog_document(0)
+    path = tmp_path / "undeclared-cocos.json"
+    path.write_text(json.dumps(document))
+    store = zarr.open_group(tmp_path / "stores" / "1.zarr", mode="w")
+    store.create_group("magnetics").create_array(
+        "ip", data=np.asarray([1.0], dtype=np.float64)
+    )
+
+    with pytest.raises(BindingTransformError, match="no declared source COCOS"):
+        transform_machine_description(
+            load_machine_map(path), 1, "zarr", tmp_path / "stores"
+        )
 
 
 def test_mast_catalog_accounts_for_every_machine_description_array_in_the_corpus():

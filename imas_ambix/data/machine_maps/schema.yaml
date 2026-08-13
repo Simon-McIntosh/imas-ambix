@@ -5,7 +5,7 @@ description: >-
   Range-scoped bindings from immutable store arrays to Data Dictionary leaves.
   The schema deliberately has no condition, expression, or code-hook slot.
 license: LGPL-3.0-or-later
-version: 1.4.0
+version: 1.5.0
 prefixes:
   linkml: https://w3id.org/linkml/
   mm: https://imas-ambix.example/schema/machine-map/
@@ -55,6 +55,22 @@ slots:
     required: true
   source_revision:
     required: true
+  source_cocos:
+    description: >-
+      Machine-wide source coordinate convention. Zero is the explicit
+      undeclared marker when the convention has not been validated against
+      source data.
+    required: true
+    range: integer
+    minimum_value: 0
+    maximum_value: 18
+  source_cocos_override:
+    description: >-
+      Optional source coordinate convention for a binding that differs from
+      the machine-wide declaration.
+    range: integer
+    minimum_value: 1
+    maximum_value: 18
   binding_sets:
     range: BindingSet
     multivalued: true
@@ -213,6 +229,7 @@ classes:
       - target_unit
       - sign_convention
       - evidence
+      - source_cocos_override
   MachineMap:
     slots:
       - name
@@ -293,6 +310,7 @@ classes:
       - dd_version
       - source
       - source_revision
+      - source_cocos
       - binding_sets
       - maps
       - validation_gaps
