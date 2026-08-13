@@ -1,11 +1,9 @@
-"""FAIR-MAST shot manifest — load the parquet index, list S3 groups,
-emit per-tier per-group download targets.
+"""FAIR-MAST shot manifest and per-tier download targets.
 
-The 2026-05-19 probe (see ``plans/data-acquisition.md`` §10) established
-that the level-2 corpus carries no camera groups; the camera data lives
-in level-1 sources (``rba``, ``rbb``, ``rir``, …). The parquet shot
-index has no camera-presence flag columns. Group inventories are
-therefore built from **S3 listings**, not the parquet index.
+The level-2 corpus carries no camera groups; camera data lives in level-1
+sources (``rba``, ``rbb``, ``rir``, …).  The parquet shot index has no camera
+presence flags, so group inventories come from S3 listings.  Machine geometry
+is selected independently through declared shot-range transitions.
 """
 
 from __future__ import annotations
@@ -17,13 +15,19 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from pathlib import Path
 
     import pandas as pd
 
+from imas_ambix.data.geometry_transitions import (
+    GeometryTransition,
+    build_geometry_transitions,
+    count_transitions_inside_campaigns,
+)
 from imas_ambix.data.paths import (
     S3_BUCKET,
     S3_ENDPOINT,
@@ -124,8 +128,7 @@ def _require_s5cmd() -> str:
     path = shutil.which("s5cmd")
     if path is None:
         raise S5cmdMissingError(
-            "s5cmd is not on PATH — see plans/data-acquisition.md §3.1 for "
-            "the install command"
+            "s5cmd is not on PATH; install it before running S3 acquisition"
         )
     return path
 
@@ -281,6 +284,8 @@ class ShotManifest:
     source: str
     filter_description: str
     total_in_index: int
+    geometry_transitions: tuple[GeometryTransition, ...] = ()
+    geometry_transitions_inside_campaign: int = 0
 
     def to_json(self) -> str:
         return json.dumps(
@@ -292,6 +297,13 @@ class ShotManifest:
                 "source": self.source,
                 "filter_description": self.filter_description,
                 "total_in_index": self.total_in_index,
+                "geometry_transition_count": len(self.geometry_transitions),
+                "geometry_transitions_inside_campaign": (
+                    self.geometry_transitions_inside_campaign
+                ),
+                "geometry_transitions": [
+                    transition.to_dict() for transition in self.geometry_transitions
+                ],
             },
             indent=2,
         )
@@ -316,8 +328,23 @@ def build_manifest(
     groups: tuple[str, ...] = (),
     total_in_index: int = 0,
     filter_description: str = "",
+    campaign_index: pd.DataFrame | None = None,
+    geometry_payload: Mapping[str, Any] | None = None,
 ) -> ShotManifest:
-    """Build a tier-aware :class:`ShotManifest`."""
+    """Build a tier-aware manifest, including geometry when both inputs exist."""
+    if (campaign_index is None) != (geometry_payload is None):
+        raise ValueError(
+            "campaign_index and geometry_payload must be provided together"
+        )
+    transitions: tuple[GeometryTransition, ...] = ()
+    transitions_inside_campaign = 0
+    if campaign_index is not None and geometry_payload is not None:
+        transitions = build_geometry_transitions(
+            shot_ids, campaign_index, geometry_payload
+        )
+        transitions_inside_campaign = count_transitions_inside_campaigns(
+            transitions, campaign_index
+        )
     return ShotManifest(
         tier=tier,
         shot_ids=tuple(int(s) for s in shot_ids),
@@ -326,6 +353,8 @@ def build_manifest(
         source=SHOT_INDEX_URL,
         filter_description=filter_description or f"{len(shot_ids)} shots at {tier}",
         total_in_index=total_in_index,
+        geometry_transitions=transitions,
+        geometry_transitions_inside_campaign=transitions_inside_campaign,
     )
 
 
