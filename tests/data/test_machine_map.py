@@ -26,6 +26,8 @@ from imas_ambix.data.machine_map import (
 from imas_ambix.data.manifest import load_index
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
+MACHINE_DESCRIPTION_GROUPS = ("magnetics", "pf_active", "wall")
+EXPECTED_BOUND_CHANNEL_COUNTS = {"magnetics": 71, "pf_active": 71, "wall": 3}
 
 
 def _dd_leaf(dd_version: str, path: str):
@@ -34,10 +36,13 @@ def _dd_leaf(dd_version: str, path: str):
 
 
 @lru_cache(maxsize=1)
-def _interferometer_inventory() -> tuple[list[int], set[str], dict[str, set[str]]]:
+def _machine_description_inventory() -> tuple[
+    list[int], dict[str, dict[str, set[str]]]
+]:
     shots: list[int] = []
-    arrays: set[str] = set()
-    units: dict[str, set[str]] = {}
+    inventory: dict[str, dict[str, set[str]]] = {
+        group: {} for group in MACHINE_DESCRIPTION_GROUPS
+    }
     for entry in os.scandir(LEVEL2_ROOT):
         if not entry.is_dir() or not entry.name.endswith(".zarr"):
             continue
@@ -46,62 +51,84 @@ def _interferometer_inventory() -> tuple[list[int], set[str], dict[str, set[str]
         metadata = json.loads(metadata_path.read_text())["consolidated_metadata"][
             "metadata"
         ]
-        prefix = "interferometer/"
-        names = {
-            path.removeprefix(prefix)
-            for path, row in metadata.items()
-            if path.startswith(prefix) and row.get("node_type") == "array"
-        }
         shots.append(shot)
-        arrays.update(names)
-        for name in names:
-            unit = str(metadata[f"{prefix}{name}"]["attributes"].get("units", ""))
-            units.setdefault(name, set()).add(unit)
-    return sorted(shots), arrays, units
+        for group in MACHINE_DESCRIPTION_GROUPS:
+            prefix = f"{group}/"
+            for path, row in metadata.items():
+                if not path.startswith(prefix) or row.get("node_type") != "array":
+                    continue
+                name = path.removeprefix(prefix)
+                unit = str(row.get("attributes", {}).get("units", ""))
+                inventory[group].setdefault(name, set()).add(unit)
+    return sorted(shots), inventory
 
 
 def test_linkml_schema_is_declarative_and_has_no_executable_language():
     schema = load_linkml_schema()
     assert LINKML_SCHEMA_PATH.name == "schema.yaml"
     assert schema["classes"]["MachineMapCatalog"]["tree_root"] is True
+    assert set(schema["enums"]["BindingRole"]["permissible_values"]) == {
+        "value",
+        "identifier",
+        "dimension-coordinate",
+    }
     forbidden = {"condition", "expression", "code_hook", "transform_code"}
     assert forbidden.isdisjoint(schema["slots"])
 
 
-def test_mast_maps_validate_and_cover_every_mapped_corpus_channel():
+def test_mast_maps_bind_every_machine_description_array_in_the_corpus():
     if not LEVEL2_ROOT.is_dir():
         pytest.skip("FAIR-MAST level-2 mirror is not mounted")
     catalog = load_packaged_machine_map("mast")
-    shots, arrays, units = _interferometer_inventory()
-    bindings = catalog.binding_sets["mast-interferometer"]
+    shots, inventory = _machine_description_inventory()
+    bindings = catalog.binding_sets["mast-machine-description"]
 
     assert len(shots) == 11_573
     assert (shots[0], shots[-1]) == (11_766, 30_471)
-    assert (
-        arrays
-        == {binding.source_array for binding in bindings}
-        == {
-            "time",
-            "n_e_line",
-        }
-    )
-    assert units == {"time": {"s"}, "n_e_line": {"1 / m ** 2"}}
-    assert catalog.bound_channel_count == 2
-    assert len(catalog.maps) * catalog.bound_channel_count == 22
+    assert catalog.bound_channel_counts == EXPECTED_BOUND_CHANNEL_COUNTS
+    assert catalog.bound_channel_count == 145
+    assert len(catalog.maps) * catalog.bound_channel_count == 1_595
     assert catalog.validation_gaps == ()
+
+    bindings_by_group: dict[str, dict[str, object]] = {
+        group: {
+            binding.source_array: binding
+            for binding in bindings
+            if binding.source_group == group
+        }
+        for group in MACHINE_DESCRIPTION_GROUPS
+    }
+    for group in MACHINE_DESCRIPTION_GROUPS:
+        assert set(bindings_by_group[group]) == set(inventory[group])
 
     for binding in bindings:
         leaf = _dd_leaf(catalog.dd_version, binding.dd_path)
-        assert leaf.data_type.name == "FLT"
-        assert leaf.units == binding.target_unit
-        assert binding.sign_convention == "identity"
+        assert (leaf.units or "1") == binding.target_unit
+        observed_units = inventory[binding.source_group][binding.source_array]
+        nonempty_units = {unit for unit in observed_units if unit}
+        if binding.source_role == "value":
+            assert binding.sign_convention == "identity"
+            expected_source_unit = (
+                "degree" if binding.target_unit == "rad" else binding.target_unit
+            )
+            assert binding.source_unit == expected_source_unit
+            if binding.source_unit in {"degree", "m"}:
+                assert nonempty_units == {"SI, degrees, m"}
+            elif binding.source_unit == "s":
+                assert {unit.lower() for unit in nonempty_units} == {"s"}
+            else:
+                assert nonempty_units == {binding.source_unit}
+        else:
+            assert binding.source_unit == binding.target_unit == "1"
+            assert binding.sign_convention == "not-applicable"
+            assert not nonempty_units
 
 
 def test_every_mast_map_range_is_one_geometry_transition():
     if not LEVEL2_ROOT.is_dir():
         pytest.skip("FAIR-MAST level-2 mirror is not mounted")
     catalog = load_packaged_machine_map("mast")
-    shots, _, _ = _interferometer_inventory()
+    shots, _ = _machine_description_inventory()
     transitions = build_geometry_transitions(
         shots,
         load_index(),
@@ -116,7 +143,7 @@ def test_every_mast_map_range_is_one_geometry_transition():
         assert machine_map.last_shot == transition.last_shot
 
 
-def test_diii_d_public_map_is_valid_and_every_binding_is_qualified():
+def test_diii_d_public_map_retains_only_direct_plasma_current():
     catalog = load_packaged_machine_map("diii-d")
     machine_map = catalog.maps[0]
     bindings = catalog.bindings_for(machine_map)
@@ -125,15 +152,31 @@ def test_diii_d_public_map_is_valid_and_every_binding_is_qualified():
     assert catalog.source == "https://github.com/MIT-PSFC/disruption-py"
     assert catalog.source_revision == "dec5c58a3e3970bc6817f33efb615fea11057fce"
     assert machine_map.validation_state == "source-only"
-    assert catalog.bound_channel_count == len(bindings) == len(gaps) == 4
+    assert catalog.bound_channel_count == len(bindings) == len(gaps) == 1
     assert gaps.keys() == {binding.name for binding in bindings}
     assert all("No DIII-D pulse corpus" in reason for reason in gaps.values())
     assert all(binding.sign_convention == "unknown-unvalidated" for binding in bindings)
+    assert [
+        (binding.source_group, binding.source_array, binding.dd_path)
+        for binding in bindings
+    ] == [("d3d", "ip", "magnetics/ip/data")]
     for binding in bindings:
         leaf = _dd_leaf(catalog.dd_version, binding.dd_path)
         assert leaf.data_type.name == "FLT"
         assert leaf.units == binding.target_unit
-        assert "dec5c58a" in binding.evidence
+        assert catalog.source_revision in binding.evidence
+
+
+def test_machine_maps_exclude_reconstruction_derived_bindings():
+    disallowed = {"equilibrium", "q95", "q_95", "li_3", "betan", "beta_tor_norm"}
+    for machine in ("mast", "diii-d"):
+        catalog = load_packaged_machine_map(machine)
+        for bindings in catalog.binding_sets.values():
+            for binding in bindings:
+                declaration = "/".join(
+                    (binding.source_group, binding.source_array, binding.dd_path)
+                ).lower()
+                assert not any(term in declaration for term in disallowed)
 
 
 def test_loader_rejects_an_undeclared_conditional_slot(tmp_path):

@@ -15,12 +15,22 @@ imports:
   - linkml:types
 
 enums:
+  BindingRole:
+    permissible_values:
+      value:
+        description: Source values populate the declared Data Dictionary path.
+      identifier:
+        description: Source strings identify structures at the declared path.
+      dimension-coordinate:
+        description: Source indices order a target array and are not emitted as a leaf.
   SignConvention:
     permissible_values:
       identity:
         description: Source-positive and target-positive directions coincide.
       negate:
         description: Target values are the additive inverse of source values.
+      not-applicable:
+        description: Names and structural indices have no signed direction.
       unknown-unvalidated:
         description: The public declaration has not been checked against pulse data.
   ValidationState:
@@ -81,6 +91,9 @@ slots:
     required: true
   source_array:
     required: true
+  source_role:
+    range: BindingRole
+    required: true
   source_location:
     required: true
   dd_path:
@@ -109,6 +122,7 @@ classes:
       - name
       - source_group
       - source_array
+      - source_role
       - source_location
       - dd_path
       - source_unit
