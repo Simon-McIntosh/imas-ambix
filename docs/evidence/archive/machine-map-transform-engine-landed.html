@@ -284,13 +284,44 @@
               [6, 10, 10, 10, 10, 10, 10, 10, 10, 10]</td></tr>
     </tbody>
   </table>
+  <p class="note"><strong>⚠ Cardinalities superseded 2026-08-13.</strong> The counts above were
+  taken over 11 declared ranges, nine of whose boundaries were later shown to be mesh refinement
+  rather than geometry change. The three properties still hold; the numbers are corrected in
+  <a href="#s4-cardinality">the recount</a> below.</p>
   <p>The changed-field counts are the point of the design. A global digest would compress each
   boundary to "different"; here the 1004↔938 filament changes stay <em>inspectable</em>, which is
   what lets the earlier finding — that some boundaries record EFIT setup churn rather than machine
-  change — remain visible rather than being absorbed into a hash. The first boundary at 12417
-  moves 6 fields against 10 at every later one, so the transitions are not interchangeable.
-  Pulse <code>/data</code> and <code>/time</code> leaves are excluded because they describe the
-  experiment, not machine identity.</p>
+  change — remain visible rather than being absorbed into a hash. Pulse <code>/data</code> and
+  <code>/time</code> leaves are excluded because they describe the experiment, not machine
+  identity.</p>
+  <p><strong>The "6 versus 10" asymmetry was the signal, not a curiosity.</strong> When identity
+  first landed, the boundary at 12417 moved 6 fields while every later one moved exactly 10. That
+  uniform 10 was the discretisation fingerprint: those boundaries were all the same mesh change
+  repeated. The one boundary that behaved differently was the only real one.</p>
+
+  <h3 id="s4-cardinality">Recount on the corrected geometry model</h3>
+  <p><strong>2 ranges, 1 interior boundary, 4 sampled shots — and the assertions no longer carry
+  a frozen count at all.</strong> Commit <code>714390e</code>. The full seven-file lane runs
+  <strong>55 collected, 55 passed, 0 failed, 0 skipped, 0 deselected</strong> in 446.19&nbsp;s on
+  SLURM <code>sun_debug</code> job 1245796, node <code>98dci4-clu-3141</code>.</p>
+  <p>The single real boundary at 12417 moves 6 fields: <code>b_probes.z</code>,
+  <code>flux_loops.r</code>, <code>flux_loops.z</code>, <code>pf_filaments.r</code>,
+  <code>pf_filaments.z</code>, <code>pf_filaments.xmult</code> — probes, loops and filaments all
+  moving together, which is what a real machine change looks like and what a pure remesh does not.</p>
+  <p>Partition samples and boundary expectations are now generated from
+  <code>build_geometry_transitions</code> over the authoritative corpus rather than from
+  literals, so the tests assert the <em>invariant</em> — every declared range sampled with two
+  observed shots, every adjacent declared boundary producing a non-empty diff, catalog range
+  identities equal to the declared physical transition identities — and changed-field counts
+  remain printed receipts. This is the third time in this sprint a frozen count went stale after a
+  legitimate model change; deriving it from the model retires the pattern rather than resetting
+  its clock.</p>
+  <p>This run also cleared the three corpus-census tests that an earlier
+  <code>cxiWaitEventWait</code> stall had forced a worker to deselect:
+  <code>test_mast_catalog_accounts_for_every_machine_description_array_in_the_corpus</code>,
+  <code>test_every_binding_targets_a_writable_shape_compatible_dd_leaf</code> and
+  <code>test_every_mast_map_range_is_one_geometry_transition</code> all PASSED, with no test
+  stalling beyond 10 minutes. The stall was environmental, not a code defect.</p>
 
   <h2 id="s5-audit">§5 — Reader retirement: bounded, but not currently executable</h2>
   <p><strong>Read-only audit at source revision <code>81785a8</code>. 55 non-test modules import
