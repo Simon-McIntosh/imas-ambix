@@ -75,6 +75,8 @@ class WriterReceipt:
     base_class: str | None
     called_methods: tuple[str, ...]
     conditional_methods: tuple[str, ...] = ()
+    locally_defined_methods: tuple[str, ...] = ()
+    supporting_methods: tuple[str, ...] = ()
     private_names: tuple[str, ...] = ()
 
 
@@ -99,6 +101,13 @@ ZARR_WRITER_RECEIPT = WriterReceipt(
         "get_shape_dimensions",
         "get_shape_attributes",
     ),
+    locally_defined_methods=(
+        "get_dimensions",
+        "get_attributes",
+        "get_shape_dimensions",
+        "get_shape_attributes",
+    ),
+    supporting_methods=("filter_coordinates",),
 )
 
 
@@ -115,18 +124,28 @@ def read_fixed_native_payload(
     *,
     shot: int = FIXED_MAST_SHOT,
     sample_start: int = FIXED_SAMPLE_START,
-    sample_stop: int = FIXED_SAMPLE_STOP,
+    sample_stop: int | None = FIXED_SAMPLE_STOP,
     channels: Sequence[ChannelBinding] = FIXED_CHANNELS,
 ) -> ShotPayload:
     """Read the fixed MAST slice directly from its native level-2 arrays."""
     shot_path = Path(level2_root) / f"{shot}.zarr"
     group = zarr.open_group(shot_path, mode="r")[FIXED_IDS_NAME]
     arrays: dict[str, PayloadArray] = {}
+    actual_stop: int | None = None
 
     for binding in channels:
         source = group[binding.native_name]
         values = np.asarray(source[sample_start:sample_stop])
-        if values.ndim != 1 or values.shape[0] != sample_stop - sample_start:
+        if values.ndim != 1:
+            raise ValueError(
+                f"{binding.native_name!r} does not provide the requested 1D slice"
+            )
+        channel_stop = sample_start + values.shape[0]
+        if actual_stop is None:
+            actual_stop = channel_stop
+        if channel_stop != actual_stop:
+            raise ValueError("all payload channels must have an equal sample count")
+        if sample_stop is not None and channel_stop != sample_stop:
             raise ValueError(
                 f"{binding.native_name!r} does not provide the requested 1D slice"
             )
@@ -146,11 +165,14 @@ def read_fixed_native_payload(
             raise ValueError(f"{binding.native_name!r} has no units metadata")
         arrays[binding.dd_path] = PayloadArray(values.copy(), dd_path, units)
 
+    if actual_stop is None:
+        raise ValueError("at least one channel is required")
+
     return ShotPayload(
         shot=shot,
         ids_name=FIXED_IDS_NAME,
         sample_start=sample_start,
-        sample_stop=sample_stop,
+        sample_stop=actual_stop,
         arrays=arrays,
     )
 
@@ -204,6 +226,58 @@ class IDSZarrWriter(IDSTensorizer):
     def __init__(self, ids: Any, paths: Sequence[str]) -> None:
         normalized_paths = [ids.metadata[path].path_string for path in paths]
         super().__init__(ids, normalized_paths)
+
+    def get_dimensions(self, path: str) -> tuple[str, ...]:
+        """Return DD-derived dimensions through ``NCMetadata``'s public API."""
+        return self.ncmeta.get_dimensions(path, self.homogeneous_time)
+
+    def get_shape_dimensions(self, path: str) -> tuple[str, ...]:
+        """Return dimensions for a sparse array's shape metadata."""
+        ndim = self.ids.metadata[path].ndim
+        return self.get_dimensions(self.ncmeta.aos.get(path, "")) + (f"{ndim}D",)
+
+    def get_attributes(self, path: str, fillvals: Mapping[Any, Any]) -> dict[str, str]:
+        """Build public DD attributes for one tensorized variable."""
+        metadata = self.ids.metadata[path]
+        name = path.replace("/", ".")
+        attributes = {"documentation": metadata.documentation or ""}
+        if metadata.units:
+            attributes["units"] = metadata.units
+
+        ancillary_variables = " ".join(
+            error_name
+            for error_name in (f"{name}_error_upper", f"{name}_error_lower")
+            if error_name in self.filled_variables
+        )
+        if ancillary_variables:
+            attributes["ancillary_variables"] = ancillary_variables
+
+        if metadata.data_type is not IDSDataType.STRUCT_ARRAY:
+            coordinates = self.filter_coordinates(path)
+            if coordinates:
+                attributes["coordinates"] = coordinates
+
+        if path in self.shapes:
+            if metadata.ndim:
+                attributes["sparse"] = (
+                    f"Sparse data, data shapes are stored in {name}:shape"
+                )
+            else:
+                attributes["sparse"] = (
+                    "Sparse data, missing data is filled with _FillValue "
+                    f"({fillvals[metadata.data_type]})"
+                )
+        return attributes
+
+    def get_shape_attributes(self, name: str) -> dict[str, str]:
+        """Describe the shape array associated with a sparse variable."""
+        indices = ",".join(chr(ord("i") + offset) for offset in range(3))
+        documentation = (
+            f"Shape information for {name}.\n"
+            f"{name}:shape[{indices},:] describes the shape of filled data of "
+            f"{name}[{indices},...]. Data outside this shape is unset."
+        )
+        return {"documentation": documentation}
 
     def to_dataset(self) -> xr.Dataset:
         """Tensorize selected IDS paths into a DD-annotated xarray dataset."""
