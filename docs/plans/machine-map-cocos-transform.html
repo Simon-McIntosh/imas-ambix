@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="machine-map-cocos-transform">
   <meta name="plan-title" content="The Transform Carries COCOS, Not Just Names">
   <meta name="plan-summary" content="A machine map that binds a source array to a DD path with a sign convention is a semantic name map; it is not yet a transform. Many target DD paths are COCOS-dependent, so the engine must apply the Sauter coefficient transform from MAST&#x27;s own convention to the declared target convention. Identify MAST&#x27;s convention, then prove it against real MAST data for both current signs rather than asserting it.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="6.0">
   <meta name="plan-capability-version" content="1.0">
@@ -26,7 +26,7 @@
 <meta name="plan-commits" content="9b3169eeb1cbd6b19c304847de48012d735775d5,5501e0a7b422d1446b5429b6e2e61b09a5122997,3a1ebf28bb16e4c77495218bb7ac362eddadec51">
 <meta name="plan-artifacts" content="imas_ambix/data/cocos_convention.py,tests/data/test_cocos_convention.py">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="5">
 </head>
 <body>
   <main class="plan-doc">
@@ -146,7 +146,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-mmct-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-13" data-recommends-skill="/reckon-ship machine-map-cocos-transform §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-mmct-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-13" data-recommends-skill="/reckon-ship machine-map-cocos-transform §3" data-resolved-at="2026-08-13T17:24:19+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Determine MAST&#x27;s COCOS convention from data at both current polarities</h4>
     <div class="r-fu-body"><p>Read the relative signs of plasma current, toroidal field,
         poloidal flux and poloidal-angle direction from real level-2 shots at both current
@@ -155,6 +155,7 @@
         Record the per-quantity sign table, and if no single convention fits, record that as the
         finding rather than rounding to the nearest one.</p></div>
     <pre class="r-fu-prompt">/reckon-ship machine-map-cocos-transform §3</pre>
+    <p class="r-fu-outcome">done — no followup. Landed as commits 9b3169e, 5501e0a and 3a1ebf2. MAST level-2 is COCOS-4: exactly 1 survivor of 16 canonical candidates, holding at each polarity independently and jointly, on +Ip shots 13277/13890 and -Ip 13471/13472, with measured coefficients sigma_Bp=-1, e_Bp=0, sigma_RphiZ=-1, sigma_rhothetaphi=-1. The both-polarity requirement earned its place: it is what separates a convention error from a current-sign error, and it exposed that imas_ambix/cocos.py declared MAST as COCOS-3, whose ip_like and q_like carry the OPPOSITE signs — a live sign error in already-shipped code, now corrected together with the tests that asserted the wrong values. The factors are committed as data; the engine applies them by DD transformation class resolved from the target path and its ancestors rather than by machine name; an undeclared source convention on a COCOS-dependent target raises rather than passing through; and the convention is declared once per machine in the map with an optional per-binding override. 3 non-unity targets — magnetics/ip, pf_active/coil/current, pf_active/solenoid/current, all ip_like factor -1 — were each previously written with the wrong sign. The allowed-for negative outcome did not occur: the observed signs matched a single convention cleanly. The chain closes here because the remaining consumer work is the adapter in machine-map-transform-engine §6, which is a section of that plan and surfaces through its own lifecycle rather than needing a followup from this one.</p>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
