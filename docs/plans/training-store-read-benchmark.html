@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="training-store-read-benchmark">
   <meta name="plan-title" content="Training Store Read Benchmark">
   <meta name="plan-summary" content="Measure what each candidate store costs the GPU training path — IMAS-netCDF, zarr carrying DD-path metadata, and the native level-2 form — for static machine description and for streamed experimental data, and propose a storage format for each on the numbers.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="M">
   <meta name="plan-capability-version" content="1.0">
@@ -22,10 +22,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-13">
-<meta name="plan-version" content="6">
-<meta name="plan-commits" content="b9fb2cf692e5f8c085213a11a71589f30123e493,0c970bc680dbc8630b05a17d8b3a7887db9d6c0d,9f073779507b03fa9645e55fad685ab834bae131">
+<meta name="plan-version" content="10">
+<meta name="plan-commits" content="b9fb2cf692e5f8c085213a11a71589f30123e493,0c970bc680dbc8630b05a17d8b3a7887db9d6c0d,9f073779507b03fa9645e55fad685ab834bae131,c2bbdf4b1802732563311fd243d5a4408335f37f">
 <meta name="plan-artifacts" content="docs/evidence/archive/training-store-read-benchmark-landed.html,imas_ambix/bench/store_arms.py,imas_ambix/bench/store_read_rates.py,tests/test_store_arms.py,tests/test_store_read_rates.py,/work/projects/imas_gpu/store-bench/store-read-rates-sirius-debug-20260813.json">
-<meta name="plan-impl" content="0.75">
+<meta name="plan-impl" content="1.0">
 </head>
 <body>
   <main class="plan-doc">
@@ -48,33 +48,24 @@
     is a measured throughput with its wall clock and its sample count stated, never a size
     divided by an assumption.</p>
 
-    <h2 id="s2">§2 — Arms</h2>
-    <p>Three storage arms, measured on identical payloads:</p>
-    <table>
-      <thead><tr><th>Arm</th><th>What it is</th><th>Why it is in</th></tr></thead>
-      <tbody>
-        <tr>
-          <td>IMAS-netCDF</td>
-          <td>imas-python's netCDF backend, written and read through <code>DBEntry</code></td>
-          <td>Access-Layer compliant by construction; the only arm that publishes as real IMAS data without a further step</td>
-        </tr>
-        <tr>
-          <td>zarr + DD-path metadata</td>
-          <td>The incumbent zarr store, with each array carrying its Data Dictionary path and units as attributes</td>
-          <td>Tests whether DD semantics are separable from the IMAS container — vocabulary without the I/O</td>
-        </tr>
-        <tr>
-          <td>native level-2</td>
-          <td>The existing MAST level-2 form as read today</td>
-          <td>The incumbent baseline; a new format must beat what is already running</td>
-        </tr>
-      </tbody>
-    </table>
-    <p>Four access patterns per arm: whole-description static load; single-shot multi-signal
-    slice; N-shot batch stream at training batch size; and random access across the corpus.
-    Plus one transport comparison — <strong>live transfer against a mapped data entry already on
-    disk</strong> — which belongs here rather than with the transform engine, because a
-    measurement split across two plans stops being comparable.</p>
+    <section id="s2" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-13</span>
+        <h2>§2 — Arms</h2>
+      </header>
+      <p class="landed-summary">
+        Built <code>imas_ambix/bench/store_read_rates.py</code>. 12 storage cells then a 36-cell
+        scale/batch sweep, one node class, each cell carrying its own wall clock and sample count.
+        <strong>DD-annotated zarr wins every pattern at 9.02–10.28× native level-2, IMAS-netCDF
+        second at 2.38–3.11×, with 0 crossings over a 64× payload range</strong> — the ranking is
+        invariant, so format choice does not depend on payload or batch size. The live-versus-mapped
+        transport route is <strong>gate not-run</strong>: 24 probed shots gave 0 identical payloads
+        because the mirror is a different snapshot generation, and timing is now hard-gated on
+        payload identity. Held by <code>f-tsrb-002</code> under an authority exemption.
+        Full record: <a href="/imas-ambix/evidence/archive/training-store-read-benchmark-landed#s2">§2 landed</a>
+        (commits <code>0c970bc</code>, <code>9f07377</code>, <code>c2bbdf4</code>).
+      </p>
+    </section>
 
     <section id="s3" class="section-landed">
       <header>
@@ -94,29 +85,34 @@
       </p>
     </section>
 
-    <h2 id="s4">§4 — Deliverable</h2>
-    <p>One proposal naming a storage format for machine description and a storage format for
-    experimental data <em>separately</em>, each defended by measured rates, together with the
-    cross-over points where the ranking changes and an explicit finding on what the IMAS shape
-    costs as <strong>storage</strong> versus what it costs as <strong>interchange</strong>. Those
-    are different questions and the proposal must answer both.</p>
-    <p><em>Done-when:</em> all three arms measured across the four access patterns and the
-    transport comparison, on one node class, with throughput, wall clock and sample counts
-    recorded per run to named on-disk logs; the <code>IDSTensorizer</code> subclassing seam
-    verified or refuted with the code path stated; a proposal recorded as an evidence document
-    naming both formats with the numbers that decide them; and the two format decisions below
-    locked or explicitly left to the owner with the evidence attached.</p>
+    <section id="s4" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-13</span>
+        <h2>§4 — Deliverable</h2>
+      </header>
+      <p class="landed-summary">
+        Proposal recorded. <strong>Experimental data → zarr carrying DD-path metadata, locked</strong>
+        on 9.02–10.28× native at every grid point. <strong>Machine description → left to the owner</strong>
+        with the evidence attached, because read rate does not decide it: description amortises to
+        nothing, so the choice turns on publishability. No cross-over exists to reason about.
+        Headline finding: <strong>the IMAS shape costs ≈3.2× as storage but ≈nothing as
+        interchange</strong>, because the DD tensorization logic is reusable by subclass into a
+        non-IMAS container — semantics and container are separable and only the container is
+        expensive.
+        Full record: <a href="/imas-ambix/evidence/archive/training-store-read-benchmark-landed#s4">§4 landed</a>.
+      </p>
+    </section>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="experimental-store-format" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="experimental-store-format" data-choice="zarr-dd" data-by="reckon-ship" data-when="2026-08-13T08:59:51+00:00">
     <p class="r-dec-q">Which format stores the experimental data that feeds GPU training?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="zarr-dd">zarr carrying DD-path metadata</button>
+      <button class="r-opt chosen" data-value="zarr-dd">zarr carrying DD-path metadata</button>
       <button class="r-opt" data-value="imas-netcdf">IMAS-netCDF</button>
       <button class="r-opt" data-value="native-l2">native level-2, unchanged</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">Decided on the measurement rather than on preference. DD-annotated zarr reads 9.02-10.28x faster than native level-2 and about 3.2x faster than IMAS-netCDF, at every one of 12 scale/batch grid points over a 64x payload range, with 0 crossings on either axis. Experimental data is the pattern whose cost is paid continuously for the whole of training, so the read-rate term dominates and nothing else measured competes with it. The DD-path and units attributes ride along at no measured cost, so DD vocabulary is retained without the IMAS container. Evidence: docs/evidence/archive/training-store-read-benchmark-landed.html#s2 and #s2-crossover.</p>
     </div>
 <div class="r-dec" data-key="description-store-format" data-choice="" data-by="" data-when="">
     <p class="r-dec-q">Which format stores the machine description, given it is read once per
@@ -126,7 +122,7 @@
       <button class="r-opt" data-value="zarr-dd">zarr carrying DD-path metadata — one store technology overall</button>
       <button class="r-opt" data-value="both">both — netCDF as the published form, zarr as the working form</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">LEFT TO THE OWNER with the evidence attached, as §4 permits. Read rate does not decide this: description is read once per run and amortises to nothing (whole-load 0.0202s zarr vs 0.2073s native, immaterial against a training run), so every arm is fast enough and the choice turns on publishability rather than performance. Trade-offs measured: IMAS-netCDF is Access-Layer compliant by construction and publishable as real IMAS data with no conversion project, but costs a four-method compatibility shim while the project stays on imas-python 2.2.0; zarr+DD paths give one store technology and one engine across both access patterns but need a conversion step to publish; both keeps netCDF as the published form and zarr as the working form, and the shared IDSTensorizer base means the two writers share the DD shape rules rather than duplicating them. Supporting finding: the IMAS shape costs about 3.2x as STORAGE but approximately nothing as INTERCHANGE, because the DD tensorization logic is reusable by subclass into a non-IMAS container — IMAS semantics and the IMAS container are separable and only the container is expensive. Evidence: docs/evidence/archive/training-store-read-benchmark-landed.html#s4.</p>
     </div>
 </section>
 
@@ -157,6 +153,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-20260813-tsrb-transport" data-who="reckon-ship" data-when="2026-08-13">
     <div class="r-comment-body">tsrb-transport landed — commit 9f07377; gate admissible-transport-ranking NOT-RUN, evidence could not be produced. Measure: 24 probed shots (11766-11804), 0 shape matches, 0 np.array_equal matches, 0 timed transport cells. The negative is structural: live shapes span 424-556 while mapped shapes span 1561-2088, so the on-disk mirror is a different snapshot generation of the corpus rather than a stale copy of the current public objects, and no choice of shot makes the routes comparable. Durable fix landed with it: measure_transport prints both shapes and decoded_arrays_identical and raises BEFORE time.perf_counter unless shapes agree and np.array_equal holds, with a committed monkeypatched-perf_counter test proving a mismatch cannot begin timing; recorded status unobtainable_without_mirror_refresh and transport_cells empty. 1 test added. SLURM job 1245138 exit 0. Artifact /work/projects/imas_gpu/store-bench/transport-identical-payload-sirius-debug-20260813.log</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260813-tsrb-crossover" data-who="reckon-ship" data-when="2026-08-13">
+    <div class="r-comment-body">tsrb-crossover landed — commit c2bbdf4; gate crossover-search PASSED; measure 36 cells (3 arms x 4 payload scales x 3 batch sizes, 8 repetitions each) with 0 payload-scale crossings and 0 batch-size crossings: dd_annotated_zarr &gt; imas_netcdf &gt; native_level2 at all 12 grid points. Scalar counts per shot 48/192/768/3072 (64x range), batches 1/4/8, per-cell sample counts 384-196,608, wall clocks 0.0214-1.5021s. Ratios to native overall: netCDF 2.38-3.11x, DD-zarr 9.02-10.28x. Native/netCDF/DD-zarr checksums match exactly at all 12 points; assumed_rate_or_size_used false throughout; run_crossover_sweep enforces &gt;=4 scales, &gt;=10x range, &gt;=3 batch sizes so a future sweep cannot report no-crossover by sweeping too narrowly. 2 tests added. SLURM jobs 1245195 and 1245209 exit 0. Artifact /work/projects/imas_gpu/store-bench/store-read-crossover-sirius-debug-20260813.log sha256 cae935c5. Proposal recorded at docs/evidence/archive/training-store-read-benchmark-landed.html#s4</div>
 </div>
 </section>
 </main>

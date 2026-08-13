@@ -172,6 +172,88 @@
   targeted transport test 1 passed in 27.61&nbsp;s; <code>ruff check</code> and
   <code>ruff format --check</code> pass. Logs under
   <code>~/.cache/tsrb-benchmark-*.log</code>.</p>
+
+  <h3 id="s2-crossover">No cross-over: the ranking is invariant over 64× of scale</h3>
+  <p><strong>36 cells — 3 arms × 4 payload scales × 3 batch sizes, 8 repetitions each —
+  and 0 crossings on either axis.</strong> Commit <code>c2bbdf4</code>; 2 tests added.
+  <code>dd_annotated_zarr &gt; imas_netcdf &gt; native_level2</code> holds at every one of the
+  12 grid points.</p>
+  <p>This matters more than one more set of rates: the §4 deliverable asks where the ranking
+  changes, and the answer is that it does not change anywhere in the swept range. There is no
+  cross-over point to reason about, so the format choice does not depend on payload size or batch
+  size.</p>
+  <table>
+    <caption>Ratio to native level-2 (netCDF, DD-zarr) across the grid. Scalar counts per shot
+    span 48–3072, a 64× range; per-cell sample counts 384–196,608; per-cell wall clocks
+    0.0214–1.5021&nbsp;s.</caption>
+    <thead>
+      <tr><th>scalars/shot</th><th>batch 1</th><th>batch 4</th><th>batch 8</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>48</td><td>2.39×, 9.16×</td><td>3.02×, 9.89×</td><td>3.06×, 10.28×</td></tr>
+      <tr><td>192</td><td>2.40×, 9.58×</td><td>3.04×, 10.02×</td><td>3.05×, 10.10×</td></tr>
+      <tr><td>768</td><td>2.42×, 9.71×</td><td>3.11×, 10.03×</td><td>3.03×, 10.04×</td></tr>
+      <tr><td>3072</td><td>2.38×, 9.02×</td><td>2.91×, 9.43×</td><td>2.95×, 9.84×</td></tr>
+    </tbody>
+  </table>
+  <p>Overall netCDF 2.38–3.11× native, DD-zarr 9.02–10.28×. Each scale was separately
+  materialised and re-read through the project imas-python 2.2.0 environment, with native,
+  netCDF and DD-zarr checksums matching exactly at all 12 grid points. Every cell uses its own
+  <code>perf_counter</code> wall clock and accumulated scalar count;
+  <code>assumed_rate_or_size_used</code> is false throughout. The committed
+  <code>run_crossover_sweep</code> enforces ≥4 scales, ≥10× range and ≥3 batch sizes, and
+  <code>summarize_crossovers</code> records either discrete ranking-change brackets or an
+  explicit zero count, so a future sweep cannot report "no cross-over" by having swept too
+  narrowly.</p>
+  <p>Tests: 7 passed in 33.20&nbsp;s on <code>sirius_debug</code> job 1245195; sweep job 1245209
+  measured 36/36 cells in 31&nbsp;s, exit 0; <code>ruff check</code> passes. Artifact:
+  <code>/work/projects/imas_gpu/store-bench/store-read-crossover-sirius-debug-20260813.log</code>
+  (sha256 <code>cae935c5…</code>).</p>
+
+  <h2 id="s4">§4 — The proposal</h2>
+  <p>Two formats, decided separately, because the two access patterns are not the same problem.</p>
+
+  <h3>Experimental data → zarr carrying DD-path metadata</h3>
+  <p><strong>Decided on the measurement, and it is not close.</strong> DD-annotated zarr is
+  9.02–10.28× native level-2 and roughly 3.2× IMAS-netCDF, at every scale and batch size tested,
+  with zero crossings over a 64× payload range. This is the access pattern whose cost is paid
+  continuously for the whole of training, so a ~9× read-rate difference is the dominant term and
+  nothing else measured here competes with it. The DD-path and units attributes ride along at no
+  measured cost, so the vocabulary is kept without the container.</p>
+
+  <h3>Machine description → left to the owner, with the evidence attached</h3>
+  <p><strong>Read rate does not decide this one, and the plan anticipated that.</strong>
+  Description is read once per run and turned into geometry, so its cost amortises to nothing:
+  the whole-load cell is 0.0202&nbsp;s for zarr against 0.2073&nbsp;s for native, a difference
+  that vanishes against a training run. Every arm is fast enough. The choice therefore turns on
+  publishability, not performance, which is an owner call rather than a measurement:</p>
+  <ul>
+    <li><strong>IMAS-netCDF</strong> — Access-Layer compliant by construction, publishable as
+    real IMAS data with no conversion project. Costs the four-method compatibility shim while the
+    project stays on imas-python 2.2.0.</li>
+    <li><strong>zarr + DD paths</strong> — one store technology across both patterns, so one
+    engine and one dependency surface. Not AL-compliant without a conversion step.</li>
+    <li><strong>both</strong> — netCDF as the published form, zarr as the working form. Two
+    writers to keep in step, but each does the job it is good at, and the tensorizer seam means
+    they share the DD shape rules rather than duplicating them.</li>
+  </ul>
+
+  <h3>What the IMAS shape costs as storage versus as interchange</h3>
+  <p>These are different questions and the numbers separate them cleanly.</p>
+  <p><strong>As storage it costs about 3.2×.</strong> IMAS-netCDF reads 2.38–3.11× faster than
+  native level-2 but 9.02–10.28×/2.38–3.11× ≈ 3.2× slower than DD-annotated zarr, consistently
+  across the grid. That is the price of the container on the training path, and for streamed
+  experimental data it is not worth paying.</p>
+  <p><strong>As interchange it costs approximately nothing.</strong> The expensive part of IMAS
+  compliance is the Data-Dictionary shape logic, and that is reusable: a zarr writer subclasses
+  the same public <code>IDSTensorizer</code> that the netCDF backend subclasses, so DD-correct
+  tensorization and DD-path/units annotation are available to a non-IMAS container for the cost
+  of a subclass. The conclusion is that <strong>IMAS semantics and the IMAS container are
+  separable, and only the container is expensive</strong> — which is the finding that makes the
+  split recommendation above coherent rather than a compromise.</p>
+  <p>Unresolved and held under an authority exemption: the live-versus-mapped transport ranking,
+  which needs a mirror refresh before it can be measured on identical payloads. It bears on
+  distribution, not on either storage choice above.</p>
 </main>
 </body>
 </html>
