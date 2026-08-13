@@ -3,7 +3,7 @@
 The packaged YAML document is the LinkML authoring contract.  Runtime loading
 keeps the dependency surface small by enforcing the same closed-world slots in
 Python: a map selects one reusable binding set for one inclusive shot range,
-and every binding declares its source location, DD leaf, units, and sign rule.
+and every binding declares its source location, DD path, units, and sign rule.
 No conditional expression or executable hook is accepted.
 """
 
@@ -21,7 +21,13 @@ import yaml
 PACKAGED_MACHINE_MAP_ROOT = Path(__file__).with_name("machine_maps")
 LINKML_SCHEMA_PATH = PACKAGED_MACHINE_MAP_ROOT / "schema.yaml"
 
-_SIGN_CONVENTIONS = {"identity", "negate", "unknown-unvalidated"}
+_SIGN_CONVENTIONS = {
+    "identity",
+    "negate",
+    "not-applicable",
+    "unknown-unvalidated",
+}
+_SOURCE_ROLES = {"value", "identifier", "dimension-coordinate"}
 _VALIDATION_STATES = {"corpus-validated", "source-only"}
 
 
@@ -60,11 +66,12 @@ def _integer(value: Any, label: str, *, minimum: int = 0) -> int:
 
 @dataclass(frozen=True)
 class ChannelBinding:
-    """One immutable store-array to Data Dictionary leaf declaration."""
+    """One immutable store-array to Data Dictionary path declaration."""
 
     name: str
     source_group: str
     source_array: str
+    source_role: str
     source_location: str
     dd_path: str
     source_unit: str
@@ -78,6 +85,7 @@ class ChannelBinding:
             "name",
             "source_group",
             "source_array",
+            "source_role",
             "source_location",
             "dd_path",
             "source_unit",
@@ -91,10 +99,14 @@ class ChannelBinding:
             raise MachineMapError(
                 f"{label}.sign_convention must be one of {sorted(_SIGN_CONVENTIONS)}"
             )
+        if values["source_role"] not in _SOURCE_ROLES:
+            raise MachineMapError(
+                f"{label}.source_role must be one of {sorted(_SOURCE_ROLES)}"
+            )
         if "://" not in values["source_location"]:
             raise MachineMapError(f"{label}.source_location must be an absolute URI")
         if "/" not in values["dd_path"]:
-            raise MachineMapError(f"{label}.dd_path must include IDS and leaf path")
+            raise MachineMapError(f"{label}.dd_path must include IDS and target path")
         return cls(**values)
 
 
@@ -181,6 +193,15 @@ class MachineMapCatalog:
     def bound_channel_count(self) -> int:
         """Count unique declarations across reusable binding sets."""
         return sum(len(bindings) for bindings in self.binding_sets.values())
+
+    @property
+    def bound_channel_counts(self) -> Mapping[str, int]:
+        """Count unique declarations by immutable source group."""
+        counts: dict[str, int] = {}
+        for bindings in self.binding_sets.values():
+            for binding in bindings:
+                counts[binding.source_group] = counts.get(binding.source_group, 0) + 1
+        return MappingProxyType(counts)
 
 
 def load_linkml_schema(path: Path | str = LINKML_SCHEMA_PATH) -> Mapping[str, Any]:
