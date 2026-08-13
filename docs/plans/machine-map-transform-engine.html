@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-13">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="5">
 <meta name="plan-commits" content="c3cdba3e01ce3bd7e862003790691f3ef7d5114f,d73a16e0c04a9851396d264779a5d16253f25b64">
 <meta name="plan-artifacts" content="docs/evidence/archive/machine-map-transform-engine-landed.html,imas_ambix/data/geometry_transitions.py,imas_ambix/data/machine_map.py,imas_ambix/data/machine_maps/schema.yaml,imas_ambix/data/machine_maps/mast.json,imas_ambix/data/machine_maps/diii-d.json,tests/data/test_geometry_transitions.py,tests/data/test_machine_map.py">
 <meta name="plan-impl" content="0.4">
@@ -83,19 +83,23 @@
     is that maps need code beside them, and it should be recorded rather than absorbed by
     complicating the schema.</p>
 
-    <h2 id="s3">§3 — Geometry is a function of shot, and the manifest already half-knows it</h2>
-    <p>Two pieces already exist and are extended rather than replaced.
-    <code>imas_ambix/gs/geometry.py</code> is a per-campaign machine-geometry table that reads
-    only EFIT's static setup arrays, with a mechanical and auditable discriminator separating
-    that a-priori from reconstructed output; <code>read_efm_geometry(shot_id)</code> already
-    resolves geometry <em>by shot</em>. And the FAIR-MAST shot manifest already carries a campaign
-    column per shot.</p>
-    <p>What is missing is the transition: the manifest records which campaign a shot belongs to
-    but not where the machine's geometry actually changed. This plan extends the manifest to name
-    geometry transitions, so a description is selected by shot through a declared boundary
-    rather than by a convention held in someone's head. The transitions work lands
-    <strong>before</strong> the map schema hardens, because it is the most likely source of the
-    conditional pressure §2 warns about.</p>
+    <section id="s3" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-13</span>
+        <h2>§3 — Geometry is a function of shot</h2>
+      </header>
+      <p class="landed-summary">
+        Built <code>imas_ambix/data/geometry_transitions.py</code> and joined it into the shot
+        manifest. 11 named transitions over 11,573 level-2 shots spanning 11766–30471; partition
+        gap-free and overlap-free, lookup resolved for every shot in span.
+        <strong>10 of 11 boundaries fall strictly inside campaign M5</strong>, so campaign is not
+        a usable key for geometry while shot range is — which locked
+        <code>map-expressiveness</code> to range-scoped maps. The repeated 1004↔938 filament-count
+        alternation is not physical, so 11 is an upper bound on real machine changes.
+        Full record: <a href="/imas-ambix/evidence/archive/machine-map-transform-engine-landed#s3">§3 landed</a>
+        (commit <code>c3cdba3</code>).
+      </p>
+    </section>
 
     <h2 id="s4">§4 — Identity, without a global digest</h2>
     <p>A machine that changes has no single identity, so asserting "same machine" globally is the
@@ -152,7 +156,7 @@
         through a declared boundary. What this exposes about mid-corpus change is the evidence
         the map-expressiveness decision needs.</p></div>
     <pre class="r-fu-prompt">/reckon-ship machine-map-transform-engine §3</pre>
-    <p class="r-fu-outcome">Landed as commit c3cdba3 (merged 921069c). 11 named transitions over 11,573 level-2 shots spanning 11766-30471, gap-free and overlap-free, lookup resolved for every shot in span. The evidence it was sequenced to produce came back decisive: 10 of 11 boundaries fall strictly inside campaign M5, so campaign is not a usable key for geometry while shot range is, and map-expressiveness locked to range-scoped-maps on that partition rather than on the plan's stated preference. Carried qualification: the repeated 1004<->938 PF-filament-count alternation is not physical, so 11 is an upper bound on real machine changes and some boundaries record EFIT setup-array churn.</p>
+    <p class="r-fu-outcome">Landed as commit c3cdba3 (merged 921069c). 11 named transitions over 11,573 level-2 shots spanning 11766-30471, gap-free and overlap-free, lookup resolved for every shot in span. The evidence it was sequenced to produce came back decisive: 10 of 11 boundaries fall strictly inside campaign M5, so campaign is not a usable key for geometry while shot range is, and map-expressiveness locked to range-scoped-maps on that partition rather than on the plan's stated preference. Carried qualification: the repeated 1004&lt;-&gt;938 PF-filament-count alternation is not physical, so 11 is an upper bound on real machine changes and some boundaries record EFIT setup-array churn.</p>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">

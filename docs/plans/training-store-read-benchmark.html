@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-13">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
 <meta name="plan-commits" content="b9fb2cf692e5f8c085213a11a71589f30123e493,0c970bc680dbc8630b05a17d8b3a7887db9d6c0d">
 <meta name="plan-artifacts" content="docs/evidence/archive/training-store-read-benchmark-landed.html,imas_ambix/bench/store_arms.py,imas_ambix/bench/store_read_rates.py,tests/test_store_arms.py,tests/test_store_read_rates.py,/work/projects/imas_gpu/store-bench/store-read-rates-sirius-debug-20260813.json">
 <meta name="plan-impl" content="0.5">
@@ -76,24 +76,23 @@
     disk</strong> — which belongs here rather than with the transform engine, because a
     measurement split across two plans stops being comparable.</p>
 
-    <h2 id="s3">§3 — The IMAS shape is composable, and that changes the build/buy question</h2>
-    <p>The zarr arm need not abandon IMAS semantics, because imas-python has already factored the
-    part that matters. <code>IDSTensorizer</code> is documented as tensorization logic converting
-    IDSs to netCDF files <em>and/or xarray Datasets</em>, and <code>IDS2NC</code> is a subclass of
-    it: the Data-Dictionary-derived dimension naming and tensorization live in a reusable base
-    that already targets xarray, and <code>NCMetadata</code> owns the dimension metadata
-    separately again.</p>
-    <p>So a zarr writer is a <strong>sibling subclass</strong> of the same tensorizer, not a
-    reimplementation of IMAS shape rules — and xarray gives zarr serialisation nearly free from
-    there. Composition is preferred to reimplementation for the ordinary reason that the DD shape
-    rules are the library's job to keep correct across Data Dictionary versions, and a
-    hand-rolled twin would silently diverge at the next one. This plan verifies that seam holds
-    in practice: whether <code>IDSTensorizer</code> can be subclassed without reaching into
-    private behaviour is itself a reportable result, because a negative answer is what would
-    justify reimplementation.</p>
-    <p>The prize for keeping the IMAS shape is concrete rather than theoretical: an
-    Access-Layer-compliant dataset can be published as real IMAS data when that is wanted,
-    without a conversion project.</p>
+    <section id="s3" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-13</span>
+        <h2>§3 — The IMAS shape is composable</h2>
+      </header>
+      <p class="landed-summary">
+        Built <code>imas_ambix/bench/store_arms.py</code>. Cross-arm parity exact: 3/3 channels,
+        192/192 scalars identical under <code>np.array_equal</code>, later rerun at scale over
+        16 shots, 48 channels, 92,655 values.
+        <strong>Seam VERIFIED at imas-python 2.3.0, REFUTED as zero-wrapper at 2.2.0</strong> —
+        <code>IDSZarrWriter</code> subclasses public <code>IDSTensorizer</code> reaching no
+        private name at either version, but 2.2.0 needs four helpers defined locally, so the
+        plan's reimplementation trigger is <em>not</em> met and the shim disappears on ≥2.3.0.
+        Full record: <a href="/imas-ambix/evidence/archive/training-store-read-benchmark-landed#s3">§3 landed</a>
+        (commit <code>b9fb2cf</code>).
+      </p>
+    </section>
 
     <h2 id="s4">§4 — Deliverable</h2>
     <p>One proposal naming a storage format for machine description and a storage format for
