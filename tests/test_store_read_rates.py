@@ -29,6 +29,7 @@ from imas_ambix.bench.store_read_rates import (
     measure_access_patterns,
     measure_crossover_grid,
     measure_transport,
+    run_mirror_refresh,
     run_transport_comparison,
     summarize_crossovers,
 )
@@ -212,6 +213,58 @@ def test_transport_probe_records_unobtainable_comparison(tmp_path, capsys):
     assert len(result["probes"]) == 2
     assert output_log.exists()
     assert capsys.readouterr().out.count("TRANSPORT_PROBE") == 4
+
+
+def test_mirror_refresh_records_scope_and_per_shot_identity(
+    tmp_path, capsys, monkeypatch
+):
+    source_mirror = tmp_path / "source"
+    live_root = tmp_path / "live"
+    shots = (10, 11)
+    for shot in shots:
+        (source_mirror / f"{shot}.zarr/summary/ip").mkdir(parents=True)
+        zarr.save_array(
+            live_root / f"{shot}.zarr/summary/ip",
+            np.arange(shot, shot + 4),
+        )
+
+    def copy_shot(command, check):
+        assert check is True
+        shot = int(command[-2].split("/")[-2].removesuffix(".zarr"))
+        destination = Path(command[-1])
+        zarr.save_array(
+            destination / "summary/ip",
+            np.arange(shot, shot + 4),
+        )
+
+    monkeypatch.setattr(
+        "imas_ambix.bench.store_read_rates.subprocess.run",
+        copy_shot,
+    )
+    output_log = tmp_path / "refresh.json"
+    result = run_mirror_refresh(
+        output_log,
+        tmp_path / "refreshed",
+        source_mirror_root=source_mirror,
+        refresh_shot_count=2,
+        corpus_shot_count=10,
+        minimum_identical_shots=2,
+        live_root=str(live_root),
+    )
+
+    assert result["scope"] == {
+        "refreshed_shot_count": 2,
+        "corpus_shot_count": 10,
+        "coverage_fraction": 0.2,
+        "partial_refresh": True,
+        "shots": [10, 11],
+    }
+    assert result["identity"]["identical_shot_count"] == 2
+    assert result["identity"]["disagreeing_shot_count"] == 0
+    assert result["identity"]["disagreements"] == []
+    captured = capsys.readouterr().out
+    assert captured.count("MIRROR_SCOPE") == 1
+    assert captured.count("MIRROR_REFRESH") == 2
 
 
 @pytest.mark.skipif(
