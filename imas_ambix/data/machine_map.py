@@ -174,8 +174,50 @@ class ValidationGap:
 
 
 @dataclass(frozen=True)
+class SourceQualification:
+    """One observed source array with no semantically valid writable DD leaf."""
+
+    name: str
+    source_group: str
+    source_array: str
+    source_location: str
+    source_shape: tuple[int, ...]
+    source_unit: str
+    reason: str
+    evidence: str
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any], label: str) -> SourceQualification:
+        required = {
+            "name",
+            "source_group",
+            "source_array",
+            "source_location",
+            "source_shape",
+            "source_unit",
+            "reason",
+            "evidence",
+        }
+        _exact_keys(payload, required, set(), label)
+        shape = payload["source_shape"]
+        if not isinstance(shape, list) or not shape:
+            raise MachineMapError(f"{label}.source_shape must be a non-empty list")
+        source_shape = tuple(
+            _integer(size, f"{label}.source_shape[{index}]", minimum=1)
+            for index, size in enumerate(shape)
+        )
+        values = {
+            key: _text(payload[key], f"{label}.{key}")
+            for key in required.difference({"source_shape"})
+        }
+        if "://" not in values["source_location"]:
+            raise MachineMapError(f"{label}.source_location must be an absolute URI")
+        return cls(source_shape=source_shape, **values)
+
+
+@dataclass(frozen=True)
 class MachineMapCatalog:
-    """A schema-bound collection of maps, bindings, and validation gaps."""
+    """A schema-bound collection of maps, bindings, and explicit qualifications."""
 
     schema_version: str
     dd_version: str
@@ -184,6 +226,7 @@ class MachineMapCatalog:
     binding_sets: Mapping[str, tuple[ChannelBinding, ...]]
     maps: tuple[MachineMap, ...]
     validation_gaps: tuple[ValidationGap, ...]
+    source_qualifications: tuple[SourceQualification, ...]
 
     def bindings_for(self, machine_map: MachineMap) -> tuple[ChannelBinding, ...]:
         """Resolve the binding set selected by ``machine_map``."""
@@ -203,6 +246,21 @@ class MachineMapCatalog:
                 counts[binding.source_group] = counts.get(binding.source_group, 0) + 1
         return MappingProxyType(counts)
 
+    @property
+    def qualified_channel_count(self) -> int:
+        """Count observed arrays deliberately excluded from DD bindings."""
+        return len(self.source_qualifications)
+
+    @property
+    def qualified_channel_counts(self) -> Mapping[str, int]:
+        """Count explicit source qualifications by immutable source group."""
+        counts: dict[str, int] = {}
+        for qualification in self.source_qualifications:
+            counts[qualification.source_group] = (
+                counts.get(qualification.source_group, 0) + 1
+            )
+        return MappingProxyType(counts)
+
 
 def load_linkml_schema(path: Path | str = LINKML_SCHEMA_PATH) -> Mapping[str, Any]:
     """Load and structurally verify the packaged LinkML schema document."""
@@ -212,6 +270,7 @@ def load_linkml_schema(path: Path | str = LINKML_SCHEMA_PATH) -> Mapping[str, An
         "BindingSet",
         "ChannelBinding",
         "MachineMap",
+        "SourceQualification",
         "ValidationGap",
         "MachineMapCatalog",
     }
@@ -242,6 +301,7 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
         "binding_sets",
         "maps",
         "validation_gaps",
+        "source_qualifications",
     }
     _exact_keys(payload, required, set(), "machine-map catalog")
 
@@ -305,6 +365,34 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
     if not set(gap_names).issubset(binding_names):
         raise MachineMapError("validation gaps must name declared bindings")
 
+    qualifications_raw = payload["source_qualifications"]
+    if not isinstance(qualifications_raw, list):
+        raise MachineMapError("source_qualifications must be a list")
+    qualifications = tuple(
+        SourceQualification.from_dict(
+            _object(entry, f"source_qualifications[{index}]"),
+            f"source_qualifications[{index}]",
+        )
+        for index, entry in enumerate(qualifications_raw)
+    )
+    qualification_names = [item.name for item in qualifications]
+    if len(qualification_names) != len(set(qualification_names)):
+        raise MachineMapError("source qualification names must be unique")
+    if set(qualification_names).intersection(binding_names):
+        raise MachineMapError("source qualifications must not be declared bindings")
+    bound_sources = {
+        (binding.source_group, binding.source_array)
+        for bindings in binding_sets.values()
+        for binding in bindings
+    }
+    qualified_sources = {
+        (item.source_group, item.source_array) for item in qualifications
+    }
+    if len(qualified_sources) != len(qualifications):
+        raise MachineMapError("source qualifications must identify unique arrays")
+    if qualified_sources.intersection(bound_sources):
+        raise MachineMapError("qualified source arrays must not also be bound")
+
     catalog = MachineMapCatalog(
         schema_version=_text(payload["schema_version"], "schema_version"),
         dd_version=_text(payload["dd_version"], "dd_version"),
@@ -313,6 +401,7 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
         binding_sets=MappingProxyType(binding_sets),
         maps=maps,
         validation_gaps=gaps,
+        source_qualifications=qualifications,
     )
     source_only = {
         binding.name
