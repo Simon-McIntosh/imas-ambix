@@ -210,6 +210,30 @@
   <code>/work/projects/imas_gpu/store-bench/store-read-crossover-sirius-debug-20260813.log</code>
   (sha256 <code>cae935c5…</code>).</p>
 
+  <h3 id="s2-mirror">Mirror refreshed — the payloads now match</h3>
+  <p><strong>24 shots refreshed from the current public snapshot; 24/24 <code>summary/ip</code>
+  arrays identical to their live counterparts in shape and under <code>np.array_equal</code>; 0
+  disagreements.</strong> Commit <code>dd3190b</code>; 2 tests added. Authorised by the owner
+  2026-08-13, which lifted the exemption that had held this work.</p>
+  <p>The shapes tell the story directly. The 24 probed shots previously showed live 424–556
+  against mirrored 1561–2088 — a different snapshot generation. After refresh the pairs are
+  447/447, 424/424, 450/450, 472/472, 466/466, 512/512, 508/508, 508/508, 556/556, 556/556,
+  511/511, 518/518, 533/533, 539/539, 532/532, 533/533, 530/530, 530/530, 531/531, 532/532,
+  485/485, 530/530, 529/529, 529/529. The identity gate that refuses to start timing on
+  mismatched payloads now passes rather than being bypassed.</p>
+  <p><strong>Scope is partial and stated as such: 24 of 11,573 corpus shots, 0.207%.</strong> The
+  run wrote a new mirror root
+  <code>/work/projects/imas_gpu/mast/level2/public-snapshot-20260813/shots</code> — 24,359 files,
+  310,138,052 logical bytes — rather than overwriting the existing full mirror, so nothing was
+  destroyed to obtain the comparison. The committed path records corpus scope <em>before</em>
+  downloading, refuses an existing destination root, requires at least 20 exact matches, and its
+  test asserts the partial-scope disclosure itself, so a future refresh cannot quietly imply
+  full coverage.</p>
+  <p>Tests: 8 passed in 29.84&nbsp;s on <code>sirius_debug</code> job 1245716;
+  <code>git status --short</code> printed 0 entries. Receipt:
+  <code>/work/projects/imas_gpu/store-bench/mirror-refresh-public-snapshot-20260813.json</code>
+  (sha256 <code>1badcfda…</code>).</p>
+
   <h2 id="s4">§4 — The proposal</h2>
   <p>Two formats, decided separately, because the two access patterns are not the same problem.</p>
 

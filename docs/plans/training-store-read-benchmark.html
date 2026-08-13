@@ -22,10 +22,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-13">
-<meta name="plan-version" content="11">
-<meta name="plan-commits" content="b9fb2cf692e5f8c085213a11a71589f30123e493,0c970bc680dbc8630b05a17d8b3a7887db9d6c0d,9f073779507b03fa9645e55fad685ab834bae131,c2bbdf4b1802732563311fd243d5a4408335f37f">
+<meta name="plan-version" content="12">
+<meta name="plan-commits" content="b9fb2cf692e5f8c085213a11a71589f30123e493,0c970bc680dbc8630b05a17d8b3a7887db9d6c0d,9f073779507b03fa9645e55fad685ab834bae131,c2bbdf4b1802732563311fd243d5a4408335f37f,dd3190b25a1f0a5bd4197cc7cf906cbfb056eb62">
 <meta name="plan-artifacts" content="docs/evidence/archive/training-store-read-benchmark-landed.html,imas_ambix/bench/store_arms.py,imas_ambix/bench/store_read_rates.py,tests/test_store_arms.py,tests/test_store_read_rates.py,/work/projects/imas_gpu/store-bench/store-read-rates-sirius-debug-20260813.json">
-<meta name="plan-impl" content="0.8">
+<meta name="plan-impl" content="0.9">
 </head>
 <body>
   <main class="plan-doc">
@@ -156,6 +156,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-20260813-mirror-auth" data-who="reckon-ship" data-when="2026-08-13">
     <div class="r-comment-body">Mirror refresh AUTHORISED by the owner 2026-08-13, so the authority-required exemption on f-tsrb-002 is lifted and the transport remainder becomes foldable executable work. Plan returns from shipped to active for that one node: the on-disk level-2 mirror is rebuilt from the current public S3 snapshot, then the committed --transport-only command yields the two admissible timed cells. Nothing else reopens — the 12 storage cells and the 36-cell crossover sweep stand as measured, the experimental-store-format lock stands, and the proposal stands. Recorded because a plan that silently stayed shipped while executing new work would misreport its own state.</div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-20260813-tsrb-mirror-refresh" data-who="reckon-ship" data-when="2026-08-13">
+    <div class="r-comment-body">tsrb-mirror-refresh landed — commit dd3190b; gate payload-identity PASSED. 24/24 refreshed summary/ip arrays agree with their live HTTPS counterparts in shape and under np.array_equal, 0 disagreeing. The shape pairs settle the earlier diagnosis: the same 24 shots previously showed live 424-556 against mirrored 1561-2088, and after refresh they read 447/447, 424/424, 450/450, 472/472, 466/466, 512/512, 508/508, 508/508, 556/556, 556/556, 511/511, 518/518, 533/533, 539/539, 532/532, 533/533, 530/530, 530/530, 531/531, 532/532, 485/485, 530/530, 529/529, 529/529 — so the mirror was indeed a different snapshot generation, not a stale copy, and the identity gate now passes rather than being bypassed. SCOPE IS PARTIAL AND DISCLOSED: 24 of 11,573 corpus shots, 0.207379%. The run wrote a NEW mirror root /work/projects/imas_gpu/mast/level2/public-snapshot-20260813/shots (24,359 files, 310,138,052 logical bytes) instead of overwriting the existing full mirror, so nothing was destroyed to obtain the comparison. The committed path records corpus scope BEFORE downloading, refuses an existing destination root, requires at least 20 exact matches, and its test asserts the partial-scope disclosure itself so a future refresh cannot quietly imply full coverage. 2 tests added; 8 passed in 29.84s on sirius_debug job 1245716; git status --short printed 0 entries. Remaining: the transport-only rerun against the refreshed root, folded as its own node.</div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20260813-tsrb-crossover" data-who="reckon-ship" data-when="2026-08-13">
     <div class="r-comment-body">tsrb-crossover landed — commit c2bbdf4; gate crossover-search PASSED; measure 36 cells (3 arms x 4 payload scales x 3 batch sizes, 8 repetitions each) with 0 payload-scale crossings and 0 batch-size crossings: dd_annotated_zarr &gt; imas_netcdf &gt; native_level2 at all 12 grid points. Scalar counts per shot 48/192/768/3072 (64x range), batches 1/4/8, per-cell sample counts 384-196,608, wall clocks 0.0214-1.5021s. Ratios to native overall: netCDF 2.38-3.11x, DD-zarr 9.02-10.28x. Native/netCDF/DD-zarr checksums match exactly at all 12 points; assumed_rate_or_size_used false throughout; run_crossover_sweep enforces &gt;=4 scales, &gt;=10x range, &gt;=3 batch sizes so a future sweep cannot report no-crossover by sweeping too narrowly. 2 tests added. SLURM jobs 1245195 and 1245209 exit 0. Artifact /work/projects/imas_gpu/store-bench/store-read-crossover-sirius-debug-20260813.log sha256 cae935c5. Proposal recorded at docs/evidence/archive/training-store-read-benchmark-landed.html#s4</div>
