@@ -4,24 +4,29 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="machine-map-cocos-transform">
-  <meta name="plan-title"     content="The Transform Carries COCOS, Not Just Names">
-  <meta name="plan-summary"   content="A machine map that binds a source array to a DD path with a sign convention is a semantic name map; it is not yet a transform. Many target DD paths are COCOS-dependent, so the engine must apply the Sauter coefficient transform from MAST's own convention to the declared target convention. Identify MAST's convention, then prove it against real MAST data for both current signs rather than asserting it.">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort-hours" content="6">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="machine-map-cocos-transform">
+  <meta name="plan-title" content="The Transform Carries COCOS, Not Just Names">
+  <meta name="plan-summary" content="A machine map that binds a source array to a DD path with a sign convention is a semantic name map; it is not yet a transform. Many target DD paths are COCOS-dependent, so the engine must apply the Sauter coefficient transform from MAST&#x27;s own convention to the declared target convention. Identify MAST&#x27;s convention, then prove it against real MAST data for both current signs rather than asserting it.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="6.0">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="general">
   <meta name="plan-capability-reasoning" content="deep">
   <meta name="plan-capability-verification" content="strict">
-  <meta name="plan-sprint"    content="S22">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-sprint" content="S22">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="machine-map-transform-engine">
-  <meta name="plan-informs"   content="mast-imas-cocos-evaluation,cocos-convention-hardening">
+  <meta name="plan-informs" content="mast-imas-cocos-evaluation,cocos-convention-hardening">
   <title>The Transform Carries COCOS, Not Just Names | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-08-13">
+<meta name="plan-commits" content="9b3169eeb1cbd6b19c304847de48012d735775d5">
+<meta name="plan-artifacts" content="imas_ambix/data/cocos_convention.py,tests/data/test_cocos_convention.py">
+<meta name="plan-impl" content="0.4">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -126,36 +131,37 @@
     shots of both polarities.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="source-convention-declaration" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Where is a machine's source COCOS convention declared — once per
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="source-convention-declaration" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Where is a machine&#x27;s source COCOS convention declared — once per
           machine, or per binding?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="per-machine">once per machine map, inherited by every binding</button>
-          <button class="r-opt" data-value="per-binding">per binding, no inheritance</button>
-          <button class="r-opt" data-value="per-machine-with-override">once per machine, overridable per binding</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="per-machine">once per machine map, inherited by every binding</button>
+      <button class="r-opt" data-value="per-binding">per binding, no inheritance</button>
+      <button class="r-opt" data-value="per-machine-with-override">once per machine, overridable per binding</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-mmct-001" data-status="open"
-               data-capability-version="1.0" data-capability-class="general"
-               data-capability-reasoning="deep" data-capability-verification="strict"
-               data-written-by="reckon-ship" data-written-at="2026-08-13"
-               data-recommends-skill="/reckon-ship machine-map-cocos-transform §3">
-        <h4 class="r-fu-title">Determine MAST's COCOS convention from data at both current polarities</h4>
-        <div class="r-fu-body"><p>Read the relative signs of plasma current, toroidal field,
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-mmct-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-13" data-recommends-skill="/reckon-ship machine-map-cocos-transform §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Determine MAST&#x27;s COCOS convention from data at both current polarities</h4>
+    <div class="r-fu-body"><p>Read the relative signs of plasma current, toroidal field,
         poloidal flux and poloidal-angle direction from real level-2 shots at both current
         polarities, and test them against every candidate COCOS using the Sauter coefficients. A
         convention survives only if it predicts every observed relative sign at both polarities.
         Record the per-quantity sign table, and if no single convention fits, record that as the
         finding rather than rounding to the nearest one.</p></div>
-        <pre class="r-fu-prompt">/reckon-ship machine-map-cocos-transform §3</pre>
-      </article>
-    </section>
-  </main>
+    <pre class="r-fu-prompt">/reckon-ship machine-map-cocos-transform §3</pre>
+    </article>
+</section>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s3" data-id="c-20260813-mmct-convention" data-who="reckon-ship" data-when="2026-08-13">
+    <div class="r-comment-body">mmct-convention landed — commit 9b3169e; gate convention-determination PASSED with EXACTLY 1 SURVIVOR. MAST level-2 is COCOS-4. Measured coefficients sigma_Bp=-1, e_Bp=0, sigma_RphiZ=-1, sigma_rhothetaphi=-1, selecting COCOS-4 at each polarity independently AND jointly. Cohort: positive Ip shots 13277 and 13890, negative Ip shots 13471 and 13472 — 2 per polarity as required. Per-shot signs (Ip, Bphi, psi_edge_minus_axis, ordered-LCFS theta, q, eBp): 13277 and 13890 = (+,-,-,CW,+,0); 13471 and 13472 = (-,+,+,CW,+,0). 251 retained slices; 16 canonical candidates scored, and the worker corrected my done-when — Sauter and Medvedev define 16 canonical conventions (1-8 and 11-18), not 11, so all 16 were scored. Derived COCOS-4 to COCOS-17 factors committed as data: psi_like=-2pi, ip_like=-1, b0_like=-1, q_like=+1, dodpsi_like=-1/(2pi), tor_angle_like=-1, pol_angle_like=-1, one_like=+1. Live and committed reports are byte-identical (SHA-256 aa2c0b8f). 2 tests added; the test reproduces the verdict offline and re-reads live stores when mounted. INTERPRETATION to retain: level-2 poloidal direction is taken as the ordered LCFS traversal because the level-2 magnetics group carries no magpr_ang probe-orientation array — independently consistent with magpr_ang having been qualified as source-absent in the catalog. CONSEQUENTIAL DISCREPANCY: imas_ambix/cocos.py declares MAST_SOURCE_COCOS = 3 and the measurement says 4. COCOS 3 and 4 differ in sigma_RphiZ, so ip_like and q_like carry OPPOSITE signs between them, and tests/test_cocos.py currently asserts the COCOS-3 values (ip_like == 1.0, q_like == -1.0) against measured COCOS-4 values (ip_like = -1, q_like = +1). That is a live sign error in already-shipped code, not a new-work gap.</div>
+</div>
+</section>
+</main>
 </body>
 </html>
