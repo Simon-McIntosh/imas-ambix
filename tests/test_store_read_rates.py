@@ -206,13 +206,59 @@ def test_transport_probe_records_unobtainable_comparison(tmp_path, capsys):
         probe_count=2,
         live_root=str(live_root),
         minimum_negative_probes=2,
+        corpus_shot_count=10,
     )
     assert result["status"] == "unobtainable_without_mirror_refresh"
     assert result["identity_gate"]["completed_probe_count"] == 2
     assert result["transport_cells"] == []
+    assert result["throughput_ratio"] is None
+    assert result["scope"] == {
+        "mirrored_shot_count": 2,
+        "corpus_shot_count": 10,
+        "coverage_fraction": 0.2,
+        "partial_mirror": True,
+    }
     assert len(result["probes"]) == 2
     assert output_log.exists()
     assert capsys.readouterr().out.count("TRANSPORT_PROBE") == 4
+
+
+def test_transport_comparison_reports_scope_and_route_ratio(tmp_path):
+    mapped_root = tmp_path / "mapped"
+    live_root = tmp_path / "live"
+    for shot in (10, 11):
+        values = np.arange(shot, shot + 4)
+        zarr.save_array(mapped_root / f"{shot}.zarr/summary/ip", values)
+        zarr.save_array(live_root / f"{shot}.zarr/summary/ip", values)
+
+    result = run_transport_comparison(
+        tmp_path / "transport.json",
+        level2_root=mapped_root,
+        probe_count=2,
+        repetitions=2,
+        live_root=str(live_root),
+        corpus_shot_count=10,
+    )
+
+    assert result["status"] == "measured_identical_payload"
+    assert result["identity_gate"]["matching_shot"] == 10
+    assert result["identity_gate"]["array_path"] == "summary/ip"
+    assert result["scope"] == {
+        "mirrored_shot_count": 2,
+        "corpus_shot_count": 10,
+        "coverage_fraction": 0.2,
+        "partial_mirror": True,
+    }
+    cells = {cell["route"]: cell for cell in result["transport_cells"]}
+    assert set(cells) == {"live_https_transfer", "mapped_on_disk"}
+    assert all(cell["wall_seconds"] > 0 for cell in cells.values())
+    assert all(cell["sample_count"] == 8 for cell in cells.values())
+    expected = (
+        cells["live_https_transfer"]["throughput_samples_per_second"]
+        / cells["mapped_on_disk"]["throughput_samples_per_second"]
+    )
+    assert result["throughput_ratio"]["live_to_mapped"] == expected
+    assert result["throughput_ratio"]["mapped_to_live"] == 1.0 / expected
 
 
 def test_mirror_refresh_records_scope_and_per_shot_identity(
