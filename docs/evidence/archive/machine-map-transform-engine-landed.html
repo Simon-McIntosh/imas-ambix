@@ -69,6 +69,53 @@
   29 passed in 15.30&nbsp;s; focused run → 4 passed in 7.11&nbsp;s; <code>ruff check</code> and
   <code>ruff format --check</code> pass over all three changed paths; live local-corpus invariant
   probe passes. Artifact: <code>/tmp/mmte_local_geometry_manifest.json</code>.</p>
+
+  <h2 id="s2">§2 — The map schema, and what the first catalogs did not bind</h2>
+  <p><strong>Schema and loader sound: LinkML-valid with 5 classes, 2 enums, 25 slots and no
+  conditional, expression or code-hook slot anywhere. All 11 declared MAST map ranges equal the
+  11 emitted geometry-transition ranges, and lookup at each first shot returns its single
+  range.</strong> Commit <code>d73a16e</code>, merged as <code>888b30a</code>; 5 tests added.</p>
+  <p>The absence of a conditional slot is the locked <code>map-expressiveness</code> decision
+  made structural: the schema cannot express a conditional even if an author wanted one, so the
+  one-map-per-shot-range rule is enforced by the contract rather than by convention.</p>
+
+  <h3>The catalogs bind the wrong quantities, and that is this record's main finding</h3>
+  <p>The machinery is correct and the bound content is not. Both catalogs must be rebound before
+  the transform engines consume them.</p>
+  <table>
+    <caption>What each catalog actually binds, against what a machine-description plan needs</caption>
+    <thead><tr><th>Catalog</th><th>Bound</th><th>Why it is off-target</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>MAST — 11 transition-aligned maps</td>
+        <td>the <code>interferometer</code> group only: <code>time</code> [s] and
+            <code>n_e_line</code> [1/m²], bound to DD 4.1.1
+            <code>interferometer/time</code> and
+            <code>interferometer/channel/n_e_line/data</code>, identity sign</td>
+        <td>a line-integrated density diagnostic carries almost no machine description. The
+            description-bearing groups — <code>magnetics</code> probe and flux-loop geometry,
+            <code>pf_active</code> coil and filament geometry, <code>wall</code> — are the ones
+            the geometry transitions actually move, and none is bound.</td>
+      </tr>
+      <tr>
+        <td>DIII-D — 1 source-only map</td>
+        <td><code>ip</code> from <code>disruption-py</code> PTDATA, plus <code>q95</code>,
+            <code>li</code>, <code>betan</code> from its EFIT module
+            (commit <code>dec5c58a</code>)</td>
+        <td><code>q95</code>, <code>li</code> and <code>betan</code> are EFIT reconstruction
+            outputs. §5 places every processed or code-output quantity with the targets builder,
+            explicitly to prevent a reconstruction leaking into the description — so three of the
+            four bindings are the exact leak the scope boundary exists to stop.</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>None of the 4 DIII-D bindings was validated against pulse data: this host carries no DIII-D
+  corpus and no authenticated PTDATA/MDSplus service. Recorded gaps are source existence,
+  engineering units, polarity/sign/normalisation and shot validity, per binding.</p>
+  <p>Corpus evidence covers 11,573 local level-2 stores spanning 11766–30471. Tests: 5 passed in
+  370.04&nbsp;s; geometry-transition compatibility 4 passed in 4.55&nbsp;s;
+  <code>linkml-validate</code> over the schema and both catalogs reports no issues, exit 0;
+  <code>ruff check</code> and <code>ruff format --check</code> exit 0.</p>
 </main>
 </body>
 </html>

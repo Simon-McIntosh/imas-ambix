@@ -22,10 +22,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-13">
-<meta name="plan-version" content="2">
-<meta name="plan-commits" content="c3cdba3e01ce3bd7e862003790691f3ef7d5114f">
-<meta name="plan-artifacts" content="docs/evidence/archive/machine-map-transform-engine-landed.html,imas_ambix/data/geometry_transitions.py,tests/data/test_geometry_transitions.py">
-<meta name="plan-impl" content="0.25">
+<meta name="plan-version" content="4">
+<meta name="plan-commits" content="c3cdba3e01ce3bd7e862003790691f3ef7d5114f,d73a16e0c04a9851396d264779a5d16253f25b64">
+<meta name="plan-artifacts" content="docs/evidence/archive/machine-map-transform-engine-landed.html,imas_ambix/data/geometry_transitions.py,imas_ambix/data/machine_map.py,imas_ambix/data/machine_maps/schema.yaml,imas_ambix/data/machine_maps/mast.json,imas_ambix/data/machine_maps/diii-d.json,tests/data/test_geometry_transitions.py,tests/data/test_machine_map.py">
+<meta name="plan-impl" content="0.4">
 </head>
 <body>
   <main class="plan-doc">
@@ -144,7 +144,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-mmte-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-13" data-recommends-skill="/reckon-ship machine-map-transform-engine §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-mmte-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-13" data-recommends-skill="/reckon-ship machine-map-transform-engine §3" data-resolved-at="2026-08-13T08:19:12+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Extend the shot manifest with named geometry transitions</h4>
     <div class="r-fu-body"><p>First rung, and deliberately before the map schema hardens:
         the manifest carries campaign per shot but not where geometry actually moved. Name the
@@ -152,11 +152,15 @@
         through a declared boundary. What this exposes about mid-corpus change is the evidence
         the map-expressiveness decision needs.</p></div>
     <pre class="r-fu-prompt">/reckon-ship machine-map-transform-engine §3</pre>
+    <p class="r-fu-outcome">Landed as commit c3cdba3 (merged 921069c). 11 named transitions over 11,573 level-2 shots spanning 11766-30471, gap-free and overlap-free, lookup resolved for every shot in span. The evidence it was sequenced to produce came back decisive: 10 of 11 boundaries fall strictly inside campaign M5, so campaign is not a usable key for geometry while shot range is, and map-expressiveness locked to range-scoped-maps on that partition rather than on the plan's stated preference. Carried qualification: the repeated 1004<->938 PF-filament-count alternation is not physical, so 11 is an upper bound on real machine changes and some boundaries record EFIT setup-array churn.</p>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s3" data-id="c-20260813-mmte-transitions" data-who="reckon-ship" data-when="2026-08-13">
-    <div class="r-comment-body">mmte-transitions landed — commit c3cdba3 (merged 921069c); gate partition+lookup PASSED; measure 11 named transitions over 11,573 level-2 shots spanning 11766-30471, gap-free and overlap-free, lookup resolved for every shot in span; 10 of 11 boundaries fall strictly INSIDE campaign M5, so campaign is not a usable key for geometry while shot range is. 4 tests added. Qualification: the repeated 1004<->938 PF-filament-count alternation is not physical, so the transition count is an upper bound on real machine changes and some boundaries record EFIT setup-array churn rather than machine change. Artifacts imas_ambix/data/geometry_transitions.py, tests/data/test_geometry_transitions.py, docs/evidence/archive/machine-map-transform-engine-landed.html</div>
+    <div class="r-comment-body">mmte-transitions landed — commit c3cdba3 (merged 921069c); gate partition+lookup PASSED; measure 11 named transitions over 11,573 level-2 shots spanning 11766-30471, gap-free and overlap-free, lookup resolved for every shot in span; 10 of 11 boundaries fall strictly INSIDE campaign M5, so campaign is not a usable key for geometry while shot range is. 4 tests added. Qualification: the repeated 1004&lt;-&gt;938 PF-filament-count alternation is not physical, so the transition count is an upper bound on real machine changes and some boundaries record EFIT setup-array churn rather than machine change. Artifacts imas_ambix/data/geometry_transitions.py, tests/data/test_geometry_transitions.py, docs/evidence/archive/machine-map-transform-engine-landed.html</div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-20260813-mmte-schema" data-who="reckon-ship" data-when="2026-08-13">
+    <div class="r-comment-body">mmte-schema landed — commit d73a16e (merged 888b30a); gate schema-validity + transition-alignment PASSED; measure LinkML-valid schema with 5 classes, 2 enums, 25 slots and NO conditional/expression/code-hook slot, so the locked range-scoped rule is enforced structurally; all 11 declared MAST map ranges equal the 11 emitted geometry-transition ranges and lookup at each first shot returns its single range; linkml-validate over schema and both catalogs exit 0; 5 tests added (370.04s). MATERIAL SHORTFALL in bound content, not in machinery: the MAST catalog binds only the interferometer group (time [s], n_e_line [1/m^2]), while the description-bearing groups the transitions actually move — magnetics probe/flux-loop geometry, pf_active coil/filament geometry, wall — are unbound; and 3 of the 4 DIII-D bindings (q95, li, betan) are EFIT reconstruction outputs, which §5 assigns to the targets builder precisely to keep a reconstruction out of the description. Node measure was met; the measure was under-specified against §5's scope boundary. Rebinding folded in as a corrective node before the transform engines consume the catalogs. No DIII-D binding validated against data: no corpus and no authenticated PTDATA/MDSplus on this host.</div>
 </div>
 </section>
 </main>

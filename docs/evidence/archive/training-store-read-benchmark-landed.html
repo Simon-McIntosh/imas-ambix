@@ -83,6 +83,73 @@
   <p>Tests: 4 passed in 4.83&nbsp;s on <code>sirius_debug</code> job 1245059; <code>ruff
   check</code> and <code>ruff format --check</code> both pass. Log:
   <code>~/.cache/tsrb-payloads-pytest-final-clean.log</code>.</p>
+
+  <h2 id="s2">§2 — Measured read rates</h2>
+  <p><strong>DD-annotated zarr wins all four access patterns, by 8.7×–10.3× over native
+  level-2. IMAS-netCDF is second at 2.4×–2.7×. The ranking does not change with pattern.</strong>
+  Commit <code>0c970bc</code>, merged as <code>5a47860</code>; 4 tests added. All runs on one
+  node class, <code>sirius_debug:x86_64</code>, host <code>98dci4-clu-5136</code>.</p>
+
+  <table>
+    <caption>Throughput in samples/s, with each cell's own wall clock and sample count.
+    12/12 storage cells measured; no cell is a size divided by an assumed rate.</caption>
+    <thead>
+      <tr><th>Access pattern</th><th>native level-2</th><th>IMAS-netCDF</th><th>DD-zarr</th>
+          <th>netCDF ÷ native</th><th>zarr ÷ native</th><th>samples</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>whole-description static load</td>
+          <td>191,247</td><td>450,064</td><td>1,964,694</td>
+          <td>2.35×</td><td>10.27×</td><td>39,648</td></tr>
+      <tr><td>single-shot multi-signal slice</td>
+          <td>8,546</td><td>21,651</td><td>74,645</td>
+          <td>2.53×</td><td>8.74×</td><td>3,072</td></tr>
+      <tr><td>N-shot batch stream</td>
+          <td>8,388</td><td>21,786</td><td>76,763</td>
+          <td>2.60×</td><td>9.15×</td><td>3,072</td></tr>
+      <tr><td>random access across corpus</td>
+          <td>8,738</td><td>23,884</td><td>76,089</td>
+          <td>2.73×</td><td>8.71×</td><td>12,288</td></tr>
+    </tbody>
+  </table>
+
+  <p>Wall clocks, native/netCDF/zarr in seconds: whole 0.2073/0.0881/0.0202; slice
+  0.3595/0.1419/0.0412; batch 0.3662/0.1410/0.0400; random 1.4063/0.5145/0.1615. Batch size 4
+  from the project micro-batch configuration; random access uses 64 seeded windows across 16
+  fixed shots. Both converted arms wrote and read 16 shots, 48 channels, 92,655 scalar values
+  with <code>np.array_equal</code> parity. Artifact:
+  <code>/work/projects/imas_gpu/store-bench/store-read-rates-sirius-debug-20260813.json</code>
+  (sha256 <code>06c82e06…</code>).</p>
+
+  <h3>The seam verdict, corrected at the version the project runs</h3>
+  <p><strong>The zero-wrapper subclass seam is REFUTED at imas-python 2.2.0 and VERIFIED at
+  2.3.0.</strong> This is the correction the §3 qualification was carried for, and it changes
+  the §3 headline rather than merely annotating it.</p>
+  <p><code>get_dimensions</code>, <code>get_attributes</code>, <code>get_shape_dimensions</code>
+  and <code>get_shape_attributes</code> are public in 2.3.0 and absent in 2.2.0. The writer
+  remains a direct subclass of public
+  <code>imas.backends.netcdf.ids_tensorizer.IDSTensorizer</code> calling inherited public
+  <code>include_coordinate_paths</code>, <code>collect_filled_data</code>,
+  <code>determine_data_shapes</code>, <code>tensorize</code> and <code>filter_coordinates</code>,
+  with <strong>no private imas name reached at either version</strong> — but on 2.2.0 those four
+  helpers must be defined locally over public <code>NCMetadata</code>/IDS metadata.</p>
+  <p>So the plan's stated trigger for reimplementation is not met: a four-method compatibility
+  shim is not a hand-rolled twin of the DD shape rules. The shim is nonetheless pure
+  version-lag cost, and it disappears on imas-python ≥ 2.3.0. Project environment measured:
+  imas-python 2.2.0, numpy 2.4.4, xarray 2026.4.0, zarr 3.2.1, netCDF4 1.7.4.</p>
+
+  <h3>The transport comparison is not yet identical-payload evidence</h3>
+  <p><strong>Measured but not admissible.</strong> Live HTTPS 2,948 samples/s (1.2129&nbsp;s,
+  3,576 samples) against mapped-on-disk 1,419,559 samples/s (0.0093&nbsp;s, 13,216 samples)
+  gives a 481× throughput ratio — but the live public S3 <code>summary/ip</code> snapshot has
+  shape 447 while the mapped May mirror has shape 1652. <strong>Different payloads, so the
+  ratio must not be used to lock any decision.</strong> The storage-cell ranking above is
+  unaffected and needs no rerun; only the transport route requires an identical-payload repeat.</p>
+
+  <p>Tests: 8 passed in 8.79&nbsp;s in the project environment on <code>sirius_debug</code>;
+  targeted transport test 1 passed in 27.61&nbsp;s; <code>ruff check</code> and
+  <code>ruff format --check</code> pass. Logs under
+  <code>~/.cache/tsrb-benchmark-*.log</code>.</p>
 </main>
 </body>
 </html>
