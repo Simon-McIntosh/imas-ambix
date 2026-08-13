@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="machine-map-cocos-transform">
+  <meta name="plan-title"     content="The Transform Carries COCOS, Not Just Names">
+  <meta name="plan-summary"   content="A machine map that binds a source array to a DD path with a sign convention is a semantic name map; it is not yet a transform. Many target DD paths are COCOS-dependent, so the engine must apply the Sauter coefficient transform from MAST's own convention to the declared target convention. Identify MAST's convention, then prove it against real MAST data for both current signs rather than asserting it.">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort-hours" content="6">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint"    content="S22">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="machine-map-transform-engine">
+  <meta name="plan-informs"   content="mast-imas-cocos-evaluation,cocos-convention-hardening">
+  <title>The Transform Carries COCOS, Not Just Names | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — A name map is not a transform</h2>
+    <p>The landed machine map binds each source array to a Data Dictionary path, its units, and a
+    sign convention. That is a <strong>semantic name map</strong>: it says what a channel means and
+    where it goes. It does not say what has to happen to the <em>value</em> on the way, and for a
+    large class of DD fields something does.</p>
+    <p>Coordinate and sign conventions (COCOS) fix the handedness of
+    (R,&nbsp;φ,&nbsp;Z), the sign of poloidal flux relative to plasma current, and the direction of
+    the poloidal angle. A quantity written under one convention and read under another differs by a
+    sign, or by a factor of 2π, or by both. The Data Dictionary declares which of its fields are
+    convention-dependent and how each transforms — so the target path itself tells us a transform is
+    required. <strong>Binding a COCOS-dependent field without applying its transform is a silent
+    sign error, not a missing feature.</strong></p>
+    <p>In <code>magnetics</code> alone the DD marks 17 COCOS-dependent fields across six
+    transformation classes, and the machine map already binds targets in three of them:</p>
+    <table>
+      <caption>COCOS-dependent targets in <code>magnetics</code>, and whether the map reaches them</caption>
+      <thead><tr><th>Transformation class</th><th>Fields</th><th>Bound by the machine map?</th></tr></thead>
+      <tbody>
+        <tr><td><code>pol_angle_like</code></td>
+            <td><code>b_field_pol_probe/poloidal_angle</code>,
+                <code>b_field_phi_probe/poloidal_angle</code> (+ error bounds)</td>
+            <td><strong>yes</strong> — probe orientation is machine description</td></tr>
+        <tr><td><code>tor_angle_like</code></td>
+            <td><code>b_field_pol_probe/toroidal_angle</code>,
+                <code>b_field_phi_probe/toroidal_angle</code> (+ error bounds)</td>
+            <td><strong>yes</strong> — same</td></tr>
+        <tr><td><code>psi_like</code></td>
+            <td><code>flux_loop/flux</code></td>
+            <td>measurement, not description — but the saddle
+                <code>flux_loop</code> bindings put the map in this structure</td></tr>
+        <tr><td><code>ip_like</code></td><td><code>magnetics/ip</code></td><td>measurement</td></tr>
+        <tr><td><code>b0_like</code></td><td><code>magnetics/diamagnetic_flux</code></td><td>measurement</td></tr>
+        <tr><td><code>one_like</code></td>
+            <td><code>b_field_pol_probe/field</code>, <code>b_field_phi_probe/field</code></td>
+            <td>measurement; <code>one_like</code> means invariant</td></tr>
+      </tbody>
+    </table>
+    <p>Probe orientation angles are the immediate exposure: they are machine description, the map
+    binds them, and they are convention-dependent. A wrong poloidal-angle sign rotates a probe's
+    sensitivity direction, which corrupts every magnetic reconstruction built on it without ever
+    failing a schema check.</p>
+
+    <h2 id="s2">§2 — Identify MAST's convention, do not assume it</h2>
+    <p>Two prior results frame this and neither settles it. The
+    <a href="/imas-ambix/plans/mast-imas-cocos-evaluation">MAST → IMAS COCOS evaluation</a>
+    found the MAST-only chain <strong>sign-sound and self-consistent</strong>, and explicitly
+    identified the unwired IMAS ingestion seam as a <em>latent</em> risk where COCOS-11
+    (axis = flux-minimum for Ip&nbsp;&gt;&nbsp;0) disagrees with the pipeline's working convention
+    (axis = flux-maximum). <strong>The transform engine is now that seam.</strong> The
+    <a href="/imas-ambix/plans/cocos-convention-hardening">COCOS-17 hardening plan</a> shipped a
+    DD 4.1.1 / COCOS-17 contract with <code>imas_ambix/cocos.py</code> carrying
+    <code>require_canonical_contract</code>, <code>canonical_factor</code> and
+    <code>mast_angle_to_canonical</code> — machinery to build on, and evidence that the target
+    convention is already decided.</p>
+    <p>What is <em>not</em> established is MAST's source convention as a COCOS number, derived from
+    the data rather than inferred from the fact that the internal chain is self-consistent. A
+    self-consistent chain is consistent in <em>some</em> convention; it does not name which. The
+    Sauter and Medvedev coefficients — σ<sub>Bp</sub>, σ<sub>RφZ</sub>, σ<sub>ρθφ</sub> and the
+    e<sub>Bp</sub> 2π exponent — are what turn an observed set of relative signs into a convention
+    number, and they are also what generate the transform to COCOS-17 once the number is known.</p>
+
+    <h2 id="s3">§3 — Prove it on real data, both current signs</h2>
+    <p>The determination must be an assertion against measured MAST data, not a documentation
+    reading, and it must hold for <strong>both signs of plasma current</strong>. This is the part
+    that makes the result trustworthy: several of the Sauter sign relations involve the product of a
+    convention coefficient with sgn(I<sub>p</sub>), so a single-polarity test cannot separate a
+    convention error from a current-sign error. They are only distinguishable when the same relation
+    is checked at both polarities, where a genuine convention holds and a mistaken one flips.</p>
+    <p>MAST ran both polarities, so a cohort is available. The check needs, per shot, the relative
+    signs of plasma current, toroidal field, poloidal flux and the poloidal-angle direction, read
+    from the level-2 store through the existing loaders and compared against what each candidate
+    COCOS predicts. A convention survives only if it predicts every observed relative sign at both
+    polarities.</p>
+    <p><strong>Deliberate negative outcome to allow for:</strong> the observed signs may match no
+    single COCOS. That is a real possible finding — a facility store assembled over decades can be
+    internally consistent without being COCOS-expressible — and it must be recorded as such rather
+    than rounded to the nearest convention. If it happens, the transform declaration becomes an
+    explicit per-quantity sign table with its evidence, which is honest, whereas a mislabelled
+    convention number is a trap for the next machine.</p>
+
+    <h2 id="s4">§4 — Where the transform lives</h2>
+    <p>The transform belongs in the <strong>engine</strong>, driven by declarations in the map, for
+    the same reason the engine is format-scoped rather than machine-scoped: the DD's transformation
+    class is a property of the target path, and the source convention is a property of the machine,
+    so the pair determines the factor without any machine-specific code.</p>
+    <p>Concretely, a binding declares its source convention and the engine looks up the target
+    path's transformation class from the DD, then applies the Sauter factor for
+    source&nbsp;→&nbsp;COCOS-17. A binding whose target is COCOS-dependent and whose source
+    convention is undeclared must <strong>fail loudly</strong> rather than pass the value through:
+    silent identity is exactly how a sign error survives to a reconstruction.</p>
+    <p><em>Done-when:</em> MAST's source convention identified as a COCOS number or explicitly
+    recorded as not COCOS-expressible, asserted against real level-2 data for both current
+    polarities with the per-quantity sign table printed; the Sauter coefficient set for that
+    convention and the derived factors to COCOS-17 committed as data, not prose; the transform
+    applied in the engine for every COCOS-dependent target the catalog binds, with an undeclared
+    source convention on a COCOS-dependent target failing loudly; and a round-trip test asserting
+    that emitting through the engine and transforming back recovers the source values, run over
+    shots of both polarities.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="source-convention-declaration" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Where is a machine's source COCOS convention declared — once per
+          machine, or per binding?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="per-machine">once per machine map, inherited by every binding</button>
+          <button class="r-opt" data-value="per-binding">per binding, no inheritance</button>
+          <button class="r-opt" data-value="per-machine-with-override">once per machine, overridable per binding</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-mmct-001" data-status="open"
+               data-capability-version="1.0" data-capability-class="general"
+               data-capability-reasoning="deep" data-capability-verification="strict"
+               data-written-by="reckon-ship" data-written-at="2026-08-13"
+               data-recommends-skill="/reckon-ship machine-map-cocos-transform §3">
+        <h4 class="r-fu-title">Determine MAST's COCOS convention from data at both current polarities</h4>
+        <div class="r-fu-body"><p>Read the relative signs of plasma current, toroidal field,
+        poloidal flux and poloidal-angle direction from real level-2 shots at both current
+        polarities, and test them against every candidate COCOS using the Sauter coefficients. A
+        convention survives only if it predicts every observed relative sign at both polarities.
+        Record the per-quantity sign table, and if no single convention fits, record that as the
+        finding rather than rounding to the nearest one.</p></div>
+        <pre class="r-fu-prompt">/reckon-ship machine-map-cocos-transform §3</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
