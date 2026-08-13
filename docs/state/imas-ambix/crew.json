@@ -1,14 +1,28 @@
 {
-  "updated": "2026-08-13T11:13:55",
+  "updated": "2026-08-13T11:34:27",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
     "members": [
       {
+        "id": "description-identity",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-13"
+      },
+      {
         "id": "machine-map",
         "harness": "codex",
         "role": "implement",
         "session_id": "019ff9fd-9b39-7363-bf7c-1be332c8e767",
+        "created": "2026-08-13"
+      },
+      {
+        "id": "reader-audit",
+        "harness": "codex",
+        "role": "investigate",
+        "session_id": "019ffa68-2921-7b53-b4b4-1cbcd8029614",
         "created": "2026-08-13"
       },
       {
@@ -435,9 +449,55 @@
           "cost_usd": null,
           "detail": "backend reports token usage but no headroom"
         }
+      },
+      {
+        "run_id": "r-20260813T091553508436-mmte-reader-audit",
+        "plan": "machine-map-transform-engine",
+        "section": "\u00a75",
+        "node": "mmte-reader-audit",
+        "role": "investigate",
+        "member": "reader-audit",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-08-13T09:15:57Z",
+        "completed_at": "2026-08-13T09:25:15Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 558,
+        "time_budget": "60m",
+        "base_sha": "81785a84f4d5a33ffc267dd1c6ca039ac2866cba",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/run/user/39486/claude-39486/-home-ITER-mcintos-Code-imas-ambix/a0d62f35-70ae-4658-bfec-7fe12e536beb/scratchpad/mmte-reader-audit-manifest.md",
+        "scope_changed": false,
+        "session_id": "019ffa68-2921-7b53-b4b4-1cbcd8029614",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cached_input_tokens": 3658496,
+            "input_tokens": 3837578,
+            "output_tokens": 25216,
+            "reasoning_output_tokens": 9646
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        }
       }
     ],
     "holds": [],
-    "_version": 12
+    "_version": 16
   }
 }

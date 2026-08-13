@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-13">
-<meta name="plan-version" content="7">
+<meta name="plan-version" content="9">
 <meta name="plan-commits" content="c3cdba3e01ce3bd7e862003790691f3ef7d5114f,d73a16e0c04a9851396d264779a5d16253f25b64,e331207548de5bfe8674f5acbb4325e697bd6cc9,0666e54f04a68504cfd883d0d2b08f1dac796afe">
 <meta name="plan-artifacts" content="docs/evidence/archive/machine-map-transform-engine-landed.html,imas_ambix/data/geometry_transitions.py,imas_ambix/data/machine_map.py,imas_ambix/data/machine_maps/schema.yaml,imas_ambix/data/machine_maps/mast.json,imas_ambix/data/machine_maps/diii-d.json,imas_ambix/data/transform_engine.py,tests/data/test_geometry_transitions.py,tests/data/test_machine_map.py,tests/data/test_transform_engine.py">
 <meta name="plan-impl" content="0.571">
@@ -130,6 +130,50 @@
     implemented as tests over a real multi-campaign corpus; description emitted for both machines
     through one code path with no machine-specific reader remaining; and the round trip verified
     against the descriptions those machines' data actually implies.</p>
+    <p class="note"><strong>Status of the reader clause, measured 2026-08-13.</strong> The
+    audit recorded at
+    <a href="/imas-ambix/evidence/archive/machine-map-transform-engine-landed#s5-audit">§5 landed</a>
+    establishes that "no machine-specific reader remaining" is <em>bounded but not currently
+    executable</em>: 41 modules invoke a legacy description-read API, the catalog is not
+    description-complete for the legacy table, and description content is demonstrably
+    metric-perturbing. §6 below is the work that clause needs, and it is a section of this plan
+    rather than a followup because this plan owns it.</p>
+
+    <h2 id="s6">§6 — The adapter the reader clause actually needs</h2>
+    <p>The transform emits a collection of arrays; the 41 legacy call sites consume a
+    <code>GeometryTable</code>. Nothing bridges the two, and that single missing piece — not the
+    engines, not the schema — is what blocks §5's reader clause. The bridge must be
+    <strong>machine-neutral</strong>, or it reintroduces exactly the per-machine reader this plan
+    exists to remove.</p>
+    <p>Two constraints make this harder than a data-shape conversion, and both are measured
+    rather than anticipated. The catalog is <strong>not description-complete</strong>: probe
+    poloidal angle is unbound, passive conductors have no binding set at all, and turn weighting,
+    circuit topology and channel drive have no declaration in the schema. And a description-content
+    change already moved the frozen spine metric by <strong>3.2%</strong>, inside the 7.93%
+    source-cutover budget but well outside the 1% same-source budget — so parity has to be
+    demonstrated, not assumed.</p>
+    <p>The sequence the audit recommends, in order, each rung gated on the one before:</p>
+    <ol>
+      <li>Complete the DD representability corrections, then bind the missing description
+      fields and the drive topology — passive conductors, <code>turns_with_sign</code>,
+      poloidal angle, circuit identity.</li>
+      <li>Build the generic table adapter, with no machine-name branch.</li>
+      <li>Compare adapter and legacy tables on one representative from each of the 11 MAST
+      ranges, requiring exact arrays, ordering, counts, derived mappings, filament reductions
+      and signature keys.</li>
+      <li>Compare <code>build_operator</code> channel order, Green's columns, grid and limiter
+      masks, and cache keys.</li>
+      <li>Add a transform-backed benchmark geometry source and run the frozen clean CPU stamp
+      under <em>same-source</em> parity tolerances.</li>
+      <li>Migrate the 41 readers by seam, keeping a compatibility facade until the reader census
+      reaches zero.</li>
+      <li>Remove the raw reader only once table and operator parity are exact and the frozen
+      benchmark is green.</li>
+    </ol>
+    <p><em>Done-when:</em> the adapter reproduces the legacy table byte-for-byte on one
+    representative per transition range including the setup signature key; the frozen spine stamp
+    run through a transform-backed geometry source sits inside the same-source budget; and the
+    census of modules invoking a legacy description-read API reaches zero.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -171,6 +215,9 @@
 </div>
 <div class="r-comment" data-section="s1" data-id="c-20260813-mmte-engines" data-who="reckon-ship" data-when="2026-08-13">
     <div class="r-comment-body">mmte-engines landed — commit 0666e54; gate engine-generality PASSED; measure 2 engines with registry ('netcdf','zarr') so engine count equals store-format count not machine count, 0 machine-name conditionals in the engine module, and 804/804 emissions matching their direct FAIR-MAST values under np.array_equal (equal_nan=True for floats). Emitted per first-shot-of-range: 11766 zarr 133 / netCDF 123; 12417 142/132; 12533 142/132; totals 417 zarr, 387 netCDF. Every netCDF fixture written by imas_ambix.bench.store_arms.write_imas_netcdf through imas.DBEntry.put and read back before dispatch, so no string encoding was hand-authored and the fixture is authoritative IMAS-netCDF; DIII-D dispatched through the same transform_machine_description entry point for both formats giving 2 source-unavailable outcomes. 4 tests added. NEW DEFECT FOUND, and invisible upstream: 10 landed catalog declarations are not representable at their declared DD paths — b_field_tor_probe_saddle_{l,m,u}_{phi,r,z} each have source shape (12,28) but target a scalar DD leaf, and coordinate target magnetics/b_field_phi_probe/position is a DD structure not a writable leaf. linkml-validate checks schema conformance not DD representability, and the zarr engine emitted all ten happily; only writing through the real Access Layer refuted them, which makes the IMAS-netCDF arm a validator independent of its read rate. Correction folded in as mmte-dd-bindings. Worker resumed once after a NEEDS-HELP on netCDF string encoding; advice was to reject all three hand-rolled encodings and write the fixture through the already-parity-verified public DBEntry path.</div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20260813-mmte-reader-audit" data-who="reckon-ship" data-when="2026-08-13">
+    <div class="r-comment-body">mmte-reader-audit landed — read-only audit at source 81785a8, no commit; gate bounded-sequence-or-named-blocker PASSED. Measure: 55 non-test modules import imas_ambix.gs.geometry; 41 invoke a legacy description-read API (8 library, 33 scripts); 14 touch only table types or GEOMETRY_TABLE_VERSION. Classification 41 description-consumers, 0 reconstruction-consumers, so §5's scope line is intact. VERDICT: retirement is bounded but NOT currently executable. Named blocker: a description-complete, DD-path-driven, machine-neutral MachineDescription-&gt;GeometryTable adapter reproducing probe orientation, full active AND passive conductor topology, turns_with_sign weighting, acquisition addressing, exact table ordering and the byte-stable setup signature; none exists and the transform emits only EmittedArray collections. The 145-binding catalog is NOT description-complete for the legacy table: magpr_ang absent, magpr_len partial, no pf_passive binding set at all, turns_with_sign unbound, fcoil_circ topology not materialised, fcoil_xmult drive map has no schema declaration, and the legacy 44-name acquisition addressing is not reproduced. Sensitivity evidence: an independent description-content change moved magnetics_residual_whitened_rms +3.218% (greens-matvec) and +3.271% (grid-delstar), passing the 7.93% source-cutover budget but EXCEEDING the 1% same-source budget, so a cutover cannot be assumed non-perturbing; there is no committed frozen-spine stamp using transform_machine_description. Delivery note: dispatched in the investigate role whose sandbox is read-only while also carrying a write path and the manifest fence — a contradiction in my dispatch, not a worker failure; the worker stopped rather than circumventing the sandbox and the analysis was recovered from the run record.</div>
 </div>
 </section>
 </main>

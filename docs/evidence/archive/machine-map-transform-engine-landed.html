@@ -190,6 +190,89 @@
   <p>Tests: 4 passed in 15.09&nbsp;s; <code>ruff check</code> and <code>ruff format --check</code>
   pass; <code>git diff --check</code> clean. Receipt:
   <code>engine_count=2, machine_name_conditional_count=0</code>.</p>
+
+  <h2 id="s5-audit">§5 — Reader retirement: bounded, but not currently executable</h2>
+  <p><strong>Read-only audit at source revision <code>81785a8</code>. 55 non-test modules import
+  from <code>imas_ambix.gs.geometry</code>; 41 invoke a legacy description-read API (8 library,
+  33 scripts); 14 touch only table types or the version constant.</strong> Classification is
+  <strong>41 description-consumers and 0 reconstruction-consumers</strong> — the modules often go
+  on to reconstruct, but nothing fitted is read across this boundary, so §5's scope line is
+  intact.</p>
+  <p>The conclusion is specific rather than discouraging: <strong>retirement is bounded, and it is
+  blocked on one named dependency</strong> — a description-complete, DD-path-driven,
+  machine-neutral <code>MachineDescription</code> → <code>GeometryTable</code> adapter that
+  reproduces probe orientation, complete active and passive conductor topology, turn and current
+  weighting, acquisition addressing, exact table ordering, and the byte-stable setup signature.
+  No such adapter exists; the transform emits a collection of <code>EmittedArray</code> objects
+  and nothing converts them into the legacy table.</p>
+
+  <h3>The 145-binding catalog is not description-complete</h3>
+  <p>This is the finding that reframes the catalog's coverage number. 145 bindings cover every
+  array the level-2 corpus exposes for its three groups, but the legacy table needs more than
+  those groups contain:</p>
+  <table>
+    <caption>Legacy field → replacement status</caption>
+    <thead><tr><th>Legacy field</th><th>DD target</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td><code>magpr_r</code>, <code>magpr_z</code></td>
+          <td><code>b_field_pol_probe[]/position/r|z</code></td>
+          <td>bound; cardinality and row-order parity unproved</td></tr>
+      <tr><td><code>magpr_ang</code></td>
+          <td><code>b_field_pol_probe[]/poloidal_angle</code></td>
+          <td><strong>absent from the catalog</strong>; a separate signal map converts it, the transform does not emit it</td></tr>
+      <tr><td><code>magpr_len</code></td>
+          <td><code>b_field_pol_probe[]/length</code></td>
+          <td>partial, by probe family only</td></tr>
+      <tr><td><code>silop_r</code>, <code>silop_z</code></td>
+          <td><code>flux_loop[]/position/r|z</code></td>
+          <td>bound; exact row parity pending</td></tr>
+      <tr><td><code>fcoil_r|z|width|height</code></td>
+          <td><code>pf_active</code> and <code>pf_passive</code> element geometry</td>
+          <td>active elements only; <strong>no pf_passive binding set</strong></td></tr>
+      <tr><td><code>fcoil_turns</code></td>
+          <td><code>…/element[]/turns_with_sign</code></td>
+          <td>not bound</td></tr>
+      <tr><td><code>fcoil_circ</code></td>
+          <td>repeated coil/loop structural identity</td>
+          <td>topology not materialised by the transform</td></tr>
+      <tr><td><code>fcoil_xmult</code></td>
+          <td>channel-to-conductor drive map</td>
+          <td>no equivalent scalar leaf; schema has no complete drive declaration</td></tr>
+      <tr><td><code>limiterr</code>, <code>limiterz</code></td>
+          <td><code>wall/description_2d[]/limiter/unit[]/outline/r|z</code></td>
+          <td>bound; exact parity pending</td></tr>
+      <tr><td><code>read_amm_passive</code>, <code>read_amc_current_channels</code></td>
+          <td><code>pf_passive/loop[]/name</code>, <code>pf_active/coil[]/name</code> + drive map</td>
+          <td>passive absent; the legacy 44-name addressing set and its circuit-drive semantics are not reproduced</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Description content is demonstrably metric-perturbing</h3>
+  <p><strong>An independent change of machine-description content moved the frozen spine metric by
+  +3.218% and +3.271%</strong> (<code>magnetics_residual_whitened_rms</code> 0.7401→0.7639 on
+  <code>greens-matvec</code>, 0.7396→0.7638 on <code>grid-delstar</code>). Those pass the wider
+  7.93% source-cutover budget but <strong>exceed the 1% same-source budget</strong>. The arm
+  measured was not the transform engine, so it proves only that changing description content is
+  observable — which is exactly why a cutover cannot be assumed non-perturbing. <strong>There is
+  no committed frozen-spine stamp using <code>transform_machine_description</code></strong>, so
+  the landed engines currently supply no evidence either way.</p>
+  <p>The frozen chain runs <code>spine_bench.runner.CampaignGeometrySource.table_for</code> →
+  <code>heldout_mse_gate_eval._campaign_table</code> → <code>read_efm_geometry</code> +
+  <code>setup_signature</code> + <code>build_table_for_shot</code> →
+  <code>spine_label_factory.factory_shot_payloads</code> → <code>gs.operator.build_operator</code>,
+  <code>latent.gs_solve.EquilibriumGrid</code>, <code>latent.patch_basis.PatchBasis</code>,
+  <code>latent.boundary_disc.disc_read</code>. Parity-constraining consumers read the exact
+  <code>signature.key</code>, ordered <code>sensor_map</code>, <code>pf_filaments</code>,
+  drive/circuit metadata, polygon sections, limiter, <code>r0</code>, minor radius and
+  unmatched-channel state.</p>
+
+  <h3>Delivery note</h3>
+  <p>This node produced its analysis but wrote no file: it was dispatched in the
+  <code>investigate</code> role, whose sandbox is read-only, while also being given a write path
+  and the mandatory manifest fence — a contradiction in the dispatch, not a worker failure. The
+  worker stopped correctly rather than circumventing the sandbox, and the analysis was recovered
+  from the run record. Subsequent investigation nodes in this session use a writable role with a
+  docs-only scope.</p>
 </main>
 </body>
 </html>
