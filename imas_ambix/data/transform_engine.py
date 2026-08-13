@@ -139,16 +139,42 @@ class ZarrTransformEngine:
         return _ZarrArrays(Path(root) / f"{int(shot)}.zarr")
 
 
-def _read_ids_path(node: object, components: tuple[str, ...]) -> np.ndarray:
-    child = getattr(node, components[0])
-    if len(components) == 1:
+def _struct_array_positions(
+    node: object, components: tuple[str, ...]
+) -> tuple[int, ...]:
+    positions: list[int] = []
+    for index, component in enumerate(components[:-1]):
+        child = getattr(node, component)
+        if isinstance(child, IDSStructArray):
+            if not len(child):
+                raise KeyError("/".join(components))
+            positions.append(index)
+            node = child[0]
+        else:
+            node = child
+    return tuple(positions)
+
+
+def _read_ids_path(
+    node: object,
+    components: tuple[str, ...],
+    preserved_positions: frozenset[int],
+    index: int = 0,
+) -> np.ndarray:
+    child = getattr(node, components[index])
+    if index == len(components) - 1:
         return np.asarray(child.value)
     if isinstance(child, IDSStructArray):
-        rows = tuple(_read_ids_path(item, components[1:]) for item in child)
+        rows = tuple(
+            _read_ids_path(item, components, preserved_positions, index + 1)
+            for item in child
+        )
         if not rows:
             raise KeyError("/".join(components))
-        return rows[0] if len(rows) == 1 else np.stack(rows)
-    return _read_ids_path(child, components[1:])
+        if index in preserved_positions or len(rows) > 1:
+            return np.stack(rows)
+        return rows[0]
+    return _read_ids_path(child, components, preserved_positions, index + 1)
 
 
 class _NetCDFStoreArrays(AbstractContextManager["_NetCDFStoreArrays"]):
@@ -172,7 +198,22 @@ class _NetCDFStoreArrays(AbstractContextManager["_NetCDFStoreArrays"]):
         try:
             with imas.DBEntry(source, "r", dd_version=self.dd_version) as entry:
                 ids = entry.get(ids_name, autoconvert=False)
-                return _read_ids_path(ids, tuple(relative_path.split("/")))
+                components = tuple(relative_path.split("/"))
+                positions = _struct_array_positions(ids, components)
+                leaf_rank = ids.metadata[relative_path].ndim
+                structural_rank = binding.source_rank - leaf_rank
+                if structural_rank < 0 or structural_rank > len(positions):
+                    raise BindingTransformError(
+                        f"binding {binding.name!r} source rank {binding.source_rank} "
+                        f"cannot be reconstructed from leaf rank {leaf_rank} and "
+                        f"{len(positions)} structural arrays"
+                    )
+                preserved = (
+                    frozenset(positions[-structural_rank:])
+                    if structural_rank
+                    else frozenset()
+                )
+                return _read_ids_path(ids, components, preserved)
         except OSError as error:
             raise SourceUnavailableError(
                 f"netCDF binding store cannot be opened: {source}: {error}"
