@@ -65,6 +65,12 @@ def _integer(value: Any, label: str, *, minimum: int = 0) -> int:
     return value
 
 
+def _positive_number(value: Any, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        raise MachineMapError(f"{label} must be a number > 0")
+    return float(value)
+
+
 @dataclass(frozen=True)
 class ChannelBinding:
     """One immutable store-array to Data Dictionary path declaration."""
@@ -129,6 +135,7 @@ class MachineMap:
     last_shot: int
     transition: str | None
     binding_set: str
+    drive_topology: str | None
     validation_state: str
 
     @classmethod
@@ -140,12 +147,16 @@ class MachineMap:
             "last_shot",
             "transition",
             "binding_set",
+            "drive_topology",
             "validation_state",
         }
         _exact_keys(payload, required, set(), label)
         transition = payload["transition"]
         if transition is not None:
             transition = _text(transition, f"{label}.transition")
+        drive_topology = payload["drive_topology"]
+        if drive_topology is not None:
+            drive_topology = _text(drive_topology, f"{label}.drive_topology")
         machine_map = cls(
             name=_text(payload["name"], f"{label}.name"),
             machine=_text(payload["machine"], f"{label}.machine"),
@@ -153,6 +164,7 @@ class MachineMap:
             last_shot=_integer(payload["last_shot"], f"{label}.last_shot"),
             transition=transition,
             binding_set=_text(payload["binding_set"], f"{label}.binding_set"),
+            drive_topology=drive_topology,
             validation_state=_text(
                 payload["validation_state"], f"{label}.validation_state"
             ),
@@ -231,17 +243,59 @@ class SourceQualification:
 
 
 @dataclass(frozen=True)
+class CircuitConnection:
+    """One sparse supply-to-element connection in a named circuit."""
+
+    circuit_identifier: str
+    supply_identifier: str
+    element_identifier: str
+    turns: float
+    direction: int
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any], label: str) -> CircuitConnection:
+        required = {
+            "circuit_identifier",
+            "supply_identifier",
+            "element_identifier",
+            "turns",
+            "direction",
+        }
+        _exact_keys(payload, required, set(), label)
+        direction = payload["direction"]
+        if isinstance(direction, bool) or direction not in {-1, 1}:
+            raise MachineMapError(f"{label}.direction must be -1 or 1")
+        return cls(
+            circuit_identifier=_text(
+                payload["circuit_identifier"], f"{label}.circuit_identifier"
+            ),
+            supply_identifier=_text(
+                payload["supply_identifier"], f"{label}.supply_identifier"
+            ),
+            element_identifier=_text(
+                payload["element_identifier"], f"{label}.element_identifier"
+            ),
+            turns=_positive_number(payload["turns"], f"{label}.turns"),
+            direction=direction,
+        )
+
+
+@dataclass(frozen=True)
 class DriveTopology:
-    """Declarative relationship between conductors and their current channels."""
+    """Declarative sparse connectivity from supplies to conductor elements."""
 
     name: str
     source_location: str
     circuit_identity_source: str
     current_scale_source: str
     current_channel_source: str
-    circuit_identity_qualification: str
-    current_scale_qualification: str
     current_channel_qualification: str
+    circuit_identifier_path: str
+    supply_identifier_path: str
+    element_identifier_path: str
+    turns_path: str
+    connections_path: str
+    connections: tuple[CircuitConnection, ...]
     passive_loop_names: tuple[str, ...]
     evidence: str
 
@@ -253,9 +307,13 @@ class DriveTopology:
             "circuit_identity_source",
             "current_scale_source",
             "current_channel_source",
-            "circuit_identity_qualification",
-            "current_scale_qualification",
             "current_channel_qualification",
+            "circuit_identifier_path",
+            "supply_identifier_path",
+            "element_identifier_path",
+            "turns_path",
+            "connections_path",
+            "connections",
             "passive_loop_names",
             "evidence",
         }
@@ -271,13 +329,34 @@ class DriveTopology:
         )
         if len(loop_names) != len(set(loop_names)):
             raise MachineMapError(f"{label}.passive_loop_names must be unique")
+        connections_raw = payload["connections"]
+        if not isinstance(connections_raw, list) or not connections_raw:
+            raise MachineMapError(f"{label}.connections must be a non-empty list")
+        connections = tuple(
+            CircuitConnection.from_dict(
+                _object(entry, f"{label}.connections[{index}]"),
+                f"{label}.connections[{index}]",
+            )
+            for index, entry in enumerate(connections_raw)
+        )
+        connection_keys = {
+            (item.circuit_identifier, item.element_identifier) for item in connections
+        }
+        if len(connection_keys) != len(connections):
+            raise MachineMapError(
+                f"{label}.connections must identify unique circuit-element pairs"
+            )
         values = {
             key: _text(payload[key], f"{label}.{key}")
-            for key in required.difference({"passive_loop_names"})
+            for key in required.difference({"passive_loop_names", "connections"})
         }
         if "://" not in values["source_location"]:
             raise MachineMapError(f"{label}.source_location must be an absolute URI")
-        return cls(passive_loop_names=loop_names, **values)
+        return cls(
+            passive_loop_names=loop_names,
+            connections=connections,
+            **values,
+        )
 
 
 @dataclass(frozen=True)
@@ -380,6 +459,7 @@ def load_linkml_schema(path: Path | str = LINKML_SCHEMA_PATH) -> Mapping[str, An
     required_classes = {
         "BindingSet",
         "ChannelBinding",
+        "CircuitConnection",
         "DriveTopology",
         "MachineMap",
         "SourceQualification",
@@ -522,14 +602,19 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
     if len(topology_names) != len(set(topology_names)):
         raise MachineMapError("drive topology names must be unique")
     for topology in topologies:
-        referenced = {
-            topology.circuit_identity_qualification,
-            topology.current_scale_qualification,
-            topology.current_channel_qualification,
-        }
-        if not referenced.issubset(qualification_names):
+        if topology.current_channel_qualification not in qualification_names:
             raise MachineMapError(
                 f"drive topology {topology.name!r} references unknown qualifications"
+            )
+
+    for item in maps:
+        if (
+            item.drive_topology is not None
+            and item.drive_topology not in topology_names
+        ):
+            raise MachineMapError(
+                f"map {item.name!r} references unknown drive topology "
+                f"{item.drive_topology!r}"
             )
 
     assemblies_raw = payload["structure_assemblies"]
