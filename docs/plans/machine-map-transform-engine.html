@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-13">
-<meta name="plan-version" content="10">
+<meta name="plan-version" content="12">
 <meta name="plan-commits" content="c3cdba3e01ce3bd7e862003790691f3ef7d5114f,d73a16e0c04a9851396d264779a5d16253f25b64,e331207548de5bfe8674f5acbb4325e697bd6cc9,0666e54f04a68504cfd883d0d2b08f1dac796afe,12661d1f44cdc6a944e1ab911543777d1b3ddbeb">
 <meta name="plan-artifacts" content="docs/evidence/archive/machine-map-transform-engine-landed.html,imas_ambix/data/geometry_transitions.py,imas_ambix/data/machine_map.py,imas_ambix/data/machine_maps/schema.yaml,imas_ambix/data/machine_maps/mast.json,imas_ambix/data/machine_maps/diii-d.json,imas_ambix/data/transform_engine.py,tests/data/test_geometry_transitions.py,tests/data/test_machine_map.py,tests/data/test_transform_engine.py">
 <meta name="plan-impl" content="0.636">
@@ -70,18 +70,25 @@
       on the right, and the cross product needs no new code.</figcaption>
     </figure>
 
-    <h2 id="s2">§2 — What a map declares, and what it must not become</h2>
-    <p>A map binds each machine channel to its Data Dictionary path, its units and sign
-    convention, and the source location in the store. It is declarative and validated against a
-    LinkML schema, following the precedent already in-house for diagnostic corrections.</p>
-    <p><strong>The risk worth naming up front:</strong> maps that need conditionals — "this
-    channel means one thing before shot N and another after" — stop being data and become a small
-    language, and small languages in schemas are worse than code. This is not hypothetical here,
-    because geometry genuinely changes across and within campaigns. The design rule is therefore
-    that <em>a map is valid for a stated shot range</em>, and change is expressed by having more
-    than one map, never by a conditional inside one. If that rule proves insufficient, the finding
-    is that maps need code beside them, and it should be recorded rather than absorbed by
-    complicating the schema.</p>
+    <section id="s2" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-13</span>
+        <h2>§2 — What a map declares</h2>
+      </header>
+      <p class="landed-summary">
+        Built <code>imas_ambix/data/machine_maps/schema.yaml</code> (LinkML, 5 classes, 25 slots)
+        and <code>machine_map.py</code>. <strong>No conditional, expression or code-hook slot
+        exists</strong>, so the locked range-scoped rule is enforced structurally rather than by
+        convention. MAST: 135 executable bindings (magnetics 61, pf_active 71, wall 3) plus 10
+        <code>SourceQualification</code> records = all 145 observed arrays; DIII-D reduced to 1
+        source-only binding, 0 reconstruction-derived. The ten qualified arrays are
+        <strong>unrepresentable in DD 4.1.1</strong>, not deferred — no saddle outline leaf exists
+        and <code>b_field_phi_probe/position</code> is a structure. <code>linkml-validate</code>
+        exit 0; format gap 0.
+        Full record: <a href="/imas-ambix/evidence/archive/machine-map-transform-engine-landed#s2">§2 landed</a>
+        (commits <code>d73a16e</code>, <code>e331207</code>, <code>12661d1</code>).
+      </p>
+    </section>
 
     <section id="s3" class="section-landed">
       <header>
@@ -101,19 +108,24 @@
       </p>
     </section>
 
-    <h2 id="s4">§4 — Identity, without a global digest</h2>
-    <p>A machine that changes has no single identity, so asserting "same machine" globally is the
-    wrong test and is what made the previous digest scheme need repeated cutovers. Three
-    assertions replace it, all of which survive a machine whose geometry moves:</p>
-    <ul>
-      <li><strong>Determinism</strong> — the same inputs produce byte-identical description
-      output.</li>
-      <li><strong>Partition consistency</strong> — every shot declaring a given description
-      version carries an identical description, and the versions partition the corpus at the
-      declared transitions.</li>
-      <li><strong>Visible change</strong> — a transition produces an inspectable diff rather than
-      one description silently smeared across a boundary.</li>
-    </ul>
+    <section id="s4" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-13</span>
+        <h2>§4 — Identity, without a global digest</h2>
+      </header>
+      <p class="landed-summary">
+        Built <code>imas_ambix/data/description_identity.py</code>. All three assertions hold over
+        the real corpus: <strong>determinism</strong> 5/5 byte-identical emission pairs
+        (241,953–245,316 bytes); <strong>partition consistency</strong> 22 sampled shots across 11
+        ranges and <strong>all 11,573 corpus shots resolving to exactly one range</strong>;
+        <strong>visible change</strong> 10/10 interior boundaries with non-empty diffs, changed-field
+        counts [6, 10, 10, 10, 10, 10, 10, 10, 10, 10]. The counts are the design working — a digest
+        would compress each boundary to "different", while these keep the 1004↔938 filament churn
+        inspectable.
+        Full record: <a href="/imas-ambix/evidence/archive/machine-map-transform-engine-landed#s4">§4 landed</a>
+        (commit <code>ad515a9</code>).
+      </p>
+    </section>
     <p>Vendoring follows from this: the description is embedded in the experimental dataset and is
     <strong>authoritative for reads</strong>, so a pulse is self-contained and portable in the way
     IMAS semantics already assume; the bare description store is the production and distribution
@@ -223,7 +235,7 @@
     <div class="r-comment-body">mmte-reader-audit landed — read-only audit at source 81785a8, no commit; gate bounded-sequence-or-named-blocker PASSED. Measure: 55 non-test modules import imas_ambix.gs.geometry; 41 invoke a legacy description-read API (8 library, 33 scripts); 14 touch only table types or GEOMETRY_TABLE_VERSION. Classification 41 description-consumers, 0 reconstruction-consumers, so §5's scope line is intact. VERDICT: retirement is bounded but NOT currently executable. Named blocker: a description-complete, DD-path-driven, machine-neutral MachineDescription-&gt;GeometryTable adapter reproducing probe orientation, full active AND passive conductor topology, turns_with_sign weighting, acquisition addressing, exact table ordering and the byte-stable setup signature; none exists and the transform emits only EmittedArray collections. The 145-binding catalog is NOT description-complete for the legacy table: magpr_ang absent, magpr_len partial, no pf_passive binding set at all, turns_with_sign unbound, fcoil_circ topology not materialised, fcoil_xmult drive map has no schema declaration, and the legacy 44-name acquisition addressing is not reproduced. Sensitivity evidence: an independent description-content change moved magnetics_residual_whitened_rms +3.218% (greens-matvec) and +3.271% (grid-delstar), passing the 7.93% source-cutover budget but EXCEEDING the 1% same-source budget, so a cutover cannot be assumed non-perturbing; there is no committed frozen-spine stamp using transform_machine_description. Delivery note: dispatched in the investigate role whose sandbox is read-only while also carrying a write path and the manifest fence — a contradiction in my dispatch, not a worker failure; the worker stopped rather than circumventing the sandbox and the analysis was recovered from the run record.</div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20260813-mmte-identity" data-who="reckon-ship" data-when="2026-08-13">
-    <div class="r-comment-body">mmte-identity landed — commit ad515a9; gate three-identity-assertions PASSED; 3 tests added, 3 passed in 54.84s. Determinism: 5/5 byte-identical emission pairs over shots 11766, 12417, 12533, 12906, 30471, canonical description sizes 241,953-245,316 bytes. Partition consistency: 2 shots sampled inside each of the 11 declared ranges (22 total), boundaries contiguous, and all 11,573 corpus shots resolve to exactly one range. Visible change: 10/10 interior boundaries produce a non-empty diff with changed-field counts [6,10,10,10,10,10,10,10,10,10]. The counts are the design working — a global digest would compress each boundary to 'different', whereas here the 1004<->938 filament changes stay inspectable, keeping the earlier finding that some boundaries record EFIT setup churn rather than machine change visible instead of absorbed into a hash. The first boundary at 12417 moves 6 fields against 10 at every later one, so the transitions are not interchangeable. Pulse /data and /time leaves excluded as experiment rather than machine identity.</div>
+    <div class="r-comment-body">mmte-identity landed — commit ad515a9; gate three-identity-assertions PASSED; 3 tests added, 3 passed in 54.84s. Determinism: 5/5 byte-identical emission pairs over shots 11766, 12417, 12533, 12906, 30471, canonical description sizes 241,953-245,316 bytes. Partition consistency: 2 shots sampled inside each of the 11 declared ranges (22 total), boundaries contiguous, and all 11,573 corpus shots resolve to exactly one range. Visible change: 10/10 interior boundaries produce a non-empty diff with changed-field counts [6,10,10,10,10,10,10,10,10,10]. The counts are the design working — a global digest would compress each boundary to 'different', whereas here the 1004&lt;-&gt;938 filament changes stay inspectable, keeping the earlier finding that some boundaries record EFIT setup churn rather than machine change visible instead of absorbed into a hash. The first boundary at 12417 moves 6 fields against 10 at every later one, so the transitions are not interchangeable. Pulse /data and /time leaves excluded as experiment rather than machine identity.</div>
 </div>
 </section>
 </main>
