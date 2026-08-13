@@ -5,7 +5,7 @@ description: >-
   Range-scoped bindings from immutable store arrays to Data Dictionary leaves.
   The schema deliberately has no condition, expression, or code-hook slot.
 license: LGPL-3.0-or-later
-version: 1.3.0
+version: 1.4.0
 prefixes:
   linkml: https://w3id.org/linkml/
   mm: https://imas-ambix.example/schema/machine-map/
@@ -82,6 +82,7 @@ slots:
     range: DriveTopology
     multivalued: true
     inlined_as_list: true
+  drive_topology:
   name:
     identifier: true
     required: true
@@ -142,11 +143,37 @@ slots:
     required: true
   current_channel_source:
     required: true
-  circuit_identity_qualification:
-    required: true
-  current_scale_qualification:
-    required: true
   current_channel_qualification:
+    required: true
+  circuit_identifier_path:
+    required: true
+  supply_identifier_path:
+    required: true
+  element_identifier_path:
+    required: true
+  turns_path:
+    required: true
+  connections_path:
+    required: true
+  connections:
+    range: CircuitConnection
+    multivalued: true
+    inlined_as_list: true
+    required: true
+  circuit_identifier:
+    required: true
+  supply_identifier:
+    required: true
+  element_identifier:
+    required: true
+  turns:
+    range: float
+    minimum_value: 0
+    required: true
+  direction:
+    range: integer
+    minimum_value: -1
+    maximum_value: 1
     required: true
   passive_loop_names:
     multivalued: true
@@ -194,6 +221,7 @@ classes:
       - last_shot
       - transition
       - binding_set
+      - drive_topology
       - validation_state
   ValidationGap:
     slots:
@@ -216,19 +244,36 @@ classes:
       - evidence
   DriveTopology:
     description: >-
-      Declares how conductor identities, current scales, measured channels and
-      passive loop groups combine without embedding a machine-specific rule.
+      Declares the sparse non-zero form of a circuit connections matrix: which
+      named supply drives each named conductor element, in which direction,
+      and with which positive turn magnitude. Measured channels and passive
+      loop groups remain declarative without embedding a machine-specific rule.
     slots:
       - name
       - source_location
       - circuit_identity_source
       - current_scale_source
       - current_channel_source
-      - circuit_identity_qualification
-      - current_scale_qualification
       - current_channel_qualification
+      - circuit_identifier_path
+      - supply_identifier_path
+      - element_identifier_path
+      - turns_path
+      - connections_path
+      - connections
       - passive_loop_names
       - evidence
+  CircuitConnection:
+    description: >-
+      One non-zero supply-to-element connectivity entry in a named circuit.
+      Turn magnitude is strictly positive; current direction is carried only
+      by direction.
+    slots:
+      - circuit_identifier
+      - supply_identifier
+      - element_identifier
+      - turns
+      - direction
   StructureAssembly:
     description: >-
       Assembles source bindings into repeated Data Dictionary structures and

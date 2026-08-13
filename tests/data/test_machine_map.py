@@ -8,6 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import imas
+import numpy as np
 import pytest
 from imas.ids_struct_array import IDSStructArray
 
@@ -151,6 +152,7 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
     assert LINKML_SCHEMA_PATH.name == "schema.yaml"
     assert schema["classes"]["MachineMapCatalog"]["tree_root"] is True
     assert "SourceQualification" in schema["classes"]
+    assert "CircuitConnection" in schema["classes"]
     assert "DriveTopology" in schema["classes"]
     assert "StructureAssembly" in schema["classes"]
     assert set(schema["enums"]["BindingRole"]["permissible_values"]) == {
@@ -179,11 +181,10 @@ def test_mast_catalog_accounts_for_every_machine_description_array_in_the_corpus
     assert catalog.bound_channel_count == 254
     assert catalog.qualified_channel_counts == {
         "magnetics": 4,
-        "pf_active": 2,
-        "pf_passive": 2,
-        "legacy_geometry": 2,
+        "pf_active": 1,
+        "pf_passive": 1,
     }
-    assert catalog.qualified_channel_count == 10
+    assert catalog.qualified_channel_count == 6
     assert len(catalog.maps) * catalog.bound_channel_count == 2_794
     assert catalog.validation_gaps == ()
     assert (
@@ -198,7 +199,7 @@ def test_mast_catalog_accounts_for_every_machine_description_array_in_the_corpus
             item.source_status == "legacy-only"
             for item in catalog.source_qualifications
         )
-        == 9
+        == 5
     )
 
     bindings_by_group: dict[str, dict[str, object]] = {
@@ -415,6 +416,7 @@ def test_every_legacy_description_field_has_a_binding_or_qualification():
         (item.source_group, item.source_array): item.name
         for item in catalog.source_qualifications
     }
+    topology_names = tuple(item.name for item in catalog.drive_topologies)
 
     def binding_matches(group: str, suffix: str) -> tuple[str, ...]:
         return tuple(
@@ -466,14 +468,10 @@ def test_every_legacy_description_field_has_a_binding_or_qualification():
         "pf_passive.element.z": binding_matches("pf_passive", "_z"),
         "pf_passive.element.width": binding_matches("pf_passive", "_width"),
         "pf_passive.element.height": binding_matches("pf_passive", "_height"),
-        "pf_active.element.turns_with_sign": (
-            qualification_names[("pf_active", "turns_with_sign")],
-        ),
-        "pf_passive.element.turns_with_sign": (
-            qualification_names[("pf_passive", "turns_with_sign")],
-        ),
-        "fcoil_circ": (qualification_names[("legacy_geometry", "fcoil_circ")],),
-        "fcoil_xmult": (qualification_names[("legacy_geometry", "fcoil_xmult")],),
+        "pf_active.element.turns_with_sign": (*topology_names,),
+        "pf_passive.element.turns_with_sign": (*topology_names,),
+        "fcoil_circ": topology_names,
+        "fcoil_xmult": topology_names,
         "amc_current_channels": (
             qualification_names[("pf_active", "amc_current_channels")],
         ),
@@ -489,17 +487,143 @@ def test_every_legacy_description_field_has_a_binding_or_qualification():
             unaccounted.append(field)
     assert unaccounted == []
 
-    topology = catalog.drive_topologies[0]
-    assert len(catalog.drive_topologies) == 1
-    assert topology.circuit_identity_source == "fcoil_circ"
-    assert topology.current_scale_source == "fcoil_xmult"
-    assert topology.current_channel_source == "amc_current_channels"
-    assert topology.circuit_identity_qualification == accounting["fcoil_circ"][0]
-    assert topology.current_scale_qualification == accounting["fcoil_xmult"][0]
-    assert (
-        topology.current_channel_qualification == accounting["amc_current_channels"][0]
-    )
-    assert topology.passive_loop_names == PASSIVE_LOOP_FAMILIES
+    assert len(catalog.drive_topologies) == 3
+    for topology in catalog.drive_topologies:
+        assert topology.circuit_identity_source == "fcoil_circ"
+        assert topology.current_scale_source == "fcoil_xmult"
+        assert topology.current_channel_source == "amc_current_channels"
+        assert (
+            topology.current_channel_qualification
+            == accounting["amc_current_channels"][0]
+        )
+        assert topology.passive_loop_names == PASSIVE_LOOP_FAMILIES
+
+
+def test_turn_magnitudes_are_positive_and_direction_is_connectivity_only():
+    for machine in ("mast", "diii-d"):
+        catalog = load_packaged_machine_map(machine)
+        for bindings in catalog.binding_sets.values():
+            for binding in bindings:
+                if (
+                    "turn" in binding.source_array.lower()
+                    or "turn" in binding.dd_path.lower()
+                ):
+                    assert binding.sign_convention != "negate"
+        for qualification in catalog.source_qualifications:
+            declaration = " ".join(
+                (qualification.name, qualification.source_array, qualification.reason)
+            ).lower()
+            assert "turns_with_sign" not in declaration
+        for topology in catalog.drive_topologies:
+            assert topology.circuit_identifier_path == "pf_active/circuit/name"
+            assert topology.supply_identifier_path == "pf_active/supply/name"
+            assert topology.element_identifier_path == "pf_active/coil/element/name"
+            assert topology.turns_path == "pf_active/coil/element/turns_with_sign"
+            assert topology.connections_path == "pf_active/circuit/connections"
+            assert all(connection.turns > 0 for connection in topology.connections)
+            assert {connection.direction for connection in topology.connections} <= {
+                -1,
+                1,
+            }
+            circuit_identifier = _dd_leaf(
+                catalog.dd_version, topology.circuit_identifier_path
+            )
+            supply_identifier = _dd_leaf(
+                catalog.dd_version, topology.supply_identifier_path
+            )
+            element_identifier = _dd_leaf(
+                catalog.dd_version, topology.element_identifier_path
+            )
+            turns = _dd_leaf(catalog.dd_version, topology.turns_path)
+            connections = _dd_leaf(catalog.dd_version, topology.connections_path)
+            assert circuit_identifier.data_type.name == "STR"
+            assert supply_identifier.data_type.name == "STR"
+            assert element_identifier.data_type.name == "STR"
+            assert "identifier" in circuit_identifier.documentation
+            assert "identifier" in supply_identifier.documentation
+            assert "identifier" in element_identifier.documentation
+            assert turns.data_type.name == "FLT"
+            assert turns.units == "1"
+            assert "Should be positive" in turns.documentation
+            assert (connections.data_type.name, connections.ndim) == ("INT", 2)
+            assert "positive side" in connections.documentation
+            assert "negative side" in connections.documentation
+
+
+def test_sparse_connectivity_reconstructs_every_legacy_signed_drive_element():
+    catalog = load_packaged_machine_map("mast")
+    payload = load_geometry_table_payload()
+    topologies = {
+        topology.source_location.rsplit("/", maxsplit=1)[-1]: topology
+        for topology in catalog.drive_topologies
+    }
+    total_elements = 0
+    direction_counts = {-1: 0, 1: 0}
+
+    for signature, campaign in payload["campaigns"].items():
+        topology = topologies[signature]
+        filaments = campaign["pf_filaments"]
+        expected_circuits = tuple(
+            f"fcoil-circuit-{int(item['circuit']):03d}" for item in filaments
+        )
+        expected_elements = tuple(
+            f"fcoil-element-{index:04d}" for index in range(len(filaments))
+        )
+        expected_supplies = tuple(
+            f"fcoil-supply-{int(item['circuit']):03d}" for item in filaments
+        )
+        legacy_signed_drive = np.asarray(
+            [float(item["turns"]) * float(item["xmult"]) for item in filaments]
+        )
+        circuit_identifiers = tuple(
+            connection.circuit_identifier for connection in topology.connections
+        )
+        element_identifiers = tuple(
+            connection.element_identifier for connection in topology.connections
+        )
+        supply_identifiers = tuple(
+            connection.supply_identifier for connection in topology.connections
+        )
+        positive_turns = np.asarray(
+            [connection.turns for connection in topology.connections]
+        )
+
+        unique_circuits = tuple(dict.fromkeys(circuit_identifiers))
+        circuit_rows = {
+            identifier: index for index, identifier in enumerate(unique_circuits)
+        }
+        connectivity = np.zeros(
+            (len(unique_circuits), len(topology.connections)), dtype=np.int8
+        )
+        for column, connection in enumerate(topology.connections):
+            connectivity[circuit_rows[connection.circuit_identifier], column] = (
+                connection.direction
+            )
+            direction_counts[connection.direction] += 1
+
+        selected_direction = connectivity[
+            [circuit_rows[identifier] for identifier in circuit_identifiers],
+            np.arange(len(topology.connections)),
+        ]
+        reconstructed = positive_turns * selected_direction
+        assert circuit_identifiers == expected_circuits
+        assert supply_identifiers == expected_supplies
+        assert element_identifiers == expected_elements
+        assert np.count_nonzero(connectivity, axis=0).tolist() == [1] * len(filaments)
+        assert np.array_equal(reconstructed, legacy_signed_drive)
+        total_elements += len(filaments)
+        negative_count = np.count_nonzero(reconstructed < 0)
+        print(
+            "CIRCUIT_DRIVE_RECONSTRUCTION "
+            f"signature={signature} elements={len(filaments)} "
+            f"circuits={len(unique_circuits)} negative={negative_count}"
+        )
+
+    assert total_elements == 2_946
+    assert direction_counts == {-1: 0, 1: 2_946}
+    for machine_map in catalog.maps:
+        digest = machine_map.transition.rsplit("-", maxsplit=1)[-1]
+        assert machine_map.drive_topology == f"mast-legacy-fcoil-drive-{digest}"
 
 
 def test_every_mast_map_range_is_one_geometry_transition():
@@ -565,4 +689,20 @@ def test_loader_rejects_an_undeclared_conditional_slot(tmp_path):
     invalid.write_text(json.dumps(source))
 
     with pytest.raises(MachineMapError, match="extra=.+condition"):
+        load_machine_map(invalid)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    (("turns", -1.0, "number > 0"), ("direction", 0, "must be -1 or 1")),
+)
+def test_loader_rejects_nonpositive_turns_and_unsigned_connections(
+    tmp_path, field, value, message
+):
+    source = json.loads((LINKML_SCHEMA_PATH.parent / "mast.json").read_text())
+    source["drive_topologies"][0]["connections"][0][field] = value
+    invalid = tmp_path / f"invalid-{field}.json"
+    invalid.write_text(json.dumps(source))
+
+    with pytest.raises(MachineMapError, match=message):
         load_machine_map(invalid)
