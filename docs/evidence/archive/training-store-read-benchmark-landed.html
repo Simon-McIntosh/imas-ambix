@@ -146,6 +146,28 @@
   ratio must not be used to lock any decision.</strong> The storage-cell ranking above is
   unaffected and needs no rerun; only the transport route requires an identical-payload repeat.</p>
 
+  <h3 id="s2-transport">Transport, retried: unobtainable without a mirror refresh</h3>
+  <p><strong>Gate not-run — 24 probed shots, 0 shape matches, 0 <code>np.array_equal</code>
+  matches, 0 timed cells.</strong> Commit <code>9f07377</code>; 1 test added. The negative is
+  structural rather than incidental: live shapes span 424–556 while mapped shapes span
+  1561–2088, so <strong>the mirror is a different snapshot generation of the corpus, not a
+  slightly stale copy of the current public objects</strong>. No amount of shot-shopping fixes
+  that, and the run says so instead of picking the closest pair.</p>
+  <p>The durable part of this node is not the report. <code>measure_transport</code> now prints
+  both shapes and <code>decoded_arrays_identical</code> and <strong>raises before
+  <code>time.perf_counter</code> is ever called</strong> unless shapes agree and
+  <code>np.array_equal</code> is true, so this class of non-comparison cannot be measured again.
+  A committed test monkeypatches <code>perf_counter</code> to prove a mismatch cannot begin
+  timing. Recorded status <code>unobtainable_without_mirror_refresh</code>, with
+  <code>transport_cells</code> empty.</p>
+  <p>Probed shots 11766–11804 (24 completed), both routes via public
+  <code>zarr.open_array</code> against
+  <code>s3.echo.stfc.ac.uk/mast/level2/shots/&lt;shot&gt;.zarr/summary/ip</code> and the mapped
+  path under <code>/work/projects/imas_gpu/mast/level2/shots</code>. Tests: 5 passed in
+  28.20&nbsp;s; SLURM transport probe job 1245138 exit 0; <code>ruff check</code> passes.
+  Artifact:
+  <code>/work/projects/imas_gpu/store-bench/transport-identical-payload-sirius-debug-20260813.log</code>.</p>
+
   <p>Tests: 8 passed in 8.79&nbsp;s in the project environment on <code>sirius_debug</code>;
   targeted transport test 1 passed in 27.61&nbsp;s; <code>ruff check</code> and
   <code>ruff format --check</code> pass. Logs under

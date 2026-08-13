@@ -116,6 +116,32 @@
   370.04&nbsp;s; geometry-transition compatibility 4 passed in 4.55&nbsp;s;
   <code>linkml-validate</code> over the schema and both catalogs reports no issues, exit 0;
   <code>ruff check</code> and <code>ruff format --check</code> exit 0.</p>
+
+  <h3 id="s2-rebind">Rebound to machine description</h3>
+  <p><strong>145 unique bindings — magnetics 71, pf_active 71, wall 3 — covering every array the
+  local corpus exposes for those groups, each declared exactly once. DIII-D reduced to 0
+  reconstruction-derived bindings.</strong> Commit <code>e331207</code>; 2 tests added.</p>
+  <p>A complete census of all 11,573 level-2 stores established the array union per group, and
+  every one of the 145 arrays now carries a source location, its observed source unit, its
+  DD 4.1.1 target path and unit, and a sign convention — <strong>1,595 effective range-bound
+  declarations</strong> across the 11 transition-aligned maps, whose ranges still equal the
+  <code>geometry_transitions</code> output exactly. The schema gained explicit binding-role and
+  not-applicable-sign declarations so identifier and dimension arrays are typed rather than
+  coerced into a signed-measurement shape.</p>
+  <p>DIII-D retains one binding: public PTDATA plasma current → <code>magnetics/ip/data</code>,
+  cited to <code>MIT-PSFC/disruption-py</code> commit <code>dec5c58a</code>. <code>q95</code>,
+  <code>li</code> and <code>betan</code> were removed as EFIT reconstruction outputs belonging to
+  the targets builder under §5. The remaining binding stays source-only: this host has no DIII-D
+  corpus and no authenticated PTDATA/MDSplus service, so its source existence, engineering units,
+  polarity and shot validity are unverified.</p>
+  <p><strong>Census side-finding:</strong> static-description arrays are present in 11,557 of the
+  11,573 stores. The 16-store shortfall is a source omission — missing evidence — not a
+  configuration split, so it must not be read as a sixteen-shot machine variant.</p>
+  <p>Tests: <code>linkml-validate</code> on the schema and both catalogs against
+  <code>MachineMapCatalog</code> → exit 0, no issues; focused suite 6 passed in 331.58&nbsp;s;
+  the strengthened source-unit assertion 1 passed in 393.60&nbsp;s; fast selection 4 passed in
+  2.78&nbsp;s; geometry-transition compatibility 4 passed in 10.38&nbsp;s; <code>ruff check</code>
+  and <code>ruff format --check</code> exit 0.</p>
 </main>
 </body>
 </html>
