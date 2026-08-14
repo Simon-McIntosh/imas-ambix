@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="training-store-read-benchmark">
   <meta name="plan-title" content="Training Store Read Benchmark">
   <meta name="plan-summary" content="Measure what each candidate store costs the GPU training path — IMAS-netCDF, zarr carrying DD-path metadata, and the native level-2 form — for static machine description and for streamed experimental data, and propose a storage format for each on the numbers.">
-  <meta name="plan-status" content="shipped">
+  <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="M">
   <meta name="plan-capability-version" content="1.0">
@@ -21,11 +21,11 @@
   <title>Training Store Read Benchmark | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-13">
-<meta name="plan-version" content="14">
+<meta name="plan-modified" content="2026-08-14">
+<meta name="plan-version" content="15">
 <meta name="plan-commits" content="b9fb2cf692e5f8c085213a11a71589f30123e493,0c970bc680dbc8630b05a17d8b3a7887db9d6c0d,9f073779507b03fa9645e55fad685ab834bae131,c2bbdf4b1802732563311fd243d5a4408335f37f,dd3190b25a1f0a5bd4197cc7cf906cbfb056eb62,c1f7f13d0761845e33c5e12f9d1bd6a7c1c05bb9">
 <meta name="plan-artifacts" content="docs/evidence/archive/training-store-read-benchmark-landed.html,imas_ambix/bench/store_arms.py,imas_ambix/bench/store_read_rates.py,tests/test_store_arms.py,tests/test_store_read_rates.py,/work/projects/imas_gpu/store-bench/store-read-rates-sirius-debug-20260813.json">
-<meta name="plan-impl" content="1.0">
+<meta name="plan-impl" content="0.85">
 </head>
 <body>
   <main class="plan-doc">
@@ -143,15 +143,19 @@
     <div class="r-fu-body"><p>Exemption: <strong>authority-required</strong>. The remaining transport measurement needs the on-disk mirror rebuilt from the current public S3 snapshot — a bulk external download of 11,573 level-2 shot stores from s3.echo.stfc.ac.uk, which is outward-facing network spend the coordinator does not hold authority for. The mirror is a different snapshot generation, not a stale copy, so no subset selection substitutes for the refresh. Once refreshed, the committed <code>--transport-only</code> command yields the two admissible timed cells with no other rerun; the 12 storage cells are unaffected and stand as measured.</p></div>
     <pre class="r-fu-prompt">/reckon-ship training-store-read-benchmark §2</pre>
     </article>
-<article class="r-fu" data-id="f-tsrb-003" data-status="open" data-written-by="reckon-ship" data-written-at="2026-08-13" data-recommends-skill="/reckon-ship training-store-read-benchmark §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-tsrb-003" data-status="resolved" data-written-by="reckon-ship" data-written-at="2026-08-13" data-recommends-skill="/reckon-ship training-store-read-benchmark §2" data-resolved-at="2026-08-14T07:50:43+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Make the refreshed snapshot visible to the compute-node namespace, then rerun transport on the storage-arm node class</h4>
     <div class="r-fu-body"><p>Exemption: <strong>authority-required</strong>. The transport ratio is measured and admissible, but on the login node class rather than the <code>sirius_debug</code> class that carries the 12 storage cells, because <code>/work/projects/imas_gpu/mast/level2/public-snapshot-20260813</code> is not visible in the compute-node namespace while the older level-2 tree is. Resolving a shared-filesystem namespace difference is a facility-administration action outside the coordinator's authority. Until it is resolved the transport number stands on its own node class and must not be composed with the storage cells; the storage ranking and the format decision are unaffected.</p></div>
     <pre class="r-fu-prompt">/reckon-ship training-store-read-benchmark §2</pre>
+    <p class="r-fu-outcome">Authorised by the owner 2026-08-14; the authority-required exemption lifts and the node-class rerun becomes ordinary executable work.</p>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s3" data-id="c-20260813-tsrb-payloads" data-who="reckon-ship" data-when="2026-08-13">
     <div class="r-comment-body">tsrb-payloads landed — commit b9fb2cf (merged 0ff5be9); gate parity+seam PASSED; measure 3/3 channels, 64/64 samples each, 192/192 scalar values identical under np.array_equal across native level-2, IMAS-netCDF and DD-annotated zarr; IDSTensorizer subclassing seam VERIFIED, IDSZarrWriter subclasses public imas.backends.netcdf.ids_tensorizer.IDSTensorizer with no single-underscore access; 4 tests added. Two qualifications carried: the seam was measured against imas-python 2.3.0 while the project env resolves 2.2.0, and the payload is a 1-shot parity fixture carrying no read-rate information. Artifacts imas_ambix/bench/store_arms.py, tests/test_store_arms.py, docs/evidence/archive/training-store-read-benchmark-landed.html</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260814-imas-python-auth" data-who="reckon-ship" data-when="2026-08-14">
+    <div class="r-comment-body">imas-python upgrade AUTHORISED by the owner 2026-08-14, with the reasoning recorded because it settles a standing constraint rather than just this plan: the imas-python==2.1.0 pin existed for TORAX, and the owner's decision is that a TORAX fork or an upstream PR solves that when the time comes, so the rest of development is not held behind a TORAX pin. That converts the §3 seam finding from a permanent cost into a temporary one — the four locally defined helpers (get_dimensions, get_attributes, get_shape_dimensions, get_shape_attributes) exist only because they are public in imas-python 2.3.0 and absent in 2.2.0, so the zero-wrapper subclass seam is restored by the upgrade and the shim is deleted rather than maintained. Plan returns to active for that node and for the authorised node-class transport rerun; the storage cells, the crossover sweep, the locked experimental-store format and the proposal all stand unchanged.</div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-20260813-tsrb-benchmark" data-who="reckon-ship" data-when="2026-08-13">
     <div class="r-comment-body">tsrb-benchmark landed — commit 0c970bc (merged 5a47860); gate read-rate measurement PASSED for 12/12 storage cells, transport route QUALIFIED-NOT-ADMISSIBLE. Measure, samples/s native/netCDF/DD-zarr: whole 191,247/450,064/1,964,694; slice 8,546/21,651/74,645; batch 8,388/21,786/76,763; random 8,738/23,884/76,089. DD-zarr wins every pattern at 8.71-10.27x native; netCDF second at 2.35-2.73x; ranking is pattern-independent. One node class sirius_debug:x86_64 host 98dci4-clu-5136; each cell carries its own perf_counter wall clock and accumulated scalar count. 4 tests added. CORRECTION to the §3 verdict: the zero-wrapper subclass seam is REFUTED at imas-python 2.2.0 (the project version) and VERIFIED at 2.3.0 — get_dimensions, get_attributes, get_shape_dimensions and get_shape_attributes are public in 2.3.0 and absent in 2.2.0, so 2.2.0 needs four locally defined helpers over public NCMetadata; no private imas name is reached at either version, so the plan's reimplementation trigger is NOT met. Transport not admissible: live S3 summary/ip snapshot shape 447 vs mapped mirror shape 1652, so the 481x throughput ratio is not identical-payload evidence. Artifact /work/projects/imas_gpu/store-bench/store-read-rates-sirius-debug-20260813.json sha256 06c82e06</div>
