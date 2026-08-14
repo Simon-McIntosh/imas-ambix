@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="machine-description-as-data-sprint">
+  <meta name="plan-title" content="Machine Description as Data — Sprint Record">
+  <meta name="plan-summary" content="Complete execution record for the measured-store and machine-map sprint: what was measured, what was decided and on what evidence, which conclusions were retracted and why, and what remains. Covers the storage benchmark, the declared machine maps and transform engines, the coordinate-convention determination, and the reader-retirement blocker.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-recorded-at" content="2026-08-14">
+  <meta name="plan-evidence-for" content="training-store-read-benchmark,machine-map-transform-engine,machine-map-cocos-transform">
+  <meta name="plan-verdict" content="qualified-pass">
+  <meta name="plan-source-quality" content="every headline figure measured on named hardware with committed tests; four conclusions retracted on owner correction and recorded as such">
+  <title>Machine Description as Data — Sprint Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>Machine Description as Data — Sprint Record</h1>
+  <p>Execution record for three plans run as one sprint: move machine-description production out
+  of the physics solver into a data layer that is <em>measured before it is built</em>. The
+  per-plan detail lives in
+  <a href="/imas-ambix/evidence/archive/training-store-read-benchmark-landed">the benchmark record</a>
+  and <a href="/imas-ambix/evidence/archive/machine-map-transform-engine-landed">the map/engine record</a>;
+  this document is the sprint-level account of what was decided and why.</p>
+
+  <h2 id="verdict">Verdict</h2>
+  <p><strong>Qualified pass.</strong> The storage question is answered and locked, the producer is
+  built and its output is convention-correct, and the one thing the sprint set out to finish and
+  did not — retiring the machine-specific reader — is blocked on a named, measured dependency
+  rather than on effort. Two plans shipped; the third stands with its remaining work stated as
+  concrete sections.</p>
+  <table>
+    <caption>Sprint outcome by plan</caption>
+    <thead><tr><th>Plan</th><th>Outcome</th><th>Headline evidence</th></tr></thead>
+    <tbody>
+      <tr><td><a href="/imas-ambix/plans/training-store-read-benchmark">Training Store Read Benchmark</a></td>
+          <td>shipped</td>
+          <td>DD-zarr 9.02–10.28× native across 36 cells, 0 crossings over a 64× payload range</td></tr>
+      <tr><td><a href="/imas-ambix/plans/machine-map-cocos-transform">The Transform Carries COCOS</a></td>
+          <td>shipped</td>
+          <td>MAST is COCOS-4 — 1 survivor of 16 candidates at both current polarities</td></tr>
+      <tr><td><a href="/imas-ambix/plans/machine-map-transform-engine">Machine Maps and the Transform Engine</a></td>
+          <td>active</td>
+          <td>2 engines, 0 machine-name conditionals, 804/804 emissions array-equal; reader retirement blocked on the adapter</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="measured">What was measured</h2>
+  <p>Every figure below carries its own wall clock and sample count, on named hardware. The
+  discipline was inherited rather than invented: <code>fast_loader.py</code> already carried a
+  correction where a plan had claimed 660&nbsp;kHz against a real 5&nbsp;kHz because an array
+  length was read as a rate.</p>
+  <table>
+    <caption>Storage read throughput, samples/s, <code>sirius_debug:x86_64</code> on
+    <code>98dci4-clu-5136</code></caption>
+    <thead><tr><th>Access pattern</th><th>native level-2</th><th>IMAS-netCDF</th><th>DD-zarr</th><th>zarr ÷ native</th></tr></thead>
+    <tbody>
+      <tr><td>whole-description static load</td><td>191,247</td><td>450,064</td><td>1,964,694</td><td>10.27×</td></tr>
+      <tr><td>single-shot multi-signal slice</td><td>8,546</td><td>21,651</td><td>74,645</td><td>8.74×</td></tr>
+      <tr><td>N-shot batch stream</td><td>8,388</td><td>21,786</td><td>76,763</td><td>9.15×</td></tr>
+      <tr><td>random access across corpus</td><td>8,738</td><td>23,884</td><td>76,089</td><td>8.71×</td></tr>
+    </tbody>
+  </table>
+  <p>A 36-cell sweep — 3 arms × 4 payload scales × 3 batch sizes, 8 repetitions each, scalar
+  counts 48–3072 — found <strong>0 crossings on either axis</strong>. The ranking
+  <code>DD-zarr &gt; IMAS-netCDF &gt; native</code> holds at every grid point, so the format choice
+  does not depend on payload or batch size.</p>
+
+  <h2 id="decisions">Decisions, and the evidence that forced them</h2>
+
+  <h3>Experimental data → zarr carrying DD-path metadata <span>(locked)</span></h3>
+  <p>Not close: ~9× native and ~3.2× IMAS-netCDF at every scale tested. This is the access pattern
+  whose cost is paid continuously for the whole of training, so the read-rate term dominates and
+  nothing else measured competes. The DD-path and units attributes ride along at no measured cost.</p>
+
+  <h3>Machine description format → left to the owner, with evidence attached</h3>
+  <p>Read rate does not decide it and the plan anticipated that. Description is read once per run
+  and amortises to nothing — 0.0202&nbsp;s zarr against 0.2073&nbsp;s native on the whole-load
+  cell, immaterial against a training run — so every arm is fast enough and the choice turns on
+  publishability. The supporting finding is the one that makes a split recommendation coherent
+  rather than a fudge: <strong>the IMAS shape costs ≈3.2× as storage and ≈nothing as
+  interchange</strong>, because the Data-Dictionary tensorization logic is reusable by subclass
+  into a non-IMAS container. Semantics and container are separable; only the container is
+  expensive.</p>
+
+  <h3>Map expressiveness → one map per shot range, no conditionals <span>(locked)</span></h3>
+  <p>Locked on measurement rather than on the plan's stated preference. The declared ranges
+  partition the corpus exactly, so shot range alone expresses every observed change and no
+  conditional is needed. What the evidence refuted was the <em>assumption that campaign is the
+  natural range</em>. The schema now has no conditional, expression or code-hook slot at all, so
+  the rule is enforced structurally rather than by convention.</p>
+
+  <h3>Source convention declaration → once per machine, with an optional override <span>(locked)</span></h3>
+  <p>Per-binding would repeat one value across 254 declarations and invite exactly the drift a
+  declarative catalog exists to prevent. A single immutable value is also wrong, because the
+  convention determination explicitly allowed for a store matching no single COCOS — and a store
+  carrying one subsystem in another convention is that phenomenon at smaller scale. MAST declares
+  COCOS-4 once with 0 overrides; DIII-D declares an explicit undeclared marker rather than a guess.</p>
+
+  <h2 id="retractions">Four conclusions retracted, and the failure mode behind them</h2>
+  <p>These are recorded prominently because the pattern matters more than any single correction.
+  <strong>Three of the four were the same error: searching the Data Dictionary under the
+  <em>source's</em> naming, finding nothing, and recording "no representation exists".</strong>
+  A negative representability claim is only as good as the concepts searched.</p>
+  <table>
+    <caption>Retracted conclusions</caption>
+    <thead><tr><th>Claimed</th><th>Actual</th><th>Why it was missed</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>9 saddle arrays unrepresentable in DD 4.1.1</td>
+        <td><code>magnetics/flux_loop[]/position[]/{r,z,phi}</code> with <code>type/index=2</code>;
+            <code>position</code> is a <code>STRUCT_ARRAY</code> of trajectory points</td>
+        <td>searched under <code>b_field_tor_probe_saddle</code>. A saddle is filed as a loop
+            <em>type</em>, not a probe</td>
+      </tr>
+      <tr>
+        <td>30 passive shape-angle arrays unrepresentable</td>
+        <td><code>pf_passive/loop/element/geometry/oblique/{alpha,beta}</code> with
+            <code>geometry_type</code></td>
+        <td>searched under <code>shapeAngle</code>. A parallelogram is filed as an oblique
+            <em>primitive</em></td>
+      </tr>
+      <tr>
+        <td><code>fcoil_xmult</code> has no equivalent leaf; drive undeclarable</td>
+        <td><code>pf_active/circuit/connections</code>, an <code>INT_2D</code> supply-to-coil
+            connectivity matrix</td>
+        <td>searched for a <em>geometry</em> leaf. Drive is a circuit concept</td>
+      </tr>
+      <tr>
+        <td>11 geometry transitions, 10 interior to one campaign</td>
+        <td>2 real ranges, 1 interior boundary. 9 boundaries had exactly 0&nbsp;m outline residual</td>
+        <td>element-count change was treated as geometry change. <strong>A change in the
+            resolution of a mesh used to define a geometry is not a change in that
+            geometry</strong></td>
+      </tr>
+    </tbody>
+  </table>
+  <p>The mesh retraction had the widest blast radius: it invalidated the transition count, the
+  catalog's eleven ranges, and the identity cardinalities, all of which had already been recorded
+  as landed. It also <em>explained</em> an anomaly already visible in the evidence — the boundary
+  at 12417 moved 6 fields while every later one moved exactly 10, and that uniform 10 was the
+  discretisation fingerprint. The one boundary that behaved differently was the only real one.</p>
+
+  <h2 id="corrections">Two live defects found in already-shipped code</h2>
+  <p><strong>The declared MAST coordinate convention was wrong.</strong>
+  <code>imas_ambix/cocos.py</code> declared <code>MAST_SOURCE_COCOS = 3</code>; measurement against
+  real data says <strong>4</strong>. COCOS 3 and 4 differ in σ<sub>RφZ</sub>, so
+  <code>ip_like</code> and <code>q_like</code> carry opposite signs — and the shipped tests
+  asserted the COCOS-3 values. Three bound targets were being written with the wrong sign:
+  <code>magnetics/ip</code>, <code>pf_active/coil/current</code>,
+  <code>pf_active/solenoid/current</code>. The determination is what exposed it, and the
+  both-polarity requirement is what made the determination trustworthy: several Sauter sign
+  relations involve a convention coefficient multiplied by sgn(I<sub>p</sub>), so a single-polarity
+  test cannot separate a convention error from a current-sign error.</p>
+  <p><strong>The netCDF engine collapsed any one-element structural array to a scalar.</strong>
+  <code>_read_ids_path</code> returned <code>rows[0]</code> whenever a struct array had length one,
+  affecting 20 arrays across four singleton passive families — and it would have silently corrupted
+  a single saddle loop. The fix is generic: binding source rank minus DD leaf rank determines how
+  many trailing structural dimensions survive.</p>
+
+  <h2 id="method">What the evidence says about method</h2>
+  <p>Three findings generalise beyond this sprint.</p>
+  <p><strong>The IMAS-netCDF arm is a representability check, independent of its read rate.</strong>
+  Ten catalog bindings targeted DD paths the dictionary does not support. LinkML validated them —
+  it checks schema conformance, not DD representability — and the zarr engine emitted all ten
+  happily with their DD declarations attached. Only writing through the real Access Layer refused
+  them. So the arm that loses on throughput by ~3.2× cannot silently accept a binding the Data
+  Dictionary will not hold.</p>
+  <p><strong>A frozen count is a rot clock.</strong> Three separate expected-count literals went
+  stale after legitimate model changes during this sprint: emission counts after the catalog grew,
+  a first-shot assumption after ranges coalesced, and identity cardinalities after transitions
+  collapsed. Each was repaired by deriving the expectation from the model — from the loaded
+  catalog, from the resolved range, from <code>build_geometry_transitions</code> — while keeping
+  the concrete numbers as printed receipts. Deriving retires the pattern; re-freezing only resets
+  its clock.</p>
+  <p><strong>An identity gate belongs before the measurement, not after it.</strong> The first
+  transport comparison reported 481× by timing a 447-point live array against a 1652-point
+  mirrored one. Timing is now hard-gated on shape agreement and <code>np.array_equal</code>, with
+  a test that monkeypatches <code>perf_counter</code> to prove a mismatch cannot begin timing. The
+  honest ratio is <strong>41.1×</strong> — the bogus one was inflated roughly twelvefold.</p>
+
+  <h2 id="negatives">Negative and qualified results, preserved</h2>
+  <ul>
+    <li><strong>Reader retirement is bounded but not executable.</strong> 55 modules import
+    <code>gs.geometry</code>; 41 invoke a legacy description-read API (8 library, 33 scripts);
+    41 description-consumers, 0 reconstruction-consumers. The blocker is one named thing: a
+    description-complete, machine-neutral <code>MachineDescription</code> →
+    <code>GeometryTable</code> adapter.</li>
+    <li><strong>Description content is metric-perturbing.</strong> An independent
+    description-content change moved <code>magnetics_residual_whitened_rms</code> by +3.218% and
+    +3.271% — inside the 7.93% source-cutover budget but well outside the 1% same-source budget.
+    A cutover cannot be assumed non-perturbing, and no frozen-spine stamp through the transform
+    engines exists yet.</li>
+    <li><strong>Ten bindings remain qualified, not bound.</strong> Nine name legacy fields absent
+    from the level-2 store; one is corpus-observed — <code>magnetics/coordinate</code> shape (28,)
+    — because <code>flux_loop/position</code> points expose writable r/z/phi but no writable
+    coordinate-index leaf, point order being carried structurally instead.</li>
+    <li><strong>DIII-D is declared but unvalidated.</strong> No DIII-D corpus and no authenticated
+    PTDATA/MDSplus service on this host, so its single binding is source-only and its convention
+    is explicitly undeclared.</li>
+    <li><strong>Transport scope is narrow.</strong> Measured over 24 of 11,573 shots (0.207%), the
+    extent of the refreshed mirror.</li>
+    <li><strong>16 of 11,573 stores lack static-description arrays.</strong> A source omission —
+    missing evidence — not a configuration split, and not to be read as a machine variant.</li>
+    <li><strong>The <code>pf_passive</code> geometry subtree is DD lifecycle <code>alpha</code>.</strong>
+    Eighty bindings sit on alpha-lifecycle paths.</li>
+    <li><strong>The query tool and the installed dictionary disagree.</strong> DD 4.1.1 as
+    installed lacks <code>pf_active/circuit/identifier</code> and
+    <code>pf_active/coil/element/identifier</code> although the <code>imas-dd</code> tool reports
+    them; <code>…/name</code> is the writable equivalent. Claims from the tool need checking
+    against the installed version.</li>
+  </ul>
+</main>
+</body>
+</html>
