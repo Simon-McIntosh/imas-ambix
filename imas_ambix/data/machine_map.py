@@ -82,6 +82,30 @@ def _positive_number(value: Any, label: str) -> float:
     return float(value)
 
 
+def _number(value: Any, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise MachineMapError(f"{label} must be a number")
+    return float(value)
+
+
+def _text_tuple(
+    value: Any, label: str, *, allow_empty: bool = False
+) -> tuple[str, ...]:
+    if not isinstance(value, list) or (not value and not allow_empty):
+        qualifier = "a list" if allow_empty else "a non-empty list"
+        raise MachineMapError(f"{label} must be {qualifier}")
+    items = tuple(_text(item, f"{label}[{index}]") for index, item in enumerate(value))
+    if len(items) != len(set(items)):
+        raise MachineMapError(f"{label} must be unique")
+    return items
+
+
+def _number_tuple(value: Any, label: str) -> tuple[float, ...]:
+    if not isinstance(value, list) or not value:
+        raise MachineMapError(f"{label} must be a non-empty list")
+    return tuple(_number(item, f"{label}[{index}]") for index, item in enumerate(value))
+
+
 @dataclass(frozen=True)
 class ChannelBinding:
     """One immutable store-array to Data Dictionary path declaration."""
@@ -156,6 +180,7 @@ class MachineMap:
     transition: str | None
     binding_set: str
     drive_topology: str | None
+    description_supplement: str | None
     validation_state: str
 
     @classmethod
@@ -168,6 +193,7 @@ class MachineMap:
             "transition",
             "binding_set",
             "drive_topology",
+            "description_supplement",
             "validation_state",
         }
         _exact_keys(payload, required, set(), label)
@@ -177,6 +203,11 @@ class MachineMap:
         drive_topology = payload["drive_topology"]
         if drive_topology is not None:
             drive_topology = _text(drive_topology, f"{label}.drive_topology")
+        description_supplement = payload["description_supplement"]
+        if description_supplement is not None:
+            description_supplement = _text(
+                description_supplement, f"{label}.description_supplement"
+            )
         machine_map = cls(
             name=_text(payload["name"], f"{label}.name"),
             machine=_text(payload["machine"], f"{label}.machine"),
@@ -185,6 +216,7 @@ class MachineMap:
             transition=transition,
             binding_set=_text(payload["binding_set"], f"{label}.binding_set"),
             drive_topology=drive_topology,
+            description_supplement=description_supplement,
             validation_state=_text(
                 payload["validation_state"], f"{label}.validation_state"
             ),
@@ -269,6 +301,7 @@ class CircuitConnection:
     circuit_identifier: str
     supply_identifier: str
     element_identifier: str
+    geometry_element_identifier: str
     turns: float
     direction: int
 
@@ -278,6 +311,7 @@ class CircuitConnection:
             "circuit_identifier",
             "supply_identifier",
             "element_identifier",
+            "geometry_element_identifier",
             "turns",
             "direction",
         }
@@ -295,6 +329,10 @@ class CircuitConnection:
             element_identifier=_text(
                 payload["element_identifier"], f"{label}.element_identifier"
             ),
+            geometry_element_identifier=_text(
+                payload["geometry_element_identifier"],
+                f"{label}.geometry_element_identifier",
+            ),
             turns=_positive_number(payload["turns"], f"{label}.turns"),
             direction=direction,
         )
@@ -309,7 +347,7 @@ class DriveTopology:
     circuit_identity_source: str
     current_scale_source: str
     current_channel_source: str
-    current_channel_qualification: str
+    current_channel_declaration: str
     circuit_identifier_path: str
     supply_identifier_path: str
     element_identifier_path: str
@@ -327,7 +365,7 @@ class DriveTopology:
             "circuit_identity_source",
             "current_scale_source",
             "current_channel_source",
-            "current_channel_qualification",
+            "current_channel_declaration",
             "circuit_identifier_path",
             "supply_identifier_path",
             "element_identifier_path",
@@ -389,6 +427,7 @@ class StructureAssembly:
     type_index: int
     name_binding: str
     member_bindings: tuple[str, ...]
+    element_identifiers: tuple[str, ...]
     evidence: str
 
     @classmethod
@@ -402,7 +441,7 @@ class StructureAssembly:
             "member_bindings",
             "evidence",
         }
-        _exact_keys(payload, required, set(), label)
+        _exact_keys(payload, required, {"element_identifiers"}, label)
         member_bindings = payload["member_bindings"]
         if not isinstance(member_bindings, list) or not member_bindings:
             raise MachineMapError(f"{label}.member_bindings must be a non-empty list")
@@ -419,6 +458,214 @@ class StructureAssembly:
             type_index=_integer(payload["type_index"], f"{label}.type_index"),
             name_binding=_text(payload["name_binding"], f"{label}.name_binding"),
             member_bindings=members,
+            element_identifiers=_text_tuple(
+                payload.get("element_identifiers", []),
+                f"{label}.element_identifiers",
+                allow_empty=True,
+            ),
+            evidence=_text(payload["evidence"], f"{label}.evidence"),
+        )
+
+
+@dataclass(frozen=True)
+class AcquisitionDeclaration:
+    """Range-compatible acquisition identities retained as catalog data."""
+
+    name: str
+    source_location: str
+    current_channels: tuple[str, ...]
+    sensor_addresses: tuple[str, ...]
+    unmatched_sensor_addresses: tuple[str, ...]
+    evidence: str
+
+    @classmethod
+    def from_dict(
+        cls, payload: Mapping[str, Any], label: str
+    ) -> AcquisitionDeclaration:
+        required = {
+            "name",
+            "source_location",
+            "current_channels",
+            "sensor_addresses",
+            "unmatched_sensor_addresses",
+            "evidence",
+        }
+        _exact_keys(payload, required, set(), label)
+        source_location = _text(payload["source_location"], f"{label}.source_location")
+        if "://" not in source_location:
+            raise MachineMapError(f"{label}.source_location must be an absolute URI")
+        sensor_addresses = _text_tuple(
+            payload["sensor_addresses"], f"{label}.sensor_addresses"
+        )
+        unmatched = _text_tuple(
+            payload["unmatched_sensor_addresses"],
+            f"{label}.unmatched_sensor_addresses",
+            allow_empty=True,
+        )
+        if not set(unmatched).issubset(sensor_addresses):
+            raise MachineMapError(
+                f"{label}.unmatched_sensor_addresses must be sensor addresses"
+            )
+        return cls(
+            name=_text(payload["name"], f"{label}.name"),
+            source_location=source_location,
+            current_channels=_text_tuple(
+                payload["current_channels"], f"{label}.current_channels"
+            ),
+            sensor_addresses=sensor_addresses,
+            unmatched_sensor_addresses=unmatched,
+            evidence=_text(payload["evidence"], f"{label}.evidence"),
+        )
+
+
+@dataclass(frozen=True)
+class PointFluxLoopDeclaration:
+    """One static point-loop position absent from emitted pulse arrays."""
+
+    name: str
+    r: float
+    z: float
+    r_path: str
+    z_path: str
+    evidence: str
+
+    @classmethod
+    def from_dict(
+        cls, payload: Mapping[str, Any], label: str
+    ) -> PointFluxLoopDeclaration:
+        required = {"name", "r", "z", "r_path", "z_path", "evidence"}
+        _exact_keys(payload, required, set(), label)
+        return cls(
+            name=_text(payload["name"], f"{label}.name"),
+            r=_number(payload["r"], f"{label}.r"),
+            z=_number(payload["z"], f"{label}.z"),
+            r_path=_text(payload["r_path"], f"{label}.r_path"),
+            z_path=_text(payload["z_path"], f"{label}.z_path"),
+            evidence=_text(payload["evidence"], f"{label}.evidence"),
+        )
+
+
+@dataclass(frozen=True)
+class PolygonSectionDeclaration:
+    """A shaped conductor section joined to circuit and geometry identities."""
+
+    name: str
+    circuit_identifier: str
+    geometry_element_identifier: str
+    vertex_r: tuple[float, ...]
+    vertex_z: tuple[float, ...]
+    current_scale: float
+    evidence: str
+
+    @classmethod
+    def from_dict(
+        cls, payload: Mapping[str, Any], label: str
+    ) -> PolygonSectionDeclaration:
+        required = {
+            "name",
+            "circuit_identifier",
+            "geometry_element_identifier",
+            "vertex_r",
+            "vertex_z",
+            "current_scale",
+            "evidence",
+        }
+        _exact_keys(payload, required, set(), label)
+        vertex_r = _number_tuple(payload["vertex_r"], f"{label}.vertex_r")
+        vertex_z = _number_tuple(payload["vertex_z"], f"{label}.vertex_z")
+        if len(vertex_r) != len(vertex_z) or len(vertex_r) < 3:
+            raise MachineMapError(
+                f"{label}.vertex_r and vertex_z must describe the same polygon"
+            )
+        return cls(
+            name=_text(payload["name"], f"{label}.name"),
+            circuit_identifier=_text(
+                payload["circuit_identifier"], f"{label}.circuit_identifier"
+            ),
+            geometry_element_identifier=_text(
+                payload["geometry_element_identifier"],
+                f"{label}.geometry_element_identifier",
+            ),
+            vertex_r=vertex_r,
+            vertex_z=vertex_z,
+            current_scale=_number(payload["current_scale"], f"{label}.current_scale"),
+            evidence=_text(payload["evidence"], f"{label}.evidence"),
+        )
+
+
+@dataclass(frozen=True)
+class DescriptionSupplement:
+    """Static description values selected with one range-scoped machine map."""
+
+    name: str
+    source_location: str
+    acquisition_declaration: str
+    point_flux_loops: tuple[PointFluxLoopDeclaration, ...]
+    reference_radius: float
+    reference_radius_path: str
+    reference_radius_unit: str
+    minor_radius_qualification: str
+    polygon_sections: tuple[PolygonSectionDeclaration, ...]
+    evidence: str
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any], label: str) -> DescriptionSupplement:
+        required = {
+            "name",
+            "source_location",
+            "acquisition_declaration",
+            "point_flux_loops",
+            "reference_radius",
+            "reference_radius_path",
+            "reference_radius_unit",
+            "minor_radius_qualification",
+            "polygon_sections",
+            "evidence",
+        }
+        _exact_keys(payload, required, set(), label)
+        source_location = _text(payload["source_location"], f"{label}.source_location")
+        if "://" not in source_location:
+            raise MachineMapError(f"{label}.source_location must be an absolute URI")
+        loops_raw = payload["point_flux_loops"]
+        if not isinstance(loops_raw, list):
+            raise MachineMapError(f"{label}.point_flux_loops must be a list")
+        polygons_raw = payload["polygon_sections"]
+        if not isinstance(polygons_raw, list):
+            raise MachineMapError(f"{label}.polygon_sections must be a list")
+        return cls(
+            name=_text(payload["name"], f"{label}.name"),
+            source_location=source_location,
+            acquisition_declaration=_text(
+                payload["acquisition_declaration"],
+                f"{label}.acquisition_declaration",
+            ),
+            point_flux_loops=tuple(
+                PointFluxLoopDeclaration.from_dict(
+                    _object(item, f"{label}.point_flux_loops[{index}]"),
+                    f"{label}.point_flux_loops[{index}]",
+                )
+                for index, item in enumerate(loops_raw)
+            ),
+            reference_radius=_positive_number(
+                payload["reference_radius"], f"{label}.reference_radius"
+            ),
+            reference_radius_path=_text(
+                payload["reference_radius_path"], f"{label}.reference_radius_path"
+            ),
+            reference_radius_unit=_text(
+                payload["reference_radius_unit"], f"{label}.reference_radius_unit"
+            ),
+            minor_radius_qualification=_text(
+                payload["minor_radius_qualification"],
+                f"{label}.minor_radius_qualification",
+            ),
+            polygon_sections=tuple(
+                PolygonSectionDeclaration.from_dict(
+                    _object(item, f"{label}.polygon_sections[{index}]"),
+                    f"{label}.polygon_sections[{index}]",
+                )
+                for index, item in enumerate(polygons_raw)
+            ),
             evidence=_text(payload["evidence"], f"{label}.evidence"),
         )
 
@@ -438,6 +685,8 @@ class MachineMapCatalog:
     source_qualifications: tuple[SourceQualification, ...]
     drive_topologies: tuple[DriveTopology, ...]
     structure_assemblies: tuple[StructureAssembly, ...]
+    acquisition_declarations: tuple[AcquisitionDeclaration, ...]
+    description_supplements: tuple[DescriptionSupplement, ...]
 
     def cocos_for_binding(self, binding: ChannelBinding | None = None) -> int | None:
         """Resolve a binding override before the machine-level declaration."""
@@ -484,11 +733,15 @@ def load_linkml_schema(path: Path | str = LINKML_SCHEMA_PATH) -> Mapping[str, An
     payload = yaml.safe_load(Path(path).read_text())
     schema = _object(payload, "LinkML schema")
     required_classes = {
+        "AcquisitionDeclaration",
         "BindingSet",
         "ChannelBinding",
         "CircuitConnection",
+        "DescriptionSupplement",
         "DriveTopology",
         "MachineMap",
+        "PointFluxLoopDeclaration",
+        "PolygonSectionDeclaration",
         "SourceQualification",
         "StructureAssembly",
         "ValidationGap",
@@ -525,6 +778,8 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
         "source_qualifications",
         "drive_topologies",
         "structure_assemblies",
+        "acquisition_declarations",
+        "description_supplements",
     }
     _exact_keys(payload, required, set(), "machine-map catalog")
 
@@ -635,12 +890,6 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
     topology_names = [item.name for item in topologies]
     if len(topology_names) != len(set(topology_names)):
         raise MachineMapError("drive topology names must be unique")
-    for topology in topologies:
-        if topology.current_channel_qualification not in qualification_names:
-            raise MachineMapError(
-                f"drive topology {topology.name!r} references unknown qualifications"
-            )
-
     for item in maps:
         if (
             item.drive_topology is not None
@@ -664,11 +913,91 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
     assembly_names = [item.name for item in assemblies]
     if len(assembly_names) != len(set(assembly_names)):
         raise MachineMapError("structure assembly names must be unique")
+    geometry_element_identifiers = {
+        identifier
+        for assembly in assemblies
+        for identifier in assembly.element_identifiers
+    }
+    if sum(len(item.element_identifiers) for item in assemblies) != len(
+        geometry_element_identifiers
+    ):
+        raise MachineMapError("structure element identifiers must be globally unique")
     for assembly in assemblies:
         references = {assembly.name_binding, *assembly.member_bindings}
         if not references.issubset(binding_names):
             raise MachineMapError(
                 f"structure assembly {assembly.name!r} references unknown bindings"
+            )
+    for topology in topologies:
+        unresolved = {
+            item.geometry_element_identifier for item in topology.connections
+        }.difference(geometry_element_identifiers)
+        if unresolved:
+            raise MachineMapError(
+                f"drive topology {topology.name!r} has unresolved geometry element "
+                f"identifiers: {sorted(unresolved)[:3]}"
+            )
+
+    acquisitions_raw = payload["acquisition_declarations"]
+    if not isinstance(acquisitions_raw, list):
+        raise MachineMapError("acquisition_declarations must be a list")
+    acquisitions = tuple(
+        AcquisitionDeclaration.from_dict(
+            _object(entry, f"acquisition_declarations[{index}]"),
+            f"acquisition_declarations[{index}]",
+        )
+        for index, entry in enumerate(acquisitions_raw)
+    )
+    acquisition_names = [item.name for item in acquisitions]
+    if len(acquisition_names) != len(set(acquisition_names)):
+        raise MachineMapError("acquisition declaration names must be unique")
+    for topology in topologies:
+        if topology.current_channel_declaration not in acquisition_names:
+            raise MachineMapError(
+                f"drive topology {topology.name!r} references unknown acquisition "
+                "declaration"
+            )
+
+    supplements_raw = payload["description_supplements"]
+    if not isinstance(supplements_raw, list):
+        raise MachineMapError("description_supplements must be a list")
+    supplements = tuple(
+        DescriptionSupplement.from_dict(
+            _object(entry, f"description_supplements[{index}]"),
+            f"description_supplements[{index}]",
+        )
+        for index, entry in enumerate(supplements_raw)
+    )
+    supplement_names = [item.name for item in supplements]
+    if len(supplement_names) != len(set(supplement_names)):
+        raise MachineMapError("description supplement names must be unique")
+    for supplement in supplements:
+        if supplement.acquisition_declaration not in acquisition_names:
+            raise MachineMapError(
+                f"description supplement {supplement.name!r} references unknown "
+                "acquisition declaration"
+            )
+        if supplement.minor_radius_qualification not in qualification_names:
+            raise MachineMapError(
+                f"description supplement {supplement.name!r} references unknown "
+                "minor-radius qualification"
+            )
+        unresolved_polygons = {
+            item.geometry_element_identifier for item in supplement.polygon_sections
+        }.difference(geometry_element_identifiers)
+        if unresolved_polygons:
+            raise MachineMapError(
+                f"description supplement {supplement.name!r} has unresolved polygon "
+                f"elements: {sorted(unresolved_polygons)}"
+            )
+    for item in maps:
+        if (
+            item.description_supplement is not None
+            and item.description_supplement not in supplement_names
+        ):
+            raise MachineMapError(
+                f"map {item.name!r} references unknown description supplement "
+                f"{item.description_supplement!r}"
             )
 
     catalog = MachineMapCatalog(
@@ -683,6 +1012,8 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
         source_qualifications=qualifications,
         drive_topologies=topologies,
         structure_assemblies=assemblies,
+        acquisition_declarations=acquisitions,
+        description_supplements=supplements,
     )
     source_only = {
         binding.name
