@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import json
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +26,12 @@ from imas_ambix.bench.store_arms import (
 )
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
+TENSORIZER_HELPERS = (
+    "get_dimensions",
+    "get_attributes",
+    "get_shape_dimensions",
+    "get_shape_attributes",
+)
 
 
 @pytest.fixture(scope="module")
@@ -65,9 +72,23 @@ def test_all_three_arms_are_array_equal_and_record_public_writers(
     zarr_receipt = zarr_writer.write(zarr_path)
     zarr_arrays = read_dd_zarr(zarr_path, paths)
 
+    matched_scalars = 0
     for path, native in fixed_payload.arrays.items():
         assert np.array_equal(native.values, netcdf_arrays[path]), path
         assert np.array_equal(native.values, zarr_arrays[path]), path
+        matched_scalars += native.values.size
+
+    print(
+        "cross_arm_parity="
+        + json.dumps(
+            {
+                "channels": len(fixed_payload.arrays),
+                "scalars": matched_scalars,
+                "comparison": "np.array_equal",
+            },
+            sort_keys=True,
+        )
+    )
 
     assert netcdf_receipt.entrypoint == "imas.DBEntry.put"
     assert netcdf_receipt.called_methods == ("put",)
@@ -87,8 +108,27 @@ def test_all_three_arms_are_array_equal_and_record_public_writers(
         "get_shape_dimensions",
         "get_shape_attributes",
     )
+    assert zarr_receipt.locally_defined_methods == ()
     assert zarr_receipt.private_names == ()
     assert IDSZarrWriter.__mro__[1] is IDSTensorizer
+
+
+def test_zarr_tensorizer_helpers_are_inherited_from_public_base():
+    defining_classes = {}
+    for name in TENSORIZER_HELPERS:
+        defining_class = next(
+            cls for cls in IDSZarrWriter.__mro__ if name in cls.__dict__
+        )
+        defining_classes[name] = (
+            f"{defining_class.__module__}.{defining_class.__qualname__}"
+        )
+        assert name not in IDSZarrWriter.__dict__
+        assert defining_class is IDSTensorizer
+        assert inspect.getattr_static(IDSZarrWriter, name) is inspect.getattr_static(
+            IDSTensorizer, name
+        )
+
+    print("tensorizer_helper_owners=" + json.dumps(defining_classes, sort_keys=True))
 
 
 def test_every_zarr_array_carries_dd_path_and_units(fixed_payload, tmp_path):

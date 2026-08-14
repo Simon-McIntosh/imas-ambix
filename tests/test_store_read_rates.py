@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 import zarr
+from imas.backends.netcdf.ids_tensorizer import IDSTensorizer
 
 from imas_ambix.bench.store_arms import (
     FIXED_CHANNELS,
@@ -86,8 +87,7 @@ def test_crossover_grid_measures_every_arm_scale_and_batch_cell():
 
     assert len(cells) == 36
     assert {
-        (cell.arm, cell.payload_samples_per_shot, cell.batch_size)
-        for cell in cells
+        (cell.arm, cell.payload_samples_per_shot, cell.batch_size) for cell in cells
     } == {
         (arm, scale, batch_size)
         for arm in ARMS
@@ -345,10 +345,17 @@ def test_tensorizer_subclass_reaches_no_private_imas_names():
         and not node.attr.startswith("__")
     }
     assert private_attributes == set()
-    assert IDSZarrWriter.__mro__[1].__name__ == "IDSTensorizer"
-    assert {
+    assert IDSZarrWriter.__mro__[1] is IDSTensorizer
+
+    inherited_helpers = (
         "get_dimensions",
         "get_attributes",
         "get_shape_dimensions",
         "get_shape_attributes",
-    }.issubset(IDSZarrWriter.__dict__)
+    )
+    for name in inherited_helpers:
+        assert name not in IDSZarrWriter.__dict__
+        defining_class = next(
+            cls for cls in IDSZarrWriter.__mro__ if name in cls.__dict__
+        )
+        assert defining_class is IDSTensorizer
