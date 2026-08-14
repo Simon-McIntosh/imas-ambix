@@ -21,6 +21,7 @@ from imas_ambix.gs.geometry import GeometryTable, build_table_for_shot
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 LEVEL1_ROOT = Path("/work/projects/imas_gpu/mast/level1/shots")
 RANGE_FIRST_SHOTS = (11_766, 12_417)
+PREVIOUS_PARITY_COUNTS = {"matching": 4, "differing": 8, "missing": 5}
 
 
 @dataclass(frozen=True)
@@ -34,33 +35,33 @@ _NONMATCHING_FIELDS = {
     "signature": _ExpectedDivergence(
         "differing",
         "representation-divergence",
-        "the signature fingerprints the DD sensor and conductor discretisation, "
-        "whose declared cardinalities differ from the legacy source",
+        "the signature fingerprints the DD sensor coordinates and positive-turn "
+        "connectivity representation, which differ from the legacy source",
     ),
     "b_probes": _ExpectedDivergence(
         "differing",
-        "catalog-unavailable",
+        "source-divergence",
         "the catalog qualifies probe orientation as unavailable and its level-2 "
         "probe Z coordinates differ from the legacy efm coordinates",
     ),
     "flux_loops": _ExpectedDivergence(
         "differing",
-        "catalog-unavailable",
-        "the catalog emits 44 point loops while the legacy efm table exposes 46; "
-        "saddle trajectories are not substitute point loops",
+        "source-divergence",
+        "the supplement closes the count at 46, but the level-2 point-loop "
+        "coordinates only partially coincide with the legacy efm coordinates",
     ),
     "pf_filaments": _ExpectedDivergence(
         "differing",
-        "catalog-unavailable",
-        "the DD description exposes 938 conductor elements without a shared join "
-        "identifier to the selected 1004-row topology, while the legacy table "
-        "collapses its rows into field-equivalent rectangles",
+        "representation-divergence",
+        "all 1004 topology rows join and collapse to 299 rectangles, but the DD "
+        "topology declares positive combined turn magnitude plus direction while "
+        "the legacy table retains turns and current weight as separate values",
     ),
     "sensor_map": _ExpectedDivergence(
         "differing",
         "catalog-unavailable",
-        "acquisition-address descriptions are not declared, so DD sensor names "
-        "cannot reproduce the legacy nearest-neighbour channel mapping",
+        "the acquisition declaration supplies address identities but not every "
+        "address-to-geometry association, probe angle, or matching residual",
     ),
     "passive_structures": _ExpectedDivergence(
         "differing",
@@ -68,27 +69,11 @@ _NONMATCHING_FIELDS = {
         "DD passive conductor elements and legacy induced-current source entries "
         "are different declared structures",
     ),
-    "amc_current_channels": _ExpectedDivergence(
-        "missing",
-        "catalog-unavailable",
-        "the catalog explicitly qualifies acquisition current-channel addressing "
-        "as unavailable",
-    ),
-    "unmatched_amb": _ExpectedDivergence(
-        "missing",
-        "catalog-unavailable",
-        "unmatched acquisition channels cannot be enumerated without acquisition "
-        "address descriptions",
-    ),
-    "r0": _ExpectedDivergence(
-        "missing",
-        "catalog-unavailable",
-        "no device reference-radius binding is emitted",
-    ),
     "minor_radius": _ExpectedDivergence(
         "missing",
         "catalog-unavailable",
-        "no device minor-radius binding is emitted",
+        "the catalog qualification records that the Data Dictionary has no fixed "
+        "machine-description minor-radius leaf",
     ),
     "provenance_flags": _ExpectedDivergence(
         "differing",
@@ -101,12 +86,6 @@ _NONMATCHING_FIELDS = {
         "representation-divergence",
         "the DD description distinguishes actively supplied conductors while the "
         "legacy table leaves that classification implicit",
-    ),
-    "polygon_sections": _ExpectedDivergence(
-        "missing",
-        "catalog-unavailable",
-        "oblique geometry is declared but has no shared element identifier for "
-        "joining a section to a legacy circuit",
     ),
 }
 
@@ -179,9 +158,49 @@ def test_adapter_accounts_for_every_legacy_geometry_field() -> None:
     for shot in RANGE_FIRST_SHOTS:
         description = transform_machine_description(catalog, shot, "zarr", LEVEL2_ROOT)
         adapted = geometry_table_from_description(description, catalog)
+        reordered = geometry_table_from_description(
+            dataclasses.replace(
+                description,
+                arrays=tuple(reversed(description.arrays)),
+            ),
+            catalog,
+        )
         legacy = build_table_for_shot(shot)
         counts = {"matching": 0, "differing": 0, "missing": 0}
         classified_causes: list[str] = []
+        topology = next(
+            item
+            for item in catalog.drive_topologies
+            if item.name == description.machine_map.drive_topology
+        )
+        conductor_identifiers = {
+            identifier
+            for assembly in catalog.structure_assemblies
+            for identifier in assembly.element_identifiers
+        }
+        unjoined = {
+            item.geometry_element_identifier
+            for item in topology.connections
+            if item.geometry_element_identifier not in conductor_identifiers
+        }
+
+        assert len(topology.connections) == 1_004
+        assert len(unjoined) == 0
+        assert len(adapted.flux_loops) == 46
+        _assert_exact(adapted.pf_filaments, reordered.pf_filaments)
+        print(
+            "GEOMETRY_ADAPTER_JOIN "
+            f"shot={shot} topology_rows={len(topology.connections)} "
+            f"conductor_identifiers={len(conductor_identifiers)} "
+            f"unjoined={len(unjoined)} "
+            f"collapsed_filaments={len(adapted.pf_filaments)} "
+            "declaration_order_invariant=true"
+        )
+        print(
+            "GEOMETRY_ADAPTER_FLUX_LOOPS "
+            f"shot={shot} emitted={len(adapted.flux_loops)} "
+            f"legacy={len(legacy.flux_loops)}"
+        )
 
         for field_name in table_fields:
             actual = getattr(adapted, field_name)
@@ -211,10 +230,19 @@ def test_adapter_accounts_for_every_legacy_geometry_field() -> None:
         assert "adapter-incorrect" not in classified_causes
         assert sum(counts.values()) == len(table_fields)
         signature_equal = adapted.signature.key == legacy.signature.key
+        deltas = {
+            status: counts[status] - PREVIOUS_PARITY_COUNTS[status] for status in counts
+        }
         print(
             "GEOMETRY_ADAPTER_PARITY "
             f"shot={shot} matching={counts['matching']} "
-            f"differing={counts['differing']} missing={counts['missing']}"
+            f"differing={counts['differing']} missing={counts['missing']} "
+            f"previous_matching={PREVIOUS_PARITY_COUNTS['matching']} "
+            f"previous_differing={PREVIOUS_PARITY_COUNTS['differing']} "
+            f"previous_missing={PREVIOUS_PARITY_COUNTS['missing']} "
+            f"delta_matching={deltas['matching']:+d} "
+            f"delta_differing={deltas['differing']:+d} "
+            f"delta_missing={deltas['missing']:+d} adapter_incorrect=0"
         )
         print(
             "GEOMETRY_ADAPTER_SIGNATURE "
