@@ -12,7 +12,7 @@ the adapter does not substitute device constants or inspect a legacy reader.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -23,15 +23,22 @@ from imas_ambix.gs.geometry import (
     GeometryTable,
     PassiveStructure,
     PFFilament,
+    PolygonSection,
     SensorMapping,
     SetupSignature,
+    collapse_rectangular_circuits,
     round_geometry_hash,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
-    from imas_ambix.data.machine_map import DriveTopology, MachineMapCatalog
+    from imas_ambix.data.machine_map import (
+        AcquisitionDeclaration,
+        DescriptionSupplement,
+        DriveTopology,
+        MachineMapCatalog,
+    )
     from imas_ambix.data.transform_engine import EmittedArray, MachineDescription
 
 
@@ -53,6 +60,7 @@ class _Conductor:
     """One source-declared conductor element before circuit association."""
 
     source_group: str
+    identifier: str
     name: str
     r: float
     z: float
@@ -94,6 +102,13 @@ def _families(
         role, stem = identity
         grouped.setdefault(stem, {})[role] = emitted
         order.setdefault(stem, index)
+    for emitted in description.arrays:
+        identity = _role_and_stem(emitted.binding_name)
+        if identity is None:
+            continue
+        role, stem = identity
+        if role == "name" and stem in grouped:
+            grouped[stem][role] = emitted
     return tuple(
         _Family(stem, order[stem], grouped[stem])
         for stem in sorted(grouped, key=order.__getitem__)
@@ -162,6 +177,7 @@ def _b_probes(
 
 def _flux_loops(
     description: MachineDescription,
+    supplement: DescriptionSupplement,
 ) -> tuple[list[FluxLoop], list[SensorMapping]]:
     loops: list[FluxLoop] = []
     mappings: list[SensorMapping] = []
@@ -189,10 +205,63 @@ def _flux_loops(
                     flag="",
                 )
             )
+    loops.extend(
+        FluxLoop(index=len(loops) + index, r=item.r, z=item.z)
+        for index, item in enumerate(supplement.point_flux_loops)
+    )
     return loops, mappings
 
 
-def _conductors(description: MachineDescription) -> list[_Conductor]:
+def _assembly_identifiers(
+    catalog: MachineMapCatalog,
+    description: MachineDescription,
+    family: _Family,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    member_bindings = {
+        item.binding_name for role, item in family.arrays.items() if role != "name"
+    }
+    matches = tuple(
+        assembly
+        for assembly in catalog.structure_assemblies
+        if member_bindings.issubset(assembly.member_bindings)
+        and assembly.element_identifiers
+    )
+    if len(matches) != 1:
+        raise GeometryAdapterError(
+            f"conductor family {family.stem!r} resolves to {len(matches)} "
+            "identifier-bearing structure assemblies"
+        )
+    assembly = matches[0]
+    name_rows = tuple(
+        item
+        for item in description.arrays
+        if item.binding_name == assembly.name_binding
+    )
+    if len(name_rows) != 1:
+        raise GeometryAdapterError(
+            f"assembly {assembly.name!r} name binding resolves to "
+            f"{len(name_rows)} emitted arrays"
+        )
+    names = tuple(str(item) for item in np.asarray(name_rows[0].values).reshape(-1))
+    identifiers = assembly.element_identifiers
+    if len(identifiers) != len(names):
+        raise GeometryAdapterError(
+            f"assembly {assembly.name!r} declares {len(identifiers)} identifiers "
+            f"for {len(names)} emitted elements"
+        )
+    for identifier, name in zip(identifiers, names, strict=True):
+        if identifier.rsplit("/", 1)[-1] != name:
+            raise GeometryAdapterError(
+                f"assembly identifier {identifier!r} does not name emitted "
+                f"element {name!r}"
+            )
+    return identifiers, names
+
+
+def _conductors(
+    description: MachineDescription,
+    catalog: MachineMapCatalog,
+) -> list[_Conductor]:
     conductors: list[_Conductor] = []
     prefixes = (
         "pf_active/coil/element/geometry/",
@@ -207,11 +276,17 @@ def _conductors(description: MachineDescription) -> list[_Conductor]:
             z = np.asarray(family.arrays["z"].values).reshape(-1)
             width = np.asarray(family.arrays["width"].values).reshape(-1)
             height = np.asarray(family.arrays["height"].values).reshape(-1)
-            names = _names(family, r.size)
+            identifiers, names = _assembly_identifiers(catalog, description, family)
+            if len(names) != r.size:
+                raise GeometryAdapterError(
+                    f"conductor family {family.stem!r} has {r.size} geometry "
+                    f"elements but {len(names)} declared names"
+                )
             source_group = family.arrays["r"].source_group
             conductors.extend(
                 _Conductor(
                     source_group=source_group,
+                    identifier=identifiers[index],
                     name=names[index],
                     r=float(r[index]),
                     z=float(z[index]),
@@ -220,37 +295,59 @@ def _conductors(description: MachineDescription) -> list[_Conductor]:
                 )
                 for index in range(r.size)
             )
+    identifiers = tuple(item.identifier for item in conductors)
+    if len(identifiers) != len(set(identifiers)):
+        raise GeometryAdapterError("emitted conductor identifiers are not unique")
     return conductors
 
 
-def _topology_for_element_count(
+def _selected_topology(
     catalog: MachineMapCatalog,
     description: MachineDescription,
-    element_count: int,
-) -> tuple[DriveTopology, str | None]:
+) -> DriveTopology:
     selected_name = description.machine_map.drive_topology
-    selected = next(
-        (item for item in catalog.drive_topologies if item.name == selected_name),
-        None,
-    )
-    if selected is not None and len(selected.connections) == element_count:
-        return selected, None
     matches = tuple(
-        item
-        for item in catalog.drive_topologies
-        if len(item.connections) == element_count
+        item for item in catalog.drive_topologies if item.name == selected_name
     )
     if len(matches) != 1:
         raise GeometryAdapterError(
-            f"description has {element_count} conductor elements but resolves to "
-            f"{len(matches)} cardinality-compatible drive topologies"
+            f"range-selected drive topology {selected_name!r} resolves to "
+            f"{len(matches)} declarations"
         )
-    selected_count = len(selected.connections) if selected is not None else 0
-    return matches[0], (
-        "pf_filaments: range-selected drive topology has "
-        f"{selected_count} elements while the emitted geometry has {element_count}; "
-        "used the unique retained topology with matching discretisation"
+    return matches[0]
+
+
+def _selected_supplement(
+    catalog: MachineMapCatalog,
+    description: MachineDescription,
+) -> DescriptionSupplement:
+    selected_name = description.machine_map.description_supplement
+    matches = tuple(
+        item for item in catalog.description_supplements if item.name == selected_name
     )
+    if len(matches) != 1:
+        raise GeometryAdapterError(
+            f"range-selected description supplement {selected_name!r} resolves to "
+            f"{len(matches)} declarations"
+        )
+    return matches[0]
+
+
+def _selected_acquisition(
+    catalog: MachineMapCatalog,
+    supplement: DescriptionSupplement,
+) -> AcquisitionDeclaration:
+    matches = tuple(
+        item
+        for item in catalog.acquisition_declarations
+        if item.name == supplement.acquisition_declaration
+    )
+    if len(matches) != 1:
+        raise GeometryAdapterError(
+            f"supplement acquisition {supplement.acquisition_declaration!r} "
+            f"resolves to {len(matches)} declarations"
+        )
+    return matches[0]
 
 
 def _pf_filaments(
@@ -258,41 +355,108 @@ def _pf_filaments(
     description: MachineDescription,
     conductors: list[_Conductor],
 ) -> tuple[list[PFFilament], list[int], list[str]]:
-    topology, topology_notice = _topology_for_element_count(
-        catalog, description, len(conductors)
-    )
+    topology = _selected_topology(catalog, description)
     circuit_order = tuple(
         dict.fromkeys(item.circuit_identifier for item in topology.connections)
     )
     circuit_index = {
         identifier: index + 1 for index, identifier in enumerate(circuit_order)
     }
-    filaments = [
-        PFFilament(
-            r=conductor.r,
-            z=conductor.z,
-            turns=float(connection.turns),
-            width=conductor.width,
-            height=conductor.height,
-            circuit=circuit_index[connection.circuit_identifier],
-            xmult=float(connection.direction),
+    by_identifier = {item.identifier: item for item in conductors}
+    missing = tuple(
+        connection.geometry_element_identifier
+        for connection in topology.connections
+        if connection.geometry_element_identifier not in by_identifier
+    )
+    if missing:
+        raise GeometryAdapterError(
+            f"selected topology has {len(missing)} rows without emitted conductor "
+            f"geometry; first missing identifier is {missing[0]!r}"
         )
-        for conductor, connection in zip(conductors, topology.connections, strict=True)
-    ]
+    raw_filaments: list[PFFilament] = []
+    raw_groups: list[str] = []
+    for connection in topology.connections:
+        conductor = by_identifier[connection.geometry_element_identifier]
+        raw_filaments.append(
+            PFFilament(
+                r=conductor.r,
+                z=conductor.z,
+                turns=float(connection.turns),
+                width=conductor.width,
+                height=conductor.height,
+                circuit=circuit_index[connection.circuit_identifier],
+                xmult=float(connection.direction),
+            )
+        )
+        raw_groups.append(conductor.source_group)
     active_circuits = sorted(
         {
             filament.circuit
-            for conductor, filament in zip(conductors, filaments, strict=True)
-            if conductor.source_group == "pf_active"
+            for source_group, filament in zip(raw_groups, raw_filaments, strict=True)
+            if source_group == "pf_active"
         }
     )
-    notices = [
-        "pf_filaments: emitted element identifiers and topology element "
-        "identifiers occupy different namespaces; associated in declaration order"
-    ]
-    if topology_notice is not None:
-        notices.insert(0, topology_notice)
-    return filaments, active_circuits, notices
+    return collapse_rectangular_circuits(raw_filaments), active_circuits, []
+
+
+def _sensor_map_for_acquisition(
+    mappings: Iterable[SensorMapping],
+    acquisition: AcquisitionDeclaration,
+) -> list[SensorMapping]:
+    by_channel = {item.amb_channel.casefold(): item for item in mappings}
+    unmatched = set(acquisition.unmatched_sensor_addresses)
+    selected: list[SensorMapping] = []
+    for address in acquisition.sensor_addresses:
+        if address in unmatched:
+            continue
+        mapping = by_channel.get(address.casefold())
+        if mapping is None:
+            selected.append(
+                SensorMapping(
+                    amb_channel=address,
+                    kind="unresolved",
+                    efm_index=-1,
+                    r=float("nan"),
+                    z=float("nan"),
+                    angle_deg=None,
+                    residual_m=float("nan"),
+                    flag=(
+                        "the acquisition declaration supplies the address but no "
+                        "association to emitted sensor geometry"
+                    ),
+                )
+            )
+        else:
+            selected.append(replace(mapping, amb_channel=address))
+    return selected
+
+
+def _polygon_sections(
+    supplement: DescriptionSupplement,
+    topology: DriveTopology,
+) -> list[PolygonSection]:
+    circuit_order = tuple(
+        dict.fromkeys(item.circuit_identifier for item in topology.connections)
+    )
+    circuit_index = {
+        identifier: index + 1 for index, identifier in enumerate(circuit_order)
+    }
+    sections: list[PolygonSection] = []
+    for declaration in supplement.polygon_sections:
+        if declaration.circuit_identifier not in circuit_index:
+            raise GeometryAdapterError(
+                f"polygon {declaration.name!r} names unknown circuit "
+                f"{declaration.circuit_identifier!r}"
+            )
+        sections.append(
+            PolygonSection(
+                circuit=circuit_index[declaration.circuit_identifier],
+                vertices=np.column_stack((declaration.vertex_r, declaration.vertex_z)),
+                xmult=declaration.current_scale,
+                name=declaration.name,
+            )
+        )
+    return sections
 
 
 def _passive_structures(conductors: list[_Conductor]) -> list[PassiveStructure]:
@@ -371,26 +535,24 @@ def geometry_table_from_description(
         raise GeometryAdapterError("description map does not belong to the catalog")
 
     b_probes, b_mappings = _b_probes(description)
-    flux_loops, flux_mappings = _flux_loops(description)
-    conductors = _conductors(description)
+    supplement = _selected_supplement(catalog, description)
+    acquisition = _selected_acquisition(catalog, supplement)
+    topology = _selected_topology(catalog, description)
+    flux_loops, flux_mappings = _flux_loops(description, supplement)
+    conductors = _conductors(description, catalog)
     filaments, active_circuits, topology_notices = _pf_filaments(
         catalog, description, conductors
     )
     limiter_r, limiter_z = _limiter(description)
+    sensor_map = _sensor_map_for_acquisition((*b_mappings, *flux_mappings), acquisition)
     notices = [
         "b_probes.angle_deg: catalog qualification records that the source "
         "does not expose poloidal probe orientation",
         *topology_notices,
-        "sensor_map: DD sensor names are used directly because acquisition "
-        "address descriptions are not declared",
-        "amc_current_channels: catalog qualification records that acquisition "
-        "current-channel addressing is absent",
-        "circuit_drives: current-channel addressing is absent, so topology "
-        "supplies no measured-channel association",
-        "polygon_sections: conductor geometry cannot be joined to topology "
-        "by a shared declared element identifier",
-        "r0: no device reference-radius binding is emitted",
-        "minor_radius: no device minor-radius binding is emitted",
+        "sensor_map: emitted geometry does not carry the legacy nearest-neighbour "
+        "residual or probe-orientation values",
+        "minor_radius: the catalog qualification records that the Data Dictionary "
+        "has no fixed machine-description minor-radius leaf",
     ]
     signature = _signature(
         description,
@@ -408,16 +570,16 @@ def geometry_table_from_description(
         pf_filaments=filaments,
         limiter_r=limiter_r,
         limiter_z=limiter_z,
-        sensor_map=[*b_mappings, *flux_mappings],
+        sensor_map=sensor_map,
         passive_structures=_passive_structures(conductors),
-        amc_current_channels=[],
-        unmatched_amb=[],
-        r0=float("nan"),
+        amc_current_channels=list(acquisition.current_channels),
+        unmatched_amb=list(acquisition.unmatched_sensor_addresses),
+        r0=supplement.reference_radius,
         minor_radius=float("nan"),
         provenance_flags=notices,
         active_circuits=active_circuits,
         circuit_drives=[],
-        polygon_sections=[],
+        polygon_sections=_polygon_sections(supplement, topology),
     )
 
 
