@@ -70,6 +70,7 @@ LEGACY_DESCRIPTION_FIELDS = (
     "magpr_len.omv",
     "silop_r",
     "silop_z",
+    "silop_additional_positions",
     "pf_active.element.r",
     "pf_active.element.z",
     "pf_active.element.width",
@@ -85,6 +86,11 @@ LEGACY_DESCRIPTION_FIELDS = (
     "fcoil_circ",
     "fcoil_xmult",
     "amc_current_channels",
+    "unmatched_amb",
+    "conductor_element_join",
+    "r0",
+    "minor_radius",
+    "polygon_sections",
     "limiterr",
     "limiterz",
 )
@@ -144,6 +150,9 @@ def _plasma_current_catalog_document(source_cocos: int) -> dict[str, Any]:
     document["source_qualifications"] = []
     document["drive_topologies"] = []
     document["structure_assemblies"] = []
+    document["acquisition_declarations"] = []
+    document["description_supplements"] = []
+    machine_map["description_supplement"] = None
     return document
 
 
@@ -187,7 +196,11 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
     assert schema["classes"]["MachineMapCatalog"]["tree_root"] is True
     assert "SourceQualification" in schema["classes"]
     assert "CircuitConnection" in schema["classes"]
+    assert "AcquisitionDeclaration" in schema["classes"]
+    assert "DescriptionSupplement" in schema["classes"]
     assert "DriveTopology" in schema["classes"]
+    assert "PointFluxLoopDeclaration" in schema["classes"]
+    assert "PolygonSectionDeclaration" in schema["classes"]
     assert "StructureAssembly" in schema["classes"]
     assert "source_cocos" in schema["classes"]["MachineMapCatalog"]["slots"]
     assert "source_cocos_override" in schema["classes"]["ChannelBinding"]["slots"]
@@ -278,7 +291,7 @@ def test_mast_catalog_accounts_for_every_machine_description_array_in_the_corpus
     assert catalog.bound_channel_count == 254
     assert catalog.qualified_channel_counts == {
         "magnetics": 4,
-        "pf_active": 1,
+        "machine_description": 1,
         "pf_passive": 1,
     }
     assert catalog.qualified_channel_count == 6
@@ -494,7 +507,7 @@ def test_passive_loop_elements_and_shape_angles_are_executable_oblique_geometry(
     oblique_assemblies = {
         item.name: item
         for item in catalog.structure_assemblies
-        if item.name.startswith("mast-pf-passive-")
+        if item.name.startswith("mast-pf-passive-") and item.type_index == 3
     }
     assert len(oblique_assemblies) == 15
     assert {item.type_index for item in oblique_assemblies.values()} == {3}
@@ -514,6 +527,8 @@ def test_every_legacy_description_field_has_a_binding_or_qualification():
         for item in catalog.source_qualifications
     }
     topology_names = tuple(item.name for item in catalog.drive_topologies)
+    acquisition_names = tuple(item.name for item in catalog.acquisition_declarations)
+    supplement_names = tuple(item.name for item in catalog.description_supplements)
 
     def binding_matches(group: str, suffix: str) -> tuple[str, ...]:
         return tuple(
@@ -555,6 +570,11 @@ def test_every_legacy_description_field_has_a_binding_or_qualification():
         ),
         "silop_r": (binding_names[("magnetics", "flux_loop_r")],),
         "silop_z": (binding_names[("magnetics", "flux_loop_z")],),
+        "silop_additional_positions": tuple(
+            loop.name
+            for supplement in catalog.description_supplements
+            for loop in supplement.point_flux_loops
+        ),
         "pf_active.element.r": binding_matches("pf_active", "_r"),
         "pf_active.element.z": binding_matches("pf_active", "_z"),
         "pf_active.element.width": binding_matches("pf_active", "_width"),
@@ -569,9 +589,16 @@ def test_every_legacy_description_field_has_a_binding_or_qualification():
         "pf_passive.element.turns_with_sign": (*topology_names,),
         "fcoil_circ": topology_names,
         "fcoil_xmult": topology_names,
-        "amc_current_channels": (
-            qualification_names[("pf_active", "amc_current_channels")],
+        "amc_current_channels": acquisition_names,
+        "unmatched_amb": acquisition_names,
+        "conductor_element_join": tuple(
+            item.name
+            for item in catalog.structure_assemblies
+            if item.element_identifiers
         ),
+        "r0": supplement_names,
+        "minor_radius": (qualification_names[("machine_description", "minor_radius")],),
+        "polygon_sections": supplement_names,
         "limiterr": (binding_names[("wall", "limiter_r")],),
         "limiterz": (binding_names[("wall", "limiter_z")],),
     }
@@ -590,10 +617,116 @@ def test_every_legacy_description_field_has_a_binding_or_qualification():
         assert topology.current_scale_source == "fcoil_xmult"
         assert topology.current_channel_source == "amc_current_channels"
         assert (
-            topology.current_channel_qualification
-            == accounting["amc_current_channels"][0]
+            topology.current_channel_declaration in accounting["amc_current_channels"]
         )
         assert topology.passive_loop_names == PASSIVE_LOOP_FAMILIES
+
+
+@pytest.mark.skipif(
+    not all((LEVEL2_ROOT / f"{shot}.zarr").is_dir() for shot in (11_766, 12_417)),
+    reason="local level-2 geometry stores are not mounted",
+)
+def test_range_declarations_join_topology_and_supply_legacy_fields():
+    catalog = load_packaged_machine_map("mast")
+    supplements = {item.name: item for item in catalog.description_supplements}
+    acquisitions = {item.name: item for item in catalog.acquisition_declarations}
+    topologies = {item.name: item for item in catalog.drive_topologies}
+    minor_radius = next(
+        item
+        for item in catalog.source_qualifications
+        if item.name == "mast-machine-description-minor-radius"
+    )
+
+    assert "equilibrium/time_slice/boundary/minor_radius" in minor_radius.reason
+    assert "pulse_schedule/position_control/minor_radius/reference" in (
+        minor_radius.reason
+    )
+    assert "summary/boundary/minor_radius/value" in minor_radius.reason
+
+    for machine_map in catalog.maps:
+        description = transform_machine_description(
+            catalog, machine_map.first_shot, "zarr", LEVEL2_ROOT
+        )
+        emitted_by_binding = {
+            item.binding_name: np.asarray(item.values) for item in description.arrays
+        }
+        emitted_element_identifiers: set[str] = set()
+        for assembly in catalog.structure_assemblies:
+            if not assembly.element_identifiers:
+                continue
+            emitted_names = emitted_by_binding[assembly.name_binding].reshape(-1)
+            assert len(emitted_names) == len(assembly.element_identifiers)
+            for identifier, emitted_name in zip(
+                assembly.element_identifiers, emitted_names, strict=True
+            ):
+                assert identifier.rsplit("/", maxsplit=1)[-1] == str(emitted_name)
+                emitted_element_identifiers.add(identifier)
+
+        assert len(emitted_element_identifiers) == 938
+        topology = topologies[machine_map.drive_topology]
+        unresolved = {
+            item.geometry_element_identifier for item in topology.connections
+        }.difference(emitted_element_identifiers)
+        assert len(topology.connections) == 1_004
+        assert unresolved == set()
+
+        supplement = supplements[machine_map.description_supplement]
+        acquisition = acquisitions[supplement.acquisition_declaration]
+        assert topology.current_channel_declaration == acquisition.name
+        assert len(acquisition.current_channels) == 44
+        expected_unmatched = 2 if machine_map.first_shot == 11_766 else 8
+        assert len(acquisition.unmatched_sensor_addresses) == expected_unmatched
+        assert set(acquisition.unmatched_sensor_addresses).issubset(
+            acquisition.sensor_addresses
+        )
+
+        emitted_loop_count = emitted_by_binding["mast-magnetics-flux-loop-r"].size
+        assert emitted_loop_count == 44
+        assert len(supplement.point_flux_loops) == 2
+        assert emitted_loop_count + len(supplement.point_flux_loops) == 46
+        for loop in supplement.point_flux_loops:
+            r_leaf = _dd_leaf(catalog.dd_version, loop.r_path)
+            z_leaf = _dd_leaf(catalog.dd_version, loop.z_path)
+            assert (r_leaf.data_type.name, r_leaf.ndim, r_leaf.units) == (
+                "FLT",
+                0,
+                "m",
+            )
+            assert (z_leaf.data_type.name, z_leaf.ndim, z_leaf.units) == (
+                "FLT",
+                0,
+                "m",
+            )
+
+        r0_leaf = _dd_leaf(catalog.dd_version, supplement.reference_radius_path)
+        assert supplement.reference_radius == 0.85
+        assert supplement.reference_radius_unit == "m"
+        assert (r0_leaf.data_type.name, r0_leaf.ndim, r0_leaf.units) == (
+            "FLT",
+            0,
+            "m",
+        )
+        assert "Reference major radius of the device" in r0_leaf.documentation
+
+        topology_circuits = {item.circuit_identifier for item in topology.connections}
+        assert len(supplement.polygon_sections) == 4
+        for section in supplement.polygon_sections:
+            assert section.circuit_identifier in topology_circuits
+            assert section.geometry_element_identifier in emitted_element_identifiers
+            assert len(section.vertex_r) == len(section.vertex_z) == 4
+
+        print(
+            "CATALOG_PARITY_DECLARATIONS "
+            f"shot={machine_map.first_shot} topology_rows={len(topology.connections)} "
+            f"unjoined={len(unresolved)} emitted_elements="
+            f"{len(emitted_element_identifiers)} point_loops="
+            f"{emitted_loop_count + len(supplement.point_flux_loops)} "
+            f"current_channels={len(acquisition.current_channels)} "
+            f"sensor_addresses={len(acquisition.sensor_addresses)} "
+            f"unmatched={len(acquisition.unmatched_sensor_addresses)} "
+            f"polygons={len(supplement.polygon_sections)} r0="
+            f"{supplement.reference_radius} minor_radius=qualified"
+        )
 
 
 def test_turn_magnitudes_are_positive_and_direction_is_connectivity_only():

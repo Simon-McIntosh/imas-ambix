@@ -5,7 +5,7 @@ description: >-
   Range-scoped bindings from immutable store arrays to Data Dictionary leaves.
   The schema deliberately has no condition, expression, or code-hook slot.
 license: LGPL-3.0-or-later
-version: 1.5.0
+version: 1.6.0
 prefixes:
   linkml: https://w3id.org/linkml/
   mm: https://imas-ambix.example/schema/machine-map/
@@ -99,6 +99,7 @@ slots:
     multivalued: true
     inlined_as_list: true
   drive_topology:
+  description_supplement:
   name:
     identifier: true
     required: true
@@ -159,7 +160,7 @@ slots:
     required: true
   current_channel_source:
     required: true
-  current_channel_qualification:
+  current_channel_declaration:
     required: true
   circuit_identifier_path:
     required: true
@@ -181,6 +182,8 @@ slots:
   supply_identifier:
     required: true
   element_identifier:
+    required: true
+  geometry_element_identifier:
     required: true
   turns:
     range: float
@@ -209,6 +212,65 @@ slots:
     required: true
   member_bindings:
     multivalued: true
+    required: true
+  element_identifiers:
+    multivalued: true
+  acquisition_declarations:
+    range: AcquisitionDeclaration
+    multivalued: true
+    inlined_as_list: true
+  description_supplements:
+    range: DescriptionSupplement
+    multivalued: true
+    inlined_as_list: true
+  current_channels:
+    multivalued: true
+    required: true
+  sensor_addresses:
+    multivalued: true
+    required: true
+  unmatched_sensor_addresses:
+    multivalued: true
+  acquisition_declaration:
+    required: true
+  point_flux_loops:
+    range: PointFluxLoopDeclaration
+    multivalued: true
+    inlined_as_list: true
+  r:
+    range: float
+    required: true
+  z:
+    range: float
+    required: true
+  r_path:
+    required: true
+  z_path:
+    required: true
+  reference_radius:
+    range: float
+    minimum_value: 0
+    required: true
+  reference_radius_path:
+    required: true
+  reference_radius_unit:
+    required: true
+  minor_radius_qualification:
+    required: true
+  polygon_sections:
+    range: PolygonSectionDeclaration
+    multivalued: true
+    inlined_as_list: true
+  vertex_r:
+    range: float
+    multivalued: true
+    required: true
+  vertex_z:
+    range: float
+    multivalued: true
+    required: true
+  current_scale:
+    range: float
     required: true
 
 classes:
@@ -239,6 +301,7 @@ classes:
       - transition
       - binding_set
       - drive_topology
+      - description_supplement
       - validation_state
   ValidationGap:
     slots:
@@ -271,7 +334,7 @@ classes:
       - circuit_identity_source
       - current_scale_source
       - current_channel_source
-      - current_channel_qualification
+      - current_channel_declaration
       - circuit_identifier_path
       - supply_identifier_path
       - element_identifier_path
@@ -289,6 +352,7 @@ classes:
       - circuit_identifier
       - supply_identifier
       - element_identifier
+      - geometry_element_identifier
       - turns
       - direction
   StructureAssembly:
@@ -302,6 +366,56 @@ classes:
       - type_index
       - name_binding
       - member_bindings
+      - element_identifiers
+      - evidence
+  AcquisitionDeclaration:
+    description: >-
+      Declares acquisition identities required by machine-description consumers
+      without embedding channel selection in reader code.
+    slots:
+      - name
+      - source_location
+      - current_channels
+      - sensor_addresses
+      - unmatched_sensor_addresses
+      - evidence
+  PointFluxLoopDeclaration:
+    description: >-
+      Declares one static point-loop position absent from pulse-store arrays at
+      writable scalar leaves of a magnetics flux-loop position structure.
+    slots:
+      - name
+      - r
+      - z
+      - r_path
+      - z_path
+      - evidence
+  PolygonSectionDeclaration:
+    description: >-
+      Declares a shaped conductor section and its joins to circuit connectivity
+      and emitted conductor geometry.
+    slots:
+      - name
+      - circuit_identifier
+      - geometry_element_identifier
+      - vertex_r
+      - vertex_z
+      - current_scale
+      - evidence
+  DescriptionSupplement:
+    description: >-
+      Static machine-description values selected by the same shot range as the
+      executable bindings and drive topology.
+    slots:
+      - name
+      - source_location
+      - acquisition_declaration
+      - point_flux_loops
+      - reference_radius
+      - reference_radius_path
+      - reference_radius_unit
+      - minor_radius_qualification
+      - polygon_sections
       - evidence
   MachineMapCatalog:
     tree_root: true
@@ -317,3 +431,5 @@ classes:
       - source_qualifications
       - drive_topologies
       - structure_assemblies
+      - acquisition_declarations
+      - description_supplements
