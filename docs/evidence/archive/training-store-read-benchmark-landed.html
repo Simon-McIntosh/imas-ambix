@@ -258,6 +258,40 @@
   <code>/work/projects/imas_gpu/store-bench/transport-rerun-public-snapshot-login-20260813.json</code>
   (sha256 <code>ad23b643…</code>).</p>
 
+  <h3 id="s2-transport-nodeclass">Transport on the storage-arm node class: 129.1×</h3>
+  <p><strong>On <code>sirius_debug</code> the mapped-over-live ratio is 129.124×, against 41.136×
+  on the login node — 3.14× higher for the same payload.</strong> No commit: the committed
+  transport-only code required no change, and a fresh visibility probe found the refreshed
+  snapshot already reachable from the compute-node namespace, so direct use replaced re-staging.</p>
+  <p>The identity gate passed before timing, as on every run since it was added: shot 11766
+  <code>summary/ip</code>, <code>live_shape [447]</code>, <code>mapped_shape [447]</code>,
+  <code>decoded_arrays_identical true</code>, both route checksums 978,090,488 — the same payload
+  and the same checksum as the login-node measurement, which is what makes the two comparable.</p>
+  <table>
+    <caption>Same payload, two node classes</caption>
+    <thead><tr><th>Node class</th><th>live HTTPS</th><th>mapped on disk</th><th>ratio</th></tr></thead>
+    <tbody>
+      <tr><td><code>sirius_debug:x86_64</code> (98dci4-clu-5137)</td>
+          <td>1.0880&nbsp;s · 3,287&nbsp;samples/s</td>
+          <td>0.0084&nbsp;s · 424,413&nbsp;samples/s</td>
+          <td><strong>129.124×</strong></td></tr>
+      <tr><td>login, not under SLURM (98dci4-srv-1006)</td>
+          <td>1.1191&nbsp;s · 3,195&nbsp;samples/s</td>
+          <td>0.0272&nbsp;s · 131,447&nbsp;samples/s</td>
+          <td>41.136×</td></tr>
+    </tbody>
+  </table>
+  <p><strong>The difference is entirely on the disk side.</strong> Live HTTPS time differs by a
+  factor of only 1.029 between the two — the network route does not care which node it runs from —
+  while mapped-disk reads are <strong>3.229× faster on the compute node</strong>. The node class
+  was doing real work inside the earlier number, which is why the composition mattered: the 12
+  storage cells were measured on the same <code>sirius_debug:x86_64</code> class, so this ratio
+  now composes with them. The hosts differ (5137 versus 5136) and that stays disclosed.</p>
+  <p>Scope is unchanged and still partial: 24 of 11,573 mirrored shots, 0.207%. Tests: 9 collected,
+  9 passed in 11.56&nbsp;s on <code>sirius_debug</code> job 1245969. Artifact:
+  <code>/work/projects/imas_gpu/store-bench/transport-nodeclass-public-snapshot-sirius-debug-20260814.json</code>
+  (sha256 <code>dcf016e9…</code>).</p>
+
   <h2 id="s4">§4 — The proposal</h2>
   <p>Two formats, decided separately, because the two access patterns are not the same problem.</p>
 
