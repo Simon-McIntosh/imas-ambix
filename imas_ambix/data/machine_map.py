@@ -295,6 +295,27 @@ class SourceQualification:
 
 
 @dataclass(frozen=True)
+class CircuitCurrentJoin:
+    """One circuit's explicit measured-current and conductor identity."""
+
+    circuit_identifier: str
+    current_channel: str
+    conductor_identifier: str
+    evidence: str
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any], label: str) -> CircuitCurrentJoin:
+        required = {
+            "circuit_identifier",
+            "current_channel",
+            "conductor_identifier",
+            "evidence",
+        }
+        _exact_keys(payload, required, set(), label)
+        return cls(**{key: _text(payload[key], f"{label}.{key}") for key in required})
+
+
+@dataclass(frozen=True)
 class CircuitConnection:
     """One sparse supply-to-element connection in a named circuit."""
 
@@ -687,6 +708,7 @@ class MachineMapCatalog:
     structure_assemblies: tuple[StructureAssembly, ...]
     acquisition_declarations: tuple[AcquisitionDeclaration, ...]
     description_supplements: tuple[DescriptionSupplement, ...]
+    circuit_current_joins: tuple[CircuitCurrentJoin, ...] = ()
 
     def cocos_for_binding(self, binding: ChannelBinding | None = None) -> int | None:
         """Resolve a binding override before the machine-level declaration."""
@@ -736,6 +758,7 @@ def load_linkml_schema(path: Path | str = LINKML_SCHEMA_PATH) -> Mapping[str, An
         "AcquisitionDeclaration",
         "BindingSet",
         "ChannelBinding",
+        "CircuitCurrentJoin",
         "CircuitConnection",
         "DescriptionSupplement",
         "DriveTopology",
@@ -776,6 +799,7 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
         "maps",
         "validation_gaps",
         "source_qualifications",
+        "circuit_current_joins",
         "drive_topologies",
         "structure_assemblies",
         "acquisition_declarations",
@@ -958,6 +982,47 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
                 "declaration"
             )
 
+    joins_raw = payload["circuit_current_joins"]
+    if not isinstance(joins_raw, list):
+        raise MachineMapError("circuit_current_joins must be a list")
+    circuit_current_joins = tuple(
+        CircuitCurrentJoin.from_dict(
+            _object(entry, f"circuit_current_joins[{index}]"),
+            f"circuit_current_joins[{index}]",
+        )
+        for index, entry in enumerate(joins_raw)
+    )
+    join_circuits = [item.circuit_identifier for item in circuit_current_joins]
+    join_channels = [item.current_channel for item in circuit_current_joins]
+    join_conductors = [item.conductor_identifier for item in circuit_current_joins]
+    for join_label, identifiers in (
+        ("circuit identifiers", join_circuits),
+        ("current channels", join_channels),
+        ("conductor identifiers", join_conductors),
+    ):
+        if len(identifiers) != len(set(identifiers)):
+            raise MachineMapError(f"circuit current join {join_label} must be unique")
+    acquisitions_by_name = {item.name: item for item in acquisitions}
+    for topology in topologies:
+        declared_circuits = {item.circuit_identifier for item in topology.connections}
+        unresolved_circuits = set(join_circuits).difference(declared_circuits)
+        if unresolved_circuits:
+            raise MachineMapError(
+                f"drive topology {topology.name!r} lacks joined circuits: "
+                f"{sorted(unresolved_circuits)}"
+            )
+        acquisition = acquisitions_by_name[topology.current_channel_declaration]
+        unresolved_channels = set(join_channels).difference(
+            acquisition.current_channels
+        )
+        if unresolved_channels:
+            raise MachineMapError(
+                f"acquisition declaration {acquisition.name!r} lacks joined "
+                f"current channels: {sorted(unresolved_channels)}"
+            )
+    if circuit_current_joins and not topologies:
+        raise MachineMapError("circuit current joins require a drive topology")
+
     supplements_raw = payload["description_supplements"]
     if not isinstance(supplements_raw, list):
         raise MachineMapError("description_supplements must be a list")
@@ -1014,6 +1079,7 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
         structure_assemblies=assemblies,
         acquisition_declarations=acquisitions,
         description_supplements=supplements,
+        circuit_current_joins=circuit_current_joins,
     )
     source_only = {
         binding.name
