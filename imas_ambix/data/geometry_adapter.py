@@ -85,6 +85,9 @@ class CurrentSourceResolution:
 RECOVERABLE_CURRENT_SOURCE = "recoverable_from_catalog"
 CURRENT_SOURCE_NEEDS_DECLARATION = "requires_new_declaration"
 CURRENT_SOURCE_ABSENT = "absent_from_level2"
+SENSOR_COORDINATE_EXCLUSION_PREFIX = (
+    "sensor_map: excluded sensor addresses with no finite emitted coordinates: "
+)
 
 
 _ROLE_SUFFIXES: Mapping[str, tuple[str, ...]] = {
@@ -617,33 +620,20 @@ def _pf_filaments(
 def _sensor_map_for_acquisition(
     mappings: Iterable[SensorMapping],
     acquisition: AcquisitionDeclaration,
-) -> list[SensorMapping]:
+) -> tuple[list[SensorMapping], tuple[str, ...]]:
     by_channel = {item.amb_channel.casefold(): item for item in mappings}
     unmatched = set(acquisition.unmatched_sensor_addresses)
     selected: list[SensorMapping] = []
+    missing_coordinates: list[str] = []
     for address in acquisition.sensor_addresses:
         if address in unmatched:
             continue
         mapping = by_channel.get(address.casefold())
-        if mapping is None:
-            selected.append(
-                SensorMapping(
-                    amb_channel=address,
-                    kind="unresolved",
-                    efm_index=-1,
-                    r=float("nan"),
-                    z=float("nan"),
-                    angle_deg=None,
-                    residual_m=float("nan"),
-                    flag=(
-                        "the acquisition declaration supplies the address but no "
-                        "association to emitted sensor geometry"
-                    ),
-                )
-            )
+        if mapping is None or not np.isfinite((mapping.r, mapping.z)).all():
+            missing_coordinates.append(address)
         else:
             selected.append(replace(mapping, amb_channel=address))
-    return selected
+    return selected, tuple(missing_coordinates)
 
 
 def _polygon_sections(
@@ -759,7 +749,9 @@ def geometry_table_from_description(
         catalog, description, conductors, acquisition
     )
     limiter_r, limiter_z = _limiter(description)
-    sensor_map = _sensor_map_for_acquisition((*b_mappings, *flux_mappings), acquisition)
+    sensor_map, missing_sensor_coordinates = _sensor_map_for_acquisition(
+        (*b_mappings, *flux_mappings), acquisition
+    )
     notices = [
         "b_probes.angle_deg: catalog qualification records that the source "
         "does not expose poloidal probe orientation",
@@ -769,6 +761,10 @@ def geometry_table_from_description(
         "minor_radius: the catalog qualification records that the Data Dictionary "
         "has no fixed machine-description minor-radius leaf",
     ]
+    if missing_sensor_coordinates:
+        notices.append(
+            SENSOR_COORDINATE_EXCLUSION_PREFIX + ", ".join(missing_sensor_coordinates)
+        )
     signature = _signature(
         description,
         b_probes,
@@ -802,6 +798,7 @@ __all__ = [
     "CURRENT_SOURCE_ABSENT",
     "CURRENT_SOURCE_NEEDS_DECLARATION",
     "RECOVERABLE_CURRENT_SOURCE",
+    "SENSOR_COORDINATE_EXCLUSION_PREFIX",
     "CurrentSourceResolution",
     "GeometryAdapterError",
     "current_source_resolutions",
