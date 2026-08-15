@@ -12,6 +12,7 @@ the adapter does not substitute device constants or inspect a legacy reader.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
@@ -35,6 +36,7 @@ if TYPE_CHECKING:
 
     from imas_ambix.data.machine_map import (
         AcquisitionDeclaration,
+        CircuitConnection,
         DescriptionSupplement,
         DriveTopology,
         MachineMapCatalog,
@@ -66,6 +68,23 @@ class _Conductor:
     z: float
     width: float
     height: float
+
+
+@dataclass(frozen=True)
+class CurrentSourceResolution:
+    """How one selected-topology geometry projection is corrected."""
+
+    circuit_identifier: str
+    conductor_identifiers: tuple[str, ...]
+    classification: str
+    current_channel: str | None
+    evidence_topology: str
+    reason: str
+
+
+RECOVERABLE_CURRENT_SOURCE = "recoverable_from_catalog"
+CURRENT_SOURCE_NEEDS_DECLARATION = "requires_new_declaration"
+CURRENT_SOURCE_ABSENT = "absent_from_level2"
 
 
 _ROLE_SUFFIXES: Mapping[str, tuple[str, ...]] = {
@@ -350,10 +369,178 @@ def _selected_acquisition(
     return matches[0]
 
 
+def _connections_by_circuit(
+    topology: DriveTopology,
+) -> dict[str, tuple[CircuitConnection, ...]]:
+    grouped: dict[str, list[CircuitConnection]] = {}
+    for connection in topology.connections:
+        grouped.setdefault(connection.circuit_identifier, []).append(connection)
+    return {identifier: tuple(rows) for identifier, rows in grouped.items()}
+
+
+def _source_geometry_topology(
+    catalog: MachineMapCatalog,
+    conductors: list[_Conductor],
+) -> DriveTopology:
+    """Select the topology with the least many-to-one geometry projection.
+
+    A topology may preserve an electrical discretisation with more rows than
+    the emitted conductor description.  Its repeated geometry associations
+    retain connectivity but hide independent operator columns.  The catalog
+    topology with the highest unique-association ratio is the direct source
+    geometry declaration and supplies those identities without consulting a
+    machine convention.
+    """
+    identifiers = {item.identifier for item in conductors}
+
+    def score(topology: DriveTopology) -> tuple[float, int, int]:
+        if not topology.connections:
+            return float("-inf"), 0, 0
+        resolved = tuple(
+            row.geometry_element_identifier
+            for row in topology.connections
+            if row.geometry_element_identifier in identifiers
+        )
+        unique = len(set(resolved))
+        return (
+            unique / len(topology.connections),
+            unique,
+            -len(topology.connections),
+        )
+
+    return max(catalog.drive_topologies, key=score)
+
+
+def _current_channel_from_conductors(
+    conductor_identifiers: tuple[str, ...],
+    acquisition: AcquisitionDeclaration,
+) -> str | None:
+    stems = {
+        re.sub(r"_\d+$", "", identifier.rsplit("/", 1)[-1])
+        for identifier in conductor_identifiers
+    }
+    if len(stems) != 1:
+        return None
+    candidate = next(iter(stems))
+    return candidate if candidate in acquisition.current_channels else None
+
+
+def _current_source_resolutions(
+    catalog: MachineMapCatalog,
+    description: MachineDescription,
+    conductors: list[_Conductor],
+    acquisition: AcquisitionDeclaration,
+) -> tuple[CurrentSourceResolution, ...]:
+    selected = _selected_topology(catalog, description)
+    source = _source_geometry_topology(catalog, conductors)
+    selected_rows = _connections_by_circuit(selected)
+    source_rows = _connections_by_circuit(source)
+    by_identifier = {item.identifier: item for item in conductors}
+    resolutions: list[CurrentSourceResolution] = []
+    missing_selected_geometry = tuple(
+        row.geometry_element_identifier
+        for rows in selected_rows.values()
+        for row in rows
+        if row.geometry_element_identifier not in by_identifier
+    )
+    if missing_selected_geometry:
+        raise GeometryAdapterError(
+            "selected topology contains geometry identifiers absent from the "
+            f"emitted description; first is {missing_selected_geometry[0]!r}"
+        )
+
+    for circuit_identifier in selected_rows:
+        selected_groups = {
+            by_identifier[row.geometry_element_identifier].source_group
+            for row in selected_rows[circuit_identifier]
+        }
+        direct_rows = source_rows.get(circuit_identifier, ())
+        direct_identifiers = tuple(
+            row.geometry_element_identifier for row in direct_rows
+        )
+        direct_groups = {
+            by_identifier[identifier].source_group
+            for identifier in direct_identifiers
+            if identifier in by_identifier
+        }
+        if selected_groups != {"pf_active"} or direct_groups != {"pf_passive"}:
+            continue
+
+        direct_by_element = {row.element_identifier: row for row in direct_rows}
+        missing_elements = tuple(
+            row.element_identifier
+            for row in selected_rows[circuit_identifier]
+            if row.element_identifier not in direct_by_element
+        )
+        if (
+            len(direct_rows) != len(selected_rows[circuit_identifier])
+            or missing_elements
+        ):
+            resolutions.append(
+                CurrentSourceResolution(
+                    circuit_identifier=circuit_identifier,
+                    conductor_identifiers=direct_identifiers,
+                    classification=CURRENT_SOURCE_ABSENT,
+                    current_channel=None,
+                    evidence_topology=source.name,
+                    reason=(
+                        "the direct source topology does not carry the same "
+                        "electrical elements as the selected topology"
+                    ),
+                )
+            )
+            continue
+
+        current_channel = _current_channel_from_conductors(
+            direct_identifiers, acquisition
+        )
+        if current_channel is None:
+            classification = RECOVERABLE_CURRENT_SOURCE
+            reason = (
+                "the direct catalog topology maps this circuit to distinct "
+                "passive conductor geometry with no measured current channel"
+            )
+        else:
+            classification = CURRENT_SOURCE_NEEDS_DECLARATION
+            reason = (
+                f"the passive conductor names imply channel {current_channel!r}, "
+                "but no catalog field explicitly joins that channel to the circuit"
+            )
+        resolutions.append(
+            CurrentSourceResolution(
+                circuit_identifier=circuit_identifier,
+                conductor_identifiers=direct_identifiers,
+                classification=classification,
+                current_channel=current_channel,
+                evidence_topology=source.name,
+                reason=reason,
+            )
+        )
+    return tuple(resolutions)
+
+
+def current_source_resolutions(
+    description: MachineDescription,
+    catalog: MachineMapCatalog,
+) -> tuple[CurrentSourceResolution, ...]:
+    """Report corrections supplied by the direct catalog geometry mapping."""
+    if description.status != "emitted":
+        raise GeometryAdapterError(
+            f"description status is {description.status!r}, not 'emitted'"
+        )
+    conductors = _conductors(description, catalog)
+    supplement = _selected_supplement(catalog, description)
+    acquisition = _selected_acquisition(catalog, supplement)
+    return _current_source_resolutions(catalog, description, conductors, acquisition)
+
+
 def _pf_filaments(
     catalog: MachineMapCatalog,
     description: MachineDescription,
     conductors: list[_Conductor],
+    acquisition: AcquisitionDeclaration,
+    *,
+    resolve_direct_geometry: bool = True,
 ) -> tuple[list[PFFilament], list[int], list[str]]:
     topology = _selected_topology(catalog, description)
     circuit_order = tuple(
@@ -373,10 +560,32 @@ def _pf_filaments(
             f"selected topology has {len(missing)} rows without emitted conductor "
             f"geometry; first missing identifier is {missing[0]!r}"
         )
+    resolutions = (
+        _current_source_resolutions(catalog, description, conductors, acquisition)
+        if resolve_direct_geometry
+        else ()
+    )
+    resolution_by_circuit = {
+        item.circuit_identifier: item
+        for item in resolutions
+        if item.classification != CURRENT_SOURCE_ABSENT
+    }
+    source_topology = _source_geometry_topology(catalog, conductors)
+    source_geometry = {
+        (row.circuit_identifier, row.element_identifier): (
+            row.geometry_element_identifier
+        )
+        for row in source_topology.connections
+    }
     raw_filaments: list[PFFilament] = []
     raw_groups: list[str] = []
     for connection in topology.connections:
-        conductor = by_identifier[connection.geometry_element_identifier]
+        geometry_identifier = connection.geometry_element_identifier
+        if connection.circuit_identifier in resolution_by_circuit:
+            geometry_identifier = source_geometry[
+                (connection.circuit_identifier, connection.element_identifier)
+            ]
+        conductor = by_identifier[geometry_identifier]
         raw_filaments.append(
             PFFilament(
                 r=conductor.r,
@@ -389,14 +598,20 @@ def _pf_filaments(
             )
         )
         raw_groups.append(conductor.source_group)
+    groups_by_circuit: dict[int, set[str]] = {}
+    for source_group, filament in zip(raw_groups, raw_filaments, strict=True):
+        groups_by_circuit.setdefault(filament.circuit, set()).add(source_group)
     active_circuits = sorted(
-        {
-            filament.circuit
-            for source_group, filament in zip(raw_groups, raw_filaments, strict=True)
-            if source_group == "pf_active"
-        }
+        circuit
+        for circuit, source_groups in groups_by_circuit.items()
+        if source_groups == {"pf_active"}
     )
-    return collapse_rectangular_circuits(raw_filaments), active_circuits, []
+    notices = [
+        f"current source {item.circuit_identifier}: {item.reason}"
+        for item in resolutions
+        if item.classification == CURRENT_SOURCE_NEEDS_DECLARATION
+    ]
+    return collapse_rectangular_circuits(raw_filaments), active_circuits, notices
 
 
 def _sensor_map_for_acquisition(
@@ -541,7 +756,7 @@ def geometry_table_from_description(
     flux_loops, flux_mappings = _flux_loops(description, supplement)
     conductors = _conductors(description, catalog)
     filaments, active_circuits, topology_notices = _pf_filaments(
-        catalog, description, conductors
+        catalog, description, conductors, acquisition
     )
     limiter_r, limiter_z = _limiter(description)
     sensor_map = _sensor_map_for_acquisition((*b_mappings, *flux_mappings), acquisition)
@@ -583,4 +798,12 @@ def geometry_table_from_description(
     )
 
 
-__all__ = ["GeometryAdapterError", "geometry_table_from_description"]
+__all__ = [
+    "CURRENT_SOURCE_ABSENT",
+    "CURRENT_SOURCE_NEEDS_DECLARATION",
+    "RECOVERABLE_CURRENT_SOURCE",
+    "CurrentSourceResolution",
+    "GeometryAdapterError",
+    "current_source_resolutions",
+    "geometry_table_from_description",
+]
