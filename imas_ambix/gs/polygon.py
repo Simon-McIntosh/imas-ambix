@@ -151,6 +151,55 @@ def _psi_hat(
     return 2.0 * np.pi * r[:, 0] * norm * a_hat
 
 
+def _axis_bz(
+    target_z: np.ndarray,
+    vertices: np.ndarray,
+    signed_area2: float,
+    n_nodes: int,
+) -> np.ndarray:
+    r"""Finite symmetry-axis limit of ``B_Z`` for a polygon section.
+
+    A unit-current filament at ``(R', Z')`` contributes
+    ``mu0 R'^2 / (2 (R'^2 + (z - Z')^2)^(3/2))`` on the axis.  Averaging that
+    expression over the section and applying Green's theorem gives the boundary
+    integral
+
+    ``B_Z(0, z) = mu0/(2 A) integral_boundary q/sqrt(R'^2 + q^2) dR'``,
+
+    where ``q = z - Z'`` and the boundary is counter-clockwise.  This is the
+    analytic ``R -> 0`` limit, evaluated with Gauss--Legendre quadrature along
+    each straight polygon edge.  It is defined for a physical toroidal section,
+    whose source radius remains positive; a section reaching ``R'=0`` would
+    collapse a current ring to zero circumference and is not a defined toroidal
+    conductor geometry.
+
+    The open phi rule never samples ``sin(phi) == 0``.  The actual failure in
+    :func:`_psi_hat` occurs when the *target* radius is zero: the denominator of
+    ``at3`` is then zero at every phi node.  When the target height also equals
+    an edge endpoint, ``g2`` is zero and the ``ash1`` quotient loses definition
+    as well.  ``ash2`` remains defined unless the extrapolated edge itself meets
+    the symmetry axis at the target height.  If either target coordinate is
+    non-finite, all three quotients are undefined because no field point was
+    specified; that input has no physical limit and must be excluded by the
+    geometry consumer rather than assigned a fabricated field value here.
+    """
+    x, weights = leggauss(n_nodes)
+    edge_fraction = 0.5 * (x + 1.0)
+    edge_weights = 0.5 * weights
+    result = np.zeros(np.asarray(target_z).shape, dtype=np.float64)
+
+    for (ra, za), (rb, zb) in zip(vertices, np.roll(vertices, -1, axis=0), strict=True):
+        edge_r = ra + (rb - ra) * edge_fraction
+        edge_z = za + (zb - za) * edge_fraction
+        q = np.asarray(target_z)[:, None] - edge_z
+        result += (rb - ra) * np.sum(
+            edge_weights * q / np.sqrt(edge_r * edge_r + q * q), axis=1
+        )
+
+    orientation = np.sign(signed_area2)
+    return MU0 * orientation * result / abs(signed_area2)
+
+
 def polygon_greens(
     target_r: np.ndarray,
     target_z: np.ndarray,
@@ -191,16 +240,31 @@ def polygon_greens(
     def psi_at(rr: np.ndarray, zz: np.ndarray) -> np.ndarray:
         return _psi_hat(rr, zz, v, cosp, sinp, sin2p, w_cos, sign, area)
 
-    # one complex-step pass in r gives ψ (real part) and ∂ψ/∂R (imag/h → B_Z);
-    # one in z gives ∂ψ/∂Z (imag/h → B_R).  Exact-to-machine-precision curl.
+    # One complex-step pass in r gives ψ (real part) and ∂ψ/∂R (imag/h →
+    # B_Z); one in z gives ∂ψ/∂Z (imag/h → B_R).  At R=0 those first
+    # derivatives and the 1/R curl form are both 0/0 even though the physical
+    # limit is regular, so evaluate that limit directly rather than nudging or
+    # clamping the target radius.
     h = _CSTEP
-    psi_r = psi_at(r + 1j * h, z)
-    dpsi_dz = psi_at(r, z + 1j * h).imag / h
-    psi = psi_r.real
-    dpsi_dr = psi_r.imag / h
-    two_pi_r = 2.0 * np.pi * r[:, 0]
-    bz = dpsi_dr / two_pi_r
-    br = -dpsi_dz / two_pi_r
+    axis = r[:, 0] == 0.0
+    off_axis = ~axis
+    psi = np.zeros(r.shape[0], dtype=np.float64)
+    br = np.zeros(r.shape[0], dtype=np.float64)
+    bz = np.empty(r.shape[0], dtype=np.float64)
+
+    if np.any(off_axis):
+        off_axis_r = r[off_axis]
+        off_axis_z = z[off_axis]
+        psi_r = psi_at(off_axis_r + 1j * h, off_axis_z)
+        dpsi_dz = psi_at(off_axis_r, off_axis_z + 1j * h).imag / h
+        psi[off_axis] = psi_r.real
+        two_pi_r = 2.0 * np.pi * off_axis_r[:, 0]
+        bz[off_axis] = (psi_r.imag / h) / two_pi_r
+        br[off_axis] = -dpsi_dz / two_pi_r
+
+    if np.any(axis):
+        bz[axis] = _axis_bz(z[axis, 0], v, signed_area2, n_nodes)
+
     return psi.reshape(shape), br.reshape(shape), bz.reshape(shape)
 
 
