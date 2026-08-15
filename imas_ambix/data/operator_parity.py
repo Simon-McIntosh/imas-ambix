@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 import imas_ambix.gs.operator as gs_operator
+from imas_ambix.data.geometry_adapter import SENSOR_COORDINATE_EXCLUSION_PREFIX
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -61,6 +62,8 @@ class MatrixComparison:
     legacy_shape: tuple[int, int]
     adapted_block_shapes: tuple[tuple[int, int], ...]
     legacy_block_shapes: tuple[tuple[int, int], ...]
+    adapted_nonfinite_count: int
+    legacy_nonfinite_count: int
     differing_cell_count: int
     nonfinite_mismatch_count: int
     max_absolute_difference: float
@@ -97,6 +100,15 @@ class CacheKeyComparison:
 
 
 @dataclass(frozen=True)
+class ExclusionComparison:
+    """Operator-excluded channels and the exclusions unique to the adapter."""
+
+    adapted_channels: tuple[str, ...]
+    legacy_channels: tuple[str, ...]
+    coordinate_missing_channels: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class DifferenceAttribution:
     """Description fields that causally feed one differing operator metric."""
 
@@ -115,6 +127,7 @@ class OperatorParityReceipt:
     grid: GridComparison
     limiter_mask: MaskComparison
     cache_key: CacheKeyComparison
+    exclusions: ExclusionComparison
     attributions: tuple[DifferenceAttribution, ...]
     unattributed_metrics: tuple[str, ...]
 
@@ -243,6 +256,8 @@ def _compare_matrix(
         legacy_shape=tuple(int(size) for size in legacy.shape),
         adapted_block_shapes=adapted_block_shapes,
         legacy_block_shapes=legacy_block_shapes,
+        adapted_nonfinite_count=int(np.count_nonzero(~finite_adapted)),
+        legacy_nonfinite_count=int(np.count_nonzero(~finite_legacy)),
         differing_cell_count=int(np.count_nonzero(differing)),
         nonfinite_mismatch_count=int(np.count_nonzero(nonfinite_mismatch)),
         max_absolute_difference=max_absolute,
@@ -319,12 +334,40 @@ def _difference_attributions(
     return tuple(attributed), tuple(unattributed)
 
 
+def _require_operator_ready(table: GeometryTable, source: str) -> None:
+    invalid = tuple(
+        mapping.amb_channel
+        for mapping in table.sensor_map
+        if mapping.kind == "unresolved" or not np.isfinite((mapping.r, mapping.z)).all()
+    )
+    if invalid:
+        raise ValueError(
+            f"{source} table has sensor mappings without finite coordinates: "
+            f"{', '.join(invalid)}"
+        )
+
+
+def _coordinate_missing_channels(table: GeometryTable) -> tuple[str, ...]:
+    notices = tuple(
+        notice.removeprefix(SENSOR_COORDINATE_EXCLUSION_PREFIX)
+        for notice in table.provenance_flags
+        if notice.startswith(SENSOR_COORDINATE_EXCLUSION_PREFIX)
+    )
+    if len(notices) > 1:
+        raise ValueError("table records more than one sensor-coordinate exclusion")
+    if not notices:
+        return ()
+    return tuple(channel.strip() for channel in notices[0].split(","))
+
+
 def compare_operator_parity(
     shot: int,
     adapted_table: GeometryTable,
     legacy_table: GeometryTable,
 ) -> OperatorParityReceipt:
     """Build both operators once and return their consumer-level comparison."""
+    _require_operator_ready(adapted_table, "adapted")
+    _require_operator_ready(legacy_table, "legacy")
     adapted_operator = gs_operator.build_operator(adapted_table)
     legacy_operator = gs_operator.build_operator(legacy_table)
 
@@ -348,6 +391,13 @@ def compare_operator_parity(
         adapted_key=adapted_operator.signature_key,
         legacy_key=legacy_operator.signature_key,
     )
+    adapted_excluded = tuple(adapted_operator.excluded_channels)
+    legacy_excluded = tuple(legacy_operator.excluded_channels)
+    exclusions = ExclusionComparison(
+        adapted_channels=adapted_excluded,
+        legacy_channels=legacy_excluded,
+        coordinate_missing_channels=_coordinate_missing_channels(adapted_table),
+    )
     differences = tuple(
         metric
         for metric, equal in (
@@ -367,6 +417,7 @@ def compare_operator_parity(
         grid=grid,
         limiter_mask=limiter_mask,
         cache_key=cache_key,
+        exclusions=exclusions,
         attributions=attributions,
         unattributed_metrics=unattributed,
     )
@@ -394,6 +445,7 @@ def format_operator_parity(receipt: OperatorParityReceipt) -> str:
     grid = receipt.grid
     mask = receipt.limiter_mask
     cache = receipt.cache_key
+    exclusions = receipt.exclusions
     adapted_blocks = ",".join(_shape(item) for item in greens.adapted_block_shapes)
     legacy_blocks = ",".join(_shape(item) for item in greens.legacy_block_shapes)
     attribution = ";".join(
@@ -414,6 +466,8 @@ def format_operator_parity(receipt: OperatorParityReceipt) -> str:
             f"legacy_shape={_shape(greens.legacy_shape)} "
             f"adapted_blocks={adapted_blocks} "
             f"legacy_blocks={legacy_blocks} "
+            f"adapted_nonfinite={greens.adapted_nonfinite_count} "
+            f"legacy_nonfinite={greens.legacy_nonfinite_count} "
             f"differing_cells={greens.differing_cell_count} "
             f"nonfinite_mismatches={greens.nonfinite_mismatch_count} "
             f"max_absolute_difference={_value(greens.max_absolute_difference)} "
@@ -428,6 +482,15 @@ def format_operator_parity(receipt: OperatorParityReceipt) -> str:
             f"OPERATOR_PARITY_LIMITER_MASK shot={shot} equal={_value(mask.equal)} "
             f"adapted_cells={mask.adapted_count} legacy_cells={mask.legacy_count} "
             f"differing_cells={mask.differing_cell_count}"
+        ),
+        (
+            f"OPERATOR_PARITY_EXCLUSIONS shot={shot} "
+            f"operator_adapted_count={len(exclusions.adapted_channels)} "
+            f"operator_legacy_count={len(exclusions.legacy_channels)} "
+            f"coordinate_missing_count={len(exclusions.coordinate_missing_channels)} "
+            "coordinate_missing_reason=no_finite_emitted_coordinates "
+            "coordinate_missing_channels="
+            f"{','.join(exclusions.coordinate_missing_channels) or 'none'}"
         ),
         (
             f"OPERATOR_PARITY_CACHE shot={shot} equal={_value(cache.equal)} "
@@ -460,6 +523,7 @@ __all__ = [
     "KNOWN_DIFFERING_DESCRIPTION_FIELDS",
     "CacheKeyComparison",
     "DifferenceAttribution",
+    "ExclusionComparison",
     "GridComparison",
     "MaskComparison",
     "MatrixComparison",
