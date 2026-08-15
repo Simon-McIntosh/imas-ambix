@@ -20,6 +20,7 @@ import numpy as np
 
 from imas_ambix.gs.geometry import (
     BProbe,
+    CircuitDrive,
     FluxLoop,
     GeometryTable,
     PassiveStructure,
@@ -30,6 +31,7 @@ from imas_ambix.gs.geometry import (
     collapse_rectangular_circuits,
     round_geometry_hash,
 )
+from imas_ambix.gs.operator import classify_circuits
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -609,12 +611,72 @@ def _pf_filaments(
         for circuit, source_groups in groups_by_circuit.items()
         if source_groups == {"pf_active"}
     )
+    joined_circuits = {
+        join.circuit_identifier for join in catalog.circuit_current_joins
+    }
     notices = [
         f"current source {item.circuit_identifier}: {item.reason}"
         for item in resolutions
         if item.classification == CURRENT_SOURCE_NEEDS_DECLARATION
+        and item.circuit_identifier not in joined_circuits
     ]
     return collapse_rectangular_circuits(raw_filaments), active_circuits, notices
+
+
+def _materialise_circuit_drives(
+    catalog: MachineMapCatalog,
+    topology: DriveTopology,
+    filaments: list[PFFilament],
+    active_circuits: list[int],
+    acquisition: AcquisitionDeclaration,
+) -> list[CircuitDrive]:
+    circuit_order = tuple(
+        dict.fromkeys(item.circuit_identifier for item in topology.connections)
+    )
+    circuit_index = {
+        identifier: index + 1 for index, identifier in enumerate(circuit_order)
+    }
+    ampere_turns_by_circuit = {
+        circuit_index[identifier]: sum(
+            item.turns * item.direction
+            for item in topology.connections
+            if item.circuit_identifier == identifier
+        )
+        for identifier in circuit_order
+    }
+
+    inferred = classify_circuits(
+        filaments,
+        acquisition.current_channels,
+        active_circuits,
+    )
+    drives = {
+        item.circuit: CircuitDrive(
+            circuit=item.circuit,
+            channel=item.amc_channel,
+            ampere_turns_per_ampere=ampere_turns_by_circuit[item.circuit],
+            evidence="emitted active-conductor and acquisition declarations",
+            conductor=item.coil_label,
+        )
+        for item in inferred
+        if item.role in {"known_pf", "known_case"}
+    }
+
+    for join in catalog.circuit_current_joins:
+        circuit = circuit_index[join.circuit_identifier]
+        if circuit in drives:
+            raise GeometryAdapterError(
+                f"circuit current join {join.circuit_identifier!r} duplicates an "
+                "active-conductor drive"
+            )
+        drives[circuit] = CircuitDrive(
+            circuit=circuit,
+            channel=join.current_channel,
+            ampere_turns_per_ampere=ampere_turns_by_circuit[circuit],
+            evidence=join.evidence,
+            conductor=join.conductor_identifier,
+        )
+    return [drives[circuit] for circuit in sorted(drives)]
 
 
 def _sensor_map_for_acquisition(
@@ -748,6 +810,13 @@ def geometry_table_from_description(
     filaments, active_circuits, topology_notices = _pf_filaments(
         catalog, description, conductors, acquisition
     )
+    circuit_drives = _materialise_circuit_drives(
+        catalog,
+        topology,
+        filaments,
+        active_circuits,
+        acquisition,
+    )
     limiter_r, limiter_z = _limiter(description)
     sensor_map, missing_sensor_coordinates = _sensor_map_for_acquisition(
         (*b_mappings, *flux_mappings), acquisition
@@ -789,7 +858,7 @@ def geometry_table_from_description(
         minor_radius=float("nan"),
         provenance_flags=notices,
         active_circuits=active_circuits,
-        circuit_drives=[],
+        circuit_drives=circuit_drives,
         polygon_sections=_polygon_sections(supplement, topology),
     )
 

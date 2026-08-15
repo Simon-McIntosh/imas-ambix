@@ -30,9 +30,11 @@ from imas_ambix.gs.operator import build_operator, classify_circuits
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 LEVEL1_ROOT = Path("/work/projects/imas_gpu/mast/level1/shots")
 RANGE_FIRST_SHOTS = (11_766, 12_417)
-PREVIOUS_PARITY_COUNTS = {"matching": 4, "differing": 8, "missing": 5}
-PREVIOUS_OPERATOR_COLUMN_COUNT = 231
+BASELINE_PARITY_COUNTS = {"matching": 8, "differing": 8, "missing": 1}
+MATERIALISED_PARITY_COUNTS = {"matching": 7, "differing": 9, "missing": 1}
+BASELINE_OPERATOR_COLUMN_COUNT = 231
 LEGACY_OPERATOR_COLUMN_COUNT = 251
+BASELINE_DIFFERING_CELL_COUNTS = {11_766: 20_238, 12_417: 24_254}
 COLUMN_ADDING = "column-adding"
 COLUMN_MODIFYING = "column-modifying"
 COLUMN_UNCHANGED = "neither"
@@ -100,6 +102,12 @@ _NONMATCHING_FIELDS = {
         "representation-divergence",
         "the DD description distinguishes actively supplied conductors while the "
         "legacy table leaves that classification implicit",
+    ),
+    "circuit_drives": _ExpectedDivergence(
+        "differing",
+        "representation-divergence",
+        "the catalog declares circuit-to-current joins while the legacy reader "
+        "leaves those drive identities implicit",
     ),
 }
 
@@ -208,6 +216,7 @@ def _baseline_projection_table(
         adapted,
         pf_filaments=filaments,
         active_circuits=active_circuits,
+        circuit_drives=[],
     )
 
 
@@ -281,6 +290,21 @@ def test_adapter_accounts_for_every_legacy_geometry_field() -> None:
             assert resolution.conductor_identifiers
         assert len(adapted.flux_loops) == 46
         _assert_exact(adapted.pf_filaments, reordered.pf_filaments)
+        _assert_exact(adapted.circuit_drives, reordered.circuit_drives)
+        drives_by_circuit = {item.circuit: item for item in adapted.circuit_drives}
+        assert len(drives_by_circuit) == len(adapted.circuit_drives) == 21
+        joined_channels = {}
+        for join in catalog.circuit_current_joins:
+            circuit = circuit_indices[join.circuit_identifier]
+            drive = drives_by_circuit[circuit]
+            assert drive.channel == join.current_channel
+            assert drive.conductor == join.conductor_identifier
+            assert drive.evidence == join.evidence
+            joined_channels[join.circuit_identifier] = drive.channel
+        assert len(joined_channels) == 8
+        assert all(
+            drive.ampere_turns_per_ampere > 0 for drive in adapted.circuit_drives
+        )
         print(
             "GEOMETRY_ADAPTER_JOIN "
             f"shot={shot} topology_rows={len(topology.connections)} "
@@ -322,17 +346,18 @@ def test_adapter_accounts_for_every_legacy_geometry_field() -> None:
 
         assert "adapter-incorrect" not in classified_causes
         assert sum(counts.values()) == len(table_fields)
+        assert counts == MATERIALISED_PARITY_COUNTS
         signature_equal = adapted.signature.key == legacy.signature.key
         deltas = {
-            status: counts[status] - PREVIOUS_PARITY_COUNTS[status] for status in counts
+            status: counts[status] - BASELINE_PARITY_COUNTS[status] for status in counts
         }
         print(
             "GEOMETRY_ADAPTER_PARITY "
             f"shot={shot} matching={counts['matching']} "
             f"differing={counts['differing']} missing={counts['missing']} "
-            f"previous_matching={PREVIOUS_PARITY_COUNTS['matching']} "
-            f"previous_differing={PREVIOUS_PARITY_COUNTS['differing']} "
-            f"previous_missing={PREVIOUS_PARITY_COUNTS['missing']} "
+            f"previous_matching={BASELINE_PARITY_COUNTS['matching']} "
+            f"previous_differing={BASELINE_PARITY_COUNTS['differing']} "
+            f"previous_missing={BASELINE_PARITY_COUNTS['missing']} "
             f"delta_matching={deltas['matching']:+d} "
             f"delta_differing={deltas['differing']:+d} "
             f"delta_missing={deltas['missing']:+d} adapter_incorrect=0"
@@ -380,6 +405,14 @@ def test_adapter_accounts_for_every_legacy_geometry_field() -> None:
         baseline_columns = sum(shape[1] for shape in baseline_blocks)
         adapted_columns = operator_receipt.greens.adapted_shape[1]
         legacy_columns = operator_receipt.greens.legacy_shape[1]
+        adapted_block_columns = tuple(
+            shape[1] for shape in operator_receipt.greens.adapted_block_shapes
+        )
+        legacy_block_columns = tuple(
+            shape[1] for shape in operator_receipt.greens.legacy_block_shapes
+        )
+        current_differing_cells = operator_receipt.greens.differing_cell_count
+        previous_differing_cells = BASELINE_DIFFERING_CELL_COUNTS[shot]
 
         assert len(resolutions) == 28
         assert sum(effect_counts.values()) == 28
@@ -424,10 +457,13 @@ def test_adapter_accounts_for_every_legacy_geometry_field() -> None:
             f"neither={effect_counts[COLUMN_UNCHANGED]} "
             f"total={sum(effect_counts.values())}"
         )
-        assert baseline_columns == PREVIOUS_OPERATOR_COLUMN_COUNT
+        assert baseline_columns == BASELINE_OPERATOR_COLUMN_COUNT
         assert legacy_columns == LEGACY_OPERATOR_COLUMN_COUNT
         assert adapted_columns == legacy_columns
         assert adapted_columns - baseline_columns == effect_counts[COLUMN_ADDING]
+        assert adapted_block_columns == legacy_block_columns == (21, 84, 146)
+        assert sum(adapted_block_columns) == 251
+        assert operator_receipt.greens.nonfinite_mismatch_count == 0
         assert operator_receipt.unattributed_count == 0
         assert operator_receipt.unattributed_metrics == ()
         print(
@@ -438,6 +474,11 @@ def test_adapter_accounts_for_every_legacy_geometry_field() -> None:
             f"baseline_blocks={baseline_blocks} "
             f"adapted_blocks={operator_receipt.greens.adapted_block_shapes} "
             f"legacy_blocks={operator_receipt.greens.legacy_block_shapes} "
-            f"differing_cells={operator_receipt.greens.differing_cell_count} "
+            f"differing_cells={current_differing_cells} "
+            f"previous_differing_cells={previous_differing_cells} "
+            f"differing_cells_delta="
+            f"{current_differing_cells - previous_differing_cells:+d} "
+            f"nonfinite_mismatches="
+            f"{operator_receipt.greens.nonfinite_mismatch_count} "
             f"unattributed_count={operator_receipt.unattributed_count}"
         )
