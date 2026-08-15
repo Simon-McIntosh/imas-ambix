@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ import pytest
 import zarr
 from imas.ids_struct_array import IDSStructArray
 
+from imas_ambix.data.geometry_adapter import geometry_table_from_description
 from imas_ambix.data.geometry_transitions import (
     build_geometry_transitions,
     load_geometry_table_payload,
@@ -28,10 +30,13 @@ from imas_ambix.data.machine_map import (
     map_for_shot,
 )
 from imas_ambix.data.manifest import load_index
+from imas_ambix.data.operator_parity import compare_operator_parity
 from imas_ambix.data.transform_engine import (
     BindingTransformError,
     transform_machine_description,
 )
+from imas_ambix.gs.geometry import CircuitDrive, build_table_for_shot
+from imas_ambix.gs.operator import classify_circuits
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 MACHINE_DESCRIPTION_GROUPS = ("magnetics", "pf_active", "pf_passive", "wall")
@@ -59,6 +64,16 @@ PASSIVE_LOOP_FAMILIES = (
     "uhorw",
     "vertw",
 )
+CASE_CURRENT_JOINS = {
+    "fcoil-circuit-014": "p2u_case_current",
+    "fcoil-circuit-015": "p2l_case_current",
+    "fcoil-circuit-016": "p3u_case_current",
+    "fcoil-circuit-017": "p3l_case_current",
+    "fcoil-circuit-018": "p4u_case_current",
+    "fcoil-circuit-019": "p4l_case_current",
+    "fcoil-circuit-020": "p5u_case_current",
+    "fcoil-circuit-021": "p5l_case_current",
+}
 LEGACY_DESCRIPTION_FIELDS = (
     "magpr_r",
     "magpr_z",
@@ -148,6 +163,7 @@ def _plasma_current_catalog_document(source_cocos: int) -> dict[str, Any]:
     document["maps"] = [machine_map]
     document["validation_gaps"] = []
     document["source_qualifications"] = []
+    document["circuit_current_joins"] = []
     document["drive_topologies"] = []
     document["structure_assemblies"] = []
     document["acquisition_declarations"] = []
@@ -196,6 +212,7 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
     assert schema["classes"]["MachineMapCatalog"]["tree_root"] is True
     assert "SourceQualification" in schema["classes"]
     assert "CircuitConnection" in schema["classes"]
+    assert "CircuitCurrentJoin" in schema["classes"]
     assert "AcquisitionDeclaration" in schema["classes"]
     assert "DescriptionSupplement" in schema["classes"]
     assert "DriveTopology" in schema["classes"]
@@ -203,6 +220,7 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
     assert "PolygonSectionDeclaration" in schema["classes"]
     assert "StructureAssembly" in schema["classes"]
     assert "source_cocos" in schema["classes"]["MachineMapCatalog"]["slots"]
+    assert "circuit_current_joins" in schema["classes"]["MachineMapCatalog"]["slots"]
     assert "source_cocos_override" in schema["classes"]["ChannelBinding"]["slots"]
     assert set(schema["enums"]["BindingRole"]["permissible_values"]) == {
         "value",
@@ -622,6 +640,40 @@ def test_every_legacy_description_field_has_a_binding_or_qualification():
         assert topology.passive_loop_names == PASSIVE_LOOP_FAMILIES
 
 
+def test_case_current_joins_are_explicit_and_resolvable():
+    catalog = load_packaged_machine_map("mast")
+    joins = catalog.circuit_current_joins
+    joins_by_circuit = {item.circuit_identifier: item.current_channel for item in joins}
+
+    assert len(joins) == len(CASE_CURRENT_JOINS) == 8
+    assert joins_by_circuit == CASE_CURRENT_JOINS
+    assert len({item.current_channel for item in joins}) == 8
+    assert len({item.conductor_identifier for item in joins}) == 8
+
+    acquisitions = {
+        item.name: set(item.current_channels)
+        for item in catalog.acquisition_declarations
+    }
+    for topology in catalog.drive_topologies:
+        topology_circuits = {item.circuit_identifier for item in topology.connections}
+        assert set(CASE_CURRENT_JOINS).issubset(topology_circuits)
+        assert set(CASE_CURRENT_JOINS.values()).issubset(
+            acquisitions[topology.current_channel_declaration]
+        )
+    for join in joins:
+        assert join.conductor_identifier == (
+            f"mast-pf-passive-coil-cases/{join.current_channel}"
+        )
+        assert join.current_channel in join.evidence
+        print(
+            "CASE_CURRENT_JOIN "
+            f"circuit={join.circuit_identifier} channel={join.current_channel} "
+            f"conductor={join.conductor_identifier}"
+        )
+
+    assert load_packaged_machine_map("diii-d").circuit_current_joins == ()
+
+
 @pytest.mark.skipif(
     not all((LEVEL2_ROOT / f"{shot}.zarr").is_dir() for shot in (11_766, 12_417)),
     reason="local level-2 geometry stores are not mounted",
@@ -726,6 +778,116 @@ def test_range_declarations_join_topology_and_supply_legacy_fields():
             f"unmatched={len(acquisition.unmatched_sensor_addresses)} "
             f"polygons={len(supplement.polygon_sections)} r0="
             f"{supplement.reference_radius} minor_radius=qualified"
+        )
+
+
+@pytest.mark.skipif(
+    not all((LEVEL2_ROOT / f"{shot}.zarr").is_dir() for shot in (11_766, 12_417)),
+    reason="local level-2 geometry stores are not mounted",
+)
+def test_case_current_joins_restore_the_operator_block_split():
+    catalog = load_packaged_machine_map("mast")
+    topologies = {item.name: item for item in catalog.drive_topologies}
+
+    for machine_map in catalog.maps:
+        shot = machine_map.first_shot
+        description = transform_machine_description(catalog, shot, "zarr", LEVEL2_ROOT)
+        adapted = geometry_table_from_description(description, catalog)
+        legacy = build_table_for_shot(shot)
+        topology = topologies[machine_map.drive_topology]
+        circuit_order = tuple(
+            dict.fromkeys(item.circuit_identifier for item in topology.connections)
+        )
+        circuit_index = {
+            identifier: index + 1 for index, identifier in enumerate(circuit_order)
+        }
+
+        existing_classes = classify_circuits(
+            adapted.pf_filaments,
+            adapted.amc_current_channels,
+            adapted.active_circuits,
+            adapted.circuit_drives,
+        )
+        existing_drives = [
+            CircuitDrive(
+                circuit=item.circuit,
+                channel=item.amc_channel,
+                ampere_turns_per_ampere=sum(
+                    filament.turns * filament.xmult
+                    for filament in adapted.pf_filaments
+                    if filament.circuit == item.circuit
+                ),
+                evidence="emitted active-conductor and acquisition declarations",
+                conductor=item.coil_label,
+            )
+            for item in existing_classes
+            if item.role in {"known_pf", "known_case"}
+        ]
+        assert len(existing_drives) == 13
+
+        case_drives = []
+        for join in catalog.circuit_current_joins:
+            connections = [
+                item
+                for item in topology.connections
+                if item.circuit_identifier == join.circuit_identifier
+            ]
+            assert connections
+            case_drives.append(
+                CircuitDrive(
+                    circuit=circuit_index[join.circuit_identifier],
+                    channel=join.current_channel,
+                    ampere_turns_per_ampere=sum(
+                        item.turns * item.direction for item in connections
+                    ),
+                    evidence=join.evidence,
+                    conductor=join.conductor_identifier,
+                )
+            )
+        assert len(case_drives) == 8
+        assert {item.circuit for item in existing_drives}.isdisjoint(
+            item.circuit for item in case_drives
+        )
+
+        joined = replace(
+            adapted,
+            circuit_drives=[*existing_drives, *case_drives],
+        )
+        joined_classes = classify_circuits(
+            joined.pf_filaments,
+            joined.amc_current_channels,
+            joined.active_circuits,
+            joined.circuit_drives,
+        )
+        classes_by_circuit = {item.circuit: item for item in joined_classes}
+        remaining_discrepancies = []
+        for circuit_identifier, expected_channel in CASE_CURRENT_JOINS.items():
+            circuit_class = classes_by_circuit[circuit_index[circuit_identifier]]
+            if (
+                circuit_class.role != "known_case"
+                or circuit_class.amc_channel != expected_channel
+            ):
+                remaining_discrepancies.append(circuit_identifier)
+        assert remaining_discrepancies == []
+
+        receipt = compare_operator_parity(shot, joined, legacy)
+        adapted_columns = tuple(
+            shape[1] for shape in receipt.greens.adapted_block_shapes
+        )
+        legacy_columns = tuple(shape[1] for shape in receipt.greens.legacy_block_shapes)
+        assert adapted_columns == legacy_columns == (21, 84, 146)
+        assert sum(adapted_columns) == sum(legacy_columns) == 251
+        assert receipt.unattributed_count == 0
+        assert receipt.unattributed_metrics == ()
+        print(
+            "CASE_CURRENT_OPERATOR_SPLIT "
+            f"shot={shot} adapted_driven={adapted_columns[0]} "
+            f"adapted_plasma={adapted_columns[1]} "
+            f"adapted_passive={adapted_columns[2]} "
+            f"legacy_driven={legacy_columns[0]} legacy_plasma={legacy_columns[1]} "
+            f"legacy_passive={legacy_columns[2]} total={sum(adapted_columns)} "
+            f"unattributed={receipt.unattributed_count} "
+            f"remaining={','.join(remaining_discrepancies) or 'none'}"
         )
 
 

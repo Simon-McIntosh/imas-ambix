@@ -5,7 +5,7 @@ description: >-
   Range-scoped bindings from immutable store arrays to Data Dictionary leaves.
   The schema deliberately has no condition, expression, or code-hook slot.
 license: LGPL-3.0-or-later
-version: 1.6.0
+version: 1.7.0
 prefixes:
   linkml: https://w3id.org/linkml/
   mm: https://imas-ambix.example/schema/machine-map/
@@ -94,6 +94,10 @@ slots:
     range: SourceQualification
     multivalued: true
     inlined_as_list: true
+  circuit_current_joins:
+    range: CircuitCurrentJoin
+    multivalued: true
+    inlined_as_list: true
   drive_topologies:
     range: DriveTopology
     multivalued: true
@@ -178,6 +182,10 @@ slots:
     inlined_as_list: true
     required: true
   circuit_identifier:
+    required: true
+  current_channel:
+    required: true
+  conductor_identifier:
     required: true
   supply_identifier:
     required: true
@@ -355,6 +363,16 @@ classes:
       - geometry_element_identifier
       - turns
       - direction
+  CircuitCurrentJoin:
+    description: >-
+      Joins one stable circuit identity to the measured current channel and
+      conductor identity that supply it. The declaration is shared by every
+      shot-selected topology that contains the circuit.
+    slots:
+      - circuit_identifier
+      - current_channel
+      - conductor_identifier
+      - evidence
   StructureAssembly:
     description: >-
       Assembles source bindings into repeated Data Dictionary structures and
@@ -429,6 +447,7 @@ classes:
       - maps
       - validation_gaps
       - source_qualifications
+      - circuit_current_joins
       - drive_topologies
       - structure_assemblies
       - acquisition_declarations
