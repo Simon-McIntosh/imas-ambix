@@ -22,10 +22,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-15">
-<meta name="plan-version" content="25">
+<meta name="plan-version" content="26">
 <meta name="plan-commits" content="c3cdba3e01ce3bd7e862003790691f3ef7d5114f,d73a16e0c04a9851396d264779a5d16253f25b64,e331207548de5bfe8674f5acbb4325e697bd6cc9,0666e54f04a68504cfd883d0d2b08f1dac796afe,12661d1f44cdc6a944e1ab911543777d1b3ddbeb,ad515a92f902bdacf06057ff20a54e21970ed13e,104626c7be53c58fd713747607e820022f9a2d75,658ef24e9772d928f22a67950e11796af1b3bd2b,f525e7fd6d2f21bebd2c5a926f48062c5ad5b9be,4af4c11cc70c56ef569b7f2ad87af18a60a63c7d,77d9e3d594de1a499dc4bda3605bc929513dc6c8,714390ecfc9e425f9f84d54b71f3b86bb7c8dce7,887e634e49a5c7f5d315d7bf15a113c85cc9722c,2e03e95adde3bdb78282b345908de175fd14efe6,048cbe201817b15b4b19a5cc2e99dfa0dba70ec6,08e86fb681e4c762d776b630a514af80d869e0e1">
 <meta name="plan-artifacts" content="docs/evidence/archive/machine-map-transform-engine-landed.html,imas_ambix/data/geometry_transitions.py,imas_ambix/data/machine_map.py,imas_ambix/data/machine_maps/schema.yaml,imas_ambix/data/machine_maps/mast.json,imas_ambix/data/machine_maps/diii-d.json,imas_ambix/data/transform_engine.py,tests/data/test_geometry_transitions.py,tests/data/test_machine_map.py,tests/data/test_transform_engine.py">
-<meta name="plan-impl" content="0.917">
+<meta name="plan-impl" content="0.933">
 </head>
 <body>
   <main class="plan-doc">
@@ -284,6 +284,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20260815-mmte-case-circuit-join" data-who="reckon-ship" data-when="2026-08-15">
     <div class="r-comment-body">mmte-case-circuit-join landed — commit 9bab6db; gate driven-passive-classification PASSED. THE BLOCK STRUCTURE NOW MATCHES LEGACY EXACTLY on both range-first shots: 21 driven + 84 plasma + 146 passive = 251, against the previous adapted 13 driven + 154 passive, with remaining discrepancies NONE and unattributed metrics 0. So equal column counts are now equal semantics, which is the gap flagged when the columns node landed. Schema 1.7.0 adds CircuitCurrentJoin; 8 declarations join fcoil-circuit-014 through -021 to p2u_case_current, p2l_case_current, p3u_case_current, p3l_case_current, p4u_case_current, p4l_case_current, p5u_case_current and p5l_case_current, with 8 unique channels and 8 unique conductor identities. The loader verifies every joined circuit across all 3 MAST drive topologies and every joined channel in each topology's range-selected acquisition, so the join is validated against the whole catalog rather than the two selected ranges alone. DIII-D declares 0 joins. linkml-validate exit 0; 20 passed in 714.55s; 2 tests added. Carried: the adapter must still materialise catalog.circuit_current_joins into GeometryTable.circuit_drives — this node proved the data and its consumer effect through the catalog test but did not touch the fenced adapter path.</div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20260815-mmte-materialise-drives" data-who="reckon-ship" data-when="2026-08-15">
+    <div class="r-comment-body">mmte-materialise-drives landed — commit e052eae; gate drives-from-adapter PASSED. The 21/146 split now arises from the ADAPTER'S OWN OUTPUT rather than from a test applying catalog declarations: geometry_table_from_description returns 21 CircuitDrive records — 13 emitted active-conductor drives plus the 8 catalog circuit-current joins — with circuit indices following the selected topology and all 21 ampere-turn weights derived from selected-topology turns multiplied by connection direction, which is the positive-turns-with-circuit-direction decision reaching the consumer. Blocks 21 driven + 84 plasma + 146 passive = 251 on both shots, 0 non-finite, 0 unattributed, 0 machine-name conditional hits. Aligned differing cells IMPROVE: 20,238 to 19,986 at 11766 (delta -252) and 24,254 to 24,232 at 12417 (delta -22). A HEADLINE NUMBER MOVED BACKWARDS WHILE THE STATE IMPROVED, and it should be read carefully rather than as a regression: field parity goes 8 matching / 8 differing / 1 missing to 7 / 9 / 1 because circuit_drives moves from empty-and-therefore-equal to declared-and-different. Its earlier match was VACUOUS — two empty collections compare equal — so populating the field correctly converted a meaningless agreement into a real, attributable difference. adapter-incorrect remains 0. This is the same class of trap as a frozen count: a metric that rewards absence.</div>
 </div>
 </section>
 </main>
