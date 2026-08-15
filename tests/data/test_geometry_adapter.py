@@ -14,6 +14,7 @@ import numpy as np
 import pytest
 
 import imas_ambix.data.geometry_adapter as adapter_module
+import imas_ambix.gs.geometry as geometry_module
 from imas_ambix.data.geometry_adapter import (
     CURRENT_SOURCE_ABSENT,
     CURRENT_SOURCE_NEEDS_DECLARATION,
@@ -30,6 +31,7 @@ from imas_ambix.gs.operator import build_operator, classify_circuits
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 LEVEL1_ROOT = Path("/work/projects/imas_gpu/mast/level1/shots")
 RANGE_FIRST_SHOTS = (11_766, 12_417)
+LOOP_DIVERGENCE_SHOT = 21_978
 BASELINE_PARITY_COUNTS = {"matching": 8, "differing": 8, "missing": 1}
 MATERIALISED_PARITY_COUNTS = {"matching": 7, "differing": 9, "missing": 1}
 BASELINE_OPERATOR_COLUMN_COUNT = 231
@@ -62,9 +64,10 @@ _NONMATCHING_FIELDS = {
     ),
     "flux_loops": _ExpectedDivergence(
         "differing",
-        "source-divergence",
-        "the supplement closes the count at 46, but the level-2 point-loop "
-        "coordinates only partially coincide with the legacy efm coordinates",
+        "identity-and-source-divergence",
+        "the supplement closes the count at 46, but duplicated acquisition "
+        "descriptions misidentify legacy loop positions and six signal-matched "
+        "loop identities retain different level-2 and efm coordinates",
     ),
     "pf_filaments": _ExpectedDivergence(
         "differing",
@@ -217,6 +220,182 @@ def _baseline_projection_table(
         pf_filaments=filaments,
         active_circuits=active_circuits,
         circuit_drives=[],
+    )
+
+
+def _signal_matched_efm_indices(
+    shot: int, channels: tuple[str, ...]
+) -> dict[str, tuple[int, float, float]]:
+    """Identify EFM loop columns from the measured signals, not their positions."""
+    amb = geometry_module._open_group(shot, "amb")
+    efm = geometry_module._open_group(shot, "efm")
+    amb_time = np.asarray(amb["time"][:], dtype=np.float64)
+    efm_time = np.asarray(efm["time"][:], dtype=np.float64)
+    efm_signals = np.asarray(efm["silop_x"][:], dtype=np.float64)
+    matched: dict[str, tuple[int, float, float]] = {}
+    for channel in channels:
+        signal = np.asarray(amb[channel][:], dtype=np.float64)
+        sampled = np.interp(
+            efm_time,
+            amb_time,
+            signal,
+            left=np.nan,
+            right=np.nan,
+        )
+        correlations = []
+        for column in efm_signals.T:
+            finite = np.isfinite(sampled) & np.isfinite(column)
+            if (
+                np.count_nonzero(finite) < 3
+                or np.std(sampled[finite]) == 0.0
+                or np.std(column[finite]) == 0.0
+            ):
+                correlations.append(float("-inf"))
+            else:
+                correlations.append(
+                    float(np.corrcoef(sampled[finite], column[finite])[0, 1])
+                )
+        order = np.argsort(correlations)[::-1]
+        matched[channel] = (
+            int(order[0]),
+            correlations[int(order[0])],
+            correlations[int(order[1])],
+        )
+    return matched
+
+
+@pytest.mark.skipif(
+    not (
+        (LEVEL2_ROOT / f"{LOOP_DIVERGENCE_SHOT}.zarr").is_dir()
+        and (LEVEL1_ROOT / f"{LOOP_DIVERGENCE_SHOT}.zarr").is_dir()
+    ),
+    reason="coordinate-divergence level-1 and level-2 stores are not mounted",
+)
+def test_flux_loop_divergence_separates_identity_from_source_geometry() -> None:
+    """Resolve loop identities from their signals before comparing coordinates."""
+    shot = LOOP_DIVERGENCE_SHOT
+    catalog = load_packaged_machine_map("mast")
+    description = transform_machine_description(catalog, shot, "zarr", LEVEL2_ROOT)
+    adapted = geometry_table_from_description(description, catalog)
+    legacy = build_table_for_shot(shot)
+    adapted_loops = {
+        item.amb_channel: item
+        for item in adapted.sensor_map
+        if item.kind == "flux_loop"
+    }
+    legacy_loops = {
+        item.amb_channel: item for item in legacy.sensor_map if item.kind == "flux_loop"
+    }
+    shared = tuple(sorted(adapted_loops.keys() & legacy_loops.keys()))
+    name_matched_separations = {
+        name: float(
+            np.hypot(
+                adapted_loops[name].r - legacy_loops[name].r,
+                adapted_loops[name].z - legacy_loops[name].z,
+            )
+        )
+        for name in shared
+    }
+    initially_differing = tuple(
+        name for name in shared if name_matched_separations[name] > 0.0
+    )
+
+    assert len(shared) == 18
+    assert len(initially_differing) == 15
+    assert max(name_matched_separations.values()) == pytest.approx(2.1679999828338623)
+    for name in initially_differing:
+        level2 = adapted_loops[name]
+        efm = legacy_loops[name]
+        print(
+            "FLUX_LOOP_INITIAL_DIVERGENCE "
+            f"shot={shot} level2_identity={name} "
+            f"efm_identity=silop[{efm.efm_index}] "
+            f"level2_r={level2.r:.15g} level2_z={level2.z:.15g} "
+            f"efm_r={efm.r:.15g} efm_z={efm.z:.15g} "
+            f"separation_m={name_matched_separations[name]:.15g}"
+        )
+
+    signal_matches = _signal_matched_efm_indices(shot, shared)
+    matched_indices = tuple(item[0] for item in signal_matches.values())
+    assert len(set(matched_indices)) == len(matched_indices)
+    assert min(item[1] for item in signal_matches.values()) > 0.99999
+    efm_group = geometry_module._open_group(shot, "efm")
+    efm_r = np.asarray(efm_group["silop_r"][:], dtype=np.float64)
+    efm_z = np.asarray(efm_group["silop_z"][:], dtype=np.float64)
+    assert efm_group["silop_r"].attrs["units"].casefold() == "m"
+    assert efm_group["silop_z"].attrs["units"].casefold() == "m"
+    flux_position_bindings = tuple(
+        binding
+        for bindings in catalog.binding_sets.values()
+        for binding in bindings
+        if binding.source_array in {"flux_loop_r", "flux_loop_z"}
+    )
+    assert flux_position_bindings
+    assert all(
+        binding.source_unit == binding.target_unit == "m"
+        for binding in flux_position_bindings
+    )
+    rematched_separations = {}
+    for name in shared:
+        index, correlation, runner_up = signal_matches[name]
+        level2 = adapted_loops[name]
+        separation = float(np.hypot(level2.r - efm_r[index], level2.z - efm_z[index]))
+        rematched_separations[name] = separation
+        print(
+            "FLUX_LOOP_SIGNAL_IDENTITY "
+            f"shot={shot} level2_identity={name} efm_identity=silop[{index}] "
+            f"correlation={correlation:.15g} runner_up={runner_up:.15g} "
+            f"level2_r={level2.r:.15g} level2_z={level2.z:.15g} "
+            f"efm_r={efm_r[index]:.15g} efm_z={efm_z[index]:.15g} "
+            f"separation_m={separation:.15g}"
+        )
+
+    surviving = tuple(name for name in shared if rematched_separations[name] > 0.0)
+    assert surviving == (
+        "fl_p3l_1",
+        "fl_p3l_4",
+        "fl_p4l_1",
+        "fl_p4l_4",
+        "fl_p5l_1",
+        "fl_p5l_4",
+    )
+    assert len(surviving) == 6
+    assert max(rematched_separations.values()) == pytest.approx(0.43706904604800484)
+    print(
+        "FLUX_LOOP_DIVERGENCE_SUMMARY "
+        f"shot={shot} shared={len(shared)} initial_differing="
+        f"{len(initially_differing)} initial_max_separation_m="
+        f"{max(name_matched_separations.values()):.15g} "
+        f"signal_identity_surviving={len(surviving)} "
+        f"signal_identity_max_separation_m="
+        f"{max(rematched_separations.values()):.15g} "
+        f"identity_resolved={len(initially_differing) - len(surviving)} "
+        "source_geometry=6 ordering=0 units=0"
+    )
+
+    adapted_probes = {
+        item.amb_channel: item for item in adapted.sensor_map if item.kind == "b_probe"
+    }
+    legacy_probes = {
+        item.amb_channel: item for item in legacy.sensor_map if item.kind == "b_probe"
+    }
+    shared_probes = tuple(sorted(adapted_probes.keys() & legacy_probes.keys()))
+    probe_separations = tuple(
+        float(
+            np.hypot(
+                adapted_probes[name].r - legacy_probes[name].r,
+                adapted_probes[name].z - legacy_probes[name].z,
+            )
+        )
+        for name in shared_probes
+    )
+    assert len(shared_probes) == 76
+    assert np.count_nonzero(probe_separations) == 0
+    assert max(probe_separations, default=0.0) == 0.0
+    print(
+        "PROBE_DIVERGENCE_SUMMARY "
+        f"shot={shot} shared={len(shared_probes)} differing=0 "
+        "max_separation_m=0"
     )
 
 
