@@ -81,7 +81,8 @@ def test_library_description_reader_census_is_zero() -> None:
 
     print(
         "DESCRIPTION_READER_CENSUS "
-        f"library={len(library)} scripts={len(scripts)} total={len(library) + len(scripts)}"
+        f"library={len(library)} scripts={len(scripts)} "
+        f"total={len(library) + len(scripts)}"
     )
     assert library == ()
     assert len(scripts) == 33
@@ -125,3 +126,38 @@ def test_real_description_supplies_every_probe_axis_and_acquisition_address() ->
         "reviewed MAST acquisition-address convention" in item
         for item in table.provenance_flags
     )
+
+
+def test_enkf_operator_uses_declared_target_and_representative(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import imas_ambix.data.description_reader as reader
+    import imas_ambix.gs.operator as operator_module
+    from imas_ambix.statespace.enkf_baseline import _operator_for_shot
+
+    reads: list[int] = []
+
+    def declared_table(shot: int) -> SimpleNamespace:
+        reads.append(int(shot))
+        return SimpleNamespace(
+            shot=int(shot),
+            signature=SimpleNamespace(key="mast-declared"),
+        )
+
+    monkeypatch.setattr(reader, "read_geometry_table", declared_table)
+    monkeypatch.setattr(
+        operator_module,
+        "build_operator",
+        lambda table: ("declared-operator", table.shot),
+    )
+
+    cache: dict[str, object] = {}
+    built = _operator_for_shot(
+        21_978,
+        cache,
+        reps={"mast-declared": [21_983]},
+    )
+
+    assert built == ("declared-operator", 21_983)
+    assert cache == {"mast-declared": built}
+    assert reads == [21_978, 21_983]
