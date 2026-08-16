@@ -15,11 +15,12 @@ from imas_ambix.cocos import (
     require_canonical_contract,
 )
 from imas_ambix.data.cocos_convention import (
-    MAST_SOURCE_COCOS as MEASURED_MAST_SOURCE_COCOS,
+    MAST_SOURCE_COCOS as DECLARED_MAST_SOURCE_COCOS,
 )
 
-MEASURED_CONVENTION_RECEIPT = (
-    "the four-shot FAIR-MAST level-2 sign receipt selects COCOS-4"
+SOURCE_CONVENTION_DECLARATION = (
+    "COCOS 3 is an external owner assumption pending a facility statement of "
+    "positive-phi direction, not a measurement"
 )
 
 
@@ -35,18 +36,20 @@ def test_only_an_exact_ddv4_pin_and_cocos_seventeen_are_canonical():
 
 
 def test_mast_scalar_factors_land_on_cocos_seventeen():
-    assert MAST_SOURCE_COCOS == MEASURED_MAST_SOURCE_COCOS, MEASURED_CONVENTION_RECEIPT
+    assert MAST_SOURCE_COCOS == DECLARED_MAST_SOURCE_COCOS == 3, (
+        SOURCE_CONVENTION_DECLARATION
+    )
     psi_factor = canonical_factor("psi_like", source_cocos=MAST_SOURCE_COCOS)
     derivative_factor = canonical_factor("dodpsi_like", source_cocos=MAST_SOURCE_COCOS)
-    assert psi_factor == pytest.approx(-2.0 * np.pi), MEASURED_CONVENTION_RECEIPT
-    assert derivative_factor == pytest.approx(-1.0 / (2.0 * np.pi)), (
-        MEASURED_CONVENTION_RECEIPT
+    assert psi_factor == pytest.approx(2.0 * np.pi), SOURCE_CONVENTION_DECLARATION
+    assert derivative_factor == pytest.approx(1.0 / (2.0 * np.pi)), (
+        SOURCE_CONVENTION_DECLARATION
     )
-    assert canonical_factor("q_like", source_cocos=MAST_SOURCE_COCOS) == 1.0, (
-        MEASURED_CONVENTION_RECEIPT
+    assert canonical_factor("q_like", source_cocos=MAST_SOURCE_COCOS) == -1.0, (
+        SOURCE_CONVENTION_DECLARATION
     )
-    assert canonical_factor("ip_like", source_cocos=MAST_SOURCE_COCOS) == -1.0, (
-        MEASURED_CONVENTION_RECEIPT
+    assert canonical_factor("ip_like", source_cocos=MAST_SOURCE_COCOS) == 1.0, (
+        SOURCE_CONVENTION_DECLARATION
     )
 
 

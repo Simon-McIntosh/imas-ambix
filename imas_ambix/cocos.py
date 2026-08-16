@@ -25,8 +25,12 @@ CANONICAL_COCOS = 17
 CANONICAL_DD_MAJOR = 4
 """Data Dictionary major version served by Ambix."""
 
-MAST_SOURCE_COCOS = 4
-"""Convention selected by the four-shot FAIR-MAST level-2 sign receipt."""
+MAST_SOURCE_COCOS = 3
+"""External owner assumption, not a measurement.
+
+This declaration remains pending a facility statement identifying MAST's
+positive-phi direction.  The level-2 arrays cannot determine that handedness.
+"""
 
 _DD_VERSION = re.compile(r"^(?P<major>[0-9]+)\.(?P<minor>[0-9]+)\.(?P<patch>[0-9]+)$")
 

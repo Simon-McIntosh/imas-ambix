@@ -48,7 +48,7 @@ def test_stored_sign_table_retains_both_handedness_candidates():
     assert len(COCOS_CANDIDATES) == 16
     assert len(scores) == len(COCOS_CANDIDATES)
     assert surviving_conventions(MAST_LEVEL2_SIGN_TABLE) == (3, 4)
-    assert MAST_SOURCE_COCOS == 4
+    assert MAST_SOURCE_COCOS == 3
     assert all(
         next(score for score in scores if score.identifier == candidate).violations
         == ()
@@ -124,6 +124,20 @@ def test_each_coefficient_has_a_binary_evidence_classification_and_exact_sources
     }
 
 
+def test_measured_sigma_bp_is_untouched_by_the_external_handedness_declaration():
+    sigma_bp = next(
+        item for item in COEFFICIENT_ASSESSMENTS if item.coefficient == "sigma_Bp"
+    )
+    candidate_scores = {
+        score.identifier: score for score in score_conventions(MAST_LEVEL2_SIGN_TABLE)
+    }
+
+    assert sigma_bp.classification == "measurable-from-data"
+    assert sigma_bp.value == -1
+    assert {candidate_scores[candidate].sigma_bp for candidate in (3, 4)} == {-1}
+    assert MAST_SOURCE_COCOS == 3
+
+
 def test_relative_sign_products_are_not_promoted_to_individual_handedness():
     products = {item.expression: item for item in RELATIVE_SIGN_PRODUCTS}
 
@@ -161,15 +175,15 @@ def test_inconsistent_sign_table_is_reported_as_no_single_convention():
     assert "0 conventions survive" in format_sign_report(inconsistent)
 
 
-def test_cocos_four_to_seventeen_factors_are_committed_as_data():
+def test_declared_source_to_seventeen_factors_are_committed_as_data():
     assert dict(MAST_TO_COCOS_17_FACTORS) == pytest.approx(
         {
-            "psi_like": -tau,
-            "ip_like": -1.0,
-            "b0_like": -1.0,
-            "q_like": 1.0,
-            "dodpsi_like": -1.0 / tau,
-            "tor_angle_like": -1.0,
+            "psi_like": tau,
+            "ip_like": 1.0,
+            "b0_like": 1.0,
+            "q_like": -1.0,
+            "dodpsi_like": 1.0 / tau,
+            "tor_angle_like": 1.0,
             "pol_angle_like": -1.0,
             "one_like": 1.0,
         }
@@ -203,9 +217,13 @@ def test_report_prints_sources_candidate_pair_and_external_recommendation(capsys
     assert "2 conventions survive: (3, 4)" in report
     assert "no level-2 measurement distinguishes them" in report
     assert "explicit external declaration" in report
-    assert "shipped value 4 is not supported over 3" in report
+    assert "COCOS 3 is an owner assumption" in report
+    assert "pending a facility statement of positive-phi direction" in report
+    assert "not a measurement" in report
     assert "factor +1 to all 3 targets" in report
     assert "factor -1 to all 3 targets" in report
+    assert "moves factor -1 to +1 for each affected target" in report
+    assert "magnetics/ip, pf_active/coil/current, pf_active/solenoid/current" in report
     for assessment in COEFFICIENT_ASSESSMENTS:
         assert assessment.coefficient in report
         for source in assessment.sources:
