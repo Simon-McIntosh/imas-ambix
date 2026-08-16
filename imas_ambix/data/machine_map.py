@@ -10,6 +10,7 @@ No conditional expression or executable hook is accepted.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,6 +31,8 @@ _SIGN_CONVENTIONS = {
 _SOURCE_ROLES = {"value", "identifier", "dimension-coordinate"}
 _SOURCE_STATUSES = {"corpus-observed", "legacy-only"}
 _VALIDATION_STATES = {"corpus-validated", "source-only"}
+_IDENTITY_CASE_RULES = {"case-fold"}
+_IDENTITY_NUMERIC_TOKEN_RULES = {"integer-value"}
 _COCOS_IDENTIFIERS = {*range(1, 9), *range(11, 19)}
 _UNDECLARED_COCOS = 0
 
@@ -295,6 +298,95 @@ class SourceQualification:
 
 
 @dataclass(frozen=True)
+class SensorIdentityRule:
+    """Declarative canonicalisation shared by acquisition sensor identities."""
+
+    name: str
+    case_rule: str
+    numeric_token_rule: str
+    evidence: str
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any], label: str) -> SensorIdentityRule:
+        required = {"name", "case_rule", "numeric_token_rule", "evidence"}
+        _exact_keys(payload, required, set(), label)
+        case_rule = _text(payload["case_rule"], f"{label}.case_rule")
+        numeric_token_rule = _text(
+            payload["numeric_token_rule"], f"{label}.numeric_token_rule"
+        )
+        if case_rule not in _IDENTITY_CASE_RULES:
+            raise MachineMapError(
+                f"{label}.case_rule must be one of {sorted(_IDENTITY_CASE_RULES)}"
+            )
+        if numeric_token_rule not in _IDENTITY_NUMERIC_TOKEN_RULES:
+            raise MachineMapError(
+                f"{label}.numeric_token_rule must be one of "
+                f"{sorted(_IDENTITY_NUMERIC_TOKEN_RULES)}"
+            )
+        return cls(
+            name=_text(payload["name"], f"{label}.name"),
+            case_rule=case_rule,
+            numeric_token_rule=numeric_token_rule,
+            evidence=_text(payload["evidence"], f"{label}.evidence"),
+        )
+
+    def normalise(self, identity: str) -> str:
+        """Apply the declared case and numeric-token rules to one identity."""
+        normalised = _text(identity, "sensor identity")
+        if self.case_rule == "case-fold":
+            normalised = normalised.casefold()
+        if self.numeric_token_rule == "integer-value":
+            normalised = re.sub(
+                r"\d+", lambda match: str(int(match.group())), normalised
+            )
+        return normalised
+
+
+@dataclass(frozen=True)
+class IdentityQualification:
+    """One upstream spelling repaired by a declared sensor-identity rule."""
+
+    name: str
+    source_location: str
+    malformed_identity: str
+    canonical_identity: str
+    sensor_identity_rule: str
+    reason: str
+    evidence: str
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any], label: str) -> IdentityQualification:
+        required = {
+            "name",
+            "source_location",
+            "malformed_identity",
+            "canonical_identity",
+            "sensor_identity_rule",
+            "reason",
+            "evidence",
+        }
+        _exact_keys(payload, required, set(), label)
+        source_location = _text(payload["source_location"], f"{label}.source_location")
+        if "://" not in source_location:
+            raise MachineMapError(f"{label}.source_location must be an absolute URI")
+        return cls(
+            name=_text(payload["name"], f"{label}.name"),
+            source_location=source_location,
+            malformed_identity=_text(
+                payload["malformed_identity"], f"{label}.malformed_identity"
+            ),
+            canonical_identity=_text(
+                payload["canonical_identity"], f"{label}.canonical_identity"
+            ),
+            sensor_identity_rule=_text(
+                payload["sensor_identity_rule"], f"{label}.sensor_identity_rule"
+            ),
+            reason=_text(payload["reason"], f"{label}.reason"),
+            evidence=_text(payload["evidence"], f"{label}.evidence"),
+        )
+
+
+@dataclass(frozen=True)
 class CircuitCurrentJoin:
     """One circuit's explicit measured-current and conductor identity."""
 
@@ -495,6 +587,7 @@ class AcquisitionDeclaration:
     name: str
     source_location: str
     sensor_identity_key: str
+    sensor_identity_rule: str
     current_channels: tuple[str, ...]
     sensor_addresses: tuple[str, ...]
     unmatched_sensor_addresses: tuple[str, ...]
@@ -508,6 +601,7 @@ class AcquisitionDeclaration:
             "name",
             "source_location",
             "sensor_identity_key",
+            "sensor_identity_rule",
             "current_channels",
             "sensor_addresses",
             "unmatched_sensor_addresses",
@@ -534,6 +628,9 @@ class AcquisitionDeclaration:
             source_location=source_location,
             sensor_identity_key=_text(
                 payload["sensor_identity_key"], f"{label}.sensor_identity_key"
+            ),
+            sensor_identity_rule=_text(
+                payload["sensor_identity_rule"], f"{label}.sensor_identity_rule"
             ),
             current_channels=_text_tuple(
                 payload["current_channels"], f"{label}.current_channels"
@@ -722,6 +819,8 @@ class MachineMapCatalog:
     maps: tuple[MachineMap, ...]
     validation_gaps: tuple[ValidationGap, ...]
     source_qualifications: tuple[SourceQualification, ...]
+    sensor_identity_rules: tuple[SensorIdentityRule, ...]
+    identity_qualifications: tuple[IdentityQualification, ...]
     drive_topologies: tuple[DriveTopology, ...]
     structure_assemblies: tuple[StructureAssembly, ...]
     acquisition_declarations: tuple[AcquisitionDeclaration, ...]
@@ -737,6 +836,25 @@ class MachineMapCatalog:
     def bindings_for(self, machine_map: MachineMap) -> tuple[ChannelBinding, ...]:
         """Resolve the binding set selected by ``machine_map``."""
         return self.binding_sets[machine_map.binding_set]
+
+    def normalise_sensor_identity(
+        self, acquisition: AcquisitionDeclaration, identity: str
+    ) -> str:
+        """Resolve one acquisition identity through its declared reusable rule."""
+        rule = next(
+            (
+                item
+                for item in self.sensor_identity_rules
+                if item.name == acquisition.sensor_identity_rule
+            ),
+            None,
+        )
+        if rule is None:
+            raise MachineMapError(
+                f"acquisition {acquisition.name!r} references unknown sensor identity "
+                f"rule {acquisition.sensor_identity_rule!r}"
+            )
+        return rule.normalise(identity)
 
     @property
     def bound_channel_count(self) -> int:
@@ -780,10 +898,12 @@ def load_linkml_schema(path: Path | str = LINKML_SCHEMA_PATH) -> Mapping[str, An
         "CircuitConnection",
         "DescriptionSupplement",
         "DriveTopology",
+        "IdentityQualification",
         "MachineMap",
         "PointFluxLoopDeclaration",
         "PolygonSectionDeclaration",
         "SourceQualification",
+        "SensorIdentityRule",
         "StructureAssembly",
         "ValidationGap",
         "MachineMapCatalog",
@@ -817,6 +937,8 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
         "maps",
         "validation_gaps",
         "source_qualifications",
+        "sensor_identity_rules",
+        "identity_qualifications",
         "circuit_current_joins",
         "drive_topologies",
         "structure_assemblies",
@@ -919,6 +1041,53 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
     if qualified_sources.intersection(bound_sources):
         raise MachineMapError("qualified source arrays must not also be bound")
 
+    identity_rules_raw = payload["sensor_identity_rules"]
+    if not isinstance(identity_rules_raw, list):
+        raise MachineMapError("sensor_identity_rules must be a list")
+    identity_rules = tuple(
+        SensorIdentityRule.from_dict(
+            _object(entry, f"sensor_identity_rules[{index}]"),
+            f"sensor_identity_rules[{index}]",
+        )
+        for index, entry in enumerate(identity_rules_raw)
+    )
+    identity_rule_names = [item.name for item in identity_rules]
+    if len(identity_rule_names) != len(set(identity_rule_names)):
+        raise MachineMapError("sensor identity rule names must be unique")
+
+    identity_qualifications_raw = payload["identity_qualifications"]
+    if not isinstance(identity_qualifications_raw, list):
+        raise MachineMapError("identity_qualifications must be a list")
+    identity_qualifications = tuple(
+        IdentityQualification.from_dict(
+            _object(entry, f"identity_qualifications[{index}]"),
+            f"identity_qualifications[{index}]",
+        )
+        for index, entry in enumerate(identity_qualifications_raw)
+    )
+    identity_qualification_names = [item.name for item in identity_qualifications]
+    if len(identity_qualification_names) != len(set(identity_qualification_names)):
+        raise MachineMapError("identity qualification names must be unique")
+    identity_rules_by_name = {item.name: item for item in identity_rules}
+    for qualification in identity_qualifications:
+        if qualification.sensor_identity_rule not in identity_rules_by_name:
+            raise MachineMapError(
+                f"identity qualification {qualification.name!r} references unknown "
+                "sensor identity rule"
+            )
+        rule = identity_rules_by_name[qualification.sensor_identity_rule]
+        if qualification.malformed_identity == qualification.canonical_identity:
+            raise MachineMapError(
+                f"identity qualification {qualification.name!r} must change spelling"
+            )
+        if rule.normalise(qualification.malformed_identity) != rule.normalise(
+            qualification.canonical_identity
+        ):
+            raise MachineMapError(
+                f"identity qualification {qualification.name!r} is not resolved by "
+                f"rule {rule.name!r}"
+            )
+
     topologies_raw = payload["drive_topologies"]
     if not isinstance(topologies_raw, list):
         raise MachineMapError("drive_topologies must be a list")
@@ -993,6 +1162,32 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
     acquisition_names = [item.name for item in acquisitions]
     if len(acquisition_names) != len(set(acquisition_names)):
         raise MachineMapError("acquisition declaration names must be unique")
+    for acquisition in acquisitions:
+        if acquisition.sensor_identity_rule not in identity_rules_by_name:
+            raise MachineMapError(
+                f"acquisition declaration {acquisition.name!r} references unknown "
+                "sensor identity rule"
+            )
+        rule = identity_rules_by_name[acquisition.sensor_identity_rule]
+        normalised_addresses = tuple(
+            rule.normalise(address) for address in acquisition.sensor_addresses
+        )
+        if len(normalised_addresses) != len(set(normalised_addresses)):
+            raise MachineMapError(
+                f"acquisition declaration {acquisition.name!r} has colliding "
+                "normalised sensor identities"
+            )
+    declared_sensor_addresses = {
+        address
+        for acquisition in acquisitions
+        for address in acquisition.sensor_addresses
+    }
+    for qualification in identity_qualifications:
+        if qualification.canonical_identity not in declared_sensor_addresses:
+            raise MachineMapError(
+                f"identity qualification {qualification.name!r} canonical identity "
+                "is not declared by an acquisition"
+            )
     for topology in topologies:
         if topology.current_channel_declaration not in acquisition_names:
             raise MachineMapError(
@@ -1093,6 +1288,8 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
         maps=maps,
         validation_gaps=gaps,
         source_qualifications=qualifications,
+        sensor_identity_rules=identity_rules,
+        identity_qualifications=identity_qualifications,
         drive_topologies=topologies,
         structure_assemblies=assemblies,
         acquisition_declarations=acquisitions,

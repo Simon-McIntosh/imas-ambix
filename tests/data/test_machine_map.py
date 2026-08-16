@@ -161,7 +161,7 @@ def _level2_sensor_positions(group: Any) -> dict[str, tuple[float, float]]:
     positions: dict[str, tuple[float, float]] = {}
     for family in LEVEL2_SENSOR_GEOMETRY_FAMILIES:
         names = tuple(
-            str(value).casefold()
+            str(value)
             for value in np.asarray(group[f"{family}_geometry_channel"][:]).reshape(-1)
         )
         radial = np.asarray(group[f"{family}_r"][:], dtype=np.float64).reshape(-1)
@@ -223,6 +223,8 @@ def _plasma_current_catalog_document(source_cocos: int) -> dict[str, Any]:
     document["maps"] = [machine_map]
     document["validation_gaps"] = []
     document["source_qualifications"] = []
+    document["sensor_identity_rules"] = []
+    document["identity_qualifications"] = []
     document["circuit_current_joins"] = []
     document["drive_topologies"] = []
     document["structure_assemblies"] = []
@@ -271,6 +273,8 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
     assert LINKML_SCHEMA_PATH.name == "schema.yaml"
     assert schema["classes"]["MachineMapCatalog"]["tree_root"] is True
     assert "SourceQualification" in schema["classes"]
+    assert "SensorIdentityRule" in schema["classes"]
+    assert "IdentityQualification" in schema["classes"]
     assert "CircuitConnection" in schema["classes"]
     assert "CircuitCurrentJoin" in schema["classes"]
     assert "AcquisitionDeclaration" in schema["classes"]
@@ -283,6 +287,11 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
     assert "circuit_current_joins" in schema["classes"]["MachineMapCatalog"]["slots"]
     assert "source_cocos_override" in schema["classes"]["ChannelBinding"]["slots"]
     assert "sensor_identity_key" in schema["classes"]["AcquisitionDeclaration"]["slots"]
+    assert (
+        "sensor_identity_rule" in schema["classes"]["AcquisitionDeclaration"]["slots"]
+    )
+    assert "sensor_identity_rules" in schema["classes"]["MachineMapCatalog"]["slots"]
+    assert "identity_qualifications" in schema["classes"]["MachineMapCatalog"]["slots"]
     assert set(schema["enums"]["BindingRole"]["permissible_values"]) == {
         "value",
         "identifier",
@@ -291,6 +300,12 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
     assert set(schema["enums"]["SourceStatus"]["permissible_values"]) == {
         "corpus-observed",
         "legacy-only",
+    }
+    assert set(schema["enums"]["IdentityCaseRule"]["permissible_values"]) == {
+        "case-fold"
+    }
+    assert set(schema["enums"]["IdentityNumericTokenRule"]["permissible_values"]) == {
+        "integer-value"
     }
     forbidden = {"condition", "expression", "code_hook", "transform_code"}
     assert forbidden.isdisjoint(schema["slots"])
@@ -662,6 +677,67 @@ def test_full_toroidal_flux_loops_use_acquisition_address_identity():
 
 
 @pytest.mark.skipif(
+    not (LEVEL1_ROOT / "12417.zarr").is_dir()
+    or not (LEVEL2_ROOT / "12417.zarr").is_dir(),
+    reason="local level-1 and level-2 magnetics stores are not mounted",
+)
+def test_declared_identity_rule_closes_the_malformed_flux_loop_spelling():
+    catalog = load_packaged_machine_map("mast")
+    acquisition = next(
+        item for item in catalog.acquisition_declarations if item.name.endswith("12417")
+    )
+    qualification = next(
+        item
+        for item in catalog.identity_qualifications
+        if item.name == "mast-level2-fl-cc010-spelling"
+    )
+
+    assert acquisition.sensor_identity_rule == "mast-acquisition-address"
+    assert qualification.malformed_identity == "FL_CC010"
+    assert qualification.canonical_identity == "fl_cc10"
+    assert qualification.sensor_identity_rule == acquisition.sensor_identity_rule
+
+    def normalise(identity: str) -> str:
+        return catalog.normalise_sensor_identity(acquisition, identity)
+
+    assert normalise(qualification.malformed_identity) == normalise(
+        qualification.canonical_identity
+    )
+    assert normalise("FL_CC001") == normalise("fl_cc1")
+    assert normalise("FL_P06U_001") == normalise("fl_p6u_1")
+
+    level1 = zarr.open_consolidated(LEVEL1_ROOT / "12417.zarr", mode="r")
+    level2 = zarr.open_group(LEVEL2_ROOT / "12417.zarr", mode="r")
+    level1_positions = _level1_sensor_positions(level1["amb"])
+    level2_positions = _level2_sensor_positions(level2["magnetics"])
+    assert qualification.canonical_identity in level1_positions
+    assert qualification.malformed_identity in level2_positions
+
+    declared = set(acquisition.sensor_addresses)
+    raw_level2_identities = {name.casefold() for name in level2_positions}
+    unmatched_before = declared.difference(raw_level2_identities)
+    assert unmatched_before == {"fl_cc10", "fl_p6u_1"}
+
+    normalised_level2 = {normalise(name) for name in level2_positions}
+    assert len(normalised_level2) == len(level2_positions)
+    unmatched_after = {
+        address for address in declared if normalise(address) not in normalised_level2
+    }
+    assert unmatched_after == {"fl_p6u_1"}
+    assert len(unmatched_before) == 2
+    assert len(unmatched_after) == 1
+    print(
+        "SENSOR_IDENTITY_NORMALISATION "
+        f"shot=12417 malformed={qualification.malformed_identity} "
+        f"canonical={qualification.canonical_identity} "
+        f"normalised={normalise(qualification.malformed_identity)} "
+        f"unmatched_before={len(unmatched_before)} "
+        f"unmatched_after={len(unmatched_after)} "
+        f"remaining={tuple(sorted(unmatched_after))}"
+    )
+
+
+@pytest.mark.skipif(
     not all(
         (LEVEL1_ROOT / f"{shot}.zarr").is_dir()
         and (LEVEL2_ROOT / f"{shot}.zarr").is_dir()
@@ -680,33 +756,53 @@ def test_level1_and_level2_geometry_are_compared_by_sensor_identity():
         level2_path = LEVEL2_ROOT / f"{shot}.zarr"
         level1 = zarr.open_consolidated(level1_path, mode="r")
         level2 = zarr.open_group(level2_path, mode="r")
-        level1_positions = _level1_sensor_positions(level1["amb"])
-        level2_positions = _level2_sensor_positions(level2["magnetics"])
+        raw_level1_positions = _level1_sensor_positions(level1["amb"])
+        raw_level2_positions = _level2_sensor_positions(level2["magnetics"])
         acquisition = acquisitions[
             supplements[machine_map.description_supplement].acquisition_declaration
         ]
-        declared_addresses = set(acquisition.sensor_addresses)
+
+        level1_positions = {
+            catalog.normalise_sensor_identity(acquisition, name): position
+            for name, position in raw_level1_positions.items()
+        }
+        level2_positions = {
+            catalog.normalise_sensor_identity(acquisition, name): position
+            for name, position in raw_level2_positions.items()
+        }
+        assert len(level1_positions) == len(raw_level1_positions)
+        assert len(level2_positions) == len(raw_level2_positions)
+        declared_by_identity = {
+            catalog.normalise_sensor_identity(acquisition, address): address
+            for address in acquisition.sensor_addresses
+        }
+        declared_addresses = set(declared_by_identity)
         assert set(level1_positions) == declared_addresses
 
-        shared = tuple(sorted(set(level1_positions) & set(level2_positions)))
+        shared_identities = tuple(sorted(set(level1_positions) & set(level2_positions)))
         separations = {
-            name: float(
+            declared_by_identity[identity]: float(
                 np.hypot(
-                    level1_positions[name][0] - level2_positions[name][0],
-                    level1_positions[name][1] - level2_positions[name][1],
+                    level1_positions[identity][0] - level2_positions[identity][0],
+                    level1_positions[identity][1] - level2_positions[identity][1],
                 )
             )
-            for name in shared
+            for identity in shared_identities
         }
         agreeing = tuple(name for name, value in separations.items() if value == 0.0)
         differing = tuple(name for name, value in separations.items() if value != 0.0)
-        assert len(agreeing) + len(differing) == len(shared)
+        assert len(agreeing) + len(differing) == len(shared_identities)
         assert all(np.isfinite(tuple(separations.values())))
-        missing_level2 = tuple(sorted(declared_addresses.difference(shared)))
+        missing_level2 = tuple(
+            sorted(
+                declared_by_identity[identity]
+                for identity in declared_addresses.difference(shared_identities)
+            )
+        )
         maximum_name = max(separations, key=separations.__getitem__)
         print(
             "LEVEL1_LEVEL2_GEOMETRY_COMPARISON "
-            f"shot={shot} shared={len(shared)} agreeing={len(agreeing)} "
+            f"shot={shot} shared={len(shared_identities)} agreeing={len(agreeing)} "
             f"differing={len(differing)} max_separation_m="
             f"{separations[maximum_name]:.15g} max_identity={maximum_name} "
             f"missing_level2={missing_level2}"
