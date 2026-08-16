@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-16T21:22:47",
+  "updated": "2026-08-16T22:02:19",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -50,7 +50,7 @@
         "id": "spine-restamp",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
+        "session_id": "01a00c09-ae62-74d1-9eb7-4469fa342f44",
         "created": "2026-08-16"
       },
       {
@@ -64,7 +64,7 @@
         "id": "vacuum-adjudication",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
+        "session_id": "01a00c09-c8d6-7a62-9003-7d3d6773f491",
         "created": "2026-08-16"
       }
     ],
@@ -2384,9 +2384,61 @@
           "cost_usd": null,
           "detail": "backend reports token usage but no headroom"
         }
+      },
+      {
+        "run_id": "r-20260816T192559655355-vfpa-adjudicate",
+        "plan": "vacuum-field-position-adjudication",
+        "section": "\u00a73",
+        "node": "vfpa-adjudicate",
+        "role": "implement",
+        "member": "vacuum-adjudication",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-16T19:26:02Z",
+        "completed_at": "2026-08-16T20:00:21Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 2059,
+        "time_budget": "120m",
+        "base_sha": "5f32bc25b0bed18663c53215cb37a8e064fae094",
+        "commits": [
+          "299d370504e22f748910d6fdeccdb42ea56e0347"
+        ],
+        "changed_lines": {
+          "added": 1486,
+          "removed": 0,
+          "files": 4
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/run/user/39486/claude-39486/-home-ITER-mcintos-Code-imas-ambix/e10b64a7-7776-48b7-8fdd-560cedc83446/scratchpad/vfpa-adjudicate-manifest.md",
+        "scope_changed": false,
+        "session_id": "01a00c09-c8d6-7a62-9003-7d3d6773f491",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cached_input_tokens": 12787456,
+            "input_tokens": 13290777,
+            "output_tokens": 72883,
+            "reasoning_output_tokens": 25885
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        }
       }
     ],
     "holds": [],
-    "_version": 59
+    "_version": 62
   }
 }

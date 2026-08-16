@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="vacuum-field-position-adjudication-landed">
+  <meta name="plan-title" content="Vacuum Field Position Adjudication — Measured Evidence">
+  <meta name="plan-summary" content="Execution record for the vacuum-shot adjudication of the 19 disputed flux-loop positions: cohort receipts, per-loop residuals and margins, verdicts, and the catalog feedback.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-recorded-at" content="2026-08-16">
+  <meta name="plan-evidence-for" content="vacuum-field-position-adjudication">
+  <meta name="plan-verifies" content="vacuum-field-position-adjudication#s3">
+  <meta name="plan-verdict" content="in-progress">
+  <meta name="plan-source-quality" content="worker-committed analysis over measured vacuum shots; full receipts and skip ledger in-repo">
+  <title>Vacuum Field Position Adjudication — Measured Evidence | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>Vacuum Field Position Adjudication — Measured Evidence</h1>
+  <p>Cumulative execution record for
+  <a href="/imas-ambix/plans/vacuum-field-position-adjudication">Let the Vacuum Field Decide
+  Where the Sensors Are</a>. One anchor per landed node.</p>
+
+  <h2 id="s3-adjudication">§3 — The measurement adjudicates: 2 nominal-table, 14 reconstruction, 3 null</h2>
+  <p><strong>All 19 disputed loop positions carry a verdict: 2 nominal-table, 14 reconstruction,
+  3 null — counts summing to 19.</strong> The nulls (<code>fl_p2u_2</code> early;
+  <code>fl_p2l_1</code>, <code>fl_p2l_2</code> late) remain explicitly undecided per the locked
+  <code>null-loop-disposition</code> decision. Commit <code>299d370</code> (merged
+  <code>f83292c</code>).</p>
+  <p>The cohort is <strong>37 early-range and 12 late-range dedicated vacuum shots</strong>, every
+  one carrying a directly measured peak |plasma&nbsp;current| receipt below 20&nbsp;kA (observed
+  2.617–19.405&nbsp;kA) — a measured criterion, not an assumed-zero channel. The late cohort
+  retains all six known late vacuum candidates and extends from the full level-1 manifest until
+  every late disputed loop has at least 6 independent shot residuals; a 177-row exclusion ledger
+  records every rejected candidate and why.</p>
+  <p>The two large-separation disputes are decided emphatically for the reconstruction:
+  <code>fl_p4l_1</code> (0.437&nbsp;m separation) with late-range margin
+  +3.93 [+2.09,&nbsp;+5.81] and <code>fl_p4l_4</code> (0.370&nbsp;m) with margin
+  +2.78 [+1.45,&nbsp;+4.17] in leave-one-shot-out normalized RMSE. The two nominal-table wins
+  (<code>fl_p3l_1</code>, <code>fl_p3l_4</code>) are small-separation (~6&nbsp;mm) but their
+  bootstrap intervals exclude zero on the nominal side. Verdicts are directional only when the
+  paired shot-bootstrap 95% interval excludes zero.</p>
+  <figure>
+    <img src="/imas-ambix/figures/vacuum-loop-adjudication/candidate-residual-comparison.png"
+         alt="Per-loop residuals at both candidate positions with inter-candidate margin segments"
+         style="max-width:100%;height:auto">
+    <figcaption>Per-loop residuals at both candidate positions; the connecting segment is the
+    inter-candidate margin. Lower is better.</figcaption>
+  </figure>
+  <p>The arbiter boundary held: the prediction is <strong>PF-only</strong> (measured
+  <code>amc</code> currents, static EFM coil geometry, finite-area cylinder kernel) with no
+  reconstruction quantity entering. Scoring uses one contiguous 0.35&nbsp;s
+  minimum-normalized-|dI/dt| window per shot; neglected passive-eddy flux is common to both
+  candidate positions at fixed time and cancels to first order in the inter-candidate margin. An
+  <code>amm</code>-independence receipt on shot 11766 proved exact equality (max abs difference 0)
+  of the candidate operator built with and without the passive-inventory read. Full 19-row
+  residual/margin/interval table, 49 per-shot measured-current receipts, and the exclusion
+  ledger: <a href="/imas-ambix/notes/vacuum-loop-adjudication">the adjudication note</a>
+  (<code>docs/notes/vacuum-loop-adjudication.md</code>);
+  figures under <code>docs/figures/vacuum-loop-adjudication/</code>.</p>
+  <p>Held open for the catalog-feedback node: apply the 16 directional verdicts to the governed
+  machine-map path as evidence-carrying declarations and qualify the 3 nulls explicitly
+  undecided. Deliberately sequenced after the reader migration completes, because catalog
+  position changes are description-content changes and would confound the per-seam frozen-spine
+  stamps.</p>
+</main>
+</body>
+</html>
