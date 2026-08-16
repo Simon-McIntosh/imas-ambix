@@ -50,10 +50,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from imas_ambix.gs.geometry import (
-    GeometryTable,
-    build_table_for_shot,
-)
+from imas_ambix.data.description_reader import read_geometry_table
+from imas_ambix.gs.geometry import GeometryTable
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -505,13 +503,12 @@ def build_geometry_table(
 ) -> GeometryFields:
     """Build the flat per-channel geometry table for one representative shot.
 
-    Reads ONLY the static efm geometry (via
-    :func:`imas_ambix.gs.geometry.build_table_for_shot`) — no equilibrium /
-    boundary / psi — and flattens it to the per-channel positional substrate.
-    The geometry is per-campaign-constant, so one shot of a campaign is a valid
-    source for that campaign's table.
+    Reads only the declared static machine description — no equilibrium,
+    boundary or psi — and flattens it to the per-channel positional substrate.
+    The selected description is constant across its declared shot range, so one
+    shot is a valid source for that range's table.
     """
-    table = build_table_for_shot(shot_id)
+    table = read_geometry_table(shot_id)
     return build_geometry_fields_from_table(
         table, extra_channel_names=extra_channel_names
     )
