@@ -175,8 +175,36 @@ entered the solenoid at 1/328 of its stated weight and scored 1.210, 63% above
 the reference and eight times the budget.
 
 The choice of budget is a property of the comparison, not of the stamp, so it is
-named at the call: :class:`ComparisonKind` selects which of the two the misfit is
-scored under, and every other tolerance is identical in both.
+named at the call: :class:`ComparisonKind` selects which margin the misfit is
+scored under, and every other tolerance is identical across them.
+
+Migration comparator after correcting sensor identity
+------------------------------------------------------
+The migration comparator is the clean frozen-set stamp
+``physics-spine-v0-mast-heldout-6-3d3ed8c56d-98dci4-clu-3141-efm-campaign-``
+``signal-identity-1d41708300ef.yaml``.  It replaces 14 of 19 flux-loop rows
+whose nearest-description-coordinate join selected the wrong EFM column.  The
+replacement is one-to-one and independent of description coordinates: each raw
+acquisition waveform is bound to its unique highest-correlation ``silop_x``
+column on shot 21978 (minimum winning correlation 0.9999948002).
+
+The corrected residuals are 0.6890842357802178 on ``greens-matvec`` and
+0.6889769655392166 on ``grid-delstar``.  Against the aliased greens reference
+0.7401030841614555 those are signed relative movements of -6.8934786887% and
+-6.9079726482%, respectively.  Both solves still clear all 15 registered
+tolerances.  The stamp does carry a coverage qualification: shots 21985 and
+21986 score five of six attempted slices on each arm.  Because an aggregate
+median of six per-shot fractions can hide those losses, path comparison also
+pins exact per-shot attempted/scored coverage; a migrated seam cannot silently
+lose another slice or change the population being compared.
+
+The per-seam margin is re-derived from this sound pair rather than inherited
+from the aliased pair.  Their relative cross-substrate residual spread is
+0.0155670723%.  The same eight-times safety multiple used to place the prior
+same-source margin above its measured cross-path spread gives
+``MIGRATION_SEAM_RESIDUAL_BUDGET = 0.1245365782%``.  Thus the budget retains the
+gate's established margin mechanism while every numerical input now comes from
+the corrected comparator.
 """
 
 from __future__ import annotations
@@ -209,6 +237,12 @@ BEFORE_PATH_STAMP = "physics-spine-v0-mast-heldout-6-08ae0dee74-98dci4-clu-3141.
 #: Green's columns, so the pair is what makes that derivation reproducible.
 AFTER_PATH_STAMP = "physics-spine-v0-mast-heldout-6-e76b0dc65c-98dci4-clu-3141.yaml"
 
+#: Clean frozen-set comparator with the flux-loop identity join corrected.
+MIGRATION_REFERENCE_STAMP = (
+    "physics-spine-v0-mast-heldout-6-3d3ed8c56d-98dci4-clu-3141-"
+    "efm-campaign-signal-identity-1d41708300ef.yaml"
+)
+
 #: Arms carrying the gate: the hard-topology-read solves on both substrates.
 GATED_ARMS = ("grid-delstar", "greens-matvec")
 
@@ -229,6 +263,9 @@ class ComparisonKind(enum.StrEnum):
     #: Two independent descriptions of one machine.
     SOURCE_CUTOVER = "source-cutover"
 
+    #: Successive consumer seams against the corrected-identity comparator.
+    MIGRATION_SEAM = "migration-seam"
+
 
 #: A deterministic reproduction metric may reach this multiple of its reference.
 REPRODUCTION_CHANGE_BUDGET = 4.0
@@ -238,6 +275,33 @@ THROUGHPUT_REGRESSION_BUDGET = 0.25
 
 #: The whitened magnetics misfit may rise this fraction above its reference.
 MAGNETICS_RESIDUAL_REGRESSION_BUDGET = 0.01
+
+#: Residual from the aliased nearest-description-coordinate join.  Retained as
+#: provenance for the corrected comparator's signed movement, not as its gate.
+ALIASED_NEAREST_COORDINATE_RESIDUAL = 0.7401030841614555
+
+#: Corrected-identity residuals from :data:`MIGRATION_REFERENCE_STAMP`.
+MIGRATION_REFERENCE_RESIDUALS = {
+    "greens-matvec": 0.6890842357802178,
+    "grid-delstar": 0.6889769655392166,
+}
+
+#: Cross-substrate spread of the corrected residual pair, relative to the
+#: primary greens-matvec reference.
+MIGRATION_CROSS_SUBSTRATE_RESIDUAL_SPREAD = (
+    abs(
+        MIGRATION_REFERENCE_RESIDUALS["greens-matvec"]
+        - MIGRATION_REFERENCE_RESIDUALS["grid-delstar"]
+    )
+    / MIGRATION_REFERENCE_RESIDUALS["greens-matvec"]
+)
+
+#: Preserve the measured safety multiple used by the same-source gate while
+#: deriving the numerical margin entirely from the corrected comparator.
+MIGRATION_SEAM_MARGIN_MULTIPLIER = 8.0
+MIGRATION_SEAM_RESIDUAL_BUDGET = (
+    MIGRATION_SEAM_MARGIN_MULTIPLIER * MIGRATION_CROSS_SUBSTRATE_RESIDUAL_SPREAD
+)
 
 #: Exchanging every driven Green's column between the two descriptions, at the
 #: measured currents and with the plasma solve held at the before-path solution,
@@ -370,12 +434,30 @@ def _cross_source_magnetics_residual(arm: str, reference: float) -> ParityTolera
     )
 
 
+def _migration_seam_magnetics_residual(arm: str, reference: float) -> ParityTolerance:
+    return ParityTolerance(
+        metric=MAGNETICS_RESIDUAL_METRIC,
+        arm=arm,
+        reference=reference,
+        bound=reference * (1.0 + MIGRATION_SEAM_RESIDUAL_BUDGET),
+        lower_better=True,
+        basis=(
+            "successive consumer seam against the corrected-identity frozen "
+            "comparator; margin is "
+            f"{MIGRATION_SEAM_MARGIN_MULTIPLIER:g}x its measured "
+            f"cross-substrate residual spread "
+            f"({MIGRATION_CROSS_SUBSTRATE_RESIDUAL_SPREAD:.6%})"
+        ),
+    )
+
+
 #: Which misfit mechanism each comparison kind scores under.  Every other
 #: tolerance is built the same way for both, so this mapping is the whole of the
 #: difference between them.
 _RESIDUAL_TOLERANCE = {
     ComparisonKind.SAME_SOURCE: _magnetics_residual,
     ComparisonKind.SOURCE_CUTOVER: _cross_source_magnetics_residual,
+    ComparisonKind.MIGRATION_SEAM: _migration_seam_magnetics_residual,
 }
 
 
@@ -565,6 +647,29 @@ def compare_paths(
     """
     admissibility = [f"before-path: {reason}" for reason in check_admissibility(before)]
     admissibility += [f"after-path: {reason}" for reason in check_admissibility(after)]
+    before_coverage = {
+        (row.shot_id, row.substrate, row.topology_read): (
+            row.n_slices_attempted,
+            row.n_slices_scored,
+        )
+        for row in before.shots
+        if row.substrate in GATED_ARMS and row.topology_read == "hard"
+    }
+    after_coverage = {
+        (row.shot_id, row.substrate, row.topology_read): (
+            row.n_slices_attempted,
+            row.n_slices_scored,
+        )
+        for row in after.shots
+        if row.substrate in GATED_ARMS and row.topology_read == "hard"
+    }
+    for key in sorted(before_coverage.keys() | after_coverage.keys()):
+        if before_coverage.get(key) != after_coverage.get(key):
+            shot, arm, topology_read = key
+            admissibility.append(
+                f"coverage shot {shot} arm {arm} read {topology_read}: "
+                f"before {before_coverage.get(key)}, after {after_coverage.get(key)}"
+            )
     tolerances = tolerances_from(before, kind)
     return ParityReport(
         admissibility=tuple(admissibility),
