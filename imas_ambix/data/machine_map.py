@@ -248,7 +248,7 @@ class ValidationGap:
 
 @dataclass(frozen=True)
 class SourceQualification:
-    """One required field that cannot become an executable DD binding."""
+    """One required field that cannot become an authoritative DD binding."""
 
     name: str
     source_group: str
@@ -494,6 +494,7 @@ class AcquisitionDeclaration:
 
     name: str
     source_location: str
+    sensor_identity_key: str
     current_channels: tuple[str, ...]
     sensor_addresses: tuple[str, ...]
     unmatched_sensor_addresses: tuple[str, ...]
@@ -506,6 +507,7 @@ class AcquisitionDeclaration:
         required = {
             "name",
             "source_location",
+            "sensor_identity_key",
             "current_channels",
             "sensor_addresses",
             "unmatched_sensor_addresses",
@@ -530,6 +532,9 @@ class AcquisitionDeclaration:
         return cls(
             name=_text(payload["name"], f"{label}.name"),
             source_location=source_location,
+            sensor_identity_key=_text(
+                payload["sensor_identity_key"], f"{label}.sensor_identity_key"
+            ),
             current_channels=_text_tuple(
                 payload["current_channels"], f"{label}.current_channels"
             ),
@@ -548,13 +553,24 @@ class PointFluxLoopDeclaration:
     z: float
     r_path: str
     z_path: str
+    type_path: str
+    type_index: int
     evidence: str
 
     @classmethod
     def from_dict(
         cls, payload: Mapping[str, Any], label: str
     ) -> PointFluxLoopDeclaration:
-        required = {"name", "r", "z", "r_path", "z_path", "evidence"}
+        required = {
+            "name",
+            "r",
+            "z",
+            "r_path",
+            "z_path",
+            "type_path",
+            "type_index",
+            "evidence",
+        }
         _exact_keys(payload, required, set(), label)
         return cls(
             name=_text(payload["name"], f"{label}.name"),
@@ -562,6 +578,8 @@ class PointFluxLoopDeclaration:
             z=_number(payload["z"], f"{label}.z"),
             r_path=_text(payload["r_path"], f"{label}.r_path"),
             z_path=_text(payload["z_path"], f"{label}.z_path"),
+            type_path=_text(payload["type_path"], f"{label}.type_path"),
+            type_index=_integer(payload["type_index"], f"{label}.type_index"),
             evidence=_text(payload["evidence"], f"{label}.evidence"),
         )
 

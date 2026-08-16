@@ -5,7 +5,7 @@ description: >-
   Range-scoped bindings from immutable store arrays to Data Dictionary leaves.
   The schema deliberately has no condition, expression, or code-hook slot.
 license: LGPL-3.0-or-later
-version: 1.7.0
+version: 1.8.0
 prefixes:
   linkml: https://w3id.org/linkml/
   mm: https://imas-ambix.example/schema/machine-map/
@@ -227,6 +227,11 @@ slots:
     range: AcquisitionDeclaration
     multivalued: true
     inlined_as_list: true
+  sensor_identity_key:
+    description: >-
+      Non-geometric key that distinguishes acquisition channels even when
+      their spatial descriptions are identical.
+    required: true
   description_supplements:
     range: DescriptionSupplement
     multivalued: true
@@ -319,7 +324,8 @@ classes:
     description: >-
       Required machine-description content excluded either because the Data
       Dictionary has no semantically valid writable leaf or because the pulse
-      store does not expose the legacy field needed to populate one.
+      store does not expose the field needed to populate one with authoritative
+      source provenance.
     slots:
       - name
       - source_group
@@ -389,10 +395,12 @@ classes:
   AcquisitionDeclaration:
     description: >-
       Declares acquisition identities required by machine-description consumers
-      without embedding channel selection in reader code.
+      without embedding channel selection in reader code. Sensor identity is
+      explicit and does not depend on projected coordinates.
     slots:
       - name
       - source_location
+      - sensor_identity_key
       - current_channels
       - sensor_addresses
       - unmatched_sensor_addresses
@@ -400,13 +408,15 @@ classes:
   PointFluxLoopDeclaration:
     description: >-
       Declares one static point-loop position absent from pulse-store arrays at
-      writable scalar leaves of a magnetics flux-loop position structure.
+      writable scalar leaves of a typed magnetics flux-loop structure.
     slots:
       - name
       - r
       - z
       - r_path
       - z_path
+      - type_path
+      - type_index
       - evidence
   PolygonSectionDeclaration:
     description: >-

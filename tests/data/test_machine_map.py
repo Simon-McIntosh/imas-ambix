@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import replace
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -35,17 +35,51 @@ from imas_ambix.data.transform_engine import (
     BindingTransformError,
     transform_machine_description,
 )
-from imas_ambix.gs.geometry import CircuitDrive, build_table_for_shot
+from imas_ambix.gs.geometry import build_table_for_shot
 from imas_ambix.gs.operator import classify_circuits
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
+LEVEL1_ROOT = Path("/work/projects/imas_gpu/mast/level1/shots")
 MACHINE_DESCRIPTION_GROUPS = ("magnetics", "pf_active", "pf_passive", "wall")
 EXPECTED_BOUND_CHANNEL_COUNTS = {
-    "magnetics": 70,
+    "magnetics": 58,
     "pf_active": 71,
     "pf_passive": 110,
     "wall": 3,
 }
+POSITIONAL_PHI_TARGETS = {
+    "b_field_pol_probe_cc_phi": "magnetics/b_field_pol_probe/position/phi",
+    "b_field_pol_probe_ccbv_phi_1": "magnetics/b_field_pol_probe/position/phi",
+    "b_field_pol_probe_ccbv_phi_2": "magnetics/b_field_pol_probe/position/phi",
+    "b_field_pol_probe_obr_phi_1": "magnetics/b_field_pol_probe/position/phi",
+    "b_field_pol_probe_obr_phi_2": "magnetics/b_field_pol_probe/position/phi",
+    "b_field_pol_probe_obv_phi_1": "magnetics/b_field_pol_probe/position/phi",
+    "b_field_pol_probe_obv_phi_2": "magnetics/b_field_pol_probe/position/phi",
+    "b_field_pol_probe_omv_phi": "magnetics/b_field_pol_probe/position/phi",
+    "b_field_tor_probe_cc_phi": "magnetics/b_field_phi_probe/position/phi",
+    "b_field_tor_probe_saddle_l_phi": "magnetics/flux_loop/position/phi",
+    "b_field_tor_probe_saddle_m_phi": "magnetics/flux_loop/position/phi",
+    "b_field_tor_probe_saddle_u_phi": "magnetics/flux_loop/position/phi",
+}
+COLOCATED_FULL_LOOP_ADDRESSES = (
+    "fl_cc01",
+    "fl_cc02",
+    "fl_cc03",
+    "fl_cc04",
+    "fl_cc05",
+    "fl_cc07",
+    "fl_cc09",
+    "fl_cc10",
+)
+SENSOR_DESCRIPTION_POSITION = re.compile(
+    r"r\s*=\s*([-+0-9.]+)\s*,?\s*z\s*=\s*([-+0-9.]+)", re.IGNORECASE
+)
+LEVEL2_SENSOR_GEOMETRY_FAMILIES = (
+    "b_field_pol_probe_ccbv",
+    "b_field_pol_probe_obr",
+    "b_field_pol_probe_obv",
+    "flux_loop",
+)
 PASSIVE_LOOP_FAMILIES = (
     "botcol",
     "coil_cases",
@@ -109,6 +143,32 @@ LEGACY_DESCRIPTION_FIELDS = (
     "limiterr",
     "limiterz",
 )
+
+
+def _level1_sensor_positions(group: Any) -> dict[str, tuple[float, float]]:
+    positions: dict[str, tuple[float, float]] = {}
+    for name in group.array_keys():
+        if not name.startswith(("ccbv", "obr", "obv", "fl_")):
+            continue
+        description = str(group[name].attrs.get("description", ""))
+        match = SENSOR_DESCRIPTION_POSITION.search(description)
+        if match is not None:
+            positions[name.casefold()] = (float(match.group(1)), float(match.group(2)))
+    return positions
+
+
+def _level2_sensor_positions(group: Any) -> dict[str, tuple[float, float]]:
+    positions: dict[str, tuple[float, float]] = {}
+    for family in LEVEL2_SENSOR_GEOMETRY_FAMILIES:
+        names = tuple(
+            str(value).casefold()
+            for value in np.asarray(group[f"{family}_geometry_channel"][:]).reshape(-1)
+        )
+        radial = np.asarray(group[f"{family}_r"][:], dtype=np.float64).reshape(-1)
+        vertical = np.asarray(group[f"{family}_z"][:], dtype=np.float64).reshape(-1)
+        assert len(names) == radial.size == vertical.size
+        positions.update(zip(names, zip(radial, vertical, strict=True), strict=True))
+    return positions
 
 
 def _dd_leaf(dd_version: str, path: str):
@@ -222,6 +282,7 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
     assert "source_cocos" in schema["classes"]["MachineMapCatalog"]["slots"]
     assert "circuit_current_joins" in schema["classes"]["MachineMapCatalog"]["slots"]
     assert "source_cocos_override" in schema["classes"]["ChannelBinding"]["slots"]
+    assert "sensor_identity_key" in schema["classes"]["AcquisitionDeclaration"]["slots"]
     assert set(schema["enums"]["BindingRole"]["permissible_values"]) == {
         "value",
         "identifier",
@@ -306,21 +367,23 @@ def test_mast_catalog_accounts_for_every_machine_description_array_in_the_corpus
     assert len(shots) == 11_573
     assert (shots[0], shots[-1]) == (11_766, 30_471)
     assert catalog.bound_channel_counts == EXPECTED_BOUND_CHANNEL_COUNTS
-    assert catalog.bound_channel_count == 254
+    assert catalog.bound_channel_count == 242
     assert catalog.qualified_channel_counts == {
-        "magnetics": 4,
+        "magnetics": 16,
         "machine_description": 1,
         "pf_passive": 1,
     }
-    assert catalog.qualified_channel_count == 6
-    assert len(catalog.maps) * catalog.bound_channel_count == 508
+    assert catalog.qualified_channel_count == 18
+    assert sum(len(catalog.bindings_for(item)) for item in catalog.maps) == (
+        len(catalog.maps) * catalog.bound_channel_count
+    )
     assert catalog.validation_gaps == ()
     assert (
         sum(
             item.source_status == "corpus-observed"
             for item in catalog.source_qualifications
         )
-        == 1
+        == 13
     )
     assert (
         sum(
@@ -415,13 +478,15 @@ def test_saddle_trajectories_are_twelve_named_loops_with_twenty_eight_points():
         "consolidated_metadata"
     ]["metadata"]
 
-    expected_sources = {
+    executable_sources = {
         f"b_field_tor_probe_saddle_{band}_{axis}"
         for band in "lmu"
-        for axis in ("r", "z", "phi")
+        for axis in ("r", "z")
     }
-    assert expected_sources.isdisjoint(qualified_sources)
-    for source in expected_sources:
+    qualified_phi_sources = {f"b_field_tor_probe_saddle_{band}_phi" for band in "lmu"}
+    assert executable_sources.isdisjoint(qualified_sources)
+    assert qualified_phi_sources.issubset(qualified_sources)
+    for source in executable_sources:
         binding = bindings[source]
         axis = source.rsplit("_", maxsplit=1)[1]
         assert binding.source_rank == 2
@@ -429,6 +494,14 @@ def test_saddle_trajectories_are_twelve_named_loops_with_twenty_eight_points():
         assert binding.dd_path == f"magnetics/flux_loop/position/{axis}"
         assert "axis 0 matches the 12" in binding.evidence
         assert "axis 1 matches coordinate 0..27" in binding.evidence
+
+    qualifications = {item.source_array: item for item in catalog.source_qualifications}
+    for source in qualified_phi_sources:
+        qualification = qualifications[source]
+        assert qualification.source_shape == (12, 28)
+        assert "magnetics/flux_loop/position/phi" in qualification.reason
+        assert "silop_dphi" in qualification.reason
+        assert "no saddle trajectory" in qualification.evidence
 
     saddle_assemblies = {
         item.name: item
@@ -444,7 +517,7 @@ def test_saddle_trajectories_are_twelve_named_loops_with_twenty_eight_points():
         name_binding = bindings[f"b_field_tor_probe_saddle_{band}_geometry_channel"]
         assert assembly.name_binding == name_binding.name
         assert name_binding.dd_path == "magnetics/flux_loop/name"
-        assert len(assembly.member_bindings) == 3
+        assert len(assembly.member_bindings) == 2
 
     coordinate = next(
         item
@@ -453,6 +526,205 @@ def test_saddle_trajectories_are_twelve_named_loops_with_twenty_eight_points():
     )
     assert coordinate.source_shape == (28,)
     assert "no writable coordinate-index leaf" in coordinate.reason
+
+
+@pytest.mark.skipif(
+    not all(
+        (LEVEL1_ROOT / f"{shot}.zarr").is_dir()
+        and (LEVEL2_ROOT / f"{shot}.zarr").is_dir()
+        for shot in (11_766, 12_417, 21_978)
+    ),
+    reason="local level-1 and level-2 magnetics stores are not mounted",
+)
+def test_position_phi_requires_an_authoritative_level1_source():
+    catalog = load_packaged_machine_map("mast")
+    bindings = {
+        item.source_array: item
+        for item in catalog.binding_sets["mast-machine-description"]
+    }
+    qualifications = {item.source_array: item for item in catalog.source_qualifications}
+
+    position_leaf = _dd_leaf(
+        catalog.dd_version, "magnetics/b_field_pol_probe/position/phi"
+    )
+    orientation_leaf = _dd_leaf(
+        catalog.dd_version, "magnetics/b_field_pol_probe/toroidal_angle"
+    )
+    assert (position_leaf.data_type.name, position_leaf.ndim, position_leaf.units) == (
+        "FLT",
+        0,
+        "rad",
+    )
+    assert "Toroidal angle" in position_leaf.documentation
+    assert "sensor normal vector" in orientation_leaf.documentation
+    assert all(
+        item.dd_path != "magnetics/b_field_pol_probe/toroidal_angle"
+        for item in bindings.values()
+    )
+
+    for shot in (11_766, 12_417, 21_978):
+        level1_path = LEVEL1_ROOT / f"{shot}.zarr"
+        level2_path = LEVEL2_ROOT / f"{shot}.zarr"
+        assert (level1_path / ".zmetadata").is_file()
+        assert (level2_path / "zarr.json").is_file()
+        level1 = zarr.open_consolidated(level1_path, mode="r")
+        level2 = zarr.open_group(level2_path, mode="r")
+        efm_names = set(level1["efm"].array_keys())
+        assert {"magpr_r", "magpr_z", "magpr_ang", "magpr_len"}.issubset(efm_names)
+        assert {"magpr_phi", "silop_phi"}.isdisjoint(efm_names)
+        if "silop_dphi" in efm_names:
+            extent = np.asarray(level1["efm"]["silop_dphi"][:], dtype=np.float64)
+            finite_extent = extent[np.isfinite(extent)]
+            assert finite_extent.size == 46
+            assert np.allclose(finite_extent, 2.0 * np.pi, rtol=0.0, atol=2.0e-7)
+        level2_metadata = level2["magnetics"]
+        for source_array, target_path in POSITIONAL_PHI_TARGETS.items():
+            assert source_array in level2_metadata
+            assert source_array not in bindings
+            qualification = qualifications[source_array]
+            assert qualification.source_status == "corpus-observed"
+            assert qualification.source_shape == level2_metadata[source_array].shape
+            assert target_path in qualification.reason
+            assert "level-1" in qualification.reason.casefold() or (
+                "level 1" in qualification.reason.casefold()
+            )
+        print(
+            "LEVEL1_POSITION_PHI_PUBLICATION "
+            f"shot={shot} probe_position_phi=absent "
+            "point_loop_position_phi=absent saddle_position_phi=absent "
+            f"point_loop_extent={'present' if 'silop_dphi' in efm_names else 'absent'} "
+            f"qualified={len(POSITIONAL_PHI_TARGETS)}"
+        )
+
+
+@pytest.mark.skipif(
+    not all((LEVEL1_ROOT / f"{shot}.zarr").is_dir() for shot in (11_766, 12_417)),
+    reason="local level-1 magnetics stores are not mounted",
+)
+def test_full_toroidal_flux_loops_use_acquisition_address_identity():
+    catalog = load_packaged_machine_map("mast")
+    acquisition = next(
+        item for item in catalog.acquisition_declarations if item.name.endswith("12417")
+    )
+    point_assembly = next(
+        item
+        for item in catalog.structure_assemblies
+        if item.name == "mast-magnetics-poloidal-flux-loops"
+    )
+
+    assert acquisition.sensor_identity_key == "acquisition-address"
+    assert point_assembly.type_path == "magnetics/flux_loop/type/index"
+    assert point_assembly.type_index == 1
+    assert point_assembly.member_bindings == (
+        "mast-magnetics-flux-loop-r",
+        "mast-magnetics-flux-loop-z",
+    )
+    assert all(not name.endswith("-phi") for name in point_assembly.member_bindings)
+    assert "no discrete position/phi" in point_assembly.evidence
+    for supplement in catalog.description_supplements:
+        for loop in supplement.point_flux_loops:
+            assert loop.type_path == point_assembly.type_path
+            assert loop.type_index == point_assembly.type_index
+
+    collocated = tuple(
+        address
+        for address in acquisition.sensor_addresses
+        if address in COLOCATED_FULL_LOOP_ADDRESSES
+    )
+    assert collocated == COLOCATED_FULL_LOOP_ADDRESSES
+    assert len(set(collocated)) == len(collocated) == 8
+    level1 = zarr.open_consolidated(LEVEL1_ROOT / "12417.zarr", mode="r")
+    level1_positions = _level1_sensor_positions(level1["amb"])
+    assert {level1_positions[address] for address in collocated} == {(0.18, 1.215)}
+
+    for shot in (12_417, 21_978):
+        efm = zarr.open_consolidated(LEVEL1_ROOT / f"{shot}.zarr", mode="r")["efm"]
+        extent = np.asarray(efm["silop_dphi"][:], dtype=np.float64)
+        finite_extent = extent[np.isfinite(extent)]
+        assert finite_extent.size == 46
+        assert np.allclose(finite_extent, 2.0 * np.pi, rtol=0.0, atol=2.0e-7)
+        print(
+            "FULL_TOROIDAL_FLUX_LOOP_EXTENT "
+            f"shot={shot} published={extent.size} finite={finite_extent.size} "
+            f"minimum_rad={finite_extent.min():.15g} "
+            f"maximum_rad={finite_extent.max():.15g}"
+        )
+    early_efm = zarr.open_consolidated(LEVEL1_ROOT / "11766.zarr", mode="r")["efm"]
+    assert "silop_dphi" not in set(early_efm.array_keys())
+    print("FULL_TOROIDAL_FLUX_LOOP_EXTENT shot=11766 publication=absent")
+    for address in collocated:
+        print(
+            "COLOCATED_FLUX_LOOP_IDENTITY "
+            f"address={address} r=0.180 z=1.215 "
+            "position_phi=not-applicable toroidal_extent_rad=2*pi "
+            f"identity_key={acquisition.sensor_identity_key}"
+        )
+
+
+@pytest.mark.skipif(
+    not all(
+        (LEVEL1_ROOT / f"{shot}.zarr").is_dir()
+        and (LEVEL2_ROOT / f"{shot}.zarr").is_dir()
+        for shot in (11_766, 12_417)
+    ),
+    reason="local level-1 and level-2 geometry stores are not mounted",
+)
+def test_level1_and_level2_geometry_are_compared_by_sensor_identity():
+    catalog = load_packaged_machine_map("mast")
+    acquisitions = {item.name: item for item in catalog.acquisition_declarations}
+    supplements = {item.name: item for item in catalog.description_supplements}
+
+    for machine_map in catalog.maps:
+        shot = machine_map.first_shot
+        level1_path = LEVEL1_ROOT / f"{shot}.zarr"
+        level2_path = LEVEL2_ROOT / f"{shot}.zarr"
+        level1 = zarr.open_consolidated(level1_path, mode="r")
+        level2 = zarr.open_group(level2_path, mode="r")
+        level1_positions = _level1_sensor_positions(level1["amb"])
+        level2_positions = _level2_sensor_positions(level2["magnetics"])
+        acquisition = acquisitions[
+            supplements[machine_map.description_supplement].acquisition_declaration
+        ]
+        declared_addresses = set(acquisition.sensor_addresses)
+        assert set(level1_positions) == declared_addresses
+
+        shared = tuple(sorted(set(level1_positions) & set(level2_positions)))
+        separations = {
+            name: float(
+                np.hypot(
+                    level1_positions[name][0] - level2_positions[name][0],
+                    level1_positions[name][1] - level2_positions[name][1],
+                )
+            )
+            for name in shared
+        }
+        agreeing = tuple(name for name, value in separations.items() if value == 0.0)
+        differing = tuple(name for name, value in separations.items() if value != 0.0)
+        assert len(agreeing) + len(differing) == len(shared)
+        assert all(np.isfinite(tuple(separations.values())))
+        missing_level2 = tuple(sorted(declared_addresses.difference(shared)))
+        maximum_name = max(separations, key=separations.__getitem__)
+        print(
+            "LEVEL1_LEVEL2_GEOMETRY_COMPARISON "
+            f"shot={shot} shared={len(shared)} agreeing={len(agreeing)} "
+            f"differing={len(differing)} max_separation_m="
+            f"{separations[maximum_name]:.15g} max_identity={maximum_name} "
+            f"missing_level2={missing_level2}"
+        )
+        for prefix in ("ccbv", "obr", "obv", "fl_"):
+            family = {
+                name: value
+                for name, value in separations.items()
+                if name.startswith(prefix)
+            }
+            print(
+                "LEVEL1_LEVEL2_GEOMETRY_FAMILY "
+                f"shot={shot} family={prefix.removesuffix('_')} "
+                f"shared={len(family)} "
+                f"agreeing={sum(value == 0.0 for value in family.values())} "
+                f"differing={sum(value != 0.0 for value in family.values())} "
+                f"max_separation_m={max(family.values(), default=0.0):.15g}"
+            )
 
 
 def test_passive_loop_elements_and_shape_angles_are_executable_oblique_geometry():
@@ -739,6 +1011,7 @@ def test_range_declarations_join_topology_and_supply_legacy_fields():
         for loop in supplement.point_flux_loops:
             r_leaf = _dd_leaf(catalog.dd_version, loop.r_path)
             z_leaf = _dd_leaf(catalog.dd_version, loop.z_path)
+            type_leaf = _dd_leaf(catalog.dd_version, loop.type_path)
             assert (r_leaf.data_type.name, r_leaf.ndim, r_leaf.units) == (
                 "FLT",
                 0,
@@ -749,6 +1022,8 @@ def test_range_declarations_join_topology_and_supply_legacy_fields():
                 0,
                 "m",
             )
+            assert (type_leaf.data_type.name, type_leaf.ndim) == ("INT", 0)
+            assert loop.type_index == 1
 
         r0_leaf = _dd_leaf(catalog.dd_version, supplement.reference_radius_path)
         assert supplement.reference_radius == 0.85
@@ -785,7 +1060,7 @@ def test_range_declarations_join_topology_and_supply_legacy_fields():
     not all((LEVEL2_ROOT / f"{shot}.zarr").is_dir() for shot in (11_766, 12_417)),
     reason="local level-2 geometry stores are not mounted",
 )
-def test_case_current_joins_restore_the_operator_block_split():
+def test_case_current_joins_materialize_the_operator_block_split():
     catalog = load_packaged_machine_map("mast")
     topologies = {item.name: item for item in catalog.drive_topologies}
 
@@ -802,30 +1077,17 @@ def test_case_current_joins_restore_the_operator_block_split():
             identifier: index + 1 for index, identifier in enumerate(circuit_order)
         }
 
-        existing_classes = classify_circuits(
+        classes = classify_circuits(
             adapted.pf_filaments,
             adapted.amc_current_channels,
             adapted.active_circuits,
             adapted.circuit_drives,
         )
-        existing_drives = [
-            CircuitDrive(
-                circuit=item.circuit,
-                channel=item.amc_channel,
-                ampere_turns_per_ampere=sum(
-                    filament.turns * filament.xmult
-                    for filament in adapted.pf_filaments
-                    if filament.circuit == item.circuit
-                ),
-                evidence="emitted active-conductor and acquisition declarations",
-                conductor=item.coil_label,
-            )
-            for item in existing_classes
-            if item.role in {"known_pf", "known_case"}
-        ]
-        assert len(existing_drives) == 13
-
-        case_drives = []
+        assert len(adapted.circuit_drives) == 21
+        assert len({item.circuit for item in adapted.circuit_drives}) == 21
+        drives_by_circuit = {item.circuit: item for item in adapted.circuit_drives}
+        classes_by_circuit = {item.circuit: item for item in classes}
+        remaining_discrepancies = []
         for join in catalog.circuit_current_joins:
             connections = [
                 item
@@ -833,44 +1095,22 @@ def test_case_current_joins_restore_the_operator_block_split():
                 if item.circuit_identifier == join.circuit_identifier
             ]
             assert connections
-            case_drives.append(
-                CircuitDrive(
-                    circuit=circuit_index[join.circuit_identifier],
-                    channel=join.current_channel,
-                    ampere_turns_per_ampere=sum(
-                        item.turns * item.direction for item in connections
-                    ),
-                    evidence=join.evidence,
-                    conductor=join.conductor_identifier,
-                )
+            circuit = circuit_index[join.circuit_identifier]
+            drive = drives_by_circuit[circuit]
+            assert drive.channel == join.current_channel
+            assert drive.conductor == join.conductor_identifier
+            assert drive.ampere_turns_per_ampere == sum(
+                item.turns * item.direction for item in connections
             )
-        assert len(case_drives) == 8
-        assert {item.circuit for item in existing_drives}.isdisjoint(
-            item.circuit for item in case_drives
-        )
-
-        joined = replace(
-            adapted,
-            circuit_drives=[*existing_drives, *case_drives],
-        )
-        joined_classes = classify_circuits(
-            joined.pf_filaments,
-            joined.amc_current_channels,
-            joined.active_circuits,
-            joined.circuit_drives,
-        )
-        classes_by_circuit = {item.circuit: item for item in joined_classes}
-        remaining_discrepancies = []
-        for circuit_identifier, expected_channel in CASE_CURRENT_JOINS.items():
-            circuit_class = classes_by_circuit[circuit_index[circuit_identifier]]
+            circuit_class = classes_by_circuit[circuit]
             if (
                 circuit_class.role != "known_case"
-                or circuit_class.amc_channel != expected_channel
+                or circuit_class.amc_channel != join.current_channel
             ):
-                remaining_discrepancies.append(circuit_identifier)
+                remaining_discrepancies.append(join.circuit_identifier)
         assert remaining_discrepancies == []
 
-        receipt = compare_operator_parity(shot, joined, legacy)
+        receipt = compare_operator_parity(shot, adapted, legacy)
         adapted_columns = tuple(
             shape[1] for shape in receipt.greens.adapted_block_shapes
         )
