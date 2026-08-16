@@ -4,23 +4,25 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="vacuum-field-position-adjudication">
-  <meta name="plan-title"     content="Let the Vacuum Field Decide Where the Sensors Are">
-  <meta name="plan-summary"   content="Nineteen flux-loop positions disagree between the nominal geometry table and the reconstruction. Predict the vacuum flux at each candidate position from known coil currents and compare against the measured loop signal, so the measurement adjudicates rather than one description being asserted over another.">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort-hours" content="5">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="vacuum-field-position-adjudication">
+  <meta name="plan-title" content="Let the Vacuum Field Decide Where the Sensors Are">
+  <meta name="plan-summary" content="Nineteen flux-loop positions disagree between the nominal geometry table and the reconstruction. Predict the vacuum flux at each candidate position from known coil currents and compare against the measured loop signal, so the measurement adjudicates rather than one description being asserted over another.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="5.0">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="general">
   <meta name="plan-capability-reasoning" content="deep">
   <meta name="plan-capability-verification" content="strict">
-  <meta name="plan-sprint"    content="S23">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-sprint" content="S23">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="machine-map-transform-engine">
   <title>Let the Vacuum Field Decide Where the Sensors Are | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-08-16">
+<meta name="plan-version" content="2">
 </head>
 <body>
   <main class="plan-doc">
@@ -74,35 +76,40 @@
     explicitly left undecided.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="null-loop-disposition" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">When both candidate positions predict the measurement equally well,
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="null-loop-disposition" data-choice="qualify-undecided" data-by="reckon-ship" data-when="2026-08-16T19:22:19+00:00">
+    <p class="r-dec-q">When both candidate positions predict the measurement equally well,
           what does the catalog declare?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="keep-nominal">keep the nominal table value and record the null</button>
-          <button class="r-opt" data-value="keep-reconstruction">keep the reconstruction value, since the spine consumes it</button>
-          <button class="r-opt" data-value="qualify-undecided">declare neither and carry an explicit undecided qualification</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="keep-nominal">keep the nominal table value and record the null</button>
+      <button class="r-opt" data-value="keep-reconstruction">keep the reconstruction value, since the spine consumes it</button>
+      <button class="r-opt chosen" data-value="qualify-undecided">declare neither and carry an explicit undecided qualification</button>
+      </p>
+    <p class="r-dec-rat">The plan&#x27;s §3 done-when requires &#x27;the null loops explicitly left undecided&#x27;, and §3 states that the discriminating power of the test is part of its result — asserting either candidate on a null would erase that. Declared nulls carry an explicit undecided qualification in the catalog.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-vfpa-001" data-status="open"
-               data-capability-version="1.0" data-capability-class="general"
-               data-capability-reasoning="deep" data-capability-verification="strict"
-               data-written-by="reckon-ship" data-written-at="2026-08-16"
-               data-recommends-skill="/reckon-ship vacuum-field-position-adjudication §3">
-        <h4 class="r-fu-title">Adjudicate the nineteen disputed loop positions on vacuum shots</h4>
-        <div class="r-fu-body"><p>Select a vacuum cohort and evidence its plasma-current-free
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-vfpa-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-16" data-recommends-skill="/reckon-ship vacuum-field-position-adjudication §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Adjudicate the nineteen disputed loop positions on vacuum shots</h4>
+    <div class="r-fu-body"><p>Select a vacuum cohort and evidence its plasma-current-free
         condition. For each disputed loop, forward-predict the flux at both candidate positions
         from measured coil currents and compare against the measured loop signal. Report residual
         per candidate, margin between them, and a verdict of nominal-table, reconstruction or
         null. Nulls are a result, not a failure.</p></div>
-        <pre class="r-fu-prompt">/reckon-ship vacuum-field-position-adjudication §3</pre>
-      </article>
-    </section>
-  </main>
+    <pre class="r-fu-prompt">/reckon-ship vacuum-field-position-adjudication §3</pre>
+    </article>
+</section>
+  <section data-reckon="research" id="research" class="r-research-list">
+<h2><span class="sec">§</span> Research</h2>
+<div class="r-research" data-id="r-vfpa-01" data-type="note" data-source="docs/notes/flux-loop-discretisation.md" data-added-by="reckon-ship" data-when="2026-08-16">
+    <span class="r-research-title">Flux-loop discretisation assessment — enumerates the 19 genuine stored-position residuals between EFM and the level-2 nominal table (max 0.437069046 m at fl_p4l_1); all loops are single-point in every source</span></div>
+<div class="r-research" data-id="r-vfpa-02" data-type="note" data-source="docs/notes/level1-level2-geometry-divergence.md" data-added-by="reckon-ship" data-when="2026-08-16">
+    <span class="r-research-title">Level-1 vs level-2 geometry divergence — provenance of the nominal candidate (level 2 substitutes fluxloops.nc from detectors.dat_M4, never copying level-1 shot descriptions)</span></div>
+<div class="r-research" data-id="r-vfpa-03" data-type="note" data-source="docs/notes/sensor-identity-join-assessment.md" data-added-by="reckon-ship" data-when="2026-08-16">
+    <span class="r-research-title">Sensor identity join assessment — the waveform-correlation signal-identity method (independent of both geometry candidates) for binding each disputed loop to its measured signal</span></div>
+</section>
+</main>
 </body>
 </html>

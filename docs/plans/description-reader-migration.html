@@ -4,24 +4,26 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="description-reader-migration">
-  <meta name="plan-title"     content="Retire the Machine-Specific Description Reader">
-  <meta name="plan-summary"   content="Forty-one modules read machine description through the legacy per-machine path. Move them onto the declared machine map behind a compatibility facade, prove the frozen spine is unperturbed at each step, and delete the raw reader only when the census reaches zero.">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
-  <meta name="plan-effort-hours" content="16">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="description-reader-migration">
+  <meta name="plan-title" content="Retire the Machine-Specific Description Reader">
+  <meta name="plan-summary" content="Forty-one modules read machine description through the legacy per-machine path. Move them onto the declared machine map behind a compatibility facade, prove the frozen spine is unperturbed at each step, and delete the raw reader only when the census reaches zero.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="16.0">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="general">
   <meta name="plan-capability-reasoning" content="deep">
   <meta name="plan-capability-verification" content="strict">
-  <meta name="plan-sprint"    content="S23">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-sprint" content="S23">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="machine-map-transform-engine">
-  <meta name="plan-informs"   content="vacuum-field-position-adjudication">
+  <meta name="plan-informs" content="vacuum-field-position-adjudication">
   <title>Retire the Machine-Specific Description Reader | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-08-16">
+<meta name="plan-version" content="2">
 </head>
 <body>
   <main class="plan-doc">
@@ -65,35 +67,38 @@
     remaining reference.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="migration-budget" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which budget must each migrated seam hold the frozen spine metric
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="migration-budget" data-choice="restamped-derived" data-by="reckon-ship" data-when="2026-08-16T19:22:18+00:00">
+    <p class="r-dec-q">Which budget must each migrated seam hold the frozen spine metric
           inside?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="same-source">the 1% same-source budget, treating the migration as a representation change</button>
-          <button class="r-opt" data-value="source-cutover">the 7.93% source-cutover budget, since the description now comes from a different store</button>
-          <button class="r-opt" data-value="restamped-derived">a budget derived from the re-stamped baseline once it exists</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="same-source">the 1% same-source budget, treating the migration as a representation change</button>
+      <button class="r-opt" data-value="source-cutover">the 7.93% source-cutover budget, since the description now comes from a different store</button>
+      <button class="r-opt chosen" data-value="restamped-derived">a budget derived from the re-stamped baseline once it exists</button>
+      </p>
+    <p class="r-dec-rat">The plan&#x27;s own §3 done-when and the sprint item&#x27;s done-when both judge every migrated seam against &#x27;the budget the re-stamped baseline establishes&#x27;. The 1% same-source and 7.93% source-cutover figures were derived from the baseline built on the defective sensor-identity join, so a budget derived from the sound re-stamped baseline is the only comparator consistent with the plan&#x27;s gate text.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-drm-001" data-status="open"
-               data-capability-version="1.0" data-capability-class="general"
-               data-capability-reasoning="deep" data-capability-verification="strict"
-               data-written-by="reckon-ship" data-written-at="2026-08-16"
-               data-recommends-skill="/reckon-ship description-reader-migration §2">
-        <h4 class="r-fu-title">Re-stamp the frozen baseline with corrected sensor identity</h4>
-        <div class="r-fu-body"><p>The reference residual 0.7401030841614555 was produced with a
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-drm-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-16" data-recommends-skill="/reckon-ship description-reader-migration §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Re-stamp the frozen baseline with corrected sensor identity</h4>
+    <div class="r-fu-body"><p>The reference residual 0.7401030841614555 was produced with a
         sensor map whose nearest-coordinate join aliased six acquisition channels onto one
         reconstruction index, and flagged channels are not masked downstream. Re-stamp with the
         corrected identity so the comparator every migration step is judged against is sound.
         This gates the whole migration and must land first.</p></div>
-        <pre class="r-fu-prompt">/reckon-ship description-reader-migration §2</pre>
-      </article>
-    </section>
-  </main>
+    <pre class="r-fu-prompt">/reckon-ship description-reader-migration §2</pre>
+    </article>
+</section>
+  <section data-reckon="research" id="research" class="r-research-list">
+<h2><span class="sec">§</span> Research</h2>
+<div class="r-research" data-id="r-drm-01" data-type="note" data-source="docs/notes/sensor-identity-join-assessment.md" data-added-by="reckon-ship" data-when="2026-08-16">
+    <span class="r-research-title">Sensor identity join assessment — the aliasing defect the re-stamp corrects (37/50 mapped flux-loop rows select a wrong EFM column; flags not masked downstream)</span></div>
+<div class="r-research" data-id="r-drm-02" data-type="evidence" data-source="docs/evidence/archive/machine-map-transform-engine-landed.html#s5-audit" data-added-by="reckon-ship" data-when="2026-08-16">
+    <span class="r-research-title">Reader-retirement audit: census definition (41 modules invoking legacy description-read APIs from imas_ambix.gs.geometry at rev 81785a8; 8 library + 33 scripts), the frozen-chain topology, and the not-run transform stamp (moment seed escapes the vessel)</span></div>
+</section>
+</main>
 </body>
 </html>
