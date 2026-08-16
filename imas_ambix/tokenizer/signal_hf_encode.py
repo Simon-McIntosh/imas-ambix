@@ -503,8 +503,8 @@ def _geometry_features_for(
 ) -> tuple[np.ndarray | None, tuple[str, ...], tuple[str, ...]]:
     """Build the ``(n_channels, N_GEOMETRY_FEATURES)`` geometry array for a shot.
 
-    Geometry is campaign-constant (static efm sensor/coil positions — NO
-    equilibrium / psi / boundary, firewall-safe), so the per-shot
+    Geometry comes from the static declared machine description — no
+    equilibrium, psi, or boundary state — so the per-shot
     ``GeometryFields`` is cached by the shot's setup signature and reused across
     every shot of the same campaign.  Best-effort: a shot whose static geometry
     cannot be read still encodes (geometry omitted + a one-line warning) — the
@@ -542,11 +542,11 @@ def _geometry_features_for(
             return None, (), ()
 
     try:
-        from imas_ambix.gs.geometry import build_table_for_shot
+        from imas_ambix.data.description_reader import read_geometry_table
 
         # Per-shot static-geometry table is the cheap thing; the signature keys
         # the (expensive-to-flatten) GeometryFields cache.
-        table = build_table_for_shot(shot_id)
+        table = read_geometry_table(shot_id)
         # The cache is keyed by the SETUP SIGNATURE, not the machine's physical
         # identity: the flattened rows are per-channel positions of one
         # discretization, so two subdivisions of one machine need two entries.
