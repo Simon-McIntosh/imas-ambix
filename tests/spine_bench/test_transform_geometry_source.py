@@ -14,7 +14,9 @@ from imas_ambix.gs.geometry import SensorMapping
 from imas_ambix.spine_bench.runner import CampaignGeometrySource
 from imas_ambix.spine_bench.shots import FROZEN_SHOTSET
 from imas_ambix.spine_bench.transform_geometry_source import (
+    IDENTITY_BOUND_SOURCE_LABEL,
     TRANSFORM_SOURCE_LABEL,
+    IdentityBoundCampaignGeometrySource,
     TransformGeometrySource,
     _require_residual_coverage,
     coordinate_divergence,
@@ -33,9 +35,49 @@ def test_campaign_selection_preserves_the_existing_source_bytes() -> None:
 
 def test_source_selection_is_explicit() -> None:
     assert isinstance(resolve_geometry_source("campaign"), CampaignGeometrySource)
+    assert (
+        resolve_geometry_source("identity-bound-campaign").label
+        == IDENTITY_BOUND_SOURCE_LABEL
+    )
     assert resolve_geometry_source("transform").label == TRANSFORM_SOURCE_LABEL
     with pytest.raises(ValueError, match="unknown geometry source"):
         resolve_geometry_source("")
+
+
+@pytest.mark.skipif(
+    not (LEVEL2_DIR.parent.parent / "level1" / "shots" / "21978.zarr").is_dir(),
+    reason="frozen-shot level-1 store is not mounted",
+)
+def test_identity_bound_campaign_replaces_the_aliased_loop_join() -> None:
+    shot = int(FROZEN_SHOTSET[0].shot_id)
+    source = IdentityBoundCampaignGeometrySource(evidence_shot=shot)
+    aliased = CampaignGeometrySource().table_for(shot)
+    corrected = source.table_for(shot)
+    before = {
+        item.amb_channel: item
+        for item in aliased.sensor_map
+        if item.kind == "flux_loop"
+    }
+    after = {
+        item.amb_channel: item
+        for item in corrected.sensor_map
+        if item.kind == "flux_loop"
+    }
+
+    assert len(before) == len(after) == 19
+    assert len({item.efm_index for item in after.values()}) == 19
+    assert (
+        sum(before[channel].efm_index != after[channel].efm_index for channel in after)
+        == 14
+    )
+    assert after["fl_cc09"].efm_index == 8
+    assert after["fl_p6l_1"].efm_index == 44
+    assert after["fl_p6u_1"].efm_index == 26
+    assert all(item.flag == "" for item in after.values())
+    provenance = source.provenance()
+    assert provenance["identity_channel_count"] == 19
+    assert provenance["identity_aliased_nearest_coordinate_rows_replaced"] == 14
+    assert provenance["identity_minimum_winning_correlation"] > 0.99999
 
 
 def test_an_empty_residual_stamp_fails_visibly() -> None:

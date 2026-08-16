@@ -36,6 +36,7 @@ from imas_ambix.data.machine_map import (
 )
 from imas_ambix.data.paths import LEVEL2_DIR
 from imas_ambix.data.transform_engine import transform_machine_description
+from imas_ambix.gs.geometry import _open_group
 from imas_ambix.spine_bench.runner import (
     CampaignGeometrySource,
     GeometrySource,
@@ -47,8 +48,12 @@ from imas_ambix.spine_bench.shots import FROZEN_SHOTSET
 logger = logging.getLogger(__name__)
 
 CAMPAIGN_SOURCE_NAME = "campaign"
+IDENTITY_BOUND_SOURCE_NAME = "identity-bound-campaign"
 TRANSFORM_SOURCE_NAME = "transform"
+IDENTITY_BOUND_SOURCE_LABEL = "efm-campaign-signal-identity"
 TRANSFORM_SOURCE_LABEL = "level2-transform"
+
+_IDENTITY_CORRELATION_FLOOR = 0.9999
 
 
 @dataclass(frozen=True)
@@ -70,6 +75,81 @@ class CoordinateDivergence:
 
     b_probes: PositionDivergence
     flux_loops: PositionDivergence
+
+
+@dataclass(frozen=True)
+class SignalIdentityMatch:
+    """One acquisition channel's independently observed EFM column identity."""
+
+    channel: str
+    efm_index: int
+    correlation: float
+    runner_up_correlation: float
+
+
+def _signal_identity_matches(
+    evidence_shot: int, channels: tuple[str, ...]
+) -> tuple[SignalIdentityMatch, ...]:
+    """Bind flux-loop addresses to EFM columns through their measured waveforms.
+
+    The acquisition description coordinate is deliberately absent from this
+    calculation.  Each raw ``amb`` waveform is interpolated onto the EFM time
+    base and matched to the unique highest-correlation ``silop_x`` column.  The
+    correlation is used only to establish stable sensor identity; geometry still
+    comes from the static ``silop_r`` and ``silop_z`` arrays.
+    """
+    amb = _open_group(int(evidence_shot), "amb")
+    efm = _open_group(int(evidence_shot), "efm")
+    amb_time = np.asarray(amb["time"][:], dtype=np.float64)
+    efm_time = np.asarray(efm["time"][:], dtype=np.float64)
+    efm_signals = np.asarray(efm["silop_x"][:], dtype=np.float64)
+    matches: list[SignalIdentityMatch] = []
+    for channel in channels:
+        signal = np.asarray(amb[channel][:], dtype=np.float64)
+        if signal.shape != amb_time.shape:
+            raise RuntimeError(
+                f"channel {channel!r} has shape {signal.shape}, not its declared "
+                f"time-base shape {amb_time.shape}"
+            )
+        sampled = np.interp(
+            efm_time,
+            amb_time,
+            signal,
+            left=np.nan,
+            right=np.nan,
+        )
+        correlations = np.full(efm_signals.shape[1], -np.inf, dtype=np.float64)
+        for index, column in enumerate(efm_signals.T):
+            finite = np.isfinite(sampled) & np.isfinite(column)
+            if (
+                np.count_nonzero(finite) >= 3
+                and np.std(sampled[finite]) > 0.0
+                and np.std(column[finite]) > 0.0
+            ):
+                correlations[index] = np.corrcoef(sampled[finite], column[finite])[0, 1]
+        order = np.argsort(correlations)[::-1]
+        winner = int(order[0])
+        runner_up = int(order[1])
+        if correlations[winner] < _IDENTITY_CORRELATION_FLOOR:
+            raise RuntimeError(
+                f"channel {channel!r} best EFM identity correlation "
+                f"{correlations[winner]:.9f} is below "
+                f"{_IDENTITY_CORRELATION_FLOOR:.4f}"
+            )
+        if correlations[winner] <= correlations[runner_up]:
+            raise RuntimeError(f"channel {channel!r} has no unique EFM identity")
+        matches.append(
+            SignalIdentityMatch(
+                channel=channel,
+                efm_index=winner,
+                correlation=float(correlations[winner]),
+                runner_up_correlation=float(correlations[runner_up]),
+            )
+        )
+    indices = [item.efm_index for item in matches]
+    if len(indices) != len(set(indices)):
+        raise RuntimeError("flux-loop signal identities are not one-to-one")
+    return tuple(matches)
 
 
 def _position_divergence(
@@ -240,10 +320,129 @@ class TransformGeometrySource:
         }
 
 
+@dataclass
+class IdentityBoundCampaignGeometrySource:
+    """The frozen campaign table with flux-loop identity bound by signal.
+
+    The historical campaign source maps an acquisition loop to the nearest EFM
+    coordinate parsed from its raw description.  Several descriptions reuse a
+    placeholder coordinate, so that join is not an identity relation.  This
+    source keeps the campaign table and all of its static geometry but replaces
+    only those loop mappings with a one-to-one binding measured on the frozen
+    cohort's evidence shot.
+    """
+
+    evidence_shot: int
+    campaign_source: GeometrySource = field(default_factory=CampaignGeometrySource)
+    label: str = IDENTITY_BOUND_SOURCE_LABEL
+    _table: Any | None = field(default=None, init=False, repr=False)
+    _matches: tuple[SignalIdentityMatch, ...] = field(
+        default=(), init=False, repr=False
+    )
+    _aliased_count: int = field(default=0, init=False, repr=False)
+
+    def _build(self) -> Any:
+        table = self.campaign_source.table_for(self.evidence_shot)
+        if table is None:
+            raise RuntimeError(
+                f"campaign geometry is unavailable for shot {self.evidence_shot}"
+            )
+        channels = tuple(
+            item.amb_channel for item in table.sensor_map if item.kind == "flux_loop"
+        )
+        self._matches = _signal_identity_matches(self.evidence_shot, channels)
+        by_channel = {item.channel: item for item in self._matches}
+        loops = {item.index: item for item in table.flux_loops}
+        corrected = []
+        aliased_count = 0
+        for mapping in table.sensor_map:
+            if mapping.kind != "flux_loop":
+                corrected.append(mapping)
+                continue
+            match = by_channel[mapping.amb_channel]
+            loop = loops.get(match.efm_index)
+            if loop is None:
+                raise RuntimeError(
+                    f"channel {mapping.amb_channel!r} matched absent EFM geometry "
+                    f"column {match.efm_index}"
+                )
+            aliased_count += int(mapping.efm_index != match.efm_index)
+            corrected.append(
+                replace(
+                    mapping,
+                    efm_index=match.efm_index,
+                    r=loop.r,
+                    z=loop.z,
+                    residual_m=0.0,
+                    flag="",
+                )
+            )
+        self._aliased_count = aliased_count
+        return replace(
+            table,
+            sensor_map=corrected,
+            provenance_flags=[
+                *table.provenance_flags,
+                "flux-loop sensor identity: acquisition waveforms joined one-to-one "
+                "to EFM columns on the evidence shot; description coordinates are "
+                "not identity keys",
+            ],
+        )
+
+    def table_for(self, shot: int) -> Any:
+        """Return the corrected table after checking campaign compatibility."""
+        if self._table is None:
+            self._table = self._build()
+        candidate = self.campaign_source.table_for(int(shot))
+        if candidate is None:
+            raise RuntimeError(f"campaign geometry is unavailable for shot {shot}")
+        if candidate.signature.key != self._table.signature.key:
+            raise RuntimeError(
+                f"shot {shot} campaign {candidate.signature.key!r} differs from "
+                f"identity evidence campaign {self._table.signature.key!r}"
+            )
+        return self._table
+
+    @property
+    def revision(self) -> str:
+        """Digest the exact address-to-column binding carried by this source."""
+        if not self._matches:
+            self.table_for(self.evidence_shot)
+        payload = json.dumps(
+            [(item.channel, item.efm_index) for item in self._matches],
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+    def provenance(self) -> dict[str, Any]:
+        """Record the independent identity evidence and displaced alias count."""
+        if not self._matches:
+            self.table_for(self.evidence_shot)
+        return {
+            "source": self.label,
+            "reader": "imas_ambix.gs.geometry.read_efm_geometry",
+            "identity_binding": "unique highest waveform correlation",
+            "identity_evidence_shot": int(self.evidence_shot),
+            "identity_channel_count": len(self._matches),
+            "identity_aliased_nearest_coordinate_rows_replaced": self._aliased_count,
+            "identity_minimum_winning_correlation": min(
+                item.correlation for item in self._matches
+            ),
+            "identity_minimum_winner_margin": min(
+                item.correlation - item.runner_up_correlation for item in self._matches
+            ),
+            "identity_binding_sha256": self.revision.removeprefix("sha256:"),
+        }
+
+
 def resolve_geometry_source(selection: str) -> GeometrySource:
     """Resolve one explicit benchmark source name; there is no implicit default."""
     if selection == CAMPAIGN_SOURCE_NAME:
         return CampaignGeometrySource()
+    if selection == IDENTITY_BOUND_SOURCE_NAME:
+        return IdentityBoundCampaignGeometrySource(
+            evidence_shot=int(FROZEN_SHOTSET[0].shot_id)
+        )
     if selection == TRANSFORM_SOURCE_NAME:
         return TransformGeometrySource(evidence_shot=int(FROZEN_SHOTSET[0].shot_id))
     raise ValueError(f"unknown geometry source {selection!r}")
@@ -306,7 +505,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--geometry-source",
         required=True,
-        choices=(CAMPAIGN_SOURCE_NAME, TRANSFORM_SOURCE_NAME),
+        choices=(
+            CAMPAIGN_SOURCE_NAME,
+            IDENTITY_BOUND_SOURCE_NAME,
+            TRANSFORM_SOURCE_NAME,
+        ),
     )
     parser.add_argument("--max-slices", type=int, default=6)
     parser.add_argument("--sigma", type=float, default=0.02)
