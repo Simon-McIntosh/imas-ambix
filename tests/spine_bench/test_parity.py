@@ -320,6 +320,94 @@ def after_path() -> SpineBenchmarkStamp:
     return _load(parity.AFTER_PATH_STAMP)
 
 
+@pytest.fixture
+def migration_reference() -> SpineBenchmarkStamp:
+    """The clean frozen stamp with the sensor-identity join corrected."""
+    return _load(parity.MIGRATION_REFERENCE_STAMP)
+
+
+def test_migration_reference_records_the_corrected_residual_pair(
+    migration_reference,
+):
+    assert parity.check_admissibility(migration_reference) == ()
+    assert migration_reference.env.git_dirty is False
+    assert migration_reference.geometry_source == "efm-campaign-signal-identity"
+    assert (
+        migration_reference.geometry_provenance[
+            "identity_aliased_nearest_coordinate_rows_replaced"
+        ]
+        == 14
+    )
+    measured = {
+        arm: migration_reference.aggregate[arm][parity.MAGNETICS_RESIDUAL_METRIC]
+        for arm in parity.GATED_ARMS
+    }
+    assert measured == parity.MIGRATION_REFERENCE_RESIDUALS
+    assert parity.evaluate(migration_reference).ok
+
+
+def test_corrected_residual_movements_are_reported_against_the_aliased_value():
+    expected = {
+        "greens-matvec": -0.06893478688721126,
+        "grid-delstar": -0.06907972648183915,
+    }
+    measured = {
+        arm: (value - parity.ALIASED_NEAREST_COORDINATE_RESIDUAL)
+        / parity.ALIASED_NEAREST_COORDINATE_RESIDUAL
+        for arm, value in parity.MIGRATION_REFERENCE_RESIDUALS.items()
+    }
+    assert measured == pytest.approx(expected)
+
+
+def test_migration_seam_budget_is_derived_from_the_corrected_pair():
+    greens = parity.MIGRATION_REFERENCE_RESIDUALS["greens-matvec"]
+    grid = parity.MIGRATION_REFERENCE_RESIDUALS["grid-delstar"]
+    spread = abs(greens - grid) / greens
+    assert pytest.approx(spread) == parity.MIGRATION_CROSS_SUBSTRATE_RESIDUAL_SPREAD
+    assert (
+        pytest.approx(parity.MIGRATION_SEAM_MARGIN_MULTIPLIER * spread)
+        == parity.MIGRATION_SEAM_RESIDUAL_BUDGET
+    )
+    assert pytest.approx(0.001245365781787239) == parity.MIGRATION_SEAM_RESIDUAL_BUDGET
+
+
+def test_migration_seam_gate_reads_its_derived_budget(migration_reference):
+    tolerances = parity.tolerances_from(
+        migration_reference, parity.ComparisonKind.MIGRATION_SEAM
+    )
+    residuals = [
+        item for item in tolerances if item.metric == parity.MAGNETICS_RESIDUAL_METRIC
+    ]
+    assert {item.arm for item in residuals} == set(parity.GATED_ARMS)
+    for tolerance in residuals:
+        assert tolerance.bound == pytest.approx(
+            tolerance.reference * (1.0 + parity.MIGRATION_SEAM_RESIDUAL_BUDGET)
+        )
+        assert "corrected-identity" in tolerance.basis
+
+
+def test_migration_comparison_pins_the_qualified_slice_coverage(
+    migration_reference,
+):
+    assert parity.compare_paths(
+        migration_reference,
+        migration_reference,
+        parity.ComparisonKind.MIGRATION_SEAM,
+    ).ok
+    changed = copy.deepcopy(migration_reference)
+    row = next(
+        item
+        for item in changed.shots
+        if item.shot_id == 21985 and item.substrate == "greens-matvec"
+    )
+    row.n_slices_scored -= 1
+    report = parity.compare_paths(
+        migration_reference, changed, parity.ComparisonKind.MIGRATION_SEAM
+    )
+    assert not report.ok
+    assert any("coverage shot 21985" in reason for reason in report.admissibility)
+
+
 def test_the_cutover_budget_is_the_sum_of_its_three_measured_terms():
     """Nothing may be added for roundness: each term names a measurement."""
     assert (
