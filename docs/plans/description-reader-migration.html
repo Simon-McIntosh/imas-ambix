@@ -23,7 +23,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-16">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="4">
+<meta name="plan-commits" content="3d3ed8c56d368138c664489a1db12f819ee49f8c,d537b60920f55ecb80ac00833598bd919e4ded6b">
+<meta name="plan-artifacts" content="docs/evidence/archive/description-reader-migration-landed.html,imas_ambix/spine_bench/results/physics-spine-v0-mast-heldout-6-3d3ed8c56d-98dci4-clu-3141-efm-campaign-signal-identity-1d41708300ef.yaml">
+<meta name="plan-impl" content="0.25">
 </head>
 <body>
   <main class="plan-doc">
@@ -38,19 +41,22 @@
     migration across a wide surface, its risk profile is different, and it is gated on evidence
     the producer plan generated rather than on more design.</p>
 
-    <h2 id="s2">§2 — The frozen spine is the thing that must not move</h2>
-    <p>Sensor coordinates are consumed by <code>gs.operator</code>,
-    <code>EquilibriumGrid.sensor_greens</code>, <code>PatchBasis</code>,
-    <code>boundary_disc</code> and the residual computation itself, so a description change reaches
-    the physics rather than stopping at an interface. A description-content change has already been
-    measured moving <code>magnetics_residual_whitened_rms</code> by 3.2%.</p>
-    <p>Two facts make the migration safer than that number suggests, and both were established
-    before this plan opened. The adapter already reproduces the legacy table's structure exactly —
-    channel order, plasma grid, limiter mask, 251 columns and the 21/84/146 driven-plasma-passive
-    split. And the reference residual itself is being re-stamped, because the baseline was built on
-    a sensor identity join that aliased six channels onto one index.</p>
-    <p><em>Trigger:</em> the re-stamped baseline must exist before any consumer is migrated.
-    Migrating against a comparator known to be defective would bank the error twice.</p>
+    <section id="s2" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-16</span>
+        <h2>§2 — The frozen spine is the thing that must not move</h2>
+      </header>
+      <p class="landed-summary">
+        Re-stamped the frozen baseline with a one-to-one measured-waveform identity binding
+        (digest <code>1d417083</code>) replacing the aliased join: greens-matvec
+        <strong>0.6890842357802178</strong>, grid-delstar <strong>0.6889769655392166</strong>
+        (−6.89%/−6.91% vs the aliased 0.7401030841614555); per-seam budget
+        <strong>0.1245%</strong> (8× corrected cross-substrate spread); 49 parity tests green.
+        The migration trigger is satisfied — seams migrate against a sound comparator.
+        Full record: <a href="/imas-ambix/evidence/archive/description-reader-migration-landed#s2-restamp">§2 landed</a>
+        (commits <code>3d3ed8c</code>, <code>d537b60</code>).
+      </p>
+    </section>
 
     <h2 id="s3">§3 — Migrate by seam, behind a facade</h2>
     <p>The census is the measure of progress and the definition of done: 41 call sites, falling to
@@ -82,7 +88,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-drm-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-16" data-recommends-skill="/reckon-ship description-reader-migration §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-drm-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-16" data-recommends-skill="/reckon-ship description-reader-migration §2" data-resolved-at="2026-08-16T20:05:21+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Re-stamp the frozen baseline with corrected sensor identity</h4>
     <div class="r-fu-body"><p>The reference residual 0.7401030841614555 was produced with a
         sensor map whose nearest-coordinate join aliased six acquisition channels onto one
@@ -90,6 +96,7 @@
         corrected identity so the comparator every migration step is judged against is sound.
         This gates the whole migration and must land first.</p></div>
     <pre class="r-fu-prompt">/reckon-ship description-reader-migration §2</pre>
+    <p class="r-fu-outcome">Landed as commits 3d3ed8c + d537b60 (merged e52d66f). One-to-one measured-waveform identity binding (digest sha256:1d41708300ef…) replaces the aliased join across all 19 flux-loop channels; corrected frozen references greens-matvec 0.6890842357802178 and grid-delstar 0.6889769655392166 (−6.89%/−6.91% vs aliased 0.7401030841614555); per-seam budget 0.1245% derived as 8× the corrected cross-substrate spread; 49 parity tests green; coverage pinned per shot. The §2 migration trigger is satisfied — seams may now migrate against a sound comparator.</p>
     </article>
 </section>
   <section data-reckon="research" id="research" class="r-research-list">
@@ -98,6 +105,11 @@
     <span class="r-research-title">Sensor identity join assessment — the aliasing defect the re-stamp corrects (37/50 mapped flux-loop rows select a wrong EFM column; flags not masked downstream)</span></div>
 <div class="r-research" data-id="r-drm-02" data-type="evidence" data-source="docs/evidence/archive/machine-map-transform-engine-landed.html#s5-audit" data-added-by="reckon-ship" data-when="2026-08-16">
     <span class="r-research-title">Reader-retirement audit: census definition (41 modules invoking legacy description-read APIs from imas_ambix.gs.geometry at rev 81785a8; 8 library + 33 scripts), the frozen-chain topology, and the not-run transform stamp (moment seed escapes the vessel)</span></div>
+</section>
+<section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s2" data-id="c-20260816-drm-restamp" data-who="reckon-ship" data-when="2026-08-16T20:15:00+00:00">
+    <div class="r-comment-body">drm-restamp landed — commits 3d3ed8c, d537b60 (merged e52d66f); gate restamped-baseline PASSED; measure: greens-matvec 0.6890842357802178, grid-delstar 0.6889769655392166 (−6.89%/−6.91% vs aliased), seam budget 0.001245365781787239 (0.1245%), 49 parity tests green, SLURM stamp job 1249274 exit 0, 15/15 tolerances; artifacts: versioned stamp YAML + docs/evidence/archive/description-reader-migration-landed.html#s2-restamp.</div>
+</div>
 </section>
 </main>
 </body>

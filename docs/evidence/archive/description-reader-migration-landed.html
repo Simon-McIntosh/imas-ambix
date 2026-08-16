@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="description-reader-migration-landed">
+  <meta name="plan-title" content="Description Reader Migration — Measured Evidence">
+  <meta name="plan-summary" content="Execution record for retiring the machine-specific description reader: the re-stamped frozen baseline and its derived seam budget, then the per-seam census and stamp evidence as consumers migrate.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-recorded-at" content="2026-08-16">
+  <meta name="plan-evidence-for" content="description-reader-migration">
+  <meta name="plan-verifies" content="description-reader-migration#s2">
+  <meta name="plan-verdict" content="in-progress">
+  <meta name="plan-source-quality" content="worker-committed code and tests; frozen CPU stamp on SLURM with committed versioned stamp artifact">
+  <title>Description Reader Migration — Measured Evidence | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>Description Reader Migration — Measured Evidence</h1>
+  <p>Cumulative execution record for
+  <a href="/imas-ambix/plans/description-reader-migration">Retire the Machine-Specific
+  Description Reader</a>. One anchor per landed node.</p>
+
+  <h2 id="s2-restamp">§2 — The comparator is sound: re-stamped baseline and derived seam budget</h2>
+  <p><strong>The frozen-spine baseline is re-stamped with a one-to-one measured-waveform identity
+  binding, and the per-seam migration budget is 0.1245%.</strong> Commits <code>3d3ed8c</code>
+  (identity binding), <code>d537b60</code> (re-stamp), merged <code>e52d66f</code>.</p>
+  <p>The corrected binding replaces the aliased nearest-coordinate join across all 19 flux-loop
+  channels — 14 aliased rows replaced — with minimum winning waveform correlation
+  0.999994800208951 and exact binding digest
+  <code>sha256:1d41708300ef…c5d4a4</code> pinned on the stamp for reproducibility. The clean
+  six-shot frozen CPU stamp (SLURM <code>sun_debug</code>, <code>OMP_NUM_THREADS=1</code>,
+  wall 1188.5&nbsp;s, 15/15 parity tolerances cleared) yields:</p>
+  <table>
+    <caption>Corrected frozen references vs the aliased baseline</caption>
+    <thead><tr><th>Arm</th><th>Aliased</th><th>Corrected</th><th>Movement</th></tr></thead>
+    <tbody>
+      <tr><td>greens-matvec</td><td>0.7401030841614555</td>
+          <td><strong>0.6890842357802178</strong></td><td>−6.893%</td></tr>
+      <tr><td>grid-delstar</td><td>0.7395…</td>
+          <td><strong>0.6889769655392166</strong></td><td>−6.908%</td></tr>
+    </tbody>
+  </table>
+  <p>The corrected cross-substrate spread is 0.01557%; preserving the established 8× safety
+  multiple gives the <strong>per-seam budget 0.001245365781787239 (0.1245%)</strong> that every
+  migrated library seam must hold — the value the locked <code>migration-budget</code> decision
+  (restamped-derived) resolves to. Fixing the identity moved the metric by −6.9%, seven times the
+  1% same-source budget: migrating against the aliased comparator would indeed have banked the
+  error twice.</p>
+  <p>Coverage qualification, pinned rather than papered over: shots 21985 and 21986 score 5/6
+  slices per arm (68/72 slice-arm rows scored; aggregate median converged_fraction 1.0), and
+  <code>compare_paths</code> now pins exact per-shot attempted/scored coverage so any seam that
+  changes this population is rejected rather than silently rebaselined. The spine reach that makes
+  this comparator load-bearing: sensor coordinates are consumed by <code>gs.operator</code>,
+  <code>EquilibriumGrid.sensor_greens</code>, <code>PatchBasis</code>, <code>boundary_disc</code>
+  and the residual computation itself. Stamp artifact:
+  <code>imas_ambix/spine_bench/results/physics-spine-v0-mast-heldout-6-3d3ed8c56d-98dci4-clu-3141-efm-campaign-signal-identity-1d41708300ef.yaml</code>;
+  49 parity tests green.</p>
+</main>
+</body>
+</html>
