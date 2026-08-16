@@ -2780,12 +2780,14 @@ def _grounded_near_vacuum_for_run(model, run, by_sig, stats, device):
     Uses the raw amc plasma_current proxy already in ShotRun.X to find the
     near-vacuum / flat-top slices, and the head's predicted θ→c_plasma.
     """
-    from imas_ambix.gs.geometry import build_table_for_shot  # noqa: PLC0415
+    from imas_ambix.data.description_reader import (  # noqa: PLC0415
+        read_geometry_table,
+    )
     from imas_ambix.gs.grounding import _feature_offsets  # noqa: PLC0415
     from imas_ambix.statespace.baseline import _FEATURE_SCHEMA_MAG_ANE  # noqa: PLC0415
 
     try:
-        sig = build_table_for_shot(int(run.shot_id)).signature.key
+        sig = read_geometry_table(int(run.shot_id)).signature.key
     except Exception:  # noqa: BLE001
         return None
     cg = by_sig.get(sig)
