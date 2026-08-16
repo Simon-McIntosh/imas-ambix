@@ -5,7 +5,7 @@ description: >-
   Range-scoped bindings from immutable store arrays to Data Dictionary leaves.
   The schema deliberately has no condition, expression, or code-hook slot.
 license: LGPL-3.0-or-later
-version: 1.8.0
+version: 1.9.0
 prefixes:
   linkml: https://w3id.org/linkml/
   mm: https://imas-ambix.example/schema/machine-map/
@@ -45,6 +45,14 @@ enums:
         description: Source paths and metadata were checked against a local corpus.
       source-only:
         description: Schema and public source were checked without pulse data.
+  IdentityCaseRule:
+    permissible_values:
+      case-fold:
+        description: Compare identities after Unicode case folding.
+  IdentityNumericTokenRule:
+    permissible_values:
+      integer-value:
+        description: Compare every decimal token by integer value, ignoring zero padding.
 
 slots:
   schema_version:
@@ -92,6 +100,14 @@ slots:
     inlined_as_list: true
   source_qualifications:
     range: SourceQualification
+    multivalued: true
+    inlined_as_list: true
+  sensor_identity_rules:
+    range: SensorIdentityRule
+    multivalued: true
+    inlined_as_list: true
+  identity_qualifications:
+    range: IdentityQualification
     multivalued: true
     inlined_as_list: true
   circuit_current_joins:
@@ -232,6 +248,20 @@ slots:
       Non-geometric key that distinguishes acquisition channels even when
       their spatial descriptions are identical.
     required: true
+  sensor_identity_rule:
+    description: >-
+      Named reusable rule that canonicalises identities before comparison.
+    required: true
+  case_rule:
+    range: IdentityCaseRule
+    required: true
+  numeric_token_rule:
+    range: IdentityNumericTokenRule
+    required: true
+  malformed_identity:
+    required: true
+  canonical_identity:
+    required: true
   description_supplements:
     range: DescriptionSupplement
     multivalued: true
@@ -336,6 +366,27 @@ classes:
       - source_unit
       - reason
       - evidence
+  SensorIdentityRule:
+    description: >-
+      Canonicalises acquisition identities without enumerating aliases. Case
+      and decimal-token rules apply uniformly to every sensor address.
+    slots:
+      - name
+      - case_rule
+      - numeric_token_rule
+      - evidence
+  IdentityQualification:
+    description: >-
+      Records one malformed upstream spelling and the canonical acquisition
+      identity reached through a declared reusable rule.
+    slots:
+      - name
+      - source_location
+      - malformed_identity
+      - canonical_identity
+      - sensor_identity_rule
+      - reason
+      - evidence
   DriveTopology:
     description: >-
       Declares the sparse non-zero form of a circuit connections matrix: which
@@ -401,6 +452,7 @@ classes:
       - name
       - source_location
       - sensor_identity_key
+      - sensor_identity_rule
       - current_channels
       - sensor_addresses
       - unmatched_sensor_addresses
@@ -457,6 +509,8 @@ classes:
       - maps
       - validation_gaps
       - source_qualifications
+      - sensor_identity_rules
+      - identity_qualifications
       - circuit_current_joins
       - drive_topologies
       - structure_assemblies

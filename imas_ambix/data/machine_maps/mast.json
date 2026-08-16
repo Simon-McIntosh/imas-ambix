@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.8.0",
+  "schema_version": "1.9.0",
   "dd_version": "4.1.1",
   "source": "https://mastapp.site/parquet/level2/shots",
   "source_revision": "local-level2-11573-shots-11766-30471-machine-description",
@@ -3419,6 +3419,25 @@
       "source_unit": "m",
       "reason": "DD 4.1.1 has no device-description minor-radius leaf. The exhaustive minor_radius search found equilibrium/time_slice/boundary/minor_radius, pulse_schedule/position_control/minor_radius/reference and summary/boundary/minor_radius/value; each describes a plasma boundary or control target rather than the fixed nominal machine radius.",
       "evidence": "The legacy GeometryTable declares the fixed nominal value 0.65 m. A search over every DD 4.1.1 path found no writable machine-description target with that meaning, so the catalog records the checked paths instead of binding the device constant to plasma-state data."
+    }
+  ],
+  "sensor_identity_rules": [
+    {
+      "name": "mast-acquisition-address",
+      "case_rule": "case-fold",
+      "numeric_token_rule": "integer-value",
+      "evidence": "MAST level-1 acquisition addresses are lower case while level-2 nominal-geometry channels are upper case, and decimal tokens may carry different zero padding. Comparing case-folded identities with every decimal token interpreted by integer value preserves the hardware address while applying one rule to every sensor family."
+    }
+  ],
+  "identity_qualifications": [
+    {
+      "name": "mast-level2-fl-cc010-spelling",
+      "source_location": "fair-mast://level2/shots/{shot}.zarr/magnetics/flux_loop_geometry_channel",
+      "malformed_identity": "FL_CC010",
+      "canonical_identity": "fl_cc10",
+      "sensor_identity_rule": "mast-acquisition-address",
+      "reason": "The level-2 spelling FL_CC010 has an extra zero in its final numeric token relative to the level-1 acquisition identity fl_cc10. The declared case-fold and integer-value token rule resolves both spellings to one sensor without a channel-specific alias.",
+      "evidence": "The level-2 flux_loop_geometry_channel array publishes FL_CC010 at shots 11766, 12417 and 12533, while the shot-12417 level-1 AMB acquisition publishes fl_cc10. The remaining level-1-only identity fl_p6u_1 is absent from the level-2 nominal geometry and signal mapping."
     }
   ],
   "circuit_current_joins": [
@@ -28634,6 +28653,7 @@
       "name": "mast-acquisition-11766",
       "source_location": "fair-mast://manifests/gs_geometry_tables.json#/campaigns/mp78-fl46-fc1004-lim37-9425ae4a8bf3bc15",
       "sensor_identity_key": "acquisition-address",
+      "sensor_identity_rule": "mast-acquisition-address",
       "current_channels": [
         "efps_current",
         "error_field_a",
@@ -28775,6 +28795,7 @@
       "name": "mast-acquisition-12417",
       "source_location": "fair-mast://manifests/gs_geometry_tables.json#/campaigns/mp78-fl46-fc1004-lim37-edd753d282903679",
       "sensor_identity_key": "acquisition-address",
+      "sensor_identity_rule": "mast-acquisition-address",
       "current_channels": [
         "efps_current",
         "error_field_a",
