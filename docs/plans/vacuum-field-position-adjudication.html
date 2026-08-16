@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="vacuum-field-position-adjudication">
+  <meta name="plan-title"     content="Let the Vacuum Field Decide Where the Sensors Are">
+  <meta name="plan-summary"   content="Nineteen flux-loop positions disagree between the nominal geometry table and the reconstruction. Predict the vacuum flux at each candidate position from known coil currents and compare against the measured loop signal, so the measurement adjudicates rather than one description being asserted over another.">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort-hours" content="5">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint"    content="S23">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="machine-map-transform-engine">
+  <title>Let the Vacuum Field Decide Where the Sensors Are | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Two descriptions disagree; a measurement can settle it</h2>
+    <p>Nineteen flux-loop positions differ between the level-2 nominal geometry table and the
+    reconstruction's own <code>silop</code> positions, by up to 0.437&nbsp;m at
+    <code>fl_p4l_1</code>. Both are plausible descriptions of the same signal-proven hardware, and
+    no amount of comparing them to each other will say which is right. <strong>A measurement
+    will.</strong></p>
+    <p>The method is ordinary physics used as an arbiter. In a vacuum shot there is no plasma
+    current, so the flux threading a loop is entirely attributable to known coil currents through
+    known coil geometry. Predict the flux at each candidate position and compare against what the
+    loop actually measured: <strong>the candidate that predicts the measurement is where the
+    sensor is.</strong></p>
+
+    <h2 id="s2">§2 — Why this is not circular, and the line that keeps it so</h2>
+    <p>Using a field solver to adjudicate a geometry the solver consumes invites a real objection,
+    so the boundary matters and must hold explicitly.</p>
+    <table>
+      <caption>The distinction the design turns on</caption>
+      <thead><tr><th>Framing</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td>Compare our sensor geometry against the solver's geometry</td>
+            <td><strong>Circular</strong> — a model confirming its own inputs</td></tr>
+        <tr><td>Predict a <em>measured</em> signal from each candidate position and score against
+                the measurement</td>
+            <td><strong>Sound</strong> — the measurement is independent of both candidates</td></tr>
+      </tbody>
+    </table>
+    <p>The disputed quantity is a sensor position. The trusted quantities are coil geometry and
+    measured coil current, which are a different part of the machine description and are not in
+    dispute. That separation is what breaks the circle, and it must be stated in the result: if
+    coil geometry ever enters the disputed set, this method stops being an arbiter and becomes a
+    joint inverse problem.</p>
+    <p>Nova is already a pinned dependency and its Green's functions have been cross-checked
+    against the in-tree kernel to 1.1&times;10<sup>-9</sup>, so it is an independent
+    implementation rather than a second opinion from the same code. Coil couplings use the
+    finite-area cylinder kernel, never point filaments.</p>
+
+    <h2 id="s3">§3 — Deliverable</h2>
+    <p>A verdict per disputed loop, with its margin. A loop whose two candidates predict the
+    measurement equally well is a <em>null</em> and must be reported as one rather than resolved
+    by preference — the discriminating power of the test is part of its result.</p>
+    <p><em>Done-when:</em> a vacuum-shot cohort selected and its plasma-current-free condition
+    evidenced rather than assumed; for each of the 19 disputed loops the predicted flux at both
+    candidate positions compared against the measured signal across the cohort, with the residual
+    for each candidate and the margin between them reported; a verdict of nominal-table,
+    reconstruction, or null recorded per loop with the counts summing to 19; and the winning
+    positions fed back to the catalog as declarations carrying this evidence, or the null loops
+    explicitly left undecided.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="null-loop-disposition" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">When both candidate positions predict the measurement equally well,
+          what does the catalog declare?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="keep-nominal">keep the nominal table value and record the null</button>
+          <button class="r-opt" data-value="keep-reconstruction">keep the reconstruction value, since the spine consumes it</button>
+          <button class="r-opt" data-value="qualify-undecided">declare neither and carry an explicit undecided qualification</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-vfpa-001" data-status="open"
+               data-capability-version="1.0" data-capability-class="general"
+               data-capability-reasoning="deep" data-capability-verification="strict"
+               data-written-by="reckon-ship" data-written-at="2026-08-16"
+               data-recommends-skill="/reckon-ship vacuum-field-position-adjudication §3">
+        <h4 class="r-fu-title">Adjudicate the nineteen disputed loop positions on vacuum shots</h4>
+        <div class="r-fu-body"><p>Select a vacuum cohort and evidence its plasma-current-free
+        condition. For each disputed loop, forward-predict the flux at both candidate positions
+        from measured coil currents and compare against the measured loop signal. Report residual
+        per candidate, margin between them, and a verdict of nominal-table, reconstruction or
+        null. Nulls are a result, not a failure.</p></div>
+        <pre class="r-fu-prompt">/reckon-ship vacuum-field-position-adjudication §3</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

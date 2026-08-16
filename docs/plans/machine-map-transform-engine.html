@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="machine-map-transform-engine">
   <meta name="plan-title" content="Machine Maps and the Transform Engine">
   <meta name="plan-summary" content="Replace machine-specific readers with declared machine maps applied by generic transform engines scoped to store format, so adding a machine costs a map and adding a store costs one engine; geometry stays a function of shot through named transitions in the shot manifest.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
   <meta name="plan-capability-version" content="1.0">
@@ -22,10 +22,11 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-16">
-<meta name="plan-version" content="38">
+<meta name="plan-version" content="40">
 <meta name="plan-commits" content="c3cdba3e01ce3bd7e862003790691f3ef7d5114f,d73a16e0c04a9851396d264779a5d16253f25b64,e331207548de5bfe8674f5acbb4325e697bd6cc9,0666e54f04a68504cfd883d0d2b08f1dac796afe,12661d1f44cdc6a944e1ab911543777d1b3ddbeb,ad515a92f902bdacf06057ff20a54e21970ed13e,104626c7be53c58fd713747607e820022f9a2d75,658ef24e9772d928f22a67950e11796af1b3bd2b,f525e7fd6d2f21bebd2c5a926f48062c5ad5b9be,4af4c11cc70c56ef569b7f2ad87af18a60a63c7d,77d9e3d594de1a499dc4bda3605bc929513dc6c8,714390ecfc9e425f9f84d54b71f3b86bb7c8dce7,887e634e49a5c7f5d315d7bf15a113c85cc9722c,2e03e95adde3bdb78282b345908de175fd14efe6,048cbe201817b15b4b19a5cc2e99dfa0dba70ec6,08e86fb681e4c762d776b630a514af80d869e0e1">
 <meta name="plan-artifacts" content="docs/evidence/archive/machine-map-transform-engine-landed.html,imas_ambix/data/geometry_transitions.py,imas_ambix/data/machine_map.py,imas_ambix/data/machine_maps/schema.yaml,imas_ambix/data/machine_maps/mast.json,imas_ambix/data/machine_maps/diii-d.json,imas_ambix/data/transform_engine.py,tests/data/test_geometry_transitions.py,tests/data/test_machine_map.py,tests/data/test_transform_engine.py">
-<meta name="plan-impl" content="0.99">
+<meta name="plan-impl" content="1.0">
+<meta name="plan-blocks" content="description-reader-migration,vacuum-field-position-adjudication">
 </head>
 <body>
   <main class="plan-doc">
@@ -151,7 +152,50 @@
     metric-perturbing. §6 below is the work that clause needs, and it is a section of this plan
     rather than a followup because this plan owns it.</p>
 
-    <h2 id="s6">§6 — The adapter the reader clause actually needs</h2>
+    <section id="s6" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-16</span>
+        <h2>§6 — The adapter the reader clause needs</h2>
+      </header>
+      <p class="landed-summary">
+        Built <code>imas_ambix/data/geometry_adapter.py</code> and
+        <code>operator_parity.py</code>. The adapter-built operator is
+        <strong>structurally identical to the legacy one</strong>: channel order, plasma grid and
+        limiter mask equal, <strong>251 columns matching legacy exactly</strong>, block split
+        <strong>21 driven + 84 plasma + 146 passive</strong>, 0 non-finite entries and
+        <strong>0 unattributed metrics</strong> — every remaining difference traced to a named
+        description field. Field parity 7/17 exact with <code>adapter-incorrect = 0</code>, so
+        every gap is a declaration, not a conversion error. The frozen stamp is
+        <strong>not-run</strong>: the transform route scores 0/0 slices because the moment seed
+        escapes the vessel, which is now understood and carried into
+        <a href="/imas-ambix/plans/description-reader-migration">the migration plan</a>.
+        Full record: <a href="/imas-ambix/evidence/archive/machine-map-transform-engine-landed">§6 landed</a>
+        (commits <code>887e634</code>, <code>2e03e95</code>, <code>048cbe2</code>,
+        <code>08e86fb</code>, <code>9d04457</code>, <code>e052eae</code>).
+      </p>
+    </section>
+
+    <h2 id="s7">§7 — What this plan established, and what it handed on</h2>
+    <p>The producer is built and its output is verified against the consumer it must eventually
+    replace. Two things are deliberately <em>not</em> done here, both because they became larger
+    than a tail of this plan and are gated on evidence this plan produced rather than on further
+    design.</p>
+    <p><strong>The 41 consumers have not moved.</strong> The per-machine reader is still what
+    production uses, and migrating it is a wide-surface change that must be judged against a
+    re-stamped baseline. That is
+    <a href="/imas-ambix/plans/description-reader-migration">Retire the Machine-Specific
+    Description Reader</a>, which also owns the re-stamp, since migrating against a comparator
+    built on the defective sensor identity join would bank the error twice.</p>
+    <p><strong>Nineteen loop positions remain disputed.</strong> The nominal table and the
+    reconstruction disagree by up to 0.437&nbsp;m on signal-proven identical hardware, and no
+    further comparison between two descriptions can settle it. That is
+    <a href="/imas-ambix/plans/vacuum-field-position-adjudication">Let the Vacuum Field Decide
+    Where the Sensors Are</a>, where a measurement adjudicates instead.</p>
+    <p>Three upstream FAIR-MAST defects were found and are recorded rather than worked around: the
+    malformed <code>FL_CC010</code> identity, now resolved locally by a declared normalisation rule
+    while the defect stays visible; <code>fl_p6u_1</code> measurable in level-1 but absent from
+    both the level-2 static table and its signal mapping; and <code>silop_dphi</code> absent at
+    shot 11766 with no stated motivation.</p>
     <p>The transform emits a collection of arrays; the 41 legacy call sites consume a
     <code>GeometryTable</code>. Nothing bridges the two, and that single missing piece — not the
     engines, not the schema — is what blocks §5's reader clause. The bridge must be
@@ -213,6 +257,16 @@
         the map-expressiveness decision needs.</p></div>
     <pre class="r-fu-prompt">/reckon-ship machine-map-transform-engine §3</pre>
     <p class="r-fu-outcome">Landed as commit c3cdba3 (merged 921069c). 11 named transitions over 11,573 level-2 shots spanning 11766-30471, gap-free and overlap-free, lookup resolved for every shot in span. The evidence it was sequenced to produce came back decisive: 10 of 11 boundaries fall strictly inside campaign M5, so campaign is not a usable key for geometry while shot range is, and map-expressiveness locked to range-scoped-maps on that partition rather than on the plan's stated preference. Carried qualification: the repeated 1004&lt;-&gt;938 PF-filament-count alternation is not physical, so 11 is an upper bound on real machine changes and some boundaries record EFIT setup-array churn.</p>
+    </article>
+<article class="r-fu" data-id="f-mmte-002" data-status="open" data-written-by="reckon-ship" data-written-at="2026-08-16" data-recommends-skill="/reckon-ship description-reader-migration §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Retire the 41 legacy description readers, re-stamping the baseline first</h4>
+    <div class="r-fu-body"><p>Exemption: <strong>foreign-owner</strong>. §5's clause that no machine-specific reader remains is NOT met and is owned by <a href="/imas-ambix/plans/description-reader-migration">description-reader-migration</a> in S23, which surfaces it through its own lifecycle. It is a wide-surface migration across 41 call sites gated on a re-stamped frozen baseline, and that re-stamp is the first thing it does — migrating against a comparator built on the defective sensor identity join would bank the error twice. This plan produced everything that migration needs: an adapter whose operator is structurally identical to the legacy one, and the assessment naming what the baseline defect is.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship description-reader-migration §2</pre>
+    </article>
+<article class="r-fu" data-id="f-mmte-003" data-status="open" data-written-by="reckon-ship" data-written-at="2026-08-16" data-recommends-skill="/reckon-ship vacuum-field-position-adjudication §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Adjudicate the nineteen disputed loop positions against measured vacuum flux</h4>
+    <div class="r-fu-body"><p>Exemption: <strong>foreign-owner</strong>. The 19 level-2-versus-reconstruction loop-position residuals, maximum 0.437 m at fl_p4l_1, are owned by <a href="/imas-ambix/plans/vacuum-field-position-adjudication">vacuum-field-position-adjudication</a> in S23. They cannot be settled inside this plan because both candidates are plausible descriptions of the same signal-proven hardware and comparing descriptions to each other decides nothing; a vacuum shot makes the flux attributable to known coil currents so a measurement can arbitrate independently of both.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship vacuum-field-position-adjudication §3</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
@@ -325,7 +379,7 @@
     <div class="r-comment-body">mmte-close-cc010 landed — commit 68c6085; gate identity-closed PASSED. Schema/catalog 1.9.0 declares ONE reusable MAST sensor-identity rule — case-fold plus decimal integer-value — rather than a one-off alias, so FL_CC010 and fl_cc10 both canonicalise to fl_cc10 and any equivalent case or zero-padding difference on another channel resolves by the same mechanism; a committed test proves that generality rather than only the observed pair. Shot-12417 raw unmatched identities fall from 2 to 1 under declared normalisation, the remainder being fl_p6u_1 which is genuinely absent rather than misspelled, and direct comparison now has 104 shared identities. The upstream defect stays VISIBLE as an IdentityQualification naming the malformed FL_CC010, its canonical form and the governing rule, so the repair is recorded rather than silently absorbed. Loader validation additionally rejects unknown rule references, qualifications the rule does not resolve, normalised collisions within an acquisition, and canonical identities absent from every acquisition declaration — so the rule cannot be misused to mask a real mismatch. linkml exit 0; 24 passed in 307.86s; transform receipts unchanged at 230/230, 239/239, 239/239 with format gap 0; SourceQualification count and executable binding set unchanged.</div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20260816-mmte-loop-discretisation" data-who="reckon-ship" data-when="2026-08-16">
-    <div class="r-comment-body">mmte-loop-discretisation landed — commit b6be888, evidence-only at docs/notes/flux-loop-discretisation.md; gate point-structure-established PASSED. THE DISCRETISATION HYPOTHESIS IS REFUTED FOR POINT LOOPS: they are SINGLETON R/Z records in all three sources. Level 1 parses one pair from amb/<fl_name>.attrs[description], shapes (14,2) at 11766 and (29,2) at 12417; level-2 flux_loop_geometry_channel, flux_loop_r and flux_loop_z are each shape (44,); EFM efm/silop_r and silop_z are (46,) at 11766 and raw (78,) at 12417 with 46 finite plus 32 NaN padding. Classification is 0 discretisation or alternate-vertex residuals, so the metre-scale tail is genuine singleton representative-coordinate disagreement for signal-proven identical hardware, not two points on one stored continuous loop. THE MULTI-POINT FAMILY IS THE SADDLES, not fl_cc: level-2 saddle r/z/phi arrays are (12,28), 28 points per saddle across 12 saddles. THE OWNER'S EFIT EXPECTATION IS CONFIRMED: EFM carries loop MEASUREMENTS alongside positions — efm/silop_x at shapes (50,46) and (61,46), with computed silop_c and silop_chisq at the same shapes, so measured, fitted and chi-squared are all present per loop as EFIT constraining on loop signals implies. THE THREE-WAY VERDICT IS DECISIVE: against EFM, level 1 has 42 reliable occurrences with 0 AGREEING and maximum 2.148101 m at fl_cc09, while level 2 has 41 occurrences with 22 AGREEING EXACTLY and maximum 0.437069 m at fl_p4l_1. For the two worst cases the singleton sets are level 1 [(0.18, 1.215)] for BOTH fl_cc05 and fl_cc09, against level-2/EFM [(0.178499997, 0.014900000)] and [(0.178499997, -0.933099985)] with level-2-to-EFM distance EXACTLY 0. So level 1 publishes one collapsed placeholder coordinate for the whole centre-column family while level 2 and the reconstruction agree exactly on distinct per-loop positions: the degenerate store is level 1, not level 2. REMAINING: 19 genuine level-2-versus-EFM positional residuals at maximum 0.437069 m at fl_p4l_1 need source adjudication, and shot-12417 fl_cc10 cannot be assigned a reliable EFM identity because its signal is truncated to 7500 samples against an 11289-sample group time base with correlation -0.0183.</div>
+    <div class="r-comment-body">mmte-loop-discretisation landed — commit b6be888, evidence-only at docs/notes/flux-loop-discretisation.md; gate point-structure-established PASSED. THE DISCRETISATION HYPOTHESIS IS REFUTED FOR POINT LOOPS: they are SINGLETON R/Z records in all three sources. Level 1 parses one pair from amb/<fl_name>.attrs[description], shapes (14,2) at 11766 and (29,2) at 12417; level-2 flux_loop_geometry_channel, flux_loop_r and flux_loop_z are each shape (44,); EFM efm/silop_r and silop_z are (46,) at 11766 and raw (78,) at 12417 with 46 finite plus 32 NaN padding. Classification is 0 discretisation or alternate-vertex residuals, so the metre-scale tail is genuine singleton representative-coordinate disagreement for signal-proven identical hardware, not two points on one stored continuous loop. THE MULTI-POINT FAMILY IS THE SADDLES, not fl_cc: level-2 saddle r/z/phi arrays are (12,28), 28 points per saddle across 12 saddles. THE OWNER'S EFIT EXPECTATION IS CONFIRMED: EFM carries loop MEASUREMENTS alongside positions — efm/silop_x at shapes (50,46) and (61,46), with computed silop_c and silop_chisq at the same shapes, so measured, fitted and chi-squared are all present per loop as EFIT constraining on loop signals implies. THE THREE-WAY VERDICT IS DECISIVE: against EFM, level 1 has 42 reliable occurrences with 0 AGREEING and maximum 2.148101 m at fl_cc09, while level 2 has 41 occurrences with 22 AGREEING EXACTLY and maximum 0.437069 m at fl_p4l_1. For the two worst cases the singleton sets are level 1 [(0.18, 1.215)] for BOTH fl_cc05 and fl_cc09, against level-2/EFM [(0.178499997, 0.014900000)] and [(0.178499997, -0.933099985)] with level-2-to-EFM distance EXACTLY 0. So level 1 publishes one collapsed placeholder coordinate for the whole centre-column family while level 2 and the reconstruction agree exactly on distinct per-loop positions: the degenerate store is level 1, not level 2. REMAINING: 19 genuine level-2-versus-EFM positional residuals at maximum 0.437069 m at fl_p4l_1 need source adjudication, and shot-12417 fl_cc10 cannot be assigned a reliable EFM identity because its signal is truncated to 7500 samples against an 11289-sample group time base with correlation -0.0183.</fl_name></div>
 </div>
 </section>
 </main>

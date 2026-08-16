@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="description-reader-migration">
+  <meta name="plan-title"     content="Retire the Machine-Specific Description Reader">
+  <meta name="plan-summary"   content="Forty-one modules read machine description through the legacy per-machine path. Move them onto the declared machine map behind a compatibility facade, prove the frozen spine is unperturbed at each step, and delete the raw reader only when the census reaches zero.">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort-hours" content="16">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint"    content="S23">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="machine-map-transform-engine">
+  <meta name="plan-informs"   content="vacuum-field-position-adjudication">
+  <title>Retire the Machine-Specific Description Reader | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — The producer exists; the consumers have not moved</h2>
+    <p>A declared machine map now emits description through format-scoped engines with no
+    machine-specific code, and an adapter turns that into the table the existing consumers expect.
+    What has not happened is the move: <strong>41 modules still invoke a legacy
+    description-read API</strong> — 8 library modules and 33 scripts — so the per-machine reader
+    the whole design exists to remove is still the one production uses.</p>
+    <p>This is deliberately a separate plan rather than the tail of the producer's. It is a
+    migration across a wide surface, its risk profile is different, and it is gated on evidence
+    the producer plan generated rather than on more design.</p>
+
+    <h2 id="s2">§2 — The frozen spine is the thing that must not move</h2>
+    <p>Sensor coordinates are consumed by <code>gs.operator</code>,
+    <code>EquilibriumGrid.sensor_greens</code>, <code>PatchBasis</code>,
+    <code>boundary_disc</code> and the residual computation itself, so a description change reaches
+    the physics rather than stopping at an interface. A description-content change has already been
+    measured moving <code>magnetics_residual_whitened_rms</code> by 3.2%.</p>
+    <p>Two facts make the migration safer than that number suggests, and both were established
+    before this plan opened. The adapter already reproduces the legacy table's structure exactly —
+    channel order, plasma grid, limiter mask, 251 columns and the 21/84/146 driven-plasma-passive
+    split. And the reference residual itself is being re-stamped, because the baseline was built on
+    a sensor identity join that aliased six channels onto one index.</p>
+    <p><em>Trigger:</em> the re-stamped baseline must exist before any consumer is migrated.
+    Migrating against a comparator known to be defective would bank the error twice.</p>
+
+    <h2 id="s3">§3 — Migrate by seam, behind a facade</h2>
+    <p>The census is the measure of progress and the definition of done: 41 call sites, falling to
+    zero. A compatibility facade keeps both paths available during the move so each seam can be
+    switched and verified independently, rather than requiring one cutover of 41 modules.</p>
+    <p>The 8 library modules carry more risk than the 33 scripts because the spine reaches them;
+    the scripts are numerous but individually isolated. Order the work by that asymmetry rather
+    than by count.</p>
+    <p><em>Done-when:</em> the count of modules invoking a legacy description-read API reaches 0
+    from 41, reported at each step; the frozen spine stamp is re-run after each library-module seam
+    and stays inside the budget the re-stamped baseline establishes, with the measured movement
+    stated per step rather than only at the end; the compatibility facade is removed once the
+    census reaches zero; and the raw per-machine reader is deleted, with a grep receipt showing no
+    remaining reference.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="migration-budget" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which budget must each migrated seam hold the frozen spine metric
+          inside?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="same-source">the 1% same-source budget, treating the migration as a representation change</button>
+          <button class="r-opt" data-value="source-cutover">the 7.93% source-cutover budget, since the description now comes from a different store</button>
+          <button class="r-opt" data-value="restamped-derived">a budget derived from the re-stamped baseline once it exists</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-drm-001" data-status="open"
+               data-capability-version="1.0" data-capability-class="general"
+               data-capability-reasoning="deep" data-capability-verification="strict"
+               data-written-by="reckon-ship" data-written-at="2026-08-16"
+               data-recommends-skill="/reckon-ship description-reader-migration §2">
+        <h4 class="r-fu-title">Re-stamp the frozen baseline with corrected sensor identity</h4>
+        <div class="r-fu-body"><p>The reference residual 0.7401030841614555 was produced with a
+        sensor map whose nearest-coordinate join aliased six acquisition channels onto one
+        reconstruction index, and flagged channels are not masked downstream. Re-stamp with the
+        corrected identity so the comparator every migration step is judged against is sound.
+        This gates the whole migration and must land first.</p></div>
+        <pre class="r-fu-prompt">/reckon-ship description-reader-migration §2</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

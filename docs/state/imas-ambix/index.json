@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-13T15:24:09",
+  "updated": "2026-08-16T21:10:19",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
@@ -763,7 +763,7 @@
       },
       {
         "id": "S22",
-        "status": "planned",
+        "status": "done",
         "theme": "Machine description as data \u2014 measured stores, declared maps, one transform engine",
         "items": [
           {
@@ -811,7 +811,46 @@
         ],
         "starts": "2026-08-17",
         "ends": "2026-09-13",
-        "description": "Move machine-description production out of the physics solver and into a data layer that is measured before it is built. First the read-rate evidence: what IMAS-netCDF, zarr carrying DD-path metadata, and the native level-2 form each cost the GPU training path, for static description and streamed experimental data separately. Then the producer that evidence licenses: declared machine maps applied by transform engines scoped to store format, so adding a machine costs a map and adding a store costs one engine. Geometry stays a function of shot through named transitions in the shot manifest, and identity is asserted as determinism, partition consistency and visible change rather than a global digest a changing machine cannot satisfy. Supersedes the intent of the dangling mast-machine-configuration-map item in S17."
+        "description": "Move machine-description production out of the physics solver and into a data layer that is measured before it is built. First the read-rate evidence: what IMAS-netCDF, zarr carrying DD-path metadata, and the native level-2 form each cost the GPU training path, for static description and streamed experimental data separately. Then the producer that evidence licenses: declared machine maps applied by transform engines scoped to store format, so adding a machine costs a map and adding a store costs one engine. Geometry stays a function of shot through named transitions in the shot manifest, and identity is asserted as determinism, partition consistency and visible change rather than a global digest a changing machine cannot satisfy. Supersedes the intent of the dangling mast-machine-configuration-map item in S17.",
+        "summary": "SHIPPED 3/3 plans, 57 worker commits, 0 wiring findings. THE FORMAT QUESTION IS ANSWERED AND LOCKED: DD-annotated zarr reads 9.02-10.28x native level-2 and ~3.2x IMAS-netCDF, invariant across 36 cells spanning a 64x payload range with ZERO crossings, so experimental data is locked to zarr carrying DD paths; machine description is left to the owner with evidence attached because its cost amortises to nothing and the choice is publishability, not speed. The finding that separates them: the IMAS shape costs about 3.2x as STORAGE and about nothing as INTERCHANGE, because the DD tensorization logic is reusable by subclass into a non-IMAS container. Transport measures 41.1x login / 129.1x on the storage-arm node class, the earlier 481x having been an artifact of comparing arrays of different length. THE PRODUCER IS BUILT AND VERIFIED AGAINST ITS CONSUMER: 2 format-scoped engines with 0 machine-name conditionals, 254 executable bindings plus qualifications over magnetics, pf_active, pf_passive and wall, and an adapter whose operator is STRUCTURALLY IDENTICAL to the legacy one \u2014 channel order, plasma grid, limiter mask, 251 columns and the 21/84/146 block split all exact, 0 non-finite entries, 0 unattributed metrics. Identity holds without a global digest: byte-identical re-emission, every one of 11,573 corpus shots resolving to exactly one range, and a non-empty inspectable diff at the real boundary. FOUR CONCLUSIONS WERE RETRACTED ON OWNER CHALLENGE and the pattern matters more than any one: three came from searching the Data Dictionary under the SOURCE's naming and recording 'unrepresentable' on failing to find it \u2014 a saddle is filed as a loop TYPE, a parallelogram as an oblique PRIMITIVE, drive as a CIRCUIT concept. The fourth, that mesh resolution is not geometry, collapsed 11 declared transitions to 2. TWO LIVE DEFECTS WERE FOUND IN SHIPPED CODE: the declared MAST coordinate convention, now recorded as a DECLARED ASSUMPTION of COCOS 3 with the measured sigma_Bp kept separately marked as measured; and a netCDF engine that collapsed any one-element structural array to a scalar. A THIRD, DEEPER DEFECT WAS FOUND UNDER THE BASELINE ITSELF: the frozen reference residual was produced with a sensor identity join that aliased 8 co-located acquisition addresses onto one reconstruction index, 37 of 50 loop rows misjoined across three shots with 2 of them silent. Level-1 versus level-2 was disentangled to a positional difference confined to flux loops, with the processed store exactly coincident with the reconstruction on the worst case and the raw store publishing one collapsed placeholder for a whole family. HANDED TO S23: the 41 consumers have not moved and the baseline needs re-stamping (description-reader-migration), and 19 loop positions remain disputed where only a measurement can arbitrate (vacuum-field-position-adjudication)."
+      },
+      {
+        "id": "S23",
+        "status": "planned",
+        "theme": "Move the consumers onto the declared description, and let measurement settle where the sensors are",
+        "items": [
+          {
+            "slug": "description-reader-migration",
+            "why_now": "The producer is built and structurally verified, so the per-machine reader is now the only thing keeping production on the path this design replaces; leaving 41 call sites on it indefinitely means the description layer exists without being used.",
+            "done_when": "The count of modules invoking a legacy description-read API falls from 41 to 0 with the census reported at each step, the frozen spine stamp re-run after each library-module seam and staying inside the budget the re-stamped baseline establishes, the compatibility facade removed, and the raw per-machine reader deleted with a grep receipt showing no remaining reference.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "general",
+              "requirements": {
+                "reasoning": "deep",
+                "verification": "strict"
+              }
+            }
+          },
+          {
+            "slug": "vacuum-field-position-adjudication",
+            "why_now": "Nineteen loop positions disagree between two plausible descriptions of signal-proven identical hardware, and no further comparison between them can decide it; a vacuum shot makes the flux attributable to known coil currents so the measurement can adjudicate.",
+            "done_when": "A vacuum cohort selected with its plasma-current-free condition evidenced, predicted flux at both candidate positions compared against the measured signal for each of the 19 disputed loops with residual and margin reported, a verdict of nominal-table, reconstruction or null recorded per loop summing to 19, and the winning positions fed back to the catalog as evidence-carrying declarations or the nulls left explicitly undecided.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "general",
+              "requirements": {
+                "reasoning": "deep",
+                "verification": "strict"
+              }
+            }
+          }
+        ],
+        "starts": "2026-08-17",
+        "ends": "2026-09-20",
+        "description": "S22 built a machine-description producer and proved it emits an operator structurally identical to the legacy one. Two things it deliberately did not do now become their own sprint. First, the consumers have not moved: 41 modules still read description through the per-machine reader the design exists to remove, which is a migration across a wide surface gated on a re-stamped baseline rather than on more design. Second, 19 flux-loop positions still disagree between the nominal table and the reconstruction, and comparing two descriptions to each other cannot settle which is right \u2014 a vacuum-shot forward prediction can, because with no plasma current the flux is attributable to known coil currents and the measurement arbitrates independently of both candidates. The sprint closes when the legacy reader census reaches zero and every disputed loop carries a verdict or an explicit null."
       }
     ],
     "blockers": [
@@ -934,6 +973,6 @@
         "pct": 0
       }
     ],
-    "_version": 40
+    "_version": 42
   }
 }
