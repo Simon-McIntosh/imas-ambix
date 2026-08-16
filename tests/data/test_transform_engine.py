@@ -391,11 +391,20 @@ def test_every_bound_cocos_target_receives_its_target_path_factor():
 
     assert missing == ()
     assert len(transformed) == 11
-    assert len(non_unity) == 3
-    assert {array.cocos_transformation for array in non_unity} == {"ip_like"}
-    assert all(array.cocos_factor == -1.0 for array in non_unity)
+    assert non_unity == ()
+    ip_like = tuple(
+        array for array in transformed if array.cocos_transformation == "ip_like"
+    )
+    assert {array.binding_name for array in ip_like} == {
+        "mast-magnetics-ip",
+        "mast-pf-active-coil-current",
+        "mast-pf-active-solenoid-current",
+    }
+    assert all(array.cocos_factor == 1.0 for array in ip_like)
     print(
-        f"COCOS_BOUND_TARGETS dependent={len(transformed)} non_unity={len(non_unity)}"
+        f"COCOS_BOUND_TARGETS dependent={len(transformed)} "
+        f"ip_like={len(ip_like)} factor_before=-1 factor_after=+1 "
+        f"non_unity={len(non_unity)}"
     )
 
 
@@ -437,7 +446,7 @@ def test_both_polarities_round_trip_exactly_through_engine_cocos_transform(tmp_p
         assert result.emitted_array_count == 1
         emitted = result.arrays[0]
         assert emitted.cocos_transformation == "ip_like"
-        assert emitted.cocos_factor == -1.0
+        assert emitted.cocos_factor == 1.0
         restored = np.multiply(emitted.values, inverse_factor)
         assert np.array_equal(restored, source_values)
         current_signs.append(row.plasma_current_sign)
