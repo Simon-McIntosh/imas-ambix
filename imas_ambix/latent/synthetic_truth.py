@@ -41,7 +41,8 @@ symmetric outer-coil vertical field (:func:`build_confining_i_pf`) to hold an
 interior O-point with the cheap fixed-shape Picard; it warm-starts from a
 compact core blob and *verifies* confinement (interior axis, localised
 current) before emitting.  Driving it from measured programs under the
-profile-free solve is the forward-truth-chain work (the plan's §3/§4).
+Using the profile-free solve for measured-program truth generation remains
+separate from this manufactured scenario.
 """
 
 from __future__ import annotations
