@@ -399,8 +399,12 @@ def surviving_conventions(
     )
 
 
-MAST_SOURCE_COCOS = 4
-"""Shipped source declaration; level-2 measurements do not select it over 3."""
+MAST_SOURCE_COCOS = 3
+"""External owner assumption, not a level-2 measurement.
+
+The declaration remains pending a facility statement identifying MAST's
+positive-phi direction.  COCOS 3 and 4 both satisfy the measurable evidence.
+"""
 
 SOURCE_COCOS_RECOMMENDATION = "external-declaration"
 """MAST's positive-phi handedness must be declared outside the level-2 arrays."""
@@ -425,17 +429,17 @@ IP_LIKE_CANDIDATE_FACTORS: Mapping[int, float] = MappingProxyType(
 
 MAST_TO_COCOS_17_FACTORS: Mapping[str, float] = MappingProxyType(
     {
-        "psi_like": -tau,
-        "ip_like": -1.0,
-        "b0_like": -1.0,
-        "q_like": 1.0,
-        "dodpsi_like": -1.0 / tau,
-        "tor_angle_like": -1.0,
+        "psi_like": tau,
+        "ip_like": 1.0,
+        "b0_like": 1.0,
+        "q_like": -1.0,
+        "dodpsi_like": 1.0 / tau,
+        "tor_angle_like": 1.0,
         "pol_angle_like": -1.0,
         "one_like": 1.0,
     }
 )
-"""Factors conditional on the shipped external declaration being COCOS 4."""
+"""Factors conditional on the external owner declaration being COCOS 3."""
 
 
 def _ordered_polygon_area(r: np.ndarray, z: np.ndarray) -> float:
@@ -670,9 +674,12 @@ def format_sign_report(
             "COCOS 3 versus COCOS 4: no level-2 measurement distinguishes them; "
             "they differ only in sigma_R_phi_Z.",
             "RECOMMENDATION: treat the MAST source COCOS as an explicit external "
-            "declaration; the shipped value 4 is not supported over 3 by this corpus.",
+            "declaration; COCOS 3 is an owner assumption pending a facility "
+            "statement of positive-phi direction, not a measurement.",
             "IP-LIKE CONSEQUENCE: declaration 3 applies factor +1 to all 3 targets; "
             "declaration 4 applies factor -1 to all 3 targets.",
+            "DECLARATION CHANGE: COCOS 4 to COCOS 3 moves factor -1 to +1 for "
+            "each affected target.",
             "IP-LIKE TARGETS: " + ", ".join(IP_LIKE_TARGETS),
         )
     )

@@ -300,7 +300,7 @@ def test_machine_catalogs_declare_source_cocos_without_binding_overrides():
     mast = load_packaged_machine_map("mast")
     diii_d = load_packaged_machine_map("diii-d")
 
-    assert mast.source_cocos == 4
+    assert mast.source_cocos == 3
     assert diii_d.source_cocos is None
     for catalog in (mast, diii_d):
         overrides = tuple(
