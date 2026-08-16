@@ -450,9 +450,9 @@ def build_operators_for_shots(
 
     Returns ``(operators_by_signature, campaign_of)`` where ``campaign_of`` maps
     each shot whose geometry table built successfully to its signature key.
-    Shots whose table cannot be built (``amm`` passive geometry absent, ~⅓ of
-    shots) are simply ABSENT from ``campaign_of`` → they train Dα-only (the
-    ungrounded path is untouched for them).
+    Shots whose declared description cannot be emitted are simply absent from
+    ``campaign_of`` and train Dα-only; the ungrounded path is untouched for
+    them.
 
     The grouping stays keyed by signature: each operator's matrices are built on
     one discretization, so a window must find the operator built from ITS
@@ -461,15 +461,17 @@ def build_operators_for_shots(
     makes a corpus spanning two real configurations detectable rather than
     silent.
     """
-    from imas_ambix.gs.geometry import build_table_for_shot  # noqa: PLC0415
+    from imas_ambix.data.description_reader import (  # noqa: PLC0415
+        read_geometry_table,
+    )
 
     operators: dict[str, ForwardOperator] = {}
     campaign_of: dict[int, str] = {}
     n_ok = n_fail = 0
     for s in shot_ids:
         try:
-            table = build_table_for_shot(int(s))
-        except Exception:  # noqa: BLE001 — amm-absent etc. → no operator (Dα-only)
+            table = read_geometry_table(int(s))
+        except Exception:  # noqa: BLE001 — unavailable description → Dα-only
             n_fail += 1
             continue
         key = table.signature.key
@@ -479,7 +481,7 @@ def build_operators_for_shots(
         n_ok += 1
     logger.info(
         "[grounding] built %d campaign operators; %d/%d shots have an operator "
-        "(%d failed geometry-table build → Dα-only)",
+        "(%d unavailable descriptions → Dα-only)",
         len(operators),
         n_ok,
         len(shot_ids),
@@ -587,10 +589,10 @@ def build_grounding_context(
     total_steps = 0
     for r in train_runs:
         x = np.asarray(r.X)
-        T = x.shape[0]
-        if seq_len > T:
+        n_steps = x.shape[0]
+        if seq_len > n_steps:
             continue
-        starts = list(range(0, T - seq_len + 1, seq_len))
+        starts = list(range(0, n_steps - seq_len + 1, seq_len))
         if len(starts) > max_windows_per_shot:
             selidx = rng.choice(len(starts), size=max_windows_per_shot, replace=False)
             starts = [starts[i] for i in sorted(selidx)]
