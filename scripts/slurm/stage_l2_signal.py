@@ -50,7 +50,9 @@ _SKIP_SUFFIXES: tuple[str, ...] = (
 def _primary_time_key(grp, arrkeys: set[str], override: str | None) -> str | None:
     if override:
         return override if override in arrkeys else None
-    times = [a for a in arrkeys if a == "time" or a.endswith("_time") or a.startswith("time")]
+    times = [
+        a for a in arrkeys if a == "time" or a.endswith("_time") or a.startswith("time")
+    ]
     if not times:
         return None
     # the SHORTEST 1-D time axis = the moderate-cadence base (not the MHz fast one).
@@ -67,7 +69,9 @@ def _primary_time_key(grp, arrkeys: set[str], override: str | None) -> str | Non
     return best
 
 
-def stage_shot(shot_id: int, group: str, out_root: Path, time_key: str | None) -> tuple[bool, str]:
+def stage_shot(
+    shot_id: int, group: str, out_root: Path, time_key: str | None
+) -> tuple[bool, str]:
     if group in BANNED_GROUPS:
         return False, "banned group"
     shot_path = L2_DIR / f"{shot_id}.zarr"
@@ -92,7 +96,11 @@ def stage_shot(shot_id: int, group: str, out_root: Path, time_key: str | None) -
     traces: dict[str, np.ndarray] = {}
     profiles: dict[str, np.ndarray] = {}
     for k in sorted(ak):
-        if k == tkey or any(k.endswith(s) for s in _SKIP_SUFFIXES) or k.startswith("time"):
+        if (
+            k == tkey
+            or any(k.endswith(s) for s in _SKIP_SUFFIXES)
+            or k.startswith("time")
+        ):
             continue
         try:
             v = np.asarray(grp[k], dtype=np.float32)
@@ -158,7 +166,10 @@ def main(argv: list[str] | None = None) -> int:
         shots = shots[shard::n_shards]
     if args.max_shots:
         shots = shots[: args.max_shots]
-    print(f"[stage-l2 {group} {shard}/{n_shards}] {len(shots)} shots -> {out_root}", flush=True)
+    print(
+        f"[stage-l2 {group} {shard}/{n_shards}] {len(shots)} shots -> {out_root}",
+        flush=True,
+    )
 
     n_ok = 0
     skips: dict[str, int] = {}
@@ -170,7 +181,10 @@ def main(argv: list[str] | None = None) -> int:
         else:
             skips[reason] = skips.get(reason, 0) + 1
         if (i + 1) % 1000 == 0:
-            print(f"[stage-l2 {group}]   {i + 1}/{len(shots)}, {n_ok} staged, {time.monotonic() - t0:.0f}s", flush=True)
+            print(
+                f"[stage-l2 {group}]   {i + 1}/{len(shots)}, {n_ok} staged, {time.monotonic() - t0:.0f}s",
+                flush=True,
+            )
     summary = {
         "group": group,
         "shard": shard,

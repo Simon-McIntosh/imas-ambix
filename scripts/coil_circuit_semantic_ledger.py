@@ -56,12 +56,10 @@ from imas_ambix.gs.operator import build_operator
 
 _REPO = Path(__file__).resolve().parents[1]
 _ARTIFACT = (
-    _REPO
-    / "imas_ambix/latent/artifacts/patch_gate/coil_circuit_semantic_ledger.json"
+    _REPO / "imas_ambix/latent/artifacts/patch_gate/coil_circuit_semantic_ledger.json"
 )
 _FIGURE = (
-    _REPO
-    / "docs/figures/nonaxisymmetric-field-subtraction/fig-coil-circuit-ledger.png"
+    _REPO / "docs/figures/nonaxisymmetric-field-subtraction/fig-coil-circuit-ledger.png"
 )
 
 # --- Measured scale precedents ----------------------------------------------
@@ -211,9 +209,7 @@ def _build_era(era: str, window: str, candidates: tuple[int, ...]) -> dict | Non
                 "semantics": "case",
                 "exists": bool(case_exists),
                 "constrained_zero": cc.constrained_zero,
-                "expected_scale": _expected_scale_for(
-                    cid, True, cc.constrained_zero
-                ),
+                "expected_scale": _expected_scale_for(cid, True, cc.constrained_zero),
                 "feed_channel": "",
                 "feed_exists": False,
                 "note": "; ".join(note_parts),
@@ -257,9 +253,9 @@ def build_ledger() -> dict:
             )
 
     # presence matrix: circuit x era -> "coil"/"feed"/"case"/"absent"/"zero"
-    all_circuits = [
-        (c.circuit_id, c.name) for c in circuits_mod.active_circuits()
-    ] + [(c.circuit_id, c.name) for c in circuits_mod.case_circuits()]
+    all_circuits = [(c.circuit_id, c.name) for c in circuits_mod.active_circuits()] + [
+        (c.circuit_id, c.name) for c in circuits_mod.case_circuits()
+    ]
     era_keys = [e["era"] for e in eras]
     matrix: dict[str, dict[str, str]] = {}
     for cid, name in all_circuits:
@@ -370,12 +366,22 @@ def _plot(ledger: dict, out: Path) -> None:
         cid = int(cl.split(":")[0])
         if 14 <= cid <= 21:
             ax.text(
-                n_e - 0.35, i, "case-k", va="center", ha="left", fontsize=6,
+                n_e - 0.35,
+                i,
+                "case-k",
+                va="center",
+                ha="left",
+                fontsize=6,
                 color="#08306b",
             )
         elif cid == 1:
             ax.text(
-                n_e - 0.35, i, "k_sol", va="center", ha="left", fontsize=6,
+                n_e - 0.35,
+                i,
+                "k_sol",
+                va="center",
+                ha="left",
+                fontsize=6,
                 color="#00441b",
             )
 

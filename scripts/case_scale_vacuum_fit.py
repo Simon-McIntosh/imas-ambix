@@ -320,14 +320,13 @@ def fit(data: dict, src: dict, n_boot: int, seed: int) -> dict:
     ]
     boot_srcidx = sorted(set(case_srcidx) | set(wind_srcidx))
     relevant = sorted(
-        {
-            s
-            for q in boot_srcidx
-            for s in np.flatnonzero(frac[:, q] >= CONTRIB_FLOOR)
-        }
+        {s for q in boot_srcidx for s in np.flatnonzero(frac[:, q] >= CONTRIB_FLOOR)}
     )
-    logger.info("bootstrap: %d relevant sensors, %d relevant sources",
-                len(relevant), len(boot_srcidx))
+    logger.info(
+        "bootstrap: %d relevant sensors, %d relevant sources",
+        len(relevant),
+        len(boot_srcidx),
+    )
 
     # ---- PASS 2: per-shot blocks for relevant sensors + per-shot joint totals -
     n_rel = len(relevant)
@@ -395,7 +394,9 @@ def fit(data: dict, src: dict, n_boot: int, seed: int) -> dict:
     # ---- per-source summary ----
     src_summary: dict[str, dict] = {}
     for q, lab in enumerate(labels):
-        exp = np.flatnonzero((frac[:, q] >= CONTRIB_FLOOR) & np.isfinite(k_sensor[:, q]))
+        exp = np.flatnonzero(
+            (frac[:, q] >= CONTRIB_FLOOR) & np.isfinite(k_sensor[:, q])
+        )
         ks = k_sensor[exp, q]
         med = float(np.median(ks)) if ks.size else None
         rel_spread = (
@@ -411,9 +412,13 @@ def fit(data: dict, src: dict, n_boot: int, seed: int) -> dict:
             )
         ci = _ci(boot_exposed[:, q])
         src_summary[lab] = {
-            "k_exposed": (None if not np.isfinite(k_exposed[q]) else float(k_exposed[q])),
+            "k_exposed": (
+                None if not np.isfinite(k_exposed[q]) else float(k_exposed[q])
+            ),
             "ci": ci,
-            "diff_from_1_sig": (None if ci is None else bool(ci[0] > 1.0 or ci[1] < 1.0)),
+            "diff_from_1_sig": (
+                None if ci is None else bool(ci[0] > 1.0 or ci[1] < 1.0)
+            ),
             "k_global": float(k_global[q]),
             "k_global_ci": _ci(boot_global[:, q]),
             "n_exposed_sensors": int(exp.size),
@@ -430,7 +435,9 @@ def fit(data: dict, src: dict, n_boot: int, seed: int) -> dict:
     per_case: dict[str, dict] = {}
     for q in case_srcidx:
         lab = labels[q]
-        exp = np.flatnonzero((frac[:, q] >= CONTRIB_FLOOR) & np.isfinite(k_sensor[:, q]))
+        exp = np.flatnonzero(
+            (frac[:, q] >= CONTRIB_FLOOR) & np.isfinite(k_sensor[:, q])
+        )
         bay_ks = {
             channels[s]: float(k_sensor[s, q]) for s in exp if channels[s] in bay_set
         }
@@ -476,12 +483,11 @@ def fit(data: dict, src: dict, n_boot: int, seed: int) -> dict:
     valid = [
         q
         for q in case_srcidx
-        if np.isfinite(k_exposed[q]) and src_summary[labels[q]]["n_exposed_sensors"] >= 3
+        if np.isfinite(k_exposed[q])
+        and src_summary[labels[q]]["n_exposed_sensors"] >= 3
     ]
     kv = np.array([k_exposed[q] for q in valid])
-    dispersion = (
-        float(np.std(kv) / (abs(np.mean(kv)) + 1e-9)) if kv.size >= 2 else None
-    )
+    dispersion = float(np.std(kv) / (abs(np.mean(kv)) + 1e-9)) if kv.size >= 2 else None
     # common value = exposure-weighted (by n_exposed) mean of the valid case k
     if kv.size:
         wts = np.array([src_summary[labels[q]]["n_exposed_sensors"] for q in valid])
@@ -703,40 +709,63 @@ def make_figure(result: dict, verdict: dict, out: Path) -> None:
     # (a) per-case exposed-sensor k with CIs + global scale + one-scale line
     ax = axes[0]
     kv = np.array([per_case[c]["k_exposed"] or np.nan for c in cases])
-    lo = np.array([per_case[c]["ci"][0] if per_case[c]["ci"] else np.nan for c in cases])
-    hi = np.array([per_case[c]["ci"][1] if per_case[c]["ci"] else np.nan for c in cases])
+    lo = np.array(
+        [per_case[c]["ci"][0] if per_case[c]["ci"] else np.nan for c in cases]
+    )
+    hi = np.array(
+        [per_case[c]["ci"][1] if per_case[c]["ci"] else np.nan for c in cases]
+    )
     kg = np.array([per_case[c]["k_global"] for c in cases])
     colors = [
         "#b00" if per_case[c]["classification"] == "drive_data" else "#e08000"
         for c in cases
     ]
     ax.bar(xs, kv, color=colors, alpha=0.8, label="exposed-sensor k")
-    ax.errorbar(xs, kv, yerr=[kv - lo, hi - kv], fmt="none", ecolor="k", capsize=3, lw=1)
-    ax.plot(xs, kg, "D", ms=6, color="#1565c0",
-            label="global single scale (all sensors)")
+    ax.errorbar(
+        xs, kv, yerr=[kv - lo, hi - kv], fmt="none", ecolor="k", capsize=3, lw=1
+    )
+    ax.plot(
+        xs, kg, "D", ms=6, color="#1565c0", label="global single scale (all sensors)"
+    )
     # highlight the clean drive-data cases (the confirmed carriers)
     dd = verdict["drive_data_cases"]
     for c in dd:
         i = cases.index(c)
-        ax.annotate(f"{per_case[c]['k_exposed']:.2f}", (i, hi[i]), fontsize=8,
-                    color="#b00", ha="center", va="bottom", weight="bold")
+        ax.annotate(
+            f"{per_case[c]['k_exposed']:.2f}",
+            (i, hi[i]),
+            fontsize=8,
+            color="#b00",
+            ha="center",
+            va="bottom",
+            weight="bold",
+        )
     ax.axhline(1.0, color="k", lw=1.0, label="k = 1 (model correct)")
     # clip out the degenerate exp≤1 outliers (e.g. p5l k≈-13.5) so the
     # identifiable cases are legible; note them in the label instead.
-    off = [(_suffix(c), per_case[c]["k_exposed"]) for c in cases
-           if per_case[c]["k_exposed"] is not None
-           and not (-3.0 <= per_case[c]["k_exposed"] <= 6.0)]
+    off = [
+        (_suffix(c), per_case[c]["k_exposed"])
+        for c in cases
+        if per_case[c]["k_exposed"] is not None
+        and not (-3.0 <= per_case[c]["k_exposed"] <= 6.0)
+    ]
     ax.set_ylim(-3.0, 6.5)
     if off:
-        ax.text(0.02, 0.02,
-                "off-scale (degenerate): "
-                + ", ".join(f"{n} k={k:.1f}" for n, k in off),
-                transform=ax.transAxes, fontsize=7, color="#e08000")
+        ax.text(
+            0.02,
+            0.02,
+            "off-scale (degenerate): " + ", ".join(f"{n} k={k:.1f}" for n, k in off),
+            transform=ax.transAxes,
+            fontsize=7,
+            color="#e08000",
+        )
     ax.set_xticks(xs)
     ax.set_xticklabels(lab, rotation=45, fontsize=8)
     ax.set_ylabel("case scale k  (empirical ≈ k·model)")
-    ax.set_title("(a) exposed-sensor k (red=drive-data, orange=geometry) vs\n"
-                 "global single scale — exposed≈2.40, global sub-1")
+    ax.set_title(
+        "(a) exposed-sensor k (red=drive-data, orange=geometry) vs\n"
+        "global single scale — exposed≈2.40, global sub-1"
+    )
     ax.legend(fontsize=7)
 
     # (b) coil-vs-case attribution: case k vs its winding k (exposed)
@@ -747,15 +776,18 @@ def make_figure(result: dict, verdict: dict, out: Path) -> None:
         wks = [v for v in per_case[c]["winding_k_exposed"].values() if v is not None]
         wind_k.append(np.mean(wks) if wks else np.nan)
     ax.bar(xs - w / 2, kv, w, color="#b00", alpha=0.8, label="case column k")
-    ax.bar(xs + w / 2, wind_k, w, color="#1565c0", alpha=0.8,
-           label="co-located winding k")
+    ax.bar(
+        xs + w / 2, wind_k, w, color="#1565c0", alpha=0.8, label="co-located winding k"
+    )
     ax.axhline(1.0, color="k", lw=1.0)
     ax.set_ylim(-1.0, 3.5)
     ax.set_xticks(xs)
     ax.set_xticklabels(lab, rotation=45, fontsize=8)
     ax.set_ylabel("exposed-sensor scale k")
-    ax.set_title(f"(b) attribution → {verdict['attribution'].upper()}: "
-                 "case ≫ 1 (red) drives it, winding ≈ 1 (blue)")
+    ax.set_title(
+        f"(b) attribution → {verdict['attribution'].upper()}: "
+        "case ≫ 1 (red) drives it, winding ≈ 1 (blue)"
+    )
     ax.legend(fontsize=8)
 
     # (c) drive-data vs geometry: per-sensor k spread on exposed sensors
@@ -768,7 +800,9 @@ def make_figure(result: dict, verdict: dict, out: Path) -> None:
             continue
         err = abs(med) * spr if spr is not None else 0.0
         col = "#b00" if b["classification"] == "drive_data" else "#e08000"
-        ax.errorbar([i], [med], yerr=[[err], [err]], fmt="o", color=col, capsize=4, ms=7)
+        ax.errorbar(
+            [i], [med], yerr=[[err], [err]], fmt="o", color=col, capsize=4, ms=7
+        )
         for _sens, kb in b["bay_loop_k"].items():
             ax.plot(i, kb, "x", color="#1565c0", ms=7)
     ax.axhline(1.0, color="k", lw=1.0)
@@ -776,8 +810,10 @@ def make_figure(result: dict, verdict: dict, out: Path) -> None:
     ax.set_xticks(xs)
     ax.set_xticklabels(lab, rotation=45, fontsize=8)
     ax.set_ylabel("per-sensor k: median ± rel-spread·|median|")
-    ax.set_title("(c) constant across exposed sensors (red) = drive-data;\n"
-                 "orange = geometry; blue × = bay-loop members (≈2.40)")
+    ax.set_title(
+        "(c) constant across exposed sensors (red) = drive-data;\n"
+        "orange = geometry; blue × = bay-loop members (≈2.40)"
+    )
 
     fig.suptitle(
         "Coil-case response scale from coil-only vacuum slices — "
@@ -793,8 +829,12 @@ def make_figure(result: dict, verdict: dict, out: Path) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--limit", type=int, default=0,
-                    help="debug: cap the cohort at this many shots (0 = full)")
+    ap.add_argument(
+        "--limit",
+        type=int,
+        default=0,
+        help="debug: cap the cohort at this many shots (0 = full)",
+    )
     ap.add_argument("--n-boot", type=int, default=300)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument(
@@ -818,8 +858,11 @@ def main() -> int:
         out["verdict"] = verdict
         out["estimator_comparison"] = _estimator_comparison()
         out_path.write_text(json.dumps(out, indent=2))
-        logger.info("refinalised verdict: (%s) attribution=%s",
-                    verdict["decision"], verdict["attribution"])
+        logger.info(
+            "refinalised verdict: (%s) attribution=%s",
+            verdict["decision"],
+            verdict["attribution"],
+        )
         make_figure(result, verdict, FIGURES / "fig-case-scale-vacuum-fit.png")
         return 0
 
@@ -835,21 +878,33 @@ def main() -> int:
 
     n_coil = len(data["coils"])
     src = build_sources(data["rows"], n_coil, data["coils"])
-    logger.info("sources: %d; unmeasurable: %s", len(src["labels"]), src["unmeasurable"])
+    logger.info(
+        "sources: %d; unmeasurable: %s", len(src["labels"]), src["unmeasurable"]
+    )
 
     result = fit(data, src, n_boot=args.n_boot, seed=args.seed)
     verdict = decide(result)
 
-    logger.info("ATTRIBUTION: %s  one-scale holds: %s  k_common=%s",
-                verdict["attribution"], verdict["one_scale_holds"],
-                result["one_scale"]["k_common"])
+    logger.info(
+        "ATTRIBUTION: %s  one-scale holds: %s  k_common=%s",
+        verdict["attribution"],
+        verdict["one_scale_holds"],
+        result["one_scale"]["k_common"],
+    )
     logger.info("DECISION: (%s) %s", verdict["decision"], verdict["rationale"])
     for c in result["case_sources"]:
         b = result["per_case"][c]
         logger.info(
             "  %-34s k_exp=%s ci=%s k_glob=%.2f exp=%d cls=%s spread=%s sep=%s",
-            c, b["k_exposed"], b["ci"], b["k_global"], b["n_exposed_sensors"],
-            b["classification"], b["per_sensor_k_rel_spread"], b["separable"])
+            c,
+            b["k_exposed"],
+            b["ci"],
+            b["k_global"],
+            b["n_exposed_sensors"],
+            b["classification"],
+            b["per_sensor_k_rel_spread"],
+            b["separable"],
+        )
 
     out = {
         "leakage_free": True,

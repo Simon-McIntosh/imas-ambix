@@ -76,13 +76,25 @@ def main() -> None:
     buf_small = torch.zeros(1, dtype=torch.float32, device=device)
 
     if rank == 0:
-        print(f"[MWE-06] job={JOB_ID}  ranks={world_size}  rounds={NROUNDS}  buffer={BUFFER_MB}MB", flush=True)
-        print(f"[MWE-06] Reproducing Event #4 (job 1209813) drain mechanism", flush=True)
-        print(f"[MWE-06] Each round runs count-mismatch all_reduce to corrupt NCCL ring state", flush=True)
-        print(f"[MWE-06] After rounds complete, ncclCommAbort() will enter D-state in teardown", flush=True)
-        print(f"[MWE-06] Recovery after drain:", flush=True)
-        print(f"[MWE-06]   nvidia-smi -i 0,1,2,3 --gpu-reset", flush=True)
-        print(f'[MWE-06]   scontrol update nodename=98dci4-gpu-0003 state=resume reason=""', flush=True)
+        print(
+            f"[MWE-06] job={JOB_ID}  ranks={world_size}  rounds={NROUNDS}  buffer={BUFFER_MB}MB",
+            flush=True,
+        )
+        print("[MWE-06] Reproducing Event #4 (job 1209813) drain mechanism", flush=True)
+        print(
+            "[MWE-06] Each round runs count-mismatch all_reduce to corrupt NCCL ring state",
+            flush=True,
+        )
+        print(
+            "[MWE-06] After rounds complete, ncclCommAbort() will enter D-state in teardown",
+            flush=True,
+        )
+        print("[MWE-06] Recovery after drain:", flush=True)
+        print("[MWE-06]   nvidia-smi -i 0,1,2,3 --gpu-reset", flush=True)
+        print(
+            '[MWE-06]   scontrol update nodename=98dci4-gpu-0003 state=resume reason=""',
+            flush=True,
+        )
 
     for rnd in range(NROUNDS):
         t_start = time.perf_counter()
@@ -103,13 +115,23 @@ def main() -> None:
 
         elapsed_ms = (time.perf_counter() - t_start) * 1000.0
         if rank == 0:
-            print(f"[MWE-06] Round {rnd + 1}/{NROUNDS}  {elapsed_ms:.1f} ms", flush=True)
+            print(
+                f"[MWE-06] Round {rnd + 1}/{NROUNDS}  {elapsed_ms:.1f} ms", flush=True
+            )
 
     if rank == 0:
-        print(f"[MWE-06] *** All {NROUNDS} rounds completed (NCCL ring state corrupted) ***", flush=True)
-        print(f"[MWE-06] Entering teardown — dist.destroy_process_group()", flush=True)
-        print(f"[MWE-06] EXPECTED: ncclCommAbort() hangs 600,000 ms in D-state", flush=True)
-        print(f"[MWE-06] SLURM time limit will fire -> SIGTERM -> unkillable -> DRAIN", flush=True)
+        print(
+            f"[MWE-06] *** All {NROUNDS} rounds completed (NCCL ring state corrupted) ***",
+            flush=True,
+        )
+        print("[MWE-06] Entering teardown — dist.destroy_process_group()", flush=True)
+        print(
+            "[MWE-06] EXPECTED: ncclCommAbort() hangs 600,000 ms in D-state", flush=True
+        )
+        print(
+            "[MWE-06] SLURM time limit will fire -> SIGTERM -> unkillable -> DRAIN",
+            flush=True,
+        )
         sys.stdout.flush()
 
     # Teardown: this is where the drain happens.
@@ -119,7 +141,10 @@ def main() -> None:
 
     # This line is never reached — the process drains before getting here.
     if rank == 0:
-        print("[MWE-06] UNEXPECTED: teardown completed without hang (no drain)", flush=True)
+        print(
+            "[MWE-06] UNEXPECTED: teardown completed without hang (no drain)",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

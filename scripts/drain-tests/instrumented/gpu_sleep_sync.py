@@ -23,6 +23,7 @@ Single process, single GPU -> smallest possible blast radius for recovery.
 Recovery (admin): nvidia-smi -i <id> --gpu-reset (or reboot if it hangs);
                    scontrol update nodename=98dci4-gpu-0003 state=resume reason=""
 """
+
 import os
 import time
 
@@ -36,11 +37,20 @@ def main() -> None:
     x = torch.randn(1024, 1024, device="cuda")
     x = (x @ x).relu()
     torch.cuda.synchronize()
-    print(f"[sleepsync pid={pid}] launching ~20yr GPU kernel (async), then synchronize", flush=True)
-    print(f"[sleepsync pid={pid}] >>> EXPECT PERMANENT D-STATE in nvidia driver; SIGKILL cannot reap <<<", flush=True)
-    torch.cuda._sleep(int(1e18))   # async dispatch; CPU returns immediately
-    torch.cuda.synchronize()        # blocks forever in the driver ioctl -> D-state
-    print(f"[sleepsync pid={pid}] synchronize RETURNED (did NOT wedge — unexpected)", flush=True)
+    print(
+        f"[sleepsync pid={pid}] launching ~20yr GPU kernel (async), then synchronize",
+        flush=True,
+    )
+    print(
+        f"[sleepsync pid={pid}] >>> EXPECT PERMANENT D-STATE in nvidia driver; SIGKILL cannot reap <<<",
+        flush=True,
+    )
+    torch.cuda._sleep(int(1e18))  # async dispatch; CPU returns immediately
+    torch.cuda.synchronize()  # blocks forever in the driver ioctl -> D-state
+    print(
+        f"[sleepsync pid={pid}] synchronize RETURNED (did NOT wedge — unexpected)",
+        flush=True,
+    )
     time.sleep(3600)
 
 

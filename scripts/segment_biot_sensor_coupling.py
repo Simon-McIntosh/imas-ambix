@@ -16,6 +16,7 @@ Checks:
   C2. Flux linkage via A-line-integral matches mutual inductance symmetry
       (loop<->coil reciprocity) on a coaxial-circles case vs Maxwell formula.
 """
+
 import numpy as np
 
 MU0 = 4e-7 * np.pi
@@ -81,35 +82,49 @@ def loop_flux(path_src, I, loop_pts):
 # ------------------------------------------------------------------- checks
 # C1: square loop, side a, field at centre = 2*sqrt(2)*mu0*I/(pi*a)
 a_side, I = 0.6, 1000.0
-sq = np.array([[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0], [-1, -1, 0]],
-              float) * (a_side / 2)
+sq = np.array([[-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0], [-1, -1, 0]], float) * (
+    a_side / 2
+)
 Bc = poly_B(np.array([[0, 0, 0.0]]), sq, I)[0]
 B_analytic = 2 * np.sqrt(2) * MU0 * I / (np.pi * a_side)
-print(f"C1 square-centre: Bz={Bc[2]:.6e}  analytic={B_analytic:.6e}  "
-      f"rel err={abs(Bc[2]-B_analytic)/B_analytic:.2e}")
+print(
+    f"C1 square-centre: Bz={Bc[2]:.6e}  analytic={B_analytic:.6e}  "
+    f"rel err={abs(Bc[2] - B_analytic) / B_analytic:.2e}"
+)
 
 # C2: mutual inductance of coaxial circles (R1=1.0, R2=0.5, dz=0.3) vs Maxwell
-from scipy.special import ellipk, ellipe
+from scipy.special import ellipe, ellipk
+
+
 def maxwell_M(R1, R2, dz):
-    k2 = 4 * R1 * R2 / ((R1 + R2) ** 2 + dz ** 2)
+    k2 = 4 * R1 * R2 / ((R1 + R2) ** 2 + dz**2)
     k = np.sqrt(k2)
     return MU0 * np.sqrt(R1 * R2) * ((2 / k - k) * ellipk(k2) - (2 / k) * ellipe(k2))
+
+
 def circle(R, z, n=720):
     t = np.linspace(0, 2 * np.pi, n + 1)
     return np.column_stack([R * np.cos(t), R * np.sin(t), np.full(t.size, z)])
+
+
 M_num = loop_flux(circle(1.0, 0.0), 1.0, circle(0.5, 0.3))
 M_ana = maxwell_M(1.0, 0.5, 0.3)
-print(f"C2 coaxial-circles mutual: num={M_num:.6e}  Maxwell={M_ana:.6e}  "
-      f"rel err={abs(M_num-M_ana)/abs(M_ana):.2e}")
+print(
+    f"C2 coaxial-circles mutual: num={M_num:.6e}  Maxwell={M_ana:.6e}  "
+    f"rel err={abs(M_num - M_ana) / abs(M_ana):.2e}"
+)
+
 
 # ------------------------------------------------- MAST-like RMP coil set
 def frame_coil(phi0, dphi, R, z_lo, z_hi, n_arc=40):
     """Picture-frame coil on a cylinder: two toroidal arcs + two vertical legs."""
     p1 = np.linspace(phi0 - dphi / 2, phi0 + dphi / 2, n_arc)
     lower = np.column_stack([R * np.cos(p1), R * np.sin(p1), np.full(n_arc, z_lo)])
-    upper = np.column_stack([R * np.cos(p1[::-1]), R * np.sin(p1[::-1]),
-                             np.full(n_arc, z_hi)])
+    upper = np.column_stack(
+        [R * np.cos(p1[::-1]), R * np.sin(p1[::-1]), np.full(n_arc, z_hi)]
+    )
     return np.vstack([lower, upper, lower[:1]])
+
 
 # 6 lower coils (M7 config, n=3 even parity), R=1.45 m, z in [-1.0,-0.6], 30deg wide
 def rmp_set(n_coils=6, polarity_n3=True):
@@ -120,29 +135,34 @@ def rmp_set(n_coils=6, polarity_n3=True):
         coils.append((frame_coil(phi0, np.deg2rad(30), 1.45, -1.0, -0.6), sgn))
     return coils
 
+
 I_RMP = 5600.0  # A-turns (4 turns x 1.4 kA)
 coils = rmp_set()
 
 # sensors: catalogued MAST positions
-loop_p5l = circle(1.163, -1.089)                     # fl_p5l_1 (bay loop, near coils)
-loop_cc  = circle(0.28, 0.0)                         # centre-column loop (far)
-probe_pos = np.array([[1.85, 0.0, -0.15]])           # obv-like outboard probe
-probe_n   = np.array([0.0, 0.0, 1.0])                # vertical pickup
+loop_p5l = circle(1.163, -1.089)  # fl_p5l_1 (bay loop, near coils)
+loop_cc = circle(0.28, 0.0)  # centre-column loop (far)
+probe_pos = np.array([[1.85, 0.0, -0.15]])  # obv-like outboard probe
+probe_n = np.array([0.0, 0.0, 1.0])  # vertical pickup
 
 flux_p5l = sum(sgn * loop_flux(path, I_RMP, loop_p5l) for path, sgn in coils)
-flux_cc  = sum(sgn * loop_flux(path, I_RMP, loop_cc) for path, sgn in coils)
-flux_one = loop_flux(coils[0][0], I_RMP, loop_p5l)   # single coil, no cancellation
-B_probe  = sum(sgn * poly_B(probe_pos, path, I_RMP) for path, sgn in coils)[0]
+flux_cc = sum(sgn * loop_flux(path, I_RMP, loop_cc) for path, sgn in coils)
+flux_one = loop_flux(coils[0][0], I_RMP, loop_p5l)  # single coil, no cancellation
+B_probe = sum(sgn * poly_B(probe_pos, path, I_RMP) for path, sgn in coils)[0]
 B_probe_one = poly_B(probe_pos, coils[0][0], I_RMP)[0]
 
 print(f"\nRMP n=3 set @ {I_RMP:.0f} A-turns:")
 print(f"  bay flux loop (fl_p5l_1)  full-set linkage: {flux_p5l:+.3e} Wb")
 print(f"  bay flux loop             SINGLE-coil link : {flux_one:+.3e} Wb")
 print(f"  centre-column loop        full-set linkage: {flux_cc:+.3e} Wb")
-print(f"  outboard probe B.n        full-set: {B_probe @ probe_n:+.3e} T "
-      f"(|B|={np.linalg.norm(B_probe):.3e})")
+print(
+    f"  outboard probe B.n        full-set: {B_probe @ probe_n:+.3e} T "
+    f"(|B|={np.linalg.norm(B_probe):.3e})"
+)
 print(f"  outboard probe B.n        single-coil: {B_probe_one @ probe_n:+.3e} T")
 
 # scale context: typical MAST equilibrium probe fields ~0.05-0.3 T; loop flux ~0.1-1 Wb
-print(f"\nContamination scale: probe {1e4*abs(B_probe @ probe_n):.2f} G vs "
-      f"equilibrium-scale ~500-3000 G -> {100*abs(B_probe @ probe_n)/0.1:.2f}% of a 0.1 T signal")
+print(
+    f"\nContamination scale: probe {1e4 * abs(B_probe @ probe_n):.2f} G vs "
+    f"equilibrium-scale ~500-3000 G -> {100 * abs(B_probe @ probe_n) / 0.1:.2f}% of a 0.1 T signal"
+)

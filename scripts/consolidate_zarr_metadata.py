@@ -90,19 +90,31 @@ def main() -> int:
         "--root",
         action="append",
         required=True,
-        help=("Zarr corpus root containing <shot>.zarr directories. "
-              "Pass multiple times to process several roots."),
+        help=(
+            "Zarr corpus root containing <shot>.zarr directories. "
+            "Pass multiple times to process several roots."
+        ),
     )
-    parser.add_argument("--workers", type=int, default=16,
-                        help="ThreadPool size (default 16). GPFS metadata is "
-                             "I/O bound so high concurrency wins.")
-    parser.add_argument("--measure", action="store_true",
-                        help="Time xr.open_zarr on 3 representative shots "
-                             "before AND after consolidation. Single-threaded.")
-    parser.add_argument("--report", type=Path,
-                        help="Write JSON report to this path.")
-    parser.add_argument("--limit", type=int, default=None,
-                        help="Only process the first N shots (smoke testing).")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=16,
+        help="ThreadPool size (default 16). GPFS metadata is "
+        "I/O bound so high concurrency wins.",
+    )
+    parser.add_argument(
+        "--measure",
+        action="store_true",
+        help="Time xr.open_zarr on 3 representative shots "
+        "before AND after consolidation. Single-threaded.",
+    )
+    parser.add_argument("--report", type=Path, help="Write JSON report to this path.")
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Only process the first N shots (smoke testing).",
+    )
     args = parser.parse_args()
 
     roots = [Path(r) for r in args.root]
@@ -128,7 +140,7 @@ def main() -> int:
             for shot_zarr, group in _pick_measure_targets(root):
                 key = f"{shot_zarr.stem}/{group}"
                 before[key] = _measure_open(shot_zarr, group, consolidated=False)
-                print(f"[before] {key}: {before[key]*1000:.1f} ms", flush=True)
+                print(f"[before] {key}: {before[key] * 1000:.1f} ms", flush=True)
         report["open_time_before_s"] = before
 
     # ── consolidate ────────────────────────────────────────────────────
@@ -137,8 +149,11 @@ def main() -> int:
         shots = sorted(root.glob("*.zarr"))
         if args.limit:
             shots = shots[: args.limit]
-        print(f"[{root.name}] {len(shots)} shots to consolidate "
-              f"with {args.workers} workers", flush=True)
+        print(
+            f"[{root.name}] {len(shots)} shots to consolidate "
+            f"with {args.workers} workers",
+            flush=True,
+        )
 
         with ThreadPoolExecutor(max_workers=args.workers) as pool:
             futs = {pool.submit(_consolidate_one, s): s for s in shots}
@@ -152,13 +167,18 @@ def main() -> int:
                     report["n_failed"] += 1
                     report["errors"].append({"shot_id": shot_id, "error": err})
                 if done % 500 == 0 or done == len(shots):
-                    print(f"  [{root.name}] {done}/{len(shots)} done "
-                          f"({report['n_failed']} failed)", flush=True)
+                    print(
+                        f"  [{root.name}] {done}/{len(shots)} done "
+                        f"({report['n_failed']} failed)",
+                        flush=True,
+                    )
 
     report["elapsed_s"] = round(time.monotonic() - t0, 1)
-    print(f"\nconsolidation done in {report['elapsed_s']} s "
-          f"({report['n_consolidated']} ok, {report['n_failed']} failed)",
-          flush=True)
+    print(
+        f"\nconsolidation done in {report['elapsed_s']} s "
+        f"({report['n_consolidated']} ok, {report['n_failed']} failed)",
+        flush=True,
+    )
 
     # ── optional: measure AFTER ────────────────────────────────────────
     if args.measure:
@@ -167,7 +187,7 @@ def main() -> int:
             for shot_zarr, group in _pick_measure_targets(root):
                 key = f"{shot_zarr.stem}/{group}"
                 after[key] = _measure_open(shot_zarr, group, consolidated=True)
-                print(f"[after]  {key}: {after[key]*1000:.1f} ms", flush=True)
+                print(f"[after]  {key}: {after[key] * 1000:.1f} ms", flush=True)
         report["open_time_after_s"] = after
 
         if before:
@@ -175,8 +195,10 @@ def main() -> int:
             for k in before:
                 if k in after and after[k] > 0:
                     speedup = before[k] / after[k]
-                    print(f"  {k}: {before[k]*1000:6.1f} → "
-                          f"{after[k]*1000:6.1f} ms  ({speedup:.1f}×)")
+                    print(
+                        f"  {k}: {before[k] * 1000:6.1f} → "
+                        f"{after[k] * 1000:6.1f} ms  ({speedup:.1f}×)"
+                    )
 
     if args.report:
         args.report.write_text(json.dumps(report, indent=2))

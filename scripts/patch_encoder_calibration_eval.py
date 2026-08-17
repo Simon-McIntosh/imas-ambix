@@ -230,7 +230,9 @@ def fit_kind_temperature(
         idx = rng.permutation(n)[: min(n, max_examples_per_sig)]
         for start in range(0, len(idx), batch_size):
             rows = idx[start : start + batch_size]
-            v = _standardise_values(corp.values[rows], corp.finite[rows], ch_mean, ch_std)
+            v = _standardise_values(
+                corp.values[rows], corp.finite[rows], ch_mean, ch_std
+            )
             i_pf = corp.i_pf[rows]
             i_pf_std = (i_pf - ipf_mean[None, :]) / ipf_std[None, :]
             with torch.no_grad():
@@ -646,7 +648,9 @@ def main() -> int:
             "[temperature-scale] frozen per-kind variance multiplier: %s",
             {
                 (
-                    PATCH_SENSOR_KINDS[k] if 0 <= k < len(PATCH_SENSOR_KINDS) else str(k)
+                    PATCH_SENSOR_KINDS[k]
+                    if 0 <= k < len(PATCH_SENSOR_KINDS)
+                    else str(k)
                 ): round(t, 4)
                 for k, t in kind_temperature.items()
             },
@@ -658,7 +662,9 @@ def main() -> int:
     # permanent FAIL for a quantity the corpus never exercises.  Rolls up the
     # TEMPSCALED sensor block (not the raw one) when --temperature-scale ran.
     roll_up_sensor = (
-        sensor_report_tempscaled if sensor_report_tempscaled is not None else sensor_report
+        sensor_report_tempscaled
+        if sensor_report_tempscaled is not None
+        else sensor_report
     )
     all_verdicts = [
         v["verdict"]
@@ -681,7 +687,9 @@ def main() -> int:
         "kind_temperature": (
             {
                 (
-                    PATCH_SENSOR_KINDS[k] if 0 <= k < len(PATCH_SENSOR_KINDS) else str(k)
+                    PATCH_SENSOR_KINDS[k]
+                    if 0 <= k < len(PATCH_SENSOR_KINDS)
+                    else str(k)
                 ): t
                 for k, t in kind_temperature.items()
             }

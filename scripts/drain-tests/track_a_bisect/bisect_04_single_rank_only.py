@@ -28,17 +28,21 @@
 # ============================================================
 
 import os
-import signal
 import time
 
 import torch
 
 BUFFER_MB = int(os.environ.get("BUFFER_MB", "256"))
-HANG_SECONDS = int(os.environ.get("HANG_SECONDS", "600"))  # 10 min — long enough for SLURM to scancel
+HANG_SECONDS = int(
+    os.environ.get("HANG_SECONDS", "600")
+)  # 10 min — long enough for SLURM to scancel
 
 
 def main() -> None:
-    print("[bisect_04] single_rank_only — no NCCL, CUDA context held, hang in Python loop", flush=True)
+    print(
+        "[bisect_04] single_rank_only — no NCCL, CUDA context held, hang in Python loop",
+        flush=True,
+    )
 
     # Initialize a CUDA context (fair comparison: real job holds GPU allocation)
     device = torch.device("cuda:0")
@@ -49,9 +53,18 @@ def main() -> None:
     buf = torch.randn(n_floats, device=device)
     torch.cuda.synchronize(device)
 
-    print(f"[bisect_04] GPU context initialized, {BUFFER_MB} MB allocated on {device}", flush=True)
-    print(f"[bisect_04] Entering {HANG_SECONDS}s hang loop (expects SIGKILL from SLURM time-limit)", flush=True)
-    print(f"[bisect_04] Expected: SLURM kills cleanly — no drain (this is a negative control)", flush=True)
+    print(
+        f"[bisect_04] GPU context initialized, {BUFFER_MB} MB allocated on {device}",
+        flush=True,
+    )
+    print(
+        f"[bisect_04] Entering {HANG_SECONDS}s hang loop (expects SIGKILL from SLURM time-limit)",
+        flush=True,
+    )
+    print(
+        "[bisect_04] Expected: SLURM kills cleanly — no drain (this is a negative control)",
+        flush=True,
+    )
 
     # Hang in Python CPU loop — no blocking NCCL call, no D-state trigger
     t_start = time.monotonic()
@@ -64,7 +77,10 @@ def main() -> None:
         time.sleep(0.0001)  # yield CPU — don't spin-burn
 
     # If we reach here: the loop expired naturally (shouldn't happen before --time fires)
-    print(f"[bisect_04] Hang loop expired after {HANG_SECONDS}s — exiting cleanly (unexpected in drain test)", flush=True)
+    print(
+        f"[bisect_04] Hang loop expired after {HANG_SECONDS}s — exiting cleanly (unexpected in drain test)",
+        flush=True,
+    )
 
     # Release GPU explicitly before exit
     del buf

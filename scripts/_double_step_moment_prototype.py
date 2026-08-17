@@ -38,8 +38,13 @@ from scripts.patch_flux_map_report import select_slices
 
 def _push(psi, grid, ctr):
     lc = lcfs_contour(
-        psi, grid.rg, grid.zg, ctr, clip_legs=True,
-        limiter_r=grid.limiter_r, limiter_z=grid.limiter_z,
+        psi,
+        grid.rg,
+        grid.zg,
+        ctr,
+        clip_legs=True,
+        limiter_r=grid.limiter_r,
+        limiter_z=grid.limiter_z,
     )
     return lc.ring if lc.found else None
 
@@ -99,8 +104,14 @@ def double_step(grid, basis, p, order=3, n_extra=1):
         for ridge in (1e-6, 1e-4, 1e-2, 1e-1, 1e0, 1e1, 1e2):
             cfg_r = MomentFitConfig(order=order, ridge=ridge)
             c, mis, _cov = bm._fit_one(
-                m_basis, a_sens, p.measured, p.vacuum, p.mask, p.scale,
-                float(p.ip_amperes), cfg_r,
+                m_basis,
+                a_sens,
+                p.measured,
+                p.vacuum,
+                p.mask,
+                p.scale,
+                float(p.ip_amperes),
+                cfg_r,
             )
             i_cell = m_basis @ c
             frac_neg = float(np.mean(i_cell[mask > 0] < 0.0))
@@ -133,8 +144,12 @@ def double_step(grid, basis, p, order=3, n_extra=1):
 
 def main():
     slices = [
-        (18502, "flattop"), (12143, "rampup"), (18505, "rampup"),
-        (12189, "rampup"), (12143, "flattop"), (12190, "rampup"),
+        (18502, "flattop"),
+        (12143, "rampup"),
+        (18505, "rampup"),
+        (12189, "rampup"),
+        (12143, "flattop"),
+        (12190, "rampup"),
     ]
     # group by shot to load each payload once
     by_shot: dict[int, list[str]] = {}
@@ -157,8 +172,10 @@ def main():
             passes = double_step(grid, basis, pls[k], n_extra=1)
             rms = [100.0 * _rms(r, efit) for r, _m in passes]
             panels.append((f"{shot} {kind}", grid, efit, passes, rms))
-            print(f"{shot} {kind}: RMS[cm] per pass = " +
-                  " -> ".join(f"{x:.1f}" for x in rms))
+            print(
+                f"{shot} {kind}: RMS[cm] per pass = "
+                + " -> ".join(f"{x:.1f}" for x in rms)
+            )
 
     ncol = 3
     nrow = int(np.ceil(len(panels) / ncol))
@@ -177,13 +194,20 @@ def main():
             )
         for i, (ring, _m) in enumerate(passes):
             if ring is not None:
-                ax.plot(ring[:, 0], ring[:, 1], "-", color=colors[i % 3], lw=1.3,
-                        label=f"pass{i + 1} {rms[i]:.0f}cm")
+                ax.plot(
+                    ring[:, 0],
+                    ring[:, 1],
+                    "-",
+                    color=colors[i % 3],
+                    lw=1.3,
+                    label=f"pass{i + 1} {rms[i]:.0f}cm",
+                )
         ax.set_title(title, fontsize=8)
         ax.legend(fontsize=6, loc="upper right")
     fig.suptitle(
         "Double-step moment read: pass 1 (fill vessel) -> pass 2/3 (j=0 outside "
-        "LCFS, refit) vs EFIT (red)", fontsize=12
+        "LCFS, refit) vs EFIT (red)",
+        fontsize=12,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.98))
     out = "docs/figures/th-boundary-robustness/double-step-moment.png"

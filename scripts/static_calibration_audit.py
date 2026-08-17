@@ -229,7 +229,9 @@ def main() -> int:
         ],
         "offset_over_sigma_median_abs": float(np.median(np.abs(off_sigma))),
     }
-    stem = "static_calibration_offset_only" if args.offset_only else "static_calibration"
+    stem = (
+        "static_calibration_offset_only" if args.offset_only else "static_calibration"
+    )
     if args.arm == "free":
         stem = f"{stem}_free"
     (ARTIFACTS / f"{stem}.json").write_text(json.dumps(out, indent=2))

@@ -247,8 +247,7 @@ def slice_payloads(shot: int, table, fwd, grid, *, max_slices: int, min_ip_ka: f
     valid = [
         t
         for t in range(w.times.size)
-        if np.isfinite(w.ref_target[t, :2]).all()
-        and abs(w.anchored[t, 0]) > min_ip_ka
+        if np.isfinite(w.ref_target[t, :2]).all() and abs(w.anchored[t, 0]) > min_ip_ka
     ]
     if len(valid) > max_slices:
         valid = valid[:: max(1, len(valid) // max_slices)][:max_slices]
@@ -268,9 +267,7 @@ def slice_payloads(shot: int, table, fwd, grid, *, max_slices: int, min_ip_ka: f
                 "measured": np.where(
                     present, w.raw_mag[t][np.clip(ch_rows, 0, None)], np.nan
                 ),
-                "vacuum": np.where(
-                    present, vac[np.clip(ch_rows, 0, None)], 0.0
-                ),
+                "vacuum": np.where(present, vac[np.clip(ch_rows, 0, None)], 0.0),
                 "mask": present & w.mag_mask[t][np.clip(ch_rows, 0, None)],
                 "scale": scale_ch,
                 "ref_target": w.ref_target[t],
@@ -294,7 +291,11 @@ def cmd_assemble(args) -> None:
     patch_grid_matrix(grid, cache)
     g_sens, channels = grid.sensor_greens(table)
     logger.info(
-        "cells=%d grid=%dx%d sensors=%d", grid.cells.size, args.nr, args.nz, len(channels)
+        "cells=%d grid=%dx%d sensors=%d",
+        grid.cells.size,
+        args.nr,
+        args.nz,
+        len(channels),
     )
 
 
@@ -309,20 +310,24 @@ def cmd_validate(args) -> None:
     # construction — exercising cylinder_greens itself is the real check)
     from imas_ambix.gs.cylinder import cylinder_greens
 
-    c_mid = grid.cells[np.argmin(
-        np.hypot(grid.flat_r[grid.cells] - grid.r0, grid.flat_z[grid.cells])
-    )]
-    dist = np.hypot(
-        grid.flat_r - grid.flat_r[c_mid], grid.flat_z - grid.flat_z[c_mid]
-    )
+    c_mid = grid.cells[
+        np.argmin(np.hypot(grid.flat_r[grid.cells] - grid.r0, grid.flat_z[grid.cells]))
+    ]
+    dist = np.hypot(grid.flat_r - grid.flat_r[c_mid], grid.flat_z - grid.flat_z[c_mid])
     far = dist > 10.0 * max(grid.dr, grid.dz)
     fa = cylinder_greens(
-        grid.flat_r[far], grid.flat_z[far],
-        float(grid.flat_r[c_mid]), float(grid.flat_z[c_mid]), grid.dr, grid.dz,
+        grid.flat_r[far],
+        grid.flat_z[far],
+        float(grid.flat_r[c_mid]),
+        float(grid.flat_z[c_mid]),
+        grid.dr,
+        grid.dz,
     )[0]
     point = greens_psi(
-        grid.flat_r[far], grid.flat_z[far],
-        float(grid.flat_r[c_mid]), float(grid.flat_z[c_mid]),
+        grid.flat_r[far],
+        grid.flat_z[far],
+        float(grid.flat_r[c_mid]),
+        float(grid.flat_z[c_mid]),
     )
     rel = np.abs(fa - point) / np.maximum(np.abs(point), 1e-16)
     checks["far_field_rel_max"] = float(rel.max())
@@ -361,11 +366,11 @@ def cmd_validate(args) -> None:
     rhs = np.zeros(grid.flat_r.size)
     # total-flux convention: the Green's columns carry Φ = 2π R A_φ, so
     # Δ*Φ = −2π μ0 R jφ
-    rhs[grid.cells] = -2.0 * np.pi * MU0 * grid.flat_r[grid.cells] * (
-        i_cell / cell_area
+    rhs[grid.cells] = (
+        -2.0 * np.pi * MU0 * grid.flat_r[grid.cells] * (i_cell / cell_area)
     )
     rhs2d = rhs.reshape(grid.nz, grid.nr)
-    scale_j = MU0 * np.abs(rhs2d[np.isfinite(rhs2d)]).max()
+    _scale_j = MU0 * np.abs(rhs2d[np.isfinite(rhs2d)]).max()
     err = np.abs(lhs - rhs2d)
     interior = np.isfinite(lhs)
     checks["delta_star_rel_rms"] = float(
@@ -433,7 +438,12 @@ def cmd_validate(args) -> None:
     ext = [grid.rg[0], grid.rg[-1], grid.zg[0], grid.zg[-1]]
     vmax = np.abs(psi_plasma).max()
     im0 = axes[0].imshow(
-        psi_plasma, origin="lower", extent=ext, cmap="RdBu_r", vmin=-vmax, vmax=vmax,
+        psi_plasma,
+        origin="lower",
+        extent=ext,
+        cmap="RdBu_r",
+        vmin=-vmax,
+        vmax=vmax,
         aspect="auto",
     )
     axes[0].plot(grid.limiter_r, grid.limiter_z, color="#222222", lw=1.0)
@@ -442,12 +452,18 @@ def cmd_validate(args) -> None:
     src_scale = max(np.abs(rhs2d).max(), 1e-30)
     im1 = axes[1].imshow(
         np.abs(np.nan_to_num(lhs - rhs2d)) / src_scale,
-        origin="lower", extent=ext, cmap="Blues", aspect="auto",
+        origin="lower",
+        extent=ext,
+        cmap="Blues",
+        aspect="auto",
     )
     axes[1].set_title("(b) |FD Delta* psi - source| / max|source|")
     fig.colorbar(im1, ax=axes[1], shrink=0.85)
     im2 = axes[2].imshow(
-        fd_err / max(span, 1e-30), origin="lower", extent=ext, cmap="Blues",
+        fd_err / max(span, 1e-30),
+        origin="lower",
+        extent=ext,
+        cmap="Blues",
         aspect="auto",
     )
     axes[2].set_title("(c) |FD solve - Green's| / psi span")
@@ -473,8 +489,12 @@ def cmd_oracle(args) -> None:
         try:
             table, fwd, grid = build_grid(int(shot), args.nr, args.nz)
             payloads = slice_payloads(
-                int(shot), table, fwd, grid,
-                max_slices=args.slices_per_shot, min_ip_ka=args.min_ip_ka,
+                int(shot),
+                table,
+                fwd,
+                grid,
+                max_slices=args.slices_per_shot,
+                min_ip_ka=args.min_ip_ka,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("shot %s failed to load: %s", shot, exc)
@@ -501,7 +521,9 @@ def cmd_oracle(args) -> None:
             if fit is None or fit.cost > args.cost_limit or not fit.result.converged:
                 logger.info(
                     "shot %d t=%d: no converged low-cost fit (cost=%s)",
-                    p["shot"], p["t_index"], None if fit is None else f"{fit.cost:.2f}",
+                    p["shot"],
+                    p["t_index"],
+                    None if fit is None else f"{fit.cost:.2f}",
                 )
                 continue
             np.savez_compressed(
@@ -525,7 +547,10 @@ def cmd_oracle(args) -> None:
             n_done += 1
             logger.info(
                 "shot %d t=%d: oracle saved (cost %.2f, axis %.3f,%.3f)",
-                p["shot"], p["t_index"], fit.cost, *fit.result.axis,
+                p["shot"],
+                p["t_index"],
+                fit.cost,
+                *fit.result.axis,
             )
     logger.info("oracle slices available: %d", n_done)
 
@@ -564,8 +589,13 @@ def cmd_discriminate(args) -> None:
 
         def resid(i_vec: np.ndarray) -> float:
             return residual_of_currents(
-                i_vec, g_cc, psi_coil_cells, r_cells, cell_area,
-                n_bins=args.n_bins, form=args.residual_form,
+                i_vec,
+                g_cc,
+                psi_coil_cells,
+                r_cells,
+                cell_area,
+                n_bins=args.n_bins,
+                form=args.residual_form,
             )
 
         core = np.abs(i0) > 0
@@ -589,15 +619,12 @@ def cmd_discriminate(args) -> None:
             i_s = i_s2d.ravel()[grid.cells]
             if abs(i_s.sum()) > 0:
                 i_s *= i0.sum() / i_s.sum()
-            rows.append((d["shot"], d["t_index"], f"radial-shift", resid(i_s)))
+            rows.append((d["shot"], d["t_index"], "radial-shift", resid(i_s)))
 
         # gaussian blob: the Picard seed shape scaled to Ip — plausible-looking,
         # not force balanced
         blob = np.exp(
-            -(
-                ((r_cells - grid.r0) / 0.35) ** 2
-                + (grid.flat_z[grid.cells] / 0.5) ** 2
-            )
+            -(((r_cells - grid.r0) / 0.35) ** 2 + (grid.flat_z[grid.cells] / 0.5) ** 2)
         )
         blob *= i0.sum() / blob.sum()
         rows.append((d["shot"], d["t_index"], "gaussian-blob", resid(blob)))
@@ -606,14 +633,12 @@ def cmd_discriminate(args) -> None:
         # residual can penalise it
         a = g_sens / d["scale"][:, None]
         _u, _s, vt = np.linalg.svd(a, full_matrices=True)
-        null = vt[a.shape[0]:, :]
+        null = vt[a.shape[0] :, :]
         for _ in range(3):
             v = null.T @ rng.standard_normal(null.shape[0])
             v /= np.linalg.norm(v)
             amp = args.null_fraction * np.linalg.norm(i0)
-            rows.append(
-                (d["shot"], d["t_index"], "null-space", resid(i0 + amp * v))
-            )
+            rows.append((d["shot"], d["t_index"], "null-space", resid(i0 + amp * v)))
 
     suffix = "" if args.residual_form == "jphi" else f"-{args.residual_form}"
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
@@ -631,7 +656,11 @@ def cmd_discriminate(args) -> None:
         if vals:
             logger.info(
                 "%-14s n=%2d residual median %.4f (min %.4f max %.4f)",
-                cls, len(vals), np.median(vals), min(vals), max(vals),
+                cls,
+                len(vals),
+                np.median(vals),
+                min(vals),
+                max(vals),
             )
 
     if suffix:
@@ -646,13 +675,18 @@ def cmd_discriminate(args) -> None:
             continue
         jitter = (np.arange(vals.size) - vals.size / 2) * 0.05
         ax.scatter(
-            vals, np.full(vals.size, yi) + jitter, s=42,
-            color=CLASS_COLOR[cls], zorder=3,
+            vals,
+            np.full(vals.size, yi) + jitter,
+            s=42,
+            color=CLASS_COLOR[cls],
+            zorder=3,
         )
         ax.annotate(
             f"median {np.median(vals):.3f}",
             (np.median(vals), yi + 0.28),
-            fontsize=9, color=CLASS_COLOR[cls], ha="center",
+            fontsize=9,
+            color=CLASS_COLOR[cls],
+            ha="center",
         )
     ax.set_yticks(range(len(CLASS_ORDER)), CLASS_ORDER)
     ax.set_xscale("log")
@@ -686,8 +720,12 @@ def cmd_identify(args) -> None:
         try:
             table, fwd, grid = build_grid(shot, args.nr, args.nz)
             payloads = slice_payloads(
-                shot, table, fwd, grid,
-                max_slices=args.slices_per_shot, min_ip_ka=args.min_ip_ka,
+                shot,
+                table,
+                fwd,
+                grid,
+                max_slices=args.slices_per_shot,
+                min_ip_ka=args.min_ip_ka,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("shot %s failed to load: %s", shot, exc)
@@ -707,16 +745,17 @@ def cmd_identify(args) -> None:
         sv_all = np.linalg.svd(a, compute_uv=False)
         _u, sv, vt = np.linalg.svd(a, full_matrices=False)
         ora0 = next(
-            (oracles[(shot, p["t_index"])] for p in payloads
-             if (shot, p["t_index"]) in oracles),
+            (
+                oracles[(shot, p["t_index"])]
+                for p in payloads
+                if (shot, p["t_index"]) in oracles
+            ),
             None,
         )
         pattern = (
             ora0["i_cell"]
             if ora0 is not None
-            else np.exp(
-                -(((r_cells - grid.r0) / 0.35) ** 2 + (z_cells / 0.5) ** 2)
-            )
+            else np.exp(-(((r_cells - grid.r0) / 0.35) ** 2 + (z_cells / 0.5) ** 2))
         )
         i2d = np.zeros(grid.flat_r.size)
         i2d[grid.cells] = pattern
@@ -749,22 +788,16 @@ def cmd_identify(args) -> None:
             (grid.topology_candidate.ravel()[grid.cells]).astype(np.float64),
             dtype=torch.float64,
         )
-        seed_shape = np.exp(
-            -(((r_cells - grid.r0) / 0.35) ** 2 + (z_cells / 0.5) ** 2)
-        )
+        seed_shape = np.exp(-(((r_cells - grid.r0) / 0.35) ** 2 + (z_cells / 0.5) ** 2))
 
         for p in payloads:
             d_oracle = oracles.get((shot, p["t_index"]))
             psi_coil_cells = torch.as_tensor(
                 grid.coil_psi(p["i_pf"])[grid.cells], dtype=torch.float64
             )
-            meas = torch.as_tensor(
-                np.nan_to_num(p["measured"]), dtype=torch.float64
-            )
+            meas = torch.as_tensor(np.nan_to_num(p["measured"]), dtype=torch.float64)
             vac = torch.as_tensor(p["vacuum"], dtype=torch.float64)
-            mask = torch.as_tensor(
-                p["mask"].astype(np.float64), dtype=torch.float64
-            )
+            mask = torch.as_tensor(p["mask"].astype(np.float64), dtype=torch.float64)
             scale = torch.as_tensor(p["scale"], dtype=torch.float64)
             ip = float(p["ip_amperes"])
             seed = seed_shape / seed_shape.sum() * ip
@@ -779,9 +812,7 @@ def cmd_identify(args) -> None:
                     opt.zero_grad()
                     i_eff = i_var * candidate
                     pred = vac + g_sens_t @ i_eff
-                    misfit = (
-                        mask * ((pred - meas) / scale) ** 2
-                    ).sum() / mask.sum()
+                    misfit = (mask * ((pred - meas) / scale) ** 2).sum() / mask.sum()
                     ip_pen = ((i_eff.sum() - ip) / ip) ** 2
                     psi_c = g_cc_t @ i_eff + psi_coil_cells
                     fb = structure_residual(
@@ -796,9 +827,7 @@ def cmd_identify(args) -> None:
                     grid.nz, grid.nr
                 )
                 axis, _ = _read_axis(psi2d, grid, 1.0)
-                err = float(
-                    np.hypot(axis[0] - ref_axis[0], axis[1] - ref_axis[1])
-                )
+                err = float(np.hypot(axis[0] - ref_axis[0], axis[1] - ref_axis[1]))
                 inverse_rows.append(
                     {
                         "shot": shot,
@@ -809,9 +838,7 @@ def cmd_identify(args) -> None:
                         "misfit": float(misfit),
                         "structure_residual": float(fb),
                         "oracle_axis_error_m": (
-                            float(
-                                np.hypot(*(np.asarray(d_oracle["axis"]) - ref_axis))
-                            )
+                            float(np.hypot(*(np.asarray(d_oracle["axis"]) - ref_axis)))
                             if d_oracle is not None
                             else None
                         ),
@@ -823,12 +850,16 @@ def cmd_identify(args) -> None:
                 logger.info(
                     "shot %d t=%d lam=%.2g: axis err %.3f m (picard %s, "
                     "baseline %.3f) misfit %.2f fb %.4f",
-                    shot, p["t_index"], lam, err,
+                    shot,
+                    p["t_index"],
+                    lam,
+                    err,
                     "%.3f" % inverse_rows[-1]["oracle_axis_error_m"]
                     if d_oracle is not None
                     else "MASKED",
                     inverse_rows[-1]["baseline_axis_error_m"],
-                    float(misfit), float(fb),
+                    float(misfit),
+                    float(fb),
                 )
 
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
@@ -841,8 +872,7 @@ def cmd_identify(args) -> None:
     fig, axes = plt.subplots(1, 3, figsize=(13.5, 4.2), constrained_layout=True)
     for shot, sv in svd_out.items():
         s = np.array(sv["singular_values"])
-        axes[0].semilogy(np.arange(1, s.size + 1), s / s[0], lw=2,
-                         label=f"shot {shot}")
+        axes[0].semilogy(np.arange(1, s.size + 1), s / s[0], lw=2, label=f"shot {shot}")
     axes[0].axhline(1e-3, color="#888888", lw=1, ls="--")
     axes[0].annotate("~measurement floor", (30, 1.2e-3), fontsize=8, color="#666666")
     axes[0].set_xlabel("mode index")
@@ -865,13 +895,21 @@ def cmd_identify(args) -> None:
     ]
     for r in inverse_rows:
         axes[2].scatter(
-            max(r["lambda_fb"], args.lambda_floor), r["axis_error_m"],
+            max(r["lambda_fb"], args.lambda_floor),
+            r["axis_error_m"],
             color="#2166ac" if r["picard_fit"] else "#d95f02",
-            s=24, alpha=0.6, zorder=3,
+            s=24,
+            alpha=0.6,
+            zorder=3,
         )
     axes[2].plot(
-        [max(la, args.lambda_floor) for la in lam_arr], med, "-o",
-        color="#2166ac", lw=2, zorder=4, label="median (all slices)",
+        [max(la, args.lambda_floor) for la in lam_arr],
+        med,
+        "-o",
+        color="#2166ac",
+        lw=2,
+        zorder=4,
+        label="median (all slices)",
     )
     axes[2].scatter([], [], color="#d95f02", s=24, label="Picard chain masked")
     ora_vals = [
@@ -886,11 +924,16 @@ def cmd_identify(args) -> None:
         axes[2].annotate(
             f"Picard (where it fits) {oracle_med:.3f} m",
             (lam_arr[1] if len(lam_arr) > 1 else 1, oracle_med * 1.05),
-            fontsize=8, color="#1b7837",
+            fontsize=8,
+            color="#1b7837",
         )
     axes[2].axhline(base_med, color="#636363", lw=1.5, ls=":")
-    axes[2].annotate(f"train-mean {base_med:.3f} m", (lam_arr[1] if len(lam_arr) > 1 else 1, base_med * 1.05),
-                     fontsize=8, color="#636363")
+    axes[2].annotate(
+        f"train-mean {base_med:.3f} m",
+        (lam_arr[1] if len(lam_arr) > 1 else 1, base_med * 1.05),
+        fontsize=8,
+        color="#636363",
+    )
     axes[2].set_xscale("log")
     axes[2].set_xlabel("force-balance weight lambda")
     axes[2].set_ylabel("axis error vs referee [m]")

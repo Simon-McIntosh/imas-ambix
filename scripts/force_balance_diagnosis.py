@@ -477,10 +477,7 @@ def evaluate_gates(shot_results: list[dict], probe_rows: list[dict]) -> dict:
     # an independent witness: the measurement-constrained probe still deconfines.
     coil_side = (med_abs_rel > 0.15 or sign) and localizes
     solve_side = (
-        med_abs_rel < 0.05
-        and not sign
-        and n_in_window
-        and probe_deconfines is True
+        med_abs_rel < 0.05 and not sign and n_in_window and probe_deconfines is True
     )
     verdict = "ambiguous"
     if coil_side:

@@ -130,16 +130,21 @@ def solenoid_band_columns(
     for bb in range(n_bands):
         m = band_of == bb
         cols[:, bb] = _green_columns(
-            fr[m], fz[m], fw[m], srz_r, srz_z, srz_ang, is_flux,
-            src_dr=fdr[m], src_dz=fdz[m],
+            fr[m],
+            fz[m],
+            fw[m],
+            srz_r,
+            srz_z,
+            srz_ang,
+            is_flux,
+            src_dr=fdr[m],
+            src_dz=fdz[m],
         )
         frac[bb] = float(fw[m].sum() / total)
     return cols, np.array(edges_z), frac
 
 
-def _extent_column(
-    table, channels: list[str], s_z: float, dz: float
-) -> np.ndarray:
+def _extent_column(table, channels: list[str], s_z: float, dz: float) -> np.ndarray:
     """Model solenoid column with Z rescaled by ``s_z`` about its centroid + ``dz``."""
     ch, kinds, srz_r, srz_z, srz_ang, _e, _f = _sensor_rows(table)
     is_flux = np.array([k == "flux_loop" for k in kinds], dtype=bool)
@@ -271,7 +276,9 @@ def main() -> int:
     all_shots = fleet_shots + extra_shots
     logger.info(
         "pooling %d shots (%d fleet + %d dedicated vacuum)",
-        len(all_shots), len(fleet_shots), len(extra_shots),
+        len(all_shots),
+        len(fleet_shots),
+        len(extra_shots),
     )
     rows: list[dict] = []
     all_didt: list[np.ndarray] = []
@@ -309,18 +316,26 @@ def main() -> int:
     point = _fit_models(g_emp_sol, g_model_sol, band_cols, w, ref_table, channels)
     logger.info(
         "H0 k=%.4f chi2=%.4g | H1 bands=%s chi2=%.4g | H2 k=%.3f s_z=%.3f dz=%.3f chi2=%.4g",
-        point["H0"]["k"], point["H0"]["chi2"],
-        [round(x, 3) for x in point["H1"]["k_bands"]], point["H1"]["chi2"],
-        point["H2"]["k"], point["H2"]["s_z"], point["H2"]["dz"], point["H2"]["chi2"],
+        point["H0"]["k"],
+        point["H0"]["chi2"],
+        [round(x, 3) for x in point["H1"]["k_bands"]],
+        point["H1"]["chi2"],
+        point["H2"]["k"],
+        point["H2"]["s_z"],
+        point["H2"]["dz"],
+        point["H2"]["chi2"],
     )
     d_bic_h1 = point["H0"]["bic"] - point["H1"]["bic"]
     d_bic_h2 = point["H0"]["bic"] - point["H2"]["bic"]
-    logger.info("ΔBIC(H0−H1)=%.2f  ΔBIC(H0−H2)=%.2f  (>6 favours the richer model)",
-                d_bic_h1, d_bic_h2)
+    logger.info(
+        "ΔBIC(H0−H1)=%.2f  ΔBIC(H0−H2)=%.2f  (>6 favours the richer model)",
+        d_bic_h1,
+        d_bic_h2,
+    )
 
     # ---- bootstrap over shots ----
     rng = np.random.default_rng(args.seed)
-    boot_k0, boot_bands, boot_sz, boot_dz = [], [], [], []
+    boot_k0, boot_bands = [], []
     for _ in range(args.n_boot):
         draw = rng.integers(0, len(rows), len(rows))
         sample = [rows[i] for i in draw]
@@ -342,9 +357,7 @@ def main() -> int:
 
     k0_ci = ci(boot_k0) if boot_k0 else None
     band_ci = (
-        [ci(boot_bands[:, b]) for b in range(args.n_bands)]
-        if boot_bands.size
-        else None
+        [ci(boot_bands[:, b]) for b in range(args.n_bands)] if boot_bands.size else None
     )
     # is the per-band profile flat? spread of band scales relative to their CIs
     band_pt = np.array(point["H1"]["k_bands"])
@@ -352,9 +365,7 @@ def main() -> int:
     if band_ci is not None:
         overall = np.median(band_pt)
         # a band departs from uniform if its 95% CI excludes the pooled median
-        departs = [
-            bool(lo > overall or hi < overall) for lo, hi in band_ci
-        ]
+        departs = [bool(lo > overall or hi < overall) for lo, hi in band_ci]
         flat = not any(departs)
 
     verdict = "uniform-scale"
@@ -408,26 +419,39 @@ def _figures(out, g_emp_sol, g_model_sol, band_cols, band_pt, band_ci, channels,
     k = out["point_estimate"]["H0"]["k"]
     order = np.argsort(g_model_sol)
     fig, ax = plt.subplots(1, 2, figsize=(15, 5))
-    ax[0].plot(g_model_sol[order], g_emp_sol[order], "o", ms=3, color="#1565c0",
-               label="empirical vs model")
+    ax[0].plot(
+        g_model_sol[order],
+        g_emp_sol[order],
+        "o",
+        ms=3,
+        color="#1565c0",
+        label="empirical vs model",
+    )
     lim = [np.nanmin(g_model_sol), np.nanmax(g_model_sol)]
     ax[0].plot(lim, lim, "k-", lw=1, label="k=1")
-    ax[0].plot(lim, [k * v for v in lim], "--", color="#8a3324",
-               label=f"k={k:.3f} (uniform)")
+    ax[0].plot(
+        lim, [k * v for v in lim], "--", color="#8a3324", label=f"k={k:.3f} (uniform)"
+    )
     ax[0].set_xlabel("model field-per-amp  g_model[:,sol]")
     ax[0].set_ylabel("empirical  G_emp[:,sol]")
     ax[0].set_title("Solenoid response: empirical vs geometry model")
     ax[0].legend(fontsize=8)
     # fig 2 — per-band profile with CIs
     nb = len(band_pt)
-    xs = np.arange(nb)
     edges = out["band_z_edges"]
     zc = [(edges[b] + edges[b + 1]) / 2 for b in range(nb)]
     if band_ci is not None:
         lo = np.array([c[0] for c in band_ci])
         hi = np.array([c[1] for c in band_ci])
-        ax[1].errorbar(zc, band_pt, yerr=[band_pt - lo, hi - band_pt], fmt="o",
-                       color="#1565c0", capsize=3, label="per-band scale k_b ±95% CI")
+        ax[1].errorbar(
+            zc,
+            band_pt,
+            yerr=[band_pt - lo, hi - band_pt],
+            fmt="o",
+            color="#1565c0",
+            capsize=3,
+            label="per-band scale k_b ±95% CI",
+        )
     else:
         ax[1].plot(zc, band_pt, "o", color="#1565c0")
     ax[1].axhline(k, color="#8a3324", ls="--", label=f"uniform k={k:.3f}")

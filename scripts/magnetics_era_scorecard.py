@@ -133,7 +133,9 @@ def _discover_shots(
     pool: set[int] = set()
     if training_grade.exists():
         obj = json.loads(training_grade.read_text())
-        pool.update(int(s) for s in obj.get("shot_ids", obj if isinstance(obj, list) else []))
+        pool.update(
+            int(s) for s in obj.get("shot_ids", obj if isinstance(obj, list) else [])
+        )
     if manifest is not None and manifest.exists():
         obj = json.loads(manifest.read_text())
         pool.update(int(s) for s in obj.get("shot_ids", []))
@@ -180,9 +182,7 @@ def _predict(rows: list[dict], g_model: np.ndarray) -> tuple[np.ndarray, np.ndar
     return pred, meas
 
 
-def _score_era(
-    rows: list[dict], g_model: np.ndarray, n_boot: int, seed: int
-) -> dict:
+def _score_era(rows: list[dict], g_model: np.ndarray, n_boot: int, seed: int) -> dict:
     """Per-channel affine gain/offset + bootstrap-over-shots CIs for one era."""
     n_ch = g_model.shape[0]
     pred, meas = _predict(rows, g_model)
@@ -416,8 +416,13 @@ def main() -> int:
     n_ch, n_coil = g_model.shape
     schema = feature_schema()
     schema_amb = set(schema["amb"])
-    logger.info("canonical: %d sensors × %d coils (model %s / %s)",
-                n_ch, n_coil, COIL_MODEL_VERSION, GEOMETRY_TABLE_VERSION)
+    logger.info(
+        "canonical: %d sensors × %d coils (model %s / %s)",
+        n_ch,
+        n_coil,
+        COIL_MODEL_VERSION,
+        GEOMETRY_TABLE_VERSION,
+    )
 
     manifest = Path(args.manifest) if args.manifest else None
     by_era = _discover_shots(Path(args.training_grade), manifest, args.cap_per_era)
@@ -442,9 +447,15 @@ def main() -> int:
             era_rows[e].append(r)
             n_done += 1
             if len(era_rows[e]) % 10 == 0:
-                logger.info("era %s: %d shots with coil-only slices", e, len(era_rows[e]))
-        logger.info("era %s: %d usable shots, %d completeness records",
-                    e, len(era_rows[e]), len(completeness[e]))
+                logger.info(
+                    "era %s: %d shots with coil-only slices", e, len(era_rows[e])
+                )
+        logger.info(
+            "era %s: %d usable shots, %d completeness records",
+            e,
+            len(era_rows[e]),
+            len(completeness[e]),
+        )
 
     # ---- per-era scorecard ----
     scores: dict[str, dict] = {}
@@ -453,18 +464,24 @@ def main() -> int:
             logger.warning("era %s: only %d usable shots — no scorecard", e, len(rows))
             continue
         scores[e] = _score_era(rows, g_model, args.n_boot, args.seed)
-        logger.info("era %s scored: %d shots %d slices",
-                    e, scores[e]["n_shots"], scores[e]["n_slices"])
+        logger.info(
+            "era %s scored: %d shots %d slices",
+            e,
+            scores[e]["n_shots"],
+            scores[e]["n_slices"],
+        )
 
     # ---- conditioning / identifiable fields (pooled across all eras) ----
     all_rows = [r for rows in era_rows.values() for r in rows]
     plan = _design_plan(np.concatenate([r["i_pf"] for r in all_rows], axis=0))
     sep_coils = plan["separable"]
     members, f_model, _labels = _field_basis(plan, g_model)
-    logger.info("independent fields (%d): separable %s + series-pair sums %s",
-                len(members),
-                [coil_channels[i] for i in sep_coils],
-                [[coil_channels[i] for i in comp] for comp in plan["coupled_sets"]])
+    logger.info(
+        "independent fields (%d): separable %s + series-pair sums %s",
+        len(members),
+        [coil_channels[i] for i in sep_coils],
+        [[coil_channels[i] for i in comp] for comp in plan["coupled_sets"]],
+    )
 
     # ---- signed-assignment rewire/polarity per era ----
     assignment: dict[str, dict] = {}
@@ -473,12 +490,22 @@ def main() -> int:
             continue
         r_emp = _fit_response_vectors(rows, members, n_ch)
         assignment[e] = _signed_assignment(r_emp, f_model)
-        swaps = [channels[i] for i, a in assignment[e]["assign"].items()
-                 if not a["is_self"] and assignment[e]["conf"][i] > CONF_TRUST]
-        flips = [channels[i] for i, a in assignment[e]["assign"].items()
-                 if a["is_self"] and a["sign"] < 0 and assignment[e]["conf"][i] > CONF_TRUST]
-        logger.info("era %s assignment: %d confident swaps, %d polarity flips",
-                    e, len(swaps), len(flips))
+        swaps = [
+            channels[i]
+            for i, a in assignment[e]["assign"].items()
+            if not a["is_self"] and assignment[e]["conf"][i] > CONF_TRUST
+        ]
+        flips = [
+            channels[i]
+            for i, a in assignment[e]["assign"].items()
+            if a["is_self"] and a["sign"] < 0 and assignment[e]["conf"][i] > CONF_TRUST
+        ]
+        logger.info(
+            "era %s assignment: %d confident swaps, %d polarity flips",
+            e,
+            len(swaps),
+            len(flips),
+        )
 
     # ---- era-differenced flags vs the baseline era ----
     base = args.baseline_era
@@ -500,15 +527,19 @@ def main() -> int:
                 drift_sig = (lo > 0 or hi < 0) and abs(dg) > DRIFT_FLAG_MARGIN
                 sign_flip = np.isfinite(ge[s]) and ge[s] < 0 < gb[s]
                 if drift_sig or sign_flip:
-                    era_flags.append({
-                        "sensor": channels[s],
-                        "gain_base": float(gb[s]),
-                        "gain_era": float(ge[s]),
-                        "delta_gain": float(dg),
-                        "delta_ci": [float(lo), float(hi)],
-                        "sign_flip": bool(sign_flip),
-                        "corr_era": float(sc["corr"][s]) if np.isfinite(sc["corr"][s]) else None,
-                    })
+                    era_flags.append(
+                        {
+                            "sensor": channels[s],
+                            "gain_base": float(gb[s]),
+                            "gain_era": float(ge[s]),
+                            "delta_gain": float(dg),
+                            "delta_ci": [float(lo), float(hi)],
+                            "sign_flip": bool(sign_flip),
+                            "corr_era": float(sc["corr"][s])
+                            if np.isfinite(sc["corr"][s])
+                            else None,
+                        }
+                    )
             era_flags.sort(key=lambda d: -abs(d["delta_gain"]))
             flags[e] = era_flags
             logger.info("era %s vs %s: %d drift/sign flags", e, base, len(era_flags))
@@ -534,7 +565,9 @@ def main() -> int:
         "channels": channels,
         "coil_channels": coil_channels,
         "separable_coils": [coil_channels[i] for i in sep_coils],
-        "coupled_sets": [[coil_channels[i] for i in comp] for comp in plan["coupled_sets"]],
+        "coupled_sets": [
+            [coil_channels[i] for i in comp] for comp in plan["coupled_sets"]
+        ],
         "gain_flag_margin": GAIN_FLAG_MARGIN,
         "drift_flag_margin": DRIFT_FLAG_MARGIN,
         "conf_trust": CONF_TRUST,
@@ -558,8 +591,12 @@ def main() -> int:
             e: {
                 "dropped": a["dropped"],
                 "swaps": [
-                    {"sensor": channels[i], "assigned_to": channels[a2["assigned_to"]],
-                     "sign": a2["sign"], "confidence": a["conf"][i]}
+                    {
+                        "sensor": channels[i],
+                        "assigned_to": channels[a2["assigned_to"]],
+                        "sign": a2["sign"],
+                        "confidence": a["conf"][i],
+                    }
                     for i, a2 in a["assign"].items()
                     if not a2["is_self"] and a["conf"][i] > CONF_TRUST
                 ],
@@ -618,8 +655,11 @@ def _completeness_summary(recs: list[dict]) -> dict:
 
 
 def _confound_analysis(
-    scores: dict, g_model: np.ndarray, channels: list[str],
-    coil_channels: list[str], base: str,
+    scores: dict,
+    g_model: np.ndarray,
+    channels: list[str],
+    coil_channels: list[str],
+    base: str,
 ) -> dict:
     """Estimate the current-centroid displacement a flagged late-era channel set
     would induce, as a firewall-clean proxy for the pin/prior confound.
@@ -644,7 +684,9 @@ def _confound_analysis(
         out["eras"][e] = {
             "n_channels": int(good.sum()),
             "median_frac_gain_drift": float(np.median(frac)) if frac.size else None,
-            "p90_frac_gain_drift": float(np.percentile(frac, 90)) if frac.size else None,
+            "p90_frac_gain_drift": float(np.percentile(frac, 90))
+            if frac.size
+            else None,
             "n_channels_drift_gt_10pct": int(np.sum(frac > 0.10)),
             "n_channels_drift_gt_25pct": int(np.sum(frac > 0.25)),
         }
@@ -660,19 +702,25 @@ def _figures(out, scores, flags, channels, base, tag=""):
     # --- fig 1: gain-drift heatmap (channel × era) ---
     mat = np.full((n_ch, len(era_order)), np.nan)
     for j, e in enumerate(era_order):
-        mat[:, j] = np.asarray([g if g is not None else np.nan
-                                for g in out["scorecard"][e]["gain"]])
-    fig, ax = plt.subplots(figsize=(max(6, 0.5 * len(era_order) + 3), max(8, 0.12 * n_ch)))
-    im = ax.imshow(mat, aspect="auto", cmap="RdBu_r", vmin=0.0, vmax=2.0,
-                   interpolation="nearest")
+        mat[:, j] = np.asarray(
+            [g if g is not None else np.nan for g in out["scorecard"][e]["gain"]]
+        )
+    fig, ax = plt.subplots(
+        figsize=(max(6, 0.5 * len(era_order) + 3), max(8, 0.12 * n_ch))
+    )
+    im = ax.imshow(
+        mat, aspect="auto", cmap="RdBu_r", vmin=0.0, vmax=2.0, interpolation="nearest"
+    )
     ax.set_xticks(range(len(era_order)))
     ax.set_xticklabels(era_order)
     ax.set_yticks(range(n_ch))
     ax.set_yticklabels([c.split("/")[-1] for c in channels], fontsize=4)
     fig.colorbar(im, ax=ax, fraction=0.03, label="per-channel gain (meas/model)")
-    ax.set_title("Per-(era, channel) magnetics gain vs frozen model\n"
-                 "(gain≠1 = calibration/effective-area; <0 = polarity; "
-                 "era drift = instrument change)")
+    ax.set_title(
+        "Per-(era, channel) magnetics gain vs frozen model\n"
+        "(gain≠1 = calibration/effective-area; <0 = polarity; "
+        "era drift = instrument change)"
+    )
     fig.tight_layout()
     fig.savefig(FIGURES / f"fig-magnetics-scorecard-gain-heatmap{tag}.png", dpi=140)
     plt.close(fig)
@@ -680,25 +728,37 @@ def _figures(out, scores, flags, channels, base, tag=""):
 
     # --- fig 2: era-to-era drift heatmap vs baseline ---
     if base in scores:
-        gb = np.asarray([g if g is not None else np.nan
-                         for g in out["scorecard"][base]["gain"]])
+        gb = np.asarray(
+            [g if g is not None else np.nan for g in out["scorecard"][base]["gain"]]
+        )
         dmat = mat - gb[:, None]
-        fig, ax = plt.subplots(figsize=(max(6, 0.5 * len(era_order) + 3),
-                                        max(8, 0.12 * n_ch)))
+        fig, ax = plt.subplots(
+            figsize=(max(6, 0.5 * len(era_order) + 3), max(8, 0.12 * n_ch))
+        )
         vlim = np.nanpercentile(np.abs(dmat), 98) if np.isfinite(dmat).any() else 0.5
         vlim = max(vlim, 0.05)
-        im = ax.imshow(dmat, aspect="auto", cmap="PuOr_r", vmin=-vlim, vmax=vlim,
-                       interpolation="nearest")
+        im = ax.imshow(
+            dmat,
+            aspect="auto",
+            cmap="PuOr_r",
+            vmin=-vlim,
+            vmax=vlim,
+            interpolation="nearest",
+        )
         ax.set_xticks(range(len(era_order)))
         ax.set_xticklabels(era_order)
         ax.set_yticks(range(n_ch))
         ax.set_yticklabels([c.split("/")[-1] for c in channels], fontsize=4)
         fig.colorbar(im, ax=ax, fraction=0.03, label=f"Δgain vs {base}")
-        ax.set_title(f"Per-channel gain DRIFT relative to era {base}\n"
-                     "(common-mode coil-model error cancels; residual = "
-                     "genuine instrument drift)")
+        ax.set_title(
+            f"Per-channel gain DRIFT relative to era {base}\n"
+            "(common-mode coil-model error cancels; residual = "
+            "genuine instrument drift)"
+        )
         fig.tight_layout()
-        fig.savefig(FIGURES / f"fig-magnetics-scorecard-drift-heatmap{tag}.png", dpi=140)
+        fig.savefig(
+            FIGURES / f"fig-magnetics-scorecard-drift-heatmap{tag}.png", dpi=140
+        )
         plt.close(fig)
         logger.info("wrote drift heatmap")
 
@@ -708,7 +768,9 @@ def _figures(out, scores, flags, channels, base, tag=""):
         counts = [len(flags[e]) for e in eras]
         med_drift = [
             float(np.median([abs(f["delta_gain"]) for f in flags[e]]))
-            if flags[e] else 0.0 for e in eras
+            if flags[e]
+            else 0.0
+            for e in eras
         ]
         fig, ax1 = plt.subplots(figsize=(8, 4))
         ax1.bar(eras, counts, color="#8a3324", alpha=0.7)

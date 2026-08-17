@@ -179,9 +179,16 @@ def _pitch_from_fit(f, grid, eta, *, n_p, n_f, nonneg, b_phi0, n_rho, rpos, bt0)
     if not _confined(_axis(f)[0]):
         return nan
     geo = flux_surface_geometry(
-        f.psi, grid, coeffs=np.asarray(f.coeffs, dtype=np.float64),
-        ip_amperes=abs(float(f.ip_amperes)), n_p=n_p, n_f=n_f, nonneg=nonneg,
-        b_phi0=b_phi0, n_rho=n_rho)
+        f.psi,
+        grid,
+        coeffs=np.asarray(f.coeffs, dtype=np.float64),
+        ip_amperes=abs(float(f.ip_amperes)),
+        n_p=n_p,
+        n_f=n_f,
+        nonneg=nonneg,
+        b_phi0=b_phi0,
+        n_rho=n_rho,
+    )
     if geo is None:
         return nan
     # jφ(ρ̂): the fit's own current profile from its ψ (psidot=0 -> no ohmic term)
@@ -191,15 +198,28 @@ def _pitch_from_fit(f, grid, eta, *, n_p, n_f, nonneg, b_phi0, n_rho, rpos, bt0)
         return nan
     rho_m = np.asarray(geo.rho_cell, dtype=np.float64) * A_MINOR_M  # minor radius [m]
     pitch = pitch_from_current_profile(
-        j_tor, rho_m, np.asarray(rpos, dtype=np.float64), R0_M, bt0, kind="j")
+        j_tor, rho_m, np.asarray(rpos, dtype=np.float64), R0_M, bt0, kind="j"
+    )
     return np.asarray(pitch, dtype=np.float64)
 
 
 def coupled_solve_chain(
-    shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_weight,
-    n_sub: int, par_weight: float, n_rho: int, max_slices: int,
-    min_ip_ka: float, skip_basin: bool = False, passive: dict | None = None,
-    passive_centers_fn=None, passive_weight: float = 0.0,
+    shot: int,
+    *,
+    nr: int,
+    nz: int,
+    sigma: float,
+    eta_params,
+    prior_weight,
+    n_sub: int,
+    par_weight: float,
+    n_rho: int,
+    max_slices: int,
+    min_ip_ka: float,
+    skip_basin: bool = False,
+    passive: dict | None = None,
+    passive_centers_fn=None,
+    passive_weight: float = 0.0,
     cache_grid: bool = False,
 ) -> dict:
     """The four-pass engine chain over one shot -> per-slice readout fits.
@@ -253,9 +273,15 @@ def coupled_solve_chain(
     table_cmp = _campaign_table(shot)
     if table_cmp is None:
         return {"shot": shot, "slices": [], "reason": "no campaign table"}
-    payload = factory_shot_payloads(shot, nr=nr, nz=nz, max_slices=max_slices,
-                                    min_ip_ka=min_ip_ka, table=table_cmp,
-                                    cache_grid=cache_grid)
+    payload = factory_shot_payloads(
+        shot,
+        nr=nr,
+        nz=nz,
+        max_slices=max_slices,
+        min_ip_ka=min_ip_ka,
+        table=table_cmp,
+        cache_grid=cache_grid,
+    )
     if payload is None:
         return {"shot": shot, "slices": [], "reason": "no payloads"}
     grid, table, basis = payload["grid"], payload["table"], payload["basis"]
@@ -270,8 +296,9 @@ def coupled_solve_chain(
     bt0 = shot_bt0(shot)
     b_phi0 = bt0  # F_boundary = R0·Bt0 (measured toroidal field)
 
-    def _fit(p, *, n_p_, n_f_, nonneg_, warm, centroid, coeff_prior=None,
-             passive_prior=None):
+    def _fit(
+        p, *, n_p_, n_f_, nonneg_, warm, centroid, coeff_prior=None, passive_prior=None
+    ):
         kw = {}
         if passive is not None:
             kw["passive"] = passive
@@ -279,14 +306,30 @@ def coupled_solve_chain(
             if passive_prior is not None:
                 kw["passive_prior"] = passive_prior
         return fit_and_read_slice(
-            grid, table, dataclasses.replace(p, mask=off),
-            beta0_grid=(0.5,), alpha_grid=(1.0,), cost_limit=float("inf"),
-            convergence_limit=5e-3, retry_max_iterations=160, fit_mode="ladder",
-            n_p=n_p_, n_f=n_f_, nonneg=nonneg_, smoothness=smoothness,
-            warm_jphi=warm, centroid_constraint=(centroid[0], centroid[1], sigma),
-            coeff_prior=coeff_prior, reseed_axis_r_max=None,
-            keep_psi=True, keep_jphi=True, basis=basis, meta={},
-            boundary_read=boundary_read, **kw)
+            grid,
+            table,
+            dataclasses.replace(p, mask=off),
+            beta0_grid=(0.5,),
+            alpha_grid=(1.0,),
+            cost_limit=float("inf"),
+            convergence_limit=5e-3,
+            retry_max_iterations=160,
+            fit_mode="ladder",
+            n_p=n_p_,
+            n_f=n_f_,
+            nonneg=nonneg_,
+            smoothness=smoothness,
+            warm_jphi=warm,
+            centroid_constraint=(centroid[0], centroid[1], sigma),
+            coeff_prior=coeff_prior,
+            reseed_axis_r_max=None,
+            keep_psi=True,
+            keep_jphi=True,
+            basis=basis,
+            meta={},
+            boundary_read=boundary_read,
+            **kw,
+        )
 
     # ---- basin solve ----
     slices: list[dict] = []
@@ -301,19 +344,31 @@ def coupled_solve_chain(
         if skip_basin:
             # basin-pass ablation: the profile solve cold-starts from the
             # disc seed under the same centroid pin + coefficient prior
-            slices.append({"k": int(k), "p": p, "centroid": centroid,
-                           "basin_jphi": disc_seed})
+            slices.append(
+                {"k": int(k), "p": p, "centroid": centroid, "basin_jphi": disc_seed}
+            )
             continue
-        f_basin = _fit(p, n_p_=1, n_f_=1, nonneg_=False,
-                    warm=warm_basin if warm_basin is not None else disc_seed,
-                    centroid=centroid)
+        f_basin = _fit(
+            p,
+            n_p_=1,
+            n_f_=1,
+            nonneg_=False,
+            warm=warm_basin if warm_basin is not None else disc_seed,
+            centroid=centroid,
+        )
         if not f_basin.scored:
             continue
         basin_conf = f_basin.jphi_flat is not None and _confined(_axis(f_basin)[0])
         if basin_conf:
             warm_basin = f_basin.jphi_flat
-        slices.append({"k": int(k), "p": p, "centroid": centroid,
-                       "basin_jphi": f_basin.jphi_flat if basin_conf else disc_seed})
+        slices.append(
+            {
+                "k": int(k),
+                "p": p,
+                "centroid": centroid,
+                "basin_jphi": f_basin.jphi_flat if basin_conf else disc_seed,
+            }
+        )
     if len(slices) < 2:
         return {"shot": shot, "slices": [], "reason": "too few scored slices"}
 
@@ -321,12 +376,10 @@ def coupled_solve_chain(
     passive_priors: list[tuple | None] = [None] * len(slices)
     if passive is not None and passive_centers_fn is not None:
         cell_area = grid.dr * grid.dz
-        i_cell_seq = np.stack(
-            [s["basin_jphi"][grid.cells] * cell_area for s in slices])
+        i_cell_seq = np.stack([s["basin_jphi"][grid.cells] * cell_area for s in slices])
         label_times = np.array([s["p"].time_s for s in slices])
         centers = passive_centers_fn(label_times, i_cell_seq)
-        passive_priors = [(centers[j], passive_weight)
-                          for j in range(len(slices))]
+        passive_priors = [(centers[j], passive_weight) for j in range(len(slices))]
 
     lab_ip = np.array([abs(s["p"].ip_amperes) for s in slices])
     raw_at_lab = np.interp([s["p"].time_s for s in slices], raw_times, ip_raw)
@@ -338,16 +391,35 @@ def coupled_solve_chain(
     eta = EtaProfile.from_vector(np.asarray(eta_params, dtype=np.float64))
     f_uncs, geos = [], []
     for j, s in enumerate(slices):
-        f_unc = _fit(s["p"], n_p_=n_p, n_f_=n_f, nonneg_=nonneg,
-                     warm=s["basin_jphi"], centroid=s["centroid"],
-                     passive_prior=passive_priors[j])
+        f_unc = _fit(
+            s["p"],
+            n_p_=n_p,
+            n_f_=n_f,
+            nonneg_=nonneg,
+            warm=s["basin_jphi"],
+            centroid=s["centroid"],
+            passive_prior=passive_priors[j],
+        )
         f_uncs.append(f_unc)
-        if (f_unc.scored and f_unc.psi is not None and f_unc.coeffs is not None
-                and _confined(_axis(f_unc)[0])):
-            geos.append(flux_surface_geometry(
-                f_unc.psi, grid, coeffs=np.asarray(f_unc.coeffs, dtype=np.float64),
-                ip_amperes=abs(float(f_unc.ip_amperes)), n_p=n_p, n_f=n_f,
-                nonneg=nonneg, b_phi0=b_phi0, n_rho=n_rho))
+        if (
+            f_unc.scored
+            and f_unc.psi is not None
+            and f_unc.coeffs is not None
+            and _confined(_axis(f_unc)[0])
+        ):
+            geos.append(
+                flux_surface_geometry(
+                    f_unc.psi,
+                    grid,
+                    coeffs=np.asarray(f_unc.coeffs, dtype=np.float64),
+                    ip_amperes=abs(float(f_unc.ip_amperes)),
+                    n_p=n_p,
+                    n_f=n_f,
+                    nonneg=nonneg,
+                    b_phi0=b_phi0,
+                    n_rho=n_rho,
+                )
+            )
         else:
             geos.append(None)
 
@@ -357,10 +429,18 @@ def coupled_solve_chain(
         if geos[j] is None:
             continue
         out = predict_interval(
-            geos[j], eta, t_start=slices[j]["p"].time_s,
-            t_end=slices[j + 1]["p"].time_s, raw_times=raw_times,
-            ip_raw_amp=ip_raw_amp, n_p=n_p, n_f=n_f, nonneg=nonneg,
-            n_sub=n_sub, par_weight=par_weight)
+            geos[j],
+            eta,
+            t_start=slices[j]["p"].time_s,
+            t_end=slices[j + 1]["p"].time_s,
+            raw_times=raw_times,
+            ip_raw_amp=ip_raw_amp,
+            n_p=n_p,
+            n_f=n_f,
+            nonneg=nonneg,
+            n_sub=n_sub,
+            par_weight=par_weight,
+        )
         if out is not None:
             preds[j + 1] = out
 
@@ -369,22 +449,53 @@ def coupled_solve_chain(
     for j, s in enumerate(slices):
         c_pred = preds[j]["c_pred"] if preds[j] is not None else None
         if c_pred is not None and prior_weight > 0.0:
-            f_cpl = _fit(s["p"], n_p_=n_p, n_f_=n_f, nonneg_=nonneg,
-                         warm=s["basin_jphi"], centroid=s["centroid"],
-                         coeff_prior=(c_pred, prior_weight),
-                         passive_prior=passive_priors[j])
+            f_cpl = _fit(
+                s["p"],
+                n_p_=n_p,
+                n_f_=n_f,
+                nonneg_=nonneg,
+                warm=s["basin_jphi"],
+                centroid=s["centroid"],
+                coeff_prior=(c_pred, prior_weight),
+                passive_prior=passive_priors[j],
+            )
         else:
             f_cpl = f_uncs[j]
         fits.append(f_cpl)
-    return {"shot": shot, "spine_sha": spine_sha, "grid": grid, "table": table,
-            "basis": basis, "payload": payload, "bt0": bt0, "b_phi0": b_phi0,
-            "eta": eta, "n_p": n_p, "n_f": n_f, "nonneg": nonneg,
-            "slices": slices, "fits": fits}
+    return {
+        "shot": shot,
+        "spine_sha": spine_sha,
+        "grid": grid,
+        "table": table,
+        "basis": basis,
+        "payload": payload,
+        "bt0": bt0,
+        "b_phi0": b_phi0,
+        "eta": eta,
+        "n_p": n_p,
+        "n_f": n_f,
+        "nonneg": nonneg,
+        "slices": slices,
+        "fits": fits,
+    }
 
 
-def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_weight,
-             n_sub: int, par_weight: float, n_rho: int, max_slices: int,
-             min_ip_ka: float, rpos: list, times_beam: list) -> dict:
+def run_shot(
+    shot: int,
+    *,
+    nr: int,
+    nz: int,
+    sigma: float,
+    eta_params,
+    prior_weight,
+    n_sub: int,
+    par_weight: float,
+    n_rho: int,
+    max_slices: int,
+    min_ip_ka: float,
+    rpos: list,
+    times_beam: list,
+) -> dict:
     """Coupled solve chain over one shot -> per-slice MSE pitch at the sightlines.
 
     Thin readout over :func:`coupled_solve_chain` (the four-pass engine): the
@@ -393,9 +504,18 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
     from scripts.dynamics_coupled_solve_gate import _current_centroid  # noqa: PLC0415
 
     chain = coupled_solve_chain(
-        shot, nr=nr, nz=nz, sigma=sigma, eta_params=eta_params,
-        prior_weight=prior_weight, n_sub=n_sub, par_weight=par_weight,
-        n_rho=n_rho, max_slices=max_slices, min_ip_ka=min_ip_ka)
+        shot,
+        nr=nr,
+        nz=nz,
+        sigma=sigma,
+        eta_params=eta_params,
+        prior_weight=prior_weight,
+        n_sub=n_sub,
+        par_weight=par_weight,
+        n_rho=n_rho,
+        max_slices=max_slices,
+        min_ip_ka=min_ip_ka,
+    )
     if not chain["slices"]:
         return {"shot": shot, "slices": [], "reason": chain.get("reason", "chain")}
     grid, eta, bt0 = chain["grid"], chain["eta"], chain["bt0"]
@@ -407,23 +527,47 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float, eta_params, prior_wei
         cr = _axis(f_cpl)[0]
         confined = _confined(cr)
         pitch = _pitch_from_fit(
-            f_cpl, grid, eta, n_p=n_p, n_f=n_f, nonneg=nonneg,
-            b_phi0=chain["b_phi0"], n_rho=n_rho, rpos=rpos, bt0=bt0)
+            f_cpl,
+            grid,
+            eta,
+            n_p=n_p,
+            n_f=n_f,
+            nonneg=nonneg,
+            b_phi0=chain["b_phi0"],
+            n_rho=n_rho,
+            rpos=rpos,
+            bt0=bt0,
+        )
         cen = _current_centroid(grid, f_cpl)
-        rows.append({
-            "k": s["k"], "time_s": float(p.time_s), "ip_a": float(abs(p.ip_amperes)),
-            "axis_r": float(cr) if np.isfinite(cr) else None, "confined": confined,
-            "scored": bool(f_cpl.scored and confined and np.isfinite(pitch).any()),
-            "centroid_err_cm": (
-                float(100.0 * np.hypot(cen[0] - centroid[0], cen[1] - centroid[1]))
-                if np.isfinite(cen[0]) else None),
-            "pitch": [None if not np.isfinite(v) else float(v) for v in pitch],
-        })
+        rows.append(
+            {
+                "k": s["k"],
+                "time_s": float(p.time_s),
+                "ip_a": float(abs(p.ip_amperes)),
+                "axis_r": float(cr) if np.isfinite(cr) else None,
+                "confined": confined,
+                "scored": bool(f_cpl.scored and confined and np.isfinite(pitch).any()),
+                "centroid_err_cm": (
+                    float(100.0 * np.hypot(cen[0] - centroid[0], cen[1] - centroid[1]))
+                    if np.isfinite(cen[0])
+                    else None
+                ),
+                "pitch": [None if not np.isfinite(v) else float(v) for v in pitch],
+            }
+        )
     n_scored = sum(r["scored"] for r in rows)
-    return {"shot": shot, "spine_sha": chain["spine_sha"], "bt0": bt0,
-            "n_p": n_p, "n_f": n_f,
-            "eta_params": list(map(float, eta_params)), "prior_weight": prior_weight,
-            "n_slices": len(rows), "n_scored": n_scored, "rows": rows}
+    return {
+        "shot": shot,
+        "spine_sha": chain["spine_sha"],
+        "bt0": bt0,
+        "n_p": n_p,
+        "n_f": n_f,
+        "eta_params": list(map(float, eta_params)),
+        "prior_weight": prior_weight,
+        "n_slices": len(rows),
+        "n_scored": n_scored,
+        "rows": rows,
+    }
 
 
 def _worker(job):
@@ -511,15 +655,21 @@ def _paired_bootstrap(a: dict, b: dict, *, n_boot: int = 4000, seed: int = 0):
     bv = np.array([b[k] for k in keys])
     rng = np.random.default_rng(seed)
     n = len(keys)
-    draws = np.array([
-        np.mean(bv[idx]) - np.mean(av[idx])
-        for idx in (rng.integers(0, n, n) for _ in range(n_boot))])
+    draws = np.array(
+        [
+            np.mean(bv[idx]) - np.mean(av[idx])
+            for idx in (rng.integers(0, n, n) for _ in range(n_boot))
+        ]
+    )
     return {
-        "n_shots": n, "mean_engine": float(np.mean(av)),
+        "n_shots": n,
+        "mean_engine": float(np.mean(av)),
         "mean_reference": float(np.mean(bv)),
         "delta_mean": float(np.mean(bv) - np.mean(av)),
-        "delta_ci95": [float(np.percentile(draws, 2.5)),
-                       float(np.percentile(draws, 97.5))],
+        "delta_ci95": [
+            float(np.percentile(draws, 2.5)),
+            float(np.percentile(draws, 97.5)),
+        ],
         "ci_clear_engine_better": bool(np.percentile(draws, 2.5) > 0.0),
     }
 
@@ -554,16 +704,32 @@ def main() -> int:
     if args.n_shots > 0:
         held = held[: args.n_shots]
 
-    eta_params = ([float(v) for v in args.eta_params.split(",")]
-                  if args.eta_params else list(frozen_eta_params()))
-    logger.info("held-out MSE gate: %d shots, eta=%s, prior_w=%.3g",
-                len(held), eta_params, args.prior_weight)
+    eta_params = (
+        [float(v) for v in args.eta_params.split(",")]
+        if args.eta_params
+        else list(frozen_eta_params())
+    )
+    logger.info(
+        "held-out MSE gate: %d shots, eta=%s, prior_w=%.3g",
+        len(held),
+        eta_params,
+        args.prior_weight,
+    )
 
-    cfg = dict(nr=args.nr, nz=args.nz, sigma=args.sigma, eta_params=eta_params,
-               prior_weight=args.prior_weight, n_sub=args.n_sub_steps,
-               par_weight=args.par_weight, n_rho=args.n_rho,
-               max_slices=args.max_slices_per_shot, min_ip_ka=args.min_ip_ka,
-               rpos=None, times_beam=None)  # rpos/times filled per shot below
+    cfg = dict(
+        nr=args.nr,
+        nz=args.nz,
+        sigma=args.sigma,
+        eta_params=eta_params,
+        prior_weight=args.prior_weight,
+        n_sub=args.n_sub_steps,
+        par_weight=args.par_weight,
+        n_rho=args.n_rho,
+        max_slices=args.max_slices_per_shot,
+        min_ip_ka=args.min_ip_ka,
+        rpos=None,
+        times_beam=None,
+    )  # rpos/times filled per shot below
 
     jobs = []
     for sid in held:
@@ -592,8 +758,13 @@ def main() -> int:
             continue
         pred, n_used = _engine_prediction(res, entry)
         if pred is None:
-            skipped.append({"shot": sid, "reason": res.get("reason", "no-confined-readout"),
-                            "n_scored": int(res.get("n_scored", 0))})
+            skipped.append(
+                {
+                    "shot": sid,
+                    "reason": res.get("reason", "no-confined-readout"),
+                    "n_scored": int(res.get("n_scored", 0)),
+                }
+            )
             continue
         engine_preds[sid] = pred
         n_eng_slices[sid] = n_used
@@ -621,7 +792,9 @@ def main() -> int:
     n_shots_scored = int(eng_pitch["n_shots"])
 
     # ---- acceptance verdicts ----
-    beats_persist_ci = bool(boot_vs_persist and boot_vs_persist["ci_clear_engine_better"])
+    beats_persist_ci = bool(
+        boot_vs_persist and boot_vs_persist["ci_clear_engine_better"]
+    )
     coverage_ok = bool(np.isfinite(eng_cov) and eng_cov >= mse_eval.COVERAGE_GATE_LO)
     engine_passes = bool(beats_persist_ci)
     # Parity holds when the engine RMSE reaches the EnKF confidence interval.
@@ -657,11 +830,14 @@ def main() -> int:
         "gap_to_enkf_rad": float(eng_rmse - enkf_rmse),
         "gap_to_frontier_rad": float(eng_rmse - frontier),
         "eta_params_frozen": eta_params,
-        "eta_source": str(FROZEN_ETA_ARTIFACT) if FROZEN_ETA_ARTIFACT.exists() else "default",
+        "eta_source": str(FROZEN_ETA_ARTIFACT)
+        if FROZEN_ETA_ARTIFACT.exists()
+        else "default",
         "prior_weight": args.prior_weight,
         "readout_representation": "kind='j' jphi(rho_hat) on rho_hat*a_minor grid "
-                                  "(selected head-to-head; matches EnKF)",
-        "R0_m": R0_M, "a_minor_m": A_MINOR_M,
+        "(selected head-to-head; matches EnKF)",
+        "R0_m": R0_M,
+        "a_minor_m": A_MINOR_M,
     }
     logger.info("acceptance summary: %s", json.dumps(summary, indent=1, default=float))
 
@@ -682,13 +858,16 @@ def main() -> int:
 
     FIGURES.mkdir(parents=True, exist_ok=True)
     _fig_pitch_bar(summary, FIGURES / f"fig-heldout-pitch-bar{sfx}.png")
-    _fig_residual_radius(resid_by_r, near_axis_floor,
-                         FIGURES / f"fig-heldout-residual-radius{sfx}.png")
+    _fig_residual_radius(
+        resid_by_r, near_axis_floor, FIGURES / f"fig-heldout-residual-radius{sfx}.png"
+    )
 
-    print(f"ENGINE_ACCEPTANCE_PASS={engine_passes} engine_rmse={eng_rmse:.3f} "
-          f"persist_live={float(per_pitch['rmse']):.3f} enkf={enkf_rmse:.3f} "
-          f"cov90={eng_cov:.3f} n={n_shots_scored} "
-          f"beats_persist_ci={beats_persist_ci}")
+    print(
+        f"ENGINE_ACCEPTANCE_PASS={engine_passes} engine_rmse={eng_rmse:.3f} "
+        f"persist_live={float(per_pitch['rmse']):.3f} enkf={enkf_rmse:.3f} "
+        f"cov90={eng_cov:.3f} n={n_shots_scored} "
+        f"beats_persist_ci={beats_persist_ci}"
+    )
     return 0
 
 
@@ -716,43 +895,68 @@ def _residual_vs_radius(preds: dict, manifest: dict, truth) -> dict:
         return {}
     rbins = np.asarray(rbins)
     order = np.argsort(rbins)
-    return {"rpos": rbins[order].tolist(),
-            "mean_resid": np.asarray(resid)[order].tolist(),
-            "rmse": np.asarray(absresid)[order].tolist(),
-            "r0_m": R0_M}
+    return {
+        "rpos": rbins[order].tolist(),
+        "mean_resid": np.asarray(resid)[order].tolist(),
+        "rmse": np.asarray(absresid)[order].tolist(),
+        "r0_m": R0_M,
+    }
 
 
 def _fig_pitch_bar(summary: dict, path: Path) -> None:
     fig, ax = plt.subplots(figsize=(6.2, 4.0))
-    names = ["persistence\n(floor)", "engine\n(coupled)", "EnKF\n(classical)",
-             "frontier"]
-    vals = [summary["persistence_pitch_rmse_reference"], summary["engine_pitch_rmse"],
-            summary["enkf_pitch_rmse_reference"], summary["physics_frontier_pitch_rmse"]]
+    names = [
+        "persistence\n(floor)",
+        "engine\n(coupled)",
+        "EnKF\n(classical)",
+        "frontier",
+    ]
+    vals = [
+        summary["persistence_pitch_rmse_reference"],
+        summary["engine_pitch_rmse"],
+        summary["enkf_pitch_rmse_reference"],
+        summary["physics_frontier_pitch_rmse"],
+    ]
     cols = ["#999", "#268", "#c66", "#4a4"]
     ax.bar(range(4), vals, color=cols, width=0.62)
     enkf_ci = summary["enkf_pitch_rmse_ci"]
     if enkf_ci and np.isfinite(enkf_ci[0]):
-        ax.errorbar(2, summary["enkf_pitch_rmse_reference"],
-                    yerr=[[summary["enkf_pitch_rmse_reference"] - enkf_ci[0]],
-                          [enkf_ci[1] - summary["enkf_pitch_rmse_reference"]]],
-                    fmt="none", ecolor="k", capsize=4, lw=1.2)
+        ax.errorbar(
+            2,
+            summary["enkf_pitch_rmse_reference"],
+            yerr=[
+                [summary["enkf_pitch_rmse_reference"] - enkf_ci[0]],
+                [enkf_ci[1] - summary["enkf_pitch_rmse_reference"]],
+            ],
+            fmt="none",
+            ecolor="k",
+            capsize=4,
+            lw=1.2,
+        )
     b = summary.get("boot_engine_vs_persistence")
     if b:
         ax.errorbar(1, summary["engine_pitch_rmse"], fmt="none")
-        ax.annotate(f"beats persistence\nΔ={b['delta_mean']:.3f} "
-                    f"CI[{b['delta_ci95'][0]:.3f},{b['delta_ci95'][1]:.3f}]\n"
-                    f"CI-clear={b['ci_clear_engine_better']}",
-                    (1, summary["engine_pitch_rmse"]), fontsize=7,
-                    ha="center", va="bottom",
-                    xytext=(1, summary["engine_pitch_rmse"] + 0.05), textcoords="data")
+        ax.annotate(
+            f"beats persistence\nΔ={b['delta_mean']:.3f} "
+            f"CI[{b['delta_ci95'][0]:.3f},{b['delta_ci95'][1]:.3f}]\n"
+            f"CI-clear={b['ci_clear_engine_better']}",
+            (1, summary["engine_pitch_rmse"]),
+            fontsize=7,
+            ha="center",
+            va="bottom",
+            xytext=(1, summary["engine_pitch_rmse"] + 0.05),
+            textcoords="data",
+        )
     for i, v in enumerate(vals):
         ax.text(i, v + 0.008, f"{v:.3f}", ha="center", fontsize=8)
     ax.set_xticks(range(4), names, fontsize=8)
     ax.set_ylabel("held-out MSE pitch RMSE [rad]")
     acceptance = "PASS" if summary["engine_acceptance_pass"] else "FAIL"
-    ax.set_title(f"Held-out MSE pitch — {acceptance} "
-                 f"(n={summary['n_shots_scored']} shots, cov90={summary['engine_pitch_cov90']:.2f})",
-                 fontsize=9)
+    ax.set_title(
+        f"Held-out MSE pitch — {acceptance} "
+        f"(n={summary['n_shots_scored']} shots, cov90={summary['engine_pitch_cov90']:.2f})",
+        fontsize=9,
+    )
     fig.tight_layout()
     fig.savefig(path, dpi=130)
     plt.close(fig)
@@ -764,13 +968,21 @@ def _fig_residual_radius(resid: dict, near_axis_floor: float, path: Path) -> Non
     fig, ax = plt.subplots(figsize=(6.2, 4.0))
     r = np.asarray(resid["rpos"])
     ax.scatter(r, resid["rmse"], s=10, color="#268", label="per-channel RMSE")
-    ax.axhline(near_axis_floor, color="#c66", ls="--", lw=1.0,
-               label=f"near-axis floor {near_axis_floor:.2f}")
-    ax.axvline(resid.get("r0_m", R0_M), color="k", ls=":", lw=0.8, label="magnetic axis R0")
+    ax.axhline(
+        near_axis_floor,
+        color="#c66",
+        ls="--",
+        lw=1.0,
+        label=f"near-axis floor {near_axis_floor:.2f}",
+    )
+    ax.axvline(
+        resid.get("r0_m", R0_M), color="k", ls=":", lw=0.8, label="magnetic axis R0"
+    )
     ax.set_xlabel("sightline major radius R [m]")
     ax.set_ylabel("pitch residual RMSE [rad]")
-    ax.set_title("Pitch residual vs radius and the near-axis interior floor",
-                 fontsize=9)
+    ax.set_title(
+        "Pitch residual vs radius and the near-axis interior floor", fontsize=9
+    )
     ax.legend(fontsize=7)
     fig.tight_layout()
     fig.savefig(path, dpi=130)

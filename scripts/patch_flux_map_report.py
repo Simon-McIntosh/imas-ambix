@@ -196,7 +196,9 @@ def _machine_geometry(grid, table):
         r1 = max(f.r + abs(f.width) / 2 for f in fils)
         z0 = min(f.z - abs(f.height) / 2 for f in fils)
         z1 = max(f.z + abs(f.height) / 2 for f in fils)
-        rects.append(CoilRect(r=r0, z=z0, width=r1 - r0, height=z1 - z0, name=str(circ)))
+        rects.append(
+            CoilRect(r=r0, z=z0, width=r1 - r0, height=z1 - z0, name=str(circ))
+        )
     return MachineGeometry(
         wall_r=lr,
         wall_z=lz,
@@ -312,7 +314,9 @@ def main() -> int:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(
         "device=%s  winner=%s  scale_floor_rel=%s",
-        device, WINNER, args.scale_floor_rel,
+        device,
+        WINNER,
+        args.scale_floor_rel,
     )
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     FIGURES.mkdir(parents=True, exist_ok=True)
@@ -345,7 +349,9 @@ def main() -> int:
 
         picks = select_slices(payloads, shot)
         if not picks:
-            logger.warning("shot %s: no slice snaps within %.0f ms", shot, SNAP_TOL_S * 1e3)
+            logger.warning(
+                "shot %s: no slice snaps within %.0f ms", shot, SNAP_TOL_S * 1e3
+            )
             continue
         sel_k = [k for _, k, _ in picks]
         sel_payloads = [payloads[k] for k in sel_k]
@@ -374,9 +380,7 @@ def main() -> int:
             )
 
             axis_off = 100.0 * float(np.hypot(*(np.subtract(our_axis, ref_axis))))
-            lcfs_med, lcfs_p90, _ = radial_offset_cm(
-                our_lcfs, efit_lcfs, *efit_axis
-            )
+            lcfs_med, lcfs_p90, _ = radial_offset_cm(our_lcfs, efit_lcfs, *efit_axis)
             _, _, half_mean = radial_offset_cm(our_half, efit_half, *efit_axis)
 
             slice_metrics.append(
@@ -404,8 +408,14 @@ def main() -> int:
             )
 
             our_sl = _our_slice(
-                psi2d, grid, target, psi_ax, psi_b, payloads[k].ip_amperes,
-                payloads[k].time_s, our_lcfs,
+                psi2d,
+                grid,
+                target,
+                psi_ax,
+                psi_b,
+                payloads[k].ip_amperes,
+                payloads[k].time_s,
+                our_lcfs,
             )
             fig, _ax = equilibrium_figure_mpl(
                 our_sl,
@@ -424,7 +434,12 @@ def main() -> int:
             plt.close(fig)
             logger.info(
                 "%d %-7s t=%.3f axis_off=%.1fcm lcfs_med=%.1fcm psiN0.5=%.1fcm",
-                shot, kind, payloads[k].time_s, axis_off, lcfs_med, half_mean,
+                shot,
+                kind,
+                payloads[k].time_s,
+                axis_off,
+                lcfs_med,
+                half_mean,
             )
 
     # ---- compose per-regime 2x4 grids -------------------------------------

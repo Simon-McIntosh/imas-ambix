@@ -30,6 +30,7 @@ MODE (env REPRO_MODE):
   seq_divergence (default) -> replicate 1209813
   ddp_mismatch             -> replicate 1208980
 """
+
 import os
 import time
 from datetime import timedelta
@@ -61,7 +62,9 @@ def main() -> None:
     if rank == 0:
         log(f"*** MODE={MODE} world={world} ROUNDS={ROUNDS} NUMEL={NUMEL} ***")
         log("*** DESIGNED TO WEDGE ncclCommAbort AND DRAIN THE NODE ***")
-        log("*** kill arrives via SLURM --time limit; observer captures /proc state ***")
+        log(
+            "*** kill arrives via SLURM --time limit; observer captures /proc state ***"
+        )
 
     # Hot, real compute kernels (cuBLAS) + establish the NCCL ring, so GPU
     # contexts are warm exactly like a real trained job (1208975 ran to step 400).
@@ -83,10 +86,14 @@ def main() -> None:
         # --time SIGKILL is timed to land WHILE that abort hangs. If the abort
         # wedges in the driver (D-state) it survives SIGKILL -> drain.
         if rank == 0:
-            log("rank 0 ALIVE, NOT joining (peer kernels stay stuck; watchdog will fire on peers)")
+            log(
+                "rank 0 ALIVE, NOT joining (peer kernels stay stuck; watchdog will fire on peers)"
+            )
             time.sleep(3600)
         else:
-            log(f"rank {rank} posting all_reduce + synchronize -> stuck in flight; watchdog fires at PG timeout")
+            log(
+                f"rank {rank} posting all_reduce + synchronize -> stuck in flight; watchdog fires at PG timeout"
+            )
             dist.all_reduce(buf)
             torch.cuda.synchronize()
             log(f"rank {rank} synchronize returned (watchdog/abort did not wedge)")
@@ -105,15 +112,23 @@ def main() -> None:
         # SIGABRTs the process, so the SLURM --time SIGKILL lands inside the
         # abort-hang window -> unkillable -> drain.
         if rank == 0:
-            log("rank 0 ALIVE, NOT joining collective (keeps ring up so peer kernels stay stuck)")
+            log(
+                "rank 0 ALIVE, NOT joining collective (keeps ring up so peer kernels stay stuck)"
+            )
             time.sleep(3600)
         else:
-            log(f"rank {rank} launching ASYNC all_reduce (NO synchronize) -> kernel stuck in flight")
+            log(
+                f"rank {rank} launching ASYNC all_reduce (NO synchronize) -> kernel stuck in flight"
+            )
             dist.all_reduce(buf)  # async: returns immediately, GPU kernel stalls
-            log(f"rank {rank} >>> destroy_process_group() = ncclCommAbort on in-flight stuck kernel (EXPECT D-STATE HANG) <<<")
+            log(
+                f"rank {rank} >>> destroy_process_group() = ncclCommAbort on in-flight stuck kernel (EXPECT D-STATE HANG) <<<"
+            )
             t0 = time.time()
             dist.destroy_process_group()
-            log(f"rank {rank} destroy RETURNED after {time.time() - t0:.1f}s (did NOT wedge)")
+            log(
+                f"rank {rank} destroy RETURNED after {time.time() - t0:.1f}s (did NOT wedge)"
+            )
         time.sleep(3600)
         return
 
@@ -130,7 +145,9 @@ def main() -> None:
             log("rank 0 ALIVE but NOT joining the collective (keeps ring connected)")
             time.sleep(3600)
         else:
-            log(f"rank {rank} >>> posting all_reduce that will STALL (rank 0 absent) + synchronize <<<")
+            log(
+                f"rank {rank} >>> posting all_reduce that will STALL (rank 0 absent) + synchronize <<<"
+            )
             dist.all_reduce(buf)
             torch.cuda.synchronize()  # blocks in cudaStreamSynchronize ioctl -> EXPECT D-state
             log(f"rank {rank} synchronize RETURNED (did NOT wedge)")
@@ -157,17 +174,23 @@ def main() -> None:
     else:  # seq_divergence (1209813)
         for r in range(ROUNDS):
             if rank == 0:
-                dist.all_reduce(buf)  # extra op on rank 0 -> accumulating seq divergence
+                dist.all_reduce(
+                    buf
+                )  # extra op on rank 0 -> accumulating seq divergence
             dist.all_reduce(buf)
             torch.cuda.synchronize()
             if rank == 0 and r % 5 == 0:
                 log(f"round {r}/{ROUNDS} done (rank-0 seq divergence accumulating)")
         log(f"rank {rank} completed {ROUNDS} divergent rounds; ring desynchronised")
 
-    log(f"rank {rank} >>> calling dist.destroy_process_group() — EXPECT ncclCommAbort HANG <<<")
+    log(
+        f"rank {rank} >>> calling dist.destroy_process_group() — EXPECT ncclCommAbort HANG <<<"
+    )
     t0 = time.time()
     dist.destroy_process_group()
-    log(f"rank {rank} destroy_process_group RETURNED after {time.time() - t0:.1f}s (did NOT wedge)")
+    log(
+        f"rank {rank} destroy_process_group RETURNED after {time.time() - t0:.1f}s (did NOT wedge)"
+    )
 
     # Stay alive so (a) the observer keeps sampling and (b) the SLURM --time
     # SIGTERM lands on a live process, reproducing the production kill timing.

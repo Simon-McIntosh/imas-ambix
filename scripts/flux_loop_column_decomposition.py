@@ -65,7 +65,6 @@ import numpy as np
 
 from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.gs.operator import build_operator
-
 from scripts.vacuum_coil_response_audit import _shot_coil_only
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -192,10 +191,7 @@ def gather(shots: list[int]) -> dict:
                 continue
             w = np.array(
                 [
-                    np.cov(
-                        np.vstack([contrib[good, k], pred[good]])
-                    )[0, 1]
-                    / vp
+                    np.cov(np.vstack([contrib[good, k], pred[good]]))[0, 1] / vp
                     for k in range(n_coil)
                 ]
             )
@@ -455,9 +451,7 @@ def verdict(per_sensor: dict, gain: dict) -> dict:
         "bay_drive_score": {c: float(score[c]) for c in ranked[:6]},
         "named_bay_k_median": (float(np.median(bay_k)) if bay_k.size else None),
         "named_bay_k_values": bay_k.tolist(),
-        "named_control_k_median": (
-            float(np.median(ctrl_k)) if ctrl_k.size else None
-        ),
+        "named_control_k_median": (float(np.median(ctrl_k)) if ctrl_k.size else None),
         "named_control_k_values": ctrl_k.tolist(),
         "cause": cause,
         "cause_detail": detail,
@@ -592,8 +586,11 @@ def main() -> int:
     vdt = verdict(per_sensor, gain)
 
     logger.info("NAMED COLUMN: %s (%s)", vdt["named_column"], vdt["cause"])
-    logger.info("bay k median: %s  control k median: %s",
-                vdt["named_bay_k_median"], vdt["named_control_k_median"])
+    logger.info(
+        "bay k median: %s  control k median: %s",
+        vdt["named_bay_k_median"],
+        vdt["named_control_k_median"],
+    )
 
     out = {
         "leakage_free": True,

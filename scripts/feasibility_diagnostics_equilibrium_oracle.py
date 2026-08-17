@@ -265,7 +265,7 @@ def stream_channel_names(shot_id, modalities, *, token_root=None):
                 _tok, _t, _v, names, _b = _read_signal_hf(
                     int(shot_id), m.group, token_root=token_root
                 )
-        except (FileNotFoundError, KeyError, OSError):
+        except FileNotFoundError, KeyError, OSError:
             continue
         out[m.name] = tuple(str(c) for c in names)
     return out
@@ -326,7 +326,7 @@ def _campaign_geometry_fields(shot_id, names_by_stream):
         extra.extend(channel_names)
     try:
         return build_geometry_table(int(shot_id), extra_channel_names=extra)
-    except (FileNotFoundError, KeyError, OSError, ValueError):
+    except FileNotFoundError, KeyError, OSError, ValueError:
         return None
 
 
@@ -366,7 +366,7 @@ def continuous_stream_values(
                 token_root=token_root,
                 profile_r_stride=m.profile_r_stride,
             )
-        except (FileNotFoundError, KeyError, OSError):
+        except FileNotFoundError, KeyError, OSError:
             continue
         cap = int(m.max_channels)
         raw = raw[:, :cap]
@@ -419,7 +419,7 @@ def machine_geometry_points(shot_id, *, max_points=8):
 
     try:
         fields = build_geometry_table(int(shot_id))
-    except (FileNotFoundError, KeyError, OSError, ValueError):
+    except FileNotFoundError, KeyError, OSError, ValueError:
         return np.zeros((0, 3), dtype=np.float32)
     mach = fields.machine
     pts = []

@@ -48,8 +48,13 @@ def _moment_ring(grid, basis, p):
     psi = psi.reshape(grid.nz, grid.nr)
     ctr = (float(mom.centroid_r), float(mom.centroid_z))
     lc = lcfs_contour(
-        psi, grid.rg, grid.zg, ctr, clip_legs=True,
-        limiter_r=grid.limiter_r, limiter_z=grid.limiter_z,
+        psi,
+        grid.rg,
+        grid.zg,
+        ctr,
+        clip_legs=True,
+        limiter_r=grid.limiter_r,
+        limiter_z=grid.limiter_z,
     )
     return (lc.ring if lc.found else None), float(mom.misfit)
 
@@ -67,7 +72,10 @@ def main():
             print(f"{shot}: load failed {exc!r}"[:90])
             continue
         grid, table, basis, pls = (
-            pay["grid"], pay["table"], pay["basis"], pay["payloads"]
+            pay["grid"],
+            pay["table"],
+            pay["basis"],
+            pay["payloads"],
         )
         try:
             picks = select_slices(pls, shot)
@@ -90,9 +98,7 @@ def main():
             rms_m = 100.0 * _rms_vs_efit(mring, efit)
             rms_t = 100.0 * _rms_vs_efit(tring, efit)
             kind = kinds_by_k.get(k, "flattop")
-            panels.append(
-                (f"{shot} {kind}", grid, efit, mring, tring, rms_m, rms_t)
-            )
+            panels.append((f"{shot} {kind}", grid, efit, mring, tring, rms_m, rms_t))
             th_mis = th[2] if th else float("nan")
             print(
                 f"{shot} {kind}: RMS[cm] moment={rms_m:.1f} TH={rms_t:.1f} "
@@ -120,13 +126,20 @@ def main():
                 mring[:, 0], mring[:, 1], "b-", lw=1.2, label=f"moment {rms_m:.0f}cm"
             )
         if tring is not None:
-            ax.plot(tring[:, 0], tring[:, 1], "-", color="orange", lw=1.2,
-                    label=f"TH {rms_t:.0f}cm")
+            ax.plot(
+                tring[:, 0],
+                tring[:, 1],
+                "-",
+                color="orange",
+                lw=1.2,
+                label=f"TH {rms_t:.0f}cm",
+            )
         ax.set_title(title, fontsize=8)
         ax.legend(fontsize=6, loc="upper right")
     fig.suptitle(
         "Moment (blue) vs toroidal-harmonic (orange) boundary — push-out reader, "
-        "vs firewalled EFIT (red)", fontsize=12
+        "vs firewalled EFIT (red)",
+        fontsize=12,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.98))
     out = f"{FIGDIR}/moment-vs-th-cohort.png"

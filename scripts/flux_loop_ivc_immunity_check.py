@@ -40,12 +40,25 @@ logger = logging.getLogger("flux_loop_ivc_immunity_check")
 ARTIFACTS = Path("imas_ambix/latent/artifacts/patch_gate")
 
 PF = [
-    "p2il_coil_current", "p2iu_coil_current", "p2ol_coil_current",
-    "p2ou_coil_current", "p3l_coil_current", "p3u_coil_current",
-    "p4l_coil_current", "p4u_coil_current", "p5l_coil_current",
-    "p5u_coil_current", "p6l_current", "p6u_current", "sol_current",
-    "p2l_case_current", "p2u_case_current", "p4l_case_current",
-    "p4u_case_current", "p5l_case_current", "p5u_case_current",
+    "p2il_coil_current",
+    "p2iu_coil_current",
+    "p2ol_coil_current",
+    "p2ou_coil_current",
+    "p3l_coil_current",
+    "p3u_coil_current",
+    "p4l_coil_current",
+    "p4u_coil_current",
+    "p5l_coil_current",
+    "p5u_coil_current",
+    "p6l_current",
+    "p6u_current",
+    "sol_current",
+    "p2l_case_current",
+    "p2u_case_current",
+    "p4l_case_current",
+    "p4u_case_current",
+    "p5l_case_current",
+    "p5u_case_current",
 ]
 IVC_AMC = ["error_field_02", "error_field_05"]
 IVC_XMA = ["rog_elm_u_01", "rog_elm_l_01", "rog_elm_l_06", "hscu_dot", "hscl_dot"]
@@ -76,8 +89,11 @@ def check_shot(shot: int) -> list[dict]:
         except Exception:  # noqa: BLE001
             return None
 
-    cols = [v for k in PF if (v := on_grid("amc", k, amc_t)) is not None
-            and np.nanstd(v) > 0]
+    cols = [
+        v
+        for k in PF
+        if (v := on_grid("amc", k, amc_t)) is not None and np.nanstd(v) > 0
+    ]
     design = np.column_stack(cols + [np.ones_like(t)])
     drives = {}
     for grp, gt, keys in (("amc", amc_t, IVC_AMC), ("xma", xma_t, IVC_XMA)):
@@ -106,14 +122,18 @@ def check_shot(shot: int) -> list[dict]:
             r = abs(float(np.corrcoef(res, vv)[0, 1]))
             if r > rmax:
                 rmax, kmax = r, k
-        out.append({
-            "shot": shot, "loop": fl,
-            "pf_r2": float(1 - np.var(res) / np.var(y[good])),
-            "resid_over_sigma": rel_res,
-            # upper bound on the IVC-coherent fraction of the SIGNAL
-            "ivc_coherent_bound": rmax * rel_res,
-            "max_corr_drive": kmax, "max_corr": rmax,
-        })
+        out.append(
+            {
+                "shot": shot,
+                "loop": fl,
+                "pf_r2": float(1 - np.var(res) / np.var(y[good])),
+                "resid_over_sigma": rel_res,
+                # upper bound on the IVC-coherent fraction of the SIGNAL
+                "ivc_coherent_bound": rmax * rel_res,
+                "max_corr_drive": kmax,
+                "max_corr": rmax,
+            }
+        )
     return out
 
 
@@ -142,8 +162,9 @@ def exposure_ladder(shot: int) -> dict:
         except Exception:  # noqa: BLE001
             return None
 
-    pf_cols = [v for k in PF if (v := on_grid("amc", k)) is not None
-               and np.nanstd(v) > 0]
+    pf_cols = [
+        v for k in PF if (v := on_grid("amc", k)) is not None and np.nanstd(v) > 0
+    ]
     ivc_cols, ivc_names = [], []
     for grp, keys in (("amc", IVC_AMC), ("xma", IVC_XMA)):
         for k in keys:
@@ -180,8 +201,14 @@ def exposure_ladder(shot: int) -> dict:
                 a = abs(b1[n_pf + j]) * float(np.std(ivc_cols[j][good])) / (sig + 1e-30)
                 if a > amp:
                     amp, aname = a, nm
-            rows.append({"sensor": k, "delta_r2": dr2,
-                         "ivc_amp_over_sigma": amp, "strongest_drive": aname})
+            rows.append(
+                {
+                    "sensor": k,
+                    "delta_r2": dr2,
+                    "ivc_amp_over_sigma": amp,
+                    "strongest_drive": aname,
+                }
+            )
         if rows:
             dr2s = np.array([r["delta_r2"] for r in rows])
             fam_out[fam] = {
@@ -234,10 +261,13 @@ def main() -> int:
     logger.info(
         "healthy loops (n=%d): IVC-coherent bound median %.4f, p95 %.4f, "
         "max %.4f of signal -> %s; flagged dead/faulty channels: %s",
-        len(healthy), verdict["healthy_bound_median"],
-        verdict["healthy_bound_p95"], verdict["healthy_bound_max"],
+        len(healthy),
+        verdict["healthy_bound_median"],
+        verdict["healthy_bound_p95"],
+        verdict["healthy_bound_max"],
         "IMMUNE (<2%)" if verdict["healthy_immune_at_2pct"] else "NOT immune",
-        flagged or "none")
+        flagged or "none",
+    )
     logger.info("wrote %s", out)
     return 0
 

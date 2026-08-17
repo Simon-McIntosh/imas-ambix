@@ -265,8 +265,9 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float) -> dict:
             warm_pos = f_pos.jphi_flat
 
         # arm 3: free baseline (no seed, no centroid, no reseed) — the drift
-        f_free = _solve(grid, table, p, spine, mask=off, warm=None, reseed=False,
-                        **basin)
+        f_free = _solve(
+            grid, table, p, spine, mask=off, warm=None, reseed=False, **basin
+        )
 
         # G2b: an outboard-seeded position solve (basin probe) — same centroid
         f_out = _solve(

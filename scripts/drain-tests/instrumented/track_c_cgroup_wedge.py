@@ -35,6 +35,7 @@ Recovery (admin, after drain — NO gpu-reset needed, no GPU involved):
   scontrol update nodename=98dci4-gpu-0003 state=resume reason=""
   scontrol show node 98dci4-gpu-0003 | grep State
 """
+
 import os
 import shutil
 import signal
@@ -43,10 +44,10 @@ import sys
 import tempfile
 import time
 
-
 # ---------------------------------------------------------------------------
 # Tool detection helpers
 # ---------------------------------------------------------------------------
+
 
 def _cmd_available(name: str) -> bool:
     return shutil.which(name) is not None
@@ -80,6 +81,7 @@ def detect_fuse_tool() -> str:
 # Mount helpers
 # ---------------------------------------------------------------------------
 
+
 def _wait_for_mount(mount_point: str, timeout: float = 10.0) -> None:
     """Poll /proc/mounts until mount_point appears."""
     deadline = time.monotonic() + timeout
@@ -88,7 +90,9 @@ def _wait_for_mount(mount_point: str, timeout: float = 10.0) -> None:
             if mount_point in f.read():
                 return
         time.sleep(0.1)
-    raise RuntimeError(f"Mount point {mount_point!r} did not appear in /proc/mounts after {timeout}s")
+    raise RuntimeError(
+        f"Mount point {mount_point!r} did not appear in /proc/mounts after {timeout}s"
+    )
 
 
 def mount_squashfuse(work_dir: str, mount_point: str) -> subprocess.Popen:
@@ -106,22 +110,27 @@ def mount_squashfuse(work_dir: str, mount_point: str) -> subprocess.Popen:
     print("[track_c] creating 64 MB dummy payload ...", flush=True)
     subprocess.run(
         ["dd", "if=/dev/urandom", f"of={dummy_file}", "bs=1M", "count=64"],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
     print(f"[track_c] dummy payload: {dummy_file}", flush=True)
 
     print("[track_c] building SquashFS archive ...", flush=True)
     subprocess.run(
         ["mksquashfs", dummy_src, archive, "-noappend", "-quiet"],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
     print(f"[track_c] archive: {archive}", flush=True)
 
-    print(f"[track_c] mounting with squashfuse -f {archive} {mount_point} ...", flush=True)
+    print(
+        f"[track_c] mounting with squashfuse -f {archive} {mount_point} ...", flush=True
+    )
     # -f: foreground — this process IS the daemon; stdout/stderr stay connected
     daemon = subprocess.Popen(
         ["squashfuse", "-f", archive, mount_point],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     # Give FUSE a moment to register with the kernel
     time.sleep(0.5)
@@ -134,15 +143,22 @@ def mount_sshfs(mount_point: str) -> subprocess.Popen:
     Fallback: mount localhost:/tmp via sshfs -f (foreground daemon).
     Requires SSH key to localhost; may fail if keys aren't set up.
     """
-    print(f"[track_c] mounting localhost:/tmp via sshfs -f {mount_point} ...", flush=True)
+    print(
+        f"[track_c] mounting localhost:/tmp via sshfs -f {mount_point} ...", flush=True
+    )
     daemon = subprocess.Popen(
         [
-            "sshfs", "-f",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "reconnect",
-            "localhost:/tmp", mount_point,
+            "sshfs",
+            "-f",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "reconnect",
+            "localhost:/tmp",
+            mount_point,
         ],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     time.sleep(1.5)
     _wait_for_mount(mount_point, timeout=15.0)
@@ -156,7 +172,8 @@ def mount_bindfs(source: str, mount_point: str) -> subprocess.Popen:
     print(f"[track_c] mounting {source} via bindfs -f {mount_point} ...", flush=True)
     daemon = subprocess.Popen(
         ["bindfs", "-f", source, mount_point],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     time.sleep(0.5)
     _wait_for_mount(mount_point, timeout=15.0)
@@ -166,6 +183,7 @@ def mount_bindfs(source: str, mount_point: str) -> subprocess.Popen:
 # ---------------------------------------------------------------------------
 # D-state wedge logic
 # ---------------------------------------------------------------------------
+
 
 def _find_payload_path(mount_point: str) -> str:
     """Find the first regular file under mount_point."""
@@ -235,9 +253,15 @@ def wedge(mount_point: str, fuse_tool: str) -> None:
     time.sleep(0.5)
 
     # --- SIGSTOP the daemon (freeze mid-response) ---
-    print(f"[track_c] SIGSTOP → daemon {daemon_pid} (freezing FUSE daemon mid-response)", flush=True)
+    print(
+        f"[track_c] SIGSTOP → daemon {daemon_pid} (freezing FUSE daemon mid-response)",
+        flush=True,
+    )
     os.kill(daemon_pid, signal.SIGSTOP)
-    print(f"[track_c] daemon {daemon_pid} SIGSTOP'd — reader {reader.pid} should be entering D-state", flush=True)
+    print(
+        f"[track_c] daemon {daemon_pid} SIGSTOP'd — reader {reader.pid} should be entering D-state",
+        flush=True,
+    )
 
     # Brief pause to let reader enter D-state (kernel round-trip times out)
     time.sleep(1.0)
@@ -282,14 +306,19 @@ def wedge(mount_point: str, fuse_tool: str) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     pid = os.getpid()
     mount_point = f"/tmp/track_c_fuse_mount_{pid}"
 
     print("=" * 72, flush=True)
     print("⚠️  DELIBERATE DRAIN TEST — track_c_cgroup_wedge.py", flush=True)
-    print("⚠️  WARNING: No STOP-FILE. No SIGUSR1 trap. This IS the drain test.", flush=True)
-    print("⚠️  Node WILL drain when SLURM --time fires. Admin must be present.", flush=True)
+    print(
+        "⚠️  WARNING: No STOP-FILE. No SIGUSR1 trap. This IS the drain test.", flush=True
+    )
+    print(
+        "⚠️  Node WILL drain when SLURM --time fires. Admin must be present.", flush=True
+    )
     print("=" * 72, flush=True)
 
     print(f"[track_c] PID: {pid}", flush=True)
@@ -305,7 +334,9 @@ def main() -> None:
             fuse_ok = True
             break
     if not fuse_ok:
-        print("FATAL: fusermount / fusermount3 not available — FUSE kernel module may not be loaded.")
+        print(
+            "FATAL: fusermount / fusermount3 not available — FUSE kernel module may not be loaded."
+        )
         print("  Node was NOT drained — no admin action needed.")
         sys.exit(1)
 

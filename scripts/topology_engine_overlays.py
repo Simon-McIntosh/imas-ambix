@@ -88,9 +88,18 @@ def _chain_for_shot(shot: int, *, nr: int, nz: int) -> dict | None:
     if shot in _CHAIN_CACHE:
         return _CHAIN_CACHE[shot]
     chain = coupled_solve_chain(
-        int(shot), nr=nr, nz=nz, sigma=0.02, eta_params=list(frozen_eta_params()),
-        prior_weight=0.3, n_sub=24, par_weight=1.0, n_rho=24,
-        max_slices=CHAIN_MAX_SLICES, min_ip_ka=CHAIN_MIN_IP_KA)
+        int(shot),
+        nr=nr,
+        nz=nz,
+        sigma=0.02,
+        eta_params=list(frozen_eta_params()),
+        prior_weight=0.3,
+        n_sub=24,
+        par_weight=1.0,
+        n_rho=24,
+        max_slices=CHAIN_MAX_SLICES,
+        min_ip_ka=CHAIN_MIN_IP_KA,
+    )
     _CHAIN_CACHE[shot] = chain if chain["slices"] else None
     return _CHAIN_CACHE[shot]
 
@@ -124,8 +133,9 @@ def _render_slice(shot: int, time_s: float, *, nr: int, nz: int):
     axis_rz = (float(target[0]), float(target[1]))
     our_lcfs = _closed_contour_about(grid.rg, grid.zg, psi2d, psi_b, *axis_rz)
     p = chain["slices"][j]["p"]
-    our = _our_slice(psi2d, grid, target, psi_ax, psi_b, p.ip_amperes, p.time_s,
-                     our_lcfs)
+    our = _our_slice(
+        psi2d, grid, target, psi_ax, psi_b, p.ip_amperes, p.time_s, our_lcfs
+    )
     geom = _machine_geometry(grid, chain["table"])
     efit_slice = None
     try:
@@ -133,8 +143,9 @@ def _render_slice(shot: int, time_s: float, *, nr: int, nz: int):
             efit = read_efit_slice(int(shot), float(p.time_s))
         efit_slice = _efit_slice(efit) if efit is not None else None
     except Exception as exc:  # noqa: BLE001 — a shot lacking EFIT metadata still
-        logger.info("  %d: no EFIT reference (%s) — engine-only panel",
-                    shot, type(exc).__name__)  # renders engine ψ alone
+        logger.info(
+            "  %d: no EFIT reference (%s) — engine-only panel", shot, type(exc).__name__
+        )  # renders engine ψ alone
     return our, efit_slice, geom, {"axis_r": axis_rz[0], "time_s": float(p.time_s)}
 
 
@@ -153,10 +164,18 @@ def _panel(shot: int, time_s: float, role: str, dmed: float, *, nr: int, nz: int
         return None
     our, efit_slice, geom, info = got
     fig, _ax = equilibrium_figure_mpl(
-        our, geom, reference_slice=efit_slice, reference_name="EFIT",
-        figsize=(4.4, 6.0), show_probes=False, show_flux_loops=False)
-    sub = (f"{shot} t={info['time_s']:.3f}s\n{role}: shape Δ={dmed:.1f} cm, "
-           f"axis R={info['axis_r']:.2f} m")
+        our,
+        geom,
+        reference_slice=efit_slice,
+        reference_name="EFIT",
+        figsize=(4.4, 6.0),
+        show_probes=False,
+        show_flux_loops=False,
+    )
+    sub = (
+        f"{shot} t={info['time_s']:.3f}s\n{role}: shape Δ={dmed:.1f} cm, "
+        f"axis R={info['axis_r']:.2f} m"
+    )
     fig.suptitle(sub, fontsize=8)
     rgba = _fig_to_rgba(fig)
     plt.close(fig)
@@ -170,8 +189,9 @@ def class_overlay(cname: str, *, nr: int, nz: int) -> None:
         return
     panels = []
     for role, r in picks:
-        got = _panel(int(r["shot"]), float(r["time_s"]), role,
-                     _shape_cm(r), nr=nr, nz=nz)
+        got = _panel(
+            int(r["shot"]), float(r["time_s"]), role, _shape_cm(r), nr=nr, nz=nz
+        )
         if got is not None:
             panels.append(got)
             logger.info("  %s %s: %s", cname, role, got[1].replace("\n", " "))
@@ -182,9 +202,11 @@ def class_overlay(cname: str, *, nr: int, nz: int) -> None:
     for ax, (rgba, _sub) in zip(np.atleast_1d(axes), panels, strict=False):
         ax.imshow(rgba)
         ax.axis("off")
-    fig.suptitle(f"engine ψ(R,Z) vs EFIT — {cname} "
-                 f"(engine solid, EFIT faint; measured magnetics only)",
-                 fontsize=11)
+    fig.suptitle(
+        f"engine ψ(R,Z) vs EFIT — {cname} "
+        f"(engine solid, EFIT faint; measured magnetics only)",
+        fontsize=11,
+    )
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     out = FIGURE_DIR / f"fig-engine-overlay-{cname}.png"
     fig.savefig(out, dpi=115)
@@ -196,13 +218,17 @@ def sn_lower_deepdive(*, nr: int, nz: int) -> None:
     """The sn-lower deep dive: worst flat-top slices by boundary-shape
     residual — the slices whose SHAPE (not just placement) is furthest from
     EFIT's lower-single-null reconstruction."""
-    rows = [r for r in _plain_rows("sn-lower") if r["cls"] == "sn-lower"
-            and r["phase"] == "flattop"]
+    rows = [
+        r
+        for r in _plain_rows("sn-lower")
+        if r["cls"] == "sn-lower" and r["phase"] == "flattop"
+    ]
     rows = sorted(rows, key=_shape_cm, reverse=True)[:4]
     panels = []
     for r in rows:
-        got = _panel(int(r["shot"]), float(r["time_s"]), "flat-top",
-                     _shape_cm(r), nr=nr, nz=nz)
+        got = _panel(
+            int(r["shot"]), float(r["time_s"]), "flat-top", _shape_cm(r), nr=nr, nz=nz
+        )
         if got is not None:
             panels.append(got)
     if not panels:
@@ -213,9 +239,11 @@ def sn_lower_deepdive(*, nr: int, nz: int) -> None:
     for ax, (rgba, _sub) in zip(np.atleast_1d(axes), panels, strict=False):
         ax.imshow(rgba)
         ax.axis("off")
-    fig.suptitle("sn-lower deep dive — worst flat-top coupled fits by "
-                 "boundary shape: engine ψ (solid) vs EFIT (faint)",
-                 fontsize=11)
+    fig.suptitle(
+        "sn-lower deep dive — worst flat-top coupled fits by "
+        "boundary shape: engine ψ (solid) vs EFIT (faint)",
+        fontsize=11,
+    )
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     out = FIGURE_DIR / "fig-engine-worst-sn-lower.png"
     fig.savefig(out, dpi=115)
@@ -227,14 +255,26 @@ def worst_grid(*, nr: int, nz: int) -> None:
     """One worst-flat-top panel per class — the census-wide failure gallery."""
     panels = []
     for cname in SCORED_CLASSES:
-        ft = sorted((r for r in _plain_rows(cname) if r["cls"] == cname
-                     and r["phase"] == "flattop"),
-                    key=_shape_cm, reverse=True)
+        ft = sorted(
+            (
+                r
+                for r in _plain_rows(cname)
+                if r["cls"] == cname and r["phase"] == "flattop"
+            ),
+            key=_shape_cm,
+            reverse=True,
+        )
         if not ft:
             continue
         r = ft[0]
-        got = _panel(int(r["shot"]), float(r["time_s"]), f"{cname} worst",
-                     _shape_cm(r), nr=nr, nz=nz)
+        got = _panel(
+            int(r["shot"]),
+            float(r["time_s"]),
+            f"{cname} worst",
+            _shape_cm(r),
+            nr=nr,
+            nz=nz,
+        )
         if got is not None:
             panels.append((cname, got))
     if not panels:
@@ -244,8 +284,10 @@ def worst_grid(*, nr: int, nz: int) -> None:
     for ax, (_c, (rgba, _sub)) in zip(np.atleast_1d(axes), panels, strict=False):
         ax.imshow(rgba)
         ax.axis("off")
-    fig.suptitle("worst flat-top per class by boundary shape — "
-                 "engine ψ vs EFIT (faint)", fontsize=11)
+    fig.suptitle(
+        "worst flat-top per class by boundary shape — engine ψ vs EFIT (faint)",
+        fontsize=11,
+    )
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     out = FIGURE_DIR / "fig-engine-overlay-grid.png"
     fig.savefig(out, dpi=115)

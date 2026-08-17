@@ -677,9 +677,7 @@ def run_boundary_arm(args) -> int:
         cal = json.loads(Path(args.calibration).read_text())
         by_name = {
             c: (g, o)
-            for c, g, o in zip(
-                cal["channels"], cal["gain"], cal["offset"], strict=True
-            )
+            for c, g, o in zip(cal["channels"], cal["gain"], cal["offset"], strict=True)
         }
         for payload in shots:
             # map by channel NAME — the per-shot basis may order (or subset)
@@ -798,9 +796,7 @@ def run_boundary_arm(args) -> int:
         "halo_budget": args.halo_budget if args.support_prior else None,
         "negative_fraction_median": float(np.nanmedian(neg)) if neg.size else None,
         "negative_fraction_mean": float(np.nanmean(neg)) if neg.size else None,
-        "misfit_median": (
-            float(np.nanmedian(misfit_rows)) if misfit_rows else None
-        ),
+        "misfit_median": (float(np.nanmedian(misfit_rows)) if misfit_rows else None),
         "outside_fraction_median": (
             float(np.nanmedian(out_frac))
             if out_frac.size and np.isfinite(out_frac).any()

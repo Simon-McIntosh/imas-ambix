@@ -75,8 +75,16 @@ EFCC_POLARITY = -1
 #: the two independently-supplied pairs.  Each entry: amc channel -> the two
 #: sector centres (deg) wired opposite-in-series (n=1) with their series signs.
 EFCC_PAIRS = {
-    "error_field_02": {"name": "EFCC_2_8", "centres_deg": (45.0, 225.0), "signs": (+1, -1)},
-    "error_field_05": {"name": "EFCC_5_11", "centres_deg": (315.0, 135.0), "signs": (+1, -1)},
+    "error_field_02": {
+        "name": "EFCC_2_8",
+        "centres_deg": (45.0, 225.0),
+        "signs": (+1, -1),
+    },
+    "error_field_05": {
+        "name": "EFCC_5_11",
+        "centres_deg": (315.0, 135.0),
+        "signs": (+1, -1),
+    },
 }
 
 PROBE_FAMILIES = ("obv", "obr", "ccbv")
@@ -105,7 +113,9 @@ def pair_field(pair, points, current):
 
 def pair_flux(pair, current, loop_points):
     """Sum flux linkage [Wb] of a pair through a closed ``loop_points``."""
-    return sum(f3d.flux_through_loop(poly, sgn * current, loop_points) for poly, sgn in pair)
+    return sum(
+        f3d.flux_through_loop(poly, sgn * current, loop_points) for poly, sgn in pair
+    )
 
 
 def probe_envelope(pair, r, z, angle_deg, current, *, n_phi=72):
@@ -149,8 +159,10 @@ def empirical_family_ladder(immunity_json: Path) -> dict:
             a["median"].append(v["delta_r2_median"])
             a["max"].append(v["delta_r2_max"])
     return {
-        fam: {"dr2_median": float(np.median(a["median"])),
-              "dr2_max": float(np.max(a["max"]))}
+        fam: {
+            "dr2_median": float(np.median(a["median"])),
+            "dr2_max": float(np.max(a["max"])),
+        }
         for fam, a in agg.items()
     }
 
@@ -158,8 +170,12 @@ def empirical_family_ladder(immunity_json: Path) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--shot", type=int, default=11774, help="geometry reference shot")
-    ap.add_argument("--kat", type=float, default=EFCC_MAX_KAT,
-                    help="pair current [kA-turn] for the reported field scale")
+    ap.add_argument(
+        "--kat",
+        type=float,
+        default=EFCC_MAX_KAT,
+        help="pair current [kA-turn] for the reported field scale",
+    )
     args = ap.parse_args()
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     FIGDIR.mkdir(parents=True, exist_ok=True)
@@ -167,10 +183,16 @@ def main() -> int:
     # --- sensor geometry (axisymmetric: R, Z, poloidal pickup angle) ---------
     table = read_geometry_table(args.shot)
     channels, kinds, sr, sz, sang, excluded, flagged = _sensor_rows(table)
-    logger.info("sensors: %d (%d loops, %d probes)", len(channels),
-                kinds.count("flux_loop"), kinds.count("b_probe"))
+    logger.info(
+        "sensors: %d (%d loops, %d probes)",
+        len(channels),
+        kinds.count("flux_loop"),
+        kinds.count("b_probe"),
+    )
 
-    pairs = {name: build_pair(p["centres_deg"], p["signs"]) for name, p in EFCC_PAIRS.items()}
+    pairs = {
+        name: build_pair(p["centres_deg"], p["signs"]) for name, p in EFCC_PAIRS.items()
+    }
     amps = args.kat * 1e3  # kA-turn -> A-turn for the reported scale
 
     # --- (a) full-loop symmetry cancellation ---------------------------------
@@ -180,7 +202,10 @@ def main() -> int:
             continue
         loop = f3d.circle(r, z, n=720)
         # per-turn coupling normalised by a single-coil reference at the same loop
-        ref = abs(f3d.flux_through_loop(pairs["error_field_02"][0][0], amps, loop)) + 1e-30
+        ref = (
+            abs(f3d.flux_through_loop(pairs["error_field_02"][0][0], amps, loop))
+            + 1e-30
+        )
         row = {"sensor": ch, "r": float(r), "z": float(z)}
         for name, pair in pairs.items():
             phi_pair = pair_flux(pair, amps, loop)
@@ -192,13 +217,17 @@ def main() -> int:
     loop_symmetry = {
         "n_loops": len(loop_rows),
         "max_pair_over_single_coil": float(loop_rel.max()) if loop_rel.size else None,
-        "median_pair_over_single_coil": float(np.median(loop_rel)) if loop_rel.size else None,
+        "median_pair_over_single_coil": float(np.median(loop_rel))
+        if loop_rel.size
+        else None,
         "note": "full-loop pair linkage as a fraction of one coil's linkage; "
-                "~0 confirms n!=0 cancellation (matches measured loop immunity).",
+        "~0 confirms n!=0 cancellation (matches measured loop immunity).",
     }
-    logger.info("loop symmetry: pair/single-coil linkage max %.2e, median %.2e",
-                loop_symmetry["max_pair_over_single_coil"] or -1,
-                loop_symmetry["median_pair_over_single_coil"] or -1)
+    logger.info(
+        "loop symmetry: pair/single-coil linkage max %.2e, median %.2e",
+        loop_symmetry["max_pair_over_single_coil"] or -1,
+        loop_symmetry["median_pair_over_single_coil"] or -1,
+    )
 
     # --- (b) probe exposure envelope by (R,Z) --------------------------------
     probe_rows = []
@@ -206,15 +235,21 @@ def main() -> int:
         if k != "b_probe" or not np.isfinite(r) or r <= 0:
             continue
         fam = next((p for p in PROBE_FAMILIES if ch.startswith(p)), "other")
-        row = {"sensor": ch, "family": fam, "r": float(r), "z": float(z),
-               "angle_deg": float(ang)}
+        row = {
+            "sensor": ch,
+            "family": fam,
+            "r": float(r),
+            "z": float(z),
+            "angle_deg": float(ang),
+        }
         for name, pair in pairs.items():
             rms, mx = probe_envelope(pair, r, z, ang, amps)
             row[f"{name}_rms_t"] = rms
             row[f"{name}_max_t"] = mx
         # combined exposure envelope (quadrature over the two independent pairs)
-        row["envelope_rms_t"] = float(np.hypot(row["error_field_02_rms_t"],
-                                                row["error_field_05_rms_t"]))
+        row["envelope_rms_t"] = float(
+            np.hypot(row["error_field_02_rms_t"], row["error_field_05_rms_t"])
+        )
         row["envelope_rms_gauss"] = row["envelope_rms_t"] * 1e4
         probe_rows.append(row)
 
@@ -223,23 +258,37 @@ def main() -> int:
     for fam in (*PROBE_FAMILIES, "other"):
         vals = [r["envelope_rms_gauss"] for r in probe_rows if r["family"] == fam]
         if vals:
-            pred_family[fam] = {"n": len(vals), "median_gauss": float(np.median(vals)),
-                                "max_gauss": float(np.max(vals))}
+            pred_family[fam] = {
+                "n": len(vals),
+                "median_gauss": float(np.median(vals)),
+                "max_gauss": float(np.max(vals)),
+            }
     # loops predicted ~0 exposure (full symmetry) -> attach for the ladder
-    pred_family["full_loops"] = {"n": len(loop_rows), "median_gauss": 0.0, "max_gauss": 0.0}
+    pred_family["full_loops"] = {
+        "n": len(loop_rows),
+        "median_gauss": 0.0,
+        "max_gauss": 0.0,
+    }
 
     # --- sign convention + validation vs the empirical ladder ----------------
     sign_check = sector2_sign_check(pairs)
-    logger.info("sector-2 sign check: B_r=%.3e (convention_ok=%s)",
-                sign_check["b_r"], sign_check["convention_ok"])
+    logger.info(
+        "sector-2 sign check: B_r=%.3e (convention_ok=%s)",
+        sign_check["b_r"],
+        sign_check["convention_ok"],
+    )
 
     empirical = empirical_family_ladder(ARTIFACTS / "flux_loop_ivc_immunity.json")
 
     # rank-order agreement: does the predicted envelope order families the way
     # the measured delta-R2 does?  Compare on the families present in both.
     # map predicted family keys -> empirical family keys
-    emp_key = {"obv": "obv_probes", "obr": "obr_probes", "ccbv": "ccbv_probes",
-               "full_loops": "full_loops"}
+    emp_key = {
+        "obv": "obv_probes",
+        "obr": "obr_probes",
+        "ccbv": "ccbv_probes",
+        "full_loops": "full_loops",
+    }
     pred_vec, emp_vec, ladder_rows = [], [], []
     for f in ("obv", "obr", "ccbv", "full_loops"):
         if f not in pred_family or emp_key[f] not in empirical:
@@ -248,8 +297,9 @@ def main() -> int:
         ev = empirical[emp_key[f]]["dr2_max"]
         pred_vec.append(pv)
         emp_vec.append(ev)
-        ladder_rows.append({"family": f, "pred_median_gauss": pv,
-                            "empirical_dr2_max": ev})
+        ladder_rows.append(
+            {"family": f, "pred_median_gauss": pv, "empirical_dr2_max": ev}
+        )
     # Spearman rank correlation (small n -> report with the raw ladder)
     if len(pred_vec) >= 3:
         pr = np.argsort(np.argsort(pred_vec))
@@ -258,20 +308,29 @@ def main() -> int:
     else:
         rho = None
 
-    obv_top = max((r for r in probe_rows if r["family"] == "obv"),
-                  key=lambda r: r["envelope_rms_gauss"], default=None)
+    obv_top = max(
+        (r for r in probe_rows if r["family"] == "obv"),
+        key=lambda r: r["envelope_rms_gauss"],
+        default=None,
+    )
 
     # coarse (phase-independent) ladder: outboard probes >> centre-column ccbv >>
     # full loops (0).  This is what the axisymmetric geometry CAN reproduce.
-    outboard = max(pred_family.get("obv", {}).get("median_gauss", 0),
-                   pred_family.get("obr", {}).get("median_gauss", 0))
+    outboard = max(
+        pred_family.get("obv", {}).get("median_gauss", 0),
+        pred_family.get("obr", {}).get("median_gauss", 0),
+    )
     ccbv_med = pred_family.get("ccbv", {}).get("median_gauss", 0)
-    coarse_ok = bool(outboard > 5 * ccbv_med > 0 and loop_symmetry[
-        "max_pair_over_single_coil"] < 1e-6)
+    coarse_ok = bool(
+        outboard > 5 * ccbv_med > 0
+        and loop_symmetry["max_pair_over_single_coil"] < 1e-6
+    )
 
     verdict = {
         # (a) strong, phase-independent symmetry check
-        "loops_immune": bool((loop_symmetry["max_pair_over_single_coil"] or 1.0) < 1e-6),
+        "loops_immune": bool(
+            (loop_symmetry["max_pair_over_single_coil"] or 1.0) < 1e-6
+        ),
         # coarse ladder the axisymmetric geometry reproduces
         "coarse_ladder_ok": coarse_ok,
         "outboard_probe_gauss_at_kat": float(outboard),
@@ -282,7 +341,8 @@ def main() -> int:
         # location plus the unpinned coil z-extent.
         "fine_obv_vs_obr_reproduced": bool(
             pred_family.get("obv", {}).get("median_gauss", 0)
-            > pred_family.get("obr", {}).get("median_gauss", 0)),
+            > pred_family.get("obr", {}).get("median_gauss", 0)
+        ),
         "fine_ordering_note": "obv>obr is toroidal-position + coil-z-extent "
         "governed; the axisymmetric (R,Z) envelope cannot resolve it -> needs "
         "declared toroidal sensor positions "
@@ -290,23 +350,39 @@ def main() -> int:
         "family_rank_spearman": rho,
         "sector2_convention_ok": sign_check["convention_ok"],
         "obv_top_probe": obv_top["sensor"] if obv_top else None,
-        "obv_top_envelope_gauss_at_kat": obv_top["envelope_rms_gauss"] if obv_top else None,
+        "obv_top_envelope_gauss_at_kat": obv_top["envelope_rms_gauss"]
+        if obv_top
+        else None,
         "reported_kat": args.kat,
     }
-    logger.info("VERDICT loops_immune=%s coarse_ladder_ok=%s (outboard %.1f G, "
-                "ccbv %.1f G @ %.0f kAt) fine_obv>obr=%s sign_ok=%s",
-                verdict["loops_immune"], verdict["coarse_ladder_ok"],
-                verdict["outboard_probe_gauss_at_kat"], verdict["ccbv_gauss_at_kat"],
-                args.kat, verdict["fine_obv_vs_obr_reproduced"],
-                verdict["sector2_convention_ok"])
+    logger.info(
+        "VERDICT loops_immune=%s coarse_ladder_ok=%s (outboard %.1f G, "
+        "ccbv %.1f G @ %.0f kAt) fine_obv>obr=%s sign_ok=%s",
+        verdict["loops_immune"],
+        verdict["coarse_ladder_ok"],
+        verdict["outboard_probe_gauss_at_kat"],
+        verdict["ccbv_gauss_at_kat"],
+        args.kat,
+        verdict["fine_obv_vs_obr_reproduced"],
+        verdict["sector2_convention_ok"],
+    )
 
     out = {
         "firewall": "raw amb/amc + published Kirk et al. EFCC geometry only; no EFIT.",
         "geometry": {
-            "radius_m": EFCC_RADIUS, "span_deg": EFCC_SPAN_DEG, "turns": EFCC_TURNS,
-            "max_kat": EFCC_MAX_KAT, "z_half_m": EFCC_Z_HALF, "pairs": {
-                name: {"coil_pair": p["name"], "centres_deg": p["centres_deg"],
-                       "series_signs": p["signs"]} for name, p in EFCC_PAIRS.items()},
+            "radius_m": EFCC_RADIUS,
+            "span_deg": EFCC_SPAN_DEG,
+            "turns": EFCC_TURNS,
+            "max_kat": EFCC_MAX_KAT,
+            "z_half_m": EFCC_Z_HALF,
+            "pairs": {
+                name: {
+                    "coil_pair": p["name"],
+                    "centres_deg": p["centres_deg"],
+                    "series_signs": p["signs"],
+                }
+                for name, p in EFCC_PAIRS.items()
+            },
             "source": "Kirk et al., arXiv:1312.6507 (CCFE 2013)",
             "identifiability": "axisymmetric sensor geometry (no toroidal probe "
             "position): full-loop symmetry + probe (R,Z) exposure envelope are "
@@ -334,6 +410,7 @@ def main() -> int:
 
 def make_figure(pairs, loop_rows, probe_rows, pred_family, empirical, verdict, kat):
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
@@ -345,8 +422,13 @@ def make_figure(pairs, loop_rows, probe_rows, pred_family, empirical, verdict, k
     colours = {"error_field_02": "C0", "error_field_05": "C3"}
     for name, pair in pairs.items():
         for poly, sgn in pair:
-            ax.plot(poly[:, 0], poly[:, 1], color=colours[name], lw=1.4,
-                    ls="-" if sgn > 0 else "--")
+            ax.plot(
+                poly[:, 0],
+                poly[:, 1],
+                color=colours[name],
+                lw=1.4,
+                ls="-" if sgn > 0 else "--",
+            )
     th = np.linspace(0, 2 * np.pi, 200)
     ax.plot(1.5 * np.cos(th), 1.5 * np.sin(th), color="0.6", lw=0.8)
     ax.plot(2.9 * np.cos(th), 2.9 * np.sin(th), color="0.85", lw=0.6)
@@ -368,23 +450,38 @@ def make_figure(pairs, loop_rows, probe_rows, pred_family, empirical, verdict, k
     # (c) family exposure ladder: predicted envelope vs measured ΔR²
     ax = fig.add_subplot(gs[0, 2])
     fams = ["full_loops", "ccbv", "obr", "obv"]
-    emp_key = {"obv": "obv_probes", "obr": "obr_probes", "ccbv": "ccbv_probes",
-               "full_loops": "full_loops"}
+    emp_key = {
+        "obv": "obv_probes",
+        "obr": "obr_probes",
+        "ccbv": "ccbv_probes",
+        "full_loops": "full_loops",
+    }
     pred = [pred_family.get(f, {}).get("median_gauss", 0.0) for f in fams]
     emp = [empirical.get(emp_key[f], {}).get("dr2_max", 0.0) for f in fams]
     x = np.arange(len(fams))
-    ax.bar(x - 0.2, np.array(pred) / (max(pred) + 1e-30), 0.4, color="C0",
-           label=f"predicted envelope (norm; obv={pred[-1]:.2f} G@{kat:.0f}kAt)")
-    ax.bar(x + 0.2, np.array(emp) / (max(emp) + 1e-30), 0.4, color="C1",
-           label="measured ΔR² max (norm)")
+    ax.bar(
+        x - 0.2,
+        np.array(pred) / (max(pred) + 1e-30),
+        0.4,
+        color="C0",
+        label=f"predicted envelope (norm; obv={pred[-1]:.2f} G@{kat:.0f}kAt)",
+    )
+    ax.bar(
+        x + 0.2,
+        np.array(emp) / (max(emp) + 1e-30),
+        0.4,
+        color="C1",
+        label="measured ΔR² max (norm)",
+    )
     ax.set_xticks(x)
     ax.set_xticklabels(fams, rotation=20)
     ax.set_title(f"(c) exposure ladder\nrank ρ={verdict['family_rank_spearman']}")
     ax.set_ylabel("normalised exposure")
     ax.legend(fontsize=7)
 
-    fig.suptitle("EFCC Green's columns — Kirk et al. geometry vs measured exposure",
-                 fontsize=11)
+    fig.suptitle(
+        "EFCC Green's columns — Kirk et al. geometry vs measured exposure", fontsize=11
+    )
     out = FIGDIR / "fig-efcc-greens.png"
     fig.savefig(out, dpi=130, bbox_inches="tight")
     logger.info("wrote %s", out)

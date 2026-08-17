@@ -22,6 +22,7 @@ of the mechanism behind production drains 1208980 / 1209813.
 Recovery (admin): nvidia-smi -i <id> --gpu-reset (or reboot if it hangs);
                   scontrol update nodename=98dci4-gpu-0003 state=resume reason=""
 """
+
 import ctypes
 import os
 import time
@@ -36,7 +37,10 @@ def _set_blocking_sync() -> None:
         rc = cudart.cudaSetDeviceFlags(ctypes.c_uint(0x04))
         print(f"[blocksync] cudaSetDeviceFlags(BlockingSync) rc={rc}", flush=True)
     except Exception as e:  # noqa: BLE001
-        print(f"[blocksync] cudaSetDeviceFlags failed ({e}); relying on blocking Event", flush=True)
+        print(
+            f"[blocksync] cudaSetDeviceFlags failed ({e}); relying on blocking Event",
+            flush=True,
+        )
 
 
 def main() -> None:
@@ -47,12 +51,18 @@ def main() -> None:
     x = (x @ x).relu()
     torch.cuda.synchronize()
     print(f"[blocksync pid={pid}] launching ~20yr GPU kernel (async)", flush=True)
-    print(f"[blocksync pid={pid}] >>> blocking-event sync -> PERMANENT D in nvidia driver; SIGKILL cannot reap <<<", flush=True)
-    torch.cuda._sleep(int(1e18))                 # async; never completes
-    ev = torch.cuda.Event(blocking=True)          # cudaEventBlockingSync
+    print(
+        f"[blocksync pid={pid}] >>> blocking-event sync -> PERMANENT D in nvidia driver; SIGKILL cannot reap <<<",
+        flush=True,
+    )
+    torch.cuda._sleep(int(1e18))  # async; never completes
+    ev = torch.cuda.Event(blocking=True)  # cudaEventBlockingSync
     ev.record()
-    ev.synchronize()                              # sleeps on driver semaphore forever -> D-state
-    print(f"[blocksync pid={pid}] synchronize RETURNED (did NOT wedge — unexpected)", flush=True)
+    ev.synchronize()  # sleeps on driver semaphore forever -> D-state
+    print(
+        f"[blocksync pid={pid}] synchronize RETURNED (did NOT wedge — unexpected)",
+        flush=True,
+    )
     time.sleep(3600)
 
 

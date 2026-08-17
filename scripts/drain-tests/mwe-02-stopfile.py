@@ -46,10 +46,8 @@ RUN WITH
 """
 
 import os
-import signal
 import threading
 import time
-import sys
 
 import torch
 import torch.distributed as dist

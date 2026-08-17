@@ -15,6 +15,7 @@ ROLE=reader (xN, same GPU):
 All participants end in uninterruptible D-state on the driver lock; none can be
 reaped -> SLURM UnkillableStepTimeout -> drain. NCCL-free, single GPU.
 """
+
 import ctypes
 import os
 import time
@@ -26,7 +27,10 @@ GPU = int(os.environ.get("GPU", "0"))
 
 
 def log(m: str) -> None:
-    print(f"[{ROLE} pid={os.getpid()} gpu={GPU} {time.strftime('%H:%M:%S')}] {m}", flush=True)
+    print(
+        f"[{ROLE} pid={os.getpid()} gpu={GPU} {time.strftime('%H:%M:%S')}] {m}",
+        flush=True,
+    )
 
 
 def main() -> None:
@@ -37,13 +41,19 @@ def main() -> None:
     torch.cuda.synchronize()
 
     if ROLE == "holder":
-        log("launching infinite kernel, then cudaDeviceReset() — EXPECT D-state holding write-lock")
+        log(
+            "launching infinite kernel, then cudaDeviceReset() — EXPECT D-state holding write-lock"
+        )
         torch.cuda._sleep(int(1e18))
-        rc = cudart.cudaDeviceReset()   # waits for the infinite kernel; should block holding the lock
+        rc = (
+            cudart.cudaDeviceReset()
+        )  # waits for the infinite kernel; should block holding the lock
         log(f"cudaDeviceReset returned rc={rc} (did NOT wedge)")
         time.sleep(3600)
     else:
-        log("hammering cudaMalloc/free on the same device — EXPECT D-state behind the write-lock")
+        log(
+            "hammering cudaMalloc/free on the same device — EXPECT D-state behind the write-lock"
+        )
         ptr = ctypes.c_void_p()
         n = 0
         while True:

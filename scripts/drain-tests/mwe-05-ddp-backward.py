@@ -99,9 +99,18 @@ def run_seq_mismatch(rank: int, world_size: int, device: torch.device) -> None:
 
     if rank == 0:
         # Schedule scancel in background BEFORE entering the deadlock
-        print("[MWE-05] READY seq_mismatch (count mismatch) — entering deadlock", flush=True)
-        print("[MWE-05]   rank 0: all_reduce(buf_large) count=N  at NCCL seq 2", flush=True)
-        print("[MWE-05]   ranks 1-3: all_reduce(buf_small) count=1 at NCCL seq 2", flush=True)
+        print(
+            "[MWE-05] READY seq_mismatch (count mismatch) — entering deadlock",
+            flush=True,
+        )
+        print(
+            "[MWE-05]   rank 0: all_reduce(buf_large) count=N  at NCCL seq 2",
+            flush=True,
+        )
+        print(
+            "[MWE-05]   ranks 1-3: all_reduce(buf_small) count=1 at NCCL seq 2",
+            flush=True,
+        )
         print("[MWE-05]   NCCL count mismatch → mutual D-state deadlock", flush=True)
         print(f"[MWE-05] Auto-scancel in {AUTO_SCANCEL_DELAY}s", flush=True)
         auto_scancel(AUTO_SCANCEL_DELAY)  # Background thread — returns immediately
@@ -113,7 +122,10 @@ def run_seq_mismatch(rank: int, world_size: int, device: torch.device) -> None:
         # They will be stuck here BEFORE rank 0 arrives
         dist.all_reduce(buf_small)
 
-    print(f"[MWE-05 rank {rank}] UNEXPECTED: seq_mismatch returned (no drain?)", flush=True)
+    print(
+        f"[MWE-05 rank {rank}] UNEXPECTED: seq_mismatch returned (no drain?)",
+        flush=True,
+    )
 
 
 def run_gpu_sleep(rank: int, world_size: int, device: torch.device) -> None:
@@ -136,17 +148,32 @@ def run_gpu_sleep(rank: int, world_size: int, device: torch.device) -> None:
     torch.cuda._sleep(int(1e18))  # ~30 years at ~1.8 GHz GPU clock (private API)
 
     if rank == 0:
-        print("[MWE-05] READY gpu_sleep — all 4 GPUs have infinite sleep kernels running", flush=True)
-        print("[MWE-05]   torch.cuda.sleep(1e18) dispatched async on all 4 GPUs", flush=True)
-        print("[MWE-05]   CPU returned immediately — GPU kernels still spinning", flush=True)
-        print("[MWE-05]   Testing: is cuCtxDestroy D-state with pending GPU kernel?", flush=True)
+        print(
+            "[MWE-05] READY gpu_sleep — all 4 GPUs have infinite sleep kernels running",
+            flush=True,
+        )
+        print(
+            "[MWE-05]   torch.cuda.sleep(1e18) dispatched async on all 4 GPUs",
+            flush=True,
+        )
+        print(
+            "[MWE-05]   CPU returned immediately — GPU kernels still spinning",
+            flush=True,
+        )
+        print(
+            "[MWE-05]   Testing: is cuCtxDestroy D-state with pending GPU kernel?",
+            flush=True,
+        )
         print(f"[MWE-05] Auto-scancel in {AUTO_SCANCEL_DELAY}s", flush=True)
         auto_scancel(AUTO_SCANCEL_DELAY)
 
     # Sleep long enough for auto-scancel to fire; do NOT sync
     # (we deliberately do NOT call torch.cuda.synchronize here)
     time.sleep(3600)  # Wait for scancel
-    print(f"[MWE-05 rank {rank}] UNEXPECTED: time.sleep returned (job not cancelled?)", flush=True)
+    print(
+        f"[MWE-05 rank {rank}] UNEXPECTED: time.sleep returned (job not cancelled?)",
+        flush=True,
+    )
 
 
 def run_cross_group(rank: int, world_size: int, device: torch.device) -> None:
@@ -162,15 +189,17 @@ def run_cross_group(rank: int, world_size: int, device: torch.device) -> None:
     t = torch.ones(TENSOR_NUMEL, dtype=torch.float32, device=device)
 
     if rank == 0:
-        print(f"[MWE-05] READY cross_group — rank 0 all_reduce on comm_a", flush=True)
-        print(f"[MWE-05]   ranks 1-3 are on comm_b — no cross-group match", flush=True)
+        print("[MWE-05] READY cross_group — rank 0 all_reduce on comm_a", flush=True)
+        print("[MWE-05]   ranks 1-3 are on comm_b — no cross-group match", flush=True)
         print(f"[MWE-05] Auto-scancel in {AUTO_SCANCEL_DELAY}s", flush=True)
         auto_scancel(AUTO_SCANCEL_DELAY)
         dist.all_reduce(t, group=comm_a)
-        print(f"[MWE-05] UNEXPECTED (rank 0): comm_a all_reduce returned", flush=True)
+        print("[MWE-05] UNEXPECTED (rank 0): comm_a all_reduce returned", flush=True)
     else:
         dist.all_reduce(t, group=comm_b)
-        print(f"[MWE-05 rank {rank}] UNEXPECTED: comm_b all_reduce returned", flush=True)
+        print(
+            f"[MWE-05 rank {rank}] UNEXPECTED: comm_b all_reduce returned", flush=True
+        )
 
 
 def run_ring_deadlock(rank: int, world_size: int, device: torch.device) -> None:
@@ -183,14 +212,18 @@ def run_ring_deadlock(rank: int, world_size: int, device: torch.device) -> None:
     dst = (rank - 1) % world_size
 
     if rank == 0:
-        print(f"[MWE-05] READY ring_deadlock — all 4 ranks entering recv", flush=True)
-        print(f"[MWE-05]   rank N: recv(src=(N+1)%4) before send(dst=(N-1)%4)", flush=True)
-        print(f"[MWE-05]   nobody sends first -> ring deadlock via P2P NVLink", flush=True)
+        print("[MWE-05] READY ring_deadlock — all 4 ranks entering recv", flush=True)
+        print(
+            "[MWE-05]   rank N: recv(src=(N+1)%4) before send(dst=(N-1)%4)", flush=True
+        )
+        print(
+            "[MWE-05]   nobody sends first -> ring deadlock via P2P NVLink", flush=True
+        )
         print(f"[MWE-05] Auto-scancel in {AUTO_SCANCEL_DELAY}s", flush=True)
         auto_scancel(AUTO_SCANCEL_DELAY)
 
-    dist.recv(t, src=src)   # All 4 blocked here simultaneously
-    dist.send(t, dst=dst)   # Never reached
+    dist.recv(t, src=src)  # All 4 blocked here simultaneously
+    dist.send(t, dst=dst)  # Never reached
     print(f"[MWE-05 rank {rank}] UNEXPECTED: recv returned", flush=True)
 
 
@@ -203,11 +236,17 @@ def main() -> None:
     device = torch.device(f"cuda:{local_rank}")
 
     if rank == 0:
-        print(f"[MWE-05] *** v8: mode={DRAIN_MODE} tensor={TENSOR_NUMEL//1024//1024}M floats ***", flush=True)
+        print(
+            f"[MWE-05] *** v8: mode={DRAIN_MODE} tensor={TENSOR_NUMEL // 1024 // 1024}M floats ***",
+            flush=True,
+        )
         print(f"[MWE-05] job={JOB_ID}  ranks={world_size}", flush=True)
-        print(f"[MWE-05] Recovery after drain:", flush=True)
-        print(f"[MWE-05]   nvidia-smi -i 0,1,2,3 --gpu-reset", flush=True)
-        print(f'[MWE-05]   scontrol update nodename=98dci4-gpu-0003 state=resume reason=""', flush=True)
+        print("[MWE-05] Recovery after drain:", flush=True)
+        print("[MWE-05]   nvidia-smi -i 0,1,2,3 --gpu-reset", flush=True)
+        print(
+            '[MWE-05]   scontrol update nodename=98dci4-gpu-0003 state=resume reason=""',
+            flush=True,
+        )
 
     if DRAIN_MODE == "seq_mismatch":
         run_seq_mismatch(rank, world_size, device)

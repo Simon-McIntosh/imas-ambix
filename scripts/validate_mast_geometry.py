@@ -40,7 +40,9 @@ if TYPE_CHECKING:
 SHOT_ID = 18502
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-OUT_JSON = REPO_ROOT / "imas_ambix" / "latent" / "artifacts" / "geometry_validation.json"
+OUT_JSON = (
+    REPO_ROOT / "imas_ambix" / "latent" / "artifacts" / "geometry_validation.json"
+)
 OUT_FIG = (
     REPO_ROOT
     / "docs"
@@ -141,7 +143,9 @@ def is_simple_polygon(r: np.ndarray, z: np.ndarray) -> bool:
     return True
 
 
-def point_in_polygon(px: np.ndarray, py: np.ndarray, poly_r: np.ndarray, poly_z: np.ndarray) -> np.ndarray:
+def point_in_polygon(
+    px: np.ndarray, py: np.ndarray, poly_r: np.ndarray, poly_z: np.ndarray
+) -> np.ndarray:
     """Ray-casting point-in-polygon test, vectorised over query points."""
     n = len(poly_r)
     inside = np.zeros(px.shape, dtype=bool)
@@ -163,8 +167,10 @@ def validate_limiter(table: GeometryTable, l2_wall: Any) -> dict[str, Any]:
     # drop the duplicated closing point before area/simplicity checks
     lr_open, lz_open = (lr[:-1], lz[:-1]) if closed else (lr, lz)
     area = shoelace_area(lr_open, lz_open)
-    simple = is_simple_polygon(lr, lz) if closed else is_simple_polygon(
-        np.append(lr, lr[0]), np.append(lz, lz[0])
+    simple = (
+        is_simple_polygon(lr, lz)
+        if closed
+        else is_simple_polygon(np.append(lr, lr[0]), np.append(lz, lz[0]))
     )
 
     wr = np.asarray(l2_wall["limiter_r"][:])
@@ -174,11 +180,7 @@ def validate_limiter(table: GeometryTable, l2_wall: Any) -> dict[str, Any]:
     max_diff_z = float(np.max(np.abs(wz - lz))) if same_length else float("nan")
     identical_to_l2_wall = same_length and max_diff_r < 1e-6 and max_diff_z < 1e-6
 
-    verdict = (
-        "PASS"
-        if closed and simple and identical_to_l2_wall
-        else "FAIL"
-    )
+    verdict = "PASS" if closed and simple and identical_to_l2_wall else "FAIL"
     return {
         "n_points": int(lr.size),
         "closed": closed,
@@ -215,7 +217,9 @@ def reference_pf_groups(shot_id: int) -> dict[str, tuple[float, float, int]]:
 
 
 def validate_pf_coils(
-    table: GeometryTable, refs: dict[str, tuple[float, float, int]], match_tol_m: float = 0.02
+    table: GeometryTable,
+    refs: dict[str, tuple[float, float, int]],
+    match_tol_m: float = 0.02,
 ) -> dict[str, Any]:
     circuits = sorted({f.circuit for f in table.pf_filaments})
     ref_names = list(refs.keys())
@@ -270,7 +274,10 @@ def validate_sensors(
     br = np.array([p.r for p in table.b_probes])
     bz = np.array([p.z for p in table.b_probes])
     bp_resid = np.array(
-        [np.hypot(ref_bp_r - r, ref_bp_z - z).min() for r, z in zip(br, bz, strict=True)]
+        [
+            np.hypot(ref_bp_r - r, ref_bp_z - z).min()
+            for r, z in zip(br, bz, strict=True)
+        ]
     )
 
     ref_fl_r = np.asarray(mag["flux_loop_r"][:]).ravel()
@@ -278,14 +285,27 @@ def validate_sensors(
     fr = np.array([p.r for p in table.flux_loops])
     fz = np.array([p.z for p in table.flux_loops])
     fl_resid = np.array(
-        [np.hypot(ref_fl_r - r, ref_fl_z - z).min() for r, z in zip(fr, fz, strict=True)]
+        [
+            np.hypot(ref_fl_r - r, ref_fl_z - z).min()
+            for r, z in zip(fr, fz, strict=True)
+        ]
     )
 
     n_bp_outside_box = int(
-        np.sum((br < R_BOUNDS[0]) | (br > R_BOUNDS[1]) | (bz < Z_BOUNDS[0]) | (bz > Z_BOUNDS[1]))
+        np.sum(
+            (br < R_BOUNDS[0])
+            | (br > R_BOUNDS[1])
+            | (bz < Z_BOUNDS[0])
+            | (bz > Z_BOUNDS[1])
+        )
     )
     n_fl_outside_box = int(
-        np.sum((fr < R_BOUNDS[0]) | (fr > R_BOUNDS[1]) | (fz < Z_BOUNDS[0]) | (fz > Z_BOUNDS[1]))
+        np.sum(
+            (fr < R_BOUNDS[0])
+            | (fr > R_BOUNDS[1])
+            | (fz < Z_BOUNDS[0])
+            | (fz > Z_BOUNDS[1])
+        )
     )
     bp_inside_limiter = point_in_polygon(br, bz, limiter_r, limiter_z)
     fl_inside_limiter = point_in_polygon(fr, fz, limiter_r, limiter_z)
@@ -405,21 +425,46 @@ def make_figure(
     bang = np.array([p.angle_deg for p in table.b_probes])
     vertical = np.isclose(bang, 90.0)
     ax.scatter(
-        br[vertical], bz[vertical], marker="^", s=22, color="tab:blue",
-        label="B-probe (vertical)", zorder=4,
+        br[vertical],
+        bz[vertical],
+        marker="^",
+        s=22,
+        color="tab:blue",
+        label="B-probe (vertical)",
+        zorder=4,
     )
     ax.scatter(
-        br[~vertical], bz[~vertical], marker=">", s=22, color="tab:cyan",
-        label="B-probe (radial)", zorder=4,
+        br[~vertical],
+        bz[~vertical],
+        marker=">",
+        s=22,
+        color="tab:cyan",
+        label="B-probe (radial)",
+        zorder=4,
     )
 
     fr = np.array([p.r for p in table.flux_loops])
     fz = np.array([p.z for p in table.flux_loops])
-    ax.scatter(fr, fz, marker="o", s=16, facecolors="none", edgecolors="tab:orange",
-               label="flux loop", zorder=4)
+    ax.scatter(
+        fr,
+        fz,
+        marker="o",
+        s=16,
+        facecolors="none",
+        edgecolors="tab:orange",
+        label="flux loop",
+        zorder=4,
+    )
 
-    ax.plot(lcfs_r, lcfs_z, ".", color="tab:red", ms=3,
-            label=f"LCFS shot {SHOT_ID} @ t={flattop_t:.3f}s (flat-top)", zorder=7)
+    ax.plot(
+        lcfs_r,
+        lcfs_z,
+        ".",
+        color="tab:red",
+        ms=3,
+        label=f"LCFS shot {SHOT_ID} @ t={flattop_t:.3f}s (flat-top)",
+        zorder=7,
+    )
 
     ax.set_aspect("equal")
     ax.set_xlabel("R [m]")
@@ -472,7 +517,9 @@ def main() -> None:
         "limiter": limiter_result,
         "coils": pf_result,
         "sensors": sensor_result,
-        "lcfs_check": {k: v for k, v in lcfs_result.items() if k not in ("lcfs_r", "lcfs_z")},
+        "lcfs_check": {
+            k: v for k, v in lcfs_result.items() if k not in ("lcfs_r", "lcfs_z")
+        },
         "overall_verdict": "PASS" if overall_pass else "FAIL",
     }
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
