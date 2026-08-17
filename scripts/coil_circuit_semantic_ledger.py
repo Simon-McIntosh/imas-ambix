@@ -50,25 +50,9 @@ from pathlib import Path
 
 import numpy as np
 
-# tolerate the late-campaign amm passive-data hole (passive geometry not used
-# here — we only need efm PF geometry + the amc channel listing)
-import imas_ambix.gs.geometry as _geom
-
-_orig_amm = _geom.read_amm_passive
-
-
-def _amm_opt(shot):  # noqa: ANN001, ANN202
-    try:
-        return _orig_amm(shot)
-    except Exception:  # noqa: BLE001
-        return []
-
-
-_geom.read_amm_passive = _amm_opt  # type: ignore[assignment]
-
-from imas_ambix.data.description_reader import read_geometry_table  # noqa: E402
-from imas_ambix.gs import circuits as circuits_mod  # noqa: E402
-from imas_ambix.gs.operator import build_operator  # noqa: E402
+from imas_ambix.data.description_reader import read_geometry_table
+from imas_ambix.gs import circuits as circuits_mod
+from imas_ambix.gs.operator import build_operator
 
 _REPO = Path(__file__).resolve().parents[1]
 _ARTIFACT = (

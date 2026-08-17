@@ -30,7 +30,7 @@
 #  Set FORCE=1 to bypass an existing shard cache entry and reassemble — the
 #  config hash only covers (N_TRAIN, nr, nz, t_steps, stride, min_ip,
 #  COIL_MODEL_VERSION, GEOMETRY_TABLE_VERSION), so an internal assembly-logic
-#  change with none of those bumped (e.g. widening canonical_amb_channels'
+#  change with none of those bumped (e.g. widening the declared acquisition
 #  scan) would otherwise silently serve a stale shard cache:
 #      FORCE=1 N_TRAIN=10846 N_SHARDS=32 \
 #          sbatch --array=0-31 scripts/slurm/patch_encoder_assemble_cpu.sbatch

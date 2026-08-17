@@ -1,13 +1,8 @@
 """Select a shot's machine geometry by which machine it is, not by how it was meshed.
 
-The existing selection route is
-:func:`~imas_ambix.gs.geometry.build_table_for_shot`: a shot names its own static
-``efm`` arrays, those arrays are reduced to a
-:class:`~imas_ambix.gs.geometry.SetupSignature`, and that signature is what every
-downstream consumer groups by.  The signature is a discretization fingerprint, so
-that route answers "which mesh did this shot arrive on" and treats the answer as
-if it were "which machine is this".  Re-subdividing the same device produces a
-different signature and therefore, to every consumer, a different machine.
+The declared selection route maps a shot range to a reviewed machine
+description and retains a :class:`~imas_ambix.gs.geometry.SetupSignature` as
+the discretization fingerprint every downstream consumer groups by.
 
 This route asks the other question.  A shot resolves through the Nova registry to
 a PHYSICAL identity -- the machine and its diagnostic pose -- and that identity
@@ -15,8 +10,8 @@ selects the published description to read.  Two shots that differ only in how
 their campaign discretized the device select the same description here, which is
 the identity rule doing its job.
 
-The dual read
--------------
+Identity and computation
+------------------------
 Physical identity governs SELECTION and PROVENANCE; it is not a cache address.
 The table this returns still carries the ``SetupSignature`` its geometry
 determines, unchanged and uncomputed by this module, because every cached object

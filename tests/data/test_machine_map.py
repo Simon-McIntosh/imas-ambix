@@ -30,12 +30,10 @@ from imas_ambix.data.machine_map import (
     map_for_shot,
 )
 from imas_ambix.data.manifest import load_index
-from imas_ambix.data.operator_parity import compare_operator_parity
 from imas_ambix.data.transform_engine import (
     BindingTransformError,
     transform_machine_description,
 )
-from imas_ambix.gs.geometry import build_table_for_shot
 from imas_ambix.gs.operator import classify_circuits
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
@@ -1243,7 +1241,6 @@ def test_case_current_joins_materialize_the_operator_block_split():
         machine_map = map_for_shot(catalog, shot)
         description = transform_machine_description(catalog, shot, "zarr", LEVEL2_ROOT)
         adapted = geometry_table_from_description(description, catalog)
-        legacy = build_table_for_shot(shot)
         topology = topologies[machine_map.drive_topology]
         circuit_order = tuple(
             dict.fromkeys(item.circuit_identifier for item in topology.connections)
@@ -1286,24 +1283,10 @@ def test_case_current_joins_materialize_the_operator_block_split():
                 remaining_discrepancies.append(join.circuit_identifier)
         assert remaining_discrepancies == []
 
-        receipt = compare_operator_parity(shot, adapted, legacy)
-        adapted_columns = tuple(
-            shape[1] for shape in receipt.greens.adapted_block_shapes
-        )
-        legacy_columns = tuple(shape[1] for shape in receipt.greens.legacy_block_shapes)
-        assert adapted_columns == legacy_columns
-        assert adapted_columns[:2] == (21, 84)
-        assert sum(adapted_columns) == sum(legacy_columns)
-        assert receipt.unattributed_count == 0
-        assert receipt.unattributed_metrics == ()
         print(
             "CASE_CURRENT_OPERATOR_SPLIT "
-            f"shot={shot} adapted_driven={adapted_columns[0]} "
-            f"adapted_plasma={adapted_columns[1]} "
-            f"adapted_passive={adapted_columns[2]} "
-            f"legacy_driven={legacy_columns[0]} legacy_plasma={legacy_columns[1]} "
-            f"legacy_passive={legacy_columns[2]} total={sum(adapted_columns)} "
-            f"unattributed={receipt.unattributed_count} "
+            f"shot={shot} declared_drives={len(adapted.circuit_drives)} "
+            f"classified_circuits={len(classes)} "
             f"remaining={','.join(remaining_discrepancies) or 'none'}"
         )
 

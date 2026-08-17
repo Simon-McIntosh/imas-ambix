@@ -63,25 +63,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-import imas_ambix.gs.geometry as _geom
 from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.gs.operator import build_operator
 
-# tolerate the late-campaign amm hole (passive geometry unused on the coil-only
-# vacuum interval) — same guard the sibling sweep uses.
-_orig_amm = _geom.read_amm_passive
-
-
-def _amm_opt(shot):  # noqa: ANN001
-    try:
-        return _orig_amm(shot)
-    except Exception:  # noqa: BLE001
-        return []
-
-
-_geom.read_amm_passive = _amm_opt
-
-from scripts.vacuum_coil_response_audit import _shot_coil_only  # noqa: E402
+from scripts.vacuum_coil_response_audit import _shot_coil_only
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("flux_loop_column_decomposition")

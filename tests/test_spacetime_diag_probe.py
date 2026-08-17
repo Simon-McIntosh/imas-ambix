@@ -269,9 +269,9 @@ def test_staged_magnetics_names_resolve_to_finite_coords():
     assert not np.isfinite(ag.features[i, 0])
 
     # cross-check ccbv01 against the gs.geometry BProbe position (within mm).
-    from imas_ambix.gs.geometry import build_table_for_shot
+    from imas_ambix.data.description_reader import read_geometry_table
 
-    table = build_table_for_shot(sid)
+    table = read_geometry_table(sid)
     by_name = {m.amb_channel.lower(): m for m in table.sensor_map}
     if "ccbv01" in by_name:
         gm = by_name["ccbv01"]

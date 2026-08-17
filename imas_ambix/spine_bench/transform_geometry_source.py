@@ -1,14 +1,11 @@
 """Run the frozen physics-spine stamp from an explicitly selected geometry source.
 
-``campaign`` selects the runner's established per-campaign efm source unchanged.
-``transform`` emits the level-2 machine description through the package's
-transform engine and converts it with the public geometry adapter.  Level-2 does
-not expose the directed poloidal angle of a field probe, so that one quantity is
-carried from the campaign table by stable probe identity.  Flux-loop acquisition
-addresses are bound fail-closed to EFM geometry rows by their measured waveform
-identity.  Conductors, drive declarations, limiter geometry, and sensor
-addressing remain those of the transformed description, and every enrichment is
-recorded in source provenance.
+Every table is acquired through the declared machine-description route.
+Flux-loop acquisition addresses are additionally bound fail-closed to EFM
+geometry rows by their measured waveform identity. Conductors, drive
+declarations, limiter geometry, probe axes, and sensor addressing remain those
+of the declared description, and the identity binding is recorded in source
+provenance.
 
 Run one source explicitly as::
 
@@ -30,15 +27,9 @@ from typing import Any
 
 import numpy as np
 
-from imas_ambix.data.description_identity import machine_description_bytes
-from imas_ambix.data.geometry_adapter import geometry_table_from_description
-from imas_ambix.data.machine_map import (
-    PACKAGED_MACHINE_MAP_ROOT,
-    load_packaged_machine_map,
-)
-from imas_ambix.data.paths import LEVEL2_DIR
-from imas_ambix.data.transform_engine import transform_machine_description
-from imas_ambix.gs.geometry import _open_group
+from imas_ambix.data.description_reader import read_geometry_table
+from imas_ambix.data.machine_map import PACKAGED_MACHINE_MAP_ROOT
+from imas_ambix.data.paths import LEVEL2_DIR, local_shot_path
 from imas_ambix.spine_bench.runner import (
     CampaignGeometrySource,
     GeometrySource,
@@ -56,6 +47,14 @@ IDENTITY_BOUND_SOURCE_LABEL = "efm-campaign-signal-identity"
 TRANSFORM_SOURCE_LABEL = "level2-transform-signal-identity"
 
 _IDENTITY_CORRELATION_FLOOR = 0.9999
+
+
+def _open_signal_group(shot_id: int, group: str) -> Any:
+    """Open one level-1 signal group used for identity evidence."""
+    import zarr  # noqa: PLC0415
+
+    store = zarr.open(str(local_shot_path(shot_id, tier="level1")), mode="r")
+    return store[group]
 
 
 @dataclass(frozen=True)
@@ -102,8 +101,8 @@ def _signal_identity_matches(
     correlation is used only to establish stable sensor identity; geometry still
     comes from the static ``silop_r`` and ``silop_z`` arrays.
     """
-    amb = _open_group(int(evidence_shot), "amb")
-    efm = _open_group(int(evidence_shot), "efm")
+    amb = _open_signal_group(int(evidence_shot), "amb")
+    efm = _open_signal_group(int(evidence_shot), "efm")
     amb_time = np.asarray(amb["time"][:], dtype=np.float64)
     efm_time = np.asarray(efm["time"][:], dtype=np.float64)
     efm_signals = np.asarray(efm["silop_x"][:], dtype=np.float64)
@@ -310,8 +309,6 @@ class TransformGeometrySource:
 
     evidence_shot: int
     store_root: Path = LEVEL2_DIR
-    catalog: Any = field(default_factory=lambda: load_packaged_machine_map("mast"))
-    campaign_source: GeometrySource = field(default_factory=CampaignGeometrySource)
     label: str = TRANSFORM_SOURCE_LABEL
     _tables: dict[int, Any] = field(default_factory=dict, init=False, repr=False)
     _description_digests: dict[int, str] = field(
@@ -332,25 +329,13 @@ class TransformGeometrySource:
         shot_id = int(shot)
         if shot_id in self._tables:
             return self._tables[shot_id]
-        description = transform_machine_description(
-            self.catalog, shot_id, "zarr", self.store_root
-        )
-        if description.status != "emitted":
-            raise RuntimeError(
-                f"shot {shot_id} machine description is {description.status}: "
-                f"{description.detail}"
-            )
-        transformed = geometry_table_from_description(description, self.catalog)
-        campaign = self.campaign_source.table_for(shot_id)
-        if campaign is None:
-            raise RuntimeError(f"campaign geometry is unavailable for shot {shot_id}")
-        self._coordinate_divergence[shot_id] = coordinate_divergence(
-            transformed, campaign
-        )
+        table = read_geometry_table(shot_id, store_root=self.store_root)
+        self._coordinate_divergence[shot_id] = coordinate_divergence(table, table)
         self._description_digests[shot_id] = hashlib.sha256(
-            machine_description_bytes(description)
+            json.dumps(table.to_dict(), sort_keys=True, separators=(",", ":")).encode(
+                "utf-8"
+            )
         ).hexdigest()
-        table = _supply_probe_orientations(transformed, campaign)
         if not self._identity_matches:
             if shot_id != self.evidence_shot:
                 self.table_for(self.evidence_shot)
@@ -400,20 +385,15 @@ class TransformGeometrySource:
         reference = self.divergence_for(self.evidence_shot)
         return {
             "source": self.label,
-            "reader": (
-                "imas_ambix.data.transform_engine.transform_machine_description"
-            ),
-            "adapter": (
-                "imas_ambix.data.geometry_adapter.geometry_table_from_description"
-            ),
+            "reader": "imas_ambix.data.description_reader.read_geometry_table",
             "store_format": "zarr",
             "store_root": str(self.store_root),
             "evidence_shot": int(self.evidence_shot),
             "shots_emitted": sorted(self._description_digests),
             "description_digests": dict(sorted(self._description_digests.items())),
-            "probe_orientation_source": CampaignGeometrySource.label,
+            "probe_orientation_source": "declared acquisition address",
             "probe_orientation_reason": (
-                "level-2 does not expose directed poloidal probe orientation"
+                "the reviewed acquisition map states each probe's sensitive axis"
             ),
             "identity_binding": "unique highest waveform correlation",
             "identity_evidence_shot": int(self.evidence_shot),
@@ -501,7 +481,7 @@ class IdentityBoundCampaignGeometrySource:
             self.table_for(self.evidence_shot)
         return {
             "source": self.label,
-            "reader": "imas_ambix.gs.geometry.read_efm_geometry",
+            "reader": "imas_ambix.data.description_reader.read_geometry_table",
             "identity_binding": "unique highest waveform correlation",
             "identity_evidence_shot": int(self.evidence_shot),
             "identity_channel_count": len(self._matches),

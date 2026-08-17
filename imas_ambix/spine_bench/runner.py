@@ -7,9 +7,9 @@ proved, not a parallel re-derivation.
 The machine geometry enters through a named :class:`GeometrySource`, so which
 description of the machine a run measured is an argument to the run and a field
 on its stamp rather than something a reader has to infer from a signature
-string.  :class:`CampaignGeometrySource` is the default and reads the campaign's
-own efm arrays; :mod:`imas_ambix.spine_bench.machine_artifact_arm` reads a
-published machine description instead.
+string. :class:`CampaignGeometrySource` is the default and resolves the shot
+through the declared machine map; the artifact arm supplies the same table
+contract from a content-addressed publication.
 """
 
 from __future__ import annotations
@@ -259,29 +259,24 @@ class GeometrySource(Protocol):
 
 @dataclass(frozen=True)
 class CampaignGeometrySource:
-    """The campaign's own static efm arrays — the historical benchmark geometry.
-
-    Delegates to the held-out gate's per-campaign table cache rather than
-    building a table directly, so the benchmark and the gate read the machine
-    through one code path and a campaign's passive structure is resolved from
-    the same representative shot in both.
-    """
+    """The declared table selected for a shot's campaign range."""
 
     label: str = "efm-campaign"
-    #: The campaign arrays are versioned with the shot data, not separately from
-    #: the engine, so this source has no revision of its own to record.
+    #: The packaged declarations are versioned with the engine commit.
     revision: str = ""
 
     def table_for(self, shot: int) -> Any | None:
-        from scripts.heldout_mse_gate_eval import _campaign_table  # noqa: PLC0415
+        from imas_ambix.data.description_reader import (  # noqa: PLC0415
+            read_geometry_table,
+        )
 
-        return _campaign_table(shot)
+        return read_geometry_table(int(shot))
 
     def provenance(self) -> dict[str, Any]:
         return {
             "source": self.label,
-            "reader": "imas_ambix.gs.geometry.read_efm_geometry",
-            "identity": "the per-campaign setup signature the table carries",
+            "reader": "imas_ambix.data.description_reader.read_geometry_table",
+            "identity": "the declared range and setup signature the table carries",
         }
 
 

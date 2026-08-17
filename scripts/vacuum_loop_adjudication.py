@@ -2,8 +2,8 @@
 # ruff: noqa: E501  # Markdown output keeps complete table headers and prose rows.
 """Adjudicate disputed MAST flux-loop positions from vacuum measurements.
 
-The geometry candidates come from the level-2 nominal table and the EFM
-static setup.  Signal identity is established independently by correlating the
+The geometry candidates come from the level-2 nominal table and reconstruction
+signal positions. Signal identity is established independently by correlating the
 raw ``amb`` waveform against every experimental ``efm/silop_x`` column on two
 range representatives.  Candidate fields use only measured PF/case currents
 and static coil geometry through the finite-area forward operator.
@@ -22,7 +22,7 @@ import subprocess
 from collections import Counter
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import matplotlib
 
@@ -31,10 +31,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import zarr
 
+from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.data.paths import LEVEL1_DIR, LEVEL2_DIR
-from imas_ambix.gs import geometry as geometry_module
 from imas_ambix.gs.geometry import SensorMapping
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
+
+if TYPE_CHECKING:
+    from imas_ambix.gs.geometry import GeometryTable
 
 EARLY_REPRESENTATIVE = 11766
 LATE_REPRESENTATIVE = 12417
@@ -505,82 +508,14 @@ def _discover_cohorts(
     return early_selected, late_selected, all_receipts
 
 
-def _build_candidate_table_without_amm(shot: int) -> geometry_module.GeometryTable:
-    """Build the geometry needed by candidate PF columns without opening amm."""
+def _build_candidate_table_without_amm(shot: int) -> GeometryTable:
+    """Build declared candidate geometry without passive structures."""
 
-    geom = geometry_module.read_efm_geometry(shot)
-    signature = geometry_module.setup_signature(geom)
-    probe_r = geom["magpr_r"]
-    probe_z = geom["magpr_z"]
-    probe_angle = geom["magpr_ang"]
-    probe_length = geom["magpr_len"]
-    b_probes = [
-        geometry_module.BProbe(
-            index=index,
-            r=float(probe_r[index]),
-            z=float(probe_z[index]),
-            angle_deg=float(probe_angle[index]),
-            length=float(probe_length[index]),
-        )
-        for index in range(probe_r.size)
-        if np.isfinite(probe_r[index])
-    ]
-
-    loop_r = geometry_module._finite(geom["silop_r"])
-    loop_z = geometry_module._finite(geom["silop_z"])
-    flux_loops = [
-        geometry_module.FluxLoop(
-            index=index, r=float(loop_r[index]), z=float(loop_z[index])
-        )
-        for index in range(min(loop_r.size, loop_z.size))
-    ]
-
-    filament_r = geom["fcoil_r"]
-    filament_z = geom["fcoil_z"]
-    filament_turns = geom["fcoil_turns"]
-    filament_width = geom.get("fcoil_width", np.zeros_like(filament_r))
-    filament_height = geom.get("fcoil_height", np.zeros_like(filament_r))
-    filament_circuit = geom.get("fcoil_circ", np.zeros_like(filament_r))
-    filament_weight = geom.get("fcoil_xmult", np.ones_like(filament_r))
-    pf_filaments = geometry_module.collapse_rectangular_circuits(
-        [
-            geometry_module.PFFilament(
-                r=float(filament_r[index]),
-                z=float(filament_z[index]),
-                turns=float(filament_turns[index]),
-                width=float(filament_width[index]),
-                height=float(filament_height[index]),
-                circuit=int(filament_circuit[index]),
-                xmult=float(filament_weight[index]),
-            )
-            for index in range(filament_r.size)
-        ]
-    )
-
-    limiter_r = geometry_module._finite(geom["limiterr"])
-    limiter_z = geometry_module._finite(geom["limiterz"])
-    limiter_size = min(limiter_r.size, limiter_z.size)
-    amb_channels = geometry_module.read_amb_channels(shot)
-    sensor_map, unmatched = geometry_module.map_amb_sensors(geom, amb_channels)
-    amc_channels = geometry_module.read_amc_current_channels(shot)
-    return geometry_module.GeometryTable(
-        signature=signature,
-        shots=[shot],
-        b_probes=b_probes,
-        flux_loops=flux_loops,
-        pf_filaments=pf_filaments,
-        limiter_r=limiter_r[:limiter_size].tolist(),
-        limiter_z=limiter_z[:limiter_size].tolist(),
-        sensor_map=sensor_map,
-        passive_structures=[],
-        amc_current_channels=amc_channels,
-        unmatched_amb=unmatched,
-        polygon_sections=geometry_module.mast_slanted_polygon_sections(pf_filaments),
-    )
+    return replace(read_geometry_table(shot), passive_structures=[])
 
 
 def _operator_from_table(
-    table: geometry_module.GeometryTable,
+    table: GeometryTable,
     records: list[PositionRecord],
 ) -> Any:
     mappings: list[SensorMapping] = []
@@ -643,7 +578,7 @@ def _passive_independence_receipt(
             f"parity shot {EARLY_REPRESENTATIVE} does not expose amm after fallbacks: "
             f"{'; '.join(attempts)}"
         )
-    table_with_read = geometry_module.build_table_for_shot(EARLY_REPRESENTATIVE)
+    table_with_read = read_geometry_table(EARLY_REPRESENTATIVE)
     if not table_with_read.passive_structures:
         raise RuntimeError(
             f"parity shot {EARLY_REPRESENTATIVE} carries amm but yielded no structures"

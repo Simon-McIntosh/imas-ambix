@@ -41,7 +41,26 @@ def _synthetic_table() -> gsg.GeometryTable:
         "limiterr": np.array([1.9, 1.55, 1.40]),
         "limiterz": np.array([0.4, 0.4, 0.82]),
     }
-    sig = gsg.setup_signature(geom)
+    sig = gsg.SetupSignature(
+        n_bprobe=4,
+        n_fluxloop=2,
+        n_pf_filament=4,
+        n_limiter=3,
+        digest=gsg.round_geometry_hash(
+            [
+                geom["magpr_r"],
+                geom["magpr_z"],
+                geom["magpr_ang"],
+                geom["silop_r"],
+                geom["silop_z"],
+                geom["fcoil_r"],
+                geom["fcoil_z"],
+                geom["fcoil_turns"],
+                geom["limiterr"],
+                geom["limiterz"],
+            ]
+        ),
+    )
     mr, mz, mang, mlen = (
         geom["magpr_r"],
         geom["magpr_z"],

@@ -10,17 +10,9 @@ import sys
 import numpy as np
 import zarr
 
-import imas_ambix.gs.geometry as _geom
 from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.data.paths import LEVEL1_DIR
 from imas_ambix.gs.operator import build_operator
-
-# tolerate the late-campaign amm hole (passive geometry unused here)
-_orig = _geom.read_amm_passive
-def _amm_opt(shot):
-    try: return _orig(shot)
-    except Exception: return []
-_geom.read_amm_passive = _amm_opt
 
 from scripts.vacuum_coil_response_audit import _shot_coil_only
 

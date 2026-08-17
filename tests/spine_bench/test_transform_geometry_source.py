@@ -139,19 +139,11 @@ def test_coordinate_divergence_counts_positions_and_maximum_separation() -> None
     reason="frozen-shot level-2 store is not mounted",
 )
 def test_transform_source_binds_loop_identity_and_supplies_finite_angles() -> None:
-    from imas_ambix.data.geometry_adapter import geometry_table_from_description
-    from imas_ambix.data.machine_map import load_packaged_machine_map
-    from imas_ambix.data.transform_engine import transform_machine_description
+    from imas_ambix.data.description_reader import read_geometry_table
 
     shot = int(FROZEN_SHOTSET[0].shot_id)
-    catalog = load_packaged_machine_map("mast")
-    direct = geometry_table_from_description(
-        transform_machine_description(catalog, shot, "zarr", Path(LEVEL2_DIR)),
-        catalog,
-    )
-    source = TransformGeometrySource(
-        evidence_shot=shot, store_root=Path(LEVEL2_DIR), catalog=catalog
-    )
+    direct = read_geometry_table(shot, store_root=Path(LEVEL2_DIR))
+    source = TransformGeometrySource(evidence_shot=shot, store_root=Path(LEVEL2_DIR))
 
     table = source.table_for(shot)
     campaign_angles = {
@@ -188,7 +180,7 @@ def test_transform_source_binds_loop_identity_and_supplies_finite_angles() -> No
         pytest.approx(0.8889999985694885),
     )
     provenance = source.provenance()
-    assert provenance["probe_orientation_source"] == CampaignGeometrySource.label
+    assert provenance["probe_orientation_source"] == "declared acquisition address"
     assert provenance["identity_binding"] == "unique highest waveform correlation"
     assert provenance["identity_channel_count"] == 19
     assert provenance["identity_geometry_rows_rebound"] == 19

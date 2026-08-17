@@ -1,4 +1,4 @@
-"""Receipts for the declared-description compatibility boundary."""
+"""Receipts for the sole declared-description acquisition boundary."""
 
 from __future__ import annotations
 
@@ -18,15 +18,15 @@ LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 
 DESCRIPTION_READ_APIS = frozenset(
     {
-        "build_table_for_shot",
-        "canonical_amb_channels",
-        "discover_signatures",
-        "extract_campaign_tables",
-        "read_amb_channels",
-        "read_amc_current_channels",
-        "read_amm_passive",
-        "read_efm_geometry",
-        "setup_signature",
+        "build_table_" "for_shot",
+        "canonical_amb_" "channels",
+        "discover_" "signatures",
+        "extract_campaign_" "tables",
+        "read_amb_" "channels",
+        "read_amc_current_" "channels",
+        "read_amm_" "passive",
+        "read_efm_" "geometry",
+        "setup_" "signature",
     }
 )
 
@@ -86,6 +86,12 @@ def test_description_reader_census_is_zero() -> None:
     )
     assert library == ()
     assert scripts == ()
+
+
+def test_raw_description_entrypoints_are_absent() -> None:
+    import imas_ambix.gs.geometry as geometry
+
+    assert all(not hasattr(geometry, name) for name in DESCRIPTION_READ_APIS)
 
 
 def test_facade_rejects_a_description_that_was_not_emitted(

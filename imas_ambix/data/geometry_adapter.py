@@ -1,13 +1,13 @@
-"""Adapt DD-shaped machine descriptions to the legacy geometry table seam.
+"""Adapt DD-shaped machine descriptions to the canonical geometry table.
 
 The adapter consumes only declarations already carried by a machine catalog:
 Data Dictionary paths identify geometry roles, binding identities assemble
 repeated structures, and the selected drive topology supplies circuit
 connectivity.  Source machine names never select behaviour.
 
-Some catalog declarations are intentionally incomplete for the legacy table.
+Some catalog declarations are intentionally incomplete for the table contract.
 Those omissions remain visible through ``GeometryTable.provenance_flags``;
-the adapter does not substitute device constants or inspect a legacy reader.
+the adapter does not substitute device constants or inspect another source.
 """
 
 from __future__ import annotations
@@ -837,11 +837,11 @@ def geometry_table_from_description(
     description: MachineDescription,
     catalog: MachineMapCatalog,
 ) -> GeometryTable:
-    """Convert one emitted machine description into a legacy geometry table.
+    """Convert one emitted machine description into a canonical geometry table.
 
-    Unavailable legacy-only information is represented by empty collections,
+    Unavailable non-declared information is represented by empty collections,
     ``NaN`` device radii, and explicit provenance flags.  The adapter never
-    reads source stores or legacy geometry; callers must obtain the
+    reads source stores or alternate geometry; callers must obtain the
     ``MachineDescription`` through a transform engine first.
     """
     if description.status != "emitted":
@@ -875,7 +875,7 @@ def geometry_table_from_description(
         "b_probes.angle_deg: catalog qualification records that the source "
         "does not expose poloidal probe orientation",
         *topology_notices,
-        "sensor_map: emitted geometry does not carry the legacy nearest-neighbour "
+        "sensor_map: emitted geometry does not carry the nearest-neighbour "
         "residual or probe-orientation values",
         "minor_radius: the catalog qualification records that the Data Dictionary "
         "has no fixed machine-description minor-radius leaf",

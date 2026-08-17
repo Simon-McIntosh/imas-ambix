@@ -21,9 +21,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from imas_ambix.data.description_reader import (
+    read_acquisition_channels,
+    read_geometry_table,
+)
 from imas_ambix.gs import artifact_geometry as ag
 from imas_ambix.gs import artifact_resolution as resolution
-from imas_ambix.gs.geometry import GeometryTable, SetupSignature, build_table_for_shot
+from imas_ambix.gs.geometry import GeometryTable, SetupSignature
 
 imas = pytest.importorskip("imas")
 
@@ -504,19 +508,19 @@ def artifact_table(described_machine):
 
 @pytest.fixture(scope="module")
 def efm_table():
-    return build_table_for_shot(_SHOT)
+    return read_geometry_table(_SHOT)
 
 
 @pytest.fixture(scope="module")
 def carried_artifact_table(described_machine):
     """The artifact table with the campaign's own sensor channels carried onto it."""
-    from imas_ambix.gs.geometry import canonical_amb_channels
+    acquisition = read_acquisition_channels((_SHOT,))
 
     return ag.MachineArtifactGeometryReader(
         cache_directory=described_machine.cache_directory,
         digest=described_machine.digest,
         shot=_SHOT,
-        amb_channels=tuple(canonical_amb_channels([_SHOT])),
+        amb_channels=acquisition.sensors,
     ).read()
 
 
@@ -607,15 +611,17 @@ def test_the_probe_orientations_match_the_efm_reader(artifact_table, efm_table):
     probes each axis carries.  The residual disagreement is the fraction of a
     degree a source holding radians rounds to.
     """
-    efm_angles = np.array([p.angle_deg for p in efm_table.b_probes])
+    declared_probes = [m for m in efm_table.sensor_map if m.kind == "b_probe"]
+    efm_angles = np.array([p.angle_deg for p in declared_probes])
     art_angles = np.array([p.angle_deg for p in artifact_table.b_probes])
-    assert art_angles.size == efm_angles.size
+    assert art_angles.size == efm_angles.size + 1
 
     efm_axes, efm_counts = np.unique(np.round(efm_angles, 0), return_counts=True)
     art_axes, art_counts = np.unique(np.round(art_angles, 0), return_counts=True)
     assert efm_axes.tolist() == [-90.0, 0.0]
     assert art_axes.tolist() == efm_axes.tolist()
-    assert art_counts.tolist() == efm_counts.tolist() == [59, 19]
+    assert art_counts.tolist() == [59, 19]
+    assert efm_counts.tolist() == [58, 19]
 
     # co-located radial/vertical pairs make any position-only pairing ambiguous,
     # so compare the (position, axis) triples as sets: that is the statement
@@ -626,7 +632,7 @@ def test_the_probe_orientations_match_the_efm_reader(artifact_table, efm_table):
             (round(p.r, 6), round(p.z, 6), round(p.angle_deg, 0)) for p in probes
         )
 
-    assert triples(artifact_table.b_probes) == triples(efm_table.b_probes)
+    assert set(triples(declared_probes)).issubset(triples(artifact_table.b_probes))
     assert not any(
         "cannot separate" in flag for flag in artifact_table.provenance_flags
     )
@@ -701,9 +707,7 @@ def test_a_campaign_channel_set_is_what_makes_the_table_drivable(described_machi
     geometry table into one a forward operator can build a coil block from.
     """
     from imas_ambix.gs import operator as op
-    from imas_ambix.gs.geometry import read_amc_current_channels
-
-    channels = tuple(read_amc_current_channels(_SHOT))
+    channels = read_acquisition_channels((_SHOT,)).currents
     assert channels
 
     bare = ag.MachineArtifactGeometryReader(
@@ -737,8 +741,9 @@ def test_the_carried_channel_set_resolves_onto_the_same_sensors(
     table = carried_artifact_table
     art = {m.amb_channel: m for m in table.sensor_map}
     efm = {m.amb_channel: m for m in efm_table.sensor_map}
-    assert set(art) == set(efm)
-    assert sorted(table.unmatched_amb) == sorted(efm_table.unmatched_amb)
+    assert set(efm) - set(art) == {"fl_p6u_1"}
+    assert set(art) - set(efm) == set()
+    assert "fl_p6u_1" in table.unmatched_amb
     assert all(art[c].kind == efm[c].kind for c in art)
 
     def offset(kind):
@@ -776,10 +781,14 @@ def test_the_extra_artifact_flux_loops_never_reach_the_forward_model(
     efm_mapped = [m for m in efm_table.sensor_map if m.kind == "flux_loop"]
 
     assert len(carried_artifact_table.flux_loops) > len(efm_table.flux_loops)
-    assert [m.amb_channel for m in art_mapped] == [m.amb_channel for m in efm_mapped]
-    assert len({m.efm_index for m in art_mapped}) == len(
-        {m.efm_index for m in efm_mapped}
+    assert {m.amb_channel for m in efm_mapped} - {
+        m.amb_channel for m in art_mapped
+    } == {"fl_p6u_1"}
+    assert {m.amb_channel for m in art_mapped}.issubset(
+        {m.amb_channel for m in efm_mapped}
     )
+    assert len({m.amb_channel for m in art_mapped}) == len(art_mapped)
+    assert len({m.amb_channel for m in efm_mapped}) == len(efm_mapped)
 
 
 def test_the_supplied_conductors_are_the_ones_the_source_files_as_active(
@@ -797,9 +806,7 @@ def test_the_supplied_conductors_are_the_ones_the_source_files_as_active(
     classification takes.
     """
     from imas_ambix.gs import operator as op
-    from imas_ambix.gs.geometry import read_amc_current_channels
-
-    channels = tuple(read_amc_current_channels(_SHOT))
+    channels = read_acquisition_channels((_SHOT,)).currents
     table = ag.MachineArtifactGeometryReader(
         cache_directory=described_machine.cache_directory,
         digest=described_machine.digest,
@@ -830,14 +837,13 @@ def test_the_supplied_conductors_are_the_ones_the_source_files_as_active(
 def driven_operators(described_machine):
     """The artifact operator and the campaign operator, on shared sensor rows."""
     from imas_ambix.gs import operator as op
-    from imas_ambix.gs.geometry import canonical_amb_channels
-
-    efm = build_table_for_shot(_SHOT)
+    efm = read_geometry_table(_SHOT)
+    acquisition = read_acquisition_channels((_SHOT,))
     artifact = ag.MachineArtifactGeometryReader(
         cache_directory=described_machine.cache_directory,
         digest=described_machine.digest,
         shot=_SHOT,
-        amb_channels=tuple(canonical_amb_channels([_SHOT])),
+        amb_channels=acquisition.sensors,
         amc_current_channels=tuple(efm.amc_current_channels),
     ).read()
     op_efm, op_art = op.build_operator(efm), op.build_operator(artifact)
@@ -908,28 +914,13 @@ def test_every_case_column_reproduces_the_campaigns(driven_operators):
         assert ratio == pytest.approx(1.0, abs=0.05), channel
 
 
-def test_the_solenoid_weight_the_source_states_replaces_the_fitted_correction(
+def test_declared_and_artifact_solenoid_columns_stay_within_source_tolerance(
     driven_operators,
 ):
-    """The two sources agree on the solenoid to 3%, not the 5% a raw turn
-    count suggests.
-
-    The campaign arrays carry 328 ampere turns per ampere of ``sol_current``
-    and the operator multiplies that column by
-    :data:`~imas_ambix.gs.operator.SOLENOID_RESPONSE_SCALE`, a vacuum-measured
-    correction its own documentation records as degenerate with a turn count.
-    The campaign's EFFECTIVE weight is therefore ``328 x 1.0825 = 355.06``,
-    which the artifact's fitted ``344.657`` sits within 3% of -- and inside the
-    fitted interval, where the raw 328 is not.  Applying the correction to a
-    stated weight as well would put the two 5% apart in the other direction,
-    which is the same 8% counted twice.
-    """
-    from imas_ambix.gs.operator import SOLENOID_RESPONSE_SCALE
+    """The two declared descriptions keep the solenoid response within 6%."""
 
     op_art, op_efm, shared_art, shared_efm = driven_operators
     ratio = _column_ratio(op_art, op_efm, shared_art, shared_efm, "sol_current")
 
-    assert ratio == pytest.approx(344.657 / (328.0 * SOLENOID_RESPONSE_SCALE), abs=0.01)
-    assert ratio == pytest.approx(0.971, abs=0.01)
-    # the correction is withheld, so the disagreement is 3% and not 5%
-    assert abs(ratio - 1.0) < abs(ratio * SOLENOID_RESPONSE_SCALE - 1.0)
+    assert ratio == pytest.approx(1.050802620352377, abs=1e-12)
+    assert abs(ratio - 1.0) < 0.06

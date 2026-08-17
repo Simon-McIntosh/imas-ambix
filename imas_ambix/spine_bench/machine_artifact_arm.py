@@ -155,10 +155,8 @@ class MachineArtifactGeometrySource:
             "channel_shots": [int(s) for s in shots],
             "n_driven_circuits": len(selected.table.circuit_drives),
             "campaign_addressing": {
-                "amb_channels": "canonical_amb_channels (sensor channel names)",
-                "amc_current_channels": (
-                    "read_amc_current_channels (measured coil-current channel names)"
-                ),
+                "amb_channels": "declared acquisition sensor addresses",
+                "amc_current_channels": "declared measured-current addresses",
             },
             **selected.provenance(),
         }
