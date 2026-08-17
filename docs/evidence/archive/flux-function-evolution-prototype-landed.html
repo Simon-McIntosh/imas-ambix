@@ -36,6 +36,48 @@
     <code>scripts/flux_evolution_prototype/kernel_gaps.json</code>; figures
     <code>receipt_and_basis_summary.png</code> and
     <code>representative_trajectories.png</code> sit beside the summary JSON.</p>
+
+    <h2 id="simulability">§3 simulability — the verdict splits — 2026-08-17</h2>
+    <p>Commit <code>c24d3c5</code> (node proto-simulate). The native ψ-diffusion rung was
+    driven over all 20 banked shots and 4,141 frames from each extracted initial state,
+    with <strong>one bounded resistivity profile fitted jointly across all shots and never
+    per shot or slice</strong> (converged optimum at the constant-resistivity boundary,
+    η₀ = 7.062e-8 Ω·m, cutting mean cross-shot normalised ψ loss from 0.6802 to 0.5364, a
+    21.14% reduction). Scored against two controls — persistence of the initial state, and
+    the same solve with the untuned default closure.</p>
+    <table>
+      <caption>Explained variance against the extracted trajectories, pooled over all
+      4,141 labeled frames. Higher is better; the margin is tuned transport minus
+      persistence.</caption>
+      <thead>
+        <tr><th>Channel</th><th>Tuned transport</th><th>Untuned default</th>
+            <th>Persistence</th><th>Margin vs persistence</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>FF′</td><td>−0.11956</td><td>−0.11965</td><td>−0.11891</td>
+            <td><strong>−0.00065 (loses)</strong></td></tr>
+        <tr><td>FF′, ramp (833 frames)</td><td>−0.11190</td><td>—</td><td>−0.11159</td>
+            <td>−0.00031 (loses)</td></tr>
+        <tr><td>FF′, flat-top (2,353 frames)</td><td>−0.13527</td><td>—</td><td>−0.13521</td>
+            <td>−0.00006 (loses)</td></tr>
+        <tr><td>ψ(ρ̂)</td><td>−0.29544</td><td>−0.38781</td><td>−1.92907</td>
+            <td><strong>+1.63363 (wins)</strong></td></tr>
+      </tbody>
+    </table>
+    <p><strong>Reading the split.</strong> The transition kernel carries the flux it
+    actually solves for — ψ evolution beats persistence by 1.63 in explained variance, and
+    cross-shot tuning improves it further. It does <em>not</em> carry FF′: transport and
+    persistence are indistinguishable there (margin −0.0006), in every regime. That is a
+    plan-shaping negative rather than a failure of the architecture — it says the
+    innovation update in the production smoother must do real work on the FF′ amplitudes
+    instead of riding the prior, and that those amplitudes cannot be tightly priored as
+    deviations from a transport-evolved mean.</p>
+    <p><strong>Qualification, stated so it is not over-read.</strong> Geometry was frozen
+    per shot, boundary F was calibrated from the initial q95, and ρ̂ remains the extraction
+    bank's geometric proxy — precisely the approximations FF′ is most sensitive to. The
+    FF′ negative is therefore qualified spike evidence, and its rerun on exact
+    time-varying toroidal-flux geometry is queued behind nova's TORAX geometry adapter,
+    with the TORAX cross-check non-blocking beside it.</p>
   </main>
 </body>
 </html>
