@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="statespace-hygiene-scrub-landed">
+  <meta name="plan-title" content="Statespace Hygiene Scrub — Measured Evidence">
+  <meta name="plan-summary" content="Execution record for the statespace hygiene scrub: naming-sweep receipts on the two statespace modules, the analysis-script formatting normalization, the script naming scrub, and the closing behaviour-neutrality stamp.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-recorded-at" content="2026-08-17">
+  <meta name="plan-evidence-for" content="statespace-hygiene-scrub">
+  <title>Statespace Hygiene Scrub — Measured Evidence | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>Statespace Hygiene Scrub — Measured Evidence</h1>
+  <p>Cumulative execution record for
+  <a href="/imas-ambix/plans/statespace-hygiene-scrub">Scrub Plan Labels and Lint Debt from the
+  Statespace Modules</a>. One anchor per landed node.</p>
+
+  <h2 id="statespace-naming">Statespace naming scrub — 143 flagged lines to zero unwaived</h2>
+  <p><strong>The pre-stage naming sweep over <code>imas_ambix/statespace/engine.py</code> and
+  <code>enkf_baseline.py</code> reports zero unwaived violations, with the statespace suite green
+  at 206/206.</strong> Commit <code>a69018b</code> (merged <code>9891994</code>), 177
+  insertions / 181 deletions across the two modules only.</p>
+  <ul>
+    <li>Initial sweep: 143 flagged lines; 97 removed or mechanism-renamed in one focused
+    commit.</li>
+    <li>Final sweep receipts: path labels 0→0; changelog prose 0→0; label words 27→8 (all 8
+    waived as ordinary algorithm vocabulary — step, steps, tracks, Stages); deliverable ids
+    116→38 (all 38 under named carve-outs: 26 Ruff tool codes and linter-required mathematical
+    locals, 5 L2-norm references, 7 plasma-geometry symbols R0/B0).</li>
+    <li>Anchor audit: dead numbered anchors removed; all 8 retained file anchors resolve.
+    Serialized compatibility keys, the deprecated CLI alias, schema values, and existing
+    artifact paths kept unchanged as compatibility/data carve-outs.</li>
+    <li>Behaviour check at node level: <code>pytest tests/statespace</code> 206 passed in 74 s
+    (log under run <code>r-20260817T140148444332-statespace-naming</code>).</li>
+  </ul>
+  <h2 id="script-format">Analysis-script formatting — 66-finding baseline cleared at full scope</h2>
+  <p><strong>All non-waived tracked Python scripts are formatter-clean: 140/140 pass
+  <code>ruff format --check</code> and <code>ruff check --select F,E9</code> is green.</strong>
+  Commit <code>274598f</code> (merged <code>ca552e4</code>): exactly one formatting-only commit,
+  61 files, 3306 insertions / 1312 deletions, all under <code>scripts/</code>.</p>
+  <ul>
+    <li>Ruff applied 66 safe fixes and reformatted 61 files; eight pre-existing F841 findings
+    (contradicting the recorded F/E9-green baseline) were cleared mechanically while preserving
+    evaluated expressions and plotting effects.</li>
+    <li>Waived file: <code>scripts/drain-tests/track_a_mwe01_v1_frozen.py</code> — a frozen
+    incident-reproduction artifact; verified byte-identical to HEAD and absent from the
+    commit.</li>
+    <li>Residual non-auto-fixable lint debt: 222 findings enumerated by rule (E501 74, N806 58,
+    E402 18, B023 14, N803 13, B905 12, B007 8, E741 8, N802 6, others 11) — style/naming rules
+    outside the formatting gate, logs under run
+    <code>r-20260817T140207724556-script-format</code>.</li>
+    <li>Discovered work: the pre-stage naming sweep over the changed paths found 451 raw hits
+    with confirmed plan-label and changelog-prose violations; folded into the plan as its §4
+    script-naming scrub with the four sweep logs as seed.</li>
+  </ul>
+</main>
+</body>
+</html>
