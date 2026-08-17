@@ -75,7 +75,7 @@ def _description_consumers(root: Path) -> tuple[tuple[str, ...], tuple[str, ...]
     return consumers(root / "imas_ambix"), consumers(root / "scripts")
 
 
-def test_library_description_reader_census_is_zero() -> None:
+def test_description_reader_census_is_zero() -> None:
     root = Path(__file__).resolve().parents[2]
     library, scripts = _description_consumers(root)
 
@@ -85,7 +85,7 @@ def test_library_description_reader_census_is_zero() -> None:
         f"total={len(library) + len(scripts)}"
     )
     assert library == ()
-    assert len(scripts) == 33
+    assert scripts == ()
 
 
 def test_facade_rejects_a_description_that_was_not_emitted(
