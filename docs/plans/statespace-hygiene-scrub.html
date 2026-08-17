@@ -20,9 +20,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-17">
-<meta name="plan-version" content="7">
-<meta name="plan-impl" content="0.6">
-<meta name="plan-commits" content="a69018b42040ea050890b4b64bed9724d8d5b1b4,274598fa2c5b46beafe52ff798f989048b962fa7,61002115e86ebf0d93f402f0d47247c6b79bbe01">
+<meta name="plan-version" content="9">
+<meta name="plan-impl" content="0.8">
+<meta name="plan-commits" content="a69018b42040ea050890b4b64bed9724d8d5b1b4,274598fa2c5b46beafe52ff798f989048b962fa7,61002115e86ebf0d93f402f0d47247c6b79bbe01,3d52c0c33dd8eeb373d34de82921a3d86393a890,e3349d901abcb3f0e1678bc5904f35efcb9290cd">
 <meta name="plan-artifacts" content="docs/evidence/archive/statespace-hygiene-scrub-landed.html">
 </head>
 <body>
@@ -87,24 +87,22 @@
     the statespace test suites pass; and one frozen CPU stamp holds both arms within the 0.1245%
     budget of the declared-source references at 36/36 coverage.</p>
 
-    <h2 id="s4">§4 — Script naming debt discovered by the formatting pass</h2>
-    <p>The formatting worker's mandatory pre-stage sweep over its 62 changed script files found
-    pre-existing naming debt this plan had not inventoried: 451 raw hits (1 path, 223 label
-    words, 225 deliverable ids, 2 changelog-prose), including confirmed violations — plan-section
-    references, campaign labels (TRACK A, G2a), historical fix narration, and the frozen
-    reproduction artifact <code>scripts/drain-tests/track_a_mwe01_v1_frozen.py</code>. The four
-    sweep logs live under the run record for
-    <code>r-20260817T140207724556-script-format</code>.</p>
-    <p>Scope: classify every hit either as a domain carve-out (H0/H1 hypotheses, P2–P6 coil
-    names, L1/L2 data levels, H200 hardware, colour literals, …) or as a violation renamed to
-    the mechanism it implements, in focused commits confined to <code>scripts/</code>. Frozen
-    incident-reproduction artifacts are classified conservatively — artifact paths are data, not
-    source names — and a file rename that would break references outside <code>scripts/</code>
-    is reported rather than applied.</p>
-    <p><em>Done-when:</em> the four-sweep pass over the flagged script files reports zero
-    unwaived hits, each remaining hit classified under a named carve-out recorded in the
-    evidence; <code>ruff check --select F,E9 scripts</code> stays green; every repointed anchor
-    confirmed to resolve.</p>
+    <section id="s4" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-17</span>
+        <h2>§4 — Script naming debt discovered by the formatting pass</h2>
+      </header>
+      <p class="landed-summary">
+        Scrubbed the naming debt the formatting pass surfaced: 359 raw sweep hits over 52
+        flagged scripts classified to <strong>zero unwaived</strong> under a fully named
+        carve-out ledger; changelog prose eliminated; anchors 8/8 resolve; F/E9 green over all
+        140 non-waived scripts. Drain-test path renames withheld as artifact identities (10 live
+        references in the drain-campaign record). Commits <code>3d52c0c</code> +
+        <code>e3349d9</code> (merge <code>2eabd8e</code>). Full record:
+        <a href="/imas-ambix/evidence/archive/statespace-hygiene-scrub-landed#script-naming">script
+        naming landed</a>.
+      </p>
+    </section>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -140,6 +138,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-20260817-lint" data-who="reckon-ship" data-when="2026-08-17T14:52:00+00:00">
     <div class="r-comment-body">statespace-lint landed - commit 6100211 (merge 2327e77); gate full-file-ruff PASSED; measure: 44 findings to 0 with no waivers, 2/2 formatter-clean, pytest tests/statespace 206/206; evidence: statespace-hygiene-scrub-landed#statespace-lint</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260817-scriptnaming" data-who="reckon-ship" data-when="2026-08-17T15:10:00+00:00">
+    <div class="r-comment-body">script-naming-scrub landed - commits 3d52c0c + e3349d9 (merge 2eabd8e); gate four-sweep-zero-unwaived PASSED; measure: 359 raw hits classified to 0 unwaived under named carve-outs, changelog prose 0, anchors 8/8, F/E9 green over 140 scripts, compileall pass; drain-test path renames withheld as artifact identities (10 live doc references); evidence: statespace-hygiene-scrub-landed#script-naming</div>
 </div>
 </section>
 </main>
