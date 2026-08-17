@@ -1,19 +1,19 @@
 """Prototype: 3D polyline Biot-Savart -> sensor coupling for RMP-like coils.
 
-Validates the physics premises of the nonaxisymmetric-subtraction plan:
-  P1. A finite straight-segment Biot-Savart (field B and vector potential A)
+Validates three physics premises for nonaxisymmetric subtraction:
+  - A finite straight-segment Biot-Savart (field B and vector potential A)
       is enough to model picture-frame in-vessel coils (nova RDP output =
       lines+arcs; arcs are finely polylined here).
-  P2. A FULL toroidal flux loop rejects n!=0 energised fields (flux linkage
+  - A FULL toroidal flux loop rejects n!=0 energised fields (flux linkage
       from a symmetric RMP coil set cancels), while a point B-probe sees them
       fully -> loops and probes have OPPOSITE sensitivity to the energised
       3D field.
-  P3. Magnitude: probe contamination per kA-turn of RMP current vs typical
+  - Magnitude: probe contamination per kA-turn of RMP current vs typical
       axisymmetric signal scales -> is subtraction material?
 
 Checks:
-  C1. B at centre of a square loop matches the analytic 2*sqrt(2)*mu0*I/(pi*a).
-  C2. Flux linkage via A-line-integral matches mutual inductance symmetry
+  - B at centre of a square loop matches the analytic 2*sqrt(2)*mu0*I/(pi*a).
+  - Flux linkage via A-line-integral matches mutual inductance symmetry
       (loop<->coil reciprocity) on a coaxial-circles case vs Maxwell formula.
 """
 
@@ -110,7 +110,7 @@ def circle(R, z, n=720):
 M_num = loop_flux(circle(1.0, 0.0), 1.0, circle(0.5, 0.3))
 M_ana = maxwell_M(1.0, 0.5, 0.3)
 print(
-    f"C2 coaxial-circles mutual: num={M_num:.6e}  Maxwell={M_ana:.6e}  "
+    f"coaxial-circles mutual: num={M_num:.6e}  Maxwell={M_ana:.6e}  "
     f"rel err={abs(M_num - M_ana) / abs(M_ana):.2e}"
 )
 

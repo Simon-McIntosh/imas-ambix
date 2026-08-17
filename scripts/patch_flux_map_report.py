@@ -63,7 +63,7 @@ ARTIFACTS = Path("imas_ambix/latent/artifacts/patch_gate")
 FIGURES = Path("docs/figures/patch-current-force-balance")
 L1_ROOT = Path("/work/projects/imas_gpu/mast/level1/shots")
 
-# THE P3 winner config (used verbatim, per the gate).  connectivity="locality"
+# Frozen tuned configuration used verbatim.  connectivity="locality"
 # matches patch_gate_eval's --connectivity default — an exhibit must show the
 # same regularisation the gates score, not InverseConfig's bare class default
 # (connectivity=None), which would use a different structure-residual term.

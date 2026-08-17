@@ -2,7 +2,7 @@
 MWE-06: NCCL Communicator Teardown D-State Reproducer
 ======================================================
 PURPOSE
-  Reproduces the EXACT mechanism of Event #4 (job 1209813, 2026-06-01).
+  Reproduces the rank-asymmetric collective drain mechanism.
   The drain was NOT caused by a collective deadlocking during the run — the
   original script printed "PASS" and completed all 20 rounds. The drain
   was caused by the NCCL communicator teardown (dist.destroy_process_group)
@@ -37,7 +37,7 @@ EVIDENCE (from job 1209813 stderr, 2026-06-01):
 
 RISK LEVEL
   CRITICAL — DESIGNED TO DRAIN THE NODE.
-  Plan 30 minutes for admin recovery after this test.
+  Reserve 30 minutes for admin recovery after this test.
   Recovery after drain:
     nvidia-smi -i 0,1,2,3 --gpu-reset
     scontrol update nodename=98dci4-gpu-0003 state=resume reason=""
@@ -80,7 +80,10 @@ def main() -> None:
             f"[MWE-06] job={JOB_ID}  ranks={world_size}  rounds={NROUNDS}  buffer={BUFFER_MB}MB",
             flush=True,
         )
-        print("[MWE-06] Reproducing Event #4 (job 1209813) drain mechanism", flush=True)
+        print(
+            "[MWE-06] Reproducing the rank-asymmetric collective drain mechanism",
+            flush=True,
+        )
         print(
             "[MWE-06] Each round runs count-mismatch all_reduce to corrupt NCCL ring state",
             flush=True,

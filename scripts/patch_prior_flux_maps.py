@@ -2,7 +2,7 @@
 """Prior-arm comparison exhibits: current distributions + flux surfaces.
 
 For each held-out shot this renders one rampup and one flattop slice under
-TWO inverse arms — the free (no-prior) P3-winner config and the physics-prior
+TWO inverse arms — the free (no-prior) frozen tuned configuration and the physics-prior
 arm (unidirectional softplus + free-boundary support consistency at the
 frozen tune winner) — as paired exhibits:
 
@@ -63,7 +63,7 @@ ARMS = ("free", "priors")
 
 
 def _prior_config(grid) -> InverseConfig:
-    """The frozen tune-winner prior arm on top of the P3-winner base."""
+    """The frozen tune-winner prior arm on top of the frozen tuned base."""
     return InverseConfig(
         policy=WINNER.policy,
         lambda_fb=WINNER.lambda_fb,

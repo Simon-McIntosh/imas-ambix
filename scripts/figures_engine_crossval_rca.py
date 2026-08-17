@@ -6,7 +6,7 @@ Two figures:
 * ``fig-frame-artifact-scatter.png`` — per-slice boundary residual (engine-
   frame) against the engine-vs-EFIT axis distance.  The rows come from the
   re-scored artifacts, whose ``radii_dmed_cm`` is the same engine-frame
-  quantity the pre-fix harness reported (a ``--prefix-snapshot`` directory
+  quantity the legacy single-frame harness reported (a ``--prefix-snapshot`` directory
   of the original single-frame artifacts is accepted as an alternate
   source).  A ray-fan rendered about a displaced origin projects the
   displacement into the radii at ~|cos θ| ≈ 0.7 on average, so
@@ -15,7 +15,7 @@ Two figures:
 
 * ``fig-heldout-gate-repro.png`` — the 112-shot held-out MSE gate re-run:
   the archived result against fresh runs of the current tree and of the
-  §4-era tree, engine vs persistence pitch RMSE (identical bars = the solve
+  legacy single-frame tree, engine vs persistence pitch RMSE (identical bars = the solve
   chain is unchanged; the census verdict shift is the ruler, not the engine).
 """
 
@@ -81,9 +81,11 @@ def frame_artifact_scatter(source_dir: Path) -> None:
     ax.set_xlim(0, np.percentile(a, 99))
     ax.set_ylim(0, np.percentile(m, 99))
     ax.set_xlabel("engine axis distance to EFIT axis [cm]")
-    ax.set_ylabel("engine-frame boundary residual (the pre-fix G-E2 metric) [cm]")
+    ax.set_ylabel(
+        "engine-frame boundary residual (the engine-frame boundary-residual metric) [cm]"
+    )
     ax.set_title(
-        f"the pre-fix boundary residual tracks the axis error (r = {r:.2f})\n"
+        f"the legacy boundary residual tracks the axis error (r = {r:.2f})\n"
         "— the metric measured axis placement, not boundary shape",
         fontsize=10,
     )
@@ -113,7 +115,7 @@ def _combine_quarters(paths: list[Path]) -> tuple[float, float, int] | None:
 
 def heldout_gate_repro() -> None:
     runs: list[tuple[str, object]] = [
-        ("archived §4 result", ARTIFACT_DIR / "heldout_mse_gate-v0.json"),
+        ("archived single-frame result", ARTIFACT_DIR / "heldout_mse_gate-v0.json"),
         (
             "re-run, current tree",
             [
@@ -179,7 +181,7 @@ if __name__ == "__main__":
         type=Path,
         default=ARTIFACT_DIR,
         help="directory holding the plain-arm per-class artifacts "
-        "(pass a snapshot of the pre-fix single-frame artifacts to "
+        "(pass a snapshot of the legacy single-frame artifacts to "
         "reproduce the RCA figure from the original scoring)",
     )
     args = ap.parse_args()

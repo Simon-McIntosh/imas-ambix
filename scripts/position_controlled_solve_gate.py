@@ -26,14 +26,14 @@ Three arms per slice:
 
 Gates (pre-declared):
 
-* G2a position held — |R_axis,position - R_axis,recon| <= 5 cm per-shot median
+* Position held — |R_axis,position - R_axis,recon| <= 5 cm per-shot median
   across the shot set (ramp + flat-top), from a disc seed + temporal warm-start,
   with no gross outboard drift (axis R < 1.4 m).
-* G2b seed robustness — the disc-seeded and temporally-warm-chained position
+* Seed robustness — the disc-seeded and temporally-warm-chained position
   solves converge to the same inboard solution; an OUTBOARD seed is either
   recovered inboard or correctly reported as not-confined (never silently
   shipped outboard).
-* G2c firewall — the position arm consumes only the centroid moment (+ Ip):
+* Observation firewall — the position arm consumes only the centroid moment (+ Ip):
   the magnetics mask is all-off (asserted below) and the profile stays free
   (GS + jphi >= 0, no z-pin, no EFIT); unit-tested in test_position_constraint.
 
@@ -66,7 +66,7 @@ ARTIFACT = Path("imas_ambix/latent/artifacts/patch_gate/position_controlled_solv
 FIGURES = Path("docs/figures/mse-gated-reanalysis")
 
 CONFINED_AXIS_R_MAX = 1.4  # beyond this the read is the outboard attractor
-G2A_GATE_CM = 5.0  # position vs reconstruction axis agreement
+AXIS_AGREEMENT_TOL_CM = 5.0  # position vs reconstruction axis agreement
 DEFAULT_SHOTS = (11766, 11767, 11772)
 DEFAULT_SIGMA_M = 0.02  # centroid tether 1σ [m]
 OUTBOARD_SEED_R = 1.62  # a pathological outboard seed for the basin test [m]
@@ -259,7 +259,7 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float) -> dict:
             reseed=False,
             **basin,
         )
-        # G2c firewall: assert no magnetics were consumed by the position arm
+        # Observation firewall: assert no magnetics were consumed by the position arm
         assert not off.any(), "position arm must run with the magnetics mask OFF"
         if f_pos.scored and f_pos.jphi_flat is not None and _confined(_axis(f_pos)[0]):
             warm_pos = f_pos.jphi_flat
@@ -269,7 +269,7 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float) -> dict:
             grid, table, p, spine, mask=off, warm=None, reseed=False, **basin
         )
 
-        # G2b: an outboard-seeded position solve (basin probe) — same centroid
+        # Outboard-seed basin: an outboard-seeded position solve (basin probe) — same centroid
         f_out = _solve(
             grid,
             table,
@@ -348,7 +348,7 @@ def run_shot(shot: int, *, nr: int, nz: int, sigma: float) -> dict:
 
 
 def evaluate_gates(shots: list[dict]) -> dict:
-    """G2a/G2b verdicts across the shot set (G2c is asserted in code + tests)."""
+    """Axis-agreement and seed-robustness verdicts across the shot set."""
     per_shot = {}
     all_d = []
     for sh in shots:
@@ -363,23 +363,25 @@ def evaluate_gates(shots: list[dict]) -> dict:
 
     n_pos_conf = sum(s["position"]["confined"] for sh in shots for s in sh["slices"])
     n_slices = sum(len(sh["slices"]) for sh in shots)
-    # G2b: outboard-seed basin — recovered inboard (confined) OR flagged (not).
+    # Outboard-seed basin — recovered inboard (confined) or flagged as unconfined.
     # The pass condition is that NO outboard-seeded solve is silently shipped
     # outboard AS a confined read — i.e. confinement is reported honestly.
     n_out_recovered = sum(
         s["outboard_seed"]["confined"] for sh in shots for s in sh["slices"]
     )
-    # per-shot medians all within the gate → G2a pass
+    # per-shot medians all within the gate → axis-agreement pass
     shot_medians = [
         v["median_axis_cm"]
         for v in per_shot.values()
         if np.isfinite(v["median_axis_cm"])
     ]
-    g2a = bool(shot_medians) and all(m <= G2A_GATE_CM for m in shot_medians)
+    axis_agreement_passes = bool(shot_medians) and all(
+        m <= AXIS_AGREEMENT_TOL_CM for m in shot_medians
+    )
 
     return {
         "G2a_rule": (
-            f"position vs reconstruction axis |ΔR| <= {G2A_GATE_CM:.0f} cm "
+            f"position vs reconstruction axis |ΔR| <= {AXIS_AGREEMENT_TOL_CM:.0f} cm "
             "per-shot median across the shot set (ramp + flat-top)"
         ),
         "G2a_per_shot": per_shot,
@@ -387,7 +389,7 @@ def evaluate_gates(shots: list[dict]) -> dict:
         "G2a_pooled_p90_cm": (
             float(np.percentile(all_d, 90)) if all_d else float("nan")
         ),
-        "G2a_passes": g2a,
+        "G2a_passes": axis_agreement_passes,
         "position_confined_fraction": (
             n_pos_conf / n_slices if n_slices else float("nan")
         ),
@@ -622,7 +624,7 @@ def make_figures(shots: list[dict]) -> None:
     fig.savefig(FIGURES / "fig-position-held-vs-free.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
 
-    # Fig 2: position vs reconstruction axis agreement (the G2a metric)
+    # Fig 2: position vs reconstruction axis agreement (the axis-agreement metric)
     fig, ax = plt.subplots(figsize=(7.0, 4.4))
     for sh in shots:
         m = marker.get(str(sh["shot"]), "o")
@@ -635,11 +637,11 @@ def make_figures(shots: list[dict]) -> None:
             label=str(sh["shot"]),
         )
     ax.axhline(
-        G2A_GATE_CM,
+        AXIS_AGREEMENT_TOL_CM,
         color="#cc6677",
         ls="--",
         lw=1.2,
-        label=f"G2a gate ({G2A_GATE_CM:.0f} cm)",
+        label=f"axis agreement ({AXIS_AGREEMENT_TOL_CM:.0f} cm)",
     )
     ax.set_xlabel("Ip [kA]")
     ax.set_ylabel("|R_axis,position − R_axis,recon| [cm]")

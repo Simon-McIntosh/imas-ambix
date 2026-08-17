@@ -1,5 +1,5 @@
 # ============================================================
-# TRACK A BISECT-03: Full mismatch preserved, buffer reduced 256 MB → 1 MB
+# Reduced-buffer mismatch: Full mismatch preserved, buffer reduced 256 MB → 1 MB
 # ============================================================
 # Base:  track_a_mwe01_v1_frozen.py (verbatim b3a71b6)
 # Change: BUFFER_MB default overridden to 1 (from 256). Everything else

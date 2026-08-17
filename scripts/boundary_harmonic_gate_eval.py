@@ -13,7 +13,7 @@ the harmonic fit; scoring, baseline, shot list, and slice selection are shared
 with the free-current gate (``scripts/patch_gate_eval.py``) so the numbers are
 directly comparable and the boundary representation is the only varying factor.
 
-HYBRID read (the plan's design; the review note is binding): the harmonic fit
+HYBRID read (the harmonic fit supplies the exterior field and the disc read supplies the interior): the harmonic fit
 gives the PLASMA flux only, and the TOTAL flux read for topology adds the KNOWN
 coil field from the harness's thick-cylinder ``hybrid_greens`` coil column
 (``PatchBasis`` / ``EquilibriumGrid``) -- NEVER a point-filament coil term.  The
@@ -481,7 +481,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="ray-cast origin + pole reference per slice: 'centroid' (default, "
         "SCORED) = the magnetically-constrained Ip-anchored current centroid "
         "(robust across ramp-up/flat-top, machine-agnostic, no interior carrier); "
-        "'patch' = the free-current P3 inverse O-point (ablation; mislocates the "
+        "'patch' = the tuned free-current inverse O-point (ablation; mislocates the "
         "axis ~30 cm at ramp-up); 'harmonic' = the harmonic field O-point (ablation)",
     )
     ap.add_argument(
