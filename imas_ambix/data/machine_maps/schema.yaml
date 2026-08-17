@@ -225,6 +225,10 @@ slots:
     range: float
     minimum_value: 0
     required: true
+  current_weight:
+    range: float
+    minimum_value: 0
+    required: true
   direction:
     range: integer
     minimum_value: -1
@@ -406,8 +410,9 @@ classes:
     description: >-
       Declares the sparse non-zero form of a circuit connections matrix: which
       named supply drives each named conductor element, in which direction,
-      and with which positive turn magnitude. Measured channels and passive
-      loop groups remain declarative without embedding a machine-specific rule.
+      with which positive turn magnitude, and with what share of the measured
+      supply current. Measured channels and passive loop groups remain
+      declarative without embedding a machine-specific rule.
     slots:
       - name
       - source_location
@@ -426,14 +431,15 @@ classes:
   CircuitConnection:
     description: >-
       One non-zero supply-to-element connectivity entry in a named circuit.
-      Turn magnitude is strictly positive; current direction is carried only
-      by direction.
+      Turn magnitude and the share of supply current carried by the element
+      are separately positive; current direction is carried only by direction.
     slots:
       - circuit_identifier
       - supply_identifier
       - element_identifier
       - geometry_element_identifier
       - turns
+      - current_weight
       - direction
   CircuitCurrentJoin:
     description: >-

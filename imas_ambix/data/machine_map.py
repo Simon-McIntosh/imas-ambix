@@ -457,13 +457,14 @@ class CircuitCurrentJoin:
 
 @dataclass(frozen=True)
 class CircuitConnection:
-    """One sparse supply-to-element connection in a named circuit."""
+    """One sparse supply-to-element connection with an explicit current share."""
 
     circuit_identifier: str
     supply_identifier: str
     element_identifier: str
     geometry_element_identifier: str
     turns: float
+    current_weight: float
     direction: int
 
     @classmethod
@@ -474,6 +475,7 @@ class CircuitConnection:
             "element_identifier",
             "geometry_element_identifier",
             "turns",
+            "current_weight",
             "direction",
         }
         _exact_keys(payload, required, set(), label)
@@ -495,6 +497,9 @@ class CircuitConnection:
                 f"{label}.geometry_element_identifier",
             ),
             turns=_positive_number(payload["turns"], f"{label}.turns"),
+            current_weight=_positive_number(
+                payload["current_weight"], f"{label}.current_weight"
+            ),
             direction=direction,
         )
 

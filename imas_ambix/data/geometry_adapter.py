@@ -615,7 +615,7 @@ def _pf_filaments(
                 width=conductor.width,
                 height=conductor.height,
                 circuit=circuit_index[connection.circuit_identifier],
-                xmult=float(connection.direction),
+                xmult=float(connection.current_weight * connection.direction),
             )
         )
         raw_groups.append(conductor.source_group)
@@ -654,7 +654,7 @@ def _materialise_circuit_drives(
     }
     ampere_turns_by_circuit = {
         circuit_index[identifier]: sum(
-            item.turns * item.direction
+            item.turns * item.current_weight * item.direction
             for item in topology.connections
             if item.circuit_identifier == identifier
         )

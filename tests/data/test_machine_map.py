@@ -1275,7 +1275,8 @@ def test_case_current_joins_materialize_the_operator_block_split():
             assert drive.channel == join.current_channel
             assert drive.conductor == join.conductor_identifier
             assert drive.ampere_turns_per_ampere == sum(
-                item.turns * item.direction for item in connections
+                item.turns * item.current_weight * item.direction
+                for item in connections
             )
             circuit_class = classes_by_circuit[circuit]
             if (
@@ -1307,7 +1308,7 @@ def test_case_current_joins_materialize_the_operator_block_split():
         )
 
 
-def test_turn_magnitudes_are_positive_and_direction_is_connectivity_only():
+def test_turn_and_current_weight_magnitudes_are_positive():
     for machine in ("mast", "diii-d"):
         catalog = load_packaged_machine_map(machine)
         for bindings in catalog.binding_sets.values():
@@ -1329,6 +1330,10 @@ def test_turn_magnitudes_are_positive_and_direction_is_connectivity_only():
             assert topology.turns_path == "pf_active/coil/element/turns_with_sign"
             assert topology.connections_path == "pf_active/circuit/connections"
             assert all(connection.turns > 0 for connection in topology.connections)
+            assert all(
+                connection.current_weight > 0
+                for connection in topology.connections
+            )
             assert {connection.direction for connection in topology.connections} <= {
                 -1,
                 1,
@@ -1380,6 +1385,10 @@ def test_sparse_connectivity_reconstructs_every_legacy_signed_drive_element():
         expected_supplies = tuple(
             f"fcoil-supply-{int(item['circuit']):03d}" for item in filaments
         )
+        legacy_turns = np.asarray([float(item["turns"]) for item in filaments])
+        legacy_current_weight = np.asarray(
+            [abs(float(item["xmult"])) for item in filaments]
+        )
         legacy_signed_drive = np.asarray(
             [float(item["turns"]) * float(item["xmult"]) for item in filaments]
         )
@@ -1394,6 +1403,9 @@ def test_sparse_connectivity_reconstructs_every_legacy_signed_drive_element():
         )
         positive_turns = np.asarray(
             [connection.turns for connection in topology.connections]
+        )
+        positive_current_weight = np.asarray(
+            [connection.current_weight for connection in topology.connections]
         )
 
         unique_circuits = tuple(dict.fromkeys(circuit_identifiers))
@@ -1413,11 +1425,13 @@ def test_sparse_connectivity_reconstructs_every_legacy_signed_drive_element():
             [circuit_rows[identifier] for identifier in circuit_identifiers],
             np.arange(len(topology.connections)),
         ]
-        reconstructed = positive_turns * selected_direction
+        reconstructed = positive_turns * positive_current_weight * selected_direction
         assert circuit_identifiers == expected_circuits
         assert supply_identifiers == expected_supplies
         assert element_identifiers == expected_elements
         assert np.count_nonzero(connectivity, axis=0).tolist() == [1] * len(filaments)
+        assert np.array_equal(positive_turns, legacy_turns)
+        assert np.array_equal(positive_current_weight, legacy_current_weight)
         assert np.array_equal(reconstructed, legacy_signed_drive)
         total_elements += len(filaments)
         negative_count = np.count_nonzero(reconstructed < 0)
@@ -1543,9 +1557,13 @@ def test_loader_rejects_an_undeclared_conditional_slot(tmp_path):
 
 @pytest.mark.parametrize(
     ("field", "value", "message"),
-    (("turns", -1.0, "number > 0"), ("direction", 0, "must be -1 or 1")),
+    (
+        ("turns", -1.0, "number > 0"),
+        ("current_weight", 0.0, "number > 0"),
+        ("direction", 0, "must be -1 or 1"),
+    ),
 )
-def test_loader_rejects_nonpositive_turns_and_unsigned_connections(
+def test_loader_rejects_nonpositive_magnitudes_and_unsigned_connections(
     tmp_path, field, value, message
 ):
     source = json.loads((LINKML_SCHEMA_PATH.parent / "mast.json").read_text())

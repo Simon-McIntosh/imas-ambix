@@ -71,10 +71,10 @@ _NONMATCHING_FIELDS = {
     ),
     "pf_filaments": _ExpectedDivergence(
         "differing",
-        "representation-divergence",
-        "all 1004 topology rows join and collapse to 299 rectangles, but the DD "
-        "topology declares positive combined turn magnitude plus direction while "
-        "the legacy table retains turns and current weight as separate values",
+        "source-divergence",
+        "all topology rows preserve separate legacy turns and current weights, "
+        "but their declared geometry identities resolve to DD active and passive "
+        "conductor rectangles rather than legacy fcoil rectangles",
     ),
     "sensor_map": _ExpectedDivergence(
         "differing",

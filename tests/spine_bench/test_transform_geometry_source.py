@@ -138,7 +138,7 @@ def test_coordinate_divergence_counts_positions_and_maximum_separation() -> None
     not (LEVEL2_DIR / f"{FROZEN_SHOTSET[0].shot_id}.zarr").is_dir(),
     reason="frozen-shot level-2 store is not mounted",
 )
-def test_transform_source_keeps_level2_positions_and_supplies_finite_angles() -> None:
+def test_transform_source_binds_loop_identity_and_supplies_finite_angles() -> None:
     from imas_ambix.data.geometry_adapter import geometry_table_from_description
     from imas_ambix.data.machine_map import load_packaged_machine_map
     from imas_ambix.data.transform_engine import transform_machine_description
@@ -175,6 +175,21 @@ def test_transform_source_keeps_level2_positions_and_supplies_finite_angles() ->
         or mapping.angle_deg == campaign_angles[mapping.amb_channel]
         for mapping in table.sensor_map
     )
+    loop_mappings = {
+        mapping.amb_channel: mapping
+        for mapping in table.sensor_map
+        if mapping.kind == "flux_loop"
+    }
+    assert len(loop_mappings) == 19
+    assert len({mapping.efm_index for mapping in loop_mappings.values()}) == 19
+    assert loop_mappings["fl_p6u_1"].efm_index == 26
+    assert (loop_mappings["fl_p6u_1"].r, loop_mappings["fl_p6u_1"].z) == (
+        pytest.approx(1.402500033378601),
+        pytest.approx(0.8889999985694885),
+    )
     provenance = source.provenance()
     assert provenance["probe_orientation_source"] == CampaignGeometrySource.label
+    assert provenance["identity_binding"] == "unique highest waveform correlation"
+    assert provenance["identity_channel_count"] == 19
+    assert provenance["identity_geometry_rows_rebound"] == 19
     assert provenance["coordinate_divergence"]["reference_shot"] == shot
