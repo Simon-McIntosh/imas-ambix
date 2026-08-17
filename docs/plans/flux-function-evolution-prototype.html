@@ -4,23 +4,27 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="flux-function-evolution-prototype">
-  <meta name="plan-title"     content="Flux-Function Evolution Prototype">
-  <meta name="plan-summary"   content="Fast spike: extract p′/FF′ trajectories from a small challenge-train subset, measure how much of their evolution the transport forward explains, and close one Kalman-structured GS+transport+Thomson loop on a single shot — de-risking the entry's low-dimensional state thesis before the production smoother exists">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="flux-function-evolution-prototype">
+  <meta name="plan-title" content="Flux-Function Evolution Prototype">
+  <meta name="plan-summary" content="Fast spike: extract p′/FF′ trajectories from a small challenge-train subset, measure how much of their evolution the transport forward explains, and close one Kalman-structured GS+transport+Thomson loop on a single shot — de-risking the entry&#x27;s low-dimensional state thesis before the production smoother exists">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="6.0">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="orchestrator">
   <meta name="plan-capability-reasoning" content="deep">
   <meta name="plan-capability-verification" content="strict">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-sprint"    content="S17">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-sprint" content="S17">
+  <meta name="plan-owner" content="Simon McIntosh">
   <title>Flux-Function Evolution Prototype | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-08-17">
+<meta name="plan-commits" content="6e2b5d9">
+<meta name="plan-impl" content="0.33">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -183,46 +187,41 @@
     here.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <p>Recommendation: <strong>regime-spanning</strong> — the simulability question is
-      only interesting if the answer covers the ramp the entry must traverse, and twenty
-      shots is cheap either way.</p>
-      <div class="r-dec" data-key="subset-composition" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">What does the ~20-shot prototype subset span?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="regime-spanning">regime-spanning</button>
-          <button class="r-opt" data-value="flat-top-only">flat-top-only</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <p>Recommendation: <strong>svd-reduced-correction</strong> — reuse the proven
-      sequential-DA reduced-observable machinery with the observation operator swapped,
-      so the demo measures the Thomson operator rather than a new filter implementation;
-      promote to an iterated ensemble form only if the innovation statistics demand it.</p>
-      <div class="r-dec" data-key="smoother-form" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">What filter form does the §4 one-shot demo use?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="svd-reduced-correction">svd-reduced-correction</button>
-          <button class="r-opt" data-value="iterated-enks-window">iterated-enks-window</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="subset-composition" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">What does the ~20-shot prototype subset span?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="regime-spanning">regime-spanning</button>
+      <button class="r-opt" data-value="flat-top-only">flat-top-only</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="smoother-form" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">What filter form does the §4 one-shot demo use?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="svd-reduced-correction">svd-reduced-correction</button>
+      <button class="r-opt" data-value="iterated-enks-window">iterated-enks-window</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-ffep-001" data-status="open"
-               data-capability-version="1.0" data-capability-class="general"
-               data-capability-verification="strict"
-               data-written-by="reckon-create" data-written-at="2026-08-17">
-        <h4 class="r-fu-title">Pull the subset and extract flux-function trajectories (§2)</h4>
-        <div class="r-fu-body"><p>First executable rung, runnable immediately: challenge
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-ffep-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-17" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Pull the subset and extract flux-function trajectories (§2)</h4>
+    <div class="r-fu-body"><p>First executable rung, runnable immediately: challenge
         site verified reachable from the SDCC login network 2026-08-17. §3 follows on the
         banked trajectories; §4 follows on §3's geometry records. The two decisions carry
         recommendations and default to them if unlocked at dispatch.</p></div>
-        <pre class="r-fu-prompt">/reckon-ship flux-function-evolution-prototype §2</pre>
-      </article>
-    </section>
-  </main>
+    <pre class="r-fu-prompt">/reckon-ship flux-function-evolution-prototype §2</pre>
+    </article>
+</section>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s2" data-id="c-20260817-proto-extract" data-who="reckon-ship" data-when="2026-08-17T15:04:00+00:00">
+    <div class="r-comment-body">proto-extract landed: commit 6e2b5d9 (worktree, integration pending); gate trajectory-bank PASSED above floor. 20 regime-spanning shots (15 long flat-top, 12 substantial ramp) with every labeled frame banked: 4,141 frames of p-prime/FF-prime/j-phi/psi-on-rho-hat trajectories plus Nova FSA records under /work/projects/imas_gpu/sophelio/prototype-subset/. Vacuum receipts pass 4,068/4,141 (98.24 percent, majority-pass on all 20 shots) with the 73 failures early-ramp concentrated. HEADLINE for the low-dimensional thesis: three pooled components capture 99.76 percent of p-prime, 99.85 percent of FF-prime and 100.00 percent of psi variance, with median frame-to-frame variation 9.54/6.49/1.23 percent respectively, and median within-surface separation explaining 93.10 percent of Delta-star source variation. Nova traced_flux_surface_bins was well posed on 100 percent of frames. Caveats banked: challenge maps are flux per radian (converted to total before Nova convention) and the banked rho-hat is a geometric proxy since labels omit boundary toroidal-field calibration. Kernel gaps reported to nova in kernel_gaps.json; the free-boundary re-solve receipt moves to a separately scoped node.</div>
+</div>
+</section>
+</main>
 </body>
 </html>

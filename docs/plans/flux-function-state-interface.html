@@ -24,8 +24,10 @@
   <title>Flux-Function State Interface | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-11">
-<meta name="plan-version" content="7">
+<meta name="plan-modified" content="2026-08-17">
+<meta name="plan-version" content="8">
+<meta name="plan-commits" content="226e431">
+<meta name="plan-impl" content="0.5">
 </head>
 <body>
   <main class="plan-doc">
@@ -167,6 +169,11 @@ Done-when
   3. Followup written into the plan + this followup marked resolved</pre>
     </article>
 </section>
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s2" data-id="c-20260817-state-contract" data-who="reckon-ship" data-when="2026-08-17T15:02:00+00:00">
+    <div class="r-comment-body">state-contract landed: commit 226e431 (worktree, integration pending); gate contract-fixtures PASSED 9/9. imas_ambix/fluxstate/contract.py delivers the immutable typed FluxFunctionState as a 17-leaf NumPy/JAX array tree with lossless JSON-compatible round trip: normalized-poloidal-flux coordinate with total-flux Jacobian, pressure and F-family derivatives with COCOS 17 plus three sign declarations, two independent topology-keyed domain policies, weighted-ensemble identity (three members preserved), and the integral-constraint policy with the Ip/beta_p/li target-achieved-residual ledger. Causality is typed: ForecastHandoff and AnalysisHandoff are accepted by require_online_handoff while FixedLagSmoothing and FullSequenceSmoothing are rejected as separate runtime types (2 rejection tests), and corrupted-derivative fixtures fail loudly with index, declared value, numerical value, error and allowance (2 tests). Remaining for this plan: producer adapters (section 3) and the pinned-Nova consumer boundary fixtures (section 4).</div>
+</div>
+</section>
+</main>
 </body>
 </html>
