@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="sophelio-entry-master">
+  <meta name="plan-title"     content="Sophelio Entry — Master Plan">
+  <meta name="plan-summary"   content="The single evergreen coordination point for the October challenge entry across nova and imas-ambix: mission, architecture, execution order, gate ledger and sequencing decisions — every constituent plan hangs off this one through hard dependencies, so the roadmap tool composes live entry status here">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort-hours" content="2.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-context" content="extended">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S21">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-depends-on" content="nova:diiid-forward-onboarding,nova:flux-function-forward-transport,magnetics-free-equilibrium-recovery">
+  <title>Sophelio Entry — Master Plan | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Mission, clock, and how to read this plan</h2>
+    <p>Predict the EFIT poloidal-flux map ψ(R,Z) on a 65×65 grid, plus q95 and β_N, at every
+    labeled timeslice of held-out shots — from <strong>actuators and Thomson scattering
+    alone</strong>, no magnetic diagnostics on either machine — with zero-shot transfer to
+    MAST. Scored <code>S = 0.55·R²_ψ + 0.15·R²_(q95,βN) + 0.10·(1−D_LCFS) +
+    0.20·Consistency</code>; transfer as <code>G = S(MAST)/S(DIII-D)</code>. Development
+    closes <strong>2026-10-18</strong> (public leaderboard, 5 submissions/day, 100 total);
+    blind final <strong>2026-10-19 to 26</strong> with exactly three submissions. The
+    objective is not the prize: the entry is the only funded, adversarially-scored
+    cross-machine rehearsal of the nova–ambix seam available before ITER operations.</p>
+    <p><strong>This plan is the roadmap's persisted state.</strong> The three hard
+    dependencies above are the executable spine — two nova plans and the ambix entry plan —
+    so <code>roadmap(project)</code> composes live entry status through this node, and this
+    page carries what the graph cannot: the execution order, the gate ledger, and the
+    sequencing decisions. Grounded facts live in
+    <a href="/imas-ambix/research/sophelio-fusion-equilibrium-challenge.html">the challenge research doc</a>;
+    the estimation-architecture argument in
+    <a href="/imas-ambix/research/forward-only-posterior-architecture.html">the forward-only posterior doc</a>.</p>
+    <figure>
+      <img src="/imas-ambix/figures/magnetics-free-entry/implementation-path.svg"
+           alt="Two-lane implementation path: nova forwards feeding ambix inference, with decision gates and the October deadline"
+           style="max-width:100%;height:auto">
+      <figcaption>The two-lane path: nova forwards feed ambix inference, with the entry kill
+      gates on the nova side and the flat-top floor bar marking the minimum submittable
+      entry. The vacuum gate has since been re-scoped to the quiescent-window measure
+      (§3 item 1).</figcaption>
+    </figure>
+
+    <h2 id="s2">§2 — Architecture, and why transfer is sequenced last</h2>
+    <p>The entry is a low-dimensional filtering problem wearing a high-dimensional costume.
+    Grad–Shafranov has exactly two free functions, p′(ψ) and FF′(ψ), and the conductor
+    currents and geometry ship with the data — so the 4,225-number map is a deterministic
+    function of a state of order ten numbers, measured at
+    <strong>99.8% of flux-function variance in three pooled components</strong> over 4,141
+    extracted frames. Transport is the transition kernel, the free-boundary GS solve maps
+    state to observables, and the Thomson chord model is the observation operator: a
+    Kalman-filter structure with exact nonlinear forwards. The prototype campaign
+    established the crux: <strong>the free-boundary solve is part of the observation
+    operator</strong> — force balance against the known coil currents is the only path
+    through which FF′ (which sets q95 and ℓ_i) is observable, so it runs inside the
+    assimilation loop, never downstream of it
+    (<a href="/imas-ambix/evidence/archive/flux-function-evolution-prototype-landed.html#joined-loop">evidence</a>).</p>
+    <p><strong>Zero-shot transfer is a property the architecture is built to have, not a
+    metric to chase from the outset.</strong> Machine identity enters only through the
+    shipped description and the deterministic forwards; every learned component is
+    dimensionless or geometry-conditioned by construction; nothing MAST-specific is fitted
+    anywhere. Transfer is therefore exercised once, at the sealed rehearsal, when the
+    DIII-D architecture stands — locked below as
+    <code>transfer-assessment-timing</code>.</p>
+
+    <h2 id="s3">§3 — Execution order</h2>
+    <p>Ranked by dependency and leverage; the numbering is the intended sequence, with 1–4
+    runnable now and in flight. Each item names its owning plan — the plan owns the detail,
+    this list owns the order.</p>
+    <ol>
+      <li><strong>Quiescent-window vacuum gate</strong> —
+        <a href="/nova/plans/diiid-forward-onboarding.html">nova:diiid-forward-onboarding</a> §2,
+        re-opened 2026-08-17 under the locked <code>vacuum-gate-measure</code> decision.
+        Census the corpus for labeled frames where every coil |dI/dt| is below a declared
+        threshold; there, exterior ψ against shipped-coil Green functions plus the
+        label-extracted plasma term isolates geometry from transients. The excluded
+        transient windows are banked as the passive-model fitting corpus (item 6). The
+        prior gate attempt failed against an inapplicable fitted bar and exonerated our
+        kernels
+        (<a href="/nova/research/diiid-vacuum-gate-diagnosis.html">diagnosis</a>).</li>
+      <li><strong>Label re-solve kill gate</strong> — nova:diiid-forward-onboarding §5.
+        Extracted flux functions must re-solve to the labeled map at the grid-resolution
+        floor on real train labels: if the labels are not self-consistent under our own GS
+        operator, the entry's training signal is broken. Extraction kernels landed at
+        2.0e-8 round-trip on synthetic fixtures; the challenge-label re-solve is the
+        untested half.</li>
+      <li><strong>Free-boundary observability of FF′</strong> —
+        <a href="/imas-ambix/plans/magnetics-free-equilibrium-recovery.html">magnetics-free-equilibrium-recovery</a> §5
+        prototype rung. The banked loop update carried 26.9% of joint gain and −0.12% of
+        FF′; the Shafranov-shift observation (landed, training-free) and the in-loop
+        free-boundary solve are the two candidate FF′ carriers, tested in that order.</li>
+      <li><strong>Time-varying-geometry simulability rerun</strong> —
+        <a href="/nova/plans/flux-function-forward-transport.html">nova:flux-function-forward-transport</a> §3.
+        The FF′-prior negative was measured under frozen geometry, a q95-calibrated
+        boundary F and a proxy radial coordinate — the three approximations FF′ is most
+        sensitive to. The TORAX geometry adapter landed 2026-08-17, so the rerun settles
+        physics versus artifact.</li>
+      <li><strong>Windowed smoother to the flat-top floor bar</strong> — entry plan §5.
+        The minimum submittable entry: held-out flat-top R²_ψ against a bar pre-registered
+        from our own parity spread, then the first leaderboard submission. A missed bar
+        redirects schedule to diagnosis, not to later phases.</li>
+      <li><strong>Passive and vessel circuit forwards</strong> — nova:diiid-forward-onboarding §4.
+        The entry's highest-risk physics: with no solver-side vertical pin, the passive
+        model sets the field decay index during every transient. Item 1's transient-window
+        residual corpus is its fitting data.</li>
+      <li><strong>Learned closures in the differentiable solver</strong> —
+        <a href="/imas-ambix/learned-closure-current-diffusion-v0.html">learned-closure-current-diffusion-v0</a>.
+        Bounded dimensionless corrections trained MSE-free through the adjoint; the
+        simulability split handed this lane an explicit measured deficiency (FF′) rather
+        than a general hope.</li>
+      <li><strong>Limited-phase ramp traversal</strong> — entry plan §6. Limited frames are
+        deleted corpus-wide while actuators run continuously, so carrying state through
+        unlabeled gaps is a scoring advantage only a transition kernel has — and the ITER
+        first-plasma rehearsal's opening move.</li>
+      <li><strong>Quarantined referee-emission layer</strong> — entry plan §8. Deterministic
+        convention projection on both machines; the DIII-D-gated learned residual is
+        switched off for every MAST prediction, with an automated check proving it.</li>
+      <li><strong>MAST readiness, sealed rehearsal, submissions</strong> — entry plan §9.
+        The MAST machine description enters from the in-house validated registry (never
+        FAIR-MAST training data, never MAST EFIT); one sealed zero-shot pass against
+        nova's own MAST reconstructions; three blind-final submissions and the methods
+        report with full disclosure. This is where transfer is exercised — see the locked
+        decision.</li>
+    </ol>
+
+    <h2 id="s4">§4 — Gate ledger</h2>
+    <div style="overflow-x:auto">
+    <table>
+      <thead><tr><th>Gate</th><th>Owner</th><th>State 2026-08-17</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td>Vacuum geometry (quiescent-window)</td><td>nova §2</td>
+            <td>re-opened; measurement in flight</td>
+            <td>Kill gate 1: shipped geometry and kernels reproduce the exterior field
+            free of transients. Prior fitted-bar attempt ruled inapplicable; kernels
+            exonerated by sweep (ECOILA interval moves R² 0.017 vs a 0.428 shortfall;
+            shipped skew scores best).</td></tr>
+        <tr><td>Label re-solve at grid floor</td><td>nova §5</td>
+            <td>pending; measurement in flight</td>
+            <td>Kill gate 2: labels self-consistent under our GS operator — the entry's
+            training-signal premise.</td></tr>
+        <tr><td>Flat-top floor bar</td><td>entry §5</td>
+            <td>pending; bar source recommendation is own-spread</td>
+            <td>Minimum submittable entry; first leaderboard submission hangs on it.</td></tr>
+        <tr><td>Sealed zero-shot rehearsal</td><td>entry §9</td>
+            <td>sequenced last by locked decision</td>
+            <td>One frozen pass against nova's own MAST reconstructions; any seal break is
+            reported, never silently absorbed.</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h2 id="s5">§5 — Standing state (updated as constituents land)</h2>
+    <ul>
+      <li><strong>Corpus</strong>: all 9,121 files verified on disk (7,041 train / 874
+      public test / 1,206 MAST, 103.9 GB); loaders and schema tests green; corpus-card
+      facts confirmed
+      (<a href="/imas-ambix/evidence/archive/magnetics-free-equilibrium-recovery-landed.html#corpus-ingest">evidence</a>).</li>
+      <li><strong>Low-dimensional state thesis</strong>: measured, twice — 99.76/99.85/100.00%
+      of p′/FF′/ψ variance in three components; 95% rank of the q proxy and current
+      profile is one
+      (<a href="/imas-ambix/evidence/archive/flux-function-evolution-prototype-landed.html#trajectory-bank">evidence</a>).</li>
+      <li><strong>Simulability split</strong>: transport carries ψ (+1.63 EV over
+      persistence) and not FF′ (−0.0006), under frozen-geometry qualification
+      (<a href="/imas-ambix/evidence/archive/flux-function-evolution-prototype-landed.html#simulability">evidence</a>).</li>
+      <li><strong>Joined loop</strong>: closes with 8/11 white innovation channels; update
+      carries 26.9% of joint gain, none of FF′
+      (<a href="/imas-ambix/evidence/archive/flux-function-evolution-prototype-landed.html#joined-loop">evidence</a>).</li>
+      <li><strong>Seam</strong>: FluxFunctionState shipped end to end — ledger closing at
+      rtol 1e-12 through the pinned nova solve, causality typed, smoothing rejected online
+      (<a href="/imas-ambix/evidence/archive/flux-function-state-interface-landed.html#consumer-contract">evidence</a>).</li>
+      <li><strong>Transport environment</strong>: TORAX 1.4.3 co-resolved; geometry adapter
+      landed with one TORAX step matching its own reader route
+      (<a href="/nova/evidence/archive/flux-function-forward-transport-landed.html#geometry-adapter">evidence</a>).</li>
+      <li><strong>Thomson measurement models</strong>: detector held-out coverage 0.622 in
+      its pre-registered band; training-free Shafranov-shift operator verified on 116
+      banked receipts
+      (<a href="/imas-ambix/evidence/archive/magnetics-free-equilibrium-recovery-landed.html#thomson-models">evidence</a>).</li>
+      <li><strong>Label pedigree</strong>: inconclusive by measurement; interior-trust
+      policy locked to edge-weighted
+      (<a href="/imas-ambix/evidence/archive/magnetics-free-equilibrium-recovery-landed.html#pedigree-probe">evidence</a>).</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="transfer-assessment-timing"
+           data-choice="architecture-first" data-by="Simon McIntosh" data-when="2026-08-17">
+        <p class="r-dec-q">When is zero-shot MAST transfer assessed?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="architecture-first">architecture-first</button>
+          <button class="r-opt" data-value="continuous-assessment">continuous-assessment</button>
+        </p>
+        <p class="r-dec-rat">The architecture is being built from the ground up to support
+        zero-shot transfer — machine identity enters only through descriptions and
+        forwards, and every learned component is dimensionless or geometry-conditioned by
+        construction — so transfer does not need assessing from the outset. It is exercised
+        once, at the sealed rehearsal, when the DIII-D architecture stands; no MAST-side
+        estimation work is scheduled before the DIII-D gates close, and transfer readiness
+        is not carried as an open risk on this roadmap.</p>
+      </div>
+      <p>Recommendation: <strong>floor-bar-first</strong> — the first submission spends
+      leaderboard budget only when it measures something (the floor bar), and a fixed
+      cadence thereafter keeps the leaderboard as information rather than a target,
+      consistent with the entry plan's <code>floor-bar-source</code> recommendation.</p>
+      <div class="r-dec" data-key="submission-cadence" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">How is the 100-submission leaderboard budget spent?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="floor-bar-first">floor-bar-first</button>
+          <button class="r-opt" data-value="early-scouting">early-scouting</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-sem-001" data-status="open"
+               data-capability-version="1.0" data-capability-class="orchestrator"
+               data-capability-reasoning="deep" data-capability-verification="strict"
+               data-written-by="reckon-create" data-written-at="2026-08-17">
+        <h4 class="r-fu-title">Coordinate the current wave against the execution order</h4>
+        <div class="r-fu-body"><p>Standing coordination handle: resolve the ready front of
+        §3, dispatch it through crew workers, land outcomes into the constituent plans, and
+        update §4 and §5 here as gates move. Invoking this plan means coordinating its
+        dependency graph, not implementing inline.</p></div>
+        <pre class="r-fu-prompt">/reckon-ship sophelio-entry-master</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>
