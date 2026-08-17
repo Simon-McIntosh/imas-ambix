@@ -300,6 +300,7 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
     assert set(schema["enums"]["SourceStatus"]["permissible_values"]) == {
         "corpus-observed",
         "legacy-only",
+        "range-absent",
     }
     assert set(schema["enums"]["IdentityCaseRule"]["permissible_values"]) == {
         "case-fold"
@@ -309,6 +310,54 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
     }
     forbidden = {"condition", "expression", "code_hook", "transform_code"}
     assert forbidden.isdisjoint(schema["slots"])
+
+
+def test_late_range_declares_the_measurable_acquisition_population():
+    catalog = load_packaged_machine_map("mast")
+    machine_map = map_for_shot(catalog, 21_978)
+    supplement = next(
+        item
+        for item in catalog.description_supplements
+        if item.name == machine_map.description_supplement
+    )
+    acquisition = next(
+        item
+        for item in catalog.acquisition_declarations
+        if item.name == supplement.acquisition_declaration
+    )
+    topology = next(
+        item
+        for item in catalog.drive_topologies
+        if item.name == machine_map.drive_topology
+    )
+    absence = next(
+        item
+        for item in catalog.source_qualifications
+        if item.name == "mast-amb-fl-cc02-after-16605"
+    )
+
+    assert (machine_map.first_shot, machine_map.last_shot) == (21_978, 22_086)
+    assert topology.current_channel_declaration == acquisition.name
+    assert len(topology.connections) == 938
+    assert machine_map.source_representation_signature == (
+        "mp78-fl46-fc938-lim37-532938247d31ec5c"
+    )
+    assert map_for_shot(catalog, 21_977).source_representation_signature is None
+    assert map_for_shot(catalog, 22_087).source_representation_signature is None
+    assert len(acquisition.current_channels) == 45
+    assert len(acquisition.sensor_addresses) == 100
+    assert len(acquisition.unmatched_sensor_addresses) == 4
+    measured = set(acquisition.sensor_addresses).difference(
+        acquisition.unmatched_sensor_addresses
+    )
+    assert len(measured) == 96
+    assert {"ccbv10", "fl_p6u_1"}.issubset(measured)
+    assert {"fl_cc02", "fl_cc10"}.isdisjoint(acquisition.sensor_addresses)
+    assert absence.source_array == "fl_cc02"
+    assert absence.source_status == "range-absent"
+    assert (absence.range_first_shot, absence.range_last_shot) == (16_606, 30_471)
+    assert "last amb/fl_cc02 source at shot 16605" in absence.evidence
+    assert "must not be selected" in absence.reason
 
 
 def test_machine_catalogs_declare_source_cocos_without_binding_overrides():
@@ -384,11 +433,12 @@ def test_mast_catalog_accounts_for_every_machine_description_array_in_the_corpus
     assert catalog.bound_channel_counts == EXPECTED_BOUND_CHANNEL_COUNTS
     assert catalog.bound_channel_count == 242
     assert catalog.qualified_channel_counts == {
+        "amb": 1,
         "magnetics": 16,
         "machine_description": 1,
         "pf_passive": 1,
     }
-    assert catalog.qualified_channel_count == 18
+    assert catalog.qualified_channel_count == 19
     assert sum(len(catalog.bindings_for(item)) for item in catalog.maps) == (
         len(catalog.maps) * catalog.bound_channel_count
     )
@@ -406,6 +456,13 @@ def test_mast_catalog_accounts_for_every_machine_description_array_in_the_corpus
             for item in catalog.source_qualifications
         )
         == 5
+    )
+    assert (
+        sum(
+            item.source_status == "range-absent"
+            for item in catalog.source_qualifications
+        )
+        == 1
     )
 
     bindings_by_group: dict[str, dict[str, object]] = {
@@ -741,7 +798,7 @@ def test_declared_identity_rule_closes_the_malformed_flux_loop_spelling():
     not all(
         (LEVEL1_ROOT / f"{shot}.zarr").is_dir()
         and (LEVEL2_ROOT / f"{shot}.zarr").is_dir()
-        for shot in (11_766, 12_417)
+        for shot in (11_766, 12_417, 21_978)
     ),
     reason="local level-1 and level-2 geometry stores are not mounted",
 )
@@ -750,8 +807,8 @@ def test_level1_and_level2_geometry_are_compared_by_sensor_identity():
     acquisitions = {item.name: item for item in catalog.acquisition_declarations}
     supplements = {item.name: item for item in catalog.description_supplements}
 
-    for machine_map in catalog.maps:
-        shot = machine_map.first_shot
+    for shot in (11_766, 12_417, 21_978):
+        machine_map = map_for_shot(catalog, shot)
         level1_path = LEVEL1_ROOT / f"{shot}.zarr"
         level2_path = LEVEL2_ROOT / f"{shot}.zarr"
         level1 = zarr.open_consolidated(level1_path, mode="r")
@@ -1043,7 +1100,10 @@ def test_case_current_joins_are_explicit_and_resolvable():
 
 
 @pytest.mark.skipif(
-    not all((LEVEL2_ROOT / f"{shot}.zarr").is_dir() for shot in (11_766, 12_417)),
+    not all(
+        (LEVEL2_ROOT / f"{shot}.zarr").is_dir()
+        for shot in (11_766, 12_417, 13_361, 21_978)
+    ),
     reason="local level-2 geometry stores are not mounted",
 )
 def test_range_declarations_join_topology_and_supply_legacy_fields():
@@ -1063,9 +1123,10 @@ def test_range_declarations_join_topology_and_supply_legacy_fields():
     )
     assert "summary/boundary/minor_radius/value" in minor_radius.reason
 
-    for machine_map in catalog.maps:
+    for shot in (11_766, 12_417, 13_361, 21_978):
+        machine_map = map_for_shot(catalog, shot)
         description = transform_machine_description(
-            catalog, machine_map.first_shot, "zarr", LEVEL2_ROOT
+            catalog, shot, "zarr", LEVEL2_ROOT
         )
         emitted_by_binding = {
             item.binding_name: np.asarray(item.values) for item in description.arrays
@@ -1087,14 +1148,29 @@ def test_range_declarations_join_topology_and_supply_legacy_fields():
         unresolved = {
             item.geometry_element_identifier for item in topology.connections
         }.difference(emitted_element_identifiers)
-        assert len(topology.connections) == 1_004
+        expected_topology_rows = 938 if machine_map.first_shot >= 13_361 else 1_004
+        assert len(topology.connections) == expected_topology_rows
         assert unresolved == set()
 
         supplement = supplements[machine_map.description_supplement]
         acquisition = acquisitions[supplement.acquisition_declaration]
-        assert topology.current_channel_declaration == acquisition.name
-        assert len(acquisition.current_channels) == 44
-        expected_unmatched = 2 if machine_map.first_shot == 11_766 else 8
+        topology_acquisition = acquisitions[topology.current_channel_declaration]
+        assert set(CASE_CURRENT_JOINS.values()).issubset(
+            topology_acquisition.current_channels
+        )
+        assert set(CASE_CURRENT_JOINS.values()).issubset(
+            acquisition.current_channels
+        )
+        expected_current_channels = 45 if machine_map.first_shot >= 16_606 else 44
+        assert len(acquisition.current_channels) == expected_current_channels
+        expected_unmatched = {
+            11_766: 2,
+            12_417: 8,
+            13_361: 8,
+            16_606: 4,
+            21_978: 4,
+            22_087: 4,
+        }[machine_map.first_shot]
         assert len(acquisition.unmatched_sensor_addresses) == expected_unmatched
         assert set(acquisition.unmatched_sensor_addresses).issubset(
             acquisition.sensor_addresses
@@ -1153,15 +1229,18 @@ def test_range_declarations_join_topology_and_supply_legacy_fields():
 
 
 @pytest.mark.skipif(
-    not all((LEVEL2_ROOT / f"{shot}.zarr").is_dir() for shot in (11_766, 12_417)),
+    not all(
+        (LEVEL2_ROOT / f"{shot}.zarr").is_dir()
+        for shot in (11_766, 12_417, 13_361, 21_978)
+    ),
     reason="local level-2 geometry stores are not mounted",
 )
 def test_case_current_joins_materialize_the_operator_block_split():
     catalog = load_packaged_machine_map("mast")
     topologies = {item.name: item for item in catalog.drive_topologies}
 
-    for machine_map in catalog.maps:
-        shot = machine_map.first_shot
+    for shot in (11_766, 12_417, 13_361, 21_978):
+        machine_map = map_for_shot(catalog, shot)
         description = transform_machine_description(catalog, shot, "zarr", LEVEL2_ROOT)
         adapted = geometry_table_from_description(description, catalog)
         legacy = build_table_for_shot(shot)
@@ -1196,7 +1275,8 @@ def test_case_current_joins_materialize_the_operator_block_split():
             assert drive.channel == join.current_channel
             assert drive.conductor == join.conductor_identifier
             assert drive.ampere_turns_per_ampere == sum(
-                item.turns * item.direction for item in connections
+                item.turns * item.current_weight * item.direction
+                for item in connections
             )
             circuit_class = classes_by_circuit[circuit]
             if (
@@ -1211,8 +1291,9 @@ def test_case_current_joins_materialize_the_operator_block_split():
             shape[1] for shape in receipt.greens.adapted_block_shapes
         )
         legacy_columns = tuple(shape[1] for shape in receipt.greens.legacy_block_shapes)
-        assert adapted_columns == legacy_columns == (21, 84, 146)
-        assert sum(adapted_columns) == sum(legacy_columns) == 251
+        assert adapted_columns == legacy_columns
+        assert adapted_columns[:2] == (21, 84)
+        assert sum(adapted_columns) == sum(legacy_columns)
         assert receipt.unattributed_count == 0
         assert receipt.unattributed_metrics == ()
         print(
@@ -1227,7 +1308,7 @@ def test_case_current_joins_materialize_the_operator_block_split():
         )
 
 
-def test_turn_magnitudes_are_positive_and_direction_is_connectivity_only():
+def test_turn_and_current_weight_magnitudes_are_positive():
     for machine in ("mast", "diii-d"):
         catalog = load_packaged_machine_map(machine)
         for bindings in catalog.binding_sets.values():
@@ -1249,6 +1330,10 @@ def test_turn_magnitudes_are_positive_and_direction_is_connectivity_only():
             assert topology.turns_path == "pf_active/coil/element/turns_with_sign"
             assert topology.connections_path == "pf_active/circuit/connections"
             assert all(connection.turns > 0 for connection in topology.connections)
+            assert all(
+                connection.current_weight > 0
+                for connection in topology.connections
+            )
             assert {connection.direction for connection in topology.connections} <= {
                 -1,
                 1,
@@ -1300,6 +1385,10 @@ def test_sparse_connectivity_reconstructs_every_legacy_signed_drive_element():
         expected_supplies = tuple(
             f"fcoil-supply-{int(item['circuit']):03d}" for item in filaments
         )
+        legacy_turns = np.asarray([float(item["turns"]) for item in filaments])
+        legacy_current_weight = np.asarray(
+            [abs(float(item["xmult"])) for item in filaments]
+        )
         legacy_signed_drive = np.asarray(
             [float(item["turns"]) * float(item["xmult"]) for item in filaments]
         )
@@ -1314,6 +1403,9 @@ def test_sparse_connectivity_reconstructs_every_legacy_signed_drive_element():
         )
         positive_turns = np.asarray(
             [connection.turns for connection in topology.connections]
+        )
+        positive_current_weight = np.asarray(
+            [connection.current_weight for connection in topology.connections]
         )
 
         unique_circuits = tuple(dict.fromkeys(circuit_identifiers))
@@ -1333,11 +1425,13 @@ def test_sparse_connectivity_reconstructs_every_legacy_signed_drive_element():
             [circuit_rows[identifier] for identifier in circuit_identifiers],
             np.arange(len(topology.connections)),
         ]
-        reconstructed = positive_turns * selected_direction
+        reconstructed = positive_turns * positive_current_weight * selected_direction
         assert circuit_identifiers == expected_circuits
         assert supply_identifiers == expected_supplies
         assert element_identifiers == expected_elements
         assert np.count_nonzero(connectivity, axis=0).tolist() == [1] * len(filaments)
+        assert np.array_equal(positive_turns, legacy_turns)
+        assert np.array_equal(positive_current_weight, legacy_current_weight)
         assert np.array_equal(reconstructed, legacy_signed_drive)
         total_elements += len(filaments)
         negative_count = np.count_nonzero(reconstructed < 0)
@@ -1349,9 +1443,9 @@ def test_sparse_connectivity_reconstructs_every_legacy_signed_drive_element():
 
     assert total_elements == 2_946
     assert direction_counts == {-1: 0, 1: 2_946}
-    for machine_map in catalog.maps:
-        digest = machine_map.transition.rsplit("-", maxsplit=1)[-1]
-        assert machine_map.drive_topology == f"mast-legacy-fcoil-drive-{digest}"
+    assert {item.drive_topology for item in catalog.maps} == {
+        item.name for item in catalog.drive_topologies
+    }
 
 
 def test_every_mast_map_range_is_one_geometry_transition():
@@ -1368,16 +1462,27 @@ def test_every_mast_map_range_is_one_geometry_transition():
     declared_ranges = [
         (item.first_shot, item.last_shot, item.transition) for item in catalog.maps
     ]
-    emitted_ranges = [
-        (item.first_shot, item.last_shot, item.name) for item in transitions
+    transitions_by_name = {item.name: item for item in transitions}
+    mismatches = [
+        item.name
+        for item in catalog.maps
+        if item.transition not in transitions_by_name
+        or not (
+            transitions_by_name[item.transition].first_shot <= item.first_shot
+            and item.last_shot <= transitions_by_name[item.transition].last_shot
+        )
     ]
-    mismatches = set(declared_ranges).symmetric_difference(emitted_ranges)
 
     assert declared_ranges == [
         (11_766, 12_416, "mast-geometry-11766-9425ae4a8bf3bc15"),
-        (12_417, 30_471, "mast-geometry-12417-edd753d282903679"),
+        (12_417, 13_360, "mast-geometry-12417-edd753d282903679"),
+        (13_361, 16_605, "mast-geometry-12417-edd753d282903679"),
+        (16_606, 21_977, "mast-geometry-12417-edd753d282903679"),
+        (21_978, 22_086, "mast-geometry-12417-edd753d282903679"),
+        (22_087, 30_471, "mast-geometry-12417-edd753d282903679"),
     ]
-    assert len(transitions) == len(catalog.maps) == 2
+    assert len(transitions) == 2
+    assert len(catalog.maps) == 6
     assert len(mismatches) == 0
     assert_transition_alignment(catalog, transitions)
     bindings = catalog.binding_sets["mast-machine-description"]
@@ -1388,11 +1493,13 @@ def test_every_mast_map_range_is_one_geometry_transition():
     )
     topology_names = {item.name for item in catalog.drive_topologies}
     for transition in transitions:
-        machine_map = map_for_shot(catalog, transition.first_shot)
-        assert machine_map.transition == transition.name
-        assert machine_map.last_shot == transition.last_shot
-        assert machine_map.drive_topology in topology_names
-    assert len({item.drive_topology for item in catalog.maps}) == 2
+        covering_maps = [
+            item for item in catalog.maps if item.transition == transition.name
+        ]
+        assert covering_maps[0].first_shot == transition.first_shot
+        assert covering_maps[-1].last_shot == transition.last_shot
+        assert all(item.drive_topology in topology_names for item in covering_maps)
+    assert len({item.drive_topology for item in catalog.maps}) == 3
     print(
         "CATALOG_TRANSITION_ALIGNMENT "
         f"maps={len(catalog.maps)} transitions={len(transitions)} "
@@ -1450,9 +1557,13 @@ def test_loader_rejects_an_undeclared_conditional_slot(tmp_path):
 
 @pytest.mark.parametrize(
     ("field", "value", "message"),
-    (("turns", -1.0, "number > 0"), ("direction", 0, "must be -1 or 1")),
+    (
+        ("turns", -1.0, "number > 0"),
+        ("current_weight", 0.0, "number > 0"),
+        ("direction", 0, "must be -1 or 1"),
+    ),
 )
-def test_loader_rejects_nonpositive_turns_and_unsigned_connections(
+def test_loader_rejects_nonpositive_magnitudes_and_unsigned_connections(
     tmp_path, field, value, message
 ):
     source = json.loads((LINKML_SCHEMA_PATH.parent / "mast.json").read_text())

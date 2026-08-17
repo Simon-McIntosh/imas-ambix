@@ -42,7 +42,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from imas_ambix.gs.geometry import build_table_for_shot
+from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.gs.operator import build_operator
 from imas_ambix.latent.data import (
     feature_schema,
@@ -286,7 +286,7 @@ def main() -> int:
         payloads = payload["payloads"]
         refs = payload["refs"]
 
-        table = build_table_for_shot(int(s))
+        table = read_geometry_table(int(s))
         fwd = build_operator(table)
         sig_key = table.signature.key
         is_ref = sig_key == ref_signature

@@ -39,6 +39,8 @@ enums:
         description: The source array exists in the pulse store but cannot be bound.
       legacy-only:
         description: The legacy description requires content absent from the pulse store.
+      range-absent:
+        description: A named acquisition source is absent throughout the declared shot range.
   ValidationState:
     permissible_values:
       corpus-validated:
@@ -170,6 +172,16 @@ slots:
   source_status:
     range: SourceStatus
     required: true
+  range_first_shot:
+    range: integer
+    minimum_value: 0
+  range_last_shot:
+    range: integer
+    minimum_value: 0
+  source_representation_signature:
+    description: >-
+      Frozen upstream geometry identity for a range whose source representation
+      may contain more conductor rows than its materialised geometry table.
   binding:
     required: true
   reason:
@@ -210,6 +222,10 @@ slots:
   geometry_element_identifier:
     required: true
   turns:
+    range: float
+    minimum_value: 0
+    required: true
+  current_weight:
     range: float
     minimum_value: 0
     required: true
@@ -346,6 +362,7 @@ classes:
       - drive_topology
       - description_supplement
       - validation_state
+      - source_representation_signature
   ValidationGap:
     slots:
       - binding
@@ -366,6 +383,8 @@ classes:
       - source_unit
       - reason
       - evidence
+      - range_first_shot
+      - range_last_shot
   SensorIdentityRule:
     description: >-
       Canonicalises acquisition identities without enumerating aliases. Case
@@ -391,8 +410,9 @@ classes:
     description: >-
       Declares the sparse non-zero form of a circuit connections matrix: which
       named supply drives each named conductor element, in which direction,
-      and with which positive turn magnitude. Measured channels and passive
-      loop groups remain declarative without embedding a machine-specific rule.
+      with which positive turn magnitude, and with what share of the measured
+      supply current. Measured channels and passive loop groups remain
+      declarative without embedding a machine-specific rule.
     slots:
       - name
       - source_location
@@ -411,14 +431,15 @@ classes:
   CircuitConnection:
     description: >-
       One non-zero supply-to-element connectivity entry in a named circuit.
-      Turn magnitude is strictly positive; current direction is carried only
-      by direction.
+      Turn magnitude and the share of supply current carried by the element
+      are separately positive; current direction is carried only by direction.
     slots:
       - circuit_identifier
       - supply_identifier
       - element_identifier
       - geometry_element_identifier
       - turns
+      - current_weight
       - direction
   CircuitCurrentJoin:
     description: >-
@@ -460,9 +481,12 @@ classes:
   PointFluxLoopDeclaration:
     description: >-
       Declares one static point-loop position absent from pulse-store arrays at
-      writable scalar leaves of a typed magnetics flux-loop structure.
+      writable scalar leaves of a typed magnetics flux-loop structure. An
+      acquisition address may join that declared position to a measured signal
+      when the upstream nominal-geometry identity is absent.
     slots:
       - name
+      - acquisition_address
       - r
       - z
       - r_path

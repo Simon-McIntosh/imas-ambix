@@ -57,7 +57,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from imas_ambix.gs.geometry import build_table_for_shot
+from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.gs.operator import build_operator
 from imas_ambix.latent.data import read_split_shot_lists
 from imas_ambix.latent.patch_basis import PatchBasis
@@ -66,7 +66,6 @@ from imas_ambix.latent.patch_encoder import (
     PatchCurrentEncoder,
     PatchEncoderConfig,
 )
-
 from scripts.patch_encoder_gate_eval import (
     _GEOMETRY_BUFFERS,
     _build_slice_windows,
@@ -446,7 +445,7 @@ def main() -> int:
         payloads = payload["payloads"]
         refs = payload["refs"]
 
-        table = build_table_for_shot(int(s))
+        table = read_geometry_table(int(s))
         fwd = build_operator(table)
         sig_key = table.signature.key
         channels = list(basis.sensor_channels)

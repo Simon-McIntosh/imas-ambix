@@ -58,11 +58,11 @@ CYL_FLOOR = 0.01  # gs_solve winding-pack extent floor [m]
 
 
 def _import_tree():
+    from imas_ambix.data.description_reader import read_geometry_table
     from imas_ambix.gs import operator as op
     from imas_ambix.gs.cylinder import cylinder_greens
-    from imas_ambix.gs.geometry import build_table_for_shot
 
-    return op, cylinder_greens, build_table_for_shot
+    return op, cylinder_greens, read_geometry_table
 
 
 # --------------------------------------------------------------------------
@@ -369,10 +369,10 @@ def geometry_audit(op, table, fwd):
 
 
 def main():
-    op, cylinder_greens, build_table_for_shot = _import_tree()
+    op, cylinder_greens, read_geometry_table = _import_tree()
 
     print(f"[1/6] building operator for shot {SHOT} ...", flush=True)
-    table = build_table_for_shot(SHOT)
+    table = read_geometry_table(SHOT)
     fwd = op.build_operator(table)
     sr, sz, sang, is_flux, chans = _sensor_rows(op, table)
     n_sensor = len(chans)

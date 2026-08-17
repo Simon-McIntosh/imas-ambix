@@ -39,7 +39,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import zarr
 
-from imas_ambix.gs.geometry import build_table_for_shot
+from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.gs.operator import build_operator, read_amc_currents_at_index
 
 L1 = Path("/work/projects/imas_gpu/mast/level1/shots")
@@ -83,7 +83,7 @@ def audit_efm_sign(shot: int) -> dict:
 
 def audit_forward_sign(shot: int) -> dict:
     """Vacuum (PF-only) forward prediction vs raw amb on a coil-dominated slice."""
-    table = build_table_for_shot(shot)
+    table = read_geometry_table(shot)
     op = build_operator(table)
 
     z = zarr.open(str(L1 / f"{shot}.zarr"), mode="r")

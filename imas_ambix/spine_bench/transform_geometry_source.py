@@ -4,9 +4,11 @@
 ``transform`` emits the level-2 machine description through the package's
 transform engine and converts it with the public geometry adapter.  Level-2 does
 not expose the directed poloidal angle of a field probe, so that one quantity is
-carried from the campaign table by stable probe index.  Positions, conductors,
-drive declarations, limiter geometry, and sensor addressing remain those of the
-transformed description, and the enrichment is recorded in source provenance.
+carried from the campaign table by stable probe identity.  Flux-loop acquisition
+addresses are bound fail-closed to EFM geometry rows by their measured waveform
+identity.  Conductors, drive declarations, limiter geometry, and sensor
+addressing remain those of the transformed description, and every enrichment is
+recorded in source provenance.
 
 Run one source explicitly as::
 
@@ -51,7 +53,7 @@ CAMPAIGN_SOURCE_NAME = "campaign"
 IDENTITY_BOUND_SOURCE_NAME = "identity-bound-campaign"
 TRANSFORM_SOURCE_NAME = "transform"
 IDENTITY_BOUND_SOURCE_LABEL = "efm-campaign-signal-identity"
-TRANSFORM_SOURCE_LABEL = "level2-transform"
+TRANSFORM_SOURCE_LABEL = "level2-transform-signal-identity"
 
 _IDENTITY_CORRELATION_FLOOR = 0.9999
 
@@ -83,6 +85,8 @@ class SignalIdentityMatch:
 
     channel: str
     efm_index: int
+    r: float
+    z: float
     correlation: float
     runner_up_correlation: float
 
@@ -103,6 +107,8 @@ def _signal_identity_matches(
     amb_time = np.asarray(amb["time"][:], dtype=np.float64)
     efm_time = np.asarray(efm["time"][:], dtype=np.float64)
     efm_signals = np.asarray(efm["silop_x"][:], dtype=np.float64)
+    efm_r = np.asarray(efm["silop_r"][:], dtype=np.float64)
+    efm_z = np.asarray(efm["silop_z"][:], dtype=np.float64)
     matches: list[SignalIdentityMatch] = []
     for channel in channels:
         signal = np.asarray(amb[channel][:], dtype=np.float64)
@@ -142,6 +148,8 @@ def _signal_identity_matches(
             SignalIdentityMatch(
                 channel=channel,
                 efm_index=winner,
+                r=float(efm_r[winner]),
+                z=float(efm_z[winner]),
                 correlation=float(correlations[winner]),
                 runner_up_correlation=float(correlations[runner_up]),
             )
@@ -150,6 +158,70 @@ def _signal_identity_matches(
     if len(indices) != len(set(indices)):
         raise RuntimeError("flux-loop signal identities are not one-to-one")
     return tuple(matches)
+
+
+def _bind_flux_loop_identities(
+    table: Any,
+    matches: tuple[SignalIdentityMatch, ...],
+) -> tuple[Any, int]:
+    """Bind every declared loop address to one measured EFM geometry row."""
+    channels = tuple(
+        mapping.amb_channel
+        for mapping in table.sensor_map
+        if mapping.kind == "flux_loop"
+    )
+    matched_channels = tuple(item.channel for item in matches)
+    if len(channels) != len(set(channels)):
+        raise RuntimeError("declared flux-loop acquisition addresses are not unique")
+    if len(matched_channels) != len(set(matched_channels)):
+        raise RuntimeError("measured flux-loop identities are not unique")
+    if set(channels) != set(matched_channels):
+        missing = sorted(set(channels) - set(matched_channels))
+        extra = sorted(set(matched_channels) - set(channels))
+        raise RuntimeError(
+            "declared and measured flux-loop identity populations differ: "
+            f"missing={missing}, extra={extra}"
+        )
+    by_channel = {item.channel: item for item in matches}
+    corrected = []
+    rebound_count = 0
+    for mapping in table.sensor_map:
+        if mapping.kind != "flux_loop":
+            corrected.append(mapping)
+            continue
+        match = by_channel[mapping.amb_channel]
+        if not np.isfinite((match.r, match.z)).all():
+            raise RuntimeError(
+                f"channel {mapping.amb_channel!r} matched non-finite EFM "
+                f"geometry column {match.efm_index}"
+            )
+        rebound_count += int(
+            mapping.efm_index != match.efm_index
+            or mapping.r != match.r
+            or mapping.z != match.z
+        )
+        corrected.append(
+            replace(
+                mapping,
+                efm_index=match.efm_index,
+                r=match.r,
+                z=match.z,
+                residual_m=0.0,
+                flag="",
+            )
+        )
+    return (
+        replace(
+            table,
+            sensor_map=corrected,
+            provenance_flags=[
+                *table.provenance_flags,
+                "flux-loop sensor identity: acquisition waveforms joined "
+                "one-to-one to EFM geometry rows on the evidence shot",
+            ],
+        ),
+        rebound_count,
+    )
 
 
 def _position_divergence(
@@ -234,7 +306,7 @@ def _supply_probe_orientations(transformed: Any, campaign: Any) -> Any:
 
 @dataclass
 class TransformGeometrySource:
-    """A shot-resolved level-2 transform and geometry-adapter benchmark source."""
+    """A signal-identity-bound level-2 transform benchmark source."""
 
     evidence_shot: int
     store_root: Path = LEVEL2_DIR
@@ -246,6 +318,12 @@ class TransformGeometrySource:
         default_factory=dict, init=False, repr=False
     )
     _coordinate_divergence: dict[int, CoordinateDivergence] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _identity_matches: tuple[SignalIdentityMatch, ...] = field(
+        default=(), init=False, repr=False
+    )
+    _identity_rebound_count: dict[int, int] = field(
         default_factory=dict, init=False, repr=False
     )
 
@@ -273,6 +351,22 @@ class TransformGeometrySource:
             machine_description_bytes(description)
         ).hexdigest()
         table = _supply_probe_orientations(transformed, campaign)
+        if not self._identity_matches:
+            if shot_id != self.evidence_shot:
+                self.table_for(self.evidence_shot)
+            else:
+                channels = tuple(
+                    item.amb_channel
+                    for item in table.sensor_map
+                    if item.kind == "flux_loop"
+                )
+                self._identity_matches = _signal_identity_matches(
+                    self.evidence_shot, channels
+                )
+        table, rebound_count = _bind_flux_loop_identities(
+            table, self._identity_matches
+        )
+        self._identity_rebound_count[shot_id] = rebound_count
         self._tables[shot_id] = table
         return table
 
@@ -290,6 +384,15 @@ class TransformGeometrySource:
         digest.update((PACKAGED_MACHINE_MAP_ROOT / "mast.json").read_bytes())
         for value in sorted(set(self._description_digests.values())):
             digest.update(value.encode("ascii"))
+        digest.update(
+            json.dumps(
+                [
+                    (item.channel, item.efm_index, item.r, item.z)
+                    for item in self._identity_matches
+                ],
+                separators=(",", ":"),
+            ).encode("utf-8")
+        )
         return f"sha256:{digest.hexdigest()}"
 
     def provenance(self) -> dict[str, Any]:
@@ -312,6 +415,19 @@ class TransformGeometrySource:
             "probe_orientation_reason": (
                 "level-2 does not expose directed poloidal probe orientation"
             ),
+            "identity_binding": "unique highest waveform correlation",
+            "identity_evidence_shot": int(self.evidence_shot),
+            "identity_channel_count": len(self._identity_matches),
+            "identity_geometry_rows_rebound": self._identity_rebound_count[
+                self.evidence_shot
+            ],
+            "identity_minimum_winning_correlation": min(
+                item.correlation for item in self._identity_matches
+            ),
+            "identity_minimum_winner_margin": min(
+                item.correlation - item.runner_up_correlation
+                for item in self._identity_matches
+            ),
             "coordinate_divergence": {
                 "reference_shot": int(self.evidence_shot),
                 "b_probes": reference.b_probes.__dict__,
@@ -324,12 +440,10 @@ class TransformGeometrySource:
 class IdentityBoundCampaignGeometrySource:
     """The frozen campaign table with flux-loop identity bound by signal.
 
-    The historical campaign source maps an acquisition loop to the nearest EFM
-    coordinate parsed from its raw description.  Several descriptions reuse a
-    placeholder coordinate, so that join is not an identity relation.  This
+    A geometry-description row number is not an EFM acquisition identity.  This
     source keeps the campaign table and all of its static geometry but replaces
-    only those loop mappings with a one-to-one binding measured on the frozen
-    cohort's evidence shot.
+    every loop mapping with a one-to-one binding measured on the frozen cohort's
+    evidence shot.
     """
 
     evidence_shot: int
@@ -339,7 +453,7 @@ class IdentityBoundCampaignGeometrySource:
     _matches: tuple[SignalIdentityMatch, ...] = field(
         default=(), init=False, repr=False
     )
-    _aliased_count: int = field(default=0, init=False, repr=False)
+    _rebound_count: int = field(default=0, init=False, repr=False)
 
     def _build(self) -> Any:
         table = self.campaign_source.table_for(self.evidence_shot)
@@ -351,43 +465,10 @@ class IdentityBoundCampaignGeometrySource:
             item.amb_channel for item in table.sensor_map if item.kind == "flux_loop"
         )
         self._matches = _signal_identity_matches(self.evidence_shot, channels)
-        by_channel = {item.channel: item for item in self._matches}
-        loops = {item.index: item for item in table.flux_loops}
-        corrected = []
-        aliased_count = 0
-        for mapping in table.sensor_map:
-            if mapping.kind != "flux_loop":
-                corrected.append(mapping)
-                continue
-            match = by_channel[mapping.amb_channel]
-            loop = loops.get(match.efm_index)
-            if loop is None:
-                raise RuntimeError(
-                    f"channel {mapping.amb_channel!r} matched absent EFM geometry "
-                    f"column {match.efm_index}"
-                )
-            aliased_count += int(mapping.efm_index != match.efm_index)
-            corrected.append(
-                replace(
-                    mapping,
-                    efm_index=match.efm_index,
-                    r=loop.r,
-                    z=loop.z,
-                    residual_m=0.0,
-                    flag="",
-                )
-            )
-        self._aliased_count = aliased_count
-        return replace(
-            table,
-            sensor_map=corrected,
-            provenance_flags=[
-                *table.provenance_flags,
-                "flux-loop sensor identity: acquisition waveforms joined one-to-one "
-                "to EFM columns on the evidence shot; description coordinates are "
-                "not identity keys",
-            ],
+        corrected, self._rebound_count = _bind_flux_loop_identities(
+            table, self._matches
         )
+        return corrected
 
     def table_for(self, shot: int) -> Any:
         """Return the corrected table after checking campaign compatibility."""
@@ -424,7 +505,7 @@ class IdentityBoundCampaignGeometrySource:
             "identity_binding": "unique highest waveform correlation",
             "identity_evidence_shot": int(self.evidence_shot),
             "identity_channel_count": len(self._matches),
-            "identity_aliased_nearest_coordinate_rows_replaced": self._aliased_count,
+            "identity_geometry_rows_rebound": self._rebound_count,
             "identity_minimum_winning_correlation": min(
                 item.correlation for item in self._matches
             ),

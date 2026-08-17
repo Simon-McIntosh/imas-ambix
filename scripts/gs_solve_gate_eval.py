@@ -25,7 +25,7 @@ from pathlib import Path
 
 import numpy as np
 
-from imas_ambix.gs.geometry import build_table_for_shot
+from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.gs.operator import build_operator
 from imas_ambix.latent.data import (
     feature_schema,
@@ -117,7 +117,7 @@ _GRID_CACHE: dict = {}
 
 
 def evaluate_shot(shot_id, *, nr, nz, max_slices, min_ip_ka, cost_limit, workers):
-    table = build_table_for_shot(int(shot_id))
+    table = read_geometry_table(int(shot_id))
     fwd = build_operator(table)
     cache_key = (table.signature.key, nr, nz)
     grid = _GRID_CACHE.get(cache_key)
@@ -231,7 +231,7 @@ def main() -> int:
     base_rows = []
     for s in train_shots[: args.n_baseline_shots]:
         try:
-            fwd = build_operator(build_table_for_shot(int(s)))
+            fwd = build_operator(read_geometry_table(int(s)))
         except Exception:  # noqa: BLE001
             continue
         wtr = load_shot_windows(int(s), fwd, "train", schema, with_referee=True)

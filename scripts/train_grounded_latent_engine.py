@@ -50,19 +50,9 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.eval.excitation_selector import coil_ramp_profile
-from imas_ambix.gs.geometry import discover_signatures, extract_campaign_tables
-
-try:  # GEOMETRY_TABLE_VERSION is a very recent addition (sensor-channel-set
-    # determinism fix) -- degrade to an honest "absent" label rather than a
-    # hard import error if an older checkout doesn't have it yet.  The
-    # discover_signatures / extract_campaign_tables functions above landed in
-    # the SAME commit, so their absence would already have failed the import
-    # above -- only the version STRING (used for labelling/cache-keying) needs
-    # this softer fallback.
-    from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
-except ImportError:
-    GEOMETRY_TABLE_VERSION = None
+from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import (
     ANCHORED_NAMES,
@@ -152,14 +142,10 @@ def _shot_pairs_for_operator(
     ALREADY-BUILT canonical operator, or ``None``.
 
     ``fwd`` (and the ``key`` it was built from) is shared across every shot of
-    the signature — built once, in :func:`assemble_corpus`, from a
-    :func:`~imas_ambix.gs.geometry.extract_campaign_tables` table whose sensor
-    channel SET is the canonical union over every shot of that signature
-    (:data:`~imas_ambix.gs.geometry.GEOMETRY_TABLE_VERSION`).  A per-shot
-    ``build_table_for_shot(shot)`` call here would silently reintroduce the
-    single-shot indeterminism the union fixes (its ``amb_channels`` argument
-    defaults to that ONE shot's own schema) — this is why the operator is
-    passed in rather than rebuilt.
+    the signature — built once, in :func:`assemble_corpus`, from the declared
+    machine map.  The declaration carries the acquisition identity set
+    independently of per-shot signal availability, so the operator is passed
+    in and reused rather than rebuilt for each shot.
 
     The cached ``sensor_scale`` here is the RAW per-shot ``nanstd`` (with only
     the pre-existing isfinite/positive -> 1.0 fallback) — the kind-median
@@ -223,6 +209,26 @@ def _shot_pairs_for_operator(
     return ex
 
 
+def _declared_campaign_tables(shots: list[int]) -> tuple[dict, dict]:
+    """Group shots and retain one declared geometry table per signature."""
+    groups: dict = {}
+    tables: dict = {}
+    for shot in shots:
+        try:
+            table = read_geometry_table(int(shot))
+        except Exception as exc:  # noqa: BLE001 — unreadable shots are skipped
+            logger.warning("shot %s: declared geometry unavailable: %s", shot, exc)
+            continue
+        key = table.signature.key
+        if key not in groups:
+            groups[key] = (table.signature, [])
+            tables[key] = table
+        groups[key][1].append(int(shot))
+    for key, (_signature, members) in groups.items():
+        tables[key].shots = sorted(members)
+    return groups, tables
+
+
 def assemble_corpus(
     shots: list[int],
     *,
@@ -236,17 +242,12 @@ def assemble_corpus(
     One :class:`~imas_ambix.gs.geometry.GeometryTable` (hence one
     :class:`~imas_ambix.gs.operator.ForwardOperator` and one
     :class:`~imas_ambix.latent.patch_basis.PatchBasis`) is built PER SIGNATURE
-    via :func:`~imas_ambix.gs.geometry.extract_campaign_tables`, which unions
-    the sensor channel set across every shot of that signature — never per
-    shot.  A per-shot ``build_table_for_shot(shot)`` call (the original,
-    pre-fix shape of this function) silently falls back to that ONE shot's own
-    amb schema and reintroduces the sensor-channel-set indeterminism the union
-    exists to close; two real corpus-assembly crashes (jobs 1225204, 1225258)
-    were exactly this bug.
+    from the declared machine map.  The map carries a stable acquisition
+    identity set for each range, so every shot sharing a signature reuses the
+    same adapted geometry contract.
     """
     schema = feature_schema()
-    groups = discover_signatures(shots)  # {key: (sig, [shot_ids])}
-    tables = extract_campaign_tables(shots)  # {key: canonical GeometryTable}
+    groups, tables = _declared_campaign_tables(shots)
     basis_cache: dict[str, PatchBasis] = {}
     per_sig: dict[str, list[dict]] = {}
     n_pf: dict[str, int] = {}
@@ -646,7 +647,7 @@ def _held_back_physics_misfit(
     device: torch.device,
 ) -> float:
     """Mean (magnetics + anchored) loss on rows NEVER fed to the sampler --
-    the "physics we care about" signal the f-malwm-02 gate reads, deliberately
+    the held-back physics signal used for checkpoint selection, deliberately
     EXCLUDING structure_residual/closure so a lambda-ramp or an auxiliary-loss
     divergence (job 1225447) cannot masquerade as (or hide) genuine physics
     progress in the checkpoint-selection metric."""

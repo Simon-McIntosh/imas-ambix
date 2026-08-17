@@ -66,8 +66,8 @@ def _amm_opt(shot):  # noqa: ANN001, ANN202
 
 _geom.read_amm_passive = _amm_opt  # type: ignore[assignment]
 
+from imas_ambix.data.description_reader import read_geometry_table  # noqa: E402
 from imas_ambix.gs import circuits as circuits_mod  # noqa: E402
-from imas_ambix.gs.geometry import build_table_for_shot  # noqa: E402
 from imas_ambix.gs.operator import build_operator  # noqa: E402
 
 _REPO = Path(__file__).resolve().parents[1]
@@ -135,7 +135,7 @@ def _build_era(era: str, window: str, candidates: tuple[int, ...]) -> dict | Non
     table = None
     for cand in candidates:
         try:
-            table = build_table_for_shot(int(cand))
+            table = read_geometry_table(int(cand))
             shot = int(cand)
             break
         except Exception as exc:  # noqa: BLE001

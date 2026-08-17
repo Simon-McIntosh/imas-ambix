@@ -53,14 +53,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from imas_ambix.gs.geometry import build_table_for_shot
+from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.gs.operator import build_operator
 from imas_ambix.latent.passive_resistance import (
     campaign_mode_maps,
     load_calibration,
     zoh_mode_response,
 )
-
 from scripts.flux_loop_column_decomposition import BAY_LOOPS, select_cohort
 from scripts.vacuum_passive_resistance_fit import _campaign_system, prep_shot
 
@@ -191,7 +190,7 @@ def main() -> int:
         d = rec["data"]
         by_campaign.setdefault(d.campaign, []).append(d)
         if d.campaign not in tables:
-            tables[d.campaign] = build_table_for_shot(int(shot))
+            tables[d.campaign] = read_geometry_table(int(shot))
     logger.info("prepared %d shots over %d campaigns",
                 sum(len(v) for v in by_campaign.values()), len(by_campaign))
 

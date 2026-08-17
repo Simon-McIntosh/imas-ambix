@@ -229,7 +229,7 @@ def main() -> int:
     logger.info("%d shards, %d slices", len(shards), sum(s.n_slices for s in shards))
 
     # rebuild one decoder per campaign present in the corpus
-    from imas_ambix.gs.geometry import build_table_for_shot
+    from imas_ambix.data.description_reader import read_geometry_table
     from imas_ambix.latent.patch_basis import PatchBasis
 
     decoders: dict[str, ProfileGreensDecoder] = {}
@@ -240,7 +240,7 @@ def main() -> int:
         if camp in decoders:
             continue
         basis = PatchBasis.from_table(
-            build_table_for_shot(sh.shot), nr=nr, nz=nz, dtype=torch.float64
+            read_geometry_table(sh.shot), nr=nr, nz=nz, dtype=torch.float64
         )
         decoders[camp] = ProfileGreensDecoder(
             basis,

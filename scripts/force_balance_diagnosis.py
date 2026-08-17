@@ -28,14 +28,14 @@ coil drives by the passive circuit system, machine-quiescent start):
   solve still walks the axis outboard, the culprit is solve-side by
   elimination.
 
-Branch rule (pre-declared in the plan; evaluated and printed here):
-  G1a coil-side:  flat-top |B_z,model − B_v,req|/|B_v,req| > 0.15 or a sign
-                  error, AND the waterfall localizes ≥ 70% of the field at
-                  the axis to ≤ 2 coil groups.
-  G1b solve-side: B_z within 15%, decay index inside the window, yet the
-                  measurement-constrained solve deconfines.
-  Ambiguous:      discrepancy 5–15% or a non-localizing waterfall → extend
-                  once by +3 shots; never pick a branch by judgement.
+Branch rule:
+  Coil-side:  flat-top |B_z,model − B_v,req|/|B_v,req| > 0.15 or a sign
+              error, AND the waterfall localizes ≥ 70% of the field at
+              the axis to ≤ 2 coil groups.
+  Solve-side: B_z discrepancy below 5%, decay index inside the window, yet the
+              measurement-constrained solve deconfines.
+  Ambiguous:  discrepancy 5–15% or a non-localizing waterfall → extend once
+              by +3 shots; never pick a branch by judgement.
 
 Artifact: imas_ambix/gs/artifacts/force_balance_diagnosis.json
 Figures:  docs/figures/equilibrium-realism/
@@ -54,8 +54,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.gs import force_balance as fb
-from imas_ambix.gs.geometry import build_table_for_shot
 from imas_ambix.gs.operator import build_operator
 from imas_ambix.latent.data import feature_schema, load_shot_slices_raw
 from imas_ambix.latent.gs_solve import EquilibriumGrid
@@ -187,7 +187,7 @@ def _select_slices(
 def diagnose_shot(shot: int) -> dict | None:
     """The measured-state sweep for one shot."""
     schema = feature_schema()
-    table = build_table_for_shot(shot)
+    table = read_geometry_table(shot)
     fwd = build_operator(table)
     loaded = load_shot_slices_raw(shot, schema)
     if loaded is None:
@@ -350,7 +350,7 @@ def diagnose_shot(shot: int) -> dict | None:
 def probe_reconstruction(shot: int, max_slices: int) -> list[dict]:
     """Reconstruction-mode axis-hold probe: the frozen spine on raw magnetics.
 
-    Measurement-constrained interior solve (frozen D2 spine, byte-same config
+    Measurement-constrained interior solve (frozen physics spine, byte-same config
     as the label factory) — records whether the solve holds the axis where
     the data puts it or walks it toward the outboard attractor.  EFIT axis is
     read AFTERWARDS for the trace comparison (diagnostic-only).
@@ -436,7 +436,7 @@ def probe_reconstruction(shot: int, max_slices: int) -> list[dict]:
 
 
 def evaluate_gates(shot_results: list[dict], probe_rows: list[dict]) -> dict:
-    """The pre-declared G1a/G1b/ambiguity branch rule, evaluated verbatim."""
+    """Evaluate the coil-side, solve-side, and ambiguity branch rule."""
     flat = [
         r
         for s in shot_results
@@ -472,17 +472,20 @@ def evaluate_gates(shot_results: list[dict], probe_rows: list[dict]) -> dict:
         else None
     )
 
-    # the ambiguity band (5-15%) is declared ALONGSIDE the gates and wins over
-    # G1b's loose "within 15%" wording: a 5-15% discrepancy neither clears the
-    # coil model nor convicts it, so G1b's field-checks-out arm requires the
-    # median BELOW the band floor; G1b additionally requires the independent
-    # second witness (the measurement-constrained probe still deconfining).
-    g1a = (med_abs_rel > 0.15 or sign) and localizes
-    g1b = med_abs_rel < 0.05 and not sign and n_in_window and probe_deconfines is True
+    # A 5-15% discrepancy neither clears nor convicts the coil model.  The
+    # solve-side branch therefore requires a residual below the band floor and
+    # an independent witness: the measurement-constrained probe still deconfines.
+    coil_side = (med_abs_rel > 0.15 or sign) and localizes
+    solve_side = (
+        med_abs_rel < 0.05
+        and not sign
+        and n_in_window
+        and probe_deconfines is True
+    )
     verdict = "ambiguous"
-    if g1a:
+    if coil_side:
         verdict = "coil-side"
-    elif g1b:
+    elif solve_side:
         verdict = "solve-side"
     ramp = [
         r
@@ -544,8 +547,8 @@ def evaluate_gates(shot_results: list[dict], probe_rows: list[dict]) -> dict:
         "decay_index_in_window": n_in_window,
         "probe_axis_err_median_m": probe_err,
         "probe_deconfines": probe_deconfines,
-        "G1a_coil_side": bool(g1a),
-        "G1b_solve_side": bool(g1b),
+        "coil_side_gate": bool(coil_side),
+        "solve_side_gate": bool(solve_side),
         "verdict": verdict,
     }
 
@@ -605,7 +608,13 @@ def make_figures(shot_results: list[dict], probe_rows: list[dict]) -> None:
             ms=5,
             label=f"shot {s['shot']}",
         )
-    ax1.axhspan(-0.15, 0.15, color="#4477aa", alpha=0.12, label="G1b window ±15%")
+    ax1.axhspan(
+        -0.15,
+        0.15,
+        color="#4477aa",
+        alpha=0.12,
+        label="ambiguity window ±15%",
+    )
     ax1.axhspan(-0.05, 0.05, color="#4477aa", alpha=0.18)
     ax1.axhline(0, color="k", lw=0.6)
     ax1.set_xlabel("Ip fraction")

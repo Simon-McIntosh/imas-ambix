@@ -35,7 +35,8 @@ from pathlib import Path
 
 import numpy as np
 
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION, build_table_for_shot
+from imas_ambix.data.description_reader import read_geometry_table
+from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.boundary_disc import sensor_signature_arrays
 from imas_ambix.latent.data import (
@@ -89,12 +90,12 @@ def factory_shot_payloads(
     below need only ama/amb/amc/ane).  When None the table is built from this
     shot as before."""
     if table is None:
-        table = build_table_for_shot(int(shot))
+        table = read_geometry_table(int(shot))
     fwd = build_operator(table)
     # campaign-scope grid cache: the corpus factory processes a contiguous
     # range of shots per process, so same-campaign shots reuse the built grid,
     # Δ* factorisation, and Green's / interaction matrices instead of rebuilding
-    # them per shot (greens-filament-solver §4).
+    # them per shot so the operator follows the declared campaign geometry.
     grid = EquilibriumGrid.from_table(table, nr=nr, nz=nz, cache=cache_grid)
     basis = PatchBasis.from_table(table, nr=nr, nz=nz)
     _g_sens, channels = grid.sensor_greens(table)

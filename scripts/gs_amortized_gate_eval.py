@@ -24,7 +24,7 @@ import numpy as np
 import torch
 from gs_solve_gate_eval import TARGET_NAMES, equilibrium_target  # noqa: E402
 
-from imas_ambix.gs.geometry import build_table_for_shot
+from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.gs.operator import build_operator
 from imas_ambix.latent.data import (
     ANCHORED_NAMES,
@@ -73,7 +73,7 @@ _GRID_CACHE: dict = {}
 def evaluate_shot(
     shot_id, *, encoder, stats, nr, nz, max_slices, min_ip_ka, cost_limit, workers
 ):
-    table = build_table_for_shot(int(shot_id))
+    table = read_geometry_table(int(shot_id))
     fwd = build_operator(table)
     cache_key = (table.signature.key, nr, nz)
     grid = _GRID_CACHE.get(cache_key)
@@ -201,7 +201,7 @@ def main() -> int:
     base_rows = []
     for s in train_shots[: args.n_baseline_shots]:
         try:
-            fwd = build_operator(build_table_for_shot(int(s)))
+            fwd = build_operator(read_geometry_table(int(s)))
         except Exception:  # noqa: BLE001
             continue
         wtr = load_shot_windows(int(s), fwd, "train", schema, with_referee=True)
@@ -215,7 +215,7 @@ def main() -> int:
     )
 
     # encoder rebuilt at checkpoint dims; features counted from a held-out shot
-    fwd0 = build_operator(build_table_for_shot(int(held_shots[0])))
+    fwd0 = build_operator(read_geometry_table(int(held_shots[0])))
     w0 = load_shot_windows(int(held_shots[0]), fwd0, "eval", schema)
     from imas_ambix.latent.data import build_campaign_operators
 

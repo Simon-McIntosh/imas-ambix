@@ -11,7 +11,7 @@ The ruler (shared, fairness-binding)
 ------------------------------------
 Every predictor is scored through the SAME observation model
 (:func:`imas_ambix.statespace.mse_eval.pitch_from_current_profile`,
-LOCKED ``kind='j'`` representation from the S9 head-to-head coordination): a
+locked ``kind='j'`` representation selected by the head-to-head comparison): a
 1D toroidal-current-density profile jφ(ρ̂) on a ρ̂·a_minor minor-radius grid
 maps to MSE pitch per sightline; :func:`mse_eval.score` computes the
 pre-registered PRIMARY pitch RMSE / CRPS / coverage.  The classical EnKF
@@ -129,33 +129,20 @@ _TABLE_CACHE: dict = {}
 
 
 def _campaign_table(shot: int):
-    """Geometry table for ``shot``'s campaign (cached), built from a
-    representative shot that carries the amm passive-structure geometry."""
-    from imas_ambix.gs.geometry import (  # noqa: PLC0415
-        build_table_for_shot,
-        read_efm_geometry,
-        setup_signature,
-    )
-    from imas_ambix.statespace.enkf_baseline import (  # noqa: PLC0415
-        _campaign_representatives,
+    """Return the declared geometry table for ``shot``'s campaign."""
+    from imas_ambix.data.description_reader import (  # noqa: PLC0415
+        read_geometry_table,
     )
 
     try:
-        key = setup_signature(read_efm_geometry(int(shot))).key
-    except Exception:  # noqa: BLE001
-        key = None
+        table = read_geometry_table(int(shot))
+    except Exception:  # noqa: BLE001 — an unavailable description skips the shot
+        return None
+    key = table.signature.key
     if key in _TABLE_CACHE:
         return _TABLE_CACHE[key]
-    reps = _campaign_representatives().get(key, []) if key else []
-    for rep in list(reps) + [int(shot)]:
-        try:
-            table = build_table_for_shot(int(rep))
-            if key is not None:
-                _TABLE_CACHE[key] = table
-            return table
-        except Exception:  # noqa: BLE001 — try the next representative
-            continue
-    return None
+    _TABLE_CACHE[key] = table
+    return table
 
 
 def _axis(f) -> tuple[float, float]:
@@ -217,7 +204,7 @@ def coupled_solve_chain(
 ) -> dict:
     """The four-pass engine chain over one shot -> per-slice readout fits.
 
-    Faithful to the §3 dynamics-coupled engine: the basin solve (free-sign
+    Faithful to the dynamics-coupled engine: the basin solve (free-sign
     n_p=n_f=1 amplitude pair, centroid-pinned) selects the confined basin and
     warm-starts the profile solve (non-negative ladder); its flux-surface
     geometry drives the ψ diffusion over each measured interval (measured Ip drive,
@@ -301,7 +288,7 @@ def coupled_solve_chain(
             keep_psi=True, keep_jphi=True, basis=basis, meta={},
             boundary_read=boundary_read, **kw)
 
-    # ---- pass 1: the basin solve (stable, landed §2) ----
+    # ---- basin solve ----
     slices: list[dict] = []
     warm_basin = None
     for k in order:
@@ -457,8 +444,8 @@ def _engine_prediction(result: dict, entry: dict):
     observation-noise floor persistence + EnKF use — NOT tuned).  Returns None
     when the shot has no confined, scored readout (label honesty).
     """
-    from imas_ambix.statespace.mse_eval import MseTruth, ShotPrediction  # noqa: PLC0415
     from imas_ambix.data.paths import LEVEL1_DIR  # noqa: PLC0415
+    from imas_ambix.statespace.mse_eval import MseTruth, ShotPrediction  # noqa: PLC0415
 
     rows = [r for r in result.get("rows", []) if r.get("scored")]
     if len(rows) < 2:
@@ -555,9 +542,9 @@ def main() -> int:
     ap.add_argument("--out-suffix", type=str, default="")
     args = ap.parse_args()
 
+    from imas_ambix.data.paths import LEVEL1_DIR  # noqa: PLC0415
     from imas_ambix.eval import prediction_bar as pbar  # noqa: PLC0415
     from imas_ambix.statespace import mse_eval  # noqa: PLC0415
-    from imas_ambix.data.paths import LEVEL1_DIR  # noqa: PLC0415
 
     manifest = pbar.load_locked_manifest()
     held = pbar.held_out_shot_ids(manifest)
@@ -622,7 +609,7 @@ def main() -> int:
 
     enkf_leg = pbar.enkf_leg_from_reference()
 
-    # ---- paired per-shot bootstrap engine vs persistence (G4a CI-clear) ----
+    # ---- paired per-shot bootstrap: engine vs persistence ----
     rmse_engine = _per_shot_pitch_rmse(engine_preds, manifest, truth)
     rmse_persist = _per_shot_pitch_rmse(persist_preds, manifest, truth)
     boot_vs_persist = _paired_bootstrap(rmse_engine, rmse_persist)
@@ -633,14 +620,14 @@ def main() -> int:
     eng_cov = float(eng_pitch["cov90"])
     n_shots_scored = int(eng_pitch["n_shots"])
 
-    # ---- G4 verdicts (pre-declared) ----
+    # ---- acceptance verdicts ----
     beats_persist_ci = bool(boot_vs_persist and boot_vs_persist["ci_clear_engine_better"])
     coverage_ok = bool(np.isfinite(eng_cov) and eng_cov >= mse_eval.COVERAGE_GATE_LO)
-    g4a = bool(beats_persist_ci)  # binding MUST = beat persistence CI-clear (stop rule)
-    # G4b: approach the EnKF bar (parity if the engine RMSE reaches the EnKF CI)
+    engine_passes = bool(beats_persist_ci)
+    # Parity holds when the engine RMSE reaches the EnKF confidence interval.
     enkf_rmse = float(enkf_leg.pitch_rmse)
     enkf_ci = enkf_leg.pitch_rmse_ci or (float("nan"), float("nan"))
-    g4b_parity = bool(np.isfinite(eng_rmse) and eng_rmse <= enkf_ci[1])
+    reaches_enkf = bool(np.isfinite(eng_rmse) and eng_rmse <= enkf_ci[1])
     frontier = float(pbar.REFERENCE["physics_frontier_pitch_rmse"])
     near_axis_floor = float(pbar.REFERENCE["near_axis_rad_floor"])
 
@@ -663,20 +650,20 @@ def main() -> int:
         "near_axis_rad_floor": near_axis_floor,
         "coverage_gate_lo": mse_eval.COVERAGE_GATE_LO,
         "boot_engine_vs_persistence": boot_vs_persist,
-        "G4a_beats_persistence_ci_clear": beats_persist_ci,
-        "G4a_coverage_ge_0p88": coverage_ok,
-        "G4a_pass": g4a,
-        "G4b_reaches_enkf_ci": g4b_parity,
-        "G4b_gap_to_enkf_rad": float(eng_rmse - enkf_rmse),
-        "G4c_gap_to_frontier_rad": float(eng_rmse - frontier),
+        "beats_persistence_ci_clear": beats_persist_ci,
+        "coverage_ge_0p88": coverage_ok,
+        "engine_acceptance_pass": engine_passes,
+        "reaches_enkf_ci": reaches_enkf,
+        "gap_to_enkf_rad": float(eng_rmse - enkf_rmse),
+        "gap_to_frontier_rad": float(eng_rmse - frontier),
         "eta_params_frozen": eta_params,
         "eta_source": str(FROZEN_ETA_ARTIFACT) if FROZEN_ETA_ARTIFACT.exists() else "default",
         "prior_weight": args.prior_weight,
         "readout_representation": "kind='j' jphi(rho_hat) on rho_hat*a_minor grid "
-                                  "(S9 head-to-head lock; matches EnKF)",
+                                  "(selected head-to-head; matches EnKF)",
         "R0_m": R0_M, "a_minor_m": A_MINOR_M,
     }
-    logger.info("G4 summary: %s", json.dumps(summary, indent=1, default=float))
+    logger.info("acceptance summary: %s", json.dumps(summary, indent=1, default=float))
 
     result = {
         "arm": "heldout-mse-pitch-dynamics-coupled-engine",
@@ -698,7 +685,7 @@ def main() -> int:
     _fig_residual_radius(resid_by_r, near_axis_floor,
                          FIGURES / f"fig-heldout-residual-radius{sfx}.png")
 
-    print(f"G4a_PASS={g4a} engine_rmse={eng_rmse:.3f} "
+    print(f"ENGINE_ACCEPTANCE_PASS={engine_passes} engine_rmse={eng_rmse:.3f} "
           f"persist_live={float(per_pitch['rmse']):.3f} enkf={enkf_rmse:.3f} "
           f"cov90={eng_cov:.3f} n={n_shots_scored} "
           f"beats_persist_ci={beats_persist_ci}")
@@ -762,8 +749,8 @@ def _fig_pitch_bar(summary: dict, path: Path) -> None:
         ax.text(i, v + 0.008, f"{v:.3f}", ha="center", fontsize=8)
     ax.set_xticks(range(4), names, fontsize=8)
     ax.set_ylabel("held-out MSE pitch RMSE [rad]")
-    g4a = "PASS" if summary["G4a_pass"] else "FAIL"
-    ax.set_title(f"§4 held-out MSE pitch gate — G4a {g4a} "
+    acceptance = "PASS" if summary["engine_acceptance_pass"] else "FAIL"
+    ax.set_title(f"Held-out MSE pitch — {acceptance} "
                  f"(n={summary['n_shots_scored']} shots, cov90={summary['engine_pitch_cov90']:.2f})",
                  fontsize=9)
     fig.tight_layout()
@@ -782,7 +769,7 @@ def _fig_residual_radius(resid: dict, near_axis_floor: float, path: Path) -> Non
     ax.axvline(resid.get("r0_m", R0_M), color="k", ls=":", lw=0.8, label="magnetic axis R0")
     ax.set_xlabel("sightline major radius R [m]")
     ax.set_ylabel("pitch residual RMSE [rad]")
-    ax.set_title("§4 pitch residual vs radius (the near-axis interior floor §5 must close)",
+    ax.set_title("Pitch residual vs radius and the near-axis interior floor",
                  fontsize=9)
     ax.legend(fontsize=7)
     fig.tight_layout()

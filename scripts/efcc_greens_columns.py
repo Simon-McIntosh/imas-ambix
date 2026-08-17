@@ -32,7 +32,7 @@ absolute per-probe coupling is not reconstructable here.  Two things ARE:
       see, root-mean-squared over toroidal angle, orders the sensor families by
       (R, Z) alone.  This reproduces the measured family ladder (obv > obr/ccbv,
       loops ~ 0) without needing the toroidal positions; absolute per-probe
-      calibration waits on those (a D2 input).
+      calibration waits on declared toroidal sensor positions.
 
 Firewall: raw ``amb``/``amc`` magnetics + the published coil geometry only.  No
 EFIT, no inversion.
@@ -50,8 +50,8 @@ from pathlib import Path
 
 import numpy as np
 
+from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.gs import filaments3d as f3d
-from imas_ambix.gs.geometry import build_table_for_shot
 from imas_ambix.gs.operator import _sensor_rows
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -165,7 +165,7 @@ def main() -> int:
     FIGDIR.mkdir(parents=True, exist_ok=True)
 
     # --- sensor geometry (axisymmetric: R, Z, poloidal pickup angle) ---------
-    table = build_table_for_shot(args.shot)
+    table = read_geometry_table(args.shot)
     channels, kinds, sr, sz, sang, excluded, flagged = _sensor_rows(table)
     logger.info("sensors: %d (%d loops, %d probes)", len(channels),
                 kinds.count("flux_loop"), kinds.count("b_probe"))
@@ -279,12 +279,13 @@ def main() -> int:
         # (b) fine obv-vs-obr ordering: NOT reproducible without toroidal
         # positions -- geometry favours the radial (obr) pickup to the ex-vessel
         # radial field, data favours vertical (obv); set by toroidal probe
-        # location + the (unpinned) coil z-extent.  A declared D2 input.
+        # location plus the unpinned coil z-extent.
         "fine_obv_vs_obr_reproduced": bool(
             pred_family.get("obv", {}).get("median_gauss", 0)
             > pred_family.get("obr", {}).get("median_gauss", 0)),
         "fine_ordering_note": "obv>obr is toroidal-position + coil-z-extent "
-        "governed; the axisymmetric (R,Z) envelope cannot resolve it -> needs D2 "
+        "governed; the axisymmetric (R,Z) envelope cannot resolve it -> needs "
+        "declared toroidal sensor positions "
         "toroidal sensor positions and a pinned EFCC vertical extent.",
         "family_rank_spearman": rho,
         "sector2_convention_ok": sign_check["convention_ok"],
@@ -309,7 +310,8 @@ def main() -> int:
             "source": "Kirk et al., arXiv:1312.6507 (CCFE 2013)",
             "identifiability": "axisymmetric sensor geometry (no toroidal probe "
             "position): full-loop symmetry + probe (R,Z) exposure envelope are "
-            "reconstructable; absolute per-probe n=1 coupling is NOT (needs D2 "
+            "reconstructable; absolute per-probe n=1 coupling is NOT (needs "
+            "declared toroidal sensor positions "
             "toroidal positions).",
         },
         "reference_shot": args.shot,

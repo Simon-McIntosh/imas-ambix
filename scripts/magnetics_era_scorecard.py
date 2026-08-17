@@ -65,13 +65,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
-from imas_ambix.gs.geometry import (
-    GEOMETRY_TABLE_VERSION,
-    build_table_for_shot,
-)
+from imas_ambix.data.description_reader import read_geometry_table
+from imas_ambix.data.paths import LEVEL1_DIR
+from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import feature_schema
-from imas_ambix.data.paths import LEVEL1_DIR
 
 # reuse the proven coil-only extraction + design/conditioning machinery
 from scripts.vacuum_coil_response_audit import (
@@ -380,7 +378,7 @@ def _completeness_for_shot(shot: int, schema_amb: set[str]) -> dict | None:
     if archived is None:
         return None
     try:
-        table = build_table_for_shot(shot)
+        table = read_geometry_table(shot)
     except Exception as exc:  # noqa: BLE001
         logger.warning("shot %s: geometry build failed (%s)", shot, exc)
         return None
@@ -433,7 +431,7 @@ def main() -> int:
     FIGURES.mkdir(parents=True, exist_ok=True)
 
     # canonical axes + frozen model
-    ref = build_operator(build_table_for_shot(REF_SHOT))
+    ref = build_operator(read_geometry_table(REF_SHOT))
     channels = list(ref.sensor_channels)
     coil_channels = list(ref.pf_amc_channels)
     g_model = np.asarray(ref.g_pf, dtype=np.float64)  # (n_ch, n_coil)

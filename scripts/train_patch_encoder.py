@@ -43,12 +43,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from imas_ambix.gs.geometry import (
-    GEOMETRY_TABLE_VERSION,
-    build_table_for_shot,
-    canonical_amb_channels,
-    discover_signatures,
-)
+from imas_ambix.data.description_reader import read_geometry_table
+from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
 from imas_ambix.gs.operator import (
     COIL_MODEL_VERSION,
     build_operator,
@@ -80,17 +76,12 @@ DEFAULT_CACHE_ROOT = Path("/work/projects/imas_gpu/latent/patch_encoder/corpus_c
 FALLBACK_CACHE_ROOT = Path("imas_ambix/latent/artifacts/patch_encoder/corpus_cache")
 WINDOW_HORIZON_S = 0.25  # physical span of a 12-step token window
 
-CORPUS_ASSEMBLY_VERSION = "geometry-shots-v1"
-"""Bump whenever ``assemble_corpus``'s ASSEMBLY SEMANTICS change in a way that
-changes its output for the SAME (shots, nr, nz, t_steps, stride, min_ip,
-COIL_MODEL_VERSION, GEOMETRY_TABLE_VERSION) — i.e. a behavioural fix to this
-module itself, not to anything it calls into.  Those upstream constants only
-cover changes in imas_ambix.gs.operator / .geometry; a change HERE (e.g.
-"geometry-shots-v1": canonical_amb_channels now scans every shot sharing a
-signature, not just a shard's own local slice) would otherwise silently keep
-serving an already-cached corpus assembled under the OLD semantics, since none
-of the other cache-key inputs changed. ``--force-rebuild-cache`` / ``FORCE=1``
-remain the manual override for a one-off rebuild without bumping this.
+CORPUS_ASSEMBLY_VERSION = "declared-machine-map"
+"""Cache identity for corpus assembly through declared machine descriptions.
+
+The value is part of every corpus cache key.  Change it whenever this module's
+assembly semantics alter output independently of the operator and geometry
+contract identities.
 """
 
 #: encoder buffers that carry per-CAMPAIGN geometry, never the learned trunk —
@@ -234,17 +225,11 @@ def _assemble_shot_examples(
 ):
     """Windowed examples for one shot, or None. Populates ``basis_cache`` by sig.
 
-    ``table``/``fwd`` are the signature's canonical geometry (built ONCE by
-    ``assemble_corpus`` from :func:`imas_ambix.gs.geometry.canonical_amb_channels`
-    over every shot sharing the signature — not rebuilt per shot) so the
-    resulting sensor channel SET is geometry-determined, never an artifact of
-    which shot happened to be processed first (a per-shot ``amb`` schema gap —
-    e.g. a flux loop recorded for most but not all shots of a campaign — used
-    to silently change ``S`` depending on shot order; see
-    ``imas_ambix/gs/geometry.py::canonical_amb_channels``).  Per-shot data that
-    is genuinely absent still comes back correctly masked below (``present``/
-    ``mask_b``), by construction — this only fixes which channels EXIST in the
-    corpus, not whether a given shot measured them.
+    ``table``/``fwd`` are the signature's canonical declared geometry, built
+    once by ``assemble_corpus`` and reused for every shot.  The machine map
+    declares the acquisition identity set independently of per-shot signal
+    availability.  Data genuinely absent from a shot still comes back masked
+    below (``present``/``mask_b``).
 
     ``operator_out`` (optional) collects one ``(table, operator)`` pair per
     first-seen signature — a free side-product of the assembly pass, used to
@@ -347,57 +332,45 @@ def assemble_corpus(
     ``(table, operator)`` pair per signature this assembly encounters — see
     :func:`regenerate_operator_summary`.
 
-    ``geometry_shots`` (optional): the shot list ``canonical_amb_channels`` is
-    unioned over, if it should be WIDER than ``shots`` itself — the sharded
-    assembly fleet's reason to pass this: a channel present on only a sparse
-    subset of a signature's shots can appear in one shard's own local slice
-    and not another's, so resolving the canonical schema per-shard-slice can
-    still disagree ACROSS shards.  Pass the FULL, un-sliced corpus shot list
-    here so every shard converges to the identical canonical schema by
-    construction, independent of which shots landed in which shard.  Defaults
-    to ``shots`` (correct for an unsharded call, where they're the same list).
+    ``geometry_shots`` (optional): a wider shot list used to discover every
+    declared signature before a shard assembles its local ``shots``.  Pass the
+    full, un-sliced corpus list so every shard resolves the same signature
+    tables.  Defaults to ``shots`` for unsharded assembly.
 
-    Geometry is resolved in two phases so the sensor channel SET is
-    geometry-determined rather than an artifact of shot order (see
-    ``imas_ambix/gs/geometry.py::canonical_amb_channels``): (1) group
-    ``geometry_shots`` by :class:`~imas_ambix.gs.geometry.SetupSignature` and
-    build ONE canonical table per signature from the union of EVERY one of its
-    shots' amb schema; (2) walk ``shots`` (this call's own, possibly sharded,
-    slice) reusing that canonical ``(table, fwd)`` pair — never rebuilt per
-    shot — for the per-shot windowed-example assembly.
+    Geometry is resolved in two phases: discover one declared table per
+    signature over ``geometry_shots``, then walk the local ``shots`` while
+    reusing that canonical ``(table, fwd)`` pair.
     """
     schema = feature_schema()
-    groups = discover_signatures(shots if geometry_shots is None else geometry_shots)
     sig_geometry: dict[str, tuple] = {}
     shot_to_key: dict[int, str] = {}
-    for key, (_sig, sig_shots) in groups.items():
-        canonical_amb = canonical_amb_channels(sig_shots)  # unbounded: every shot
-        table = None
-        for rep in sig_shots:
+    members: dict[str, list[int]] = {}
+    discovery_shots = shots if geometry_shots is None else geometry_shots
+    for shot in discovery_shots:
+        try:
+            table = read_geometry_table(int(shot))
+        except Exception as exc:  # noqa: BLE001 — unreadable shots are skipped
+            logger.warning("shot %s: declared geometry unavailable: %s", shot, exc)
+            continue
+        key = table.signature.key
+        members.setdefault(key, []).append(int(shot))
+        if key not in sig_geometry:
             try:
-                table = build_table_for_shot(rep, amb_channels=canonical_amb)
-                break
-            except Exception as exc:  # noqa: BLE001 — try the next candidate shot
+                sig_geometry[key] = (table, build_operator(table))
+            except Exception as exc:  # noqa: BLE001 — try another shot in range
                 logger.warning(
-                    "signature %s: candidate shot %s failed (%s) — trying next",
+                    "signature %s: operator build failed for shot %s: %s",
                     key,
-                    rep,
+                    shot,
                     exc,
                 )
                 continue
-        if table is None:
-            logger.warning(
-                "signature %s: no candidate shot could build a table (%d tried) "
-                "— its %d shots are skipped",
-                key,
-                len(sig_shots),
-                len(sig_shots),
-            )
-            continue
-        fwd = build_operator(table)
-        sig_geometry[key] = (table, fwd)
-        for s in sig_shots:
-            shot_to_key[int(s)] = key
+        shot_to_key[int(shot)] = key
+    for key, member_shots in members.items():
+        if key in sig_geometry:
+            sig_geometry[key][0].shots = sorted(member_shots)
+            for shot in member_shots:
+                shot_to_key[shot] = key
 
     basis_cache: dict = {}
     per_sig: dict[str, list[dict]] = {}
@@ -641,8 +614,8 @@ def _config_hash(
     holds for a change in how a :class:`GeometryTable` — its sensor channel
     SET in particular — is derived from a fixed signature digest; and
     ``CORPUS_ASSEMBLY_VERSION`` (this module) so the same holds for a change
-    in how THIS module turns a shot list into a corpus (e.g. which shots
-    canonical_amb_channels scans) even when neither upstream constant moved.
+    in how this module turns a shot list into declared signature tables and
+    corpus rows even when neither upstream constant moved.
     Every one of the three busts the cache key automatically the moment its
     constant changes, with no separate migration step.
     """
@@ -1186,9 +1159,9 @@ def _epoch_batches_balanced(
     regime_balanced: bool = False,
 ) -> list[tuple[str, np.ndarray]]:
     """Equal step budget per signature per epoch (``--sampling-mode
-    signature-balanced`` / ``regime-balanced``) — the measured lever for the
-    5k-to-full-corpus axis-median regression (patch-equilibrium-wm-integration
-    §3): under NATURAL sampling a dominant signature's batch count scales with
+    signature-balanced`` / ``regime-balanced``) — controls the observed
+    small-to-full-corpus axis-median regression.  Under natural sampling a
+    dominant signature's batch count scales with
     its own example count, so the shared trunk's gradient is dominated by
     whichever signature/regime is largest in the corpus, not by how hard each
     is to fit. Every signature instead gets ``steps_per_epoch // n_signatures``

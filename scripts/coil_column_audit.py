@@ -4,10 +4,9 @@ WHAT
 ----
 For one campaign shot, this compares the GS forward operator's per-coil,
 per-ampere vertical field ``B_z`` at the measured plasma location against an
-INDEPENDENT re-tabulation built directly from the authoritative winding
-sources — the raw ``efm`` fcoil filament lattice (centroids, extents, turns,
-circuit assignment, current-share ``xmult``) and the ``pfSystems.xml`` circuit
-description.  It reports, per coil, the signed percentage discrepancy between
+independent re-tabulation built directly from the declared table's filaments
+(centroids, extents, turns, circuit assignment, and current-share ``xmult``).
+It reports, per coil, the signed percentage discrepancy between
 the two field values at a gate point ``(R, Z) = (0.9, 0)`` plus two robustness
 points, a turns cross-check against the machine description, the fcoil circuits
 merged into each operator column, and the sign the coil's field takes both
@@ -20,8 +19,9 @@ plasma ~15-27% weak on the ramp, waterfall-localised to the P4/P5 groups.  Part
 of that could be a Shafranov-identity artefact at MAST's low aspect ratio and
 part could be a genuine winding-representation error in the forward operator.
 This audit isolates the second possibility with NO reference to any equilibrium
-identity: it only MEASURES the forward operator's coil columns against the raw
-winding tabulation.  If the two agree, the field deficit is not a per-coil
+identity: it only measures the forward operator's coil columns against a
+direct sum over the declared filaments.  If the two agree, the field deficit
+is not a per-coil
 geometry / turns / merge error and must be sought elsewhere; if they disagree
 above a pre-declared 2% gate, the discrepancy is a candidate mechanism that
 must be named as a geometry / turns / merge fix — never absorbed by a fitted
@@ -29,8 +29,8 @@ gain.  There are no fitted gains anywhere in this script.
 
 The two tabulations use the SAME finite-area cylinder Green's kernel
 (:func:`imas_ambix.gs.cylinder.hybrid_greens`); they differ only in
-  * the source lattice — raw un-collapsed fcoil filaments (authoritative) vs
-    the operator's rectangular-collapsed thick-cylinder packs; and
+  * the source calculation — a direct declared-filament sum versus the
+    operator's classified and merged columns; and
   * the solenoid response scale the operator applies to its P1 column.
 The solenoid scale is a known, vacuum-measured machine-description correction
 (:data:`imas_ambix.gs.operator.SOLENOID_RESPONSE_SCALE`); it is EXPECTED on the
@@ -54,15 +54,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
+from imas_ambix.data.description_reader import read_geometry_table  # noqa: E402
 from imas_ambix.gs import circuits as circuits_mod  # noqa: E402
 from imas_ambix.gs.cylinder import hybrid_greens  # noqa: E402
 from imas_ambix.gs.force_balance import known_coil_bz  # noqa: E402
-from imas_ambix.gs.geometry import (  # noqa: E402
-    PFFilament,
-    build_table_for_shot,
-    read_amc_current_channels,
-    read_efm_geometry,
-)
 from imas_ambix.gs.operator import (  # noqa: E402
     _CASE_BY_CIRCUIT_ID,
     _PF_COIL_AMC,
@@ -75,6 +70,8 @@ from imas_ambix.gs.operator import (  # noqa: E402
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from imas_ambix.gs.geometry import PFFilament
 
 logger = logging.getLogger("coil_column_audit")
 
@@ -127,13 +124,12 @@ class EvalPoint:
 def _circuit_bz_per_amp(
     filaments: Sequence[PFFilament], r: np.ndarray, z: np.ndarray
 ) -> np.ndarray:
-    """B_z [T per A] at ``(r, z)`` from one circuit's raw filaments.
+    """B_z [T per A] at ``(r, z)`` from one circuit's declared filaments.
 
     xmult-weighted sum of the finite-area cylinder kernel (index 2 of the
     ``(psi, br, bz)`` tuple), with the same section floor the operator uses.
     This mirrors :func:`imas_ambix.gs.force_balance._filament_field` but is
-    evaluated on the RAW un-collapsed lattice so the comparison isolates the
-    collapse.
+    evaluated independently of the operator's column assembly.
     """
     out = np.zeros(np.asarray(r).shape, dtype=np.float64)
     for f in filaments:
@@ -146,23 +142,23 @@ def _circuit_bz_per_amp(
     return out
 
 
-def _authoritative_bz(
-    raw_filaments: list[PFFilament],
+def _declared_bz(
+    declared_filaments: list[PFFilament],
     amc_channels: Sequence[str],
     r: np.ndarray,
     z: np.ndarray,
 ) -> tuple[dict[str, float], dict[str, list[int]], list]:
-    """Per-coil authoritative B_z [T per A] from the raw efm winding lattice.
+    """Per-coil B_z [T per A] from a direct declared-filament sum.
 
-    Classifies the raw filaments exactly as the operator does, groups the KNOWN
+    Classifies the declared filaments exactly as the operator does, groups the known
     active-PF circuits by their amc channel, and AVERAGES redundant same-channel
     circuits — mirroring :func:`imas_ambix.gs.operator.build_operator`'s merge
-    rule — but on the un-collapsed lattice and WITHOUT the solenoid response
+    rule — but without the solenoid response
     scale.  Returns ``(coil -> B_z, coil -> circuit ids, circuit classes)``.
     """
-    classes = classify_circuits(raw_filaments, amc_channels)
+    classes = classify_circuits(declared_filaments, amc_channels)
     by_circ: dict[int, list[PFFilament]] = {}
-    for f in raw_filaments:
+    for f in declared_filaments:
         by_circ.setdefault(f.circuit, []).append(f)
 
     # group KNOWN active-PF circuits by their coil label (unique amc channel).
@@ -194,18 +190,18 @@ def _operator_bz(table, r: np.ndarray, z: np.ndarray) -> dict[str, float]:
 
 
 def _turns_cross_check(
-    coil: str, circs: list[int], raw_filaments: list[PFFilament]
+    coil: str, circs: list[int], declared_filaments: list[PFFilament]
 ) -> dict[str, object]:
-    """Compare pfSystems turns against the efm Σxmult / Σturns for a coil.
+    """Compare circuit metadata against declared Σxmult / Σturns for a coil.
 
     ``pfSystems_turns`` = ``supply_scaling_a / 1000`` from the machine
-    description; ``efm_sum_xmult`` is the current-share sum the field weighting
+    description; ``declared_sum_xmult`` is the current-share sum the field weighting
     uses (≈1 for a coil normalised to its amp-turn channel; ≫1 for the solenoid
-    whose xmult carry the physical turn count); ``efm_sum_turns`` /
-    ``efm_n_filament`` describe the discretisation.
+    whose xmult carry the physical turn count).  The declared turn and filament
+    counts describe the discretisation.
     """
     by_circ: dict[int, list[PFFilament]] = {}
-    for f in raw_filaments:
+    for f in declared_filaments:
         by_circ.setdefault(f.circuit, []).append(f)
     fils = [f for c in circs for f in by_circ.get(c, [])]
     sum_xmult = float(sum(f.xmult for f in fils))
@@ -220,10 +216,10 @@ def _turns_cross_check(
     )
     return {
         "pfsystems_turns": pf_turns,
-        "efm_sum_xmult": round(sum_xmult, 4),
-        "efm_sum_turns": round(sum_turns, 4),
-        "efm_n_filament": n_fil,
-        "pfsystems_turns_match_efm_filament_count": bool(matches),
+        "declared_sum_xmult": round(sum_xmult, 4),
+        "declared_sum_turns": round(sum_turns, 4),
+        "declared_n_filament": n_fil,
+        "pfsystems_turns_match_declared_filament_count": bool(matches),
     }
 
 
@@ -273,24 +269,10 @@ def _find_flat_top_index(shot_id: int) -> tuple[int, float]:
 
 def run_audit(shot_id: int) -> dict[str, object]:
     """Build the full per-coil audit payload for one shot."""
-    logger.info("reading raw efm winding lattice for shot %d", shot_id)
-    geom = read_efm_geometry(shot_id)
-    fr, fz, ft = geom["fcoil_r"], geom["fcoil_z"], geom["fcoil_turns"]
-    fw, fh = geom["fcoil_width"], geom["fcoil_height"]
-    fc, fx = geom["fcoil_circ"], geom["fcoil_xmult"]
-    raw_filaments = [
-        PFFilament(
-            r=float(fr[i]),
-            z=float(fz[i]),
-            turns=float(ft[i]),
-            width=float(fw[i]),
-            height=float(fh[i]),
-            circuit=int(fc[i]),
-            xmult=float(fx[i]),
-        )
-        for i in range(fr.size)
-    ]
-    amc_channels = read_amc_current_channels(shot_id)
+    logger.info("reading declared winding table for shot %d", shot_id)
+    table = read_geometry_table(shot_id)
+    declared_filaments = list(table.pf_filaments)
+    amc_channels = list(table.amc_current_channels)
 
     points = [
         EvalPoint(*GATE_POINT, role="gate"),
@@ -298,20 +280,19 @@ def run_audit(shot_id: int) -> dict[str, object]:
         EvalPoint(*ROBUST_OUTER, role="robust_outer"),
     ]
 
-    logger.info("building the operator-path (collapsed) table")
-    table = build_table_for_shot(shot_id)
+    logger.info("building operator columns from the declared table")
     op = build_operator(table)
     merged_by_chan = dict(zip(op.pf_amc_channels, op.pf_merged_circuits, strict=True))
 
-    # authoritative + operator B_z at every evaluation point.
-    auth_by_point: dict[str, dict[str, float]] = {}
+    # Direct declared-filament and operator B_z at every evaluation point.
+    declared_by_point: dict[str, dict[str, float]] = {}
     op_by_point: dict[str, dict[str, float]] = {}
     circs_by_coil: dict[str, list[int]] = {}
     for p in points:
         r = np.array([p.r], dtype=np.float64)
         z = np.array([p.z], dtype=np.float64)
-        auth, circs, _ = _authoritative_bz(raw_filaments, amc_channels, r, z)
-        auth_by_point[p.role] = auth
+        declared, circs, _ = _declared_bz(declared_filaments, amc_channels, r, z)
+        declared_by_point[p.role] = declared
         op_by_point[p.role] = _operator_bz(table, r, z)
         circs_by_coil = circs  # coil->circuit ids (point-independent)
 
@@ -333,12 +314,12 @@ def run_audit(shot_id: int) -> dict[str, object]:
 
         per_point: dict[str, dict[str, float]] = {}
         for p in points:
-            auth_v = auth_by_point[p.role].get(coil, float("nan"))
+            auth_v = declared_by_point[p.role].get(coil, float("nan"))
             op_v = op_by_point[p.role].get(chan, float("nan"))
             per_point[p.role] = {
                 "r": p.r,
                 "z": p.z,
-                "authoritative_bz_per_amp": auth_v,
+                "declared_bz_per_amp": auth_v,
                 "operator_bz_per_amp": op_v,
                 "discrepancy_pct": _disc(op_v, auth_v),
             }
@@ -351,7 +332,7 @@ def run_audit(shot_id: int) -> dict[str, object]:
         # the sol column, so divide it back out for a pure-geometry comparison.
         if coil == "sol":
             op_sf = gate["operator_bz_per_amp"] / SOLENOID_RESPONSE_SCALE
-            sf_disc = _disc(op_sf, gate["authoritative_bz_per_amp"])
+            sf_disc = _disc(op_sf, gate["declared_bz_per_amp"])
             row["operator_bz_per_amp_scale_free"] = op_sf
             row["scale_free_discrepancy_pct"] = sf_disc
             unexplained = sf_disc
@@ -359,7 +340,7 @@ def run_audit(shot_id: int) -> dict[str, object]:
             unexplained = full_disc
 
         row["turns_cross_check"] = _turns_cross_check(
-            coil, circs_by_coil.get(coil, []), raw_filaments
+            coil, circs_by_coil.get(coil, []), declared_filaments
         )
         row["merge"] = _merge_case_check(coil, merged_by_chan.get(chan, []))
 
@@ -383,7 +364,7 @@ def run_audit(shot_id: int) -> dict[str, object]:
                 mechanism = (
                     "candidate geometry/merge fix: rectangular-collapse of the "
                     f"{coil} winding pack shifts its per-ampere B_z at the plasma "
-                    f"by {unexplained:+.2f}% vs the raw efm filament lattice"
+                    f"by {unexplained:+.2f}% vs the direct declared-filament sum"
                 )
         row["named_mechanism"] = mechanism
 
@@ -459,7 +440,8 @@ def write_figure(payload: dict[str, object], out_path: Path) -> None:
     ax.set_yticks(y)
     ax.set_yticklabels(coils, fontsize=9)
     ax.set_xlabel(
-        "signed discrepancy  (operator − raw efm) / raw efm  [%]", fontsize=10
+        "signed discrepancy  (operator − declared sum) / declared sum  [%]",
+        fontsize=10,
     )
     ax.set_title(
         "Per-coil vertical-field winding audit at (R,Z)=(0.9,0), "
@@ -518,7 +500,7 @@ def _print_report(payload: dict[str, object]) -> None:
         pf_turns = tc["pfsystems_turns"]
         turns_str = "-" if pf_turns is None else f"{pf_turns:g}"
         print(
-            f"{r['coil']:6s} {g['authoritative_bz_per_amp']:12.4e} "
+            f"{r['coil']:6s} {g['declared_bz_per_amp']:12.4e} "
             f"{g['operator_bz_per_amp']:12.4e} {g['discrepancy_pct']:8.3f} "
             f"{ri:8.3f} {ro:8.3f} {turns_str:>6s} "
             f"{'ok' if r['merge']['clean'] else 'FOLD':>6s}  {r['named_mechanism']}"

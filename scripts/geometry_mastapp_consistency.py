@@ -1,13 +1,10 @@
-"""Audit our efm-derived machine geometry against the MAST Data Catalog reference.
+"""Audit the adapted machine-map geometry against its catalog structures.
 
-Our GS Green's-function operator builds its coil + passive geometry from the
-FAIR-MAST ``efm`` static arrays (``fcoil_*`` PF filaments, ``amm`` passive
-descriptions); see :mod:`imas_ambix.gs.geometry`.  The MAST Data Catalog
-(mastapp.site) publishes an independent, authoritative representation of the
-same machine as IMAS ``pf_active`` (per-coil rectangular sub-elements) and
-``pf_passive`` (EFIT element geometry with parallelogram shape angles) groups
-in the level-2 Zarr store.  This script overlays the two and quantifies their
-agreement, with an explicit focus on the NON-RECTANGULAR question:
+The declared machine map emits MAST Data Catalog geometry and the compatibility
+facade adapts it to the table consumed by the GS Green's-function operator.
+This script overlays that adapted table on the underlying ``pf_active`` and
+``pf_passive`` structures and quantifies the adapter's geometric fidelity,
+with an explicit focus on the non-rectangular question:
 
 * PF-active coils: is each coil a filled axis-aligned rectangle (our operator
   collapses those to one thick-cylinder filament) or a genuinely non-rectangular
@@ -16,9 +13,9 @@ agreement, with an explicit focus on the NON-RECTANGULAR question:
   such that a true rectangle becomes one cylinder while the non-rectangular
   bits keep their extra filaments?
 
-The rule under test (user): "single rectangles for true rectangles, extra
-filaments for extra bits."  Outputs an overlay figure per side plus a
-quantitative consistency artifact.
+The rule under test is: single rectangles for true rectangles, extra filaments
+for extra geometric features.  The script writes an overlay figure per side
+plus a quantitative consistency artifact.
 """
 
 from __future__ import annotations
@@ -34,12 +31,7 @@ import numpy as np
 import xarray as xr
 from matplotlib.patches import Polygon, Rectangle
 
-from imas_ambix.gs.geometry import (
-    PFFilament,
-    collapse_rectangular_circuits,
-    read_amm_passive,
-    read_efm_geometry,
-)
+from imas_ambix.data.description_reader import read_geometry_table
 
 REPO = Path(__file__).resolve().parent.parent
 REF_SHOT = 30421
@@ -87,8 +79,7 @@ PF_PASSIVE_SHAPED = [
     "p2udivpl",
 ]
 
-# Collapse thresholds mirrored from collapse_rectangular_circuits so the audit
-# reports the SAME decision the operator makes.
+# Collapse thresholds mirrored by the geometry-table adapter.
 FILL_TOL = 0.25
 FLOOR = 0.01
 
@@ -205,13 +196,16 @@ def ref_pf_passive(ds: xr.Dataset) -> dict[str, dict]:
 # --- our geometry ----------------------------------------------------------
 
 
-def our_circuits(shot: int) -> dict[int, dict]:
-    """Raw efm fcoil filaments grouped by circuit, with the collapse verdict."""
-    g = read_efm_geometry(shot)
-    fr, fz = g["fcoil_r"], g["fcoil_z"]
-    fw, fh = g["fcoil_width"], g["fcoil_height"]
-    fc, fx = g["fcoil_circ"].astype(int), g["fcoil_xmult"]
-    ft = g["fcoil_turns"]
+def our_circuits(table) -> dict[int, dict]:
+    """Adapted filaments grouped by circuit, with the collapse verdict."""
+    filaments = table.pf_filaments
+    fr = np.asarray([item.r for item in filaments], dtype=np.float64)
+    fz = np.asarray([item.z for item in filaments], dtype=np.float64)
+    fw = np.asarray([item.width for item in filaments], dtype=np.float64)
+    fh = np.asarray([item.height for item in filaments], dtype=np.float64)
+    fc = np.asarray([item.circuit for item in filaments], dtype=np.int64)
+    fx = np.asarray([item.xmult for item in filaments], dtype=np.float64)
+    ft = np.asarray([item.turns for item in filaments], dtype=np.float64)
     out: dict[int, dict] = {}
     for c in np.unique(fc):
         m = fc == c
@@ -301,7 +295,7 @@ def fig_pf_active(ours, ref, match, path):
     fig.tight_layout(); fig.savefig(path, dpi=130); plt.close(fig)
 
 
-def fig_passive(ours_cases, ref_passive, amm, path):
+def fig_passive(ours_cases, ref_passive, passive_points, path):
     fig, ax = plt.subplots(figsize=(8, 11))
     for name, rc in ref_passive.items():
         col = "tab:green" if name == "coil_cases" else "tab:blue"
@@ -313,10 +307,11 @@ def fig_passive(ours_cases, ref_passive, amm, path):
         for i in range(oc["n"]):
             _draw_rect(ax, oc["r"][i], oc["z"][i], oc["w"][i], oc["h"][i],
                        facecolor="tab:red", alpha=0.5, edgecolor="tab:red", lw=0.4)
-    # our amm passive points (diagnostic-only source)
-    ar = [p.r for p in amm]; az = [p.z for p in amm]
+    # Declared passive points are a diagnostic-only source.
+    ar = [p.r for p in passive_points]
+    az = [p.z for p in passive_points]
     ax.scatter(ar, az, s=16, c="tab:purple", marker="x",
-               label="ours: amm passive (R,Z) points (diagnostic-only)")
+               label="declared passive (R,Z) points (diagnostic-only)")
     ax.plot([], [], color="tab:blue", lw=1.0, label="mastapp pf_passive (shaped)")
     ax.plot([], [], color="tab:green", lw=1.0, label="mastapp coil_cases (rotate_90)")
     ax.add_patch(Rectangle((0, 0), 0, 0, facecolor="tab:red", alpha=0.5,
@@ -339,13 +334,13 @@ def main() -> None:
     ref_a = ref_pf_active(ds_pf)
     ref_p = ref_pf_passive(ds_pv)
 
-    ours = our_circuits(REF_SHOT)
+    table = read_geometry_table(REF_SHOT)
+    ours = our_circuits(table)
     # circuits 1..13 are the active coils; 14+ are case/structural frames.
-    active_ids = {cid for cid in ours if ours[cid]["collapse"] or ours[cid]["n"] == 1}
     match_a = match_by_centroid(
         {k: v for k, v in ours.items()}, ref_a
     )
-    amm = read_amm_passive(REF_SHOT)
+    passive_points = table.passive_structures
     case_ids = {cid: ours[cid] for cid in ours if not ours[cid]["collapse"] and ours[cid]["n"] > 1}
 
     # --- PF-active consistency rows ---
@@ -398,21 +393,24 @@ def main() -> None:
                 "handled_as_nonrectangular": True,
             })
         else:
-            # match to nearest amm point
-            amm_rz = np.array([[p.r, p.z] for p in amm]) if amm else np.zeros((0, 2))
+            # Match to the nearest declared passive point.
+            amm_rz = (
+                np.array([[p.r, p.z] for p in passive_points])
+                if passive_points
+                else np.zeros((0, 2))
+            )
             dmin = float("nan")
             if amm_rz.size:
                 d = np.hypot(amm_rz[:, 0] - rc["centroid"][0],
                              amm_rz[:, 1] - rc["centroid"][1])
                 dmin = round(float(d.min()), 4)
             row.update({
-                "our_source": "amm passive (R,Z) points",
+                "our_source": "declared passive (R,Z) points",
                 "our_representation": "point_only_no_cross_section",
                 "nearest_amm_point_m": dmin,
                 "used_as_field_source": False,
-                "note": "amm is a diagnostic-only coincidence check; the operator "
-                        "infers passive/eddy currents on the fcoil structural "
-                        "circuits, not on amm points or these vessel structures.",
+                "note": "passive points are a diagnostic coincidence check; "
+                        "field sources are the declared structural circuits.",
             })
         pv_rows.append(row)
 
@@ -420,7 +418,7 @@ def main() -> None:
     fig_a_path = FIG_DIR / "fig-geometry-pf-active.png"
     fig_p_path = FIG_DIR / "fig-geometry-passive.png"
     fig_pf_active(ours, ref_a, match_a, fig_a_path)
-    fig_passive(case_ids, ref_p, amm, fig_p_path)
+    fig_passive(case_ids, ref_p, passive_points, fig_p_path)
 
     # --- verdicts ---
     active_consistent = all(r["consistent"] for r in pf_rows)
@@ -435,7 +433,7 @@ def main() -> None:
             "zarr": REF_ZARR,
         },
         "ours": {
-            "source": "efm-static-geometry (fcoil_* filaments, amm passive)",
+            "source": "declared machine-map geometry through the facade",
             "shot": REF_SHOT,
             "n_fcoil_filaments": int(sum(oc["n"] for oc in ours.values())),
             "n_circuits": len(ours),
@@ -455,7 +453,7 @@ def main() -> None:
                 "retains as filament lattices (circuits with fill<0.75 fail the "
                 "collapse gate). Reference pf_passive additionally carries "
                 "parallelogram vessel structures (botcol/topcol/p2 arms via shape "
-                "angles); ours represents these only as amm (R,Z) points used for a "
+                "angles); the adapted table also carries their (R,Z) points for a "
                 "diagnostic coincidence check, NOT as prescribed field sources."
             ),
         },
@@ -464,9 +462,9 @@ def main() -> None:
             "passive_case_frames_consistent": True,
             "nonrectangular_handled": True,
             "vessel_passive_gap": (
-                "amm vessel structures are point-only and not used as field "
-                "sources; inferred eddy currents live on the fcoil case/structural "
-                "circuits. This is a modeling choice (inferred passive layer), not "
+                "passive vessel points are not used directly as field sources; "
+                "eddy currents live on the declared structural circuits. This is "
+                "a modeling choice (inferred passive layer), not "
                 "a geometry defect in PF-coil non-rectangular handling. Flagged for "
                 "orchestrator: extending the inferred passive node set to the vessel "
                 "walls is a separate eddy-model decision."

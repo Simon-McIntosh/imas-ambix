@@ -38,8 +38,8 @@ slices only, raw ``amb`` magnetics + raw ``amc`` winding currents + the
 geometry-only operator.  The archived ``*_case_current`` channels are read ONLY
 for the comparison diagnostic, never as a fit input.  NO EFIT, NO plasma
 inversion, NO ``amm`` passive currents.  The frozen operator is NOT modified —
-this quantifies the passive layer (gate G-A input); the correction itself lands
-downstream (D3/D5) once G-A adjudicates.
+this quantifies the passive layer so a later acceptance run can decide whether
+the calibrated resistance belongs in the dynamic vessel model.
 
 Artifact: imas_ambix/latent/artifacts/patch_gate/case_circuit_resistance_fit.json
 Figure:   docs/figures/nonaxisymmetric-field-subtraction/fig-case-circuit-resistance.png
@@ -59,9 +59,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION, build_table_for_shot
+from imas_ambix.data.description_reader import read_geometry_table
+from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, MU0, build_operator, greens_psi
-
 from scripts.flux_loop_column_decomposition import BAY_LOOPS, select_cohort
 from scripts.vacuum_coil_response_audit import _shot_coil_only
 
@@ -135,7 +135,7 @@ def geometry_couplings(op, table) -> dict:
 
 
 def gather(shots: list[int]) -> dict:
-    ref = build_operator(build_table_for_shot(REF_SHOT))
+    ref = build_operator(read_geometry_table(REF_SHOT))
     channels = list(ref.sensor_channels)
     coils = list(ref.pf_amc_channels)
     g_pf = np.asarray(ref.g_pf, dtype=np.float64)
@@ -185,7 +185,7 @@ def fit(data: dict, geo: dict) -> dict:
         geometry-built passive-case shape explain?  This is the honest check of
         whether R can be pinned from the flux ALONE; it is confounded because
         the case is a few-percent sensor term under a vessel-eddy-dominated
-        residual (⇒ the full D3 vessel model is required to isolate it).
+        residual (the full dynamic vessel model is required to isolate it).
     """
     channels = data["channels"]
     coils = data["coils"]
@@ -303,7 +303,7 @@ def fit(data: dict, geo: dict) -> dict:
             "current dynamics (τ is shape-robust). Sensor-anchored (B) shows the "
             "case explains only a few percent of the bay-loop ramp residual — the "
             "residual is vessel-eddy dominated, so R cannot be pinned from the "
-            "flux without the full D3 vessel passive model."
+            "flux without the full dynamic vessel passive model."
         ),
     }
 
@@ -338,7 +338,7 @@ def make_figure(res: dict, out: Path) -> None:
     ax[2].set_xticks(xs); ax[2].set_xticklabels(lab, rotation=45, fontsize=8)
     ax[2].set_ylabel("case fraction of bay-loop ramp residual  [%]")
     ax[2].set_title("(c) the case is a FEW-% sensor term (vessel-eddy\n"
-                    "dominated residual) ⇒ isolating R needs the D3 vessel model")
+                    "dominated residual) ⇒ isolating R needs the dynamic vessel model")
 
     med_r2 = float(np.nanmedian(r2c))
     fig.suptitle(
@@ -364,7 +364,7 @@ def main() -> int:
         shots = shots[: args.limit]
     logger.info("cohort: %d shots", len(shots))
 
-    table = build_table_for_shot(REF_SHOT)
+    table = read_geometry_table(REF_SHOT)
     ref = build_operator(table)
     geo = geometry_couplings(ref, table)
 

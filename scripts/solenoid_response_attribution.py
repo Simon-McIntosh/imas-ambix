@@ -59,7 +59,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION, build_table_for_shot
+from imas_ambix.data.description_reader import read_geometry_table
+from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
 from imas_ambix.gs.operator import (
     COIL_MODEL_VERSION,
     _green_columns,
@@ -234,7 +235,7 @@ def main() -> int:
 
     vca = _load_audit_module()
 
-    ref_table = build_table_for_shot(11774)
+    ref_table = read_geometry_table(11774)
     ref = build_operator(ref_table)
     channels = list(ref.sensor_channels)
     coil_channels = list(ref.pf_amc_channels)
