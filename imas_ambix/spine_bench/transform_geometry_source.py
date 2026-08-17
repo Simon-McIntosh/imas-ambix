@@ -2,10 +2,10 @@
 
 Every table is acquired through the declared machine-description route.
 Flux-loop acquisition addresses are additionally bound fail-closed to EFM
-geometry rows by their measured waveform identity. Conductors, drive
-declarations, limiter geometry, probe axes, and sensor addressing remain those
-of the declared description, and the identity binding is recorded in source
-provenance.
+waveform rows by their measured identity while the range-scoped catalog remains
+the position authority. Conductors, drive declarations, limiter geometry,
+probe axes, and sensor addressing remain those of the declared description,
+and the identity binding is recorded in source provenance.
 
 Run one source explicitly as::
 
@@ -163,7 +163,7 @@ def _bind_flux_loop_identities(
     table: Any,
     matches: tuple[SignalIdentityMatch, ...],
 ) -> tuple[Any, int]:
-    """Bind every declared loop address to one measured EFM geometry row."""
+    """Bind loop waveform identities while preserving catalog positions."""
     channels = tuple(
         mapping.amb_channel
         for mapping in table.sensor_map
@@ -194,19 +194,11 @@ def _bind_flux_loop_identities(
                 f"channel {mapping.amb_channel!r} matched non-finite EFM "
                 f"geometry column {match.efm_index}"
             )
-        rebound_count += int(
-            mapping.efm_index != match.efm_index
-            or mapping.r != match.r
-            or mapping.z != match.z
-        )
+        rebound_count += int(mapping.efm_index != match.efm_index)
         corrected.append(
             replace(
                 mapping,
                 efm_index=match.efm_index,
-                r=match.r,
-                z=match.z,
-                residual_m=0.0,
-                flag="",
             )
         )
     return (
@@ -216,7 +208,8 @@ def _bind_flux_loop_identities(
             provenance_flags=[
                 *table.provenance_flags,
                 "flux-loop sensor identity: acquisition waveforms joined "
-                "one-to-one to EFM geometry rows on the evidence shot",
+                "one-to-one to EFM rows on the evidence shot while catalog "
+                "position declarations remain authoritative",
             ],
         ),
         rebound_count,

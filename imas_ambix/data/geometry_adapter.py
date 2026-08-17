@@ -41,6 +41,7 @@ if TYPE_CHECKING:
         CircuitConnection,
         DescriptionSupplement,
         DriveTopology,
+        FluxLoopPositionDeclaration,
         MachineMapCatalog,
     )
     from imas_ambix.data.transform_engine import EmittedArray, MachineDescription
@@ -714,6 +715,70 @@ def _sensor_map_for_acquisition(
     return selected, tuple(missing_coordinates)
 
 
+def _apply_flux_loop_position_declarations(
+    flux_loops: list[FluxLoop],
+    mappings: list[SensorMapping],
+    declarations: tuple[FluxLoopPositionDeclaration, ...],
+) -> tuple[list[FluxLoop], list[SensorMapping], tuple[str, ...]]:
+    """Apply active directional positions and preserve qualified nulls."""
+    by_address = {item.acquisition_address.casefold(): item for item in declarations}
+    updated_loops = list(flux_loops)
+    updated_mappings: list[SensorMapping] = []
+    applied: list[str] = []
+    qualified: list[str] = []
+    for mapping in mappings:
+        declaration = by_address.get(mapping.amb_channel.casefold())
+        if declaration is None:
+            updated_mappings.append(mapping)
+            continue
+        if declaration.position_verdict == "undecided":
+            qualified.append(declaration.acquisition_address)
+            updated_mappings.append(
+                replace(
+                    mapping,
+                    flag=(
+                        "vacuum-position verdict undecided; catalog declares no "
+                        f"coordinate ({declaration.name})"
+                    ),
+                )
+            )
+            continue
+        if declaration.declared_r is None or declaration.declared_z is None:
+            raise GeometryAdapterError(
+                f"directional declaration {declaration.name!r} has no coordinates"
+            )
+        updated_loops[mapping.efm_index] = FluxLoop(
+            index=mapping.efm_index,
+            r=declaration.declared_r,
+            z=declaration.declared_z,
+        )
+        applied.append(declaration.acquisition_address)
+        updated_mappings.append(
+            replace(
+                mapping,
+                r=declaration.declared_r,
+                z=declaration.declared_z,
+                residual_m=0.0,
+                flag=(
+                    f"range-scoped {declaration.position_verdict} position "
+                    f"declaration ({declaration.name})"
+                ),
+            )
+        )
+    notices = (
+        "flux-loop vacuum-position declarations: "
+        f"{len(applied)} directional coordinates applied",
+        "flux-loop vacuum-position qualifications: "
+        + (
+            f"{len(qualified)} undecided positions retained from source geometry "
+            f"({', '.join(sorted(qualified))})"
+            if qualified
+            else "no undecided positions present in this acquisition"
+        ),
+    )
+    return updated_loops, updated_mappings, notices
+
+
 def _polygon_sections(
     supplement: DescriptionSupplement,
     topology: DriveTopology,
@@ -871,6 +936,13 @@ def geometry_table_from_description(
     sensor_map, missing_sensor_coordinates = _sensor_map_for_acquisition(
         (*b_mappings, *flux_mappings), acquisition
     )
+    flux_loops, sensor_map, position_notices = (
+        _apply_flux_loop_position_declarations(
+            flux_loops,
+            sensor_map,
+            catalog.flux_loop_positions_for(description.shot),
+        )
+    )
     notices = [
         "b_probes.angle_deg: catalog qualification records that the source "
         "does not expose poloidal probe orientation",
@@ -879,6 +951,7 @@ def geometry_table_from_description(
         "residual or probe-orientation values",
         "minor_radius: the catalog qualification records that the Data Dictionary "
         "has no fixed machine-description minor-radius leaf",
+        *position_notices,
     ]
     if missing_sensor_coordinates:
         notices.append(
