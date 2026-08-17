@@ -25,9 +25,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-17">
-<meta name="plan-commits" content="40c6cdea">
-<meta name="plan-impl" content="0.1">
-<meta name="plan-version" content="2">
+<meta name="plan-commits" content="40c6cdea,1eca758b">
+<meta name="plan-impl" content="0.18">
+<meta name="plan-version" content="3">
 </head>
 <body>
   <main class="plan-doc">
@@ -203,14 +203,14 @@
         therefore lives at emission, quarantined, where it cannot leak into the model whose skill target
         is better-than-EFIT.</p>
     </div>
-<div class="r-dec" data-key="label-pedigree-response" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="label-pedigree-response" data-choice="edge-weighted" data-by="reckon-ship" data-when="2026-08-17T16:31:10+00:00">
     <p class="r-dec-q">How aggressively may the interior of extracted flux functions be trusted for closure tuning, given the §2 pedigree probe outcome (magnetics-only vs MSE-constrained labels)?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="interior-trusted">Interior trusted: full-profile closure tuning</button>
-      <button class="r-opt" data-value="edge-weighted">Edge-weighted: tight low-DOF interior corrections only (default recommendation)</button>
+      <button class="r-opt chosen" data-value="edge-weighted">Edge-weighted: tight low-DOF interior corrections only (default recommendation)</button>
       <button class="r-opt" data-value="boundary-only">Boundary quantities only; interior rides transport untuned</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">Locked on measurement to the option the plan pre-registered as its default recommendation, because the probe established that nothing better is obtainable from the data we have. Shape-only discriminators over 3,816 quality frames returned INCONCLUSIVE at 0.85 confidence: the extracted profiles do carry smooth, low-order, magnetics-only-like signatures (95 percent rank of 1 for both the q proxy and the current profile, one component explaining 98.49 and 96.99 percent of their variance, median quadratic residuals 0.505 and 1.006 percent, split-half coherence 0.958), but an MSE-constrained EFIT sharing the same basis, regularisation and extraction stencil produces those same signatures, so the discriminator cannot separate the hypotheses. Identifying the pedigree would require reconstruction-constraint metadata, EFIT inputs exposing MSE weights, paired MSE-on and MSE-off reconstructions, or held-out pitch-angle residuals, none of which the corpus carries. Edge-weighted is therefore the correct posture under genuine uncertainty: trust boundary and outer-profile information strongly, permit only tightly priored low-degree interior corrections, and keep the pedigree recorded as unknown rather than assumed.</p>
     </div>
 <div class="r-dec" data-key="floor-bar-source" data-choice="" data-by="" data-when="">
     <p class="r-dec-q">Where does the §5 flat-top floor bar come from?</p>
@@ -243,6 +243,9 @@
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s2" data-id="c-20260817-challenge-ingest" data-who="reckon-ship" data-when="2026-08-17T15:00:00+00:00">
     <div class="r-comment-body">challenge-ingest landed: commit 40c6cdea (worktree, integration pending); gate corpus-loaders PASSED with 4/4 schema tests on exactly 100 downloaded DIII-D train shots (21,386 label frames, 16 Thomson layouts observed, all maps T x 65 x 65). Research-doc section-5 verdicts: official card CONFIRMS 1,559,340 DIII-D train label frames, 88.0 percent DIII-D retention, 66.4 percent MAST retention and 22 DIII-D Thomson layouts; the EFIT pedigree claim is UNREACHABLE from schema (parquet carries no reconstruction-constraint provenance, so the pedigree probe must be empirical via extraction) and the MAST rounding-damage claim is unreachable without a scorer receipt. Full corpus is 9,121 objects / 103.9 GB; a resumable direct-write download is live (36.0 GB complete at handoff) under /work/projects/imas_gpu/sophelio/raw/ with an append-only manifest. Follow-on: the empirical label-pedigree probe now routes through extracted flux functions (the prototype plan banked 20-shot trajectories the same day).</div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-20260817-pedigree-probe" data-who="reckon-ship" data-when="2026-08-17T16:55:00+00:00">
+    <div class="r-comment-body">pedigree-probe landed: commit 1eca758b; gate pedigree-verdict PASSED with an inconclusive scientific verdict, which is the outcome the probe was designed to be able to return. Quality set 3,816 of 4,141 frames (92.15 percent) across all 20 shots. The q-shape proxy is constant-F normalised to the parquet q95 and is NOT an independently extracted q profile, because the corpus carries no full q or F profile, and that limitation is recorded rather than papered over. Median quadratic-in-rho-squared residual 0.505 percent for the q proxy and 1.006 percent for normalised current density, explained fractions 99.964 and 99.896 percent, shot split-half residual coherence 0.958, median core coefficient of variation 7.83 and 10.93 percent. SIDE FINDING that strengthens the entry thesis beyond its original measurement: the 95 percent rank is ONE for both quantities, with a single component explaining 98.49 percent of q-proxy variance and 96.99 percent of current-profile variance, and between-shot variance fractions of 32.85 and 49.77 percent. The corpus corpus-wide download also completed during this wave, 9,121 files verified against the inventory (7,041 DIII-D train, 874 public test, 1,206 MAST), so every downstream lane is now data-unblocked.</div>
 </div>
 </section>
 </main>

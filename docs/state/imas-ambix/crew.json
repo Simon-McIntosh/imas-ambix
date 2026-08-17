@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-17T18:22:47",
+  "updated": "2026-08-17T18:30:50",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -50,7 +50,7 @@
         "id": "pedigree-probe",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
+        "session_id": "01a01087-bb8d-71b0-bb31-ce2f02765e11",
         "created": "2026-08-17"
       },
       {
@@ -106,7 +106,7 @@
         "id": "thomson-models",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
+        "session_id": "01a0108b-c092-7133-b9a6-173bb80edd62",
         "created": "2026-08-17"
       },
       {
@@ -3454,9 +3454,129 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260817T162110526826-thomson-models",
+        "plan": "magnetics-free-equilibrium-recovery",
+        "section": "\u00a73",
+        "node": "thomson-models",
+        "role": "implement",
+        "member": "thomson-models",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-17T16:21:13Z",
+        "completed_at": "2026-08-17T16:23:04Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 111,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 111,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "5ad2d5c61558bf6baf7defff2b4eff180929f9ac",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "not-run",
+        "outcome": "Blocked at environment provisioning before any implementation. The dispatch instructed uv sync --extra test, a nova-specific recipe that is actively wrong for imas-ambix: the editable sibling dependency imas-ink is declared as path ../imas-ink and resolves only from the main checkout, so it is absent beside any detached worktree, and --no-sources also fails because the viz extra then needs imas-ink from a registry that does not carry it. Orchestrator dispatch error, not a worker failure. Redispatched with the recipe the three successful ambix workers used: the main checkout venv with PYTHONPATH set to the worktree, and no uv sync.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260817T162110526826-thomson-models/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01086-f127-7a91-8ede-ebb77b832402",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 671232,
+            "cached_input_tokens_cumulative": 671232,
+            "input_tokens": 734396,
+            "input_tokens_cumulative": 734396,
+            "output_tokens": 3911,
+            "output_tokens_cumulative": 3911,
+            "reasoning_output_tokens": 1314,
+            "reasoning_output_tokens_cumulative": 1314
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
+      },
+      {
+        "run_id": "r-20260817T162202791126-pedigree-probe",
+        "plan": "magnetics-free-equilibrium-recovery",
+        "section": "\u00a72",
+        "node": "pedigree-probe",
+        "role": "implement",
+        "member": "pedigree-probe",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-17T16:22:05Z",
+        "completed_at": "2026-08-17T16:30:12Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 487,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 487,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "5ad2d5c61558bf6baf7defff2b4eff180929f9ac",
+        "commits": [
+          "1eca758b700ae52b3cd756e09b6134650609d64c"
+        ],
+        "changed_lines": {
+          "added": 576,
+          "removed": 0,
+          "files": 7
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "outcome": "Probe ran and emitted its evidence. Verdict is INCONCLUSIVE at 0.85 confidence that shape-only discriminators cannot separate magnetics-only from MSE-constrained labels, with a concrete recommendation (edge-weighted) and a stated list of what identifying evidence would require.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260817T162202791126-pedigree-probe/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01087-bb8d-71b0-bb31-ce2f02765e11",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2403840,
+            "cached_input_tokens_cumulative": 2403840,
+            "input_tokens": 2526036,
+            "input_tokens_cumulative": 2526036,
+            "output_tokens": 20539,
+            "output_tokens_cumulative": 20539,
+            "reasoning_output_tokens": 5537,
+            "reasoning_output_tokens_cumulative": 5537
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 91
+    "_version": 95
   }
 }
