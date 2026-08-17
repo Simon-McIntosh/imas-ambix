@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="flux-function-state-interface-landed">
+  <meta name="plan-title" content="Flux-Function State Interface — landed record">
+  <meta name="plan-summary" content="Cumulative execution evidence for the typed seam: the FluxFunctionState contract landing">
+  <meta name="plan-evidence-for" content="flux-function-state-interface">
+  <title>Flux-Function State Interface — landed | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="typed-contract">§2 typed contract — 2026-08-17</h2>
+    <p>Commit <code>226e431</code> (node state-contract).
+    <code>imas_ambix/fluxstate/contract.py</code> delivers the immutable typed
+    <code>FluxFunctionState</code> as a <strong>17-leaf NumPy/JAX array tree with a
+    lossless JSON-compatible round trip</strong>: normalised-poloidal-flux coordinate with
+    its total-flux Jacobian, pressure and F-family primitives with derivatives under COCOS
+    17 plus three explicit sign declarations, two independent topology-keyed domain
+    policies, weighted-ensemble identity (three members, weights preserved through the
+    round trip), and the integral-constraint policy carrying target, achieved and residual
+    identities for I_p, β_p and l_i. <strong>Causality is enforced at the type
+    boundary</strong>: <code>ForecastHandoff</code> and <code>AnalysisHandoff</code> are
+    separate runtime types accepted by <code>require_online_handoff</code>, while
+    <code>FixedLagSmoothing</code> and <code>FullSequenceSmoothing</code> are rejected
+    there — the arrow-of-time contract as code, not convention. Corrupted-derivative
+    fixtures fail loudly with index, declared value, numerical value, error and allowance.
+    9/9 tests green in 3.43 s; ruff clean.</p>
+  </main>
+</body>
+</html>

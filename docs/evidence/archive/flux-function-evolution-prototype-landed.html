@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="flux-function-evolution-prototype-landed">
+  <meta name="plan-title" content="Flux-Function Evolution Prototype — landed record">
+  <meta name="plan-summary" content="Cumulative execution evidence for the spike: trajectory extraction, simulability and the joined-loop demo">
+  <meta name="plan-evidence-for" content="flux-function-evolution-prototype">
+  <meta name="plan-informs" content="magnetics-free-equilibrium-recovery,learned-closure-current-diffusion-v0">
+  <title>Flux-Function Evolution Prototype — landed | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="trajectory-bank">§2 trajectory extraction — 2026-08-17</h2>
+    <p>Commit <code>6e2b5d9</code> (node proto-extract). Twenty regime-spanning DIII-D
+    train shots (15 long flat-top, 12 substantial ramp, selected from 32 candidates) with
+    <strong>every labeled frame banked — 4,141 frames</strong> of p′/FF′/j_φ/ψ(ρ̂)
+    trajectories plus Nova FSA records under
+    <code>/work/projects/imas_gpu/sophelio/prototype-subset/</code>. Vacuum receipts pass
+    <strong>4,068/4,141 (98.24%)</strong>, majority-pass on all 20 shots, with the 73
+    failures early-ramp concentrated (largest window 180–720 ms in one shot). Nova's
+    <code>traced_flux_surface_bins</code> was well-posed on 100% of frames; median
+    within-surface separation explains <strong>93.10%</strong> of Δ* source variation.</p>
+    <p><strong>The low-dimensional thesis is measured:</strong> three pooled basis
+    components capture <strong>99.76% of p′, 99.85% of FF′ and 100.00% of ψ(ρ̂)
+    variance</strong>, and the median frame-to-frame relative variation is 9.54% (p′),
+    6.49% (FF′) and 1.23% (ψ) — slowly drifting, exactly as the entry plan's state-space
+    framing assumes. Caveats banked: challenge maps are flux per toroidal radian (converted
+    to total flux before applying Nova's convention), and the banked ρ̂ is a geometric proxy
+    because labels omit boundary toroidal-field calibration. Nova kernel gaps reported in
+    <code>scripts/flux_evolution_prototype/kernel_gaps.json</code>; figures
+    <code>receipt_and_basis_summary.png</code> and
+    <code>representative_trajectories.png</code> sit beside the summary JSON.</p>
+  </main>
+</body>
+</html>

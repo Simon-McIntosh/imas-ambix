@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="magnetics-free-equilibrium-recovery-landed">
+  <meta name="plan-title" content="Magnetics-Free Equilibrium Recovery — landed record">
+  <meta name="plan-summary" content="Cumulative execution evidence for the challenge entry plan: corpus ingest and facts verification">
+  <meta name="plan-evidence-for" content="magnetics-free-equilibrium-recovery">
+  <title>Magnetics-Free Equilibrium Recovery — landed | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="corpus-ingest">§2 corpus ingest and facts verification — 2026-08-17</h2>
+    <p>Commit <code>40c6cdea</code> (node challenge-ingest). The
+    <code>imas_ambix/challenge</code> package lands the resumable direct-write downloader
+    (GPFS-safe: no rename-publish anywhere), the parquet loaders for the per-shot
+    nested-array schema, and schema tests validated on <strong>exactly 100 downloaded
+    DIII-D train shots — 21,386 label frames, 16 Thomson layouts observed, every map
+    T×65×65</strong> (4/4 tests, 123.7 s). The full corpus inventory is
+    <strong>9,121 objects, 103.9 GB</strong>; a resumable background download with an
+    append-only manifest was live at 36.0 GB complete at handoff under
+    <code>/work/projects/imas_gpu/sophelio/raw/</code>.</p>
+    <p><strong>Research-doc §5 verdicts</strong> (facts-report.json beside the loaders):
+    the official corpus card <em>confirms</em> 1,559,340 DIII-D train label frames, 88.0%
+    DIII-D retention, 66.4% MAST retention, and 22 DIII-D Thomson channel-name layouts.
+    Two claims are <em>unreachable from schema</em>: the EFIT label pedigree
+    (magnetics-only vs MSE-constrained) — the parquet carries no reconstruction-constraint
+    provenance, so the pedigree probe must be empirical through extracted flux functions —
+    and the three-decimal MAST Consistency damage, which needs a scorer receipt that does
+    not exist locally. The <code>label-pedigree-response</code> decision therefore waits on
+    the empirical probe, for which the flux-function-evolution-prototype banked 20-shot
+    trajectories the same day.</p>
+  </main>
+</body>
+</html>
