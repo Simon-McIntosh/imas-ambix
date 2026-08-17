@@ -917,18 +917,16 @@ def _campaign_representatives() -> dict[str, list[int]]:
 def _operator_for_shot(shot_id, op_cache, reps=None):
     """Return the campaign ForwardOperator matching ``shot_id`` (by signature).
 
-    Built from a committed campaign-representative shot (which carries ``amm``);
-    falls back to the target shot.
+    Built from a declared campaign-representative description; falls back to
+    the target shot.
     """
-    from imas_ambix.gs.geometry import (  # noqa: PLC0415
-        build_table_for_shot,
-        read_efm_geometry,
-        setup_signature,
+    from imas_ambix.data.description_reader import (  # noqa: PLC0415
+        read_geometry_table,
     )
     from imas_ambix.gs.operator import build_operator  # noqa: PLC0415
 
     try:
-        key = setup_signature(read_efm_geometry(shot_id)).key
+        key = read_geometry_table(int(shot_id)).signature.key
     except Exception:  # noqa: BLE001
         return None
     if key in op_cache:
@@ -936,7 +934,7 @@ def _operator_for_shot(shot_id, op_cache, reps=None):
     reps = reps if reps is not None else _campaign_representatives()
     for rep in list(reps.get(key, [])) + [shot_id]:
         try:
-            op_cache[key] = build_operator(build_table_for_shot(int(rep)))
+            op_cache[key] = build_operator(read_geometry_table(int(rep)))
             return op_cache[key]
         except Exception as e:  # noqa: BLE001
             logger.debug("operator build failed rep %d: %s", rep, e)

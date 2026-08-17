@@ -35,14 +35,12 @@ disagreement means the shot has been mapped onto a machine the description does
 not describe.  That is refused rather than reconciled, because the whole value of
 selecting on identity is lost if the selection can silently miss.
 
-What the description cannot supply
-----------------------------------
-A machine description states conductors and sensors, not the acquisition system
-that names them.  The campaign's ``amb`` channel pairs and ``amc`` current-channel
-names therefore still come from the shot, and are addressing lists rather than
-geometry: they say which measured column reaches which described conductor or
-sensor.  The positions, orientations, outlines and drive weights behind those
-names are the description's.
+Acquisition addressing
+----------------------
+The reviewed map declares stable sensor and current addresses beside the machine
+geometry.  Those addresses say which measured column reaches each described
+conductor or sensor; positions, orientations, outlines and drive weights remain
+properties of the description itself.
 """
 
 from __future__ import annotations
@@ -162,12 +160,11 @@ class ArtifactMachineSelector:
     def _read(
         self, shot: int, artifact: ResolvedArtifact, identity: MachineIdentity
     ) -> tuple[GeometryTable, dict[str, Any]]:
+        from imas_ambix.data.description_reader import (  # noqa: PLC0415
+            read_acquisition_channels,
+        )
         from imas_ambix.gs.artifact_geometry import (  # noqa: PLC0415
             MachineArtifactGeometryReader,
-        )
-        from imas_ambix.gs.geometry import (  # noqa: PLC0415
-            canonical_amb_channels,
-            read_amc_current_channels,
         )
 
         evidence_shot = int(shot)
@@ -178,12 +175,16 @@ class ArtifactMachineSelector:
         amc_shot = (
             evidence_shot if self.amc_channel_shot is None else self.amc_channel_shot
         )
+        sensor_acquisition = read_acquisition_channels(
+            int(s) for s in channel_shots
+        )
+        current_acquisition = read_acquisition_channels((int(amc_shot),))
         reader = MachineArtifactGeometryReader(
             cache_directory=artifact.cache_directory,
             digest=artifact.digest,
             shot=evidence_shot,
-            amb_channels=tuple(canonical_amb_channels([int(s) for s in channel_shots])),
-            amc_current_channels=tuple(read_amc_current_channels(int(amc_shot))),
+            amb_channels=sensor_acquisition.sensors,
+            amc_current_channels=current_acquisition.currents,
             # the digest the SHOT resolved to, so the read is pinned by the
             # selection rather than by whatever the cache happened to hold
             expected_physical_digest=identity.physical_digest,

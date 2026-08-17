@@ -1,8 +1,8 @@
 """In-process trainer + codebook-decision + encoder for HF signal tokens.
 
 Drives the phase-aware patch-transformer tokenizer end-to-end on a single
-GPU (repo §2b in-process pattern: model loaded once, many shots streamed
-through the same process — no subprocess-per-shot, no file-IPC daemon).
+GPU: the model is loaded once and many shots stream through the same process,
+without a subprocess per shot or a file-IPC daemon.
 
 Three phases:
 
@@ -21,7 +21,7 @@ Three phases:
     tokenizer — native cadence, per-token time, per-channel validity.
 
 A per-shot watchdog and a SIGTERM/SIGINT handler make a long encode lossless
-and cancellation-safe (repo §2a good-practice hang protection).
+and cancellation-safe.
 """
 
 from __future__ import annotations
@@ -374,8 +374,8 @@ class ShotWindowDataset:
     MHz-rate raw signals (measured: xsx 500 kHz × 300k × 36 chords).  Reading
     each shot in a torch ``DataLoader`` worker subprocess overlaps the next
     shot's GPFS read with the current shot's inference + store write, the
-    canonical in-process IO-overlap pattern (repo §2b: a bounded DataLoader
-    worker pool, NOT a prefetch producer/consumer thread or a file-IPC daemon).
+    bounded in-process IO-overlap pattern: a DataLoader worker pool, not a
+    prefetch producer/consumer thread or a file-IPC daemon.
 
     Each item is ``(shot_id, window_or_None, reason)`` where ``window`` is the
     ``load_shot_window`` tuple or ``None`` (with a skip ``reason``) so a
@@ -435,8 +435,8 @@ def encode_shots(
 
     ``num_workers > 0`` reads shot windows in a torch ``DataLoader`` worker
     pool so the GPFS read of shot ``N+1`` overlaps the inference + store write
-    of shot ``N`` — the IO-overlap that matters for this IO-bound encode (repo
-    §2b).  ``num_workers == 0`` reads inline (used by unit tests, which
+    of shot ``N`` — the IO-overlap that matters for this IO-bound encode.
+    ``num_workers == 0`` reads inline (used by unit tests, which
     monkeypatch ``load_shot_window``).
 
     ``corpus_calibration`` (``dict[str, ChannelCalibration] | None``): when
@@ -503,8 +503,8 @@ def _geometry_features_for(
 ) -> tuple[np.ndarray | None, tuple[str, ...], tuple[str, ...]]:
     """Build the ``(n_channels, N_GEOMETRY_FEATURES)`` geometry array for a shot.
 
-    Geometry is campaign-constant (static efm sensor/coil positions — NO
-    equilibrium / psi / boundary, firewall-safe), so the per-shot
+    Geometry comes from the static declared machine description — no
+    equilibrium, psi, or boundary state — so the per-shot
     ``GeometryFields`` is cached by the shot's setup signature and reused across
     every shot of the same campaign.  Best-effort: a shot whose static geometry
     cannot be read still encodes (geometry omitted + a one-line warning) — the
@@ -542,11 +542,11 @@ def _geometry_features_for(
             return None, (), ()
 
     try:
-        from imas_ambix.gs.geometry import build_table_for_shot
+        from imas_ambix.data.description_reader import read_geometry_table
 
         # Per-shot static-geometry table is the cheap thing; the signature keys
         # the (expensive-to-flatten) GeometryFields cache.
-        table = build_table_for_shot(shot_id)
+        table = read_geometry_table(shot_id)
         # The cache is keyed by the SETUP SIGNATURE, not the machine's physical
         # identity: the flattened rows are per-channel positions of one
         # discretization, so two subdivisions of one machine need two entries.
@@ -1106,7 +1106,7 @@ def _manifest_payload(summary: dict) -> dict:
 
 
 def _torch_perf_setup(device: str) -> None:
-    """Reproducibility + H200 tensor-core settings (repo §2b)."""
+    """Apply reproducibility and H200 tensor-core settings."""
     try:
         import torch
 

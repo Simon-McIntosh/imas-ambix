@@ -196,17 +196,14 @@ def test_basin_scout_reaches_confined_where_fixed_shape_drifts():
     for a fragile profile, while a free-sign scout / warm-start reaches the
     confined branch — the multi-branch fixed-point structure the harness maps.
 
-    The contrast lives at a MARGINAL confining well: at the default 60 kA the
-    well is deep enough that even fragile profiles confine from a cold seed
-    (the basin depends on the vacuum field, so calibration-scale coil-model
-    changes move it), while a too-shallow 44 kA well loses the confined branch
-    for the fragile family even warm-started.  52 kA with a peaked broad
-    profile sits between: the cold seed drifts (axis ~1.79 m), the warm start
-    holds the confined branch (axis ~1.20 m) — measured margins ~0.4 / 0.2 m
-    either side of the 1.4 m attractor threshold."""
+    The contrast lives at a MARGINAL confining well.  The declared conductor
+    elements carry winding turns in their Green's weights, so the corresponding
+    current scale is about 0.085 of the acquisition-mesh scale.  A 4.4 kA well
+    with a peaked broad profile sits between the cold and warm basins: the cold
+    seed drifts outboard while the warm start holds the confined branch."""
     from imas_ambix.latent.gs_solve import solve_equilibrium
 
-    vf_marginal = 5.2e4  # the well depth where both branches are reachable
+    vf_marginal = 4.4e3  # the well depth where both branches are reachable
     camp = st.build_campaign(18502, nr=49, nz=65)
     i_pf = st.build_confining_i_pf(camp.fwd, vf_marginal)
     ip = st.DEFAULT_IP_AMPERES

@@ -408,7 +408,9 @@ def build_campaign_operators(
     ``campaign_of`` maps each shot whose geometry table built successfully to
     its signature key; shots without a buildable table are simply absent.
     """
-    from imas_ambix.gs.geometry import build_table_for_shot  # noqa: PLC0415
+    from imas_ambix.data.description_reader import (  # noqa: PLC0415
+        read_geometry_table,
+    )
     from imas_ambix.latent.gs_observation import GSObservation  # noqa: PLC0415
 
     gs_by_campaign: dict = {}
@@ -416,8 +418,8 @@ def build_campaign_operators(
     campaign_of: dict[int, str] = {}
     for s in shots:
         try:
-            table = build_table_for_shot(int(s))
-        except Exception as exc:  # noqa: BLE001 — amm-absent etc. → skip this shot
+            table = read_geometry_table(int(s))
+        except Exception as exc:  # noqa: BLE001 — unavailable description → skip
             logger.warning("shot %d: no geometry table (%s)", s, exc)
             continue
         key = table.signature.key
@@ -441,7 +443,9 @@ def assemble_shot_windows(
     with_referee: bool,
 ) -> list[ShotWindows]:
     """:func:`load_shot_windows` for every shot that has a campaign operator."""
-    from imas_ambix.gs.geometry import build_table_for_shot  # noqa: PLC0415
+    from imas_ambix.data.description_reader import (  # noqa: PLC0415
+        read_geometry_table,
+    )
     from imas_ambix.gs.operator import build_operator  # noqa: PLC0415
 
     out: list[ShotWindows] = []
@@ -450,7 +454,7 @@ def assemble_shot_windows(
         if key is None:
             continue
         try:
-            operator = build_operator(build_table_for_shot(int(s)))
+            operator = build_operator(read_geometry_table(int(s)))
         except Exception as exc:  # noqa: BLE001
             logger.warning("shot %d: operator build failed (%s)", s, exc)
             continue

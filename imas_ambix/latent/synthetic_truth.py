@@ -41,7 +41,8 @@ symmetric outer-coil vertical field (:func:`build_confining_i_pf`) to hold an
 interior O-point with the cheap fixed-shape Picard; it warm-starts from a
 compact core blob and *verifies* confinement (interior axis, localised
 current) before emitting.  Driving it from measured programs under the
-profile-free solve is the forward-truth-chain work (the plan's §3/§4).
+Using the profile-free solve for measured-program truth generation remains
+separate from this manufactured scenario.
 """
 
 from __future__ import annotations
@@ -70,13 +71,12 @@ if TYPE_CHECKING:
 
     from imas_ambix.gs.geometry import GeometryTable
 
-# The manufactured vertical field that reliably confines an interior O-point at
-# MAST geometry and Ip ~ 0.6 MA across the whole (β0, α) grid (measured:
-# symmetric P4/P5/P6 at 60 kA → axis R 0.4–1.1 m over β0 ∈ [0.25, 0.75],
-# α ∈ [0.8, 2.2], all converged; 44 kA confines only the plain profile — the
-# fragile ones need the deeper well).  Not a real shot's currents — a
-# manufactured confining scenario, see the module note.
-DEFAULT_VF_STRENGTH = 6.0e4
+# The declared conductor elements carry their winding turns in the Green's
+# weight.  On the common 49x65 grid their outer-coil vacuum field needs about
+# 0.085 of the current used with the acquisition mesh, so 5.1 kA preserves the
+# manufactured field that confines an interior O-point at Ip ~ 0.6 MA.  These
+# are not a real shot's currents; they define the synthetic confining scenario.
+DEFAULT_VF_STRENGTH = 5.1e3
 DEFAULT_IP_AMPERES = 6.0e5
 _CONFINED_AXIS_R_MAX = 1.4  # axis R above this ⇒ the outboard corner attractor
 
@@ -247,10 +247,10 @@ def build_campaign(
     (:func:`imas_ambix.latent.data.robust_channel_scale`), falling back to a
     5% relative floor on the coil vacuum field if the shot cannot be loaded.
     """
-    from imas_ambix.gs.geometry import build_table_for_shot
+    from imas_ambix.data.description_reader import read_geometry_table
 
     if table is None:
-        table = build_table_for_shot(int(shot))
+        table = read_geometry_table(int(shot))
     fwd = op.build_operator(table)
     grid = EquilibriumGrid.from_table(table, nr=nr, nz=nz)
     basis = PatchBasis.from_table(table, nr=nr, nz=nz, dtype=torch.float64)

@@ -168,17 +168,19 @@ def test_the_arm_reads_the_table_the_committed_reader_produces(source):
     module assembles rather than what the reader publishes, and the artifact-backed
     geometry tests would be guarding something the benchmark does not use.
     """
+    from imas_ambix.data.description_reader import read_acquisition_channels
     from imas_ambix.gs.artifact_geometry import MachineArtifactGeometryReader
-    from imas_ambix.gs.geometry import canonical_amb_channels, read_amc_current_channels
 
     described = resolution.resolve_machine_description()
     shots = [int(s.shot_id) for s in FROZEN_SHOTSET]
+    sensor_acquisition = read_acquisition_channels(shots)
+    current_acquisition = read_acquisition_channels((shots[0],))
     direct = MachineArtifactGeometryReader(
         cache_directory=described.cache_directory,
         digest=described.digest,
         shot=shots[0],
-        amb_channels=tuple(canonical_amb_channels(shots)),
-        amc_current_channels=tuple(read_amc_current_channels(shots[0])),
+        amb_channels=sensor_acquisition.sensors,
+        amc_current_channels=current_acquisition.currents,
         expected_physical_digest=arm.PINNED_PHYSICAL_DIGEST,
         expected_registry_digest=arm.PINNED_REGISTRY_DIGEST,
     ).read()
