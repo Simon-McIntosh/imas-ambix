@@ -22,11 +22,11 @@
   <title>Retire the Machine-Specific Description Reader | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-16">
-<meta name="plan-version" content="4">
-<meta name="plan-commits" content="3d3ed8c56d368138c664489a1db12f819ee49f8c,d537b60920f55ecb80ac00833598bd919e4ded6b">
-<meta name="plan-artifacts" content="docs/evidence/archive/description-reader-migration-landed.html,imas_ambix/spine_bench/results/physics-spine-v0-mast-heldout-6-3d3ed8c56d-98dci4-clu-3141-efm-campaign-signal-identity-1d41708300ef.yaml">
-<meta name="plan-impl" content="0.25">
+<meta name="plan-modified" content="2026-08-17">
+<meta name="plan-version" content="5">
+<meta name="plan-commits" content="3d3ed8c56d368138c664489a1db12f819ee49f8c,d537b60920f55ecb80ac00833598bd919e4ded6b,d72bb0bb14abba30340aac350fab36b381da11a3,66eba295d284715d1d356c7cb034eb88ebf8fdec,eabdc03e6e2349840ce90e3037fff6d5c4df9f2f,b267600f9ad38f37fc6f78ae91a68ba66c578d36,e68a2b7e4d4995b352e35eaf0ad909717120aef6,49f15f765155ed93cf3c5d1a9a1b649f73b82b75,fef67da692a44b758648e0944d3f38e44f44ac95,af484b5fff4549256ad14cb96cd415c449b712a7,17684007ec45b4f0558e0dcf4b9f874fc60acfd3">
+<meta name="plan-artifacts" content="docs/evidence/archive/description-reader-migration-landed.html,imas_ambix/spine_bench/results/physics-spine-v0-mast-heldout-6-3d3ed8c56d-98dci4-clu-3141-efm-campaign-signal-identity-1d41708300ef.yaml,imas_ambix/data/description_reader.py,tests/data/test_description_reader.py">
+<meta name="plan-impl" content="0.5">
 </head>
 <body>
   <main class="plan-doc">
@@ -109,6 +109,9 @@
 <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s2" data-id="c-20260816-drm-restamp" data-who="reckon-ship" data-when="2026-08-16T20:15:00+00:00">
     <div class="r-comment-body">drm-restamp landed — commits 3d3ed8c, d537b60 (merged e52d66f); gate restamped-baseline PASSED; measure: greens-matvec 0.6890842357802178, grid-delstar 0.6889769655392166 (−6.89%/−6.91% vs aliased), seam budget 0.001245365781787239 (0.1245%), 49 parity tests green, SLURM stamp job 1249274 exit 0, 15/15 tolerances; artifacts: versioned stamp YAML + docs/evidence/archive/description-reader-migration-landed.html#s2-restamp.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260817-drm-facade-library" data-who="reckon-ship" data-when="2026-08-17T01:55:00+00:00">
+    <div class="r-comment-body">drm-facade-library landed — 11 commits, HEAD 1768400 (merged ca068bd); gate per-seam-stamp-within-budget PASSED; measure: census 41→33 (library 8→0, scripts constant 33), all eight per-seam frozen stamps byte-identical to the re-stamped baseline (greens-matvec 0.6890842357802178, grid-delstar 0.6889769655392166, movement 0.0 vs 0.1245% budget, 15/15 tolerances, SLURM jobs 1249288–1249324), ~152 tests green; facade imas_ambix/data/description_reader.py with AST census pinned as a test; evidence docs/evidence/archive/description-reader-migration-landed.html#s3-library-seams. Remaining in §3: 33 scripts, then facade removal + reader deletion.</div>
 </div>
 </section>
 </main>

@@ -60,6 +60,33 @@
   and the residual computation itself. Stamp artifact:
   <code>imas_ambix/spine_bench/results/physics-spine-v0-mast-heldout-6-3d3ed8c56d-98dci4-clu-3141-efm-campaign-signal-identity-1d41708300ef.yaml</code>;
   49 parity tests green.</p>
+
+  <h2 id="s3-library-seams">§3 — Library census to zero: eight seams, every stamp byte-identical</h2>
+  <p><strong>All 8 library modules migrated onto the declared machine map behind the
+  compatibility facade; census 41 → 33 with the library count 8 → 0 and scripts constant at
+  33.</strong> Eleven commits, HEAD <code>1768400</code> (merged <code>ca068bd</code>).</p>
+  <p>The facade is <code>imas_ambix/data/description_reader.py</code> (declared-map emitted-table
+  and acquisition-channel APIs), with a reproducible AST census pinned as a test in
+  <code>tests/data/test_description_reader.py</code>. The same census rule reproduced the audit
+  baseline exactly (41 = 8 library + 33 scripts) before any edit. Seam order and per-seam census:
+  geometry-export 8→7, grounding 7→6, latent-data 6→5, synthetic-truth 5→4, tokenizer 4→3,
+  machine-selection 3→2, statespace-engine 2→1, statespace-enkf 1→0.</p>
+  <p><strong>Every one of the eight per-seam frozen stamps returned residuals byte-identical to
+  the re-stamped baseline</strong> — greens-matvec 0.6890842357802178, grid-delstar
+  0.6889769655392166, relative movement 0.0 against the 0.1245% budget, 15/15 parity tolerances
+  per seam (SLURM <code>sun_debug</code> jobs 1249288–1249324, all exit 0, <code>TMPDIR=/tmp</code>,
+  <code>OMP_NUM_THREADS=1</code>). The migration is a pure representation change on every seam the
+  spine reaches. ~152 tests passed across the touched suites.</p>
+  <p>Qualifications recorded rather than smoothed over: the declared acquisition preflight
+  measures 95 sensor and 44 current addresses against legacy 100 and 45 — the gap is the
+  already-known catalog incompleteness, now visible at the facade contract; synthetic-truth tests
+  exposed the declared conductor turn weighting (declared outer-coil vacuum-field norm ratio 11.75
+  to the acquisition mesh), so the manufactured defaults were rescaled (5.1 kA default, 4.4 kA
+  marginal-basin receipt) and all 8 synthetic tests pass; and
+  <code>imas_ambix/statespace/engine.py</code> / <code>enkf_baseline.py</code> carry broad
+  pre-existing plan-label and lint debt that was deliberately not coupled into these surgical
+  seams (a trial scrub expanded to 156 unrelated lines and was reversed before commit) — that
+  scrub is surfaced as follow-on work outside this plan.</p>
 </main>
 </body>
 </html>
