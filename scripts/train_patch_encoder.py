@@ -614,8 +614,8 @@ def _config_hash(
     holds for a change in how a :class:`GeometryTable` — its sensor channel
     SET in particular — is derived from a fixed signature digest; and
     ``CORPUS_ASSEMBLY_VERSION`` (this module) so the same holds for a change
-    in how THIS module turns a shot list into a corpus (e.g. which shots
-    canonical_amb_channels scans) even when neither upstream constant moved.
+    in how this module turns a shot list into declared signature tables and
+    corpus rows even when neither upstream constant moved.
     Every one of the three busts the cache key automatically the moment its
     constant changes, with no separate migration step.
     """

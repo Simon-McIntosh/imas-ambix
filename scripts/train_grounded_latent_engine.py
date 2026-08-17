@@ -142,14 +142,10 @@ def _shot_pairs_for_operator(
     ALREADY-BUILT canonical operator, or ``None``.
 
     ``fwd`` (and the ``key`` it was built from) is shared across every shot of
-    the signature — built once, in :func:`assemble_corpus`, from a
-    :func:`~imas_ambix.gs.geometry.extract_campaign_tables` table whose sensor
-    channel SET is the canonical union over every shot of that signature
-    (:data:`~imas_ambix.gs.geometry.GEOMETRY_TABLE_VERSION`).  A per-shot
-    ``build_table_for_shot(shot)`` call here would silently reintroduce the
-    single-shot indeterminism the union fixes (its ``amb_channels`` argument
-    defaults to that ONE shot's own schema) — this is why the operator is
-    passed in rather than rebuilt.
+    the signature — built once, in :func:`assemble_corpus`, from the declared
+    machine map.  The declaration carries the acquisition identity set
+    independently of per-shot signal availability, so the operator is passed
+    in and reused rather than rebuilt for each shot.
 
     The cached ``sensor_scale`` here is the RAW per-shot ``nanstd`` (with only
     the pre-existing isfinite/positive -> 1.0 fallback) — the kind-median
