@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="flux-function-state-interface">
   <meta name="plan-title" content="Flux-Function State Interface">
   <meta name="plan-summary" content="Make Ambix the causal producer of typed, uncertainty-bearing core and SOL flux functions while Nova remains the sole owner of deterministic force-balance solves">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="M">
   <meta name="plan-capability-version" content="1.0">
@@ -25,9 +25,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-17">
-<meta name="plan-version" content="9">
-<meta name="plan-commits" content="226e431,2fd2577">
-<meta name="plan-impl" content="0.75">
+<meta name="plan-version" content="11">
+<meta name="plan-commits" content="226e431,2fd2577,729eb217">
+<meta name="plan-impl" content="1.0">
 </head>
 <body>
   <main class="plan-doc">
@@ -144,7 +144,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-ffsi-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-10" data-recommends-skill="/reckon-ship flux-function-state-interface §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ffsi-001" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-10" data-recommends-skill="/reckon-ship flux-function-state-interface §2" data-resolved-at="2026-08-17T16:50:31+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Define the typed state and bank cross-repository fixtures</h4>
     <div class="r-fu-body"><p>After the interview decisions are locked and COCOS hardening lands, implement the smallest immutable producer contract, derivative/units checks, causal provenance and synthetic core/rotation/SOL fixtures. The work ends at the Nova call boundary; no equilibrium solver or field kernel enters Ambix.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -167,6 +167,12 @@ Done-when
   1. Immutable contract, producer adapters and derivative/units/causality checks are committed and pushed
   2. Static, rotation and topology-qualified SOL fixtures round-trip across the pinned Nova consumer; focused and full relevant tests are green
   3. Followup written into the plan + this followup marked resolved</pre>
+    <p class="r-fu-outcome">Sections 2 to 4 all landed. The typed immutable contract (226e431, 9/9), the transport-forward, sequential-estimator and integral-constraint producer adapters (2fd2577, 5/5), and the cross-repository consumer fixtures pinned to Nova f3d14df5 (729eb217, 6 focused and 20 package tests). The seam is now demonstrated end to end: an Ambix-produced state drives a Nova free-boundary solve to a converged force-balanced equilibrium with the current ledger closing at rtol 1e-12, absolute sources arrive unrescaled, inconsistent moment targets return residuals instead of mutated profiles, and causality is enforced at the type boundary with smoothing rejected at the online handoff. Continuation is owned elsewhere: nova consumes this contract to close its own interface gate, and magnetics-free-equilibrium-recovery is its first production consumer.</p>
+    </article>
+<article class="r-fu" data-id="f-ffsi-002" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-08-17" data-recommends-skill="/reckon-ship magnetics-free-equilibrium-recovery §5" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Consume the proven seam in the entry smoother (foreign owner)</h4>
+    <div class="r-fu-body"><p>Foreign-owner followup, recorded so the chain stays visible: the contract is shipped and proven, and its executable continuation belongs to <code>magnetics-free-equilibrium-recovery</code> §5, which is the seam's first production consumer. Nothing further is owed by this plan.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship magnetics-free-equilibrium-recovery §5</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
@@ -175,6 +181,9 @@ Done-when
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20260817-state-adapters" data-who="reckon-ship" data-when="2026-08-17T17:07:00+00:00">
     <div class="r-comment-body">state-adapters landed: commit 2fd2577; gate producer-adapters PASSED 5/5 focused and 14/14 for the whole fluxstate package. imas_ambix/fluxstate/adapters.py delivers three adapters that end at the Nova call boundary and import no Nova module, solver, response kernel or measurement fit. TransportForwardAdapter is pinned to reviewed Nova revision de3277a3 and round-trips final total flux, the ForecastHandoff causal label, the three-member weighted identity, a learned-correction digest and signed achieved Ip of -780 kA. SequentialEstimatorBatch requires all three members exactly once, derives rather than rewrites the temporal label, and rejects FixedLagSmoothing at the online handoff. IntegralConstraintConditioner accepted a one-amplitude Ip closure with rank 1 and condition 1 (predicted Ip -800 kA, residual zero) and rejected an underdetermined two-moment request naming both unmet requirements. Remaining for this plan: the section 4 pinned-Nova consumer contract fixtures exercising eager, jitted and batched member paths.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260817-consumer-contract" data-who="reckon-ship" data-when="2026-08-17T19:20:00+00:00">
+    <div class="r-comment-body">consumer-contract landed: commit 729eb217; gate cross-repository-fixtures PASSED, 6 focused and 20 whole-package tests green, pinned to Nova revision f3d14df5 and verified against that exact clean checkout. All three manufactured classes (static, analytic rotating, common-SOL) reach finite converged equilibria: static and rotating fixed-point residual below 1e-6 with force and Grad-Shafranov residuals below 0.1, SOL fixed-point residual below 1e-5 with residuals below 0.05. The total current ledger closes across all domains at rtol 1e-12 and the closed-core moment equals the core row at the same tolerance. Absolute normalisation amplitude is exactly 1 with rescaled false, so absolute sources reach Nova unrescaled. All three inconsistent Ip, beta-p and l-i targets return nonzero residuals with the source digest and primitive arrays UNCHANGED, demonstrating the no-silent-mutation rule rather than asserting it. Eager versus jitted parity below 1e-9, three batched members agree with single-member solves below 1e-6, and Ambix imports no Nova physics implementation, solver or field kernel. The node had blocked on a rotating-fixture shape mismatch and was resumed with the ruling to build the flow from the pinned analytic isothermal-surface closure at 33 points rather than interpolate a 9-point array, because interpolation would have tested the interpolant instead of Nova's locked rotation closure.</div>
 </div>
 </section>
 </main>

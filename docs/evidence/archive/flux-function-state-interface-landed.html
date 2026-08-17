@@ -49,6 +49,35 @@
     request carrying one amplitude and no prior covariance, naming both unmet
     requirements — the locked <code>moment-constraint-authority</code> decision enforced
     mechanically.</p>
+
+    <h2 id="consumer-contract">§4 cross-repository consumer contract — 2026-08-17</h2>
+    <p>Commit <code>729eb217</code>, pinned to nova revision <code>f3d14df5</code> and
+    verified against that exact clean checkout. 6 focused tests plus the full 20-test
+    package. This is the seam demonstrated end to end rather than asserted.</p>
+    <table>
+      <caption>Section-4 acceptance criteria, each with its measured result.</caption>
+      <thead><tr><th>Criterion</th><th>Measured</th></tr></thead>
+      <tbody>
+        <tr><td>Static and rotating states reach converged force-balanced equilibria</td><td class="mono">fixed-point residual &lt; 1e-6; force + GS &lt; 0.1</td></tr>
+        <tr><td>Common-SOL state likewise</td><td class="mono">&lt; 1e-5; force + GS &lt; 0.05</td></tr>
+        <tr><td>Current ledger closes across all domains</td><td class="mono">rtol 1e-12; closed-core moment = core row at 1e-12</td></tr>
+        <tr><td>Absolute sources arrive without renormalisation</td><td class="mono">amplitude exactly 1, rescaled = false</td></tr>
+        <tr><td>Inconsistent I_p / β_p / ℓ_i targets yield residuals, not mutation</td><td class="mono">3/3 nonzero residuals, source digest and arrays unchanged</td></tr>
+        <tr><td>Eager, jitted and batched paths agree</td><td class="mono">&lt; 1e-9 eager vs jitted; &lt; 1e-6 batched vs single</td></tr>
+        <tr><td>No nova physics imported into ambix</td><td class="mono">verified at import level</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Recovery note.</strong> The node first blocked: the reused rotating-flow
+    fixture carried 9 points against a 33-point manufactured coordinate, and it stopped after
+    two differing fixes rather than guessing a third. The ruling was to construct the flow
+    directly from the pinned analytic isothermal-surface closure at 33 points instead of
+    interpolating the 9-point array — interpolating an analytic closure would have tested the
+    interpolant rather than nova's locked <code>rotation-closure</code> decision, which is
+    exactly the substitution this contract exists to catch. The worker resumed in the same
+    session and passed.</p>
+    <p>This record is also the evidence that closed nova's
+    <code>flux-function-forward-equilibrium</code> §4 interface gate, allowing that plan to
+    ship and unblocking both of nova's competition-critical plans.</p>
   </main>
 </body>
 </html>
