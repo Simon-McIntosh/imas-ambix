@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-17T18:49:36",
+  "updated": "2026-08-17T21:47:37",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -3700,9 +3700,72 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260817T191541310208-loop-shafranov",
+        "plan": "magnetics-free-equilibrium-recovery",
+        "section": "\u00a75",
+        "node": "loop-shafranov",
+        "role": "implement",
+        "member": "evolution-prototype",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-17T19:15:44Z",
+        "completed_at": "2026-08-17T19:28:10Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 746,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 746,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "9236b0e3ba139780b8c5cb7ddc68b17f27d5f6bb",
+        "commits": [
+          "24a8f9aa6bde3833e95600677c3770cbee5cd76c"
+        ],
+        "changed_lines": {
+          "added": 810,
+          "removed": 0,
+          "files": 6
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "outcome": "Measure ran with a controlled negative verdict: the isotherm-asymmetry row carries genuine direct FF-prime sensitivity (0.029 scaled, versus 0.0093 through p-prime) but gives the update no traction on this shot - posterior FF-prime NRMSE 0.5649 versus the banked 0.5600, update share falling to -4.85 percent - because the one-sided partial tangential chord coverage produces a biased, non-white observation (new-row lag-1 0.419, whiteness p 0.0004, 27 of 36 slices widened for incomplete radial span). The operator is connected; this chord geometry cannot support it unaided.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260817T191541310208-loop-shafranov/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01025-f9a4-7870-af91-cfee481f3762",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 6271232,
+            "cached_input_tokens_cumulative": 20069376,
+            "input_tokens": 6521864,
+            "input_tokens_cumulative": 20692612,
+            "output_tokens": 28350,
+            "output_tokens_cumulative": 111126,
+            "reasoning_output_tokens": 7560,
+            "reasoning_output_tokens_cumulative": 31063
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 97
+    "_version": 98
   }
 }

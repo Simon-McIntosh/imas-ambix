@@ -25,9 +25,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-17">
-<meta name="plan-commits" content="40c6cdea,1eca758b,adc54df">
-<meta name="plan-impl" content="0.33">
-<meta name="plan-version" content="4">
+<meta name="plan-commits" content="40c6cdea,1eca758b,adc54df,24a8f9aa">
+<meta name="plan-impl" content="0.36">
+<meta name="plan-version" content="5">
 </head>
 <body>
   <main class="plan-doc">
@@ -249,6 +249,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20260817-thomson-models" data-who="reckon-ship" data-when="2026-08-17T18:45:00+00:00">
     <div class="r-comment-body">thomson-models landed: commit adc54df; gate thomson-measurement-models PASSED 7/7 in 79.5 s. imas_ambix/thomson delivers all four section-3 operators. The pedestal-foot separatrix detector is calibrated on 20 paired shots (15 train, 5 held out, 94,846 training and 30,150 held-out samples) with one-sigma held-out coverage 0.6222, inside the pre-registered [0.50, 0.82] band. Channel validity is typed by core-vertical, tangential-edge and divertor topology, and EVERY assessment retains the channel while widening sigma by topology, ELM phase and health, so the widen-do-not-drop policy is enforced rather than merely intended. Non-collinear matched-Te isoflux pairing and synthetic detector recovery round-trip green. The isotherm-asymmetry Shafranov-shift operator is training-free (zero operator training samples) and is verified against 116 banked beta-p plus l-i-over-2 receipts spanning 0.4951 to 5.6970 with median 0.7920, reconstructing beta-p from the magnitude of extracted p-prime with FSA volume and poloidal-energy terms. The package docstring discloses chord-level psi-N calibration as derivative-level label consumption, as the locked firewall decision requires. This operator matters beyond section 3: it is the one Thomson-side quantity with genuine sensitivity to the beta-p plus l-i-over-2 combination that FF-prime controls, which the section-4 prototype showed the chord model otherwise cannot see.</div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20260817-loop-shafranov" data-who="reckon-ship" data-when="2026-08-17T21:40:00+00:00">
+    <div class="r-comment-body">loop-shafranov landed: commit 24a8f9aa; gate shafranov-ablation PASSED with a controlled NEGATIVE verdict. The isotherm-asymmetry observation was added to the banked reduced loop with everything else held identical (same shot, 36 slices, rank-6 basis trained on the other 19 shots, baseline hashes verified unchanged). The new row has genuine direct FF-prime sensitivity (scaled 0.029032 through FF-prime versus 0.009254 through p-prime) yet gives the update NO traction: posterior FF-prime NRMSE 0.564924 versus the banked 0.560016, update share falling from -0.120 to -4.854 percent, joint posterior worsening 0.6725 to 0.6751. Cause identified rather than assumed: this shot's one-sided partial tangential chord coverage yields a biased, temporally correlated observation (new-row posterior lag-1 0.4188, whiteness p 0.000398, 27 of 36 slices sigma-widened for incomplete radial span, zero dropped). CONSEQUENCE FOR SECTION 5: the free-boundary-in-loop route is now the PRIMARY FF-prime carrier, and the isotherm row may enter the production smoother only with fuller inboard-outboard isotherm coverage or an explicit partial-span bias and correlation model; the no-traction ablation is retained as the comparison control.</div>
 </div>
 </section>
 </main>
