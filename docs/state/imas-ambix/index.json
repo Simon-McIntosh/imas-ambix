@@ -1,9 +1,9 @@
 {
-  "updated": "2026-08-17T16:25:46",
+  "updated": "2026-08-17T18:13:26",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
-    "active_sprint_id": "S16",
+    "active_sprint_id": "S17",
     "projects": [
       {
         "project": "imas-ambix",
@@ -390,31 +390,9 @@
       },
       {
         "id": "S16",
-        "status": "active",
+        "status": "done",
         "theme": "Prove the Nova\u2013Ambix join and finish the grounded substrate",
         "items": [
-          {
-            "slug": "absolute-geometry-token-substrate",
-            "why_now": "v0 stage 1 \u2014 the representation upgrade everything downstream consumes; repairs the per-shot scale-free blocker and adds the cross-machine sensor-geometry positional encoding.",
-            "done_when": "Tokens carry corpus-level absolute (SI) values + per-diagnostic sensor geometry + machine geometry; per-modality reconstruction fidelity preserved; a diagnostics->equilibrium probe skill rises clearly off ~0.",
-            "status": "active",
-            "capability": {
-              "version": "1.0",
-              "class": "orchestrator",
-              "requirements": {}
-            }
-          },
-          {
-            "slug": "gs-grounded-latent-engine",
-            "why_now": "v0 stage 2 \u2014 the hybrid latent + its spatial (GS) and temporal (flux-diffusion + sign/irreversibility) anchors; boundary/X-point emerge as label-free psi readouts.",
-            "done_when": "From raw magnetics the GS-readout axis/X-point/boundary skill matches the absolute-magnetics oracle (~0.5-0.7) with NO EFIT labels; learned diffusivity verified D>=0; transport priors active + falsifiable.",
-            "status": "pending",
-            "capability": {
-              "version": "1.0",
-              "class": "orchestrator",
-              "requirements": {}
-            }
-          },
           {
             "slug": "evaluation-and-controllability-harness",
             "why_now": "Parallel enabling track (P0) \u2014 model-independent eval spine; runs alongside stage 1; gates stage 2 (absolute-magnetics oracle) + stage 4 (raw-held-out + powered dN-M gate); fleet-suitable. Front-loads the acceptance bars (the S9/Stage-3 lesson).",
@@ -447,82 +425,17 @@
             },
             "done_when": "One Nova-led ensemble exposes forecast, causal analysis and non-causal smoothing; physical/proper-score/causality gates are recorded; CPU, one-H200 and eight-H200 evidence plus equilibrium and diagnostic artifacts are banked.",
             "status": "pending"
-          },
-          {
-            "slug": "machine-agnostic-latent-world-model",
-            "why_now": "Parent architecture and transfer contract for the active grounded substrate and the integrated smoke.",
-            "capability": {
-              "version": "1.0",
-              "class": "orchestrator",
-              "requirements": {}
-            },
-            "done_when": "North Star, ownership, invariant representation and child-gate relationships remain consistent with measured evidence.",
-            "status": "active"
-          },
-          {
-            "slug": "mse-free-current-recovery-v0",
-            "why_now": "The ready MSE-free recovery plan is the first unresolved prerequisite on the live estimator critical path.",
-            "done_when": "The held-out-MSE recovery result is honestly closed or handed forward with its measured information limit.",
-            "status": "active",
-            "capability": {
-              "version": "1.0",
-              "class": "orchestrator",
-              "requirements": {}
-            }
-          },
-          {
-            "slug": "sequential-current-da-v1",
-            "why_now": "The strong sequential current estimator is a direct prerequisite of the grounded latent engine and the machine-agnostic parent.",
-            "done_when": "The reduced-EKF substrate and frozen calibration bar are complete enough for the integrated hybrid estimator.",
-            "status": "active",
-            "capability": {
-              "version": "1.0",
-              "class": "orchestrator",
-              "requirements": {}
-            }
-          },
-          {
-            "slug": "toroidal-harmonic-annulus-read",
-            "why_now": "This boundary read is the immediate prerequisite for topology fidelity and is already at the final X-point/axis trade-off followup.",
-            "done_when": "The centroid-origin X-point/axis trade-off is resolved honestly without losing the LCFS and ramp-up gain.",
-            "status": "active",
-            "capability": {
-              "version": "1.0",
-              "class": "orchestrator",
-              "requirements": {}
-            }
-          },
-          {
-            "slug": "equilibrium-topology-fidelity",
-            "why_now": "Topology fidelity is an explicit hard prerequisite of the machine-agnostic world-model parent.",
-            "done_when": "The externally constrained boundary and interior-diagnostic threads establish an honest topology carrier for the Nova-Ambix smoke.",
-            "status": "active",
-            "capability": {
-              "version": "1.0",
-              "class": "orchestrator",
-              "requirements": {}
-            }
-          },
-          {
-            "slug": "physics-world-model-strategy",
-            "why_now": "The North Star strategy governs the ownership and estimator contract being exercised by this sprint.",
-            "done_when": "The strategy remains consistent with the measured Nova-Ambix smoke, including forecast, analysis, smoothing and innovation semantics.",
-            "status": "active",
-            "capability": {
-              "version": "1.0",
-              "class": "orchestrator",
-              "requirements": {}
-            }
           }
         ],
         "starts": "2026-06-24",
         "ends": "2026-08-16",
-        "description": "Active sprint: finish the absolute/geometry and grounded-state prerequisites, then execute the first integrated Nova-propagated forecast, causal analysis and non-causal smoother smoke. Bank CPU capability now and measure one/eight-H200 parity and throughput. The smoke is the exit gate; full probabilistic training moves to S18."
+        "description": "Active sprint: finish the absolute/geometry and grounded-state prerequisites, then execute the first integrated Nova-propagated forecast, causal analysis and non-causal smoother smoke. Bank CPU capability now and measure one/eight-H200 parity and throughput. The smoke is the exit gate; full probabilistic training moves to S18.",
+        "summary": "Closed 2026-08-17 at the end of its window (2026-06-24..2026-08-16). Landed: the toroidal-harmonic annulus read, the patch-current force-balance and hybrid-state-estimation smoke work, and the physics-world-model strategy refresh that added the derivative-level firewall. Carry-over, unchanged in status and still ready: mse-free-current-recovery-v0 (the M3 critical-path root), toroidal-harmonic-annulus-read follow-through into equilibrium-topology-fidelity, and physics-world-model-strategy at 70 percent. The world-model chain behind them (sequential-current-da-v1, machine-agnostic-latent-world-model, gs-grounded-latent-engine, absolute-geometry-token-substrate) stays blocked on that root and is re-homed by dependency rather than by sprint. Focus moves to S17 and the hard-dated Sophelio entry lane in S21."
       },
       {
         "id": "S17",
-        "status": "planned",
-        "theme": "Continuous validated Nova consumer integration",
+        "status": "active",
+        "theme": "Nova consumer integration and the magnetics-free entry substrate",
         "items": [
           {
             "slug": "nova-physics-consumer-integration",
@@ -692,6 +605,94 @@
             "capability": {
               "version": "1.0",
               "class": "general",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "mse-free-current-recovery-v0",
+            "why_now": "The ready MSE-free recovery plan is the first unresolved prerequisite on the live estimator critical path.",
+            "done_when": "The held-out-MSE recovery result is honestly closed or handed forward with its measured information limit.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "sequential-current-da-v1",
+            "why_now": "The strong sequential current estimator is a direct prerequisite of the grounded latent engine and the machine-agnostic parent.",
+            "done_when": "The reduced-EKF substrate and frozen calibration bar are complete enough for the integrated hybrid estimator.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "toroidal-harmonic-annulus-read",
+            "why_now": "This boundary read is the immediate prerequisite for topology fidelity and is already at the final X-point/axis trade-off followup.",
+            "done_when": "The centroid-origin X-point/axis trade-off is resolved honestly without losing the LCFS and ramp-up gain.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "equilibrium-topology-fidelity",
+            "why_now": "Topology fidelity is an explicit hard prerequisite of the machine-agnostic world-model parent.",
+            "done_when": "The externally constrained boundary and interior-diagnostic threads establish an honest topology carrier for the Nova-Ambix smoke.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "machine-agnostic-latent-world-model",
+            "why_now": "Parent architecture and transfer contract for the active grounded substrate and the integrated smoke.",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            },
+            "done_when": "North Star, ownership, invariant representation and child-gate relationships remain consistent with measured evidence.",
+            "status": "active"
+          },
+          {
+            "slug": "gs-grounded-latent-engine",
+            "why_now": "v0 stage 2 \u2014 the hybrid latent + its spatial (GS) and temporal (flux-diffusion + sign/irreversibility) anchors; boundary/X-point emerge as label-free psi readouts.",
+            "done_when": "From raw magnetics the GS-readout axis/X-point/boundary skill matches the absolute-magnetics oracle (~0.5-0.7) with NO EFIT labels; learned diffusivity verified D>=0; transport priors active + falsifiable.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "absolute-geometry-token-substrate",
+            "why_now": "v0 stage 1 \u2014 the representation upgrade everything downstream consumes; repairs the per-shot scale-free blocker and adds the cross-machine sensor-geometry positional encoding.",
+            "done_when": "Tokens carry corpus-level absolute (SI) values + per-diagnostic sensor geometry + machine geometry; per-modality reconstruction fidelity preserved; a diagnostics->equilibrium probe skill rises clearly off ~0.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "physics-world-model-strategy",
+            "why_now": "The North Star strategy governs the ownership and estimator contract being exercised by this sprint.",
+            "done_when": "The strategy remains consistent with the measured Nova-Ambix smoke, including forecast, analysis, smoothing and innovation semantics.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
               "requirements": {}
             }
           }
@@ -988,6 +989,6 @@
         "pct": 0
       }
     ],
-    "_version": 44
+    "_version": 46
   }
 }
