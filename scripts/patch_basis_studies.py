@@ -43,8 +43,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.gs.cylinder import hybrid_greens
-from imas_ambix.gs.geometry import build_table_for_shot
 from imas_ambix.gs.operator import build_operator, greens_psi
 from imas_ambix.latent.data import (
     feature_schema,
@@ -83,7 +83,7 @@ CLASS_COLOR = {
 
 
 def build_grid(shot: int, nr: int, nz: int):
-    table = build_table_for_shot(shot)
+    table = read_geometry_table(shot)
     fwd = build_operator(table)
     grid = EquilibriumGrid.from_table(table, nr=nr, nz=nz)
     return table, fwd, grid

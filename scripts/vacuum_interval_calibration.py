@@ -57,7 +57,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION, build_table_for_shot
+from imas_ambix.data.description_reader import read_geometry_table
+from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import (
     align_sensor_columns,
@@ -104,7 +105,7 @@ def _shot_vacuum_slices(shot: int, channels: list[str]) -> dict | None:
     """
     schema = feature_schema()
     try:
-        table = build_table_for_shot(int(shot))
+        table = read_geometry_table(int(shot))
         fwd = build_operator(table)
     except Exception as exc:  # noqa: BLE001
         logger.warning("shot %s: operator build failed (%s)", shot, exc)
@@ -363,7 +364,7 @@ def main() -> int:
     if frozen_off is not None:
         channels = list(json.loads(FROZEN_OFFSET.read_text())["channels"])
     else:
-        channels = list(build_operator(build_table_for_shot(11774)).sensor_channels)
+        channels = list(build_operator(read_geometry_table(11774)).sensor_channels)
     n_ch = len(channels)
 
     train_shots, held_shots = read_split_shot_lists(args.n_train, args.n_heldout)

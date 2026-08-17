@@ -53,7 +53,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION, build_table_for_shot
+from imas_ambix.data.description_reader import read_geometry_table
+from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
 from imas_ambix.gs.operator import COIL_MODEL_VERSION
 from imas_ambix.latent.passive_resistance import (
     MULTIPLIER_BOUNDS,
@@ -94,7 +95,7 @@ PAIR_GAIN_BOUND = 0.5  # common/differential drive-column corrections
 EDGE_RHO_BOUNDS = (1e-7, 1e-1)  # adjacency coupling resistance [Ω], log slots
 EDGE_PROBE_GRID = (3e-6, 3e-5, 3e-4, 3e-3)
 
-#: the ladder's DOF level for the resistance multiplier groups (the P1b
+#: the ladder's DOF level for the resistance multiplier groups (the incumbent
 #: calibration's chosen level — the incumbent every tier must beat)
 R_LEVEL = "regions-percase"
 
@@ -567,7 +568,7 @@ def main() -> int:  # noqa: PLR0915 — one auditable discovery ladder
     seen: dict[str, tuple] = {}
     for s in shots:
         try:
-            table = build_table_for_shot(int(s))
+            table = read_geometry_table(int(s))
         except Exception:  # noqa: BLE001
             continue
         key = table.signature.key
@@ -659,7 +660,7 @@ def main() -> int:  # noqa: PLR0915 — one auditable discovery ladder
         max((v["rel_resid_max"] for v in tier_a["plain"].values()), default=np.nan),
     )
 
-    # ---- split + pooled whitening (P1b protocol → same held-out shots) ----
+    # ---- split + pooled whitening on the incumbent held-out cohort ----
     train, held = [], []
     for stratum in ("fleet", "dedicated_vacuum"):
         grp = [d for d in data if d.stratum == stratum]
@@ -679,7 +680,7 @@ def main() -> int:  # noqa: PLR0915 — one auditable discovery ladder
             sc = np.nanstd(case_stack, axis=0)
         sigma_case[key] = np.where(np.isfinite(sc) & (sc > 1.0), sc, 1.0)
 
-    # ---- baseline: the P1b calibration under the structured path ----
+    # ---- baseline: incumbent calibration under the structured path ----
     baseline = load_calibration(args.baseline_calibration)
     group_names = sorted(
         {
@@ -700,7 +701,7 @@ def main() -> int:  # noqa: PLR0915 — one auditable discovery ladder
     held_obj0.close()
     repro_base = case_reproduction(held, spec0, x_base)
     logger.info(
-        "baseline (P1b calibration): held-out %.5f (mag %.5f case %.5f)",
+        "baseline (incumbent calibration): held-out %.5f (mag %.5f case %.5f)",
         base_held["combined"],
         base_held["mag"],
         base_held["case"],
@@ -801,7 +802,7 @@ def main() -> int:  # noqa: PLR0915 — one auditable discovery ladder
             )
         return accepted
 
-    # ---- tier B1: case-pair series/anti-series constraint reductions ----
+    # ---- case-pair series/anti-series constraint reductions ----
     case_chans = sorted(systems[campaigns[0]].case_channel_row)
     fams = sorted({ch.split("_")[0][:-1] for ch in case_chans})
     pair_candidates = []
@@ -825,7 +826,7 @@ def main() -> int:  # noqa: PLR0915 — one auditable discovery ladder
         pair_candidates.append(
             {"channels": [lo, up], "sign": int(np.sign(corr) or 1), "corr": corr}
         )
-    logger.info("tier B1 candidates (pooled corr): %s", pair_candidates)
+    logger.info("case-pair candidates (pooled corr): %s", pair_candidates)
     accepted_series: list[dict] = []
     for cand in pair_candidates:
         trial = [*accepted_series, {"channels": cand["channels"], "sign": cand["sign"]}]
@@ -852,7 +853,7 @@ def main() -> int:  # noqa: PLR0915 — one auditable discovery ladder
         ):
             accepted_series = trial
 
-    # ---- tier B2: case-coil galvanic wiring (per pair, then per case) ----
+    # ---- case-coil galvanic wiring (per pair, then per case) ----
     wiring_pairs = [
         [f"{fam}l_case_current", f"{fam}u_case_current"]
         for fam in fams
@@ -881,7 +882,7 @@ def main() -> int:  # noqa: PLR0915 — one auditable discovery ladder
         )
         accept_or_reject(label, spec, fit, {"wiring_groups": groups})
 
-    # ---- tier B3: coil-pair common/differential drive gains ----
+    # ---- coil-pair common/differential drive gains ----
     pair_labels = sorted(
         {
             u.split("_")[0][:-1]
@@ -1167,7 +1168,7 @@ def _figures(out, ladder, held, final_spec, final_x, spec0, x_base, tag=""):
         [base_repro.get(c, {}).get("corr_median", np.nan) for c in chans],
         width=0.32,
         color="#bb5566",
-        label="baseline (P1b calibrated R)",
+        label="baseline (incumbent calibrated R)",
     )
     axes[1].bar(
         xb + 0.17,

@@ -63,8 +63,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from imas_ambix.gs.geometry import build_table_for_shot
 import imas_ambix.gs.geometry as _geom
+from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.gs.operator import build_operator
 
 # tolerate the late-campaign amm hole (passive geometry unused on the coil-only
@@ -162,7 +162,7 @@ def _coupled_components(abs_corr: np.ndarray, thresh: float) -> list[list[int]]:
 def gather(shots: list[int]) -> dict:
     """Load coil-only slices for the cohort and assemble the per-sensor pools
     and per-shot gain / exposure-weight records."""
-    ref = build_operator(build_table_for_shot(11774))
+    ref = build_operator(read_geometry_table(11774))
     CH = list(ref.sensor_channels)
     COILS = list(ref.pf_amc_channels)
     G = np.asarray(ref.g_pf, dtype=np.float64)  # (n_ch, n_coil)

@@ -8,13 +8,13 @@ R=1.51.
 
 import numpy as np
 
-from imas_ambix.gs.geometry import build_table_for_shot
+from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.gs.operator import build_operator
 from imas_ambix.latent.gs_solve import EquilibriumGrid, solve_equilibrium_lsq
 from imas_ambix.latent.synthetic_truth import build_confining_i_pf
 
 SHOT = 11766
-table = build_table_for_shot(SHOT)
+table = read_geometry_table(SHOT)
 fwd = build_operator(table)
 grid = EquilibriumGrid.from_table(table, nr=65, nz=97)
 S = len(fwd.sensor_channels)

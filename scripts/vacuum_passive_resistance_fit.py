@@ -50,7 +50,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION, build_table_for_shot
+from imas_ambix.data.description_reader import read_geometry_table
+from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import (
     align_sensor_columns,
@@ -113,7 +114,7 @@ def prep_shot(job: tuple) -> dict | None:
 
     schema = feature_schema()
     try:
-        table = build_table_for_shot(int(shot))
+        table = read_geometry_table(int(shot))
         fwd = build_operator(table)
         grid = EquilibriumGrid.from_table(table, nr=nr, nz=nz)
         system = _campaign_system(table, grid)
@@ -431,7 +432,7 @@ def main() -> int:
     seen_campaigns: set[str] = set()
     for s in shots:
         try:
-            table = build_table_for_shot(int(s))
+            table = read_geometry_table(int(s))
         except Exception:  # noqa: BLE001 — the prep worker logs the skip
             continue
         if table.signature.key in seen_campaigns:

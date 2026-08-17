@@ -4,12 +4,15 @@ Tests step-vs-ramp at the RMP install boundaries (19031, 25404): a passive-
 structure mechanism steps there; instrument aging / processing drift ramps
 smoothly.  Also characterises the error-field correction currents corpus-wide
 (availability, amplitude, within-era variation, vacuum-window presence)."""
-import json, sys
+import json
+import sys
+
 import numpy as np
 import zarr
-from imas_ambix.data.paths import LEVEL1_DIR
-from imas_ambix.gs.geometry import build_table_for_shot
+
 import imas_ambix.gs.geometry as _geom
+from imas_ambix.data.description_reader import read_geometry_table
+from imas_ambix.data.paths import LEVEL1_DIR
 from imas_ambix.gs.operator import build_operator
 
 # tolerate the late-campaign amm hole (passive geometry unused here)
@@ -24,7 +27,7 @@ from scripts.vacuum_coil_response_audit import _shot_coil_only
 TRACK = ["fl_p4l_1","fl_p4l_4","fl_p4u_4","fl_p5l_1","fl_p5l_4","fl_p5u_1",
          "fl_p3u_4","fl_cc03","fl_cc05","obr10","obv09"]
 
-ref = build_operator(build_table_for_shot(11774))
+ref = build_operator(read_geometry_table(11774))
 CH = list(ref.sensor_channels); COILS = list(ref.pf_amc_channels)
 G = np.asarray(ref.g_pf, float)
 IDX = {c: CH.index(c) for c in TRACK if c in CH}

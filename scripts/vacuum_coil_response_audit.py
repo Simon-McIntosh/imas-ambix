@@ -52,7 +52,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION, build_table_for_shot
+from imas_ambix.data.description_reader import read_geometry_table
+from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import (
     align_sensor_columns,
@@ -144,7 +145,7 @@ def _shot_coil_only(
     """
     schema = feature_schema()
     try:
-        table = build_table_for_shot(int(shot))
+        table = read_geometry_table(int(shot))
         fwd = build_operator(table)
     except Exception as exc:  # noqa: BLE001
         logger.warning("shot %s: operator build failed (%s)", shot, exc)
@@ -501,7 +502,7 @@ def main() -> int:
     FIGURES.mkdir(parents=True, exist_ok=True)
 
     # canonical axes from a reference operator (channel/coil order + model G)
-    ref = build_operator(build_table_for_shot(11774))
+    ref = build_operator(read_geometry_table(11774))
     channels = list(ref.sensor_channels)
     coil_channels = list(ref.pf_amc_channels)
     g_model = np.asarray(ref.g_pf, dtype=np.float64)  # (n_ch, n_coil)

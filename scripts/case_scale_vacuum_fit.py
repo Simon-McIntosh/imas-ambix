@@ -28,8 +28,7 @@ predicted contribution, its fitted coefficient IS the multiplicative scale ``k``
 for that source; a coil-winding source and its co-located case source are
 SEPARATE regressors, so the case ``k`` is winding-controlled.
 
-Two ``k`` estimators — the tension between them IS the reconciliation of the
-lever-1 k≈2.40 with the old 85-shot audit's 0.66-0.71:
+Two ``k`` estimators expose the sensor-set dependence of the response scale:
 
 * EXPOSED-SENSOR ``k`` (headline).  Fit the design sensor-by-sensor; on each
   sensor a source's coefficient is its local multiplicative coupling ``k_s``.
@@ -37,12 +36,12 @@ lever-1 k≈2.40 with the old 85-shot audit's 0.66-0.71:
   actually see it (contribution fraction ≥ floor).  Its relative spread over
   those sensors classifies the systematic: constant (low spread, one sign) =
   drive-DATA amplitude error on the ``amc`` channel; varying = geometry-pattern
-  error.  Shot-bootstrap CIs.  This reproduces the lever-1 bay-loop k≈2.40.
+  error.  Shot-bootstrap CIs.  The bay-loop-exposed estimate is k≈2.40.
 
 * GLOBAL single scale (secondary).  One ``k`` per source shared across ALL
   sensors (the vertical stack ``ΣX_s``).  This is dragged toward zero by the
-  many sensors that barely see the case, so it reproduces the old audit's
-  ~0.66.  Reported only to make the sensor-set dependence explicit.
+  many sensors that barely see the case, yielding about 0.66.  Reported only
+  to make the sensor-set dependence explicit.
 
 Then: the ONE-SCALE test (do the eight case ``k`` share a single family value or
 scatter) and the coil-vs-case attribution (case ``k`` departs from 1, co-located
@@ -66,14 +65,15 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION, build_table_for_shot
+from imas_ambix.data.description_reader import read_geometry_table
+from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 
 # Importing the column-decomposition module installs the late-campaign amm-hole
 # guard on read_amm_passive and gives us the identical vacuum cohort selector.
 from scripts.flux_loop_column_decomposition import (  # noqa: E402
-    MANIFEST,  # noqa: F401  (kept for provenance / re-use symmetry)
     BAY_LOOPS,
+    MANIFEST,  # noqa: F401  (kept for provenance / re-use symmetry)
     select_cohort,
 )
 from scripts.vacuum_coil_response_audit import _shot_coil_only  # noqa: E402
@@ -141,7 +141,7 @@ def _coupled_components(abs_corr: np.ndarray, thresh: float) -> list[list[int]]:
 
 def gather(shots: list[int]) -> dict:
     """Load the cohort's coil-only slices onto canonical sensor/coil axes."""
-    ref = build_operator(build_table_for_shot(11774))
+    ref = build_operator(read_geometry_table(11774))
     channels = list(ref.sensor_channels)
     coils = list(ref.pf_amc_channels)
     g_model = np.asarray(ref.g_pf, dtype=np.float64)  # (n_ch, n_coil)
@@ -658,17 +658,17 @@ def decide(result: dict) -> dict:
             "turns/xmult/units + name assignment upstream of G_pf assembly to "
             "drive k→1; verify with a re-run of this fit (target k_exposed≈1, "
             "bay_loop_k≈1). Do NOT alter operator.py/circuits.py under this "
-            "followup — the frozen-spine change is gated downstream (G-A/G-B). "
+            "followup — accept any frozen-spine change only after validation. "
             "Cases routed 'nuisance' remain fitted; do not bake them."
         ),
     }
 
 
-def _reconciliation() -> dict:
-    """The lever-1 (k≈2.40) vs old-audit (0.66-0.71) reconciliation note."""
+def _estimator_comparison() -> dict:
+    """Describe why exposed-sensor and all-sensor estimates differ."""
     return {
-        "lever1_p3l_case_k": 2.40,
-        "old_audit_case_k": "0.66-0.71 (main), ~-0.04 (near-null)",
+        "bay_loop_exposed_p3l_case_k": 2.40,
+        "all_sensor_case_k": "0.66-0.71 (main), ~-0.04 (near-null)",
         "note": (
             "All k here use the CURRENT 1-turn dedicated case G_pf column "
             "(cylinder-sensors-v5; case_current enters as raw amps, "
@@ -677,17 +677,16 @@ def _reconciliation() -> dict:
             "EXPOSED-SENSOR k (per_case[*].k_exposed) is the winding-controlled "
             "coupling on the sensors that actually see the case: p3l_case=2.32 "
             "with per-sensor spread 0.022 and bay_loop_k {2.26,2.30,2.40,2.31} "
-            "— i.e. the lever-1 bay-loop k≈2.40, reproduced now on a SEPARABLE "
+            "— i.e. the bay-loop-exposed k≈2.40 on a SEPARABLE "
             "column. The GLOBAL single scale (per_case[*].k_global) forces one "
             "k across ALL sensors and is dragged well BELOW the exposed value "
             "by the many sensors that barely see the case (p3l 2.32→0.92, p3u "
             "1.77→1.46, p5u 1.18→0.92; p5l collapses to the degenerate/near-"
-            "null regime, the old audit's ~-0.04). The all-sensor estimator "
-            "therefore lands in the old 85-shot audit's sub-1 band (0.66-0.71) "
-            "while the exposed estimator lands at lever-1's ~2.40 — the gap is "
+            "null regime, about -0.04). The all-sensor estimator therefore "
+            "lands in a sub-1 band (0.66-0.71), while the exposed estimator "
+            "lands at about 2.40 — the gap is "
             "the SENSOR-SET dependence of a case column whose field pattern is "
-            "imperfect off the bay loops (plus the old audit predating the "
-            "dedicated 1-turn case column), NOT a sign flip. "
+            "imperfect off the bay loops, NOT a sign flip. "
             "per_case[*].per_sensor_k_rel_spread says whether the exposed "
             "coupling is a true constant (drive-data) or varies (geometry)."
         ),
@@ -716,7 +715,7 @@ def make_figure(result: dict, verdict: dict, out: Path) -> None:
     ax.bar(xs, kv, color=colors, alpha=0.8, label="exposed-sensor k")
     ax.errorbar(xs, kv, yerr=[kv - lo, hi - kv], fmt="none", ecolor="k", capsize=3, lw=1)
     ax.plot(xs, kg, "D", ms=6, color="#1565c0",
-            label="global single scale (all sensors ≈ old audit)")
+            label="global single scale (all sensors)")
     # highlight the clean drive-data cases (the confirmed carriers)
     dd = verdict["drive_data_cases"]
     for c in dd:
@@ -739,7 +738,7 @@ def make_figure(result: dict, verdict: dict, out: Path) -> None:
     ax.set_xticklabels(lab, rotation=45, fontsize=8)
     ax.set_ylabel("case scale k  (empirical ≈ k·model)")
     ax.set_title("(a) exposed-sensor k (red=drive-data, orange=geometry) vs\n"
-                 "global single scale — exposed≈lever-1 2.40, global≈old-audit sub-1")
+                 "global single scale — exposed≈2.40, global sub-1")
     ax.legend(fontsize=7)
 
     # (b) coil-vs-case attribution: case k vs its winding k (exposed)
@@ -780,7 +779,7 @@ def make_figure(result: dict, verdict: dict, out: Path) -> None:
     ax.set_xticklabels(lab, rotation=45, fontsize=8)
     ax.set_ylabel("per-sensor k: median ± rel-spread·|median|")
     ax.set_title("(c) constant across exposed sensors (red) = drive-data;\n"
-                 "orange = geometry; blue × = bay-loop members (≈ lever-1 2.40)")
+                 "orange = geometry; blue × = bay-loop members (≈2.40)")
 
     fig.suptitle(
         "Coil-case response scale from coil-only vacuum slices — "
@@ -819,7 +818,7 @@ def main() -> int:
         }
         verdict = decide(result)
         out["verdict"] = verdict
-        out["reconciliation"] = _reconciliation()
+        out["estimator_comparison"] = _estimator_comparison()
         out_path.write_text(json.dumps(out, indent=2))
         logger.info("refinalised verdict: (%s) attribution=%s",
                     verdict["decision"], verdict["attribution"])
@@ -875,7 +874,7 @@ def main() -> int:
         "per_case": result["per_case"],
         "one_scale": result["one_scale"],
         "verdict": verdict,
-        "reconciliation": _reconciliation(),
+        "estimator_comparison": _estimator_comparison(),
     }
     out_path = ARTIFACTS / "case_scale_vacuum_fit.json"
     out_path.write_text(json.dumps(out, indent=2))

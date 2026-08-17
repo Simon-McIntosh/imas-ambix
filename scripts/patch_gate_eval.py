@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-"""Gate-2 evaluation with the variational patch-current inverse (no Picard).
+"""Evaluate the variational patch-current inverse without Picard iteration.
 
-The powered rematch of the training-free gate-2 protocol: per held-out slice,
+The powered rematch of the training-free evaluation: per held-out slice,
 invert the RAW measured magnetics for the patch-current vector (whitened sensor
 misfit + Rogowski Ip anchor + λ·structure-residual, per-slice Adam under one of
 the weight-policy arms), read axis / X-point set / LCFS radii from the
@@ -35,7 +35,8 @@ matplotlib.use("Agg")
 import numpy as np
 import torch
 
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION, build_table_for_shot
+from imas_ambix.data.description_reader import read_geometry_table
+from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import (
     CHANNEL_SCALE_KIND_FLOOR_REL,
@@ -110,8 +111,8 @@ def geometry_target(
     innermost in-polygon X-point / limiter-contact boundary flux, LCFS radii.
     ``smooth_sigma`` / ``min_axis_dist`` are the opt-in LCFS boundary-read
     robustifications (:func:`imas_ambix.latent.gs_solve._read_boundary_psi_robust`
-    — measured lever A4); both default to 0.0, reproducing the original
-    innermost-ψ / limiter-contact read exactly.  Returns
+    boundary-read sensitivity); both default to 0.0, preserving the direct
+    innermost-ψ / limiter-contact read.  Returns
     (target, psi_axis, psi_boundary).
     """
     target = np.full(14, np.nan)
@@ -168,7 +169,7 @@ def shot_payloads(
     convention exactly (0.05); the F floor-sensitivity sweep is the only
     caller that varies it (see ``run_floor_sensitivity``).
     """
-    table = build_table_for_shot(int(shot))
+    table = read_geometry_table(int(shot))
     fwd = build_operator(table)
     grid = EquilibriumGrid.from_table(table, nr=nr, nz=nz)
     basis = PatchBasis.from_table(table, nr=nr, nz=nz)
@@ -228,7 +229,7 @@ def train_mean_baseline(n_train, n_baseline_shots, min_ip_ka):
     rows = []
     for s in train_shots[:n_baseline_shots]:
         try:
-            fwd = build_operator(build_table_for_shot(int(s)))
+            fwd = build_operator(read_geometry_table(int(s)))
         except Exception:  # noqa: BLE001
             continue
         wtr = load_shot_windows(int(s), fwd, "train", schema, with_referee=True)
@@ -413,20 +414,20 @@ def saddle_excess_stats(saddle_counts, ref: np.ndarray) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Lever A4 — LCFS boundary-read robustification (measured; kept only if
-# load-bearing).  ARM 2 / ARM 3 (saddle-distance guard / ψ-smoothing) are
-# wired through geometry_target's opt-in kwargs above.  ARM 1
-# (current-smoothness soft rung) is prototyped HERE, not in
+# LCFS boundary-read robustness measurement.  The saddle-distance guard and
+# ψ-smoothing are
+# wired through geometry_target's opt-in kwargs above.  The
+# current-smoothness penalty is prototyped here, not in
 # imas_ambix/latent/patch_inverse.py, until measured: it duplicates
 # invert_slices with one added term so the shared inverse module is only
-# touched if this arm wins (patch-equilibrium-wm-integration §3, A4).
+# touched only if the measurement shows a load-bearing improvement.
 # ---------------------------------------------------------------------------
 
 
 def _grid_neighbor_pairs(basis: PatchBasis) -> torch.Tensor:
     """(P, 2) int64 tensor of 4-connected adjacent candidate-cell index pairs
     on the (R, Z) lattice — the adjacency the current-smoothness penalty
-    (ARM 1) differences over.  Built once per campaign from the fixed
+    penalty differences over.  Built once per campaign from the fixed
     ``r_cells`` / ``z_cells`` / ``grid_r`` / ``grid_z`` geometry (all cells,
     not just conductor-clear ones, share the same regular raster spacing).
     """
@@ -463,7 +464,7 @@ def invert_slices_smooth(
     *,
     device: str | torch.device = "cpu",
 ) -> list[SliceInversion]:
-    """ARM 1: :func:`invert_slices` plus a spatial-Laplacian current-smoothness
+    """Run :func:`invert_slices` with a spatial-Laplacian current-smoothness
     penalty ``smooth_lambda * mean((x_i - x_j)^2)`` over 4-connected candidate
     grid-cell pairs on the dimensionless current shape ``x`` — the classic
     tomography smoothness regulariser, measured as a lever independent of the
@@ -600,11 +601,12 @@ def lcfs_offset_cm_stats(
     }
 
 
-#: The frozen P3-winner inverse config (patch-current-force-balance gate-2):
+#: The frozen inverse configuration selected by held-out axis error:
 #: discrepancy policy, λ0=3, misfit_ratio=1.5, λmax=100 — axis skill +0.019,
-#: 2.8 cm median, 160/160 scored.  A4 measures ONLY the readout (or, for
+#: 2.8 cm median, 160/160 scored.  Boundary sensitivity measures only the
+#: readout (or, for
 #: 'current-smooth', the inverse loss) against this frozen base.
-P3_WINNER_KW = {
+FROZEN_INVERSE_KW = {
     "policy": "discrepancy",
     "lambda_fb": 3.0,
     "misfit_ratio": 1.5,
@@ -613,14 +615,14 @@ P3_WINNER_KW = {
 
 
 def run_boundary_arm(args) -> int:
-    """Measure ONE A4 candidate arm against the frozen P3-winner inverse.
+    """Measure one boundary-read candidate against the frozen inverse.
 
     Loads the tuning cohort (``--split train``) or the 160-slice held-out gate
-    (``--split eval``, matching the P3 protocol exactly), inverts every slice
-    once with the frozen P3-winner config, then reads geometry either with the
+    (``--split eval``, matching the frozen evaluation exactly), inverts every
+    slice once with the frozen inverse config, then reads geometry either with the
     baseline readout, the ``smooth_sigma`` / ``min_axis_dist`` robustification
-    (ARM 2 / ARM 3, composable), or — for ``--boundary-arm current-smooth`` —
-    re-inverts with the current-smoothness penalty (ARM 1, via
+    (composable), or — for ``--boundary-arm current-smooth`` —
+    re-inverts with the current-smoothness penalty (via
     :func:`invert_slices_smooth`) at ``--current-smooth-lambda`` before reading
     geometry with the same (optionally also-robustified) boundary read.
     Writes ``imas_ambix/latent/artifacts/patch_gate/boundary_read_<tag>.json``.
@@ -709,12 +711,12 @@ def run_boundary_arm(args) -> int:
         # the campaign geometry is shared across shots: one limiter serves all
         g0 = shots[0]["grid"]
         prior_kw.update(limiter_r=g0.limiter_r, limiter_z=g0.limiter_z)
-    winner_cfg = InverseConfig(
+    frozen_cfg = InverseConfig(
         iters=args.iters,
         lr=args.lr,
         n_bins=args.n_bins,
         connectivity=connectivity,
-        **P3_WINNER_KW,
+        **FROZEN_INVERSE_KW,
         **prior_kw,
     )
 
@@ -732,13 +734,13 @@ def run_boundary_arm(args) -> int:
             inv = invert_slices_smooth(
                 basis,
                 payload["payloads"],
-                winner_cfg,
+                frozen_cfg,
                 pairs,
                 args.current_smooth_lambda,
                 device=device,
             )
         else:
-            inv = invert_slices(basis, payload["payloads"], winner_cfg, device=device)
+            inv = invert_slices(basis, payload["payloads"], frozen_cfg, device=device)
         for k, r in enumerate(inv):
             psi2d = basis.psi_grid_2d_np(r.i_cell, payload["payloads"][k].i_pf)
             target, _, _ = geometry_target(
@@ -817,7 +819,7 @@ def run_boundary_arm(args) -> int:
         "smooth_sigma": args.smooth_sigma,
         "min_axis_dist": args.min_axis_dist,
         "current_smooth_lambda": args.current_smooth_lambda,
-        "winner_config": {**P3_WINNER_KW, "iters": args.iters},
+        "frozen_config": {**FROZEN_INVERSE_KW, "iters": args.iters},
         "coil_model_version": COIL_MODEL_VERSION,
         "geometry_table_version": GEOMETRY_TABLE_VERSION,
         "n_scored": int(len(model)),
@@ -860,9 +862,9 @@ def run_boundary_arm(args) -> int:
 
 
 def _invert_shots_once(
-    shots: list[dict], winner_cfg: InverseConfig, device: str | torch.device
+    shots: list[dict], frozen_cfg: InverseConfig, device: str | torch.device
 ) -> tuple[list[tuple[dict, list[SliceInversion]]], np.ndarray]:
-    """Invert every shot's candidate slices ONCE with the frozen P3-winner
+    """Invert every shot's candidate slices once with the frozen inverse
     config; the (payload, inversion) pairs are reused across every boundary-
     read grid point.
 
@@ -870,7 +872,7 @@ def _invert_shots_once(
     underdetermined current basis: re-running it per hyperparameter (as the
     single-arm ``run_boundary_arm`` path does for every ``--min-axis-dist`` /
     ``--smooth-sigma`` value) lands in a DIFFERENT local optimum run to run —
-    confirmed by comparing two identical re-runs of the P3-winner config,
+    confirmed by comparing two identical re-runs of the frozen config,
     which gave axis_skill -1.28 vs -1.41 on the same shots with NOTHING
     changed.  Since neither ``smooth_sigma`` nor ``min_axis_dist`` touch the
     inverse at all (only the readout downstream of the converged ψ), a valid
@@ -883,7 +885,7 @@ def _invert_shots_once(
         basis = payload["basis"]
         ips = np.abs([p.ip_amperes for p in payload["payloads"]])
         flattop_idx = int(np.argmax(ips)) if ips.size else -1
-        inv = invert_slices(basis, payload["payloads"], winner_cfg, device=device)
+        inv = invert_slices(basis, payload["payloads"], frozen_cfg, device=device)
         cache.append((payload, inv))
         flattop_flags.extend(k == flattop_idx for k in range(len(inv)))
     return cache, np.array(flattop_flags, dtype=bool)
@@ -946,7 +948,7 @@ def _parse_grid_spec(spec: str) -> list[tuple[str, float, float]]:
 def run_boundary_arm_grid(args) -> int:
     """Measure MANY (smooth_sigma, min_axis_dist) boundary-read points from
     ONE frozen-config inversion per shot — the leakage-free, nondeterminism-
-    free A4 measurement (see :func:`_invert_shots_once`).  ``--grid`` is a
+    free boundary-read measurement (see :func:`_invert_shots_once`).  ``--grid`` is a
     comma list of points (``_parse_grid_spec``); writes ONE
     ``boundary_read_grid_<split>.json`` with all points' results.
     """
@@ -990,15 +992,15 @@ def run_boundary_arm_grid(args) -> int:
         if payload is not None:
             shots.append(payload)
 
-    winner_cfg = InverseConfig(
+    frozen_cfg = InverseConfig(
         iters=args.iters,
         lr=args.lr,
         n_bins=args.n_bins,
         connectivity=connectivity,
-        **P3_WINNER_KW,
+        **FROZEN_INVERSE_KW,
     )
     t0 = time.perf_counter()
-    cache, flattop_mask = _invert_shots_once(shots, winner_cfg, device)
+    cache, flattop_mask = _invert_shots_once(shots, frozen_cfg, device)
     invert_wall_s = time.perf_counter() - t0
     logger.info("inverted %d shots once in %.0f s", len(shots), invert_wall_s)
 
@@ -1043,7 +1045,7 @@ def run_boundary_arm_grid(args) -> int:
 
     out = {
         "split": args.split,
-        "winner_config": {**P3_WINNER_KW, "iters": args.iters},
+        "frozen_config": {**FROZEN_INVERSE_KW, "iters": args.iters},
         "coil_model_version": COIL_MODEL_VERSION,
         "geometry_table_version": GEOMETRY_TABLE_VERSION,
         "invert_wall_s": invert_wall_s,
@@ -1058,7 +1060,7 @@ def run_boundary_arm_grid(args) -> int:
 
 
 # ---------------------------------------------------------------------------
-# F — whitening-floor rel sensitivity of the per-slice inverse.  Unlike A4's
+# Whitening-floor relative sensitivity of the per-slice inverse.  Unlike
 # boundary-read levers, the floor is baked into SlicePayload.scale at
 # shot_payloads() load time and enters the whitened-misfit term of the
 # inverse's objective directly, so each rel value needs a FRESH
@@ -1070,11 +1072,9 @@ def run_boundary_arm_grid(args) -> int:
 
 def run_floor_sensitivity(args) -> int:
     """Sweep ``--floor-rel-grid``'s rel_floor values against the frozen
-    P3-winner inverse, scoring axis/LCFS/misfit at each — the measurement
-    that answers whether the training-motivated whitening floor (commit
-    19820ad) costs the per-slice inverse axis-placement skill by
-    over-deweighting quiet-but-precise flux loops (patch-equilibrium-wm-
-    integration flux-map re-run, commit 0e5fba3).
+    frozen inverse, scoring axis/LCFS/misfit at each — the measurement that
+    answers whether the training-motivated whitening floor costs per-slice
+    axis-placement skill by over-deweighting quiet-but-precise flux loops.
 
     Cohort: the SAME train-shot tuning selection ``run_boundary_arm``/
     ``run_boundary_arm_grid`` use (``--split train``'s
@@ -1110,12 +1110,12 @@ def run_floor_sensitivity(args) -> int:
         else held_shots
     )
 
-    winner_cfg = InverseConfig(
+    frozen_cfg = InverseConfig(
         iters=args.iters,
         lr=args.lr,
         n_bins=args.n_bins,
         connectivity=connectivity,
-        **P3_WINNER_KW,
+        **FROZEN_INVERSE_KW,
     )
 
     results = []
@@ -1153,7 +1153,7 @@ def run_floor_sensitivity(args) -> int:
             )
             sub_payloads = [all_payloads[k] for k in sel]
             sub_refs = payload["refs"][sel]
-            inv = invert_slices(basis, sub_payloads, winner_cfg, device=device)
+            inv = invert_slices(basis, sub_payloads, frozen_cfg, device=device)
             for k, r in enumerate(inv):
                 psi2d = basis.psi_grid_2d_np(r.i_cell, sub_payloads[k].i_pf)
                 target, _, _ = geometry_target(psi2d, grid)
@@ -1196,7 +1196,7 @@ def run_floor_sensitivity(args) -> int:
 
     out = {
         "split": args.split,
-        "winner_config": {**P3_WINNER_KW, "iters": args.iters},
+        "frozen_config": {**FROZEN_INVERSE_KW, "iters": args.iters},
         "coil_model_version": COIL_MODEL_VERSION,
         "geometry_table_version": GEOMETRY_TABLE_VERSION,
         "n_tune_shots": args.n_tune_shots if args.split == "train" else None,
@@ -1284,12 +1284,12 @@ def main() -> int:
         default="",
         choices=("", "baseline", "current-smooth"),
         help=(
-            "lever A4 measurement mode: if set, run_boundary_arm() replaces "
+            "boundary-read measurement mode: if set, run_boundary_arm() replaces "
             "the normal policy sweep entirely (writes boundary_read_<tag>.json "
-            "against the frozen P3-winner inverse). '' = normal gate (default, "
-            "unaffected). 'baseline' = P3-winner inverse + geometry_target read "
-            "with --smooth-sigma/--min-axis-dist (0/0 reproduces the P3 gate "
-            "numbers exactly). 'current-smooth' = re-invert with the ARM-1 "
+            "against the frozen inverse). '' = normal gate (default, "
+            "unaffected). 'baseline' = frozen inverse + geometry_target read "
+            "with --smooth-sigma/--min-axis-dist (0/0 preserves the frozen "
+            "numbers exactly). 'current-smooth' = re-invert with the "
             "current-smoothness penalty at --current-smooth-lambda."
         ),
     )
@@ -1297,27 +1297,27 @@ def main() -> int:
         "--smooth-sigma",
         type=float,
         default=0.0,
-        help="ARM 3: Gaussian-smooth psi (grid cells) before the boundary read",
+        help="Gaussian-smooth psi (grid cells) before the boundary read",
     )
     ap.add_argument(
         "--min-axis-dist",
         type=float,
         default=0.0,
-        help="ARM 2: reject candidate X-points closer than this [m] to the axis",
+        help="Reject candidate X-points closer than this [m] to the axis",
     )
     ap.add_argument(
         "--current-smooth-lambda",
         type=float,
         default=0.0,
-        help="ARM 1: weight of the current spatial-smoothness penalty",
+        help="Weight of the current spatial-smoothness penalty",
     )
     ap.add_argument(
         "--grid",
         type=str,
         default="",
         help=(
-            "lever A4 grid-measurement mode (preferred over --boundary-arm for "
-            "ARM 2/3): comma list of 'baseline' / 'sigma=<v>' / 'dist=<v>' / "
+            "boundary-read grid measurement (preferred over --boundary-arm): "
+            "comma list of 'baseline' / 'sigma=<v>' / 'dist=<v>' / "
             "'sigma=<v>+dist=<v>' points, evaluated from ONE frozen-config "
             "inversion per shot (invert once, vary only the readout — avoids "
             "the run-to-run Adam nondeterminism confound of re-inverting per "
@@ -1340,12 +1340,12 @@ def main() -> int:
         type=str,
         default="",
         help=(
-            "F: whitening-floor sensitivity sweep. Comma list of rel_floor "
+            "Whitening-floor sensitivity sweep. Comma list of rel_floor "
             "values (e.g. '0.0,0.01,0.02,0.05'); each value re-loads "
             "shot_payloads AND re-inverts (the floor is baked into the "
             "whitened-misfit objective, unlike --grid's boundary-read "
             "levers, so currents cannot be cached across values). Runs on "
-            "the frozen P3-winner config, --split train's tuning cohort by "
+            "the frozen inverse config, --split train's tuning cohort by "
             "default (leakage-free). Writes floor_sensitivity_<tag>.json."
         ),
     )
@@ -1407,7 +1407,7 @@ def main() -> int:
                 len(payload["payloads"]),
             )
 
-    # ---- P1-gate throughput bench (batched forward on this device) ----------
+    # ---- throughput benchmark (batched forward on this device) -------------
     if args.throughput_bench and shots:
         basis = shots[0]["basis"]
         rates = []

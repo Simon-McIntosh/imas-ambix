@@ -1,11 +1,10 @@
 """Independently validate the MAST machine-geometry table.
 
-``imas_ambix.gs.geometry.build_table_for_shot`` reads the efm (EFIT
-machine-description) static-setup arrays from the level-1 Zarr mirror: the
-limiter contour, PF-coil filaments, B-probes, and flux loops used by the
-GS-grounded latent engine's Green's-function observation operator.  This
-script cross-checks that table against sources the geometry module never
-touches:
+``imas_ambix.data.description_reader.read_geometry_table`` emits the declared
+machine description and adapts its limiter contour, PF-coil filaments,
+B-probes, and flux loops for the GS-grounded latent engine's Green's-function
+observation operator.  This script cross-checks that adapted table against the
+underlying level-2 structures and independent geometric invariants:
 
 * the level-2 Zarr mirror's ``wall`` / ``pf_active`` / ``pf_passive`` /
   ``magnetics`` groups, which carry independently-curated MAST geometry
@@ -23,7 +22,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import matplotlib
 
@@ -32,8 +31,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import zarr
 
+from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.data.paths import local_shot_path
-from imas_ambix.gs.geometry import GeometryTable, build_table_for_shot
+
+if TYPE_CHECKING:
+    from imas_ambix.gs.geometry import GeometryTable
 
 SHOT_ID = 18502
 
@@ -434,7 +436,7 @@ def make_figure(
 
 
 def main() -> None:
-    table = build_table_for_shot(SHOT_ID)
+    table = read_geometry_table(SHOT_ID)
     l2_wall = open_l2_group(SHOT_ID, "wall")
 
     limiter_result = validate_limiter(table, l2_wall)
