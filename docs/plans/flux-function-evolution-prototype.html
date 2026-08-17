@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="flux-function-evolution-prototype">
+  <meta name="plan-title"     content="Flux-Function Evolution Prototype">
+  <meta name="plan-summary"   content="Fast spike: extract p′/FF′ trajectories from a small challenge-train subset, measure how much of their evolution the transport forward explains, and close one Kalman-structured GS+transport+Thomson loop on a single shot — de-risking the entry's low-dimensional state thesis before the production smoother exists">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort-hours" content="6.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S17">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <title>Flux-Function Evolution Prototype | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — Thesis: solve the low-dimensional evolution, not the map</h2>
+    <p>The magnetics-free entry does not need to invert a 65×65 flux map per slice. A
+    diverted equilibrium is determined, given conductor currents and force balance, by two
+    flux functions — p′(ψ) and FF′(ψ) — plus a handful of nuisances. Per frame those are
+    under-determined by Thomson alone; over a shot they are <strong>slowly drifting
+    parameters that hundreds of frames over-determine</strong>, because resistive current
+    diffusion gives the interior real inertia. The estimation problem is therefore a
+    low-dimensional state-space model: <strong>transport is the transition kernel, the
+    free-boundary GS solve is the state-to-observable geometry, and the Thomson chord model
+    is the observation operator</strong>. That is a Kalman-filter structure with exact
+    nonlinear forwards, and the entry plan (<code>magnetics-free-equilibrium-recovery</code>
+    §5) builds its production form as a windowed iterated ensemble smoother over ~12–16
+    parameters per window.</p>
+    <p>This plan is the <strong>fast spike in front of that production lane</strong>. It
+    answers three questions on a ~20-shot DIII-D train subset, cheaply and honestly, before
+    the full corpus ingest and the hardened kernels land:</p>
+    <ul>
+      <li><strong>Are the labels extractable?</strong> Does Δ* plus per-surface radial
+      separation recover smooth p′/FF′ trajectories from labeled maps, with clean
+      vacuum-region receipts? (A small-scale preview of the entry's second kill gate.)</li>
+      <li><strong>Does transport carry the interior?</strong> How much of the extracted
+      flux-function evolution does the ψ-diffusion forward explain, against persistence and
+      against an untuned closure? (The quantitative form of the "current-diffusion inertia"
+      claim the whole entry rests on.)</li>
+      <li><strong>Does the joined loop close?</strong> On one shot, does a toy
+      low-dimensional smoother — transport predict, GS solve, Thomson innovation, reduced
+      correction — track the labeled equilibrium? (The Kalman demo, end to end.)</li>
+    </ul>
+    <figure>
+      <svg viewBox="0 0 880 320" role="img" style="max-width:100%;height:auto"
+           font-family="system-ui" font-size="13">
+        <defs>
+          <marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7"
+                  markerHeight="7" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="#1a1a1e"/>
+          </marker>
+          <marker id="arrU" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7"
+                  markerHeight="7" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="#b3591f"/>
+          </marker>
+        </defs>
+        <!-- state box -->
+        <rect x="20" y="110" width="200" height="86" fill="#ffffff" stroke="#1a1a1e"/>
+        <text x="120" y="134" text-anchor="middle" font-weight="600" fill="#1a1a1e">state xₜ (~12–16 dof)</text>
+        <text x="120" y="154" text-anchor="middle" fill="#1a1a1e">p′, FF′ basis amplitudes</text>
+        <text x="120" y="172" text-anchor="middle" fill="#1a1a1e">+ Zeff, pe→p, vessel modes</text>
+        <!-- transport predict -->
+        <line x1="220" y1="130" x2="320" y2="130" stroke="#1a1a1e" marker-end="url(#arr)"/>
+        <text x="270" y="118" text-anchor="middle" fill="#1a1a1e">transport predict</text>
+        <text x="270" y="146" text-anchor="middle" font-style="italic" fill="#555">ψ-diffusion / TORAX</text>
+        <!-- prior box -->
+        <rect x="322" y="102" width="130" height="56" fill="#ffffff" stroke="#1a1a1e"/>
+        <text x="387" y="126" text-anchor="middle" fill="#1a1a1e">prior xₜ₊₁|ₜ</text>
+        <text x="387" y="144" text-anchor="middle" font-style="italic" fill="#555">forecast, causal</text>
+        <!-- GS solve -->
+        <line x1="452" y1="130" x2="552" y2="130" stroke="#1a1a1e" marker-end="url(#arr)"/>
+        <text x="502" y="118" text-anchor="middle" fill="#1a1a1e">GS solve (nova)</text>
+        <text x="502" y="146" text-anchor="middle" font-style="italic" fill="#555">free-boundary, exact</text>
+        <!-- map box -->
+        <rect x="554" y="102" width="130" height="56" fill="#ffffff" stroke="#1a1a1e"/>
+        <text x="619" y="126" text-anchor="middle" fill="#1a1a1e">ψ(R,Z) map</text>
+        <text x="619" y="144" text-anchor="middle" font-style="italic" fill="#555">+ boundary, q95, βN</text>
+        <!-- Thomson forward -->
+        <line x1="684" y1="130" x2="784" y2="130" stroke="#1a1a1e" marker-end="url(#arr)"/>
+        <text x="734" y="118" text-anchor="middle" fill="#1a1a1e">chord→ψ_N</text>
+        <text x="734" y="146" text-anchor="middle" font-style="italic" fill="#555">Thomson forward</text>
+        <!-- predicted obs box -->
+        <rect x="786" y="102" width="80" height="56" fill="#ffffff" stroke="#1a1a1e"/>
+        <text x="826" y="126" text-anchor="middle" fill="#1a1a1e">ŷₜ₊₁</text>
+        <text x="826" y="144" text-anchor="middle" font-style="italic" fill="#555">Te, ne</text>
+        <!-- innovation path (accent) -->
+        <line x1="826" y1="158" x2="826" y2="230" stroke="#b3591f" marker-end="url(#arrU)"/>
+        <rect x="746" y="232" width="160" height="52" fill="#ffffff" stroke="#b3591f"/>
+        <text x="826" y="254" text-anchor="middle" fill="#b3591f" font-weight="600">innovation y − ŷ</text>
+        <text x="826" y="272" text-anchor="middle" fill="#1a1a1e">measured Thomson</text>
+        <line x1="746" y1="258" x2="460" y2="258" stroke="#b3591f" marker-end="url(#arrU)"/>
+        <text x="600" y="246" text-anchor="middle" fill="#b3591f">reduced-rank update (ambix)</text>
+        <rect x="322" y="232" width="136" height="52" fill="#ffffff" stroke="#b3591f"/>
+        <text x="390" y="254" text-anchor="middle" fill="#1a1a1e">posterior xₜ₊₁|ₜ₊₁</text>
+        <text x="390" y="272" text-anchor="middle" font-style="italic" fill="#555">analysis, causal</text>
+        <path d="M 322 258 L 120 258 L 120 198" fill="none" stroke="#b3591f" marker-end="url(#arrU)"/>
+        <text x="200" y="246" text-anchor="middle" fill="#b3591f">t ← t+1</text>
+      </svg>
+      <figcaption>The joined loop this plan demonstrates once, end to end: transport
+      advances the low-dimensional flux-function state (the transition kernel), the nova GS
+      solve and Thomson chord sampling map it to observables (the observation operator), and
+      the reduced-rank innovation update corrects the state — a Kalman-filter structure with
+      exact nonlinear forwards. Black is nova's deterministic path; the accent is ambix's
+      statistical path.</figcaption>
+    </figure>
+    <p><strong>Authority and hygiene.</strong> Extraction, chord-sampling and transport
+    kernels are nova's (consumed, never re-implemented); every σ, detector, prior and update
+    is ambix's. Prototype code is a throwaway-labeled spike under
+    <code>scripts/</code> named by mechanism, and its measurements — not its code — are the
+    deliverable: they feed the entry plan's open decisions (<code>label-pedigree-response</code>,
+    <code>floor-bar-source</code>) and the closure plan's <code>loss-set-v0</code>. Nothing
+    here touches the production <code>statespace</code> lane, and nothing here reads
+    FAIR-MAST or MAST EFIT.</p>
+
+    <h2 id="s2">§2 — Subset pull and flux-function extraction</h2>
+    <p>Pull a ~20-shot DIII-D train subset from the challenge corpus
+    (<code>https://fusion-equilibrium-challenge.sophelio.io/</code>, parquet, one row per
+    shot) to <code>/work/projects/imas_gpu/sophelio/</code> — regime-spanning per the
+    subset-composition decision, including at least three shots with long flat-tops and
+    three with substantial ramp coverage. For every labeled slice: apply Δ* to the labeled
+    ψ map to get j_φ, separate per-surface into p′(ψ) and FF′(ψ), assemble the
+    flux-surface-averaged geometry record on the toroidal-flux coordinate, and bank the
+    vacuum-region Δ*ψ≈0 receipt beside each frame. Where the existing transport-seam FSA
+    machinery in nova covers a step, call it; report — do not patch around — whatever it
+    cannot yet do (that gap list is direct input to
+    <code>nova:diiid-forward-onboarding</code> §5 hardening).</p>
+    <p><strong>Done when:</strong> p′/FF′/ψ(ρ̂) trajectories with FSA records are banked for
+    ≥15 shots; vacuum receipts pass on the clear majority of frames with failures
+    characterised, not discarded; on ≥3 shots the extracted flux functions re-solve through
+    the nova forward to the labeled map near the grid-resolution floor (a small-scale
+    preview of the entry's second kill gate); a smoothness/basis-structure summary of the
+    extracted trajectories is banked as evidence for the label-pedigree question.</p>
+
+    <h2 id="s3">§3 — Simulability: how much of the evolution does transport explain?</h2>
+    <p>Drive the native ψ-diffusion rung (<code>nova/transport/current_diffusion.py</code>)
+    over each shot's extracted geometry and measured I_p waveform, from an extracted initial
+    state. Fit the bounded low-degree-of-freedom resistivity profile <em>across shots, never
+    per slice</em>. Score the transport-evolved FF′ (and ψ(ρ̂)) against the extracted
+    trajectories at every labeled slice, against two controls: persistence of the initial
+    state, and the same solve with the untuned default closure. When the TORAX ≥ 1.4.3
+    environment lands (<code>nova:flux-function-forward-transport</code> §3), repeat the
+    headline row through the TORAX rung as a cross-check; do not block on it.</p>
+    <p><strong>Done when:</strong> an explained-variance table (per-shot and pooled;
+    flat-top and ramp scored separately) is banked with a pre-registered verdict line:
+    transport beats persistence on FF′ evolution across the subset, or it does not, with the
+    margin quantified. Either outcome is a result — a negative bounds how much §5-style
+    smoothing correction the entry must carry, and how tight the FF′ deviation priors can
+    be.</p>
+
+    <h2 id="s4">§4 — The joined loop, once, end to end</h2>
+    <p>On one flat-top shot from the subset, close the loop in the figure: transport predict
+    over a window, nova free-boundary solve per member, chord→ψ_N Thomson sampling, and a
+    reduced-rank innovation update of the low-dimensional state — reusing the
+    reduced-observable-correction machinery from
+    <code>imas_ambix/statespace/sequential_da.py</code> with the observation operator
+    swapped from magnetics to the Thomson forward. The Thomson measurement model is the
+    minimal honest one: matched-Te isoflux pairing across non-collinear chords plus a
+    pedestal-foot proxy, with widened σ rather than dropped channels. I_p enters as the
+    transport boundary condition, never as an observation.</p>
+    <p><strong>Done when:</strong> the one-shot demo is banked with innovation statistics
+    (whiteness, per-channel normalised residuals), LCFS distance and q95/βN error against
+    the label at each analysed slice, and a short lessons note stating what the production
+    smoother (<code>magnetics-free-equilibrium-recovery</code> §5) should keep, change or
+    drop — including whether the SVD-reduced correction basis is adequate for a Thomson-only
+    operator.</p>
+
+    <h2 id="s5">§5 — Exclusions</h2>
+    <p>No full-corpus ingest (the entry plan's §2 owns that); no closure learning (the
+    learned-closure plan owns that); no leaderboard submission; no MAST data of any kind; no
+    changes to the production <code>statespace</code> or <code>gs</code> modules; no new
+    nova physics — gaps in nova kernels are reported to the owning nova plans, not patched
+    here.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <p>Recommendation: <strong>regime-spanning</strong> — the simulability question is
+      only interesting if the answer covers the ramp the entry must traverse, and twenty
+      shots is cheap either way.</p>
+      <div class="r-dec" data-key="subset-composition" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">What does the ~20-shot prototype subset span?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="regime-spanning">regime-spanning</button>
+          <button class="r-opt" data-value="flat-top-only">flat-top-only</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <p>Recommendation: <strong>svd-reduced-correction</strong> — reuse the proven
+      sequential-DA reduced-observable machinery with the observation operator swapped,
+      so the demo measures the Thomson operator rather than a new filter implementation;
+      promote to an iterated ensemble form only if the innovation statistics demand it.</p>
+      <div class="r-dec" data-key="smoother-form" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">What filter form does the §4 one-shot demo use?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="svd-reduced-correction">svd-reduced-correction</button>
+          <button class="r-opt" data-value="iterated-enks-window">iterated-enks-window</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-ffep-001" data-status="open"
+               data-capability-version="1.0" data-capability-class="general"
+               data-capability-verification="strict"
+               data-written-by="reckon-create" data-written-at="2026-08-17">
+        <h4 class="r-fu-title">Pull the subset and extract flux-function trajectories (§2)</h4>
+        <div class="r-fu-body"><p>First executable rung, runnable immediately: challenge
+        site verified reachable from the SDCC login network 2026-08-17. §3 follows on the
+        banked trajectories; §4 follows on §3's geometry records. The two decisions carry
+        recommendations and default to them if unlocked at dispatch.</p></div>
+        <pre class="r-fu-prompt">/reckon-ship flux-function-evolution-prototype §2</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
