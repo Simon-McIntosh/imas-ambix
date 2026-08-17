@@ -12,6 +12,52 @@ The connecting segment shows the inter-candidate margin for each range-qualified
 
 ![Measured plasma-current receipts](/imas-ambix/figures/vacuum-loop-adjudication/cohort-plasma-current-receipts.png)
 
+## Catalog feedback and frozen-stamp receipt
+
+The packaged MAST machine catalog now carries all **19** adjudications as
+inclusive shot-range declarations referencing this note. The directional
+population is **14 reconstruction coordinates** and **2 nominal-table
+coordinates**. The three nulls—early `fl_p2u_2`, late `fl_p2l_1`, and late
+`fl_p2l_2`—use the explicit `undecided` verdict and deliberately carry no
+declared coordinate. Catalog validation rejects partial coordinate pairs,
+coordinates on an undecided declaration, directional verdicts without
+coordinates, unknown acquisition addresses, overlapping declarations for one
+address, and ranges not continuously covered by the machine map.
+
+At adaptation time, an active directional declaration replaces the emitted
+loop position and leaves its verdict and declaration identity in the sensor-map
+flag. An active undecided declaration retains the emitted position only as
+qualified source data and states that the catalog declares no coordinate.
+Measured waveform identity remains a separate join: the frozen transform source
+updates the EFM signal-column index but no longer overwrites the catalog-selected
+`R`, `Z`, or qualification flag.
+
+One clean-commit frozen CPU stamp was run from commit
+`cee483a42af9a74925b5dbce9b0fd7cda16bf5c3`. Its artifact is
+`imas_ambix/spine_bench/results/physics-spine-v0-mast-heldout-6-cee483a42a-98dci4-clu-3141-level2-transform-signal-identity-f2df4d7f52dd.yaml`
+with geometry revision
+`sha256:f2df4d7f52dda3f9ed182f9a08a15af1829dd4e5b8f72d27cb240e1808cbddc5`.
+Both arms retain **36/36 scored slices**:
+
+| Arm | Pre-feedback residual | Catalog-feedback residual | Change | Relative change | Coverage |
+|---|---:|---:|---:|---:|---:|
+| greens-matvec | 0.66981975176426856 | 0.6698197452949048 | -6.4693637e-9 | -0.000000966% | 36/36 |
+| grid-delstar | 0.66977238716696808 | 0.6697723807926145 | -6.3743536e-9 | -0.000000952% | 36/36 |
+
+Lower is better, so both movements are improvements, but their scale is tiny
+and is not promoted as a new performance result. The prior transform benchmark
+already substituted EFM reconstruction positions during waveform identity
+binding; consequently the 14 reconstruction winners largely preserve its
+numerical geometry while moving their authority into the catalog. The two
+nominal-table winners are the meaningful coordinate reversal against that
+benchmark baseline. None of the three undecided loops is present in the frozen
+late acquisition, so the stamp does not manufacture a numerical effect for
+them. No threshold or coordinate was tuned to the stamp.
+
+Independent LinkML validation passes for the schema and both packaged catalogs.
+The affected regression set passes **38/38**, and the description-reader AST
+census remains **library=0, scripts=0, total=0**.
+
 ## Per-loop verdicts
 
 Residuals are leave-one-shot-out normalized RMSE after removing each shot's constant offset and fitting one fixed acquisition gain on the remaining shots. `margin` is nominal residual minus reconstruction residual: positive values favour reconstruction. A verdict is directional only when the paired shot-bootstrap 95% interval excludes zero.
