@@ -70,7 +70,7 @@ from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 
 # Importing the column-decomposition module installs the late-campaign amm-hole
-# guard on read_amm_passive and gives us the identical vacuum cohort selector.
+# guard and gives us the identical vacuum cohort selector.
 from scripts.flux_loop_column_decomposition import (  # noqa: E402
     BAY_LOOPS,
     MANIFEST,  # noqa: F401  (kept for provenance / re-use symmetry)
@@ -516,7 +516,6 @@ def fit(data: dict, src: dict, n_boot: int, seed: int) -> dict:
 def decide(result: dict) -> dict:
     """Turn the fit into the coil-vs-case verdict and the a/b/c decision."""
     per_case = result["per_case"]
-    one = result["one_scale"]
 
     # a case is a clean drive-data scale when it is identifiable (separable,
     # ≥3 exposed sensors), significantly ≠ 1, and constant across its exposed
@@ -695,7 +694,6 @@ def _estimator_comparison() -> dict:
 
 def make_figure(result: dict, verdict: dict, out: Path) -> None:
     per_case = result["per_case"]
-    one = result["one_scale"]
     cases = result["case_sources"]
     xs = np.arange(len(cases))
     lab = [_suffix(c) for c in cases]

@@ -6,7 +6,7 @@ correctness is checked against (a) internal invariants, (b) consistency with
 the sibling :mod:`imas_ambix.gs.operator` module's independent coil→amc-channel
 map, and (c) ``amc`` channel listings **recorded** from three real shots
 spanning both in-use ``fcoil`` discretisations (938- and 1004-filament
-campaigns) — recorded via ``imas_ambix.gs.geometry.read_amc_current_channels``
+campaigns) — recorded by the declared acquisition map
 on 2026-07-04, not read live, so this file never depends on mirror access.
 """
 

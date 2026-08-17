@@ -81,28 +81,6 @@ from scripts.vacuum_coil_response_audit import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("magnetics_era_scorecard")
 
-# The amm passive-eddy group is intermittently absent from the L1 archive in the
-# late campaigns (the documented ~21k-29k "amm hole").  amm carries only the
-# vessel passive-structure GEOMETRY, which a coil→sensor vacuum scorecard does
-# not use (only g_pf, the sensor/coil axes, and assemble_pf_currents are read).
-# Tolerate its absence so the confound-critical late eras stay in the sweep —
-# a table built without amm has empty passive_structures, which is correct here.
-import imas_ambix.gs.geometry as _geom  # noqa: E402
-
-_orig_read_amm_passive = _geom.read_amm_passive
-
-
-def _read_amm_passive_optional(shot_id: int):
-    try:
-        return _orig_read_amm_passive(shot_id)
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("shot %s: amm passive geometry absent (%s) — not needed for "
-                     "the coil-only scorecard", shot_id, exc)
-        return []
-
-
-_geom.read_amm_passive = _read_amm_passive_optional
-
 ARTIFACTS = Path("imas_ambix/latent/artifacts/patch_gate")
 FIGURES = Path("docs/figures/connectivity-topology-reader")
 

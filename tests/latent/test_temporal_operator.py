@@ -553,11 +553,11 @@ def test_checkpoint_round_trip_is_exact(tmp_path):
 def test_real_geometry_eigenbasis_taus_in_vessel_range():
     """MAST vessel L/R eigenmodes: slowest ≳ 10 ms, all kept modes sub-100 ms,
     eigenvectors L-orthonormal, drive couplings shape-consistent."""
-    from imas_ambix.gs.geometry import build_table_for_shot
+    from imas_ambix.data.description_reader import read_geometry_table
     from imas_ambix.latent.gs_solve import EquilibriumGrid
     from imas_ambix.latent.temporal_operator import build_passive_eigenbasis
 
-    table = build_table_for_shot(11766)
+    table = read_geometry_table(11766)
     grid = EquilibriumGrid.from_table(table, nr=65, nz=97)
     basis = build_passive_eigenbasis(
         table, grid, sensor_scale=np.ones(len(table.sensor_map)), k=12

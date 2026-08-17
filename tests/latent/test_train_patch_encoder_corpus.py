@@ -420,12 +420,13 @@ def test_assemble_corpus_resolves_geometry_over_geometry_shots_not_shots():
     wide = [1, 2, 3, 4, 5]
     seen: dict[str, list[int]] = {}
 
-    def fake_discover(shot_ids):
-        seen["discover"] = list(shot_ids)
-        return {}
+    def unavailable_table(shot_id):
+        seen.setdefault("discover", []).append(int(shot_id))
+        raise RuntimeError("fixture has no declared geometry")
 
     with mock.patch(
-        "scripts.train_patch_encoder.discover_signatures", side_effect=fake_discover
+        "scripts.train_patch_encoder.read_geometry_table",
+        side_effect=unavailable_table,
     ):
         corpora = tpe.assemble_corpus(
             narrow,

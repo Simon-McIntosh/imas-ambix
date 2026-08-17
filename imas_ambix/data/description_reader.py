@@ -1,10 +1,10 @@
 """Read declared machine descriptions through the geometry-table contract.
 
-The public functions in this module are the compatibility boundary for code
-that still consumes :class:`imas_ambix.gs.geometry.GeometryTable`.  Description
+This module is the sole machine-description acquisition route. Description
 content is emitted by the reviewed machine map and a store-format transform
-engine, then adapted to that established table shape.  Consumers therefore do
-not need to know which source arrays or store layout supplied the description.
+engine, then adapted to :class:`imas_ambix.gs.geometry.GeometryTable`.
+Consumers therefore do not need to know which source arrays or store layout
+supplied the description.
 
 MAST level-2 stores do not carry the directed angle of a poloidal field probe.
 The acquisition declaration does carry stable addresses whose prefixes state
@@ -15,7 +15,6 @@ mapping while leaving every emitted coordinate and conductor value untouched.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from imas_ambix.data.geometry_adapter import geometry_table_from_description
@@ -25,6 +24,7 @@ from imas_ambix.data.transform_engine import transform_machine_description
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from pathlib import Path
 
     from imas_ambix.gs.geometry import GeometryTable
 

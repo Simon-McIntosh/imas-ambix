@@ -1,77 +1,9 @@
-"""Per-campaign machine-geometry table for the GS Green's-function operator.
+"""Machine-geometry table records for the GS Green's-function operator.
 
-The Green's-function forward operator (:mod:`imas_ambix.gs.operator`)
-predicts the ``amb`` flux-loops + B-probes from a
-toroidal current distribution; doing so needs the *machine geometry* — every
-sensor's ``(R, Z)`` + orientation, the PF-coil + passive-structure filament
-``(R, Z, turns)``, and the limiter contour.  That geometry is the one piece
-**not** present in the raw signal data, so we tabulate it here.
-
-Geometry source
----------------
-We read **only** EFIT's STATIC SETUP / machine-description arrays — the fixed
-*a-priori* every solver is *given*, categorically distinct from EFIT's
-*reconstructed* output.  The discriminator is mechanical and auditable:
-
-* a setup-geometry array is indexed by a **geometry dimension** (``magpr_n``,
-  ``fcoil_segs_n``, ``nlimiter``) and has **no leading time axis** (the EFIT
-  time base is length 50 in this corpus);
-* a solver-output array has a **leading-50 time axis** (``f(A)`` / ``f(B)``
-  time bases) or is a derived reconstructed scalar/profile.
-
-The arrays we read (and ONLY these), with their classification proof:
-
-==================  =======  ========================================
-efm array           shape    why it is setup-geometry (not output)
-==================  =======  ========================================
-magpr_r             (78,)    B-probe R, indexed by magpr_n; no time axis
-magpr_z             (78,)    B-probe Z, indexed by magpr_n; no time axis
-magpr_ang           (78,)    B-probe orientation (deg), indexed by magpr_n
-magpr_len           (78,)    B-probe effective length, indexed by magpr_n
-silop_r             (46,)    flux-loop R, indexed by magpr_n; no time axis
-silop_z             (46,)    flux-loop Z, indexed by magpr_n; no time axis
-fcoil_r             (1004,)  PF filament R centroid, indexed by fcoil_segs_n
-fcoil_z             (1004,)  PF filament Z centroid, indexed by fcoil_segs_n
-fcoil_turns         (1004,)  PF filament turns, indexed by fcoil_segs_n
-fcoil_width         (1004,)  PF filament R extent (finite-size, optional)
-fcoil_height        (1004,)  PF filament Z extent (finite-size, optional)
-fcoil_circ          (1004,)  circuit number each filament belongs to (1..167)
-fcoil_xmult         (1004,)  weight of each filament's share of coil current
-limiterr            (37,)    limiter R contour, indexed by nlimiter
-limiterz            (37,)    limiter Z contour, indexed by nlimiter
-==================  =======  ========================================
-
-**EXCLUDED (solver output — never read as input or label):** ``magpr_c`` /
-``magpr_x`` / ``silop_c`` / ``silop_x`` / ``fcoil_c`` / ``fcoil_x`` (all
-``(50, N)`` fitted/experimental currents — the tempting prefix-neighbours of
-the arrays above), ``psirz``, ``pprime``, ``ffprime``, ``lcfs_r/z``, ``qpsi_c``,
-``plasma_current_*``, ``magnetic_axis_*``, ``betap``, ``li``, and every other
-``(50, …)`` reconstructed quantity.
-
-Orientation is resolved **authoritatively from ``magpr_ang``**, never from the
-``amb`` channel name/description.  The source angle is converted at this read
-boundary to the DDv4 directed-angle definition: a source +90 degree vertical
-probe becomes -90 degrees and still reads ``+B_Z``.  See
-:func:`map_amb_sensors`.
-
-Per-campaign keying
--------------------
-The EFIT setup is not constant across the corpus.  The ``fcoil`` discretisation
-is 1004 *or* 938 filaments, and ``magpr_z``
-drifts up to ~13 mm between campaigns (``silop`` positions are stable).  A
-single global table would silently mix incompatible geometries, so every table
-is keyed by a :class:`SetupSignature` — a hash of the rounded valid sensor /
-filament positions + counts.  ``silop`` arrays are sometimes zero-padded to 78
-with trailing ``NaN``; only the valid (finite) entries count.
-
-Dimensionless framing
----------------------
-The table does not choose dimensionless coordinates (R/R0, psi normalisation,
-and similar model-space representations).  It carries the raw machine-absolute
-``(R, Z, ...)`` plus
-the fixed MAST major/minor-radius constants (:data:`MAST_R0`, :data:`MAST_A`)
-needed to *later* express geometry in dimensionless groups, without locking
-any particular framing now.
+This module owns the stable table shape and geometry-only utilities used by
+operators and artifact adapters. Machine descriptions are acquired through
+``imas_ambix.data.description_reader``; no per-machine source reader lives at
+this table boundary.
 """
 
 from __future__ import annotations
@@ -80,13 +12,12 @@ import hashlib
 import json
 import re
 from dataclasses import asdict, dataclass, field
-from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 import numpy as np
 
-from imas_ambix.data.paths import MANIFEST_DIR, local_shot_path
+from imas_ambix.data.paths import MANIFEST_DIR
 from imas_ambix.data.signal_map import CompiledSignal, load_packaged_signal_map
 
 if TYPE_CHECKING:
@@ -110,33 +41,6 @@ MAST_A = 0.65
 """MAST nominal plasma minor radius [m] (device constant; the quantity used by
 the Greenwald density limit).  Nominal, not a limiter dimension — see the
 :data:`MAST_R0` note on deriving a geometry-exact value from the contour."""
-
-# --- efm static-geometry array names (the auditable read-list) --------
-
-EFM_GEOMETRY_ARRAYS: tuple[str, ...] = (
-    "magpr_r",
-    "magpr_z",
-    "magpr_ang",
-    "magpr_len",
-    "silop_r",
-    "silop_z",
-    "fcoil_r",
-    "fcoil_z",
-    "fcoil_turns",
-    "fcoil_width",
-    "fcoil_height",
-    "fcoil_circ",
-    "fcoil_xmult",
-    "limiterr",
-    "limiterz",
-)
-"""The ONLY efm arrays this module reads — all static setup geometry.
-
-Auditable against the strict ``gs-geometry-source`` boundary: every entry has
-no leading time axis and is indexed by a geometry dimension.  This module
-never opens any other efm array (no ``psirz``, no ``*_c`` / ``*_x`` fitted
-currents, no profiles, no shape parameters).
-"""
 
 GEOMETRY_TABLE_VERSION = "ddv4-directed-probe-angle"
 """Bump whenever the derivation of :class:`GeometryTable` (its sensor channel
@@ -745,10 +649,10 @@ class GeometryTable:
 # :class:`MachineGeometryReader` is the seam that lets a second (third, ...)
 # machine plug in: implement ``read() -> GeometryTable`` against whatever
 # machine-native format that device's static geometry lives in, and nothing
-# downstream of the table changes.  :class:`MastZarrGeometryReader` below
-# adapts the FAIR-MAST efm reader to this interface with NO change to its read
-# logic; :mod:`imas_ambix.gs.artifact_geometry` implements the same interface
-# against a published, content-addressed set of IMAS static IDSs.
+# downstream of the table changes. :mod:`imas_ambix.data.description_reader`
+# adapts declared descriptions to this interface, while
+# :mod:`imas_ambix.gs.artifact_geometry` implements the same interface against
+# a published, content-addressed set of IMAS static IDSs.
 
 
 @runtime_checkable
@@ -763,77 +667,6 @@ class MachineGeometryReader(Protocol):
     machine: str
 
     def read(self) -> GeometryTable: ...
-
-
-# --- Low-level efm geometry read (the audited boundary) ---------------
-
-
-def _open_group(shot_id: int, group: str) -> Any:
-    """Open one zarr group of a level-1 shot (FAIR-MAST zarr; never h5py)."""
-    import zarr  # noqa: PLC0415
-
-    root = local_shot_path(shot_id, tier="level1")
-    store: Any = zarr.open(str(root), mode="r")
-    return store[group]
-
-
-@lru_cache(maxsize=1)
-def _mast_probe_angle_conversion() -> CompiledSignal:
-    """Return the reviewed source-to-DD probe-angle operation."""
-
-    return load_packaged_signal_map("mast", "magnetics").compile(0)[
-        "poloidal_field_probe_directed_angle"
-    ]
-
-
-def read_efm_geometry(shot_id: int) -> dict[str, np.ndarray]:
-    """Read ONLY the static efm geometry arrays for one shot.
-
-    Reads exactly the arrays in :data:`EFM_GEOMETRY_ARRAYS` — the auditable
-    read-list — and no others.  Never touches any reconstructed efm output.
-    The reviewed MAST magnetics map normalizes ``magpr_ang`` in memory to the
-    DDv4 directed-angle definition.  The map serves radians; this legacy
-    geometry structure retains degrees internally.  No source chunk is modified.
-    """
-    efm = _open_group(shot_id, "efm")
-    out: dict[str, np.ndarray] = {}
-    for name in EFM_GEOMETRY_ARRAYS:
-        if name in efm:
-            out[name] = np.asarray(efm[name][:], dtype=np.float64)
-    if "magpr_ang" in out:
-        dd_radians = _mast_probe_angle_conversion().apply(out["magpr_ang"])
-        out["magpr_ang"] = np.rad2deg(dd_radians)
-    return out
-
-
-def setup_signature(geom: dict[str, np.ndarray]) -> SetupSignature:
-    """Compute the per-campaign :class:`SetupSignature` from efm geometry."""
-    mr = _finite(geom["magpr_r"])
-    sr = _finite(geom["silop_r"])
-    sz = _finite(geom["silop_z"])
-    fr = geom["fcoil_r"]
-    lim = geom["limiterr"]
-    digest = _round_hash(
-        [
-            _finite(geom["magpr_r"]),
-            _finite(geom["magpr_z"]),
-            _finite(geom["magpr_ang"]),
-            sr,
-            sz,
-            fr,
-            geom["fcoil_z"],
-            geom["fcoil_turns"],
-            geom["limiterr"],
-            geom["limiterz"],
-        ]
-    )
-    return SetupSignature(
-        n_bprobe=int(mr.size),
-        n_fluxloop=int(min(sr.size, sz.size)),
-        n_pf_filament=int(fr.size),
-        n_limiter=int(_finite(lim).size),
-        digest=digest,
-    )
 
 
 # --- amb sensor mapping (orientation from magpr_ang, authoritatively) -
@@ -988,297 +821,7 @@ def map_amb_sensors(
     return mappings, unmatched
 
 
-# --- amm passive-structure geometry -----------------------------------
-
-# amm descriptions embed "R=...  Z=..." (note the spaced 2-token form, distinct
-# from the amb "r=...,z=..." form); multi-channel arrays carry one per line.
-_AMM_RZ_RE = re.compile(r"R\s*=\s*(-?\d+\.?\d*)\s+Z\s*=\s*(-?\d+\.?\d*)")
-
-
-def read_amm_passive(shot_id: int) -> list[PassiveStructure]:
-    """Capture amm passive-structure geometry ``(R, Z)`` from descriptions.
-
-    Reads only the amm array **descriptions** (and array shapes to expand
-    multi-channel structures) — never the current time-series values, which
-    are an EFIT-wall-model output (flagged for the orchestrator).
-    """
-    amm = _open_group(shot_id, "amm")
-    out: list[PassiveStructure] = []
-    for name in sorted(amm.array_keys()):
-        if name in ("time", "passnumber", "tcutoff", "tolerance", "substeps"):
-            continue
-        if name.endswith("_channel"):
-            continue
-        desc = amm[name].attrs.get("description", "") or ""
-        obsolete = "obsolete" in desc.lower()
-        matches = _AMM_RZ_RE.findall(desc)
-        for k, (r, z) in enumerate(matches):
-            label = name if len(matches) == 1 else f"{name}[{k}]"
-            out.append(
-                PassiveStructure(name=label, r=float(r), z=float(z), obsolete=obsolete)
-            )
-    return out
-
-
-def read_amc_current_channels(shot_id: int) -> list[str]:
-    """Enumerate amc PF/plasma current channel names (no time-series read)."""
-    amc = _open_group(shot_id, "amc")
-    skip = {"time", "timesec", "status"}
-    return sorted(k for k in amc.array_keys() if k not in skip)
-
-
-def read_amb_channels(shot_id: int) -> list[tuple[str, str]]:
-    """Return amb ``(channel_name, description)`` pairs (no signal-data read)."""
-    amb = _open_group(shot_id, "amb")
-    out: list[tuple[str, str]] = []
-    for name in sorted(amb.array_keys()):
-        if name in _AMB_NON_SENSOR:
-            continue
-        out.append((name, amb[name].attrs.get("description", "") or ""))
-    return out
-
-
-def canonical_amb_channels(
-    shot_ids: Sequence[int], *, max_shots: int | None = None
-) -> list[tuple[str, str]]:
-    """Union of amb ``(channel, description)`` pairs across ``shot_ids``.
-
-    A single shot's ``amb`` zarr group can genuinely lack an array that other
-    shots sharing the identical :class:`SetupSignature` digest DO carry — a
-    per-shot data-acquisition gap (a channel disabled or dropped for that
-    shot), not a geometry difference (the efm arrays the digest hashes are
-    unaffected).  Resolving a campaign's sensor channel SET from only one
-    shot therefore makes it an artifact of that shot's own availability and
-    can silently lose the channel for the whole campaign.  Scanning several shots and
-    taking the union of every discovered ``(name, description)`` pair makes
-    the resulting set geometry-determined instead — per-shot absence is left
-    to be resolved as a masked-absent value downstream (the raw-signal
-    alignment path keys on the GLOBAL ``feature_schema()``, not on any one
-    shot's schema, so a channel present in the table but genuinely unread on
-    a given shot naturally comes back all-NaN there).
-
-    Cheap: reads only zarr array keys + description attributes, never signal
-    data.  ``max_shots`` bounds the scan (``None`` = every shot given).
-    """
-    seen: dict[str, str] = {}
-    ids = list(shot_ids) if max_shots is None else list(shot_ids)[:max_shots]
-    for s in ids:
-        try:
-            chans = read_amb_channels(int(s))
-        except KeyError, FileNotFoundError, OSError, ValueError:
-            continue
-        for name, desc in chans:
-            seen.setdefault(name, desc)
-    return sorted(seen.items())
-
-
-# --- Build one table for a representative shot ------------------------
-
-
-def build_table_for_shot(
-    shot_id: int, *, amb_channels: list[tuple[str, str]] | None = None
-) -> GeometryTable:
-    """Build a :class:`GeometryTable` from one representative shot.
-
-    ``amb_channels`` (optional) overrides the amb channel candidates fed to
-    :func:`map_amb_sensors` — pass :func:`canonical_amb_channels` over every
-    shot sharing this campaign's signature to get a sensor channel SET that
-    does not depend on which single shot happens to build the table (see its
-    docstring).  Defaults to this shot's own :func:`read_amb_channels` when
-    omitted, using that shot's channel set for callers that only ever see one
-    shot of a campaign.
-
-    The geometry is per-campaign-constant, so a single shot of a campaign is a
-    valid source for that campaign's table.
-    """
-    geom = read_efm_geometry(shot_id)
-    sig = setup_signature(geom)
-
-    mr, mz, mang, mlen = (
-        geom["magpr_r"],
-        geom["magpr_z"],
-        geom["magpr_ang"],
-        geom["magpr_len"],
-    )
-    b_probes = [
-        BProbe(
-            index=i,
-            r=float(mr[i]),
-            z=float(mz[i]),
-            angle_deg=float(mang[i]),
-            length=float(mlen[i]),
-        )
-        for i in range(mr.size)
-        if np.isfinite(mr[i])
-    ]
-
-    sr, sz = _finite(geom["silop_r"]), _finite(geom["silop_z"])
-    n_sil = min(sr.size, sz.size)
-    flux_loops = [
-        FluxLoop(index=i, r=float(sr[i]), z=float(sz[i])) for i in range(n_sil)
-    ]
-
-    fr, fz, ft = geom["fcoil_r"], geom["fcoil_z"], geom["fcoil_turns"]
-    fw = geom.get("fcoil_width", np.zeros_like(fr))
-    fh = geom.get("fcoil_height", np.zeros_like(fr))
-    fc = geom.get("fcoil_circ", np.zeros_like(fr))
-    fx = geom.get("fcoil_xmult", np.ones_like(fr))
-    pf_filaments = collapse_rectangular_circuits(
-        [
-            PFFilament(
-                r=float(fr[i]),
-                z=float(fz[i]),
-                turns=float(ft[i]),
-                width=float(fw[i]),
-                height=float(fh[i]),
-                circuit=int(fc[i]),
-                xmult=float(fx[i]),
-            )
-            for i in range(fr.size)
-        ]
-    )
-
-    lim_r = _finite(geom["limiterr"])
-    lim_z = _finite(geom["limiterz"])
-    n_lim = min(lim_r.size, lim_z.size)
-
-    amb_ch = amb_channels if amb_channels is not None else read_amb_channels(shot_id)
-    sensor_map, unmatched = map_amb_sensors(geom, amb_ch)
-
-    passive = read_amm_passive(shot_id)
-    amc_channels = read_amc_current_channels(shot_id)
-
-    return GeometryTable(
-        signature=sig,
-        shots=[shot_id],
-        b_probes=b_probes,
-        flux_loops=flux_loops,
-        pf_filaments=pf_filaments,
-        limiter_r=lim_r[:n_lim].tolist(),
-        limiter_z=lim_z[:n_lim].tolist(),
-        sensor_map=sensor_map,
-        passive_structures=passive,
-        amc_current_channels=amc_channels,
-        unmatched_amb=unmatched,
-        polygon_sections=mast_slanted_polygon_sections(pf_filaments),
-    )
-
-
-@dataclass(frozen=True)
-class MastZarrGeometryReader:
-    """Adapts :func:`build_table_for_shot` to :class:`MachineGeometryReader`.
-
-    Pure adapter -- read logic is untouched, so every MAST
-    :class:`SetupSignature` this produces is byte-identical to calling
-    ``build_table_for_shot`` directly (the pre-existing call path every
-    script and cache still uses).
-    """
-
-    shot_id: int
-    machine: str = "mast"
-
-    def read(self) -> GeometryTable:
-        return build_table_for_shot(self.shot_id)
-
-
-# --- Corpus-wide extraction (campaign discovery + table build) --------
-
-
-def discover_signatures(
-    shot_ids: Iterable[int],
-) -> dict[str, tuple[SetupSignature, list[int]]]:
-    """Group shots by :class:`SetupSignature` (campaign discovery).
-
-    Reads only the efm static geometry per shot.  Missing / unreadable shots
-    are skipped silently (logged by the caller).
-    """
-    groups: dict[str, tuple[SetupSignature, list[int]]] = {}
-    for shot in shot_ids:
-        try:
-            geom = read_efm_geometry(shot)
-            if "magpr_r" not in geom or "fcoil_r" not in geom:
-                continue
-            sig = setup_signature(geom)
-        except KeyError, FileNotFoundError, OSError, ValueError:
-            continue
-        key = sig.key
-        if key not in groups:
-            groups[key] = (sig, [])
-        groups[key][1].append(int(shot))
-    return groups
-
-
-def extract_campaign_tables(
-    shot_ids: Sequence[int],
-    sample_per_campaign: int = 1,
-) -> dict[str, GeometryTable]:
-    """Discover campaigns over ``shot_ids`` and build one table per campaign.
-
-    The sensor channel set is resolved from :func:`canonical_amb_channels`
-    over EVERY shot discovered for that signature, not just one representative
-    — geometry-determined rather than an artifact of which shot happens to
-    build the table (see its docstring).  The representative shot used for the
-    non-amb geometry (b-probes, flux loops, PF filaments, limiter) still comes
-    from the group; if it individually fails to build (missing amm/amc, say),
-    the next candidate in the group is tried before the whole signature is
-    given up on.  The table's ``shots`` list records every in-use shot found
-    with that signature.
-    """
-    groups = discover_signatures(shot_ids)
-    tables: dict[str, GeometryTable] = {}
-    for key, (_sig, shots) in groups.items():
-        canonical_amb = canonical_amb_channels(shots)
-        table = None
-        for rep in shots:
-            try:
-                table = build_table_for_shot(rep, amb_channels=canonical_amb)
-                break
-            except KeyError, FileNotFoundError, OSError, ValueError:
-                continue
-        if table is None:
-            continue
-        table.shots = sorted(shots)
-        tables[key] = table
-    return tables
-
-
 # --- Artifact I/O -----------------------------------------------------
-
-
-def write_tables(
-    tables: dict[str, GeometryTable],
-    out_dir: Path | None = None,
-) -> Path:
-    """Write the full per-campaign geometry tables as JSON under MANIFEST_DIR.
-
-    Returns the path to the written artifact.
-    """
-    out_dir = out_dir or MANIFEST_DIR
-    out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / "gs_geometry_tables.json"
-    angle_map = load_packaged_signal_map("mast", "magnetics")
-    payload = {
-        "schema": "gs-geometry",
-        "source": "efm-static-geometry",
-        "angle_map_digest": angle_map.digest,
-        "angle_unit": "degree",
-        "target_cocos": angle_map.target_cocos,
-        "target_dd_version": angle_map.target_dd_version,
-        "efm_arrays_read": list(EFM_GEOMETRY_ARRAYS),
-        "r0": MAST_R0,
-        "minor_radius": MAST_A,
-        "shots_are_sampled_representatives": True,
-        "shots_note": (
-            "each campaign's 'shots' is the SAMPLED set found with that "
-            "signature, NOT the full in-use population. Match a new shot to a "
-            "campaign by recomputing setup_signature(...).key, never by "
-            "membership in this list."
-        ),
-        "n_campaigns": len(tables),
-        "campaigns": {k: t.to_dict() for k, t in tables.items()},
-    }
-    path.write_text(json.dumps(payload, indent=2))
-    return path
 
 
 def load_tables(path: Path | str | None = None) -> dict[str, GeometryTable]:
@@ -1385,8 +928,7 @@ def summarise(tables: dict[str, GeometryTable]) -> dict[str, object]:
     """Build the compact committed summary (counts, keys, unmatched list)."""
     return {
         "schema": "gs-geometry-summary-v0",
-        "source": "efm-static-geometry",
-        "efm_arrays_read": list(EFM_GEOMETRY_ARRAYS),
+        "source": "stored-geometry-table",
         "r0": MAST_R0,
         "minor_radius": MAST_A,
         "shots_are_sampled_representatives": True,

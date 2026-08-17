@@ -1,7 +1,7 @@
 """Audit the adapted machine-map geometry against its catalog structures.
 
-The declared machine map emits MAST Data Catalog geometry and the compatibility
-facade adapts it to the table consumed by the GS Green's-function operator.
+The declared machine map emits MAST Data Catalog geometry through the canonical
+table route consumed by the GS Green's-function operator.
 This script overlays that adapted table on the underlying ``pf_active`` and
 ``pf_passive`` structures and quantifies the adapter's geometric fidelity,
 with an explicit focus on the non-rectangular question:
@@ -375,7 +375,6 @@ def main() -> None:
 
     # --- passive consistency rows ---
     # coil cases: ours (fcoil frames) vs ref coil_cases (thin frame bars)
-    our_case_centroids = np.array([oc["centroid"] for oc in case_ids.values()])
     pv_rows = []
     for name, rc in ref_p.items():
         row = {

@@ -108,11 +108,11 @@ def main() -> None:
             bbox=dict(boxstyle="round,pad=0.35", fc="#fff6e8", ec=DUP, lw=1.0))
 
     # ---- Tier 2: machine description ----
-    box(ax, 0.05, 0.15, 0.20, 0.10, "geometry.py", "GeometryTable · readers\nbuild_table_for_shot (LIVE)", LIVE)
+    box(ax, 0.05, 0.15, 0.20, 0.10, "geometry.py", "GeometryTable records\nand geometry utilities", LIVE)
     box(ax, 0.27, 0.15, 0.15, 0.10, "circuits.py", "pfSystems.xml table\n(Active/Case)", LIVE)
     box(ax, 0.44, 0.15, 0.17, 0.10, "operator.classify_circuits", "role assignment\n(only assigner)", LIVE)
-    box(ax, 0.63, 0.21, 0.20, 0.075, "MastZarrGeometryReader",
-        "efm read — every product caller", LIVE, alpha=0.10)
+    box(ax, 0.63, 0.21, 0.20, 0.075, "description_reader",
+        "declared map — every product caller", LIVE, alpha=0.10)
     box(ax, 0.63, 0.115, 0.20, 0.075, "artifact_geometry.py",
         "artifact read — no product caller", UNWIRED, alpha=0.12)
     ax.text(0.78, 0.335,
