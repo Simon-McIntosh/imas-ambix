@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="sophelio-entry-master">
-  <meta name="plan-title"     content="Sophelio Entry — Master Plan">
-  <meta name="plan-summary"   content="The single evergreen coordination point for the October challenge entry across nova and imas-ambix: mission, architecture, execution order, gate ledger and sequencing decisions — every constituent plan hangs off this one through hard dependencies, so the roadmap tool composes live entry status here">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="sophelio-entry-master">
+  <meta name="plan-title" content="Sophelio Entry — Master Plan">
+  <meta name="plan-summary" content="The single evergreen coordination point for the October challenge entry across nova and imas-ambix: mission, architecture, execution order, gate ledger and sequencing decisions — every constituent plan hangs off this one through hard dependencies, so the roadmap tool composes live entry status here">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="2.0">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="orchestrator">
@@ -17,12 +17,14 @@
   <meta name="plan-capability-context" content="extended">
   <meta name="plan-capability-verification" content="strict">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-sprint"    content="S21">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-sprint" content="S21">
+  <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-depends-on" content="nova:diiid-forward-onboarding,nova:flux-function-forward-transport,magnetics-free-equilibrium-recovery">
   <title>Sophelio Entry — Master Plan | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-08-17">
+<meta name="plan-version" content="2">
 </head>
 <body>
   <main class="plan-doc">
@@ -143,13 +145,13 @@
       <thead><tr><th>Gate</th><th>Owner</th><th>State 2026-08-17</th><th>Meaning</th></tr></thead>
       <tbody>
         <tr><td>Vacuum geometry (quiescent-window)</td><td>nova §2</td>
-            <td>re-opened; measurement in flight</td>
+            <td>measured FAIL 2026-08-17 — pooled exterior R² −5.33 with quiescent ≈ transient, implicating the coil–plasma composition boundary (sign/per-radian factor), not geometry or passive currents; synthetic-truth composition audit in flight, transient corpus quarantined from passive fitting</td>
             <td>Kill gate 1: shipped geometry and kernels reproduce the exterior field
             free of transients. Prior fitted-bar attempt ruled inapplicable; kernels
             exonerated by sweep (ECOILA interval moves R² 0.017 vs a 0.428 shortfall;
             shipped skew scores best).</td></tr>
         <tr><td>Label re-solve at grid floor</td><td>nova §5</td>
-            <td>pending; measurement in flight</td>
+            <td>measured FAIL 2026-08-17 — 0/100 frames at the pre-registered grid floor (median 3090× floor, median R² 0.949), 86/100 at the Picard ceiling; decomposition node in flight attributing the residual across solver convergence, profile representation and irreducible non-GS label content — the last reading would re-scope this gate and yield the strict-GS ceiling on scored R²_ψ</td>
             <td>Kill gate 2: labels self-consistent under our GS operator — the entry's
             training-signal premise.</td></tr>
         <tr><td>Flat-top floor bar</td><td>entry §5</td>
@@ -195,50 +197,42 @@
     </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="transfer-assessment-timing"
-           data-choice="architecture-first" data-by="Simon McIntosh" data-when="2026-08-17">
-        <p class="r-dec-q">When is zero-shot MAST transfer assessed?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="architecture-first">architecture-first</button>
-          <button class="r-opt" data-value="continuous-assessment">continuous-assessment</button>
-        </p>
-        <p class="r-dec-rat">The architecture is being built from the ground up to support
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="transfer-assessment-timing" data-choice="architecture-first" data-by="Simon McIntosh" data-when="2026-08-17">
+    <p class="r-dec-q">When is zero-shot MAST transfer assessed?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="architecture-first">architecture-first</button>
+      <button class="r-opt" data-value="continuous-assessment">continuous-assessment</button>
+      </p>
+    <p class="r-dec-rat">The architecture is being built from the ground up to support
         zero-shot transfer — machine identity enters only through descriptions and
         forwards, and every learned component is dimensionless or geometry-conditioned by
         construction — so transfer does not need assessing from the outset. It is exercised
         once, at the sealed rehearsal, when the DIII-D architecture stands; no MAST-side
         estimation work is scheduled before the DIII-D gates close, and transfer readiness
         is not carried as an open risk on this roadmap.</p>
-      </div>
-      <p>Recommendation: <strong>floor-bar-first</strong> — the first submission spends
-      leaderboard budget only when it measures something (the floor bar), and a fixed
-      cadence thereafter keeps the leaderboard as information rather than a target,
-      consistent with the entry plan's <code>floor-bar-source</code> recommendation.</p>
-      <div class="r-dec" data-key="submission-cadence" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">How is the 100-submission leaderboard budget spent?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="floor-bar-first">floor-bar-first</button>
-          <button class="r-opt" data-value="early-scouting">early-scouting</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+    </div>
+<div class="r-dec" data-key="submission-cadence" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">How is the 100-submission leaderboard budget spent?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="floor-bar-first">floor-bar-first</button>
+      <button class="r-opt" data-value="early-scouting">early-scouting</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-sem-001" data-status="open"
-               data-capability-version="1.0" data-capability-class="orchestrator"
-               data-capability-reasoning="deep" data-capability-verification="strict"
-               data-written-by="reckon-create" data-written-at="2026-08-17">
-        <h4 class="r-fu-title">Coordinate the current wave against the execution order</h4>
-        <div class="r-fu-body"><p>Standing coordination handle: resolve the ready front of
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-sem-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-17" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Coordinate the current wave against the execution order</h4>
+    <div class="r-fu-body"><p>Standing coordination handle: resolve the ready front of
         §3, dispatch it through crew workers, land outcomes into the constituent plans, and
         update §4 and §5 here as gates move. Invoking this plan means coordinating its
         dependency graph, not implementing inline.</p></div>
-        <pre class="r-fu-prompt">/reckon-ship sophelio-entry-master</pre>
-      </article>
-    </section>
+    <pre class="r-fu-prompt">/reckon-ship sophelio-entry-master</pre>
+    </article>
+</section>
 
   </main>
 </body>
