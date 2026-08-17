@@ -23,10 +23,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-17">
-<meta name="plan-version" content="5">
-<meta name="plan-commits" content="3d3ed8c56d368138c664489a1db12f819ee49f8c,d537b60920f55ecb80ac00833598bd919e4ded6b,d72bb0bb14abba30340aac350fab36b381da11a3,66eba295d284715d1d356c7cb034eb88ebf8fdec,eabdc03e6e2349840ce90e3037fff6d5c4df9f2f,b267600f9ad38f37fc6f78ae91a68ba66c578d36,e68a2b7e4d4995b352e35eaf0ad909717120aef6,49f15f765155ed93cf3c5d1a9a1b649f73b82b75,fef67da692a44b758648e0944d3f38e44f44ac95,af484b5fff4549256ad14cb96cd415c449b712a7,17684007ec45b4f0558e0dcf4b9f874fc60acfd3">
-<meta name="plan-artifacts" content="docs/evidence/archive/description-reader-migration-landed.html,imas_ambix/spine_bench/results/physics-spine-v0-mast-heldout-6-3d3ed8c56d-98dci4-clu-3141-efm-campaign-signal-identity-1d41708300ef.yaml,imas_ambix/data/description_reader.py,tests/data/test_description_reader.py">
-<meta name="plan-impl" content="0.5">
+<meta name="plan-version" content="6">
+<meta name="plan-commits" content="3d3ed8c56d368138c664489a1db12f819ee49f8c,d537b60920f55ecb80ac00833598bd919e4ded6b,d72bb0bb14abba30340aac350fab36b381da11a3,66eba295d284715d1d356c7cb034eb88ebf8fdec,eabdc03e6e2349840ce90e3037fff6d5c4df9f2f,b267600f9ad38f37fc6f78ae91a68ba66c578d36,e68a2b7e4d4995b352e35eaf0ad909717120aef6,49f15f765155ed93cf3c5d1a9a1b649f73b82b75,fef67da692a44b758648e0944d3f38e44f44ac95,af484b5fff4549256ad14cb96cd415c449b712a7,17684007ec45b4f0558e0dcf4b9f874fc60acfd3,6bd184a2554a330473079e80f3e402a142d5a93a,f395276f22d62ff3ec7bdcdab2c1833820a053fc,bbc36ba3cb7b568793e6c8fb2bec1995021bb4cd,0f9274344089295170ee97371e34d13951dd0890,4244f764cd6f4bc0f70e38c6a8344e3594a9f2f7,68452048dced2ef6542ef3221f7406fe8ce1eb75">
+<meta name="plan-artifacts" content="docs/evidence/archive/description-reader-migration-landed.html,imas_ambix/spine_bench/results/physics-spine-v0-mast-heldout-6-3d3ed8c56d-98dci4-clu-3141-efm-campaign-signal-identity-1d41708300ef.yaml,imas_ambix/spine_bench/results/physics-spine-v0-mast-heldout-6-68452048dc-98dci4-clu-3141-level2-transform-signal-identity-873cd355bd4c.yaml,imas_ambix/data/description_reader.py,tests/data/test_description_reader.py">
+<meta name="plan-impl" content="0.75">
 </head>
 <body>
   <main class="plan-doc">
@@ -112,6 +112,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20260817-drm-facade-library" data-who="reckon-ship" data-when="2026-08-17T01:55:00+00:00">
     <div class="r-comment-body">drm-facade-library landed — 11 commits, HEAD 1768400 (merged ca068bd); gate per-seam-stamp-within-budget PASSED; measure: census 41→33 (library 8→0, scripts constant 33), all eight per-seam frozen stamps byte-identical to the re-stamped baseline (greens-matvec 0.6890842357802178, grid-delstar 0.6889769655392166, movement 0.0 vs 0.1245% budget, 15/15 tolerances, SLURM jobs 1249288–1249324), ~152 tests green; facade imas_ambix/data/description_reader.py with AST census pinned as a test; evidence docs/evidence/archive/description-reader-migration-landed.html#s3-library-seams. Remaining in §3: 33 scripts, then facade removal + reader deletion.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260817-drm-scripts-cutover" data-who="reckon-ship" data-when="2026-08-17T05:35:00+00:00">
+    <div class="r-comment-body">drm-scripts landed — 7 commits, HEAD 6845204 (merged 3f285a5, scope-changed); gate census-zero PASSED (0 = 0 library + 0 scripts, pinned by test; 32/33 bounded smokes, 1 named skip); declared-source cutover ADJUDICATED AND ACCEPTED: greens-matvec 0.6890842→0.6698198, grid-delstar 0.6889770→0.6697724 (−2.796%/−2.787%), inside the 7.93% source-cutover budget, improvement in fit with 36/36 slices per arm vs legacy 34/36 — the 0.1245% seam budget governs representation-only seams and all eight library seams held it at 0.0, while this is the content cutover. Root-cause repairs: acquisition completeness (fl_p6u_1/ccbv10 declared, fl_cc02 range-qualified) and conductor drive weighting (2,946 rows reconstruct legacy turns/share/drive exactly; 101/101 ratios 1.0). Cutover stamp committed to spine_bench/results (05c93f1) as the comparator for the retirement stamp. Evidence: docs/evidence/archive/description-reader-migration-landed.html#s3-scripts-cutover. Remaining in §3: facade removal + raw-reader deletion with grep receipt.</div>
 </div>
 </section>
 </main>
