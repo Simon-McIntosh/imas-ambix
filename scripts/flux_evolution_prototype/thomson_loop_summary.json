@@ -1,0 +1,62 @@
+{
+  "shot": "d3d_shot_030fc156d6",
+  "analysed_slices": 36,
+  "window_ms": [
+    1020.0,
+    6060.0
+  ],
+  "forward_substitution": "No free-boundary solve was run. The observation forward samples the labeled psi map at Thomson coordinates, maps through the banked FSA/rho-hat geometry, and drives a pressure-over-measured-density temperature proxy.",
+  "ff_observation_path": "Thomson has no direct FF-prime sensitivity in this surrogate; FF-prime is updated only through p-prime/FF-prime covariance in the joint cross-shot basis.",
+  "plasma_current_role": "transport boundary condition only; absent from observation vector",
+  "resistivity": {
+    "eta0_ohm_m": 7.062055857166393e-08,
+    "contrast": 0.0,
+    "shape": 2.0
+  },
+  "basis": {
+    "training_shots": 19,
+    "candidate_modes": 10,
+    "variance_fraction": 0.9996051991398942,
+    "p_prime_scale": 34779.66521702587,
+    "ff_prime_scale": 0.15914257035408044,
+    "nonfinite_training_cells_filled": 2,
+    "correction_rank": 6,
+    "initial_whitened_singular_values": [
+      0.5249966750976118,
+      0.31253883429906304,
+      0.10202288150855301,
+      0.06939589408111331,
+      0.01501802975412039,
+      0.009277645682379486
+    ],
+    "retained_observable_energy": 0.9999644050089369,
+    "adequate_for_thomson_only": false
+  },
+  "channels": {
+    "per_slice": 11,
+    "isoflux_pairs": 10,
+    "pedestal_proxies": 1,
+    "dropped": 0,
+    "widened_instances": 26
+  },
+  "tracking": {
+    "joint_persistence_nrmse": 0.7276146670417522,
+    "joint_transport_prior_nrmse": 0.6873281505812101,
+    "joint_posterior_nrmse": 0.6725207439562292,
+    "joint_update_error_reduction_fraction": 0.02154343105612605,
+    "joint_update_share_of_total_gain": 0.2687666042949094,
+    "ff_persistence_nrmse": 0.6687232035598739,
+    "ff_transport_prior_nrmse": 0.5598860287599728,
+    "ff_posterior_nrmse": 0.5600164842594029,
+    "ff_update_error_reduction_fraction": -0.0002330036699057441,
+    "ff_update_share_of_total_gain": -0.00120006840671404
+  },
+  "innovation": {
+    "prior_normalised_rms": 0.7639812815212669,
+    "posterior_normalised_rms": 0.7554675341743756,
+    "posterior_median_abs_lag1": 0.13496475216740553,
+    "posterior_median_whiteness_p": 0.4584390584279574,
+    "posterior_white_channel_fraction_p_gt_0_05": 0.7272727272727273
+  },
+  "verdict": "The reduced update changes joint tracking error by +2.15% relative to the transport prior and accounts for 26.88% of the total gain over persistence. For FF-prime alone it changes error by -0.02% and accounts for -0.12% of total FF-prime gain."
+}
