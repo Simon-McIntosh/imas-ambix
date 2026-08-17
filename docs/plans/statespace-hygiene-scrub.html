@@ -4,21 +4,23 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="statespace-hygiene-scrub">
-  <meta name="plan-title"     content="Scrub Plan Labels and Lint Debt from the Statespace Modules">
-  <meta name="plan-summary"   content="The two statespace modules carry broad pre-existing plan-label naming debt and lint findings, and the analysis scripts carry 66 formatting findings; scrub them in focused commits with a behaviour-neutrality receipt, so the debt stops taxing every future edit.">
-  <meta name="plan-status"    content="draft">
-  <meta name="plan-roi"       content="mid">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="statespace-hygiene-scrub">
+  <meta name="plan-title" content="Scrub Plan Labels and Lint Debt from the Statespace Modules">
+  <meta name="plan-summary" content="The two statespace modules carry broad pre-existing plan-label naming debt and lint findings, and the analysis scripts carry 66 formatting findings; scrub them in focused commits with a behaviour-neutrality receipt, so the debt stops taxing every future edit.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="mid">
   <meta name="plan-effort-hours" content="4.0">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="general">
   <meta name="plan-capability-reasoning" content="standard">
   <meta name="plan-capability-verification" content="strict">
-  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-owner" content="Simon McIntosh">
   <title>Scrub Plan Labels and Lint Debt from the Statespace Modules | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-08-17">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -83,34 +85,30 @@
     budget of the declared-source references at 36/36 coverage.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="formatting-scope" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">How far does the formatting cleanup reach beyond the two statespace
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="formatting-scope" data-choice="format-all-scripts" data-by="Simon McIntosh" data-when="2026-08-17T13:58:09+00:00">
+    <p class="r-dec-q">How far does the formatting cleanup reach beyond the two statespace
           modules?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="format-all-scripts">format every analysis script (clears all 66 findings; largest blame churn, done once)</button>
-          <button class="r-opt" data-value="findings-only">fix only the 66 flagged findings line-by-line (minimal churn; leaves files mixed-style)</button>
-          <button class="r-opt" data-value="statespace-only">scrub only the statespace modules and waive the script findings explicitly</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="format-all-scripts">format every analysis script (clears all 66 findings; largest blame churn, done once)</button>
+      <button class="r-opt" data-value="findings-only">fix only the 66 flagged findings line-by-line (minimal churn; leaves files mixed-style)</button>
+      <button class="r-opt" data-value="statespace-only">scrub only the statespace modules and waive the script findings explicitly</button>
+      </p>
+    <p class="r-dec-rat">User selected: format every analysis script once, in one dedicated commit. Clearing all 66 findings ends the debt permanently; blame churn is contained to a single formatting-only commit, and mixed-style files would keep re-tripping formatting diffs on every future edit — the plan&#x27;s own thesis.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-shs-001" data-status="open"
-               data-capability-version="1.0" data-capability-class="general"
-               data-capability-reasoning="standard" data-capability-verification="strict"
-               data-written-by="reckon-create" data-written-at="2026-08-17"
-               data-recommends-skill="/reckon-ship statespace-hygiene-scrub">
-        <h4 class="r-fu-title">Run the scrub with its behaviour-neutrality receipt</h4>
-        <div class="r-fu-body"><p>Lock the formatting-scope decision, then execute the four
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-shs-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-17" data-recommends-skill="/reckon-ship statespace-hygiene-scrub" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Run the scrub with its behaviour-neutrality receipt</h4>
+    <div class="r-fu-body"><p>Lock the formatting-scope decision, then execute the four
         sweeps in focused commits and close with the frozen-stamp receipt. The debt inventory and
         the sweep mechanics are in the plan; the naming rules themselves live in the user-global
         agent guidelines.</p></div>
-        <pre class="r-fu-prompt">/reckon-ship statespace-hygiene-scrub</pre>
-      </article>
-    </section>
+    <pre class="r-fu-prompt">/reckon-ship statespace-hygiene-scrub</pre>
+    </article>
+</section>
   </main>
 </body>
 </html>
