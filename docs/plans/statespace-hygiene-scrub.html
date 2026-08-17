@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="statespace-hygiene-scrub">
+  <meta name="plan-title"     content="Scrub Plan Labels and Lint Debt from the Statespace Modules">
+  <meta name="plan-summary"   content="The two statespace modules carry broad pre-existing plan-label naming debt and lint findings, and the analysis scripts carry 66 formatting findings; scrub them in focused commits with a behaviour-neutrality receipt, so the debt stops taxing every future edit.">
+  <meta name="plan-status"    content="draft">
+  <meta name="plan-roi"       content="mid">
+  <meta name="plan-effort-hours" content="4.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-capability-reasoning" content="standard">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <title>Scrub Plan Labels and Lint Debt from the Statespace Modules | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — The debt, measured rather than asserted</h2>
+    <p>Two migration workers measured this debt while deliberately keeping it out of their own
+    commits, so the inventory below carries receipts rather than impressions.</p>
+    <p><code>imas_ambix/statespace/engine.py</code> and
+    <code>imas_ambix/statespace/enkf_baseline.py</code> carry broad pre-existing plan-label naming
+    debt and lint findings: a trial scrub of the engine alone expanded to <strong>156 unrelated
+    changed lines</strong> against <strong>75 existing lint findings</strong> before it was
+    correctly reversed to keep a surgical reader-migration seam surgical. Separately, the analysis
+    scripts under <code>scripts/</code> carry <strong>66 pre-existing formatting findings</strong>;
+    the failure/error lint gate (Ruff <code>F</code>/<code>E9</code>) is green everywhere, so this
+    is style and naming debt, not broken code.</p>
+    <p>The cost of leaving it: every future edit that touches these files either inherits the
+    debt silently or couples an unrelated cleanup into its diff — exactly the trade the migration
+    workers had to navigate. A dedicated scrub, in its own focused commits, is the mechanism the
+    naming rules themselves prescribe for debt this broad.</p>
+
+    <h2 id="s2">§2 — Scrub by mechanism, not by pattern-match</h2>
+    <p>The user-global agent guidelines define both the violations and the sweep that finds them;
+    this plan applies that sweep as the work item rather than as a pre-stage gate. Four passes,
+    each with a recorded receipt:</p>
+    <ul>
+      <li><strong>Label sweep</strong> — plan/stage/sprint/deliverable identifiers in filenames,
+      symbols, comments and docstrings. Every hit is renamed to what the code <em>does</em>
+      (mechanism or measured quantity), never merely deleted: a tolerance constant named after a
+      gate id becomes a name stating what it bounds.</li>
+      <li><strong>Changelog-prose sweep</strong> — comments and docstrings that narrate edits
+      ("previously", "the old behaviour", "after this fix") are rewritten as the invariant they
+      defend, or removed when the code already states it. Runtime state described in the past
+      tense is the known false positive and is kept.</li>
+      <li><strong>Anchor audit</strong> — every comment, docstring or symbol that cites a file,
+      section, or numbered item is opened and confirmed to exist; dead pointers are repointed or
+      rewritten as self-contained statements.</li>
+      <li><strong>Lint and formatting</strong> — the 75 statespace findings and the 66
+      analysis-script formatting findings are cleared with <code>ruff check --fix</code> and
+      <code>ruff format</code> at the scope the <em>formatting-scope</em> decision selects, run
+      before staging, never via a mutating pre-commit hook.</li>
+    </ul>
+    <p>Behaviour neutrality is demonstrated, not assumed. <code>statespace/engine.py</code> and
+    <code>enkf_baseline.py</code> are consumers of the declared description path and sit beside
+    the frozen-spine chain, so the scrub ends with one frozen CPU stamp: the residuals must sit
+    within the 0.1245% representation budget of the current declared-source references
+    (greens-matvec 0.6698197452949048, grid-delstar 0.6697723807926145, 36/36 coverage per arm).
+    A pure rename-and-format scrub that moves the stamp has changed behaviour and must stop and
+    report rather than proceed.</p>
+
+    <h2 id="s3">§3 — Deliverable</h2>
+    <p>Focused commits, one concern per commit (statespace naming, statespace lint, script
+    formatting), so review and blame stay legible.</p>
+    <p><em>Done-when:</em> the pre-stage naming sweep (label patterns, label words, deliverable
+    ids, changelog prose) reports zero violations over
+    <code>imas_ambix/statespace/engine.py</code> and
+    <code>imas_ambix/statespace/enkf_baseline.py</code> with each formerly-flagged line either
+    renamed to mechanism or classified under a named carve-out; the anchor audit confirms every
+    cited reference resolves; full-file <code>ruff check</code> and <code>ruff format --check</code>
+    pass on both statespace modules; the 66 analysis-script formatting findings are cleared at the
+    scope the formatting-scope decision selects, with any waived file named alongside its reason;
+    the statespace test suites pass; and one frozen CPU stamp holds both arms within the 0.1245%
+    budget of the declared-source references at 36/36 coverage.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="formatting-scope" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">How far does the formatting cleanup reach beyond the two statespace
+          modules?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="format-all-scripts">format every analysis script (clears all 66 findings; largest blame churn, done once)</button>
+          <button class="r-opt" data-value="findings-only">fix only the 66 flagged findings line-by-line (minimal churn; leaves files mixed-style)</button>
+          <button class="r-opt" data-value="statespace-only">scrub only the statespace modules and waive the script findings explicitly</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-shs-001" data-status="open"
+               data-capability-version="1.0" data-capability-class="general"
+               data-capability-reasoning="standard" data-capability-verification="strict"
+               data-written-by="reckon-create" data-written-at="2026-08-17"
+               data-recommends-skill="/reckon-ship statespace-hygiene-scrub">
+        <h4 class="r-fu-title">Run the scrub with its behaviour-neutrality receipt</h4>
+        <div class="r-fu-body"><p>Lock the formatting-scope decision, then execute the four
+        sweeps in focused commits and close with the frozen-stamp receipt. The debt inventory and
+        the sweep mechanics are in the plan; the naming rules themselves live in the user-global
+        agent guidelines.</p></div>
+        <pre class="r-fu-prompt">/reckon-ship statespace-hygiene-scrub</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
