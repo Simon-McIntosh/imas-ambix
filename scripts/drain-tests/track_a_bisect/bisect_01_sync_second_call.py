@@ -1,5 +1,5 @@
 # ============================================================
-# TRACK A BISECT-01: Sync the second (blind-window) all_reduce to ALL ranks
+# Symmetric second collective: Sync the second (blind-window) all_reduce to ALL ranks
 # ============================================================
 # Base:  track_a_mwe01_v1_frozen.py (verbatim b3a71b6)
 # Change: The blind-window dist.all_reduce (inside `if rank == 0:`) is moved

@@ -2,7 +2,7 @@
 MWE-03: Network Black-Hole D-State Hang — v3 (DDP + CUDA + urllib)
 ===================================================================
 PURPOSE
-  Reproduces the EXACT mechanism of Event #3 (2026-05-27b, drain rca
+  Reproduces the EXACT mechanism of production network-hang drain (captured by the incident analysis
   doc rca-node-drain-2026-05-27b.html): model-weight download via urllib
   attempted during DDP initialisation on a betelgeuse GPU node (no
   outbound network, firewall DROPs packets). The download put torchrun
@@ -20,7 +20,7 @@ v1/v2 FINDING (single-process, no CUDA)
   blocks in waitpid() and is SIGKILLed, leaving D-state workers as
   orphans that survive SIGKILL → drain.
 
-v3 CHANGES (closing all three gaps)
+Network-hang controls
   1. DDP: 4-rank torchrun (matches original multi-process topology)
   2. CUDA: each rank calls torch.cuda.set_device() and allocates a tensor
      (live CUDA context — increases chance of ioctl D-state on cancel)
@@ -43,7 +43,7 @@ DRAIN MECHANISM (two possible paths)
     → same torchrun kill chain as Path A
 
 ENVIRONMENT VARIABLES
-  DOWNLOAD_URL        URL to fetch (default: vgg_lpips URL from Event #3)
+  DOWNLOAD_URL        URL to fetch (default: vgg_lpips URL from the production reproducer)
   GPFS_DEST           File path for urlretrieve output (must be on GPFS)
   WAIT_BEFORE         Seconds before download attempt (default: 5)
   AUTO_SCANCEL_DELAY  Seconds after READY before auto-cancel (default: 2)
@@ -79,7 +79,7 @@ def main() -> None:
     rank = dist.get_rank()
     local_rank = int(os.environ.get("LOCAL_RANK", rank))
 
-    # CUDA context live (gap 2): mirrors original VQModel GPU init before download
+    # CUDA context stays live to mirror production VQModel initialisation before download
     torch.cuda.set_device(local_rank)
     _dummy = torch.ones(1, device=f"cuda:{local_rank}")
     torch.cuda.synchronize()

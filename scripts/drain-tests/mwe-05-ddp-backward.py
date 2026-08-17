@@ -3,15 +3,15 @@ MWE-05: NCCL D-State Drain Reproducer (v8)
 ==========================================
 PURPOSE
   Empirically determines which NCCL operations enter D-state (TASK_UNINTERRUPTIBLE)
-  on this H200 NVLink cluster, reproducing the drain mechanism of Event #4
+  on this H200 NVLink cluster, reproducing the production node-drain mechanism
   (job 1209813, 2026-06-01).
 
 REVISION HISTORY
-  v1 Finding: 7ms/step backward window too short → scancel between steps → clean cancel.
-  v2 Finding: DDP backward async (2ms CPU return) → CPU never blocks → clean cancel.
-  v3 Finding: cudaDeviceSynchronize() after backward → S-state (interruptible futex).
+  Measured: the 7 ms backward window is too short → scancel between steps → clean cancel.
+  Observed: DDP backward async (2ms CPU return) → CPU never blocks → clean cancel.
+  Observed: cudaDeviceSynchronize() after backward → S-state (interruptible futex).
               112ms wait, clean kill. cudaStreamSync is NOT the D-state path.
-  v4 Finding: rank 0 alone in all_reduce, ranks 1-3 sleeping → NCCL detects peer
+  Observed: rank 0 alone in all_reduce, ranks 1-3 sleeping → NCCL detects peer
               disconnect → rank 0 returns, no drain. Single-rank blocking insufficient.
   v5 No-run:  AllReduce/AllGather mismatch designed; EADDRINUSE from prior looping job.
   v6 No-drain (job 1209900): DDP uses comm_PG (not a separate comm_DDP). Rank 0 extra
@@ -25,7 +25,7 @@ REVISION HISTORY
   v8 (this version):
      seq_mismatch mode: genuine NCCL sequence mismatch on the SAME communicator.
        All 4 ranks stuck simultaneously: rank 0 calling seq N, ranks 1-3 at seq N+1.
-       Reproduces the EXACT original MWE-01 bug pattern that caused Event #4.
+       Reproduces the rank-asymmetric collective failure.
        NCCL heartbeat disabled via env vars so watchdog does not abort early.
      gpu_sleep mode: all 4 ranks launch torch.cuda.sleep(infinite) then exit the
        Python main thread. Tests whether cuCtxDestroy with pending GPU kernel is
@@ -68,7 +68,7 @@ def auto_scancel(delay: float) -> None:
 
 
 def run_seq_mismatch(rank: int, world_size: int, device: torch.device) -> None:
-    """Faithful reproduction of the original Event #4 (MWE-01 v1 bug).
+    """Faithful reproduction of the rank-asymmetric collective failure.
 
     The original bug was: the per-round loop in MWE-01 v1 ran two all_reduce
     calls for rank 0 (timing + blind-window measurement) but only one for

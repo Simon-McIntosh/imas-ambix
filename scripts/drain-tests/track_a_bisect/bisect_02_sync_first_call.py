@@ -1,5 +1,5 @@
 # ============================================================
-# TRACK A BISECT-02: Sync the FIRST (timing) all_reduce to ALL ranks
+# Symmetric first collective: Sync the FIRST (timing) all_reduce to ALL ranks
 # ============================================================
 # Base:  track_a_mwe01_v1_frozen.py (verbatim b3a71b6)
 # Change: The timing all_reduce is already on all ranks in v1 (it is outside

@@ -28,15 +28,12 @@ EXPECTED RESULT
   meaning a SLURM scancel mid-collective leaves the process unkillable
   until the collective finishes (or forever if NVLink hangs).
 
-  IMPORTANT — v1 BUG (caused accidental drain on 2026-06-01, job 1209813):
-  The original implementation placed a rank-0-only dist.all_reduce inside
-  the ``if rank == 0`` block. Ranks 1-3 skipped this collective, causing
-  a collective mismatch. NCCL blocked in D-state waiting for the missing
-  peers. SLURM could not kill the D-state processes → node drained.
-  Lesson: collective mismatches are themselves a drain trigger, independent
-  of loss.backward() or network hangs.
-  This version fixes the bug: all ranks participate in the measurement
-  collective. Only rank 0 arms the signal handler and measures blind time.
+  COLLECTIVE SYMMETRY REQUIREMENT:
+  A rank-local all-reduce creates a collective mismatch: NCCL blocks in D-state
+  waiting for missing peers, and SLURM cannot kill those processes. Collective
+  mismatches are therefore a drain trigger independent of loss.backward() or
+  network hangs. All ranks participate in the measurement collective; only
+  rank 0 arms the signal handler and measures blind time.
 
 ENVIRONMENT VARIABLES
   NROUNDS          Number of measurement rounds (default: 20)

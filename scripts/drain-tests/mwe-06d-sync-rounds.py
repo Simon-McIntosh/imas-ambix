@@ -5,7 +5,7 @@ PURPOSE
   Diagnostic variant of MWE-06 that adds torch.cuda.synchronize() after
   each round. If rounds still complete in <1ms, the drain mechanism cannot
   be reproduced on NCCL 2.21.5 (confirming the software-level mitigation).
-  If rounds take ~1000ms (as in Event #4), actual NVLink transfers are
+  If rounds take ~1000ms (as in the rank-asymmetric collective reproduction), actual NVLink transfers are
   happening and the teardown D-state may be reproducible.
 
 KEY DIFFERENCE FROM MWE-06

@@ -1,5 +1,5 @@
 # ============================================================
-# TRACK A BISECT-04: Single-rank (nproc=1), CUDA context held, no NCCL
+# Single-rank control: Single-rank (nproc=1), CUDA context held, no NCCL
 # ============================================================
 # Base:  track_a_mwe01_v1_frozen.py (verbatim b3a71b6)
 # Change: No DDP / NCCL init. Single process, holds a CUDA context and a

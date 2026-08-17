@@ -101,7 +101,7 @@ def main() -> None:
         return
 
     if MODE == "abort_stuck":
-        # NCCL #829 FAITHFUL repro of the production signature
+        # Faithful reproduction of the stuck NCCL production signature
         # ("Future for ProcessGroup abort timed out after 600000 ms"):
         # ranks 1..N-1 launch an ASYNC all_reduce (GPU kernel goes in flight and
         # stalls forever waiting for rank 0, who stays alive but never joins so the
@@ -133,7 +133,7 @@ def main() -> None:
         return
 
     if MODE == "stuck_collective":
-        # NCCL #829 path: a genuinely STUCK NCCL GPU kernel.
+        # A genuinely stuck NCCL GPU-kernel path.
         # Ranks 1..N-1 post a real all_reduce (GPU kernel launched, needs rank 0's
         # contribution) then cudaStreamSynchronize. Rank 0 stays ALIVE (so NCCL
         # sees no peer disconnect and does not auto-abort) but NEVER joins the

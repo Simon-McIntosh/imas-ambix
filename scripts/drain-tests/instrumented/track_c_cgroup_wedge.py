@@ -1,15 +1,15 @@
 """
-track_c_cgroup_wedge.py — Track C: FUSE-freeze D-state wedge (CPU-only, no GPU).
+CPU-only cgroup-wedge rehearsal: FUSE-freeze D-state wedge without a GPU.
 ==================================================================================
-Track C is the WARM-UP for the coordinated drain window.  It uses NO GPU so it
+CPU-only cgroup-wedge rehearsal is the WARM-UP for the coordinated drain window.  It uses NO GPU so it
 cannot damage GPU state.  Purpose:
 
-  1. Validate the §3 capture harness (observe_state.sh) end-to-end.
+  1. Validate the state-capture harness (observe_state.sh) end-to-end.
   2. Measure the REAL UnkillableStepTimeout / "giving up after N sec" timing
      (never been directly observed; --time 4 min gives a clean trigger).
-  3. Rehearse the admin resume procedure BEFORE spending GPU runs on Track A.
+  3. Rehearse the admin resume procedure BEFORE spending GPU runs on GPU drain reproduction.
 
-Mechanism — fuse-freeze wedge (decision: track-c-wedge → fuse-freeze):
+Mechanism — fuse-freeze wedge (mechanism: FUSE freeze):
   a. Build a small SquashFS archive containing a multi-MB dummy file.
   b. Mount it with `squashfuse -f` (foreground; this process IS the FUSE daemon).
   c. Start a subprocess that reads the dummy file (continuous dd) — this forces
@@ -31,7 +31,7 @@ Tool detection order (all at runtime — compute node may differ from login node
   none of the above        →  exit 1 cleanly (node NOT drained; no admin action needed)
 
 Recovery (admin, after drain — NO gpu-reset needed, no GPU involved):
-  ssh 98dci4-gpu-0003 'ps aux | grep track_c'   # confirm gone
+  ssh 98dci4-gpu-0003 'ps aux | grep cgroup_wedge'   # confirm gone
   scontrol update nodename=98dci4-gpu-0003 state=resume reason=""
   scontrol show node 98dci4-gpu-0003 | grep State
 """
@@ -101,30 +101,31 @@ def mount_squashfuse(work_dir: str, mount_point: str) -> subprocess.Popen:
     foreground mode (-f) so the Popen object IS the FUSE daemon.
     Returns the Popen handle (daemon process).
     """
-    archive = os.path.join(work_dir, "track_c.sqfs")
+    archive = os.path.join(work_dir, "cgroup_wedge.sqfs")
     dummy_src = os.path.join(work_dir, "dummy")
     os.makedirs(dummy_src, exist_ok=True)
     dummy_file = os.path.join(dummy_src, "payload")
 
     # Create a 64 MB dummy file to force real data-block round-trips
-    print("[track_c] creating 64 MB dummy payload ...", flush=True)
+    print("[cgroup_wedge] creating 64 MB dummy payload ...", flush=True)
     subprocess.run(
         ["dd", "if=/dev/urandom", f"of={dummy_file}", "bs=1M", "count=64"],
         check=True,
         capture_output=True,
     )
-    print(f"[track_c] dummy payload: {dummy_file}", flush=True)
+    print(f"[cgroup_wedge] dummy payload: {dummy_file}", flush=True)
 
-    print("[track_c] building SquashFS archive ...", flush=True)
+    print("[cgroup_wedge] building SquashFS archive ...", flush=True)
     subprocess.run(
         ["mksquashfs", dummy_src, archive, "-noappend", "-quiet"],
         check=True,
         capture_output=True,
     )
-    print(f"[track_c] archive: {archive}", flush=True)
+    print(f"[cgroup_wedge] archive: {archive}", flush=True)
 
     print(
-        f"[track_c] mounting with squashfuse -f {archive} {mount_point} ...", flush=True
+        f"[cgroup_wedge] mounting with squashfuse -f {archive} {mount_point} ...",
+        flush=True,
     )
     # -f: foreground — this process IS the daemon; stdout/stderr stay connected
     daemon = subprocess.Popen(
@@ -144,7 +145,8 @@ def mount_sshfs(mount_point: str) -> subprocess.Popen:
     Requires SSH key to localhost; may fail if keys aren't set up.
     """
     print(
-        f"[track_c] mounting localhost:/tmp via sshfs -f {mount_point} ...", flush=True
+        f"[cgroup_wedge] mounting localhost:/tmp via sshfs -f {mount_point} ...",
+        flush=True,
     )
     daemon = subprocess.Popen(
         [
@@ -169,7 +171,9 @@ def mount_bindfs(source: str, mount_point: str) -> subprocess.Popen:
     """
     Fallback: bind-mount source via bindfs -f (foreground).
     """
-    print(f"[track_c] mounting {source} via bindfs -f {mount_point} ...", flush=True)
+    print(
+        f"[cgroup_wedge] mounting {source} via bindfs -f {mount_point} ...", flush=True
+    )
     daemon = subprocess.Popen(
         ["bindfs", "-f", source, mount_point],
         stdout=subprocess.PIPE,
@@ -203,7 +207,10 @@ def start_reader(mount_point: str) -> subprocess.Popen:
     call through to FUSE for the actual data pages.
     """
     payload = _find_payload_path(mount_point)
-    print(f"[track_c] starting reader: dd if={payload} of=/dev/null bs=1M", flush=True)
+    print(
+        f"[cgroup_wedge] starting reader: dd if={payload} of=/dev/null bs=1M",
+        flush=True,
+    )
     reader = subprocess.Popen(
         ["dd", f"if={payload}", "of=/dev/null", "bs=1M"],
         stderr=subprocess.DEVNULL,
@@ -222,8 +229,8 @@ def wedge(mount_point: str, fuse_tool: str) -> None:
       5. Reader's kernel wait is now uninterruptible (D-state).
       6. Sleep forever. SLURM --time fires. Node drains.
     """
-    work_dir = tempfile.mkdtemp(prefix="track_c_work_")
-    print(f"[track_c] work dir: {work_dir}", flush=True)
+    work_dir = tempfile.mkdtemp(prefix="cgroup_wedge_work_")
+    print(f"[cgroup_wedge] work dir: {work_dir}", flush=True)
 
     # --- Mount ---
     if fuse_tool == "squashfuse":
@@ -234,7 +241,9 @@ def wedge(mount_point: str, fuse_tool: str) -> None:
         daemon = mount_bindfs("/tmp", mount_point)
 
     daemon_pid = daemon.pid
-    print(f"[track_c] FUSE daemon PID: {daemon_pid} (tool={fuse_tool})", flush=True)
+    print(
+        f"[cgroup_wedge] FUSE daemon PID: {daemon_pid} (tool={fuse_tool})", flush=True
+    )
 
     # Confirm daemon is alive
     if daemon.poll() is not None:
@@ -245,21 +254,21 @@ def wedge(mount_point: str, fuse_tool: str) -> None:
 
     # --- Start reader while daemon is RUNNING (not yet frozen) ---
     reader = start_reader(mount_point)
-    print(f"[track_c] Reader PID: {reader.pid}", flush=True)
+    print(f"[cgroup_wedge] Reader PID: {reader.pid}", flush=True)
 
     # Wait ~500 ms so the reader has at least one read request in-flight with
     # the daemon.  Mid-read freeze → uninterruptible wait.
-    print("[track_c] waiting 500 ms for in-flight read request ...", flush=True)
+    print("[cgroup_wedge] waiting 500 ms for in-flight read request ...", flush=True)
     time.sleep(0.5)
 
     # --- SIGSTOP the daemon (freeze mid-response) ---
     print(
-        f"[track_c] SIGSTOP → daemon {daemon_pid} (freezing FUSE daemon mid-response)",
+        f"[cgroup_wedge] SIGSTOP → daemon {daemon_pid} (freezing FUSE daemon mid-response)",
         flush=True,
     )
     os.kill(daemon_pid, signal.SIGSTOP)
     print(
-        f"[track_c] daemon {daemon_pid} SIGSTOP'd — reader {reader.pid} should be entering D-state",
+        f"[cgroup_wedge] daemon {daemon_pid} SIGSTOP'd — reader {reader.pid} should be entering D-state",
         flush=True,
     )
 
@@ -269,28 +278,28 @@ def wedge(mount_point: str, fuse_tool: str) -> None:
     # --- Confirm reader is alive (expected: it will block, not exit) ---
     if reader.poll() is not None:
         print(
-            f"[track_c] WARNING: reader exited already (rc={reader.returncode}). "
+            f"[cgroup_wedge] WARNING: reader exited already (rc={reader.returncode}). "
             "D-state may not have been achieved. Check observer logs.",
             flush=True,
         )
     else:
         print(
-            f"[track_c] WEDGE ACTIVE — reader {reader.pid} in D-state, "
+            f"[cgroup_wedge] WEDGE ACTIVE — reader {reader.pid} in D-state, "
             f"FUSE daemon {daemon_pid} SIGSTOP'd",
             flush=True,
         )
 
     print(
-        "[track_c] Sleeping forever — SLURM --time will fire in ~2-3 min; "
+        "[cgroup_wedge] Sleeping forever — SLURM --time will fire in ~2-3 min; "
         "it WILL drain the node.",
         flush=True,
     )
     print(
-        f"[track_c] >>> D-STATE READER PID: {reader.pid} — check /proc/{reader.pid}/wchan <<<",
+        f"[cgroup_wedge] >>> D-STATE READER PID: {reader.pid} — check /proc/{reader.pid}/wchan <<<",
         flush=True,
     )
     print(
-        f"[track_c] >>> D-STATE READER PID: {reader.pid} "
+        f"[cgroup_wedge] >>> D-STATE READER PID: {reader.pid} "
         f"wchan target: fuse_simple_request or fuse_dev_do_read <<<",
         flush=True,
     )
@@ -309,10 +318,10 @@ def wedge(mount_point: str, fuse_tool: str) -> None:
 
 def main() -> None:
     pid = os.getpid()
-    mount_point = f"/tmp/track_c_fuse_mount_{pid}"
+    mount_point = f"/tmp/cgroup_wedge_fuse_mount_{pid}"
 
     print("=" * 72, flush=True)
-    print("⚠️  DELIBERATE DRAIN TEST — track_c_cgroup_wedge.py", flush=True)
+    print("⚠️  DELIBERATE DRAIN TEST — CPU-only cgroup wedge", flush=True)
     print(
         "⚠️  WARNING: No STOP-FILE. No SIGUSR1 trap. This IS the drain test.", flush=True
     )
@@ -321,8 +330,8 @@ def main() -> None:
     )
     print("=" * 72, flush=True)
 
-    print(f"[track_c] PID: {pid}", flush=True)
-    print(f"[track_c] Mount point: {mount_point}", flush=True)
+    print(f"[cgroup_wedge] PID: {pid}", flush=True)
+    print(f"[cgroup_wedge] Mount point: {mount_point}", flush=True)
 
     # Check fusermount availability (fuse kernel module)
     fuse_ok = False
@@ -330,7 +339,7 @@ def main() -> None:
         r = subprocess.run([fm, "--version"], capture_output=True)
         if r.returncode == 0:
             ver = r.stdout.decode().strip() or r.stderr.decode().strip()
-            print(f"[track_c] {fm}: {ver}", flush=True)
+            print(f"[cgroup_wedge] {fm}: {ver}", flush=True)
             fuse_ok = True
             break
     if not fuse_ok:
@@ -347,7 +356,7 @@ def main() -> None:
         print(str(exc), flush=True)
         sys.exit(1)
 
-    print(f"[track_c] FUSE tool: {fuse_tool}", flush=True)
+    print(f"[cgroup_wedge] FUSE tool: {fuse_tool}", flush=True)
 
     # Create mount point
     os.makedirs(mount_point, exist_ok=True)
@@ -355,7 +364,7 @@ def main() -> None:
     try:
         wedge(mount_point, fuse_tool)
     except Exception as exc:
-        print(f"[track_c] ERROR during wedge setup: {exc}", flush=True)
+        print(f"[cgroup_wedge] ERROR during wedge setup: {exc}", flush=True)
         # Attempt cleanup so the node is not left with a zombie mount
         try:
             subprocess.run(["fusermount3", "-u", mount_point], capture_output=True)

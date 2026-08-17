@@ -8,7 +8,7 @@ Forces a PERMANENT uninterruptible (D) wait inside the NVIDIA driver:
      cancel — that is why a healthy-GPU NCCL hang stays transient/killable).
   2. A *blocking* CUDA event sync (cudaEventBlockingSync): the CPU thread sleeps
      on a driver semaphore (wchan os_acquire_semaphore — the exact function in
-     NVIDIA bug open-gpu-kernel-modules #278) waiting for that kernel. It never
+     open GPU kernel-module failure mode) waiting for that kernel. It never
      returns -> permanent D-state.
 
 We also set the device sync policy to blocking via ctypes as belt-and-braces, so
