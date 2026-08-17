@@ -1,0 +1,20 @@
+{
+  "gaps": [
+    {
+      "mechanism": "rectilinear_label_delta_star",
+      "finding": "Nova exposes Delta-star through a preconstructed equilibrium solve mesh, but has no public raw rectilinear label-map helper. The spike uses a second-order NumPy stencil and does not patch Nova."
+    },
+    {
+      "mechanism": "flux_function_radial_separation",
+      "finding": "Nova owns the forward Grad-Shafranov convention but has no inverse per-surface R-squared separation kernel for recovering p-prime and FF-prime from a current map. The spike uses per-annulus least squares and does not patch Nova."
+    },
+    {
+      "mechanism": "toroidal_flux_coordinate",
+      "finding": "Nova's transport geometry can assemble the exact toroidal-flux coordinate when profile coefficients and boundary toroidal field are known. The challenge labels omit both, so the banked rho-hat is an explicitly named geometric proxy proportional to the integral of inverse-R-squared times dV/dpsi; it is not exact toroidal flux."
+    },
+    {
+      "mechanism": "forward_resolve_receipt",
+      "finding": "A Nova free-boundary re-solve needs machine conductor geometry, currents, boundary toroidal field and profile parameterization beyond the label-only extraction inputs. No re-solve is claimed by this worker node."
+    }
+  ]
+}
