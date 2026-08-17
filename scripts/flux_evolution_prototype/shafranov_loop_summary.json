@@ -1,0 +1,102 @@
+{
+  "verdict": "VERDICT: the isotherm-shift observation DOES NOT GAIN FF-prime traction; posterior NRMSE changes by +0.004908 against the banked posterior, by +0.005038 (+0.900%) against its prior, and update share changes by -4.734 percentage points.",
+  "shot": "d3d_shot_030fc156d6",
+  "analysed_slices": 36,
+  "window_ms": [
+    1020.0,
+    6060.0
+  ],
+  "invariants": {
+    "training_shots": 19,
+    "candidate_modes": 10,
+    "correction_rank": 6,
+    "resistivity": {
+      "eta0_ohm_m": 7.062055857166393e-08,
+      "contrast": 0.0,
+      "shape": 2.0
+    },
+    "plasma_current_role": "transport boundary condition only; absent from observation vector",
+    "dropped_channels": 0,
+    "widened_instances": 53
+  },
+  "asymmetry_observation": {
+    "operator": "imas_ambix.thomson.IsothermAsymmetryOperator",
+    "reference_major_radius_m": 1.6824105978012085,
+    "minor_radius_m": 0.6150308549404144,
+    "mismatch_limit": 0.18,
+    "minimum_span_m": 0.3,
+    "mean_sigma": 0.1734717179146149,
+    "widened_slices": 27,
+    "direct_state_path": "p-prime sets beta-p; p-prime and FF-prime set the enclosed-current shape and large-aspect internal inductance",
+    "initial_state_sensitivity": {
+      "p_prime_gradient_l2": 1.3034992509061841e-06,
+      "ff_prime_gradient_l2": 0.8936963837488768,
+      "p_prime_scaled_sensitivity": 0.009254022738966423,
+      "ff_prime_scaled_sensitivity": 0.02903158505663771
+    }
+  },
+  "tracking": {
+    "ff_persistence_nrmse": 0.6687232035598739,
+    "ff_transport_prior_nrmse": 0.5598860287599728,
+    "ff_posterior_nrmse": 0.5649244885583048,
+    "ff_update_share_of_total_gain": -0.048540676040698436,
+    "joint_persistence_nrmse": 0.7276146670417522,
+    "joint_transport_prior_nrmse": 0.6873281505812101,
+    "joint_posterior_nrmse": 0.6751056161542482
+  },
+  "banked_baseline": {
+    "ff_persistence_nrmse": 0.6687232035598739,
+    "ff_transport_prior_nrmse": 0.5598860287599728,
+    "ff_posterior_nrmse": 0.5600164842594029,
+    "ff_update_share_of_total_gain": -0.00120006840671404,
+    "joint_posterior_nrmse": 0.6725207439562292
+  },
+  "innovation": {
+    "prior_normalised_rms": 0.7639125395322988,
+    "posterior_normalised_rms": 0.7551989984643402,
+    "posterior_median_abs_lag1": 0.19673173470514999,
+    "posterior_median_whiteness_p": 0.38375493562345564,
+    "posterior_white_channel_fraction_p_gt_0_05": 0.6666666666666666,
+    "asymmetry_channel": {
+      "channel": "isotherm_centre_shift",
+      "prior_mean": -0.5269725461980697,
+      "prior_rms": 0.7755425628619879,
+      "posterior_mean": -0.5154858628445642,
+      "posterior_rms": 0.7648896012305075,
+      "prior_lag1": 0.4163252868961283,
+      "prior_whiteness_p": 0.0004118706039522524,
+      "posterior_lag1": 0.41880981573061654,
+      "posterior_whiteness_p": 0.00039810866670259465
+    }
+  },
+  "basis": {
+    "training_shots": 19,
+    "candidate_modes": 10,
+    "variance_fraction": 0.9996051991398942,
+    "p_prime_scale": 34779.66521702587,
+    "ff_prime_scale": 0.15914257035408044,
+    "nonfinite_training_cells_filled": 2,
+    "correction_rank": 6,
+    "initial_whitened_singular_values": [
+      0.5250685011398322,
+      0.4844896912434958,
+      0.30412715608894153,
+      0.10189065941019651,
+      0.06906000849268577,
+      0.014971111659406894
+    ]
+  },
+  "interpretation": "The added row has explicit nonzero FF-prime sensitivity, but its temporally correlated innovation and widened partial-span geometry degrade rather than improve FF-prime tracking on this shot.",
+  "baseline_hashes_before": {
+    "run_thomson_reduced_loop.py": "871ff250f3375a2e1aa1eb64a540d26e7e73615923825728051cf7843e099c40",
+    "thomson_loop_summary.json": "af3fc6165e01d634458c0cff0b7b0e3cfe8a2c336c59bc085cf05a44291e1228",
+    "thomson_loop_slice_metrics.csv": "180bf07f882bf288f8bcd87ffe8e27f1cdca86f004a92c5cf7581cf6d3e0b043",
+    "thomson_loop_channel_innovations.csv": "71c6d59f598ac8c1de2279df427275010ae68595d97f7d7273ceb5dd4a326979"
+  },
+  "baseline_hashes_after": {
+    "run_thomson_reduced_loop.py": "871ff250f3375a2e1aa1eb64a540d26e7e73615923825728051cf7843e099c40",
+    "thomson_loop_summary.json": "af3fc6165e01d634458c0cff0b7b0e3cfe8a2c336c59bc085cf05a44291e1228",
+    "thomson_loop_slice_metrics.csv": "180bf07f882bf288f8bcd87ffe8e27f1cdca86f004a92c5cf7581cf6d3e0b043",
+    "thomson_loop_channel_innovations.csv": "71c6d59f598ac8c1de2279df427275010ae68595d97f7d7273ceb5dd4a326979"
+  }
+}
