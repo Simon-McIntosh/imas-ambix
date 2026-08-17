@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="vacuum-field-position-adjudication">
   <meta name="plan-title" content="Let the Vacuum Field Decide Where the Sensors Are">
   <meta name="plan-summary" content="Nineteen flux-loop positions disagree between the nominal geometry table and the reconstruction. Predict the vacuum flux at each candidate position from known coil currents and compare against the measured loop signal, so the measurement adjudicates rather than one description being asserted over another.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="5.0">
   <meta name="plan-capability-version" content="1.0">
@@ -21,11 +21,11 @@
   <title>Let the Vacuum Field Decide Where the Sensors Are | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-16">
-<meta name="plan-version" content="3">
-<meta name="plan-commits" content="299d370504e22f748910d6fdeccdb42ea56e0347">
-<meta name="plan-artifacts" content="docs/evidence/archive/vacuum-field-position-adjudication-landed.html,docs/notes/vacuum-loop-adjudication.md,docs/figures/vacuum-loop-adjudication/candidate-residual-comparison.png,docs/figures/vacuum-loop-adjudication/cohort-plasma-current-receipts.png,scripts/vacuum_loop_adjudication.py">
-<meta name="plan-impl" content="0.5">
+<meta name="plan-modified" content="2026-08-17">
+<meta name="plan-version" content="5">
+<meta name="plan-commits" content="299d370504e22f748910d6fdeccdb42ea56e0347,cee483a42af9a74925b5dbce9b0fd7cda16bf5c3,06a579ddbfc87d9f5e915a82d55f40ee0432ab1f">
+<meta name="plan-artifacts" content="docs/evidence/archive/vacuum-field-position-adjudication-landed.html,docs/notes/vacuum-loop-adjudication.md,docs/figures/vacuum-loop-adjudication/candidate-residual-comparison.png,docs/figures/vacuum-loop-adjudication/cohort-plasma-current-receipts.png,scripts/vacuum_loop_adjudication.py,imas_ambix/spine_bench/results/physics-spine-v0-mast-heldout-6-cee483a42a-98dci4-clu-3141-level2-transform-signal-identity-f2df4d7f52dd.yaml">
+<meta name="plan-impl" content="1.0">
 </head>
 <body>
   <main class="plan-doc">
@@ -66,17 +66,23 @@
     implementation rather than a second opinion from the same code. Coil couplings use the
     finite-area cylinder kernel, never point filaments.</p>
 
-    <h2 id="s3">§3 — Deliverable</h2>
-    <p>A verdict per disputed loop, with its margin. A loop whose two candidates predict the
-    measurement equally well is a <em>null</em> and must be reported as one rather than resolved
-    by preference — the discriminating power of the test is part of its result.</p>
-    <p><em>Done-when:</em> a vacuum-shot cohort selected and its plasma-current-free condition
-    evidenced rather than assumed; for each of the 19 disputed loops the predicted flux at both
-    candidate positions compared against the measured signal across the cohort, with the residual
-    for each candidate and the margin between them reported; a verdict of nominal-table,
-    reconstruction, or null recorded per loop with the counts summing to 19; and the winning
-    positions fed back to the catalog as declarations carrying this evidence, or the null loops
-    explicitly left undecided.</p>
+    <section id="s3" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-17</span>
+        <h2>§3 — Deliverable</h2>
+      </header>
+      <p class="landed-summary">
+        <strong>19/19 adjudicated: 2 nominal-table, 14 reconstruction, 3 null</strong> on 37 early
+        + 12 late measured vacuum shots (peak |Ip| receipts 2.6–19.4 kA); the 0.437 m and 0.370 m
+        disputes decided for reconstruction at margins +3.93 [+2.09,+5.81] and +2.78 [+1.45,+4.17].
+        All 19 verdicts are now range-scoped evidence-carrying catalog declarations, the 3 nulls
+        explicitly undecided with no coordinate; the post-feedback frozen stamp moved ~1×10⁻⁸
+        relative at 36/36 coverage.
+        Full record: <a href="/imas-ambix/evidence/archive/vacuum-field-position-adjudication-landed#s3-adjudication">adjudication</a> ·
+        <a href="/imas-ambix/evidence/archive/vacuum-field-position-adjudication-landed#s3-feedback">catalog feedback</a>
+        (commits <code>299d370</code>, <code>cee483a</code>, <code>06a579d</code>).
+      </p>
+    </section>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -94,7 +100,7 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-vfpa-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-16" data-recommends-skill="/reckon-ship vacuum-field-position-adjudication §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-vfpa-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-16" data-recommends-skill="/reckon-ship vacuum-field-position-adjudication §3" data-resolved-at="2026-08-17T04:58:39+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Adjudicate the nineteen disputed loop positions on vacuum shots</h4>
     <div class="r-fu-body"><p>Select a vacuum cohort and evidence its plasma-current-free
         condition. For each disputed loop, forward-predict the flux at both candidate positions
@@ -102,6 +108,7 @@
         per candidate, margin between them, and a verdict of nominal-table, reconstruction or
         null. Nulls are a result, not a failure.</p></div>
     <pre class="r-fu-prompt">/reckon-ship vacuum-field-position-adjudication §3</pre>
+    <p class="r-fu-outcome">Landed across two nodes. Adjudication (commit 299d370): 19/19 verdicts — 2 nominal-table, 14 reconstruction, 3 null — on 37 early + 12 late measured vacuum shots with per-loop residuals, margins and paired-bootstrap 95% intervals; the 0.437 m fl_p4l_1 and 0.370 m fl_p4l_4 disputes decided for reconstruction at margins +3.93 and +2.78. Catalog feedback (commits cee483a, 06a579d): all 19 verdicts declared as range-scoped evidence-carrying rows, the 3 nulls explicitly undecided with no coordinate; post-update frozen stamp moved ~1e-8 relative at 36/36 coverage. Done — no followup: the plan's deliverable is complete and the catalog is the authority carrying it.</p>
     </article>
 </section>
   <section data-reckon="research" id="research" class="r-research-list">
@@ -116,6 +123,9 @@
 <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s3" data-id="c-20260816-vfpa-adjudicate" data-who="reckon-ship" data-when="2026-08-16T20:05:00+00:00">
     <div class="r-comment-body">vfpa-adjudicate landed — commit 299d370 (merged f83292c); gate adjudication-verdicts PASSED; measure: 19/19 loops adjudicated (2 nominal-table, 14 reconstruction, 3 null), cohort 37 early + 12 late vacuum shots all with measured peak |Ip| receipts 2.617–19.405 kA, large-separation loops fl_p4l_1/fl_p4l_4 decided for reconstruction at margins +3.93 [+2.09,+5.81] and +2.78 [+1.45,+4.17], amm-independence receipt exact (max diff 0); artifacts docs/notes/vacuum-loop-adjudication.md, docs/figures/vacuum-loop-adjudication/, docs/evidence/archive/vacuum-field-position-adjudication-landed.html#s3-adjudication. Catalog feedback node remains; f-vfpa-001 stays open until it lands.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260817-vfpa-feedback" data-who="reckon-ship" data-when="2026-08-17T07:40:00+00:00">
+    <div class="r-comment-body">vfpa-feedback landed — commits cee483a, 06a579d (merged 62f4b91); gate catalog-declarations-with-stamp PASSED; measure: 19 range-scoped evidence rows in machine map schema 1.10.0 (early 4 recon + 1 undecided; late 10 recon + 2 nominal + 2 undecided), nulls carry no coordinate per locked null-loop-disposition; post-update stamp moved −9.7e-9/−9.5e-9 relative at 36/36 coverage (authority moved into the catalog; numeric change confined to the 2 nominal winners); 38 affected tests green, LinkML exit 0, census 0. Evidence: docs/evidence/archive/vacuum-field-position-adjudication-landed.html#s3-feedback.</div>
 </div>
 </section>
 </main>
