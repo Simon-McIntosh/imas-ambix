@@ -234,7 +234,38 @@
       proxy radial coordinate — the three approximations FF′ is most sensitive to. The exact
       time-varying-geometry rerun is therefore a genuine open question and not a formality,
       and it is queued behind nova's TORAX geometry adapter.</li>
+      <li>The joined loop closes and behaves — 8 of 11 innovation channels white, a quarter
+      of the total gain coming from the update — but contributes <strong>nothing</strong> to
+      FF′. Thomson pins pressure and boundary shape; the diamagnetic function is invisible
+      to it (<a href="/imas-ambix/evidence/archive/flux-function-evolution-prototype-landed#joined-loop">prototype §4</a>).</li>
     </ul>
+
+    <h2 id="s7">§7 — The crux: what actually makes FF′ observable</h2>
+    <p>Put the three measurements side by side and they converge on one question. The state
+    is low-dimensional and slowly drifting (§2 of the prototype). The transport prior tracks
+    ψ and not FF′ (§3). The Thomson update improves the joint state and not FF′ (§4). So
+    <strong>neither half of the filter currently constrains the diamagnetic function</strong>
+    — and FF′ is precisely what sets q95, ℓ_i and the current profile, which are 35% of the
+    score between them and all of the physics credibility.</p>
+    <p>The resolution is not a better prior or a cleverer update. It is that the prototype
+    deliberately substituted banked labeled geometry for nova's free-boundary solve, and in
+    doing so removed the operator through which FF′ is observable at all. Force balance
+    against a <em>known</em> external field is that operator: the coil currents ship with the
+    challenge, and a plasma with different diamagnetism sits in a measurably different place
+    against them. Thomson then observes that displacement through the boundary and shape it
+    pins. FF′ is therefore observable <strong>only through the composition</strong> of the
+    free-boundary solve with the chord model — never through the chord model alone, and no
+    amount of Thomson processing on frozen geometry recovers it.</p>
+    <p>This sharpens the architecture rather than threatening it, and it explains why the
+    seam is drawn where it is. The free-boundary solve is not a fidelity upgrade sitting
+    downstream of estimation; <strong>it is part of the observation operator</strong>. That
+    is the concrete reason nova's forwards must be exact, must converge, and must run inside
+    the assimilation loop rather than after it — an approximate or skipped solve does not
+    degrade the answer gracefully, it deletes an entire observable direction. It is also why
+    the isotherm-asymmetry Shafranov-shift operator earns its place in the entry's
+    measurement set: it reads β_p + ℓ_i/2 directly from chord asymmetry, needs no training
+    data, and is the one Thomson-side quantity with genuine sensitivity to the same
+    combination FF′ controls.</p>
   </main>
 </body>
 </html>
