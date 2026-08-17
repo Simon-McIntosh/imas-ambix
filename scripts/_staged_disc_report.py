@@ -7,7 +7,7 @@ For every held-out shot's ramp-up + flat-top slice, overlay:
   - staged read: uniform disc, skip dipole (centroid already fixed by the 2-DOF
     filament fit), quadrupole fitted to the RESIDUAL sensor signature (purple)
 
-Prints the stage-0 whitened misfit per slice — the conditioning-gate signal that
+Prints the uniform-disc whitened misfit per slice — the conditioning-gate signal that
 decides whether the quadrupole stage fires in production.  Visual confirmation
 that boundaries are good, not just RMS metrics.
 """

@@ -624,8 +624,8 @@ def main() -> int:
             npz[f"{arm_name}_perbin_frac2"] = f2
             npz[f"{arm_name}_perbin_frac3"] = f3
 
-    # W1 connection: how much of the (larger) sign-constrained 2-col residual
-    # does the R⁴ column absorb, vs the free-sign arm?
+    # Compare how much of the sign-constrained two-column residual how much of the (larger) sign-constrained 2-col residual
+    # the R⁴ column absorbs relative to the free-sign arm.
     for arm_name, _ in ARMS:
         a = report["arms"][arm_name]
         d = a["delta_overall"]["mean"]

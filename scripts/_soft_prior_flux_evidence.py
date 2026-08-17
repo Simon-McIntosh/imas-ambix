@@ -2,13 +2,13 @@
 """Evidence figures: soft-prior-anchored poloidal flux maps vs firewalled EFIT.
 
 For each held-out shot (a ramp-up and a flat-top slice), solve the interior
-free-boundary GS fixed point TWICE — the free-boundary baseline (A0, no prior)
-and the annulus-anchored soft-prior solve (A1) — and render ψ(R, Z) with
+free-boundary GS fixed point TWICE — the free-boundary baseline (no prior)
+and the annulus-anchored soft-prior solve (annulus-anchored) — and render ψ(R, Z) with
 imas-ink's ``equilibrium_figure_mpl``, the firewalled EFIT boundary overlaid as
 the faint reference.  EFIT is SCORING/PLOT ONLY (never an input to either solve).
 
 Writes docs/figures/equilibrium-boundary-closure/fig-fluxmap-<regime>.png.
-Untracked helper (closes the §3 session); reuses the closure gate + flux-map
+Comparison helper; reuses the closure gate + flux-map
 report machinery verbatim so the panels match the scored geometry read.
 """
 
@@ -34,7 +34,7 @@ FROZEN = "imas_ambix/latent/artifacts/patch_gate/harmonic_prior_frozen.json"
 
 
 def _th_lcfs_ring(p, grid, table, basis, meta):
-    """The §2 two-pass source-free TH read's own LCFS ring for this slice
+    """The two-pass source-free TH read's own LCFS ring for this slice
     (moderate-order + graded ridge, origin re-sited on the LCFS centroid,
     ψ_N=1 leg-clip) — the boundary the anchor targets, to overlay in green."""
     from imas_ambix.latent.boundary_disc import disc_read
@@ -44,7 +44,7 @@ def _th_lcfs_ring(p, grid, table, basis, meta):
 
 
 def _pushout_lcfs_ring(psi, grid, axis):
-    """Read OUR interior ψ with the §2 push-out algorithm (outermost closed
+    """Read OUR interior ψ with the push-out algorithm (outermost closed
     axis-enclosing ring) instead of the innermost-X-point read — the diagnostic
     for whether the interior LCFS is under-sized by the READ vs by the current."""
     from imas_ambix.latent.topology import lcfs_contour
@@ -144,7 +144,7 @@ def main() -> int:
                 reseed_axis_r_max=1.4,
                 keep_psi=True,
             )
-            # §2 two-pass source-free TH read boundary (green): moderate order +
+            # Two-pass source-free TH read boundary (green): moderate order +
             # graded ridge, origin re-sited on the LCFS centroid, ψ_N=1 leg-clip
             th_ring = _th_lcfs_ring(p, grid, table, basis, meta)
             base = fit_and_read_slice(grid, table, p, **common)
@@ -157,12 +157,12 @@ def main() -> int:
                 meta=meta,
                 soft_prior_cfg=spc,
             )
-            for tag, fit in (("A0 free-boundary", base), ("A1 anchored", anc)):
+            for tag, fit in (("free-boundary", base), ("annulus-anchored", anc)):
                 if not fit.scored or fit.psi is None:
                     logger.info("%d %s %s not scored", shot, kind, tag)
                     continue
                 # score the LCFS with the push-out reader (the fixed, canonical
-                # read) — this is the scored boundary, and it matches EFIT/§2
+                # read) — this is the scored boundary, and it matches the EFIT reference
                 target, psi_ax, psi_b = geometry_target_pushout(fit.psi, grid)
                 axis_rz = (float(target[0]), float(target[1]))
                 lcfs = _closed_contour_about(grid.rg, grid.zg, fit.psi, psi_b, *axis_rz)
@@ -186,7 +186,7 @@ def main() -> int:
                         "-",
                         color="#1b9e2f",
                         lw=2.0,
-                        label="§2 disc read",
+                        label="disc read",
                         zorder=6,
                     )
                 ax0.legend(fontsize=6, loc="upper right")
@@ -210,7 +210,7 @@ def main() -> int:
             ax.set_title(title, fontsize=8)
         fig.suptitle(
             f"Interior ψ(R,Z) vs firewalled EFIT — {regime} "
-            "(A0 free-boundary vs A1 annulus-anchored; faint = EFIT)",
+            "(free-boundary vs annulus-anchored; faint = EFIT)",
             fontsize=13,
         )
         fig.tight_layout(rect=(0, 0, 1, 0.98))

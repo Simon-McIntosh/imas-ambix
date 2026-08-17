@@ -36,15 +36,14 @@ vanishes under a 0.005 quad change), P6 weakened/off/flipped, vertical
 asymmetry, and blends toward shot 11766's MEASURED flat-top coil pattern
 (the real diverted program) — which has NO confined fixed point in this
 operator even with the solenoid and case channels removed (the documented
-outboard-attractor coil-model error).  The class-flip assertion C2 is
-therefore expected to FAIL for scenario reasons, and A2 remains untestable
+outboard-attractor coil-model error).  The limited-to-diverted class-flip
+assertion is therefore expected to FAIL for scenario reasons, and
+cost-to-boundary-error attribution remains untestable
 as measured; both are recorded honestly.  Unblocking the transition truth
 family needs the coil-model attractor fix or a free-boundary-evolution
-truth chain (S3 territory).
+coupled truth chain.
 
-Pre-declared legs (RE-DECLARED for this rung BEFORE running, 2026-07-18 —
-supersedes the first synthetic gate's oracle-primary rule; verdicts
-recorded honestly either way):
+Evaluation legs (verdicts are recorded honestly either way):
 
 * **leg (a) — reproduction** (unchanged).  The frozen classical spine
   (byte-same config as the real-data gates) fitted to these truths must
@@ -63,19 +62,19 @@ recorded honestly either way):
   screening columns, amplitudes prior-centred on the coupled-circuit
   trajectory) at the η the misfit scan identifies from the ramp
   transients — the operating point the real-data rung would actually run,
-  since S2 has no oracle — must:
+  since the transfer target has no oracle — must:
     B1  recover ≥ 50% of the synthetic ramp LCFS gap:
         (spine_ramp − dyn_ramp) / (spine_ramp − floor) ≥ 0.5 with the
         paired-gain bootstrap CI clear of zero (floor = the spine's own
         hold-phase median; tuning is ORACLE-FREE: the closure η is
         identified first by misfit scan at a fixed scan weight, then the
-        prior weight is scanned at the closure η — the protocol S2 runs)
+        prior weight is scanned at the closure η — the transferable protocol runs)
   The ORACLE-η arm is retained as a reported DIAGNOSTIC (B2) — with the
   mode-build η sensitivity (flat vs truth-contrast at the closure scale)
-  isolating what the S1 run attributed: the η contrast in the mode build,
+  isolating the baseline attribution identified: the η contrast in the mode build,
   not the representation, breaks the oracle arm.
 
-* **assertions (new, pre-declared)** — the dynamics must be complete:
+* **coupled-dynamics assertions** — the dynamics must be complete:
     C1  flux ledger closes: ∫u dt = ΔΨ̄ + ∫mean(R·i) dt within every
         interval to < 1% of the drive volt-seconds, with the shape-remap
         (dL/dt) term carried explicitly across geometry updates and the
@@ -91,7 +90,7 @@ recorded honestly either way):
         the patch-mean self-flux per ampere changes by ≥ 5% over the ramp
 
 A leg-(a) FAIL re-opens the skin/shape diagnosis; a leg-(b) FAIL at the
-closure operating point stops the plan before any real-data spend.
+closure operating point stops execution before any real-data spend.
 
 Artifacts: imas_ambix/latent/artifacts/patch_gate/plasma_screening_gate[-tag].json
 Figures:   docs/figures/plasma-screening-dynamics/
@@ -1031,7 +1030,7 @@ def main() -> int:
         "--weights",
         type=str,
         default="0.05,0.2,0.5,2,8",
-        help="screening prior-weight scan (extends BELOW the S1 scan's frozen "
+        help="screening prior-weight scan (extends BELOW the baseline scan's frozen "
         "edge at 0.5)",
     )
     ap.add_argument(
@@ -1039,7 +1038,7 @@ def main() -> int:
         type=str,
         default="0.25,0.5,1.0,2.0,4.0",
         help="closure-eta scale factors on the oracle eta0 (flat contrast); "
-        "extends below the S1 scan's frozen edge at 0.5",
+        "extends below the baseline scan's frozen edge at 0.5",
     )
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--seed0", type=int, default=4200)
@@ -1114,7 +1113,7 @@ def main() -> int:
         spine_fits = list(pool.map(fit_sequence_spine, [(s, {}) for s in seqs]))
     spine_rows = [score_fits(s, f) for s, f in zip(seqs, spine_fits, strict=True)]
 
-    # --- tune protocol (ORACLE-FREE — transferable verbatim to S2): first
+    # --- tune protocol (ORACLE-FREE — transferable without an oracle): first
     # identify the closure eta by misfit scan at a fixed scan weight, then
     # scan the prior weight AT the closure eta.  The oracle eta never enters
     # any tuning choice; it is an eval-side diagnostic only. ------------------
@@ -1316,7 +1315,7 @@ def main() -> int:
         # point the real-data rung runs — recovery bar unchanged at 0.5,
         # paired CI must clear zero
         "B1_recovers_half_gap_closure": bool(recovery_c >= 0.5 and ci_c[0] > 0.0),
-        # DIAGNOSTIC: the oracle-eta arm (the S1 attribution check)
+        # DIAGNOSTIC: the oracle-eta arm (the baseline attribution check)
         "B2_oracle_recovery_diag": recovery_o,
         "diag_hold_non_inferior": bool(hold_dyn_c <= hold_sp + 0.05),
         "diag_axis_not_degraded": bool(axis_dyn_c <= 1.05 * axis_sp),
@@ -1391,7 +1390,7 @@ def main() -> int:
         ),
         "declared": {
             "primary": "B1 recovery >= 0.5 at closure-identified eta, paired CI "
-            "clear of zero (the S2 operating point); oracle eta diagnostic only",
+            "clear of zero (the transferable operating point); oracle eta diagnostic only",
             "assertions": "C1 ledger closes <1% (no free constant, breakdown "
             "start), C2 limited->diverted flip in every eval sequence within "
             "Ip-frac [0.55, 0.97], C3 coupled plasma+vessel dynamics both "
@@ -1400,8 +1399,9 @@ def main() -> int:
             "scenario_limitation_recorded_before_run": "8 design probes measured "
             "that no confined configuration of this forward operator reads "
             "diverted (saddles ~1 m out-limiter; real diverted coil pattern has "
-            "no confined fixed point even minus sol/cases) — C2 is expected to "
-            "FAIL for scenario reasons and A2 remains untestable as measured; "
+            "no confined fixed point even minus sol/cases) — the class flip is "
+            "expected to FAIL for scenario reasons and cost-to-boundary-error "
+            "attribution remains untestable as measured; "
             "unblock = coil-model attractor fix or free-boundary truth chain",
         },
         "leg_a_reproduction": leg_a,
