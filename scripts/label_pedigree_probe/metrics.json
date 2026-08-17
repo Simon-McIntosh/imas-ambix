@@ -1,0 +1,127 @@
+{
+  "corpus": {
+    "shots": 20,
+    "frames": 4141,
+    "quality_frames": 3816,
+    "quality_fraction": 0.9215165418980923,
+    "quality_rule": "finite q proxy and j profile; median surface separation R-squared >= 0.50",
+    "vacuum_ratio": {
+      "p10": 0.09395093586694557,
+      "median": 0.12733164081652915,
+      "p90": 0.1919423043832879
+    },
+    "surface_separation_r2": {
+      "p10": 0.5706231601773226,
+      "median": 0.9357061072604935,
+      "p90": 0.9965197788120634
+    }
+  },
+  "q_profile_structure": {
+    "measurement": "constant-F q-shape proxy normalized to parquet q95",
+    "quadratic_rho2_residual_fraction": {
+      "p10": 0.0035223706102394357,
+      "median": 0.005048422144045993,
+      "p90": 0.006934400660441639
+    },
+    "quadratic_rho2_explained_fraction": {
+      "p10": 0.9982168903405195,
+      "median": 0.9996422054394546,
+      "p90": 0.9998835694133943
+    },
+    "interpretation": "low-order, but not an independent q-profile receipt"
+  },
+  "near_axis_current_detail": {
+    "quadratic_rho2_residual_fraction": {
+      "p10": 0.0043252143545274065,
+      "median": 0.010060665319412932,
+      "p90": 0.02197774893939452
+    },
+    "quadratic_rho2_explained_fraction": {
+      "p10": 0.99611756178496,
+      "median": 0.9989614285836517,
+      "p90": 0.9997174668930487
+    },
+    "residual_split_half_coherence_by_shot": {
+      "p10": -0.1396769771920575,
+      "median": 0.9582741983679139,
+      "p90": 0.9957572595161096
+    },
+    "interpretation": "coherence can reflect EFIT basis or extraction bias as well as diagnostics"
+  },
+  "interior_basis": {
+    "q_proxy": {
+      "cumulative": [
+        0.9848746184846465,
+        0.9996564832228921,
+        0.9999936593538197,
+        0.9999975700321664,
+        0.9999983464254066,
+        0.9999988674035475,
+        0.9999992804007684,
+        0.9999994956515651,
+        0.9999996535990532,
+        0.9999997515748754,
+        0.9999998332124626,
+        0.9999998853312005,
+        0.9999999171380356,
+        0.9999999423671568,
+        0.9999999636139814,
+        0.999999979152283,
+        0.9999999885699064,
+        0.9999999958383555,
+        0.9999999999999999
+      ],
+      "rank_95": 1,
+      "rank_99": 2
+    },
+    "current_density": {
+      "cumulative": [
+        0.9699038421926603,
+        0.9972109708197028,
+        0.9983036214019223,
+        0.9986906299209238,
+        0.9989363822845678,
+        0.9990990085000041,
+        0.9992570969909667,
+        0.9993985457447382,
+        0.9995117741879377,
+        0.9996142047584103,
+        0.9997016095787856,
+        0.9997805560688416,
+        0.9998446380526087,
+        0.9998905199001724,
+        0.9999291270334449,
+        0.9999600752513755,
+        0.9999839583139992,
+        0.99999744363084,
+        1.0
+      ],
+      "rank_95": 1,
+      "rank_99": 2
+    },
+    "q_between_shot_variance_fraction": 0.3284697973742733,
+    "current_between_shot_variance_fraction": 0.4977212752399678,
+    "interpretation": "compact bases are consistent with a smooth low-order reconstruction ansatz"
+  },
+  "interior_flatness": {
+    "current_core_cv": {
+      "p10": 0.03922151373162229,
+      "median": 0.10928001912050435,
+      "p90": 0.1543136411552795
+    },
+    "q_proxy_core_cv": {
+      "p10": 0.046970520339533126,
+      "median": 0.07826688860658054,
+      "p90": 0.10146464575157066
+    },
+    "current_frames_below_10pct_cv": 0.4140461215932914,
+    "q_proxy_frames_below_10pct_cv": 0.8883647798742138,
+    "interpretation": "flatness is magnetics-only-like but is not unique to magnetics-only EFIT"
+  },
+  "verdict": {
+    "pedigree": "inconclusive",
+    "confidence": 0.85,
+    "recommendation": "edge-weighted",
+    "reason": "All four shape tests show a smooth, low-dimensional interior compatible with magnetics-only reconstruction, but none is constraint-specific. The same signatures can arise from MSE-constrained EFIT with a low-order profile basis and regularization."
+  }
+}
