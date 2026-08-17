@@ -1,14 +1,14 @@
-"""Dynamic latent state-space engine (RKN-style) for plasma-state-space-v0.
+"""Dynamic latent state-space engine (RKN-style) for plasma forecasting.
 
-S7.3 — the novel architectural core.  Proves that modelling DYNAMICS produces
+The learned dynamics model produces
 calibrated forecasting THROUGH TRANSIENTS that a per-slice static model cannot.
 
 Architecture (Recurrent Kalman Network, Becker et al. 2019, arXiv:1905.07357)
 ----------------------------------------------------------------------------
 A latent Gaussian belief with a FACTORISED (diagonal) covariance — no matrix
 inversions anywhere — propagated by a learned stochastic transition kernel and
-updated by a learned encoder, exactly the RKN recipe recommended in
-docs/probabilistic-state-space-methods.html §2 (RKN row) and §7.2.
+updated by a learned encoder, following the RKN architecture described in
+``docs/probabilistic-state-space-methods.html``.
 
   Encoder       : inputs_t (mag+ane, 122-d) → latent observation w_t (L-d)
                   and its diagonal observation variance r_t (L-d, softplus).
@@ -44,13 +44,13 @@ match the rollout error and the forecast intervals calibrated.
 
 Design-for-invariance (light)
 -----------------------------
-The encoder consumes per-channel z-scored inputs (ChannelStats from baseline.py)
-rather than raw machine-absolute scales, and the latent is dimensionless — so a
-later move to dimensionless / invariant coordinates (Stage-2) is not precluded.
-v0 does not test cross-machine.
+The encoder consumes per-channel z-scored inputs (``ChannelStats`` from
+``baseline.py``) rather than raw machine-absolute scales, and the latent is
+dimensionless, preserving compatibility with invariant coordinates.  This
+implementation does not test cross-machine transfer.
 
 CPU-first: the model is tiny (latent ≤ 32) and I/O dominates; CUDA buys nothing
-and adds node-drain risk (AGENTS.md §2a).  Runs on CPU on the data-access host.
+and adds node-drain risk.  Runs on CPU on the data-access host.
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ import torch.nn.functional as F  # noqa: N812
 
 logger = logging.getLogger(__name__)
 
-# Reproducibility / determinism (AGENTS.md §2b)
+# Deterministic kernels are required for reproducible experiment metrics.
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 torch.set_float32_matmul_precision("high")
@@ -107,24 +107,24 @@ class EngineConfig:
     rollout_loss_weight: float = 1.0
     grad_clip: float = 5.0
     seed: int = 0
-    # --- S7.4 rollout-drift reduction (bounded iteration lever) -------------
+    # --- Quiescent-rollout drift reduction ----------------------------------
     # Penalise the transition-mean increment f_θ(z) on QUIESCENT dynamics so the
     # autonomous latent rollout tracks the (96.8%-stationary) Dα baseline instead
     # of drifting off it.  The penalty is weighted by (1 - transient_weight): a
     # quiescent anchor pulls the predicted latent toward PERSISTENCE (Δz→0, i.e.
     # the transition toward identity); an ELM-active anchor is left free to move.
-    # This attacks the actual cause of the v0 bulk-CRPS loss (autonomous drift
-    # inflating the residual tail) and — unlike σ-rescaling — shrinks RESIDUALS,
-    # so it helps CRPS and NLL together (no σ zero-sum).  0.0 = off (v0 behaviour).
+    # Autonomous drift inflates the bulk residual tail; unlike σ-rescaling,
+    # this penalty shrinks residuals and can improve CRPS and NLL together.
+    # A value of 0.0 disables the penalty.
     drift_reg_weight: float = 0.0
-    # --- S7.5 heavy-tailed emission head ------------------------------------
-    # "gaussian" (v0/v1) or "student_t".  A single-Gaussian observation head
+    # --- Heavy-tailed emission head -----------------------------------------
+    # "gaussian" or "student_t".  A single-Gaussian observation head
     # cannot be CRPS-sharp on the ~97%-quiescent Dα bulk AND NLL-tail-safe on the
     # heavy-tailed ELM spikes at once — the NLL-optimal σ ≈ rmse ≫ the
     # CRPS-optimal σ ≈ typical |residual| on a heavy-tailed residual.  A Student-t
     # predictive resolves the tension: a SHARP scale tracks the bulk (low CRPS)
     # while the heavy tail (finite ν) keeps the spike NLL bounded.  This is the
-    # principled fix for the v1 transient/bulk-CRPS loss.
+    # mechanism for reconciling transient NLL with bulk CRPS.
     emission: str = "gaussian"
     # Student-t degrees of freedom.  If student_t_learn_nu, ν is a learned
     # per-output parameter (softplus, floored at student_t_nu_floor so Var is
@@ -134,18 +134,17 @@ class EngineConfig:
     student_t_learn_nu: bool = True
     student_t_nu: float = 5.0  # used when student_t_learn_nu is False
     student_t_nu_floor: float = 2.1  # keep ν>2 so the t variance ν/(ν-2) is finite
-    # --- S7.5 perf: cap intra-op threads in training (the real ~100x lever) --
+    # --- Cap intra-op threads for the small training model ------------------
     # The model is tiny (latent≤32) so training is OVERHEAD-bound: torch's default
     # intra-op thread count (48 on the data host) thrashes and inflates the
-    # per-batch time ~100x (3 s vs 30 ms), which is what made the S7.4 drift-reg
-    # run look "85x slower" — it was actually thread oversubscription, present
-    # with drift-reg OFF too.  4-8 threads is the measured sweet spot.  None =
-    # leave torch's setting untouched.
+    # per-batch time ~100x (3 s vs 30 ms).  The cost is thread
+    # oversubscription and is present with the drift penalty disabled.  Four to
+    # eight threads is the measured sweet spot; None leaves the setting untouched.
     num_threads: int | None = 4
-    # --- S8-T6 GS GROUNDING (additive; 0/off = the ungrounded v2 path) -------
+    # --- Additive Grad-Shafranov grounding ----------------------------------
     # When ``grounding`` is True, a GroundingHead (gs/grounding.py) maps the
     # filtered latent z_t to the LOCKED restricted GS currents (order-1 plasma
-    # poly DOF + rank-4 passive SVD) pushed through the T2 forward operator to
+    # poly DOF + rank-4 passive SVD) pushed through the magnetic forward operator to
     # predict RAW magnetics.  Two terms add to the joint loss:
     #   gs_data_weight · L_data  (raw-magnetics reconstruction NLL through G)
     #   L_GS  (the GS force-balance soft prior, current-space L2, weight gs_lambda)
@@ -222,7 +221,7 @@ class RKNEngine(nn.Module):
         self.obs_var_w = nn.Parameter(torch.zeros(L, cfg.output_dim))
         self.log_obs_noise = nn.Parameter(torch.full((cfg.output_dim,), math.log(0.1)))
 
-        # S7.5: learned Student-t degrees of freedom (per output dim).  Only used
+        # Learned Student-t degrees of freedom (per output dim).  Only used
         # when cfg.emission == "student_t".  Parameterised as ν = floor +
         # softplus(raw) so ν > floor > 2 (finite variance).  Init near ν≈5.
         nu_init = max(cfg.student_t_nu, cfg.student_t_nu_floor + 0.5)
@@ -233,7 +232,7 @@ class RKNEngine(nn.Module):
         self.z0 = nn.Parameter(torch.zeros(L))
         self.log_var0 = nn.Parameter(torch.full((L,), math.log(1.0)))
 
-        # S8-T6: GS grounding head (latent → restricted GS currents).  Only
+        # GS grounding head (latent → restricted GS currents).  Only
         # constructed when grounding is on; the plasma DOF count is derived from
         # the locked profile order (order-1 → {1, ρ_R, ρ_Z} = 3 DOF) so the head
         # is built without any campaign data.  The forward operator + per-campaign
@@ -296,7 +295,7 @@ class RKNEngine(nn.Module):
         Each call adds Q → variance grows with the number of predict steps →
         calibrated widening through transients during autonomous rollout.
 
-        ``return_incr`` (S7.5 perf): also return the transition-mean increment
+        ``return_incr`` also returns the transition-mean increment
         f_θ(z) so the quiescent-drift penalty can REUSE the increment computed in
         the forward scan instead of running a second full ``trans_mean`` forward
         over all (B·T) latents (which built a redundant autograd subgraph).
@@ -418,7 +417,7 @@ class RKNEngine(nn.Module):
         return z_post, var_post, obs_mu, obs_var
 
     def filter_innovation(self, x_seq: torch.Tensor) -> torch.Tensor:
-        """Per-step normalised filter-innovation magnitude (S7.5 ENGINE-NATIVE OOD).
+        """Per-step normalised filter-innovation magnitude for engine-native OOD.
 
         The innovation at t is the latent observation w_t (from the encoder)
         minus the one-step PRIOR mean z_prior_t (predicted from the previous
@@ -534,7 +533,7 @@ def student_t_nll(
 # Student-t scoring (numpy) — CRPS + NLL for the harness
 # ---------------------------------------------------------------------------
 #
-# calibration.py (import-only for S7.5) provides only Gaussian closed forms, so
+# ``calibration.py`` provides only Gaussian closed forms, so
 # the Student-t emission head's CRPS/NLL live here.  Both are standard
 # closed-form expressions validated against Monte-Carlo in the engine tests.
 
@@ -605,7 +604,7 @@ class TrainState:
     epoch_filter_nll: list[float] = field(default_factory=list)
     epoch_rollout_nll: list[float] = field(default_factory=list)
     seconds: float = 0.0
-    # S8-T6 GS grounding (per-epoch mean L_data / L_GS; empty when ungrounded)
+    # GS grounding losses (per-epoch mean L_data / L_GS; empty when ungrounded)
     epoch_gs_data: list[float] = field(default_factory=list)
     epoch_gs_prior: list[float] = field(default_factory=list)
 
@@ -685,7 +684,7 @@ def _quiescent_drift_penalty(
 ) -> torch.Tensor:
     """Persistence regulariser on the transition increment over QUIESCENT steps.
 
-    The autonomous rollout drift that costs the v0 engine its bulk CRPS is the
+    The autonomous-rollout bulk CRPS error is driven by the
     transition-mean increment f_θ(z) accumulating off the stationary Dα baseline.
     Here we penalise ||f_θ(z_post)||² at every (b, t), weighting each step by its
     QUIESCENCE = 1 - (transient mass in its forecast window, normalised to [0,1]).
@@ -730,20 +729,19 @@ def train_engine(
     cfg : EngineConfig.
     stop_flag : optional callable returning True to request a clean early exit
         at the next epoch boundary.
-    grounding_ctx : optional ``gs.grounding.GroundingContext`` (S8-T6).  When
+    grounding_ctx : optional ``gs.grounding.GroundingContext``.  When
         supplied AND ``cfg.grounding``, the joint loss adds the per-campaign GS
-        grounding terms (L_data raw-magnetics reconstruction NLL through the T2
+        grounding terms (L_data raw-magnetics reconstruction NLL through the magnetic
         operator + the L_GS force-balance soft prior) on the windows whose shot
         has a campaign operator.  The window→run order MUST match the order
         produced by ``_build_training_windows(..., return_run_index=True)`` with
         the SAME seq_len/seed (the experiment builds the context that way).
     """
-    # S7.5 PERF FIX: cap intra-op threads.  The model is tiny (latent≤32) so the
+    # Cap intra-op threads because the model is tiny (latent≤32) and the
     # forward+backward is overhead-bound; torch's default 48-thread pool thrashes
-    # and inflates the per-batch time ~100x (3 s vs ~30 ms at 4-8 threads).  This —
-    # NOT the drift regulariser — was the S7.4 "85x slower per batch" finding (the
-    # 48-thread cost is present with drift-reg OFF too; the penalty itself adds
-    # only ~7%).  We restore the original thread count after training.
+    # and inflates the per-batch time ~100x (3 s vs ~30 ms at 4-8 threads).
+    # The 48-thread cost is present with drift regularisation disabled; the
+    # penalty itself adds only ~7%.  Restore the original count after training.
     _saved_threads = torch.get_num_threads()
     if cfg.num_threads is not None:
         torch.set_num_threads(int(cfg.num_threads))
@@ -849,7 +847,7 @@ def train_engine(
                 drift = _quiescent_drift_penalty(model, z_post, wb)
                 loss = loss + cfg.drift_reg_weight * drift
 
-            # --- S8-T6 GS grounding terms (per-campaign subset of the batch) --
+            # --- GS grounding terms for each campaign subset in the batch ---
             # For each campaign signature present in this batch, gather the
             # subset's filtered z_post + the NORMALISED inputs xb at ALL
             # timesteps (the operator de-normalises internally), flatten over
@@ -944,7 +942,7 @@ def _build_training_windows(
     run yields more than ``max_windows_per_shot``, a random subset is kept (so a
     handful of very long shots do not dominate the batch distribution).
 
-    ``return_run_index`` (S8-T6, additive): also return a per-window int index
+    ``return_run_index`` also returns a per-window integer index
     into ``x_list`` (the source run), so the GS grounding can map each window to
     its shot's campaign operator.  The window selection is UNCHANGED (same rng,
     same order) whether or not the index is returned — the ungrounded path is
@@ -1078,14 +1076,14 @@ def _load_split_runs(
     Dead filterscopes (Dα std < floor) are dropped — this auto-applies to BOTH
     models because the runs are the shared substrate.
 
-    ``integrated`` (T10): when True, load the WIDENED input set via
+    ``integrated`` loads the widened input set via
     ``integrated_inputs.load_shot_integrated`` (mag+ane + the 14-d Thomson
-    pressure features) instead of the v2 mag+ane ``baseline.load_shot_slices``.
+    pressure features) instead of the mag+ane ``baseline.load_shot_slices``.
     The Thomson block is appended LAST so the mag column layout (and hence the
     GS grounding head's amb/amc slice map) is unchanged.  Per-shot Thomson
     profile-completeness is recorded into ``completeness_out`` (shot_id → weight)
     for the sparse-pressure weighting.  The cache tag is namespaced so the wider
-    runs never collide with the v2 mag-ane cache.
+    runs never collide with the mag+ane cache.
     """
     from imas_ambix.statespace.baseline import load_shot_slices  # noqa: PLC0415
 
@@ -1185,16 +1183,16 @@ def _load_split_runs(
 # Static comparator at horizon h>0 (frozen-input / persistence-of-nowcast)
 # ---------------------------------------------------------------------------
 #
-# The S7.2 baseline is an instantaneous map inputs_t → Dα_t.  The static
+# The static baseline is an instantaneous map inputs_t → Dα_t.  The static
 # comparator at horizon h predicts Dα_{t+h} = static_map(inputs_t): the same
 # deep-ensemble + conformal architecture (baseline.py classes) applied to inputs
 # at time t.  This gives the static model the SAME information set as the engine
 # (inputs up to t only).  NOTE: the static comparator here is RETRAINED on the
-# SAME dense contiguous runs as the engine (NOT on S7.2's linspace-decimated
+# SAME dense contiguous runs as the engine (not linspace-decimated
 # slices) — so it does not literally reproduce the committed 0.334/0.634 numbers.
 # That is deliberate: an identical dense train set + identical eval windows is the
-# only clean head-to-head; the committed S7.2 numbers are sanity references, per
-# the task spec, not the bar.  Only the eval *targets* shift by h (frozen nowcast).
+# only clean head-to-head.  Decimated-run numbers are sanity references, not the
+# comparison bar.  Only the eval *targets* shift by h (frozen nowcast).
 
 
 # ---------------------------------------------------------------------------
@@ -1224,16 +1222,16 @@ def _dense_transient_anchors(run: ShotRun, h_max: int, pad: int = 5) -> np.ndarr
 
 
 # ===========================================================================
-# Experiment runner — the STAGE-1 ACCEPTANCE GATE
+# Dynamic-engine experiment runner
 # ===========================================================================
 
 
 @dataclass
 class ExperimentConfig:
-    """Top-level S7.3 experiment configuration."""
+    """Top-level dynamic-engine experiment configuration."""
 
     latent_dim: int = 16
-    max_train_shots: int = 500  # bound corpus for tractable v0 (reported, not silent)
+    max_train_shots: int = 500  # bound corpus for tractable training; always reported
     max_cal_shots: int = 300
     max_ood_shots: int = 200
     horizons: tuple[int, ...] = (1, 2, 5, 10, 20)  # steps @ 1 kHz
@@ -1242,21 +1240,21 @@ class ExperimentConfig:
     seed: int = 0
     do_smoothing: bool = False  # optional mode, only if budget remains
     device: str = "cpu"
-    # S7.4 levers (bounded iteration; reported, not silent)
-    drift_reg_weight: float = 0.0  # quiescent persistence regulariser (0 = v0)
+    # Quiescent persistence regularisation (reported, never silent)
+    drift_reg_weight: float = 0.0  # zero disables the regulariser
     train_horizons: tuple[int, ...] | None = None  # override training rollout horizons
-    # S7.5 levers
-    emission: str = "gaussian"  # "gaussian" (v0/v1) or "student_t" (heavy-tail head)
+    # Emission distribution
+    emission: str = "gaussian"  # "gaussian" or "student_t" (heavy-tail head)
     student_t_learn_nu: bool = True
     student_t_nu: float = 5.0
     num_threads: int | None = 4  # cap intra-op threads in training (perf)
-    # S8-T6 GS grounding (0/off = the ungrounded v2 path; both stay runnable)
+    # Optional GS grounding; the ungrounded path remains runnable.
     grounding: bool = False
     gs_profile_order: int = 1
     gs_passive_rank: int = 4
     gs_lambda: float = 1e-2
     gs_data_weight: float = 0.1
-    # Static-comparator ensemble size.  Defaults reproduce v2 (5×60) so the
+    # Static-comparator ensemble size.  Defaults preserve the 5×60 reference so the
     # ungrounded path is bit-identical.  The GROUNDING-VALUE acceptance (criteria
     # 1/2/3) is ENGINE-ONLY (filtering, discovery-gap, near-vacuum) — the static
     # comparator does not enter the grounding verdict — so the grounding run may
@@ -1265,19 +1263,19 @@ class ExperimentConfig:
     # ensemble_disagreement well-defined).  Reported in the artifact config.
     static_ensemble_members: int = 5
     static_ensemble_epochs: int = 60
-    # S8-T10 INTEGRATED INPUT SET (the grounding-fix; 0/off = the v2 mag+ane path)
+    # Integrated input set; disabled selects the mag+ane path.
     # When ``integrated`` is True the engine consumes the WIDENED input set
     # (mag+ane + the 14-d Thomson pressure features per the LOCKED internal-core
     # decision) loaded via ``integrated_inputs.load_shot_integrated``, and the
     # splits come from ``splits_manifest`` (the locked integrated split with the
-    # v0 joint_p84 OOD box).  The GS grounding head still reconstructs RAW
-    # magnetics through the T2 operator (the Thomson block is encoder-only — it
+    # joint-p84 OOD box).  The GS grounding head still reconstructs raw
+    # magnetics through the magnetic operator (the Thomson block is encoder-only — it
     # enriches the latent; the GS pressure-likelihood term is the documented
-    # next increment).  CORPUS FINDING (T10): the MSE (ams) current/q half of
+    # does not add a pressure likelihood).  The MSE (ams) current/q half of
     # internal-core is unrealizable from level-1 (static a-coeff geometry table,
     # not γ(t)); only the Thomson p′ half is wired — see integrated_inputs.py.
     integrated: bool = False
-    splits_manifest: Path | None = None  # override; None → v0 mag-ane manifest
+    splits_manifest: Path | None = None  # override; None selects the mag-ane manifest
 
 
 def _stack_runs_for_static(runs: list[ShotRun]) -> tuple[np.ndarray, np.ndarray]:
@@ -1388,11 +1386,11 @@ def _score_horizons(
     uses the per-horizon conformal scale ``conformal_q[h]`` if supplied.
 
     nu : if not None, ``var`` is interpreted as the Student-t SCALE² (location-
-    scale parameter) and CRPS/NLL use the closed-form Student-t scores (S7.5
+    scale parameter) and CRPS/NLL use the closed-form Student-t scores from the
     heavy-tail head).  The reported ``mean_sigma_raw`` is then the predictive
     STD = scale·√(ν/(ν-2)) (so the σ-vs-rmse diagnostic stays comparable), while
     the conformal interval rescales the predictive std — conformal coverage is
-    distribution-corrected either way.  ``nu`` None → Gaussian (v0/v1 behaviour).
+    distribution-corrected either way.  ``nu`` None selects Gaussian scores.
 
     transient_flag : (P, H) bool.  If supplied, CRPS is ALSO reported on the
     subset where the FORECAST TARGET Dα_{t+h} is itself ELM-active — the
@@ -1533,7 +1531,7 @@ def _fit_ensemble_clipped(
 
 
 def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
-    """Run the full S7.3 acceptance experiment and return the metrics dict.
+    """Run the full dynamic-engine experiment and return the metrics dict.
 
     Stages: load runs → fit shared normaliser → train engine →
     retrain static comparator → FILTERING eval → build dense transient windows →
@@ -1592,7 +1590,7 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
         }
     }
 
-    # --- 1. splits + sub-split (same conf-cal / in-dist-test as S7.2) -------
+    # --- Split and sub-split with the shared calibration/test partition -----
     with open(splits_path) as f:
         splits = json.load(f)
     train_shots = [int(x) for x in splits["train"]]
@@ -1724,7 +1722,7 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     x_train_n = [stats.normalise_X(r.X.astype(np.float64)) for r in train_runs]
     y_train_n = [stats.normalise_y(r.y.astype(np.float64)) for r in train_runs]
     model = RKNEngine(eng_cfg)
-    # --- S8-T6: build the GS grounding context (per-campaign operators +
+    # Build the GS grounding context (per-campaign operators +
     # whitening + per-window signature) when grounding is on. ---------------
     grounding_ctx = None
     if cfg.grounding:
@@ -1767,7 +1765,7 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
         device=cfg.device,
         grounding_ctx=grounding_ctx,
     )
-    # S8-T6: capture the trained model + grounding context for the grounding
+    # Capture the trained model + grounding context for the grounding
     # evaluators (run_grounding_experiment reuses these — no second train).
     if cfg.grounding:
         global _LAST_MODEL, _LAST_GROUNDING_CTX, _LAST_TRAIN_RUNS, _LAST_STATS
@@ -1808,22 +1806,18 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     ensemble = DeepEnsemble.build(input_dim, output_dim, ens_cfg)
     # NOTE: train with a GRADIENT-CLIPPED loop (in-scope; uses MLPGaussian's
     # public nll_and_grads/adam_step API).  baseline.MLPGaussian.fit_sgd has NO
-    # grad clipping, which DIVERGES on dense un-decimated ELM-spike targets
+    # grad clipping, which diverges on dense un-decimated ELM-spike targets
     # (seed-dependent: members get NLL≈+7/+9, μ/σ explode → static rmse≈25,
-    # σ≈87 → a meaningless comparator).  S7.2 never hit this because its
-    # max_slices_per_shot=200 linspace-decimation aliased the ms-scale spikes
-    # away — exactly what S7.3 must NOT do.  Clipping the global grad norm at 5.0
-    # (mirrors the engine's clip_grad_norm_) makes all seeds converge.  The
-    # missing clip in baseline.py is a latent bug → recommended followup for the
-    # orchestrator to fix at source (also hardens S7.2 on un-decimated data).
+    # σ≈87 → a meaningless comparator).  Linspace decimation aliases the
+    # millisecond spikes away, so it does not exercise this failure mode.
+    # Clipping the global grad norm at 5.0 makes all seeds converge and mirrors
+    # the engine's own ``clip_grad_norm_`` call.
     # Static comparator MUST train clipped (task spec): an unclipped MLP diverges
     # on dense ELM-spike targets → meaningless strawman.  We REUSE the existing
-    # _fit_ensemble_clipped with grad_clip=5.0 — bit-identical to the S7.3 (v0)
-    # static fit — so the v0→v1 comparison is purely engine-driven (the static
-    # comparator does not move between versions; clean head-to-head).  This
-    # mirrors the engine's own clip_grad_norm_(…, 5.0).
+    # ``_fit_ensemble_clipped`` with grad_clip=5.0 keeps the static comparator
+    # fixed across engine configurations for a clean head-to-head.
     _fit_ensemble_clipped(ensemble, Xtr_n, ytr_n, ens_cfg, grad_clip=5.0)
-    # static conformal at h=0 (S7.2-style split-conformal on the dense runs)
+    # Static conformal at h=0 on the dense runs.
     Xcf, ycf = _stack_runs_for_static(conf_runs)
     static_conf = ConformalWrapper(ensemble, stats)
     static_conf.fit_conformal(
@@ -1981,7 +1975,7 @@ def _per_horizon_q(
 ) -> dict[int, float]:
     """Fit a split-conformal scale q̂ per horizon from calibration forecasts.
 
-    ``std_factor`` (S7.5 Student-t): the conformal residual-quantile is fit on
+    ``std_factor`` fits the conformal residual quantile on
     the PREDICTIVE STD = scale·std_factor (std_factor = √(ν/(ν-2)) for a t_ν),
     matching what ``_score_horizons`` rescales for coverage.  1.0 = Gaussian.
     """
@@ -2111,9 +2105,9 @@ def _eval_filtering(
 
     Coverage uses split-conformal fit on conf runs' filtered residuals.
 
-    ``nu`` (S7.5): if set, the filtered ``var`` is the Student-t SCALE² and the
+    If ``nu`` is set, the filtered ``var`` is the Student-t SCALE² and the
     CRPS/NLL use the closed-form t scores; the conformal fit + coverage use the
-    predictive std = scale·√(ν/(ν-2)).  ``nu`` None → Gaussian (v0/v1 behaviour).
+    predictive std = scale·√(ν/(ν-2)).  ``nu`` None selects Gaussian scores.
 
     BURN-IN (critical for honest coverage): the belief starts at the broad prior
     (var0 = data-std); the first few updates are prior-dominated, so the filtered
@@ -2232,13 +2226,13 @@ def _ood_honesty(
     Reports (a) engine filtering coverage on OOD vs in-dist (non-collapse),
     (b) ENGINE-NATIVE OOD-AUROC from the engine's OWN signals — the filtered
     predictive σ and the normalised filter-innovation magnitude — so the OOD
-    comparison is a TRUE engine-vs-static one (S7.5 refinement #2), (c) the
+    comparison is a true engine-vs-static one, (c) the
     static deep-ensemble disagreement AUROC kept for reference (CLEARLY labelled
-    as the static model's, not the engine's — the S7.4 artifact mislabelled it),
+    as the static model's, not the engine's),
     and (d) coverage-vs-distance from the regime axis using the engine-native
     score.  Reported honestly — not hard-thresholded.
 
-    ``nu`` (S7.5): when set, the filtered ``var`` is the Student-t SCALE² and the
+    When ``nu`` is set, the filtered ``var`` is the Student-t SCALE² and the
     reported predictive σ = scale·√(ν/(ν-2)).
     """
     from imas_ambix.statespace.calibration import (  # noqa: PLC0415
@@ -2293,7 +2287,7 @@ def _ood_honesty(
         out["mean_sigma_indist"] = float(np.mean(sig_i))
         out["mean_sigma_ood"] = float(np.mean(sig_o))
 
-    # ENGINE-NATIVE OOD-AUROC (S7.5 refinement #2): the engine's own signals.
+    # Engine-native OOD AUROC uses the engine's own signals.
     #   (1) predictive σ magnitude — does the model widen its belief on OOD?
     #   (2) filter-innovation magnitude — does inputs_t surprise the dynamics?
     if y_i is not None and y_o is not None:
@@ -2311,8 +2305,7 @@ def _ood_honesty(
         out["mean_innovation_ood"] = float(np.mean(inno_o))
 
     # STATIC deep-ensemble disagreement AUROC — kept for reference, CLEARLY
-    # labelled as the STATIC model's input-novelty score (NOT an engine signal;
-    # the S7.4 artifact's "ood_auroc 0.81" was this number, mislabelled).
+    # labelled as the static model's input-novelty score, not an engine signal.
     Xi = np.concatenate([r.X for r in idt_runs]).astype(np.float64)
     Xo = np.concatenate([r.X for r in ood_runs]).astype(np.float64)
     _, _, ens_i = ensemble.predict(stats.normalise_X(Xi))
@@ -2321,7 +2314,7 @@ def _ood_honesty(
         out["ood_auroc_static_ensemble_disagreement"] = float(
             ood_auroc(ensemble_disagreement(ens_i), ensemble_disagreement(ens_o))
         )
-        # back-compat alias (the v0/v1 key) — same static number, now labelled
+        # Compatibility alias for the same static input-novelty score.
         out["ood_auroc_ensemble_disagreement"] = out[
             "ood_auroc_static_ensemble_disagreement"
         ]
@@ -2420,8 +2413,8 @@ def _verdict(metrics: dict) -> dict:
     )
 
     # (2c) ACCEPTANCE-RELEVANT slice — NLL on the TRANSIENT TARGET subset.
-    # The re-scoped Stage-1 bar (f-s7-stage1-decision, option B) is met when the
-    # engine beats the static comparator on transient-subset CRPS *OR* transient-
+    # The dynamics bar is met when the engine beats the static comparator on
+    # transient-subset CRPS *OR* transient-
     # subset NLL at H>0.  NLL is the well-motivated criterion for a DYNAMICS
     # claim: a confidently-narrow static is caught CATASTROPHICALLY when an ELM
     # lands at t+h (its σ is its h=0 σ, with no widening mechanism), so its
@@ -2497,13 +2490,13 @@ def _verdict(metrics: dict) -> dict:
 
     # (3) OOD honesty quantified + coverage non-collapse
     ood = metrics.get("ood_honesty", {})
-    # S7.5: criterion 3 is judged on ENGINE-NATIVE OOD signals (the engine's own
+    # OOD honesty is judged on engine-native signals (the engine's own
     # innovation + predictive-σ AUROC), NOT the static-ensemble disagreement.
     # We report BOTH engine signals; the headline engine-native AUROC is the
     # innovation (the most-principled "inputs surprise the dynamics" signal), with
     # the predictive-σ AUROC reported alongside.  The static-ensemble disagreement
-    # is kept ONLY as a clearly-labelled SAME-DATA reference (v1 mislabelled this
-    # 0.81 as the engine's — it is the STATIC model's input-novelty score).
+    # is kept only as a clearly labelled same-data reference; it is the static
+    # model's input-novelty score.
     engine_innov = ood.get("ood_auroc_engine_innovation")
     engine_sigma = ood.get("ood_auroc_engine_predictive_sigma")
     engine_auroc = ood.get("ood_auroc_engine")  # headline = innovation
@@ -2522,20 +2515,19 @@ def _verdict(metrics: dict) -> dict:
     v["ood_coverage_indist"] = ci
     v["ood_coverage_ood"] = co
 
-    # ---- RE-SCOPED STAGE-1 ACCEPTANCE (f-s7-stage1-decision, A+B) -----------
+    # ---- Dynamics-model acceptance -----------------------------------------
     # (1) filtering calibrated 88-92%; (2) engine beats static on transient
     # CRPS OR NLL at H>0 on identical dense windows; (3) OOD honesty.
     #
-    # S7.5 criterion-3 honesty (the v1 number was the mislabelled static score).
-    # The plan wording is "a quantified OOD signal CLEARLY EXCEEDING the static",
-    # so criterion 3 is decomposed into two EXPLICIT sub-parts, both required:
+    # OOD honesty requires a quantified signal clearly exceeding the static
+    # comparator, decomposed into two explicit sub-parts:
     #   (3a) coverage non-collapse (OOD filter coverage stays > 0.5);
     #   (3b) the DYNAMICS-NATIVE engine OOD-AUROC (the filter-innovation — a signal
     #        the static CANNOT produce) is (i) usable (> 0.65 absolute) AND
     #        (ii) CLEARLY exceeds the SAME-DATA static-ensemble disagreement (a
     #        REAL margin ≥ 0.05 — not a within-noise tie).  The apples-to-apples
     #        reference is the SAME-DATA static disagreement, NOT the 0.568
-    #        decimated number (a cross-dataset mismatch would relaunder v1's bug).
+    #        decimated number, because a cross-dataset comparison is invalid.
     # The predictive-σ AUROC is REPORTED but NOT used for (3b): predictive-σ
     # inflation and the static ensemble-disagreement measure the SAME construct
     # (predictive-uncertainty growth), so "engine pred-σ ≈ static disagreement" is
@@ -2593,14 +2585,14 @@ def _verdict(metrics: dict) -> dict:
 
 
 # ===========================================================================
-# S8-T6 GROUNDING-VALUE ACCEPTANCE EVALUATORS
+# GROUNDING-VALUE EVALUATORS
 # ===========================================================================
 #
 # These judge the GROUNDED latent on GROUNDING VALUE (NOT |dB/dt| detection):
 #   (1) help/hurt Dα — comes from run_experiment's filtering + forecasting
-#       numbers on the SAME S7 harness (compared to v2 in the driver below);
-#   (2) DISCOVERY-DISCRIMINATE — the T8 identity-null vs true-fθ Dα-skill gap on
-#       the grounded latent (does grounding enrich fθ beyond T8's 1.3%?);
+#       numbers on the same harness (compared to an ungrounded reference);
+#   (2) DISCOVERY-DISCRIMINATE — the identity-null vs true-fθ Dα-skill gap on
+#       the grounded latent (does grounding widen the 1.3% reference gap?);
 #   (3) PHYSICAL INTERPRETABILITY — near-vacuum c_plasma collapse + the grounded
 #       latent carrying force-balance structure.
 
@@ -2614,9 +2606,9 @@ def _discovery_discriminate_grounded(
     max_runs: int = 40,
     max_basis_samples: int = 40000,
 ) -> dict:
-    """T8 identity-null vs true-fθ Dα-skill gap, re-run on the GROUNDED latent.
+    """Measure identity-null versus true-fθ skill on the grounded latent.
 
-    The KEY grounding test (acceptance #2).  Reuses the T8 skill-validator
+    This grounding-discrimination test reuses the transition validator
     machinery (discovery_sindy.build_reduced_basis + ReducedTransition +
     _score_with_transition).  The identity-null transition (Δz≡0) is
     BASIS-INDEPENDENT (zero coefficients → Δz=0 regardless of V_r), so we do NOT
@@ -2627,8 +2619,8 @@ def _discovery_discriminate_grounded(
         true-fθ    : the grounded ``model.trans_mean`` (transition unchanged)
         identity   : a ReducedTransition with ZERO coefficients (Δz≡0 rollout)
 
-    on the SAME train runs / horizons / max_runs as T8.  A WIDENED gap (beyond
-    T8's 1.3%) ⇒ grounding gave the latent real dynamics (fθ now rich enough
+    on the same train runs, horizons, and run cap as the reference.  A widened
+    gap beyond 1.3% means grounding gave the latent real dynamics (fθ now rich enough
     that the discovery metric DISCRIMINATES).  ~1.3% still ⇒ grounding did not
     enrich fθ.
     """
@@ -2697,7 +2689,7 @@ def _discovery_discriminate_grounded(
         "n_runs_scored": min(max_runs, len(train_runs)),
         "interpretation": (
             f"Grounded-latent discovery gap = {rel_gap:.2%} "
-            f"(T8 ungrounded baseline = 1.28%). "
+            f"(ungrounded reference = 1.28%). "
             + (
                 "WIDENED — grounding enriched fθ; the discovery metric now "
                 "discriminates."
@@ -2727,7 +2719,7 @@ def _grounded_physical_interpretability(
 ) -> dict:
     """Near-vacuum c_plasma collapse + force-balance structure on the GROUNDED head.
 
-    Acceptance #3.  Unlike the standalone monitor (which solves c_plasma per slice
+    Unlike the standalone monitor, which solves c_plasma per slice,
     by lstsq), here the currents are PREDICTED from z by the grounding head — so
     near-vacuum soundness does NOT transfer for free; it must be re-checked.  For
     each shot with a near-vacuum slice (|Ip|≈0, solenoid sizeable) we read the
@@ -2848,15 +2840,16 @@ def _campaign_b_poly(cg) -> np.ndarray:
 def run_grounding_experiment(
     cfg: ExperimentConfig,
     output: Path | None = None,
-    v2_metrics_path: Path | None = None,
+    reference_metrics_path: Path | None = None,
 ) -> dict:
-    """S8-T6 grounding-value experiment: grounded retrain + re-scoped acceptance.
+    """Run a grounded retrain and evaluate the value of grounding.
 
     Runs the GROUNDED engine through the SAME run_experiment harness (so the
-    filtering + forecasting numbers are directly comparable to v2), then adds the
+    filtering + forecasting numbers are directly comparable to the ungrounded
+    reference), then adds the
     two grounding-specific evaluators (discovery-discriminate gap; near-vacuum /
-    physical interpretability).  The help/hurt-Dα delta vs v2 is computed from
-    the v2 metrics artifact.
+    physical interpretability).  The help/hurt-Dα delta is computed from the
+    reference metrics artifact.
     """
     if not cfg.grounding:
         raise ValueError("run_grounding_experiment requires cfg.grounding=True")
@@ -2895,8 +2888,10 @@ def run_grounding_experiment(
             model, grounding_ctx, train_runs, stats, cfg.device
         )
 
-    # --- (1) help/hurt Dα vs v2 (same harness numbers) ----------------------
-    metrics["help_hurt_dalpha"] = _grounding_help_hurt(metrics, v2_metrics_path)
+    # Compare Dα help/hurt on the same harness numbers.
+    metrics["help_hurt_dalpha"] = _grounding_help_hurt(
+        metrics, reference_metrics_path
+    )
 
     metrics["grounding_verdict"] = _grounding_verdict(metrics)
 
@@ -2908,16 +2903,17 @@ def run_grounding_experiment(
     return metrics
 
 
-def _grounding_help_hurt(metrics: dict, v2_path: Path | None) -> dict:
-    """Compare grounded filtering + forecasting Dα skill vs the v2 (ungrounded)."""
-    out: dict = {"v2_metrics_path": str(v2_path) if v2_path else None}
-    if v2_path is None or not v2_path.exists():
-        out["error"] = "v2 metrics not found — cannot compute help/hurt delta"
+def _grounding_help_hurt(metrics: dict, reference_path: Path | None) -> dict:
+    """Compare grounded Dα skill with an ungrounded reference."""
+    # Serialized key names are retained for compatibility with existing metrics.
+    out: dict = {"v2_metrics_path": str(reference_path) if reference_path else None}
+    if reference_path is None or not reference_path.exists():
+        out["error"] = "reference metrics not found — cannot compute help/hurt delta"
         return out
-    with open(v2_path) as f:
-        v2 = json.load(f)
+    with open(reference_path) as f:
+        reference = json.load(f)
     gf = metrics.get("filtering", {})
-    vf = v2.get("filtering", {})
+    vf = reference.get("filtering", {})
     out["filtering"] = {
         k: {
             "grounded": gf.get(k),
@@ -2930,7 +2926,9 @@ def _grounding_help_hurt(metrics: dict, v2_path: Path | None) -> dict:
     }
     # forecasting CRPS/NLL per horizon (overall)
     g_eng = metrics.get("forecasting_indist_dense_transient", {}).get("engine", {})
-    v_eng = v2.get("forecasting_indist_dense_transient", {}).get("engine", {})
+    v_eng = reference.get("forecasting_indist_dense_transient", {}).get(
+        "engine", {}
+    )
     fc = {}
     for h in sorted(set(g_eng) | set(v_eng), key=lambda x: int(x)):
         gh = g_eng.get(h, {})
@@ -2966,9 +2964,10 @@ def _grounding_verdict(metrics: dict) -> dict:
     a frozen belief" — NOT enrichment.  The verdict states this explicitly so a
     confounded win is not over-claimed: ``grounding_enriched_latent`` requires
     BOTH (gap widened + discriminates) AND (Dα preserved).  The clean-comparison
-    flag also asserts the run matched v2 (student_t + drift_reg=0.3) so the
-    gap-widening is attributable to grounding, not to dropping drift_reg (which
-    alone unfreezes f_θ — discovery_sindy crux_1).
+    flag also asserts the run matched the ungrounded reference
+    (student_t + drift_reg=0.3) so the
+    gap-widening is attributable to grounding, not to dropping drift regularisation,
+    which alone unfreezes f_θ.
     """
     hh = metrics.get("help_hurt_dalpha", {})
     dd = metrics.get("discovery_discriminate", {})
@@ -2979,15 +2978,15 @@ def _grounding_verdict(metrics: dict) -> dict:
     gap_widened = bool(dd.get("widened_beyond_t8")) and bool(
         dd.get("metric_discriminates")
     )
-    # clean comparison = grounded run matched v2's emission + drift_reg
-    clean_vs_v2 = bool(
+    # A clean comparison matches the reference emission and drift regularisation.
+    clean_comparison = bool(
         cfgd.get("emission") == "student_t"
         and abs(float(cfgd.get("drift_reg_weight", -1)) - 0.3) < 1e-9
     )
     return {
         "criterion1_dalpha_help_hurt": hh.get("filtering_crps_verdict"),
         "criterion1_filtering_crps_rel_change": rel,
-        # "did not silently destroy Dα" = within ~10% of v2 (or better)
+        # Dα is preserved when it remains within ~10% of the reference or improves.
         "criterion1_dalpha_preserved": dalpha_preserved,
         "criterion2_discovery_gap_grounded": dd.get("identity_minus_true_rel"),
         "criterion2_t8_baseline_gap": dd.get("t8_baseline_gap"),
@@ -2998,11 +2997,11 @@ def _grounding_verdict(metrics: dict) -> dict:
         ),
         "criterion3_near_vacuum_ok": pi.get("near_vacuum_ok_GROUNDED"),
         # --- coupled grounding-value claim (the honest headline) -------------
-        "clean_comparison_vs_v2": clean_vs_v2,
+        "clean_comparison_vs_v2": clean_comparison,
         "grounding_enriched_latent": bool(gap_widened and dalpha_preserved),
         "enrichment_claim_note": (
-            "ENRICHED — gap widened beyond T8 AND Dα preserved AND clean v2 comparison."
-            if (gap_widened and dalpha_preserved and clean_vs_v2)
+            "ENRICHED — gap widened, Dα preserved, and reference comparison clean."
+            if (gap_widened and dalpha_preserved and clean_comparison)
             else (
                 "CONFOUNDED — gap widened but Dα NOT preserved: the bigger gap "
                 "may be a worse model's f_θ thrashing, not enrichment."
@@ -3010,7 +3009,7 @@ def _grounding_verdict(metrics: dict) -> dict:
                 else (
                     "gap did NOT widen — grounding did not enrich f_θ."
                     if not gap_widened
-                    else "gap widened but the v2 comparison is NOT clean "
+                    else "gap widened but the reference comparison is NOT clean "
                     "(emission/drift_reg differ) — attribution to grounding "
                     "(vs dropping drift_reg) is ambiguous."
                 )
@@ -3039,7 +3038,7 @@ def main(argv: list[str] | None = None) -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    p = argparse.ArgumentParser(description="S7.3 RKN engine acceptance experiment")
+    p = argparse.ArgumentParser(description="RKN engine evaluation")
     p.add_argument("--latent-dim", type=int, default=16)
     p.add_argument("--max-train-shots", type=int, default=500)
     p.add_argument("--max-cal-shots", type=int, default=300)
@@ -3053,7 +3052,7 @@ def main(argv: list[str] | None = None) -> None:
         "--drift-reg-weight",
         type=float,
         default=0.0,
-        help="quiescent persistence regulariser weight (S7.4; 0=v0)",
+        help="quiescent persistence regulariser weight (0 disables it)",
     )
     p.add_argument(
         "--train-horizons",
@@ -3065,7 +3064,7 @@ def main(argv: list[str] | None = None) -> None:
         "--emission",
         choices=["gaussian", "student_t"],
         default="gaussian",
-        help="emission head (S7.5: student_t = heavy-tailed predictive)",
+        help="emission head (student_t selects a heavy-tailed predictive)",
     )
     p.add_argument(
         "--student-t-fixed-nu",
@@ -3077,13 +3076,13 @@ def main(argv: list[str] | None = None) -> None:
         "--num-threads",
         type=int,
         default=4,
-        help="cap torch intra-op threads in training (S7.5 perf; 0=untouched)",
+        help="cap torch intra-op threads in training (0 leaves it untouched)",
     )
     p.add_argument("--output", type=Path, default=None)
     p.add_argument(
         "--grounding",
         action="store_true",
-        help="S8-T6: enable the GS grounding head + run the grounding-value "
+        help="enable the GS grounding head and run the grounding-value "
         "acceptance (discovery-discriminate gap + near-vacuum/interpretability)",
     )
     p.add_argument(
@@ -3101,22 +3100,23 @@ def main(argv: list[str] | None = None) -> None:
     )
     p.add_argument("--static-epochs", type=int, default=60)
     p.add_argument(
+        "--reference-metrics",
         "--v2-metrics",
         type=Path,
         default=Path(__file__).parent / "artifacts" / "engine_metrics_v2.json",
-        help="ungrounded v2 metrics for the help/hurt-Dα comparison",
+        help="ungrounded reference metrics for the help/hurt-Dα comparison",
     )
     p.add_argument(
         "--integrated",
         action="store_true",
-        help="S8-T10: use the WIDENED internal-core input set (mag+ane + Thomson "
+        help="use the widened internal-core input set (mag+ane + Thomson "
         "pressure features) + the locked integrated split (the grounding-fix)",
     )
     p.add_argument(
         "--splits-manifest",
         type=Path,
         default=None,
-        help="override the splits manifest path (T10: the locked integrated split)",
+        help="override the splits manifest path for integrated inputs",
     )
     p.add_argument(
         "--config",
@@ -3175,12 +3175,12 @@ def main(argv: list[str] | None = None) -> None:
         )
         out = a.output or (Path(__file__).parent / "artifacts" / _default_name)
         metrics = run_grounding_experiment(
-            cfg, output=out, v2_metrics_path=a.v2_metrics
+            cfg, output=out, reference_metrics_path=a.reference_metrics
         )
         gv = metrics.get("grounding_verdict", {})
         cov = metrics.get("grounding_coverage", {})
         print("\n" + "=" * 64)
-        print("S8-T6 GS GROUNDING — GROUNDING-VALUE ACCEPTANCE")
+        print("GS GROUNDING — GROUNDING-VALUE EVALUATION")
         print("=" * 64)
         print(
             f"coverage: {cov.get('n_grounded_windows')}/{cov.get('n_total_windows')} "
@@ -3195,7 +3195,7 @@ def main(argv: list[str] | None = None) -> None:
         print(
             f"(2) DISCOVERY-DISCRIMINATE gap (grounded) = "
             f"{gv.get('criterion2_discovery_gap_grounded')}  "
-            f"(T8 baseline = {gv.get('criterion2_t8_baseline_gap')}; "
+            f"(ungrounded baseline = {gv.get('criterion2_t8_baseline_gap')}; "
             f"widened={gv.get('criterion2_widened_beyond_t8')}, "
             f"discriminates={gv.get('criterion2_metric_discriminates')})"
         )
@@ -3210,7 +3210,7 @@ def main(argv: list[str] | None = None) -> None:
     metrics = run_experiment(cfg, output=out)
 
     print("\n" + "=" * 64)
-    print("S7.3 RKN ENGINE — STAGE-1 ACCEPTANCE")
+    print("RKN ENGINE — DYNAMICS EVALUATION")
     print("=" * 64)
     acc = metrics["acceptance"]
     print(
@@ -3244,7 +3244,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     rs = acc.get("rescoped_acceptance", {})
     print("-" * 64)
-    print(f"RE-SCOPED STAGE-1 ACCEPTANCE: ALL MET = {rs.get('all_met')}")
+    print(f"DYNAMICS ACCEPTANCE: ALL MET = {rs.get('all_met')}")
     print(
         f"  (1) filtering calibrated      = {rs.get('criterion1_filtering_calibrated')}"
     )
