@@ -1,6 +1,6 @@
-r"""D2 — the classical RAPTOR-equivalent baseline (THE BAR to beat) for S9.
+r"""Classical RAPTOR-equivalent baseline for current-profile inference.
 
-A credible classical comparator for ``mse-free-current-recovery-v0``: a
+A credible classical comparator for MSE-free current recovery: a
 parameter-space **ensemble smoother** built on the validated TORAX current-
 diffusion simulator as the forward dynamics, that recovers the internal
 poloidal-current profile from a shot's MEASURED non-MSE inputs + an external-
@@ -10,7 +10,7 @@ on the input side — MSE is the held-out eval truth only.
 
 Why this is not a vacuous baseline (the binding physics point)
 --------------------------------------------------------------
-Stage-2 (``plasma-gs-prior-v0``) proved — and ``gs/residual.py`` measured — that
+Measurements from ``gs/residual.py`` show that
 external magnetics + the plasma boundary UNDER-DETERMINE the internal current
 profile ``j(psi)`` (the GS plasma block has effective rank ~5-6).  A transition-
 FREE EnKF (random-walk + GS observation) would therefore recover nothing
@@ -19,14 +19,14 @@ profile here comes from a genuine **resistive current-diffusion transition with
 a neoclassical conductivity closure**: TORAX evolves the poloidal flux driven by
 the measured ``Ip(t)`` (``amc``), the measured ``Te(rho)`` (Thomson ``ayc``) ->
 neoclassical ``sigma_parallel(Te)``, and the measured density (interferometer
-``ane`` / Thomson).  That ``sigma(Te)`` closure is the §4 channel that breaks the
+``ane`` / Thomson).  That ``sigma(Te)`` closure breaks the
 magnetics under-determination — now from a validated solver, not hand-rolled.
 
 Two arms are run + reported so the non-vacuity is DEMONSTRATED, not asserted:
   * FORECAST arm — the prior TORAX ensemble (measured inputs only, magnetics NOT
     assimilated).  This is the non-vacuity control: it already produces an
     order-unity on-axis ``q0`` and a sensible, radially-structured pitch profile
-    from the transition alone (on the v0 high-Ip OOD held-out subset the flat-top
+    from the transition alone (on the high-Ip OOD held-out subset the flat-top
     ``q0`` is LOW — ~0.3-0.6, a sawtoothing/high-current regime — not ~1; the
     point is the transition recovers internal current shape without any MSE).
   * ANALYSIS arm — one ensemble-Kalman-inversion (EKI) update of the uncertain
@@ -45,7 +45,7 @@ member's TORAX current profile at the assimilation slices -> ``c_plasma`` ->
 ``operator.predict`` -> predicted amb; stack innovations vs measured amb; one
 Gauss-Newton / ensemble-Kalman update on ``theta``; re-run the updated members).
 We do NOT inject an updated state mid-trajectory and re-init TORAX per segment
-(that is a multi-day rabbit hole and not needed for a v0 comparator).  This is a
+(that is a multi-day rabbit hole and not needed for this comparator).  This is a
 legitimate RAPTOR-equivalent ensemble smoother; it is documented honestly as
 such (not called a sequential EnKF).
 
@@ -82,9 +82,9 @@ asymmetry is EXPECTED and IS the thesis.  Stated in the metrics artifact.
 Compute: CPU + JAX (TORAX).  Measured: after a one-time ~7 s JIT compile, each
 member runs ~0.04-0.4 s (JIT cache reuses across parameter-value changes) for
 the common case, so a 32-member shot is ~3-15 s — no GPU needed.  KNOWN SCALING
-CAVEAT (v0): a subset of held-out shots trips a sustained ~8-9 s/member TORAX
+KNOWN SCALING CAVEAT: a subset of held-out shots trips a sustained ~8-9 s/member TORAX
 solve (a stiff parameter/trajectory regime that defeats the JIT cache), which
-makes the full 112-shot set slow on a single core.  v0 metrics are therefore
+makes the full 112-shot set slow on a single core.  Metrics are therefore
 reported on a validated SUBSET of the official held-out shots; the full-set run
 + a JIT-shape-stability fix (pin t_final / drive-grid length across shots so the
 traced shapes are constant) is the documented next increment.  Foreground only.
@@ -311,7 +311,7 @@ def load_shot_inputs(
     # Bt0 = mu0 N_TF |I_tf| / (2 pi R0); the raw tf_current units are undocumented
     # so N_TF_EFF is calibrated (=25) so flat-top Bt0 ~ 0.5 T on MAST.  Computed
     # at flat-top (median |I_tf| over the plasma window) so the readout uses the
-    # shot's actual field, per D1's T2 note (manifest omits R0/Bt0).
+    # shot's actual field because the manifest omits R0/Bt0.
     n_tf_eff = 25.0
     bt0 = cfg.b0
     if "tf_current" in amc_keys:
@@ -457,7 +457,7 @@ def _torax_config(inp: ShotInputs, cfg: EnKFConfig, theta: dict[str, float]) -> 
     fusion are frozen (Te + n_e are PRESCRIBED from Thomson; sigma(Te) is
     automatic).  ``theta`` perturbs Zeff, the resistivity multiplier (via Zeff
     scaling as the simplest validated knob), the initial-current peaking, and the
-    Ip boundary.  The minimal-config v0 design.
+    Ip boundary in the minimal configuration.
     """
     # Ip BC scaled by ip_frac, then floored at 10 kA so an ip_frac<1 member does
     # not push a ramp-tail slice below TORAX's minimum-current threshold (the
@@ -465,9 +465,9 @@ def _torax_config(inp: ShotInputs, cfg: EnKFConfig, theta: dict[str, float]) -> 
     ip_scaled = {
         t: max(v * theta.get("ip_frac", 1.0), 1.0e4) for t, v in inp.ip_t.items()
     }
-    # resistivity multiplier folded into an EFFECTIVE Zeff (eta_par ~ Zeff): a
-    # documented v0 simplification (TORAX exposes no direct eta multiplier in the
-    # minimal config; Zeff is the validated conductivity knob).
+    # TORAX exposes no direct eta multiplier in the minimal configuration, so
+    # fold the resistivity multiplier into an effective Zeff; Zeff is the
+    # validated conductivity knob and eta_parallel scales approximately with it.
     zeff_eff = float(
         np.clip(
             theta.get("zeff", cfg.zeff_prior) * theta.get("resist_mult", 1.0), 1.0, 6.0
@@ -992,7 +992,7 @@ def predict_shots(
     return preds
 
 
-# --- Scoring + artifact (D1 harness when the manifest lands) ----------
+# --- Scoring and metrics artifact -------------------------------------
 
 
 def score_and_write_artifact(
@@ -1006,9 +1006,8 @@ def score_and_write_artifact(
 
     Uses the OFFICIAL manifest (``mse_heldout_split_v0.json``) when present; else
     builds a LOCAL manifest for ``shot_ids`` via ``mse_split.build_shot_manifest``
-    (a clearly-flagged stopgap so the pipeline is exercised end-to-end before
-    D1's official split lands).  The official q0/rax + full metrics await the
-    official manifest.
+    (a clearly flagged local mode so the pipeline can be exercised end-to-end).
+    The official q0/rax and full metrics require the official manifest.
     """
     from imas_ambix.data.paths import MANIFEST_DIR  # noqa: PLC0415
     from imas_ambix.statespace import mse_eval as eval_mod  # noqa: PLC0415
@@ -1057,7 +1056,7 @@ def score_and_write_artifact(
     scored_analysis = eval_mod.score(preds, manifest, truth)
     scored_forecast = eval_mod.score(preds_forecast, manifest, truth)
 
-    # PERSISTENCE reference (mse_eval ships it as "the target for D2/D4 to beat").
+    # Persistence reference for the learned and classical predictors.
     # Scored on the SAME shots so the baseline's credibility (does it beat
     # persistence on the PRIMARY pitch axis?) is in the artifact.
     persist_preds = eval_mod.PersistencePredictor().predict(manifest, truth)
@@ -1102,13 +1101,12 @@ def score_and_write_artifact(
         "observation_operator": "gs/operator.py (EFIT-free GS Green's functions)",
         "readout": (
             "SHARED mse_eval.pitch_from_current_profile (kind='j', j_phi(rho)) + "
-            "invert_pitch_to_q0rax — LOCKED kind='j' representation per the S9 "
-            "head-to-head coordination lock"
+            "invert_pitch_to_q0rax using the shared kind='j' representation"
         ),
         "readout_representation_lock": (
             "kind='j': TORAX j_total(rho) [A/m^2] on rho_norm*a_minor grid fed "
             "directly to pitch_from_current_profile (no q/psi->j conversion — "
-            "TORAX outputs j_total natively). The neural filter (D4) maps its "
+            "TORAX outputs j_total natively). The neural filter maps its "
             "GroundingHead currents to the SAME j_phi(rho); a cross-path unit "
             "test asserts identical pitch for one analytic profile."
         ),
@@ -1134,8 +1132,8 @@ def score_and_write_artifact(
             "note": (
                 "whitened amb misfit ||W(y-H(x))|| (truth-free). A DROP from "
                 "forecast->analysis confirms the EKI magnetics update is real; "
-                "if pitch does NOT improve while innovation drops, that is the "
-                "Stage-2 magnetics-under-determination THESIS (expected)."
+                "if pitch does NOT improve while innovation drops, external "
+                "magnetics remain under-determined for the internal profile."
             ),
         },
         "predictive_uncertainty": (
@@ -1167,15 +1165,14 @@ def score_and_write_artifact(
             for sid, r in results.items()
         },
         "verdict": (
-            "v0 honest verdict (N = the n_shots_scored above — a subset of the "
+            "honest verdict (N = the n_shots_scored above — a subset of the "
             "112 official held-out shots; full-set metrics pending a longer run, "
             "compute ~0.5 s/member warm): (1) the EKI magnetics update is REAL "
             "(innovation drops); (2) it does NOT improve internal pitch over the "
-            "forecast arm — a clean confirmation of the Stage-2 magnetics-under-"
-            "determination thesis (external magnetics fix boundary/Ip, not "
+            "forecast arm — evidence that external magnetics constrain boundary/Ip, not "
             "internal j(psi)); (3) the baseline BEATS persistence on primary "
             "pitch RMSE (credible bar, not a strawman); coverage reported above, "
-            "no tune-to-pass. This is the comparator the S9 neural filter must "
+            "no tune-to-pass. This is the comparator the neural filter must "
             "beat by 10-20% on held-out pitch while additionally fusing the "
             "camera/SXR modalities the O(N_ens) ensemble cannot ingest."
         ),
@@ -1427,8 +1424,8 @@ def merge_and_bootstrap(
             ),
             "note": (
                 "whitened amb misfit (truth-free). DROP confirms the EKI update "
-                "is real; analysis pitch ~= forecast pitch is the Stage-2 "
-                "magnetics-under-determination thesis (expected)."
+                "is real; analysis pitch ~= forecast pitch shows that external "
+                "magnetics under-determine the internal profile."
             ),
         },
         "predictive_uncertainty": (
@@ -1452,13 +1449,12 @@ def merge_and_bootstrap(
         ),
         "per_shot_diagnostics": diags,
         "verdict": (
-            f"v0 bar (N={block_a['n_shots']} held-out shots, bootstrap-CI over "
+            f"comparison bar (N={block_a['n_shots']} held-out shots, bootstrap-CI over "
             "shots): (1) the EKI magnetics update is REAL (innovation drops); "
-            "(2) analysis pitch ~= forecast pitch — a clean confirmation of the "
-            "Stage-2 magnetics-under-determination thesis (external magnetics fix "
+            "(2) analysis pitch ~= forecast pitch — evidence that external magnetics fix "
             "boundary/Ip, not internal j(psi)); the TORAX+sigma(Te) transition "
             "does the recovery; (3) the baseline BEATS persistence on primary "
-            "pitch RMSE (no tune-to-pass). This is THE BAR the S9 neural filter "
+            "pitch RMSE (no tune-to-pass). This is the bar the neural filter "
             "must beat by 10-20% on held-out pitch while additionally fusing the "
             "camera/SXR modalities the O(N_ens) ensemble cannot ingest."
         ),
