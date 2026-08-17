@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type"  content="research">
+  <meta name="plan-slug"    content="forward-only-posterior-architecture">
+  <meta name="plan-title"   content="The Forward-Only Posterior — why the challenge is a low-dimensional filtering problem">
+  <meta name="plan-summary" content="The architecture argument behind the magnetics-free entry: the flux map is a deterministic function of two slowly-drifting flux functions, so the posterior is built by evaluating exact forwards rather than inverting them, and the arrow of time is what converts an under-determined frame into an over-determined shot">
+  <meta name="plan-informs" content="magnetics-free-equilibrium-recovery,flux-function-evolution-prototype,learned-closure-current-diffusion-v0,physics-world-model-strategy,flux-function-state-interface,nova:diiid-forward-onboarding,nova:flux-function-forward-transport">
+  <title>The Forward-Only Posterior | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — The competition is a low-dimensional problem wearing a high-dimensional costume</h2>
+    <p>The scorer asks for ψ(R,Z) on a 65×65 grid — 4,225 numbers per slice — plus q95 and
+    β_N, at every labeled frame of held-out shots. Read literally, that is a
+    high-dimensional regression: learn a map from actuators and Thomson to four thousand
+    outputs, over roughly 1.5 million labeled DIII-D frames. Almost every entry will build
+    some version of that map.</p>
+    <p>It is the wrong object. An axisymmetric plasma in force balance satisfies
+    Grad–Shafranov, and the Grad–Shafranov equation has exactly two free functions:</p>
+    <p style="margin-left:2em"><em>Δ*ψ = −μ₀R²·p′(ψ) − FF′(ψ)</em></p>
+    <p>Everything else on the right-hand side is <strong>given by the challenge</strong> —
+    the conductor currents are inputs, not unknowns, and the machine geometry ships with the
+    data. So the entire 4,225-dimensional output is a deterministic function of two
+    one-dimensional profiles plus a boundary condition. The question is not "what is the
+    map"; it is "what are the two functions".</p>
+    <p>We now know how big that question is, because we measured it. Extracting p′ and FF′
+    from 4,141 labeled frames across 20 DIII-D shots and pooling them into a basis,
+    <strong>three components capture 99.76% of the p′ variance, 99.85% of FF′ and 100.00%
+    of ψ(ρ̂)</strong>, with median frame-to-frame variation of 9.5%, 6.5% and 1.2%
+    respectively (<a href="/imas-ambix/evidence/archive/flux-function-evolution-prototype-landed#trajectory-bank">prototype §2</a>).
+    The true state is of order ten numbers, and it drifts slowly. The costume is 4,225
+    numbers wide; the body inside it is not.</p>
+
+    <h2 id="s2">§2 — Why one frame is not enough and one shot is</h2>
+    <p>Thomson scattering measures T_e and n_e at points along a set of chords. Because both
+    are flux functions, two chord positions reporting the same T_e are a statement that
+    those two points lie on the same flux surface — an <em>isoflux</em> constraint, the same
+    kind of information a magnetic probe gives, which is why we call Thomson channels
+    pseudo-magnetics. But isoflux pins constrain the <em>shape</em> of ψ where the chords
+    are, and say very little about the current distribution deep in the core, and nothing at
+    all where there is no coverage. Per frame, the interior is under-determined. This is not
+    a solvable problem with a better fit; it is a rank deficiency.</p>
+    <p>Time removes it. Resistive current diffusion has a time constant of hundreds of
+    milliseconds to seconds, so the interior flux functions physically <em>cannot</em> jump
+    between adjacent frames — and our measurement confirms they do not (1.2% median frame-to-frame
+    variation in ψ). A shot with a few hundred labeled frames therefore supplies a few
+    hundred sets of boundary and shape pins against a state with of order ten degrees of
+    freedom that is constrained to move smoothly between them. Under-determined per frame,
+    <strong>heavily over-determined per shot</strong>.</p>
+    <figure>
+      <svg viewBox="0 0 760 250" role="img" style="max-width:100%;height:auto"
+           font-family="system-ui" font-size="13">
+        <text x="10" y="20" font-weight="600" fill="#1a1a1e">Per frame — rank deficient</text>
+        <line x1="10" y1="30" x2="740" y2="30" stroke="#d0d0d4" stroke-width="1"/>
+        <rect x="10" y="44" width="150" height="20" fill="none" stroke="#1a1a1e"/>
+        <text x="170" y="59" fill="#1a1a1e">~10 unknown state dof</text>
+        <rect x="10" y="72" width="96" height="20" fill="none" stroke="#b3591f"/>
+        <text x="170" y="87" fill="#b3591f">effective independent isoflux pins from one Thomson frame</text>
+        <text x="10" y="112" font-style="italic" fill="#555">the interior is not observed — no prior on smoothness repairs a missing direction</text>
+
+        <text x="10" y="150" font-weight="600" fill="#1a1a1e">Per shot — over-determined</text>
+        <line x1="10" y1="160" x2="740" y2="160" stroke="#d0d0d4" stroke-width="1"/>
+        <rect x="10" y="174" width="150" height="20" fill="none" stroke="#1a1a1e"/>
+        <text x="170" y="189" fill="#1a1a1e">~10 unknown state dof, drifting slowly</text>
+        <rect x="10" y="202" width="600" height="20" fill="none" stroke="#b3591f"/>
+        <text x="620" y="217" fill="#b3591f">×240 frames</text>
+        <text x="10" y="242" font-style="italic" fill="#555">the transition kernel carries information forward, so every frame constrains every other</text>
+      </svg>
+      <figcaption>The counting argument the entry rests on. Bar length is information
+      available against the same unknown state. Nothing about the per-frame problem changes;
+      what changes is that a dynamical prior lets frames share their constraints.</figcaption>
+    </figure>
+    <p>That structure — a prior propagated by dynamics, corrected by observations, with
+    information accumulating along a trajectory — is a Kalman filter. Not by analogy: it is
+    the definition. What makes ours unusual is that the transition and observation operators
+    are exact nonlinear physics rather than learned or linearised surrogates.</p>
+
+    <h2 id="s3">§3 — A posterior built only from forward evaluations</h2>
+    <p>Nova produces every response kernel and fits with none of them: it builds the
+    magnetics design matrix it never inverts, the chord→ψ_N sampler, the Δ* extraction
+    operator, the differentiable moment operator. The litmus is stated at the seam —
+    <em>differentiable physics with a geometry argument is a Nova kernel; anything carrying
+    a σ, a prior or a decision is an Ambix measurement model.</em> So how does a posterior
+    appear if nothing is ever inverted? Three mechanisms, all of which only ever run physics
+    forwards.</p>
+    <ul>
+      <li><strong>Ensembles turn evaluation into inversion.</strong> Draw members from the
+      prior, push every member through the exact forward, and compare predicted observables
+      to measured ones. The update uses the sampled cross-covariance between state and
+      predicted observation. The only matrix inverted lives in <em>observation</em> space —
+      a few dozen Thomson channels — never in state or physics space. The inverse is a
+      statistical consequence of many forward runs, not a solved linear system. This is why
+      nova's published throughput budget (slices per second, batched on the H200) directly
+      sets how sharp our posterior can be: ensemble size is bought with forward evaluations.</li>
+      <li><strong>Differentiability gives exact sensitivities without an inverse
+      operator.</strong> The forwards are jit/vmap/grad-safe, and a converged
+      equilibrium–transport window differentiates by the implicit-function theorem rather
+      than by unrolling its iterations. That yields gradients of any misfit with respect to
+      the state, hence MAP estimates and Laplace covariances, from the same forward code.</li>
+      <li><strong>Amortization proposes; the forward disposes.</strong> A
+      geometry-conditioned encoder trained across thousands of shots can propose a state or
+      warm start far faster than a cold filter finds one — but its output is scored and
+      corrected by the forward, so approximation error never reaches the submitted artifact.</li>
+    </ul>
+    <p>The exactness of the forward is what makes any of this meaningful. With an
+    approximate forward, a mismatch between prediction and measurement is uninterpretable:
+    it could be state error or model error, and the estimator will happily absorb one as the
+    other — teaching corrections to compensate the solver rather than the plasma. That is
+    why nova's window must converge and must surrender its convergence behaviour as
+    receipts, and why an unconverged member is refused rather than silently used.</p>
+
+    <h2 id="s4">§4 — How this differs from traditional Bayesian inference</h2>
+    <p>Fusion already has excellent Bayesian inference. Minerva at JET and IDA at AUG and
+    W7-X do full probabilistic inversion over jointly forward-modelled diagnostics from raw
+    signals. The differences below are therefore real distinctions, not a claim to have
+    invented probabilistic reasoning.</p>
+    <table>
+      <caption>Where this architecture departs from classical Bayesian integrated data
+      analysis and from EFIT-class reconstruction.</caption>
+      <thead>
+        <tr><th>Dimension</th><th>Traditional practice</th><th>Here</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Time</td>
+          <td>Static, per-slice inference. Slices are independent; there is no transition kernel.</td>
+          <td>The transition kernel is the central object. Without it the magnetics-free frame stays rank-deficient no matter how principled the prior.</td>
+        </tr>
+        <tr>
+          <td>What the prior is</td>
+          <td>A distribution over basis coefficients — smoothness, Tikhonov, a Gaussian process.</td>
+          <td>A simulator. The regularisation is dynamical: the profile is not merely smooth, it <em>arrived here by diffusion from where it was</em>.</td>
+        </tr>
+        <tr>
+          <td>What carries uncertainty</td>
+          <td>A distribution over the reconstructed output, or over map pixels.</td>
+          <td>A distribution over a physical low-dimensional state. Every sample renders through GS, so every sample is force-balanced by construction.</td>
+        </tr>
+        <tr>
+          <td>Model discrepancy</td>
+          <td>Absorbed into fitted coefficients or an inflated noise floor.</td>
+          <td>Typed and attributed across named sources — closure, calibration, geometry, passive currents — each with its own forward. A persistent GS residual is a measurement of where force balance breaks, not an error to fit away.</td>
+        </tr>
+        <tr>
+          <td>Non-Gaussian structure</td>
+          <td>Linearised around a reference; mean and covariance summarise the posterior.</td>
+          <td>Weighted members, deliberately. A mean-and-covariance summary erases member-specific topology changes — and limited↔diverted transitions are exactly the discrete events the ramp must traverse.</td>
+        </tr>
+        <tr>
+          <td>What success is scored against</td>
+          <td>Agreement with a reconstruction.</td>
+          <td>Raw measurements. Claims of superiority to EFIT scored against EFIT-derived quantities are circular, so EFIT is a referee and never a supervisor.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="s5">§5 — The arrow of time, and what the learned components actually buy</h2>
+    <p>Four distinct things travel under this heading, and they are worth separating because
+    only some of them are claims we have earned.</p>
+    <p><strong>Causality as a type, not a convention.</strong> Filtering (past and present),
+    forecasting (future) and smoothing (all data, offline) are three different products, and
+    reporting a smoothed profile as a causal prior is the easiest way to fake skill. The
+    seam contract makes this a runtime property: forecast and analysis handoffs are accepted
+    at the online boundary while fixed-lag and full-sequence smoothing are
+    <em>rejected</em> there
+    (<a href="/imas-ambix/evidence/archive/flux-function-state-interface-landed#typed-contract">landed, with tests</a>).
+    For the competition this matters twice over: the submission may smooth freely because
+    scoring is offline, but the ITER rehearsal claim — the reason we are entering at all —
+    is a claim about causal estimation and must be reported from the causal product.</p>
+    <p><strong>Irreversibility is itself information.</strong> Resistive diffusion has a
+    direction: running it backwards is the backward heat equation, exponentially unstable.
+    Two consequences follow. Forward is where the information is, which is why an exact
+    forward operator plus a filter beats an inverse operator. And the smoother's advantage
+    over the filter is <em>structured</em> rather than generic — because diffusion destroys
+    fine structure, a later observation strongly constrains earlier large-scale state and
+    says nothing about earlier fine detail. We can therefore state which directions in state
+    space the future can inform, instead of asserting that smoothing helps.</p>
+    <p><strong>The unlabeled gaps are ours to cross.</strong> The challenge deletes limited
+    frames corpus-wide, so <code>efit_times</code> is non-contiguous and every
+    limited↔diverted transition is unlabeled — while the actuators remain continuous at
+    20 kHz. A per-frame regressor meets each labeled frame cold. A transition kernel carries
+    state <em>through</em> the gap and arrives at the next labeled frame with an informed
+    prior. This is a concrete scoring advantage that exists only because we have dynamics,
+    and it is largest exactly where the entry is otherwise weakest — the ramp.</p>
+    <p><strong>What the ML is for, stated against our own negative results.</strong> A
+    supervised oracle already told us that for magnetics-only internal-current recovery,
+    architecture is not the binding constraint — interior information is, and time-history
+    added nothing (0.190 ≈ 0.188). We must not now claim a sequence model rescues us. The
+    defensible roles are narrower and better evidenced:</p>
+    <ul>
+      <li><strong>Learned closures inside the differentiable solver</strong> — bounded,
+      positivity-constrained corrections to η∥, Z_eff and the bootstrap multiplier, trained
+      MSE-free through the adjoint against observable losses and amortised across thousands
+      of shots. The information enters through the physics, so the highest-leverage learning
+      improves the physics' weakest part rather than replacing it. <strong>Our simulability
+      measurement just handed this lane its target</strong>: the transport prior tracks ψ
+      (beating persistence by 1.63 in explained variance) but does <em>not</em> carry FF′
+      (margin −0.0006, indistinguishable from persistence in every regime) —
+      see <a href="/imas-ambix/evidence/archive/flux-function-evolution-prototype-landed#simulability">prototype §3</a>,
+      qualified by frozen geometry and a proxy radial coordinate.</li>
+      <li><strong>A learned gain or bias corrector</strong> is principled precisely where
+      the forward model is known to be mis-specified — and we have now measured that it is,
+      on the FF′ channel specifically.</li>
+      <li><strong>An amortised, geometry-conditioned posterior proposal</strong> is where a
+      sequence model legitimately exploits the arrow: an encoder that has seen thousands of
+      ramps knows what a ramp looks like and proposes the state a cold filter would search
+      for. It proposes; the smoother disposes.</li>
+    </ul>
+    <p>Learned corrections enter the coupled solve only as typed inputs — member closure
+    parameters and declared model-error source terms through the seam's registry — never as
+    invisible patches inside it. That restriction is what keeps the innovation interpretable
+    and is the reason the architecture can be honest about which of its parts is failing.</p>
+
+    <h2 id="s6">§6 — Consequences for the entry</h2>
+    <p>Three things follow directly from what has been measured, and each changes the plan
+    rather than merely decorating it.</p>
+    <ul>
+      <li>The low-dimensional state thesis is <strong>confirmed</strong>: roughly three
+      components per flux function, slowly drifting. The windowed smoother's 12–16
+      parameters per window is the right order, and the submission does not require a
+      high-dimensional map model.</li>
+      <li>The FF′ deviation amplitudes <strong>cannot be tightly priored</strong> as small
+      departures from a transport-evolved mean, because the transport-evolved mean is not
+      better than the initial value. The innovation update must do real work on FF′, and the
+      closure-learning lane now has an explicit, measured deficiency to attack.</li>
+      <li>The FF′ result is qualified by frozen geometry, a q95-calibrated boundary F and a
+      proxy radial coordinate — the three approximations FF′ is most sensitive to. The exact
+      time-varying-geometry rerun is therefore a genuine open question and not a formality,
+      and it is queued behind nova's TORAX geometry adapter.</li>
+    </ul>
+  </main>
+</body>
+</html>
