@@ -3173,12 +3173,57 @@
       "name": "mast-map-12417",
       "machine": "mast",
       "first_shot": 12417,
-      "last_shot": 30471,
+      "last_shot": 13360,
       "transition": "mast-geometry-12417-edd753d282903679",
       "binding_set": "mast-machine-description",
       "validation_state": "corpus-validated",
       "drive_topology": "mast-legacy-fcoil-drive-edd753d282903679",
       "description_supplement": "mast-description-12417"
+    },
+    {
+      "name": "mast-map-13361",
+      "machine": "mast",
+      "first_shot": 13361,
+      "last_shot": 16605,
+      "transition": "mast-geometry-12417-edd753d282903679",
+      "binding_set": "mast-machine-description",
+      "validation_state": "corpus-validated",
+      "drive_topology": "mast-legacy-fcoil-drive-1cb6f2ee742c4ee4",
+      "description_supplement": "mast-description-13361"
+    },
+    {
+      "name": "mast-map-16606",
+      "machine": "mast",
+      "first_shot": 16606,
+      "last_shot": 21977,
+      "transition": "mast-geometry-12417-edd753d282903679",
+      "binding_set": "mast-machine-description",
+      "validation_state": "corpus-validated",
+      "drive_topology": "mast-legacy-fcoil-drive-1cb6f2ee742c4ee4",
+      "description_supplement": "mast-description-16606"
+    },
+    {
+      "name": "mast-map-21978",
+      "machine": "mast",
+      "first_shot": 21978,
+      "last_shot": 22086,
+      "transition": "mast-geometry-12417-edd753d282903679",
+      "binding_set": "mast-machine-description",
+      "validation_state": "corpus-validated",
+      "drive_topology": "mast-legacy-fcoil-drive-1cb6f2ee742c4ee4",
+      "description_supplement": "mast-description-16606",
+      "source_representation_signature": "mp78-fl46-fc938-lim37-532938247d31ec5c"
+    },
+    {
+      "name": "mast-map-22087",
+      "machine": "mast",
+      "first_shot": 22087,
+      "last_shot": 30471,
+      "transition": "mast-geometry-12417-edd753d282903679",
+      "binding_set": "mast-machine-description",
+      "validation_state": "corpus-validated",
+      "drive_topology": "mast-legacy-fcoil-drive-1cb6f2ee742c4ee4",
+      "description_supplement": "mast-description-16606"
     }
   ],
   "validation_gaps": [],
@@ -3406,6 +3451,21 @@
       "source_unit": "1",
       "reason": "DD 4.1.1 provides pf_passive/loop/name, but FAIR-MAST encodes each of the 16 loop identities only in source-array prefixes and exposes no loop-name array that the transform engine can bind.",
       "evidence": "The loop names are botcol, coil_cases, endcrown_l, endcrown_u, incon, lhorw, mid, p2larm, p2ldivpl, p2uarm, p2udivpl, ring, rodgr, topcol, uhorw and vertw; the drive topology records that ordered set."
+    },
+    {
+      "name": "mast-amb-fl-cc02-after-16605",
+      "source_group": "amb",
+      "source_array": "fl_cc02",
+      "source_location": "fair-mast://level1/shots/{shot}.zarr/amb/fl_cc02",
+      "source_shape": [
+        1
+      ],
+      "source_status": "range-absent",
+      "range_first_shot": 16606,
+      "range_last_shot": 30471,
+      "source_unit": "Wb",
+      "reason": "The post-16605 level-2 nominal geometry still names FL_CC02, but that geometry identity is not a measurable acquisition address and must not be selected into the compatibility sensor map.",
+      "evidence": "A direct path census of 17,040 local level-1 stores from shot 11766 through 30471 found the last amb/fl_cc02 source at shot 16605 and none thereafter. Every frozen identity-evidence shot from 21978 through 22086 instead measures fl_p6u_1, whose waveform has a unique EFM identity correlation of 0.99999798005534268."
     },
     {
       "name": "mast-machine-description-minor-radius",
@@ -27159,7 +27219,7 @@
         "vertw"
       ],
       "evidence": "Legacy signature mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4 carries 938 filaments. Each fcoil_circ value selects a circuit and its supply identifier; the absolute fcoil_turns*fcoil_xmult value is the positive element turn magnitude; and the product sign is the non-zero pf_active/circuit/connections entry. DD 4.1.1 calls its identifier leaves circuit/name and coil/element/name, whose documentation defines each as the short identifier unique for a device. Each topology row carries an explicit geometry_element_identifier derived within its active or passive group by maximum rectangle overlap, falling back to nearest normalised centre only when rectangles do not overlap.",
-      "current_channel_declaration": "mast-acquisition-12417"
+      "current_channel_declaration": "mast-acquisition-16606"
     }
   ],
   "structure_assemblies": [
@@ -28960,6 +29020,16 @@
         "fl_p2u_4"
       ],
       "evidence": "The range-first shot 12417 resolves 97 mapped sensor addresses and 8 unmatched addresses; all three legacy campaigns expose the same 44 current-channel identities."
+    },
+    {
+      "name": "mast-acquisition-16606",
+      "source_location": "fair-mast://level1/shots/21978.zarr#/amb-amc-acquisition-identities",
+      "sensor_identity_key": "acquisition-address",
+      "sensor_identity_rule": "mast-acquisition-address",
+      "current_channels": ["efps_current", "error_field_02", "error_field_05", "p2il_coil_current", "p2il_feed_current", "p2iu_coil_current", "p2iu_feed_current", "p2l_case_current", "p2l_current", "p2ol_coil_current", "p2ol_feed_current", "p2ou_coil_current", "p2ou_feed_current", "p2u_case_current", "p2u_current", "p3l_case_current", "p3l_coil_current", "p3l_current", "p3l_feed_current", "p3u_case_current", "p3u_coil_current", "p3u_current", "p3u_feed_current", "p4l_case_current", "p4l_coil_current", "p4l_current", "p4l_feed_current", "p4u_case_current", "p4u_coil_current", "p4u_current", "p4u_feed_current", "p5l_case_current", "p5l_coil_current", "p5l_current", "p5l_feed_current", "p5u_case_current", "p5u_coil_current", "p5u_current", "p5u_feed_current", "p6l_current", "p6u_current", "plasma_current", "sol_current", "tf_current", "version"],
+      "sensor_addresses": ["ccbv01", "ccbv02", "ccbv03", "ccbv04", "ccbv05", "ccbv06", "ccbv07", "ccbv08", "ccbv09", "ccbv10", "ccbv11", "ccbv12", "ccbv13", "ccbv14", "ccbv15", "ccbv16", "ccbv17", "ccbv18", "ccbv19", "ccbv20", "ccbv21", "ccbv22", "ccbv23", "ccbv24", "ccbv25", "ccbv26", "ccbv27", "ccbv28", "ccbv29", "ccbv30", "ccbv31", "ccbv32", "ccbv33", "ccbv34", "ccbv35", "ccbv36", "ccbv37", "ccbv38", "ccbv39", "ccbv40", "fl_cc01", "fl_cc03", "fl_cc04", "fl_cc05", "fl_cc07", "fl_cc09", "fl_p3l_1", "fl_p3l_4", "fl_p3u_1", "fl_p3u_4", "fl_p4l_1", "fl_p4l_4", "fl_p4u_4", "fl_p5l_1", "fl_p5l_4", "fl_p5u_1", "fl_p5u_4", "fl_p6l_1", "fl_p6u_1", "obr01", "obr02", "obr03", "obr04", "obr05", "obr06", "obr07", "obr08", "obr09", "obr10", "obr11", "obr12", "obr13", "obr14", "obr15", "obr16", "obr17", "obr18", "obr19", "obv01", "obv02", "obv03", "obv04", "obv05", "obv06", "obv07", "obv08", "obv09", "obv11", "obv12", "obv13", "obv14", "obv15", "obv16", "obv17", "obv18", "obv19", "fl_p2l_1", "fl_p2l_3", "fl_p2u_1", "fl_p2u_3"],
+      "unmatched_sensor_addresses": ["fl_p2l_1", "fl_p2l_3", "fl_p2u_1", "fl_p2u_3"],
+      "evidence": "The frozen six-shot cohort from 21978 through 22086 carries one stable late-range acquisition population: 96 mapped sensors (77 probes and 19 point flux loops), four measured but geometrically unmatched P2 loop addresses, and 45 AMC data columns. Consolidated metadata carries ccbv10 and fl_p6u_1 on the evidence shots, omits fl_cc02 and fl_cc10, and names the late error-field currents error_field_02 and error_field_05."
     }
   ],
   "description_supplements": [
@@ -29182,6 +29252,84 @@
         }
       ],
       "evidence": "Range-selected static declarations fill legacy machine-description content that is not carried by executable level-2 source arrays. The reference radius targets the official DD device-description leaf."
+    },
+    {
+      "name": "mast-description-13361",
+      "source_location": "fair-mast://manifests/gs_geometry_tables.json#/campaigns/mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4",
+      "acquisition_declaration": "mast-acquisition-12417",
+      "point_flux_loops": [
+        {
+          "name": "mast-late-point-flux-loop-upper-outer-1",
+          "acquisition_address": "fl_p6u_1",
+          "r": 1.402500033378601,
+          "z": 0.8889999985694885,
+          "r_path": "magnetics/flux_loop/position/r",
+          "z_path": "magnetics/flux_loop/position/z",
+          "type_path": "magnetics/flux_loop/type/index",
+          "type_index": 1,
+          "evidence": "The 938-row EFM source carries this finite point-loop position at column 26 while level-2 nominal geometry omits its fl_p6u_1 acquisition identity. Shot 21978 binds the measured fl_p6u_1 waveform uniquely to this column with correlation 0.99999798005534268."
+        },
+        {
+          "name": "mast-late-point-flux-loop-upper-outer-2",
+          "r": 1.402500033378601,
+          "z": 0.9039999842643738,
+          "r_path": "magnetics/flux_loop/position/r",
+          "z_path": "magnetics/flux_loop/position/z",
+          "type_path": "magnetics/flux_loop/type/index",
+          "type_index": 1,
+          "evidence": "The 938-row EFM source carries the companion finite point-loop position at column 27; level-2 nominal geometry omits both upper-outer positions, so the range supplement records the pair without inventing an acquisition address for the unmeasured member."
+        }
+      ],
+      "reference_radius": 0.85,
+      "reference_radius_path": "tf/r0",
+      "reference_radius_unit": "m",
+      "minor_radius_qualification": "mast-machine-description-minor-radius",
+      "polygon_sections": [
+        {"name": "p2larm_out", "circuit_identifier": "fcoil-circuit-087", "geometry_element_identifier": "mast-pf-passive-p2larm/p2larm3", "vertex_r": [0.7517244872884463, 0.7834991869764041, 0.618344062821417, 0.5865693631334592], "vertex_z": [-1.7155815809965134, -1.7155815809965134, -1.5769999772310257, -1.5769999772310257], "current_scale": 1.0, "evidence": "The polygon vertices are the declared oblique section associated with the named emitted passive element; circuit and geometry identifiers make both sides of the association explicit."},
+        {"name": "p2ldivpl", "circuit_identifier": "fcoil-circuit-068", "geometry_element_identifier": "mast-pf-passive-p2ldivpl/p2ldivpl2", "vertex_r": [0.5744914226233959, 0.6519553251564503, 0.6519553251564503, 0.5744914226233959], "vertex_z": [-1.6120000455556829, -1.6769999776007216, -1.6443647768320124, -1.5793648447869737], "current_scale": 1.0, "evidence": "The polygon vertices are the declared oblique section associated with the named emitted passive element; circuit and geometry identifiers make both sides of the association explicit."},
+        {"name": "p2uarm_out", "circuit_identifier": "fcoil-circuit-076", "geometry_element_identifier": "mast-pf-passive-p2uarm/p2uarm3", "vertex_r": [0.5865693631334592, 0.618344062821417, 0.7834991869764041, 0.7517244872884463], "vertex_z": [1.5769999772310257, 1.5769999772310257, 1.7155815809965134, 1.7155815809965134], "current_scale": 1.0, "evidence": "The polygon vertices are the declared oblique section associated with the named emitted passive element; circuit and geometry identifiers make both sides of the association explicit."},
+        {"name": "p2udivpl", "circuit_identifier": "fcoil-circuit-062", "geometry_element_identifier": "mast-pf-passive-p2udivpl/p2udivpl2", "vertex_r": [0.5744914226233959, 0.6519553251564503, 0.6519553251564503, 0.5744914226233959], "vertex_z": [1.5793648447869737, 1.6443647768320124, 1.6769999776007216, 1.6120000455556829], "current_scale": 1.0, "evidence": "The polygon vertices are the declared oblique section associated with the named emitted passive element; circuit and geometry identifiers make both sides of the association explicit."}
+      ],
+      "evidence": "The 13361 through 16605 range selects the 938-row conductor topology while retaining the acquisition declaration in which fl_cc02 remains an upstream source. The supplement records the two upper-outer point-loop positions omitted from level-2 nominal geometry."
+    },
+    {
+      "name": "mast-description-16606",
+      "source_location": "fair-mast://manifests/gs_geometry_tables.json#/campaigns/mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4",
+      "acquisition_declaration": "mast-acquisition-16606",
+      "point_flux_loops": [
+        {
+          "name": "mast-late-point-flux-loop-upper-outer-1",
+          "acquisition_address": "fl_p6u_1",
+          "r": 1.402500033378601,
+          "z": 0.8889999985694885,
+          "r_path": "magnetics/flux_loop/position/r",
+          "z_path": "magnetics/flux_loop/position/z",
+          "type_path": "magnetics/flux_loop/type/index",
+          "type_index": 1,
+          "evidence": "The late-range EFM source carries this finite point-loop position at column 26 while level-2 nominal geometry omits its fl_p6u_1 acquisition identity. Shot 21978 binds the measured fl_p6u_1 waveform uniquely to this column with correlation 0.99999798005534268."
+        },
+        {
+          "name": "mast-late-point-flux-loop-upper-outer-2",
+          "r": 1.402500033378601,
+          "z": 0.9039999842643738,
+          "r_path": "magnetics/flux_loop/position/r",
+          "z_path": "magnetics/flux_loop/position/z",
+          "type_path": "magnetics/flux_loop/type/index",
+          "type_index": 1,
+          "evidence": "The late-range EFM source carries the companion finite point-loop position at column 27; level-2 nominal geometry omits both upper-outer positions, so the range supplement records the pair without inventing an acquisition address for the unmeasured member."
+        }
+      ],
+      "reference_radius": 0.85,
+      "reference_radius_path": "tf/r0",
+      "reference_radius_unit": "m",
+      "minor_radius_qualification": "mast-machine-description-minor-radius",
+      "polygon_sections": [
+        {"name": "p2larm_out", "circuit_identifier": "fcoil-circuit-087", "geometry_element_identifier": "mast-pf-passive-p2larm/p2larm3", "vertex_r": [0.7517244872884463, 0.7834991869764041, 0.618344062821417, 0.5865693631334592], "vertex_z": [-1.7155815809965134, -1.7155815809965134, -1.5769999772310257, -1.5769999772310257], "current_scale": 1.0, "evidence": "The polygon vertices are the declared oblique section associated with the named emitted passive element; circuit and geometry identifiers make both sides of the association explicit."},
+        {"name": "p2ldivpl", "circuit_identifier": "fcoil-circuit-068", "geometry_element_identifier": "mast-pf-passive-p2ldivpl/p2ldivpl2", "vertex_r": [0.5744914226233959, 0.6519553251564503, 0.6519553251564503, 0.5744914226233959], "vertex_z": [-1.6120000455556829, -1.6769999776007216, -1.6443647768320124, -1.5793648447869737], "current_scale": 1.0, "evidence": "The polygon vertices are the declared oblique section associated with the named emitted passive element; circuit and geometry identifiers make both sides of the association explicit."},
+        {"name": "p2uarm_out", "circuit_identifier": "fcoil-circuit-076", "geometry_element_identifier": "mast-pf-passive-p2uarm/p2uarm3", "vertex_r": [0.5865693631334592, 0.618344062821417, 0.7834991869764041, 0.7517244872884463], "vertex_z": [1.5769999772310257, 1.5769999772310257, 1.7155815809965134, 1.7155815809965134], "current_scale": 1.0, "evidence": "The polygon vertices are the declared oblique section associated with the named emitted passive element; circuit and geometry identifiers make both sides of the association explicit."},
+        {"name": "p2udivpl", "circuit_identifier": "fcoil-circuit-062", "geometry_element_identifier": "mast-pf-passive-p2udivpl/p2udivpl2", "vertex_r": [0.5744914226233959, 0.6519553251564503, 0.6519553251564503, 0.5744914226233959], "vertex_z": [1.5793648447869737, 1.6443647768320124, 1.6769999776007216, 1.6120000455556829], "current_scale": 1.0, "evidence": "The polygon vertices are the declared oblique section associated with the named emitted passive element; circuit and geometry identifiers make both sides of the association explicit."}
+      ],
+      "evidence": "Late-range static declarations select the 938-row conductor topology and the frozen cohort's measurable acquisition identities. They carry fl_p6u_1 and ccbv10, exclude range-absent fl_cc02, retain four explicitly unmatched measured P2 loops, and preserve the two upper-outer point-loop positions omitted from level-2 nominal geometry."
     }
   ]
 }

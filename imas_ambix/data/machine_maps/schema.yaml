@@ -39,6 +39,8 @@ enums:
         description: The source array exists in the pulse store but cannot be bound.
       legacy-only:
         description: The legacy description requires content absent from the pulse store.
+      range-absent:
+        description: A named acquisition source is absent throughout the declared shot range.
   ValidationState:
     permissible_values:
       corpus-validated:
@@ -170,6 +172,16 @@ slots:
   source_status:
     range: SourceStatus
     required: true
+  range_first_shot:
+    range: integer
+    minimum_value: 0
+  range_last_shot:
+    range: integer
+    minimum_value: 0
+  source_representation_signature:
+    description: >-
+      Frozen upstream geometry identity for a range whose source representation
+      may contain more conductor rows than its materialised geometry table.
   binding:
     required: true
   reason:
@@ -346,6 +358,7 @@ classes:
       - drive_topology
       - description_supplement
       - validation_state
+      - source_representation_signature
   ValidationGap:
     slots:
       - binding
@@ -366,6 +379,8 @@ classes:
       - source_unit
       - reason
       - evidence
+      - range_first_shot
+      - range_last_shot
   SensorIdentityRule:
     description: >-
       Canonicalises acquisition identities without enumerating aliases. Case
@@ -460,9 +475,12 @@ classes:
   PointFluxLoopDeclaration:
     description: >-
       Declares one static point-loop position absent from pulse-store arrays at
-      writable scalar leaves of a typed magnetics flux-loop structure.
+      writable scalar leaves of a typed magnetics flux-loop structure. An
+      acquisition address may join that declared position to a measured signal
+      when the upstream nominal-geometry identity is absent.
     slots:
       - name
+      - acquisition_address
       - r
       - z
       - r_path

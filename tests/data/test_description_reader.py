@@ -115,9 +115,23 @@ def test_real_description_supplies_every_probe_axis_and_acquisition_address() ->
     table = read_geometry_table(21_978, store_root=LEVEL2_ROOT)
     acquisition = read_acquisition_channels((21_978,), store_root=LEVEL2_ROOT)
     probes = tuple(item for item in table.sensor_map if item.kind == "b_probe")
+    loops = tuple(item for item in table.sensor_map if item.kind == "flux_loop")
 
-    assert probes
+    assert table.signature.key == "mp78-fl46-fc938-lim37-532938247d31ec5c"
+    assert len(table.sensor_map) == 96
+    assert len(probes) == 77
+    assert len(loops) == 19
     assert all(item.angle_deg in (-90.0, 0.0) for item in probes)
+    addresses = {item.amb_channel for item in table.sensor_map}
+    assert {"ccbv10", "fl_p6u_1"}.issubset(addresses)
+    assert {"fl_cc02", "fl_cc10"}.isdisjoint(addresses)
+    assert len(table.amc_current_channels) == 45
+    assert set(table.unmatched_amb) == {
+        "fl_p2l_1",
+        "fl_p2l_3",
+        "fl_p2u_1",
+        "fl_p2u_3",
+    }
     assert tuple(item.amb_channel for item in table.sensor_map) == tuple(
         item[0] for item in acquisition.sensors
     )

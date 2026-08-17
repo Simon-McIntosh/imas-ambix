@@ -30,7 +30,7 @@ from imas_ambix.gs.operator import build_operator, classify_circuits
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 LEVEL1_ROOT = Path("/work/projects/imas_gpu/mast/level1/shots")
-RANGE_FIRST_SHOTS = (11_766, 12_417)
+ADAPTER_PARITY_SHOTS = (11_766, 12_417)
 LOOP_DIVERGENCE_SHOT = 21_978
 BASELINE_PARITY_COUNTS = {"matching": 8, "differing": 8, "missing": 1}
 MATERIALISED_PARITY_COUNTS = {"matching": 7, "differing": 9, "missing": 1}
@@ -300,8 +300,8 @@ def test_flux_loop_divergence_separates_identity_from_source_geometry() -> None:
         name for name in shared if name_matched_separations[name] > 0.0
     )
 
-    assert len(shared) == 18
-    assert len(initially_differing) == 15
+    assert len(shared) == 19
+    assert len(initially_differing) == 16
     assert max(name_matched_separations.values()) == pytest.approx(2.1679999828338623)
     for name in initially_differing:
         level2 = adapted_loops[name]
@@ -389,7 +389,7 @@ def test_flux_loop_divergence_separates_identity_from_source_geometry() -> None:
         )
         for name in shared_probes
     )
-    assert len(shared_probes) == 76
+    assert len(shared_probes) == 77
     assert np.count_nonzero(probe_separations) == 0
     assert max(probe_separations, default=0.0) == 0.0
     print(
@@ -410,7 +410,7 @@ def test_adapter_source_contains_no_machine_selection() -> None:
     not all(
         (LEVEL2_ROOT / f"{shot}.zarr").is_dir()
         and (LEVEL1_ROOT / f"{shot}.zarr").is_dir()
-        for shot in RANGE_FIRST_SHOTS
+        for shot in ADAPTER_PARITY_SHOTS
     ),
     reason="local level-1 and level-2 geometry stores are not mounted",
 )
@@ -419,11 +419,12 @@ def test_adapter_accounts_for_every_legacy_geometry_field() -> None:
     table_fields = tuple(field.name for field in dataclasses.fields(GeometryTable))
 
     assert (
-        tuple(machine_map.first_shot for machine_map in catalog.maps)
-        == RANGE_FIRST_SHOTS
+        set(ADAPTER_PARITY_SHOTS).issubset(
+            {machine_map.first_shot for machine_map in catalog.maps}
+        )
     )
     assert set(_NONMATCHING_FIELDS).issubset(table_fields)
-    for shot in RANGE_FIRST_SHOTS:
+    for shot in ADAPTER_PARITY_SHOTS:
         description = transform_machine_description(catalog, shot, "zarr", LEVEL2_ROOT)
         adapted = geometry_table_from_description(description, catalog)
         reordered = geometry_table_from_description(

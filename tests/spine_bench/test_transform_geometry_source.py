@@ -68,15 +68,19 @@ def test_identity_bound_campaign_replaces_the_aliased_loop_join() -> None:
     assert len({item.efm_index for item in after.values()}) == 19
     assert (
         sum(before[channel].efm_index != after[channel].efm_index for channel in after)
-        == 14
+        == 19
     )
+    assert corrected.signature.key == "mp78-fl46-fc938-lim37-532938247d31ec5c"
     assert after["fl_cc09"].efm_index == 8
     assert after["fl_p6l_1"].efm_index == 44
     assert after["fl_p6u_1"].efm_index == 26
+    assert (after["fl_p6u_1"].r, after["fl_p6u_1"].z) == pytest.approx(
+        (1.402500033378601, 0.8889999985694885)
+    )
     assert all(item.flag == "" for item in after.values())
     provenance = source.provenance()
     assert provenance["identity_channel_count"] == 19
-    assert provenance["identity_aliased_nearest_coordinate_rows_replaced"] == 14
+    assert provenance["identity_geometry_rows_rebound"] == 19
     assert provenance["identity_minimum_winning_correlation"] > 0.99999
 
 

@@ -83,6 +83,8 @@ class SignalIdentityMatch:
 
     channel: str
     efm_index: int
+    r: float
+    z: float
     correlation: float
     runner_up_correlation: float
 
@@ -103,6 +105,8 @@ def _signal_identity_matches(
     amb_time = np.asarray(amb["time"][:], dtype=np.float64)
     efm_time = np.asarray(efm["time"][:], dtype=np.float64)
     efm_signals = np.asarray(efm["silop_x"][:], dtype=np.float64)
+    efm_r = np.asarray(efm["silop_r"][:], dtype=np.float64)
+    efm_z = np.asarray(efm["silop_z"][:], dtype=np.float64)
     matches: list[SignalIdentityMatch] = []
     for channel in channels:
         signal = np.asarray(amb[channel][:], dtype=np.float64)
@@ -142,6 +146,8 @@ def _signal_identity_matches(
             SignalIdentityMatch(
                 channel=channel,
                 efm_index=winner,
+                r=float(efm_r[winner]),
+                z=float(efm_z[winner]),
                 correlation=float(correlations[winner]),
                 runner_up_correlation=float(correlations[runner_up]),
             )
@@ -324,12 +330,10 @@ class TransformGeometrySource:
 class IdentityBoundCampaignGeometrySource:
     """The frozen campaign table with flux-loop identity bound by signal.
 
-    The historical campaign source maps an acquisition loop to the nearest EFM
-    coordinate parsed from its raw description.  Several descriptions reuse a
-    placeholder coordinate, so that join is not an identity relation.  This
+    A geometry-description row number is not an EFM acquisition identity.  This
     source keeps the campaign table and all of its static geometry but replaces
-    only those loop mappings with a one-to-one binding measured on the frozen
-    cohort's evidence shot.
+    every loop mapping with a one-to-one binding measured on the frozen cohort's
+    evidence shot.
     """
 
     evidence_shot: int
@@ -339,7 +343,7 @@ class IdentityBoundCampaignGeometrySource:
     _matches: tuple[SignalIdentityMatch, ...] = field(
         default=(), init=False, repr=False
     )
-    _aliased_count: int = field(default=0, init=False, repr=False)
+    _rebound_count: int = field(default=0, init=False, repr=False)
 
     def _build(self) -> Any:
         table = self.campaign_source.table_for(self.evidence_shot)
@@ -352,32 +356,30 @@ class IdentityBoundCampaignGeometrySource:
         )
         self._matches = _signal_identity_matches(self.evidence_shot, channels)
         by_channel = {item.channel: item for item in self._matches}
-        loops = {item.index: item for item in table.flux_loops}
         corrected = []
-        aliased_count = 0
+        rebound_count = 0
         for mapping in table.sensor_map:
             if mapping.kind != "flux_loop":
                 corrected.append(mapping)
                 continue
             match = by_channel[mapping.amb_channel]
-            loop = loops.get(match.efm_index)
-            if loop is None:
+            if not np.isfinite((match.r, match.z)).all():
                 raise RuntimeError(
-                    f"channel {mapping.amb_channel!r} matched absent EFM geometry "
-                    f"column {match.efm_index}"
+                    f"channel {mapping.amb_channel!r} matched non-finite EFM "
+                    f"geometry column {match.efm_index}"
                 )
-            aliased_count += int(mapping.efm_index != match.efm_index)
+            rebound_count += int(mapping.efm_index != match.efm_index)
             corrected.append(
                 replace(
                     mapping,
                     efm_index=match.efm_index,
-                    r=loop.r,
-                    z=loop.z,
+                    r=match.r,
+                    z=match.z,
                     residual_m=0.0,
                     flag="",
                 )
             )
-        self._aliased_count = aliased_count
+        self._rebound_count = rebound_count
         return replace(
             table,
             sensor_map=corrected,
@@ -424,7 +426,7 @@ class IdentityBoundCampaignGeometrySource:
             "identity_binding": "unique highest waveform correlation",
             "identity_evidence_shot": int(self.evidence_shot),
             "identity_channel_count": len(self._matches),
-            "identity_aliased_nearest_coordinate_rows_replaced": self._aliased_count,
+            "identity_geometry_rows_rebound": self._rebound_count,
             "identity_minimum_winning_correlation": min(
                 item.correlation for item in self._matches
             ),

@@ -29,7 +29,7 @@ _SIGN_CONVENTIONS = {
     "unknown-unvalidated",
 }
 _SOURCE_ROLES = {"value", "identifier", "dimension-coordinate"}
-_SOURCE_STATUSES = {"corpus-observed", "legacy-only"}
+_SOURCE_STATUSES = {"corpus-observed", "legacy-only", "range-absent"}
 _VALIDATION_STATES = {"corpus-validated", "source-only"}
 _IDENTITY_CASE_RULES = {"case-fold"}
 _IDENTITY_NUMERIC_TOKEN_RULES = {"integer-value"}
@@ -185,6 +185,7 @@ class MachineMap:
     drive_topology: str | None
     description_supplement: str | None
     validation_state: str
+    source_representation_signature: str | None
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any], label: str) -> MachineMap:
@@ -199,7 +200,7 @@ class MachineMap:
             "description_supplement",
             "validation_state",
         }
-        _exact_keys(payload, required, set(), label)
+        _exact_keys(payload, required, {"source_representation_signature"}, label)
         transition = payload["transition"]
         if transition is not None:
             transition = _text(transition, f"{label}.transition")
@@ -222,6 +223,14 @@ class MachineMap:
             description_supplement=description_supplement,
             validation_state=_text(
                 payload["validation_state"], f"{label}.validation_state"
+            ),
+            source_representation_signature=(
+                _text(
+                    payload["source_representation_signature"],
+                    f"{label}.source_representation_signature",
+                )
+                if "source_representation_signature" in payload
+                else None
             ),
         )
         if machine_map.first_shot > machine_map.last_shot:
@@ -262,6 +271,8 @@ class SourceQualification:
     source_unit: str
     reason: str
     evidence: str
+    range_first_shot: int | None
+    range_last_shot: int | None
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any], label: str) -> SourceQualification:
@@ -276,7 +287,8 @@ class SourceQualification:
             "reason",
             "evidence",
         }
-        _exact_keys(payload, required, set(), label)
+        range_keys = {"range_first_shot", "range_last_shot"}
+        _exact_keys(payload, required, range_keys, label)
         shape = payload["source_shape"]
         if not isinstance(shape, list) or not shape:
             raise MachineMapError(f"{label}.source_shape must be a non-empty list")
@@ -294,7 +306,43 @@ class SourceQualification:
             raise MachineMapError(
                 f"{label}.source_status must be one of {sorted(_SOURCE_STATUSES)}"
             )
-        return cls(source_shape=source_shape, **values)
+        present_range_keys = range_keys.intersection(payload)
+        if present_range_keys and present_range_keys != range_keys:
+            raise MachineMapError(
+                f"{label} must declare both range_first_shot and range_last_shot"
+            )
+        if values["source_status"] == "range-absent" and not present_range_keys:
+            raise MachineMapError(
+                f"{label} range-absent qualification requires an explicit shot range"
+            )
+        if values["source_status"] != "range-absent" and present_range_keys:
+            raise MachineMapError(
+                f"{label} shot ranges are reserved for range-absent qualifications"
+            )
+        range_first_shot = (
+            _integer(payload["range_first_shot"], f"{label}.range_first_shot")
+            if present_range_keys
+            else None
+        )
+        range_last_shot = (
+            _integer(payload["range_last_shot"], f"{label}.range_last_shot")
+            if present_range_keys
+            else None
+        )
+        if (
+            range_first_shot is not None
+            and range_last_shot is not None
+            and range_last_shot < range_first_shot
+        ):
+            raise MachineMapError(
+                f"{label}.range_last_shot precedes range_first_shot"
+            )
+        return cls(
+            source_shape=source_shape,
+            range_first_shot=range_first_shot,
+            range_last_shot=range_last_shot,
+            **values,
+        )
 
 
 @dataclass(frozen=True)
@@ -646,6 +694,7 @@ class PointFluxLoopDeclaration:
     """One static point-loop position absent from emitted pulse arrays."""
 
     name: str
+    acquisition_address: str | None
     r: float
     z: float
     r_path: str
@@ -668,9 +717,15 @@ class PointFluxLoopDeclaration:
             "type_index",
             "evidence",
         }
-        _exact_keys(payload, required, set(), label)
+        _exact_keys(payload, required, {"acquisition_address"}, label)
+        acquisition_address = payload.get("acquisition_address")
+        if acquisition_address is not None:
+            acquisition_address = _text(
+                acquisition_address, f"{label}.acquisition_address"
+            )
         return cls(
             name=_text(payload["name"], f"{label}.name"),
+            acquisition_address=acquisition_address,
             r=_number(payload["r"], f"{label}.r"),
             z=_number(payload["z"], f"{label}.z"),
             r_path=_text(payload["r_path"], f"{label}.r_path"),
@@ -1330,15 +1385,56 @@ def map_for_shot(catalog: MachineMapCatalog, shot: int) -> MachineMap:
 def assert_transition_alignment(
     catalog: MachineMapCatalog, transitions: Sequence[Any]
 ) -> None:
-    """Require every transition range to have one identically bounded map."""
-    map_ranges = {
-        (item.first_shot, item.last_shot, item.transition) for item in catalog.maps
-    }
-    transition_ranges = {
-        (item.first_shot, item.last_shot, item.name) for item in transitions
-    }
-    if map_ranges != transition_ranges:
+    """Require maps to cover each transition with contiguous contained ranges."""
+    transitions_by_name = {item.name: item for item in transitions}
+    if len(transitions_by_name) != len(transitions):
+        raise MachineMapError("geometry transition names must be unique")
+
+    errors: list[str] = []
+    for machine_map in catalog.maps:
+        transition = transitions_by_name.get(machine_map.transition)
+        if transition is None:
+            errors.append(
+                f"map {machine_map.name!r} names unknown transition "
+                f"{machine_map.transition!r}"
+            )
+            continue
+        if not (
+            transition.first_shot <= machine_map.first_shot
+            and machine_map.last_shot <= transition.last_shot
+        ):
+            errors.append(
+                f"map {machine_map.name!r} range "
+                f"{machine_map.first_shot}-{machine_map.last_shot} lies outside "
+                f"transition {transition.name!r} range "
+                f"{transition.first_shot}-{transition.last_shot}"
+            )
+
+    for transition in transitions:
+        ranges = sorted(
+            (
+                machine_map.first_shot,
+                machine_map.last_shot,
+                machine_map.name,
+            )
+            for machine_map in catalog.maps
+            if machine_map.transition == transition.name
+        )
+        expected_first = transition.first_shot
+        for first_shot, last_shot, name in ranges:
+            if first_shot != expected_first:
+                errors.append(
+                    f"transition {transition.name!r} expected map coverage at "
+                    f"shot {expected_first}, got {name!r} at shot {first_shot}"
+                )
+            expected_first = last_shot + 1
+        if expected_first != transition.last_shot + 1:
+            errors.append(
+                f"transition {transition.name!r} map coverage ends at "
+                f"{expected_first - 1}, expected {transition.last_shot}"
+            )
+
+    if errors:
         raise MachineMapError(
-            f"map ranges differ from geometry transitions: "
-            f"maps={sorted(map_ranges)}, transitions={sorted(transition_ranges)}"
+            "map ranges differ from geometry transitions: " + "; ".join(errors)
         )

@@ -90,6 +90,10 @@ CURRENT_SOURCE_ABSENT = "absent_from_level2"
 SENSOR_COORDINATE_EXCLUSION_PREFIX = (
     "sensor_map: excluded sensor addresses with no finite emitted coordinates: "
 )
+_SOURCE_REPRESENTATION_SIGNATURE = re.compile(
+    r"mp(?P<bprobe>\d+)-fl(?P<fluxloop>\d+)-fc(?P<filament>\d+)-"
+    r"lim(?P<limiter>\d+)-(?P<digest>[0-9a-f]{16})"
+)
 
 
 _ROLE_SUFFIXES: Mapping[str, tuple[str, ...]] = {
@@ -229,10 +233,22 @@ def _flux_loops(
                     flag="",
                 )
             )
-    loops.extend(
-        FluxLoop(index=len(loops) + index, r=item.r, z=item.z)
-        for index, item in enumerate(supplement.point_flux_loops)
-    )
+    for item in supplement.point_flux_loops:
+        index = len(loops)
+        loops.append(FluxLoop(index=index, r=item.r, z=item.z))
+        if item.acquisition_address is not None:
+            mappings.append(
+                SensorMapping(
+                    amb_channel=item.acquisition_address,
+                    kind="flux_loop",
+                    efm_index=index,
+                    r=item.r,
+                    z=item.z,
+                    angle_deg=None,
+                    residual_m=0.0,
+                    flag="range-scoped declared acquisition geometry",
+                )
+            )
     return loops, mappings
 
 
@@ -755,12 +771,46 @@ def _limiter(description: MachineDescription) -> tuple[list[float], list[float]]
 
 def _signature(
     description: MachineDescription,
+    topology: DriveTopology,
     b_probes: list[BProbe],
     flux_loops: list[FluxLoop],
     filaments: list[PFFilament],
     limiter_r: list[float],
     limiter_z: list[float],
 ) -> SetupSignature:
+    declared = description.machine_map.source_representation_signature
+    if declared is not None:
+        match = _SOURCE_REPRESENTATION_SIGNATURE.fullmatch(declared)
+        if match is None:
+            raise GeometryAdapterError(
+                f"invalid source representation signature {declared!r}"
+            )
+        declared_counts = {
+            "bprobe": int(match.group("bprobe")),
+            "fluxloop": int(match.group("fluxloop")),
+            "filament": int(match.group("filament")),
+            "limiter": int(match.group("limiter")),
+        }
+        actual_counts = {
+            "bprobe": len(b_probes),
+            "fluxloop": len(flux_loops),
+            "filament": len(topology.connections),
+            "limiter": len(limiter_r),
+        }
+        if declared_counts != actual_counts:
+            raise GeometryAdapterError(
+                "source representation signature counts do not match the selected "
+                f"declarations: signature={declared_counts}, actual={actual_counts}"
+            )
+        return SetupSignature(
+            n_bprobe=declared_counts["bprobe"],
+            n_fluxloop=declared_counts["fluxloop"],
+            n_pf_filament=declared_counts["filament"],
+            n_limiter=declared_counts["limiter"],
+            digest=match.group("digest"),
+            machine=description.machine_map.machine,
+        )
+
     arrays = (
         np.asarray([item.r for item in b_probes]),
         np.asarray([item.z for item in b_probes]),
@@ -836,6 +886,7 @@ def geometry_table_from_description(
         )
     signature = _signature(
         description,
+        topology,
         b_probes,
         flux_loops,
         filaments,
