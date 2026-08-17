@@ -35,6 +35,53 @@
     not exist locally. The <code>label-pedigree-response</code> decision therefore waits on
     the empirical probe, for which the flux-function-evolution-prototype banked 20-shot
     trajectories the same day.</p>
+
+    <h2 id="pedigree-probe">§2 label pedigree — a clean inconclusive — 2026-08-17</h2>
+    <p>Commit <code>1eca758b</code>. Shape-only discriminators were run over 3,816 quality
+    frames (92.15% of 4,141) across all 20 shots. The extracted profiles carry smooth,
+    low-order, magnetics-only-like signatures: median quadratic-in-ρ² residual
+    <strong>0.505%</strong> for the q-shape proxy and <strong>1.006%</strong> for normalised
+    current density, explained fractions 99.964% and 99.896%, split-half residual coherence
+    0.958, median core coefficient of variation 7.83% and 10.93%.</p>
+    <p><strong>Verdict: inconclusive, at 0.85 confidence that the discriminators
+    cannot decide.</strong> An MSE-constrained EFIT sharing the same basis, regularisation
+    and extraction stencil produces those same signatures, so the test does not separate the
+    hypotheses. Identifying evidence would need reconstruction-constraint metadata, EFIT
+    inputs exposing MSE weights, paired MSE-on/off reconstructions, or held-out pitch-angle
+    residuals — none of which the corpus carries. The <code>label-pedigree-response</code>
+    decision is therefore locked to <strong>edge-weighted</strong>, the plan's pre-registered
+    default, as the correct posture under irreducible uncertainty, with the pedigree recorded
+    as unknown rather than assumed. Limitation kept on the page: the q proxy is constant-F
+    normalised to the parquet q95 and is not an independently extracted q profile, because
+    the corpus ships no full q or F profile.</p>
+    <p><strong>Side finding that strengthens the entry thesis.</strong> The 95% rank is
+    <strong>one</strong> for both quantities — a single component explains 98.49% of q-proxy
+    variance and 96.99% of current-profile variance, with between-shot variance fractions of
+    32.85% and 49.77%. Independent confirmation, on different quantities, of the
+    low-dimensionality the prototype measured.</p>
+    <p>The corpus-wide download also completed during this wave: <strong>9,121 files
+    verified against the inventory</strong> (7,041 DIII-D train, 874 public test, 1,206
+    MAST), so every downstream lane is data-unblocked.</p>
+
+    <h2 id="thomson-models">§3 Thomson measurement models — 2026-08-17</h2>
+    <p>Commit <code>adc54df</code>, 7/7 tests in 79.5 s. All four operators land in
+    <code>imas_ambix/thomson</code>. The <strong>pedestal-foot separatrix detector</strong>
+    is calibrated on 20 paired shots (15 train, 5 held out; 94,846 training and 30,150
+    held-out samples) with one-σ held-out coverage <strong>0.6222, inside the pre-registered
+    [0.50, 0.82] band</strong>. <strong>Channel validity</strong> is typed by core-vertical,
+    tangential-edge and divertor topology, and every assessment retains its channel while
+    widening σ by topology, ELM phase and health — the widen-don't-drop policy enforced in
+    code rather than intended in prose. <strong>Non-collinear matched-T_e isoflux
+    pairing</strong> and synthetic detector recovery round-trip green.</p>
+    <p>The <strong>isotherm-asymmetry Shafranov-shift operator</strong> is training-free
+    (zero operator training samples) and is verified against <strong>116 banked
+    β_p + ℓ_i/2 receipts</strong> spanning 0.4951–5.6970, median 0.7920, reconstructing β_p
+    from the magnitude of extracted p′ with FSA volume and poloidal-energy terms. Its
+    importance exceeds this section: it is the one Thomson-side quantity with genuine
+    sensitivity to the β_p + ℓ_i/2 combination that FF′ controls — the quantity the §4
+    prototype showed the chord model otherwise cannot see. The package docstring discloses
+    chord-level ψ_N calibration as derivative-level label consumption, as the locked firewall
+    decision requires.</p>
   </main>
 </body>
 </html>
