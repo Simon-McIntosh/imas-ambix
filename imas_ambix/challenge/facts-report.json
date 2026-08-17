@@ -1,0 +1,54 @@
+{
+  "claims": [
+    {
+      "basis": "pinned official dataset card; slice validates the same efit_times schema",
+      "claim": "approximately 1.55 million diverted DIII-D label frames",
+      "measured_value": 1559340,
+      "verdict": "confirmed"
+    },
+    {
+      "basis": "pinned official dataset card; pre-filter frames are absent from the release",
+      "claim": "approximately 88% DIII-D and 66% MAST frame retention",
+      "measured_value": {
+        "DIII-D": 0.88,
+        "MAST": 0.664
+      },
+      "verdict": "confirmed"
+    },
+    {
+      "basis": "pinned official dataset card; slice count is a lower bound",
+      "claim": "approximately 22 distinct per-shot DIII-D Thomson layouts",
+      "measured_value": 22,
+      "slice_value": 16,
+      "verdict": "confirmed"
+    },
+    {
+      "basis": "MAST ground truth and a scorer-side paired evaluation are not released",
+      "claim": "three-decimal submitted-map rounding measurably harms MAST Consistency",
+      "measured_value": null,
+      "verdict": "unreachable-from-slice"
+    },
+    {
+      "basis": "Parquet schema contains no reconstruction-constraint provenance",
+      "claim": "ground-truth EFITs are magnetics-only or MSE-constrained",
+      "measured_value": null,
+      "verdict": "unreachable-from-slice"
+    }
+  ],
+  "measurements": {
+    "all_psirz_shapes": [
+      "T",
+      65,
+      65
+    ],
+    "distinct_thomson_channel_name_layouts": 16,
+    "frames_per_shot_max": 371,
+    "frames_per_shot_median": 240.0,
+    "frames_per_shot_min": 3,
+    "labeled_frames": 21386,
+    "shots": 100
+  },
+  "repository": "Sophelio/fusion-equilibrium-challenge",
+  "revision": "1e280905b85f2a6fdde7e06fca8cf3a1edf447cb",
+  "source_card": "https://huggingface.co/datasets/Sophelio/fusion-equilibrium-challenge/blob/1e280905b85f2a6fdde7e06fca8cf3a1edf447cb/README.md"
+}
