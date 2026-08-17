@@ -60,6 +60,19 @@
     with confirmed plan-label and changelog-prose violations; folded into the plan as its §4
     script-naming scrub with the four sweep logs as seed.</li>
   </ul>
+  <h2 id="statespace-lint">Statespace lint cleanup — full-file ruff clean, no waivers</h2>
+  <p><strong>Both statespace modules pass full-file <code>ruff check</code> (44 findings → 0) and
+  <code>ruff format --check</code> (2/2 formatted), with the suite green at 206/206.</strong>
+  Commit <code>6100211</code> (merged <code>2327e77</code>), 106 insertions / 92 deletions across
+  the two modules only.</p>
+  <ul>
+    <li>The plan's 75-finding baseline had already shrunk to 44 after the naming scrub landed:
+    33 naming-rule findings and 11 line-length findings, all cleared mechanically (local
+    tensor/dimension renames, diagnostic-string wrapping) — no waiver needed.</li>
+    <li>The mandatory naming sweep stays at zero unwaived violations under the previously
+    recorded carve-outs; logs under run
+    <code>r-20260817T141935840246-statespace-lint</code>.</li>
+  </ul>
 </main>
 </body>
 </html>
