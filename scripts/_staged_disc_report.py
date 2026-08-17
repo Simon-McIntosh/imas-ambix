@@ -32,8 +32,13 @@ FIGDIR = "docs/figures/th-boundary-robustness"
 
 def _push(psi, grid, ctr):
     lc = lcfs_contour(
-        psi, grid.rg, grid.zg, ctr, clip_legs=True,
-        limiter_r=grid.limiter_r, limiter_z=grid.limiter_z,
+        psi,
+        grid.rg,
+        grid.zg,
+        ctr,
+        clip_legs=True,
+        limiter_r=grid.limiter_r,
+        limiter_z=grid.limiter_z,
     )
     return lc.ring if lc.found else None
 
@@ -66,9 +71,12 @@ def staged_disc(grid, basis, table, p):
     a = (m_sens @ cols) * w[:, None]
     cn = np.linalg.norm(a, axis=0)
     cn = np.where(cn > 0, cn, 1.0)
-    cfit = np.linalg.solve(
-        (a / cn).T @ (a / cn) + 1e-3 * np.eye(3), (a / cn).T @ (resid * w)
-    ) / cn
+    cfit = (
+        np.linalg.solve(
+            (a / cn).T @ (a / cn) + 1e-3 * np.eye(3), (a / cn).T @ (resid * w)
+        )
+        / cn
+    )
     resid_q = resid - (m_sens @ cols) @ cfit
     mis_q = float(np.sum((w * resid_q)[keep] ** 2) / max(int(keep.sum()), 1))
 
@@ -99,7 +107,10 @@ def main():
             print(f"{shot}: load failed {exc!r}"[:80])
             continue
         grid, basis, table, pls = (
-            pay["grid"], pay["basis"], pay["table"], pay["payloads"]
+            pay["grid"],
+            pay["basis"],
+            pay["table"],
+            pay["payloads"],
         )
         try:
             picks = select_slices(pls, shot)
@@ -137,12 +148,19 @@ def main():
             )
         if ring_u is not None:
             ax.plot(
-                ring_u[:, 0], ring_u[:, 1], "g-", lw=1.2,
+                ring_u[:, 0],
+                ring_u[:, 1],
+                "g-",
+                lw=1.2,
                 label=f"uniform {rms_u:.0f}cm",
             )
         if ring_q is not None:
             ax.plot(
-                ring_q[:, 0], ring_q[:, 1], "-", color="#9467bd", lw=1.2,
+                ring_q[:, 0],
+                ring_q[:, 1],
+                "-",
+                color="#9467bd",
+                lw=1.2,
                 label=f"+quad {rms_q:.0f}cm",
             )
         ax.plot([ctr[0]], [ctr[1]], "g+", ms=7)
@@ -150,7 +168,8 @@ def main():
         ax.legend(fontsize=6, loc="upper right")
     fig.suptitle(
         "Staged disc read: uniform (green) vs +quadrupole-on-residual (purple) "
-        "vs firewalled EFIT (red)", fontsize=12
+        "vs firewalled EFIT (red)",
+        fontsize=12,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.98))
     out = f"{FIGDIR}/staged-disc-cohort.png"

@@ -170,7 +170,14 @@ def annulus_consistency_rms(
 
 
 def hybrid_target_harmonic(
-    psi_tot, grid, axis, pole, mask_radius, exclude_radius, *, xpoint_tol=0.05,
+    psi_tot,
+    grid,
+    axis,
+    pole,
+    mask_radius,
+    exclude_radius,
+    *,
+    xpoint_tol=0.05,
     clip_legs=False,
 ):
     """14-D geometry target: LCFS SHAPE by the outermost closed axis-enclosing

@@ -404,7 +404,11 @@ def bootstrap_over_shots(
 
 
 def spearman_with_ci(
-    x: np.ndarray, y: np.ndarray, shot_ids: np.ndarray, n_boot: int = 2000, seed: int = 1
+    x: np.ndarray,
+    y: np.ndarray,
+    shot_ids: np.ndarray,
+    n_boot: int = 2000,
+    seed: int = 1,
 ) -> dict:
     """Spearman ρ(x, y) with a bootstrap-over-shots 95% CI."""
     from scipy.stats import spearmanr  # noqa: PLC0415
@@ -466,7 +470,9 @@ def slice_c_summary(rec: dict) -> tuple[float, float, float]:
     imp = np.abs(cc) * mm
     hi = imp >= np.median(imp)
     signs = np.sign(cc[hi])
-    dom = float(max((signs > 0).mean(), (signs < 0).mean())) if hi.any() else float("nan")
+    dom = (
+        float(max((signs > 0).mean(), (signs < 0).mean())) if hi.any() else float("nan")
+    )
     return mean_abs, peak_abs, dom
 
 
@@ -512,9 +518,7 @@ def main() -> int:
 
     # rotation coverage
     rot_avail = np.array([s["rot_available"] for s in all_slices])
-    shots_with_rot = sorted(
-        {s["shot"] for s in all_slices if s["rot_available"]}
-    )
+    shots_with_rot = sorted({s["shot"] for s in all_slices if s["rot_available"]})
     report["rotation_coverage"] = {
         "n_slices_with_proxy": int(rot_avail.sum()),
         "n_slices_total": len(all_slices),
@@ -549,9 +553,11 @@ def main() -> int:
             }
 
         # c(psi) coherence
-        c_mean_abs, c_peak_abs, c_dom = np.array(
-            [slice_c_summary(s[arm_name]) for s in sl]
-        ).T if sl else (np.array([]), np.array([]), np.array([]))
+        c_mean_abs, c_peak_abs, c_dom = (
+            np.array([slice_c_summary(s[arm_name]) for s in sl]).T
+            if sl
+            else (np.array([]), np.array([]), np.array([]))
+        )
         spearman_lineavg = spearman_with_ci(c_mean_abs, rot_la, shot_ids)
         spearman_peak = spearman_with_ci(c_peak_abs, rot_pk, shot_ids)
 
@@ -669,20 +675,31 @@ def _make_figures(fig_data: dict, common: np.ndarray, report: dict) -> None:
             d_lo = (f2 - f3)[lo]
             if d_hi.size:
                 ax2.plot(
-                    common, np.nanmean(d_hi, axis=0), color="#b2182b", lw=2,
+                    common,
+                    np.nanmean(d_hi, axis=0),
+                    color="#b2182b",
+                    lw=2,
                     label=f"high rot (≥{med / 1e3:.0f} km/s, n={hi.sum()})",
                 )
             if d_lo.size:
                 ax2.plot(
-                    common, np.nanmean(d_lo, axis=0), color="#4393c3", lw=2,
+                    common,
+                    np.nanmean(d_lo, axis=0),
+                    color="#4393c3",
+                    lw=2,
                     label=f"low rot (n={lo.sum()})",
                 )
             ax2.axhline(0.0, color="k", lw=0.6, ls=":")
             ax2.legend(fontsize=8)
         else:
             ax2.text(
-                0.5, 0.5, "insufficient rotation coverage\nfor a stratified split",
-                ha="center", va="center", transform=ax2.transAxes, fontsize=10,
+                0.5,
+                0.5,
+                "insufficient rotation coverage\nfor a stratified split",
+                ha="center",
+                va="center",
+                transform=ax2.transAxes,
+                fontsize=10,
             )
         ax2.set_title(f"{arm_titles[arm_name]}: R⁴ per-bin Δ by rotation stratum")
         ax2.set_xlabel("ψ_N")
@@ -713,7 +730,11 @@ def _make_figures(fig_data: dict, common: np.ndarray, report: dict) -> None:
             psi_n = np.asarray(rec["psi_n"], dtype=np.float64)
             c = np.asarray(rec["c_k"], dtype=np.float64)
             mass = np.asarray(rec["mass"], dtype=np.float64)
-            keep = np.isfinite(psi_n) & np.isfinite(c) & (mass > 1e-3 * (mass.max() or 1.0))
+            keep = (
+                np.isfinite(psi_n)
+                & np.isfinite(c)
+                & (mass > 1e-3 * (mass.max() or 1.0))
+            )
             if keep.sum() < 2:
                 continue
             order = np.argsort(psi_n[keep])

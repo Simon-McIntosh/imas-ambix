@@ -57,7 +57,6 @@ ENVIRONMENT VARIABLES
 """
 
 import os
-import sys
 import signal
 import threading
 import time
@@ -77,7 +76,10 @@ def _watchdog(rank: int) -> None:
     """Self-terminate after WATCHDOG_SECONDS if scancel was not issued."""
     if not _stop_event.wait(timeout=WATCHDOG_SEC):
         if rank == 0:
-            print(f"[MWE-04] WATCHDOG: {WATCHDOG_SEC:.0f}s elapsed; self-terminating.", flush=True)
+            print(
+                f"[MWE-04] WATCHDOG: {WATCHDOG_SEC:.0f}s elapsed; self-terminating.",
+                flush=True,
+            )
         os.kill(os.getpid(), signal.SIGTERM)
 
 
@@ -111,8 +113,14 @@ def main() -> None:
 
     if rank == 0:
         print(f"[MWE-04] READY — issue 'scancel {JOB_ID}' now", flush=True)
-        print(f"[MWE-04] Expected result: node stays idle (R-state, SIGKILL works)", flush=True)
-        print(f"[MWE-04] Drain result:    node drains (D-state, NVLink kernel sleep)", flush=True)
+        print(
+            "[MWE-04] Expected result: node stays idle (R-state, SIGKILL works)",
+            flush=True,
+        )
+        print(
+            "[MWE-04] Drain result:    node drains (D-state, NVLink kernel sleep)",
+            flush=True,
+        )
 
     n = 0
     t_last_report = time.monotonic()

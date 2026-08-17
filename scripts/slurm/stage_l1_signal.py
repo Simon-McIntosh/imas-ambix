@@ -32,15 +32,11 @@ import zarr
 from imas_ambix.camdyn.dataset import level1_shot_path
 
 #: Never stage these — EFIT reconstructions (leakage) or control reconstructions.
-BANNED_GROUPS: frozenset[str] = frozenset(
-    {"efm", "esm", "esx", "equilibrium", "xdc"}
-)
+BANNED_GROUPS: frozenset[str] = frozenset({"efm", "esm", "esx", "equilibrium", "xdc"})
 
 #: Array-name suffixes/keys that are not value channels.
 _SKIP_SUFFIXES: tuple[str, ...] = ("_error", "_status", "_quality")
-_SKIP_EXACT: frozenset[str] = frozenset(
-    {"passnumber", "status", "time", "quality"}
-)
+_SKIP_EXACT: frozenset[str] = frozenset({"passnumber", "status", "time", "quality"})
 
 
 def _find_time_axis(arrkeys: set[str], g) -> str | None:
@@ -163,7 +159,6 @@ def main(argv: list[str] | None = None) -> int:
 
     n_ok = 0
     skips: dict[str, int] = {}
-    chan_seen = 0
     t0 = time.monotonic()
     for i, sid in enumerate(shots):
         ok, reason = stage_shot(sid, group, out_root)

@@ -24,10 +24,10 @@
 #   Admin should compare drain rate / timing against frozen v1 runs.
 # ============================================================
 
+import csv
 import os
 import signal
 import time
-import csv
 
 import torch
 import torch.distributed as dist
@@ -51,7 +51,10 @@ def teardown() -> None:
 
 
 def main() -> None:
-    print("[bisect_02] sync_first_call — NOTE: logically identical to frozen v1 (first call already symmetric)", flush=True)
+    print(
+        "[bisect_02] sync_first_call — NOTE: logically identical to frozen v1 (first call already symmetric)",
+        flush=True,
+    )
     rank, local_rank = setup()
     device = torch.device(f"cuda:{local_rank}")
     world_size = dist.get_world_size()
@@ -61,7 +64,10 @@ def main() -> None:
     stop = torch.zeros(1, device=device)
 
     if rank == 0:
-        print(f"[MWE-01] ranks={world_size}, buffer={BUFFER_MB} MB, rounds={NROUNDS}", flush=True)
+        print(
+            f"[MWE-01] ranks={world_size}, buffer={BUFFER_MB} MB, rounds={NROUNDS}",
+            flush=True,
+        )
         print("[MWE-01] round,blind_window_ms,collective_ms", flush=True)
 
     results: list[dict] = []
@@ -116,24 +122,44 @@ def main() -> None:
                 blind_ms = (t_end - _fire._t_sent) * 1000.0  # type: ignore[attr-defined]
 
             print(f"[MWE-01] {rnd},{blind_ms:.3f},{collective_ms:.3f}", flush=True)
-            results.append({"round": rnd, "blind_window_ms": blind_ms, "collective_ms": collective_ms})
+            results.append(
+                {
+                    "round": rnd,
+                    "blind_window_ms": blind_ms,
+                    "collective_ms": collective_ms,
+                }
+            )
 
         # --- Coordinate stop after all rounds ---
         dist.all_reduce(stop, op=dist.ReduceOp.MAX)
 
     if rank == 0 and results:
-        blind_vals = [r["blind_window_ms"] for r in results if r["blind_window_ms"] == r["blind_window_ms"]]
+        blind_vals = [
+            r["blind_window_ms"]
+            for r in results
+            if r["blind_window_ms"] == r["blind_window_ms"]
+        ]
         coll_vals = [r["collective_ms"] for r in results]
-        print(f"\n[MWE-01] SUMMARY", flush=True)
-        print(f"[MWE-01]   collective_ms  mean={sum(coll_vals)/len(coll_vals):.2f} "
-              f"max={max(coll_vals):.2f}", flush=True)
+        print("\n[MWE-01] SUMMARY", flush=True)
+        print(
+            f"[MWE-01]   collective_ms  mean={sum(coll_vals) / len(coll_vals):.2f} "
+            f"max={max(coll_vals):.2f}",
+            flush=True,
+        )
         if blind_vals:
-            print(f"[MWE-01]   blind_window_ms mean={sum(blind_vals)/len(blind_vals):.2f} "
-                  f"max={max(blind_vals):.2f}", flush=True)
+            print(
+                f"[MWE-01]   blind_window_ms mean={sum(blind_vals) / len(blind_vals):.2f} "
+                f"max={max(blind_vals):.2f}",
+                flush=True,
+            )
 
-        csv_path = os.path.join(LOG_DIR, f"bisect02_results_{os.environ.get('SLURM_JOB_ID','local')}.csv")
+        csv_path = os.path.join(
+            LOG_DIR, f"bisect02_results_{os.environ.get('SLURM_JOB_ID', 'local')}.csv"
+        )
         with open(csv_path, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=["round", "blind_window_ms", "collective_ms"])
+            writer = csv.DictWriter(
+                f, fieldnames=["round", "blind_window_ms", "collective_ms"]
+            )
             writer.writeheader()
             writer.writerows(results)
         print(f"[bisect_02] Results written to {csv_path}", flush=True)

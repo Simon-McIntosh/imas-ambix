@@ -63,7 +63,12 @@ def audit_efm_sign(shot: int) -> dict:
     psi_ax = np.asarray(efm["psi_axis"], dtype=np.float64)
     psi_bnd = np.asarray(efm["psi_boundary"], dtype=np.float64)
     ipc = np.asarray(efm["plasma_current_c"], dtype=np.float64)
-    good = np.isfinite(psi_ax) & np.isfinite(psi_bnd) & np.isfinite(ipc) & (np.abs(ipc) > 5e4)
+    good = (
+        np.isfinite(psi_ax)
+        & np.isfinite(psi_bnd)
+        & np.isfinite(ipc)
+        & (np.abs(ipc) > 5e4)
+    )
     if not good.any():
         return {"shot": shot, "n_slices": 0}
     d = psi_ax[good] - psi_bnd[good]
@@ -93,16 +98,26 @@ def audit_forward_sign(shot: int) -> dict:
     # coils are fully energised but there is no plasma current yet, so the raw
     # amb is a pure PF (vacuum) signal.  Ip is NaN pre-breakdown, so we pick the
     # last coil-energised sample immediately before the first finite Ip.
-    ip = np.asarray(amc["plasma_current"], dtype=np.float64) if "plasma_current" in amc else None
+    ip = (
+        np.asarray(amc["plasma_current"], dtype=np.float64)
+        if "plasma_current" in amc
+        else None
+    )
     itime = np.asarray(amc["time"], dtype=np.float64) if "time" in amc else None
-    sol = np.asarray(amc["sol_current"], dtype=np.float64) if "sol_current" in amc else None
+    sol = (
+        np.asarray(amc["sol_current"], dtype=np.float64)
+        if "sol_current" in amc
+        else None
+    )
     t_idx = None
     if ip is not None and itime is not None:
         fin_ip = np.where(np.isfinite(ip))[0]
         if fin_ip.size and sol is not None:
             first_ip = int(fin_ip[0])  # breakdown onset
             # coil-energised samples strictly before breakdown
-            pre = np.where(np.isfinite(sol[:first_ip]) & (np.abs(sol[:first_ip]) > 1.0))[0]
+            pre = np.where(
+                np.isfinite(sol[:first_ip]) & (np.abs(sol[:first_ip]) > 1.0)
+            )[0]
             if pre.size:
                 t_idx = int(pre[-1])  # last vacuum sample before breakdown
     if t_idx is None and sol is not None:
@@ -189,13 +204,25 @@ def main() -> int:
     )
     # annotate quadrant expectations
     ax.text(
-        0.03, 0.95, "COCOS-11 region\n(axis = flux min)", transform=ax.transAxes,
-        va="top", ha="left", fontsize=8, color="#b03030",
+        0.03,
+        0.95,
+        "COCOS-11 region\n(axis = flux min)",
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=8,
+        color="#b03030",
         bbox={"boxstyle": "round", "fc": "#fbeaea", "ec": "#d9a0a0"},
     )
     ax.text(
-        0.97, 0.95, "MAST efm here\n(axis = flux max)", transform=ax.transAxes,
-        va="top", ha="right", fontsize=8, color="#20603a",
+        0.97,
+        0.95,
+        "MAST efm here\n(axis = flux max)",
+        transform=ax.transAxes,
+        va="top",
+        ha="right",
+        fontsize=8,
+        color="#20603a",
         bbox={"boxstyle": "round", "fc": "#e8f4ec", "ec": "#a0cbb0"},
     )
     fig.tight_layout()

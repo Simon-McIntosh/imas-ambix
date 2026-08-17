@@ -66,19 +66,35 @@ def residual_vs_shot() -> None:
         med_a.append(float(np.median(axis[m])))
         n.append(int(m.sum()))
     fig, ax = plt.subplots(figsize=(8.6, 4.6))
-    ax.plot(mid, med_s, "o-", color="#268", lw=1.4, ms=4,
-            label="boundary shape (own-axis) median")
-    ax.plot(mid, med_a, "s--", color="#c66", lw=1.2, ms=4,
-            label="axis distance median")
+    ax.plot(
+        mid,
+        med_s,
+        "o-",
+        color="#268",
+        lw=1.4,
+        ms=4,
+        label="boundary shape (own-axis) median",
+    )
+    ax.plot(mid, med_a, "s--", color="#c66", lw=1.2, ms=4, label="axis distance median")
     for s, lab, col in EVENTS:
-        ax.axvline(s, color=col, lw=1.0, ls=":" if col == "#888" else "-",
-                   alpha=0.85)
-        ax.text(s, ax.get_ylim()[1] * 0.98, f" {lab}", rotation=90,
-                va="top", ha="left", fontsize=6.5, color=col)
+        ax.axvline(s, color=col, lw=1.0, ls=":" if col == "#888" else "-", alpha=0.85)
+        ax.text(
+            s,
+            ax.get_ylim()[1] * 0.98,
+            f" {lab}",
+            rotation=90,
+            va="top",
+            ha="left",
+            fontsize=6.5,
+            color=col,
+        )
     ax.set_xlabel("shot number")
     ax.set_ylabel("flat-top median residual vs EFIT [cm]")
-    ax.set_title("census residuals vs shot number, machine events overlaid "
-                 "(750-shot bins, all classes pooled)", fontsize=10)
+    ax.set_title(
+        "census residuals vs shot number, machine events overlaid "
+        "(750-shot bins, all classes pooled)",
+        fontsize=10,
+    )
     ax.legend(fontsize=8, loc="upper left")
     fig.tight_layout()
     out = FIGURE_DIR / "fig-residual-vs-shot.png"

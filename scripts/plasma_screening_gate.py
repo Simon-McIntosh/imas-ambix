@@ -831,7 +831,7 @@ def fit_sequence_dyn(job: tuple) -> list:
                 k=k_modes,
                 sensor_scale=campaign.scale,
             )
-        except (ValueError, np.linalg.LinAlgError):
+        except ValueError, np.linalg.LinAlgError:
             dyn.append(f1)
             continue
         # backbone history: every pass-1 fit up to now, binned on THIS tiling;

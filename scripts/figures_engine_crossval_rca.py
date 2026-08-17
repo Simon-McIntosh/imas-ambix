@@ -56,16 +56,28 @@ def frame_artifact_scatter(source_dir: Path) -> None:
         a = np.array([r["axis_d_cm"] for r in rows])
         m = np.array([r["radii_dmed_cm"] for r in rows])
         fin = np.isfinite(a) & np.isfinite(m)
-        ax.scatter(a[fin], m[fin], s=5, alpha=0.35,
-                   color=CLASS_COLORS[cname], label=cname, linewidths=0)
+        ax.scatter(
+            a[fin],
+            m[fin],
+            s=5,
+            alpha=0.35,
+            color=CLASS_COLORS[cname],
+            label=cname,
+            linewidths=0,
+        )
         all_ax.append(a[fin])
         all_lc.append(m[fin])
     a = np.concatenate(all_ax)
     m = np.concatenate(all_lc)
     r = float(np.corrcoef(a, m)[0, 1])
     xs = np.linspace(0, np.percentile(a, 99), 50)
-    ax.plot(xs, 0.7 * xs, "k--", lw=1.2,
-            label="0.7 × axis distance (|cos θ| ray-fan projection)")
+    ax.plot(
+        xs,
+        0.7 * xs,
+        "k--",
+        lw=1.2,
+        label="0.7 × axis distance (|cos θ| ray-fan projection)",
+    )
     ax.set_xlim(0, np.percentile(a, 99))
     ax.set_ylim(0, np.percentile(m, 99))
     ax.set_xlabel("engine axis distance to EFIT axis [cm]")
@@ -73,7 +85,8 @@ def frame_artifact_scatter(source_dir: Path) -> None:
     ax.set_title(
         f"the pre-fix boundary residual tracks the axis error (r = {r:.2f})\n"
         "— the metric measured axis placement, not boundary shape",
-        fontsize=10)
+        fontsize=10,
+    )
     ax.legend(fontsize=7, loc="upper left")
     fig.tight_layout()
     out = FIGURE_DIR / "fig-frame-artifact-scatter.png"
@@ -101,12 +114,20 @@ def _combine_quarters(paths: list[Path]) -> tuple[float, float, int] | None:
 def heldout_gate_repro() -> None:
     runs: list[tuple[str, object]] = [
         ("archived §4 result", ARTIFACT_DIR / "heldout_mse_gate-v0.json"),
-        ("re-run, current tree",
-         [ARTIFACT_DIR / f"heldout_mse_gate-repro-head-q{q}.json"
-          for q in (1, 2, 3, 4)]),
-        ("re-run, gate-landing-commit tree",
-         [ARTIFACT_DIR / f"heldout_mse_gate-repro-s4-q{q}.json"
-          for q in (1, 2, 3, 4)]),
+        (
+            "re-run, current tree",
+            [
+                ARTIFACT_DIR / f"heldout_mse_gate-repro-head-q{q}.json"
+                for q in (1, 2, 3, 4)
+            ],
+        ),
+        (
+            "re-run, gate-landing-commit tree",
+            [
+                ARTIFACT_DIR / f"heldout_mse_gate-repro-s4-q{q}.json"
+                for q in (1, 2, 3, 4)
+            ],
+        ),
     ]
     labels, eng, per, n_scored = [], [], [], []
     for label, src in runs:
@@ -135,12 +156,14 @@ def heldout_gate_repro() -> None:
     ax.bar(x - 0.18, per, width=0.34, color="#bbb", label="persistence (live)")
     ax.bar(x + 0.18, eng, width=0.34, color="#268", label="engine")
     for xi, (e, n) in zip(x, zip(eng, n_scored, strict=True), strict=True):
-        ax.text(xi + 0.18, e, f"{e:.3f}\nn={n}", ha="center", va="bottom",
-                fontsize=7)
+        ax.text(xi + 0.18, e, f"{e:.3f}\nn={n}", ha="center", va="bottom", fontsize=7)
     ax.set_xticks(x, labels, fontsize=8)
     ax.set_ylabel("held-out MSE pitch RMSE [rad]")
-    ax.set_title("the 112-shot held-out gate reproduces on the current tree —"
-                 " the solve chain is unchanged", fontsize=10)
+    ax.set_title(
+        "the 112-shot held-out gate reproduces on the current tree —"
+        " the solve chain is unchanged",
+        fontsize=10,
+    )
     ax.legend(fontsize=8)
     fig.tight_layout()
     out = FIGURE_DIR / "fig-heldout-gate-repro.png"
@@ -152,10 +175,13 @@ def heldout_gate_repro() -> None:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
-        "--rows-dir", type=Path, default=ARTIFACT_DIR,
+        "--rows-dir",
+        type=Path,
+        default=ARTIFACT_DIR,
         help="directory holding the plain-arm per-class artifacts "
-             "(pass a snapshot of the pre-fix single-frame artifacts to "
-             "reproduce the RCA figure from the original scoring)")
+        "(pass a snapshot of the pre-fix single-frame artifacts to "
+        "reproduce the RCA figure from the original scoring)",
+    )
     args = ap.parse_args()
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
     frame_artifact_scatter(args.rows_dir)

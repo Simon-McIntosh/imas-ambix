@@ -161,7 +161,9 @@ def main() -> int:
     ap.add_argument("--nz", type=int, default=97)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument(
-        "--cohort", choices=("heldout", "sweep"), default="sweep",
+        "--cohort",
+        choices=("heldout", "sweep"),
+        default="sweep",
         help="'sweep' = the P4/P5 coil-sweep vacuum cohort where the bay loops "
         "see their adjacent coils (the scorecard regime; a cross-regime held-out "
         "test since R was fit on CS preludes); 'heldout' = the vessel-fit's own "
@@ -191,8 +193,11 @@ def main() -> int:
         by_campaign.setdefault(d.campaign, []).append(d)
         if d.campaign not in tables:
             tables[d.campaign] = read_geometry_table(int(shot))
-    logger.info("prepared %d shots over %d campaigns",
-                sum(len(v) for v in by_campaign.values()), len(by_campaign))
+    logger.info(
+        "prepared %d shots over %d campaigns",
+        sum(len(v) for v in by_campaign.values()),
+        len(by_campaign),
+    )
 
     # ---- per campaign: tuned-R eddy prediction on the operator sensor axis ----
     records: list[dict] = []
@@ -207,9 +212,7 @@ def main() -> int:
         for d in shots:
             static = d.i_drive @ g_cols.T
             eddy = _eddy_prediction(d, maps)
-            records.append(
-                {"static": static, "meas_resid": d.meas_resid, "eddy": eddy}
-            )
+            records.append({"static": static, "meas_resid": d.meas_resid, "eddy": eddy})
 
     assert channels_ref is not None
     bay = [b for b in BAY_LOOPS if b in channels_ref]
@@ -223,7 +226,8 @@ def main() -> int:
     gate_pass = bool(
         bay_fam
         and bay_fam["gain_before_median"] < 0.9  # a real deficit exists
-        and abs(bay_fam["gain_after_median"] - 1.0) < abs(bay_fam["gain_before_median"] - 1.0) * 0.5
+        and abs(bay_fam["gain_after_median"] - 1.0)
+        < abs(bay_fam["gain_before_median"] - 1.0) * 0.5
         and bay_fam["eddy_var_explained_median"] > 0.5
         and ctrl_fam
         and abs(ctrl_fam["gain_before_median"] - 1.0) < 0.1  # controls were fine
@@ -281,7 +285,14 @@ def _figure(metrics, bay, controls, bay_fam, ctrl_fam, gate_pass) -> None:
         ga = [metrics[c]["gain_after"] for c in names]
         w = 0.4
         a.bar(xs - w / 2, gb, w, color=color, alpha=0.55, label="gain before (no eddy)")
-        a.bar(xs + w / 2, ga, w, color=color, alpha=1.0, label="gain after (tuned vessel R)")
+        a.bar(
+            xs + w / 2,
+            ga,
+            w,
+            color=color,
+            alpha=1.0,
+            label="gain after (tuned vessel R)",
+        )
         a.axhline(1.0, color="k", lw=1.0)
         a.set_xticks(xs)
         a.set_xticklabels(names, rotation=60, fontsize=7)
@@ -294,10 +305,14 @@ def _figure(metrics, bay, controls, bay_fam, ctrl_fam, gate_pass) -> None:
         f"bay gain {bay_fam['gain_before_median']:.2f}→{bay_fam['gain_after_median']:.2f}, "
         f"eddy var expl {bay_fam['eddy_var_explained_median']:.2f}; "
         f"controls {ctrl_fam['gain_before_median']:.2f}→{ctrl_fam['gain_after_median']:.2f}"
-        if bay_fam and ctrl_fam else ""
+        if bay_fam and ctrl_fam
+        else ""
     )
-    fig.suptitle(f"Gate G-A — vessel eddy reproduces the bay-loop coupling deficit "
-                 f"[{verdict}]\n{sub}", fontsize=12)
+    fig.suptitle(
+        f"Gate G-A — vessel eddy reproduces the bay-loop coupling deficit "
+        f"[{verdict}]\n{sub}",
+        fontsize=12,
+    )
     fig.tight_layout(rect=(0, 0, 1, 0.92))
     FIGURES.mkdir(parents=True, exist_ok=True)
     fig.savefig(FIGURES / "fig-passive-bay-loop-gate.png", dpi=140)

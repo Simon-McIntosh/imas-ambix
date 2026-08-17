@@ -122,7 +122,7 @@ def _load_extra_shots(path: str, cap: int, exclude: set[int]) -> list[int]:
             s = item
         try:
             si = int(s)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             continue
         if si not in exclude and si not in out:
             out.append(si)
@@ -176,9 +176,7 @@ def _shot_coil_only(
     # the whole-shot std (coil-sweep dynamic range — conservative, larger
     # than noise, so these shots are under- not over-weighted).
     sigma_src = raw_mag[plasma_on] if not all_vacuum else raw_mag
-    sigma_op = robust_channel_scale(
-        np.nanstd(sigma_src, axis=0), fwd.sensor_channels
-    )
+    sigma_op = robust_channel_scale(np.nanstd(sigma_src, axis=0), fwd.sensor_channels)
 
     # i_pf per slice on the operator's coil axis, assembled as load_shot_windows
     n_coil_op = len(fwd.pf_amc_channels)

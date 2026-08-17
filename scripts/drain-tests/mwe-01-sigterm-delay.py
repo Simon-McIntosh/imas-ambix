@@ -50,11 +50,10 @@ RUN WITH
   sbatch mwe-01-sigterm-delay.sbatch
 """
 
+import csv
 import os
 import signal
 import time
-import csv
-import sys
 
 import torch
 import torch.distributed as dist
@@ -87,7 +86,10 @@ def main() -> None:
     stop = torch.zeros(1, device=device)
 
     if rank == 0:
-        print(f"[MWE-01] ranks={world_size}, buffer={BUFFER_MB} MB, rounds={NROUNDS}", flush=True)
+        print(
+            f"[MWE-01] ranks={world_size}, buffer={BUFFER_MB} MB, rounds={NROUNDS}",
+            flush=True,
+        )
         print("[MWE-01] round,blind_window_ms,collective_ms", flush=True)
 
     results: list[dict] = []
@@ -140,7 +142,13 @@ def main() -> None:
                 blind_ms = float("nan")
 
             print(f"[MWE-01] {rnd},{blind_ms:.3f},{collective_ms:.3f}", flush=True)
-            results.append({"round": rnd, "blind_window_ms": blind_ms, "collective_ms": collective_ms})
+            results.append(
+                {
+                    "round": rnd,
+                    "blind_window_ms": blind_ms,
+                    "collective_ms": collective_ms,
+                }
+            )
 
         # --- Coordinate stop: rank 0 signals last round ---
         if rank == 0 and rnd >= NROUNDS - 1:
@@ -148,21 +156,38 @@ def main() -> None:
         dist.all_reduce(stop, op=dist.ReduceOp.MAX)
 
     if rank == 0 and results:
-        blind_vals = [r["blind_window_ms"] for r in results if r["blind_window_ms"] == r["blind_window_ms"]]
+        blind_vals = [
+            r["blind_window_ms"]
+            for r in results
+            if r["blind_window_ms"] == r["blind_window_ms"]
+        ]
         coll_vals = [r["collective_ms"] for r in results]
-        print(f"\n[MWE-01] SUMMARY", flush=True)
-        print(f"[MWE-01]   collective_ms  mean={sum(coll_vals)/len(coll_vals):.2f} "
-              f"max={max(coll_vals):.2f}", flush=True)
+        print("\n[MWE-01] SUMMARY", flush=True)
+        print(
+            f"[MWE-01]   collective_ms  mean={sum(coll_vals) / len(coll_vals):.2f} "
+            f"max={max(coll_vals):.2f}",
+            flush=True,
+        )
         if blind_vals:
-            print(f"[MWE-01]   blind_window_ms mean={sum(blind_vals)/len(blind_vals):.2f} "
-                  f"max={max(blind_vals):.2f}", flush=True)
-            print(f"[MWE-01]   INTERPRETATION: SIGTERM is blind for ~{sum(blind_vals)/len(blind_vals):.1f} ms "
-                  f"per NCCL collective. Under SLURM scancel, if a collective takes longer than "
-                  f"UnkillableStepTimeout (60 s), the node drains.", flush=True)
+            print(
+                f"[MWE-01]   blind_window_ms mean={sum(blind_vals) / len(blind_vals):.2f} "
+                f"max={max(blind_vals):.2f}",
+                flush=True,
+            )
+            print(
+                f"[MWE-01]   INTERPRETATION: SIGTERM is blind for ~{sum(blind_vals) / len(blind_vals):.1f} ms "
+                f"per NCCL collective. Under SLURM scancel, if a collective takes longer than "
+                f"UnkillableStepTimeout (60 s), the node drains.",
+                flush=True,
+            )
 
-        csv_path = os.path.join(LOG_DIR, f"mwe01_results_{os.environ.get('SLURM_JOB_ID','local')}.csv")
+        csv_path = os.path.join(
+            LOG_DIR, f"mwe01_results_{os.environ.get('SLURM_JOB_ID', 'local')}.csv"
+        )
         with open(csv_path, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=["round", "blind_window_ms", "collective_ms"])
+            writer = csv.DictWriter(
+                f, fieldnames=["round", "blind_window_ms", "collective_ms"]
+            )
             writer.writeheader()
             writer.writerows(results)
         print(f"[MWE-01] Results written to {csv_path}", flush=True)

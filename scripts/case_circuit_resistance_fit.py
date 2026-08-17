@@ -102,7 +102,9 @@ def geometry_couplings(op, table) -> dict:
         by_circ.setdefault(f.circuit, []).append(f)
 
     # representative circuit per amc column
-    circ_of = {ch: circs[0] for ch, circs in zip(op.pf_amc_channels, op.pf_merged_circuits)}
+    circ_of = {
+        ch: circs[0] for ch, circs in zip(op.pf_amc_channels, op.pf_merged_circuits)
+    }
     coils = list(op.pf_amc_channels)
     case_cols = [c for c in coils if _is_case(c)]
     wind_cols = [c for c in coils if _is_winding(c)]
@@ -118,7 +120,9 @@ def geometry_couplings(op, table) -> dict:
         cr, cz = centroid(case_circ)
         tot = 0.0
         for f in by_circ[coil_circ]:
-            tot += f.xmult * float(greens_psi(np.array([cr]), np.array([cz]), f.r, f.z)[0])
+            tot += f.xmult * float(
+                greens_psi(np.array([cr]), np.array([cz]), f.r, f.z)[0]
+            )
         return tot
 
     def self_L(case_circ):
@@ -129,7 +133,10 @@ def geometry_couplings(op, table) -> dict:
         rho = 0.5 * float(np.hypot(dr, dz))
         return MU0 * a * (np.log(8.0 * a / max(rho, 1e-3)) - 1.75)
 
-    M = {c: np.array([mutual(circ_of[c], circ_of[k]) for k in wind_cols]) for c in case_cols}
+    M = {
+        c: np.array([mutual(circ_of[c], circ_of[k]) for k in wind_cols])
+        for c in case_cols
+    }
     L = {c: self_L(circ_of[c]) for c in case_cols}
     return {"case_cols": case_cols, "wind_cols": wind_cols, "M": M, "L": L}
 
@@ -154,7 +161,13 @@ def gather(shots: list[int]) -> dict:
         if si % 40 == 0:
             logger.info("%d/%d scanned, %d used", si, len(shots), used)
     logger.info("pooled %d shots", used)
-    return {"channels": channels, "coils": coils, "g_pf": g_pf, "rows": rows, "ref": ref}
+    return {
+        "channels": channels,
+        "coils": coils,
+        "g_pf": g_pf,
+        "rows": rows,
+        "ref": ref,
+    }
 
 
 #: each case's own exposed bay/near loops (lower cases seen by lower loops etc.)
@@ -208,8 +221,12 @@ def fit(data: dict, geo: dict) -> dict:
     A_lhs: dict[str, list] = {c: [] for c in case_cols}
     # ---- (B) sensor-anchored per-case pools on the case's bay loops ----
     B_y: dict[str, list] = {c: [] for c in case_cols}
-    B_dyn: dict[str, list] = {c: [] for c in case_cols}  # predicted-case flux (a=1/R free)
-    B_arch: dict[str, list] = {c: [] for c in case_cols}  # archived-channel flux (k free)
+    B_dyn: dict[str, list] = {
+        c: [] for c in case_cols
+    }  # predicted-case flux (a=1/R free)
+    B_arch: dict[str, list] = {
+        c: [] for c in case_cols
+    }  # archived-channel flux (k free)
 
     for r in rows:
         meas, i_pf, didt, sigma = r["meas"], r["i_pf"], r["didt"], r["sigma"]
@@ -217,7 +234,9 @@ def fit(data: dict, geo: dict) -> dict:
         if ramp.sum() < 20:
             continue
         dwind = didt[:, wind_idx]
-        drive = {c: -(dwind @ M[c]) for c in case_cols}  # geometric drive term [V per (1/Ω)⁻¹]
+        drive = {
+            c: -(dwind @ M[c]) for c in case_cols
+        }  # geometric drive term [V per (1/Ω)⁻¹]
         for c in case_cols:
             ic = i_pf[ramp, case_idx[c]]
             dic = didt[ramp, case_idx[c]]
@@ -234,7 +253,9 @@ def fit(data: dict, geo: dict) -> dict:
                 good = np.isfinite(y) & ramp
                 if good.sum() < 20 or not np.isfinite(sigma[s]) or sigma[s] <= 0:
                     continue
-                wind_model = (i_pf[good][:, wind_idx] * g_pf[s, wind_idx][None, :]).sum(1)
+                wind_model = (i_pf[good][:, wind_idx] * g_pf[s, wind_idx][None, :]).sum(
+                    1
+                )
                 yc = (y[good] - wind_model) / sigma[s]
                 dyn = g_pf[s, case_idx[c]] * drive[c][good] / sigma[s]
                 arch = g_pf[s, case_idx[c]] * i_pf[good, case_idx[c]] / sigma[s]
@@ -252,7 +273,9 @@ def fit(data: dict, geo: dict) -> dict:
         beta, *_ = np.linalg.lstsq(Xa, ya, rcond=None)
         Lf, Rf = float(beta[0]), float(beta[1])
         preda = Xa @ beta
-        r2_circ = 1.0 - ((ya - preda) ** 2).sum() / (((ya - ya.mean()) ** 2).sum() + 1e-30)
+        r2_circ = 1.0 - ((ya - preda) ** 2).sum() / (
+            ((ya - ya.mean()) ** 2).sum() + 1e-30
+        )
         tau = Lf / Rf if Rf != 0 else float("nan")
 
         # (B) sensor-anchored explanatory power on this case's bay loops
@@ -282,11 +305,16 @@ def fit(data: dict, geo: dict) -> dict:
             "tau_circuit_ms": tau * 1e3,
             "r2_circuit": float(r2_circ),
             "self_mutual_uH": (
-                float(M[c][wind_cols.index(c.replace("_case_current", "_coil_current"))]) * 1e6
+                float(
+                    M[c][wind_cols.index(c.replace("_case_current", "_coil_current"))]
+                )
+                * 1e6
                 if c.replace("_case_current", "_coil_current") in wind_cols
                 else None
             ),
-            "sensor_bay_loops": [s for s in _CASE_BAY_LOOPS.get(c, []) if s in channels],
+            "sensor_bay_loops": [
+                s for s in _CASE_BAY_LOOPS.get(c, []) if s in channels
+            ],
             "sensor_r2_archived_shape": None if r2_arch is None else float(r2_arch),
             "sensor_r2_dynamic_shape": None if r2_dyn is None else float(r2_dyn),
             "sensor_R_mohm": None if R_sensor is None else float(R_sensor * 1e3),
@@ -316,29 +344,40 @@ def make_figure(res: dict, out: Path) -> None:
     R = np.array([rc[c]["R_circuit_mohm"] for c in cols])
     tau = np.array([rc[c]["tau_circuit_ms"] for c in cols])
     r2c = np.array([rc[c]["r2_circuit"] for c in cols])
-    fcase = np.array([(rc[c]["sensor_case_frac_of_ramp_residual"] or 0.0) for c in cols])
+    fcase = np.array(
+        [(rc[c]["sensor_case_frac_of_ramp_residual"] or 0.0) for c in cols]
+    )
 
     fig, ax = plt.subplots(1, 3, figsize=(17, 5))
     p3 = [i for i, c in enumerate(cols) if c.startswith("p3")]
     colors = ["#b00" if i in p3 else "#1565c0" for i in range(len(cols))]
 
     ax[0].bar(xs, R, color=colors)
-    ax[0].set_xticks(xs); ax[0].set_xticklabels(lab, rotation=45, fontsize=8)
+    ax[0].set_xticks(xs)
+    ax[0].set_xticklabels(lab, rotation=45, fontsize=8)
     ax[0].set_ylabel("R  [mΩ]")
-    ax[0].set_title("(a) circuit-level case resistance R (from the ramp\n"
-                    "L·dI/dt+R·I=−ΣM·dI_coil/dt; red = P3, cleanest)")
+    ax[0].set_title(
+        "(a) circuit-level case resistance R (from the ramp\n"
+        "L·dI/dt+R·I=−ΣM·dI_coil/dt; red = P3, cleanest)"
+    )
 
     ax[1].bar(xs, tau, color=colors)
-    ax[1].set_xticks(xs); ax[1].set_xticklabels(lab, rotation=45, fontsize=8)
+    ax[1].set_xticks(xs)
+    ax[1].set_xticklabels(lab, rotation=45, fontsize=8)
     ax[1].set_ylabel("τ = L/R  [ms]")
-    ax[1].set_title("(b) time constant τ (shape-robust to any\n"
-                    "amplitude miscalibration of the derived channel)")
+    ax[1].set_title(
+        "(b) time constant τ (shape-robust to any\n"
+        "amplitude miscalibration of the derived channel)"
+    )
 
     ax[2].bar(xs, fcase * 100, color=colors)
-    ax[2].set_xticks(xs); ax[2].set_xticklabels(lab, rotation=45, fontsize=8)
+    ax[2].set_xticks(xs)
+    ax[2].set_xticklabels(lab, rotation=45, fontsize=8)
     ax[2].set_ylabel("case fraction of bay-loop ramp residual  [%]")
-    ax[2].set_title("(c) the case is a FEW-% sensor term (vessel-eddy\n"
-                    "dominated residual) ⇒ isolating R needs the dynamic vessel model")
+    ax[2].set_title(
+        "(c) the case is a FEW-% sensor term (vessel-eddy\n"
+        "dominated residual) ⇒ isolating R needs the dynamic vessel model"
+    )
 
     med_r2 = float(np.nanmedian(r2c))
     fig.suptitle(
@@ -379,12 +418,21 @@ def main() -> int:
         logger.info(
             "  %-20s R=%.3g mΩ  τ=%.3f ms  circ-R²=%.2f  L_fit=%.2f/geo=%.2f µH  "
             "sensor: case-frac=%s R²(dyn/arch)=%s/%s",
-            c, b["R_circuit_mohm"], b["tau_circuit_ms"], b["r2_circuit"],
-            b["L_circuit_uH"], b["L_geo_uH"],
-            None if b["sensor_case_frac_of_ramp_residual"] is None
+            c,
+            b["R_circuit_mohm"],
+            b["tau_circuit_ms"],
+            b["r2_circuit"],
+            b["L_circuit_uH"],
+            b["L_geo_uH"],
+            None
+            if b["sensor_case_frac_of_ramp_residual"] is None
             else round(b["sensor_case_frac_of_ramp_residual"], 3),
-            None if b["sensor_r2_dynamic_shape"] is None else round(b["sensor_r2_dynamic_shape"], 3),
-            None if b["sensor_r2_archived_shape"] is None else round(b["sensor_r2_archived_shape"], 3),
+            None
+            if b["sensor_r2_dynamic_shape"] is None
+            else round(b["sensor_r2_dynamic_shape"], 3),
+            None
+            if b["sensor_r2_archived_shape"] is None
+            else round(b["sensor_r2_archived_shape"], 3),
         )
 
     out = {

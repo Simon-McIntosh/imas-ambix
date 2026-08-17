@@ -54,10 +54,21 @@ def main() -> None:
     buf_small = torch.zeros(1, dtype=torch.float32, device=device)
 
     if rank == 0:
-        print(f"[MWE-06d] job={JOB_ID}  ranks={world_size}  rounds={NROUNDS}  buffer={BUFFER_MB}MB", flush=True)
-        print(f"[MWE-06d] Variant: torch.cuda.synchronize() after each round", flush=True)
-        print(f"[MWE-06d] Timing < 10ms/round → NCCL 2.21.5 mitigates (no drain possible)", flush=True)
-        print(f"[MWE-06d] Timing > 100ms/round → actual NVLink work → drain may be reproducible", flush=True)
+        print(
+            f"[MWE-06d] job={JOB_ID}  ranks={world_size}  rounds={NROUNDS}  buffer={BUFFER_MB}MB",
+            flush=True,
+        )
+        print(
+            "[MWE-06d] Variant: torch.cuda.synchronize() after each round", flush=True
+        )
+        print(
+            "[MWE-06d] Timing < 10ms/round → NCCL 2.21.5 mitigates (no drain possible)",
+            flush=True,
+        )
+        print(
+            "[MWE-06d] Timing > 100ms/round → actual NVLink work → drain may be reproducible",
+            flush=True,
+        )
 
     round_times = []
     for rnd in range(NROUNDS):
@@ -81,27 +92,50 @@ def main() -> None:
         elapsed_ms = (time.perf_counter() - t_start) * 1000.0
         round_times.append(elapsed_ms)
         if rank == 0:
-            verdict = "SLOW (actual NVLink work)" if elapsed_ms > 100 else "FAST (async only)"
-            print(f"[MWE-06d] Round {rnd + 1}/{NROUNDS}  {elapsed_ms:.1f} ms  [{verdict}]", flush=True)
+            verdict = (
+                "SLOW (actual NVLink work)" if elapsed_ms > 100 else "FAST (async only)"
+            )
+            print(
+                f"[MWE-06d] Round {rnd + 1}/{NROUNDS}  {elapsed_ms:.1f} ms  [{verdict}]",
+                flush=True,
+            )
 
     if rank == 0:
         avg_ms = sum(round_times) / len(round_times)
         max_ms = max(round_times)
-        print(f"[MWE-06d] Round timing: avg={avg_ms:.1f}ms  max={max_ms:.1f}ms", flush=True)
+        print(
+            f"[MWE-06d] Round timing: avg={avg_ms:.1f}ms  max={max_ms:.1f}ms",
+            flush=True,
+        )
         if max_ms < 10:
-            print(f"[MWE-06d] FINDING: Rounds are FAST — NCCL 2.21.5 handles mismatch synchronously", flush=True)
-            print(f"[MWE-06d] CONCLUSION: Drain mechanism NOT reproducible on current NCCL version", flush=True)
+            print(
+                "[MWE-06d] FINDING: Rounds are FAST — NCCL 2.21.5 handles mismatch synchronously",
+                flush=True,
+            )
+            print(
+                "[MWE-06d] CONCLUSION: Drain mechanism NOT reproducible on current NCCL version",
+                flush=True,
+            )
         else:
-            print(f"[MWE-06d] FINDING: Rounds are SLOW — actual NVLink transfers occurring", flush=True)
-            print(f"[MWE-06d] CONCLUSION: Drain mechanism MAY be reproducible — see teardown below", flush=True)
-        print(f"[MWE-06d] Entering teardown — dist.destroy_process_group()", flush=True)
+            print(
+                "[MWE-06d] FINDING: Rounds are SLOW — actual NVLink transfers occurring",
+                flush=True,
+            )
+            print(
+                "[MWE-06d] CONCLUSION: Drain mechanism MAY be reproducible — see teardown below",
+                flush=True,
+            )
+        print("[MWE-06d] Entering teardown — dist.destroy_process_group()", flush=True)
         sys.stdout.flush()
 
     # Teardown: will either hang 600s in S-state (no drain) or D-state (drain)
     dist.destroy_process_group()
 
     if rank == 0:
-        print("[MWE-06d] Teardown completed (no drain — confirming NCCL 2.21.5 mitigation)", flush=True)
+        print(
+            "[MWE-06d] Teardown completed (no drain — confirming NCCL 2.21.5 mitigation)",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

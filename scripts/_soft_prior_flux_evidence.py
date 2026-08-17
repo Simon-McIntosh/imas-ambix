@@ -50,8 +50,12 @@ def _pushout_lcfs_ring(psi, grid, axis):
     from imas_ambix.latent.topology import lcfs_contour
 
     lc = lcfs_contour(
-        np.asarray(psi), grid.rg, grid.zg, tuple(axis),
-        limiter_r=grid.limiter_r, limiter_z=grid.limiter_z,
+        np.asarray(psi),
+        grid.rg,
+        grid.zg,
+        tuple(axis),
+        limiter_r=grid.limiter_r,
+        limiter_z=grid.limiter_z,
     )
     return lc.ring if lc.found else None
 
@@ -177,8 +181,13 @@ def main() -> int:
                 ax0 = np.atleast_1d(_ax).ravel()[0]
                 if th_ring is not None:
                     ax0.plot(
-                        th_ring[:, 0], th_ring[:, 1], "-", color="#1b9e2f",
-                        lw=2.0, label="§2 disc read", zorder=6,
+                        th_ring[:, 0],
+                        th_ring[:, 1],
+                        "-",
+                        color="#1b9e2f",
+                        lw=2.0,
+                        label="§2 disc read",
+                        zorder=6,
                     )
                 ax0.legend(fontsize=6, loc="upper right")
                 fig.suptitle(f"{shot} t={p.time_s:.3f}s ({kind}) — {tag}", fontsize=9)

@@ -128,9 +128,7 @@ def main() -> int:
         cal = json.loads(Path(args.calibration).read_text())
         cal_by_name = {
             c: (g, o)
-            for c, g, o in zip(
-                cal["channels"], cal["gain"], cal["offset"], strict=True
-            )
+            for c, g, o in zip(cal["channels"], cal["gain"], cal["offset"], strict=True)
         }
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -203,8 +201,14 @@ def main() -> int:
                 )
 
                 sl = _our_slice(
-                    psi2d, grid, target, psi_ax, psi_b,
-                    payloads[k].ip_amperes, payloads[k].time_s, lcfs,
+                    psi2d,
+                    grid,
+                    target,
+                    psi_ax,
+                    psi_b,
+                    payloads[k].ip_amperes,
+                    payloads[k].time_s,
+                    lcfs,
                 )
                 fig, _ax = equilibrium_figure_mpl(
                     sl,
@@ -215,15 +219,18 @@ def main() -> int:
                     show_probes=False,
                     show_flux_loops=False,
                 )
-                fig.suptitle(
-                    f"{shot} t={payloads[k].time_s:.3f}s {arm}", fontsize=9
-                )
+                fig.suptitle(f"{shot} t={payloads[k].time_s:.3f}s {arm}", fontsize=9)
                 row_flux.append(_fig_to_rgba(fig))
                 plt.close(fig)
 
                 fig, ax = plt.subplots(figsize=(4.0, 5.4))
                 pm = _current_map(
-                    ax, grid, basis, r.i_cell, lcfs, axis_rz,
+                    ax,
+                    grid,
+                    basis,
+                    r.i_cell,
+                    lcfs,
+                    axis_rz,
                     f"{shot} t={payloads[k].time_s:.3f}s {arm}\n"
                     f"anti-∥ {neg:.2f}·Ip, outside {out:.2f}·Ip",
                 )

@@ -1004,7 +1004,7 @@ def assemble_corpus_cached(
         for shards_dir in sorted(base.glob("shards_*")):
             try:
                 n = int(shards_dir.name.split("_", 1)[1])
-            except (IndexError, ValueError):
+            except IndexError, ValueError:
                 continue
             shard_dirs = [shards_dir / f"shard_{i:03d}" for i in range(n)]
             if shard_dirs and all(_corpus_dir_complete(d) for d in shard_dirs):
@@ -1254,9 +1254,7 @@ def _warm_start_load(encoder, ckpt_path: Path, device) -> None:
     checkpoints are not actually architecture-compatible.
     """
     payload = torch.load(ckpt_path, map_location=device, weights_only=False)
-    source = {
-        k: v for k, v in payload["encoder"].items() if k not in _GEOMETRY_BUFFERS
-    }
+    source = {k: v for k, v in payload["encoder"].items() if k not in _GEOMETRY_BUFFERS}
     missing, unexpected = encoder.load_state_dict(source, strict=False)
     missing = [m for m in missing if m not in _GEOMETRY_BUFFERS]
     if unexpected:
@@ -1724,7 +1722,9 @@ def main() -> int:
             lam = disc.get(ids)
             optimizer.zero_grad()
             i_cell, i_var = _encoder_forward(encoder, enc_in, args.head)
-            losses = amortised_losses(corp.basis, i_cell, lam=lam, i_var=i_var, **payload)
+            losses = amortised_losses(
+                corp.basis, i_cell, lam=lam, i_var=i_var, **payload
+            )
             loss = losses["total"].mean() if losses["total"].dim() else losses["total"]
             loss.backward()
             torch.nn.utils.clip_grad_norm_(encoder.parameters(), args.grad_clip)

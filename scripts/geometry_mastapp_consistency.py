@@ -37,8 +37,7 @@ REPO = Path(__file__).resolve().parent.parent
 REF_SHOT = 30421
 REF_ZARR = f"/work/projects/imas_gpu/mast/level2/shots/{REF_SHOT}.zarr"
 ARTIFACT = (
-    REPO
-    / "imas_ambix/latent/artifacts/patch_gate/geometry_mastapp_consistency.json"
+    REPO / "imas_ambix/latent/artifacts/patch_gate/geometry_mastapp_consistency.json"
 )
 FIG_DIR = REPO / "docs/figures/nonaxisymmetric-field-subtraction"
 
@@ -219,7 +218,9 @@ def our_circuits(table) -> dict[int, dict]:
         area = float((w * h).sum())
         fill = area / box if box > 0 else float("nan")
         same_sign = bool(np.all(xm >= 0) or np.all(xm <= 0))
-        collapse = bool(box > 0 and abs(fill - 1.0) <= FILL_TOL and same_sign and m.sum() > 1)
+        collapse = bool(
+            box > 0 and abs(fill - 1.0) <= FILL_TOL and same_sign and m.sum() > 1
+        )
         out[int(c)] = {
             "r": r,
             "z": z,
@@ -236,9 +237,7 @@ def our_circuits(table) -> dict[int, dict]:
     return out
 
 
-def match_by_centroid(
-    ours: dict[int, dict], ref: dict[str, dict]
-) -> dict[str, int]:
+def match_by_centroid(ours: dict[int, dict], ref: dict[str, dict]) -> dict[str, int]:
     """Nearest-centroid match ref-coil-name -> our-circuit-id."""
     match: dict[str, int] = {}
     for name, rc in ref.items():
@@ -265,8 +264,14 @@ def fig_pf_active(ours, ref, match, path):
     for name, rc in ref.items():
         for i in range(rc["n"]):
             _draw_rect(
-                ax, rc["r"][i], rc["z"][i], rc["w"][i], rc["h"][i],
-                facecolor="none", edgecolor="tab:blue", lw=0.5,
+                ax,
+                rc["r"][i],
+                rc["z"][i],
+                rc["w"][i],
+                rc["h"][i],
+                facecolor="none",
+                edgecolor="tab:blue",
+                lw=0.5,
             )
     for name, (cid, _d) in match.items():
         oc = ours[cid]
@@ -274,25 +279,61 @@ def fig_pf_active(ours, ref, match, path):
         if oc["collapse"]:
             ax.add_patch(
                 Rectangle(
-                    (r_lo, z_lo), r_hi - r_lo, z_hi - z_lo,
-                    facecolor="tab:orange", alpha=0.35, edgecolor="tab:red", lw=1.2,
+                    (r_lo, z_lo),
+                    r_hi - r_lo,
+                    z_hi - z_lo,
+                    facecolor="tab:orange",
+                    alpha=0.35,
+                    edgecolor="tab:red",
+                    lw=1.2,
                 )
             )
         else:
             for i in range(oc["n"]):
                 _draw_rect(
-                    ax, oc["r"][i], oc["z"][i], oc["w"][i], oc["h"][i],
-                    facecolor="tab:red", alpha=0.4, edgecolor="tab:red", lw=0.4,
+                    ax,
+                    oc["r"][i],
+                    oc["z"][i],
+                    oc["w"][i],
+                    oc["h"][i],
+                    facecolor="tab:red",
+                    alpha=0.4,
+                    edgecolor="tab:red",
+                    lw=0.4,
                 )
     ax.plot([], [], color="tab:blue", lw=1.0, label="mastapp pf_active elements")
-    ax.add_patch(Rectangle((0, 0), 0, 0, facecolor="tab:orange", alpha=0.35,
-                 edgecolor="tab:red", label="ours: collapsed thick cylinder"))
-    ax.add_patch(Rectangle((0, 0), 0, 0, facecolor="tab:red", alpha=0.4,
-                 label="ours: retained filament lattice"))
-    ax.set_xlabel("R [m]"); ax.set_ylabel("Z [m]")
-    ax.set_title(f"PF-active geometry: ours (efm fcoil) vs mastapp pf_active (shot {REF_SHOT})")
-    ax.set_aspect("equal"); ax.legend(loc="upper right", fontsize=8); ax.grid(alpha=0.2)
-    fig.tight_layout(); fig.savefig(path, dpi=130); plt.close(fig)
+    ax.add_patch(
+        Rectangle(
+            (0, 0),
+            0,
+            0,
+            facecolor="tab:orange",
+            alpha=0.35,
+            edgecolor="tab:red",
+            label="ours: collapsed thick cylinder",
+        )
+    )
+    ax.add_patch(
+        Rectangle(
+            (0, 0),
+            0,
+            0,
+            facecolor="tab:red",
+            alpha=0.4,
+            label="ours: retained filament lattice",
+        )
+    )
+    ax.set_xlabel("R [m]")
+    ax.set_ylabel("Z [m]")
+    ax.set_title(
+        f"PF-active geometry: ours (efm fcoil) vs mastapp pf_active (shot {REF_SHOT})"
+    )
+    ax.set_aspect("equal")
+    ax.legend(loc="upper right", fontsize=8)
+    ax.grid(alpha=0.2)
+    fig.tight_layout()
+    fig.savefig(path, dpi=130)
+    plt.close(fig)
 
 
 def fig_passive(ours_cases, ref_passive, passive_points, path):
@@ -300,26 +341,61 @@ def fig_passive(ours_cases, ref_passive, passive_points, path):
     for name, rc in ref_passive.items():
         col = "tab:green" if name == "coil_cases" else "tab:blue"
         for rr, zz in rc["polys"]:
-            ax.add_patch(Polygon(np.column_stack([rr, zz]), closed=True,
-                         facecolor="none", edgecolor=col, lw=0.6))
+            ax.add_patch(
+                Polygon(
+                    np.column_stack([rr, zz]),
+                    closed=True,
+                    facecolor="none",
+                    edgecolor=col,
+                    lw=0.6,
+                )
+            )
     # our fcoil case frames (retained lattices)
     for cid, oc in ours_cases.items():
         for i in range(oc["n"]):
-            _draw_rect(ax, oc["r"][i], oc["z"][i], oc["w"][i], oc["h"][i],
-                       facecolor="tab:red", alpha=0.5, edgecolor="tab:red", lw=0.4)
+            _draw_rect(
+                ax,
+                oc["r"][i],
+                oc["z"][i],
+                oc["w"][i],
+                oc["h"][i],
+                facecolor="tab:red",
+                alpha=0.5,
+                edgecolor="tab:red",
+                lw=0.4,
+            )
     # Declared passive points are a diagnostic-only source.
     ar = [p.r for p in passive_points]
     az = [p.z for p in passive_points]
-    ax.scatter(ar, az, s=16, c="tab:purple", marker="x",
-               label="declared passive (R,Z) points (diagnostic-only)")
+    ax.scatter(
+        ar,
+        az,
+        s=16,
+        c="tab:purple",
+        marker="x",
+        label="declared passive (R,Z) points (diagnostic-only)",
+    )
     ax.plot([], [], color="tab:blue", lw=1.0, label="mastapp pf_passive (shaped)")
     ax.plot([], [], color="tab:green", lw=1.0, label="mastapp coil_cases (rotate_90)")
-    ax.add_patch(Rectangle((0, 0), 0, 0, facecolor="tab:red", alpha=0.5,
-                 label="ours: fcoil case frames (retained filaments)"))
-    ax.set_xlabel("R [m]"); ax.set_ylabel("Z [m]")
+    ax.add_patch(
+        Rectangle(
+            (0, 0),
+            0,
+            0,
+            facecolor="tab:red",
+            alpha=0.5,
+            label="ours: fcoil case frames (retained filaments)",
+        )
+    )
+    ax.set_xlabel("R [m]")
+    ax.set_ylabel("Z [m]")
     ax.set_title(f"Passive geometry: ours vs mastapp pf_passive (shot {REF_SHOT})")
-    ax.set_aspect("equal"); ax.legend(loc="upper right", fontsize=8); ax.grid(alpha=0.2)
-    fig.tight_layout(); fig.savefig(path, dpi=130); plt.close(fig)
+    ax.set_aspect("equal")
+    ax.legend(loc="upper right", fontsize=8)
+    ax.grid(alpha=0.2)
+    fig.tight_layout()
+    fig.savefig(path, dpi=130)
+    plt.close(fig)
 
 
 # --- main ------------------------------------------------------------------
@@ -337,11 +413,13 @@ def main() -> None:
     table = read_geometry_table(REF_SHOT)
     ours = our_circuits(table)
     # circuits 1..13 are the active coils; 14+ are case/structural frames.
-    match_a = match_by_centroid(
-        {k: v for k, v in ours.items()}, ref_a
-    )
+    match_a = match_by_centroid({k: v for k, v in ours.items()}, ref_a)
     passive_points = table.passive_structures
-    case_ids = {cid: ours[cid] for cid in ours if not ours[cid]["collapse"] and ours[cid]["n"] > 1}
+    case_ids = {
+        cid: ours[cid]
+        for cid in ours
+        if not ours[cid]["collapse"] and ours[cid]["n"] > 1
+    }
 
     # --- PF-active consistency rows ---
     pf_rows = []
@@ -350,28 +428,33 @@ def main() -> None:
         oc = ours[cid]
         dr = oc["centroid"][0] - rc["centroid"][0]
         dz = oc["centroid"][1] - rc["centroid"][1]
-        pf_rows.append({
-            "coil": name,
-            "ref_n_elements": rc["n"],
-            "our_circuit": cid,
-            "our_n_filaments_raw": oc["n"],
-            "centroid_match_m": round(d, 5),
-            "d_centroid_r_m": round(dr, 5),
-            "d_centroid_z_m": round(dz, 5),
-            "ref_fill_fraction": round(rc["fill"], 4),
-            "our_fill_fraction": round(oc["fill"], 4),
-            "ref_area_m2": round(rc["area"], 6),
-            "our_area_m2": round(oc["area"], 6),
-            "ref_bbox": [round(x, 4) for x in rc["bbox"]],
-            "our_bbox": [round(x, 4) for x in oc["bbox"]],
-            "is_nonrectangular": bool(rc["fill"] < (1.0 - FILL_TOL)),
-            "our_representation": (
-                "single_thick_cylinder" if oc["collapse"]
-                else ("single_filament" if oc["n"] == 1 else "retained_lattice")
-            ),
-            "consistent": bool(d < 0.01
-                               and abs(rc["area"] - oc["area"]) / max(rc["area"], 1e-9) < 0.05),
-        })
+        pf_rows.append(
+            {
+                "coil": name,
+                "ref_n_elements": rc["n"],
+                "our_circuit": cid,
+                "our_n_filaments_raw": oc["n"],
+                "centroid_match_m": round(d, 5),
+                "d_centroid_r_m": round(dr, 5),
+                "d_centroid_z_m": round(dz, 5),
+                "ref_fill_fraction": round(rc["fill"], 4),
+                "our_fill_fraction": round(oc["fill"], 4),
+                "ref_area_m2": round(rc["area"], 6),
+                "our_area_m2": round(oc["area"], 6),
+                "ref_bbox": [round(x, 4) for x in rc["bbox"]],
+                "our_bbox": [round(x, 4) for x in oc["bbox"]],
+                "is_nonrectangular": bool(rc["fill"] < (1.0 - FILL_TOL)),
+                "our_representation": (
+                    "single_thick_cylinder"
+                    if oc["collapse"]
+                    else ("single_filament" if oc["n"] == 1 else "retained_lattice")
+                ),
+                "consistent": bool(
+                    d < 0.01
+                    and abs(rc["area"] - oc["area"]) / max(rc["area"], 1e-9) < 0.05
+                ),
+            }
+        )
 
     # --- passive consistency rows ---
     # coil cases: ours (fcoil frames) vs ref coil_cases (thin frame bars)
@@ -384,13 +467,17 @@ def main() -> None:
             "ref_centroid": [round(x, 4) for x in rc["centroid"]],
         }
         if name == "coil_cases":
-            row.update({
-                "our_source": "fcoil-structural-circuits (retained frames)",
-                "our_n_case_circuits": len(case_ids),
-                "our_n_case_filaments": int(sum(oc["n"] for oc in case_ids.values())),
-                "our_representation": "retained_filament_lattice",
-                "handled_as_nonrectangular": True,
-            })
+            row.update(
+                {
+                    "our_source": "fcoil-structural-circuits (retained frames)",
+                    "our_n_case_circuits": len(case_ids),
+                    "our_n_case_filaments": int(
+                        sum(oc["n"] for oc in case_ids.values())
+                    ),
+                    "our_representation": "retained_filament_lattice",
+                    "handled_as_nonrectangular": True,
+                }
+            )
         else:
             # Match to the nearest declared passive point.
             amm_rz = (
@@ -400,17 +487,20 @@ def main() -> None:
             )
             dmin = float("nan")
             if amm_rz.size:
-                d = np.hypot(amm_rz[:, 0] - rc["centroid"][0],
-                             amm_rz[:, 1] - rc["centroid"][1])
+                d = np.hypot(
+                    amm_rz[:, 0] - rc["centroid"][0], amm_rz[:, 1] - rc["centroid"][1]
+                )
                 dmin = round(float(d.min()), 4)
-            row.update({
-                "our_source": "declared passive (R,Z) points",
-                "our_representation": "point_only_no_cross_section",
-                "nearest_amm_point_m": dmin,
-                "used_as_field_source": False,
-                "note": "passive points are a diagnostic coincidence check; "
-                        "field sources are the declared structural circuits.",
-            })
+            row.update(
+                {
+                    "our_source": "declared passive (R,Z) points",
+                    "our_representation": "point_only_no_cross_section",
+                    "nearest_amm_point_m": dmin,
+                    "used_as_field_source": False,
+                    "note": "passive points are a diagnostic coincidence check; "
+                    "field sources are the declared structural circuits.",
+                }
+            )
         pv_rows.append(row)
 
     # --- figures ---
@@ -422,7 +512,9 @@ def main() -> None:
     # --- verdicts ---
     active_consistent = all(r["consistent"] for r in pf_rows)
     active_nonrect = [r["coil"] for r in pf_rows if r["is_nonrectangular"]]
-    active_collapsed = [r["coil"] for r in pf_rows if r["our_representation"] == "single_thick_cylinder"]
+    active_collapsed = [
+        r["coil"] for r in pf_rows if r["our_representation"] == "single_thick_cylinder"
+    ]
 
     payload = {
         "schema": "geometry-mastapp-consistency-v1",
@@ -476,14 +568,18 @@ def main() -> None:
 
     print("PF-ACTIVE consistency (ref coil -> our circuit):")
     for r in pf_rows:
-        print(f"  {r['coil']:16s} refN={r['ref_n_elements']:3d} circ={r['our_circuit']:3d} "
-              f"dcentroid={r['centroid_match_m']*1e3:6.2f}mm "
-              f"area ref/our={r['ref_area_m2']:.5f}/{r['our_area_m2']:.5f} "
-              f"{r['our_representation']:22s} {'OK' if r['consistent'] else 'CHECK'}")
+        print(
+            f"  {r['coil']:16s} refN={r['ref_n_elements']:3d} circ={r['our_circuit']:3d} "
+            f"dcentroid={r['centroid_match_m'] * 1e3:6.2f}mm "
+            f"area ref/our={r['ref_area_m2']:.5f}/{r['our_area_m2']:.5f} "
+            f"{r['our_representation']:22s} {'OK' if r['consistent'] else 'CHECK'}"
+        )
     print(f"\nactive consistent: {active_consistent}")
     print(f"non-rectangular PF-active coils: {active_nonrect or 'NONE'}")
-    print(f"case frames retained as lattices: {len(case_ids)} circuits, "
-          f"{sum(oc['n'] for oc in case_ids.values())} filaments")
+    print(
+        f"case frames retained as lattices: {len(case_ids)} circuits, "
+        f"{sum(oc['n'] for oc in case_ids.values())} filaments"
+    )
     print(f"\nartifact: {ARTIFACT}")
     print(f"figures : {fig_a_path}\n          {fig_p_path}")
 

@@ -53,7 +53,6 @@ ENVIRONMENT VARIABLES
 import os
 import socket
 import subprocess
-import sys
 import threading
 import time
 import urllib.request
@@ -89,22 +88,37 @@ def main() -> None:
     pid = os.getpid()
 
     if rank == 0:
-        print(f"[MWE-03] *** v3: DDP + CUDA + urllib to GPFS ***", flush=True)
+        print("[MWE-03] *** v3: DDP + CUDA + urllib to GPFS ***", flush=True)
         print(f"[MWE-03] hostname={hostname}  pid={pid}  job={JOB_ID}", flush=True)
         print(f"[MWE-03] URL:  {DOWNLOAD_URL}", flush=True)
         print(f"[MWE-03] DEST: {GPFS_DEST}", flush=True)
-        print(f"[MWE-03] All {dist.get_world_size()} DDP ranks alive. "
-              f"CUDA contexts live. Barrier...", flush=True)
+        print(
+            f"[MWE-03] All {dist.get_world_size()} DDP ranks alive. "
+            f"CUDA contexts live. Barrier...",
+            flush=True,
+        )
 
     dist.barrier()
 
     if rank == 0:
-        print(f"[MWE-03] READY — all ranks past barrier, auto-scancel in {AUTO_SCANCEL_DELAY}s", flush=True)
-        print(f"[MWE-03] All ranks now attempting urlretrieve to GPFS (no timeout).", flush=True)
-        print(f"[MWE-03] Expected: hang → D-state → torchrun orphan → node drains", flush=True)
-        print(f"[MWE-03] Recovery if drained:", flush=True)
-        print(f"[MWE-03]   nvidia-smi -i 0,1,2,3 --gpu-reset", flush=True)
-        print(f"[MWE-03]   scontrol update nodename=98dci4-gpu-0003 state=resume reason=\"\"", flush=True)
+        print(
+            f"[MWE-03] READY — all ranks past barrier, auto-scancel in {AUTO_SCANCEL_DELAY}s",
+            flush=True,
+        )
+        print(
+            "[MWE-03] All ranks now attempting urlretrieve to GPFS (no timeout).",
+            flush=True,
+        )
+        print(
+            "[MWE-03] Expected: hang → D-state → torchrun orphan → node drains",
+            flush=True,
+        )
+        print("[MWE-03] Recovery if drained:", flush=True)
+        print("[MWE-03]   nvidia-smi -i 0,1,2,3 --gpu-reset", flush=True)
+        print(
+            '[MWE-03]   scontrol update nodename=98dci4-gpu-0003 state=resume reason=""',
+            flush=True,
+        )
 
         def _scancel():
             time.sleep(AUTO_SCANCEL_DELAY)
@@ -119,11 +133,17 @@ def main() -> None:
     dest_rank = f"{GPFS_DEST}.rank{rank}"
     try:
         urllib.request.urlretrieve(DOWNLOAD_URL, dest_rank)
-        print(f"[MWE-03] rank={rank} UNEXPECTED: urlretrieve succeeded — "
-              f"node has outbound network access!", flush=True)
+        print(
+            f"[MWE-03] rank={rank} UNEXPECTED: urlretrieve succeeded — "
+            f"node has outbound network access!",
+            flush=True,
+        )
     except OSError as exc:
         # Fast failure (REJECT): process stayed killable, no D-state
-        print(f"[MWE-03] rank={rank} urlretrieve raised {type(exc).__name__}: {exc}", flush=True)
+        print(
+            f"[MWE-03] rank={rank} urlretrieve raised {type(exc).__name__}: {exc}",
+            flush=True,
+        )
     except Exception as exc:
         print(f"[MWE-03] rank={rank} unexpected exception: {exc}", flush=True)
 

@@ -29,15 +29,23 @@ from pathlib import Path
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--config", default="imas_ambix/bench/configs/v0-rbb-100shot.yaml",
-                   help="Bench config — only camera + shot_ids + max_items_per_shot are read")
-    p.add_argument("--cosmos-root",
-                   default="/work/projects/imas_gpu/mast-tokens/cosmos/v1/DI16x16",
-                   help="Path to Cosmos DI16x16 .jit files")
+    p.add_argument(
+        "--config",
+        default="imas_ambix/bench/configs/v0-rbb-100shot.yaml",
+        help="Bench config — only camera + shot_ids + max_items_per_shot are read",
+    )
+    p.add_argument(
+        "--cosmos-root",
+        default="/work/projects/imas_gpu/mast-tokens/cosmos/v1/DI16x16",
+        help="Path to Cosmos DI16x16 .jit files",
+    )
     p.add_argument("--output", required=True, help="Result JSON path")
     p.add_argument("--device", default="cuda")
-    p.add_argument("--l1-root", default=None,
-                   help="Override level-1 root; default from data.paths.LEVEL1_DIR")
+    p.add_argument(
+        "--l1-root",
+        default=None,
+        help="Override level-1 root; default from data.paths.LEVEL1_DIR",
+    )
     args = p.parse_args()
 
     import yaml
@@ -49,16 +57,20 @@ def main() -> int:
 
     if args.l1_root is None:
         from imas_ambix.data.paths import LEVEL1_DIR
+
         l1_root = str(LEVEL1_DIR)
     else:
         l1_root = args.l1_root
 
     repo_root = Path(__file__).resolve().parent.parent
     worker_path = repo_root / "imas_ambix" / "bench" / "cosmos_worker.py"
-    venv_py = Path("/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv/bin/python")
+    venv_py = Path(
+        "/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv/bin/python"
+    )
 
-    with tempfile.TemporaryDirectory(prefix="cosmos-bench-",
-                                     dir=os.environ.get("TMPDIR", "/tmp")) as tmpdir:
+    with tempfile.TemporaryDirectory(
+        prefix="cosmos-bench-", dir=os.environ.get("TMPDIR", "/tmp")
+    ) as tmpdir:
         tmpdir = Path(tmpdir)
         output_dir = tmpdir / "outputs"
         output_dir.mkdir()
@@ -77,15 +89,20 @@ def main() -> int:
         # 1. Run the Cosmos worker
         t0 = time.perf_counter()
         cmd = [
-            str(venv_py), str(worker_path),
-            "--manifest", str(manifest_path),
-            "--device", args.device,
-            "--report", str(report_path),
+            str(venv_py),
+            str(worker_path),
+            "--manifest",
+            str(manifest_path),
+            "--device",
+            args.device,
+            "--report",
+            str(report_path),
         ]
         print(f"[cosmos-bench] launching worker: {' '.join(cmd)}", flush=True)
         worker_shot_times: dict[int, dict] = {}
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, text=True, bufsize=1)
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
+        )
         try:
             assert proc.stdout is not None
             for line in proc.stdout:
@@ -97,25 +114,34 @@ def main() -> int:
                     obj = json.loads(line)
                     if "shot_id" in obj and "encode_seconds" in obj:
                         worker_shot_times[int(obj["shot_id"])] = obj
-                except (json.JSONDecodeError, KeyError):
+                except json.JSONDecodeError, KeyError:
                     pass
         finally:
             proc.wait()
 
         worker_exit = proc.returncode
         if worker_exit != 0:
-            print(f"[cosmos-bench] worker exited with code {worker_exit}",
-                  file=sys.stderr)
+            print(
+                f"[cosmos-bench] worker exited with code {worker_exit}", file=sys.stderr
+            )
 
         # 2. Collect per-shot artefacts + compute metrics
         import numpy as np
 
         from imas_ambix.eval.metrics import (
-            chord_nrmse,
             centroid_mse,
+            chord_nrmse,
+        )
+        from imas_ambix.eval.metrics import (
             lpips as _lpips,
+        )
+        from imas_ambix.eval.metrics import (
             psnr as _psnr,
+        )
+        from imas_ambix.eval.metrics import (
             rfid as _rfid,
+        )
+        from imas_ambix.eval.metrics import (
             rfid_stratified as _rfid_stratified,
         )
 
@@ -128,8 +154,10 @@ def main() -> int:
 
         def _resize_for_rfid(frames_u8: np.ndarray) -> np.ndarray:
             from PIL import Image
-            out = np.empty((frames_u8.shape[0], RFID_RESIZE, RFID_RESIZE, 3),
-                           dtype=np.uint8)
+
+            out = np.empty(
+                (frames_u8.shape[0], RFID_RESIZE, RFID_RESIZE, 3), dtype=np.uint8
+            )
             for i in range(frames_u8.shape[0]):
                 img = Image.fromarray(frames_u8[i]).resize(
                     (RFID_RESIZE, RFID_RESIZE), Image.BILINEAR
@@ -142,14 +170,18 @@ def main() -> int:
             dec_p = output_dir / f"{shot_id}-decoded.npy"
             src_p = output_dir / f"{shot_id}-src.npy"
             if not (tok_p.exists() and dec_p.exists() and src_p.exists()):
-                per_shot_results.append({
-                    "shot_id": shot_id, "error": "missing artifacts",
-                })
+                per_shot_results.append(
+                    {
+                        "shot_id": shot_id,
+                        "error": "missing artifacts",
+                    }
+                )
                 continue
             src = np.load(src_p)
             dec = np.load(dec_p)
             n = min(src.shape[0], dec.shape[0])
-            src = src[:n]; dec = dec[:n]
+            src = src[:n]
+            dec = dec[:n]
             per_shot = {
                 "shot_id": shot_id,
                 "n_items": int(n),
@@ -157,8 +189,12 @@ def main() -> int:
                 "lpips": float(_lpips(src, dec)),
                 "centroid_mse": float(centroid_mse(src, dec)),
                 "chord_nrmse": float(chord_nrmse(src, dec)),
-                "encode_seconds": worker_shot_times.get(shot_id, {}).get("encode_seconds"),
-                "decode_seconds": worker_shot_times.get(shot_id, {}).get("decode_seconds"),
+                "encode_seconds": worker_shot_times.get(shot_id, {}).get(
+                    "encode_seconds"
+                ),
+                "decode_seconds": worker_shot_times.get(shot_id, {}).get(
+                    "decode_seconds"
+                ),
             }
             per_shot_results.append(per_shot)
 
@@ -193,6 +229,7 @@ def main() -> int:
 
             # Per-class aggregate averages from per-shot
             from statistics import mean
+
             ok_shots = [r for r in per_shot_results if "error" not in r]
             if ok_shots:
                 for m in ("psnr", "lpips", "centroid_mse", "chord_nrmse"):
@@ -200,22 +237,25 @@ def main() -> int:
 
         # 4. Write result JSON
         Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-        result = [{
-            "config": {
-                "name": "v0-rbb-100shot-cosmos",
-                "tokenizer_kind": "frame",
-                "tokenizer": "cosmos_di16x16",
-                "device": args.device,
-                "max_items_per_shot": max_items,
-            },
-            "per_shot": per_shot_results,
-            "aggregate": aggregate,
-            "elapsed_s": aggregate["elapsed_s"],
-        }]
+        result = [
+            {
+                "config": {
+                    "name": "v0-rbb-100shot-cosmos",
+                    "tokenizer_kind": "frame",
+                    "tokenizer": "cosmos_di16x16",
+                    "device": args.device,
+                    "max_items_per_shot": max_items,
+                },
+                "per_shot": per_shot_results,
+                "aggregate": aggregate,
+                "elapsed_s": aggregate["elapsed_s"],
+            }
+        ]
         Path(args.output).write_text(json.dumps(result, indent=2))
         print(f"[cosmos-bench] result saved: {args.output}", flush=True)
-        print(f"[cosmos-bench] aggregate:\n{json.dumps(aggregate, indent=2)}",
-              flush=True)
+        print(
+            f"[cosmos-bench] aggregate:\n{json.dumps(aggregate, indent=2)}", flush=True
+        )
         return worker_exit
 
 

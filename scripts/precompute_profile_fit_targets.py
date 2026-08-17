@@ -166,9 +166,7 @@ def main() -> int:
 
     train_shots, _held = read_split_shot_lists(args.n_train, args.n_heldout)
     shard = [
-        s
-        for i, s in enumerate(train_shots)
-        if i % args.shard_count == args.shard_index
+        s for i, s in enumerate(train_shots) if i % args.shard_count == args.shard_index
     ]
     logger.info(
         "shard %d/%d: %d of %d training shots",
