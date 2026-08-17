@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-16T21:10:19",
+  "updated": "2026-08-17T07:01:36",
   "project": "imas-ambix",
   "doc": "index",
   "data": {
@@ -816,7 +816,7 @@
       },
       {
         "id": "S23",
-        "status": "planned",
+        "status": "done",
         "theme": "Move the consumers onto the declared description, and let measurement settle where the sensors are",
         "items": [
           {
@@ -850,7 +850,8 @@
         ],
         "starts": "2026-08-17",
         "ends": "2026-09-20",
-        "description": "S22 built a machine-description producer and proved it emits an operator structurally identical to the legacy one. Two things it deliberately did not do now become their own sprint. First, the consumers have not moved: 41 modules still read description through the per-machine reader the design exists to remove, which is a migration across a wide surface gated on a re-stamped baseline rather than on more design. Second, 19 flux-loop positions still disagree between the nominal table and the reconstruction, and comparing two descriptions to each other cannot settle which is right \u2014 a vacuum-shot forward prediction can, because with no plasma current the flux is attributable to known coil currents and the measurement arbitrates independently of both candidates. The sprint closes when the legacy reader census reaches zero and every disputed loop carries a verdict or an explicit null."
+        "description": "S22 built a machine-description producer and proved it emits an operator structurally identical to the legacy one. Two things it deliberately did not do now become their own sprint. First, the consumers have not moved: 41 modules still read description through the per-machine reader the design exists to remove, which is a migration across a wide surface gated on a re-stamped baseline rather than on more design. Second, 19 flux-loop positions still disagree between the nominal table and the reconstruction, and comparing two descriptions to each other cannot settle which is right \u2014 a vacuum-shot forward prediction can, because with no plasma current the flux is attributable to known coil currents and the measurement arbitrates independently of both candidates. The sprint closes when the legacy reader census reaches zero and every disputed loop carries a verdict or an explicit null.",
+        "summary": "Both plans shipped with every step measured. description-reader-migration: census 41\u21920 (eight library seams at exactly 0.0 stamp movement within the 0.1245% re-stamped budget; declared-source content cutover \u22122.80%/\u22122.79% inside the 7.93% budget with improved fit and 36/36 vs 34/36 coverage; reader deleted with an 85\u21920 grep receipt and a 0.0-movement retirement stamp). vacuum-field-position-adjudication: 19/19 disputed loops adjudicated on measured vacuum cohorts (2 nominal-table, 14 reconstruction, 3 explicit nulls; fl_p4l_1/fl_p4l_4 decided for reconstruction at margins +3.93/+2.78), all verdicts now range-scoped evidence-carrying catalog declarations with the post-feedback stamp moving ~1e-8. Evidence: docs/evidence/archive/description-reader-migration-landed.html and docs/evidence/archive/vacuum-field-position-adjudication-landed.html. Feeds no downstream sprint."
       }
     ],
     "blockers": [
@@ -973,6 +974,6 @@
         "pct": 0
       }
     ],
-    "_version": 42
+    "_version": 43
   }
 }
