@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.9.0",
+  "schema_version": "1.10.0",
   "dd_version": "4.1.1",
   "source": "https://mastapp.site/parquet/level2/shots",
   "source_revision": "local-level2-11573-shots-11766-30471-machine-description",
@@ -3498,6 +3498,192 @@
       "sensor_identity_rule": "mast-acquisition-address",
       "reason": "The level-2 spelling FL_CC010 has an extra zero in its final numeric token relative to the level-1 acquisition identity fl_cc10. The declared case-fold and integer-value token rule resolves both spellings to one sensor without a channel-specific alias.",
       "evidence": "The level-2 flux_loop_geometry_channel array publishes FL_CC010 at shots 11766, 12417 and 12533, while the shot-12417 level-1 AMB acquisition publishes fl_cc10. The remaining level-1-only identity fl_p6u_1 is absent from the level-2 nominal geometry and signal mapping."
+    }
+  ],
+  "flux_loop_position_declarations": [
+    {
+      "name": "mast-vacuum-position-early-fl-p2u-2",
+      "acquisition_address": "fl_p2u_2",
+      "range_first_shot": 11766,
+      "range_last_shot": 12416,
+      "position_verdict": "undecided",
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 37 vacuum shots: nominal residual 5.324202, reconstruction residual 5.322894, and margin +0.001309 with 95% CI [-0.000468, +0.004652]. The interval crosses zero, so neither coordinate is declared."
+    },
+    {
+      "name": "mast-vacuum-position-early-fl-p4l-1",
+      "acquisition_address": "fl_p4l_1",
+      "range_first_shot": 11766,
+      "range_last_shot": 12416,
+      "position_verdict": "reconstruction",
+      "declared_r": 1.5984,
+      "declared_z": -1.04443,
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 37 vacuum shots: reconstruction residual 1.391152 versus nominal 1.896831, margin +0.505679 with 95% CI [+0.409337, +0.605450]."
+    },
+    {
+      "name": "mast-vacuum-position-early-fl-p4l-4",
+      "acquisition_address": "fl_p4l_4",
+      "range_first_shot": 11766,
+      "range_last_shot": 12416,
+      "position_verdict": "reconstruction",
+      "declared_r": 1.4005,
+      "declared_z": -1.14403,
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 37 vacuum shots: reconstruction residual 1.294284 versus nominal 1.754077, margin +0.459793 with 95% CI [+0.354055, +0.573119]."
+    },
+    {
+      "name": "mast-vacuum-position-early-fl-p5l-1",
+      "acquisition_address": "fl_p5l_1",
+      "range_first_shot": 11766,
+      "range_last_shot": 12416,
+      "position_verdict": "reconstruction",
+      "declared_r": 1.7463,
+      "declared_z": -0.44224,
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 37 vacuum shots: reconstruction residual 1.263760 versus nominal 1.264235, margin +0.000475 with 95% CI [+0.000193, +0.000785]."
+    },
+    {
+      "name": "mast-vacuum-position-early-fl-p5l-4",
+      "acquisition_address": "fl_p5l_4",
+      "range_first_shot": 11766,
+      "range_last_shot": 12416,
+      "position_verdict": "reconstruction",
+      "declared_r": 1.5495,
+      "declared_z": -0.54724,
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 37 vacuum shots: reconstruction residual 1.857326 versus nominal 1.859844, margin +0.002518 with 95% CI [+0.001264, +0.003962]."
+    },
+    {
+      "name": "mast-vacuum-position-late-fl-p2l-1",
+      "acquisition_address": "fl_p2l_1",
+      "range_first_shot": 12417,
+      "range_last_shot": 30471,
+      "position_verdict": "undecided",
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 12 vacuum shots: nominal residual 2.372517, reconstruction residual 2.365131, and margin +0.007386 with 95% CI [-0.000580, +0.017638]. The interval crosses zero, so neither coordinate is declared."
+    },
+    {
+      "name": "mast-vacuum-position-late-fl-p2l-2",
+      "acquisition_address": "fl_p2l_2",
+      "range_first_shot": 12417,
+      "range_last_shot": 30471,
+      "position_verdict": "undecided",
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 6 vacuum shots: nominal residual 5.836037, reconstruction residual 5.866251, and margin -0.030214 with 95% CI [-0.090641, +0.000000]. The interval reaches zero, so neither coordinate is declared."
+    },
+    {
+      "name": "mast-vacuum-position-late-fl-p2l-3",
+      "acquisition_address": "fl_p2l_3",
+      "range_first_shot": 12417,
+      "range_last_shot": 30471,
+      "position_verdict": "reconstruction",
+      "declared_r": 0.566,
+      "declared_z": -1.57109,
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 6 vacuum shots: reconstruction residual 3.018414 versus nominal 3.051878, margin +0.033464 with 95% CI [+0.009999, +0.066287]."
+    },
+    {
+      "name": "mast-vacuum-position-late-fl-p2l-4",
+      "acquisition_address": "fl_p2l_4",
+      "range_first_shot": 12417,
+      "range_last_shot": 30471,
+      "position_verdict": "reconstruction",
+      "declared_r": 0.6617,
+      "declared_z": -1.64048,
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 6 vacuum shots: reconstruction residual 1.661776 versus nominal 1.668898, margin +0.007122 with 95% CI [+0.002893, +0.011872]."
+    },
+    {
+      "name": "mast-vacuum-position-late-fl-p2u-1",
+      "acquisition_address": "fl_p2u_1",
+      "range_first_shot": 12417,
+      "range_last_shot": 30471,
+      "position_verdict": "reconstruction",
+      "declared_r": 0.445,
+      "declared_z": 1.56903,
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 6 vacuum shots: reconstruction residual 1.531924 versus nominal 1.549658, margin +0.017734 with 95% CI [+0.008326, +0.028348]."
+    },
+    {
+      "name": "mast-vacuum-position-late-fl-p2u-2",
+      "acquisition_address": "fl_p2u_2",
+      "range_first_shot": 12417,
+      "range_last_shot": 30471,
+      "position_verdict": "reconstruction",
+      "declared_r": 0.501,
+      "declared_z": 1.56903,
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 6 vacuum shots: reconstruction residual 1.610222 versus nominal 1.628798, margin +0.018576 with 95% CI [+0.010203, +0.026005]."
+    },
+    {
+      "name": "mast-vacuum-position-late-fl-p2u-3",
+      "acquisition_address": "fl_p2u_3",
+      "range_first_shot": 12417,
+      "range_last_shot": 30471,
+      "position_verdict": "reconstruction",
+      "declared_r": 0.566,
+      "declared_z": 1.56903,
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 6 vacuum shots: reconstruction residual 1.655363 versus nominal 1.673769, margin +0.018406 with 95% CI [+0.009818, +0.026056]."
+    },
+    {
+      "name": "mast-vacuum-position-late-fl-p2u-4",
+      "acquisition_address": "fl_p2u_4",
+      "range_first_shot": 12417,
+      "range_last_shot": 30471,
+      "position_verdict": "reconstruction",
+      "declared_r": 0.6617,
+      "declared_z": 1.63842,
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 6 vacuum shots: reconstruction residual 3.085370 versus nominal 3.106613, margin +0.021243 with 95% CI [+0.009111, +0.035629]."
+    },
+    {
+      "name": "mast-vacuum-position-late-fl-p3l-1",
+      "acquisition_address": "fl_p3l_1",
+      "range_first_shot": 12417,
+      "range_last_shot": 30471,
+      "position_verdict": "nominal-table",
+      "declared_r": 1.163,
+      "declared_z": -1.08259,
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 7 vacuum shots: nominal residual 1.630164 versus reconstruction 1.634415, margin -0.004251 with 95% CI [-0.008947, -0.001375]."
+    },
+    {
+      "name": "mast-vacuum-position-late-fl-p3l-4",
+      "acquisition_address": "fl_p3l_4",
+      "range_first_shot": 12417,
+      "range_last_shot": 30471,
+      "position_verdict": "nominal-table",
+      "declared_r": 1.0354,
+      "declared_z": -1.08309,
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 12 vacuum shots: nominal residual 3.491552 versus reconstruction 3.506649, margin -0.015097 with 95% CI [-0.021938, -0.008393]."
+    },
+    {
+      "name": "mast-vacuum-position-late-fl-p4l-1",
+      "acquisition_address": "fl_p4l_1",
+      "range_first_shot": 12417,
+      "range_last_shot": 30471,
+      "position_verdict": "reconstruction",
+      "declared_r": 1.5984,
+      "declared_z": -1.04443,
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 12 vacuum shots: reconstruction residual 3.103378 versus nominal 7.033985, margin +3.930607 with 95% CI [+2.090137, +5.812421]."
+    },
+    {
+      "name": "mast-vacuum-position-late-fl-p4l-4",
+      "acquisition_address": "fl_p4l_4",
+      "range_first_shot": 12417,
+      "range_last_shot": 30471,
+      "position_verdict": "reconstruction",
+      "declared_r": 1.4005,
+      "declared_z": -1.14403,
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 12 vacuum shots: reconstruction residual 2.961972 versus nominal 5.741333, margin +2.779361 with 95% CI [+1.449825, +4.169971]."
+    },
+    {
+      "name": "mast-vacuum-position-late-fl-p5l-1",
+      "acquisition_address": "fl_p5l_1",
+      "range_first_shot": 12417,
+      "range_last_shot": 30471,
+      "position_verdict": "reconstruction",
+      "declared_r": 1.7463,
+      "declared_z": -0.44224,
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 12 vacuum shots: reconstruction residual 1.554365 versus nominal 1.555418, margin +0.001053 with 95% CI [+0.000604, +0.001503]."
+    },
+    {
+      "name": "mast-vacuum-position-late-fl-p5l-4",
+      "acquisition_address": "fl_p5l_4",
+      "range_first_shot": 12417,
+      "range_last_shot": 30471,
+      "position_verdict": "reconstruction",
+      "declared_r": 1.5495,
+      "declared_z": -0.54724,
+      "evidence": "docs/notes/vacuum-loop-adjudication.md records 12 vacuum shots: reconstruction residual 2.516462 versus nominal 2.523102, margin +0.006640 with 95% CI [+0.002582, +0.010770]."
     }
   ],
   "circuit_current_joins": [

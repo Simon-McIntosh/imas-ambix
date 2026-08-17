@@ -5,7 +5,7 @@ description: >-
   Range-scoped bindings from immutable store arrays to Data Dictionary leaves.
   The schema deliberately has no condition, expression, or code-hook slot.
 license: LGPL-3.0-or-later
-version: 1.9.0
+version: 1.10.0
 prefixes:
   linkml: https://w3id.org/linkml/
   mm: https://imas-ambix.example/schema/machine-map/
@@ -55,6 +55,14 @@ enums:
     permissible_values:
       integer-value:
         description: Compare every decimal token by integer value, ignoring zero padding.
+  FluxLoopPositionVerdict:
+    permissible_values:
+      nominal-table:
+        description: The measured vacuum response selects the nominal table position.
+      reconstruction:
+        description: The measured vacuum response selects the reconstruction position.
+      undecided:
+        description: The measurement does not distinguish the candidate positions.
 
 slots:
   schema_version:
@@ -110,6 +118,10 @@ slots:
     inlined_as_list: true
   identity_qualifications:
     range: IdentityQualification
+    multivalued: true
+    inlined_as_list: true
+  flux_loop_position_declarations:
+    range: FluxLoopPositionDeclaration
     multivalued: true
     inlined_as_list: true
   circuit_current_joins:
@@ -292,6 +304,7 @@ slots:
     multivalued: true
   acquisition_declaration:
     required: true
+  acquisition_address:
   point_flux_loops:
     range: PointFluxLoopDeclaration
     multivalued: true
@@ -302,6 +315,13 @@ slots:
   z:
     range: float
     required: true
+  position_verdict:
+    range: FluxLoopPositionVerdict
+    required: true
+  declared_r:
+    range: float
+  declared_z:
+    range: float
   r_path:
     required: true
   z_path:
@@ -494,6 +514,20 @@ classes:
       - type_path
       - type_index
       - evidence
+  FluxLoopPositionDeclaration:
+    description: >-
+      Carries one vacuum-measurement verdict for an acquisition address over an
+      inclusive shot range. Directional verdicts declare coordinates; an
+      undecided verdict deliberately declares neither coordinate.
+    slots:
+      - name
+      - acquisition_address
+      - range_first_shot
+      - range_last_shot
+      - position_verdict
+      - declared_r
+      - declared_z
+      - evidence
   PolygonSectionDeclaration:
     description: >-
       Declares a shaped conductor section and its joins to circuit connectivity
@@ -535,6 +569,7 @@ classes:
       - source_qualifications
       - sensor_identity_rules
       - identity_qualifications
+      - flux_loop_position_declarations
       - circuit_current_joins
       - drive_topologies
       - structure_assemblies

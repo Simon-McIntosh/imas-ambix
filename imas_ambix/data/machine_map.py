@@ -33,6 +33,7 @@ _SOURCE_STATUSES = {"corpus-observed", "legacy-only", "range-absent"}
 _VALIDATION_STATES = {"corpus-validated", "source-only"}
 _IDENTITY_CASE_RULES = {"case-fold"}
 _IDENTITY_NUMERIC_TOKEN_RULES = {"integer-value"}
+_FLUX_LOOP_POSITION_VERDICTS = {"nominal-table", "reconstruction", "undecided"}
 _COCOS_IDENTIFIERS = {*range(1, 9), *range(11, 19)}
 _UNDECLARED_COCOS = 0
 
@@ -742,6 +743,82 @@ class PointFluxLoopDeclaration:
 
 
 @dataclass(frozen=True)
+class FluxLoopPositionDeclaration:
+    """One range-scoped measured verdict on an acquisition position."""
+
+    name: str
+    acquisition_address: str
+    range_first_shot: int
+    range_last_shot: int
+    position_verdict: str
+    declared_r: float | None
+    declared_z: float | None
+    evidence: str
+
+    @classmethod
+    def from_dict(
+        cls, payload: Mapping[str, Any], label: str
+    ) -> FluxLoopPositionDeclaration:
+        required = {
+            "name",
+            "acquisition_address",
+            "range_first_shot",
+            "range_last_shot",
+            "position_verdict",
+            "evidence",
+        }
+        coordinate_keys = {"declared_r", "declared_z"}
+        _exact_keys(payload, required, coordinate_keys, label)
+        first_shot = _integer(
+            payload["range_first_shot"], f"{label}.range_first_shot"
+        )
+        last_shot = _integer(
+            payload["range_last_shot"], f"{label}.range_last_shot"
+        )
+        if last_shot < first_shot:
+            raise MachineMapError(f"{label}.range_last_shot precedes range_first_shot")
+        verdict = _text(payload["position_verdict"], f"{label}.position_verdict")
+        if verdict not in _FLUX_LOOP_POSITION_VERDICTS:
+            raise MachineMapError(
+                f"{label}.position_verdict must be one of "
+                f"{sorted(_FLUX_LOOP_POSITION_VERDICTS)}"
+            )
+        present_coordinates = coordinate_keys.intersection(payload)
+        if present_coordinates and present_coordinates != coordinate_keys:
+            raise MachineMapError(
+                f"{label} must declare both declared_r and declared_z"
+            )
+        if verdict == "undecided" and present_coordinates:
+            raise MachineMapError(
+                f"{label} must not assert coordinates for an undecided verdict"
+            )
+        if verdict != "undecided" and not present_coordinates:
+            raise MachineMapError(
+                f"{label} requires coordinates for a directional verdict"
+            )
+        return cls(
+            name=_text(payload["name"], f"{label}.name"),
+            acquisition_address=_text(
+                payload["acquisition_address"], f"{label}.acquisition_address"
+            ),
+            range_first_shot=first_shot,
+            range_last_shot=last_shot,
+            position_verdict=verdict,
+            declared_r=(
+                _number(payload["declared_r"], f"{label}.declared_r")
+                if present_coordinates
+                else None
+            ),
+            declared_z=(
+                _number(payload["declared_z"], f"{label}.declared_z")
+                if present_coordinates
+                else None
+            ),
+            evidence=_text(payload["evidence"], f"{label}.evidence"),
+        )
+
+
+@dataclass(frozen=True)
 class PolygonSectionDeclaration:
     """A shaped conductor section joined to circuit and geometry identities."""
 
@@ -881,6 +958,7 @@ class MachineMapCatalog:
     source_qualifications: tuple[SourceQualification, ...]
     sensor_identity_rules: tuple[SensorIdentityRule, ...]
     identity_qualifications: tuple[IdentityQualification, ...]
+    flux_loop_position_declarations: tuple[FluxLoopPositionDeclaration, ...]
     drive_topologies: tuple[DriveTopology, ...]
     structure_assemblies: tuple[StructureAssembly, ...]
     acquisition_declarations: tuple[AcquisitionDeclaration, ...]
@@ -915,6 +993,16 @@ class MachineMapCatalog:
                 f"rule {acquisition.sensor_identity_rule!r}"
             )
         return rule.normalise(identity)
+
+    def flux_loop_positions_for(
+        self, shot: int
+    ) -> tuple[FluxLoopPositionDeclaration, ...]:
+        """Return every non-overlapping loop-position verdict active at a shot."""
+        return tuple(
+            item
+            for item in self.flux_loop_position_declarations
+            if item.range_first_shot <= shot <= item.range_last_shot
+        )
 
     @property
     def bound_channel_count(self) -> int:
@@ -959,6 +1047,7 @@ def load_linkml_schema(path: Path | str = LINKML_SCHEMA_PATH) -> Mapping[str, An
         "DescriptionSupplement",
         "DriveTopology",
         "IdentityQualification",
+        "FluxLoopPositionDeclaration",
         "MachineMap",
         "PointFluxLoopDeclaration",
         "PolygonSectionDeclaration",
@@ -999,6 +1088,7 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
         "source_qualifications",
         "sensor_identity_rules",
         "identity_qualifications",
+        "flux_loop_position_declarations",
         "circuit_current_joins",
         "drive_topologies",
         "structure_assemblies",
@@ -1248,6 +1338,39 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
                 f"identity qualification {qualification.name!r} canonical identity "
                 "is not declared by an acquisition"
             )
+    position_declarations_raw = payload["flux_loop_position_declarations"]
+    if not isinstance(position_declarations_raw, list):
+        raise MachineMapError("flux_loop_position_declarations must be a list")
+    position_declarations = tuple(
+        FluxLoopPositionDeclaration.from_dict(
+            _object(entry, f"flux_loop_position_declarations[{index}]"),
+            f"flux_loop_position_declarations[{index}]",
+        )
+        for index, entry in enumerate(position_declarations_raw)
+    )
+    position_declaration_names = [item.name for item in position_declarations]
+    if len(position_declaration_names) != len(set(position_declaration_names)):
+        raise MachineMapError("flux-loop position declaration names must be unique")
+    for declaration in position_declarations:
+        if declaration.acquisition_address not in declared_sensor_addresses:
+            raise MachineMapError(
+                f"flux-loop position declaration {declaration.name!r} references "
+                "an unknown acquisition address"
+            )
+    declarations_by_address: dict[str, list[FluxLoopPositionDeclaration]] = {}
+    for declaration in position_declarations:
+        declarations_by_address.setdefault(declaration.acquisition_address, []).append(
+            declaration
+        )
+    for address, rows in declarations_by_address.items():
+        ordered = sorted(rows, key=lambda item: item.range_first_shot)
+        if any(
+            later.range_first_shot <= earlier.range_last_shot
+            for earlier, later in zip(ordered, ordered[1:], strict=False)
+        ):
+            raise MachineMapError(
+                f"flux-loop position declarations overlap for {address!r}"
+            )
     for topology in topologies:
         if topology.current_channel_declaration not in acquisition_names:
             raise MachineMapError(
@@ -1337,6 +1460,36 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
                 f"map {item.name!r} references unknown description supplement "
                 f"{item.description_supplement!r}"
             )
+    for declaration in position_declarations:
+        selected_maps = tuple(
+            item
+            for item in maps
+            if item.first_shot <= declaration.range_last_shot
+            and declaration.range_first_shot <= item.last_shot
+        )
+        if not selected_maps:
+            raise MachineMapError(
+                f"flux-loop position declaration {declaration.name!r} is outside "
+                "the machine-map ranges"
+            )
+        cursor = declaration.range_first_shot
+        for machine_map in sorted(selected_maps, key=lambda item: item.first_shot):
+            if machine_map.first_shot > cursor:
+                raise MachineMapError(
+                    f"flux-loop position declaration {declaration.name!r} crosses "
+                    "an uncovered shot range"
+                )
+            cursor = max(cursor, machine_map.last_shot + 1)
+            if machine_map.description_supplement is None:
+                raise MachineMapError(
+                    f"flux-loop position declaration {declaration.name!r} overlaps "
+                    "a map with no description supplement"
+                )
+        if cursor <= declaration.range_last_shot:
+            raise MachineMapError(
+                f"flux-loop position declaration {declaration.name!r} crosses an "
+                "uncovered shot range"
+            )
 
     catalog = MachineMapCatalog(
         schema_version=_text(payload["schema_version"], "schema_version"),
@@ -1350,6 +1503,7 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
         source_qualifications=qualifications,
         sensor_identity_rules=identity_rules,
         identity_qualifications=identity_qualifications,
+        flux_loop_position_declarations=position_declarations,
         drive_topologies=topologies,
         structure_assemblies=assemblies,
         acquisition_declarations=acquisitions,

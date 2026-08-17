@@ -223,6 +223,7 @@ def _plasma_current_catalog_document(source_cocos: int) -> dict[str, Any]:
     document["source_qualifications"] = []
     document["sensor_identity_rules"] = []
     document["identity_qualifications"] = []
+    document["flux_loop_position_declarations"] = []
     document["circuit_current_joins"] = []
     document["drive_topologies"] = []
     document["structure_assemblies"] = []
@@ -273,6 +274,7 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
     assert "SourceQualification" in schema["classes"]
     assert "SensorIdentityRule" in schema["classes"]
     assert "IdentityQualification" in schema["classes"]
+    assert "FluxLoopPositionDeclaration" in schema["classes"]
     assert "CircuitConnection" in schema["classes"]
     assert "CircuitCurrentJoin" in schema["classes"]
     assert "AcquisitionDeclaration" in schema["classes"]
@@ -290,6 +292,10 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
     )
     assert "sensor_identity_rules" in schema["classes"]["MachineMapCatalog"]["slots"]
     assert "identity_qualifications" in schema["classes"]["MachineMapCatalog"]["slots"]
+    assert (
+        "flux_loop_position_declarations"
+        in schema["classes"]["MachineMapCatalog"]["slots"]
+    )
     assert set(schema["enums"]["BindingRole"]["permissible_values"]) == {
         "value",
         "identifier",
@@ -306,8 +312,75 @@ def test_linkml_schema_is_declarative_and_has_no_executable_language():
     assert set(schema["enums"]["IdentityNumericTokenRule"]["permissible_values"]) == {
         "integer-value"
     }
+    assert set(schema["enums"]["FluxLoopPositionVerdict"]["permissible_values"]) == {
+        "nominal-table",
+        "reconstruction",
+        "undecided",
+    }
     forbidden = {"condition", "expression", "code_hook", "transform_code"}
     assert forbidden.isdisjoint(schema["slots"])
+
+
+def test_flux_loop_position_verdicts_are_range_scoped_and_evidence_carrying():
+    catalog = load_packaged_machine_map("mast")
+    declarations = catalog.flux_loop_position_declarations
+    counts = {
+        verdict: sum(item.position_verdict == verdict for item in declarations)
+        for verdict in ("reconstruction", "nominal-table", "undecided")
+    }
+
+    assert len(declarations) == 19
+    assert counts == {
+        "reconstruction": 14,
+        "nominal-table": 2,
+        "undecided": 3,
+    }
+    assert len(catalog.flux_loop_positions_for(12_000)) == 5
+    assert len(catalog.flux_loop_positions_for(21_978)) == 14
+    assert {
+        (item.range_first_shot, item.range_last_shot)
+        for item in declarations
+    } == {(11_766, 12_416), (12_417, 30_471)}
+    assert all(
+        "docs/notes/vacuum-loop-adjudication.md" in item.evidence
+        for item in declarations
+    )
+
+    undecided = {
+        (item.range_first_shot, item.acquisition_address)
+        for item in declarations
+        if item.position_verdict == "undecided"
+    }
+    assert undecided == {
+        (11_766, "fl_p2u_2"),
+        (12_417, "fl_p2l_1"),
+        (12_417, "fl_p2l_2"),
+    }
+    assert all(
+        item.declared_r is None and item.declared_z is None
+        for item in declarations
+        if item.position_verdict == "undecided"
+    )
+    assert all(
+        np.isfinite((item.declared_r, item.declared_z)).all()
+        for item in declarations
+        if item.position_verdict != "undecided"
+    )
+
+    late = {
+        item.acquisition_address: item
+        for item in catalog.flux_loop_positions_for(21_978)
+    }
+    assert (late["fl_p3l_1"].declared_r, late["fl_p3l_1"].declared_z) == (
+        1.163,
+        -1.08259,
+    )
+    assert late["fl_p3l_1"].position_verdict == "nominal-table"
+    assert (late["fl_p4l_1"].declared_r, late["fl_p4l_1"].declared_z) == (
+        1.5984,
+        -1.04443,
+    )
+    assert late["fl_p4l_1"].position_verdict == "reconstruction"
 
 
 def test_late_range_declares_the_measurable_acquisition_population():

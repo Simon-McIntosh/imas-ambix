@@ -77,7 +77,11 @@ def test_identity_bound_campaign_replaces_the_aliased_loop_join() -> None:
     assert (after["fl_p6u_1"].r, after["fl_p6u_1"].z) == pytest.approx(
         (1.402500033378601, 0.8889999985694885)
     )
-    assert all(item.flag == "" for item in after.values())
+    assert {
+        channel: (item.r, item.z, item.flag) for channel, item in after.items()
+    } == {
+        channel: (item.r, item.z, item.flag) for channel, item in before.items()
+    }
     provenance = source.provenance()
     assert provenance["identity_channel_count"] == 19
     assert provenance["identity_geometry_rows_rebound"] == 19
@@ -174,6 +178,23 @@ def test_transform_source_binds_loop_identity_and_supplies_finite_angles() -> No
     }
     assert len(loop_mappings) == 19
     assert len({mapping.efm_index for mapping in loop_mappings.values()}) == 19
+    assert (loop_mappings["fl_p3l_1"].r, loop_mappings["fl_p3l_1"].z) == (
+        pytest.approx(1.163),
+        pytest.approx(-1.08259),
+    )
+    assert "nominal-table" in loop_mappings["fl_p3l_1"].flag
+    assert (loop_mappings["fl_p4l_1"].r, loop_mappings["fl_p4l_1"].z) == (
+        pytest.approx(1.5984),
+        pytest.approx(-1.04443),
+    )
+    assert "reconstruction" in loop_mappings["fl_p4l_1"].flag
+    assert all(
+        "undecided" not in mapping.flag for mapping in loop_mappings.values()
+    )
+    assert any(
+        "no undecided positions present in this acquisition" in notice
+        for notice in table.provenance_flags
+    )
     assert loop_mappings["fl_p6u_1"].efm_index == 26
     assert (loop_mappings["fl_p6u_1"].r, loop_mappings["fl_p6u_1"].z) == (
         pytest.approx(1.402500033378601),
