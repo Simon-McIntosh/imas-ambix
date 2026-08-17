@@ -70,7 +70,7 @@ def _domain(
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def flux_state() -> FluxFunctionState:
     coordinate = _coordinate(np.linspace(0.0, 1.0, 9))
     pressure, dpressure, field_function, field_drive = _arrays(coordinate)
