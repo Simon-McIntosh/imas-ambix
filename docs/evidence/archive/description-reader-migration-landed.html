@@ -128,6 +128,29 @@
   <code>imas_ambix/spine_bench/results/physics-spine-v0-mast-heldout-6-68452048dc-…-level2-transform-signal-identity-873cd355bd4c.yaml</code>
   and is the comparator for the facade-removal/reader-deletion stamp. 82/82 affected tests
   green. Facade and raw reader intentionally remain for the retirement node.</p>
+
+  <h2 id="s3-retirement">§3 — The reader is retired, and retirement is provably free</h2>
+  <p><strong>One canonical acquisition route remains
+  (<code>imas_ambix.data.description_reader.read_geometry_table</code>, backed by the declared
+  machine map); the raw per-machine reader surface is deleted — 2,443 lines removed — with a
+  revision-paired grep receipt of 85 legacy-API references at the parent and 0 at HEAD.</strong>
+  Commit <code>0171efc</code> (merged <code>1522ad1</code>).</p>
+  <p>The migration-only parity implementation (<code>operator_parity.py</code> and its test) was
+  retired with the reader it existed to compare against; reusable <code>GeometryTable</code>
+  records and constants remain for their non-reader consumers. The AST census reads 0 before and
+  after. <strong>The retirement stamp moved exactly 0 on both arms</strong> — greens-matvec
+  0.66981975176426856, grid-delstar 0.66977238716696808 at 36/36 coverage,
+  <code>git_dirty=false</code> at the retirement revision — a representation-only seam inside the
+  0.1245% budget, receipt committed as
+  <code>imas_ambix/spine_bench/results/physics-spine-v0-mast-heldout-6-0171efc4c1-…-08b67cd9b071.yaml</code>.
+  89 tests passed across the affected batches. Qualification: 66 pre-existing formatting findings
+  in analysis scripts remain (the failure/error lint gate is green); immutable historical result
+  artifacts retain truthful provenance strings naming the retired source and are intentionally
+  outside the executable-source grep.</p>
+  <p><strong>Plan verdict: the census fell 41 → 0 with every step measured.</strong> Eight
+  library seams at exactly 0.0 movement, a declared-source content cutover at −2.80%/−2.79%
+  (inside the 7.93% budget, improved fit, 36/36 vs 34/36 coverage), and a retirement at exactly
+  0.0. The per-machine reader the design existed to remove is gone.</p>
 </main>
 </body>
 </html>
