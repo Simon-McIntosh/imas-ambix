@@ -792,12 +792,14 @@ def train_engine(
 
         ep_gs_data = 0.0
         ep_gs_prior = 0.0
-    X = torch.from_numpy(np.stack(windows_x)).float()  # (N, T, F)
-    Y = torch.from_numpy(np.stack(windows_y)).float()  # (N, T, D)
+    inputs = torch.from_numpy(np.stack(windows_x)).float()  # (N, T, F)
+    targets = torch.from_numpy(np.stack(windows_y)).float()  # (N, T, D)
     # Per-window, per-timestep transient weight ∝ ELM mass in [t, t+h_max].
-    # Used to bias rollout-anchor sampling toward transients (acceptance fix).
-    W = _build_transient_weights(windows_y, max(cfg.train_horizons))  # (N, T)
-    n = X.shape[0]
+    # Bias rollout-anchor sampling toward transients.
+    transient_weights = _build_transient_weights(
+        windows_y, max(cfg.train_horizons)
+    )  # (N, T)
+    n = inputs.shape[0]
     logger.info(
         "Engine training: %d windows of length %d (latent=%d, F=%d, D=%d)",
         n,
@@ -813,19 +815,17 @@ def train_engine(
     epoch_loop_complete = False
     for epoch in range(cfg.n_epochs):
         if stop_flag is not None and stop_flag():
-            logger.info(
-                "[engine] stop requested → clean exit at epoch %d", epoch
-            )
+            logger.info("[engine] stop requested → clean exit at epoch %d", epoch)
             break
         perm = np_rng.permutation(n)
         ep_loss = ep_filt = ep_roll = 0.0
         nb = 0
         for start in range(0, n, cfg.batch_size):
             idx = perm[start : start + cfg.batch_size]
-            xb = X[idx].to(device)
-            yb = Y[idx].to(device)
+            xb = inputs[idx].to(device)
+            yb = targets[idx].to(device)
 
-            wb = W[idx].to(device)  # (B, T) transient weights
+            wb = transient_weights[idx].to(device)  # (B, T) transient weights
             z_post, var_post, obs_mu, obs_var = model.filter_sequence(xb)
             # obs_var == the t SCALE² when emission == "student_t".
             if cfg.emission == "student_t":
@@ -904,7 +904,8 @@ def train_engine(
             ep_gs_prior = 0.0
         if epoch % 5 == 0 or epoch == cfg.n_epochs - 1:
             gs_msg = (
-                f"  gs_data={state.epoch_gs_data[-1]:.4f}  gs_prior={state.epoch_gs_prior[-1]:.4f}"
+                f"  gs_data={state.epoch_gs_data[-1]:.4f}  "
+                f"gs_prior={state.epoch_gs_prior[-1]:.4f}"
                 if use_grounding and state.epoch_gs_data
                 else ""
             )
@@ -953,10 +954,10 @@ def _build_training_windows(
     wy: list[np.ndarray] = []
     wr: list[int] = []
     for ri, (x, y) in enumerate(zip(x_list, y_list, strict=True)):
-        T = x.shape[0]
-        if seq_len > T:
+        n_timesteps = x.shape[0]
+        if seq_len > n_timesteps:
             continue
-        starts = list(range(0, T - seq_len + 1, seq_len))
+        starts = list(range(0, n_timesteps - seq_len + 1, seq_len))
         if len(starts) > max_windows_per_shot:
             sel = rng.choice(len(starts), size=max_windows_per_shot, replace=False)
             starts = [starts[i] for i in sorted(sel)]
@@ -1028,7 +1029,7 @@ class ShotRun:
 
 
 def _split_into_runs(
-    X: np.ndarray, y: np.ndarray, times: np.ndarray, shot_id: int
+    x: np.ndarray, y: np.ndarray, times: np.ndarray, shot_id: int
 ) -> list[ShotRun]:
     """Split a shot's slices into maximal contiguous 1 kHz runs.
 
@@ -1052,7 +1053,7 @@ def _split_into_runs(
         runs.append(
             ShotRun(
                 shot_id=shot_id,
-                X=X[idx].astype(np.float32),
+                X=x[idx].astype(np.float32),
                 y=y[idx].astype(np.float32),
                 times=times[idx].astype(np.float64),
             )
@@ -1138,11 +1139,11 @@ def _load_split_runs(
         if r is None:
             n_none += 1
             continue
-        X, y, times, _pon = r
+        x, y, times, _pon = r
         if float(np.std(y[:, 0])) < _DEAD_DALPHA_STD:
             n_dead += 1
             continue
-        shot_runs = _split_into_runs(X, y, times, int(sid))
+        shot_runs = _split_into_runs(x, y, times, int(sid))
         if shot_runs:
             runs.extend(shot_runs)
             n_ok += 1
@@ -1210,12 +1211,12 @@ def _dense_transient_anchors(run: ShotRun, h_max: int, pad: int = 5) -> np.ndarr
     """
     from imas_ambix.statespace.baseline import compute_transient_mask  # noqa: PLC0415
 
-    T = run.X.shape[0]
-    if h_max + pad >= T:
+    n_timesteps = run.X.shape[0]
+    if h_max + pad >= n_timesteps:
         return np.empty(0, dtype=int)
     tmask = compute_transient_mask(run.y)  # (T,)
     anchors = []
-    for t in range(pad, T - h_max):
+    for t in range(pad, n_timesteps - h_max):
         if tmask[t : t + h_max + 1].any():
             anchors.append(t)
     return np.array(sorted(set(anchors)), dtype=int)
@@ -1280,9 +1281,9 @@ class ExperimentConfig:
 
 def _stack_runs_for_static(runs: list[ShotRun]) -> tuple[np.ndarray, np.ndarray]:
     """Pool all run slices into (X, y) for the static deep-ensemble (no time)."""
-    X = np.concatenate([r.X for r in runs], axis=0)
+    x = np.concatenate([r.X for r in runs], axis=0)
     y = np.concatenate([r.y for r in runs], axis=0)
-    return X, y
+    return x, y
 
 
 def _static_horizon_pairs(
@@ -1297,21 +1298,23 @@ def _static_horizon_pairs(
     The static map predicts Dα_{t+h} = static_map(inputs_t) — SAME inputs_t for
     every horizon, mirroring the engine's information set (inputs up to t only).
     """
-    Xs, Ys = [], []
-    H = len(horizons)
+    x_rows, y_rows = [], []
+    n_horizons = len(horizons)
     for run, anchors in zip(runs, anchors_per_run, strict=True):
-        T, D = run.y.shape
+        n_timesteps, n_targets = run.y.shape
         for t in anchors:
             t = int(t)
-            Xs.append(run.X[t])
-            yh = np.full((H, D), np.nan, dtype=np.float64)
+            x_rows.append(run.X[t])
+            yh = np.full((n_horizons, n_targets), np.nan, dtype=np.float64)
             for i, h in enumerate(sorted(horizons)):
-                if t + h < T:
+                if t + h < n_timesteps:
                     yh[i] = run.y[t + h]
-            Ys.append(yh)
-    if not Xs:
-        return np.empty((0, runs[0].X.shape[1])), np.empty((0, H, runs[0].y.shape[1]))
-    return np.stack(Xs), np.stack(Ys)
+            y_rows.append(yh)
+    if not x_rows:
+        return np.empty((0, runs[0].X.shape[1])), np.empty(
+            (0, n_horizons, runs[0].y.shape[1])
+        )
+    return np.stack(x_rows), np.stack(y_rows)
 
 
 def _engine_horizon_pairs(
@@ -1332,7 +1335,7 @@ def _engine_horizon_pairs(
     """
     from imas_ambix.statespace.filter import forecast_pairs  # noqa: PLC0415
 
-    H = len(horizons)
+    n_horizons = len(horizons)
     h_sorted = sorted(horizons)
     mus, vars_, ys = [], [], []
     for run, anchors in zip(runs, anchors_per_run, strict=True):
@@ -1346,27 +1349,28 @@ def _engine_horizon_pairs(
             continue
         # forecast_pairs filters internally; it returns only valid anchors
         # (t + h_max < T).  Re-derive which anchors were valid to align truths.
-        T = run.X.shape[0]
+        n_timesteps = run.X.shape[0]
         h_max = max(horizons)
-        valid = [int(a) for a in anchors if int(a) + h_max < T]
+        valid = [int(a) for a in anchors if int(a) + h_max < n_timesteps]
         # Denormalise mean (target std scaling) and variance (std² scaling).
         mu_phys = stats.denormalise_y_mean(mu_n.reshape(-1, mu_n.shape[-1])).reshape(
             mu_n.shape
         )
         var_phys = var_n * (stats.target_std**2)[np.newaxis, np.newaxis, :]
         # truths
-        D = run.y.shape[1]
-        y_phys = np.full((len(valid), H, D), np.nan, dtype=np.float64)
+        n_targets = run.y.shape[1]
+        y_phys = np.full((len(valid), n_horizons, n_targets), np.nan, dtype=np.float64)
         for j, t in enumerate(valid):
             for i, h in enumerate(h_sorted):
-                if t + h < T:
+                if t + h < n_timesteps:
                     y_phys[j, i] = run.y[t + h]
         mus.append(mu_phys)
         vars_.append(var_phys)
         ys.append(y_phys)
     if not mus:
-        D = runs[0].y.shape[1]
-        return (np.empty((0, H, D)), np.empty((0, H, D)), np.empty((0, H, D)))
+        n_targets = runs[0].y.shape[1]
+        shape = (0, n_horizons, n_targets)
+        return np.empty(shape), np.empty(shape), np.empty(shape)
     return np.concatenate(mus), np.concatenate(vars_), np.concatenate(ys)
 
 
@@ -1794,8 +1798,8 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
 
     # --- 5. retrain static comparator (baseline classes, same train slices) --
     logger.info("Retraining static comparator (deep ensemble) on same train runs...")
-    Xtr, ytr = _stack_runs_for_static(train_runs)
-    Xtr_n = stats.normalise_X(Xtr.astype(np.float64))
+    x_train_static, ytr = _stack_runs_for_static(train_runs)
+    x_train_normalised = stats.normalise_X(x_train_static.astype(np.float64))
     ytr_n = stats.normalise_y(ytr.astype(np.float64))
     ens_cfg = EnsembleConfig(
         n_members=cfg.static_ensemble_members,
@@ -1812,16 +1816,16 @@ def run_experiment(cfg: ExperimentConfig, output: Path | None = None) -> dict:
     # millisecond spikes away, so it does not exercise this failure mode.
     # Clipping the global grad norm at 5.0 makes all seeds converge and mirrors
     # the engine's own ``clip_grad_norm_`` call.
-    # Static comparator MUST train clipped (task spec): an unclipped MLP diverges
+    # The static comparator must train clipped because an unclipped MLP diverges
     # on dense ELM-spike targets → meaningless strawman.  We REUSE the existing
     # ``_fit_ensemble_clipped`` with grad_clip=5.0 keeps the static comparator
     # fixed across engine configurations for a clean head-to-head.
-    _fit_ensemble_clipped(ensemble, Xtr_n, ytr_n, ens_cfg, grad_clip=5.0)
+    _fit_ensemble_clipped(ensemble, x_train_normalised, ytr_n, ens_cfg, grad_clip=5.0)
     # Static conformal at h=0 on the dense runs.
-    Xcf, ycf = _stack_runs_for_static(conf_runs)
+    x_conformal, ycf = _stack_runs_for_static(conf_runs)
     static_conf = ConformalWrapper(ensemble, stats)
     static_conf.fit_conformal(
-        stats.normalise_X(Xcf.astype(np.float64)),
+        stats.normalise_X(x_conformal.astype(np.float64)),
         stats.normalise_y(ycf.astype(np.float64)),
     )
 
@@ -1997,7 +2001,7 @@ def _static_horizon_predict(ensemble, stats, runs, anchors_per_run, horizons):
     Returns (mu, var, y) each (P, H, D) in physical units, aligned exactly to the
     engine's (run, anchor, horizon) triples (same valid-anchor rule: t+h_max<T).
     """
-    H = len(horizons)
+    n_horizons = len(horizons)
     h_sorted = sorted(horizons)
     h_max = max(horizons)
     mus, vars_, ys = [], [], []
@@ -2005,26 +2009,27 @@ def _static_horizon_predict(ensemble, stats, runs, anchors_per_run, horizons):
         valid = [int(a) for a in anchors if int(a) + h_max < run.X.shape[0]]
         if not valid:
             continue
-        X_t = np.stack([run.X[t] for t in valid]).astype(np.float64)
-        mu_n, sigma_n, _ens = ensemble.predict(stats.normalise_X(X_t))  # (P, D)
+        x_at_anchor = np.stack([run.X[t] for t in valid]).astype(np.float64)
+        mu_n, sigma_n, _ens = ensemble.predict(stats.normalise_X(x_at_anchor))  # (P, D)
         mu_p = stats.denormalise_y_mean(mu_n)  # (P, D)
         var_p = (stats.denormalise_y_std(sigma_n)) ** 2  # (P, D)
-        T, D = run.y.shape
-        P = len(valid)
+        n_timesteps, n_targets = run.y.shape
+        n_pairs = len(valid)
         # Broadcast the SAME static prediction across all horizons (frozen nowcast)
-        mu_h = np.repeat(mu_p[:, np.newaxis, :], H, axis=1)  # (P, H, D)
-        var_h = np.repeat(var_p[:, np.newaxis, :], H, axis=1)
-        y_h = np.full((P, H, D), np.nan, dtype=np.float64)
+        mu_h = np.repeat(mu_p[:, np.newaxis, :], n_horizons, axis=1)
+        var_h = np.repeat(var_p[:, np.newaxis, :], n_horizons, axis=1)
+        y_h = np.full((n_pairs, n_horizons, n_targets), np.nan, dtype=np.float64)
         for j, t in enumerate(valid):
             for i, h in enumerate(h_sorted):
-                if t + h < T:
+                if t + h < n_timesteps:
                     y_h[j, i] = run.y[t + h]
         mus.append(mu_h)
         vars_.append(var_h)
         ys.append(y_h)
     if not mus:
-        D = runs[0].y.shape[1]
-        return np.empty((0, H, D)), np.empty((0, H, D)), np.empty((0, H, D))
+        n_targets = runs[0].y.shape[1]
+        shape = (0, n_horizons, n_targets)
+        return np.empty(shape), np.empty(shape), np.empty(shape)
     return np.concatenate(mus), np.concatenate(vars_), np.concatenate(ys)
 
 
@@ -2046,24 +2051,24 @@ def _target_transient_flag(runs, anchors_per_run, horizons) -> np.ndarray:
     """
     from imas_ambix.statespace.baseline import compute_transient_mask  # noqa: PLC0415
 
-    H = len(horizons)
+    n_horizons = len(horizons)
     h_sorted = sorted(horizons)
     h_max = max(horizons)
     flags = []
     for run, anchors in zip(runs, anchors_per_run, strict=True):
-        T = run.y.shape[0]
-        valid = [int(a) for a in anchors if int(a) + h_max < T]
+        n_timesteps = run.y.shape[0]
+        valid = [int(a) for a in anchors if int(a) + h_max < n_timesteps]
         if not valid:
             continue
         tmask = compute_transient_mask(run.y)  # (T,)
         for t in valid:
-            row = np.zeros(H, dtype=bool)
+            row = np.zeros(n_horizons, dtype=bool)
             for i, h in enumerate(h_sorted):
-                if t + h < T:
+                if t + h < n_timesteps:
                     row[i] = bool(tmask[t + h])
             flags.append(row)
     if not flags:
-        return np.zeros((0, H), dtype=bool)
+        return np.zeros((0, n_horizons), dtype=bool)
     return np.stack(flags)
 
 
@@ -2306,10 +2311,10 @@ def _ood_honesty(
 
     # STATIC deep-ensemble disagreement AUROC — kept for reference, CLEARLY
     # labelled as the static model's input-novelty score, not an engine signal.
-    Xi = np.concatenate([r.X for r in idt_runs]).astype(np.float64)
-    Xo = np.concatenate([r.X for r in ood_runs]).astype(np.float64)
-    _, _, ens_i = ensemble.predict(stats.normalise_X(Xi))
-    _, _, ens_o = ensemble.predict(stats.normalise_X(Xo))
+    x_in_distribution = np.concatenate([r.X for r in idt_runs]).astype(np.float64)
+    x_out_of_distribution = np.concatenate([r.X for r in ood_runs]).astype(np.float64)
+    _, _, ens_i = ensemble.predict(stats.normalise_X(x_in_distribution))
+    _, _, ens_o = ensemble.predict(stats.normalise_X(x_out_of_distribution))
     try:
         out["ood_auroc_static_ensemble_disagreement"] = float(
             ood_auroc(ensemble_disagreement(ens_i), ensemble_disagreement(ens_o))
@@ -2534,9 +2539,9 @@ def _verdict(metrics: dict) -> dict:
     # the engine MATCHING the static at the same detector, not its DYNAMICS adding
     # an OOD signal the static lacks — privileging pred-σ would launder a tie into
     # a win.  If (3a) holds but (3b) does not, criterion 3 is an honest PARTIAL —
-    # recorded as such, NOT forced to pass.  Reference choice is the ORCHESTRATOR's;
-    # this verdict surfaces all four numbers and does not retune the gate to taste.
-    _MARGIN = 0.05  # "clearly exceeds" demands a real margin, not a tie
+    # recorded as such, not forced to pass.  The fixed reference keeps the verdict
+    # comparable; all four numbers are surfaced without retuning the gate.
+    auroc_margin = 0.05  # "clearly exceeds" demands a real margin, not a tie
     crit1 = bool(v["filtering_coverage_in_band"])
     crit2 = bool(v["criterion2_transient_win_any_Hgt0"] and v["same_windows_verified"])
     best_engine_auroc = max(
@@ -2548,7 +2553,7 @@ def _verdict(metrics: dict) -> dict:
         engine_innov is not None
         and engine_innov > 0.65
         and static_disagreement is not None
-        and engine_innov >= static_disagreement + _MARGIN
+        and engine_innov >= static_disagreement + auroc_margin
     )
     crit3 = bool(crit3a_noncollapse and crit3b_auroc)
     v["ood_best_engine_auroc"] = best_engine_auroc
@@ -2571,7 +2576,7 @@ def _verdict(metrics: dict) -> dict:
         "criterion3_partial": crit3_partial,
         "criterion3a_coverage_noncollapse": crit3a_noncollapse,
         "criterion3b_innovation_auroc_clearly_exceeds_same_data_static": crit3b_auroc,
-        "criterion3b_margin_required": _MARGIN,
+        "criterion3b_margin_required": auroc_margin,
         "ood_auroc_engine_innovation": engine_innov,
         "ood_auroc_engine_predictive_sigma": engine_sigma,
         "ood_best_engine_auroc": best_engine_auroc,
@@ -2889,9 +2894,7 @@ def run_grounding_experiment(
         )
 
     # Compare Dα help/hurt on the same harness numbers.
-    metrics["help_hurt_dalpha"] = _grounding_help_hurt(
-        metrics, reference_metrics_path
-    )
+    metrics["help_hurt_dalpha"] = _grounding_help_hurt(metrics, reference_metrics_path)
 
     metrics["grounding_verdict"] = _grounding_verdict(metrics)
 
@@ -2926,9 +2929,7 @@ def _grounding_help_hurt(metrics: dict, reference_path: Path | None) -> dict:
     }
     # forecasting CRPS/NLL per horizon (overall)
     g_eng = metrics.get("forecasting_indist_dense_transient", {}).get("engine", {})
-    v_eng = reference.get("forecasting_indist_dense_transient", {}).get(
-        "engine", {}
-    )
+    v_eng = reference.get("forecasting_indist_dense_transient", {}).get("engine", {})
     fc = {}
     for h in sorted(set(g_eng) | set(v_eng), key=lambda x: int(x)):
         gh = g_eng.get(h, {})
@@ -3184,11 +3185,13 @@ def main(argv: list[str] | None = None) -> None:
         print("=" * 64)
         print(
             f"coverage: {cov.get('n_grounded_windows')}/{cov.get('n_total_windows')} "
-            f"windows grounded ({100.0 * (cov.get('grounded_timestep_fraction') or 0):.1f}% "
+            "windows grounded ("
+            f"{100.0 * (cov.get('grounded_timestep_fraction') or 0):.1f}% "
             f"of timesteps); campaigns={cov.get('campaign_window_counts')}"
         )
         print(
-            f"(1) Dα help/hurt (filtering CRPS): {gv.get('criterion1_dalpha_help_hurt')} "
+            "(1) Dα help/hurt (filtering CRPS): "
+            f"{gv.get('criterion1_dalpha_help_hurt')} "
             f"(rel change {gv.get('criterion1_filtering_crps_rel_change')}); "
             f"preserved={gv.get('criterion1_dalpha_preserved')}"
         )
@@ -3214,14 +3217,16 @@ def main(argv: list[str] | None = None) -> None:
     print("=" * 64)
     acc = metrics["acceptance"]
     print(
-        f"(1) filtering coverage@90 = {acc.get('filtering_coverage_value')}  in-band={acc['filtering_coverage_in_band']}"
+        f"(1) filtering coverage@90 = {acc.get('filtering_coverage_value')}  "
+        f"in-band={acc['filtering_coverage_in_band']}"
     )
     print("(2) TRANSIENT-subset forecast (the re-scoped criterion, engine vs static):")
     print("    per-horizon transient CRPS (lower=better):")
     for h, w in acc.get("forecast_crps_transient_by_horizon", {}).items():
         flag = "WIN" if w["engine_wins"] else "loss"
         print(
-            f"      h={h:>3}: engine={w['engine_crps_transient']:.4f}  static={w['static_crps_transient']:.4f}  [{flag}]"
+            f"      h={h:>3}: engine={w['engine_crps_transient']:.4f}  "
+            f"static={w['static_crps_transient']:.4f}  [{flag}]"
         )
     print(
         "    per-horizon transient NLL (lower=better; static explodes on caught ELMs):"
@@ -3229,17 +3234,20 @@ def main(argv: list[str] | None = None) -> None:
     for h, w in acc.get("forecast_nll_transient_by_horizon", {}).items():
         flag = "WIN" if w["engine_wins"] else "loss"
         print(
-            f"      h={h:>3}: engine={w['engine_nll_transient']:.3f}  static={w['static_nll_transient']:.3f}  [{flag}]"
+            f"      h={h:>3}: engine={w['engine_nll_transient']:.3f}  "
+            f"static={w['static_nll_transient']:.3f}  [{flag}]"
         )
     print(
-        f"    bulk CRPS beats static at all H>0 (STRETCH) = {acc['forecast_beats_static_at_Hgt0']}"
+        "    bulk CRPS beats static at all H>0 (STRETCH) = "
+        f"{acc['forecast_beats_static_at_Hgt0']}"
     )
     print(
         f"(3) OOD: engine-native AUROC={acc.get('ood_auroc_engine_native')}"
         f"  (innovation={acc.get('ood_auroc_engine_innovation')}, "
         f"pred-σ={acc.get('ood_auroc_engine_predictive_sigma')})"
         f"  static-ref={acc.get('ood_auroc_static_ensemble_disagreement')}"
-        f"  cov(indist)={acc.get('ood_coverage_indist')}  cov(ood)={acc.get('ood_coverage_ood')}"
+        f"  cov(indist)={acc.get('ood_coverage_indist')}  "
+        f"cov(ood)={acc.get('ood_coverage_ood')}"
         f"  noncollapse={acc['ood_coverage_noncollapse']}"
     )
     rs = acc.get("rescoped_acceptance", {})
@@ -3249,7 +3257,9 @@ def main(argv: list[str] | None = None) -> None:
         f"  (1) filtering calibrated      = {rs.get('criterion1_filtering_calibrated')}"
     )
     print(
-        f"  (2) transient dynamics win    = {rs.get('criterion2_transient_dynamics_win')}  (basis: {rs.get('criterion2_win_basis')})"
+        "  (2) transient dynamics win    = "
+        f"{rs.get('criterion2_transient_dynamics_win')}  "
+        f"(basis: {rs.get('criterion2_win_basis')})"
     )
     print(
         f"  (3) OOD honesty               = {rs.get('criterion3_ood_honesty')}"
@@ -3258,9 +3268,11 @@ def main(argv: list[str] | None = None) -> None:
         f"3b-innovation-clearly-exceeds-same-data-static={rs.get('criterion3b_innovation_auroc_clearly_exceeds_same_data_static')})"
     )
     print(
-        f"      engine-native AUROC: innovation={rs.get('ood_auroc_engine_innovation')}, "
+        "      engine-native AUROC: "
+        f"innovation={rs.get('ood_auroc_engine_innovation')}, "
         f"pred-σ={rs.get('ood_auroc_engine_predictive_sigma')}  "
-        f"vs same-data static={rs.get('ood_auroc_static_ensemble_disagreement_same_data')} "
+        "vs same-data static="
+        f"{rs.get('ood_auroc_static_ensemble_disagreement_same_data')} "
         f"(decimated-ref={rs.get('ood_auroc_static_decimated_ref')})"
     )
     print(f"  ALL MET (with PARTIAL OOD)    = {rs.get('all_met_with_partial_ood')}")
