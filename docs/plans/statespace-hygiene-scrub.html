@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="statespace-hygiene-scrub">
   <meta name="plan-title" content="Scrub Plan Labels and Lint Debt from the Statespace Modules">
   <meta name="plan-summary" content="The two statespace modules carry broad pre-existing plan-label naming debt and lint findings, and the analysis scripts carry 66 formatting findings; scrub them in focused commits with a behaviour-neutrality receipt, so the debt stops taxing every future edit.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="mid">
   <meta name="plan-effort-hours" content="4.0">
   <meta name="plan-capability-version" content="1.0">
@@ -20,10 +20,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-17">
-<meta name="plan-version" content="9">
-<meta name="plan-impl" content="0.8">
-<meta name="plan-commits" content="a69018b42040ea050890b4b64bed9724d8d5b1b4,274598fa2c5b46beafe52ff798f989048b962fa7,61002115e86ebf0d93f402f0d47247c6b79bbe01,3d52c0c33dd8eeb373d34de82921a3d86393a890,e3349d901abcb3f0e1678bc5904f35efcb9290cd">
-<meta name="plan-artifacts" content="docs/evidence/archive/statespace-hygiene-scrub-landed.html">
+<meta name="plan-version" content="11">
+<meta name="plan-impl" content="1.0">
+<meta name="plan-commits" content="a69018b42040ea050890b4b64bed9724d8d5b1b4,274598fa2c5b46beafe52ff798f989048b962fa7,61002115e86ebf0d93f402f0d47247c6b79bbe01,3d52c0c33dd8eeb373d34de82921a3d86393a890,e3349d901abcb3f0e1678bc5904f35efcb9290cd,028fcf615d7f41ba7e6067d3f6fc310c7173916e">
+<meta name="plan-artifacts" content="docs/evidence/archive/statespace-hygiene-scrub-landed.html,imas_ambix/spine_bench/results/physics-spine-v0-mast-heldout-6-e0c35307e5-98dci4-clu-3141.yaml">
 </head>
 <body>
   <main class="plan-doc">
@@ -44,48 +44,37 @@
     workers had to navigate. A dedicated scrub, in its own focused commits, is the mechanism the
     naming rules themselves prescribe for debt this broad.</p>
 
-    <h2 id="s2">§2 — Scrub by mechanism, not by pattern-match</h2>
-    <p>The user-global agent guidelines define both the violations and the sweep that finds them;
-    this plan applies that sweep as the work item rather than as a pre-stage gate. Four passes,
-    each with a recorded receipt:</p>
-    <ul>
-      <li><strong>Label sweep</strong> — plan/stage/sprint/deliverable identifiers in filenames,
-      symbols, comments and docstrings. Every hit is renamed to what the code <em>does</em>
-      (mechanism or measured quantity), never merely deleted: a tolerance constant named after a
-      gate id becomes a name stating what it bounds.</li>
-      <li><strong>Changelog-prose sweep</strong> — comments and docstrings that narrate edits
-      ("previously", "the old behaviour", "after this fix") are rewritten as the invariant they
-      defend, or removed when the code already states it. Runtime state described in the past
-      tense is the known false positive and is kept.</li>
-      <li><strong>Anchor audit</strong> — every comment, docstring or symbol that cites a file,
-      section, or numbered item is opened and confirmed to exist; dead pointers are repointed or
-      rewritten as self-contained statements.</li>
-      <li><strong>Lint and formatting</strong> — the 75 statespace findings and the 66
-      analysis-script formatting findings are cleared with <code>ruff check --fix</code> and
-      <code>ruff format</code> at the scope the <em>formatting-scope</em> decision selects, run
-      before staging, never via a mutating pre-commit hook.</li>
-    </ul>
-    <p>Behaviour neutrality is demonstrated, not assumed. <code>statespace/engine.py</code> and
-    <code>enkf_baseline.py</code> are consumers of the declared description path and sit beside
-    the frozen-spine chain, so the scrub ends with one frozen CPU stamp: the residuals must sit
-    within the 0.1245% representation budget of the current declared-source references
-    (greens-matvec 0.6698197452949048, grid-delstar 0.6697723807926145, 36/36 coverage per arm).
-    A pure rename-and-format scrub that moves the stamp has changed behaviour and must stop and
-    report rather than proceed.</p>
+    <section id="s2" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-17</span>
+        <h2>§2 — Scrub by mechanism, not by pattern-match</h2>
+      </header>
+      <p class="landed-summary">
+        All four sweeps landed in three focused commits. Statespace naming: 143 flagged lines to
+        <strong>0 unwaived</strong> (46 named carve-outs, anchors 8/8) — <code>a69018b</code>.
+        Statespace lint: 44 findings to <strong>0</strong>, full-file check + format clean, no
+        waivers — <code>6100211</code>. Script formatting: <strong>140/140</strong>
+        formatter-clean, F/E9 green, one named frozen-artifact waiver — <code>274598f</code>.
+        Suite green at 206/206 after each. Full record:
+        <a href="/imas-ambix/evidence/archive/statespace-hygiene-scrub-landed">landed evidence</a>.
+      </p>
+    </section>
 
-    <h2 id="s3">§3 — Deliverable</h2>
-    <p>Focused commits, one concern per commit (statespace naming, statespace lint, script
-    formatting), so review and blame stay legible.</p>
-    <p><em>Done-when:</em> the pre-stage naming sweep (label patterns, label words, deliverable
-    ids, changelog prose) reports zero violations over
-    <code>imas_ambix/statespace/engine.py</code> and
-    <code>imas_ambix/statespace/enkf_baseline.py</code> with each formerly-flagged line either
-    renamed to mechanism or classified under a named carve-out; the anchor audit confirms every
-    cited reference resolves; full-file <code>ruff check</code> and <code>ruff format --check</code>
-    pass on both statespace modules; the 66 analysis-script formatting findings are cleared at the
-    scope the formatting-scope decision selects, with any waived file named alongside its reason;
-    the statespace test suites pass; and one frozen CPU stamp holds both arms within the 0.1245%
-    budget of the declared-source references at 36/36 coverage.</p>
+    <section id="s3" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-17</span>
+        <h2>§3 — Deliverable</h2>
+      </header>
+      <p class="landed-summary">
+        Every done-when clause holds with a receipt, closed by the behaviour-neutrality stamp:
+        both arms reproduce the declared-source references <strong>exactly</strong>
+        (greens-matvec 0.6698197452949048, grid-delstar 0.6697723807926145; relative deviation
+        0.0% against the 0.1245% budget) at 36/36 coverage, <code>git_dirty: false</code> —
+        commit <code>028fcf6</code>, stamp YAML committed. Full record:
+        <a href="/imas-ambix/evidence/archive/statespace-hygiene-scrub-landed#neutrality-receipt">neutrality
+        receipt</a>.
+      </p>
+    </section>
 
     <section id="s4" class="section-landed">
       <header>
@@ -120,13 +109,14 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-shs-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-17" data-recommends-skill="/reckon-ship statespace-hygiene-scrub" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-shs-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-17" data-recommends-skill="/reckon-ship statespace-hygiene-scrub" data-resolved-at="2026-08-17T14:52:38+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Run the scrub with its behaviour-neutrality receipt</h4>
     <div class="r-fu-body"><p>Lock the formatting-scope decision, then execute the four
         sweeps in focused commits and close with the frozen-stamp receipt. The debt inventory and
         the sweep mechanics are in the plan; the naming rules themselves live in the user-global
         agent guidelines.</p></div>
     <pre class="r-fu-prompt">/reckon-ship statespace-hygiene-scrub</pre>
+    <p class="r-fu-outcome">done - no followup: all five nodes landed (statespace naming 143-to-0 unwaived + lint 44-to-0, script formatting 140/140 clean, script naming 359-to-0 unwaived, neutrality stamp exact at 36/36); residual 222 non-auto-fixable script lint findings and the drain-test artifact path identities are recorded in the evidence as accepted debt/data, not open work</p>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
@@ -141,6 +131,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20260817-scriptnaming" data-who="reckon-ship" data-when="2026-08-17T15:10:00+00:00">
     <div class="r-comment-body">script-naming-scrub landed - commits 3d52c0c + e3349d9 (merge 2eabd8e); gate four-sweep-zero-unwaived PASSED; measure: 359 raw hits classified to 0 unwaived under named carve-outs, changelog prose 0, anchors 8/8, F/E9 green over 140 scripts, compileall pass; drain-test path renames withheld as artifact identities (10 live doc references); evidence: statespace-hygiene-scrub-landed#script-naming</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260817-receipt" data-who="reckon-ship" data-when="2026-08-17T15:35:00+00:00">
+    <div class="r-comment-body">neutrality-receipt landed - commit 028fcf6 (merge 9f1b581); gate behaviour-neutrality PASSED; measure: greens-matvec 0.6698197452949048 and grid-delstar 0.6697723807926145 reproduce the declared references exactly (relative deviation 0.0 pct vs 0.1245 pct budget) at 36/36 per arm, git_dirty false; evidence: statespace-hygiene-scrub-landed#neutrality-receipt</div>
 </div>
 </section>
 </main>

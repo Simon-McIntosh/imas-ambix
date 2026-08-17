@@ -96,6 +96,23 @@
     live references (logged in <code>external-path-references.log</code>); these are
     incident-record artifact identities, kept as data unless that record is retired.</li>
   </ul>
+  <h2 id="neutrality-receipt">Behaviour-neutrality receipt — both arms reproduce the references exactly</h2>
+  <p><strong>The frozen six-shot CPU stamp on the integrated scrub reproduces both
+  declared-source residuals exactly: greens-matvec 0.6698197452949048 and grid-delstar
+  0.6697723807926145, relative deviation 0.0% against the 0.1245% representation budget, at
+  36/36 scored slices per arm.</strong> Commit <code>028fcf6</code> (merged
+  <code>9f1b581</code>): the versioned stamp YAML
+  <code>imas_ambix/spine_bench/results/physics-spine-v0-mast-heldout-6-e0c35307e5-98dci4-clu-3141.yaml</code>.</p>
+  <ul>
+    <li>Run conditions: SLURM job 1250749 on <code>sun_debug</code> (98dci4-clu-3141),
+    <code>OMP_NUM_THREADS=1</code>, <code>git_dirty: false</code> on integrated HEAD
+    <code>e0c3530</code> (contains the statespace naming + lint cleanups and script
+    formatting); wall 1038.7 s, peak RSS 2.98 GB, schema spine-bench/1.6, shot set
+    v0-mast-heldout-6.</li>
+    <li>Verdict: the scrub is behaviour-neutral by the plan's own measure — a pure
+    rename-and-format change that moved the stamp would have failed here and stopped the
+    plan.</li>
+  </ul>
 </main>
 </body>
 </html>
