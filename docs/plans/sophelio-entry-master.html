@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-17">
-<meta name="plan-version" content="5">
+<meta name="plan-version" content="8">
 </head>
 <body>
   <main class="plan-doc">
@@ -84,16 +84,21 @@
     runnable now and in flight. Each item names its owning plan — the plan owns the detail,
     this list owns the order.</p>
     <ol>
-      <li><strong>Quiescent-window vacuum gate</strong> —
+      <li><strong>Corpus convention authority, then the plasma-subtraction vacuum gate</strong> —
+        two rungs in strict order. First,
+        <a href="/imas-ambix/plans/magnetics-free-equilibrium-recovery.html">magnetics-free-equilibrium-recovery</a> §2:
+        determine the corpus COCOS empirically and pin it in the challenge package beside
+        the loaders — corpus reading and its conventions are ambix work, kept separate from
+        nova, which stays COCOS 17 and carries no challenge-corpus module. Then
         <a href="/nova/plans/diiid-forward-onboarding.html">nova:diiid-forward-onboarding</a> §2,
-        re-opened 2026-08-17 under the locked <code>vacuum-gate-measure</code> decision.
-        Census the corpus for labeled frames where every coil |dI/dt| is below a declared
-        threshold; there, exterior ψ against shipped-coil Green functions plus the
-        label-extracted plasma term isolates geometry from transients. The excluded
-        transient windows are banked as the passive-model fitting corpus (item 6). The
-        prior gate attempt failed against an inapplicable fitted bar and exonerated our
-        kernels
-        (<a href="/nova/research/diiid-vacuum-gate-diagnosis.html">diagnosis</a>).</li>
+        the differencing gate locked by the owner: apply the GS operator to each labeled
+        map, separate the flux functions, solve for the plasma current, represent it on
+        nova filaments and subtract its flux — every labeled frame becomes a vacuum shot,
+        the coil model is verified with no plasma present, quiescent frames gate the
+        geometry, and transient-frame remainders minus the coil model are the item-6
+        passive corpus. Method already de-risked at 0.9967 on construction-exact synthetic
+        truth
+        (<a href="/nova/research/diiid-vacuum-gate-diagnosis.html">first-bar diagnosis</a>).</li>
       <li><strong>Label re-solve kill gate</strong> — nova:diiid-forward-onboarding §5.
         Extracted flux functions must re-solve to the labeled map at the grid-resolution
         floor on real train labels: if the labels are not self-consistent under our own GS
@@ -145,7 +150,7 @@
       <thead><tr><th>Gate</th><th>Owner</th><th>State 2026-08-17</th><th>Meaning</th></tr></thead>
       <tbody>
         <tr><td>Vacuum geometry (quiescent-window)</td><td>nova §2</td>
-            <td>defect found and named 2026-08-17: the global flux sign was applied twice (coil term and the already-label-signed plasma term) — synthetic construction-exact truth scores 1.0 correct, −3.20 through the defective gate, 0.9967 with the sign on the coil term only. Plasma-current channel confirmed kA. Rerun routes through the pinned COCOS adapter (corpus-convention-authority, locked); transient corpus stays quarantined until then</td>
+            <td>defect found and named 2026-08-17: the global flux sign was applied twice (coil term and the already-label-signed plasma term) — synthetic construction-exact truth scores 1.0 correct, −3.20 through the defective gate, 0.9967 with the sign on the coil term only. Plasma-current channel confirmed kA. Gate re-locked to the owner's plasma-subtraction differencing (subtract the filament-represented EFIT plasma from each labeled map — every labeled frame becomes a vacuum shot, the coil model verified with no plasma); reruns once the convention authority lands in the imas-ambix challenge package. Transient corpus stays quarantined until then</td>
             <td>Kill gate 1: shipped geometry and kernels reproduce the exterior field
             free of transients. Prior fitted-bar attempt ruled inapplicable; kernels
             exonerated by sweep (ECOILA interval moves R² 0.017 vs a 0.428 shortfall;
@@ -197,11 +202,14 @@
       <li><strong>Corpus conventions (step-back 2026-08-17)</strong>: the campaign had
       accumulated ad-hoc per-benchmark factors instead of a determined COCOS — and paid for
       it with a sign applied twice, caught by synthetic construction-exact truth. The
-      <code>corpus-convention-authority</code> decision is locked on nova's onboarding
-      plan: the corpus COCOS is determined empirically and pinned in one adapter every
-      consumer imports (nova stays COCOS 17 internally). Confirmed en route: the
-      plasma-current channel is kA; ~658.8k labeled frames carry near-zero raw I_p and are
-      flagged as a channel-quality audit item.</li>
+      <code>corpus-convention-authority</code> decision is locked: the corpus COCOS is
+      determined empirically and pinned in <strong>one authority homed in the imas-ambix
+      challenge package</strong> — corpus reading and its conventions are ambix work, kept
+      separate from nova, which stays COCOS 17 and carries no challenge-corpus module (a
+      nova-side adapter node was stopped mid-run on this ruling, nothing merged). Confirmed
+      en route: the plasma-current channel is kA; ~658.8k labeled frames carry near-zero
+      raw I_p and are flagged as a channel-quality audit item riding with the convention
+      work.</li>
       <li><strong>Label GS-representability ceiling</strong>: a strict-GS re-solve of the
       labels from their own extracted flux functions reaches median interior R² 0.949 and
       no better — 99.68% of the residual is irreducible non-GS label content, measured with
