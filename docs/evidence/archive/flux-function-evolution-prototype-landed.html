@@ -78,6 +78,53 @@
     FF′ negative is therefore qualified spike evidence, and its rerun on exact
     time-varying toroidal-flux geometry is queued behind nova's TORAX geometry adapter,
     with the TORAX cross-check non-blocking beside it.</p>
+
+    <h2 id="joined-loop">§4 the joined loop — it closes, and it names the crux — 2026-08-17</h2>
+    <p>Commit <code>7c32573</code> (node proto-loop). One flat-top shot, 36 slices over
+    1020–6060 ms, with the candidate basis trained on the <em>other</em> 19 shots (10 modes
+    retaining 99.96% of cross-shot variance) and a row-whitened correction of rank 6
+    retaining 99.9964% of observable energy.</p>
+    <table>
+      <caption>Normalised RMS error against the extracted labels, over 36 analysed slices.
+      Lower is better.</caption>
+      <thead>
+        <tr><th>Quantity</th><th>Persistence</th><th>Transport prior</th><th>Posterior</th>
+            <th>What the update contributed</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Joint state</td><td>0.7276</td><td>0.6873</td><td>0.6725</td>
+            <td><strong>26.9% of the gain over persistence</strong></td></tr>
+        <tr><td>FF′</td><td>0.6687</td><td>0.5599</td><td>0.5600</td>
+            <td><strong>−0.12% — it slightly degrades</strong></td></tr>
+      </tbody>
+    </table>
+    <p><strong>The loop works.</strong> Normalised innovation RMS falls 0.7640 → 0.7555,
+    posterior median |lag-1| autocorrelation is 0.135, and <strong>8 of 11 channels pass a
+    whiteness test at p &gt; 0.05</strong> — the filter is consistent with its own noise
+    model rather than chasing structure it cannot represent. Discipline held throughout: all
+    11 channels retained with 26 channel-slice instances given widened σ and <em>zero
+    dropped</em>, and plasma current entered only as the diffusion boundary condition, never
+    as an observation.</p>
+    <p><strong>The crux, and it is worth stating precisely.</strong> The update carries a
+    quarter of the joint improvement but has <em>no</em> FF′ tracking skill at all — a
+    covariance-mediated update through channels that cannot see a quantity is marginally
+    worse than not updating it. Thomson pins pressure and boundary shape; the diamagnetic
+    function is invisible to it. The rank-6 basis is therefore adjudged <strong>not adequate
+    as a production Thomson-only correction basis</strong>.</p>
+    <p><strong>Why this is a finding about the substitute, not a verdict on the
+    architecture.</strong> This spike deliberately replaced nova's free-boundary solve with
+    banked labeled geometry and a pressure-over-measured-density temperature proxy. That
+    substitution is very likely what removed the FF′ sensitivity — because the operator that
+    makes FF′ observable is <em>force balance against the known external field</em>. The
+    coil currents are given; a plasma with different diamagnetism sits in a different place
+    against them. Run the free-boundary solve inside the loop and FF′ acquires an
+    observation path that no amount of Thomson processing can supply on frozen geometry.
+    <strong>The free-boundary solve is not a fidelity upgrade to this loop; it is the
+    missing sensor.</strong></p>
+    <p>Note also that on this shot the transport prior <em>does</em> beat persistence on FF′
+    (0.5599 vs 0.6687), unlike the §3 pooled change-metric result. The two measurements use
+    different metrics, scopes and a basis projection, so they are not directly comparable and
+    neither overturns the other; both are recorded rather than reconciled by argument.</p>
   </main>
 </body>
 </html>

@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="flux-function-evolution-prototype">
   <meta name="plan-title" content="Flux-Function Evolution Prototype">
   <meta name="plan-summary" content="Fast spike: extract p′/FF′ trajectories from a small challenge-train subset, measure how much of their evolution the transport forward explains, and close one Kalman-structured GS+transport+Thomson loop on a single shot — de-risking the entry&#x27;s low-dimensional state thesis before the production smoother exists">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="6.0">
   <meta name="plan-capability-version" content="1.0">
@@ -22,9 +22,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-17">
-<meta name="plan-commits" content="6e2b5d9,c24d3c5">
-<meta name="plan-impl" content="0.67">
-<meta name="plan-version" content="2">
+<meta name="plan-commits" content="6e2b5d9,c24d3c5,7c32573">
+<meta name="plan-impl" content="1.0">
+<meta name="plan-version" content="3">
 </head>
 <body>
   <main class="plan-doc">
@@ -127,57 +127,57 @@
     here touches the production <code>statespace</code> lane, and nothing here reads
     FAIR-MAST or MAST EFIT.</p>
 
-    <h2 id="s2">§2 — Subset pull and flux-function extraction</h2>
-    <p>Pull a ~20-shot DIII-D train subset from the challenge corpus
-    (<code>https://fusion-equilibrium-challenge.sophelio.io/</code>, parquet, one row per
-    shot) to <code>/work/projects/imas_gpu/sophelio/</code> — regime-spanning per the
-    subset-composition decision, including at least three shots with long flat-tops and
-    three with substantial ramp coverage. For every labeled slice: apply Δ* to the labeled
-    ψ map to get j_φ, separate per-surface into p′(ψ) and FF′(ψ), assemble the
-    flux-surface-averaged geometry record on the toroidal-flux coordinate, and bank the
-    vacuum-region Δ*ψ≈0 receipt beside each frame. Where the existing transport-seam FSA
-    machinery in nova covers a step, call it; report — do not patch around — whatever it
-    cannot yet do (that gap list is direct input to
-    <code>nova:diiid-forward-onboarding</code> §5 hardening).</p>
-    <p><strong>Done when:</strong> p′/FF′/ψ(ρ̂) trajectories with FSA records are banked for
-    ≥15 shots; vacuum receipts pass on the clear majority of frames with failures
-    characterised, not discarded; on ≥3 shots the extracted flux functions re-solve through
-    the nova forward to the labeled map near the grid-resolution floor (a small-scale
-    preview of the entry's second kill gate); a smoothness/basis-structure summary of the
-    extracted trajectories is banked as evidence for the label-pedigree question.</p>
+    <section id="s2" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-17</span>
+        <h2>§2 — Subset pull and flux-function extraction</h2>
+      </header>
+      <p class="landed-summary">
+        Banked 4,141 labeled frames across 20 regime-spanning shots (15 long flat-top, 12
+        substantial ramp) with p′/FF′/j_φ/ψ(ρ̂) trajectories and Nova FSA records.
+        Vacuum receipts pass 4,068/4,141 = 98.24%, early-ramp concentrated; separation
+        explains 93.10% of Δ* source variation; FSA well-posed on 100% of frames.
+        <strong>Three pooled components carry 99.76% of p′, 99.85% of FF′ and 100.00% of ψ
+        variance</strong> — the low-dimensional thesis, measured.
+        Full record: <a href="/imas-ambix/evidence/archive/flux-function-evolution-prototype-landed#trajectory-bank">§2 landed</a>
+        (commit <code>6e2b5d9</code>).
+      </p>
+    </section>
 
-    <h2 id="s3">§3 — Simulability: how much of the evolution does transport explain?</h2>
-    <p>Drive the native ψ-diffusion rung (<code>nova/transport/current_diffusion.py</code>)
-    over each shot's extracted geometry and measured I_p waveform, from an extracted initial
-    state. Fit the bounded low-degree-of-freedom resistivity profile <em>across shots, never
-    per slice</em>. Score the transport-evolved FF′ (and ψ(ρ̂)) against the extracted
-    trajectories at every labeled slice, against two controls: persistence of the initial
-    state, and the same solve with the untuned default closure. When the TORAX ≥ 1.4.3
-    environment lands (<code>nova:flux-function-forward-transport</code> §3), repeat the
-    headline row through the TORAX rung as a cross-check; do not block on it.</p>
-    <p><strong>Done when:</strong> an explained-variance table (per-shot and pooled;
-    flat-top and ramp scored separately) is banked with a pre-registered verdict line:
-    transport beats persistence on FF′ evolution across the subset, or it does not, with the
-    margin quantified. Either outcome is a result — a negative bounds how much §5-style
-    smoothing correction the entry must carry, and how tight the FF′ deviation priors can
-    be.</p>
+    <section id="s3" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-17</span>
+        <h2>§3 — Simulability: how much of the evolution does transport explain?</h2>
+      </header>
+      <p class="landed-summary">
+        One resistivity profile fitted jointly across all 20 shots (η₀ = 7.062e-8 Ω·m, ψ loss
+        −21.14%), scored against persistence and an untuned-closure control.
+        <strong>Verdict splits</strong>: ψ(ρ̂) explained variance −0.2954 vs persistence
+        −1.9291, a gain of +1.6336; FF′ −0.11956 vs persistence −0.11891, margin −0.00065 in
+        every regime — transport carries ψ and does not carry FF′. Qualified by frozen
+        geometry, q95-calibrated boundary F and a proxy ρ̂.
+        Full record: <a href="/imas-ambix/evidence/archive/flux-function-evolution-prototype-landed#simulability">§3 landed</a>
+        (commit <code>c24d3c5</code>).
+      </p>
+    </section>
 
-    <h2 id="s4">§4 — The joined loop, once, end to end</h2>
-    <p>On one flat-top shot from the subset, close the loop in the figure: transport predict
-    over a window, nova free-boundary solve per member, chord→ψ_N Thomson sampling, and a
-    reduced-rank innovation update of the low-dimensional state — reusing the
-    reduced-observable-correction machinery from
-    <code>imas_ambix/statespace/sequential_da.py</code> with the observation operator
-    swapped from magnetics to the Thomson forward. The Thomson measurement model is the
-    minimal honest one: matched-Te isoflux pairing across non-collinear chords plus a
-    pedestal-foot proxy, with widened σ rather than dropped channels. I_p enters as the
-    transport boundary condition, never as an observation.</p>
-    <p><strong>Done when:</strong> the one-shot demo is banked with innovation statistics
-    (whiteness, per-channel normalised residuals), LCFS distance and q95/βN error against
-    the label at each analysed slice, and a short lessons note stating what the production
-    smoother (<code>magnetics-free-equilibrium-recovery</code> §5) should keep, change or
-    drop — including whether the SVD-reduced correction basis is adequate for a Thomson-only
-    operator.</p>
+    <section id="s4" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-17</span>
+        <h2>§4 — The joined loop, once, end to end</h2>
+      </header>
+      <p class="landed-summary">
+        Loop closed on one flat-top shot, 36 slices, rank-6 correction on a basis trained on
+        the other 19 shots. Joint NRMSE 0.7276 → 0.6873 (prior) → 0.6725 (posterior): the
+        update carries <strong>26.9% of the gain</strong>, innovations RMS 0.7640 → 0.7555
+        with 8/11 channels white, zero channels dropped, I_p never an observation.
+        <strong>FF′ gains nothing from the update (−0.12%)</strong> — Thomson cannot see the
+        diamagnetic function, so the free-boundary solve this spike substituted away is the
+        missing sensor, not a fidelity upgrade.
+        Full record: <a href="/imas-ambix/evidence/archive/flux-function-evolution-prototype-landed#joined-loop">§4 landed</a>
+        (commit <code>7c32573</code>).
+      </p>
+    </section>
 
     <h2 id="s5">§5 — Exclusions</h2>
     <p>No full-corpus ingest (the entry plan's §2 owns that); no closure learning (the
@@ -208,13 +208,19 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-ffep-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-17" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-ffep-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-17" data-recommends-skill="" data-resolved-at="2026-08-17T16:23:14+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Pull the subset and extract flux-function trajectories (§2)</h4>
     <div class="r-fu-body"><p>First executable rung, runnable immediately: challenge
         site verified reachable from the SDCC login network 2026-08-17. §3 follows on the
         banked trajectories; §4 follows on §3's geometry records. The two decisions carry
         recommendations and default to them if unlocked at dispatch.</p></div>
     <pre class="r-fu-prompt">/reckon-ship flux-function-evolution-prototype §2</pre>
+    <p class="r-fu-outcome">All three sections landed the same day. Section 2 banked 4,141 frames of extracted trajectories across 20 regime-spanning shots with 98.24 percent vacuum receipts and the headline that three components carry 99.8 percent of flux-function variance. Section 3 measured simulability and returned a split verdict: transport beats persistence on psi by 1.63 in explained variance and does not beat it on FF-prime. Section 4 closed the loop with 26.9 percent of joint gain from the update, mostly white innovations, and no FF-prime tracking skill. The spike answered all three questions it was opened to answer, including two negatives it was designed to be able to return. Continuation is owned by the entry plan, whose section 5 smoother must now carry FF-prime correction and whose observation set needs a channel with direct FF-prime sensitivity.</p>
+    </article>
+<article class="r-fu" data-id="f-ffep-002" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-17" data-recommends-skill="/reckon-ship magnetics-free-equilibrium-recovery §5" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Carry the FF-prime finding into the production smoother (entry plan §5)</h4>
+    <div class="r-fu-body"><p>Foreign-owner followup: the executable continuation belongs to <code>magnetics-free-equilibrium-recovery</code>, whose lifecycle surfaces it. The spike established that neither the transport prior under frozen geometry nor the Thomson update constrains FF-prime, and that the frozen-geometry substitute for the free-boundary solve is the likely reason the observation operator has no FF-prime sensitivity: force balance against the known coil currents is what makes the diamagnetic function observable. The production smoother must therefore run the Nova free-boundary solve inside the loop rather than substituting banked geometry, propagate density and electron-to-total-pressure uncertainty, use time-varying FSA geometry, and establish direct FF-prime sensitivity before any LCFS, q95 or beta-N recovery claim.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship magnetics-free-equilibrium-recovery §5</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
@@ -223,6 +229,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20260817-proto-simulate" data-who="reckon-ship" data-when="2026-08-17T17:20:00+00:00">
     <div class="r-comment-body">proto-simulate landed: commit c24d3c5; gate simulability-table PASSED (the measure ran and emitted evidence) with a pre-registered verdict that SPLITS. FF-prime: tuned native transport EV -0.11956 versus persistence -0.11891, margin -0.00065, so transport DOES NOT BEAT persistence, and the loss holds by regime (ramp -0.00031 over 833 frames, flat-top -0.00006 over 2,353 frames); the untuned default sits at -0.11965, so cross-shot tuning improves the default but not enough. Psi(rho-hat): tuned transport EV -0.29544 versus persistence -1.92907, an improvement of +1.63363 over persistence and better than the untuned -0.38781. One bounded EtaProfile was fitted jointly across all 20 shots and never per shot or slice, converging on the constant-resistivity boundary eta0 = 7.062e-8 Ohm m and cutting mean cross-shot normalised psi loss 0.68023 to 0.53644 (21.14 percent). CONSEQUENCE FOR THE ENTRY: the production smoother must carry material FF-prime correction rather than riding the transport prior, and the FF-prime deviation amplitudes in the section 5 state cannot be tightly priored. QUALIFICATION: geometry was frozen per shot, boundary F was calibrated from initial q95 and rho-hat is the extraction bank's geometric proxy, so the FF-prime negative is qualified spike evidence and its exact time-varying-geometry rerun is queued behind nova's TORAX geometry adapter.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260817-proto-loop" data-who="reckon-ship" data-when="2026-08-17T16:30:00+00:00">
+    <div class="r-comment-body">proto-loop landed: commit 7c32573; gate joined-loop PASSED. One flat-top shot, 36 slices over 1020-6060 ms, with the candidate basis trained on the other 19 shots (10 modes retaining 99.96 percent of cross-shot variance) and a row-whitened correction of rank 6 retaining 99.9964 percent of observable energy. Joint NRMSE: persistence 0.7276, transport prior 0.6873, posterior 0.6725, so the update reduces prior error by 2.15 percent and contributes 26.88 percent of the total gain over persistence, the prior carrying the rest. Innovations behave: normalised RMS 0.7640 to 0.7555, posterior median absolute lag-1 0.135, and 8 of 11 channels pass whiteness at p greater than 0.05. Discipline held: all 11 channels retained with 26 channel-slice instances given widened sigma and zero dropped, and plasma current entered only as the diffusion boundary condition, never as an observation. THE STRUCTURAL FINDING: FF-prime NRMSE is 0.6687 persistence, 0.5599 prior, 0.5600 posterior, so the update contributes -0.12 percent of the FF-prime gain and slightly degrades it. Thomson has no direct FF-prime sensitivity, and a covariance-mediated update through a channel that cannot see the quantity is worse than no update. The rank-6 basis is therefore adjudged NOT adequate as a production Thomson-only correction basis. Note this shot's prior does beat persistence on FF-prime (0.5599 versus 0.6687), unlike the section 3 pooled change-metric result, so the two measurements are not directly comparable and neither overturns the other.</div>
 </div>
 </section>
 </main>

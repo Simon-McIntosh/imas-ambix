@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-17T18:05:56",
+  "updated": "2026-08-17T18:22:47",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -45,6 +45,13 @@
         "role": "implement",
         "session_id": "019ffbad-6eff-7900-8929-4fda5e162f54",
         "created": "2026-08-13"
+      },
+      {
+        "id": "pedigree-probe",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-17"
       },
       {
         "id": "reader-audit",
@@ -94,6 +101,13 @@
         "role": "implement",
         "session_id": "019ff9fd-93fc-7f70-a425-2e090743d4a3",
         "created": "2026-08-13"
+      },
+      {
+        "id": "thomson-models",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-17"
       },
       {
         "id": "vacuum-adjudication",
@@ -3377,9 +3391,72 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260817T160700066703-proto-loop",
+        "plan": "flux-function-evolution-prototype",
+        "section": "\u00a74",
+        "node": "proto-loop",
+        "role": "implement",
+        "member": "evolution-prototype",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-17T16:07:02Z",
+        "completed_at": "2026-08-17T16:20:59Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 837,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 837,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "0831b75f1b9675c218626a90b14902a1b16fbba2",
+        "commits": [
+          "7c32573986abec5d3fbccde851587a17e8d44a9a"
+        ],
+        "changed_lines": {
+          "added": 820,
+          "removed": 0,
+          "files": 6
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "outcome": "Loop closed end to end with mostly-white innovations. The update carries 26.9 percent of the joint gain over persistence but has no FF-prime tracking skill, because the Thomson operator has no direct FF-prime sensitivity in this frozen-geometry substitute for the free-boundary solve.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260817T160700066703-proto-loop/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01025-f9a4-7870-af91-cfee481f3762",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 3096320,
+            "cached_input_tokens_cumulative": 13798144,
+            "input_tokens": 3227293,
+            "input_tokens_cumulative": 14170748,
+            "output_tokens": 24324,
+            "output_tokens_cumulative": 82776,
+            "reasoning_output_tokens": 5000,
+            "reasoning_output_tokens_cumulative": 23503
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 88
+    "_version": 91
   }
 }
