@@ -25,9 +25,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-17">
-<meta name="plan-version" content="8">
-<meta name="plan-commits" content="226e431">
-<meta name="plan-impl" content="0.5">
+<meta name="plan-version" content="9">
+<meta name="plan-commits" content="226e431,2fd2577">
+<meta name="plan-impl" content="0.75">
 </head>
 <body>
   <main class="plan-doc">
@@ -172,6 +172,9 @@ Done-when
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s2" data-id="c-20260817-state-contract" data-who="reckon-ship" data-when="2026-08-17T15:02:00+00:00">
     <div class="r-comment-body">state-contract landed: commit 226e431 (worktree, integration pending); gate contract-fixtures PASSED 9/9. imas_ambix/fluxstate/contract.py delivers the immutable typed FluxFunctionState as a 17-leaf NumPy/JAX array tree with lossless JSON-compatible round trip: normalized-poloidal-flux coordinate with total-flux Jacobian, pressure and F-family derivatives with COCOS 17 plus three sign declarations, two independent topology-keyed domain policies, weighted-ensemble identity (three members preserved), and the integral-constraint policy with the Ip/beta_p/li target-achieved-residual ledger. Causality is typed: ForecastHandoff and AnalysisHandoff are accepted by require_online_handoff while FixedLagSmoothing and FullSequenceSmoothing are rejected as separate runtime types (2 rejection tests), and corrupted-derivative fixtures fail loudly with index, declared value, numerical value, error and allowance (2 tests). Remaining for this plan: producer adapters (section 3) and the pinned-Nova consumer boundary fixtures (section 4).</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260817-state-adapters" data-who="reckon-ship" data-when="2026-08-17T17:07:00+00:00">
+    <div class="r-comment-body">state-adapters landed: commit 2fd2577; gate producer-adapters PASSED 5/5 focused and 14/14 for the whole fluxstate package. imas_ambix/fluxstate/adapters.py delivers three adapters that end at the Nova call boundary and import no Nova module, solver, response kernel or measurement fit. TransportForwardAdapter is pinned to reviewed Nova revision de3277a3 and round-trips final total flux, the ForecastHandoff causal label, the three-member weighted identity, a learned-correction digest and signed achieved Ip of -780 kA. SequentialEstimatorBatch requires all three members exactly once, derives rather than rewrites the temporal label, and rejects FixedLagSmoothing at the online handoff. IntegralConstraintConditioner accepted a one-amplitude Ip closure with rank 1 and condition 1 (predicted Ip -800 kA, residual zero) and rejected an underdetermined two-moment request naming both unmet requirements. Remaining for this plan: the section 4 pinned-Nova consumer contract fixtures exercising eager, jitted and batched member paths.</div>
 </div>
 </section>
 </main>

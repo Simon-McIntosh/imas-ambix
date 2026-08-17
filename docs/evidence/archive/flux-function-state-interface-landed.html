@@ -31,6 +31,24 @@
     there — the arrow-of-time contract as code, not convention. Corrupted-derivative
     fixtures fail loudly with index, declared value, numerical value, error and allowance.
     9/9 tests green in 3.43 s; ruff clean.</p>
+
+    <h2 id="producer-adapters">§3 producer adapters — 2026-08-17</h2>
+    <p>Commit <code>2fd2577</code> (node state-adapters). 5/5 focused fixtures, 14/14 for
+    the whole package. <code>imas_ambix/fluxstate/adapters.py</code> carries three adapters
+    that end at the Nova call boundary and <strong>import no Nova module, equilibrium
+    solver, response kernel or measurement fit</strong> — the authority boundary as an
+    import-level fact. <code>TransportForwardAdapter</code> is pinned to reviewed Nova
+    revision <code>de3277a3</code> and round-trips final total flux, the
+    <code>ForecastHandoff</code> causal label, the complete three-member weighted identity,
+    a learned-correction digest, and signed achieved I_p = −780 kA with the revision
+    receipt. <code>SequentialEstimatorBatch</code> requires all three members exactly once,
+    derives rather than rewrites the temporal label, and rejects
+    <code>FixedLagSmoothing</code> at the online handoff.
+    <code>IntegralConstraintConditioner</code> accepted a one-amplitude I_p closure
+    (rank 1, condition 1, predicted I_p = −800 kA, residual 0) and rejected a two-moment
+    request carrying one amplitude and no prior covariance, naming both unmet
+    requirements — the locked <code>moment-constraint-authority</code> decision enforced
+    mechanically.</p>
   </main>
 </body>
 </html>
