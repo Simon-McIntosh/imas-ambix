@@ -1,0 +1,4019 @@
+{
+  "task": "phase-sensitive filament-motion readout dynamic-range validation",
+  "metric": {
+    "name": "filament_motion_alignment",
+    "definition": "equal-weight composite of high-pass energy-centroid displacement skill over frozen zero-motion and non-negative, amplitude-aware phase alignment of spatially high-passed inter-frame changes on raw-camera-selected filament cells",
+    "range": [
+      -1.0,
+      1.0
+    ],
+    "support": "top-tercile high-frequency cells in the lower camera edge band",
+    "truth": "raw rbb frames selected by exact model-window timestamps",
+    "high_pass_window_pixels": 11,
+    "max_translation_pixels": 8,
+    "min_truth_translation_pixels": 0.75
+  },
+  "checkpoint": "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_dynamics/final.pt",
+  "scenario": "frontier",
+  "frontier_frame": 8,
+  "n_windows": 2,
+  "shots": [
+    24446,
+    24065
+  ],
+  "noise_seeds_per_window": 8,
+  "roles": {
+    "persistence": {
+      "score": 0.00017516704413983567,
+      "transition_ci95": [
+        0.0,
+        0.0007057880175431158
+      ],
+      "n_role_evaluations": 2,
+      "n_transitions": 10,
+      "n_nonmeasurable_transitions": 4
+    },
+    "oracle": {
+      "score": 1.0,
+      "transition_ci95": [
+        1.0,
+        1.0
+      ],
+      "n_role_evaluations": 2,
+      "n_transitions": 10,
+      "n_nonmeasurable_transitions": 4
+    },
+    "coloured_noise": {
+      "score": 0.028894341973884893,
+      "transition_ci95": [
+        0.015182213739126083,
+        0.04103087806574513
+      ],
+      "n_role_evaluations": 16,
+      "n_transitions": 80,
+      "n_nonmeasurable_transitions": 32
+    },
+    "map": {
+      "score": 0.022187645059003114,
+      "transition_ci95": [
+        0.003264248019091579,
+        0.0453534635494264
+      ],
+      "n_role_evaluations": 2,
+      "n_transitions": 10,
+      "n_nonmeasurable_transitions": 4
+    }
+  },
+  "dynamic_range": {
+    "validated": false,
+    "checks": {
+      "persistence_near_zero": true,
+      "oracle_high": true,
+      "coloured_noise_near_zero": true,
+      "map_separable_from_persistence": false
+    },
+    "thresholds": {
+      "persistence_abs_max": 0.02,
+      "oracle_min": 0.95,
+      "coloured_noise_abs_max": 0.1,
+      "map_minus_persistence_min": 0.03,
+      "motion_captured_fraction_min": 0.75
+    },
+    "map_minus_persistence": 0.02201247801486328,
+    "map_fraction_of_oracle": 0.022187645059003114,
+    "headroom": "UNJUDGEABLE",
+    "detail": "The control range is not fully validated; this readout cannot gate a temporal-evolution retrain."
+  },
+  "per_window": [
+    {
+      "shot_id": 24446,
+      "start": 1024,
+      "frame_time_ms": [
+        256.056,
+        256.556,
+        257.056,
+        257.556,
+        258.056,
+        258.556,
+        259.056,
+        259.556,
+        260.056,
+        260.556,
+        261.056,
+        261.556,
+        262.056,
+        262.55600000000004,
+        263.05600000000004,
+        263.55600000000004
+      ],
+      "max_raw_time_alignment_error_us": 0.0,
+      "n_filament_cells": 22,
+      "roles": {
+        "map": {
+          "score": 0.02682565609910282,
+          "n_transitions": 6,
+          "n_nonmeasurable_transitions": 1,
+          "truth_high_pass_scale": 25.322314049586765,
+          "transitions": [
+            {
+              "phase_alignment": 0.016243498628579503,
+              "cosine": 0.02451924348297602,
+              "amplitude_agreement": 0.6624796005577228,
+              "predicted_motion_norm": 6.1434456151931,
+              "truth_motion_norm": 12.403376385125423,
+              "score": 0.008121749314289751,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 5.159740526167596,
+              "predicted_translation_pixels": {
+                "dy": -0.5781445378411263,
+                "dx": -0.08148181187365822,
+                "active_energy": 8504.461983471072
+              },
+              "truth_translation_pixels": {
+                "dy": 2.029463789235365,
+                "dx": 4.743859085761159,
+                "active_energy": 8810.739669421488
+              },
+              "from_frame": 8,
+              "to_frame": 9
+            },
+            {
+              "phase_alignment": 0.014370736406054884,
+              "cosine": 0.03994204883162265,
+              "amplitude_agreement": 0.3597896659391539,
+              "predicted_motion_norm": 3.538847766651776,
+              "truth_motion_norm": 16.13291105062482,
+              "score": 0.1296697085270168,
+              "displacement_skill": 0.24496868064797872,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 4.758657308259052,
+              "predicted_translation_pixels": {
+                "dy": -0.26020683160834324,
+                "dx": -1.1376707586572934,
+                "active_energy": 8998.385123966938
+              },
+              "truth_translation_pixels": {
+                "dy": -0.8679565427604246,
+                "dx": -4.678832206579614,
+                "active_energy": 8805.592561983467
+              },
+              "from_frame": 9,
+              "to_frame": 10
+            },
+            {
+              "phase_alignment": 0.02098963952807844,
+              "cosine": 0.050603808384706045,
+              "amplitude_agreement": 0.414783791933378,
+              "predicted_motion_norm": 3.556467059890148,
+              "truth_motion_norm": 13.592067328654053,
+              "score": 0.01049481976403922,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 3.3565449554454987,
+              "predicted_translation_pixels": {
+                "dy": -0.11267875962334983,
+                "dx": -0.7418703680607308,
+                "active_energy": 9171.492561983467
+              },
+              "truth_translation_pixels": {
+                "dy": -0.6444419015987535,
+                "dx": 3.294099068545208,
+                "active_energy": 8916.893388429742
+              },
+              "from_frame": 10,
+              "to_frame": 11
+            },
+            {
+              "phase_alignment": -0.011419905783197343,
+              "cosine": -0.037611553209244385,
+              "amplitude_agreement": 0.30362760398819405,
+              "predicted_motion_norm": 2.7225373557375425,
+              "truth_motion_norm": 15.210860793683702,
+              "score": 0.0,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 4.5325371494527875,
+              "predicted_translation_pixels": {
+                "dy": 0.11473830225978077,
+                "dx": 0.8237132435546215,
+                "active_energy": 9246.195867768589
+              },
+              "truth_translation_pixels": {
+                "dy": -1.6244989448026956,
+                "dx": -4.231417751712129,
+                "active_energy": 8958.686776859498
+              },
+              "from_frame": 11,
+              "to_frame": 12
+            },
+            {
+              "phase_alignment": -0.0004834000103261915,
+              "cosine": -0.004291843039861191,
+              "amplitude_agreement": 0.11263226679925972,
+              "predicted_motion_norm": 1.2505044033933534,
+              "truth_motion_norm": 20.95457836604217,
+              "score": 0.006674150244776245,
+              "displacement_skill": 0.01334830048955249,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 3.1502972485337417,
+              "predicted_translation_pixels": {
+                "dy": 0.0074877973576974455,
+                "dx": 0.04954828386759402,
+                "active_energy": 9349.687603305778
+              },
+              "truth_translation_pixels": {
+                "dy": 2.078921590811632,
+                "dx": 2.36695115568034,
+                "active_energy": 9065.672727272726
+              },
+              "from_frame": 12,
+              "to_frame": 13
+            },
+            {
+              "phase_alignment": 0.012741340733691655,
+              "cosine": 0.06433898408326465,
+              "amplitude_agreement": 0.19803453404241478,
+              "predicted_motion_norm": 1.8534099729573659,
+              "truth_motion_norm": 16.864638188889042,
+              "score": 0.006370670366845827,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 3.1715739629724236,
+              "predicted_translation_pixels": {
+                "dy": -0.07435358910143464,
+                "dx": -0.4832673072030218,
+                "active_energy": 9309.815702479336
+              },
+              "truth_translation_pixels": {
+                "dy": 0.490367665534734,
+                "dx": 3.1334359663479034,
+                "active_energy": 8738.344628099172
+              },
+              "from_frame": 13,
+              "to_frame": 14
+            },
+            {
+              "phase_alignment": 0.028308697230029198,
+              "cosine": 0.07246710858534597,
+              "amplitude_agreement": 0.3906420137722133,
+              "predicted_motion_norm": 3.0974620209685506,
+              "truth_motion_norm": 12.760852813414354,
+              "score": null,
+              "displacement_skill": null,
+              "measurable": false,
+              "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+              "truth_translation_norm_pixels": 0.4237876227161862,
+              "predicted_translation_pixels": {
+                "dy": -0.08714843721637067,
+                "dx": -0.6421920539066974,
+                "active_energy": 9257.049586776866
+              },
+              "truth_translation_pixels": {
+                "dy": -0.4212367465195541,
+                "dx": -0.04642792854583888,
+                "active_energy": 8596.456198347109
+              },
+              "from_frame": 14,
+              "to_frame": 15
+            }
+          ]
+        },
+        "persistence": {
+          "score": 0.00035033408827967133,
+          "n_transitions": 6,
+          "n_nonmeasurable_transitions": 1,
+          "truth_high_pass_scale": 25.322314049586765,
+          "transitions": [
+            {
+              "phase_alignment": 0.0,
+              "cosine": 0.0,
+              "amplitude_agreement": 0.0,
+              "predicted_motion_norm": 0.0,
+              "truth_motion_norm": 12.403376385125423,
+              "score": 0.0,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 5.159740526167596,
+              "predicted_translation_pixels": {
+                "dy": 0.0,
+                "dx": 0.0,
+                "active_energy": 8728.226446280993
+              },
+              "truth_translation_pixels": {
+                "dy": 2.029463789235365,
+                "dx": 4.743859085761159,
+                "active_energy": 8810.739669421488
+              },
+              "from_frame": 8,
+              "to_frame": 9
+            },
+            {
+              "phase_alignment": 0.0,
+              "cosine": 0.0,
+              "amplitude_agreement": 0.0,
+              "predicted_motion_norm": 0.0,
+              "truth_motion_norm": 16.13291105062482,
+              "score": 0.0,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 4.758657308259052,
+              "predicted_translation_pixels": {
+                "dy": 0.0,
+                "dx": 0.0,
+                "active_energy": 8728.226446280993
+              },
+              "truth_translation_pixels": {
+                "dy": -0.8679565427604246,
+                "dx": -4.678832206579614,
+                "active_energy": 8805.592561983467
+              },
+              "from_frame": 9,
+              "to_frame": 10
+            },
+            {
+              "phase_alignment": 0.0,
+              "cosine": 0.0,
+              "amplitude_agreement": 0.0,
+              "predicted_motion_norm": 0.0,
+              "truth_motion_norm": 13.592067328654053,
+              "score": 0.0,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 3.3565449554454987,
+              "predicted_translation_pixels": {
+                "dy": 0.0,
+                "dx": 0.0,
+                "active_energy": 8728.226446280993
+              },
+              "truth_translation_pixels": {
+                "dy": -0.6444419015987535,
+                "dx": 3.294099068545208,
+                "active_energy": 8916.893388429742
+              },
+              "from_frame": 10,
+              "to_frame": 11
+            },
+            {
+              "phase_alignment": 0.004705253450287439,
+              "cosine": 0.03693698609347591,
+              "amplitude_agreement": 0.12738596046737327,
+              "predicted_motion_norm": 1.0347300996539122,
+              "truth_motion_norm": 15.210860793683702,
+              "score": 0.0023526267251437194,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 4.5325371494527875,
+              "predicted_translation_pixels": {
+                "dy": -0.027253637316590584,
+                "dx": 0.03991387394951573,
+                "active_energy": 8719.472727272721
+              },
+              "truth_translation_pixels": {
+                "dy": -1.6244989448026956,
+                "dx": -4.231417751712129,
+                "active_energy": 8958.686776859498
+              },
+              "from_frame": 11,
+              "to_frame": 12
+            },
+            {
+              "phase_alignment": 0.0,
+              "cosine": 0.0,
+              "amplitude_agreement": 0.0,
+              "predicted_motion_norm": 0.0,
+              "truth_motion_norm": 20.95457836604217,
+              "score": 0.0,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 3.1502972485337417,
+              "predicted_translation_pixels": {
+                "dy": 0.0,
+                "dx": 0.0,
+                "active_energy": 8710.719008264448
+              },
+              "truth_translation_pixels": {
+                "dy": 2.078921590811632,
+                "dx": 2.36695115568034,
+                "active_energy": 9065.672727272726
+              },
+              "from_frame": 12,
+              "to_frame": 13
+            },
+            {
+              "phase_alignment": 0.0,
+              "cosine": 0.0,
+              "amplitude_agreement": 0.0,
+              "predicted_motion_norm": 0.0,
+              "truth_motion_norm": 16.864638188889042,
+              "score": 0.0,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 3.1715739629724236,
+              "predicted_translation_pixels": {
+                "dy": 0.0,
+                "dx": 0.0,
+                "active_energy": 8710.719008264448
+              },
+              "truth_translation_pixels": {
+                "dy": 0.490367665534734,
+                "dx": 3.1334359663479034,
+                "active_energy": 8738.344628099172
+              },
+              "from_frame": 13,
+              "to_frame": 14
+            },
+            {
+              "phase_alignment": 0.0,
+              "cosine": 0.0,
+              "amplitude_agreement": 0.0,
+              "predicted_motion_norm": 0.0,
+              "truth_motion_norm": 12.760852813414354,
+              "score": null,
+              "displacement_skill": null,
+              "measurable": false,
+              "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+              "truth_translation_norm_pixels": 0.4237876227161862,
+              "predicted_translation_pixels": {
+                "dy": 0.0,
+                "dx": 0.0,
+                "active_energy": 8710.719008264448
+              },
+              "truth_translation_pixels": {
+                "dy": -0.4212367465195541,
+                "dx": -0.04642792854583888,
+                "active_energy": 8596.456198347109
+              },
+              "from_frame": 14,
+              "to_frame": 15
+            }
+          ]
+        },
+        "oracle": {
+          "score": 1.0,
+          "n_transitions": 6,
+          "n_nonmeasurable_transitions": 1,
+          "truth_high_pass_scale": 25.322314049586765,
+          "transitions": [
+            {
+              "phase_alignment": 1.0,
+              "cosine": 1.0,
+              "amplitude_agreement": 1.0,
+              "predicted_motion_norm": 12.403376385125423,
+              "truth_motion_norm": 12.403376385125423,
+              "score": 1.0,
+              "displacement_skill": 1.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 5.159740526167596,
+              "predicted_translation_pixels": {
+                "dy": 2.029463789235365,
+                "dx": 4.743859085761159,
+                "active_energy": 8810.739669421488
+              },
+              "truth_translation_pixels": {
+                "dy": 2.029463789235365,
+                "dx": 4.743859085761159,
+                "active_energy": 8810.739669421488
+              },
+              "from_frame": 8,
+              "to_frame": 9
+            },
+            {
+              "phase_alignment": 1.0,
+              "cosine": 1.0,
+              "amplitude_agreement": 1.0,
+              "predicted_motion_norm": 16.13291105062482,
+              "truth_motion_norm": 16.13291105062482,
+              "score": 1.0,
+              "displacement_skill": 1.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 4.758657308259052,
+              "predicted_translation_pixels": {
+                "dy": -0.8679565427604246,
+                "dx": -4.678832206579614,
+                "active_energy": 8805.592561983467
+              },
+              "truth_translation_pixels": {
+                "dy": -0.8679565427604246,
+                "dx": -4.678832206579614,
+                "active_energy": 8805.592561983467
+              },
+              "from_frame": 9,
+              "to_frame": 10
+            },
+            {
+              "phase_alignment": 1.0,
+              "cosine": 1.0,
+              "amplitude_agreement": 1.0,
+              "predicted_motion_norm": 13.592067328654053,
+              "truth_motion_norm": 13.592067328654053,
+              "score": 1.0,
+              "displacement_skill": 1.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 3.3565449554454987,
+              "predicted_translation_pixels": {
+                "dy": -0.6444419015987535,
+                "dx": 3.294099068545208,
+                "active_energy": 8916.893388429742
+              },
+              "truth_translation_pixels": {
+                "dy": -0.6444419015987535,
+                "dx": 3.294099068545208,
+                "active_energy": 8916.893388429742
+              },
+              "from_frame": 10,
+              "to_frame": 11
+            },
+            {
+              "phase_alignment": 1.0,
+              "cosine": 1.0,
+              "amplitude_agreement": 1.0,
+              "predicted_motion_norm": 15.210860793683702,
+              "truth_motion_norm": 15.210860793683702,
+              "score": 1.0,
+              "displacement_skill": 1.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 4.5325371494527875,
+              "predicted_translation_pixels": {
+                "dy": -1.6244989448026956,
+                "dx": -4.231417751712129,
+                "active_energy": 8958.686776859498
+              },
+              "truth_translation_pixels": {
+                "dy": -1.6244989448026956,
+                "dx": -4.231417751712129,
+                "active_energy": 8958.686776859498
+              },
+              "from_frame": 11,
+              "to_frame": 12
+            },
+            {
+              "phase_alignment": 1.0,
+              "cosine": 1.0,
+              "amplitude_agreement": 1.0,
+              "predicted_motion_norm": 20.95457836604217,
+              "truth_motion_norm": 20.95457836604217,
+              "score": 1.0,
+              "displacement_skill": 1.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 3.1502972485337417,
+              "predicted_translation_pixels": {
+                "dy": 2.078921590811632,
+                "dx": 2.36695115568034,
+                "active_energy": 9065.672727272726
+              },
+              "truth_translation_pixels": {
+                "dy": 2.078921590811632,
+                "dx": 2.36695115568034,
+                "active_energy": 9065.672727272726
+              },
+              "from_frame": 12,
+              "to_frame": 13
+            },
+            {
+              "phase_alignment": 1.0,
+              "cosine": 1.0,
+              "amplitude_agreement": 1.0,
+              "predicted_motion_norm": 16.864638188889042,
+              "truth_motion_norm": 16.864638188889042,
+              "score": 1.0,
+              "displacement_skill": 1.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 3.1715739629724236,
+              "predicted_translation_pixels": {
+                "dy": 0.490367665534734,
+                "dx": 3.1334359663479034,
+                "active_energy": 8738.344628099172
+              },
+              "truth_translation_pixels": {
+                "dy": 0.490367665534734,
+                "dx": 3.1334359663479034,
+                "active_energy": 8738.344628099172
+              },
+              "from_frame": 13,
+              "to_frame": 14
+            },
+            {
+              "phase_alignment": 0.9999999999999998,
+              "cosine": 0.9999999999999998,
+              "amplitude_agreement": 1.0,
+              "predicted_motion_norm": 12.760852813414354,
+              "truth_motion_norm": 12.760852813414354,
+              "score": null,
+              "displacement_skill": null,
+              "measurable": false,
+              "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+              "truth_translation_norm_pixels": 0.4237876227161862,
+              "predicted_translation_pixels": {
+                "dy": -0.4212367465195541,
+                "dx": -0.04642792854583888,
+                "active_energy": 8596.456198347109
+              },
+              "truth_translation_pixels": {
+                "dy": -0.4212367465195541,
+                "dx": -0.04642792854583888,
+                "active_energy": 8596.456198347109
+              },
+              "from_frame": 14,
+              "to_frame": 15
+            }
+          ]
+        },
+        "coloured_noise": [
+          {
+            "score": 0.036396725540453596,
+            "n_transitions": 6,
+            "n_nonmeasurable_transitions": 1,
+            "truth_high_pass_scale": 25.322314049586765,
+            "transitions": [
+              {
+                "phase_alignment": 0.02777987117180854,
+                "cosine": 0.04048898323349533,
+                "amplitude_agreement": 0.686109379719545,
+                "predicted_motion_norm": 23.752305935368266,
+                "truth_motion_norm": 12.403376385125423,
+                "score": 0.01388993558590427,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 5.159740526167596,
+                "predicted_translation_pixels": {
+                  "dy": -1.7000087190199622,
+                  "dx": -0.3234433012103892,
+                  "active_energy": 2829.5759212259723
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.029463789235365,
+                  "dx": 4.743859085761159,
+                  "active_energy": 8810.739669421488
+                },
+                "from_frame": 8,
+                "to_frame": 9
+              },
+              {
+                "phase_alignment": -0.02127774725871891,
+                "cosine": -0.027226484211465812,
+                "amplitude_agreement": 0.7815091766331795,
+                "predicted_motion_norm": 25.15364458555345,
+                "truth_motion_norm": 16.13291105062482,
+                "score": 0.04632199558597139,
+                "displacement_skill": 0.09264399117194277,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 4.758657308259052,
+                "predicted_translation_pixels": {
+                  "dy": 2.2348368405536627,
+                  "dx": -7.681504038670039,
+                  "active_energy": 3134.935065105833
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.8679565427604246,
+                  "dx": -4.678832206579614,
+                  "active_energy": 8805.592561983467
+                },
+                "from_frame": 9,
+                "to_frame": 10
+              },
+              {
+                "phase_alignment": 0.014876765494426392,
+                "cosine": 0.021731744730262636,
+                "amplitude_agreement": 0.6845637880933548,
+                "predicted_motion_norm": 26.11808843786886,
+                "truth_motion_norm": 13.592067328654053,
+                "score": 0.007438382747213196,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.3565449554454987,
+                "predicted_translation_pixels": {
+                  "dy": 0.6371191012022697,
+                  "dx": 7.974589597645963,
+                  "active_energy": 3557.7092992276976
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.6444419015987535,
+                  "dx": 3.294099068545208,
+                  "active_energy": 8916.893388429742
+                },
+                "from_frame": 10,
+                "to_frame": 11
+              },
+              {
+                "phase_alignment": -0.0005861198047830884,
+                "cosine": -0.0007899137297435985,
+                "amplitude_agreement": 0.7420048325699309,
+                "predicted_motion_norm": 25.78849696252105,
+                "truth_motion_norm": 15.210860793683702,
+                "score": 0.11675200943008984,
+                "displacement_skill": 0.23350401886017969,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 4.5325371494527875,
+                "predicted_translation_pixels": {
+                  "dy": -3.1330324262604723,
+                  "dx": -7.360985519344568,
+                  "active_energy": 3156.1122678710926
+                },
+                "truth_translation_pixels": {
+                  "dy": -1.6244989448026956,
+                  "dx": -4.231417751712129,
+                  "active_energy": 8958.686776859498
+                },
+                "from_frame": 11,
+                "to_frame": 12
+              },
+              {
+                "phase_alignment": 0.03566084137560698,
+                "cosine": 0.03842025744889205,
+                "amplitude_agreement": 0.9281780951896084,
+                "predicted_motion_norm": 24.19748560668403,
+                "truth_motion_norm": 20.95457836604217,
+                "score": 0.01783042068780349,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.1502972485337417,
+                "predicted_translation_pixels": {
+                  "dy": 5.196758434181902,
+                  "dx": 3.9759236691793234,
+                  "active_energy": 3133.3402314918876
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.078921590811632,
+                  "dx": 2.36695115568034,
+                  "active_energy": 9065.672727272726
+                },
+                "from_frame": 12,
+                "to_frame": 13
+              },
+              {
+                "phase_alignment": 0.04318677809395616,
+                "cosine": 0.05456052076598066,
+                "amplitude_agreement": 0.791538964211716,
+                "predicted_motion_norm": 25.74763726790879,
+                "truth_motion_norm": 16.864638188889042,
+                "score": 0.02159338904697808,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.1715739629724236,
+                "predicted_translation_pixels": {
+                  "dy": -4.461103839969724,
+                  "dx": -6.571904891541266,
+                  "active_energy": 3380.8487816709285
+                },
+                "truth_translation_pixels": {
+                  "dy": 0.490367665534734,
+                  "dx": 3.1334359663479034,
+                  "active_energy": 8738.344628099172
+                },
+                "from_frame": 13,
+                "to_frame": 14
+              },
+              {
+                "phase_alignment": -0.0016326097004552879,
+                "cosine": -0.0025447537836707397,
+                "amplitude_agreement": 0.6415590030483388,
+                "predicted_motion_norm": 27.019908590546105,
+                "truth_motion_norm": 12.760852813414354,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.4237876227161862,
+                "predicted_translation_pixels": {
+                  "dy": 3.140113241755938,
+                  "dx": 7.357967710512803,
+                  "active_energy": 3178.742446796333
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.4212367465195541,
+                  "dx": -0.04642792854583888,
+                  "active_energy": 8596.456198347109
+                },
+                "from_frame": 14,
+                "to_frame": 15
+              }
+            ]
+          },
+          {
+            "score": 0.013169024615806582,
+            "n_transitions": 6,
+            "n_nonmeasurable_transitions": 1,
+            "truth_high_pass_scale": 25.322314049586765,
+            "transitions": [
+              {
+                "phase_alignment": -0.045658017175986915,
+                "cosine": -0.06489157186970365,
+                "amplitude_agreement": 0.7036047341812592,
+                "predicted_motion_norm": 22.85328344834899,
+                "truth_motion_norm": 12.403376385125423,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 5.159740526167596,
+                "predicted_translation_pixels": {
+                  "dy": 4.9023824362628075,
+                  "dx": -6.321917940674487,
+                  "active_energy": 2878.045565359803
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.029463789235365,
+                  "dx": 4.743859085761159,
+                  "active_energy": 8810.739669421488
+                },
+                "from_frame": 8,
+                "to_frame": 9
+              },
+              {
+                "phase_alignment": -0.06291272503544595,
+                "cosine": -0.07755640657170909,
+                "amplitude_agreement": 0.8111866938713373,
+                "predicted_motion_norm": 23.643163119506145,
+                "truth_motion_norm": 16.13291105062482,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 4.758657308259052,
+                "predicted_translation_pixels": {
+                  "dy": -1.9263153706629335,
+                  "dx": 7.764619056511899,
+                  "active_energy": 2918.7779481460275
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.8679565427604246,
+                  "dx": -4.678832206579614,
+                  "active_energy": 8805.592561983467
+                },
+                "from_frame": 9,
+                "to_frame": 10
+              },
+              {
+                "phase_alignment": -0.06903380486596895,
+                "cosine": -0.09737193946439267,
+                "amplitude_agreement": 0.7089702150917255,
+                "predicted_motion_norm": 24.751059192946098,
+                "truth_motion_norm": 13.592067328654053,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.3565449554454987,
+                "predicted_translation_pixels": {
+                  "dy": -2.270990120478122,
+                  "dx": -7.670893290399155,
+                  "active_energy": 3142.6158875829715
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.6444419015987535,
+                  "dx": 3.294099068545208,
+                  "active_energy": 8916.893388429742
+                },
+                "from_frame": 10,
+                "to_frame": 11
+              },
+              {
+                "phase_alignment": 0.008366590608696288,
+                "cosine": 0.011377125593433138,
+                "amplitude_agreement": 0.7353870307562986,
+                "predicted_motion_norm": 26.15745318933638,
+                "truth_motion_norm": 15.210860793683702,
+                "score": 0.004183295304348144,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 4.5325371494527875,
+                "predicted_translation_pixels": {
+                  "dy": 4.57294017355599,
+                  "dx": 6.56416165013307,
+                  "active_energy": 3251.401403396394
+                },
+                "truth_translation_pixels": {
+                  "dy": -1.6244989448026956,
+                  "dx": -4.231417751712129,
+                  "active_energy": 8958.686776859498
+                },
+                "from_frame": 11,
+                "to_frame": 12
+              },
+              {
+                "phase_alignment": 0.08878886082250984,
+                "cosine": 0.09773407720329108,
+                "amplitude_agreement": 0.9084739260168712,
+                "predicted_motion_norm": 25.176802548577555,
+                "truth_motion_norm": 20.95457836604217,
+                "score": 0.04439443041125492,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.1502972485337417,
+                "predicted_translation_pixels": {
+                  "dy": -1.5014974396018772,
+                  "dx": -0.8043837060013743,
+                  "active_energy": 3448.806796169949
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.078921590811632,
+                  "dx": 2.36695115568034,
+                  "active_energy": 9065.672727272726
+                },
+                "from_frame": 12,
+                "to_frame": 13
+              },
+              {
+                "phase_alignment": -0.00991004857685686,
+                "cosine": -0.012244940403513996,
+                "amplitude_agreement": 0.8093178284487951,
+                "predicted_motion_norm": 24.81154290108692,
+                "truth_motion_norm": 16.864638188889042,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.1715739629724236,
+                "predicted_translation_pixels": {
+                  "dy": 0.10414538298934417,
+                  "dx": -3.620896652653755,
+                  "active_energy": 3184.8345694376594
+                },
+                "truth_translation_pixels": {
+                  "dy": 0.490367665534734,
+                  "dx": 3.1334359663479034,
+                  "active_energy": 8738.344628099172
+                },
+                "from_frame": 13,
+                "to_frame": 14
+              },
+              {
+                "phase_alignment": -0.007435560999032801,
+                "cosine": -0.011034305348742956,
+                "amplitude_agreement": 0.6738585496802362,
+                "predicted_motion_norm": 25.11312777040318,
+                "truth_motion_norm": 12.760852813414354,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.4237876227161862,
+                "predicted_translation_pixels": {
+                  "dy": -2.151078150865658,
+                  "dx": 6.544320269862453,
+                  "active_energy": 3132.828962322914
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.4212367465195541,
+                  "dx": -0.04642792854583888,
+                  "active_energy": 8596.456198347109
+                },
+                "from_frame": 14,
+                "to_frame": 15
+              }
+            ]
+          },
+          {
+            "score": 0.035804850646743804,
+            "n_transitions": 6,
+            "n_nonmeasurable_transitions": 1,
+            "truth_high_pass_scale": 25.322314049586765,
+            "transitions": [
+              {
+                "phase_alignment": -0.0035476914402103816,
+                "cosine": -0.0050739221759481205,
+                "amplitude_agreement": 0.6992009962288108,
+                "predicted_motion_norm": 23.075338468039536,
+                "truth_motion_norm": 12.403376385125423,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 5.159740526167596,
+                "predicted_translation_pixels": {
+                  "dy": -6.6384475775944045,
+                  "dx": -4.464416396297618,
+                  "active_energy": 2966.7116072934573
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.029463789235365,
+                  "dx": 4.743859085761159,
+                  "active_energy": 8810.739669421488
+                },
+                "from_frame": 8,
+                "to_frame": 9
+              },
+              {
+                "phase_alignment": 0.04088979731432282,
+                "cosine": 0.04909977898005352,
+                "amplitude_agreement": 0.8327898447553919,
+                "predicted_motion_norm": 22.611343942934568,
+                "truth_motion_norm": 16.13291105062482,
+                "score": 0.02044489865716141,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 4.758657308259052,
+                "predicted_translation_pixels": {
+                  "dy": 1.4260455339134863,
+                  "dx": 7.871873610215385,
+                  "active_energy": 3101.6984772490096
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.8679565427604246,
+                  "dx": -4.678832206579614,
+                  "active_energy": 8805.592561983467
+                },
+                "from_frame": 9,
+                "to_frame": 10
+              },
+              {
+                "phase_alignment": 0.019064653714860852,
+                "cosine": 0.02643711973141608,
+                "amplitude_agreement": 0.7211320260506938,
+                "predicted_motion_norm": 24.104406652931576,
+                "truth_motion_norm": 13.592067328654053,
+                "score": 0.1367938888516611,
+                "displacement_skill": 0.25452312398846133,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.3565449554454987,
+                "predicted_translation_pixels": {
+                  "dy": 1.7373287005791553,
+                  "dx": 2.5270873382245327,
+                  "active_energy": 3248.980149684473
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.6444419015987535,
+                  "dx": 3.294099068545208,
+                  "active_energy": 8916.893388429742
+                },
+                "from_frame": 10,
+                "to_frame": 11
+              },
+              {
+                "phase_alignment": 0.0192329717864132,
+                "cosine": 0.024288280514767193,
+                "amplitude_agreement": 0.7918622223882673,
+                "predicted_motion_norm": 23.20708708570253,
+                "truth_motion_norm": 15.210860793683702,
+                "score": 0.08461864342697697,
+                "displacement_skill": 0.15000431506754075,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 4.5325371494527875,
+                "predicted_translation_pixels": {
+                  "dy": 0.6439212599010489,
+                  "dx": -7.345431523961437,
+                  "active_energy": 2970.661146481605
+                },
+                "truth_translation_pixels": {
+                  "dy": -1.6244989448026956,
+                  "dx": -4.231417751712129,
+                  "active_energy": 8958.686776859498
+                },
+                "from_frame": 11,
+                "to_frame": 12
+              },
+              {
+                "phase_alignment": 0.024869692446391103,
+                "cosine": 0.026018767237660615,
+                "amplitude_agreement": 0.9558366935384127,
+                "predicted_motion_norm": 22.890941496708436,
+                "truth_motion_norm": 20.95457836604217,
+                "score": 0.012434846223195552,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.1502972485337417,
+                "predicted_translation_pixels": {
+                  "dy": -1.1483902828248567,
+                  "dx": 7.917145935140607,
+                  "active_energy": 2684.945052435563
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.078921590811632,
+                  "dx": 2.36695115568034,
+                  "active_energy": 9065.672727272726
+                },
+                "from_frame": 12,
+                "to_frame": 13
+              },
+              {
+                "phase_alignment": -0.05375782508990072,
+                "cosine": -0.06612883165655932,
+                "amplitude_agreement": 0.8129256746753438,
+                "predicted_motion_norm": 24.626579801302334,
+                "truth_motion_norm": 16.864638188889042,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.1715739629724236,
+                "predicted_translation_pixels": {
+                  "dy": 1.8365112897392635,
+                  "dx": -7.251243765976852,
+                  "active_energy": 3142.299285002775
+                },
+                "truth_translation_pixels": {
+                  "dy": 0.490367665534734,
+                  "dx": 3.1334359663479034,
+                  "active_energy": 8738.344628099172
+                },
+                "from_frame": 13,
+                "to_frame": 14
+              },
+              {
+                "phase_alignment": 0.00089583360553852,
+                "cosine": 0.0013704740196300595,
+                "amplitude_agreement": 0.6536669741323063,
+                "predicted_motion_norm": 26.28304359990353,
+                "truth_motion_norm": 12.760852813414354,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.4237876227161862,
+                "predicted_translation_pixels": {
+                  "dy": 0.5476926920126175,
+                  "dx": 6.682763045023762,
+                  "active_energy": 3355.811851981558
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.4212367465195541,
+                  "dx": -0.04642792854583888,
+                  "active_energy": 8596.456198347109
+                },
+                "from_frame": 14,
+                "to_frame": 15
+              }
+            ]
+          },
+          {
+            "score": 0.0027968140618546402,
+            "n_transitions": 6,
+            "n_nonmeasurable_transitions": 1,
+            "truth_high_pass_scale": 25.322314049586765,
+            "transitions": [
+              {
+                "phase_alignment": 0.008215061686514837,
+                "cosine": 0.012057204468806534,
+                "amplitude_agreement": 0.6813404971084475,
+                "predicted_motion_norm": 24.005369132759753,
+                "truth_motion_norm": 12.403376385125423,
+                "score": 0.004107530843257419,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 5.159740526167596,
+                "predicted_translation_pixels": {
+                  "dy": -1.1883039191323541,
+                  "dx": -7.911253617207242,
+                  "active_energy": 2902.3794419052974
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.029463789235365,
+                  "dx": 4.743859085761159,
+                  "active_energy": 8810.739669421488
+                },
+                "from_frame": 8,
+                "to_frame": 9
+              },
+              {
+                "phase_alignment": -0.03433427187347451,
+                "cosine": -0.04152920810066844,
+                "amplitude_agreement": 0.8267499777565438,
+                "predicted_motion_norm": 22.89439220834313,
+                "truth_motion_norm": 16.13291105062482,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 4.758657308259052,
+                "predicted_translation_pixels": {
+                  "dy": 0.47984858829027316,
+                  "dx": 7.985596116278098,
+                  "active_energy": 2892.865848465144
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.8679565427604246,
+                  "dx": -4.678832206579614,
+                  "active_energy": 8805.592561983467
+                },
+                "from_frame": 9,
+                "to_frame": 10
+              },
+              {
+                "phase_alignment": -0.004155512044090391,
+                "cosine": -0.006188797638197305,
+                "amplitude_agreement": 0.6714570886019183,
+                "predicted_motion_norm": 26.893222228583095,
+                "truth_motion_norm": 13.592067328654053,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.3565449554454987,
+                "predicted_translation_pixels": {
+                  "dy": 7.999554017664819,
+                  "dx": -0.08447199809797871,
+                  "active_energy": 3545.080374171376
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.6444419015987535,
+                  "dx": 3.294099068545208,
+                  "active_energy": 8916.893388429742
+                },
+                "from_frame": 10,
+                "to_frame": 11
+              },
+              {
+                "phase_alignment": -0.0008547896730417764,
+                "cosine": -0.0012097005913707065,
+                "amplitude_agreement": 0.7066125941735864,
+                "predicted_motion_norm": 27.842039534178284,
+                "truth_motion_norm": 15.210860793683702,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 4.5325371494527875,
+                "predicted_translation_pixels": {
+                  "dy": -7.408062754256804,
+                  "dx": -2.094404783077792,
+                  "active_energy": 3947.193028639295
+                },
+                "truth_translation_pixels": {
+                  "dy": -1.6244989448026956,
+                  "dx": -4.231417751712129,
+                  "active_energy": 8958.686776859498
+                },
+                "from_frame": 11,
+                "to_frame": 12
+              },
+              {
+                "phase_alignment": 0.016914827400995845,
+                "cosine": 0.01861886943105554,
+                "amplitude_agreement": 0.9084776851586154,
+                "predicted_motion_norm": 25.17661166397736,
+                "truth_motion_norm": 20.95457836604217,
+                "score": 0.008457413700497922,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.1502972485337417,
+                "predicted_translation_pixels": {
+                  "dy": -5.222164813969404,
+                  "dx": -6.060445087263797,
+                  "active_energy": 3357.8340245381332
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.078921590811632,
+                  "dx": 2.36695115568034,
+                  "active_energy": 9065.672727272726
+                },
+                "from_frame": 12,
+                "to_frame": 13
+              },
+              {
+                "phase_alignment": -0.03607325951994471,
+                "cosine": -0.045389310857018014,
+                "amplitude_agreement": 0.7947523070702698,
+                "predicted_motion_norm": 25.57534729805568,
+                "truth_motion_norm": 16.864638188889042,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.1715739629724236,
+                "predicted_translation_pixels": {
+                  "dy": 4.397568388511672,
+                  "dx": -3.664835098694752,
+                  "active_energy": 2987.595808099242
+                },
+                "truth_translation_pixels": {
+                  "dy": 0.490367665534734,
+                  "dx": 3.1334359663479034,
+                  "active_energy": 8738.344628099172
+                },
+                "from_frame": 13,
+                "to_frame": 14
+              },
+              {
+                "phase_alignment": -0.04423211619680225,
+                "cosine": -0.0694687579243514,
+                "amplitude_agreement": 0.636719548735407,
+                "predicted_motion_norm": 27.32226647751607,
+                "truth_motion_norm": 12.760852813414354,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.4237876227161862,
+                "predicted_translation_pixels": {
+                  "dy": -1.9826815473935255,
+                  "dx": -7.292309090271942,
+                  "active_energy": 3288.4216325810794
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.4212367465195541,
+                  "dx": -0.04642792854583888,
+                  "active_energy": 8596.456198347109
+                },
+                "from_frame": 14,
+                "to_frame": 15
+              }
+            ]
+          },
+          {
+            "score": 0.008353753951171092,
+            "n_transitions": 6,
+            "n_nonmeasurable_transitions": 1,
+            "truth_high_pass_scale": 25.322314049586765,
+            "transitions": [
+              {
+                "phase_alignment": -0.028634094425797212,
+                "cosine": -0.04429806779884062,
+                "amplitude_agreement": 0.646396013384282,
+                "predicted_motion_norm": 25.973643671623055,
+                "truth_motion_norm": 12.403376385125423,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 5.159740526167596,
+                "predicted_translation_pixels": {
+                  "dy": 1.975473509477638,
+                  "dx": -7.0810792816428005,
+                  "active_energy": 3250.2815975082085
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.029463789235365,
+                  "dx": 4.743859085761159,
+                  "active_energy": 8810.739669421488
+                },
+                "from_frame": 8,
+                "to_frame": 9
+              },
+              {
+                "phase_alignment": 0.003750073016307559,
+                "cosine": 0.004683613670730026,
+                "amplitude_agreement": 0.8006794069595075,
+                "predicted_motion_norm": 24.16514310287911,
+                "truth_motion_norm": 16.13291105062482,
+                "score": 0.0018750365081537795,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 4.758657308259052,
+                "predicted_translation_pixels": {
+                  "dy": -1.1603094852241895,
+                  "dx": 6.77974559987463,
+                  "active_energy": 3186.044894848296
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.8679565427604246,
+                  "dx": -4.678832206579614,
+                  "active_energy": 8805.592561983467
+                },
+                "from_frame": 9,
+                "to_frame": 10
+              },
+              {
+                "phase_alignment": 0.00979962081873918,
+                "cosine": 0.013250698383305313,
+                "amplitude_agreement": 0.7395550434598844,
+                "predicted_motion_norm": 23.165351740698352,
+                "truth_motion_norm": 13.592067328654053,
+                "score": 0.00489981040936959,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.3565449554454987,
+                "predicted_translation_pixels": {
+                  "dy": 2.7780240168075006,
+                  "dx": -7.502171856338719,
+                  "active_energy": 3135.3387621138027
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.6444419015987535,
+                  "dx": 3.294099068545208,
+                  "active_energy": 8916.893388429742
+                },
+                "from_frame": 10,
+                "to_frame": 11
+              },
+              {
+                "phase_alignment": -0.05297978224523401,
+                "cosine": -0.06811468212990912,
+                "amplitude_agreement": 0.7778026790786507,
+                "predicted_motion_norm": 23.90152902657711,
+                "truth_motion_norm": 15.210860793683702,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 4.5325371494527875,
+                "predicted_translation_pixels": {
+                  "dy": -0.8818630414067689,
+                  "dx": 7.951246290752211,
+                  "active_energy": 3090.918338880505
+                },
+                "truth_translation_pixels": {
+                  "dy": -1.6244989448026956,
+                  "dx": -4.231417751712129,
+                  "active_energy": 8958.686776859498
+                },
+                "from_frame": 11,
+                "to_frame": 12
+              },
+              {
+                "phase_alignment": 0.0342406014784415,
+                "cosine": 0.036787762135292695,
+                "amplitude_agreement": 0.9307606522113626,
+                "predicted_motion_norm": 24.072203366204242,
+                "truth_motion_norm": 20.95457836604217,
+                "score": 0.01712030073922075,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.1502972485337417,
+                "predicted_translation_pixels": {
+                  "dy": -4.8299323609680584,
+                  "dx": -0.5953866862067514,
+                  "active_energy": 3209.418869381302
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.078921590811632,
+                  "dx": 2.36695115568034,
+                  "active_energy": 9065.672727272726
+                },
+                "from_frame": 12,
+                "to_frame": 13
+              },
+              {
+                "phase_alignment": 0.02861231893823937,
+                "cosine": 0.03675194532330735,
+                "amplitude_agreement": 0.7785252912882957,
+                "predicted_motion_norm": 26.459935534288558,
+                "truth_motion_norm": 16.864638188889042,
+                "score": 0.014306159469119685,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.1715739629724236,
+                "predicted_translation_pixels": {
+                  "dy": -3.006545509017229,
+                  "dx": -7.413547335939005,
+                  "active_energy": 3298.0563306907043
+                },
+                "truth_translation_pixels": {
+                  "dy": 0.490367665534734,
+                  "dx": 3.1334359663479034,
+                  "active_energy": 8738.344628099172
+                },
+                "from_frame": 13,
+                "to_frame": 14
+              },
+              {
+                "phase_alignment": 0.01813569860454285,
+                "cosine": 0.027845619496603104,
+                "amplitude_agreement": 0.6512944920027809,
+                "predicted_motion_norm": 26.425269501772885,
+                "truth_motion_norm": 12.760852813414354,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.4237876227161862,
+                "predicted_translation_pixels": {
+                  "dy": 3.388508511572255,
+                  "dx": 7.2469310792225965,
+                  "active_energy": 3077.7862089966457
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.4212367465195541,
+                  "dx": -0.04642792854583888,
+                  "active_energy": 8596.456198347109
+                },
+                "from_frame": 14,
+                "to_frame": 15
+              }
+            ]
+          },
+          {
+            "score": 0.06643036505662483,
+            "n_transitions": 6,
+            "n_nonmeasurable_transitions": 1,
+            "truth_high_pass_scale": 25.322314049586765,
+            "transitions": [
+              {
+                "phase_alignment": -0.0023015165608767287,
+                "cosine": -0.0033902525373767914,
+                "amplitude_agreement": 0.6788628680321047,
+                "predicted_motion_norm": 24.138249233846697,
+                "truth_motion_norm": 12.403376385125423,
+                "score": 0.1743628262662918,
+                "displacement_skill": 0.3487256525325836,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 5.159740526167596,
+                "predicted_translation_pixels": {
+                  "dy": 0.9878902076815749,
+                  "dx": 7.938770240885351,
+                  "active_energy": 2933.959838886549
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.029463789235365,
+                  "dx": 4.743859085761159,
+                  "active_energy": 8810.739669421488
+                },
+                "from_frame": 8,
+                "to_frame": 9
+              },
+              {
+                "phase_alignment": 0.017464552649602276,
+                "cosine": 0.02219768522021552,
+                "amplitude_agreement": 0.7867735971720708,
+                "predicted_motion_norm": 24.877390028648637,
+                "truth_motion_norm": 16.13291105062482,
+                "score": 0.28522776960633356,
+                "displacement_skill": 0.5529909865630649,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 4.758657308259052,
+                "predicted_translation_pixels": {
+                  "dy": -0.747884168237448,
+                  "dx": -6.802603336891167,
+                  "active_energy": 3067.047369393612
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.8679565427604246,
+                  "dx": -4.678832206579614,
+                  "active_energy": 8805.592561983467
+                },
+                "from_frame": 9,
+                "to_frame": 10
+              },
+              {
+                "phase_alignment": 0.01790413310227442,
+                "cosine": 0.02515816023350841,
+                "amplitude_agreement": 0.7116630523096726,
+                "predicted_motion_norm": 24.605973962211245,
+                "truth_motion_norm": 13.592067328654053,
+                "score": 0.00895206655113721,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.3565449554454987,
+                "predicted_translation_pixels": {
+                  "dy": -2.336310267130339,
+                  "dx": -7.651251814945145,
+                  "active_energy": 3005.6915937431136
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.6444419015987535,
+                  "dx": 3.294099068545208,
+                  "active_energy": 8916.893388429742
+                },
+                "from_frame": 10,
+                "to_frame": 11
+              },
+              {
+                "phase_alignment": 0.004326785961856848,
+                "cosine": 0.0059771771935466095,
+                "amplitude_agreement": 0.7238845063064815,
+                "predicted_motion_norm": 26.814795678216687,
+                "truth_motion_norm": 15.210860793683702,
+                "score": 0.002163392980928424,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 4.5325371494527875,
+                "predicted_translation_pixels": {
+                  "dy": 4.59764596123938,
+                  "dx": 3.4082479839054116,
+                  "active_energy": 3246.632474204356
+                },
+                "truth_translation_pixels": {
+                  "dy": -1.6244989448026956,
+                  "dx": -4.231417751712129,
+                  "active_energy": 8958.686776859498
+                },
+                "from_frame": 11,
+                "to_frame": 12
+              },
+              {
+                "phase_alignment": -0.11652834451894117,
+                "cosine": -0.129727035574965,
+                "amplitude_agreement": 0.8982579768548188,
+                "predicted_motion_norm": 25.70145788628929,
+                "truth_motion_norm": 20.95457836604217,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.1502972485337417,
+                "predicted_translation_pixels": {
+                  "dy": -5.0012057674111645,
+                  "dx": -6.08388395229106,
+                  "active_energy": 3249.183464949011
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.078921590811632,
+                  "dx": 2.36695115568034,
+                  "active_energy": 9065.672727272726
+                },
+                "from_frame": 12,
+                "to_frame": 13
+              },
+              {
+                "phase_alignment": -0.07861934238177248,
+                "cosine": -0.10121166939144695,
+                "amplitude_agreement": 0.7767814013392446,
+                "predicted_motion_norm": 26.557200078126137,
+                "truth_motion_norm": 16.864638188889042,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.1715739629724236,
+                "predicted_translation_pixels": {
+                  "dy": 3.767312010844717,
+                  "dx": 7.057432976156779,
+                  "active_energy": 3434.786567368553
+                },
+                "truth_translation_pixels": {
+                  "dy": 0.490367665534734,
+                  "dx": 3.1334359663479034,
+                  "active_energy": 8738.344628099172
+                },
+                "from_frame": 13,
+                "to_frame": 14
+              },
+              {
+                "phase_alignment": -0.0043282902991877694,
+                "cosine": -0.006453225755432419,
+                "amplitude_agreement": 0.6707173223475332,
+                "predicted_motion_norm": 25.290506196521275,
+                "truth_motion_norm": 12.760852813414354,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.4237876227161862,
+                "predicted_translation_pixels": {
+                  "dy": -3.7469405054038822,
+                  "dx": -7.0682697210111955,
+                  "active_energy": 3400.7704447496476
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.4212367465195541,
+                  "dx": -0.04642792854583888,
+                  "active_energy": 8596.456198347109
+                },
+                "from_frame": 14,
+                "to_frame": 15
+              }
+            ]
+          },
+          {
+            "score": 0.012013318300614832,
+            "n_transitions": 6,
+            "n_nonmeasurable_transitions": 1,
+            "truth_high_pass_scale": 25.322314049586765,
+            "transitions": [
+              {
+                "phase_alignment": -0.014068274432502335,
+                "cosine": -0.020959234059085077,
+                "amplitude_agreement": 0.671220827671622,
+                "predicted_motion_norm": 24.554286052588637,
+                "truth_motion_norm": 12.403376385125423,
+                "score": 0.0706306820176919,
+                "displacement_skill": 0.1412613640353838,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 5.159740526167596,
+                "predicted_translation_pixels": {
+                  "dy": -1.0486718781519035,
+                  "dx": 7.930970135612248,
+                  "active_energy": 2879.492359243473
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.029463789235365,
+                  "dx": 4.743859085761159,
+                  "active_energy": 8810.739669421488
+                },
+                "from_frame": 8,
+                "to_frame": 9
+              },
+              {
+                "phase_alignment": 0.029113198682396268,
+                "cosine": 0.04037171050704333,
+                "amplitude_agreement": 0.7211286892914067,
+                "predicted_motion_norm": 28.6105897702267,
+                "truth_motion_norm": 16.13291105062482,
+                "score": 0.014556599341198134,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 4.758657308259052,
+                "predicted_translation_pixels": {
+                  "dy": 0.8724883651196775,
+                  "dx": 7.952280430966376,
+                  "active_energy": 3606.9909628625846
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.8679565427604246,
+                  "dx": -4.678832206579614,
+                  "active_energy": 8805.592561983467
+                },
+                "from_frame": 9,
+                "to_frame": 10
+              },
+              {
+                "phase_alignment": 0.043420238954551764,
+                "cosine": 0.06895611564644723,
+                "amplitude_agreement": 0.6296793046925182,
+                "predicted_motion_norm": 29.57932873712982,
+                "truth_motion_norm": 13.592067328654053,
+                "score": 0.021710119477275882,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.3565449554454987,
+                "predicted_translation_pixels": {
+                  "dy": -1.344550731405152,
+                  "dx": -7.886202085330927,
+                  "active_energy": 3855.846010462749
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.6444419015987535,
+                  "dx": 3.294099068545208,
+                  "active_energy": 8916.893388429742
+                },
+                "from_frame": 10,
+                "to_frame": 11
+              },
+              {
+                "phase_alignment": -0.019623541206997074,
+                "cosine": -0.02575868783253229,
+                "amplitude_agreement": 0.7618222377854688,
+                "predicted_motion_norm": 24.721974031143564,
+                "truth_motion_norm": 15.210860793683702,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 4.5325371494527875,
+                "predicted_translation_pixels": {
+                  "dy": 2.4776766996914,
+                  "dx": 7.606649602276047,
+                  "active_energy": 3095.2092255498565
+                },
+                "truth_translation_pixels": {
+                  "dy": -1.6244989448026956,
+                  "dx": -4.231417751712129,
+                  "active_energy": 8958.686776859498
+                },
+                "from_frame": 11,
+                "to_frame": 12
+              },
+              {
+                "phase_alignment": -0.07747444582020645,
+                "cosine": -0.08062163143072049,
+                "amplitude_agreement": 0.9609635087424587,
+                "predicted_motion_norm": 22.657022231495326,
+                "truth_motion_norm": 20.95457836604217,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.1502972485337417,
+                "predicted_translation_pixels": {
+                  "dy": -2.2757669529202773,
+                  "dx": -7.669477477377188,
+                  "active_energy": 2841.5602580382383
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.078921590811632,
+                  "dx": 2.36695115568034,
+                  "active_energy": 9065.672727272726
+                },
+                "from_frame": 12,
+                "to_frame": 13
+              },
+              {
+                "phase_alignment": -0.009842319684422623,
+                "cosine": -0.012482736462756343,
+                "amplitude_agreement": 0.7884745234979764,
+                "predicted_motion_norm": 25.913251739807745,
+                "truth_motion_norm": 16.864638188889042,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.1715739629724236,
+                "predicted_translation_pixels": {
+                  "dy": 3.565832882198976,
+                  "dx": 7.161343160066311,
+                  "active_energy": 3210.2556029869247
+                },
+                "truth_translation_pixels": {
+                  "dy": 0.490367665534734,
+                  "dx": 3.1334359663479034,
+                  "active_energy": 8738.344628099172
+                },
+                "from_frame": 13,
+                "to_frame": 14
+              },
+              {
+                "phase_alignment": 0.06971536038785307,
+                "cosine": 0.10199422224275216,
+                "amplitude_agreement": 0.6835226432917589,
+                "predicted_motion_norm": 24.57764047178157,
+                "truth_motion_norm": 12.760852813414354,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.4237876227161862,
+                "predicted_translation_pixels": {
+                  "dy": -3.5894390311759032,
+                  "dx": -7.1495403657487655,
+                  "active_energy": 3203.885113558902
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.4212367465195541,
+                  "dx": -0.04642792854583888,
+                  "active_energy": 8596.456198347109
+                },
+                "from_frame": 14,
+                "to_frame": 15
+              }
+            ]
+          },
+          {
+            "score": 0.04482478659437495,
+            "n_transitions": 6,
+            "n_nonmeasurable_transitions": 1,
+            "truth_high_pass_scale": 25.322314049586765,
+            "transitions": [
+              {
+                "phase_alignment": -0.015875247953615532,
+                "cosine": -0.024515282712758574,
+                "amplitude_agreement": 0.6475653631909177,
+                "predicted_motion_norm": 25.904343854904187,
+                "truth_motion_norm": 12.403376385125423,
+                "score": 0.17295003621276323,
+                "displacement_skill": 0.34590007242552645,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 5.159740526167596,
+                "predicted_translation_pixels": {
+                  "dy": 2.3533571831895017,
+                  "dx": 1.3844509645708598,
+                  "active_energy": 3250.50548195142
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.029463789235365,
+                  "dx": 4.743859085761159,
+                  "active_energy": 8810.739669421488
+                },
+                "from_frame": 8,
+                "to_frame": 9
+              },
+              {
+                "phase_alignment": 0.11117670874430564,
+                "cosine": 0.1381009165235247,
+                "amplitude_agreement": 0.8050396155435168,
+                "predicted_motion_norm": 23.946883133746592,
+                "truth_motion_norm": 16.13291105062482,
+                "score": 0.14114706521618164,
+                "displacement_skill": 0.17111742168805766,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 4.758657308259052,
+                "predicted_translation_pixels": {
+                  "dy": 1.4550634121659567,
+                  "dx": -7.866561540252258,
+                  "active_energy": 3114.625029608106
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.8679565427604246,
+                  "dx": -4.678832206579614,
+                  "active_energy": 8805.592561983467
+                },
+                "from_frame": 9,
+                "to_frame": 10
+              },
+              {
+                "phase_alignment": 0.014218902646733459,
+                "cosine": 0.02044402346085835,
+                "amplitude_agreement": 0.6955041249075378,
+                "predicted_motion_norm": 25.493444437249625,
+                "truth_motion_norm": 13.592067328654053,
+                "score": 0.007109451323366729,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.3565449554454987,
+                "predicted_translation_pixels": {
+                  "dy": -0.448264611526106,
+                  "dx": 7.987431304121078,
+                  "active_energy": 3285.9090267352794
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.6444419015987535,
+                  "dx": 3.294099068545208,
+                  "active_energy": 8916.893388429742
+                },
+                "from_frame": 10,
+                "to_frame": 11
+              },
+              {
+                "phase_alignment": -0.030356118379290295,
+                "cosine": -0.03979474445931888,
+                "amplitude_agreement": 0.7628172712686359,
+                "predicted_motion_norm": 24.66988487529317,
+                "truth_motion_norm": 15.210860793683702,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 4.5325371494527875,
+                "predicted_translation_pixels": {
+                  "dy": 2.535821067366974,
+                  "dx": -7.587464102998961,
+                  "active_energy": 3089.5606358079613
+                },
+                "truth_translation_pixels": {
+                  "dy": -1.6244989448026956,
+                  "dx": -4.231417751712129,
+                  "active_energy": 8958.686776859498
+                },
+                "from_frame": 11,
+                "to_frame": 12
+              },
+              {
+                "phase_alignment": -0.09690805020971711,
+                "cosine": -0.10273359249050348,
+                "amplitude_agreement": 0.943294669839129,
+                "predicted_motion_norm": 23.473910495483562,
+                "truth_motion_norm": 20.95457836604217,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.1502972485337417,
+                "predicted_translation_pixels": {
+                  "dy": -6.486784865010918,
+                  "dx": -0.1874135486830255,
+                  "active_energy": 3189.219747047946
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.078921590811632,
+                  "dx": 2.36695115568034,
+                  "active_energy": 9065.672727272726
+                },
+                "from_frame": 12,
+                "to_frame": 13
+              },
+              {
+                "phase_alignment": 0.035081485192180524,
+                "cosine": 0.04325381491323066,
+                "amplitude_agreement": 0.8110610650772829,
+                "predicted_motion_norm": 24.721967099042207,
+                "truth_motion_norm": 16.864638188889042,
+                "score": 0.017540742596090262,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 3.1715739629724236,
+                "predicted_translation_pixels": {
+                  "dy": 2.029293451398132,
+                  "dx": -1.709085607706868,
+                  "active_energy": 3361.8087554471185
+                },
+                "truth_translation_pixels": {
+                  "dy": 0.490367665534734,
+                  "dx": 3.1334359663479034,
+                  "active_energy": 8738.344628099172
+                },
+                "from_frame": 13,
+                "to_frame": 14
+              },
+              {
+                "phase_alignment": 0.025063395395082205,
+                "cosine": 0.035328398255216414,
+                "amplitude_agreement": 0.7094404680908926,
+                "predicted_motion_norm": 23.213561918674067,
+                "truth_motion_norm": 12.760852813414354,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.4237876227161862,
+                "predicted_translation_pixels": {
+                  "dy": 1.4579045296953836,
+                  "dx": 4.525370211488237,
+                  "active_energy": 3228.2294540164853
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.4212367465195541,
+                  "dx": -0.04642792854583888,
+                  "active_energy": 8596.456198347109
+                },
+                "from_frame": 14,
+                "to_frame": 15
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "shot_id": 24065,
+      "start": 2560,
+      "frame_time_ms": [
+        260.48299999999995,
+        260.766,
+        261.049,
+        261.33299999999997,
+        261.61600000000004,
+        261.899,
+        262.183,
+        262.46599999999995,
+        262.749,
+        263.03299999999996,
+        263.316,
+        263.599,
+        263.883,
+        264.166,
+        264.449,
+        264.733
+      ],
+      "max_raw_time_alignment_error_us": 0.0,
+      "n_filament_cells": 22,
+      "roles": {
+        "map": {
+          "score": 0.017549634018903405,
+          "n_transitions": 4,
+          "n_nonmeasurable_transitions": 3,
+          "truth_high_pass_scale": 17.719008264462815,
+          "transitions": [
+            {
+              "phase_alignment": 0.06321083451185766,
+              "cosine": 0.1317061335657981,
+              "amplitude_agreement": 0.4799384265599037,
+              "predicted_motion_norm": 9.715832035636911,
+              "truth_motion_norm": 30.771995143686585,
+              "score": 0.03160541725592883,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 7.999999999999999,
+              "predicted_translation_pixels": {
+                "dy": -0.009236752475572985,
+                "dx": 0.04807465150648227,
+                "active_energy": 5826.619008264463
+              },
+              "truth_translation_pixels": {
+                "dy": 7.7985034724251925,
+                "dx": -1.7841926999548585,
+                "active_energy": 5070.033057851237
+              },
+              "from_frame": 8,
+              "to_frame": 9
+            },
+            {
+              "phase_alignment": -0.0830641762326924,
+              "cosine": -0.13714187805749037,
+              "amplitude_agreement": 0.605680609083329,
+              "predicted_motion_norm": 9.00097130164163,
+              "truth_motion_norm": 20.720869439683092,
+              "score": 0.0,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 2.6123932956151816,
+              "predicted_translation_pixels": {
+                "dy": -1.131353068610764,
+                "dx": 1.0907194874459094,
+                "active_energy": 5994.724793388432
+              },
+              "truth_translation_pixels": {
+                "dy": 2.092677296909443,
+                "dx": 1.5637456513048846,
+                "active_energy": 9173.185123966932
+              },
+              "from_frame": 9,
+              "to_frame": 10
+            },
+            {
+              "phase_alignment": -6.579909753491478e-05,
+              "cosine": -0.00013055771235616584,
+              "amplitude_agreement": 0.503984761585073,
+              "predicted_motion_norm": 4.068842365240241,
+              "truth_motion_norm": 12.077845691134328,
+              "score": null,
+              "displacement_skill": null,
+              "measurable": false,
+              "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+              "truth_translation_norm_pixels": 0.5962819757340289,
+              "predicted_translation_pixels": {
+                "dy": 0.4264139358680268,
+                "dx": -1.4833177201390697,
+                "active_energy": 5680.615702479341
+              },
+              "truth_translation_pixels": {
+                "dy": -0.26511514681894255,
+                "dx": 0.5341031300343104,
+                "active_energy": 11367.077685950408
+              },
+              "from_frame": 10,
+              "to_frame": 11
+            },
+            {
+              "phase_alignment": -0.06928345380762774,
+              "cosine": -0.12949890557241842,
+              "amplitude_agreement": 0.5350118867906805,
+              "predicted_motion_norm": 5.262156548010069,
+              "truth_motion_norm": 14.409019655478097,
+              "score": 0.0,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 0.9404697407874482,
+              "predicted_translation_pixels": {
+                "dy": 0.29718792253535753,
+                "dx": -2.3409339772049975,
+                "active_energy": 5698.3471074380195
+              },
+              "truth_translation_pixels": {
+                "dy": -0.16498645135578727,
+                "dx": -0.9258848763241758,
+                "active_energy": 10731.303305785124
+              },
+              "from_frame": 11,
+              "to_frame": 12
+            },
+            {
+              "phase_alignment": 0.07817713316424797,
+              "cosine": 0.1026198849004835,
+              "amplitude_agreement": 0.7618127153432389,
+              "predicted_motion_norm": 7.149857157261617,
+              "truth_motion_norm": 11.620785582772486,
+              "score": null,
+              "displacement_skill": null,
+              "measurable": false,
+              "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+              "truth_translation_norm_pixels": 0.624596167898753,
+              "predicted_translation_pixels": {
+                "dy": -0.3657443432636569,
+                "dx": 0.11274003371954677,
+                "active_energy": 5389.504132231404
+              },
+              "truth_translation_pixels": {
+                "dy": 0.3938401115644865,
+                "dx": -0.48477864998025666,
+                "active_energy": 9115.431404958676
+              },
+              "from_frame": 12,
+              "to_frame": 13
+            },
+            {
+              "phase_alignment": 0.06357183075449652,
+              "cosine": 0.08910468709650946,
+              "amplitude_agreement": 0.7134510296371025,
+              "predicted_motion_norm": 6.465247522523524,
+              "truth_motion_norm": 11.658624345212314,
+              "score": null,
+              "displacement_skill": null,
+              "measurable": false,
+              "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+              "truth_translation_norm_pixels": 0.681195068878926,
+              "predicted_translation_pixels": {
+                "dy": 0.9934465060778734,
+                "dx": 3.823368344025738,
+                "active_energy": 4927.6338842975165
+              },
+              "truth_translation_pixels": {
+                "dy": -0.5664143889197533,
+                "dx": 0.37841969014525034,
+                "active_energy": 8133.082644628094
+              },
+              "from_frame": 13,
+              "to_frame": 14
+            },
+            {
+              "phase_alignment": 0.005284476227647542,
+              "cosine": 0.007989742171343095,
+              "amplitude_agreement": 0.6614076041904627,
+              "predicted_motion_norm": 5.907574849837444,
+              "truth_motion_norm": 11.956068726102652,
+              "score": 0.002642238113823771,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 1.3653431407071066,
+              "predicted_translation_pixels": {
+                "dy": -2.3796071048700753,
+                "dx": -1.9262293236058383,
+                "active_energy": 4717.443801652891
+              },
+              "truth_translation_pixels": {
+                "dy": -0.42588604720211265,
+                "dx": -1.2972212481587349,
+                "active_energy": 7189.381818181816
+              },
+              "from_frame": 14,
+              "to_frame": 15
+            }
+          ]
+        },
+        "persistence": {
+          "score": 0.0,
+          "n_transitions": 4,
+          "n_nonmeasurable_transitions": 3,
+          "truth_high_pass_scale": 17.719008264462815,
+          "transitions": [
+            {
+              "phase_alignment": 0.0,
+              "cosine": 0.0,
+              "amplitude_agreement": 0.0,
+              "predicted_motion_norm": 0.0,
+              "truth_motion_norm": 30.771995143686585,
+              "score": 0.0,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 7.999999999999999,
+              "predicted_translation_pixels": {
+                "dy": 0.0,
+                "dx": 0.0,
+                "active_energy": 3917.85123966942
+              },
+              "truth_translation_pixels": {
+                "dy": 7.7985034724251925,
+                "dx": -1.7841926999548585,
+                "active_energy": 5070.033057851237
+              },
+              "from_frame": 8,
+              "to_frame": 9
+            },
+            {
+              "phase_alignment": 0.0,
+              "cosine": 0.0,
+              "amplitude_agreement": 0.0,
+              "predicted_motion_norm": 0.0,
+              "truth_motion_norm": 20.720869439683092,
+              "score": 0.0,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 2.6123932956151816,
+              "predicted_translation_pixels": {
+                "dy": 0.0,
+                "dx": 0.0,
+                "active_energy": 3917.85123966942
+              },
+              "truth_translation_pixels": {
+                "dy": 2.092677296909443,
+                "dx": 1.5637456513048846,
+                "active_energy": 9173.185123966932
+              },
+              "from_frame": 9,
+              "to_frame": 10
+            },
+            {
+              "phase_alignment": 0.0,
+              "cosine": 0.0,
+              "amplitude_agreement": 0.0,
+              "predicted_motion_norm": 0.0,
+              "truth_motion_norm": 12.077845691134328,
+              "score": null,
+              "displacement_skill": null,
+              "measurable": false,
+              "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+              "truth_translation_norm_pixels": 0.5962819757340289,
+              "predicted_translation_pixels": {
+                "dy": 0.0,
+                "dx": 0.0,
+                "active_energy": 3917.85123966942
+              },
+              "truth_translation_pixels": {
+                "dy": -0.26511514681894255,
+                "dx": 0.5341031300343104,
+                "active_energy": 11367.077685950408
+              },
+              "from_frame": 10,
+              "to_frame": 11
+            },
+            {
+              "phase_alignment": -0.00044652355762220594,
+              "cosine": -0.002436170309093019,
+              "amplitude_agreement": 0.18328913867620597,
+              "predicted_motion_norm": 1.4537353510930497,
+              "truth_motion_norm": 14.409019655478097,
+              "score": 0.0,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 0.9404697407874482,
+              "predicted_translation_pixels": {
+                "dy": 0.027603304483591273,
+                "dx": 0.10678295262886195,
+                "active_energy": 3929.90909090909
+              },
+              "truth_translation_pixels": {
+                "dy": -0.16498645135578727,
+                "dx": -0.9258848763241758,
+                "active_energy": 10731.303305785124
+              },
+              "from_frame": 11,
+              "to_frame": 12
+            },
+            {
+              "phase_alignment": 0.0,
+              "cosine": 0.0,
+              "amplitude_agreement": 0.0,
+              "predicted_motion_norm": 0.0,
+              "truth_motion_norm": 11.620785582772486,
+              "score": null,
+              "displacement_skill": null,
+              "measurable": false,
+              "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+              "truth_translation_norm_pixels": 0.624596167898753,
+              "predicted_translation_pixels": {
+                "dy": 0.0,
+                "dx": 0.0,
+                "active_energy": 3941.9669421487597
+              },
+              "truth_translation_pixels": {
+                "dy": 0.3938401115644865,
+                "dx": -0.48477864998025666,
+                "active_energy": 9115.431404958676
+              },
+              "from_frame": 12,
+              "to_frame": 13
+            },
+            {
+              "phase_alignment": 0.0,
+              "cosine": 0.0,
+              "amplitude_agreement": 0.0,
+              "predicted_motion_norm": 0.0,
+              "truth_motion_norm": 11.658624345212314,
+              "score": null,
+              "displacement_skill": null,
+              "measurable": false,
+              "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+              "truth_translation_norm_pixels": 0.681195068878926,
+              "predicted_translation_pixels": {
+                "dy": 0.0,
+                "dx": 0.0,
+                "active_energy": 3941.9669421487597
+              },
+              "truth_translation_pixels": {
+                "dy": -0.5664143889197533,
+                "dx": 0.37841969014525034,
+                "active_energy": 8133.082644628094
+              },
+              "from_frame": 13,
+              "to_frame": 14
+            },
+            {
+              "phase_alignment": 0.0,
+              "cosine": 0.0,
+              "amplitude_agreement": 0.0,
+              "predicted_motion_norm": 0.0,
+              "truth_motion_norm": 11.956068726102652,
+              "score": 0.0,
+              "displacement_skill": 0.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 1.3653431407071066,
+              "predicted_translation_pixels": {
+                "dy": 0.0,
+                "dx": 0.0,
+                "active_energy": 3941.9669421487597
+              },
+              "truth_translation_pixels": {
+                "dy": -0.42588604720211265,
+                "dx": -1.2972212481587349,
+                "active_energy": 7189.381818181816
+              },
+              "from_frame": 14,
+              "to_frame": 15
+            }
+          ]
+        },
+        "oracle": {
+          "score": 1.0,
+          "n_transitions": 4,
+          "n_nonmeasurable_transitions": 3,
+          "truth_high_pass_scale": 17.719008264462815,
+          "transitions": [
+            {
+              "phase_alignment": 1.0,
+              "cosine": 1.0,
+              "amplitude_agreement": 1.0,
+              "predicted_motion_norm": 30.771995143686585,
+              "truth_motion_norm": 30.771995143686585,
+              "score": 1.0,
+              "displacement_skill": 1.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 7.999999999999999,
+              "predicted_translation_pixels": {
+                "dy": 7.7985034724251925,
+                "dx": -1.7841926999548585,
+                "active_energy": 5070.033057851237
+              },
+              "truth_translation_pixels": {
+                "dy": 7.7985034724251925,
+                "dx": -1.7841926999548585,
+                "active_energy": 5070.033057851237
+              },
+              "from_frame": 8,
+              "to_frame": 9
+            },
+            {
+              "phase_alignment": 1.0,
+              "cosine": 1.0,
+              "amplitude_agreement": 1.0,
+              "predicted_motion_norm": 20.720869439683092,
+              "truth_motion_norm": 20.720869439683092,
+              "score": 1.0,
+              "displacement_skill": 1.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 2.6123932956151816,
+              "predicted_translation_pixels": {
+                "dy": 2.092677296909443,
+                "dx": 1.5637456513048846,
+                "active_energy": 9173.185123966932
+              },
+              "truth_translation_pixels": {
+                "dy": 2.092677296909443,
+                "dx": 1.5637456513048846,
+                "active_energy": 9173.185123966932
+              },
+              "from_frame": 9,
+              "to_frame": 10
+            },
+            {
+              "phase_alignment": 1.0,
+              "cosine": 1.0,
+              "amplitude_agreement": 1.0,
+              "predicted_motion_norm": 12.077845691134328,
+              "truth_motion_norm": 12.077845691134328,
+              "score": null,
+              "displacement_skill": null,
+              "measurable": false,
+              "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+              "truth_translation_norm_pixels": 0.5962819757340289,
+              "predicted_translation_pixels": {
+                "dy": -0.26511514681894255,
+                "dx": 0.5341031300343104,
+                "active_energy": 11367.077685950408
+              },
+              "truth_translation_pixels": {
+                "dy": -0.26511514681894255,
+                "dx": 0.5341031300343104,
+                "active_energy": 11367.077685950408
+              },
+              "from_frame": 10,
+              "to_frame": 11
+            },
+            {
+              "phase_alignment": 0.9999999999999999,
+              "cosine": 0.9999999999999999,
+              "amplitude_agreement": 1.0,
+              "predicted_motion_norm": 14.409019655478097,
+              "truth_motion_norm": 14.409019655478097,
+              "score": 1.0,
+              "displacement_skill": 1.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 0.9404697407874482,
+              "predicted_translation_pixels": {
+                "dy": -0.16498645135578727,
+                "dx": -0.9258848763241758,
+                "active_energy": 10731.303305785124
+              },
+              "truth_translation_pixels": {
+                "dy": -0.16498645135578727,
+                "dx": -0.9258848763241758,
+                "active_energy": 10731.303305785124
+              },
+              "from_frame": 11,
+              "to_frame": 12
+            },
+            {
+              "phase_alignment": 1.0,
+              "cosine": 1.0,
+              "amplitude_agreement": 1.0,
+              "predicted_motion_norm": 11.620785582772486,
+              "truth_motion_norm": 11.620785582772486,
+              "score": null,
+              "displacement_skill": null,
+              "measurable": false,
+              "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+              "truth_translation_norm_pixels": 0.624596167898753,
+              "predicted_translation_pixels": {
+                "dy": 0.3938401115644865,
+                "dx": -0.48477864998025666,
+                "active_energy": 9115.431404958676
+              },
+              "truth_translation_pixels": {
+                "dy": 0.3938401115644865,
+                "dx": -0.48477864998025666,
+                "active_energy": 9115.431404958676
+              },
+              "from_frame": 12,
+              "to_frame": 13
+            },
+            {
+              "phase_alignment": 0.9999999999999998,
+              "cosine": 0.9999999999999998,
+              "amplitude_agreement": 1.0,
+              "predicted_motion_norm": 11.658624345212314,
+              "truth_motion_norm": 11.658624345212314,
+              "score": null,
+              "displacement_skill": null,
+              "measurable": false,
+              "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+              "truth_translation_norm_pixels": 0.681195068878926,
+              "predicted_translation_pixels": {
+                "dy": -0.5664143889197533,
+                "dx": 0.37841969014525034,
+                "active_energy": 8133.082644628094
+              },
+              "truth_translation_pixels": {
+                "dy": -0.5664143889197533,
+                "dx": 0.37841969014525034,
+                "active_energy": 8133.082644628094
+              },
+              "from_frame": 13,
+              "to_frame": 14
+            },
+            {
+              "phase_alignment": 1.0,
+              "cosine": 1.0,
+              "amplitude_agreement": 1.0,
+              "predicted_motion_norm": 11.956068726102652,
+              "truth_motion_norm": 11.956068726102652,
+              "score": 1.0,
+              "displacement_skill": 1.0,
+              "measurable": true,
+              "nonmeasurable_reason": null,
+              "truth_translation_norm_pixels": 1.3653431407071066,
+              "predicted_translation_pixels": {
+                "dy": -0.42588604720211265,
+                "dx": -1.2972212481587349,
+                "active_energy": 7189.381818181816
+              },
+              "truth_translation_pixels": {
+                "dy": -0.42588604720211265,
+                "dx": -1.2972212481587349,
+                "active_energy": 7189.381818181816
+              },
+              "from_frame": 14,
+              "to_frame": 15
+            }
+          ]
+        },
+        "coloured_noise": [
+          {
+            "score": 0.10494683373680264,
+            "n_transitions": 4,
+            "n_nonmeasurable_transitions": 3,
+            "truth_high_pass_scale": 17.719008264462815,
+            "transitions": [
+              {
+                "phase_alignment": 0.009194162288782606,
+                "cosine": 0.011833246708809968,
+                "amplitude_agreement": 0.7769771487936157,
+                "predicted_motion_norm": 48.43752907839677,
+                "truth_motion_norm": 30.771995143686585,
+                "score": 0.18606247769243764,
+                "displacement_skill": 0.36293079309609266,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 7.999999999999999,
+                "predicted_translation_pixels": {
+                  "dy": 2.7107073613357784,
+                  "dx": -2.0828394689555125,
+                  "active_energy": 3858.570387202522
+                },
+                "truth_translation_pixels": {
+                  "dy": 7.7985034724251925,
+                  "dx": -1.7841926999548585,
+                  "active_energy": 5070.033057851237
+                },
+                "from_frame": 8,
+                "to_frame": 9
+              },
+              {
+                "phase_alignment": 0.023480153195543668,
+                "cosine": 0.03603591639674309,
+                "amplitude_agreement": 0.6515764144037639,
+                "predicted_motion_norm": 42.88140032216542,
+                "truth_motion_norm": 20.720869439683092,
+                "score": 0.011740076597771834,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 2.6123932956151816,
+                "predicted_translation_pixels": {
+                  "dy": -3.322705578849896,
+                  "dx": -7.27733657571778,
+                  "active_energy": 3806.3512895085223
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.092677296909443,
+                  "dx": 1.5637456513048846,
+                  "active_energy": 9173.185123966932
+                },
+                "from_frame": 9,
+                "to_frame": 10
+              },
+              {
+                "phase_alignment": -0.002655416022778993,
+                "cosine": -0.005863170290253918,
+                "amplitude_agreement": 0.45289764603852123,
+                "predicted_motion_norm": 41.25802742182527,
+                "truth_motion_norm": 12.077845691134328,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.5962819757340289,
+                "predicted_translation_pixels": {
+                  "dy": -2.875418286782889,
+                  "dx": -6.432857209327182,
+                  "active_energy": 3685.73046893472
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.26511514681894255,
+                  "dx": 0.5341031300343104,
+                  "active_energy": 11367.077685950408
+                },
+                "from_frame": 10,
+                "to_frame": 11
+              },
+              {
+                "phase_alignment": -0.020312252687244035,
+                "cosine": -0.04072678687665528,
+                "amplitude_agreement": 0.4987442969356142,
+                "predicted_motion_norm": 43.372171002781165,
+                "truth_motion_norm": 14.409019655478097,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 0.9404697407874482,
+                "predicted_translation_pixels": {
+                  "dy": 1.5423147662571264,
+                  "dx": 7.849921347490382,
+                  "active_energy": 3943.089975189478
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.16498645135578727,
+                  "dx": -0.9258848763241758,
+                  "active_energy": 10731.303305785124
+                },
+                "from_frame": 11,
+                "to_frame": 12
+              },
+              {
+                "phase_alignment": -0.01050651312821078,
+                "cosine": -0.024007221715430016,
+                "amplitude_agreement": 0.43763969245379164,
+                "predicted_motion_norm": 41.48584886172307,
+                "truth_motion_norm": 11.620785582772486,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.624596167898753,
+                "predicted_translation_pixels": {
+                  "dy": 1.2698934151143406,
+                  "dx": -7.8985676368724755,
+                  "active_energy": 3832.7624115739773
+                },
+                "truth_translation_pixels": {
+                  "dy": 0.3938401115644865,
+                  "dx": -0.48477864998025666,
+                  "active_energy": 9115.431404958676
+                },
+                "from_frame": 12,
+                "to_frame": 13
+              },
+              {
+                "phase_alignment": 0.018934078582925666,
+                "cosine": 0.043580562835035225,
+                "amplitude_agreement": 0.434461543202104,
+                "predicted_motion_norm": 42.01067977448015,
+                "truth_motion_norm": 11.658624345212314,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.681195068878926,
+                "predicted_translation_pixels": {
+                  "dy": -1.884503154846584,
+                  "dx": 4.9892065377569,
+                  "active_energy": 3878.393433368071
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.5664143889197533,
+                  "dx": 0.37841969014525034,
+                  "active_energy": 8133.082644628094
+                },
+                "from_frame": 13,
+                "to_frame": 14
+              },
+              {
+                "phase_alignment": -0.017478608660640434,
+                "cosine": -0.04184441303961114,
+                "amplitude_agreement": 0.4177047158982652,
+                "predicted_motion_norm": 45.29044188793903,
+                "truth_motion_norm": 11.956068726102652,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 1.3653431407071066,
+                "predicted_translation_pixels": {
+                  "dy": 3.610022515663303,
+                  "dx": -3.235000357146731,
+                  "active_energy": 4055.0167754662366
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.42588604720211265,
+                  "dx": -1.2972212481587349,
+                  "active_energy": 7189.381818181816
+                },
+                "from_frame": 14,
+                "to_frame": 15
+              }
+            ]
+          },
+          {
+            "score": 0.012831408720783963,
+            "n_transitions": 4,
+            "n_nonmeasurable_transitions": 3,
+            "truth_high_pass_scale": 17.719008264462815,
+            "transitions": [
+              {
+                "phase_alignment": -0.09116327985582835,
+                "cosine": -0.10984792470744602,
+                "amplitude_agreement": 0.8299044346865924,
+                "predicted_motion_norm": 43.385929208910504,
+                "truth_motion_norm": 30.771995143686585,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 7.999999999999999,
+                "predicted_translation_pixels": {
+                  "dy": 4.084880137037978,
+                  "dx": 6.878499419643253,
+                  "active_energy": 3675.0263014371794
+                },
+                "truth_translation_pixels": {
+                  "dy": 7.7985034724251925,
+                  "dx": -1.7841926999548585,
+                  "active_energy": 5070.033057851237
+                },
+                "from_frame": 8,
+                "to_frame": 9
+              },
+              {
+                "phase_alignment": 0.10207542804912458,
+                "cosine": 0.14692766776857447,
+                "amplitude_agreement": 0.694732514300189,
+                "predicted_motion_norm": 38.930489934378826,
+                "truth_motion_norm": 20.720869439683092,
+                "score": 0.05103771402456229,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 2.6123932956151816,
+                "predicted_translation_pixels": {
+                  "dy": 0.6417998340747952,
+                  "dx": 7.974214254268665,
+                  "active_energy": 3350.2238234914857
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.092677296909443,
+                  "dx": 1.5637456513048846,
+                  "active_energy": 9173.185123966932
+                },
+                "from_frame": 9,
+                "to_frame": 10
+              },
+              {
+                "phase_alignment": -0.019243513670830097,
+                "cosine": -0.04335678369960877,
+                "amplitude_agreement": 0.4438408947526184,
+                "predicted_motion_norm": 42.346367282147924,
+                "truth_motion_norm": 12.077845691134328,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.5962819757340289,
+                "predicted_translation_pixels": {
+                  "dy": -3.72965350519222,
+                  "dx": -7.077406638819574,
+                  "active_energy": 3697.5299749010865
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.26511514681894255,
+                  "dx": 0.5341031300343104,
+                  "active_energy": 11367.077685950408
+                },
+                "from_frame": 10,
+                "to_frame": 11
+              },
+              {
+                "phase_alignment": -0.018476946710277116,
+                "cosine": -0.03637833744818276,
+                "amplitude_agreement": 0.5079106964851169,
+                "predicted_motion_norm": 42.32937847313985,
+                "truth_motion_norm": 14.409019655478097,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 0.9404697407874482,
+                "predicted_translation_pixels": {
+                  "dy": 2.175299949065251,
+                  "dx": 7.698575850869868,
+                  "active_energy": 3793.088645635159
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.16498645135578727,
+                  "dx": -0.9258848763241758,
+                  "active_energy": 10731.303305785124
+                },
+                "from_frame": 11,
+                "to_frame": 12
+              },
+              {
+                "phase_alignment": 0.003077696926598281,
+                "cosine": 0.006915574572053193,
+                "amplitude_agreement": 0.4450384989029959,
+                "predicted_motion_norm": 40.6029461232139,
+                "truth_motion_norm": 11.620785582772486,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.624596167898753,
+                "predicted_translation_pixels": {
+                  "dy": -0.3188706295275551,
+                  "dx": -7.993642569043522,
+                  "active_energy": 3621.027504806232
+                },
+                "truth_translation_pixels": {
+                  "dy": 0.3938401115644865,
+                  "dx": -0.48477864998025666,
+                  "active_energy": 9115.431404958676
+                },
+                "from_frame": 12,
+                "to_frame": 13
+              },
+              {
+                "phase_alignment": 0.024418668035375995,
+                "cosine": 0.054483859919760694,
+                "amplitude_agreement": 0.44818168300369654,
+                "predicted_motion_norm": 40.367706883126424,
+                "truth_motion_norm": 11.658624345212314,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.681195068878926,
+                "predicted_translation_pixels": {
+                  "dy": 0.24966745538616303,
+                  "dx": 7.9961031860351195,
+                  "active_energy": 3875.2545513198156
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.5664143889197533,
+                  "dx": 0.37841969014525034,
+                  "active_energy": 8133.082644628094
+                },
+                "from_frame": 13,
+                "to_frame": 14
+              },
+              {
+                "phase_alignment": 0.003420689873699863,
+                "cosine": 0.008129632820349035,
+                "amplitude_agreement": 0.4207680653347146,
+                "predicted_motion_norm": 44.873665805161174,
+                "truth_motion_norm": 11.956068726102652,
+                "score": 0.0017103449368499315,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 1.3653431407071066,
+                "predicted_translation_pixels": {
+                  "dy": 3.631500637323569,
+                  "dx": -6.697630806033345,
+                  "active_energy": 4061.6197990655846
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.42588604720211265,
+                  "dx": -1.2972212481587349,
+                  "active_energy": 7189.381818181816
+                },
+                "from_frame": 14,
+                "to_frame": 15
+              }
+            ]
+          },
+          {
+            "score": 0.001535904446570196,
+            "n_transitions": 4,
+            "n_nonmeasurable_transitions": 3,
+            "truth_high_pass_scale": 17.719008264462815,
+            "transitions": [
+              {
+                "phase_alignment": -0.10029277083059014,
+                "cosine": -0.12860142457967105,
+                "amplitude_agreement": 0.7798729380984177,
+                "predicted_motion_norm": 48.1434118166284,
+                "truth_motion_norm": 30.771995143686585,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 7.999999999999999,
+                "predicted_translation_pixels": {
+                  "dy": -3.8098645988191606,
+                  "dx": -7.030888379409305,
+                  "active_energy": 4330.518545338801
+                },
+                "truth_translation_pixels": {
+                  "dy": 7.7985034724251925,
+                  "dx": -1.7841926999548585,
+                  "active_energy": 5070.033057851237
+                },
+                "from_frame": 8,
+                "to_frame": 9
+              },
+              {
+                "phase_alignment": 0.0048891460216937445,
+                "cosine": 0.00719555628771026,
+                "amplitude_agreement": 0.6794674138042979,
+                "predicted_motion_norm": 40.2706336661632,
+                "truth_motion_norm": 20.720869439683092,
+                "score": 0.0024445730108468722,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 2.6123932956151816,
+                "predicted_translation_pixels": {
+                  "dy": -3.7126662941971125,
+                  "dx": -7.086332548500154,
+                  "active_energy": 3648.4472073000816
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.092677296909443,
+                  "dx": 1.5637456513048846,
+                  "active_energy": 9173.185123966932
+                },
+                "from_frame": 9,
+                "to_frame": 10
+              },
+              {
+                "phase_alignment": 0.01906720779938157,
+                "cosine": 0.04087367896374908,
+                "amplitude_agreement": 0.4664911082824794,
+                "predicted_motion_norm": 39.70383021519699,
+                "truth_motion_norm": 12.077845691134328,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.5962819757340289,
+                "predicted_translation_pixels": {
+                  "dy": 1.1580298520853205,
+                  "dx": 7.11709847291209,
+                  "active_energy": 3434.514896838158
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.26511514681894255,
+                  "dx": 0.5341031300343104,
+                  "active_energy": 11367.077685950408
+                },
+                "from_frame": 10,
+                "to_frame": 11
+              },
+              {
+                "phase_alignment": 0.015438497109207786,
+                "cosine": 0.029344700292824988,
+                "amplitude_agreement": 0.5261085291432546,
+                "predicted_motion_norm": 40.366825468882745,
+                "truth_motion_norm": 14.409019655478097,
+                "score": 0.007719248554603893,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 0.9404697407874482,
+                "predicted_translation_pixels": {
+                  "dy": -0.5434873606748738,
+                  "dx": 0.8515863547276297,
+                  "active_energy": 3381.5999402007037
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.16498645135578727,
+                  "dx": -0.9258848763241758,
+                  "active_energy": 10731.303305785124
+                },
+                "from_frame": 11,
+                "to_frame": 12
+              },
+              {
+                "phase_alignment": 0.012388424614297578,
+                "cosine": 0.029294415579118906,
+                "amplitude_agreement": 0.422893728015795,
+                "predicted_motion_norm": 43.33763452573502,
+                "truth_motion_norm": 11.620785582772486,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.624596167898753,
+                "predicted_translation_pixels": {
+                  "dy": -1.5193980059385312,
+                  "dx": 7.854389199648183,
+                  "active_energy": 3797.643318112845
+                },
+                "truth_translation_pixels": {
+                  "dy": 0.3938401115644865,
+                  "dx": -0.48477864998025666,
+                  "active_energy": 9115.431404958676
+                },
+                "from_frame": 12,
+                "to_frame": 13
+              },
+              {
+                "phase_alignment": 0.025548103953562294,
+                "cosine": 0.05912606037893155,
+                "amplitude_agreement": 0.4320954886868444,
+                "predicted_motion_norm": 42.30456041583827,
+                "truth_motion_norm": 11.658624345212314,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.681195068878926,
+                "predicted_translation_pixels": {
+                  "dy": 6.038761589017336,
+                  "dx": -5.2472238823027935,
+                  "active_energy": 4226.917925674496
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.5664143889197533,
+                  "dx": 0.37841969014525034,
+                  "active_energy": 8133.082644628094
+                },
+                "from_frame": 13,
+                "to_frame": 14
+              },
+              {
+                "phase_alignment": -0.01580780631806333,
+                "cosine": -0.03609750498739073,
+                "amplitude_agreement": 0.4379196380355146,
+                "predicted_motion_norm": 42.647870844805716,
+                "truth_motion_norm": 11.956068726102652,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 1.3653431407071066,
+                "predicted_translation_pixels": {
+                  "dy": -0.7509439640873268,
+                  "dx": -6.134635528375043,
+                  "active_energy": 3946.0943227888592
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.42588604720211265,
+                  "dx": -1.2972212481587349,
+                  "active_energy": 7189.381818181816
+                },
+                "from_frame": 14,
+                "to_frame": 15
+              }
+            ]
+          },
+          {
+            "score": 0.0,
+            "n_transitions": 4,
+            "n_nonmeasurable_transitions": 3,
+            "truth_high_pass_scale": 17.719008264462815,
+            "transitions": [
+              {
+                "phase_alignment": -0.026318779323660703,
+                "cosine": -0.03360073418699745,
+                "amplitude_agreement": 0.7832798883854549,
+                "predicted_motion_norm": 47.800161756998634,
+                "truth_motion_norm": 30.771995143686585,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 7.999999999999999,
+                "predicted_translation_pixels": {
+                  "dy": 0.17370208732018005,
+                  "dx": 7.998114001741949,
+                  "active_energy": 3920.9708558249004
+                },
+                "truth_translation_pixels": {
+                  "dy": 7.7985034724251925,
+                  "dx": -1.7841926999548585,
+                  "active_energy": 5070.033057851237
+                },
+                "from_frame": 8,
+                "to_frame": 9
+              },
+              {
+                "phase_alignment": -0.022997788675147707,
+                "cosine": -0.036367131354498844,
+                "amplitude_agreement": 0.6323784092556075,
+                "predicted_motion_norm": 44.812264318233396,
+                "truth_motion_norm": 20.720869439683092,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 2.6123932956151816,
+                "predicted_translation_pixels": {
+                  "dy": -1.255553917425328,
+                  "dx": -7.900859722868008,
+                  "active_energy": 3492.2862842482123
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.092677296909443,
+                  "dx": 1.5637456513048846,
+                  "active_energy": 9173.185123966932
+                },
+                "from_frame": 9,
+                "to_frame": 10
+              },
+              {
+                "phase_alignment": -0.030629781808515697,
+                "cosine": -0.07117938925710775,
+                "amplitude_agreement": 0.4303181318102853,
+                "predicted_motion_norm": 44.0566501541818,
+                "truth_motion_norm": 12.077845691134328,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.5962819757340289,
+                "predicted_translation_pixels": {
+                  "dy": 4.158097207264916,
+                  "dx": 6.826781877880535,
+                  "active_energy": 3692.5757115969345
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.26511514681894255,
+                  "dx": 0.5341031300343104,
+                  "active_energy": 11367.077685950408
+                },
+                "from_frame": 10,
+                "to_frame": 11
+              },
+              {
+                "phase_alignment": -0.014095105742584385,
+                "cosine": -0.027453347197167285,
+                "amplitude_agreement": 0.5134202995851361,
+                "predicted_motion_norm": 41.72050879176544,
+                "truth_motion_norm": 14.409019655478097,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 0.9404697407874482,
+                "predicted_translation_pixels": {
+                  "dy": -0.033323306209984534,
+                  "dx": 7.9999305970279035,
+                  "active_energy": 3999.7716909884766
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.16498645135578727,
+                  "dx": -0.9258848763241758,
+                  "active_energy": 10731.303305785124
+                },
+                "from_frame": 11,
+                "to_frame": 12
+              },
+              {
+                "phase_alignment": 0.03801058962541694,
+                "cosine": 0.09066860257001187,
+                "amplitude_agreement": 0.41922549314759955,
+                "predicted_motion_norm": 43.818522249020454,
+                "truth_motion_norm": 11.620785582772486,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.624596167898753,
+                "predicted_translation_pixels": {
+                  "dy": -1.2423260970630565,
+                  "dx": -6.943701389567281,
+                  "active_energy": 4034.9351323352485
+                },
+                "truth_translation_pixels": {
+                  "dy": 0.3938401115644865,
+                  "dx": -0.48477864998025666,
+                  "active_energy": 9115.431404958676
+                },
+                "from_frame": 12,
+                "to_frame": 13
+              },
+              {
+                "phase_alignment": 0.0067606960753743475,
+                "cosine": 0.015871600648555917,
+                "amplitude_agreement": 0.4259618311395374,
+                "predicted_motion_norm": 43.08160584876091,
+                "truth_motion_norm": 11.658624345212314,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.681195068878926,
+                "predicted_translation_pixels": {
+                  "dy": 1.1890427185227346,
+                  "dx": -7.911142611123129,
+                  "active_energy": 3784.769530261394
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.5664143889197533,
+                  "dx": 0.37841969014525034,
+                  "active_energy": 8133.082644628094
+                },
+                "from_frame": 13,
+                "to_frame": 14
+              },
+              {
+                "phase_alignment": -0.00024086067603468575,
+                "cosine": -0.0006001938346931795,
+                "amplitude_agreement": 0.4013048153982026,
+                "predicted_motion_norm": 47.629903170292394,
+                "truth_motion_norm": 11.956068726102652,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 1.3653431407071066,
+                "predicted_translation_pixels": {
+                  "dy": -1.6667514679263036,
+                  "dx": 0.14299502209327386,
+                  "active_energy": 3851.9606887949335
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.42588604720211265,
+                  "dx": -1.2972212481587349,
+                  "active_energy": 7189.381818181816
+                },
+                "from_frame": 14,
+                "to_frame": 15
+              }
+            ]
+          },
+          {
+            "score": 0.0061105448551618,
+            "n_transitions": 4,
+            "n_nonmeasurable_transitions": 3,
+            "truth_high_pass_scale": 17.719008264462815,
+            "transitions": [
+              {
+                "phase_alignment": 0.019717480147388975,
+                "cosine": 0.02477213349656797,
+                "amplitude_agreement": 0.7959540566064168,
+                "predicted_motion_norm": 46.54903837144937,
+                "truth_motion_norm": 30.771995143686585,
+                "score": 0.009858740073694488,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 7.999999999999999,
+                "predicted_translation_pixels": {
+                  "dy": -2.1298858411576305,
+                  "dx": -2.0382311872656373,
+                  "active_energy": 4296.43335997706
+                },
+                "truth_translation_pixels": {
+                  "dy": 7.7985034724251925,
+                  "dx": -1.7841926999548585,
+                  "active_energy": 5070.033057851237
+                },
+                "from_frame": 8,
+                "to_frame": 9
+              },
+              {
+                "phase_alignment": -0.004665358225443022,
+                "cosine": -0.007329163318147197,
+                "amplitude_agreement": 0.6365471777510369,
+                "predicted_motion_norm": 44.38308566036555,
+                "truth_motion_norm": 20.720869439683092,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 2.6123932956151816,
+                "predicted_translation_pixels": {
+                  "dy": 5.106208844434235,
+                  "dx": 0.5423366446438536,
+                  "active_energy": 3891.4353607023486
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.092677296909443,
+                  "dx": 1.5637456513048846,
+                  "active_energy": 9173.185123966932
+                },
+                "from_frame": 9,
+                "to_frame": 10
+              },
+              {
+                "phase_alignment": 0.004473720624134686,
+                "cosine": 0.010101550242274517,
+                "amplitude_agreement": 0.44287465951635563,
+                "predicted_motion_norm": 42.465106503619936,
+                "truth_motion_norm": 12.077845691134328,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.5962819757340289,
+                "predicted_translation_pixels": {
+                  "dy": 1.0730443242435936,
+                  "dx": 7.927709371452046,
+                  "active_energy": 3619.848196359354
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.26511514681894255,
+                  "dx": 0.5341031300343104,
+                  "active_energy": 11367.077685950408
+                },
+                "from_frame": 10,
+                "to_frame": 11
+              },
+              {
+                "phase_alignment": 0.011718751009225923,
+                "cosine": 0.02333220903205272,
+                "amplitude_agreement": 0.5022563870025011,
+                "predicted_motion_norm": 42.96812886212292,
+                "truth_motion_norm": 14.409019655478097,
+                "score": 0.005859375504612962,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 0.9404697407874482,
+                "predicted_translation_pixels": {
+                  "dy": 0.0364067389183375,
+                  "dx": -7.999917158906168,
+                  "active_energy": 3726.8199349413635
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.16498645135578727,
+                  "dx": -0.9258848763241758,
+                  "active_energy": 10731.303305785124
+                },
+                "from_frame": 11,
+                "to_frame": 12
+              },
+              {
+                "phase_alignment": -0.00892210634116237,
+                "cosine": -0.01962143366251647,
+                "amplitude_agreement": 0.45471225470168325,
+                "predicted_motion_norm": 39.4919146473824,
+                "truth_motion_norm": 11.620785582772486,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.624596167898753,
+                "predicted_translation_pixels": {
+                  "dy": -4.37201445883565,
+                  "dx": -3.4422151371336156,
+                  "active_energy": 3468.8151356443072
+                },
+                "truth_translation_pixels": {
+                  "dy": 0.3938401115644865,
+                  "dx": -0.48477864998025666,
+                  "active_energy": 9115.431404958676
+                },
+                "from_frame": 12,
+                "to_frame": 13
+              },
+              {
+                "phase_alignment": -0.0012082786250861494,
+                "cosine": -0.0027441554269821804,
+                "amplitude_agreement": 0.4403098356622333,
+                "predicted_motion_norm": 41.297832226681194,
+                "truth_motion_norm": 11.658624345212314,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.681195068878926,
+                "predicted_translation_pixels": {
+                  "dy": 2.317025338190263,
+                  "dx": 7.657113919890724,
+                  "active_energy": 3536.793846696758
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.5664143889197533,
+                  "dx": 0.37841969014525034,
+                  "active_energy": 8133.082644628094
+                },
+                "from_frame": 13,
+                "to_frame": 14
+              },
+              {
+                "phase_alignment": -0.04409278954881504,
+                "cosine": -0.09975834870618204,
+                "amplitude_agreement": 0.4419959845033261,
+                "predicted_motion_norm": 42.144281255754166,
+                "truth_motion_norm": 11.956068726102652,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 1.3653431407071066,
+                "predicted_translation_pixels": {
+                  "dy": 0.8715408409175915,
+                  "dx": 7.952384331922889,
+                  "active_energy": 3668.218791199377
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.42588604720211265,
+                  "dx": -1.2972212481587349,
+                  "active_energy": 7189.381818181816
+                },
+                "from_frame": 14,
+                "to_frame": 15
+              }
+            ]
+          },
+          {
+            "score": 0.002483423689638247,
+            "n_transitions": 4,
+            "n_nonmeasurable_transitions": 3,
+            "truth_high_pass_scale": 17.719008264462815,
+            "transitions": [
+              {
+                "phase_alignment": 0.008160892251472044,
+                "cosine": 0.010308733582753039,
+                "amplitude_agreement": 0.791648381050954,
+                "predicted_motion_norm": 46.969577706712414,
+                "truth_motion_norm": 30.771995143686585,
+                "score": 0.004080446125736022,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 7.999999999999999,
+                "predicted_translation_pixels": {
+                  "dy": -0.44212251518484974,
+                  "dx": 7.987773637351437,
+                  "active_energy": 4228.203011309317
+                },
+                "truth_translation_pixels": {
+                  "dy": 7.7985034724251925,
+                  "dx": -1.7841926999548585,
+                  "active_energy": 5070.033057851237
+                },
+                "from_frame": 8,
+                "to_frame": 9
+              },
+              {
+                "phase_alignment": -0.040447659607233614,
+                "cosine": -0.05945517036063257,
+                "amplitude_agreement": 0.6803051671014214,
+                "predicted_motion_norm": 40.19552644179631,
+                "truth_motion_norm": 20.720869439683092,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 2.6123932956151816,
+                "predicted_translation_pixels": {
+                  "dy": -0.8454215409614944,
+                  "dx": -7.955203480620611,
+                  "active_energy": 3938.3362061611006
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.092677296909443,
+                  "dx": 1.5637456513048846,
+                  "active_energy": 9173.185123966932
+                },
+                "from_frame": 9,
+                "to_frame": 10
+              },
+              {
+                "phase_alignment": 0.015468678514091413,
+                "cosine": 0.036075257313464164,
+                "amplitude_agreement": 0.4287891387629306,
+                "predicted_motion_norm": 44.25681673048984,
+                "truth_motion_norm": 12.077845691134328,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.5962819757340289,
+                "predicted_translation_pixels": {
+                  "dy": -1.6440740731660848,
+                  "dx": 7.829241370780638,
+                  "active_energy": 3765.216762357777
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.26511514681894255,
+                  "dx": 0.5341031300343104,
+                  "active_energy": 11367.077685950408
+                },
+                "from_frame": 10,
+                "to_frame": 11
+              },
+              {
+                "phase_alignment": -0.007804749181199325,
+                "cosine": -0.016105677982027444,
+                "amplitude_agreement": 0.48459612752153347,
+                "predicted_motion_norm": 45.059138825989834,
+                "truth_motion_norm": 14.409019655478097,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 0.9404697407874482,
+                "predicted_translation_pixels": {
+                  "dy": -4.597767479566301,
+                  "dx": -6.546795720338503,
+                  "active_energy": 3924.687366356712
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.16498645135578727,
+                  "dx": -0.9258848763241758,
+                  "active_energy": 10731.303305785124
+                },
+                "from_frame": 11,
+                "to_frame": 12
+              },
+              {
+                "phase_alignment": 0.013170575919003166,
+                "cosine": 0.030811184982306422,
+                "amplitude_agreement": 0.4274608693747572,
+                "predicted_motion_norm": 42.75043955308659,
+                "truth_motion_norm": 11.620785582772486,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.624596167898753,
+                "predicted_translation_pixels": {
+                  "dy": 6.280246323167277,
+                  "dx": 4.955653954862455,
+                  "active_energy": 3905.9036893252
+                },
+                "truth_translation_pixels": {
+                  "dy": 0.3938401115644865,
+                  "dx": -0.48477864998025666,
+                  "active_energy": 9115.431404958676
+                },
+                "from_frame": 12,
+                "to_frame": 13
+              },
+              {
+                "phase_alignment": -0.01989115434670758,
+                "cosine": -0.04654178035005631,
+                "amplitude_agreement": 0.42738275581852586,
+                "predicted_motion_norm": 42.89961033547175,
+                "truth_motion_norm": 11.658624345212314,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.681195068878926,
+                "predicted_translation_pixels": {
+                  "dy": 3.20055268750761,
+                  "dx": -0.030927937734077204,
+                  "active_energy": 3900.237778952032
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.5664143889197533,
+                  "dx": 0.37841969014525034,
+                  "active_energy": 8133.082644628094
+                },
+                "from_frame": 13,
+                "to_frame": 14
+              },
+              {
+                "phase_alignment": 0.00594107047792694,
+                "cosine": 0.01362814082967506,
+                "amplitude_agreement": 0.4359413769037632,
+                "predicted_motion_norm": 42.89565840757582,
+                "truth_motion_norm": 11.956068726102652,
+                "score": 0.00297053523896347,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 1.3653431407071066,
+                "predicted_translation_pixels": {
+                  "dy": -4.36284593511175,
+                  "dx": -3.176066618924324,
+                  "active_energy": 3857.2190987073463
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.42588604720211265,
+                  "dx": -1.2972212481587349,
+                  "active_energy": 7189.381818181816
+                },
+                "from_frame": 14,
+                "to_frame": 15
+              }
+            ]
+          },
+          {
+            "score": 0.04418034944882847,
+            "n_transitions": 4,
+            "n_nonmeasurable_transitions": 3,
+            "truth_high_pass_scale": 17.719008264462815,
+            "transitions": [
+              {
+                "phase_alignment": 0.01822175733522323,
+                "cosine": 0.0238290224987932,
+                "amplitude_agreement": 0.7646875710552564,
+                "predicted_motion_norm": 49.71053473769158,
+                "truth_motion_norm": 30.771995143686585,
+                "score": 0.0755115226095755,
+                "displacement_skill": 0.13280128788392775,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 7.999999999999999,
+                "predicted_translation_pixels": {
+                  "dy": 1.0816974502664323,
+                  "dx": -3.5204725344347025,
+                  "active_energy": 4540.759411424932
+                },
+                "truth_translation_pixels": {
+                  "dy": 7.7985034724251925,
+                  "dx": -1.7841926999548585,
+                  "active_energy": 5070.033057851237
+                },
+                "from_frame": 8,
+                "to_frame": 9
+              },
+              {
+                "phase_alignment": -0.0438212554176981,
+                "cosine": -0.07211729992043002,
+                "amplitude_agreement": 0.6076386035812197,
+                "predicted_motion_norm": 47.48042428181908,
+                "truth_motion_norm": 20.720869439683092,
+                "score": 0.0,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 2.6123932956151816,
+                "predicted_translation_pixels": {
+                  "dy": 0.7519116541514848,
+                  "dx": 4.770935238911221,
+                  "active_energy": 4184.747201581024
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.092677296909443,
+                  "dx": 1.5637456513048846,
+                  "active_energy": 9173.185123966932
+                },
+                "from_frame": 9,
+                "to_frame": 10
+              },
+              {
+                "phase_alignment": 0.04522101193897525,
+                "cosine": 0.10543844498539716,
+                "amplitude_agreement": 0.4288854216812302,
+                "predicted_motion_norm": 44.24416984294091,
+                "truth_motion_norm": 12.077845691134328,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.5962819757340289,
+                "predicted_translation_pixels": {
+                  "dy": -0.39902710581327483,
+                  "dx": -3.3570364785371396,
+                  "active_energy": 3845.8310880376953
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.26511514681894255,
+                  "dx": 0.5341031300343104,
+                  "active_energy": 11367.077685950408
+                },
+                "from_frame": 10,
+                "to_frame": 11
+              },
+              {
+                "phase_alignment": 0.04304323937404787,
+                "cosine": 0.08378316953755455,
+                "amplitude_agreement": 0.5137456557400157,
+                "predicted_motion_norm": 41.684961848746525,
+                "truth_motion_norm": 14.409019655478097,
+                "score": 0.021521619687023937,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 0.9404697407874482,
+                "predicted_translation_pixels": {
+                  "dy": 5.640444863179368,
+                  "dx": 5.120465171065405,
+                  "active_energy": 3527.122704427082
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.16498645135578727,
+                  "dx": -0.9258848763241758,
+                  "active_energy": 10731.303305785124
+                },
+                "from_frame": 11,
+                "to_frame": 12
+              },
+              {
+                "phase_alignment": -0.009435731750187479,
+                "cosine": -0.021043001272698085,
+                "amplitude_agreement": 0.44840237511317943,
+                "predicted_motion_norm": 40.2111681611805,
+                "truth_motion_norm": 11.620785582772486,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.624596167898753,
+                "predicted_translation_pixels": {
+                  "dy": -2.718724470045231,
+                  "dx": -4.793960092115384,
+                  "active_energy": 3386.814449189189
+                },
+                "truth_translation_pixels": {
+                  "dy": 0.3938401115644865,
+                  "dx": -0.48477864998025666,
+                  "active_energy": 9115.431404958676
+                },
+                "from_frame": 12,
+                "to_frame": 13
+              },
+              {
+                "phase_alignment": -0.012431485208690314,
+                "cosine": -0.030104339908914753,
+                "amplitude_agreement": 0.41294661322266685,
+                "predicted_motion_norm": 44.80690399138074,
+                "truth_motion_norm": 11.658624345212314,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.681195068878926,
+                "predicted_translation_pixels": {
+                  "dy": -2.7928985552622123,
+                  "dx": -0.05872449966454951,
+                  "active_energy": 3512.5571809815056
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.5664143889197533,
+                  "dx": 0.37841969014525034,
+                  "active_energy": 8133.082644628094
+                },
+                "from_frame": 13,
+                "to_frame": 14
+              },
+              {
+                "phase_alignment": 0.004490114460088675,
+                "cosine": 0.011149822439811408,
+                "amplitude_agreement": 0.40270726142295615,
+                "predicted_motion_norm": 47.422392361766384,
+                "truth_motion_norm": 11.956068726102652,
+                "score": 0.0022450572300443377,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 1.3653431407071066,
+                "predicted_translation_pixels": {
+                  "dy": -0.3278810297815653,
+                  "dx": -5.202226603344386,
+                  "active_energy": 3943.817872476791
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.42588604720211265,
+                  "dx": -1.2972212481587349,
+                  "active_energy": 7189.381818181816
+                },
+                "from_frame": 14,
+                "to_frame": 15
+              }
+            ]
+          },
+          {
+            "score": 0.07043136791672862,
+            "n_transitions": 4,
+            "n_nonmeasurable_transitions": 3,
+            "truth_high_pass_scale": 17.719008264462815,
+            "transitions": [
+              {
+                "phase_alignment": 0.012351559746286848,
+                "cosine": 0.01556755987684108,
+                "amplitude_agreement": 0.7934165562235298,
+                "predicted_motion_norm": 46.796326067440674,
+                "truth_motion_norm": 30.771995143686585,
+                "score": 0.006175779873143424,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 7.999999999999999,
+                "predicted_translation_pixels": {
+                  "dy": -1.5991443310474878,
+                  "dx": 7.838541790950577,
+                  "active_energy": 4065.8009100738
+                },
+                "truth_translation_pixels": {
+                  "dy": 7.7985034724251925,
+                  "dx": -1.7841926999548585,
+                  "active_energy": 5070.033057851237
+                },
+                "from_frame": 8,
+                "to_frame": 9
+              },
+              {
+                "phase_alignment": -0.0432026418470247,
+                "cosine": -0.06611050736619388,
+                "amplitude_agreement": 0.6534913067255737,
+                "predicted_motion_norm": 42.69502982761837,
+                "truth_motion_norm": 20.720869439683092,
+                "score": 0.26815002880576266,
+                "displacement_skill": 0.5363000576115253,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 2.6123932956151816,
+                "predicted_translation_pixels": {
+                  "dy": 1.4688239298772316,
+                  "dx": 0.5253738170745805,
+                  "active_energy": 3699.2302050071703
+                },
+                "truth_translation_pixels": {
+                  "dy": 2.092677296909443,
+                  "dx": 1.5637456513048846,
+                  "active_energy": 9173.185123966932
+                },
+                "from_frame": 9,
+                "to_frame": 10
+              },
+              {
+                "phase_alignment": 0.007491510919200138,
+                "cosine": 0.01842127026376057,
+                "amplitude_agreement": 0.40667721671387064,
+                "predicted_motion_norm": 47.31985447377086,
+                "truth_motion_norm": 12.077845691134328,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.5962819757340289,
+                "predicted_translation_pixels": {
+                  "dy": -2.0794909019880143,
+                  "dx": -7.725005992784023,
+                  "active_energy": 3954.478343862469
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.26511514681894255,
+                  "dx": 0.5341031300343104,
+                  "active_energy": 11367.077685950408
+                },
+                "from_frame": 10,
+                "to_frame": 11
+              },
+              {
+                "phase_alignment": 0.005204404813512073,
+                "cosine": 0.01062027246650232,
+                "amplitude_agreement": 0.4900443778563519,
+                "predicted_motion_norm": 44.39797949226788,
+                "truth_motion_norm": 14.409019655478097,
+                "score": 0.0026022024067560365,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 0.9404697407874482,
+                "predicted_translation_pixels": {
+                  "dy": 7.860778711254482,
+                  "dx": 1.4859872316706892,
+                  "active_energy": 4141.453552117378
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.16498645135578727,
+                  "dx": -0.9258848763241758,
+                  "active_energy": 10731.303305785124
+                },
+                "from_frame": 11,
+                "to_frame": 12
+              },
+              {
+                "phase_alignment": 0.0036597693264388644,
+                "cosine": 0.008236298157575405,
+                "amplitude_agreement": 0.4443463867408394,
+                "predicted_motion_norm": 40.68428959971209,
+                "truth_motion_norm": 11.620785582772486,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.624596167898753,
+                "predicted_translation_pixels": {
+                  "dy": -6.860510440818318,
+                  "dx": 4.115020837301172,
+                  "active_energy": 3869.4377947047797
+                },
+                "truth_translation_pixels": {
+                  "dy": 0.3938401115644865,
+                  "dx": -0.48477864998025666,
+                  "active_energy": 9115.431404958676
+                },
+                "from_frame": 12,
+                "to_frame": 13
+              },
+              {
+                "phase_alignment": -0.005027549515149773,
+                "cosine": -0.010747584991870129,
+                "amplitude_agreement": 0.4677841132638446,
+                "predicted_motion_norm": 38.187550480466264,
+                "truth_motion_norm": 11.658624345212314,
+                "score": null,
+                "displacement_skill": null,
+                "measurable": false,
+                "nonmeasurable_reason": "truth_translation_below_minimum_or_temporal_change_undefined",
+                "truth_translation_norm_pixels": 0.681195068878926,
+                "predicted_translation_pixels": {
+                  "dy": 1.8447907046731324,
+                  "dx": -7.784391257892399,
+                  "active_energy": 3675.00590355847
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.5664143889197533,
+                  "dx": 0.37841969014525034,
+                  "active_energy": 8133.082644628094
+                },
+                "from_frame": 13,
+                "to_frame": 14
+              },
+              {
+                "phase_alignment": 0.0014538995876320839,
+                "cosine": 0.003228666375840473,
+                "amplitude_agreement": 0.45030963821822895,
+                "predicted_motion_norm": 41.14547612827821,
+                "truth_motion_norm": 11.956068726102652,
+                "score": 0.0007269497938160419,
+                "displacement_skill": 0.0,
+                "measurable": true,
+                "nonmeasurable_reason": null,
+                "truth_translation_norm_pixels": 1.3653431407071066,
+                "predicted_translation_pixels": {
+                  "dy": 0.14490016300136777,
+                  "dx": 7.998687638779388,
+                  "active_energy": 3515.600572392096
+                },
+                "truth_translation_pixels": {
+                  "dy": -0.42588604720211265,
+                  "dx": -1.2972212481587349,
+                  "active_energy": 7189.381818181816
+                },
+                "from_frame": 14,
+                "to_frame": 15
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "caveat": "The held-out persistent-filament selector yielded two usable windows; transition-level intervals are descriptive because adjacent frames within a window are correlated.",
+  "figure": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/cdw-ship-01/motion-readout-repair/docs/figures/camera-dynamics-wm/fig-cdw-motion-readout.png"
+}
