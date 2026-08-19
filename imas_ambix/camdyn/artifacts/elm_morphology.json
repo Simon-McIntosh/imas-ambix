@@ -1,0 +1,267 @@
+{
+  "task": "Dalpha-selected ELM-frame response morphology",
+  "pre_registered_metric": {
+    "horizon_ms": 10.0,
+    "frontier_frame": 8,
+    "target_frame": 12,
+    "region": "outer 3 token columns on each side plus lower 5 rows",
+    "response": "decoded brightness change from the last observed frame",
+    "score": "positive spatial response correlation multiplied by signed mean-brightness fidelity in the fixed region",
+    "decoder": "frozen imagenet_256_L Open-MAGVIT2 tokenizer decoder",
+    "bootstrap_unit": "Dalpha-selected held-out window",
+    "metric_spec_sha256": "d6e950555460ccbf661e11be445dd8ad3327eb7bd097842de5f8f86d128e3b93"
+  },
+  "selection": {
+    "diagnostic": "native fast xim Dalpha; selection only, never model input",
+    "sigma_gate": 4.0,
+    "candidate_policy": "deterministic stride sample of held-out shots",
+    "max_candidates": 120,
+    "eligible_windows": 8
+  },
+  "baseline_checkpoint": "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_baseline/final.pt",
+  "dynamics_checkpoint": "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_dynamics/final.pt",
+  "per_window": [
+    {
+      "shot_id": 21336,
+      "dalpha_channel": "da_to10",
+      "dalpha_burst_time_s": 0.4481399953365326,
+      "dalpha_sigma": 109.13260487728307,
+      "dalpha_peak_to_baseline": 32.11538461487867,
+      "actual_horizon_ms": 10.000000000000009,
+      "target_alignment_ms": 0.20900466346740476,
+      "camera_resolution": [
+        112,
+        172
+      ],
+      "baseline": {
+        "edge_divertor_nll": 12.167807495817286,
+        "edge_divertor_top1": 0.0,
+        "morphology_fidelity": 0.0,
+        "response_correlation": 0.32169234961825277,
+        "brightness_fidelity": 0.0
+      },
+      "dynamics": {
+        "edge_divertor_nll": 10.354958943741465,
+        "edge_divertor_top1": 0.0,
+        "morphology_fidelity": 0.0,
+        "response_correlation": 0.5412386278215798,
+        "brightness_fidelity": 0.0
+      }
+    },
+    {
+      "shot_id": 22088,
+      "dalpha_channel": "da_hl11_r",
+      "dalpha_burst_time_s": 0.3970400094985962,
+      "dalpha_sigma": 20.045865371533647,
+      "dalpha_peak_to_baseline": 8.356435643547412,
+      "actual_horizon_ms": 10.000000000000009,
+      "target_alignment_ms": -0.030009498596217377,
+      "camera_resolution": [
+        128,
+        172
+      ],
+      "baseline": {
+        "edge_divertor_nll": 12.996195344423759,
+        "edge_divertor_top1": 0.0,
+        "morphology_fidelity": 0.0,
+        "response_correlation": -0.364515735960702,
+        "brightness_fidelity": 0.5842086469476311
+      },
+      "dynamics": {
+        "edge_divertor_nll": 13.786825869967963,
+        "edge_divertor_top1": 0.00684931506849315,
+        "morphology_fidelity": 0.0,
+        "response_correlation": -0.05624664422668575,
+        "brightness_fidelity": 0.0
+      }
+    },
+    {
+      "shot_id": 22112,
+      "dalpha_channel": "da_hm10_r",
+      "dalpha_burst_time_s": 0.4406000077724457,
+      "dalpha_sigma": 17.874005125512515,
+      "dalpha_peak_to_baseline": 6.170731707255426,
+      "actual_horizon_ms": 10.000000000000009,
+      "target_alignment_ms": -0.5870077724456912,
+      "camera_resolution": [
+        112,
+        164
+      ],
+      "baseline": {
+        "edge_divertor_nll": 11.681676567998407,
+        "edge_divertor_top1": 0.0,
+        "morphology_fidelity": 0.0,
+        "response_correlation": 0.5704874454481893,
+        "brightness_fidelity": 0.0
+      },
+      "dynamics": {
+        "edge_divertor_nll": 8.904901042846198,
+        "edge_divertor_top1": 0.0136986301369863,
+        "morphology_fidelity": 0.0031230287127851646,
+        "response_correlation": 0.029474749768083244,
+        "brightness_fidelity": 0.10595607214168579
+      }
+    },
+    {
+      "shot_id": 22260,
+      "dalpha_channel": "da_bo10",
+      "dalpha_burst_time_s": 0.3811799883842468,
+      "dalpha_sigma": 169.63442600055285,
+      "dalpha_peak_to_baseline": 101.59999999722565,
+      "actual_horizon_ms": 10.000000000000009,
+      "target_alignment_ms": -0.3309883842468331,
+      "camera_resolution": [
+        112,
+        172
+      ],
+      "baseline": {
+        "edge_divertor_nll": 11.025873376372644,
+        "edge_divertor_top1": 0.0,
+        "morphology_fidelity": 0.0,
+        "response_correlation": 0.8611326590812332,
+        "brightness_fidelity": 0.0
+      },
+      "dynamics": {
+        "edge_divertor_nll": 12.786743928673138,
+        "edge_divertor_top1": 0.0,
+        "morphology_fidelity": 0.022487314976474684,
+        "response_correlation": 0.12438074210553443,
+        "brightness_fidelity": 0.18079418562557437
+      }
+    },
+    {
+      "shot_id": 22470,
+      "dalpha_channel": "da_hu10_t",
+      "dalpha_burst_time_s": 0.36362001299858093,
+      "dalpha_sigma": 24.27189211256485,
+      "dalpha_peak_to_baseline": 3.9665471923497613,
+      "actual_horizon_ms": 9.999999999999954,
+      "target_alignment_ms": 0.4059870014190281,
+      "camera_resolution": [
+        128,
+        172
+      ],
+      "baseline": {
+        "edge_divertor_nll": 13.552394301254385,
+        "edge_divertor_top1": 0.0,
+        "morphology_fidelity": 0.0,
+        "response_correlation": -0.15489991446103166,
+        "brightness_fidelity": 0.0
+      },
+      "dynamics": {
+        "edge_divertor_nll": 8.319172166727002,
+        "edge_divertor_top1": 0.0410958904109589,
+        "morphology_fidelity": 0.02707117439035259,
+        "response_correlation": 0.2022211449377148,
+        "brightness_fidelity": 0.1338691579393968
+      }
+    },
+    {
+      "shot_id": 24072,
+      "dalpha_channel": "da_hm10_r",
+      "dalpha_burst_time_s": 0.4377000033855438,
+      "dalpha_sigma": 27.569809792653736,
+      "dalpha_peak_to_baseline": 10.3428571427361,
+      "actual_horizon_ms": 10.000000000000009,
+      "target_alignment_ms": 0.6489966144561654,
+      "camera_resolution": [
+        112,
+        156
+      ],
+      "baseline": {
+        "edge_divertor_nll": 11.310338321648873,
+        "edge_divertor_top1": 0.0,
+        "morphology_fidelity": 0.0,
+        "response_correlation": 0.48068966745697983,
+        "brightness_fidelity": 0.0
+      },
+      "dynamics": {
+        "edge_divertor_nll": 10.62003227763628,
+        "edge_divertor_top1": 0.00684931506849315,
+        "morphology_fidelity": 0.2557509074277733,
+        "response_correlation": 0.3694948916137497,
+        "brightness_fidelity": 0.6921635812359801
+      }
+    },
+    {
+      "shot_id": 24436,
+      "dalpha_channel": "da_hl11_r",
+      "dalpha_burst_time_s": 0.3418000042438507,
+      "dalpha_sigma": 25.713239565207672,
+      "dalpha_peak_to_baseline": 30.65079365059437,
+      "actual_horizon_ms": 10.000000000000009,
+      "target_alignment_ms": 0.00599575614929071,
+      "camera_resolution": [
+        112,
+        156
+      ],
+      "baseline": {
+        "edge_divertor_nll": 12.708960787710977,
+        "edge_divertor_top1": 0.0,
+        "morphology_fidelity": 0.005302837258609742,
+        "response_correlation": 0.7222338329607558,
+        "brightness_fidelity": 0.007342272013028062
+      },
+      "dynamics": {
+        "edge_divertor_nll": 16.512437963538375,
+        "edge_divertor_top1": 0.0,
+        "morphology_fidelity": 0.00388164652952812,
+        "response_correlation": 0.22477026614424186,
+        "brightness_fidelity": 0.01726939508554548
+      }
+    },
+    {
+      "shot_id": 24451,
+      "dalpha_channel": "da_hl11_r",
+      "dalpha_burst_time_s": 0.38725998997688293,
+      "dalpha_sigma": 38.73133476491755,
+      "dalpha_peak_to_baseline": 21.736111110987455,
+      "actual_horizon_ms": 10.000000000000009,
+      "target_alignment_ms": 0.04601002311704905,
+      "camera_resolution": [
+        112,
+        156
+      ],
+      "baseline": {
+        "edge_divertor_nll": 12.605743555421634,
+        "edge_divertor_top1": 0.0,
+        "morphology_fidelity": 0.0,
+        "response_correlation": 0.7621832151550842,
+        "brightness_fidelity": 0.0
+      },
+      "dynamics": {
+        "edge_divertor_nll": 18.293204248954517,
+        "edge_divertor_top1": 0.0,
+        "morphology_fidelity": 0.0,
+        "response_correlation": 0.29380145820335435,
+        "brightness_fidelity": 0.0
+      }
+    }
+  ],
+  "aggregate": {
+    "baseline_morphology_mean": 0.0006628546573262177,
+    "dynamics_morphology_mean": 0.03903925900461423,
+    "dynamics_minus_baseline_morphology": {
+      "mean": 0.038376404347288014,
+      "lo": 0.0022779678486537277,
+      "hi": 0.10249178004536652,
+      "alpha": 0.05,
+      "favours_dynamics": true,
+      "clear_of_zero": true,
+      "n_pairs": 8
+    },
+    "baseline_nll_mean": 12.256123718830995,
+    "dynamics_nll_mean": 12.447284555260618,
+    "baseline_minus_dynamics_nll": {
+      "mean": -0.19116083642962178,
+      "lo": -2.493126094005482,
+      "hi": 2.1177501079949597,
+      "alpha": 0.05,
+      "favours_dynamics": false,
+      "clear_of_zero": false,
+      "n_pairs": 8
+    },
+    "reproduces_existing_arm_gap": true,
+    "edge_divertor_nll_favours_dynamics": false
+  }
+}
