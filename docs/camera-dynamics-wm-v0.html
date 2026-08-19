@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-20">
-<meta name="plan-version" content="28">
+<meta name="plan-version" content="29">
 <meta name="plan-impl" content="0.9">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
@@ -807,6 +807,9 @@ Done-when
 </div>
 <div class="r-comment" data-section="s5" data-id="c-20260820-da-burst-conditioning" data-who="reckon-ship" data-when="2026-08-20T00:22:00+00:00">
     <div class="r-comment-body">da-burst-conditioning landed its fenced work then BLOCKED on a discovered runtime gap — commit 05d7cac; gate causal-burst-summary-wired PASSED within the fence; measure conditioning.py reduces xim/da_hm10_t to native-sample interval RMS over the CLOSED causal inter-frame interval (a 1e6-valued sample at 2.01 s leaves the summaries ending at 1.0 s and 2.0 s unchanged, which is the causality proof), with width-matched shuffled and slow_only controls, the shuffled source index strictly earlier for every frame after the first, a fail-closed guard rejecting any channel marked both is_fast_input and is_probe_target, and matched-pair configs whose parsed forms differ only in temporal_attention and run_name across a 24-column catalog; 24 tests green. THE BLOCK IS THE IMPORTANT PART: the production CamdynWindowStream bypasses load_conditioning entirely and zero-order-holds every cached trace, so a training run launched on these configs would compute interval-RMS normalisation statistics while training on ZOH-ed xim samples — a silent invalidation of the whole conditioning comparison. Correcting it needs loader.py and train.py, outside this node's fence, so the comparison run is deliberately NOT dispatched until the runtime path dispatches channel.reduction and selects the configured variant.</div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20260820-conditioning-runtime" data-who="reckon-ship" data-when="2026-08-20T00:50:00+00:00">
+    <div class="r-comment-body">conditioning-runtime-dispatch landed — commit 665cc34; gate reduced-conditioning-reaches-the-model PASSED; measure the emitted CamdynWindowStream matrix now EXACTLY equals the load_conditioning matrix used for normalisation-stat estimation, closing the silent skew the previous node blocked on. Quantitative: all 3 burst variants (native, shuffled, slow_only) pairwise distinct and each numerically different from its zero-order-hold reference, while 23/23 non-burst value columns and 23/23 missingness columns are exactly unchanged; 26/26 tests green in 122 s. TrainConfig.conditioning_variant routes one width-matched channel tuple through _conditioning_stats and every train, validation and evaluation loader, so no path can drift from another; the causal shuffle is seeded by shot id, cached traces keep multi-dimensional slow profiles, and unknown variants or reductions fail closed. The conditioning comparison can now be launched on inputs the model actually receives.</div>
 </div>
 </section>
 </main>
