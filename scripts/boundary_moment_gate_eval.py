@@ -1,30 +1,32 @@
-"""Gate 1 for the constrained external-field (current-moment) boundary read.
+"""Evaluate the constrained external-field (current-moment) boundary read.
 
 Reads the plasma BOUNDARY (separatrix / X-point / LCFS radii) off a smooth psi
 reconstructed from a low-order CURRENT-MOMENT fit to the external magnetics
 (:mod:`imas_ambix.latent.boundary_moment`), instead of off the free ~5000-DOF
 patch-current psi that scored LCFS skill -6.26.
 
-HYBRID read (the plan's design, §5): the boundary (bounding flux, X-point set,
+HYBRID read: the boundary (bounding flux, X-point set,
 and the 8-angle LCFS ray-cast) is read from the constrained MOMENT psi, while
 the LCFS ray-cast ORIGIN (the magnetic axis) comes from a stable interior
 estimate rather than the low-DOF moment field's numerical O-point.  The topology
 read and the firewalled-EFIT scoring are otherwise identical to the free-current
 gate (``scripts/patch_gate_eval.py``), so the boundary representation is the only
 varying factor.  ``--axis-source`` selects the ray origin: ``patch`` (default,
-SCORED) = the free-current P3 inverse axis (~2.8 cm, faithful, origin-controlled);
+SCORED) = the frozen free-current inverse axis (~2.8 cm, faithful,
+origin-controlled);
 ``centroid`` = the moment fit's current centroid (free, analytic -- fast smoke
 arm only, not scored); ``moment`` = the moment psi's numerical O-point (ablation
 -- the low-DOF field cannot localise the axis, so the LCFS ray-cast degrades).
 
-Protocol (leakage-free, matches the P3 / A4 gate): ``--split train`` sweeps the
+Protocol (leakage-free, matching the free-current boundary evaluation):
+``--split train`` sweeps the
 moment order on the tuning cohort; ``--split eval`` scores the frozen order ONCE
 on the 160-slice held-out set (STANDING_HELD_OUT + test_ood_regime).  Shots and
 the free-current axes are loaded/inverted ONCE and reused across every order.
 
 Per slice it records the in-vessel saddle count (the free-current read's
 spurious off-axis nulls are what under-sized the LCFS, so a drop is direct
-evidence the deficit was a representation artifact -- Gate 1a).  Writes
+evidence the deficit was a representation artifact).  Writes
 ``.../patch_gate/boundary_read_moment-o<order>[-tune].json``.  No EFIT in any fit
 path; the referee only scores (firewall: code-outputs-only).
 """
@@ -51,9 +53,9 @@ if _SCRIPTS_DIR not in sys.path:
 
 # Reuse the exact scoring core + payload builder + frozen inverse of the
 # free-current gate (script-dir import: run from the scripts/ directory).
-from patch_gate_eval import (
+from patch_gate_eval import (  # noqa: E402
     ARTIFACTS,
-    P3_WINNER_KW,
+    FROZEN_INVERSE_KW,
     count_saddles,
     saddle_excess_stats,
     score,
@@ -61,11 +63,20 @@ from patch_gate_eval import (
     train_mean_baseline,
 )
 
-from imas_ambix.latent.boundary_moment import MomentFitConfig, invert_slices_moment
-from imas_ambix.latent.data import read_split_shot_lists
-from imas_ambix.latent.gs_solve import _read_axis, _read_boundary_psi_robust
-from imas_ambix.latent.patch_inverse import InverseConfig, invert_slices
-from imas_ambix.latent.topology import (
+from imas_ambix.latent.boundary_moment import (  # noqa: E402
+    MomentFitConfig,
+    invert_slices_moment,
+)
+from imas_ambix.latent.data import read_split_shot_lists  # noqa: E402
+from imas_ambix.latent.gs_solve import (  # noqa: E402
+    _read_axis,
+    _read_boundary_psi_robust,
+)
+from imas_ambix.latent.patch_inverse import (  # noqa: E402
+    InverseConfig,
+    invert_slices,
+)
+from imas_ambix.latent.topology import (  # noqa: E402
     _inside_polygon,
     find_critical_points,
     lcfs_radii,
@@ -141,9 +152,9 @@ def load_cohort(split, args):
 
 
 def free_current_psi(shots, device):
-    """Invert every slice ONCE with the frozen P3-winner inverse and cache the
-    patch psi field per slice (the interior carrier the hybrid axis reads)."""
-    cfg = InverseConfig(iters=800, **P3_WINNER_KW)
+    """Invert every slice once with the frozen inverse configuration and cache
+    the patch psi field per slice (the interior carrier the hybrid axis reads)."""
+    cfg = InverseConfig(iters=800, **FROZEN_INVERSE_KW)
     cache = []
     for payload in shots:
         basis = payload["basis"]
@@ -216,9 +227,10 @@ def score_order(shots, patch_psis, order, split, args) -> dict:
         "axis_error_mean_m": float(np.nanmean(axis_err)),
         "saddles_mean": float(np.mean(saddles)) if saddles else None,
         "saddles_median": float(np.median(saddles)) if saddles else None,
+        # This simple count misclassifies valid double-null configurations.
         "saddle_free_fraction": (
             float(np.mean(np.asarray(saddles) <= 1)) if saddles else None
-        ),  # naive <=1 rule — superseded by saddle_clean_fraction below (mislabels double-null)
+        ),
         **saddle_stats,
         "ip_rel_err_median": float(np.median(ip_rel_errs)) if ip_rel_errs else None,
         "misfit_median": float(np.median(misfits)) if misfits else None,
@@ -279,7 +291,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["centroid", "moment", "patch"],
         default="patch",
         help=(
-            "ray-cast axis: 'patch' = the free-current P3 inverse (default —"
+            "ray-cast axis: 'patch' = the frozen free-current inverse (default —"
             "the scored, origin-controlled read); 'centroid' = the moment "
             "fit's current centroid (fast smoke arm only, not scored); "
             "'moment' = the moment psi's numerical O-point (ablation)."
