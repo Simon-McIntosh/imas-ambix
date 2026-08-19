@@ -8,6 +8,10 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pyarrow.parquet as pq
 
+from imas_ambix.cocos import CANONICAL_COCOS
+
+from .convention import DIIID_CONVENTION
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -53,6 +57,7 @@ class EfitLabels:
     grid_r_m: np.ndarray
     grid_z_m: np.ndarray
     scalars: dict[str, np.ndarray]
+    cocos: int
 
 
 @dataclass(frozen=True)
@@ -71,13 +76,11 @@ def _array(table: Any, name: str, *, string: bool = False) -> np.ndarray:
 
 
 def _series(table: Any, name: str, time_name: str) -> SignalSeries:
-    return SignalSeries(
-        time_ms=_array(table, time_name), values=_array(table, name)
-    )
+    return SignalSeries(time_ms=_array(table, time_name), values=_array(table, name))
 
 
 def load_shot(path: str | Path, *, validate: bool = True) -> ChallengeShot:
-    """Load one shot, preserving each signal's native time base and geometry."""
+    """Load one shot in the canonical convention with native time bases."""
 
     table = pq.read_table(path)
     if table.num_rows != 1:
@@ -113,15 +116,34 @@ def load_shot(path: str | Path, *, validate: bool = True) -> ChallengeShot:
             spatial_m=_array(table, "thomson_edge_spatial"),
         ),
     }
+    source = str(table["source"][0].as_py())
+    source_psirz = _array(table, "efit_psirz")
+    source_scalars = {name: _array(table, name) for name in _EFIT_SCALARS}
+    if source == "DIII-D":
+        psirz = DIIID_CONVENTION.canonical_flux(source_psirz)
+        source_scalars["efit_q95"] = DIIID_CONVENTION.canonical_q(
+            source_scalars["efit_q95"]
+        )
+        for name, series in tuple(actuators.items()):
+            if name == "magnetics_plasma_current":
+                values = DIIID_CONVENTION.canonical_plasma_current(series.values)
+            elif name == "magnetics_bcoil":
+                values = DIIID_CONVENTION.canonical_toroidal_field(series.values)
+            else:
+                continue
+            actuators[name] = SignalSeries(time_ms=series.time_ms, values=values)
+    else:
+        psirz = source_psirz
     labels = EfitLabels(
         time_ms=_array(table, "efit_times"),
-        psirz=_array(table, "efit_psirz"),
+        psirz=psirz,
         grid_r_m=_array(table, "efit_grid_R"),
         grid_z_m=_array(table, "efit_grid_Z"),
-        scalars={name: _array(table, name) for name in _EFIT_SCALARS},
+        scalars=source_scalars,
+        cocos=CANONICAL_COCOS,
     )
     shot = ChallengeShot(
-        source=str(table["source"][0].as_py()),
+        source=source,
         actuators=actuators,
         thomson=thomson,
         coil_geometry={
@@ -151,6 +173,8 @@ def validate_loaded_shot(shot: ChallengeShot) -> None:
         raise ValueError("shot has no labeled frames")
     if shot.labels.psirz.shape != (frame_count, 65, 65):
         raise ValueError(f"invalid efit_psirz shape {shot.labels.psirz.shape}")
+    if shot.labels.cocos != CANONICAL_COCOS:
+        raise ValueError(f"labels must be canonical COCOS {CANONICAL_COCOS}")
     if shot.labels.grid_r_m.shape != (65,) or shot.labels.grid_z_m.shape != (65,):
         raise ValueError("EFIT grids must each contain 65 coordinates")
     for name, values in shot.labels.scalars.items():

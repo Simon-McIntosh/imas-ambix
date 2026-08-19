@@ -17,7 +17,7 @@ import re
 from typing import Any
 
 import numpy as np
-from nova.io.cocos import transform_factor
+from nova.io.cocos import convention, identify_convention, transform_factor
 
 CANONICAL_COCOS = 17
 """COCOS convention served by Ambix and Data Dictionary v4."""
@@ -72,6 +72,31 @@ def canonical_factor(transformation: str, *, source_cocos: int) -> float:
     )
 
 
+def identify_source_cocos(
+    *,
+    sigma_bp: int,
+    e_bp: int,
+    sigma_r_phi_z: int,
+    sigma_rho_theta_phi: int,
+) -> int:
+    """Identify a measured source convention through the shared digit table."""
+
+    return int(
+        identify_convention(
+            sigma_bp=sigma_bp,
+            e_bp=e_bp,
+            sigma_r_phi_z=sigma_r_phi_z,
+            sigma_rho_theta_phi=sigma_rho_theta_phi,
+        )
+    )
+
+
+def source_cocos_digits(source_cocos: int) -> tuple[int, int, int, int]:
+    """Return one source convention's measured digit tuple."""
+
+    return tuple(int(value) for value in convention(int(source_cocos)).digits)
+
+
 def mast_angle_to_canonical(angle_degrees: Any) -> np.ndarray:
     """Convert FAIR-MAST probe-axis angles to DDv4 poloidal angles.
 
@@ -102,7 +127,9 @@ __all__ = [
     "MAST_SOURCE_COCOS",
     "ConventionContractError",
     "canonical_factor",
+    "identify_source_cocos",
     "mast_angle_to_canonical",
     "project_poloidal_field",
     "require_canonical_contract",
+    "source_cocos_digits",
 ]

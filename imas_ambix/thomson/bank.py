@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
+from imas_ambix.challenge.convention import DIIID_CONVENTION
 from imas_ambix.challenge.loader import ChallengeShot, load_shot
 
 from .models import TopologyClass
@@ -143,8 +144,10 @@ def _sample_psi_n(
         radius,
         height,
     )
-    axis = float(bank["axis_flux_wb"][frame]) / _TWO_PI
-    boundary = float(bank["boundary_flux_wb"][frame]) / _TWO_PI
+    axis = float(DIIID_CONVENTION.canonical_total_flux(bank["axis_flux_wb"][frame]))
+    boundary = float(
+        DIIID_CONVENTION.canonical_total_flux(bank["boundary_flux_wb"][frame])
+    )
     return (raw - axis) / (boundary - axis)
 
 

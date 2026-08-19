@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from math import tau
+
 import numpy as np
 import pytest
 
@@ -10,9 +12,11 @@ from imas_ambix.cocos import (
     MAST_SOURCE_COCOS,
     ConventionContractError,
     canonical_factor,
+    identify_source_cocos,
     mast_angle_to_canonical,
     project_poloidal_field,
     require_canonical_contract,
+    source_cocos_digits,
 )
 from imas_ambix.data.cocos_convention import (
     MAST_SOURCE_COCOS as DECLARED_MAST_SOURCE_COCOS,
@@ -41,16 +45,30 @@ def test_mast_scalar_factors_land_on_cocos_seventeen():
     )
     psi_factor = canonical_factor("psi_like", source_cocos=MAST_SOURCE_COCOS)
     derivative_factor = canonical_factor("dodpsi_like", source_cocos=MAST_SOURCE_COCOS)
-    assert psi_factor == pytest.approx(2.0 * np.pi), SOURCE_CONVENTION_DECLARATION
-    assert derivative_factor == pytest.approx(1.0 / (2.0 * np.pi)), (
-        SOURCE_CONVENTION_DECLARATION
-    )
+    assert psi_factor == pytest.approx(tau), SOURCE_CONVENTION_DECLARATION
+    assert derivative_factor == pytest.approx(1.0 / tau), SOURCE_CONVENTION_DECLARATION
     assert canonical_factor("q_like", source_cocos=MAST_SOURCE_COCOS) == -1.0, (
         SOURCE_CONVENTION_DECLARATION
     )
     assert canonical_factor("ip_like", source_cocos=MAST_SOURCE_COCOS) == 1.0, (
         SOURCE_CONVENTION_DECLARATION
     )
+
+
+def test_measured_digits_identify_diii_d_source_cocos() -> None:
+    source = identify_source_cocos(
+        sigma_bp=1,
+        e_bp=0,
+        sigma_r_phi_z=1,
+        sigma_rho_theta_phi=-1,
+    )
+    assert source == 5
+    assert source_cocos_digits(source) == (1, 0, 1, -1)
+    assert canonical_factor("psi_like", source_cocos=source) == -tau
+    assert canonical_factor("ip_like", source_cocos=source) == 1.0
+    assert canonical_factor("b0_like", source_cocos=source) == 1.0
+    assert canonical_factor("q_like", source_cocos=source) == -1.0
+    assert canonical_factor("dodpsi_like", source_cocos=source) == -1.0 / tau
 
 
 def test_mast_probe_axis_is_converted_without_changing_its_directed_field():
