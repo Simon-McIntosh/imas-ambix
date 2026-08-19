@@ -176,6 +176,40 @@
       the calibrated carrier arm; saddle-excess; vacuum-annulus consistency RMS.</li>
     </ul>
 
+    <h2 id="s6">§6 — X-point-set and axis recovery under the centroid origin</h2>
+    <p>The centroid origin nearly halved the held-out LCFS error (11.8 → 6.8 cm) and made ramp-up
+    robust (7–14 cm, was 41–52 cm), but the aggregate X-point-set (−4.54) and axis (−1.58) skill
+    regressed against the carrier per-slice run (−1.11 / −0.27). Two mechanisms are suspected:
+    the current centroid sits <em>inboard</em> of the flux axis by the Shafranov shift, biasing both the
+    axis target and the confined-side flux reference; and the more robust centroid now <em>finds</em>
+    ramp-up X-points that get imperfectly matched, where the flat-top-tuned carrier found none
+    (NaN, silently excluded) and so scored deceptively better. Flat-top X-points are already ~5 cm,
+    so the aggregate is dragged by the low-Ip phases.</p>
+    <p>The read has since been reworked substantially — adaptive order/term selection by held-out-sensor
+    cross-validation, a graded Sobolev ridge on the coefficients, the flux-gauge-preserving ∇ψ read with
+    the Ip circulation tie, canonical probe orientation, and the connectivity LCFS
+    (<code>topology.py::lcfs_contour</code>) in place of the innermost-X-point ray-cast — so the
+    2026-07-14 numbers above are a stale baseline. Work proceeds in two beats:</p>
+    <ul>
+      <li><strong>Re-baseline and phase-split honesty audit.</strong> Score the harmonic arm held-out
+      under the current code and report X-point-set / axis / LCFS skill with CIs <em>split by phase</em>
+      (ramp-up vs flat-top), and audit per-slice whether the ramp-up X-points the centroid finds are
+      genuine (matching the firewalled referee) or spurious. Establishes whether the −4.54 / −1.58 gap
+      still exists before anything is tuned against it.</li>
+      <li><strong>Shafranov correction of the axis and flux reference.</strong> If the gap persists,
+      separate the axis / confined-side flux-reference point from the well-behaved ray-cast origin: a
+      dimensionless outboard correction of the current centroid toward the flux axis (a fraction of
+      <em>a/R</em> or of the pole-to-origin distance), tuned on train shots, frozen, scored held-out once,
+      with the vacuum-annulus consistency RMS as the guard. Also re-measure the order × ridge × fraction
+      ladder and the ablatable Ip-circulation anchor under the centroid origin, since the 0.41 fraction
+      was selected under the carrier.</li>
+    </ul>
+    <p>Gate: X-point-set and axis skill recover toward the carrier per-slice values <em>without</em>
+    losing the centroid LCFS and ramp-up win, or an honest characterisation of the tradeoff — recorded
+    either way. EFIT stays firewalled (referee scores only); coil couplings stay thick-cylinder
+    <code>hybrid_greens</code>; the pole and origin stay machine-agnostic (dimensionless fractions,
+    never fixed metres).</p>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="pole-and-truncation" data-choice="per-slice-pole" data-by="reckon-ship (centroid origin, measured)" data-when="2026-07-14T15:59:55+00:00">
