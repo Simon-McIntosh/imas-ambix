@@ -19,11 +19,12 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-19">
-<meta name="plan-version" content="8">
+<meta name="plan-version" content="9">
 <meta name="plan-depends-on" content="">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
 <meta name="plan-impl" content="0.5">
+<meta name="plan-artifacts" content="docs/evidence/archive/nova-physics-consumer-integration-landed.html,~/.cache/ambix-nova-integration/api-drift.md,~/.cache/ambix-nova-integration/donor-census.md">
 </head>
 <body>
   <main class="plan-doc">
@@ -159,6 +160,11 @@ Done-when
     <h4 class="r-fu-title">Lift TORAX consumers onto the Nova transport forward contract and retire the torch donor</h4>
     <div class="r-fu-body"><p>The transport capability inventory recorded four consumer-side obligations. The statespace estimators call whole-run TORAX on analytic circular geometry with a broad exception handler that silently degrades to zero-filled profiles (up to 128 whole simulations per shot in the ensemble smoother). The torch donor <code>imas_ambix/latent/current_diffusion.py</code> remains in-tree after the Nova JAX port, with two functions never ported (<code>reconstruct_profile_scales</code>, <code>beta_p_coeff_sensitivity</code>). The evolved-profile projection is not wired into the label-solve soft-prior hook it was built for. The learned <code>FluxDiffusionPrior</code> accepts a Nova <code>CurrentDiffusion</code> that is inert in its math. When Nova's <code>ForwardTransport</code> lands (nova:flux-function-forward-transport), lift the estimators onto the step-wise API with Nova-built geometry, make engine failure raise instead of fabricating zeros, port or explicitly retain the two donor functions, and retire the donor with zero-import census proof.</p></div>
     <pre class="r-fu-prompt">/reckon-ship nova-physics-consumer-integration §2</pre>
+    </article>
+<article class="r-fu" data-id="f-npci-04" data-status="open" data-written-by="reckon-ship" data-written-at="2026-08-19" data-recommends-skill="/reckon-ship nova-physics-consumer-integration §4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Advance the Nova pin to aeffde05 once the root environment carries that revision</h4>
+    <div class="r-fu-body"><p>The drift inventory cleared the API question completely: 74 of 74 consumed Nova symbols are unchanged between the pinned <code>de3277a3</code> and the recommended target <code>aeffde0546f1216632f4f55b0f390702efcb3c4d</code> (+544 commits), with three additive defaulted signature changes that force no call-site edit. The mechanical work is a six-file coherence edit — <code>pyproject.toml</code>, <code>uv.lock</code>, <code>imas_ambix/statespace/nova_ensemble_estimator.py</code>, <code>tests/statespace/test_nova_ensemble_estimator.py</code>, <code>imas_ambix/fluxstate/adapters.py</code>, <code>tests/physics/test_dependency_contract.py</code> — because four modules assert the revision as data.</p><p><strong>Exemption: authority-required.</strong> The edit cannot be verified without <code>nova-stella</code> being reinstalled at the new revision, because two of those files are the tests that compare the declared pin against the installed version. That reinstall is provisioning of the single user-owned root <code>.venv</code>, which agents must never perform, and it would mutate the environment underneath any concurrently running worker. The authority is the repository environment rule: the user re-provisions, at a moment when no in-flight run depends on the old revision. A worker dispatched for this node was validated, launched and stopped within 20 seconds on that finding; it created nothing and its worktree was removed.</p><p>Once the environment carries <code>gaeffde05</code>, the node is fully specified and cheap: apply the six-file edit and run the Nova-facing consumer contract against the 48-test baseline. Import compatibility does not waive the G2 science gate.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship nova-physics-consumer-integration §4</pre>
     </article>
 </section>
   <section data-reckon="research" id="research" class="r-research-list">
