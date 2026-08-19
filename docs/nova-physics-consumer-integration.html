@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="nova-physics-consumer-integration">
   <meta name="plan-title" content="Nova Physics Consumer Integration">
   <meta name="plan-summary" content="Keep Ambix on exact reviewed Nova revisions while both repositories evolve: migrate API changes continuously, run the thin consumer contract, link each pin to Nova-owned independent GHCR and CPU/GPU evidence, and retire duplicated Ambix physics only after parity. First checkpoint landed at Nova 9c18d31f with 48 Nova-facing Ambix tests.">
-  <meta name="plan-status" content="pending">
+  <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="L">
   <meta name="plan-milestone" content="M4">
@@ -18,11 +18,12 @@
   <title>Nova Physics Consumer Integration | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-10">
-<meta name="plan-version" content="6">
+<meta name="plan-modified" content="2026-08-19">
+<meta name="plan-version" content="7">
 <meta name="plan-depends-on" content="">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
+<meta name="plan-impl" content="0.375">
 </head>
 <body>
   <main class="plan-doc">
@@ -166,6 +167,11 @@ Done-when
     <span class="r-research-title"><a href="/imas-ambix/nova-scoping-review.html">Nova Scoping Review</a></span></div>
 <div class="r-research" data-id="r-npci-02" data-type="transition-audit" data-source="nova" data-added-by="codex" data-when="2026-07-29" data-url="/nova/physics-spine-transition-audit.html">
     <span class="r-research-title"><a href="/nova/physics-spine-transition-audit.html">Physics Spine Transition Audit</a></span></div>
+</section>
+<section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s2" data-id="c-20260819-donor-census" data-who="reckon-ship" data-when="2026-08-19T21:00:00+00:00">
+    <div class="r-comment-body">donor-census landed — no commit (read-only census); gate passed; measure 79 residual importer edges (circuits 6, geometry 58, current_diffusion 15), 0/3 retire-now and 3/3 blocked-by-named-gap at pinned Nova de3277a3238513b81be04dbc0980030b200ce420; circuits.py is blocked by consumer rewiring alone because MachineArtifactManifest.drive_map plus the artifact table's active_circuits=13 and circuit_drives=21 already supersede it; ForwardTransport is absent from the whole Nova tree, so the TORAX lift stays trigger-gated. Artifacts ~/.cache/ambix-nova-integration/donor-census.md and docs/evidence/archive/nova-physics-consumer-integration-landed.html#donor-census. impl denominator = 8 executable nodes: pinned dependency plus physics adapter (landed), first tandem checkpoint to de3277a3 (landed), API drift inventory, donor census (landed), pin advance, circuits consumer migration and retirement, GeometryTable contract replacement, current-diffusion migration and donor retirement.</div>
+</div>
 </section>
 </main>
 </body>

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="nova-physics-consumer-integration-landed">
+  <meta name="plan-title" content="Nova Physics Consumer Integration — Measured Evidence">
+  <meta name="plan-summary" content="Execution record for the Nova consumer integration: the residual physics-donor retirement census, the Nova API drift inventory behind the pin advance, and the migrations they authorise.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-recorded-at" content="2026-08-19">
+  <meta name="plan-evidence-for" content="nova-physics-consumer-integration">
+  <title>Nova Physics Consumer Integration — Measured Evidence | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>Nova Physics Consumer Integration — Measured Evidence</h1>
+  <p>Cumulative execution record for
+  <a href="/imas-ambix/nova-physics-consumer-integration">Nova Physics Consumer Integration</a>.
+  One anchor per landed node.</p>
+
+  <h2 id="donor-census">Residual donor census — 79 importer edges, 0 of 3 donors retirable</h2>
+  <p><strong>Every Ambix physics donor Nova was expected to supersede still carries live
+  importers, so none may be deleted yet; the census names the specific gap that governs each
+  one.</strong> Measured against the exact pinned Nova revision
+  <code>de3277a3238513b81be04dbc0980030b200ce420</code>, confirmed identical in
+  <code>pyproject.toml:68</code>, <code>uv.lock:2020</code> and the installed
+  <code>nova-stella 0.11.0.post1019+gde3277a3</code>. Read-only census run, no commit.</p>
+
+  <table>
+    <caption>Donor retirement verdicts at the pinned Nova revision</caption>
+    <thead>
+      <tr><th>Ambix donor</th><th>Live importers</th><th>Superseding Nova authority</th><th>Verdict</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>imas_ambix/gs/circuits.py</code></td>
+        <td>6</td>
+        <td><code>MachineArtifactManifest.drive_map</code> plus the adapted table's
+        <code>active_circuits</code> (13) and <code>circuit_drives</code> (21)</td>
+        <td>Blocked by consumer rewiring only — the authority already exists</td>
+      </tr>
+      <tr>
+        <td><code>imas_ambix/gs/geometry.py</code></td>
+        <td>58</td>
+        <td><code>resolve_machine_artifact</code>, then
+        <code>mast_solve_inputs.describe_machine</code> → <code>DescribedMachine</code></td>
+        <td>Blocked — the <code>GeometryTable</code> runtime type surface has no replacement</td>
+      </tr>
+      <tr>
+        <td><code>imas_ambix/latent/current_diffusion.py</code></td>
+        <td>15</td>
+        <td><code>nova.transport.current_diffusion</code>, already wrapped by
+        <code>imas_ambix.physics.transport</code></td>
+        <td>Blocked — two helpers unported and no forward-transport contract at the pin</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Three findings carry beyond their own rows.</p>
+  <ul>
+    <li><strong>The circuits donor is the one actionable retirement.</strong> Its replacement is
+    already in the artifact table and pinned by test:
+    <code>tests/gs/test_artifact_geometry.py:817</code> asserts 13 active circuits and
+    <code>tests/data/test_machine_map.py:1331</code> asserts 21 distinct circuit drives. No port
+    into Nova is needed; six consumers need migrating.</li>
+    <li><strong>The current-diffusion symbol map is complete but for two helpers.</strong> Eleven
+    symbols map one-to-one onto <code>nova.transport.current_diffusion</code>, including the
+    rename <code>wpol_li3</code> → <code>poloidal_field_energy_li</code> (verified present and
+    absent respectively in the installed package). <code>reconstruct_profile_scales</code> and
+    <code>beta_p_coeff_sensitivity</code> have no counterpart at the pin.</li>
+    <li><strong>No forward-transport contract exists at the pin.</strong> <code>ForwardTransport</code>
+    is absent from the whole Nova tree — only <code>ForwardProfile</code>
+    (<code>nova/equilibrium/forward.py:172</code>) exists — so the TORAX consumer lift stays
+    trigger-gated on <code>nova:flux-function-forward-transport</code>.</li>
+  </ul>
+
+  <p>Full census with per-file importer lists and proof lines:
+  <code>~/.cache/ambix-nova-integration/donor-census.md</code>. The worker's sandbox refused the
+  write outside its run directory, so the orchestrator materialised the report verbatim from the
+  manifest; the census itself was unaffected. Verification receipt:
+  <code>PASS pin=de3277a3 importers=circuits:6,geometry:58,current_diffusion:15
+  nova_mappings=present unported_helpers=absent</code>.</p>
+
+  <p>A related plan-state correction: the table-source tranche this plan's followup
+  <code>f-npci-02</code> described is <em>superseded</em>. <code>read_efm_geometry</code> has zero
+  live-tree hits — every remaining match is inside stale untracked
+  <code>.claude/worktrees/s12-*</code> copies — because
+  <a href="/imas-ambix/plans/description-reader-migration">the description-reader migration</a>
+  shipped on 2026-08-17 and drove that census 41 → 0.</p>
+</main>
+</body>
+</html>

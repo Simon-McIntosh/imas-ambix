@@ -1,9 +1,37 @@
 {
-  "updated": "2026-08-17T21:47:37",
+  "updated": "2026-08-19T22:59:07",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
     "members": [
+      {
+        "id": "camera-elm-metric",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-19"
+      },
+      {
+        "id": "camera-inferability",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-19"
+      },
+      {
+        "id": "camera-motion-readout",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-19"
+      },
+      {
+        "id": "camera-probe-readout",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-19"
+      },
       {
         "id": "challenge-ingest",
         "harness": "codex",
@@ -19,6 +47,13 @@
         "created": "2026-08-13"
       },
       {
+        "id": "corpus-convention",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a01bc6-3c00-74d3-af8a-96ebc9c00680",
+        "created": "2026-08-19"
+      },
+      {
         "id": "description-identity",
         "harness": "codex",
         "role": "implement",
@@ -26,11 +61,32 @@
         "created": "2026-08-13"
       },
       {
+        "id": "donor-census",
+        "harness": "codex",
+        "role": "investigate",
+        "session_id": "01a01bc6-4ec1-76b0-887c-39e99461a838",
+        "created": "2026-08-19"
+      },
+      {
         "id": "evolution-prototype",
         "harness": "codex",
         "role": "implement",
         "session_id": "01a01025-f9a4-7870-af91-cfee481f3762",
         "created": "2026-08-17"
+      },
+      {
+        "id": "harmonic-rebaseline",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-19"
+      },
+      {
+        "id": "ip-channel-audit",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a01bc6-694d-79a2-b4f4-456f85311d6b",
+        "created": "2026-08-19"
       },
       {
         "id": "machine-map",
@@ -45,6 +101,13 @@
         "role": "implement",
         "session_id": "019ffbad-6eff-7900-8929-4fda5e162f54",
         "created": "2026-08-13"
+      },
+      {
+        "id": "nova-drift-audit",
+        "harness": "codex",
+        "role": "investigate",
+        "session_id": null,
+        "created": "2026-08-19"
       },
       {
         "id": "pedigree-probe",
@@ -3763,9 +3826,66 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260819T204600651320-donor-census",
+        "plan": "nova-physics-consumer-integration",
+        "section": "\u00a72",
+        "node": "donor-census",
+        "role": "investigate",
+        "member": "donor-census",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-08-19T20:46:14Z",
+        "completed_at": "2026-08-19T20:56:01Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 587,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 587,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "9bed32be133a0f26dfa41f514cf1c6fb33612bd0",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "Censused 3 donors: 79 residual importer edges (circuits 6, geometry 58, current_diffusion 15); 0/3 retire-now, 3/3 blocked-by-named-gap; circuits.py blocked only by consumer rewiring since Nova drive_map plus GeometryTable active_circuits=13 / circuit_drives=21 already supersede it; ForwardTransport absent at pin de3277a3",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T204600651320-donor-census/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01bc6-4ec1-76b0-887c-39e99461a838",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 3608576,
+            "cached_input_tokens_cumulative": 3608576,
+            "input_tokens": 3786212,
+            "input_tokens_cumulative": 3786212,
+            "output_tokens": 25260,
+            "output_tokens_cumulative": 25260,
+            "reasoning_output_tokens": 9272,
+            "reasoning_output_tokens_cumulative": 9272
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 98
+    "_version": 111
   }
 }
