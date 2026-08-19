@@ -27,6 +27,7 @@ from imas_ambix.latent.boundary_harmonic import (
     toroidal_coords,
 )
 from imas_ambix.latent.patch_inverse import SlicePayload
+from scripts.boundary_harmonic_gate_eval import fit_scoring_harmonic
 
 POLE_R = 0.9
 POLE_Z = 0.0
@@ -154,6 +155,39 @@ def test_recovers_source_free_field_exactly():
     pred = a_sens @ inv.coeffs
     np.testing.assert_allclose(pred, measured, rtol=1e-6, atol=1e-9)
     assert inv.labels == harmonic_labels(3)
+
+
+def test_gate_scoring_path_applies_ip_circulation_anchor():
+    """The scoring fit must carry its enabled circulation tie into the solve."""
+    sensors = _synthetic_sensors()
+    unanchored_cfg = HarmonicFitConfig(
+        pole_r=POLE_R,
+        pole_z=POLE_Z,
+        order=3,
+        ip_anchor=False,
+    )
+    anchored_cfg = HarmonicFitConfig(
+        pole_r=POLE_R,
+        pole_z=POLE_Z,
+        order=3,
+        ip_anchor=True,
+    )
+    a_sens = harmonic_sensor_matrix(*sensors, unanchored_cfg)
+    coeffs = np.array([0.12, -0.31, 0.27, 0.08, -0.14, 0.19, -0.05])
+    measured = a_sens @ coeffs
+    payload = SlicePayload(
+        measured=measured,
+        vacuum=np.zeros_like(measured),
+        mask=np.ones(measured.size, dtype=bool),
+        scale=np.ones(measured.size),
+        i_pf=np.zeros(3),
+        ip_amperes=4.0e5,
+    )
+
+    unanchored = fit_scoring_harmonic(sensors, payload, unanchored_cfg)
+    anchored = fit_scoring_harmonic(sensors, payload, anchored_cfg)
+
+    assert not np.allclose(anchored.coeffs, unanchored.coeffs, rtol=1e-7, atol=1e-10)
 
 
 def test_fit_ignores_masked_rows_and_grids():

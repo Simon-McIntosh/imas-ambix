@@ -1,3 +1,4 @@
+# ruff: noqa: E402 -- sibling gate imports require the script-directory path setup.
 """Gate for the source-free toroidal-harmonic annulus boundary read.
 
 Reads the plasma BOUNDARY (separatrix / X-point / LCFS radii) off a psi
@@ -13,8 +14,9 @@ the harmonic fit; scoring, baseline, shot list, and slice selection are shared
 with the free-current gate (``scripts/patch_gate_eval.py``) so the numbers are
 directly comparable and the boundary representation is the only varying factor.
 
-HYBRID read (the harmonic fit supplies the exterior field and the disc read supplies the interior): the harmonic fit
-gives the PLASMA flux only, and the TOTAL flux read for topology adds the KNOWN
+HYBRID read (the harmonic fit supplies the exterior field and the disc read
+supplies the interior): the harmonic fit gives the PLASMA flux only, and the
+TOTAL flux read for topology adds the KNOWN
 coil field from the harness's thick-cylinder ``hybrid_greens`` coil column
 (``PatchBasis`` / ``EquilibriumGrid``) -- NEVER a point-filament coil term.  The
 confined-side flux reference (``axis_psi``) is read as the TOTAL psi bilinearly
@@ -83,9 +85,9 @@ from patch_gate_eval import (
 
 from imas_ambix.latent.boundary_harmonic import (
     HarmonicFitConfig,
-    _fit_one,
+    HarmonicInversion,
+    fit_harmonic,
     harmonic_columns,
-    harmonic_sensor_matrix,
     mask_invalid_interior,
 )
 from imas_ambix.latent.boundary_moment import MomentFitConfig, fit_moment_currents
@@ -283,6 +285,20 @@ def _adaptive_radii(origin, pole, args) -> tuple[float, float]:
     return args.mask_frac * d, args.exclude_frac * d
 
 
+def fit_scoring_harmonic(
+    sensors: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+    payload,
+    cfg: HarmonicFitConfig,
+) -> HarmonicInversion:
+    """Fit one scored slice through the harmonic inversion entrypoint.
+
+    Keeping the scoring path on :func:`fit_harmonic` carries every configured
+    equation, including the optional plasma-current circulation tie, into the
+    normal-equation solve.
+    """
+    return fit_harmonic(sensors, payload, cfg)
+
+
 def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
     """Fit + score one (order, ridge, fraction) over the cohort; per-slice pole."""
     model_rows, ref_rows, flattop_flags, shot_rows = [], [], [], []
@@ -320,13 +336,12 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
                 ridge=ridge,
                 ip_anchor=args.ip_anchor,
             )
-            # fast vectorised evaluator -> sensor matrix + grid columns per slice
+            # fast vectorised evaluator -> fit + grid columns per slice
             # (the per-slice pole defeats any fixed-pole cache; the elliptic path
             # is cheap enough to recompute every slice).
-            a_sens = harmonic_sensor_matrix(sr, sz, sang, is_flux, cfg)
-            coeffs, misfit, _ = _fit_one(
-                a_sens, p.measured, p.vacuum, p.mask, p.scale, cfg.ridge
-            )
+            inversion = fit_scoring_harmonic((sr, sz, sang, is_flux), p, cfg)
+            coeffs = inversion.coeffs
+            misfit = inversion.misfit
             grid_cols, _ = harmonic_columns(gr, gz, cfg)
             # TOTAL flux for topology: harmonic PLASMA flux + the harness's
             # thick-cylinder coil term (i_cell=0 -> coil-only) -- never point-filament.
