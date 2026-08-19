@@ -1,0 +1,314 @@
+{
+  "schema_version": 1,
+  "comparison": "frozen ridge probes: dynamics latent vs per-frame representation",
+  "difference_orientation": "dynamics minus baseline; negative favours dynamics for RMSE and CRPS",
+  "checkpoints": {
+    "baseline": "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_baseline/final.pt",
+    "dynamics": "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_dynamics/final.pt"
+  },
+  "protocol": {
+    "probe": "linear ridge; lambda=1; feature standardisation from train only",
+    "representation": "final normalised trunk state, spatial mean per frame, frozen backbone",
+    "mask_geometry": "fixed_section2",
+    "window_frames": 16,
+    "readout_frames": [
+      8,
+      15
+    ],
+    "window_selection": "25/50/75% quantiles of common native time-axis support; values unseen",
+    "subsample_seed": 20260819,
+    "requested_train_shots": 48,
+    "requested_heldout_shots": 48,
+    "candidate_pool_multiplier": 8,
+    "bootstrap_unit": "held-out shot",
+    "bootstrap_replicates": 10000,
+    "alignment": "nearest native diagnostic sample within 0.75 times its median cadence",
+    "median_alignment_tolerance_s": {
+      "dalpha": {
+        "train": 0.0005805152468383312,
+        "heldout": 0.0005589555948972702
+      },
+      "ne_line_integrated": {
+        "train": 1.4998018741607666e-05,
+        "heldout": 1.4998018741607666e-05
+      },
+      "te_core": {
+        "train": 0.0030938999843783677,
+        "heldout": 0.0030374915222637355
+      },
+      "n2_mode_amp": {
+        "train": 1.4975666999816895e-06,
+        "heldout": 1.4975666999816895e-06
+      }
+    },
+    "train_shot_ids": [
+      29489,
+      29504,
+      23143,
+      24075,
+      27043,
+      23683,
+      23893,
+      27406,
+      26935,
+      26521,
+      24308,
+      24772,
+      26970,
+      27075,
+      28855,
+      29331,
+      26770,
+      23883,
+      24697,
+      29401,
+      26576,
+      27975,
+      26552,
+      30250,
+      24934,
+      26553,
+      27233,
+      27629,
+      30175,
+      29049,
+      27108,
+      27891,
+      27510,
+      24800,
+      23344,
+      23865,
+      27555,
+      26555,
+      24582,
+      28816,
+      29223,
+      24302,
+      29025,
+      23714,
+      29488,
+      24487,
+      28034,
+      24155
+    ],
+    "heldout_shot_ids": [
+      24708,
+      23376,
+      24010,
+      28338,
+      28184,
+      27967,
+      24436,
+      24449,
+      23330,
+      30173,
+      26942,
+      24325,
+      30383,
+      29232,
+      29876,
+      30322,
+      24900,
+      28340,
+      26951,
+      29716,
+      23933,
+      28047,
+      24802,
+      27124,
+      23618,
+      27537,
+      23681,
+      29895,
+      26961,
+      29578,
+      27732,
+      27867,
+      24575,
+      27668,
+      29752,
+      23747,
+      27382,
+      26529,
+      23932,
+      24422,
+      30358,
+      24080,
+      24430,
+      24312,
+      26617,
+      24435,
+      24148,
+      24021
+    ]
+  },
+  "target_information_exposure": {
+    "ne_line_integrated": "ane/density conditioned both trained arms; this is an arm-to-arm representation readout, not an unseen-information result",
+    "other_targets": "ada, ayc/te_core, and ama were not conditioning inputs"
+  },
+  "targets": {
+    "dalpha": {
+      "n_train_samples": 1152,
+      "n_heldout_samples": 1152,
+      "n_heldout_shots": 48,
+      "arms": {
+        "baseline": {
+          "rmse": 3.7396231839312914e+22,
+          "crps": 2.7002409934045655e+22,
+          "train_residual_sigma": 2.0893017832634917e+21
+        },
+        "dynamics": {
+          "rmse": 4.438061617118278e+22,
+          "crps": 3.172017640527682e+22,
+          "train_residual_sigma": 1.9058818099292207e+21
+        }
+      },
+      "paired_dynamics_minus_baseline": {
+        "rmse": {
+          "mean": 3.930962223388873e+21,
+          "lo": -2.2010081091517958e+21,
+          "hi": 1.048419324420777e+22,
+          "n_shots": 48,
+          "dynamics_better": false,
+          "clear_of_zero": false
+        },
+        "crps": {
+          "mean": 4.7177664712311654e+21,
+          "lo": -6.062929892279192e+20,
+          "hi": 1.0674156930777915e+22,
+          "n_shots": 48,
+          "dynamics_better": false,
+          "clear_of_zero": false
+        }
+      },
+      "source_path": "ada/dalpha_integrated",
+      "description": "integrated D-alpha emission",
+      "unit": "stored physical units",
+      "was_conditioning_input": false
+    },
+    "ne_line_integrated": {
+      "n_train_samples": 1152,
+      "n_heldout_samples": 1152,
+      "n_heldout_shots": 48,
+      "arms": {
+        "baseline": {
+          "rmse": 4.173319355572668e+19,
+          "crps": 2.9510673147030606e+19,
+          "train_residual_sigma": 2.340985608473865e+18
+        },
+        "dynamics": {
+          "rmse": 4.313652565124189e+19,
+          "crps": 3.0405671030779257e+19,
+          "train_residual_sigma": 1.8326825951158162e+18
+        }
+      },
+      "paired_dynamics_minus_baseline": {
+        "rmse": {
+          "mean": -4.777874035602145e+17,
+          "lo": -7.102445354954491e+18,
+          "hi": 6.455991614325782e+18,
+          "n_shots": 48,
+          "dynamics_better": false,
+          "clear_of_zero": false
+        },
+        "crps": {
+          "mean": 8.949978837486509e+17,
+          "lo": -5.212178836142824e+18,
+          "hi": 7.713469455583237e+18,
+          "n_shots": 48,
+          "dynamics_better": false,
+          "clear_of_zero": false
+        }
+      },
+      "source_path": "ane/density",
+      "description": "line-integrated electron density",
+      "unit": "m^-2",
+      "was_conditioning_input": true
+    },
+    "te_core": {
+      "n_train_samples": 908,
+      "n_heldout_samples": 777,
+      "n_heldout_shots": 40,
+      "arms": {
+        "baseline": {
+          "rmse": 273.4656315077358,
+          "crps": 191.8506749797879,
+          "train_residual_sigma": 17.71736523535157
+        },
+        "dynamics": {
+          "rmse": 321.03025089464677,
+          "crps": 228.16386975832722,
+          "train_residual_sigma": 17.971464965131144
+        }
+      },
+      "paired_dynamics_minus_baseline": {
+        "rmse": {
+          "mean": 32.16931914754412,
+          "lo": -30.735949105898346,
+          "hi": 99.93658798552524,
+          "n_shots": 40,
+          "dynamics_better": false,
+          "clear_of_zero": false
+        },
+        "crps": {
+          "mean": 31.26304918070111,
+          "lo": -31.118456108914437,
+          "hi": 96.54913535616448,
+          "n_shots": 40,
+          "dynamics_better": false,
+          "clear_of_zero": false
+        }
+      },
+      "source_path": "ayc/te_core",
+      "description": "core Thomson electron temperature",
+      "unit": "eV",
+      "was_conditioning_input": false
+    },
+    "n2_mode_amp": {
+      "n_train_samples": 1152,
+      "n_heldout_samples": 1152,
+      "n_heldout_shots": 48,
+      "arms": {
+        "baseline": {
+          "rmse": 2.2954695114804246e-05,
+          "crps": 1.3834587914023368e-05,
+          "train_residual_sigma": 2.0031912517237467e-06
+        },
+        "dynamics": {
+          "rmse": 2.1627834215613446e-05,
+          "crps": 1.2653091843996098e-05,
+          "train_residual_sigma": 1.7857138668040778e-06
+        }
+      },
+      "paired_dynamics_minus_baseline": {
+        "rmse": {
+          "mean": -1.5048376962986146e-06,
+          "lo": -4.240991339523223e-06,
+          "hi": 1.1760072451250987e-06,
+          "n_shots": 48,
+          "dynamics_better": false,
+          "clear_of_zero": false
+        },
+        "crps": {
+          "mean": -1.181496070027267e-06,
+          "lo": -3.6971615686057068e-06,
+          "hi": 1.2086086801233933e-06,
+          "n_shots": 48,
+          "dynamics_better": false,
+          "clear_of_zero": false
+        }
+      },
+      "source_path": "ama/n=2_amplitude",
+      "description": "toroidal n=2 mode amplitude",
+      "unit": "T",
+      "was_conditioning_input": false
+    }
+  },
+  "verdict": {
+    "n_targets": 4,
+    "n_targets_rmse_significantly_better": 0,
+    "n_targets_crps_significantly_better": 0,
+    "dynamics_better_all_targets_rmse": false,
+    "dynamics_better_all_targets_crps": false
+  }
+}
