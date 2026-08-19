@@ -1,0 +1,258 @@
+{
+  "schema": "imas-ambix.challenge.ip-channel-audit",
+  "population_contract": {
+    "corpus": "full labelled DIII-D train corpus",
+    "shot_count": 7041,
+    "labelled_frame_count": 1559340,
+    "alignment": "linear interpolation of native plasma current onto efit_times",
+    "threshold": "finite abs(magnetics_plasma_current) < 50 kA",
+    "audited_frame_count": 658787
+  },
+  "class_precedence": [
+    "outside_native_support",
+    "whole_channel_below_threshold",
+    "pulse_disjoint_from_label_window",
+    "label_grid_misses_native_activity",
+    "aligned_leading_edge",
+    "aligned_trailing_edge",
+    "interior_low_current"
+  ],
+  "classes": [
+    {
+      "name": "pulse_disjoint_from_label_window",
+      "frame_count": 80032,
+      "shot_count": 866,
+      "time_alignment": {
+        "within_native_support_count": 80032,
+        "within_native_support_rate": 1.0,
+        "before_native_support_count": 0,
+        "after_native_support_count": 0,
+        "before_native_activity_count": 80032,
+        "during_native_activity_span_count": 0,
+        "after_native_activity_count": 0,
+        "nearest_native_delta_ms": {
+          "p10": 0.187011719,
+          "median": 0.187072754,
+          "p90": 0.187133789
+        }
+      },
+      "sentinel_or_missing_encoding": {
+        "interpolated_exact_zero_count": 11,
+        "interpolated_exact_zero_rate": 0.000137445,
+        "nearest_native_exact_zero_count": 668,
+        "nearest_native_exact_zero_rate": 0.008346661,
+        "nearest_native_nonfinite_count": 0,
+        "whole_channel_below_threshold_shot_count": 0
+      },
+      "other_actuator_covariation": {
+        "evidence_basis": "Parquet full-native-series statistics for all 20 other actuator channels on every contributing shot",
+        "all_twenty_channels_present_frame_count": 80032,
+        "all_twenty_channels_present_frame_rate": 1.0,
+        "all_twenty_channels_finite_bounds_frame_count": 80032,
+        "all_twenty_channels_finite_bounds_frame_rate": 1.0,
+        "all_twenty_channels_nonconstant_frame_count": 80032,
+        "all_twenty_channels_nonconstant_frame_rate": 1.0,
+        "nonconstant_channel_count_per_contributing_shot": {
+          "p10": 20.0,
+          "median": 20.0,
+          "p90": 20.0
+        },
+        "native_null_value_count": 0,
+        "shot_peak_covariation_with_ip": {
+          "measure": "Pearson correlation of log1p native shot peak magnitudes",
+          "channel_correlations": {
+            "magnetics_ECOILA": 0.033960477,
+            "magnetics_F1A": 0.649618038,
+            "magnetics_F1B": 0.661179658,
+            "magnetics_F2A": 0.289866027,
+            "magnetics_F2B": 0.497613718,
+            "magnetics_F3A": -0.242432581,
+            "magnetics_F3B": 0.007625896,
+            "magnetics_F4A": 0.332719588,
+            "magnetics_F4B": 0.427172037,
+            "magnetics_F5A": 0.52472129,
+            "magnetics_F5B": 0.452782969,
+            "magnetics_F6A": 0.779930308,
+            "magnetics_F6B": 0.561850227,
+            "magnetics_F7A": 0.692325219,
+            "magnetics_F7B": 0.702713383,
+            "magnetics_F8A": 0.105061583,
+            "magnetics_F8B": 0.25085751,
+            "magnetics_F9A": 0.116769297,
+            "magnetics_F9B": 0.089290958,
+            "magnetics_bcoil": 0.290818828
+          },
+          "finite_channel_count": 20,
+          "positive_channel_count": 19,
+          "median_correlation": 0.379945813,
+          "median_absolute_correlation": 0.379945813
+        }
+      },
+      "downstream_verdict": {
+        "exclude_from_default_consumers": true,
+        "scope": "all plasma-current-dependent consumers"
+      }
+    },
+    {
+      "name": "aligned_leading_edge",
+      "frame_count": 578754,
+      "shot_count": 4682,
+      "time_alignment": {
+        "within_native_support_count": 578754,
+        "within_native_support_rate": 1.0,
+        "before_native_support_count": 0,
+        "after_native_support_count": 0,
+        "before_native_activity_count": 578749,
+        "during_native_activity_span_count": 5,
+        "after_native_activity_count": 0,
+        "nearest_native_delta_ms": {
+          "p10": 0.187011719,
+          "median": 0.187072754,
+          "p90": 0.187133789
+        }
+      },
+      "sentinel_or_missing_encoding": {
+        "interpolated_exact_zero_count": 73,
+        "interpolated_exact_zero_rate": 0.000126133,
+        "nearest_native_exact_zero_count": 4290,
+        "nearest_native_exact_zero_rate": 0.007412476,
+        "nearest_native_nonfinite_count": 0,
+        "whole_channel_below_threshold_shot_count": 0
+      },
+      "other_actuator_covariation": {
+        "evidence_basis": "Parquet full-native-series statistics for all 20 other actuator channels on every contributing shot",
+        "all_twenty_channels_present_frame_count": 578754,
+        "all_twenty_channels_present_frame_rate": 1.0,
+        "all_twenty_channels_finite_bounds_frame_count": 578754,
+        "all_twenty_channels_finite_bounds_frame_rate": 1.0,
+        "all_twenty_channels_nonconstant_frame_count": 578754,
+        "all_twenty_channels_nonconstant_frame_rate": 1.0,
+        "nonconstant_channel_count_per_contributing_shot": {
+          "p10": 20.0,
+          "median": 20.0,
+          "p90": 20.0
+        },
+        "native_null_value_count": 0,
+        "shot_peak_covariation_with_ip": {
+          "measure": "Pearson correlation of log1p native shot peak magnitudes",
+          "channel_correlations": {
+            "magnetics_ECOILA": 0.202975773,
+            "magnetics_F1A": 0.703881934,
+            "magnetics_F1B": 0.684899059,
+            "magnetics_F2A": 0.350910743,
+            "magnetics_F2B": 0.396130255,
+            "magnetics_F3A": -0.155152947,
+            "magnetics_F3B": 0.052231446,
+            "magnetics_F4A": 0.217793471,
+            "magnetics_F4B": 0.333755349,
+            "magnetics_F5A": 0.427305542,
+            "magnetics_F5B": 0.502551114,
+            "magnetics_F6A": 0.624780441,
+            "magnetics_F6B": 0.590177588,
+            "magnetics_F7A": 0.541870882,
+            "magnetics_F7B": 0.607292502,
+            "magnetics_F8A": 0.118583072,
+            "magnetics_F8B": 0.379193857,
+            "magnetics_F9A": 0.191478973,
+            "magnetics_F9B": 0.254414624,
+            "magnetics_bcoil": 0.204224012
+          },
+          "finite_channel_count": 20,
+          "positive_channel_count": 19,
+          "median_correlation": 0.3650523,
+          "median_absolute_correlation": 0.3650523
+        }
+      },
+      "downstream_verdict": {
+        "exclude_from_default_consumers": true,
+        "scope": "confined-equilibrium consumers; ramp-aware traversal may retain"
+      }
+    },
+    {
+      "name": "interior_low_current",
+      "frame_count": 1,
+      "shot_count": 1,
+      "time_alignment": {
+        "within_native_support_count": 1,
+        "within_native_support_rate": 1.0,
+        "before_native_support_count": 0,
+        "after_native_support_count": 0,
+        "before_native_activity_count": 0,
+        "during_native_activity_span_count": 1,
+        "after_native_activity_count": 0,
+        "nearest_native_delta_ms": {
+          "p10": 0.187011719,
+          "median": 0.187011719,
+          "p90": 0.187011719
+        }
+      },
+      "sentinel_or_missing_encoding": {
+        "interpolated_exact_zero_count": 0,
+        "interpolated_exact_zero_rate": 0.0,
+        "nearest_native_exact_zero_count": 0,
+        "nearest_native_exact_zero_rate": 0.0,
+        "nearest_native_nonfinite_count": 0,
+        "whole_channel_below_threshold_shot_count": 0
+      },
+      "other_actuator_covariation": {
+        "evidence_basis": "Parquet full-native-series statistics for all 20 other actuator channels on every contributing shot",
+        "all_twenty_channels_present_frame_count": 1,
+        "all_twenty_channels_present_frame_rate": 1.0,
+        "all_twenty_channels_finite_bounds_frame_count": 1,
+        "all_twenty_channels_finite_bounds_frame_rate": 1.0,
+        "all_twenty_channels_nonconstant_frame_count": 1,
+        "all_twenty_channels_nonconstant_frame_rate": 1.0,
+        "nonconstant_channel_count_per_contributing_shot": {
+          "p10": 20.0,
+          "median": 20.0,
+          "p90": 20.0
+        },
+        "native_null_value_count": 0,
+        "shot_peak_covariation_with_ip": {
+          "measure": "Pearson correlation of log1p native shot peak magnitudes",
+          "channel_correlations": {
+            "magnetics_ECOILA": null,
+            "magnetics_F1A": null,
+            "magnetics_F1B": null,
+            "magnetics_F2A": null,
+            "magnetics_F2B": null,
+            "magnetics_F3A": null,
+            "magnetics_F3B": null,
+            "magnetics_F4A": null,
+            "magnetics_F4B": null,
+            "magnetics_F5A": null,
+            "magnetics_F5B": null,
+            "magnetics_F6A": null,
+            "magnetics_F6B": null,
+            "magnetics_F7A": null,
+            "magnetics_F7B": null,
+            "magnetics_F8A": null,
+            "magnetics_F8B": null,
+            "magnetics_F9A": null,
+            "magnetics_F9B": null,
+            "magnetics_bcoil": null
+          },
+          "finite_channel_count": 0,
+          "positive_channel_count": 0,
+          "median_correlation": null,
+          "median_absolute_correlation": null
+        }
+      },
+      "downstream_verdict": {
+        "exclude_from_default_consumers": true,
+        "scope": "all plasma-current-dependent consumers"
+      }
+    }
+  ],
+  "exclusion_policy": {
+    "default_excluded_classes": [
+      "pulse_disjoint_from_label_window",
+      "aligned_leading_edge",
+      "interior_low_current"
+    ],
+    "ramp_only_classes": [
+      "aligned_leading_edge"
+    ],
+    "rule": "Every audited class is excluded from default confined-equilibrium training, calibration, scoring, and integral-constraint consumers. Aligned edge classes may be admitted only by explicitly ramp-aware limited-phase traversal code."
+  }
+}
