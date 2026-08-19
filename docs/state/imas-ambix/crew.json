@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T00:37:14",
+  "updated": "2026-08-20T00:44:31",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -22,7 +22,7 @@
         "id": "camera-burst-launch",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
+        "session_id": "01a01c21-09c0-7592-931e-7100c5a86b36",
         "created": "2026-08-19"
       },
       {
@@ -78,7 +78,7 @@
         "id": "camera-suite-recheck",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
+        "session_id": "01a01c21-09d3-7533-94b4-6a248fffd96c",
         "created": "2026-08-19"
       },
       {
@@ -150,6 +150,13 @@
         "role": "implement",
         "session_id": "01a01025-f9a4-7870-af91-cfee481f3762",
         "created": "2026-08-17"
+      },
+      {
+        "id": "harmonic-anchor-wiring",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-19"
       },
       {
         "id": "harmonic-rebaseline",
@@ -5252,9 +5259,192 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260819T222518819231-da-burst-training-launch",
+        "plan": "camera-dynamics-wm-v0",
+        "section": "\u00a75",
+        "node": "da-burst-training-launch",
+        "role": "implement",
+        "member": "camera-burst-launch",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T22:25:21Z",
+        "completed_at": "2026-08-19T22:40:22Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 901,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 901,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "e5947a1476678fcee8d772323d6fa8e62afff259",
+        "commits": [
+          "54e3aaf1c63872ce094fcc111fbe77a68375876e"
+        ],
+        "changed_lines": {
+          "added": 302,
+          "removed": 0,
+          "files": 5
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "outcome": "Matched conditioning matrix launched. Smoke PASSED 3/3 (jobs 1251896/97/98, exit 0, 4m33s each: two optimiser steps, a validation pass, held-out plus five named-geometry eval, final.pt + evaluation.json, TRAIN_DONE=0). Six production jobs accepted at an IDENTICAL 20,000-step budget - 1251899/1251900 native, 1251901/1251902 shuffled, 1251903/1251904 slow_only, baseline/dynamics per pair; each baseline/dynamics pair differs only in temporal_attention and run_name, each control differs from its same-arm native only in conditioning_variant and run_name. Five RUNNING, 1251904 PENDING on ordinary 30-core reservation capacity. Scoring command recorded verbatim in the manifest for a later node.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T222518819231-da-burst-training-launch/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01c21-09c0-7592-931e-7100c5a86b36",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 8064000,
+            "cached_input_tokens_cumulative": 8064000,
+            "input_tokens": 8265742,
+            "input_tokens_cumulative": 8265742,
+            "output_tokens": 26122,
+            "output_tokens_cumulative": 26122,
+            "reasoning_output_tokens": 8574,
+            "reasoning_output_tokens_cumulative": 8574
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
+      },
+      {
+        "run_id": "r-20260819T222518819394-camdyn-suite-recheck",
+        "plan": "camera-dynamics-wm-v0",
+        "section": "\u00a75",
+        "node": "camdyn-suite-recheck",
+        "role": "test",
+        "member": "camera-suite-recheck",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T22:25:21Z",
+        "completed_at": "2026-08-19T22:35:24Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 603,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 603,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "e5947a1476678fcee8d772323d6fa8e62afff259",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "Suite green after the loader/trainer rewire: pytest tests/camdyn 245 passed / 0 failed in 429 s, ruff clean, at a HEAD with 665cc34 as ancestor. Against the 216-passed baseline that is 29 additional passing tests and no regression test ids.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T222518819394-camdyn-suite-recheck/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01c21-09d3-7533-94b4-6a248fffd96c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 3593984,
+            "cached_input_tokens_cumulative": 3593984,
+            "input_tokens": 3725960,
+            "input_tokens_cumulative": 3725960,
+            "output_tokens": 8175,
+            "output_tokens_cumulative": 8175,
+            "reasoning_output_tokens": 2848,
+            "reasoning_output_tokens_cumulative": 2848
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
+      },
+      {
+        "run_id": "r-20260819T223859698331-harmonic-error-decomposition",
+        "plan": "toroidal-harmonic-annulus-read",
+        "section": "\u00a76",
+        "node": "harmonic-error-decomposition",
+        "role": "implement",
+        "member": "harmonic-rebaseline",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T22:39:02Z",
+        "completed_at": "2026-08-19T22:43:29Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 267,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 267,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "35a34d527307eb66dfa206d5ea46710c8c1bb8b9",
+        "commits": [
+          "80e84da"
+        ],
+        "changed_lines": {
+          "added": 2820,
+          "removed": 0,
+          "files": 4
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "outcome": "Component error in metres INVERTS the planned correction's direction. Axis read-minus-referee: radial median signed +0.0874 m IQR [+0.035,+0.128] (read is OUTBOARD of the referee, not inboard as the Shafranov premise assumed), vertical -0.0411 m, median absolute 0.0415 m; train-mean baseline axis radial +0.0040, vertical -0.0019. Radial error therefore DOMINATES vertical (8.7 vs 4.1 cm) -- the earlier skill anisotropy was a baseline-variance artifact, since the baseline vertical IQR is only [-0.005,+0.006]. Signed LCFS ray medians run -0.129/-0.106/-0.103/+0.104/+0.082/+0.088/-0.181/-0.126 m over 0-315 degrees, the coherent signature of a ray-cast origin displaced outboard. Matched X-point offsets are small (radial -0.021/-0.011 m, vertical +0.013/-0.016 m). No held-out rescore; reused the frozen arrays at sha256 916c93d2.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T223859698331-harmonic-error-decomposition/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01bd2-446e-7f23-a211-d13ce87a138d",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 3812352,
+            "cached_input_tokens_cumulative": 38303232,
+            "input_tokens": 3904231,
+            "input_tokens_cumulative": 38937388,
+            "output_tokens": 11096,
+            "output_tokens_cumulative": 93968,
+            "reasoning_output_tokens": 2453,
+            "reasoning_output_tokens_cumulative": 24718
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 161
+    "_version": 167
   }
 }
