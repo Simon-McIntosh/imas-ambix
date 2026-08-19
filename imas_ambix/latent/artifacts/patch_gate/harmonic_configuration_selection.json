@@ -1,0 +1,821 @@
+{
+  "protocol": {
+    "selection_split": "train shots 21-28 of the deterministic 40-shot train list",
+    "heldout_policy": "scored exactly once after configuration selection",
+    "selection_criterion": {
+      "objective": "maximum train lcfs_skill point estimate",
+      "constraint": "consistency_rms_annulus <= 1.0",
+      "eligible_arms": 24
+    },
+    "confidence_intervals": "95% paired bootstrap over shots, 2000 draws, seed 0",
+    "intended_grid": {
+      "orders": [
+        3,
+        4,
+        5,
+        6,
+        8
+      ],
+      "ridges": [
+        1e-08,
+        0.0001,
+        0.01,
+        0.1
+      ],
+      "pole_inboard_fractions": [
+        0.25,
+        0.41,
+        0.55
+      ],
+      "ip_anchor": [
+        false
+      ],
+      "intended_arms": 60
+    },
+    "swept_grid": {
+      "orders": [
+        3,
+        4,
+        5
+      ],
+      "ridges": [
+        1e-08,
+        0.0001,
+        0.01,
+        0.1
+      ],
+      "pole_inboard_fractions": [
+        0.25,
+        0.41,
+        0.55
+      ],
+      "ip_anchor": [
+        false
+      ],
+      "swept_arms": 36
+    },
+    "unswept_intended_arms": {
+      "count": 24,
+      "description": "all ridge and pole-fraction combinations at orders 6 and 8",
+      "reason": "stopped at complete order blocks to respect the worker time fence"
+    },
+    "anchor_ablation": "one paired train arm at the best eligible unanchored configuration",
+    "implementation_note": "fit_harmonic was called directly so the Ip circulation anchor entered the solve",
+    "min_ip_requested_ka": 50.0
+  },
+  "baseline_current_heldout": {
+    "artifact": "imas_ambix/latent/artifacts/patch_gate/boundary_read_harmonic-o3-centroidorigin-frac0.41.json",
+    "sha256": "1edbb1f8c666c5403bb89cb56f23cd5a0bd9efd264313a0004a14a8d20001597",
+    "n_scored": 160,
+    "xpoint_set_skill": 0.6893756283230787,
+    "axis_skill": -1.8963609270884518,
+    "lcfs_skill": -3.900123687590584,
+    "lcfs_offset_median_cm_all": 11.517603782934993
+  },
+  "train_ladder": [
+    {
+      "order": 3,
+      "ridge": 1e-08,
+      "pole_inboard_fraction": 0.25,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -6.803169,
+      "lcfs_skill_ci": [
+        -8.002345524454185,
+        -6.025532974461389
+      ],
+      "consistency_rms_annulus": 0.084718,
+      "selection_eligible": true
+    },
+    {
+      "order": 3,
+      "ridge": 1e-08,
+      "pole_inboard_fraction": 0.41,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -3.305749,
+      "lcfs_skill_ci": [
+        -3.8321017238852977,
+        -2.906633368098488
+      ],
+      "consistency_rms_annulus": 0.078961,
+      "selection_eligible": true
+    },
+    {
+      "order": 3,
+      "ridge": 1e-08,
+      "pole_inboard_fraction": 0.55,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -8.249965,
+      "lcfs_skill_ci": [
+        -12.413046618531848,
+        -7.7008617226186376
+      ],
+      "consistency_rms_annulus": 6.519241,
+      "selection_eligible": false
+    },
+    {
+      "order": 3,
+      "ridge": 0.0001,
+      "pole_inboard_fraction": 0.25,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -6.80481,
+      "lcfs_skill_ci": [
+        -8.004157750935203,
+        -6.027143148536987
+      ],
+      "consistency_rms_annulus": 0.08478,
+      "selection_eligible": true
+    },
+    {
+      "order": 3,
+      "ridge": 0.0001,
+      "pole_inboard_fraction": 0.41,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -3.31155,
+      "lcfs_skill_ci": [
+        -3.839350742841251,
+        -2.9114504507151264
+      ],
+      "consistency_rms_annulus": 0.079026,
+      "selection_eligible": true
+    },
+    {
+      "order": 3,
+      "ridge": 0.0001,
+      "pole_inboard_fraction": 0.55,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -8.271382,
+      "lcfs_skill_ci": [
+        -12.44313100150092,
+        -7.721032494047072
+      ],
+      "consistency_rms_annulus": 6.458188,
+      "selection_eligible": false
+    },
+    {
+      "order": 3,
+      "ridge": 0.01,
+      "pole_inboard_fraction": 0.25,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -6.496928,
+      "lcfs_skill_ci": [
+        -7.080241293966493,
+        -6.052038503414704
+      ],
+      "consistency_rms_annulus": 0.086914,
+      "selection_eligible": true
+    },
+    {
+      "order": 3,
+      "ridge": 0.01,
+      "pole_inboard_fraction": 0.41,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -3.918779,
+      "lcfs_skill_ci": [
+        -4.599932830273601,
+        -3.443788998662157
+      ],
+      "consistency_rms_annulus": 0.084894,
+      "selection_eligible": true
+    },
+    {
+      "order": 3,
+      "ridge": 0.01,
+      "pole_inboard_fraction": 0.55,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -10.217838,
+      "lcfs_skill_ci": [
+        -15.311482336591055,
+        -9.622277647648747
+      ],
+      "consistency_rms_annulus": 2.541797,
+      "selection_eligible": false
+    },
+    {
+      "order": 3,
+      "ridge": 0.1,
+      "pole_inboard_fraction": 0.25,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -8.282984,
+      "lcfs_skill_ci": [
+        -8.91411268142,
+        -7.610698968970634
+      ],
+      "consistency_rms_annulus": 0.112545,
+      "selection_eligible": true
+    },
+    {
+      "order": 3,
+      "ridge": 0.1,
+      "pole_inboard_fraction": 0.41,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -9.796751,
+      "lcfs_skill_ci": [
+        -11.374882647527249,
+        -8.97571319240606
+      ],
+      "consistency_rms_annulus": 0.134362,
+      "selection_eligible": true
+    },
+    {
+      "order": 3,
+      "ridge": 0.1,
+      "pole_inboard_fraction": 0.55,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": null,
+      "lcfs_skill_ci": [
+        null,
+        null
+      ],
+      "consistency_rms_annulus": 7.894132,
+      "selection_eligible": false
+    },
+    {
+      "order": 4,
+      "ridge": 1e-08,
+      "pole_inboard_fraction": 0.25,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -4.948612,
+      "lcfs_skill_ci": [
+        -5.461680539467919,
+        -4.535594726148745
+      ],
+      "consistency_rms_annulus": 0.083484,
+      "selection_eligible": true
+    },
+    {
+      "order": 4,
+      "ridge": 1e-08,
+      "pole_inboard_fraction": 0.41,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -3.93554,
+      "lcfs_skill_ci": [
+        -4.737107794173049,
+        -3.3226007561330455
+      ],
+      "consistency_rms_annulus": 0.078071,
+      "selection_eligible": true
+    },
+    {
+      "order": 4,
+      "ridge": 1e-08,
+      "pole_inboard_fraction": 0.55,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -7.82282,
+      "lcfs_skill_ci": [
+        -11.476676443199157,
+        -7.413735810325795
+      ],
+      "consistency_rms_annulus": 38.72547,
+      "selection_eligible": false
+    },
+    {
+      "order": 4,
+      "ridge": 0.0001,
+      "pole_inboard_fraction": 0.25,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -4.94765,
+      "lcfs_skill_ci": [
+        -5.461184930777258,
+        -4.533414805553123
+      ],
+      "consistency_rms_annulus": 0.083544,
+      "selection_eligible": true
+    },
+    {
+      "order": 4,
+      "ridge": 0.0001,
+      "pole_inboard_fraction": 0.41,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -3.942919,
+      "lcfs_skill_ci": [
+        -4.745275428374969,
+        -3.329614728202706
+      ],
+      "consistency_rms_annulus": 0.078134,
+      "selection_eligible": true
+    },
+    {
+      "order": 4,
+      "ridge": 0.0001,
+      "pole_inboard_fraction": 0.55,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -7.843327,
+      "lcfs_skill_ci": [
+        -11.507050744842404,
+        -7.433804823464969
+      ],
+      "consistency_rms_annulus": 38.368038,
+      "selection_eligible": false
+    },
+    {
+      "order": 4,
+      "ridge": 0.01,
+      "pole_inboard_fraction": 0.25,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -5.310837,
+      "lcfs_skill_ci": [
+        -5.75665759749563,
+        -4.895470807726118
+      ],
+      "consistency_rms_annulus": 0.088137,
+      "selection_eligible": true
+    },
+    {
+      "order": 4,
+      "ridge": 0.01,
+      "pole_inboard_fraction": 0.41,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -4.647346,
+      "lcfs_skill_ci": [
+        -5.574097892683823,
+        -3.9898837005399037
+      ],
+      "consistency_rms_annulus": 0.085298,
+      "selection_eligible": true
+    },
+    {
+      "order": 4,
+      "ridge": 0.01,
+      "pole_inboard_fraction": 0.55,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -9.72752,
+      "lcfs_skill_ci": [
+        -14.20408033057093,
+        -9.266997574386458
+      ],
+      "consistency_rms_annulus": 110.985216,
+      "selection_eligible": false
+    },
+    {
+      "order": 4,
+      "ridge": 0.1,
+      "pole_inboard_fraction": 0.25,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -7.353904,
+      "lcfs_skill_ci": [
+        -8.051811196773594,
+        -6.906229923198576
+      ],
+      "consistency_rms_annulus": 0.115312,
+      "selection_eligible": true
+    },
+    {
+      "order": 4,
+      "ridge": 0.1,
+      "pole_inboard_fraction": 0.41,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -11.765848,
+      "lcfs_skill_ci": [
+        -13.573769437935791,
+        -10.759076035478454
+      ],
+      "consistency_rms_annulus": 0.135263,
+      "selection_eligible": true
+    },
+    {
+      "order": 4,
+      "ridge": 0.1,
+      "pole_inboard_fraction": 0.55,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -21.611132,
+      "lcfs_skill_ci": [
+        -29.19425493692553,
+        -19.511697712381473
+      ],
+      "consistency_rms_annulus": 73.213627,
+      "selection_eligible": false
+    },
+    {
+      "order": 5,
+      "ridge": 1e-08,
+      "pole_inboard_fraction": 0.25,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -4.038298,
+      "lcfs_skill_ci": [
+        -4.638253335714861,
+        -3.525706815207942
+      ],
+      "consistency_rms_annulus": 0.081836,
+      "selection_eligible": true
+    },
+    {
+      "order": 5,
+      "ridge": 1e-08,
+      "pole_inboard_fraction": 0.41,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -6.856263,
+      "lcfs_skill_ci": [
+        -7.844548467510973,
+        -6.016677733362151
+      ],
+      "consistency_rms_annulus": 0.081305,
+      "selection_eligible": true
+    },
+    {
+      "order": 5,
+      "ridge": 1e-08,
+      "pole_inboard_fraction": 0.55,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -7.831017,
+      "lcfs_skill_ci": [
+        -11.535423316173983,
+        -7.434613961015345
+      ],
+      "consistency_rms_annulus": 6342.852711,
+      "selection_eligible": false
+    },
+    {
+      "order": 5,
+      "ridge": 0.0001,
+      "pole_inboard_fraction": 0.25,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -4.059057,
+      "lcfs_skill_ci": [
+        -4.686804595992837,
+        -3.5347075878719054
+      ],
+      "consistency_rms_annulus": 0.081891,
+      "selection_eligible": true
+    },
+    {
+      "order": 5,
+      "ridge": 0.0001,
+      "pole_inboard_fraction": 0.41,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -6.862597,
+      "lcfs_skill_ci": [
+        -7.850536834851666,
+        -6.023500927978216
+      ],
+      "consistency_rms_annulus": 0.081485,
+      "selection_eligible": true
+    },
+    {
+      "order": 5,
+      "ridge": 0.0001,
+      "pole_inboard_fraction": 0.55,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -7.851359,
+      "lcfs_skill_ci": [
+        -11.563094180147827,
+        -7.454829491575322
+      ],
+      "consistency_rms_annulus": 6129.057025,
+      "selection_eligible": false
+    },
+    {
+      "order": 5,
+      "ridge": 0.01,
+      "pole_inboard_fraction": 0.25,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -4.711148,
+      "lcfs_skill_ci": [
+        -5.272204833979987,
+        -4.219949409449282
+      ],
+      "consistency_rms_annulus": 0.086523,
+      "selection_eligible": true
+    },
+    {
+      "order": 5,
+      "ridge": 0.01,
+      "pole_inboard_fraction": 0.41,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -6.364984,
+      "lcfs_skill_ci": [
+        -6.811417957584241,
+        -5.8338184502663
+      ],
+      "consistency_rms_annulus": 0.090122,
+      "selection_eligible": true
+    },
+    {
+      "order": 5,
+      "ridge": 0.01,
+      "pole_inboard_fraction": 0.55,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -9.668016,
+      "lcfs_skill_ci": [
+        -14.041510777930188,
+        -9.211904626581727
+      ],
+      "consistency_rms_annulus": 1388.616471,
+      "selection_eligible": false
+    },
+    {
+      "order": 5,
+      "ridge": 0.1,
+      "pole_inboard_fraction": 0.25,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -9.937592,
+      "lcfs_skill_ci": [
+        -10.839983288107677,
+        -9.019353615415845
+      ],
+      "consistency_rms_annulus": 0.131299,
+      "selection_eligible": true
+    },
+    {
+      "order": 5,
+      "ridge": 0.1,
+      "pole_inboard_fraction": 0.41,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -8.33178,
+      "lcfs_skill_ci": [
+        -8.930897381114196,
+        -7.848058972673107
+      ],
+      "consistency_rms_annulus": 0.133992,
+      "selection_eligible": true
+    },
+    {
+      "order": 5,
+      "ridge": 0.1,
+      "pole_inboard_fraction": 0.55,
+      "ip_anchor": false,
+      "split": "train",
+      "lcfs_skill": -20.697266,
+      "lcfs_skill_ci": [
+        -27.4739045140724,
+        -18.64586104697409
+      ],
+      "consistency_rms_annulus": 3996.793854,
+      "selection_eligible": false
+    }
+  ],
+  "train_ip_anchor_ablation": {
+    "order": 3,
+    "ridge": 1e-08,
+    "pole_inboard_fraction": 0.41,
+    "ip_anchor": true,
+    "split": "train",
+    "n_scored": 160,
+    "n_shots": 8,
+    "per_quantity_skill": {
+      "axis_R": -1.8803502877392728,
+      "axis_Z": -3.6177991599951307,
+      "xpt0_R": -0.2454025841200269,
+      "xpt0_Z": -28.650158084982834,
+      "xpt1_R": 0.2508433869710679,
+      "xpt1_Z": -30.717903753078776,
+      "lcfs_r_0": -29.94409940695378,
+      "lcfs_r_1": -10.460528623461133,
+      "lcfs_r_2": -2.0116832190467586,
+      "lcfs_r_3": -8.550897041706458,
+      "lcfs_r_4": -4.280734396171255,
+      "lcfs_r_5": -6.688065473835979,
+      "lcfs_r_6": -2.114530767676501,
+      "lcfs_r_7": -11.797933954470958
+    },
+    "axis_skill": -2.749074723867202,
+    "xpoint_set_skill": 0.41331669098329404,
+    "lcfs_skill": -9.481059110415352,
+    "axis_error_mean_m": 0.10192746617852508,
+    "axis_error_median_m": 0.10864771114759608,
+    "axis_skill_ci": [
+      -4.1193138544104695,
+      -1.3615051870811208
+    ],
+    "lcfs_skill_ci": [
+      -10.474014665808738,
+      -9.007567427583055
+    ],
+    "xpoint_set_skill_ci": [
+      0.34508263030628583,
+      0.44724776674216804
+    ],
+    "per_quantity_skill_ci": {
+      "axis_R": [
+        -2.4593585338091124,
+        -1.4916209535367755
+      ],
+      "axis_Z": [
+        -6.188735663765215,
+        -1.196651419262148
+      ],
+      "xpt0_R": [
+        -0.4708825227317398,
+        -0.08481892744672015
+      ],
+      "xpt0_Z": [
+        -30.453155634023823,
+        -26.102747727557702
+      ],
+      "xpt1_R": [
+        -0.6772703924898271,
+        0.7573701204132236
+      ],
+      "xpt1_Z": [
+        -45.47151112756833,
+        -12.363779136012722
+      ],
+      "lcfs_r_0": [
+        -33.43895766222386,
+        -27.767946364891223
+      ],
+      "lcfs_r_1": [
+        -12.654195083623026,
+        -9.261465019421395
+      ],
+      "lcfs_r_2": [
+        -2.4463518984759025,
+        -1.758553441788283
+      ],
+      "lcfs_r_3": [
+        -12.592266849643034,
+        -7.157494369579048
+      ],
+      "lcfs_r_4": [
+        -5.133654620949371,
+        -3.467554894048882
+      ],
+      "lcfs_r_5": [
+        -10.555513150014466,
+        -5.305462975691383
+      ],
+      "lcfs_r_6": [
+        -3.330832881774429,
+        -1.4074162763214026
+      ],
+      "lcfs_r_7": [
+        -15.154087305699724,
+        -9.84441279273718
+      ]
+    },
+    "ci_n_boot": 2000,
+    "ci_seed": 0,
+    "lcfs_offset_median_cm_all": 17.439745043476346,
+    "lcfs_offset_median_cm_flattop": null,
+    "misfit_median": 23.7355160790454,
+    "consistency_rms_annulus": 10.358450000968928,
+    "consistency_rms_annulus_mean": 2834.863030826286,
+    "diverted_fraction_all": 0.9090909090909091,
+    "saddle_excess_mean": 9.54375,
+    "saddle_excess_median": 10.0,
+    "saddle_clean_fraction": 0.01875,
+    "referee_xpoint_count_mean": 1.49375,
+    "wall_s": 18.359986901283264
+  },
+  "selected_configuration": {
+    "order": 3,
+    "ridge": 1e-08,
+    "pole_inboard_fraction": 0.41,
+    "ip_anchor": false,
+    "split": "train",
+    "lcfs_skill": -3.305749,
+    "lcfs_skill_ci": [
+      -3.8321017238852977,
+      -2.906633368098488
+    ],
+    "consistency_rms_annulus": 0.078961,
+    "selection_eligible": true
+  },
+  "heldout_once": {
+    "order": 3,
+    "ridge": 1e-08,
+    "pole_inboard_fraction": 0.41,
+    "ip_anchor": false,
+    "split": "eval",
+    "n_scored": 160,
+    "n_shots": 8,
+    "per_quantity_skill": {
+      "axis_R": -0.7525836498754188,
+      "axis_Z": -3.040138204301485,
+      "xpt0_R": -0.4446864519430591,
+      "xpt0_Z": -16.848190483230763,
+      "xpt1_R": -1.8743068730813337,
+      "xpt1_Z": -15.424335514730533,
+      "lcfs_r_0": -4.222155421153379,
+      "lcfs_r_1": -6.857865398495206,
+      "lcfs_r_2": -2.85896978287515,
+      "lcfs_r_3": -2.8227925007296437,
+      "lcfs_r_4": -1.4384975049806967,
+      "lcfs_r_5": -2.5705733065960943,
+      "lcfs_r_6": -3.0034284976020977,
+      "lcfs_r_7": -7.426707088292403
+    },
+    "axis_skill": -1.8963609270884518,
+    "xpoint_set_skill": 0.6893756283230787,
+    "lcfs_skill": -3.900123687590584,
+    "axis_error_mean_m": 0.11863155173526341,
+    "axis_error_median_m": 0.1071095558140687,
+    "axis_skill_ci": [
+      -2.775633520960458,
+      -1.4004672216043739
+    ],
+    "lcfs_skill_ci": [
+      -5.168066956244095,
+      -3.0171921266321893
+    ],
+    "xpoint_set_skill_ci": [
+      0.30936156592006614,
+      0.7732963403339849
+    ],
+    "per_quantity_skill_ci": {
+      "axis_R": [
+        -0.968610019426762,
+        -0.5826725215475681
+      ],
+      "axis_Z": [
+        -4.621249459062932,
+        -2.2001193325917012
+      ],
+      "xpt0_R": [
+        -0.7387855123638447,
+        -0.26749933017070826
+      ],
+      "xpt0_Z": [
+        -45.33284521560978,
+        -11.157524702971754
+      ],
+      "xpt1_R": [
+        -4.6012506763349545,
+        -0.7673008585899335
+      ],
+      "xpt1_Z": [
+        -29.178571066660176,
+        0.49459490819980356
+      ],
+      "lcfs_r_0": [
+        -5.106682859718109,
+        -3.318968041440516
+      ],
+      "lcfs_r_1": [
+        -9.199563561341774,
+        -5.218473740824541
+      ],
+      "lcfs_r_2": [
+        -5.053807748744147,
+        -1.850657079171107
+      ],
+      "lcfs_r_3": [
+        -3.381817586773162,
+        -2.2780429331902283
+      ],
+      "lcfs_r_4": [
+        -1.6522887197243084,
+        -1.1982919586100182
+      ],
+      "lcfs_r_5": [
+        -2.9691365537461603,
+        -2.1747222620996776
+      ],
+      "lcfs_r_6": [
+        -5.112937800010339,
+        -1.8599963507416803
+      ],
+      "lcfs_r_7": [
+        -9.670820824137948,
+        -5.756103280819017
+      ]
+    },
+    "ci_n_boot": 2000,
+    "ci_seed": 0,
+    "lcfs_offset_median_cm_all": 11.517603782934993,
+    "lcfs_offset_median_cm_flattop": 11.179735692561646,
+    "misfit_median": 0.10417604692174251,
+    "consistency_rms_annulus": 0.08497886769421978,
+    "consistency_rms_annulus_mean": 56.281581860488586,
+    "diverted_fraction_all": 0.5804195804195804,
+    "saddle_excess_mean": 8.875,
+    "saddle_excess_median": 9.0,
+    "saddle_clean_fraction": 0.03125,
+    "referee_xpoint_count_mean": 0.76875,
+    "wall_s": 19.611352495849133
+  }
+}
