@@ -65,6 +65,68 @@
   <code>~/.cache/ambix-nova-integration/api-drift.md</code>; the worker's sandbox refused the
   write outside its run directory, so the orchestrator materialised the report verbatim.</p>
 
+  <h2 id="circuit-retirement">Circuit donor retired — operator matrix unchanged to the last bit</h2>
+  <p><strong>The first Ambix physics donor is gone: <code>imas_ambix/gs/circuits.py</code> is
+  deleted, its six consumers read the artifact table's declarations instead, and the coil-column
+  operator is bit-identical across the change.</strong> Commit <code>4f432bc</code>, merged
+  <code>4dafbfd</code>; 447 insertions against 1141 deletions across exactly the seven declared
+  paths.</p>
+
+  <table>
+    <caption>Frozen-shot parity, shot 11766, signature mp78-fl46-fc299-lim37-ce092a721d99050b</caption>
+    <thead><tr><th>Quantity</th><th>Before versus after</th></tr></thead>
+    <tbody>
+      <tr><td>Coil-column operator matrix, 81 × 21</td><td>Array-equal; max absolute delta 0</td></tr>
+      <tr><td>Active circuits</td><td>13, unchanged</td></tr>
+      <tr><td>Circuit drives, channels and weights</td><td>21, unchanged</td></tr>
+      <tr><td>Conductor arrays</td><td>6 of 6 float-equal</td></tr>
+      <tr><td>Collapsed channel mappings</td><td>21, equal</td></tr>
+      <tr><td>Passive memberships</td><td>146, equal</td></tr>
+      <tr><td>Scoped regression coverage</td><td>23 passed</td></tr>
+      <tr><td>Residual <code>gs.circuits</code> imports</td><td>0, donor path absent</td></tr>
+    </tbody>
+  </table>
+
+  <p>The census predicted this exactly: the circuits donor was the one whose blocker was consumer
+  rewiring rather than missing authority, because <code>MachineArtifactManifest.drive_map</code>
+  and the table's <code>active_circuits</code> and <code>circuit_drives</code> already carried the
+  declaration. No port into Nova was needed.</p>
+
+  <h3 id="artifact-geometry-baseline">Four artifact-geometry failures are pre-existing, not caused here</h3>
+  <p>The node reported <code>NEEDS-HELP</code> rather than claiming success, because the full
+  <code>tests/gs</code> run finished 226 passed / 4 failed and the four failures sit in a file
+  outside its write fence. A separate classification run reproduced all four on a tree that does
+  <em>not</em> contain the retirement: <strong>4 of 4 pre-existing, 0 of 4 retirement-induced</strong>,
+  with the numbers identical on both sides.</p>
+  <table>
+    <caption>Baseline reproduction of the four failures, without the retirement applied</caption>
+    <thead><tr><th>Case</th><th>Observed</th><th>Expected</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>test_the_carried_channel_set_resolves_onto_the_same_sensors</code></td>
+        <td>missing {fl_p4l_1, fl_p4l_4, fl_p6u_1}</td><td>{fl_p6u_1}</td><td>pre-existing</td>
+      </tr>
+      <tr>
+        <td><code>test_the_extra_artifact_flux_loops_never_reach_the_forward_model</code></td>
+        <td>missing {fl_p4l_1, fl_p4l_4, fl_p6u_1}</td><td>{fl_p6u_1}</td><td>pre-existing</td>
+      </tr>
+      <tr>
+        <td><code>test_every_coil_column_reproduces_the_campaigns</code></td>
+        <td>p6l ratio 1.010756018918288</td><td>1.0 ± 0.01</td><td>pre-existing, identical after</td>
+      </tr>
+      <tr>
+        <td><code>test_declared_and_artifact_solenoid_columns_stay_within_source_tolerance</code></td>
+        <td>1.0508105926909095</td><td>1.050802620352377</td><td>pre-existing, identical after</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>Both numeric cases point at the machine description rather than at circuit metadata: a P6-pair
+  column ratio just past a 1&nbsp;% bound, and a solenoid ratio diverging in the sixth decimal.
+  Two P4L flux-loop channels and one P6U channel are absent from the artifact where only the P6U
+  one is expected. That is machine-description authority, which this plan's locked decision
+  assigns to Nova, so it is tracked separately rather than patched here — adjusting the
+  expectations would mask a real divergence.</p>
+
   <h2 id="donor-census">Residual donor census — 79 importer edges, 0 of 3 donors retirable</h2>
   <p><strong>Every Ambix physics donor Nova was expected to supersede still carries live
   importers, so none may be deleted yet; the census names the specific gap that governs each

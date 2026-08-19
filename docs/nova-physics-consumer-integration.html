@@ -19,12 +19,13 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-19">
-<meta name="plan-version" content="9">
+<meta name="plan-version" content="10">
 <meta name="plan-depends-on" content="">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
-<meta name="plan-impl" content="0.5">
+<meta name="plan-impl" content="0.625">
 <meta name="plan-artifacts" content="docs/evidence/archive/nova-physics-consumer-integration-landed.html,~/.cache/ambix-nova-integration/api-drift.md,~/.cache/ambix-nova-integration/donor-census.md">
+<meta name="plan-commits" content="4f432bc0a748c72dc66cef1f9265d6b8f3bd11e5,4dafbfd">
 </head>
 <body>
   <main class="plan-doc">
@@ -96,7 +97,7 @@ Done-when
   3. followup written + this followup marked resolved</pre>
     <p class="r-fu-outcome">The wait-for-API-freeze sequencing is superseded by continuous tandem integration. The first exact-SHA checkpoint landed at Nova 9c18d31f8bf0f424bd94d0a5c4ce5f1622d9fd8f with the traced geometry and canonical correction-scale migrations; 48 Nova-facing Ambix tests passed and Ambix commit 1b7e341 was pushed. The remaining migration inventory moves to the continuous-checkpoint followup.</p>
     </article>
-<article class="r-fu" data-id="f-npci-02" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-08" data-recommends-skill="/reckon-ship nova-physics-consumer-integration §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-npci-02" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-08" data-recommends-skill="/reckon-ship nova-physics-consumer-integration §2" data-resolved-at="2026-08-19T21:35:52+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Migrate the table-source tranche onto the identity-resolved description</h4>
     <div class="r-fu-body"><p>The migration ladder's first rung is open: default artifact resolution and physical-identity machine selection landed (imas-ambix c0d5821) with a float-equal 15/15 six-shot gate, and the census counts artifact_geometry importers at 2. The next tranche is measured: 42 table-source files (39 excluding tests), all but three a one-line build_table_for_shot substitution. Three measured blockers govern sequencing: the pinned description carries NaN turns on the P6 pair (require_resolved_turns raises — a nova-side sourcing dependency); the artifact signature (fc70) differs from the campaign signature (fc938) under one physical digest, so every efm-keyed compute cache and checkpoint rebuilds and that cost must be scheduled; circuits.py needs no port — the artifact table declares 21 circuit_drives + 13 active_circuits itself, so migrated consumers bypass it and retirement follows the tranche.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -133,6 +134,7 @@ Done-when
   2. Suites green; census re-run banked; donor retirements carry zero-import
      proof.
   3. Followup written for the remaining consumers + this one resolved.</pre>
+    <p class="r-fu-outcome">Split by measurement. The table-source tranche this followup described is superseded: read_efm_geometry has zero live-tree hits because description-reader-migration shipped 2026-08-17 and drove that census 41 to 0. Its remaining rung, the circuits.py retirement with zero-import proof, landed here at commit 4f432bc with exact frozen-shot parity (operator max absolute delta 0) and 0 residual imports; circuits.py bypassed the port exactly as this followup predicted, because the artifact table declares 21 circuit drives and 13 active circuits itself. The census was re-run and banked. The geometry and current-diffusion donors stay open under f-npci-05 and f-npci-03, and the pin advance under f-npci-04.</p>
     </article>
 <article class="r-fu" data-id="f-npci-continuous" data-status="open" data-written-by="codex" data-written-at="2026-08-09" data-recommends-skill="/reckon-ship nova-physics-consumer-integration §2" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Maintain continuous validated Nova integration checkpoints</h4>
@@ -177,6 +179,9 @@ Done-when
 <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s2" data-id="c-20260819-donor-census" data-who="reckon-ship" data-when="2026-08-19T21:00:00+00:00">
     <div class="r-comment-body">donor-census landed — no commit (read-only census); gate passed; measure 79 residual importer edges (circuits 6, geometry 58, current_diffusion 15), 0/3 retire-now and 3/3 blocked-by-named-gap at pinned Nova de3277a3238513b81be04dbc0980030b200ce420; circuits.py is blocked by consumer rewiring alone because MachineArtifactManifest.drive_map plus the artifact table's active_circuits=13 and circuit_drives=21 already supersede it; ForwardTransport is absent from the whole Nova tree, so the TORAX lift stays trigger-gated. Artifacts ~/.cache/ambix-nova-integration/donor-census.md and docs/evidence/archive/nova-physics-consumer-integration-landed.html#donor-census. impl denominator = 8 executable nodes: pinned dependency plus physics adapter (landed), first tandem checkpoint to de3277a3 (landed), API drift inventory, donor census (landed), pin advance, circuits consumer migration and retirement, GeometryTable contract replacement, current-diffusion migration and donor retirement.</div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-20260819-circuits-retire" data-who="reckon-ship" data-when="2026-08-19T21:40:00+00:00">
+    <div class="r-comment-body">circuits-retire landed — commit 4f432bc0a748c72dc66cef1f9265d6b8f3bd11e5, merged 4dafbfd; gate passed; measure frozen shot 11766 exact parity with the 81x21 coil-column operator matrix array-equal at max absolute delta 0, 13 active circuits / 21 circuit drives with channels and weights / 6 of 6 conductor arrays / 21 collapsed channel mappings / 146 passive memberships all unchanged, scoped suites 23 passed, and 0 residual gs.circuits imports with the donor path absent. The node correctly reported NEEDS-HELP instead of claiming success: the full tests/gs run was 226 passed / 4 failed, and a separate classification (run r-20260819T212645852175) reproduced 4/4 of those failures on a tree without the retirement, 0/4 retirement-induced, with p6l ratio 1.010756018918288 and solenoid 1.0508105926909095 vs 1.050802620352377 identical on both sides. Artifacts docs/evidence/archive/nova-physics-consumer-integration-landed.html#circuit-retirement and #artifact-geometry-baseline.</div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20260819-api-drift" data-who="reckon-ship" data-when="2026-08-19T21:07:00+00:00">
     <div class="r-comment-body">nova-api-drift landed — no commit (read-only inventory); gate passed; measure 89 import occurrences over 74 unique Nova symbols in 19 Ambix files, 74 unchanged / 0 moved / 0 renamed / 0 removed between pin de3277a3238513b81be04dbc0980030b200ce420 and recommended target aeffde0546f1216632f4f55b0f390702efcb3c4d at +544 commits, 74/74 resolved at both revisions in isolated runtime probes, 0 wrong-tree imports, 0 defining-module changes, 3 additive defaulted signature changes (Arc, Line, CoilSet via f9a5fabfb161d783a9dd763345e335442d3cb8d2) forcing no edit. The pin advance needs a six-file coherence edit set (pyproject.toml, uv.lock, imas_ambix/statespace/nova_ensemble_estimator.py, tests/statespace/test_nova_ensemble_estimator.py, imas_ambix/fluxstate/adapters.py, tests/physics/test_dependency_contract.py), independently confirmed by grep. Import compatibility does not waive the G2 science gate. Artifacts ~/.cache/ambix-nova-integration/api-drift.md and docs/evidence/archive/nova-physics-consumer-integration-landed.html#api-drift.</div>
