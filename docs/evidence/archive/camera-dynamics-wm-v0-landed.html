@@ -272,6 +272,62 @@
     range without claiming the gate passed.</figcaption>
   </figure>
 
+  <h2 id="pitch-probe">Stretch sightline-pitch probe — a real arm gap that still loses to magnetics</h2>
+  <p><strong>The dynamics latent beats the per-frame representation on deterministic pitch RMSE,
+  and that win does not survive comparison with the established bar.</strong> Commit
+  <code>7196196</code>; the locked 112-shot cohort minus its 4 token-less shots (22426, 24404,
+  24666, 25016), n = 108 usable; both backbones frozen, matched &lambda;=1 ridge probes fit on 48
+  seeded calibration shots inside the camera train partition, predictions mapped to native per-shot
+  sightlines and scored through <code>imas_ambix.statespace.mse_eval.score</code>; job 1251892.</p>
+  <table>
+    <caption>Held-out sightline pitch. The arm-to-arm difference is real; the absolute level is
+    what decides the physics question.</caption>
+    <thead>
+      <tr><th>Measure</th><th>Per-frame</th><th>Dynamics</th><th>Paired difference [95% CI]</th><th>Verdict</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>RMSE (rad)</td><td>0.693582</td><td>0.645341</td><td>&minus;0.048242 [&minus;0.092070, &minus;0.005144]</td><td>clears zero</td></tr>
+      <tr><td>CRPS (rad)</td><td>0.555380</td><td>0.523822</td><td>&minus;0.031558 [&minus;0.070423, +0.007132]</td><td>not significant</td></tr>
+      <tr><td>90% coverage</td><td>0.038653</td><td>0.050930</td><td>gate [0.88, 0.92]</td><td><strong>fails badly</strong></td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li><strong>The decisive comparison is absolute, not relative.</strong> 0.645 rad sits well
+    above the ~0.41 rad processed-magnetics oracle that three prior sprints established. The
+    honest-low prior written into the plan before any number existed is what happened: the interior
+    information is not in this edge view, and no win over processed magnetics is claimed.</li>
+    <li>Coverage of 0.05 against a [0.88, 0.92] gate means the probe is profoundly over-confident.
+    Its point estimates are usable for the arm-to-arm comparison; its predictive intervals are
+    not.</li>
+    <li>An earlier diagnostic run was discarded before evidence freeze once token discovery was
+    found to reorder the seeded calibration pool. The recorded numbers come from the corrected,
+    reproducible job.</li>
+  </ul>
+
+  <h2 id="da-burst-conditioning">Fast-D&alpha; burst conditioning — wired, and blocked on a runtime gap worth finding</h2>
+  <p><strong>The causal burst-summary channel and its controls are built and tested, and the
+  conditioning comparison was deliberately not launched, because the production data path would
+  have invalidated it silently.</strong> Commit <code>05d7cac</code>; 24 tests green.</p>
+  <ul>
+    <li><code>xim/da_hm10_t</code> reduces to native-sample interval RMS over the <em>closed</em>
+    causal inter-frame interval. The causality proof is direct: a 1e6-valued sample planted at
+    2.01 s leaves the summaries ending at 1.0 s and 2.0 s unchanged.</li>
+    <li>Both controls the ELM analysis demanded are width-matched to the real channel — a shuffled
+    variant whose source index is strictly earlier for every frame after the first, and a slow-only
+    variant reducing <code>ada/dalpha_raw_full</code> on its own time axis.</li>
+    <li>A fail-closed guard rejects any channel marked simultaneously a fast input and a probe
+    target, so the D&alpha; selector can never leak into the arm that is being scored on
+    D&alpha;-selected frames.</li>
+    <li>Matched-pair configs over a 24-column catalog parse to forms differing only in
+    <code>temporal_attention</code> and <code>run_name</code>, preserving the single-toggle contract
+    the whole matched-arm result rests on.</li>
+    <li><strong>The block.</strong> The production <code>CamdynWindowStream</code> bypasses
+    <code>load_conditioning</code> and zero-order-holds every cached trace. Training on these
+    configs would have computed interval-RMS normalisation statistics while feeding the model
+    ZOH-ed samples — a comparison that would have looked clean and meant nothing. Wiring the
+    reduction dispatch through the runtime path is a prerequisite, not a refinement.</li>
+  </ul>
+
   <h2 id="sampling-ceiling">ELM fidelity — a target-sampling ceiling, with the tokenizer exonerated</h2>
   <p><strong>Poor ELM reconstruction is predominantly a sampling ceiling in the camera itself, not
   a modelling or tokenization failure.</strong></p>

@@ -18,9 +18,9 @@
   <title>Camera-Dynamics World Model — Full-Stream Reconstruction from a Clipped View | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-19">
-<meta name="plan-version" content="26">
-<meta name="plan-impl" content="0.83">
+<meta name="plan-modified" content="2026-08-20">
+<meta name="plan-version" content="28">
+<meta name="plan-impl" content="0.9">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
 <meta name="plan-informs" content="physics-world-model-strategy,hybrid-generative-state-estimation">
@@ -286,8 +286,16 @@
       decisive reconstruction advantage does not transfer into a linear readout of these
       diagnostics. Commit <code>280c062</code>, artifact <code>physics_probes.json</code>. Full
       record: <a href="evidence/archive/camera-dynamics-wm-v0-landed.html#frozen-probe-null">frozen-probe
-      null</a>. <em>Still open:</em> the stretch sightline-pitch probe on the locked MSE harness —
-      it reuses this node's extraction machinery and was outside its four-diagnostic fence.</p>
+      null</a>. <strong>The stretch sightline-pitch probe landed 2026-08-20 and the honest-low
+      prior held.</strong> On the locked cohort minus its 4 token-less shots (n=108) the dynamics
+      latent does beat the per-frame representation on deterministic RMSE — 0.645 vs 0.694 rad,
+      paired −0.0482 rad, CI [−0.0921, −0.0051] — but 0.645 rad sits well above the ~0.41 rad
+      processed-magnetics oracle, so the interior-information wall stands and no win over processed
+      magnetics is claimed. Paired CRPS is not significant and 90% coverage is 0.05 against the
+      locked [0.88, 0.92] gate, so the probe is badly over-confident and its probabilistic output
+      is unusable as it stands. Commit <code>7196196</code>, artifact <code>pitch_probe.json</code>.
+      Full record: <a href="evidence/archive/camera-dynamics-wm-v0-landed.html#pitch-probe">stretch
+      pitch probe</a>. <strong>D4 is complete.</strong></p>
     <p><strong>D5 — the exportable inferability curve landed 2026-08-19.</strong> Across realised
       visible fractions 4.69–50.78% on 128 held-out windows from 48 shots, <strong>the dynamics arm
       beats the per-frame baseline at every fraction on both metrics</strong>, all paired
@@ -793,6 +801,12 @@ Done-when
 </div>
 <div class="r-comment" data-section="s5" data-id="c-20260819-suite-verify" data-who="reckon-ship" data-when="2026-08-19T22:06:00+00:00">
     <div class="r-comment-body">camdyn-suite-verify landed — no commit, verification-only; gate merged-suite-green PASSED; measure pytest tests/camdyn 216 passed / 0 failed in 925 s and ruff check imas_ambix/camdyn clean at merged HEAD d2cd572, confirming the three independently developed nodes compose. The two warnings are non-failing (no compatible CUDA on the login host; a scalar conversion in a pre-existing assertion). Log /work/projects/imas_gpu/logs/camdyn-suite-verify.log, sha256 1caf7f5a3d5890da6fc3a12fd7324c205b69c3c93366b34fc061c6218851bbb6.</div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20260820-pitch-probe" data-who="reckon-ship" data-when="2026-08-20T00:20:00+00:00">
+    <div class="r-comment-body">pitch-probe landed — commit 7196196; gate stretch-pitch-beats-oracle-bar FAILED, as the plan's honest-low prior predicted; measure on the locked 112-shot cohort minus the 4 token-less exclusions (22426, 24404, 24666, 25016), n=108 usable: dynamics RMSE 0.645341 rad against the per-frame 0.693582, paired dynamics-minus-baseline -0.048242 rad with 95% shot-bootstrap CI [-0.092070, -0.005144] clearing zero. That arm-to-arm RMSE win does NOT survive contact with the established bar — 0.645 rad sits well above the ~0.41 rad processed-magnetics oracle, so the interior-information wall holds and no win over processed magnetics is claimed. Two further qualifications stay visible: paired CRPS -0.031558 [-0.070423, +0.007132] is NOT significant, and 90% predictive coverage is 0.050930 (dynamics) / 0.038653 (baseline) against the locked [0.88, 0.92] calibration gate — the probe is profoundly over-confident, so its probabilistic output is unusable as it stands. Scored through imas_ambix.statespace.mse_eval.score on native per-shot sightlines with both backbones frozen and held-out truth used only for scoring; an earlier diagnostic run was discarded before evidence freeze when token discovery was found to reorder the seeded calibration pool. Artifacts pitch_probe.json, pitch_probe.py, camdyn_pitch_probe.sbatch, fig-cdw-pitch-probe.png; 5 tests added; SLURM job 1251892.</div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20260820-da-burst-conditioning" data-who="reckon-ship" data-when="2026-08-20T00:22:00+00:00">
+    <div class="r-comment-body">da-burst-conditioning landed its fenced work then BLOCKED on a discovered runtime gap — commit 05d7cac; gate causal-burst-summary-wired PASSED within the fence; measure conditioning.py reduces xim/da_hm10_t to native-sample interval RMS over the CLOSED causal inter-frame interval (a 1e6-valued sample at 2.01 s leaves the summaries ending at 1.0 s and 2.0 s unchanged, which is the causality proof), with width-matched shuffled and slow_only controls, the shuffled source index strictly earlier for every frame after the first, a fail-closed guard rejecting any channel marked both is_fast_input and is_probe_target, and matched-pair configs whose parsed forms differ only in temporal_attention and run_name across a 24-column catalog; 24 tests green. THE BLOCK IS THE IMPORTANT PART: the production CamdynWindowStream bypasses load_conditioning entirely and zero-order-holds every cached trace, so a training run launched on these configs would compute interval-RMS normalisation statistics while training on ZOH-ed xim samples — a silent invalidation of the whole conditioning comparison. Correcting it needs loader.py and train.py, outside this node's fence, so the comparison run is deliberately NOT dispatched until the runtime path dispatches channel.reduction and selects the configured variant.</div>
 </div>
 </section>
 </main>
