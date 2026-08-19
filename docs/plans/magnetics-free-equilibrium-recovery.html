@@ -24,11 +24,11 @@
   <title>Magnetics-Free Equilibrium Recovery | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-19">
-<meta name="plan-commits" content="40c6cdea,1eca758b,adc54df,24a8f9aa,afaaf733,8bf587e">
-<meta name="plan-impl" content="0.55">
-<meta name="plan-version" content="10">
-<meta name="plan-artifacts" content="imas_ambix/challenge/facts-report.json,imas_ambix/challenge/artifacts/ip_channel_audit.json,imas_ambix/thomson/artifacts/diii_d_pedestal_calibration.json,/work/projects/imas_gpu/sophelio/raw,/work/projects/imas_gpu/sophelio/prototype-subset/proto-extract/bank">
+<meta name="plan-modified" content="2026-08-20">
+<meta name="plan-commits" content="40c6cdea,1eca758b,adc54df,24a8f9aa,afaaf733,8bf587e,b9c67c30">
+<meta name="plan-impl" content="0.64">
+<meta name="plan-version" content="11">
+<meta name="plan-artifacts" content="imas_ambix/challenge/facts-report.json,imas_ambix/challenge/artifacts/ip_channel_audit.json,imas_ambix/thomson/artifacts/diii_d_pedestal_calibration.json,imas_ambix/closure/artifacts/pressure_closure_calibration.json,/work/projects/imas_gpu/sophelio/raw,/work/projects/imas_gpu/sophelio/prototype-subset/proto-extract/bank">
 </head>
 <body>
   <main class="plan-doc">
@@ -275,6 +275,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-20260817-loop-shafranov" data-who="reckon-ship" data-when="2026-08-17T21:40:00+00:00">
     <div class="r-comment-body">loop-shafranov landed: commit 24a8f9aa; gate shafranov-ablation PASSED with a controlled NEGATIVE verdict. The isotherm-asymmetry observation was added to the banked reduced loop with everything else held identical (same shot, 36 slices, rank-6 basis trained on the other 19 shots, baseline hashes verified unchanged). The new row has genuine direct FF-prime sensitivity (scaled 0.029032 through FF-prime versus 0.009254 through p-prime) yet gives the update NO traction: posterior FF-prime NRMSE 0.564924 versus the banked 0.560016, update share falling from -0.120 to -4.854 percent, joint posterior worsening 0.6725 to 0.6751. Cause identified rather than assumed: this shot's one-sided partial tangential chord coverage yields a biased, temporally correlated observation (new-row posterior lag-1 0.4188, whiteness p 0.000398, 27 of 36 slices sigma-widened for incomplete radial span, zero dropped). CONSEQUENCE FOR SECTION 5: the free-boundary-in-loop route is now the PRIMARY FF-prime carrier, and the isotherm row may enter the production smoother only with fuller inboard-outboard isotherm coverage or an explicit partial-span bias and correlation model; the no-traction ablation is retained as the comparison control.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260820-pressure-closure" data-who="reckon-ship" data-when="2026-08-20T00:05:00+00:00">
+    <div class="r-comment-body">pressure-closure landed: commit b9c67c30; gate pressure-closure PASSED, 3/3 tests in 3.47 s, with a QUALIFIED scientific result. The electron-to-total pressure multiplier is calibrated over 20 banked shots, 4,141 frames, 4,032 fitted, against a q-free dimensionless collisionality proxy built from Thomson density and temperature with the banked FSA volume, inverse-radius and effective-minor-radius geometry, equal-shot weighted and using only a quadratic outer-surface-weighted derivative-level pressure-gradient shape, which honours the edge-weighted label-pedigree lock. The fitted multiplier range is 1.605621 to 3.299211 with raw minimum 1.034723, every per-frame value at or above the physical floor of one. TWO FINDINGS THAT CHANGE SECTION 4 AND SECTION 5. First, collisionality dependence is NOT resolved: the log-collisionality slope is -0.0931685 with shot-cluster 95 percent CI [-0.1998613, 0.0111703], which crosses zero, and the residual scatter is 0.315236 in log-multiplier and 1.313475 in multiplier space. The closure is therefore banked as calibrated-but-weakly-constrained, and the section-5 smoother must carry a WIDE prior on its pe-to-p multipliers rather than a collisionality-tightened one. Second, and this is a scope correction to section 4 as written: the released corpus carries NO auxiliary-heating channel, so the beam-proxy half of the pe-to-p calibration is not estimable from competition data at all. All 20 banked shots expose the identical 21 loader actuator channels - ECOILA, F1A/F1B through F9A/F9B, bcoil and plasma_current - with magnetics_dsep present in the dynamic schema but classified a non-actuator descriptor. That inventory also pins the actuator-nuisance space the section-5 campaign tier fits, and the absence is recorded as not-estimable rather than substituted by a proxy.</div>
 </div>
 </section>
 </main>
