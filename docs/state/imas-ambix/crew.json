@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T00:45:21",
+  "updated": "2026-08-20T01:15:08",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -5505,9 +5505,72 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260819T224706498674-harmonic-order-sweep",
+        "plan": "toroidal-harmonic-annulus-read",
+        "section": "\u00a76",
+        "node": "harmonic-order-sweep",
+        "role": "implement",
+        "member": "harmonic-rebaseline",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T22:47:09Z",
+        "completed_at": "2026-08-19T23:14:13Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1624,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1624,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "7e60f7142281a3cf0236fb689471f4e41f66ab0c",
+        "commits": [
+          "95872d2"
+        ],
+        "changed_lines": {
+          "added": 2816,
+          "removed": 0,
+          "files": 4
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "outcome": "Coverage gap CLOSED with a negative: all 24 previously unswept order-6/8 arms scored train-only (ridges 1e-8/1e-4/1e-2/1e-1 x fractions 0.25/0.41/0.55), 6 pass the consistency<=1.0 guard and 18 fail. Best eligible arm order 6 / ridge 1e-8 / fraction 0.41: lcfs_skill -5.471 CI [-5.925,-5.004], consistency 0.0852 \u2014 its whole CI lies below the standing order-3 point estimate -3.3057, margin -2.165. No arm exceeds the standing optimum, so the order-3 selection is unchanged. heldout_rescored=false and heldout_accessed=false in the artifact; SLURM job 1251905, 20m55s.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T224706498674-harmonic-order-sweep/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01bd2-446e-7f23-a211-d13ce87a138d",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 10903040,
+            "cached_input_tokens_cumulative": 49206272,
+            "input_tokens": 11118763,
+            "input_tokens_cumulative": 50056151,
+            "output_tokens": 20226,
+            "output_tokens_cumulative": 114194,
+            "reasoning_output_tokens": 3278,
+            "reasoning_output_tokens_cumulative": 27996
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 168
+    "_version": 169
   }
 }

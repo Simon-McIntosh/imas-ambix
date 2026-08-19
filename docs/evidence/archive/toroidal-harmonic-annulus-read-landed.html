@@ -212,6 +212,27 @@
   collection because the seam did not exist. 15/15 harmonic tests pass, ruff clean, one test added.</p>
   <p>The anchor's rejection recorded above is unaffected: that measurement had already bypassed the
   gate to call <code>fit_harmonic</code> directly, which is why it produced a real answer.</p>
+
+  <h2 id="high-order-ladder">High-order ladder — raising the truncation is excluded by measurement</h2>
+  <p><strong>Completing the 24 arms the earlier ladder left unswept confirms the order-3 selection
+  and closes the coverage gap.</strong> Every order-6 and order-8 arm was scored train-only over
+  ridges 1e-8/1e-4/1e-2/1e-1 and pole inboard fractions 0.25/0.41/0.55. Six pass the
+  <code>consistency_rms_annulus ≤ 1.0</code> guard and 18 fail, consistent with the standing finding
+  that this basis aliases at high order. The best eligible arm — order 6, ridge 1e-8, fraction 0.41 —
+  scores LCFS skill <strong>−5.471</strong> [−5.925, −5.004] at consistency 0.0852: its entire
+  interval lies below the standing order-3 point estimate of −3.3057, a margin of −2.165. No arm
+  exceeds the standing optimum.</p>
+  <p>Commit <code>95872d2</code>, SLURM job 1251905, 20m55s, 2000-draw paired bootstrap at seed 0.
+  Leakage discipline is asserted in the artifact itself: <code>heldout_rescored=false</code> and
+  <code>heldout_accessed=false</code>. Raising the harmonic truncation is now ruled out by
+  measurement rather than by assumption.</p>
+  <figure>
+    <img src="/imas-ambix/figures/toroidal-harmonic-annulus-read/high-order-sweep.png"
+         alt="LCFS skill with 95% confidence intervals for each order-6 and order-8 arm, with a logarithmic annulus-consistency guard panel. Every eligible arm falls below the standing order-3 optimum."
+         style="max-width:100%">
+    <figcaption>High-order train ladder with 95% intervals and the consistency guard on a
+    logarithmic axis. No eligible arm reaches the standing order-3 optimum.</figcaption>
+  </figure>
 </main>
 </body>
 </html>
