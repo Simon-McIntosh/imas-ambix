@@ -19,8 +19,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-19">
-<meta name="plan-version" content="20">
-<meta name="plan-impl" content="0.7">
+<meta name="plan-version" content="24">
+<meta name="plan-impl" content="0.75">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
 <meta name="plan-informs" content="physics-world-model-strategy,hybrid-generative-state-estimation">
@@ -274,16 +274,34 @@
       <code>cond_ablation.json</code>. Full record:
       <a href="evidence/archive/camera-dynamics-wm-v0-landed.html#horizons-conditioning">horizons + conditioning</a>,
       illustrated in <a href="camera-dynamics-arm-comparison.html#s5b">arm comparison §5b–§5d</a>.</p>
-    <p><strong>D4 — physics probes.</strong> Frozen-backbone probes from both arms' latents to
-      held-out diagnostics (W3), plus the stretch sightline-pitch probe on the locked D1 MSE
-      harness. <em>Done when:</em> W3 table (temporal vs per-frame representation); pitch-probe
-      number on the identical S9 oracle metric with honest framing.</p>
-    <p><strong>D5 — verdict + demo + collapse.</strong> Full-stream decoded reconstructions for a
-      handful of held-out shots (frozen decoder) as the qualitative byproduct; the partial→full
-      inferability curve (W1/W2 vs clip fraction — the §8 exportable result); plan updated with
-      results-on-top summary; followups written, including the gated §8 cross-camera (rbb→rba)
-      transfer stretch and the gated §9 pretrained-arm bench.
-      <em>Done when:</em> plan collapsed per reckon-ship §5b with W1–W3 verdicts stated.</p>
+    <p><strong>D4 — physics probes: the four-diagnostic readout landed 2026-08-19, an honest
+      null.</strong> Matched frozen ridge probes on both arms' final normalised trunk (neither
+      backbone fine-tuned) put <strong>0 of 4 pre-registered diagnostics significantly in the
+      dynamics latent's favour</strong> on RMSE or CRPS — every paired shot-bootstrap interval
+      crosses zero over 10,000 replicates (<code>ada</code> n=48, <code>ane</code> n=48,
+      <code>ayc</code> Te_core n=40, <code>ama</code> n=48). <code>ama</code> is the one row whose
+      point estimates lean dynamics on both scores (2.163e-5 vs 2.295e-5 T) without clearing zero;
+      <code>ane</code> was itself a conditioning input, so its row compares representations rather
+      than unseen information. <strong>W3 is not met as measured</strong>: the temporal latent's
+      decisive reconstruction advantage does not transfer into a linear readout of these
+      diagnostics. Commit <code>280c062</code>, artifact <code>physics_probes.json</code>. Full
+      record: <a href="evidence/archive/camera-dynamics-wm-v0-landed.html#frozen-probe-null">frozen-probe
+      null</a>. <em>Still open:</em> the stretch sightline-pitch probe on the locked MSE harness —
+      it reuses this node's extraction machinery and was outside its four-diagnostic fence.</p>
+    <p><strong>D5 — the exportable inferability curve landed 2026-08-19.</strong> Across realised
+      visible fractions 4.69–50.78% on 128 held-out windows from 48 shots, <strong>the dynamics arm
+      beats the per-frame baseline at every fraction on both metrics</strong>, all paired
+      shot-bootstrap intervals clear of zero: NLL advantage 0.212 [0.097, 0.312] nats at the
+      smallest clip, easing to 0.140 [0.093, 0.194] at the largest, with absolute reconstruction
+      improving monotonically with visible area (dynamics NLL 10.716 → 9.352). The dynamics edge is
+      widest exactly where a spatial inpainter has least to work with. Commit <code>00c030b</code>,
+      artifact <code>inferability_curve.json</code>. Full record:
+      <a href="evidence/archive/camera-dynamics-wm-v0-landed.html#inferability-curve">inferability
+      curve</a>. <em>Still open:</em> the results-on-top verdict summary and section collapse, and
+      the two gated stretches — the cross-camera rbb→rba transfer of §8 and the pretrained-arm
+      bench of §9 — whose triggers are assessed once the remaining §5 nodes land. The decoded
+      full-stream demonstrations already exist and are illustrated in
+      <a href="camera-dynamics-arm-comparison.html#s5a">arm comparison §5a</a>.</p>
 
     <h2 id="s6">§6 — Compute plan and GPU safety (binding)</h2>
     <p>
@@ -759,6 +777,15 @@ Done-when
 </div>
 <div class="r-comment" data-section="s5" data-id="c-cdw-uncertainty-design" data-who="reckon-ship (orchestrator)" data-when="2026-06-15">
     <div class="r-comment-body">UNCERTAINTY-REDUCTION DESIGN VERDICT OVERTURNED BY ITS OWN ADVERSARIAL CRITIC (verdict_holds=false), verified against the committed JSON — the "placement is aleatoric / MAP at its ceiling" read I had relayed is NOT established. Three flaws confirmed from disk: (1) the located-correctness metric is ~90% BACKGROUND-COPYABLE — persistence (freeze last visible frame) scores edge-band located-SSIM 0.681 vs MAP 0.753 aggregate, and on shot 24446 MAP == persistence (0.877 == 0.877), so "MAP 0.753, near ceiling" is mostly STATIC BACKGROUND, not filament placement; (2) "slow conditioning is saturated" was a cherry-pick — cond_ablation.json fixed_section2 selector shows full conditioning BEATS none by −0.027 nats, paired CI [−0.029,−0.025] clear of zero (the synthesis cited only the other selector, at a sub-budget step8000 checkpoint); (3) "oracle-below-MAP = aleatoric floor" is a CATEGORY ERROR — decode_oracle_joint candidates are true_token XOR bit-flip offsets (per-cell), so the oracle cannot relocate a filament to another cell; it bounds THIS checkpoint's logit calibration, not the information a better-conditioned/trained model would carry. Additional: the headline rests on n=2 shots × 8 seeds at one frontier_frame (the 3rd FLATTOP window absent); the arms are at 0.65 epoch, loss still falling (every number sub-convergence). NET: whether the persistent-filament-ENVELOPE blur is reducible is GENUINELY UNDECIDED — I over-stated "mostly aleatoric." WHAT SURVIVES: sampling-doesn't-beat-MAP STRENGTHENS under background-subtraction (residual over persistence: MAP +0.071 &gt; beam +0.040 &gt; bernoulli +0.013) — sampling stays a visualisation option, not a correctness fix; and the camera-undersampling cap on sub-ms ONSET (the sampling audit) is unaffected. REVISED PLAN (critic's, supersedes the synthesis, NO retrain launched): RANK 0 = DECONTAMINATE the placement metric BEFORE any retrain — report (MAP − persistence) and (oracle − persistence) on FILAMENT cells only (top-HF-edge cells), verify persistence ≈ 0 and coloured-noise ≈ 0 dynamic range; re-read BOTH cond_ablation selectors at the final.pt headline (not step8000). Near-zero compute (re-reporting committed numbers + a filament-restricted metric). THEN the checkpoint-trajectory gate (entropy/oracle reframed onto the decontaminated residual), THEN de-bundled retrains only if reducible (convergence ALONE; fast-Dα a SEPARATE arm-pair — it changes cond_proj dim; temporal only after building a motion readout shown to discriminate persistence/oracle/MAP). MaskGIT-decode GPU eval (srun, in flight) writes the SAME contaminated located metric — interpret it post-decontamination.</div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20260819-probe-readout" data-who="reckon-ship" data-when="2026-08-19T21:30:00+00:00">
+    <div class="r-comment-body">physics-probe-readout landed — commit 280c062; gate frozen-diagnostic-readout FAILED; measure 0/4 pre-registered diagnostics significantly favour the dynamics latent on either RMSE or CRPS, every paired shot-bootstrap CI crossing zero over 10,000 replicates (ada n=48, RMSE 4.4381e22 dynamics vs 3.7396e22 baseline, diff CI [-2.2010e21, 1.0484e22]; ane n=48, 4.3137e19 vs 4.1733e19, CI [-7.1024e18, 6.4560e18]; ayc te_core n=40, 321.030 vs 273.466 eV, CI [-30.736, 99.937]; ama n=48, 2.16278e-5 vs 2.29547e-5 T, CI [-4.2410e-6, 1.1760e-6]). ane was itself a conditioning input to both arms, so that row is an arm-to-arm representation comparison rather than unseen information. Artifacts imas_ambix/camdyn/physics_probes.json, physics_probes.py, camdyn_physics_probes.sbatch, fig-cdw-physics-probes.png; 5 tests added; SLURM job 1251876 exit 0.</div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20260819-elm-morphology" data-who="reckon-ship" data-when="2026-08-19T21:32:00+00:00">
+    <div class="r-comment-body">elm-morphology-metric landed — commit 47f074a; gate elm-frame-morphology-reproduces-arm-gap PASSED; measure dynamics-minus-baseline decoded response-morphology +0.03838 with 95% bootstrap CI [+0.00228, +0.10249], favours_dynamics=true, over 8 canonical held-out window pairs selected by native fast xim Dalpha bursts at exactly 10 ms (baseline mean 0.000663, dynamics mean 0.039039). Honest qualification carried forward: secondary edge/divertor token NLL on the same selected frames is NOT significant (baseline-minus-dynamics -0.19116 nats, CI [-2.49313, +2.11775], favours_dynamics=false). Dalpha is used only to select burst target times and never enters either arm as input. Artifacts imas_ambix/camdyn/elm_morphology.json, elm_morphology.py, fig-cdw-elm-morphology.png; metrics.py extended additively (new ELM_MORPHOLOGY_HORIZON_MS, elm_edge_divertor_mask, elm_frame_morphology_fidelity) with the plan-label prose scrubbed and all 23 pre-existing metric tests green; 9 tests added.</div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20260819-inferability-curve" data-who="reckon-ship" data-when="2026-08-19T21:34:00+00:00">
+    <div class="r-comment-body">inferability-curve landed — commit 00c030b; gate dynamics-beats-statics-across-clip-fraction PASSED; measure over 128 held-out windows from 48 independent shots with 10,000 equal-shot bootstrap resamples at realised visible fractions 4.69/9.77/19.14/35.16/50.78 percent, the dynamics arm beats the per-frame baseline at EVERY fraction on both metrics with paired CIs clear of zero — NLL advantage 0.212 [0.097, 0.312], 0.244 [0.154, 0.347], 0.155 [0.100, 0.213], 0.146 [0.101, 0.200], 0.140 [0.093, 0.194] nats; top-1 advantage 6.24e-4 [1.95e-4, 1.061e-3] rising to 1.038e-3 [1.73e-4, 1.930e-3]. Absolute reconstruction improves monotonically with visible area (dynamics NLL 10.716 to 9.352, top-1 0.00261 to 0.01221). The carry-forward reference sits flat at 12.477 nats / zero top-1 because static clips leave every scored exterior cell unseen — an honest no-spatial-inference floor, not a learned-arm comparison. This is the exportable partial-to-full curve the transferability section names. Artifacts imas_ambix/camdyn/inferability_curve.json, inferability_curve.py, camdyn_inferability_curve.sbatch, fig-cdw-inferability-curve.png; 5 tests added; SLURM job 1251870 exit 0.</div>
 </div>
 </section>
 </main>
