@@ -1,4 +1,4 @@
-"""Tests for the camdyn training loop + W1 eval.
+"""Tests for the camdyn training loop and reconstruction evaluation.
 
 The heavy end-to-end test runs a 3-step CPU smoke against the synthetic
 corpus fixture (a tiny model, a tiny split) so it catches shape/wiring
@@ -36,6 +36,7 @@ def test_train_config_roundtrip():
         model=CamdynConfig(temporal_attention=True, dim=64),
         batch_size=8,
         max_steps=10,
+        conditioning_variant="shuffled",
     )
     d = cfg.to_dict()
     cfg2 = TrainConfig.from_dict(d)
@@ -43,37 +44,38 @@ def test_train_config_roundtrip():
     assert cfg2.model.dim == 64
     assert cfg2.batch_size == 8
     assert cfg2.betas == (0.9, 0.95)
+    assert cfg2.conditioning_variant == "shuffled"
 
 
 def test_train_config_loads_shipped_yaml():
     yaml = pytest.importorskip("yaml")  # noqa: F841
     cfgdir = Path(__file__).resolve().parents[2] / "imas_ambix" / "camdyn" / "configs"
     base = TrainConfig.load(cfgdir / "baseline_w1_v0.yaml")
-    assert base.model.temporal_attention is False  # D1 baseline
+    assert base.model.temporal_attention is False
     assert base.run_name == "baseline_w1_v0"
     smoke = TrainConfig.load(cfgdir / "smoke_cpu.yaml")
     assert smoke.device == "cpu"
     assert smoke.max_steps == 3
 
 
-def test_baseline_config_is_matched_to_a_d2_arm():
-    """The D1 config must differ from a D2 arm ONLY in the toggle."""
+def test_baseline_config_is_matched_to_a_temporal_arm():
+    """The per-frame config differs from a temporal arm only in the toggle."""
     yaml = pytest.importorskip("yaml")  # noqa: F841
     cfgdir = Path(__file__).resolve().parents[2] / "imas_ambix" / "camdyn" / "configs"
-    d1 = TrainConfig.load(cfgdir / "baseline_w1_v0.yaml").model
-    d2 = CamdynConfig.from_dict({**d1.to_dict(), "temporal_attention": True})
-    a, b = d1.to_dict(), d2.to_dict()
+    per_frame = TrainConfig.load(cfgdir / "baseline_w1_v0.yaml").model
+    temporal = CamdynConfig.from_dict(
+        {**per_frame.to_dict(), "temporal_attention": True}
+    )
+    a, b = per_frame.to_dict(), temporal.to_dict()
     diff = {k for k in a if a[k] != b[k]}
     assert diff == {"temporal_attention"}
 
 
-def test_cap_v1_arms_matched_except_toggle_and_run_name():
-    """The cap_v1 W1 arms must be byte-identical except the model toggle and
-    run_name — parsed-dict diff over the FULL TrainConfig (model + run knobs).
+def test_headline_arms_matched_except_toggle_and_run_name():
+    """The headline arms differ only in the model toggle and run name.
 
-    This is the matched-arm contract: the W1 comparison isolates exactly the
-    value of temporal attention.  watchdog_grace_s / val_every / eval_windows
-    may be tuned but MUST be tuned IDENTICALLY in both arms.
+    The parsed full configuration isolates the value of temporal attention.
+    Watchdog and evaluation controls must remain identical in both arms.
     """
     yaml = pytest.importorskip("yaml")  # noqa: F841
     cfgdir = Path(__file__).resolve().parents[2] / "imas_ambix" / "camdyn" / "configs"
@@ -95,9 +97,8 @@ def test_cap_v1_arms_matched_except_toggle_and_run_name():
     assert dyn["model"]["temporal_attention"] is True
 
 
-def test_spectral_aux_arms_matched_except_toggle_and_run_name():
-    """The structure-loss W1 arms must be byte-identical except the model
-    toggle and run_name — parsed-dict diff over the FULL TrainConfig.
+def test_structure_loss_arms_matched_except_toggle_and_run_name():
+    """The structure-loss arms differ only in toggle and run name.
 
     Matched-arm contract: both arms get the SAME structure loss + λ, so the
     comparison isolates exactly the value of temporal attention.  The new
@@ -180,10 +181,8 @@ def _watchdog_trainer():
 def test_watchdog_does_not_fire_during_paused_phase():
     """A slow phase wrapped in _pause_watchdog must NOT trip the watchdog.
 
-    Regression guard for jobs 1216061/1216062: the first periodic VAL (>180 s)
-    tripped the watchdog because last_step_t was only bumped after a TRAIN
-    step.  With the pause context manager the watchdog ignores VAL / final-eval
-    / checkpoint wall-clock.
+    The pause context makes the watchdog ignore validation, final evaluation,
+    and checkpoint wall-clock while preserving the training-step deadline.
     """
     import time
 
@@ -208,7 +207,7 @@ def test_watchdog_does_not_fire_during_paused_phase():
 
 def test_watchdog_fires_on_wedged_training_step():
     """A genuinely stalled TRAIN step (no pause, clock not refreshed) must
-    still trip the watchdog — the fix must not disarm the real guard."""
+    still trip the watchdog; paused phases must not disarm this guard."""
     import time
 
     from imas_ambix.camdyn.train import STOP
@@ -270,8 +269,10 @@ def _write_split(tmp_path: Path, sc) -> Path:
     return path
 
 
-def test_cpu_smoke_train_and_w1_artifact(synthetic_corpus, tmp_path, monkeypatch):
-    """3-step CPU train + held-out W1 eval against the synthetic corpus.
+def test_cpu_smoke_train_and_reconstruction_artifact(
+    synthetic_corpus, tmp_path, monkeypatch
+):
+    """CPU training and held-out evaluation against the synthetic corpus.
 
     Patches discovery + the default split so the trainer runs entirely on
     the fixture's tiny synthetic stores (no real corpus, no GPU).
@@ -315,31 +316,29 @@ def test_cpu_smoke_train_and_w1_artifact(synthetic_corpus, tmp_path, monkeypatch
         val_windows=4,
         eval_windows=4,
         log_every=1,
-        # val_every < max_steps so a periodic VAL fires — the FULL path that
-        # broke in production (jobs 1216061/1216062) where val_every>max_steps
-        # meant the smoke never hit a VAL or the final eval/exit path.
+        # Exercise both periodic validation and final evaluation.
         val_every=2,
         ckpt_every=2,
         device="cpu",
         split_path=str(split_path),
         ckpt_root=str(tmp_path / "ckpt"),
         run_name="smoke",
-        artifact_out=str(tmp_path / "w1.json"),
+        artifact_out=str(tmp_path / "reconstruction.json"),
     )
 
     trainer = Trainer(cfg)
     from imas_ambix.camdyn.train import STOP
 
     STOP.clear()
-    w1 = trainer.train()
+    evaluation = trainer.train()
 
     # the watchdog must NOT have fired during the run (VAL + final eval ran
     # inside _pause_watchdog; training steps were fast)
     assert not STOP.is_set(), "watchdog fired during the CPU smoke (false positive)"
 
     # --- artifact written + structurally complete ---
-    art = json.loads((tmp_path / "w1.json").read_text())
-    assert art["arm"] == "D1-baseline"
+    art = json.loads((tmp_path / "reconstruction.json").read_text())
+    assert art["arm"] == "per-frame"
     assert art["temporal_attention"] is False
     assert "held_out" in art
     assert "masked_nll" in art["held_out"]
@@ -354,17 +353,15 @@ def test_cpu_smoke_train_and_w1_artifact(synthetic_corpus, tmp_path, monkeypatch
     # a checkpoint exists on disk
     assert Path(art["checkpoint"]).exists()
     # finite scores
-    assert np.isfinite(w1["held_out"]["masked_nll"]["mean"])
-    assert 0.0 <= w1["held_out"]["masked_top1"]["mean"] <= 1.0
+    assert np.isfinite(evaluation["held_out"]["masked_nll"]["mean"])
+    assert 0.0 <= evaluation["held_out"]["masked_top1"]["mean"] <= 1.0
 
 
 def test_cpu_smoke_train_with_structure_loss(synthetic_corpus, tmp_path, monkeypatch):
     """Full CPU train + VAL + final-eval + artifact + clean-exit with λ>0.
 
-    Exercises the structure-aware loss in the SAME end-to-end path that broke
-    repeatedly on eval-path bugs (jobs 1216061/1216062): a periodic VAL fires
-    (val_every < max_steps), the final W1 eval + artifact write runs, and the
-    watchdog must NOT fire.  Confirms the loss history records the BCE and
+    A periodic validation fires, final evaluation writes its artifact, and the
+    watchdog must not fire. Confirms the loss history records the BCE and
     structure components and the artifact is structurally complete.
     """
     pytest.importorskip("torch")
@@ -419,12 +416,12 @@ def test_cpu_smoke_train_with_structure_loss(synthetic_corpus, tmp_path, monkeyp
     from imas_ambix.camdyn.train import STOP
 
     STOP.clear()
-    w1 = trainer.train()
+    evaluation = trainer.train()
 
     assert not STOP.is_set(), "watchdog fired during the structure-loss smoke"
 
     art = json.loads((tmp_path / "w1_struct.json").read_text())
-    assert art["arm"] == "D1-baseline"
+    assert art["arm"] == "per-frame"
     assert art["model_config"]["structure_loss_weight"] == pytest.approx(0.05)
     assert "held_out" in art and "masked_nll" in art["held_out"]
     # the loss history logged both the BCE and structure components
@@ -434,7 +431,7 @@ def test_cpu_smoke_train_with_structure_loss(synthetic_corpus, tmp_path, monkeyp
     assert "train_bce" in row and "train_struct" in row
     assert np.isfinite(row["train_struct"]) and row["train_struct"] >= 0.0
     assert Path(art["checkpoint"]).exists()
-    assert np.isfinite(w1["held_out"]["masked_nll"]["mean"])
+    assert np.isfinite(evaluation["held_out"]["masked_nll"]["mean"])
 
 
 def test_arm_compare_paired_verdict(synthetic_corpus, tmp_path, monkeypatch):
