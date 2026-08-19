@@ -8,7 +8,9 @@ import pytest
 from imas_ambix.camdyn.conditioning import (
     BANNED_CONDITIONING_SOURCES,
     CONDITIONING_CHANNELS,
+    DALPHA_BURST_CHANNEL,
     ConditioningChannel,
+    assert_fast_inputs_are_not_probe_targets,
     assert_no_leakage_sources,
     load_conditioning,
     resample_to_frames,
@@ -62,12 +64,14 @@ def test_default_channel_set_has_no_banned_sources():
     sources = {c.source for c in CONDITIONING_CHANNELS}
     assert not (sources & BANNED_CONDITIONING_SOURCES)
     # and it covers the actuator pillars + scalars
-    assert sources == {"amc", "anb", "aga", "ane"}
+    assert sources == {"amc", "anb", "aga", "ane", "xim"}
 
 
 def test_default_channel_set_excludes_dalpha_probe_target():
     keys = {c.key for c in CONDITIONING_CHANNELS}
-    assert "dalpha_integrated" not in keys  # W3 probe target, separable
+    assert "dalpha_integrated" not in keys
+    assert DALPHA_BURST_CHANNEL.key in keys
+    assert not any(c.is_probe_target for c in CONDITIONING_CHANNELS)
 
 
 def test_load_conditioning_aligns_to_frames(synthetic_corpus):
@@ -128,3 +132,16 @@ def test_load_conditioning_rejects_banned_channel(synthetic_corpus):
     )
     with pytest.raises(ValueError, match="leakage"):
         load_conditioning(lpath, frame_time, sid, channels=bad_channels)
+
+
+def test_fast_input_cannot_also_be_probe_target():
+    bad = ConditioningChannel(
+        "ambiguous_dalpha",
+        "xim",
+        "da_hm10_t",
+        "a.u.",
+        is_probe_target=True,
+        is_fast_input=True,
+    )
+    with pytest.raises(ValueError, match="cannot also be diagnostic probe"):
+        assert_fast_inputs_are_not_probe_targets((bad,))
