@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="toroidal-harmonic-annulus-read-landed">
+  <meta name="plan-title" content="Toroidal-Harmonic Annulus Read — Measured Evidence">
+  <meta name="plan-summary" content="Execution record for the source-free toroidal-harmonic boundary arm: the phase-split held-out re-baseline under the reworked read, the ramp-up X-point honesty audit, and the LCFS regression it exposes.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-recorded-at" content="2026-08-19">
+  <meta name="plan-evidence-for" content="toroidal-harmonic-annulus-read">
+  <meta name="plan-verifies" content="toroidal-harmonic-annulus-read#s6">
+  <title>Toroidal-Harmonic Annulus Read — Measured Evidence | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>Toroidal-Harmonic Annulus Read — Measured Evidence</h1>
+  <p>Cumulative execution record for
+  <a href="/imas-ambix/toroidal-harmonic-annulus-read">Toroidal-Harmonic Annulus Read</a>.
+  One anchor per landed node. The Gate C implementation record from 2026-07-14 remains at
+  <a href="/imas-ambix/archive/toroidal-harmonic-annulus-read-gate-c-landed">Gate C landed</a>.</p>
+
+  <h2 id="s6">Phase-split re-baseline — the X-point win is not ramp-up recovery, and LCFS has regressed</h2>
+  <p><strong>Scoring the frozen centroid-origin configuration on the held-out cohort under the
+  current read moves all three headline numbers, in different directions, and the per-slice audit
+  contradicts the one that improved.</strong> Aggregate X-point-set skill has flipped from −4.54 to
+  <strong>+0.689</strong>, but of the 96 ramp-up slices the read emits X-points on only 28, and 21 of
+  those 28 are wholly spurious at a 5 cm matching tolerance — so the aggregate gain comes from
+  elsewhere in the discharge and does not establish ramp-up recovery. The axis gap persists at
+  <strong>−1.896</strong> against the carrier per-slice run's −0.27, which keeps the Shafranov
+  correction live rather than superseded. And aggregate LCFS has <em>regressed</em> from the
+  2026-07-14 artifact's 6.7 cm to <strong>11.52 cm</strong> (skill −1.958 → −3.900): the reworked
+  read has traded LCFS fidelity for X-point-set skill.</p>
+
+  <p>Commit <code>5fb7510</code>. Held-out n=160 across 8 shots, firewalled EFIT referee
+  (code-outputs-only), 95% shot-bootstrap intervals, frozen configuration order 3 / ridge 1e-8 /
+  pole inboard fraction 0.41 / centroid origin — the locked pole-and-truncation decision, unchanged.
+  Scored on the SLURM debug partition (jobs 1251881, 1251885).</p>
+
+  <table>
+    <caption>Held-out skill by phase, and against the 2026-07-14 baseline at the same frozen configuration</caption>
+    <thead>
+      <tr><th>Cohort</th><th>Slices</th><th>X-point-set</th><th>Axis</th><th>LCFS</th><th>LCFS offset</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Aggregate</td><td>160</td><td>+0.689 [0.309, 0.773]</td><td>−1.896 [−2.776, −1.400]</td><td>−3.900 [−5.168, −3.017]</td><td>11.52 cm</td></tr>
+      <tr><td>Ramp-up (pre-peak)</td><td>96</td><td>−0.279 [−1.058, −0.112]</td><td>−2.031 [−2.462, −1.451]</td><td>−4.702 [−5.546, −3.988]</td><td>11.68 cm</td></tr>
+      <tr><td>Flat-top (max |Ip|)</td><td>8</td><td>+0.312 [0.290, 0.337]</td><td>−3.083 [−7.731, −1.550]</td><td>−3.933 [−6.463, −2.310]</td><td>11.18 cm</td></tr>
+      <tr><td>Baseline 2026-07-14</td><td>160</td><td>−1.797</td><td>−1.58</td><td>−1.958</td><td>6.7 cm</td></tr>
+    </tbody>
+  </table>
+  <p>Vacuum-annulus consistency against the current-moment ψ holds at <strong>0.0850</strong> median,
+  so the source-free premise itself is undisturbed by the regression — two independent
+  external-magnetics reads still agree where both are valid.</p>
+
+  <figure>
+    <img src="/imas-ambix/figures/toroidal-harmonic-annulus-read/phase-split-skill.png"
+         alt="X-point-set, axis and LCFS skill for the aggregate, ramp-up and flat-top cohorts, with 95% shot-bootstrap confidence bars. X-point-set is positive for the aggregate and flat-top and negative for ramp-up; axis and LCFS are negative throughout."
+         style="max-width:100%">
+    <figcaption>Held-out skill per phase with 95% shot-bootstrap intervals. The X-point-set bar
+    separates by phase — positive on the aggregate and flat-top, negative on ramp-up — while axis and
+    LCFS stay negative in every cohort.</figcaption>
+  </figure>
+
+  <h3 id="s6-xpoint-audit">Ramp-up X-point matching, per slice</h3>
+  <p>The audit is what disqualifies the aggregate X-point gain as evidence of ramp-up recovery.
+  Across the 96 ramp-up slices:</p>
+  <table>
+    <caption>Per-slice agreement between emitted and referee X-points at a 5 cm matching tolerance</caption>
+    <thead><tr><th>Outcome</th><th>Slices</th></tr></thead>
+    <tbody>
+      <tr><td>Emitted X-points, wholly spurious (no referee match)</td><td>21</td></tr>
+      <tr><td>Emitted X-points, one referee match while omitting another</td><td>5</td></tr>
+      <tr><td>Emitted X-points, fully matched</td><td>2</td></tr>
+      <tr><td>Emitted none while the referee has X-points</td><td>27</td></tr>
+      <tr><td>Emitted none, referee has none — correct</td><td>41</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="s6-current-floor">The plasma-current floor admits no low-Ip slices</h3>
+  <p>The gate's configured <code>--min-ip-ka 50</code> threshold in fact admits nothing below
+  <strong>151.97 kA</strong>, in the ramp-up partition as much as the aggregate. This cohort
+  therefore contains no genuine breakdown or early-ramp-up slices, and cannot speak to the low-Ip
+  boundary question the earlier root-cause analysis raised — a limitation of the cohort, not a
+  result about the read.</p>
+
+  <p>Artifacts:
+  <code>imas_ambix/latent/artifacts/patch_gate/harmonic_phase_rebaseline.json</code> (full aggregate,
+  both phase partitions, the 96 per-slice verdicts, admitted-current coverage),
+  <code>imas_ambix/latent/artifacts/patch_gate/boundary_read_harmonic-o3-centroidorigin-frac0.41.json</code>
+  (the re-scored frozen arm),
+  <code>docs/figures/toroidal-harmonic-annulus-read/phase-split-skill.{png,svg}</code>.</p>
+
+  <p>A defect surfaced outside the node's write scope and is not yet repaired: the direct gate
+  entrypoint <code>scripts/boundary_moment_gate_eval.py</code> imports a removed
+  <code>P3_WINNER_KW</code> symbol. This run reached the identically valued
+  <code>FROZEN_INVERSE_KW</code> through a launch-time compatibility alias without modifying source,
+  so the measurement stands, but the committed entrypoint does not import.</p>
+</main>
+</body>
+</html>
