@@ -100,6 +100,37 @@
     now the primary FF′ carrier. The isotherm row may enter production only with fuller
     inboard/outboard isotherm coverage or an explicit partial-span bias and correlation
     model; this no-traction ablation is retained as the comparison control.</p>
+
+    <h2 id="ip-channel-audit">§2 Low-current label frames — a timing artefact, not damage — 2026-08-19</h2>
+    <p>Commit <code>afaaf733</code>, gate <em>ip-channel-audit</em> PASSED (3/3 tests, 1.20 s)
+    over the complete 7,041-shot / 1,559,340-label-frame census. The population contract is
+    exact and stated up front: finite |linearly-interpolated <code>magnetics_plasma_current</code>
+    on <code>efit_times</code>| &lt; 50 kA. That admits <strong>658,787</strong> frames, which
+    partition with no remainder.</p>
+    <table>
+      <caption>Adjudicated cause classes over the audited population</caption>
+      <thead><tr><th>Class</th><th>Frames</th><th>Timing relation to the native ≥50 kA activity interval</th></tr></thead>
+      <tbody>
+        <tr><td><code>pulse_disjoint_from_label_window</code></td><td>80,032</td><td>precedes the interval</td></tr>
+        <tr><td><code>aligned_leading_edge</code></td><td>578,754</td><td>precedes it, bar five frames inside its first-to-last span</td></tr>
+        <tr><td><code>interior_low_current</code></td><td>1</td><td>inside the interval</td></tr>
+        <tr><td><strong>total</strong></td><td><strong>658,787</strong></td><td>every frame within native Ip time support</td></tr>
+      </tbody>
+    </table>
+    <p><strong>The sentinel hypothesis is ruled out, not assumed away.</strong> Zero
+    nearest-native nonfinite samples; 84 interpolated exact zeros in total (11 + 73 + 0); no
+    contributing shot carries a whole Ip channel below threshold. <strong>The frames are real
+    data, not damaged records:</strong> every class comes from shots with all 20 other actuator
+    channels present, finite-bounded, nonconstant and free of native nulls, and 19 of 20
+    per-channel log-peak correlations against Ip are positive in each large class (median
+    0.379946 disjoint, 0.365052 leading edge).</p>
+    <p><strong>Exclusion policy.</strong> All three classes are excluded from default
+    confined-equilibrium training, calibration, scoring and integral-constraint consumers.
+    <strong>Consequence for §6:</strong> <code>aligned_leading_edge</code> — 87.9% of the
+    audited population — may be retained by an explicitly ramp-aware limited-phase traversal.
+    The ramp problem therefore inherits a large labeled population that the confined-equilibrium
+    lanes must not touch, which is exactly the frame class §6 needs and the only one the
+    exclusion leaves usable.</p>
   </main>
 </body>
 </html>
