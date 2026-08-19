@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-20">
-<meta name="plan-version" content="29">
+<meta name="plan-version" content="31">
 <meta name="plan-impl" content="0.9">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
@@ -310,6 +310,35 @@
       bench of §9 — whose triggers are assessed once the remaining §5 nodes land. The decoded
       full-stream demonstrations already exist and are illustrated in
       <a href="camera-dynamics-arm-comparison.html#s5a">arm comparison §5a</a>.</p>
+    <p><strong>D6 — the fast-Dα conditioning comparison, launched 2026-08-20 and now training.</strong>
+      Six matched jobs at an identical 20,000-step budget occupy the reservation:
+      <code>1251899</code>/<code>1251900</code> native, <code>1251901</code>/<code>1251902</code>
+      shuffled, <code>1251903</code>/<code>1251904</code> slow-only, baseline and dynamics per pair.
+      Each baseline/dynamics pair differs only in <code>temporal_attention</code> and
+      <code>run_name</code>; each control differs from its same-arm native only in
+      <code>conditioning_variant</code> and <code>run_name</code>. A 3/3 GPU smoke cleared the whole
+      path first (two optimiser steps, a validation pass, held-out plus five named-geometry eval,
+      <code>TRAIN_DONE=0</code>). Commit <code>54e3aaf</code>.
+      <em>Done when:</em> paired held-out ELM-frame NLL and morphology at 10 ms for native versus
+      shuffled-Dα and versus slow-only, per arm, with bootstrap intervals and both positive and null
+      results preserved. The verbatim scoring command is recorded in the run manifest.
+      <strong>Binding while these jobs run:</strong> they resolve their code through the launch
+      worker's worktree at
+      <code>.reckon-worktrees/imas-ambix-0405601943d2/cdw-ship-01/da-burst-training-launch</code>,
+      so that worktree must not be removed until all six exit. Promotion of steps 3–5 of the ELM
+      programme (the full burst-summary block, FiLM gating, the fast-Mirnov arm) stays gated on a
+      measured positive here.</p>
+    <p><strong>D7 — naming scrub across the camera-dynamics module.
+      <em>Trigger: the D6 job matrix has finished.</em></strong> A sweep over
+      <code>imas_ambix/camdyn/</code> and <code>scripts/slurm/camdyn_*.sbatch</code> flags plan and
+      stage labels in symbols and comments — the pre-registration deliverable ids, the
+      <code>cap_v1</code> run family, and stale instruction-section pointers in the sbatch headers.
+      <code>metrics.py</code> was already scrubbed in place when the ELM metric landed; the rest is
+      outstanding debt against the repository's binding naming rule. It is deliberately NOT run
+      while the matrix trains, because the six jobs and the scoring node that follows resolve code
+      and config semantics through these very modules, and renaming mid-flight is the one case that
+      rule carves out. Existing artifact and checkpoint paths stay untouched either way — they are
+      data, not source.</p>
 
     <h2 id="s6">§6 — Compute plan and GPU safety (binding)</h2>
     <p>
@@ -810,6 +839,12 @@ Done-when
 </div>
 <div class="r-comment" data-section="s5" data-id="c-20260820-conditioning-runtime" data-who="reckon-ship" data-when="2026-08-20T00:50:00+00:00">
     <div class="r-comment-body">conditioning-runtime-dispatch landed — commit 665cc34; gate reduced-conditioning-reaches-the-model PASSED; measure the emitted CamdynWindowStream matrix now EXACTLY equals the load_conditioning matrix used for normalisation-stat estimation, closing the silent skew the previous node blocked on. Quantitative: all 3 burst variants (native, shuffled, slow_only) pairwise distinct and each numerically different from its zero-order-hold reference, while 23/23 non-burst value columns and 23/23 missingness columns are exactly unchanged; 26/26 tests green in 122 s. TrainConfig.conditioning_variant routes one width-matched channel tuple through _conditioning_stats and every train, validation and evaluation loader, so no path can drift from another; the causal shuffle is seeded by shot id, cached traces keep multi-dimensional slow profiles, and unknown variants or reductions fail closed. The conditioning comparison can now be launched on inputs the model actually receives.</div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20260820-burst-launch" data-who="reckon-ship" data-when="2026-08-20T01:10:00+00:00">
+    <div class="r-comment-body">da-burst-training-launch landed — commit 54e3aaf; gate smoke-clears-then-matrix-submitted PASSED; measure 3/3 smoke jobs (1251896 native, 1251897 shuffled, 1251898 slow_only) completed exit 0 in 4m33s each on one H200 — two optimiser steps, a step-1 validation pass, held-out plus five named-geometry final evaluation, final.pt and evaluation.json written, TRAIN_DONE=0 — after which six production jobs were accepted at an IDENTICAL 20,000-step budget: 1251899/1251900 native, 1251901/1251902 shuffled, 1251903/1251904 slow_only, baseline and dynamics per pair. Config identity verified by parsing all six through TrainConfig.load: each baseline/dynamics pair differs only in model.temporal_attention and run_name, each control differs from its same-arm native only in conditioning_variant and run_name. Five RUNNING on 98dci4-gpu-0003, 1251904 PENDING with Reason=Resources — ordinary 30-core reservation capacity at 6 CPUs per job, not a blocker. The smoke NLL figures (24.29 / 24.37 / 24.48) are two-step path checks and carry no scientific weight. BINDING: the six jobs resolve code through the launch worktree .reckon-worktrees/imas-ambix-0405601943d2/cdw-ship-01/da-burst-training-launch, which must survive until all six exit. The verbatim scoring command is preserved in the run manifest.</div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20260820-suite-recheck" data-who="reckon-ship" data-when="2026-08-20T01:12:00+00:00">
+    <div class="r-comment-body">camdyn-suite-recheck landed — no commit, verification-only; gate suite-green-after-runtime-rewire PASSED; measure pytest tests/camdyn 245 passed / 0 failed in 429 s and ruff check imas_ambix/camdyn clean, at a HEAD carrying the loader/trainer rewire 665cc34 as an ancestor. Against the 216-passed pre-rewire baseline that is 29 additional passing tests with no regression test ids, so rewiring the shared runtime cost nothing. Two non-failing warnings persist: the host CUDA driver/toolchain mismatch on the login node and a scalar conversion of a requires-grad tensor in an existing test_model.py assertion. Log /work/projects/imas_gpu/logs/camdyn-suite-recheck.log, sha256 69e088d81026ab568f492f57da374ce370b8bd5d1afab246e134f6ff021b4b56.</div>
 </div>
 </section>
 </main>
