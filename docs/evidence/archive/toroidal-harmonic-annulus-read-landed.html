@@ -95,11 +95,25 @@
   (the re-scored frozen arm),
   <code>docs/figures/toroidal-harmonic-annulus-read/phase-split-skill.{png,svg}</code>.</p>
 
-  <p>A defect surfaced outside the node's write scope and is not yet repaired: the direct gate
-  entrypoint <code>scripts/boundary_moment_gate_eval.py</code> imports a removed
-  <code>P3_WINNER_KW</code> symbol. This run reached the identically valued
-  <code>FROZEN_INVERSE_KW</code> through a launch-time compatibility alias without modifying source,
-  so the measurement stands, but the committed entrypoint does not import.</p>
+  <p>A defect surfaced outside this node's write scope, repaired separately below: the gate
+  entrypoint <code>scripts/boundary_moment_gate_eval.py</code> imported a removed symbol. This run
+  reached the identically valued replacement through a launch-time compatibility alias without
+  modifying source, so the measurement stands.</p>
+
+  <h2 id="import-repair">Gate entrypoint import repair — every gate run was blocked</h2>
+  <p><strong>The moment gate module imported a constant that had been removed when the frozen
+  free-current configuration was renamed to a mechanism name, and the harmonic gate imports that
+  module — so no gate entrypoint loaded.</strong> The re-baseline above only obtained its measurement
+  through a launch-time alias. Repaired to the identically valued <code>FROZEN_INVERSE_KW</code>, so
+  the arithmetic is unchanged and the re-baseline numbers stand as scored.</p>
+  <p>Commit <code>63f214a</code>, one file. Evidence: <code>--help</code> exits 0 where it previously
+  failed at import; <code>pytest tests/latent/test_boundary_harmonic_gate.py
+  tests/latent/test_boundary_harmonic.py</code> collected 14 and passed 14/14 in 12.05 s;
+  <code>ruff check</code> clean; zero remaining references in Python source. The surviving mentions
+  of the old name are in this record and in
+  <code>harmonic_phase_rebaseline.json</code>, where they document the failure as data rather than
+  naming live code. Stale plan-labelled prose in the same docstring was scrubbed to mechanism terms
+  in passing.</p>
 </main>
 </body>
 </html>

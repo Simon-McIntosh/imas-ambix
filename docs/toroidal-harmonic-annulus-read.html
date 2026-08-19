@@ -20,12 +20,12 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-19">
-<meta name="plan-version" content="13">
-<meta name="plan-impl" content="0.67">
+<meta name="plan-version" content="14">
+<meta name="plan-impl" content="0.78">
 <meta name="plan-sprint" content="S18">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
-<meta name="plan-commits" content="5fb7510">
+<meta name="plan-commits" content="5fb7510,63f214a">
 <meta name="plan-artifacts" content="imas_ambix/latent/artifacts/patch_gate/harmonic_phase_rebaseline.json,imas_ambix/latent/artifacts/patch_gate/boundary_read_harmonic-o3-centroidorigin-frac0.41.json,docs/figures/toroidal-harmonic-annulus-read/phase-split-skill.png">
 </head>
 <body>
@@ -519,6 +519,9 @@ Guardrails
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s6" data-id="c-20260819T2140" data-who="reckon-ship" data-when="2026-08-19T21:40:00+00:00">
     <div class="r-comment-body">harmonic-phase-rebaseline landed — commit 5fb7510; phase-split re-baseline measure PASSED (evidence produced). Held-out n=160, frozen centroid-origin config (order 3, ridge 1e-8, fraction 0.41) under the CURRENT read: aggregate X-point-set +0.689 [0.309,0.773], axis −1.896 [−2.776,−1.400], LCFS −3.900 [−5.168,−3.017], LCFS offset median 11.52 cm, consistency_rms_annulus 0.0850. Phase split — ramp-up (96 slices/8 shots): X-point-set −0.279 [−1.058,−0.112], axis −2.031, LCFS −4.702, offset 11.68 cm; flat-top (8 max-|Ip| slices): X-point-set +0.312 [0.290,0.337], axis −3.083, LCFS −3.933, offset 11.18 cm. THREE findings. (1) The aggregate X-point-set has flipped positive since 2026-07-14 (−4.54 → +0.689), but the honesty audit shows this is NOT ramp-up recovery: of 96 ramp-up slices the read emits X-points on 28, of which 21 are wholly spurious at 5 cm tolerance and only 7 contain a referee match (2 full, 5 partial); a further 27 miss referee X-points, and 41 correctly emit none. (2) The axis gap PERSISTS (−1.896 vs the carrier per-slice −0.27), so the Shafranov beat is live work, not superseded. (3) Aggregate held-out LCFS has REGRESSED against the 2026-07-14 artifact (6.7 → 11.52 cm, skill −1.958 → −3.900) — the reworked read has traded LCFS for X-point-set, and the frozen 0.41/order-3/ridge-1e-8 configuration selected under the older code may no longer be the train optimum. (4) The --min-ip-ka 50 floor in fact admits nothing below 151.97 kA, so this cohort contains no genuine low-Ip breakdown slices and cannot speak to the low-Ip boundary question at all. impl set to 0.67 rather than held at 1.0: §6 added four executable nodes to a plan that had been fully implemented, so the honest denominator grew — one node of four is done.</div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20260819T2150" data-who="reckon-ship" data-when="2026-08-19T21:50:00+00:00">
+    <div class="r-comment-body">moment-gate-import-repair landed — commit 63f214a; entrypoint-loads measure PASSED. <code>scripts/boundary_moment_gate_eval.py</code> imported a constant removed when the frozen free-current configuration was renamed to a mechanism name, and the harmonic gate imports that module, so every gate run was blocked — the re-baseline only got its measurement through a launch-time compatibility alias. Repaired to the identically valued <code>FROZEN_INVERSE_KW</code>: <code>--help</code> exits 0 where it previously failed at import, 14/14 harmonic gate and basis tests pass, ruff clean, zero remaining references in Python source (the three surviving mentions are in this section's own evidence record and artifact JSON, where they document the failure as data). Stale plan-labelled docstring prose in the same file was scrubbed to mechanism terms in passing.</div>
 </div>
 </section>
 </main>

@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-19T23:45:27",
+  "updated": "2026-08-19T23:46:04",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -4603,9 +4603,129 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260819T205407217267-motion-readout",
+        "plan": "camera-dynamics-wm-v0",
+        "section": "\u00a75",
+        "node": "motion-readout",
+        "role": "implement",
+        "member": "camera-motion-readout",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T20:54:10Z",
+        "completed_at": "2026-08-19T21:17:03Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1373,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1373,
+        "stalled": false,
+        "time_budget": "60m",
+        "base_sha": "855d010e5246e3a53d221891488b30487e7eae2b",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "outcome": "First motion-readout attempt: implementation and both candidate readouts built, but the final centroid-displacement evaluation could not serialise strict JSON because a sub-threshold transition retained NaN, so no commit landed. Its phase-only candidate measured persistence 0.00030, oracle 1.00000, coloured noise -0.00602, MAP 0.01145, MAP-minus-persistence 0.01116 against the 0.03 margin. Superseded by motion-readout-repair (commit eaf8e31), which reached the same scientific verdict.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T205407217267-motion-readout/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01bcd-8c43-7fb0-9eeb-ba768d23a629",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 11465728,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 11711714,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 38679,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 11809
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
+      },
+      {
+        "run_id": "r-20260819T213943250926-moment-gate-import-repair",
+        "plan": "toroidal-harmonic-annulus-read",
+        "section": "\u00a76",
+        "node": "moment-gate-import-repair",
+        "role": "implement",
+        "member": "moment-gate-import",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T21:40:06Z",
+        "completed_at": "2026-08-19T21:45:36Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 330,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 330,
+        "stalled": false,
+        "time_budget": "12m",
+        "base_sha": "e30ab5a2c8b27ff282e4a778aadde3a4d58778fd",
+        "commits": [
+          "63f214a"
+        ],
+        "changed_lines": {
+          "added": 29,
+          "removed": 17,
+          "files": 1
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "outcome": "Moment gate entrypoint imports again: replaced the removed P3_WINNER_KW with the identically valued FROZEN_INVERSE_KW; --help exits 0 where it previously failed at import, 14/14 harmonic gate+basis tests pass, ruff clean, zero remaining Python-source references. In-passing scrub of plan-labelled docstring prose in the same file.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T213943250926-moment-gate-import-repair/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01bf7-a60e-7be1-b50b-ff115d1a0feb",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1998336,
+            "cached_input_tokens_cumulative": 1998336,
+            "input_tokens": 2096846,
+            "input_tokens_cumulative": 2096846,
+            "output_tokens": 11533,
+            "output_tokens_cumulative": 11533,
+            "reasoning_output_tokens": 3787,
+            "reasoning_output_tokens_cumulative": 3787
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 140
+    "_version": 142
   }
 }
