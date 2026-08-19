@@ -1,9 +1,9 @@
-"""Training + eval for the camdyn ST-transformer (D1 baseline / D2 dynamics).
+"""Training and evaluation for the matched camdyn transformer arms.
 
 In-process, single long-lived process: the model is built ONCE and many
 windows stream through a bounded torch ``DataLoader``.  No
-subprocess-per-item, no file-IPC daemon, no unbounded prefetch threads
-(repo §2b).  GPU-safety contract (repo §6 / plan §6):
+subprocess-per-item, no file-IPC daemon, no unbounded prefetch threads.
+GPU-safety contract:
 
   * a ``SIGTERM`` / ``SIGINT`` handler sets a global ``STOP`` flag,
     flushes the latest checkpoint, and exits clean in < 5 s;
@@ -16,10 +16,10 @@ subprocess-per-item, no file-IPC daemon, no unbounded prefetch threads
   * bf16 on CUDA + ``set_float32_matmul_precision('high')`` and
     deterministic cuDNN.
 
-The same entry point trains either arm — ``temporal_attention`` in the
-config picks D1 (False) or D2 (True).  D1 logs the held-out masked-token
-NLL + top-1 accuracy as the LOCKED W1 bar (overall + motion-weighted +
-per named-geometry), scored through the pre-registered D0 metrics.
+The same entry point trains either arm. ``temporal_attention`` selects the
+per-frame arm (False) or temporal arm (True). Evaluation reports held-out
+masked-token NLL and top-1 accuracy overall, motion-weighted, and per named
+geometry through the pre-registered reconstruction metrics.
 """
 
 from __future__ import annotations
@@ -86,7 +86,7 @@ def _install_signal_handlers() -> None:
 class TrainConfig:
     """Hyper-parameters for one camdyn training run.
 
-    The ``model`` block selects D1 (temporal_attention False) vs D2 (True).
+    The ``model`` block selects per-frame or temporal attention.
     """
 
     # arm / architecture
@@ -112,6 +112,7 @@ class TrainConfig:
     # loader
     num_workers: int = 4
     seed: int = 0
+    conditioning_variant: str = "native"
     # cadence
     log_every: int = 50
     val_every: int = 500
@@ -128,7 +129,7 @@ class TrainConfig:
     # paths
     split_path: str | None = None
     ckpt_root: str = "/work/projects/imas_gpu/mast-checkpoints/camdyn"
-    run_name: str = "baseline_w1_v0"
+    run_name: str = "baseline"
     artifact_out: str | None = None
     device: str = "cuda"
 
@@ -162,21 +163,29 @@ class TrainConfig:
             d = json.loads(text)
         return cls.from_dict(d)
 
+    def conditioning_channels(self):
+        """Resolve the configured width-matched conditioning selection."""
+        return CONDITIONING_CHANNELS.select(self.conditioning_variant)
+
 
 # ---------------------------------------------------------------------------
 # Conditioning cache (per shot — built lazily, reused across windows)
 # ---------------------------------------------------------------------------
 
 
-def _frame_conditioning(spec, frame_time, shot_id):
+def _frame_conditioning(
+    spec,
+    frame_time,
+    shot_id,
+    *,
+    channels=CONDITIONING_CHANNELS,
+):
     """Per-frame conditioning matrices for one window.
 
     Returns ``(values (F,C), missing (F,C))`` float32 from the locked
     :func:`load_conditioning` loader (leakage ban enforced inside).
     """
-    sample = load_conditioning(
-        spec.level1_path, frame_time, shot_id, channels=CONDITIONING_CHANNELS
-    )
+    sample = load_conditioning(spec.level1_path, frame_time, shot_id, channels=channels)
     return sample.values, sample.missing
 
 
@@ -185,7 +194,15 @@ def _frame_conditioning(spec, frame_time, shot_id):
 # ---------------------------------------------------------------------------
 
 
-def _assemble_batch(windows, mask_cfg, rng, *, progress, mode=None):
+def _assemble_batch(
+    windows,
+    mask_cfg,
+    rng,
+    *,
+    progress,
+    mode=None,
+    channels=CONDITIONING_CHANNELS,
+):
     """Stack a list of FrameWindow dicts into model-ready numpy arrays.
 
     Returns a dict of numpy arrays:
@@ -213,7 +230,12 @@ def _assemble_batch(windows, mask_cfg, rng, *, progress, mode=None):
         from types import SimpleNamespace  # noqa: PLC0415
 
         spec = SimpleNamespace(level1_path=win.get("level1_path"))
-        cv, cm = _frame_conditioning(spec, win["frame_time"], int(win["shot_id"]))
+        cv, cm = _frame_conditioning(
+            spec,
+            win["frame_time"],
+            int(win["shot_id"]),
+            channels=channels,
+        )
         toks.append(tokens)
         vis.append(visible)
         lmask.append(loss_mask)
@@ -240,7 +262,14 @@ def _normalise_conditioning(cond_values, stats):
     return (cond_values - mu) / sd
 
 
-def _conditioning_stats(specs, frame_cfg, n_sample=64, seed=0):
+def _conditioning_stats(
+    specs,
+    frame_cfg,
+    n_sample=64,
+    seed=0,
+    *,
+    channels=CONDITIONING_CHANNELS,
+):
     """Estimate per-channel mean/std of conditioning over a sample of windows.
 
     Keeps the additive conditioning numerically sane (currents are ~1e5 A,
@@ -248,7 +277,7 @@ def _conditioning_stats(specs, frame_cfg, n_sample=64, seed=0):
     """
     rng = np.random.default_rng(seed)
     vals, miss = [], []
-    n_chan = len(CONDITIONING_CHANNELS)
+    n_chan = len(channels)
     ds = FrameTokenDataset(specs, frame_cfg, as_dict=True)
     n = len(ds)
     if n == 0:
@@ -260,7 +289,7 @@ def _conditioning_stats(specs, frame_cfg, n_sample=64, seed=0):
             _level1_for(specs, int(win["shot_id"])),
             win["frame_time"],
             int(win["shot_id"]),
-            channels=CONDITIONING_CHANNELS,
+            channels=channels,
         )
         vals.append(sample.values)
         miss.append(sample.missing)
@@ -306,6 +335,7 @@ class Trainer:
 
     def __init__(self, cfg: TrainConfig) -> None:
         self.cfg = cfg
+        self._conditioning_channels = cfg.conditioning_channels()
         self.mask_cfg = ClipMaskConfig()
         self._step = 0
         self._cond_stats = None
@@ -314,9 +344,9 @@ class Trainer:
         # is set while VAL / final-eval / checkpoint runs so the watchdog does
         # NOT count those (legitimately slow, GPU-bound or I/O-bound) phases as
         # a wedged training step.  The first periodic VAL took >180 s and the
-        # final evaluate_w1 ran for minutes — both previously tripped the
+        # final reconstruction evaluation can run for minutes, so it is
         # watchdog because ``last_step_t`` was only bumped after a TRAIN step
-        # (jobs 1216061/1216062 died at step=val_every).
+        # without treating non-training work as a wedged optimiser step.
         self._last_step_t = [time.time()]
         self._watchdog_paused = threading.Event()
         # Per-instance watchdog lifecycle: the daemon thread exits when EITHER
@@ -359,18 +389,18 @@ class Trainer:
     def _make_loader(
         self, specs, frame_cfg, *, seed, mode, progress, max_windows, one_shot=False
     ):
-        """Build a bounded torch DataLoader over the locked D0 window stream.
+        """Build a bounded torch DataLoader over the window stream.
 
         The model stays loaded ONCE in this (main) process; the workers do
-        only CPU prep — read tokens, hold conditioning to frame times, and
-        sample the clip mask — overlapping with GPU compute (repo §2b).
+        only CPU prep: read tokens, reduce conditioning to frame times, and
+        sample the clip mask while overlapping GPU compute.
 
         ``one_shot=True`` builds an eval loader (``persistent_workers=False``):
         the eval/val loops break out early after ``max_windows`` and a NEW
         loader is constructed per call (val + once per named geometry).  A
         persistent-worker loader broken early leaves its workers alive, and
         building many of them leaks/deadlocks the worker pool — the 2-hour
-        ``evaluate_w1`` hang.  One-shot workers join on iterator exhaustion;
+        reconstruction-evaluation stall. One-shot workers join on exhaustion;
         :func:`close_loader` reaps them after the early break.
         """
         return make_loader(
@@ -383,6 +413,7 @@ class Trainer:
             mode=mode,
             progress=progress,
             max_windows=max_windows,
+            channels=self._conditioning_channels,
             persistent_workers=not one_shot,
         )
 
@@ -424,7 +455,7 @@ class Trainer:
         val_specs = _specs_for_shots(split.val, max_shots=self.cfg.max_val_shots)
         logger.info(
             "[camdyn-train] arm=%s train_shots=%d val_shots=%d",
-            "D2-dynamics" if self.cfg.model.temporal_attention else "D1-baseline",
+            "temporal" if self.cfg.model.temporal_attention else "per-frame",
             len(train_specs),
             len(val_specs),
         )
@@ -433,7 +464,10 @@ class Trainer:
             n_frames=self.cfg.n_frames, stride=self.cfg.stride, seed=self.cfg.seed
         )
         self._cond_stats = _conditioning_stats(
-            train_specs, frame_cfg, seed=self.cfg.seed
+            train_specs,
+            frame_cfg,
+            seed=self.cfg.seed,
+            channels=self._conditioning_channels,
         )
 
         model = CamdynModel.from_config(self.cfg.model)
@@ -590,9 +624,9 @@ class Trainer:
 
                     self._step += 1
 
-            # final checkpoint + held-out W1 evaluation (the locked bar) — D1
-            # only by default, but works for either arm.  The whole tail runs
-            # with the training-step watchdog PAUSED: the final evaluate_w1
+            # The final checkpoint and held-out reconstruction evaluation work
+            # for either arm. The whole tail runs with the training-step
+            # watchdog paused: reconstruction evaluation
             # scores held_out + 5 named geometries × eval_windows and is
             # minutes long by design, not a wedged step.
             with self._pause_watchdog("final-eval"):
@@ -603,23 +637,23 @@ class Trainer:
                     split.held_out, max_shots=self.cfg.max_heldout_shots
                 )
                 logger.info(
-                    "[camdyn-train] final W1 eval start: held_out_shots=%d "
+                    "[camdyn-train] final reconstruction eval start: held_out_shots=%d "
                     "eval_windows=%d named_geometries=%d",
                     len(ho_specs),
                     self.cfg.eval_windows,
                     len(NAMED_GEOMETRIES),
                 )
                 t_eval = time.time()
-                w1 = self.evaluate_w1(
+                evaluation = self.evaluate_arm_reconstruction(
                     model, ho_specs, val_specs, frame_cfg, torch, device, history
                 )
-                w1["checkpoint"] = str(final_ckpt)
-                self._write_artifact(w1)
+                evaluation["checkpoint"] = str(final_ckpt)
+                self._write_artifact(evaluation)
                 logger.info(
-                    "[camdyn-train] final W1 eval complete (%.1fs)",
+                    "[camdyn-train] final reconstruction eval complete (%.1fs)",
                     time.time() - t_eval,
                 )
-            return w1
+            return evaluation
         finally:
             self._watchdog_stop.set()  # terminate the watchdog daemon thread
             try:
@@ -635,7 +669,7 @@ class Trainer:
     def _pause_watchdog(self, phase: str):
         """Suspend the training-step watchdog around a non-training phase.
 
-        VAL, the final ``evaluate_w1``, and checkpointing are legitimately
+        Validation, final reconstruction evaluation, and checkpointing are
         slow (GPU-bound eval, GPFS torch.save) and must NOT be counted as a
         wedged training step.  Entering pauses the watchdog and refreshes the
         last-step clock; exiting refreshes it again so the NEXT training step
@@ -768,11 +802,11 @@ class Trainer:
     def _materialize_eval(self, specs, frame_cfg, *, max_windows, seed):
         """Read up to ``max_windows`` eval windows ONCE into memory.
 
-        The held-out W1 task and all 5 named geometries score the SAME
+        The held-out task and all named geometries score the same
         windows (a geometry changes only the visibility mask, not the data),
         so we pay the per-shot Zarr read cost ONCE here instead of rebuilding
         a loader (6-worker spawn + cold conditioning reads) per split — the
-        root of the slow ``evaluate_w1``.  Returns a list of numpy batch
+        dominant cost of reconstruction evaluation. Returns numpy batch
         dicts; the mixture mask sampled by the loader is kept and used as-is
         for the held-out task.
         """
@@ -803,7 +837,7 @@ class Trainer:
         """Score cached eval batches in-memory (no loader, no Zarr reads).
 
         ``named=None`` scores each batch's own (mixture) mask — the held-out
-        W1 task.  ``named=<geometry>`` overrides every window's mask with the
+        reconstruction task. ``named=<geometry>`` overrides each mask with the
         deterministic frozen geometry.  Returns ``(nll, acc, motion_nll,
         motion_acc)`` flattened per-token (pure GPU forward + numpy score over
         data already in memory).
@@ -859,12 +893,12 @@ class Trainer:
 
         return _cat(nll_all), _cat(acc_all), _cat(mnll_all), _cat(macc_all)
 
-    # -- W1 evaluation (the locked bar) -----------------------------------
+    # -- matched-arm reconstruction evaluation -----------------------------
 
-    def evaluate_w1(
+    def evaluate_arm_reconstruction(
         self, model, ho_specs, val_specs, frame_cfg, torch, device, history
     ):
-        """Score the held-out split + named-geometry suite → the W1 bar.
+        """Score the held-out split and named-geometry suite.
 
         Returns the full artifact dict (held-out overall, motion-weighted,
         per named-geometry, a bootstrap-CI sanity exercise, val numbers,
@@ -872,23 +906,21 @@ class Trainer:
         """
         model.module.eval()
         out: dict = {
-            "arm": "D2-dynamics"
-            if self.cfg.model.temporal_attention
-            else "D1-baseline",
+            "arm": "temporal" if self.cfg.model.temporal_attention else "per-frame",
             "temporal_attention": bool(self.cfg.model.temporal_attention),
             "model_config": self.cfg.model.to_dict(),
             "n_params": int(model.num_parameters()),
             "n_heldout_shots": len(ho_specs),
             "n_val_shots": len(val_specs),
-            "metrics_provenance": "imas_ambix.camdyn.metrics (pre-registered D0)",
+            "metrics_provenance": "imas_ambix.camdyn.metrics (pre-registered)",
         }
 
         # Read the held-out windows ONCE; the held-out (mixture) task and all
         # 5 named geometries score the SAME windows in-memory (a geometry
         # changes only the visibility mask, not the data), so the per-shot
-        # Zarr reads happen once instead of 6x — the evaluate_w1 slowness.
+        # Zarr reads happen once; geometry changes do not trigger more I/O.
         logger.info(
-            "[camdyn-train] evaluate_w1: materialising <=%d held-out windows",
+            "[camdyn-train] reconstruction eval: materialising <=%d held-out windows",
             self.cfg.eval_windows,
         )
         t_mat = time.time()
@@ -915,7 +947,7 @@ class Trainer:
 
         # --- per named-geometry (frozen eval suite) ---
         logger.info(
-            "[camdyn-train] evaluate_w1: scoring %d named geometries",
+            "[camdyn-train] reconstruction eval: scoring %d named geometries",
             len(NAMED_GEOMETRIES),
         )
         geo_out = {}
@@ -931,7 +963,7 @@ class Trainer:
         out["named_geometry"] = geo_out
 
         # --- val (reference) ---
-        logger.info("[camdyn-train] evaluate_w1: scoring val reference")
+        logger.info("[camdyn-train] reconstruction eval: scoring val reference")
         vnll, vacc = self._quick_val(model, val_specs, frame_cfg, torch, device)
         out["val"] = {"masked_nll": vnll, "masked_top1": vacc}
 
@@ -1009,7 +1041,7 @@ class Trainer:
                             continue
                         nll_all.append(sc.nll_per_token)
                         acc_all.append(sc.acc_per_token)
-                        # motion-weighted subset (D0 metric) on the masked set
+                        # motion-weighted subset on the masked set
                         moving = motion_weighted_subset(
                             arr["tokens"][b], arr["frame_time"][b]
                         )
@@ -1038,14 +1070,14 @@ class Trainer:
 
     # -- artifact ----------------------------------------------------------
 
-    def _write_artifact(self, w1: dict) -> Path:
+    def _write_artifact(self, evaluation: dict) -> Path:
         out = self.cfg.artifact_out or str(
             Path(__file__).resolve().parent / "artifacts" / f"{self.cfg.run_name}.json"
         )
         path = Path(out)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(w1, indent=2), encoding="utf-8")
-        logger.info("[camdyn-train] W1 bar written to %s", path)
+        path.write_text(json.dumps(evaluation, indent=2), encoding="utf-8")
+        logger.info("[camdyn-train] reconstruction metrics written to %s", path)
         return path
 
 
@@ -1080,7 +1112,7 @@ def _bootstrap_sanity(nll: np.ndarray) -> dict:
     half = nll.size // 2
     a = nll[perm[:half]]
     b = nll[perm[half : 2 * half]]
-    # paired diff = a - b (oriented as baseline - dynamics in the real W1);
+    # Paired difference is oriented as per-frame minus temporal;
     # here both halves are the same arm so it must straddle 0.
     ci = bootstrap_ci(a - b)
     ci["n_pairs"] = int(half)
@@ -1107,7 +1139,7 @@ def main(argv: list[str] | None = None) -> int:
         "--eval-windows",
         type=int,
         default=None,
-        help="override final-eval window cap (smoke: keep the W1 eval short)",
+        help="override final-eval window cap",
     )
     parser.add_argument(
         "--val-windows",
@@ -1116,7 +1148,7 @@ def main(argv: list[str] | None = None) -> int:
         help="override periodic-VAL window cap",
     )
     parser.add_argument(
-        "--artifact-out", default=None, help="override W1 artifact path"
+        "--artifact-out", default=None, help="override metrics artifact path"
     )
     parser.add_argument(
         "--ckpt-root", default=None, help="override checkpoint root dir"
@@ -1146,9 +1178,9 @@ def main(argv: list[str] | None = None) -> int:
         cfg.ckpt_root = args.ckpt_root
 
     trainer = Trainer(cfg)
-    w1 = trainer.train()
-    arm = w1.get("arm", "?")
-    ho = w1.get("held_out", {})
+    evaluation = trainer.train()
+    arm = evaluation.get("arm", "?")
+    ho = evaluation.get("held_out", {})
     logger.info(
         "[camdyn-train] DONE arm=%s held_out nll=%.4f top1=%.4f",
         arm,

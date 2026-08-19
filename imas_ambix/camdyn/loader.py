@@ -1,23 +1,18 @@
-"""Bounded torch ``DataLoader`` over the locked D0 camdyn pieces.
+"""Bounded torch ``DataLoader`` over the camdyn data components.
 
 Throughput layer for the camera-dynamics trainer.  The model is loaded
 ONCE in the main process; the per-window CPU work — reading the V3 token
-grid, holding the V2 level-1 conditioning to the frame times, and sampling
+grid, reducing the V2 level-1 conditioning to the frame times, and sampling
 the clip mask — runs in PARALLEL worker processes and overlaps with GPU
 compute.  No subprocess-per-item, no file-IPC daemon, no unbounded
-prefetch threads (repo §2b): just the torch ``DataLoader`` worker pool
+prefetch threads: just the torch ``DataLoader`` worker pool
 with a bounded ``prefetch_factor`` and ``persistent_workers``.
 
-Why this exists
----------------
-``train.py``'s original ``_window_iter`` read one window at a time
-synchronously on the main thread.  For every window it re-opened the V3
-token Zarr (``FrameTokenDataset.__getitem__``) AND re-opened the V2
-level-1 Zarr for conditioning (``load_conditioning``) — ~48 Zarr opens
-per training step on GPFS.  The configured ``num_workers`` was never
-wired to a real ``DataLoader``, so the GPU sat idle (~6 s/step for a 19M
-model on an H200).  This module fixes that without touching any locked D0
-file: it COMPOSES :class:`~imas_ambix.camdyn.dataset.FrameTokenDataset`,
+I/O design
+----------
+Reading a window must not reopen the token and level-1 stores for every
+sample.  The worker pool composes
+:class:`~imas_ambix.camdyn.dataset.FrameTokenDataset`,
 :func:`~imas_ambix.camdyn.masking.sample_clip_mask` and
 :func:`~imas_ambix.camdyn.conditioning.load_conditioning`.
 
@@ -27,8 +22,8 @@ Many windows share a shot.  Each worker keeps a small per-shot LRU:
 
 * the V3 token store's ``tokens`` array handle (one Zarr open per shot,
   not per window) — windows slice it directly;
-* the per-shot RAW level-1 conditioning traces (time + scaled value per
-  channel), read once and held-resampled to each window's frame times in
+* the per-shot raw level-1 conditioning traces (time + scaled value per
+  channel), read once and causally reduced to each window's frame times in
   pure numpy (no Zarr re-open per window).
 
 The cache lives inside the worker process, so it is never shared across
@@ -36,8 +31,8 @@ processes (worker-safe) and is bounded (LRU eviction).
 
 Output contract (matches what ``train.py`` consumes)
 ----------------------------------------------------
-Each batch is a dict of stacked numpy arrays, identical in keys/shapes/
-dtypes to the old ``_assemble_batch`` output so the trainer's forward,
+Each batch is a dict of stacked numpy arrays matching ``_assemble_batch``
+in keys, shapes, and dtypes so the trainer's forward,
 loss, eval scoring, named-geometry override and motion-weighted subset
 all work unchanged:
 
@@ -69,6 +64,8 @@ import numpy as np
 from imas_ambix.camdyn.conditioning import (
     CONDITIONING_CHANNELS,
     assert_no_leakage_sources,
+    causal_shuffle_summaries,
+    reduce_interframe_rms,
     resample_to_frames,
 )
 from imas_ambix.camdyn.dataset import (
@@ -126,7 +123,7 @@ def _read_shot_cond_traces(level1_path, channels=CONDITIONING_CHANNELS):
         return out
     for j, chan in enumerate(channels):
         st, sv = _read_source_signal(store, chan.source, chan.array)
-        if st is None or sv is None or np.ndim(sv) != 1:
+        if st is None or sv is None:
             continue
         out[j] = (
             np.asarray(st, dtype=np.float64),
@@ -135,8 +132,14 @@ def _read_shot_cond_traces(level1_path, channels=CONDITIONING_CHANNELS):
     return out
 
 
-def _hold_traces_to_frames(traces, frame_time, channels=CONDITIONING_CHANNELS):
-    """Zero-order-hold cached RAW traces onto one window's frame times.
+def _reduce_traces_to_frames(
+    traces,
+    frame_time,
+    channels=CONDITIONING_CHANNELS,
+    *,
+    shot_id: int = 0,
+):
+    """Apply each cached channel's declared causal frame-grid reduction.
 
     Pure numpy — no Zarr re-open.  Produces the same ``(values, missing)``
     arrays as :func:`load_conditioning`, channel order preserved.
@@ -151,14 +154,33 @@ def _hold_traces_to_frames(traces, frame_time, channels=CONDITIONING_CHANNELS):
         if tr is None:
             continue
         st, sv = tr
-        held, miss = resample_to_frames(st, sv, ft)
-        values[:, j] = held
+        chan = channels[j]
+        if chan.reduction == "hold":
+            if np.ndim(sv) != 1:
+                continue
+            reduced, miss = resample_to_frames(st, sv, ft)
+        elif chan.reduction == "interval_rms":
+            reduced, miss = reduce_interframe_rms(st, sv, ft)
+            if chan.causal_shuffle:
+                reduced, miss, _ = causal_shuffle_summaries(
+                    reduced, miss, seed=int(shot_id)
+                )
+        else:
+            raise ValueError(
+                f"unknown conditioning reduction {chan.reduction!r} for {chan.key}"
+            )
+        values[:, j] = reduced
         missing[:, j] = miss
     return values, missing
 
 
+def _hold_traces_to_frames(traces, frame_time, channels=CONDITIONING_CHANNELS):
+    """Compatibility wrapper for callers using the default channel selection."""
+    return _reduce_traces_to_frames(traces, frame_time, channels)
+
+
 # ---------------------------------------------------------------------------
-# Iterable dataset — composes the locked D0 pieces, shards across workers
+# Iterable dataset — composes data components and shards across workers
 # ---------------------------------------------------------------------------
 
 
@@ -181,7 +203,7 @@ class CamdynWindowStream:
 
     The clip mask is sampled IN-WORKER so mask sampling overlaps with GPU
     compute too.  ``mode`` forces a single mask mode (eval); ``None`` draws
-    the §4a mixture.  ``progress`` feeds the curriculum area anneal.
+    the configured mixture.  ``progress`` feeds the curriculum area anneal.
 
     This is a torch ``IterableDataset`` when torch is importable; the class
     body avoids importing torch at module load so the file stays usable in a
@@ -290,8 +312,13 @@ class CamdynWindowStream:
         valid = np.zeros(nf, dtype=bool)
         valid[:n_real] = True
 
-        # conditioning held from cached RAW traces (no Zarr re-open)
-        cv, cm = _hold_traces_to_frames(c.cond_traces, frame_time, self._channels)
+        # Apply the configured reductions to cached native traces.
+        cv, cm = _reduce_traces_to_frames(
+            c.cond_traces,
+            frame_time,
+            self._channels,
+            shot_id=sid,
+        )
 
         # clip mask sampled in-worker (overlaps GPU compute)
         m, _meta = sample_clip_mask(
@@ -453,8 +480,7 @@ def make_loader(
         build a NEW loader per call (val + once per named geometry).  An
         early-broken ``IterableDataset`` loader with ``persistent_workers=
         True`` leaves its worker processes alive; constructing many such
-        loaders leaks/deadlocks the worker pool (the 2-hour eval hang at
-        step=val_every, jobs 1216061/1216062).  With ``False`` the workers
+        loaders leaks or deadlocks the worker pool. With ``False`` the workers
         join when the iterator is exhausted or GC'd — see
         :func:`close_loader` for explicit teardown after an early break.
         Has no effect when ``num_workers == 0``.
@@ -503,7 +529,8 @@ def close_loader(loader) -> None:
     not auto-join.  Calling this drains the held iterator (best-effort) so
     the worker processes and pin-memory thread are reaped before the next
     eval loader is built — preventing the worker-pool leak that hung
-    ``evaluate_w1``.  Safe to call on a ``num_workers == 0`` loader (no-op)
+    the reconstruction evaluator.  Safe to call on a ``num_workers == 0``
+    loader (no-op)
     and idempotent.
     """
     it = getattr(loader, "_iterator", None)

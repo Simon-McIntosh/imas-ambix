@@ -1,9 +1,9 @@
 """Tests for the bounded DataLoader composition layer (loader.py).
 
 These run against the synthetic-corpus fixture (CPU-fast, no real corpus,
-no GPU).  They assert the loader yields exactly the batch dict the trainer
-consumes — right keys / shapes / dtypes, mask complement, conditioning
-alignment with the locked D0 loader, and that per-shot caching does not
+no GPU). They assert the loader yields exactly the batch dict the trainer
+consumes: keys, shapes, dtypes, mask complement, conditioning alignment,
+and per-shot cache transparency.
 change the produced values (num_workers == 0 path).
 """
 
@@ -24,8 +24,8 @@ from imas_ambix.camdyn.dataset import (
 from imas_ambix.camdyn.loader import (
     BATCH_KEYS,
     CamdynWindowStream,
-    _hold_traces_to_frames,
     _read_shot_cond_traces,
+    _reduce_traces_to_frames,
     collate_windows,
 )
 from imas_ambix.camdyn.masking import ClipMaskConfig, MaskMode
@@ -117,7 +117,7 @@ def test_collate_stacks_into_batch_dict(synthetic_corpus):
 
 
 # ---------------------------------------------------------------------------
-# Conditioning alignment — cached path == locked D0 loader
+# Conditioning alignment — cached path matches the reference loader
 # ---------------------------------------------------------------------------
 
 
@@ -130,7 +130,12 @@ def test_cached_conditioning_matches_locked_loader(synthetic_corpus):
     ft = np.array([0.012, 0.02, 0.03, 0.05], dtype=np.float64)
 
     traces = _read_shot_cond_traces(spec.level1_path, CONDITIONING_CHANNELS)
-    cv, cm = _hold_traces_to_frames(traces, ft, CONDITIONING_CHANNELS)
+    cv, cm = _reduce_traces_to_frames(
+        traces,
+        ft,
+        CONDITIONING_CHANNELS,
+        shot_id=int(spec.shot_id),
+    )
 
     ref = load_conditioning(
         spec.level1_path, ft, int(spec.shot_id), channels=CONDITIONING_CHANNELS
@@ -212,9 +217,8 @@ def test_make_loader_eval_path_one_shot_workers_terminate(synthetic_corpus):
     """Eval path: persistent_workers=False + early break + close_loader must
     leave NO live worker processes.
 
-    This is the regression guard for the 2-hour evaluate_w1 hang (jobs
-    1216061/1216062): an early-broken persistent-worker IterableDataset
-    loader leaks its workers; building many such loaders deadlocks the pool.
+    An early-broken persistent-worker ``IterableDataset`` loader leaks its
+    workers; building many such loaders can deadlock the pool.
     """
     import multiprocessing as mp
 
@@ -227,7 +231,7 @@ def test_make_loader_eval_path_one_shot_workers_terminate(synthetic_corpus):
 
     before = {p.pid for p in mp.active_children()}
     # Build several one-shot eval loaders, iterate each only one batch, then
-    # tear it down — mirrors evaluate_w1 (val + per-named-geometry).
+    # Tear each loader down after the early break.
     for _ in range(4):
         loader = make_loader(
             specs,
