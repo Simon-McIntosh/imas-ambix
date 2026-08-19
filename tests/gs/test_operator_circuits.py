@@ -5,12 +5,9 @@ Geometry alone therefore cannot tell an active winding apart from its
 co-located, separately supplied case circuit.  Case circuits must retain their
 own Green's-function columns and measured case currents.
 
-Classification uses the authoritative ``pfSystems.xml`` id correspondence
-(:mod:`imas_ambix.gs.circuits`, measured to agree 1:1 with the ``efm`` circuit
-numbering for ids 1-23 on real data, both ``fcoil`` signatures) to recognise a
-case circuit BY ID once geometry has already flagged it as a neighbour of an
-active coil, and drive it by its own channel (or drop it to INFERRED passive
-if that channel is absent / the case is constrained to zero, e.g. P6U/P6L).
+Classification consumes the geometry table's source-declared active circuits
+and circuit drives.  A structural circuit keeps its own measured channel when
+declared, and remains inferred when the source declares no drive.
 
 These tests are pure-logic (synthetic geometry, no mirror needed).
 """
@@ -20,7 +17,6 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from imas_ambix.gs import circuits as pfc
 from imas_ambix.gs import geometry as gsg
 from imas_ambix.gs import operator as op
 
@@ -44,24 +40,32 @@ def test_operator_summary_reports_coil_model_version(tmp_path):
     assert payload["coil_model_version"] == op.COIL_MODEL_VERSION
 
 
-# --- circuits.py cross-check: authoritative case ids ----------------------
+# --- source-declared case identities --------------------------------------
 
 
-def test_p4u_case_circuit_id_is_18_confusable_with_p4u():
-    """Sanity-pin the fixture's chosen ids against circuits.py's own table."""
-    case = pfc.case_circuit_for_active_coil("p4u")
-    assert case is not None
-    assert case.circuit_id == 18
-    assert case.l1_case_channel == "p4u_case_current"
-    assert case.constrained_zero is False
+def test_p4u_case_drive_is_declared_separately_from_the_winding():
+    table = _table(
+        [_filament(_P4U_R, _P4U_Z, 8), _filament(_P4U_CASE_R, _P4U_CASE_Z, 18)],
+        ["p4u_coil_current", "p4u_case_current"],
+    )
+
+    assert table.active_circuits == [8]
+    assert [(drive.circuit, drive.channel) for drive in table.circuit_drives] == [
+        (8, "p4u_coil_current"),
+        (18, "p4u_case_current"),
+    ]
 
 
-def test_p6u_case_circuit_id_is_22_constrained_zero():
-    case = pfc.case_circuit_for_active_coil("p6u")
-    assert case is not None
-    assert case.circuit_id == 22
-    assert case.constrained_zero is True
-    assert case.l1_case_channel is None
+def test_p6_case_has_no_declared_drive():
+    table = _table(
+        [_filament(*op._PF_COIL_CENTROID["p6u"], 12), _filament(1.45, 0.9, 22)],
+        ["p6u_current"],
+    )
+
+    assert table.active_circuits == [12]
+    assert [(drive.circuit, drive.channel) for drive in table.circuit_drives] == [
+        (12, "p6u_current")
+    ]
 
 
 # --- a minimal fixture builder ---------------------------------------------
@@ -85,6 +89,32 @@ def _table(
         n_limiter=4,
         digest="c4se0000c1rcu17s",
     )
+    channel_by_circuit = {
+        1: "sol_current",
+        8: "p4u_coil_current",
+        12: "p6u_current",
+        13: "p6l_current",
+        18: "p4u_case_current",
+    }
+    conductor_by_circuit = {
+        1: "sol",
+        8: "p4u",
+        12: "p6u",
+        13: "p6l",
+        18: "p4u_case",
+    }
+    represented = {filament.circuit for filament in filaments}
+    drives = [
+        gsg.CircuitDrive(
+            circuit=circuit,
+            channel=channel,
+            ampere_turns_per_ampere=1.0,
+            evidence="declared fixture",
+            conductor=conductor_by_circuit[circuit],
+        )
+        for circuit, channel in channel_by_circuit.items()
+        if circuit in represented
+    ]
     return gsg.GeometryTable(
         signature=sig,
         shots=[99999],
@@ -99,6 +129,20 @@ def _table(
         passive_structures=[],
         amc_current_channels=amc_channels,
         unmatched_amb=[],
+        active_circuits=[drive.circuit for drive in drives if drive.circuit <= 13],
+        circuit_drives=drives,
+    )
+
+
+def _classify(
+    filaments: list[gsg.PFFilament], amc_channels: list[str]
+) -> list[op.CircuitClass]:
+    table = _table(filaments, amc_channels)
+    return op.classify_circuits(
+        table.pf_filaments,
+        table.amc_current_channels,
+        table.active_circuits,
+        table.circuit_drives,
     )
 
 
@@ -112,10 +156,10 @@ _P4U_CASE_R, _P4U_CASE_Z = _P4U_R + 0.02, _P4U_Z
 
 def test_case_filament_2cm_from_active_centroid_gets_its_own_channel():
     filaments = [
-        _filament(_P4U_R, _P4U_Z, circuit=8),  # P4U active (pfSystems.xml id 8)
-        _filament(_P4U_CASE_R, _P4U_CASE_Z, circuit=18),  # P4U case (id 18)
+        _filament(_P4U_R, _P4U_Z, circuit=8),  # declared P4U winding
+        _filament(_P4U_CASE_R, _P4U_CASE_Z, circuit=18),  # declared P4U case
     ]
-    classes = op.classify_circuits(filaments, ["p4u_coil_current", "p4u_case_current"])
+    classes = _classify(filaments, ["p4u_coil_current", "p4u_case_current"])
     by_circ = {c.circuit: c for c in classes}
 
     assert by_circ[8].role == "known_pf"
@@ -136,28 +180,26 @@ def test_case_filament_without_its_channel_falls_back_to_inferred():
         _filament(_P4U_R, _P4U_Z, circuit=8),
         _filament(_P4U_CASE_R, _P4U_CASE_Z, circuit=18),
     ]
-    classes = op.classify_circuits(filaments, ["p4u_coil_current"])  # no case channel
+    classes = _classify(filaments, ["p4u_coil_current"])
     by_circ = {c.circuit: c for c in classes}
 
     assert by_circ[18].role == "inferred_passive"
     assert by_circ[18].amc_channel == ""
-    assert "absent from this campaign" in by_circ[18].flag
+    assert "does not publish that channel" in by_circ[18].flag
     # the active circuit is unaffected by its case's channel being absent.
     assert by_circ[8].role == "known_pf"
     assert by_circ[8].amc_channel == "p4u_coil_current"
 
 
 def test_p6_case_is_zero_passive_even_if_a_channel_is_injected():
-    """P6U/P6L cases are constrained to zero by pfSystems.xml -- they must
-    stay INFERRED passive even if a (spurious) case-current channel is
-    present and never become ``known_case``."""
+    """A structural circuit with no declared drive must stay inferred passive."""
     p6u_r, p6u_z = op._PF_COIL_CENTROID["p6u"]
     filaments = [
         _filament(p6u_r, p6u_z, circuit=12),  # P6U active (id 12)
         _filament(p6u_r + 0.02, p6u_z, circuit=22),  # P6U case (id 22)
     ]
     # inject a hypothetical "p6u_case_current" -- should still be ignored.
-    classes = op.classify_circuits(filaments, ["p6u_current", "p6u_case_current"])
+    classes = _classify(filaments, ["p6u_current", "p6u_case_current"])
     by_circ = {c.circuit: c for c in classes}
 
     assert by_circ[12].role == "known_pf"
@@ -165,7 +207,7 @@ def test_p6_case_is_zero_passive_even_if_a_channel_is_injected():
 
     assert by_circ[22].role == "inferred_passive"
     assert by_circ[22].amc_channel == ""
-    assert "constrained to zero" in by_circ[22].flag
+    assert by_circ[22].flag == ""
 
 
 def test_p6_case_without_any_channel_is_also_inferred_passive():
@@ -174,7 +216,7 @@ def test_p6_case_without_any_channel_is_also_inferred_passive():
         _filament(p6l_r, p6l_z, circuit=13),  # P6L active (id 13)
         _filament(p6l_r - 0.02, p6l_z, circuit=23),  # P6L case (id 23)
     ]
-    classes = op.classify_circuits(filaments, ["p6l_current"])
+    classes = _classify(filaments, ["p6l_current"])
     by_circ = {c.circuit: c for c in classes}
     assert by_circ[13].role == "known_pf"
     assert by_circ[23].role == "inferred_passive"
@@ -187,19 +229,21 @@ def test_all_13_active_circuits_still_classify_known_pf():
     """Every active circuit at its real centroid classifies as known PF."""
     filaments = []
     amc_channels = []
-    for active in pfc.active_circuits():
-        r, z = op._PF_COIL_CENTROID[active.coil_label]
-        filaments.append(_filament(r, z, circuit=active.circuit_id))
-        amc_channels.append(active.preferred_current_channel())
+    drives = []
+    for circuit, (label, channel) in enumerate(op._PF_COIL_AMC.items(), start=1):
+        r, z = op._PF_COIL_CENTROID[label]
+        filaments.append(_filament(r, z, circuit=circuit))
+        amc_channels.append(channel)
+        drives.append(gsg.CircuitDrive(circuit, channel, 1.0, conductor=label))
 
-    classes = op.classify_circuits(filaments, amc_channels)
+    classes = op.classify_circuits(filaments, amc_channels, list(range(1, 14)), drives)
     by_circ = {c.circuit: c for c in classes}
     assert len(by_circ) == 13
-    for active in pfc.active_circuits():
-        c = by_circ[active.circuit_id]
+    for drive in drives:
+        c = by_circ[drive.circuit]
         assert c.role == "known_pf"
-        assert c.coil_label == active.coil_label
-        assert c.amc_channel == active.preferred_current_channel()
+        assert c.coil_label == drive.conductor
+        assert c.amc_channel == drive.channel
 
 
 # --- build_operator: case circuit gets its OWN G_pf column, never merged ---
@@ -353,15 +397,8 @@ def test_a_declared_active_set_is_what_decides_a_known_role():
     assert by_circ[2].amc_channel == ""
 
 
-def test_the_efm_case_id_table_is_not_applied_to_another_sources_numbering():
-    """Circuit ids only mean something within the numbering that assigned them.
-
-    ``_CASE_BY_CIRCUIT_ID`` is keyed by ``efm``'s circuit numbering, so reading
-    it against a source with its own numbering would label whichever circuit
-    happened to land on id 18 a P4U case.  A declared active set is the signal
-    that the ids came from elsewhere, so the table is not consulted: circuit 18
-    here is the supplied winding and keeps the winding's own channel.
-    """
+def test_declared_membership_is_independent_of_another_sources_numbering():
+    """Circuit identifiers only carry meaning within their declaring source."""
     filaments = [_filament(_P4U_R, _P4U_Z, circuit=18)]
 
     classes = op.classify_circuits(
@@ -373,8 +410,8 @@ def test_the_efm_case_id_table_is_not_applied_to_another_sources_numbering():
     assert classes[0].amc_channel == "p4u_coil_current"
 
 
-def test_a_source_that_states_nothing_keeps_the_geometric_classification():
-    """The declaration is opt-in: an empty one must leave ``efm`` untouched."""
+def test_a_source_that_states_nothing_keeps_only_geometric_classification():
+    """Without declarations, nearby structure cannot be distinguished by role."""
     filaments = [
         _filament(_P4U_R, _P4U_Z, circuit=8),
         _filament(_P4U_CASE_R, _P4U_CASE_Z, circuit=18),
@@ -385,13 +422,12 @@ def test_a_source_that_states_nothing_keeps_the_geometric_classification():
     inherited = op.classify_circuits(filaments, channels)
 
     assert stated == inherited
-    assert [c.role for c in inherited] == ["known_pf", "known_case"]
+    assert [c.role for c in inherited] == ["known_pf", "known_pf"]
     assert not any(c.source_stated_weight for c in inherited)
 
 
 def test_a_declared_drive_displaces_every_positional_rule():
-    """A drive names the channel outright, so neither the centroid radius nor
-    the case-id table is consulted -- both exist to reconstruct it."""
+    """A drive names the channel outright, displacing positional reconstruction."""
     filaments = [
         _filament(_P4U_R, _P4U_Z, circuit=8),
         _filament(_P4U_CASE_R, _P4U_CASE_Z, circuit=18),
@@ -413,7 +449,7 @@ def test_a_declared_drive_displaces_every_positional_rule():
         ),
     ]
 
-    declared = op.classify_circuits(filaments, channels, (), drives)
+    declared = op.classify_circuits(filaments, channels, [18], drives)
 
     assert [c.amc_channel for c in declared] == [
         "p4u_case_current",
@@ -436,7 +472,7 @@ def test_a_declared_channel_this_campaign_lacks_stays_inferred():
         )
     ]
 
-    declared = op.classify_circuits(filaments, ["p3u_coil_current"], (), drives)
+    declared = op.classify_circuits(filaments, ["p3u_coil_current"], [8], drives)
 
     assert [c.role for c in declared] == ["inferred_passive"]
     assert "does not publish that channel" in declared[0].flag
@@ -447,6 +483,8 @@ def test_a_stated_weight_withholds_the_fitted_solenoid_correction():
     sol_r, sol_z = op._PF_COIL_CENTROID["sol"]
     filaments = [_filament(sol_r, sol_z, circuit=1)]
     table_inferred = _table(filaments, ["sol_current"])
+    table_inferred.active_circuits = []
+    table_inferred.circuit_drives = []
     table_stated = _table(filaments, ["sol_current"])
     table_stated.circuit_drives = [
         gsg.CircuitDrive(
@@ -456,6 +494,7 @@ def test_a_stated_weight_withholds_the_fitted_solenoid_correction():
             evidence="fitted",
         )
     ]
+    table_stated.active_circuits = [1]
 
     inferred = op.build_operator(table_inferred).g_pf[:, 0]
     stated = op.build_operator(table_stated).g_pf[:, 0]

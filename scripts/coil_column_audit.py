@@ -55,12 +55,9 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
 from imas_ambix.data.description_reader import read_geometry_table  # noqa: E402
-from imas_ambix.gs import circuits as circuits_mod  # noqa: E402
 from imas_ambix.gs.cylinder import hybrid_greens  # noqa: E402
 from imas_ambix.gs.force_balance import known_coil_bz  # noqa: E402
 from imas_ambix.gs.operator import (  # noqa: E402
-    _CASE_BY_CIRCUIT_ID,
-    _PF_COIL_AMC,
     COIL_MODEL_VERSION,
     SOLENOID_RESPONSE_SCALE,
     build_operator,
@@ -71,26 +68,9 @@ from imas_ambix.gs.operator import (  # noqa: E402
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from imas_ambix.gs.geometry import PFFilament
+    from imas_ambix.gs.geometry import GeometryTable, PFFilament
 
 logger = logging.getLogger("coil_column_audit")
-
-# The 13 physical MAST PF coils the audit rows over, in machine order.
-COILS: tuple[str, ...] = (
-    "sol",
-    "p2iu",
-    "p2il",
-    "p2ou",
-    "p2ol",
-    "p3u",
-    "p3l",
-    "p4u",
-    "p4l",
-    "p5u",
-    "p5l",
-    "p6u",
-    "p6l",
-)
 
 # Section-floor for the finite-area cylinder kernel (matches the operator's
 # G_pf column build and force_balance._filament_field).
@@ -143,8 +123,7 @@ def _circuit_bz_per_amp(
 
 
 def _declared_bz(
-    declared_filaments: list[PFFilament],
-    amc_channels: Sequence[str],
+    table: GeometryTable,
     r: np.ndarray,
     z: np.ndarray,
 ) -> tuple[dict[str, float], dict[str, list[int]], list]:
@@ -156,7 +135,13 @@ def _declared_bz(
     rule — but without the solenoid response
     scale.  Returns ``(coil -> B_z, coil -> circuit ids, circuit classes)``.
     """
-    classes = classify_circuits(declared_filaments, amc_channels)
+    declared_filaments = list(table.pf_filaments)
+    classes = classify_circuits(
+        declared_filaments,
+        table.amc_current_channels,
+        table.active_circuits,
+        table.circuit_drives,
+    )
     by_circ: dict[int, list[PFFilament]] = {}
     for f in declared_filaments:
         by_circ.setdefault(f.circuit, []).append(f)
@@ -190,54 +175,48 @@ def _operator_bz(table, r: np.ndarray, z: np.ndarray) -> dict[str, float]:
 
 
 def _turns_cross_check(
-    coil: str, circs: list[int], declared_filaments: list[PFFilament]
+    coil: str, circs: list[int], table: GeometryTable
 ) -> dict[str, object]:
-    """Compare circuit metadata against declared Σxmult / Σturns for a coil.
-
-    ``pfSystems_turns`` = ``supply_scaling_a / 1000`` from the machine
-    description; ``declared_sum_xmult`` is the current-share sum the field weighting
-    uses (≈1 for a coil normalised to its amp-turn channel; ≫1 for the solenoid
-    whose xmult carry the physical turn count).  The declared turn and filament
-    counts describe the discretisation.
-    """
+    """Compare the declared drive weight against the filament current shares."""
     by_circ: dict[int, list[PFFilament]] = {}
-    for f in declared_filaments:
+    for f in table.pf_filaments:
         by_circ.setdefault(f.circuit, []).append(f)
     fils = [f for c in circs for f in by_circ.get(c, [])]
     sum_xmult = float(sum(f.xmult for f in fils))
     sum_turns = float(sum(f.turns for f in fils))
     n_fil = len(fils)
-    try:
-        pf_turns: float | None = circuits_mod.active_circuit_for_coil(coil).turns
-    except KeyError:
-        pf_turns = None
-    matches = (
-        pf_turns is not None and abs(pf_turns - sum_turns) < 0.5 and n_fil == sum_turns
+    drive = next(
+        (
+            item
+            for item in table.circuit_drives
+            if item.circuit in circs and item.conductor == coil
+        ),
+        None,
+    )
+    drive_weight = drive.ampere_turns_per_ampere if drive is not None else None
+    matches = drive_weight is not None and np.isclose(
+        drive_weight, sum_xmult, rtol=0.0, atol=1.0e-12
     )
     return {
-        "pfsystems_turns": pf_turns,
+        "declared_drive_ampere_turns_per_ampere": drive_weight,
         "declared_sum_xmult": round(sum_xmult, 4),
         "declared_sum_turns": round(sum_turns, 4),
         "declared_n_filament": n_fil,
-        "pfsystems_turns_match_declared_filament_count": bool(matches),
+        "drive_weight_matches_sum_xmult": bool(matches),
     }
 
 
-def _merge_case_check(coil: str, merged: list[int]) -> dict[str, object]:
+def _merge_case_check(merged: list[int], table: GeometryTable) -> dict[str, object]:
     """Verify no case circuit was folded into this active coil's column.
 
-    :func:`classify_circuits` routes a coil's structural CASE circuit to its own
-    column (its measured ``*_case_current``), never into the active coil, once
-    :data:`_CASE_BY_CIRCUIT_ID` (the pfSystems id correspondence) identifies it.
-    This confirms none of the circuits merged into ``coil``'s column is that
-    coil's case.
+    The table's active membership distinguishes winding drives from measured
+    structural drives without reconstructing an identifier correspondence.
     """
-    folded_cases = [
-        cid
-        for cid in merged
-        if cid in _CASE_BY_CIRCUIT_ID
-        and _CASE_BY_CIRCUIT_ID[cid].geometry_confusable_with == coil
-    ]
+    active = set(table.active_circuits)
+    structural_drives = {
+        drive.circuit for drive in table.circuit_drives if drive.circuit not in active
+    }
+    folded_cases = [cid for cid in merged if cid in structural_drives]
     return {
         "merged_circuits": merged,
         "clean": len(folded_cases) == 0,
@@ -271,8 +250,12 @@ def run_audit(shot_id: int) -> dict[str, object]:
     """Build the full per-coil audit payload for one shot."""
     logger.info("reading declared winding table for shot %d", shot_id)
     table = read_geometry_table(shot_id)
-    declared_filaments = list(table.pf_filaments)
-    amc_channels = list(table.amc_current_channels)
+    drives = {drive.circuit: drive for drive in table.circuit_drives}
+    active_drives = [
+        drives[circuit] for circuit in table.active_circuits if circuit in drives
+    ]
+    channels_by_coil = {drive.conductor: drive.channel for drive in active_drives}
+    coils = list(channels_by_coil)
 
     points = [
         EvalPoint(*GATE_POINT, role="gate"),
@@ -291,7 +274,7 @@ def run_audit(shot_id: int) -> dict[str, object]:
     for p in points:
         r = np.array([p.r], dtype=np.float64)
         z = np.array([p.z], dtype=np.float64)
-        declared, circs, _ = _declared_bz(declared_filaments, amc_channels, r, z)
+        declared, circs, _ = _declared_bz(table, r, z)
         declared_by_point[p.role] = declared
         op_by_point[p.role] = _operator_bz(table, r, z)
         circs_by_coil = circs  # coil->circuit ids (point-independent)
@@ -308,8 +291,8 @@ def run_audit(shot_id: int) -> dict[str, object]:
     worst_coil, worst_unexplained = "", 0.0
     n_above = 0
 
-    for coil in COILS:
-        chan = _PF_COIL_AMC[coil]
+    for coil in coils:
+        chan = channels_by_coil[coil]
         row: dict[str, object] = {"coil": coil, "amc_channel": chan}
 
         per_point: dict[str, dict[str, float]] = {}
@@ -340,9 +323,9 @@ def run_audit(shot_id: int) -> dict[str, object]:
             unexplained = full_disc
 
         row["turns_cross_check"] = _turns_cross_check(
-            coil, circs_by_coil.get(coil, []), declared_filaments
+            coil, circs_by_coil.get(coil, []), table
         )
-        row["merge"] = _merge_case_check(coil, merged_by_chan.get(chan, []))
+        row["merge"] = _merge_case_check(merged_by_chan.get(chan, []), table)
 
         # name the mechanism for anything beyond the gate.
         mechanism = ""
@@ -386,7 +369,7 @@ def run_audit(shot_id: int) -> dict[str, object]:
         }
 
     summary = {
-        "n_coils": len(COILS),
+        "n_coils": len(coils),
         "n_above_2pct_excluding_known": n_above,
         "worst_coil": worst_coil,
         "worst_pct": round(worst_unexplained, 4),
