@@ -25,10 +25,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-20">
-<meta name="plan-commits" content="40c6cdea,1eca758b,adc54df,24a8f9aa,afaaf733,8bf587e,b9c67c30,bc210f6">
-<meta name="plan-impl" content="0.73">
-<meta name="plan-version" content="13">
-<meta name="plan-artifacts" content="imas_ambix/challenge/facts-report.json,imas_ambix/challenge/artifacts/ip_channel_audit.json,imas_ambix/challenge/artifacts/convention_validation.json,imas_ambix/thomson/artifacts/diii_d_pedestal_calibration.json,imas_ambix/closure/artifacts/pressure_closure_calibration.json,/work/projects/imas_gpu/sophelio/raw,/work/projects/imas_gpu/sophelio/prototype-subset/proto-extract/bank">
+<meta name="plan-commits" content="40c6cdea,1eca758b,adc54df,24a8f9aa,afaaf733,8bf587e,b9c67c30,bc210f6,8ce77bc">
+<meta name="plan-impl" content="0.39">
+<meta name="plan-version" content="15">
+<meta name="plan-artifacts" content="imas_ambix/challenge/facts-report.json,imas_ambix/challenge/artifacts/ip_channel_audit.json,imas_ambix/challenge/artifacts/convention_validation.json,imas_ambix/thomson/artifacts/diii_d_pedestal_calibration.json,imas_ambix/closure/artifacts/pressure_closure_calibration.json,imas_ambix/closure/artifacts/current_diffusion_calibration.json,/work/projects/imas_gpu/sophelio/raw,/work/projects/imas_gpu/sophelio/prototype-subset/proto-extract/bank">
 </head>
 <body>
   <main class="plan-doc">
@@ -113,6 +113,18 @@
     <p><strong>Done-when:</strong> transport-evolved FF′ beats the untuned closure against extracted FF′
     on held-out DIII-D shots by a pre-registered margin; ℓ<sub>i</sub> skill measured (this is the
     ℓ<sub>i</sub> gate); p<sub>e</sub>→p closure calibration banked with collisionality dependence.</p>
+    <p><strong>Status 2026-08-20 — half landed, half blocked, and two clauses above are now known to be
+    wrong as written.</strong> The p<sub>e</sub>→p half is banked (<code>b9c67c30</code>) but its
+    collisionality slope is <em>unresolved</em>, CI crossing zero — so it is calibrated-but-weakly-constrained
+    and §5 inherits a wide prior, not a tightened one. <em>Beam proxies are not obtainable at all:</em> the
+    released corpus carries no auxiliary-heating channel, only <code>ECOILA</code>,
+    <code>F1A</code>/<code>F1B</code>…<code>F9A</code>/<code>F9B</code>, <code>bcoil</code> and
+    <code>plasma_current</code>, so that clause is retired as not-estimable rather than proxied. The FF′
+    half MISSED its pre-registered margin (<code>8ce77bc</code>) — and the reason is that the
+    frozen-geometry transport forward carries no FF′ skill at all (NRMSE ≈ 0.99995 in <em>both</em> arms),
+    which converges with the prototype's independent diagnosis. This half is therefore blocked on the same
+    nova free-boundary capability as §5, not on a different closure form; no further closure-form search is
+    warranted before that lands.</p>
 
     <h2 id="s5">§5 — Hierarchical nuisance fit and the windowed smoother</h2>
     <p>Two estimation tiers. <em>Campaign tier, run once on train labels:</em> machine-description
@@ -304,6 +316,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20260820-pressure-closure" data-who="reckon-ship" data-when="2026-08-20T00:05:00+00:00">
     <div class="r-comment-body">pressure-closure landed: commit b9c67c30; gate pressure-closure PASSED, 3/3 tests in 3.47 s, with a QUALIFIED scientific result. The electron-to-total pressure multiplier is calibrated over 20 banked shots, 4,141 frames, 4,032 fitted, against a q-free dimensionless collisionality proxy built from Thomson density and temperature with the banked FSA volume, inverse-radius and effective-minor-radius geometry, equal-shot weighted and using only a quadratic outer-surface-weighted derivative-level pressure-gradient shape, which honours the edge-weighted label-pedigree lock. The fitted multiplier range is 1.605621 to 3.299211 with raw minimum 1.034723, every per-frame value at or above the physical floor of one. TWO FINDINGS THAT CHANGE SECTION 4 AND SECTION 5. First, collisionality dependence is NOT resolved: the log-collisionality slope is -0.0931685 with shot-cluster 95 percent CI [-0.1998613, 0.0111703], which crosses zero, and the residual scatter is 0.315236 in log-multiplier and 1.313475 in multiplier space. The closure is therefore banked as calibrated-but-weakly-constrained, and the section-5 smoother must carry a WIDE prior on its pe-to-p multipliers rather than a collisionality-tightened one. Second, and this is a scope correction to section 4 as written: the released corpus carries NO auxiliary-heating channel, so the beam-proxy half of the pe-to-p calibration is not estimable from competition data at all. All 20 banked shots expose the identical 21 loader actuator channels - ECOILA, F1A/F1B through F9A/F9B, bcoil and plasma_current - with magnetics_dsep present in the dynamic schema but classified a non-actuator descriptor. That inventory also pins the actuator-nuisance space the section-5 campaign tier fits, and the absence is recorded as not-estimable rather than substituted by a proxy.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260820-current-diffusion-closure" data-who="reckon-ship" data-when="2026-08-20T00:40:00+00:00">
+    <div class="r-comment-body">current-diffusion-closure landed: commit 8ce77bc; node gate PASSED with 4/4 tests in 4.61 s, and the pre-registered SCIENTIFIC VERDICT IS A MISS. The margin was registered before dispatch and is unchanged: BEAT only if the paired-bootstrap 95 percent CI of the held-out tuned-minus-untuned difference excludes zero on the better side. Measured over 20 banked shots split 15 fit and 5 disjoint held out, same rank-3 six-column basis and identical frozen initial geometry in both arms: tuned FF-prime error 0.9999547175815042 against untuned 0.9999544247987823, paired difference +2.9278272202226673e-07, 20,000-draw shot-paired bootstrap 95 percent CI [+6.784572237350517e-09, +6.821714348070884e-07]. The interval excludes zero on the WORSE-than-untuned side, so the correction is rejected. THE HEADLINE IS STRONGER THAN THE MISS. The score is an outer-weighted NRMSE of the change-from-initial FF-prime, so an error of 0.99995 in BOTH arms means the frozen-geometry transport forward has essentially NO FF-prime skill at all - it is no better than predicting zero change - and the tightly-priored multiplier had nothing to improve, which is why it stayed at 1.0008498131664136 against a prior centred on 1.0 with log-sigma 0.15 and bounds [0.75, 1.25]. The derivative-level l-i diagnostic agrees: over 633 held-out frames above 50 kA, skill defined as one minus squared error over the held-out label-mean baseline is -2.030681449836492 tuned and -2.0317285080412972 untuned, so both arms are far worse than simply predicting the mean l-i. CONVERGENCE WITH THE PROTOTYPE DIAGNOSIS: the flux-function-evolution-prototype independently found that neither the transport prior under frozen geometry nor the Thomson update constrains FF-prime, and named the frozen-geometry substitute for the free-boundary solve as the likely cause, because force balance against the known coil currents is what makes the diamagnetic function observable. This node reproduces that on held-out shots against a pre-registered gate, under explicitly frozen initial geometry. The evidence is convergent rather than conclusive, since no free-boundary arm was run here; the test that would settle it is the same free-boundary-in-loop route section 5 is waiting on. CONSEQUENCE: section 4's FF-prime done-when is NOT met and section 4 does not close. Its remaining half is now understood to be blocked on the same nova free-boundary capability as section 5, rather than on trying a different closure form, so no further closure-form search is warranted before that lands. IMPLEMENTATION LEDGER RE-BASELINED: earlier sessions advanced impl on an unrecorded and optimistic denominator that would have read 0.82 here. The node ledger has now been enumerated at 23 executable nodes, 9 landed, so impl is corrected to 0.39. This is a deliberate one-time downward correction, recorded rather than silent, because reporting 82 percent while sections 5 through 9 - including the entire submission pipeline - remain untouched against a development deadline of 2026-10-18 would misstate the plan to every downstream reader.</div>
 </div>
 </section>
 </main>

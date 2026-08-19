@@ -224,6 +224,43 @@
     those shots.</strong> The 4% failure rate is numerically consistent with the separately banked
     4.3% irreducible non-GS label content, but the two populations have not been shown to be the same
     set — that link is recorded as a hypothesis, not a result.</p>
+
+    <h2 id="current-diffusion-closure">§4 FF′ closure — a pre-registered MISS, and why — 2026-08-20</h2>
+    <p>Commit <code>8ce77bc</code>, node gate PASSED (4/4 tests, 4.61 s), <strong>scientific verdict
+    MISS</strong>. The margin was registered <em>before</em> the node was dispatched: BEAT only if the
+    paired-bootstrap 95% CI of the held-out tuned-minus-untuned difference excludes zero on the better
+    side. Both arms used the same rank-3 six-column basis and <em>identical frozen initial
+    geometry</em>; 20 banked shots split 15 fit / 5 disjoint held out.</p>
+    <table>
+      <caption>Held-out FF′ comparison — outer-weighted NRMSE of change-from-initial FF′</caption>
+      <thead><tr><th>Quantity</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>tuned error</td><td>0.9999547175815042</td></tr>
+        <tr><td>untuned error</td><td>0.9999544247987823</td></tr>
+        <tr><td>paired difference (tuned − untuned)</td><td>+2.9278272202226673×10⁻⁷</td></tr>
+        <tr><td>20,000-draw shot-paired bootstrap 95% CI</td><td>[+6.78×10⁻⁹, +6.82×10⁻⁷] — excludes zero on the <strong>worse</strong> side</td></tr>
+        <tr><td>fitted resistivity multiplier (prior 1.0, log-σ 0.15, bounds [0.75, 1.25])</td><td>1.0008498131664136</td></tr>
+      </tbody>
+    </table>
+    <p><strong>The headline is stronger than the miss.</strong> Because the score is an NRMSE of the
+    <em>change</em> from initial FF′, an error of 0.99995 in <em>both</em> arms means the
+    frozen-geometry transport forward has essentially <strong>no FF′ skill at all</strong> — it is no
+    better than predicting zero change. The tightly-priored multiplier therefore had nothing to
+    improve, which is exactly why it stayed pinned at its prior centre. The derivative-level ℓ<sub>i</sub>
+    diagnostic agrees: over 633 held-out frames above 50 kA, skill (1 − squared error / held-out
+    label-mean baseline) is <strong>−2.0307</strong> tuned and <strong>−2.0317</strong> untuned — both
+    far worse than simply predicting the mean.</p>
+    <p><strong>Convergence with the prototype diagnosis.</strong> The
+    <code>flux-function-evolution-prototype</code> independently found that neither the transport prior
+    under frozen geometry nor the Thomson update constrains FF′, and named the frozen-geometry
+    substitute for the free-boundary solve as the likely cause — force balance against the known coil
+    currents is what makes the diamagnetic function observable. This node reproduces that on held-out
+    shots against a pre-registered gate, under explicitly frozen geometry. <em>The evidence is
+    convergent, not conclusive:</em> no free-boundary arm was run here, and the test that would settle
+    it is the free-boundary-in-loop route §5 already waits on.</p>
+    <p><strong>Consequence.</strong> §4's FF′ done-when is not met and §4 does not close. Its remaining
+    half is blocked on the same nova free-boundary capability as §5 — not on trying a different closure
+    form — so no further closure-form search is warranted before that lands.</p>
   </main>
 </body>
 </html>
