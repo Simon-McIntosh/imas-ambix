@@ -22,6 +22,49 @@
   <a href="/imas-ambix/nova-physics-consumer-integration">Nova Physics Consumer Integration</a>.
   One anchor per landed node.</p>
 
+  <h2 id="api-drift">Nova API drift across 544 commits — 74 of 74 symbols unchanged</h2>
+  <p><strong>The 544-commit gap between the pinned Nova revision and current main moves no API
+  Ambix consumes: every one of the 74 symbols resolves at both revisions from its original
+  defining module.</strong> Read-only inventory, no commit. Recommended target
+  <code>aeffde0546f1216632f4f55b0f390702efcb3c4d</code>, which lands 544 commits after the pinned
+  <code>de3277a3238513b81be04dbc0980030b200ce420</code> and has it as an ancestor.</p>
+
+  <table>
+    <caption>Import-path identity, pin versus target</caption>
+    <thead>
+      <tr><th>Measure</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Import occurrences / unique symbols / importing files</td><td>89 / 74 / 19</td></tr>
+      <tr><td>Unchanged / moved / renamed / removed</td><td>74 / 0 / 0 / 0</td></tr>
+      <tr><td>Runtime resolution, isolated process per symbol</td><td>74/74 at the pin, 74/74 at the target</td></tr>
+      <tr><td>Wrong-tree imports / defining-module changes</td><td>0 / 0</td></tr>
+      <tr><td>Callable-signature changes</td><td>3, all additive and defaulted</td></tr>
+    </tbody>
+  </table>
+
+  <p>The three signature changes all arrive with
+  <code>f9a5fabfb161d783a9dd763345e335442d3cb8d2</code>: <code>Arc</code> and <code>Line</code>
+  gain a keyword-only <code>target_quadrature=None</code>, and <code>CoilSet</code> gains four
+  trailing defaulted policy parameters. Existing Ambix call forms stay source-compatible, so none
+  forces an edit — but the consumer contract must still exercise their behaviour after the bump.</p>
+
+  <p>Advancing the pin needs a <strong>six-file coherence edit set</strong>, independent of
+  per-symbol drift, because four modules assert the revision as data:
+  <code>pyproject.toml</code>, <code>uv.lock</code>,
+  <code>imas_ambix/statespace/nova_ensemble_estimator.py</code>,
+  <code>tests/statespace/test_nova_ensemble_estimator.py</code>,
+  <code>imas_ambix/fluxstate/adapters.py</code> and
+  <code>tests/physics/test_dependency_contract.py</code>. Independently confirmed by grep on the
+  live tree.</p>
+
+  <p><strong>Evidence boundary:</strong> this proves import-path and callable-signature
+  compatibility, not numerical or scientific parity. It does not waive the plan's G2 science
+  gate. Comparison used committed trees materialised with <code>git archive</code> at both exact
+  SHAs, never a checkout or branch switch. Full per-symbol table:
+  <code>~/.cache/ambix-nova-integration/api-drift.md</code>; the worker's sandbox refused the
+  write outside its run directory, so the orchestrator materialised the report verbatim.</p>
+
   <h2 id="donor-census">Residual donor census — 79 importer edges, 0 of 3 donors retirable</h2>
   <p><strong>Every Ambix physics donor Nova was expected to supersede still carries live
   importers, so none may be deleted yet; the census names the specific gap that governs each

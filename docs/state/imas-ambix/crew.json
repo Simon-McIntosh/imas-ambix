@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-19T22:59:07",
+  "updated": "2026-08-19T23:04:35",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -38,6 +38,13 @@
         "role": "implement",
         "session_id": "01a01024-24ff-7d63-86ef-aae588d2eaba",
         "created": "2026-08-17"
+      },
+      {
+        "id": "circuits-retire",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-19"
       },
       {
         "id": "cocos-transform",
@@ -106,7 +113,7 @@
         "id": "nova-drift-audit",
         "harness": "codex",
         "role": "investigate",
-        "session_id": null,
+        "session_id": "01a01bc6-381a-7a11-9c5f-d46ab6f3bd6a",
         "created": "2026-08-19"
       },
       {
@@ -3883,9 +3890,55 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260819T204554648768-nova-api-drift",
+        "plan": "nova-physics-consumer-integration",
+        "section": "\u00a74",
+        "node": "nova-api-drift",
+        "role": "investigate",
+        "member": "nova-drift-audit",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-08-19T20:46:08Z",
+        "completed_at": "2026-08-19T21:04:30Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1102,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1102,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "9bed32be133a0f26dfa41f514cf1c6fb33612bd0",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "89 import occurrences, 74 unique Nova symbols across 19 Ambix files: 74 unchanged, 0 moved, 0 renamed, 0 removed between pin de3277a3 and target aeffde05 at +544 commits; 74/74 resolved at both revisions in isolated runtime probes; 3 additive keyword-only signature changes (Arc, Line, CoilSet) force no edit; pin advance needs a six-file coherence edit set",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T204554648768-nova-api-drift/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01bc6-381a-7a11-9c5f-d46ab6f3bd6a",
+        "budget": {
+          "cost_usd": null,
+          "detail": "",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 111
+    "_version": 114
   }
 }

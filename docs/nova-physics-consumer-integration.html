@@ -19,11 +19,11 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-19">
-<meta name="plan-version" content="7">
+<meta name="plan-version" content="8">
 <meta name="plan-depends-on" content="">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
-<meta name="plan-impl" content="0.375">
+<meta name="plan-impl" content="0.5">
 </head>
 <body>
   <main class="plan-doc">
@@ -171,6 +171,9 @@ Done-when
 <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s2" data-id="c-20260819-donor-census" data-who="reckon-ship" data-when="2026-08-19T21:00:00+00:00">
     <div class="r-comment-body">donor-census landed — no commit (read-only census); gate passed; measure 79 residual importer edges (circuits 6, geometry 58, current_diffusion 15), 0/3 retire-now and 3/3 blocked-by-named-gap at pinned Nova de3277a3238513b81be04dbc0980030b200ce420; circuits.py is blocked by consumer rewiring alone because MachineArtifactManifest.drive_map plus the artifact table's active_circuits=13 and circuit_drives=21 already supersede it; ForwardTransport is absent from the whole Nova tree, so the TORAX lift stays trigger-gated. Artifacts ~/.cache/ambix-nova-integration/donor-census.md and docs/evidence/archive/nova-physics-consumer-integration-landed.html#donor-census. impl denominator = 8 executable nodes: pinned dependency plus physics adapter (landed), first tandem checkpoint to de3277a3 (landed), API drift inventory, donor census (landed), pin advance, circuits consumer migration and retirement, GeometryTable contract replacement, current-diffusion migration and donor retirement.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260819-api-drift" data-who="reckon-ship" data-when="2026-08-19T21:07:00+00:00">
+    <div class="r-comment-body">nova-api-drift landed — no commit (read-only inventory); gate passed; measure 89 import occurrences over 74 unique Nova symbols in 19 Ambix files, 74 unchanged / 0 moved / 0 renamed / 0 removed between pin de3277a3238513b81be04dbc0980030b200ce420 and recommended target aeffde0546f1216632f4f55b0f390702efcb3c4d at +544 commits, 74/74 resolved at both revisions in isolated runtime probes, 0 wrong-tree imports, 0 defining-module changes, 3 additive defaulted signature changes (Arc, Line, CoilSet via f9a5fabfb161d783a9dd763345e335442d3cb8d2) forcing no edit. The pin advance needs a six-file coherence edit set (pyproject.toml, uv.lock, imas_ambix/statespace/nova_ensemble_estimator.py, tests/statespace/test_nova_ensemble_estimator.py, imas_ambix/fluxstate/adapters.py, tests/physics/test_dependency_contract.py), independently confirmed by grep. Import compatibility does not waive the G2 science gate. Artifacts ~/.cache/ambix-nova-integration/api-drift.md and docs/evidence/archive/nova-physics-consumer-integration-landed.html#api-drift.</div>
 </div>
 </section>
 </main>
