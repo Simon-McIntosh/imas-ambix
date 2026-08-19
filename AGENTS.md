@@ -38,6 +38,32 @@ git push origin feature/my-change
 gh pr create --repo iterorganization/imas-ambix --base main
 ```
 
+## Python environment (binding, repo-wide)
+
+One project virtualenv lives at the repository root (`.venv`), provisioned once
+by the user. Use it; never build another. Measured cost of getting this wrong:
+one environment here is ~70k filesystem entries and ~1.8 GiB on GPFS, so a fleet
+that each sync their own trips the storage alert.
+
+Run everything through the existing environment:
+
+```bash
+uv run --no-sync <cmd>            # in the main checkout
+```
+
+**A detached worktree must point back at the main checkout's environment** — an
+inherited `VIRTUAL_ENV` does not do this (uv warns the path does not match the
+project and creates `.venv` anyway):
+
+```bash
+UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH="$PWD" \
+  uv run --no-sync pytest <targets>
+```
+
+`uv sync`, `uv venv`, `pip install -e .` and friends are user-run provisioning
+steps, not agent workflow. A missing or broken `.venv` is a blocker to report,
+never a cue to build one.
+
 ## Plans & docs (reckon — HTML-first)
 
 All plans **and** non-plan structured docs (RCAs, incident reports,
