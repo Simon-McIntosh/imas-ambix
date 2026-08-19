@@ -327,6 +327,14 @@
     ZOH-ed samples — a comparison that would have looked clean and meant nothing. Wiring the
     reduction dispatch through the runtime path is a prerequisite, not a refinement.</li>
   </ul>
+  <p><strong>The gap is now closed</strong> (commit <code>665cc34</code>). The window stream applies
+  each channel's configured reduction and variant, and the emitted matrix <em>exactly equals</em>
+  the matrix the normalisation statistics are estimated from, so no path can drift from another.
+  Measured: all three burst variants pairwise distinct and each numerically different from its
+  zero-order-hold reference, with 23 of 23 non-burst value columns and 23 of 23 missingness columns
+  unchanged; 26 tests green. One configured channel tuple is routed through the statistics
+  estimator and every train, validation and evaluation loader; the causal shuffle is seeded by shot
+  id; unknown variants and unknown reductions fail closed.</p>
 
   <h2 id="sampling-ceiling">ELM fidelity — a target-sampling ceiling, with the tokenizer exonerated</h2>
   <p><strong>Poor ELM reconstruction is predominantly a sampling ceiling in the camera itself, not
