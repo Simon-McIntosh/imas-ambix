@@ -198,6 +198,32 @@
     dynamic schema but classified a non-actuator descriptor. That inventory also pins the
     actuator-nuisance space §5's campaign tier fits. The absence is recorded as not-estimable rather
     than papered over with a substitute proxy.</p>
+
+    <h2 id="convention-validation">§2 Convention validated at corpus scale — qualified, not unanimous — 2026-08-20</h2>
+    <p>Commit <code>bc210f6</code>, gate <em>convention-validation</em> PASSED. The four
+    discriminators were recomputed over <strong>100 distinct DIII-D train shots</strong> and the full
+    suite ran to completion: <strong>pytest 24/24 passed</strong>, 0 failed, 0 skipped, 0 errors,
+    786.712530 s wall — of which the corpus loader test alone consumed 667.123411 s.</p>
+    <table>
+      <caption>Discriminator pass fractions at 100 shots</caption>
+      <thead><tr><th>Discriminator</th><th>Pass fraction</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td>ψ vs I<sub>p</sub> positive</td><td>100/100</td><td>unanimous</td></tr>
+        <tr><td>q<sub>95</sub> vs I<sub>p</sub>·bcoil negative</td><td>100/100</td><td>unanimous</td></tr>
+        <tr><td>Δ*-current vs I<sub>p</sub> positive</td><td>100/100</td><td>unanimous</td></tr>
+        <tr><td>per-radian flux unit</td><td>96/100</td><td><strong>qualified</strong></td></tr>
+      </tbody>
+    </table>
+    <p>Median integrated-current ratios 1.077886872 per-radian and 0.171551024 total-flux — their
+    ratio is <strong>6.2831853071795845</strong>, equal to 2π to floating-point precision.</p>
+    <p><strong>The four deviating shots are retained by name, not dropped.</strong> Their per-radian
+    current ratios are 1.837113, 1.747010, 1.821997 and 2.459548 against a corpus median of 1.078, so
+    they fail an <em>absolute magnitude-closeness</em> rule while still passing every sign test — and
+    the rival total-flux hypothesis would place them near 0.17, an order of magnitude further away.
+    <strong>The convention identity is therefore not in doubt; only the magnitude rule degrades on
+    those shots.</strong> The 4% failure rate is numerically consistent with the separately banked
+    4.3% irreducible non-GS label content, but the two populations have not been shown to be the same
+    set — that link is recorded as a hypothesis, not a result.</p>
   </main>
 </body>
 </html>

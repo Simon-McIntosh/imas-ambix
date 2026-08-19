@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T00:00:07",
+  "updated": "2026-08-20T00:09:02",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -19,10 +19,17 @@
         "created": "2026-08-19"
       },
       {
-        "id": "camera-da-conditioning",
+        "id": "camera-conditioning-runtime",
         "harness": "codex",
         "role": "implement",
         "session_id": null,
+        "created": "2026-08-19"
+      },
+      {
+        "id": "camera-da-conditioning",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a01bfc-9234-78a3-8829-58a9cfd4e93e",
         "created": "2026-08-19"
       },
       {
@@ -50,7 +57,7 @@
         "id": "camera-pitch-probe",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
+        "session_id": "01a01bfc-9252-7dd1-a5ca-57659e487452",
         "created": "2026-08-19"
       },
       {
@@ -92,7 +99,7 @@
         "id": "convention-validation",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
+        "session_id": "01a01bff-2212-74d2-8f26-e7916c9aa2b0",
         "created": "2026-08-19"
       },
       {
@@ -4846,9 +4853,198 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260819T214529150926-pitch-probe",
+        "plan": "camera-dynamics-wm-v0",
+        "section": "\u00a75",
+        "node": "pitch-probe",
+        "role": "implement",
+        "member": "camera-pitch-probe",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T21:45:31Z",
+        "completed_at": "2026-08-19T22:04:18Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1127,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1127,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "4c60ba185344fbef8b6941873ac91b722d5839cb",
+        "commits": [
+          "71961965b1d5dbe3db90db7ae9798160bbb3cb28"
+        ],
+        "changed_lines": {
+          "added": 1937,
+          "removed": 0,
+          "files": 5
+        },
+        "tests_added": 5,
+        "gate": "failed",
+        "outcome": "Stretch sightline-pitch probe is a mixed result that does NOT clear the oracle bar: on all 108 usable locked shots the dynamics latent beats the per-frame representation on deterministic RMSE (0.645341 vs 0.693582 rad; paired -0.048242 rad, CI [-0.092070, -0.005144], clears zero), but CRPS is not significant (-0.031558, CI [-0.070423, +0.007132]) and 90% coverage is 0.051/0.039 against the locked [0.88, 0.92] gate. Absolute 0.645 rad sits well above the ~0.41 rad processed-magnetics oracle, so the honest-low prior holds: no win over processed magnetics.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T214529150926-pitch-probe/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01bfc-9252-7dd1-a5ca-57659e487452",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 12568832,
+            "cached_input_tokens_cumulative": 12568832,
+            "input_tokens": 12815720,
+            "input_tokens_cumulative": 12815720,
+            "output_tokens": 33550,
+            "output_tokens_cumulative": 33550,
+            "reasoning_output_tokens": 8890,
+            "reasoning_output_tokens_cumulative": 8890
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
+      },
+      {
+        "run_id": "r-20260819T214529150898-da-burst-conditioning",
+        "plan": "camera-dynamics-wm-v0",
+        "section": "\u00a75",
+        "node": "da-burst-conditioning",
+        "role": "implement",
+        "member": "camera-da-conditioning",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T21:45:31Z",
+        "completed_at": "2026-08-19T21:55:10Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 579,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 579,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "4c60ba185344fbef8b6941873ac91b722d5839cb",
+        "commits": [
+          "05d7cacb9ee72d45b217912e3e6c2d5c5d969762"
+        ],
+        "changed_lines": {
+          "added": 471,
+          "removed": 17,
+          "files": 5
+        },
+        "tests_added": 24,
+        "gate": "passed",
+        "outcome": "BLOCKED ON A DISCOVERED RUNTIME GAP, fenced work complete. Commit 05d7cac wires xim/da_hm10_t as a causal inter-frame RMS over the closed interval, with width-matched shuffled and slow_only controls, a fail-closed guard rejecting any channel marked both fast input and probe target, and matched-pair configs differing only in temporal_attention and run_name; 24 tests green. The block: production CamdynWindowStream bypasses load_conditioning and zero-order-holds every cached trace, so a training run on these configs would normalise against interval RMS while training on ZOH samples. Needs a scope extension over loader.py and train.py before any conditioning comparison can be trusted.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T214529150898-da-burst-conditioning/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01bfc-9234-78a3-8829-58a9cfd4e93e",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 4070656,
+            "cached_input_tokens_cumulative": 4070656,
+            "input_tokens": 4238528,
+            "input_tokens_cumulative": 4238528,
+            "output_tokens": 24213,
+            "output_tokens_cumulative": 24213,
+            "reasoning_output_tokens": 8706,
+            "reasoning_output_tokens_cumulative": 8706
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
+      },
+      {
+        "run_id": "r-20260819T214816453416-convention-validation",
+        "plan": "magnetics-free-equilibrium-recovery",
+        "section": "\u00a72",
+        "node": "convention-validation",
+        "role": "implement",
+        "member": "convention-validation",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T21:48:19Z",
+        "completed_at": "2026-08-19T22:07:57Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1178,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1178,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "ea5a2656848ba52c9db9579614119bc011835bcf",
+        "commits": [
+          "bc210f61d2b9f02b5d3e69cc96110db8109204e0"
+        ],
+        "changed_lines": {
+          "added": 1531,
+          "removed": 0,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T214816453416-convention-validation/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01bff-2212-74d2-8f26-e7916c9aa2b0",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 5425152,
+            "cached_input_tokens_cumulative": 5425152,
+            "input_tokens": 5565762,
+            "input_tokens_cumulative": 5565762,
+            "output_tokens": 18387,
+            "output_tokens_cumulative": 18387,
+            "reasoning_output_tokens": 5945,
+            "reasoning_output_tokens_cumulative": 5945
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 147
+    "_version": 154
   }
 }
