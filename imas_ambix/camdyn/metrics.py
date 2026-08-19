@@ -1,13 +1,13 @@
-"""PRE-REGISTERED metric module — locks W1 / W2 / W3 before any model exists.
+"""Pre-registered reconstruction, horizon, and physics-probe metrics.
 
 These are scoring INTERFACES.  No model number exists yet; the point of
-D0 is to fix the exact definitions of the win conditions so the later
-arms cannot move the goalposts.  Every metric here is exercised on
+pre-registration is to fix the exact definitions of the win conditions so
+later arms cannot move the goalposts.  Every metric here is exercised on
 synthetic / random inputs in the tests.
 
 Win conditions (verbatim from the plan, NOT changed here)
 ---------------------------------------------------------
-W1 — dynamics beat statics
+Matched-arm reconstruction — dynamics beat statics
     At matched params + matched training tokens, the temporal model
     beats a per-frame spatial-inpainting baseline on **masked-token
     NLL / top-1 accuracy** over the held-out shot split, with a
@@ -15,28 +15,29 @@ W1 — dynamics beat statics
     → :func:`masked_token_nll`, :func:`masked_top1_accuracy`,
       :func:`bootstrap_ci` (on the per-token paired diff).
 
-W2 — forward horizon
+Forward-horizon reconstruction
     Conditioned on the clipped stream up to time *t*, reconstruct full
     frames at *t + h* (h = 10, 50, 200 ms) **better than persistence and
     the per-frame baseline**.
     → :func:`horizon_frame_offsets` (ms → frame offsets via the per-frame
       timestamps), :func:`horizon_reconstruction_accuracy`.
 
-W3 — latent knows physics
+Frozen latent probes — the representation knows physics
     A **frozen** linear / shallow probe from the latent predicts held-out
     raw diagnostics (Dα ``ada``, line-integrated density ``ane``,
     Thomson Te_core ``ayc``, n=2 mode amp ``ama``) **better than the
     baseline representation**, scored by RMSE / CRPS.
     → :class:`ProbeProtocol`, :func:`probe_rmse`, :func:`crps_gaussian`.
 
-Reported alongside W1
+Reported alongside the matched-arm reconstruction
     A MOTION-WEIGHTED token subset — tokens whose identity changes within
     ±50 ms — so the headline numbers are not dominated by static
     background tokens.
     → :func:`motion_weighted_subset`.
 
-rFID is BANNED as a primary metric (S5 lesson).  Pixel L1 / SSIM via the
-frozen decoder is secondary-only and not implemented in D0 (no decoding
+rFID is banned as a primary metric because decoder tuning can improve it
+without improving dynamics.  Pixel L1 / SSIM via the frozen decoder is
+secondary-only and not implemented here (no decoding
 needed to lock the token-space wins).
 """
 
@@ -47,7 +48,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 # ---------------------------------------------------------------------------
-# W3 probe targets (named here so the protocol is self-documenting)
+# Frozen-probe targets (named here so the protocol is self-documenting)
 # ---------------------------------------------------------------------------
 
 PROBE_TARGETS: dict[str, str] = {
@@ -56,19 +57,22 @@ PROBE_TARGETS: dict[str, str] = {
     "te_core": "ayc",  # Thomson core electron temperature
     "n2_mode_amp": "ama",  # n=2 magnetic mode amplitude
 }
-"""W3 held-out diagnostic targets → their level-1 source group."""
+"""Held-out diagnostic targets mapped to their level-1 source group."""
 
-# Horizon win condition (W2): the locked physical horizons.
+# Locked physical horizons for forward reconstruction.
 HORIZON_MS: tuple[float, ...] = (10.0, 50.0, 200.0)
-"""W2 forward-reconstruction horizons in milliseconds."""
+"""Forward-reconstruction horizons in milliseconds."""
 
-# Motion-weighted subset window (reported alongside W1).
+ELM_MORPHOLOGY_HORIZON_MS: float = 10.0
+"""Physical forecast horizon for the ELM-frame response metric."""
+
+# Motion-weighted subset window reported alongside the matched-arm metric.
 MOTION_WINDOW_MS: float = 50.0
 """±window (ms) over which a token must change identity to count as 'moving'."""
 
 
 # ---------------------------------------------------------------------------
-# W1 — masked-token NLL + top-1 accuracy (vocab-agnostic)
+# Matched-arm masked-token NLL + top-1 accuracy (vocab-agnostic)
 # ---------------------------------------------------------------------------
 
 
@@ -103,7 +107,7 @@ def masked_token_nll(
         ``logits``).
     mask:
         ``(...)`` bool — True where the token was MASKED (i.e. scored).
-        Only masked positions contribute (W1 scores reconstruction of
+        Only masked positions contribute (the metric scores reconstruction of
         the hidden tokens, not the visible ones).
     reduce:
         ``"mean"`` (scalar mean NLL over masked tokens), ``"sum"``, or
@@ -112,7 +116,7 @@ def masked_token_nll(
     Returns
     -------
     Scalar NLL (mean/sum) or the per-token NLL vector for the masked set.
-    The per-token vector feeds :func:`bootstrap_ci` for the paired W1 CI.
+    The per-token vector feeds :func:`bootstrap_ci` for the paired CI.
     """
     logits = np.asarray(logits, dtype=np.float64)
     targets = np.asarray(targets)
@@ -170,14 +174,14 @@ def bootstrap_ci(
 ) -> dict[str, float]:
     """Percentile bootstrap CI on the mean of a paired difference.
 
-    W1 is a *paired* comparison: for each masked token (or each shot, if
+    This is a *paired* comparison: for each masked token (or each shot, if
     the caller aggregates per-shot first), ``paired_diff`` is
     ``metric_baseline - metric_dynamics`` (for NLL, positive = dynamics
     better) or ``acc_dynamics - acc_baseline`` (positive = dynamics
     better) — i.e. the diff is ALWAYS oriented so positive favours the
     dynamics arm.
 
-    **The W1 win gate is** ``favours_dynamics`` (the ``(1-alpha)`` CI
+    **The directional win gate is** ``favours_dynamics`` (the ``(1-alpha)`` CI
     lower bound > 0): the dynamics arm is significantly better.
     ``clear_of_zero`` is the weaker two-sided flag (CI excludes 0 in
     *either* direction) — a significant REGRESSION (dynamics worse) is
@@ -214,7 +218,7 @@ def bootstrap_ci(
 
 
 # ---------------------------------------------------------------------------
-# Motion-weighted subset (reported alongside W1)
+# Motion-weighted subset reported alongside the matched-arm metric
 # ---------------------------------------------------------------------------
 
 
@@ -229,7 +233,7 @@ def motion_weighted_subset(
     A token at ``(f, i, j)`` is "moving" if its id differs from the id at
     the same grid cell in any frame within ``±window_ms`` (using the
     per-frame timestamps to convert ms → a frame range).  This subset is
-    reported alongside the headline W1 numbers so static background
+    reported alongside the headline matched-arm numbers so static background
     tokens (which dominate the count) do not flatter the scores.
 
     Parameters
@@ -258,7 +262,7 @@ def motion_weighted_subset(
 
 
 # ---------------------------------------------------------------------------
-# W2 — forward-horizon reconstruction
+# Forward-horizon reconstruction
 # ---------------------------------------------------------------------------
 
 
@@ -270,7 +274,7 @@ def horizon_frame_offsets(
     """Map each physical horizon (ms) to a frame offset for this window.
 
     The offset is the median number of frames spanning ``h`` ms (using
-    the per-frame Δt), so the W2 horizons are physical, not index-based —
+    the per-frame Δt), so the horizons are physical, not index-based —
     a 200 ms horizon is the same physical lead-time regardless of the
     shot's cadence.  Returns ``{h_ms: offset_frames}`` (offset ≥ 1).
     """
@@ -291,7 +295,7 @@ def horizon_reconstruction_accuracy(
     *,
     horizons_ms: tuple[float, ...] = HORIZON_MS,
 ) -> dict[float, dict[str, float]]:
-    """Per-horizon top-1 accuracy + NLL of reconstructed FUTURE frames (W2).
+    """Per-horizon top-1 accuracy + NLL of reconstructed future frames.
 
     Conditioned on frames ``< frontier_frame`` (the visible clipped
     stream), the arm predicts the full token grid at
@@ -354,10 +358,10 @@ def persistence_baseline_accuracy(
     *,
     horizons_ms: tuple[float, ...] = HORIZON_MS,
 ) -> dict[float, dict[str, float]]:
-    """W2 persistence baseline: predict the LAST observed frame for all horizons.
+    """Persistence baseline: predict the last observed frame for all horizons.
 
     Persistence copies the token grid at ``frontier_frame - 1`` (the last
-    visible frame) to every future horizon.  W2 requires the arm to beat
+    visible frame) to every future horizon.  The arm must beat
     this (and the per-frame baseline).  Returns the same structure as
     :func:`horizon_reconstruction_accuracy` (top-1 acc + valid flag; NLL
     is undefined for a hard copy and reported as 0.0).
@@ -380,20 +384,126 @@ def persistence_baseline_accuracy(
 
 
 # ---------------------------------------------------------------------------
-# W3 — frozen-probe protocol
+# Dalpha-selected ELM-frame response morphology
+# ---------------------------------------------------------------------------
+
+
+def elm_edge_divertor_mask(
+    grid_shape: tuple[int, int] = (16, 16),
+    *,
+    edge_columns: int = 3,
+    divertor_rows: int = 5,
+) -> np.ndarray:
+    """Spatial support used by the ELM-frame morphology metric.
+
+    The wide-angle camera records the ELM response primarily along the outer
+    plasma edge and in the lower divertor.  The mask is fixed before scoring:
+    the outer ``edge_columns`` on both sides plus the lowest
+    ``divertor_rows`` of the token grid.  It is independent of either arm's
+    predictions and of the selected Dalpha amplitude.
+    """
+    h, w = (int(grid_shape[0]), int(grid_shape[1]))
+    if h <= 0 or w <= 0:
+        raise ValueError("grid_shape must contain positive dimensions")
+    if not 0 <= edge_columns <= w // 2:
+        raise ValueError("edge_columns must be between zero and half the width")
+    if not 0 <= divertor_rows <= h:
+        raise ValueError("divertor_rows must be between zero and the height")
+    mask = np.zeros((h, w), dtype=bool)
+    if edge_columns:
+        mask[:, :edge_columns] = True
+        mask[:, w - edge_columns :] = True
+    if divertor_rows:
+        mask[h - divertor_rows :, :] = True
+    return mask
+
+
+def elm_frame_morphology_fidelity(
+    predicted_frame: np.ndarray,
+    target_frame: np.ndarray,
+    reference_frame: np.ndarray,
+    *,
+    region_mask: np.ndarray | None = None,
+) -> dict[str, float]:
+    """Fidelity of a decoded ELM brightness-response pattern on one frame.
+
+    All three images pass through the same frozen tokenizer decoder.  The
+    response fields are ``target - reference`` and ``prediction - reference``
+    on the fixed edge/divertor support.  Spatial morphology is their Pearson
+    correlation, clipped below at zero so an unrelated or anticorrelated
+    pattern earns no morphology credit.  Brightness fidelity compares their
+    signed mean response, normalized by the truth's mean absolute response.
+    The registered headline score is the product: an arm must place the
+    response correctly *and* reproduce its brightness to score well.
+
+    Returns ``morphology_fidelity``, ``response_correlation`` and
+    ``brightness_fidelity``.  Each fidelity lies in ``[0, 1]``.
+    """
+    predicted = np.asarray(predicted_frame, dtype=np.float64)
+    target = np.asarray(target_frame, dtype=np.float64)
+    reference = np.asarray(reference_frame, dtype=np.float64)
+    if predicted.ndim == 3:
+        predicted = predicted[..., 0]
+    if target.ndim == 3:
+        target = target[..., 0]
+    if reference.ndim == 3:
+        reference = reference[..., 0]
+    if predicted.shape != target.shape or target.shape != reference.shape:
+        raise ValueError("predicted, target, and reference frames must match")
+    if predicted.ndim != 2:
+        raise ValueError(
+            "ELM frames must be two-dimensional after grayscale conversion"
+        )
+    region = (
+        elm_edge_divertor_mask(
+            predicted.shape,
+            edge_columns=max(1, round(predicted.shape[1] * 3 / 16)),
+            divertor_rows=max(1, round(predicted.shape[0] * 5 / 16)),
+        )
+        if region_mask is None
+        else np.asarray(region_mask, dtype=bool)
+    )
+    if region.shape != predicted.shape:
+        raise ValueError("region_mask must match the token-grid shape")
+    if not region.any():
+        raise ValueError("region_mask must select at least one cell")
+    predicted_response = (predicted - reference)[region] / 255.0
+    target_response = (target - reference)[region] / 255.0
+    pred_centered = predicted_response - predicted_response.mean()
+    target_centered = target_response - target_response.mean()
+    denom = float(np.linalg.norm(pred_centered) * np.linalg.norm(target_centered))
+    correlation = (
+        float(np.dot(pred_centered, target_centered) / denom) if denom > 1e-12 else 0.0
+    )
+    correlation = float(np.clip(correlation, -1.0, 1.0))
+    truth_scale = max(float(np.mean(np.abs(target_response))), 1.0 / 255.0)
+    brightness_error = (
+        abs(float(predicted_response.mean() - target_response.mean())) / truth_scale
+    )
+    brightness_fidelity = float(np.clip(1.0 - brightness_error, 0.0, 1.0))
+    morphology_fidelity = float(max(0.0, correlation) * brightness_fidelity)
+    return {
+        "morphology_fidelity": morphology_fidelity,
+        "response_correlation": correlation,
+        "brightness_fidelity": brightness_fidelity,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Frozen-probe protocol
 # ---------------------------------------------------------------------------
 
 
 @dataclass
 class ProbeProtocol:
-    """The FROZEN linear/shallow probe protocol that locks W3.
+    """The frozen linear/shallow probe protocol.
 
     The probe is fit on TRAIN-split latents → target pairs, then FROZEN
     and scored on HELD-OUT latents.  The latent is never fine-tuned to
-    the target (that is the whole point — W3 asks whether the dynamics
+    the target (the probe asks whether the dynamics
     latent *already* encodes the diagnostic).  Both the dynamics arm's
     latent and the per-frame-baseline representation are scored with the
-    SAME protocol; W3 wins if the dynamics latent's held-out RMSE (or
+    same protocol; the dynamics representation wins if its held-out RMSE (or
     CRPS) beats the baseline's.
 
     Attributes
@@ -410,7 +520,7 @@ class ProbeProtocol:
         (recommended; keeps the comparison fair across representations of
         different scales).
     targets:
-        Ordered W3 target names (see :data:`PROBE_TARGETS`).
+        Ordered probe-target names (see :data:`PROBE_TARGETS`).
     """
 
     probe_kind: str = "linear"
@@ -433,7 +543,7 @@ class ProbeProtocol:
         ``probe_kind == "linear"`` this is closed-form ridge regression.
         ``mlp1`` falls back to ridge on a fixed random feature map (a
         cheap, deterministic shallow probe with no gradient training —
-        keeping D0 CPU-only and the protocol frozen-by-construction).
+        keeping metric evaluation CPU-only and the protocol frozen by construction).
         """
         X = np.asarray(latents, dtype=np.float64)
         Y = np.asarray(targets, dtype=np.float64)
