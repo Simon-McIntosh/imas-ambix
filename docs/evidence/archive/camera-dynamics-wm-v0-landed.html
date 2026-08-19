@@ -336,6 +336,38 @@
   estimator and every train, validation and evaluation loader; the causal shuffle is seeded by shot
   id; unknown variants and unknown reductions fail closed.</p>
 
+  <h2 id="burst-matrix-launched">Conditioning matrix — launched, training, not yet scored</h2>
+  <p><strong>Six matched jobs at an identical 20,000-step budget are training on the reservation;
+  no conditioning verdict exists yet and none is implied.</strong> Commit <code>54e3aaf</code>.</p>
+  <table>
+    <caption>The launched matrix. Each baseline/dynamics pair differs only in
+    <code>temporal_attention</code> and <code>run_name</code>; each control differs from its
+    same-arm native only in <code>conditioning_variant</code> and <code>run_name</code>, verified by
+    parsing all six through <code>TrainConfig.load</code>.</caption>
+    <thead>
+      <tr><th>Variant</th><th>Baseline job</th><th>Dynamics job</th><th>What it controls for</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>native fast D&alpha;</td><td>1251899</td><td>1251900</td><td>the hypothesis itself</td></tr>
+      <tr><td>shuffled</td><td>1251901</td><td>1251902</td><td>same marginal distribution, wrong timing</td></tr>
+      <tr><td>slow-only</td><td>1251903</td><td>1251904</td><td>the slow radial profile, defeating the gas/density autocorrelation</td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li>A 3/3 GPU smoke cleared the whole path before any training work was allocated (jobs
+    1251896&ndash;98, exit 0, 4m33s each: two optimiser steps, a validation pass, held-out plus five
+    named-geometry evaluation, checkpoint and evaluation written, <code>TRAIN_DONE=0</code>). The
+    smoke NLL figures are path checks and carry no scientific weight.</li>
+    <li>Five jobs run concurrently and the sixth pends on ordinary 30-core reservation capacity at
+    six CPUs per job.</li>
+    <li><strong>Operational constraint:</strong> the jobs resolve their code through the launch
+    worker's worktree, so that worktree is held until all six exit. Every other worktree from this
+    session was removed after its commit was confirmed reachable.</li>
+    <li>Steps beyond this comparison &mdash; the full burst-summary block, FiLM gating, the
+    fast-Mirnov arm &mdash; stay gated on a measured positive, exactly as the ELM analysis
+    specified.</li>
+  </ul>
+
   <h2 id="sampling-ceiling">ELM fidelity — a target-sampling ceiling, with the tokenizer exonerated</h2>
   <p><strong>Poor ELM reconstruction is predominantly a sampling ceiling in the camera itself, not
   a modelling or tokenization failure.</strong></p>
