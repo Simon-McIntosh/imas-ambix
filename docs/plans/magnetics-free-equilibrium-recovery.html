@@ -24,10 +24,10 @@
   <title>Magnetics-Free Equilibrium Recovery | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-17">
+<meta name="plan-modified" content="2026-08-19">
 <meta name="plan-commits" content="40c6cdea,1eca758b,adc54df,24a8f9aa">
 <meta name="plan-impl" content="0.36">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="8">
 </head>
 <body>
   <main class="plan-doc">
@@ -65,17 +65,24 @@
     <p><strong>Done-when:</strong> corpus loads end-to-end with schema tests; research-doc §5 facts
     confirmed or corrected in place; pedigree probe report banked and the decision locked.</p>
 
-    <h2 id="s3">§3 — Thomson measurement models</h2>
-    <p>The observation-model library, built over nova's response kernels (chord→ψ<sub>N</sub> sampling is
-    nova's; everything with a σ, a prior or a decision in it is ours): a pedestal-foot separatrix detector
-    with calibrated uncertainty (trained on ψ<sub>N</sub>-at-chord values from train labels —
-    derivative-level consumption, disclosed), ELM-phase and channel-validity policy (widen σ, don't drop),
-    isoflux pairing of matched-T<sub>e</sub> channels across non-collinear chords, and the
-    isotherm-asymmetry Shafranov-shift operator (a direct β<sub>p</sub>+ℓ<sub>i</sub>/2 measurement that
-    needs no training data — its value on the zero-shot machine is exactly that).</p>
-    <p><strong>Done-when:</strong> detector calibration curves on held-out DIII-D shots are banked
-    (coverage within pre-registered band); validity policy is typed by topology class; each operator has
-    synthetic round-trip tests against nova-solved equilibria.</p>
+    <section id="s3" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-17</span>
+        <h2>§3 — Thomson measurement models</h2>
+      </header>
+      <p class="landed-summary">
+        Built <code>imas_ambix/thomson</code> with all four observation operators; gate
+        <em>thomson-measurement-models</em> PASSED 7/7 in 79.5 s. Pedestal-foot separatrix detector
+        calibrated on 20 paired shots (94,846 train / 30,150 held-out samples), one-σ held-out coverage
+        <strong>0.6222</strong> inside the pre-registered [0.50, 0.82] band; channel validity typed by
+        core-vertical, tangential-edge and divertor topology with σ widened and <strong>zero</strong>
+        channels dropped; non-collinear matched-T<sub>e</sub> isoflux pairing and synthetic detector
+        round-trip green; training-free isotherm-asymmetry Shafranov-shift operator verified against 116
+        banked β<sub>p</sub>+ℓ<sub>i</sub>/2 receipts (0.4951–5.6970, median 0.7920).
+        Full record: <a href="/imas-ambix/evidence/archive/magnetics-free-equilibrium-recovery-landed#thomson-models">§3 landed</a>
+        (commit <code>adc54df</code>).
+      </p>
+    </section>
 
     <h2 id="s4">§4 — Closure calibration from extracted flux functions</h2>
     <p>The strongest training signal in the challenge requires no equilibrium solves: applying Δ* to each
@@ -234,10 +241,11 @@
     <pre class="r-fu-prompt">/reckon-ship magnetics-free-equilibrium-recovery §2</pre>
     <p class="r-fu-outcome">Ingest landed (commit 40c6cdea): loaders and schema tests green on 100 DIII-D train shots, the full 103.9 GB corpus downloading resumably, and the research-doc section-5 facts adjudicated — the corpus card numbers confirmed, and two claims found unreachable from the schema. The label-pedigree question could NOT be answered as planned: the parquet carries no reconstruction-constraint provenance, so pedigree cannot be read from metadata and must be probed empirically through extracted flux functions. The label-pedigree-response decision therefore stays open by evidence rather than by neglect, and its probe is re-homed onto the extraction corpus the prototype plan banked the same day.</p>
     </article>
-<article class="r-fu" data-id="f-mfer-002" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-17" data-recommends-skill="/reckon-ship magnetics-free-equilibrium-recovery §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-mfer-002" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-17" data-recommends-skill="/reckon-ship magnetics-free-equilibrium-recovery §3" data-resolved-at="2026-08-19T20:48:04+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Build the Thomson measurement models and probe label pedigree empirically (§3)</h4>
     <div class="r-fu-body"><p>Next executable rung and now self-contained: nova's chord-to-psi-N sampler and Delta-star extraction kernels merged 2026-08-17, and the prototype banked 4,141 frames of extracted flux functions across 20 shots. Build the pedestal-foot separatrix detector, the ELM-phase and channel-validity policy that widens sigma rather than dropping channels, isoflux pairing of matched-Te channels across non-collinear chords, and the isotherm-asymmetry Shafranov-shift operator. Carry the empirical label-pedigree probe on the same corpus, since interior structure in the extracted profiles is the only remaining discriminator between magnetics-only and MSE-constrained labels, and lock the label-pedigree-response decision on what it measures.</p></div>
     <pre class="r-fu-prompt">/reckon-ship magnetics-free-equilibrium-recovery §3</pre>
+    <p class="r-fu-outcome">Section 3 delivered in full (commit adc54df; gate thomson-measurement-models PASSED 7/7 in 79.5 s). imas_ambix/thomson carries all four operators: the pedestal-foot separatrix detector calibrated on 20 paired shots (94,846 training and 30,150 held-out samples) at one-sigma held-out coverage 0.6222, inside the pre-registered [0.50, 0.82] band; channel validity typed by core-vertical, tangential-edge and divertor topology with every assessment widening sigma and zero channels dropped; non-collinear matched-Te isoflux pairing and synthetic detector round-trip green; and the training-free isotherm-asymmetry Shafranov-shift operator verified against 116 banked beta-p plus l-i-over-2 receipts spanning 0.4951 to 5.6970 with median 0.7920. The empirical label-pedigree probe this followup also carried landed separately (commit 1eca758b) and returned a clean INCONCLUSIVE over 3,816 quality frames, which locked label-pedigree-response to edge-weighted. Nothing in section 3 remains open. The isotherm operator's onward use is governed by the section-5 ablation, which measured no traction under this shot's one-sided tangential coverage and made the free-boundary-in-loop route the primary FF-prime carrier.</p>
     </article>
 <article class="r-fu" data-id="f-mfer-003" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-17" data-recommends-skill="/reckon-ship magnetics-free-equilibrium-recovery §2" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Pin the corpus convention authority in the challenge package (§2)</h4>
