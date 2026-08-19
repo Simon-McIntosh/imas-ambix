@@ -1,0 +1,1050 @@
+{
+  "schema_version": 1,
+  "comparison": "frozen ridge pitch readout: dynamics vs per-frame representation",
+  "difference_orientation": "dynamics minus baseline; negative favours dynamics for RMSE and CRPS",
+  "checkpoints": {
+    "baseline": "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_baseline/final.pt",
+    "dynamics": "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_dynamics/final.pt"
+  },
+  "protocol": {
+    "eval_harness": "imas_ambix.statespace.mse_eval.score",
+    "mse_manifest": "/work/projects/imas_gpu/mast/manifests/mse_heldout_split_v0.json",
+    "camera_split": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/cdw-ship-01/pitch-probe/imas_ambix/camdyn/artifacts/camdyn_split_v0.json",
+    "probe": "independent linear ridge by radial node; lambda=1",
+    "representation": "final normalised trunk state, spatial mean per frame, frozen backbone",
+    "train_partition": "MSE calibration intersect camera-model train; shot-disjoint from held-out",
+    "train_shot_ids": [
+      27582,
+      24429,
+      27132,
+      27846,
+      26860,
+      27994,
+      21744,
+      29964,
+      27702,
+      24776,
+      24061,
+      26870,
+      24749,
+      29873,
+      26551,
+      22037,
+      24078,
+      24600,
+      27715,
+      27740,
+      30284,
+      27645,
+      27581,
+      22006,
+      22583,
+      23504,
+      20377,
+      24890,
+      28098,
+      23407,
+      23608,
+      27905,
+      21967,
+      20828,
+      30066,
+      30043,
+      28101,
+      22574,
+      22043,
+      24457,
+      28333,
+      22472,
+      27798,
+      29972,
+      28036,
+      26848,
+      28152,
+      29326
+    ],
+    "n_train_shots": 48,
+    "n_train_samples": 938,
+    "radial_node_radii_m": [
+      0.7370667457580566,
+      0.8570598761240641,
+      0.9770530064900717,
+      1.097046136856079,
+      1.2170392672220867,
+      1.3370323975880942,
+      1.4570255279541016
+    ],
+    "mask_geometry": "fixed_section2",
+    "window_frames": 16,
+    "readout_frames": [
+      8,
+      15
+    ],
+    "window_selection": "25/50/75% quantiles of common native camera/MSE time support; target values unseen",
+    "bootstrap_unit": "held-out shot",
+    "bootstrap_replicates": 10000,
+    "subsample_seed": 20260819
+  },
+  "heldout_cohort": {
+    "locked_shots": 112,
+    "locked_shot_ids": [
+      21978,
+      21983,
+      21984,
+      21985,
+      21986,
+      21988,
+      21989,
+      22086,
+      22088,
+      22089,
+      22094,
+      22095,
+      22099,
+      22101,
+      22102,
+      22112,
+      22122,
+      22128,
+      22326,
+      22327,
+      22329,
+      22426,
+      22453,
+      22481,
+      22483,
+      22526,
+      22527,
+      22528,
+      22579,
+      22580,
+      22581,
+      22587,
+      22658,
+      22759,
+      22782,
+      22784,
+      22785,
+      22786,
+      22787,
+      22788,
+      22790,
+      22792,
+      22793,
+      22795,
+      22800,
+      24065,
+      24145,
+      24148,
+      24325,
+      24331,
+      24404,
+      24430,
+      24431,
+      24435,
+      24436,
+      24437,
+      24438,
+      24443,
+      24444,
+      24449,
+      24450,
+      24451,
+      24455,
+      24494,
+      24526,
+      24666,
+      24787,
+      24789,
+      24790,
+      24796,
+      24797,
+      24799,
+      25016,
+      26789,
+      26806,
+      27003,
+      27237,
+      27558,
+      27564,
+      27743,
+      27919,
+      27920,
+      27923,
+      27924,
+      27926,
+      27927,
+      27928,
+      28073,
+      28077,
+      28078,
+      28124,
+      28135,
+      28137,
+      28144,
+      28335,
+      28340,
+      29036,
+      29176,
+      29194,
+      29197,
+      29206,
+      29245,
+      29251,
+      29362,
+      29470,
+      29895,
+      29896,
+      29921,
+      30151,
+      30154,
+      30158,
+      30203
+    ],
+    "tokenless_exclusions": [
+      22426,
+      24404,
+      24666,
+      25016
+    ],
+    "expected_with_tokens": 108,
+    "usable_shots": 108,
+    "usable_shot_ids": [
+      21978,
+      21983,
+      21984,
+      21985,
+      21986,
+      21988,
+      21989,
+      22086,
+      22088,
+      22089,
+      22094,
+      22095,
+      22099,
+      22101,
+      22102,
+      22112,
+      22122,
+      22128,
+      22326,
+      22327,
+      22329,
+      22453,
+      22481,
+      22483,
+      22526,
+      22527,
+      22528,
+      22579,
+      22580,
+      22581,
+      22587,
+      22658,
+      22759,
+      22782,
+      22784,
+      22785,
+      22786,
+      22787,
+      22788,
+      22790,
+      22792,
+      22793,
+      22795,
+      22800,
+      24065,
+      24145,
+      24148,
+      24325,
+      24331,
+      24430,
+      24431,
+      24435,
+      24436,
+      24437,
+      24438,
+      24443,
+      24444,
+      24449,
+      24450,
+      24451,
+      24455,
+      24494,
+      24526,
+      24787,
+      24789,
+      24790,
+      24796,
+      24797,
+      24799,
+      26789,
+      26806,
+      27003,
+      27237,
+      27558,
+      27564,
+      27743,
+      27919,
+      27920,
+      27923,
+      27924,
+      27926,
+      27927,
+      27928,
+      28073,
+      28077,
+      28078,
+      28124,
+      28135,
+      28137,
+      28144,
+      28335,
+      28340,
+      29036,
+      29176,
+      29194,
+      29197,
+      29206,
+      29245,
+      29251,
+      29362,
+      29470,
+      29895,
+      29896,
+      29921,
+      30151,
+      30154,
+      30158,
+      30203
+    ],
+    "post_token_exclusions": [],
+    "post_token_exclusion_reasons": {}
+  },
+  "arms": {
+    "baseline": {
+      "rmse": 0.6935821132674631,
+      "crps": 0.5553796261091934,
+      "nll": 789.7170027786809,
+      "cov90": 0.038652975109190274,
+      "n_shots": 108,
+      "by_window": {
+        "quiescent": {
+          "rmse": 0.6868930855415958,
+          "crps": 0.5512198050999465,
+          "nll": 811.537350875379,
+          "cov90": 0.04007259096356908,
+          "n_shots": 107
+        },
+        "transient": {
+          "rmse": 0.7276448548657571,
+          "crps": 0.5988635088974458,
+          "nll": 887.9141240218463,
+          "cov90": 0.0368539876109407,
+          "n_shots": 83
+        }
+      }
+    },
+    "dynamics": {
+      "rmse": 0.6453406141007663,
+      "crps": 0.5238216376341464,
+      "nll": 445.9190605852232,
+      "cov90": 0.05093048105983008,
+      "n_shots": 108,
+      "by_window": {
+        "quiescent": {
+          "rmse": 0.6394000066472414,
+          "crps": 0.525808073271093,
+          "nll": 440.4320665698557,
+          "cov90": 0.051163326750873775,
+          "n_shots": 107
+        },
+        "transient": {
+          "rmse": 0.6358775932265509,
+          "crps": 0.5292383266986684,
+          "nll": 479.53274875324774,
+          "cov90": 0.050254042693993084,
+          "n_shots": 83
+        }
+      }
+    }
+  },
+  "paired_dynamics_minus_baseline": {
+    "rmse": {
+      "mean": -0.048241499166696906,
+      "lo": -0.09206999197776317,
+      "hi": -0.005144022706453786,
+      "n_shots": 108,
+      "dynamics_better": true,
+      "clear_of_zero": true
+    },
+    "crps": {
+      "mean": -0.031557988475047004,
+      "lo": -0.07042303375401211,
+      "hi": 0.0071320780488506,
+      "n_shots": 108,
+      "dynamics_better": false,
+      "clear_of_zero": false
+    }
+  },
+  "per_shot": {
+    "21978": {
+      "baseline_rmse_rad": 0.5347990761176035,
+      "dynamics_rmse_rad": 0.6402344319895544,
+      "baseline_crps_rad": 0.394279588946141,
+      "dynamics_crps_rad": 0.5439300147430444
+    },
+    "21983": {
+      "baseline_rmse_rad": 0.5212451418203347,
+      "dynamics_rmse_rad": 0.5587925368201103,
+      "baseline_crps_rad": 0.4083784382739438,
+      "dynamics_crps_rad": 0.42377310419575376
+    },
+    "21984": {
+      "baseline_rmse_rad": 0.38756598592256486,
+      "dynamics_rmse_rad": 0.508971651914125,
+      "baseline_crps_rad": 0.2800751854544834,
+      "dynamics_crps_rad": 0.40044108996421685
+    },
+    "21985": {
+      "baseline_rmse_rad": 0.407113714551806,
+      "dynamics_rmse_rad": 0.6346518278283834,
+      "baseline_crps_rad": 0.2994556788249581,
+      "dynamics_crps_rad": 0.4719186617397932
+    },
+    "21986": {
+      "baseline_rmse_rad": 0.4308976774290972,
+      "dynamics_rmse_rad": 0.5235882623728725,
+      "baseline_crps_rad": 0.31615689106656,
+      "dynamics_crps_rad": 0.40940073543851313
+    },
+    "21988": {
+      "baseline_rmse_rad": 0.4371100071021796,
+      "dynamics_rmse_rad": 0.603824395438212,
+      "baseline_crps_rad": 0.337754030504817,
+      "dynamics_crps_rad": 0.5033916446817094
+    },
+    "21989": {
+      "baseline_rmse_rad": 0.5669274364369665,
+      "dynamics_rmse_rad": 0.5780900726236756,
+      "baseline_crps_rad": 0.4491959235299554,
+      "dynamics_crps_rad": 0.43851258918467784
+    },
+    "22086": {
+      "baseline_rmse_rad": 0.6924370996358519,
+      "dynamics_rmse_rad": 0.7394346979009575,
+      "baseline_crps_rad": 0.5506406415267006,
+      "dynamics_crps_rad": 0.5752852475759065
+    },
+    "22088": {
+      "baseline_rmse_rad": 0.708001047161265,
+      "dynamics_rmse_rad": 0.748897579812979,
+      "baseline_crps_rad": 0.572837853870664,
+      "dynamics_crps_rad": 0.6142458460829037
+    },
+    "22089": {
+      "baseline_rmse_rad": 0.7485419144001121,
+      "dynamics_rmse_rad": 0.8920276451507284,
+      "baseline_crps_rad": 0.6075883041527671,
+      "dynamics_crps_rad": 0.7376680785896913
+    },
+    "22094": {
+      "baseline_rmse_rad": 0.6885061386978664,
+      "dynamics_rmse_rad": 0.6567317488994014,
+      "baseline_crps_rad": 0.542563777266026,
+      "dynamics_crps_rad": 0.5553381051057975
+    },
+    "22095": {
+      "baseline_rmse_rad": 0.5412409204515408,
+      "dynamics_rmse_rad": 0.5430305087931896,
+      "baseline_crps_rad": 0.4060192241449857,
+      "dynamics_crps_rad": 0.39254053170534176
+    },
+    "22099": {
+      "baseline_rmse_rad": 0.6458558425372969,
+      "dynamics_rmse_rad": 0.807778849495099,
+      "baseline_crps_rad": 0.5211258552145621,
+      "dynamics_crps_rad": 0.6795467179124037
+    },
+    "22101": {
+      "baseline_rmse_rad": 0.9809816277921897,
+      "dynamics_rmse_rad": 0.6770548932270718,
+      "baseline_crps_rad": 0.7568706640994152,
+      "dynamics_crps_rad": 0.5760838870122011
+    },
+    "22102": {
+      "baseline_rmse_rad": 0.9686387558143288,
+      "dynamics_rmse_rad": 0.7997005395595178,
+      "baseline_crps_rad": 0.7756168876920083,
+      "dynamics_crps_rad": 0.6443521495157368
+    },
+    "22112": {
+      "baseline_rmse_rad": 0.4274899309122653,
+      "dynamics_rmse_rad": 0.48092696071440105,
+      "baseline_crps_rad": 0.34140457710466926,
+      "dynamics_crps_rad": 0.4044881247352993
+    },
+    "22122": {
+      "baseline_rmse_rad": 0.5839401308006419,
+      "dynamics_rmse_rad": 0.675061468932318,
+      "baseline_crps_rad": 0.4539408118179706,
+      "dynamics_crps_rad": 0.5429736028161993
+    },
+    "22128": {
+      "baseline_rmse_rad": 0.6198381170801675,
+      "dynamics_rmse_rad": 0.7464153545098775,
+      "baseline_crps_rad": 0.5068939008396414,
+      "dynamics_crps_rad": 0.6467647674003201
+    },
+    "22326": {
+      "baseline_rmse_rad": 1.1852005424690177,
+      "dynamics_rmse_rad": 1.2715099876388933,
+      "baseline_crps_rad": 0.9534128242574235,
+      "dynamics_crps_rad": 1.1095117167195405
+    },
+    "22327": {
+      "baseline_rmse_rad": 1.2927965653920825,
+      "dynamics_rmse_rad": 1.6939929842917645,
+      "baseline_crps_rad": 1.1563705424474267,
+      "dynamics_crps_rad": 1.5272507496610987
+    },
+    "22329": {
+      "baseline_rmse_rad": 1.7805873450430914,
+      "dynamics_rmse_rad": 1.7388265557591973,
+      "baseline_crps_rad": 1.6466424721732282,
+      "dynamics_crps_rad": 1.6203549854768238
+    },
+    "22453": {
+      "baseline_rmse_rad": 0.624823143277236,
+      "dynamics_rmse_rad": 0.3687151342056767,
+      "baseline_crps_rad": 0.45477417423721256,
+      "dynamics_crps_rad": 0.2936509933041182
+    },
+    "22481": {
+      "baseline_rmse_rad": 0.8636196271166665,
+      "dynamics_rmse_rad": 0.6198767561013748,
+      "baseline_crps_rad": 0.7114783197149108,
+      "dynamics_crps_rad": 0.4887285706994986
+    },
+    "22483": {
+      "baseline_rmse_rad": 0.782770406779426,
+      "dynamics_rmse_rad": 0.5425331417173757,
+      "baseline_crps_rad": 0.6214464735467418,
+      "dynamics_crps_rad": 0.41386017072325676
+    },
+    "22526": {
+      "baseline_rmse_rad": 1.4383129275955717,
+      "dynamics_rmse_rad": 0.8057333486789827,
+      "baseline_crps_rad": 1.2501057430073912,
+      "dynamics_crps_rad": 0.6380405247624819
+    },
+    "22527": {
+      "baseline_rmse_rad": 1.3642068416746522,
+      "dynamics_rmse_rad": 0.8712916469174324,
+      "baseline_crps_rad": 1.1541351092230174,
+      "dynamics_crps_rad": 0.7598440498878751
+    },
+    "22528": {
+      "baseline_rmse_rad": 1.589793532313408,
+      "dynamics_rmse_rad": 1.372185681210244,
+      "baseline_crps_rad": 1.371517353006508,
+      "dynamics_crps_rad": 1.101230931934163
+    },
+    "22579": {
+      "baseline_rmse_rad": 0.2998975492056178,
+      "dynamics_rmse_rad": 0.25114440370090385,
+      "baseline_crps_rad": 0.23497668160260068,
+      "dynamics_crps_rad": 0.18878506756626093
+    },
+    "22580": {
+      "baseline_rmse_rad": 0.4287208888456608,
+      "dynamics_rmse_rad": 0.3369068048781882,
+      "baseline_crps_rad": 0.3490712460949317,
+      "dynamics_crps_rad": 0.27213916092964313
+    },
+    "22581": {
+      "baseline_rmse_rad": 0.3275864993384486,
+      "dynamics_rmse_rad": 0.29638643844455087,
+      "baseline_crps_rad": 0.24359739463620636,
+      "dynamics_crps_rad": 0.19845828860626846
+    },
+    "22587": {
+      "baseline_rmse_rad": 0.2943889339192684,
+      "dynamics_rmse_rad": 0.3911707630919361,
+      "baseline_crps_rad": 0.2143913064340286,
+      "dynamics_crps_rad": 0.29615379509077244
+    },
+    "22658": {
+      "baseline_rmse_rad": 0.8094026710028578,
+      "dynamics_rmse_rad": 0.8986915698709624,
+      "baseline_crps_rad": 0.668178005618648,
+      "dynamics_crps_rad": 0.663384276719675
+    },
+    "22759": {
+      "baseline_rmse_rad": 0.960177801243415,
+      "dynamics_rmse_rad": 0.5557593669004258,
+      "baseline_crps_rad": 0.7082000742631344,
+      "dynamics_crps_rad": 0.4639824211354967
+    },
+    "22782": {
+      "baseline_rmse_rad": 0.7011456377066191,
+      "dynamics_rmse_rad": 0.5432771279080367,
+      "baseline_crps_rad": 0.5769355161092479,
+      "dynamics_crps_rad": 0.4928138353082875
+    },
+    "22784": {
+      "baseline_rmse_rad": 1.0191655730472844,
+      "dynamics_rmse_rad": 0.6005076955753336,
+      "baseline_crps_rad": 0.8523006674479567,
+      "dynamics_crps_rad": 0.48231658530519095
+    },
+    "22785": {
+      "baseline_rmse_rad": 0.7096878891027928,
+      "dynamics_rmse_rad": 0.5027592252273803,
+      "baseline_crps_rad": 0.5775237870388522,
+      "dynamics_crps_rad": 0.42496554362177963
+    },
+    "22786": {
+      "baseline_rmse_rad": 0.7312595122707051,
+      "dynamics_rmse_rad": 0.5654891960811493,
+      "baseline_crps_rad": 0.6249237965181926,
+      "dynamics_crps_rad": 0.4666491034395851
+    },
+    "22787": {
+      "baseline_rmse_rad": 0.7755308248352304,
+      "dynamics_rmse_rad": 0.6773236815962924,
+      "baseline_crps_rad": 0.6023270214483252,
+      "dynamics_crps_rad": 0.5842900994507568
+    },
+    "22788": {
+      "baseline_rmse_rad": 0.8840119748530768,
+      "dynamics_rmse_rad": 0.6605939333688954,
+      "baseline_crps_rad": 0.711512860074312,
+      "dynamics_crps_rad": 0.5555816861821193
+    },
+    "22790": {
+      "baseline_rmse_rad": 0.8802295773954837,
+      "dynamics_rmse_rad": 0.5898390662808465,
+      "baseline_crps_rad": 0.701786607416128,
+      "dynamics_crps_rad": 0.4906669057958009
+    },
+    "22792": {
+      "baseline_rmse_rad": 0.782676798820755,
+      "dynamics_rmse_rad": 0.6185668725964159,
+      "baseline_crps_rad": 0.6250975809030563,
+      "dynamics_crps_rad": 0.5042050125682566
+    },
+    "22793": {
+      "baseline_rmse_rad": 0.7697395576077377,
+      "dynamics_rmse_rad": 0.7138803620831521,
+      "baseline_crps_rad": 0.6773937304110688,
+      "dynamics_crps_rad": 0.5634135628065379
+    },
+    "22795": {
+      "baseline_rmse_rad": 0.7546350911807952,
+      "dynamics_rmse_rad": 0.4732730420770499,
+      "baseline_crps_rad": 0.6269606744597813,
+      "dynamics_crps_rad": 0.3867098967781138
+    },
+    "22800": {
+      "baseline_rmse_rad": 0.7915831717294604,
+      "dynamics_rmse_rad": 0.6000791750809611,
+      "baseline_crps_rad": 0.6562588830929758,
+      "dynamics_crps_rad": 0.46753454882834533
+    },
+    "24065": {
+      "baseline_rmse_rad": 0.2812511246856276,
+      "dynamics_rmse_rad": 0.4476170476148753,
+      "baseline_crps_rad": 0.22766872858221684,
+      "dynamics_crps_rad": 0.3685427025149094
+    },
+    "24145": {
+      "baseline_rmse_rad": 0.675276249284052,
+      "dynamics_rmse_rad": 0.8772994010009516,
+      "baseline_crps_rad": 0.5015207349783605,
+      "dynamics_crps_rad": 0.691243103625879
+    },
+    "24148": {
+      "baseline_rmse_rad": 0.7186927911821579,
+      "dynamics_rmse_rad": 1.010507343852998,
+      "baseline_crps_rad": 0.5425712655365544,
+      "dynamics_crps_rad": 0.8324564691234392
+    },
+    "24325": {
+      "baseline_rmse_rad": 0.6582814227869707,
+      "dynamics_rmse_rad": 0.3776698178258577,
+      "baseline_crps_rad": 0.4903397491771539,
+      "dynamics_crps_rad": 0.339135864726239
+    },
+    "24331": {
+      "baseline_rmse_rad": 0.5074213335156571,
+      "dynamics_rmse_rad": 0.3994666786461307,
+      "baseline_crps_rad": 0.4521988699759446,
+      "dynamics_crps_rad": 0.37256127815278267
+    },
+    "24430": {
+      "baseline_rmse_rad": 0.5586091299761134,
+      "dynamics_rmse_rad": 0.2840716432922874,
+      "baseline_crps_rad": 0.46301920964540694,
+      "dynamics_crps_rad": 0.23366031647495558
+    },
+    "24431": {
+      "baseline_rmse_rad": 0.3562271108975839,
+      "dynamics_rmse_rad": 0.3411030496465502,
+      "baseline_crps_rad": 0.30683938540242467,
+      "dynamics_crps_rad": 0.2636556556901897
+    },
+    "24435": {
+      "baseline_rmse_rad": 0.5246933840176407,
+      "dynamics_rmse_rad": 0.4644942587708757,
+      "baseline_crps_rad": 0.45526941230911316,
+      "dynamics_crps_rad": 0.38720986415758213
+    },
+    "24436": {
+      "baseline_rmse_rad": 0.6911982247491656,
+      "dynamics_rmse_rad": 0.46992805511870167,
+      "baseline_crps_rad": 0.5966883708052108,
+      "dynamics_crps_rad": 0.3693885364661598
+    },
+    "24437": {
+      "baseline_rmse_rad": 0.36114567834025996,
+      "dynamics_rmse_rad": 0.45501448605497635,
+      "baseline_crps_rad": 0.26129999822899747,
+      "dynamics_crps_rad": 0.3659186966782989
+    },
+    "24438": {
+      "baseline_rmse_rad": 0.3829098685972707,
+      "dynamics_rmse_rad": 0.6481970698721142,
+      "baseline_crps_rad": 0.3241549127511266,
+      "dynamics_crps_rad": 0.5248451450345287
+    },
+    "24443": {
+      "baseline_rmse_rad": 0.6373305042915571,
+      "dynamics_rmse_rad": 0.36123264498295476,
+      "baseline_crps_rad": 0.5101953673498482,
+      "dynamics_crps_rad": 0.30088615161044385
+    },
+    "24444": {
+      "baseline_rmse_rad": 0.4339238902698254,
+      "dynamics_rmse_rad": 0.6171640915613898,
+      "baseline_crps_rad": 0.3320978861718642,
+      "dynamics_crps_rad": 0.4631641275603536
+    },
+    "24449": {
+      "baseline_rmse_rad": 0.8368382260483989,
+      "dynamics_rmse_rad": 0.49018943074951815,
+      "baseline_crps_rad": 0.6917981186588917,
+      "dynamics_crps_rad": 0.3838074849282415
+    },
+    "24450": {
+      "baseline_rmse_rad": 0.5200537618970202,
+      "dynamics_rmse_rad": 0.397864651778948,
+      "baseline_crps_rad": 0.4469630147808986,
+      "dynamics_crps_rad": 0.3013508857379357
+    },
+    "24451": {
+      "baseline_rmse_rad": 0.5149384438055024,
+      "dynamics_rmse_rad": 0.43417490469628195,
+      "baseline_crps_rad": 0.4350865336745373,
+      "dynamics_crps_rad": 0.34997331932487113
+    },
+    "24455": {
+      "baseline_rmse_rad": 0.7306720007877971,
+      "dynamics_rmse_rad": 0.9659364985470783,
+      "baseline_crps_rad": 0.5999967142796401,
+      "dynamics_crps_rad": 0.7939346708365854
+    },
+    "24494": {
+      "baseline_rmse_rad": 0.3313911834422431,
+      "dynamics_rmse_rad": 0.37228784422830263,
+      "baseline_crps_rad": 0.24294534762994724,
+      "dynamics_crps_rad": 0.28866729935317365
+    },
+    "24526": {
+      "baseline_rmse_rad": 0.31506983798410954,
+      "dynamics_rmse_rad": 0.8561729276295607,
+      "baseline_crps_rad": 0.2501295963426512,
+      "dynamics_crps_rad": 0.6468123848307
+    },
+    "24787": {
+      "baseline_rmse_rad": 1.1389531359887395,
+      "dynamics_rmse_rad": 1.5375628095770342,
+      "baseline_crps_rad": 1.0569962448898609,
+      "dynamics_crps_rad": 1.4357711976186138
+    },
+    "24789": {
+      "baseline_rmse_rad": 1.2352801521608086,
+      "dynamics_rmse_rad": 1.0260682875256808,
+      "baseline_crps_rad": 1.1156223381853705,
+      "dynamics_crps_rad": 0.6559988072951966
+    },
+    "24790": {
+      "baseline_rmse_rad": 1.2469962599095508,
+      "dynamics_rmse_rad": 1.7961596204375618,
+      "baseline_crps_rad": 0.9083546182082546,
+      "dynamics_crps_rad": 1.6194180732438743
+    },
+    "24796": {
+      "baseline_rmse_rad": 1.5476127815344762,
+      "dynamics_rmse_rad": 1.50990979968402,
+      "baseline_crps_rad": 1.2782051854604137,
+      "dynamics_crps_rad": 1.2160213748620712
+    },
+    "24797": {
+      "baseline_rmse_rad": 1.5800639012767828,
+      "dynamics_rmse_rad": 1.415117105547394,
+      "baseline_crps_rad": 1.0754795615813775,
+      "dynamics_crps_rad": 1.3099127882851291
+    },
+    "24799": {
+      "baseline_rmse_rad": 1.2953836295951946,
+      "dynamics_rmse_rad": 1.1883375740024962,
+      "baseline_crps_rad": 0.9996093969162854,
+      "dynamics_crps_rad": 0.8498017859726835
+    },
+    "26789": {
+      "baseline_rmse_rad": 0.5554910146986838,
+      "dynamics_rmse_rad": 0.30417547505899645,
+      "baseline_crps_rad": 0.44884094156922427,
+      "dynamics_crps_rad": 0.20494915012968343
+    },
+    "26806": {
+      "baseline_rmse_rad": 0.4656693548571934,
+      "dynamics_rmse_rad": 0.5876986183375122,
+      "baseline_crps_rad": 0.35336393846402553,
+      "dynamics_crps_rad": 0.45971016135481896
+    },
+    "27003": {
+      "baseline_rmse_rad": 0.5909169446876834,
+      "dynamics_rmse_rad": 0.9389428862466042,
+      "baseline_crps_rad": 0.45448690033817973,
+      "dynamics_crps_rad": 0.7494358569814522
+    },
+    "27237": {
+      "baseline_rmse_rad": 0.7813669301766141,
+      "dynamics_rmse_rad": 0.9113768033319032,
+      "baseline_crps_rad": 0.6169176864402857,
+      "dynamics_crps_rad": 0.7476065562037572
+    },
+    "27558": {
+      "baseline_rmse_rad": 0.38425535010934725,
+      "dynamics_rmse_rad": 0.392376327358576,
+      "baseline_crps_rad": 0.2815927013967701,
+      "dynamics_crps_rad": 0.3032867239417108
+    },
+    "27564": {
+      "baseline_rmse_rad": 0.4278730245256714,
+      "dynamics_rmse_rad": 0.5271040746637249,
+      "baseline_crps_rad": 0.33763342952318137,
+      "dynamics_crps_rad": 0.42469751557112134
+    },
+    "27743": {
+      "baseline_rmse_rad": 0.4622983081637117,
+      "dynamics_rmse_rad": 0.6699803129627636,
+      "baseline_crps_rad": 0.35197527570376297,
+      "dynamics_crps_rad": 0.49449290395509476
+    },
+    "27919": {
+      "baseline_rmse_rad": 0.5173598847581261,
+      "dynamics_rmse_rad": 0.40268783064528196,
+      "baseline_crps_rad": 0.4157094018363953,
+      "dynamics_crps_rad": 0.3020463437315544
+    },
+    "27920": {
+      "baseline_rmse_rad": 0.3157057260720491,
+      "dynamics_rmse_rad": 0.5000346520317965,
+      "baseline_crps_rad": 0.23348173985429346,
+      "dynamics_crps_rad": 0.37541188335348397
+    },
+    "27923": {
+      "baseline_rmse_rad": 0.536046667342615,
+      "dynamics_rmse_rad": 0.38303935304022363,
+      "baseline_crps_rad": 0.4232082554341354,
+      "dynamics_crps_rad": 0.3102325893603634
+    },
+    "27924": {
+      "baseline_rmse_rad": 0.545790662697191,
+      "dynamics_rmse_rad": 0.356797812550865,
+      "baseline_crps_rad": 0.4299362623911264,
+      "dynamics_crps_rad": 0.2618061891052872
+    },
+    "27926": {
+      "baseline_rmse_rad": 0.5610988771853679,
+      "dynamics_rmse_rad": 0.3034093679724297,
+      "baseline_crps_rad": 0.4491283627320478,
+      "dynamics_crps_rad": 0.23332012471224586
+    },
+    "27927": {
+      "baseline_rmse_rad": 0.4855726018532119,
+      "dynamics_rmse_rad": 0.4039589468082391,
+      "baseline_crps_rad": 0.37377241485792423,
+      "dynamics_crps_rad": 0.29852823433016723
+    },
+    "27928": {
+      "baseline_rmse_rad": 0.35883612693329786,
+      "dynamics_rmse_rad": 0.4166358375957714,
+      "baseline_crps_rad": 0.2722466661957359,
+      "dynamics_crps_rad": 0.3102102332504581
+    },
+    "28073": {
+      "baseline_rmse_rad": 0.3221195298705775,
+      "dynamics_rmse_rad": 0.25480336522902075,
+      "baseline_crps_rad": 0.23033340382167217,
+      "dynamics_crps_rad": 0.18606966680185563
+    },
+    "28077": {
+      "baseline_rmse_rad": 0.334632498370678,
+      "dynamics_rmse_rad": 0.5474425222192055,
+      "baseline_crps_rad": 0.23621175980483614,
+      "dynamics_crps_rad": 0.419524516959019
+    },
+    "28078": {
+      "baseline_rmse_rad": 0.2573481036974339,
+      "dynamics_rmse_rad": 0.33566012579276056,
+      "baseline_crps_rad": 0.19659823392286996,
+      "dynamics_crps_rad": 0.25589375982285106
+    },
+    "28124": {
+      "baseline_rmse_rad": 0.4147997583748962,
+      "dynamics_rmse_rad": 0.4591275194640978,
+      "baseline_crps_rad": 0.31521913773881954,
+      "dynamics_crps_rad": 0.3592520716347622
+    },
+    "28135": {
+      "baseline_rmse_rad": 0.2440686065808714,
+      "dynamics_rmse_rad": 0.42016902773793113,
+      "baseline_crps_rad": 0.176079941227104,
+      "dynamics_crps_rad": 0.3184041272144715
+    },
+    "28137": {
+      "baseline_rmse_rad": 0.37704437614416936,
+      "dynamics_rmse_rad": 0.497951791268107,
+      "baseline_crps_rad": 0.27183789307430206,
+      "dynamics_crps_rad": 0.38656369429929693
+    },
+    "28144": {
+      "baseline_rmse_rad": 0.4512114368984951,
+      "dynamics_rmse_rad": 0.6488985439820275,
+      "baseline_crps_rad": 0.36745991301453335,
+      "dynamics_crps_rad": 0.5231754935595259
+    },
+    "28335": {
+      "baseline_rmse_rad": 0.39892451732428746,
+      "dynamics_rmse_rad": 0.4008708470829512,
+      "baseline_crps_rad": 0.2670786350044156,
+      "dynamics_crps_rad": 0.28340756133077616
+    },
+    "28340": {
+      "baseline_rmse_rad": 0.4697680549950216,
+      "dynamics_rmse_rad": 0.325993535001075,
+      "baseline_crps_rad": 0.36117036164887933,
+      "dynamics_crps_rad": 0.24507902568110537
+    },
+    "29036": {
+      "baseline_rmse_rad": 0.6852473952881715,
+      "dynamics_rmse_rad": 0.6777979911473475,
+      "baseline_crps_rad": 0.5244927119096734,
+      "dynamics_crps_rad": 0.575845336172164
+    },
+    "29176": {
+      "baseline_rmse_rad": 1.0754743660979231,
+      "dynamics_rmse_rad": 0.5282599731020791,
+      "baseline_crps_rad": 0.8500382197454491,
+      "dynamics_crps_rad": 0.4401728822173386
+    },
+    "29194": {
+      "baseline_rmse_rad": 1.1517482125344134,
+      "dynamics_rmse_rad": 0.605115865002894,
+      "baseline_crps_rad": 0.8081962753225868,
+      "dynamics_crps_rad": 0.5039330702446377
+    },
+    "29197": {
+      "baseline_rmse_rad": 0.8441420070126867,
+      "dynamics_rmse_rad": 0.5401718555079561,
+      "baseline_crps_rad": 0.6291008914672668,
+      "dynamics_crps_rad": 0.44037050036096154
+    },
+    "29206": {
+      "baseline_rmse_rad": 0.9452337271776509,
+      "dynamics_rmse_rad": 0.6858207535750602,
+      "baseline_crps_rad": 0.7104060704262467,
+      "dynamics_crps_rad": 0.5559258413941289
+    },
+    "29245": {
+      "baseline_rmse_rad": 0.7217169935573412,
+      "dynamics_rmse_rad": 0.5276219028737605,
+      "baseline_crps_rad": 0.554517727900731,
+      "dynamics_crps_rad": 0.427527835799983
+    },
+    "29251": {
+      "baseline_rmse_rad": 0.8015151287022827,
+      "dynamics_rmse_rad": 0.527958417610486,
+      "baseline_crps_rad": 0.5927996605355609,
+      "dynamics_crps_rad": 0.458324715535792
+    },
+    "29362": {
+      "baseline_rmse_rad": 0.6733874751157632,
+      "dynamics_rmse_rad": 0.9630774507997346,
+      "baseline_crps_rad": 0.5407991476046782,
+      "dynamics_crps_rad": 0.8190207450693628
+    },
+    "29470": {
+      "baseline_rmse_rad": 0.6034346494347854,
+      "dynamics_rmse_rad": 0.6328418516473544,
+      "baseline_crps_rad": 0.48219648703414164,
+      "dynamics_crps_rad": 0.503507555985968
+    },
+    "29895": {
+      "baseline_rmse_rad": 0.8321738970288852,
+      "dynamics_rmse_rad": 0.40630616716380125,
+      "baseline_crps_rad": 0.7248393928359191,
+      "dynamics_crps_rad": 0.29794135091925117
+    },
+    "29896": {
+      "baseline_rmse_rad": 0.9826881304874231,
+      "dynamics_rmse_rad": 0.5815891038075041,
+      "baseline_crps_rad": 0.8535101785373909,
+      "dynamics_crps_rad": 0.4745127962851865
+    },
+    "29921": {
+      "baseline_rmse_rad": 0.8047896093128277,
+      "dynamics_rmse_rad": 0.6294070893757825,
+      "baseline_crps_rad": 0.6518888717742108,
+      "dynamics_crps_rad": 0.496858037859085
+    },
+    "30151": {
+      "baseline_rmse_rad": 0.6805724857944923,
+      "dynamics_rmse_rad": 0.9595821060225477,
+      "baseline_crps_rad": 0.5604771030077133,
+      "dynamics_crps_rad": 0.7242630605195871
+    },
+    "30154": {
+      "baseline_rmse_rad": 0.5320686648914842,
+      "dynamics_rmse_rad": 0.41949495121038244,
+      "baseline_crps_rad": 0.38632270212993464,
+      "dynamics_crps_rad": 0.32665399040649296
+    },
+    "30158": {
+      "baseline_rmse_rad": 0.7621230060759372,
+      "dynamics_rmse_rad": 0.4574931805491318,
+      "baseline_crps_rad": 0.5739047238926637,
+      "dynamics_crps_rad": 0.34112138180307655
+    },
+    "30203": {
+      "baseline_rmse_rad": 0.7390586526018206,
+      "dynamics_rmse_rad": 0.4460376571946397,
+      "baseline_crps_rad": 0.6160585586382742,
+      "dynamics_crps_rad": 0.35433801482383853
+    }
+  },
+  "verdict": {
+    "dynamics_rmse_significantly_better": true,
+    "dynamics_crps_significantly_better": false,
+    "clean_negative": false
+  },
+  "diagnostics": {
+    "n_train_candidate_failures": 0,
+    "n_heldout_extraction_failures": 0
+  }
+}
