@@ -18,8 +18,8 @@
   <title>Camera-Dynamics World Model — Full-Stream Reconstruction from a Clipped View | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-09">
-<meta name="plan-version" content="17">
+<meta name="plan-modified" content="2026-08-19">
+<meta name="plan-version" content="20">
 <meta name="plan-impl" content="0.7">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
@@ -260,13 +260,20 @@
       <code>/work/projects/imas_gpu/mast-checkpoints/camdyn/</code>).
       <em>Note:</em> D1/D2 ran on 1 GPU each (not 4×/FSDP — unnecessary at 202M) and the explicit
       W2 horizon table (h = 10/50/200 ms) carries into the open D3 followup.</p>
-    <p><strong>D3 — actuator-conditioning ablation + gas-puff attribution.</strong> Arms: no
-      conditioning / minimal scalars (Ip, ∫ne dl) / full actuator vector (coil currents, NBI
-      powers, gas-puff flows). Plus the §4b falsification probe: reconstruct held-out shots with
-      the inboard region masked and test whether the predicted emission spot tracks the measured
-      <code>aga/inboard_*</code> puff command (timing correlation + counterfactual zeroed-puff
-      rollout). <em>Done when:</em> metric table across conditioning arms; puff-attribution
-      verdict with figures.</p>
+    <p><strong>✓ D3 + the W2 horizon table — landed 2026-06-17.</strong>
+      Forward horizons: dynamics beats persistence at 10 ms (+0.0042 [0.0019, 0.0067], n=59) and
+      crushes the per-frame baseline at every horizon; 50 ms is positive but underpowered, 200 ms
+      is n=1. Gas-puff attribution is an <strong>honest null</strong> — pooled r = −0.02 with the
+      counterfactual zeroed-puff CI crossing zero (45 shots / 195 windows); the token-change proxy
+      does not resolve marginal single-channel attribution at this cadence. Conditioning ablation
+      at a matched 8,000-step budget is a wash on the held-out mixture (full 10.326 / ip_ne 10.315 /
+      camera-only 10.321 nats, within 0.01); the one clear win is the sparse divertor-only window
+      (+0.115 nats for full), so conditioning pays where camera tokens are scarce.
+      Commits <code>dbe7b5d</code>, <code>05e78bd</code>, <code>64a4db4</code>, <code>920ea72</code>;
+      artifacts <code>horizon_table.json</code>, <code>puff_attribution.json</code>,
+      <code>cond_ablation.json</code>. Full record:
+      <a href="evidence/archive/camera-dynamics-wm-v0-landed.html#horizons-conditioning">horizons + conditioning</a>,
+      illustrated in <a href="camera-dynamics-arm-comparison.html#s5b">arm comparison §5b–§5d</a>.</p>
     <p><strong>D4 — physics probes.</strong> Frozen-backbone probes from both arms' latents to
       held-out diagnostics (W3), plus the stretch sightline-pitch probe on the locked D1 MSE
       harness. <em>Done when:</em> W3 table (temporal vs per-frame representation); pitch-probe
@@ -283,11 +290,15 @@
       Sizing: ~150–300M-parameter transformer over 4.02B tokens ≈ 4–8 h/epoch on 4×H200 with bf16 +
       FSDP — a 2–4 day fast-return project including ablations, not a month-long pretrain. Token
       shards staged from GPFS to <code>/scratch_local</code> at job start. Model loaded once,
-      in-process torch DataLoader with bounded queues (AGENTS.md §2b); no subprocess-per-item, no
-      file-IPC daemons.
+      in-process torch DataLoader with bounded queues; no subprocess-per-item, no
+      file-IPC daemons. Python runs through the root project environment — inside a detached
+      worktree that means <code>UV_PROJECT_ENVIRONMENT=&lt;main-checkout&gt;/.venv</code> with
+      <code>uv run --no-sync</code>, never a worktree-local <code>.venv</code>
+      (root <code>AGENTS.md</code> → "Python environment").
     </p>
     <p>
-      Every sbatch clones the hardened header verbatim (AGENTS.md §2a-cancel-time): STOP-FILE
+      Every sbatch clones the hardened header verbatim from the live template
+      <code>scripts/slurm/camdyn_baseline.sbatch</code>: STOP-FILE
       (<code>AMBIX_STOP_FILE</code>, checked at every optimiser-step boundary),
       <code>--signal=B:USR1@600</code> + bash trap touching the STOP-FILE,
       <code>AMBIX_SOFT_TIME_LIMIT</code> at ~85% of the ceiling, <code>--time</code> set to 2–4×
@@ -414,13 +425,13 @@
       </p>
     <p class="r-dec-rat">User-locked 2026-06-10 on the recommendation. From-scratch token-space model for v0 preserves the matched-arm science (a foundation model has no honest time-off baseline) and reuses the OMAG2 token asset; the pretrained-arm bench is gated on W1/W2 success (D5 follow-on).</p>
     </div>
-<div class="r-dec" data-key="time-grid" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="time-grid" data-choice="dt-conditioning" data-by="reckon-ship (orchestrator)" data-when="2026-08-19T20:49:25+00:00">
     <p class="r-dec-q">How is the 100–400 Hz cadence heterogeneity handled?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="dt-conditioning">Native frames + Δt conditioning (recommended — no resampling artefacts)</button>
+      <button class="r-opt chosen" data-value="dt-conditioning">Native frames + Δt conditioning (recommended — no resampling artefacts)</button>
       <button class="r-opt" data-value="resample-common">Resample all shots to a common grid</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">Settled by the D0 implementation and honoured by every arm since: FrameTokenDataset keeps native frames and carries per-frame Δt, and the model conditions on Δt rather than resampling the camera stream. Resampling was rejected because it would fabricate frames across the 100–400 Hz spread and destroy the sub-ms ELM timing the sampling audit later measured. Recorded here so the plan state matches the shipped substrate.</p>
     </div>
 </section>
 

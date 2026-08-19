@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="camera-dynamics-wm-v0-landed">
+  <meta name="plan-title" content="Camera-Dynamics World Model — Measured Evidence">
+  <meta name="plan-summary" content="Cumulative execution record for the camera-dynamics world model: the CPU substrate and pre-registered metrics, the matched-arm dynamics-vs-statics verdict, the forward-horizon table with the gas-puff null and conditioning ablation, and the filament-fidelity arc that ended at a measured placement floor.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-recorded-at" content="2026-08-19">
+  <meta name="plan-evidence-for" content="camera-dynamics-wm-v0">
+  <title>Camera-Dynamics World Model — Measured Evidence | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+  <h1>Camera-Dynamics World Model — Measured Evidence</h1>
+  <p>Cumulative execution record for
+  <a href="/imas-ambix/camera-dynamics-wm-v0.html">Camera-Dynamics World Model — Full-Stream
+  Reconstruction from a Clipped View</a>. One anchor per landed node. Two illustrated companion
+  reports carry the figures and the long-form narrative and are not duplicated here:
+  <a href="/imas-ambix/camera-dynamics-arm-comparison.html">matched-arm results</a> and
+  <a href="/imas-ambix/camera-dynamics-elm-fidelity.html">ELM fidelity</a>.</p>
+
+  <h2 id="substrate">Substrate — dataset, masking, splits and the pre-registered metrics</h2>
+  <p><strong>The CPU-only substrate that gates every GPU arm landed with 70 tests green and the
+  win conditions locked before any model number existed.</strong> Commits <code>67a6b7c</code>
+  (substrate), <code>c1e1324</code> (figure), <code>d7b7953</code> (gate hardening).</p>
+  <ul>
+    <li><code>imas_ambix/camdyn/</code> ships the frame-grid <code>FrameTokenDataset</code>
+    (V3 token store joined to the V2 level-1 <code>rbb/time</code>, native frames with per-frame
+    Δt), the five-mode clip-mask sampler and a frozen deterministic named-geometry eval suite.</li>
+    <li>Conditioning is loaded in physical units with causal zero-order hold and per-channel
+    missing flags; <code>efm</code>/<code>esm</code>/<code>xdc</code> are leakage-banned inside
+    <code>load_conditioning</code> itself, not by convention.</li>
+    <li>Split manifest <code>camdyn_split_v0.json</code>: train 7,535 / val 942 / held-out 1,050,
+    disjoint and covering all 9,527 shots; 108 of the 112 sightline-pitch held-out shots forced to
+    held-out, the 4 token-less ones surfaced rather than silently dropped.</li>
+    <li>The metric module locks masked NLL + top-1 with bootstrap CI, physical horizon-h
+    reconstruction against a persistence baseline, and the frozen-probe protocol; the bootstrap
+    gate carries a directional verdict so a significant regression cannot be counted as a win.
+    rFID is banned as a primary metric.</li>
+  </ul>
+  <p>Per-stage detail: <a href="/imas-ambix/archive/camera-dynamics-wm-v0-d0-landed.html">substrate
+  record</a>. Figure:
+  <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-d0-batch.png" alt="one masked training batch" style="max-width:100%">
+  </p>
+
+  <h2 id="matched-arms">Matched arms — dynamics beats statics and beats carry-forward</h2>
+  <p><strong>Two byte-identical 202M factorized space/time transformers, differing only in the
+  temporal-attention toggle, give a decisive paired verdict over 764,707 held-out tokens:
+  dynamics wins NLL by +0.4587 nats [+0.4550, +0.4624].</strong> Commit <code>03f99de</code>;
+  20,000 steps per arm, 7h17m each, concurrent on one H200 apiece (jobs 1216236 / 1216237,
+  exit 0).</p>
+  <ul>
+    <li>The win survives the trivial predictor: dynamics also beats the zero-order-hold
+    carry-forward reference on top-1 by +0.0066 [+0.0064, +0.0068], and beats persistence inside
+    the forecasting mode (0.0242 vs 0.0178).</li>
+    <li>Gains concentrate exactly where statics has no mechanism: panning +0.514 nats, temporal
+    frontier +2.548 nats with top-1 up roughly forty-fold. Every named geometry favours dynamics
+    on both bars.</li>
+    <li>Checkpoints under
+    <code>/work/projects/imas_gpu/mast-checkpoints/camdyn/{cap_v1_baseline,cap_v1_dynamics}/final.pt</code>;
+    artifacts <code>cap_v1_baseline.json</code>, <code>cap_v1_dynamics.json</code>,
+    <code>arm_compare.json</code>.</li>
+  </ul>
+  <p>Illustrated: <a href="/imas-ambix/camera-dynamics-arm-comparison.html">matched-arm results</a>.</p>
+
+  <h2 id="horizons-conditioning">Forward horizons, the gas-puff null, and the conditioning ablation</h2>
+  <p><strong>Forward reconstruction is significantly better than persistence at 10 ms and crushes
+  the per-frame baseline at every horizon; the gas-puff attribution probe returns an honest null;
+  and conditioning is a wash except where camera tokens are scarce.</strong> Commits
+  <code>dbe7b5d</code> (horizons), <code>05e78bd</code> (puff), <code>64a4db4</code> (ablation),
+  <code>920ea72</code> (report).</p>
+  <table>
+    <caption>Held-out forward-horizon reconstruction, dynamics arm against its own persistence.</caption>
+    <thead>
+      <tr><th>Horizon</th><th>Gain over persistence</th><th>Sample</th><th>Verdict</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>10 ms</td><td>+0.0042 [+0.0019, +0.0067]</td><td>n = 59 decimated wide windows</td><td>significant</td></tr>
+      <tr><td>50 ms</td><td>positive</td><td>n = 19</td><td>underpowered</td></tr>
+      <tr><td>200 ms</td><td>—</td><td>n = 1</td><td>no power</td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li><strong>Gas-puff attribution — honest null.</strong> Pooled correlation between predicted
+    inboard emission activity and the measured puff command is r = −0.02, and the counterfactual
+    zeroed-puff CI crosses zero (45 shots / 195 windows). The token-change proxy at this cadence
+    does not resolve marginal single-channel attribution; artifact
+    <code>puff_attribution.json</code>.</li>
+    <li><strong>Conditioning ablation — a wash on the mixture.</strong> At a matched 8,000-step
+    budget the three regimes sit within 0.01 nats on the held-out mixture (full 10.326 / ip_ne
+    10.315 / camera-only 10.321). The one clear win is the sparse divertor-only window, +0.115
+    nats for the full actuator vector: camera tokens dominate, and conditioning pays only where
+    they are scarce. Artifact <code>cond_ablation.json</code>. Caveat: 8,000 steps is undertrained
+    against the 20,000-step headline arm, and a later re-read at convergence was confounded by
+    comparing a 20k arm against 8k arms — that confounded artifact was deleted rather than kept.</li>
+  </ul>
+  <p>Illustrated: <a href="/imas-ambix/camera-dynamics-arm-comparison.html#s5b">arm comparison
+  §5b–§5d</a>.</p>
+
+  <h2 id="filament-placement-floor">Filament fidelity — decode exhausted, placement at a measured floor</h2>
+  <p><strong>Persistent edge filaments were chased through decode, an auxiliary training loss and
+  an input-enrichment gate; all three closed with the same answer — filament placement is at a
+  floor that is aleatoric within this view.</strong> Gate commit <code>61fb85e</code>; reveal-k
+  oracle commit <code>fa86538</code>.</p>
+  <ul>
+    <li><strong>Decode is a visualisation lever, not a correctness lever.</strong> Sampled, beam
+    and MaskGIT decoders all shipped (<code>token_sampling.py</code>, <code>--decode</code>), but
+    on the hardened, background-decontaminated, coloured-noise-controlled metric no decoder beats
+    MAP on located correctness: residual over persistence MAP +0.071 band / +0.094 filament-cell,
+    MaskGIT +0.047, beam +0.040, bernoulli +0.013. MaskGIT's apparent temporal win is a
+    saturated-metric artifact — coloured noise also beats MAP on Δframe SSIM.</li>
+    <li><strong>The spectral structure-aux retrain was killed</strong> — λ = 0.05 was a no-op and
+    the run was GPU-starved.</li>
+    <li><strong>Convergence will not sharpen placement.</strong> The decontaminated within-arm
+    placement trajectory over 20 checkpoints shows dynamics MAP forecasting filament placement
+    +0.094 over persistence, but the residual plateaued by mid-training (tail slope
+    +3.5e-5 per 1k steps) and filament entropy stopped falling.</li>
+    <li><strong>A second view cannot lower the floor.</strong> Revealing k = 4 in-view filament
+    cells of perfect truth moved the placement residual by −0.0014 SSIM against a pre-registered
+    +0.02 threshold, and remaining-cell entropy by −0.8% against a 10% threshold — both fail. A
+    perfect in-view reveal upper-bounds any real second camera, which is occluded, coarser and
+    mistimed, so the <code>rba</code> encode and multi-view retrain were not spent. Artifact
+    <code>reveal_oracle.json</code>.</li>
+    <li><strong>Endpoint for the filament goal:</strong> MAP for the estimate, MaskGIT coherent
+    sample for visualisation. Caveat throughout: the placement gate rests on n = 2 windows, though
+    the within-arm trajectory flatness is robust regardless.</li>
+  </ul>
+  <p>Illustrated: <a href="/imas-ambix/camera-dynamics-arm-comparison.html#s5a-filament">arm
+  comparison §5a.2</a>.</p>
+
+  <h2 id="sampling-ceiling">ELM fidelity — a target-sampling ceiling, with the tokenizer exonerated</h2>
+  <p><strong>Poor ELM reconstruction is predominantly a sampling ceiling in the camera itself, not
+  a modelling or tokenization failure.</strong></p>
+  <ul>
+    <li>The tokenizer round-trip retains 95% of fine edge energy at SSIM 0.996 — exonerated.</li>
+    <li>The rbb camera integrates the sub-millisecond ELM onset (median Δt 0.2 ms; 24% of ELM
+    shots at ≥ 1 ms) and clips to white at the peak, so the target itself does not carry the
+    structure. Artifact <code>elm_sampling_audit.json</code>.</li>
+    <li>The bounded remaining win is the ELM brightness/morphology response at the only
+    statistically powered horizon, 10 ms with n = 59, carried by the genuinely fast Dα channel
+    <code>xim/da_hm10_t</code> rather than the slow radial profile.</li>
+  </ul>
+  <p>Full analysis: <a href="/imas-ambix/camera-dynamics-elm-fidelity.html">ELM fidelity</a>.</p>
+</main>
+</body>
+</html>
