@@ -204,6 +204,19 @@
       ladder and the ablatable Ip-circulation anchor under the centroid origin, since the 0.41 fraction
       was selected under the carrier.</li>
     </ul>
+    <p><strong>Running the gate.</strong> The arm is scored by
+    <code>scripts/boundary_harmonic_gate_eval.py</code>. The frozen configuration is the locked
+    pole-and-truncation decision — <code>--origin-source centroid</code>, order 3, ridge 1e-8,
+    <code>--pole-inboard-fractions 0.41</code> — and <code>--split eval</code> scores it once on the
+    held-out cohort while <code>--split train</code> sweeps the order × ridge × fraction ladder.
+    Two operational facts bear on the phase split: <code>--min-ip-ka</code> (default 50) is an Ip floor
+    that decides whether ramp-up slices are in the cohort at all, so the audit must report what the
+    floor admits before drawing a ramp-up conclusion; and the gate is slow, so it belongs on a SLURM
+    debug partition (<code>--time</code> ≤ 01:00:00, <code>export TMPDIR=/tmp</code>), never a login
+    node. A worktree run must reuse the root project environment rather than build its own:
+    <code>UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH="$PWD"
+    uv run --no-sync …</code>.</p>
+
     <p>Gate: X-point-set and axis skill recover toward the carrier per-slice values <em>without</em>
     losing the centroid LCFS and ramp-up win, or an honest characterisation of the tradeoff — recorded
     either way. EFIT stays firewalled (referee scores only); coil couplings stay thick-cylinder
