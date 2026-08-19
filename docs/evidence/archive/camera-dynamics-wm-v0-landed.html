@@ -233,6 +233,45 @@
     difference.</figcaption>
   </figure>
 
+  <h2 id="motion-readout-floor">Filament motion — two readouts, neither able to judge a retrain</h2>
+  <p><strong>The one lever the filament arc left open was the temporal-evolution objective. It
+  stays closed, because no readout built so far can separate the model's frame-to-frame motion
+  from spectrum-matched coloured noise.</strong> Commit <code>eaf8e31</code>; job 1251883,
+  evidence generated in 53 s on one H200.</p>
+  <table>
+    <caption>Dynamic-range validation of the centroid-displacement plus phase-alignment readout.
+    Three checks anchor the range; the fourth is the one that matters, and it fails.</caption>
+    <thead>
+      <tr><th>Control</th><th>Score</th><th>Requirement</th><th>Check</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Persistence (frozen)</td><td>0.000175</td><td>&le; 0.02</td><td>pass</td></tr>
+      <tr><td>Oracle</td><td>1.000000</td><td>&ge; 0.95</td><td>pass</td></tr>
+      <tr><td>Spectrum-matched coloured noise</td><td>0.028894</td><td>&le; 0.10</td><td>pass as written</td></tr>
+      <tr><td>MAP &minus; persistence</td><td>0.022012</td><td>&ge; 0.030</td><td><strong>fail</strong></td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li>The decisive number is not in the table's last row alone: <strong>coloured noise (0.028894)
+    outscores MAP itself (0.022188)</strong>. A readout that ranks noise above the model cannot
+    adjudicate a temporal-consistency loss, whatever its threshold says.</li>
+    <li>This is the second candidate to fail the same way. The earlier phase-only variant rejected
+    persistence and noise and anchored the oracle, but reached MAP &minus; persistence of only
+    0.01116.</li>
+    <li>Two independent readouts failing to separate model from noise is itself the finding:
+    frame-to-frame filament motion is currently hard to <em>measure</em>, not merely hard to model.
+    <code>validated=false</code>, headroom <code>UNJUDGEABLE</code>, and no temporal-evolution
+    retrain is authorised. Reopening the lever needs a readout that demonstrates dynamic range
+    first, not another training run.</li>
+    <li>Raw-frame timestamp alignment was verified exact at 0.0 &micro;s on held-out shots 24446 and
+    24065, so the failure is not a timebase artifact.</li>
+  </ul>
+  <figure>
+    <img src="/imas-ambix/figures/camera-dynamics-wm/fig-cdw-motion-readout.png" alt="measured control range and per-transition motion scores" style="max-width:100%">
+    <figcaption>Measured control range and per-transition scores. The figure deliberately shows the
+    range without claiming the gate passed.</figcaption>
+  </figure>
+
   <h2 id="sampling-ceiling">ELM fidelity — a target-sampling ceiling, with the tokenizer exonerated</h2>
   <p><strong>Poor ELM reconstruction is predominantly a sampling ceiling in the camera itself, not
   a modelling or tokenization failure.</strong></p>
