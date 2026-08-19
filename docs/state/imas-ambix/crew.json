@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-19T23:37:08",
+  "updated": "2026-08-19T23:45:27",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -15,6 +15,13 @@
         "id": "artifact-seam-diagnosis",
         "harness": "codex",
         "role": "investigate",
+        "session_id": null,
+        "created": "2026-08-19"
+      },
+      {
+        "id": "camera-da-conditioning",
+        "harness": "codex",
+        "role": "implement",
         "session_id": null,
         "created": "2026-08-19"
       },
@@ -40,6 +47,13 @@
         "created": "2026-08-19"
       },
       {
+        "id": "camera-pitch-probe",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-19"
+      },
+      {
         "id": "camera-probe-readout",
         "harness": "codex",
         "role": "implement",
@@ -50,7 +64,7 @@
         "id": "camera-suite-verify",
         "harness": "codex",
         "role": "test",
-        "session_id": null,
+        "session_id": "01a01be8-0b2a-7a61-8443-440a97d2c9f9",
         "created": "2026-08-19"
       },
       {
@@ -129,6 +143,13 @@
         "role": "implement",
         "session_id": "019ffbad-6eff-7900-8929-4fda5e162f54",
         "created": "2026-08-13"
+      },
+      {
+        "id": "moment-gate-import",
+        "harness": "claude",
+        "role": "implement",
+        "session_id": "01a01bf7-a60e-7be1-b50b-ff115d1a0feb",
+        "created": "2026-08-19"
       },
       {
         "id": "nova-drift-audit",
@@ -4399,9 +4420,192 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260819T212229206907-motion-readout-repair",
+        "plan": "camera-dynamics-wm-v0",
+        "section": "\u00a75",
+        "node": "motion-readout-repair",
+        "role": "implement",
+        "member": "camera-motion-readout",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T21:22:31Z",
+        "completed_at": "2026-08-19T21:29:23Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 412,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 412,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "d2cd5723cb1c390794c2e69680fdfb212cc3632f",
+        "commits": [
+          "eaf8e31"
+        ],
+        "changed_lines": {
+          "added": 4856,
+          "removed": 0,
+          "files": 5
+        },
+        "tests_added": 7,
+        "gate": "failed",
+        "outcome": "Motion readout implemented and strictly serialised, but its dynamic-range validation FAILS: persistence 0.000175 and oracle 1.000000 anchor the range, yet MAP-minus-persistence 0.022012 misses the fixed 0.030 margin and spectrum-matched coloured noise scores 0.028894 ABOVE MAP 0.022188. validated=false, headroom UNJUDGEABLE, so no temporal-evolution retrain is authorised.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T212229206907-motion-readout-repair/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01bcd-8c43-7fb0-9eeb-ba768d23a629",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 16736768,
+            "cached_input_tokens_cumulative": 16736768,
+            "input_tokens": 17039802,
+            "input_tokens_cumulative": 17039802,
+            "output_tokens": 51261,
+            "output_tokens_cumulative": 51261,
+            "reasoning_output_tokens": 15479,
+            "reasoning_output_tokens_cumulative": 15479
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
+      },
+      {
+        "run_id": "r-20260819T212303368250-camdyn-suite-verify",
+        "plan": "camera-dynamics-wm-v0",
+        "section": "\u00a75",
+        "node": "camdyn-suite-verify",
+        "role": "test",
+        "member": "camera-suite-verify",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T21:23:06Z",
+        "completed_at": "2026-08-19T21:41:40Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1114,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1114,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "d2cd5723cb1c390794c2e69680fdfb212cc3632f",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "Merged camera-dynamics module suite green at HEAD d2cd572: pytest tests/camdyn 216 passed / 0 failed in 925s, ruff check imas_ambix/camdyn clean; no failure attributable to the three-node merge.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T212303368250-camdyn-suite-verify/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01be8-0b2a-7a61-8443-440a97d2c9f9",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 8845056,
+            "cached_input_tokens_cumulative": 8845056,
+            "input_tokens": 9000392,
+            "input_tokens_cumulative": 9000392,
+            "output_tokens": 10953,
+            "output_tokens_cumulative": 10953,
+            "reasoning_output_tokens": 3162,
+            "reasoning_output_tokens_cumulative": 3162
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
+      },
+      {
+        "run_id": "r-20260819T204557750260-corpus-convention",
+        "plan": "magnetics-free-equilibrium-recovery",
+        "section": "\u00a72",
+        "node": "corpus-convention",
+        "role": "implement",
+        "member": "corpus-convention",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T20:46:09Z",
+        "completed_at": "2026-08-19T21:43:52Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 3463,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 3463,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "9bed32be133a0f26dfa41f514cf1c6fb33612bd0",
+        "commits": [
+          "8bf587eb43d3ba7cadb6c1ec85c096870d03c7bf"
+        ],
+        "changed_lines": {
+          "added": 531,
+          "removed": 14,
+          "files": 7
+        },
+        "tests_added": 17,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T204557750260-corpus-convention/manifest.md",
+        "scope_changed": true,
+        "session_id": "01a01bc6-3c00-74d3-af8a-96ebc9c00680",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 27042048,
+            "cached_input_tokens_cumulative": 27042048,
+            "input_tokens": 27610787,
+            "input_tokens_cumulative": 27610787,
+            "output_tokens": 45752,
+            "output_tokens_cumulative": 45752,
+            "reasoning_output_tokens": 15784,
+            "reasoning_output_tokens_cumulative": 15784
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 132
+    "_version": 140
   }
 }

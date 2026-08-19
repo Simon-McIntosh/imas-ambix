@@ -131,6 +131,42 @@
     The ramp problem therefore inherits a large labeled population that the confined-equilibrium
     lanes must not touch, which is exactly the frame class §6 needs and the only one the
     exclusion leaves usable.</p>
+
+    <h2 id="corpus-convention">§2 Corpus convention pinned — COCOS 5 measured, 17 served — 2026-08-19</h2>
+    <p>Commit <code>8bf587e</code>, gate <em>corpus-convention</em> PASSED (accepted fast suite
+    17/17 in 247.03 s; bounded loader repair test 1/1 in 53.89 s).
+    <code>imas_ambix/challenge/convention.py</code> is now the single authority for the DIII-D
+    corpus, and the loader serves convention-clean quantities through it. The source convention
+    was <em>measured, not assumed</em>: <strong>COCOS 5</strong> (σ<sub>Bp</sub> +1,
+    e<sub>Bp</sub> 0, σ<sub>RφZ</sub> +1, σ<sub>ρθφ</sub> −1), pinned to nova's COCOS 17.</p>
+    <table>
+      <caption>Discriminators over 20 distinct DIII-D train shots — unanimous on all four</caption>
+      <thead><tr><th>Discriminator</th><th>Outcome</th><th>Shots</th></tr></thead>
+      <tbody>
+        <tr><td>flux exponent by current integral</td><td>per-radian wins</td><td>20/20</td></tr>
+        <tr><td>ψ vs I<sub>p</sub></td><td>positive</td><td>20/20</td></tr>
+        <tr><td>q<sub>95</sub> vs I<sub>p</sub>·B<sub>0</sub> (B<sub>t</sub> sign from bcoil)</td><td>negative</td><td>20/20</td></tr>
+        <tr><td>Δ*-current vs I<sub>p</sub></td><td>positive</td><td>20/20</td></tr>
+      </tbody>
+    </table>
+    <p>Derived factors: ψ = −6.283185307179586, I<sub>p</sub> = +1, F = +1, q = −1,
+    d/dψ = −0.15915494309189535. Two independent corroborations make this a measurement rather
+    than a fit: the median integrated-current ratios are <strong>1.080299</strong> per-radian
+    against <strong>0.171935</strong> total-flux — a ratio of 6.283183, recovering 2π to six
+    figures — and the 1.0803 figure independently reproduces the separately banked
+    1085 A-per-raw-unit label-current receipt.</p>
+    <p><strong>A seam was found and closed rather than shipped.</strong> Canonicalising loader ψ
+    alone would have left <code>thomson/bank.py</code> dividing its banked axis and boundary
+    receipts by 2π against a now-canonical map — two conventions inside one ratio, silently
+    corrupting the ψ<sub>N</sub> on which the landed pedestal detector was calibrated. Both
+    receipts now pass through the same authority as the map. Because ψ<sub>N</sub> is invariant
+    under any affine flux transform, the migration is <em>provably</em> a numerical no-op rather
+    than an argued one: 3 real banked frames × 81 spatial samples = <strong>243 comparisons,
+    maximum absolute change 2.0×10⁻¹⁵</strong>. The §3 held-out coverage of 0.6222 therefore
+    stands without refitting.</p>
+    <p><strong>Cross-plan consequence.</strong> Nova's plasma-subtraction differencing gate was
+    explicitly blocked on this authority and is now unblocked — which is in turn the prerequisite
+    for nova's free-boundary production-route kill gate that §5 waits on.</p>
   </main>
 </body>
 </html>
