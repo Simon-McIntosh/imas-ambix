@@ -19,14 +19,14 @@
   <title>Toroidal-Harmonic Annulus Read | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-19">
-<meta name="plan-version" content="14">
-<meta name="plan-impl" content="0.78">
+<meta name="plan-modified" content="2026-08-20">
+<meta name="plan-version" content="15">
+<meta name="plan-impl" content="0.83">
 <meta name="plan-sprint" content="S18">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
-<meta name="plan-commits" content="5fb7510,63f214a">
-<meta name="plan-artifacts" content="imas_ambix/latent/artifacts/patch_gate/harmonic_phase_rebaseline.json,imas_ambix/latent/artifacts/patch_gate/boundary_read_harmonic-o3-centroidorigin-frac0.41.json,docs/figures/toroidal-harmonic-annulus-read/phase-split-skill.png">
+<meta name="plan-commits" content="5fb7510,63f214a,7413d54">
+<meta name="plan-artifacts" content="imas_ambix/latent/artifacts/patch_gate/harmonic_phase_rebaseline.json,imas_ambix/latent/artifacts/patch_gate/harmonic_configuration_selection.json,imas_ambix/latent/artifacts/patch_gate/boundary_read_harmonic-o3-centroidorigin-frac0.41.json,docs/figures/toroidal-harmonic-annulus-read/phase-split-skill.png,docs/figures/toroidal-harmonic-annulus-read/harmonic-configuration-selection.png">
 </head>
 <body>
   <main class="plan-doc">
@@ -522,6 +522,9 @@ Guardrails
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20260819T2150" data-who="reckon-ship" data-when="2026-08-19T21:50:00+00:00">
     <div class="r-comment-body">moment-gate-import-repair landed — commit 63f214a; entrypoint-loads measure PASSED. <code>scripts/boundary_moment_gate_eval.py</code> imported a constant removed when the frozen free-current configuration was renamed to a mechanism name, and the harmonic gate imports that module, so every gate run was blocked — the re-baseline only got its measurement through a launch-time compatibility alias. Repaired to the identically valued <code>FROZEN_INVERSE_KW</code>: <code>--help</code> exits 0 where it previously failed at import, 14/14 harmonic gate and basis tests pass, ruff clean, zero remaining references in Python source (the three surviving mentions are in this section's own evidence record and artifact JSON, where they document the failure as data). Stale plan-labelled docstring prose in the same file was scrubbed to mechanism terms in passing.</div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20260820T0045" data-who="reckon-ship" data-when="2026-08-20T00:45:00+00:00">
+    <div class="r-comment-body">harmonic-config-refreeze landed — commit 7413d54; re-selection measure PASSED, and the result is a CONFIRMATION, not an improvement. Leakage-free train ladder over 36 arms (orders 3/4/5 × ridges 1e-8/1e-4/1e-2/1e-1 × pole fractions 0.25/0.41/0.55), 24 passing the consistency_rms_annulus ≤ 1.0 guard: the optimum is AGAIN order 3 / ridge 1e-8 / fraction 0.41 unanchored, train LCFS −3.306 [−3.832,−2.907], consistency 0.0790. The runner-up (ridge 1e-4) is −3.312 — indistinguishable, so the ridge is not the lever. Scored once held-out, it reproduces the current baseline exactly (+0.689 / −1.896 / −3.900 at 11.52 cm). <strong>Therefore the LCFS regression from 6.7 to 11.52 cm is NOT a stale tune</strong> — it is structural in the reworked read, and re-tuning the existing knobs cannot recover it. The Ip-circulation anchor is decisively REJECTED (train LCFS −9.481 [−10.474,−9.008], consistency 10.36 vs 0.079), which closes the ablatable-anchor question carried by two earlier followups. 24 order-6/8 arms were left unswept under the time fence and are reported rather than silently dropped. <strong>New diagnostic that redirects the remaining work:</strong> the per-quantity held-out skill is strongly anisotropic — vertical components are the deficit (xpt0_Z −16.85, xpt1_Z −15.42, axis_Z −3.04) against healthy radial ones (xpt0_R −0.44, xpt1_R −1.87, axis_R −0.75). A Shafranov correction moves the origin outboard in R, so it cannot address a Z-localisation deficit; the premise of the planned correction needs testing in metres before it is implemented. Caveat: these are skill scores, not errors, and per-quantity baseline variance differs, so the asymmetry must be confirmed in physical units.</div>
 </div>
 </section>
 </main>

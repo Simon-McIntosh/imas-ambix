@@ -114,6 +114,51 @@
   <code>harmonic_phase_rebaseline.json</code>, where they document the failure as data rather than
   naming live code. Stale plan-labelled prose in the same docstring was scrubbed to mechanism terms
   in passing.</p>
+
+  <h2 id="config-refreeze">Configuration re-freeze — the regression is structural, not a stale tune</h2>
+  <p><strong>Re-selecting the configuration leakage-free under the current implementation returns
+  the configuration already in use, so the LCFS regression cannot be tuned away with the existing
+  knobs.</strong> Over 36 train arms — orders 3/4/5 × ridges 1e-8/1e-4/1e-2/1e-1 × pole inboard
+  fractions 0.25/0.41/0.55, of which 24 passed the <code>consistency_rms_annulus ≤ 1.0</code> guard —
+  the optimum is again <strong>order 3, ridge 1e-8, fraction 0.41, unanchored</strong>, at train LCFS
+  skill −3.306 [−3.832, −2.907] and consistency 0.0790. The runner-up (ridge 1e-4) scores −3.312,
+  indistinguishable, so the ridge is not the lever. Scored once on the held-out cohort, the selected
+  arm reproduces the standing baseline exactly: X-point-set +0.689, axis −1.896, LCFS −3.900 at
+  11.52 cm.</p>
+  <p>Commit <code>7413d54</code>. Confidence intervals are 2,000 paired bootstrap draws over shots at
+  seed 0. 24 arms at orders 6 and 8 were left unswept under the node's time fence — recorded rather
+  than silently dropped.</p>
+
+  <h3 id="anchor-rejected">The Ip-circulation anchor is rejected</h3>
+  <p>The paired ablation at the selected arm is decisive against the anchor: train LCFS skill
+  <strong>−9.481</strong> [−10.474, −9.008] with annulus consistency <strong>10.36</strong>, against
+  −3.306 and 0.0790 unanchored. Imposing ∮B·dl = μ₀Ip as a weighted virtual row degrades both the
+  boundary and the source-free cross-check by more than two orders of magnitude in consistency. This
+  closes the ablatable-anchor question that two earlier followups had carried forward.</p>
+  <p>Measuring it required calling <code>fit_harmonic</code> directly, because the gate entrypoint
+  records its anchor flag but never passes the anchor equation into the solve — so the flag has been
+  inert, and any earlier reading of it through the gate measured nothing. Repair is tracked as
+  remaining §6 work.</p>
+
+  <h3 id="vertical-deficit">The deficit is vertical, which redirects the planned correction</h3>
+  <p>Per-quantity held-out skill is strongly anisotropic: the vertical components carry the damage
+  while the radial ones are comparatively healthy.</p>
+  <table>
+    <caption>Held-out skill by component at the selected arm</caption>
+    <thead><tr><th>Quantity</th><th>Radial</th><th>Vertical</th></tr></thead>
+    <tbody>
+      <tr><td>Magnetic axis</td><td>−0.753</td><td>−3.040</td></tr>
+      <tr><td>First X-point</td><td>−0.445</td><td>−16.848</td></tr>
+      <tr><td>Second X-point</td><td>−1.874</td><td>−15.424</td></tr>
+    </tbody>
+  </table>
+  <p>This bears directly on the planned Shafranov correction. A Shafranov shift is a <em>radial</em>
+  displacement of the flux axis outboard of the current centroid, so correcting it moves the origin in
+  R — the component that is already the stronger of the two. It cannot by construction address a
+  vertical localisation deficit. The premise therefore needs testing in physical units before the
+  correction is implemented, with one caveat: these are skill scores against a train-mean baseline,
+  not errors, and per-quantity baseline variance differs, so the asymmetry must be confirmed in
+  metres rather than inferred from skill alone.</p>
 </main>
 </body>
 </html>

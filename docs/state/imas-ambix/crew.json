@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T00:09:02",
+  "updated": "2026-08-20T00:37:14",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -19,10 +19,17 @@
         "created": "2026-08-19"
       },
       {
-        "id": "camera-conditioning-runtime",
+        "id": "camera-burst-launch",
         "harness": "codex",
         "role": "implement",
         "session_id": null,
+        "created": "2026-08-19"
+      },
+      {
+        "id": "camera-conditioning-runtime",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a01c10-c652-7931-a2bc-b99325cb5363",
         "created": "2026-08-19"
       },
       {
@@ -68,6 +75,13 @@
         "created": "2026-08-19"
       },
       {
+        "id": "camera-suite-recheck",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-19"
+      },
+      {
         "id": "camera-suite-verify",
         "harness": "codex",
         "role": "test",
@@ -107,6 +121,13 @@
         "harness": "codex",
         "role": "implement",
         "session_id": "01a01bc6-3c00-74d3-af8a-96ebc9c00680",
+        "created": "2026-08-19"
+      },
+      {
+        "id": "current-diffusion-closure",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
         "created": "2026-08-19"
       },
       {
@@ -5042,9 +5063,198 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260819T220733422615-conditioning-runtime-dispatch",
+        "plan": "camera-dynamics-wm-v0",
+        "section": "\u00a75",
+        "node": "conditioning-runtime-dispatch",
+        "role": "implement",
+        "member": "camera-conditioning-runtime",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T22:07:36Z",
+        "completed_at": "2026-08-19T22:23:43Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 967,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 967,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "619d25ed1ebe92d08f85c3c5ea93e2e3dd8549bb",
+        "commits": [
+          "665cc34"
+        ],
+        "changed_lines": {
+          "added": 341,
+          "removed": 138,
+          "files": 5
+        },
+        "tests_added": 26,
+        "gate": "passed",
+        "outcome": "Runtime conditioning gap closed: CamdynWindowStream now applies each channel's configured causal reduction and variant, and the emitted matrix EXACTLY equals the load_conditioning matrix used for normalisation-stat estimation. Quantitative gate 3/3 burst variants (native, shuffled, slow_only) pairwise distinct and each differing from its zero-order-hold reference, 23/23 non-burst value columns and 23/23 missingness columns exactly unchanged, 26/26 tests green in 122 s. Unknown variants and reductions fail closed; causal shuffle seeded by shot id.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T220733422615-conditioning-runtime-dispatch/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01c10-c652-7931-a2bc-b99325cb5363",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 10904832,
+            "cached_input_tokens_cumulative": 10904832,
+            "input_tokens": 11142561,
+            "input_tokens_cumulative": 11142561,
+            "output_tokens": 28516,
+            "output_tokens_cumulative": 28516,
+            "reasoning_output_tokens": 8285,
+            "reasoning_output_tokens_cumulative": 8285
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
+      },
+      {
+        "run_id": "r-20260819T221213486398-current-diffusion-closure",
+        "plan": "magnetics-free-equilibrium-recovery",
+        "section": "\u00a74",
+        "node": "current-diffusion-closure",
+        "role": "implement",
+        "member": "current-diffusion-closure",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T22:12:16Z",
+        "completed_at": "2026-08-19T22:35:00Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1364,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1364,
+        "stalled": false,
+        "time_budget": "50m",
+        "base_sha": "51627bdd25f757ae99749072f5fd983712463e73",
+        "commits": [
+          "8ce77bce42cecc3a159f7ef41d821c6fe2604ad7"
+        ],
+        "changed_lines": {
+          "added": 920,
+          "removed": 0,
+          "files": 4
+        },
+        "tests_added": 4,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T221213486398-current-diffusion-closure/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01c15-0d61-7560-a99c-31891617b7d6",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 11914240,
+            "cached_input_tokens_cumulative": 11914240,
+            "input_tokens": 12136892,
+            "input_tokens_cumulative": 12136892,
+            "output_tokens": 35529,
+            "output_tokens_cumulative": 35529,
+            "reasoning_output_tokens": 11316,
+            "reasoning_output_tokens_cumulative": 11316
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
+      },
+      {
+        "run_id": "r-20260819T214710874253-harmonic-config-refreeze",
+        "plan": "toroidal-harmonic-annulus-read",
+        "section": "\u00a76",
+        "node": "harmonic-config-refreeze",
+        "role": "implement",
+        "member": "harmonic-rebaseline",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T21:47:14Z",
+        "completed_at": "2026-08-19T22:34:31Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 2837,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 2837,
+        "stalled": false,
+        "time_budget": "50m",
+        "base_sha": "ea5a2656848ba52c9db9579614119bc011835bcf",
+        "commits": [
+          "7413d54"
+        ],
+        "changed_lines": {
+          "added": 3870,
+          "removed": 0,
+          "files": 10
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "outcome": "Re-freeze CONFIRMS the existing configuration rather than improving it: over 36 swept train arms (orders 3/4/5 x ridges 1e-8/1e-4/1e-2/1e-1 x fractions 0.25/0.41/0.55; 24 passing the consistency<=1.0 guard) the optimum is again order 3 / ridge 1e-8 / fraction 0.41 unanchored, train LCFS -3.306 [-3.832,-2.907], consistency 0.0790; runner-up at ridge 1e-4 is -3.312, so the ridge is not the lever. Held-out scored once reproduces the baseline exactly (+0.689 / -1.896 / -3.900 at 11.52 cm). Ip-circulation anchor REJECTED: train LCFS -9.481 [-10.474,-9.008], consistency 10.36. 24 order-6/8 arms left unswept under the time fence, reported not silent. Per-quantity skill exposes a strong vertical deficit (xpt0_Z -16.85, xpt1_Z -15.42, axis_Z -3.04) against healthy radial skill (xpt0_R -0.44, axis_R -0.75).",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T214710874253-harmonic-config-refreeze/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01bd2-446e-7f23-a211-d13ce87a138d",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 14620160,
+            "cached_input_tokens_cumulative": 34490880,
+            "input_tokens": 14879423,
+            "input_tokens_cumulative": 35033157,
+            "output_tokens": 43964,
+            "output_tokens_cumulative": 82872,
+            "reasoning_output_tokens": 11800,
+            "reasoning_output_tokens_cumulative": 22265
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 154
+    "_version": 161
   }
 }
