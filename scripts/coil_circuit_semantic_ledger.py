@@ -8,20 +8,11 @@ is the reference that lets a named flux-loop drive-column anomaly be
 interpreted: is the amc channel the operator consumes the coil winding current,
 the raw supply feed current, or the induced structural case current?
 
-Two facts drive the ledger:
-
-* The authoritative circuit description (:mod:`imas_ambix.gs.circuits`): 13
-  active circuits (own supply + amc channel) and 10 case circuits (structural,
-  induced, 8 measured + 2 constrained-zero P6 cases).  Each active circuit
-  carries a ``*_feed_current`` (raw per-turn supply current, kA — FEED
-  semantics) and a ``*_coil_current`` (feed × turns = amp-turns — COIL
-  semantics); sol/p6u/p6l carry only one bare ``<coil>_current``.  Each case
-  circuit carries a ``*_case_current`` (small induced current — CASE
-  semantics), except P6U/P6L which pfSystems.xml constrains to zero.
-
-* Which of those channels are actually present in each era's raw amc listing,
-  and how the geometry classifier (:func:`imas_ambix.gs.operator.
-  classify_circuits`) labels each efm circuit for that era.
+Two facts drive the ledger: the resolved geometry table declares which circuits
+are active windings and the measured channel and weight for every driven
+circuit; its acquisition channel list records which of those declarations is
+available in each campaign era.  The geometry classifier consumes those same
+declarations, so the ledger and operator share one machine-description source.
 
 Measured scale precedents attached to the relevant rows as ``expected_scale``:
 
@@ -51,7 +42,6 @@ from pathlib import Path
 import numpy as np
 
 from imas_ambix.data.description_reader import read_geometry_table
-from imas_ambix.gs import circuits as circuits_mod
 from imas_ambix.gs.operator import build_operator
 
 _REPO = Path(__file__).resolve().parents[1]
@@ -107,7 +97,7 @@ def _expected_scale_for(circuit_id: int, is_case: bool, constrained_zero: bool) 
     if is_case and not constrained_zero:
         return f"case-k class ({CASE_K_MAIN}; {CASE_K_NULL} for the near-null)"
     if is_case and constrained_zero:
-        return "0 (pfSystems.xml constrains to zero — no channel)"
+        return "0 (the resolved source declares no drive)"
     return ""  # active P2-P6 coils: no measured scale anomaly on the coil column
 
 
@@ -133,83 +123,73 @@ def _build_era(era: str, window: str, candidates: tuple[int, ...]) -> dict | Non
     # which G_pf column (amc channel) each classified circuit landed in
     consumed_channels = set(op.pf_amc_channels)
 
-    active = {c.circuit_id: c for c in circuits_mod.active_circuits()}
-    case = {c.circuit_id: c for c in circuits_mod.case_circuits()}
+    active_ids = set(table.active_circuits)
+    drives = {drive.circuit: drive for drive in table.circuit_drives}
 
     rows: list[dict] = []
 
-    # --- 13 active circuits (ids 1-13) --------------------------------------
-    for cid in sorted(active):
-        ac = active[cid]
+    # --- source-declared active circuits ------------------------------------
+    for cid in sorted(active_ids):
+        drive = drives.get(cid)
         cls = by_circ.get(cid)
-        coil_chan = ac.l1_coil_channel
-        feed_chan = ac.l1_feed_channel
-        coil_exists = coil_chan in amc_present
-        feed_exists = feed_chan in amc_present if feed_chan else False
-        # the operator consumes the coil (amp-turn) channel, or falls back to
-        # the bare <coil>_current variant when the *_coil_current form is absent
-        fallback = f"{ac.coil_label}_current"
-        if coil_chan in consumed_channels:
-            consumed = coil_chan
-        elif fallback in consumed_channels:
-            consumed = fallback
-        else:
-            consumed = ""
+        channel = drive.channel if drive is not None else ""
+        coil_label = drive.conductor if drive is not None else ""
+        exists = channel in amc_present
+        consumed = channel if channel in consumed_channels else ""
         note_parts = []
         if cls is not None:
-            note_parts.append(f"efm role={cls.role}")
+            note_parts.append(f"declared-table role={cls.role}")
             if cls.flag:
                 note_parts.append(f"flag={cls.flag}")
         else:
-            note_parts.append("circuit absent from this era's efm geometry")
-        if feed_chan and feed_exists:
+            note_parts.append("circuit absent from this era's geometry")
+        if drive is not None:
             note_parts.append(
-                f"feed sibling '{feed_chan}' present (turns={ac.turns:g})"
+                f"declared ampere-turns per ampere={drive.ampere_turns_per_ampere:.17g}"
             )
         rows.append(
             {
                 "circuit": cid,
-                "circuit_name": ac.name,
+                "circuit_name": coil_label or f"circuit-{cid}",
                 "family": "active",
                 "role": cls.role if cls is not None else "absent",
-                "coil_label": ac.coil_label,
-                "amc_channel": consumed or coil_chan,
-                "semantics": _classify_channel_semantics(consumed or coil_chan),
-                "exists": bool(coil_exists or (fallback in amc_present)),
+                "coil_label": coil_label,
+                "amc_channel": consumed or channel,
+                "semantics": _classify_channel_semantics(consumed or channel),
+                "exists": exists,
                 "constrained_zero": False,
                 "expected_scale": _expected_scale_for(cid, False, False),
-                "feed_channel": feed_chan or "",
-                "feed_exists": feed_exists,
+                "feed_channel": "",
+                "feed_exists": False,
                 "note": "; ".join(note_parts),
             }
         )
 
-    # --- 10 case circuits (ids 14-23) ---------------------------------------
-    for cid in sorted(case):
-        cc = case[cid]
+    # --- source-declared driven structural circuits -------------------------
+    for cid in sorted(set(drives) - active_ids):
+        drive = drives[cid]
         cls = by_circ.get(cid)
-        case_chan = cc.l1_case_channel
-        case_exists = (case_chan in amc_present) if case_chan else False
-        note_parts = [f"encases {cc.coils_encased}"]
+        case_chan = drive.channel
+        case_exists = case_chan in amc_present
+        note_parts = [f"declared conductor {drive.conductor}"]
         if cls is not None:
-            note_parts.append(f"efm role={cls.role}")
+            note_parts.append(f"declared-table role={cls.role}")
             if cls.flag:
                 note_parts.append(f"flag={cls.flag}")
         else:
-            note_parts.append("circuit absent from this era's efm geometry")
-        note_parts.append(f"geometry-confusable-with {cc.geometry_confusable_with}")
+            note_parts.append("circuit absent from this era's geometry")
         rows.append(
             {
                 "circuit": cid,
-                "circuit_name": cc.name,
+                "circuit_name": drive.conductor,
                 "family": "case",
                 "role": cls.role if cls is not None else "absent",
-                "coil_label": f"{cc.geometry_confusable_with}_case",
-                "amc_channel": case_chan or "",
+                "coil_label": drive.conductor,
+                "amc_channel": case_chan,
                 "semantics": "case",
-                "exists": bool(case_exists),
-                "constrained_zero": cc.constrained_zero,
-                "expected_scale": _expected_scale_for(cid, True, cc.constrained_zero),
+                "exists": case_exists,
+                "constrained_zero": False,
+                "expected_scale": _expected_scale_for(cid, True, False),
                 "feed_channel": "",
                 "feed_exists": False,
                 "note": "; ".join(note_parts),
@@ -253,9 +233,9 @@ def build_ledger() -> dict:
             )
 
     # presence matrix: circuit x era -> "coil"/"feed"/"case"/"absent"/"zero"
-    all_circuits = [(c.circuit_id, c.name) for c in circuits_mod.active_circuits()] + [
-        (c.circuit_id, c.name) for c in circuits_mod.case_circuits()
-    ]
+    all_circuits = sorted(
+        {(row["circuit"], row["circuit_name"]) for era in eras for row in era["rows"]}
+    )
     era_keys = [e["era"] for e in eras]
     matrix: dict[str, dict[str, str]] = {}
     for cid, name in all_circuits:

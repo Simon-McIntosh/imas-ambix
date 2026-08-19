@@ -41,11 +41,13 @@ from torch import nn
 
 from imas_ambix.latent.residual_operator import TOKEN_FEATURES
 from imas_ambix.physics import (
+    CircuitClass,
+    CircuitCoupling,
     PassiveCircuitSystem,
     PassiveEigenbasis,
+    PolygonSection,
     SensorSet,
-    circuit_table_from_metadata,
-    emit_circuit_coupling,
+    couple_circuits,
 )
 from imas_ambix.physics import (
     build_passive_circuit_system as build_nova_passive_circuit_system,
@@ -67,29 +69,84 @@ logger = logging.getLogger(__name__)
 STEEL_RESISTIVITY = 7.2e-7
 
 
-def _active_coil_centroids(table: GeometryTable) -> dict[str, tuple[float, float]]:
-    """Current-share-weighted coil centroids from the physical conductor table."""
-    from imas_ambix.gs.circuits import active_circuits  # noqa: PLC0415
-
-    centroids: dict[str, tuple[float, float]] = {}
-    for active in active_circuits():
-        members = [
-            filament
-            for filament in table.pf_filaments
-            if filament.circuit == active.circuit_id
-        ]
-        if not members:
-            continue
-        weight = np.asarray([member.xmult for member in members], dtype=np.float64)
-        total = float(weight.sum())
-        if total == 0.0:
-            weight = np.ones_like(weight)
-            total = float(weight.sum())
-        centroids[active.coil_label] = (
-            float(np.dot(weight, [member.r for member in members]) / total),
-            float(np.dot(weight, [member.z for member in members]) / total),
+def _declared_circuit_coupling(
+    table: GeometryTable,
+    *,
+    measured_channels: tuple[str, ...] = (),
+) -> CircuitCoupling:
+    """Emit Nova coupling directly from the table's circuit declarations."""
+    active = set(table.active_circuits)
+    drives = {drive.circuit: drive for drive in table.circuit_drives}
+    if not active or not drives:
+        raise ValueError(
+            "temporal circuit construction requires active_circuits and "
+            "circuit_drives from the machine-description table"
         )
-    return centroids
+    if len(drives) != len(table.circuit_drives):
+        raise ValueError("machine-description table declares duplicate circuit drives")
+
+    by_circuit: dict[int, list] = {}
+    for filament in table.pf_filaments:
+        by_circuit.setdefault(filament.circuit, []).append(filament)
+
+    available = set(table.amc_current_channels)
+    classes: list[CircuitClass] = []
+    for circuit in sorted(by_circuit):
+        members = by_circuit[circuit]
+        weights = np.asarray([member.xmult for member in members], dtype=np.float64)
+        total = float(weights.sum())
+        if total == 0.0:
+            weights = np.ones_like(weights)
+            total = float(weights.sum())
+        radius = float(np.dot(weights, [member.r for member in members]) / total)
+        height = float(np.dot(weights, [member.z for member in members]) / total)
+
+        drive = drives.get(circuit)
+        if drive is None:
+            role, label, channel, flag = "inferred_passive", "", "", ""
+        elif drive.channel not in available:
+            role, label, channel = "inferred_passive", "", ""
+            flag = (
+                f"source declares circuit {circuit} driven by {drive.channel!r}, "
+                "but this campaign does not publish that channel"
+            )
+        else:
+            role = "known_pf" if circuit in active else "known_case"
+            label, channel, flag = drive.conductor, drive.channel, ""
+        classes.append(
+            CircuitClass(
+                circuit=circuit,
+                centroid_radius=radius,
+                centroid_height=height,
+                filament_count=len(members),
+                weight_sum=total,
+                role=role,
+                coil_label=label,
+                channel=channel,
+                flag=flag,
+            )
+        )
+
+    sections = tuple(
+        PolygonSection(
+            circuit=section.circuit,
+            vertices=np.asarray(section.vertices, dtype=np.float64),
+            current_share=section.xmult,
+        )
+        for section in table.polygon_sections
+    )
+    return couple_circuits(classes).emit(
+        r=np.asarray([row.r for row in table.pf_filaments], dtype=np.float64),
+        z=np.asarray([row.z for row in table.pf_filaments], dtype=np.float64),
+        dr=np.asarray([row.width for row in table.pf_filaments], dtype=np.float64),
+        dz=np.asarray([row.height for row in table.pf_filaments], dtype=np.float64),
+        current_share=np.asarray(
+            [row.xmult for row in table.pf_filaments], dtype=np.float64
+        ),
+        circuit=np.asarray([row.circuit for row in table.pf_filaments], dtype=np.int64),
+        measured_channels=measured_channels,
+        polygon_sections=sections,
+    )
 
 
 def _sensor_set(table: GeometryTable) -> SensorSet:
@@ -136,37 +193,22 @@ def build_passive_circuit_system(
     hold_back_cases: bool = False,
 ) -> PassiveCircuitSystem:
     """Build Nova's circuit system from Ambix machine-description records."""
-    from imas_ambix.gs import circuits as circuit_metadata  # noqa: PLC0415
     from imas_ambix.gs.operator import SOLENOID_RESPONSE_SCALE  # noqa: PLC0415
 
-    metadata = circuit_table_from_metadata(
-        circuit_metadata.active_circuits(),
-        circuit_metadata.case_circuits(),
-        _active_coil_centroids(table),
-    )
+    active = set(table.active_circuits)
     measured_channels = (
-        [
-            case.l1_case_channel
-            for case in circuit_metadata.case_circuits()
-            if case.l1_case_channel in table.amc_current_channels
-        ]
+        tuple(
+            drive.channel
+            for drive in table.circuit_drives
+            if drive.circuit not in active
+            and drive.channel in table.amc_current_channels
+        )
         if hold_back_cases
         else ()
     )
-    polygon_sections = [
-        {
-            "circuit": section.circuit,
-            "vertices": section.vertices,
-            "current_share": section.xmult,
-        }
-        for section in table.polygon_sections
-    ]
-    coupling = emit_circuit_coupling(
-        table.pf_filaments,
-        table.amc_current_channels,
-        metadata,
+    coupling = _declared_circuit_coupling(
+        table,
         measured_channels=measured_channels,
-        polygon_sections=polygon_sections,
     )
     return build_nova_passive_circuit_system(
         coupling.conductors,
@@ -202,20 +244,10 @@ def build_drive_linkage(
     the winding rows: the flux a coil circuit links from every measured
     drive is the inductive part of its terminal voltage.
     """
-    from imas_ambix.gs import circuits as circuit_metadata  # noqa: PLC0415
     from imas_ambix.gs.cylinder import hybrid_greens  # noqa: PLC0415
     from imas_ambix.gs.operator import SOLENOID_RESPONSE_SCALE  # noqa: PLC0415
 
-    metadata = circuit_table_from_metadata(
-        circuit_metadata.active_circuits(),
-        circuit_metadata.case_circuits(),
-        _active_coil_centroids(table),
-    )
-    coupling = emit_circuit_coupling(
-        table.pf_filaments,
-        table.amc_current_channels,
-        metadata,
-    )
+    coupling = _declared_circuit_coupling(table)
     by_circ: dict[int, list] = {}
     for f in table.pf_filaments:
         by_circ.setdefault(f.circuit, []).append(f)

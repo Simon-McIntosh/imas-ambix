@@ -66,7 +66,6 @@ from scipy.special import ellipe, ellipk  # type: ignore[import-untyped]
 
 from imas_ambix.cocos import project_poloidal_field
 from imas_ambix.data.paths import local_shot_path
-from imas_ambix.gs import circuits as circuits_mod
 from imas_ambix.gs.geometry import (
     MAST_A,
     MAST_R0,
@@ -268,18 +267,6 @@ _COIL_MATCH_M = 0.08
 """A circuit centroid within this distance of a known PF-coil centroid is
 labelled that coil (KNOWN amc-driven); else the circuit is INFERRED passive."""
 
-_CASE_BY_CIRCUIT_ID: dict[int, circuits_mod.CaseCircuit] = {
-    c.circuit_id: c for c in circuits_mod.case_circuits()
-}
-"""``pfSystems.xml`` case-circuit id -> its :class:`~imas_ambix.gs.circuits.
-CaseCircuit` description.  Measured directly across three sample shots and both
-``fcoil`` signatures (``docs/mast-coil-circuits.html``): the ``efm`` circuit
-numbering for ids 1-23 agrees 1:1 with ``pfSystems.xml``'s own ``pfCircuit``
-numbering — circuit 14 IS "P2U case", exactly as in the machine description.
-:func:`classify_circuits` uses this authoritative id correspondence (never
-distance alone) to tell a coil's CASE circuit apart from the coil itself once
-geometry has already flagged the two as neighbours (see below)."""
-
 
 @dataclass(frozen=True)
 class CircuitClass:
@@ -309,6 +296,7 @@ _KNOWN_ROLES = ("known_pf", "known_case")
 
 def _declared_classes(
     by_circ: dict[int, list[PFFilament]],
+    active_circuits: Sequence[int],
     circuit_drives: Sequence[CircuitDrive],
     amc_channels: Sequence[str],
 ) -> list[CircuitClass]:
@@ -317,9 +305,9 @@ def _declared_classes(
     Every reconstruction below this is skipped, because each exists to recover
     part of what a declaration states outright: the centroid radius recovers
     which conductors are supplied, the channel-name convention recovers which
-    channel supplies one, and the case-id table recovers the coil/case split the
-    radius cannot see.  Running any of them against a declaration can only
-    disagree with it.
+    channel supplies one, and active membership recovers the winding/structure
+    split the radius cannot see.  Running any of them against a declaration can
+    only disagree with it.
 
     A declared circuit whose channel this campaign does not publish is INFERRED
     with the missing channel named: the description says the conductor is
@@ -327,6 +315,7 @@ def _declared_classes(
     true.  Nothing is substituted for the absent measurement.
     """
     avail = set(amc_channels)
+    active = set(active_circuits)
     by_circuit = {drive.circuit: drive for drive in circuit_drives}
     out: list[CircuitClass] = []
     for circ in sorted(by_circ):
@@ -343,7 +332,7 @@ def _declared_classes(
         drive = by_circuit.get(circ)
         if drive is not None:
             if drive.channel in avail:
-                role = "known_case" if "_case_current" in drive.channel else "known_pf"
+                role = "known_pf" if circ in active else "known_case"
                 coil_label = drive.conductor
                 amc_channel = drive.channel
                 stated = True
@@ -379,37 +368,18 @@ def classify_circuits(
 ) -> list[CircuitClass]:
     """Classify each fcoil circuit as KNOWN active PF, KNOWN case, or INFERRED.
 
-    Verify-and-flag (never fabricate): a circuit is labelled
-    KNOWN only when its filament centroid sits within :data:`_COIL_MATCH_M` of
-    a known MAST coil centroid AND its driving ``amc`` channel actually exists
-    for this campaign.  Every other circuit — the singleton structural
-    conductors (the ``1004−938 = 167−101 = 66`` extra fc1004 elements, ~½ of
-    which coincide with ``amm`` passive geometry) and any coil we cannot pin —
-    is INFERRED passive / eddy nuisance.  ``amm`` computed currents are NEVER
-    read (EFIT-wall-model outputs, not measurements).
-
-    Case-circuit identification
-    ---------------------------
-    8 of MAST's 10 coil-CASE circuits sit within :data:`_COIL_MATCH_M` of their
-    co-located ACTIVE coil's centroid (the case is a physically distinct,
-    separately-supplied structural conductor a couple of cm from the winding it
-    encloses) — geometry alone cannot tell them apart.  The nearest-centroid
-    match below is therefore only a candidate; before accepting it as
-    "known_pf", we check :data:`_CASE_BY_CIRCUIT_ID` — the authoritative
-    ``pfSystems.xml`` id correspondence (:mod:`imas_ambix.gs.circuits`) — for
-    whether THIS SPECIFIC circuit id is actually the matched coil's case, not
-    the coil itself.  If so the circuit is driven by its own measured
-    ``*_case_current`` channel (``role = "known_case"``, its own dedicated
-    G_pf column — never merged with the active coil's) rather than by the
-    active coil's amp-turn channel.  A case with no channel for this campaign
-    (P6U/P6L: ``pfSystems.xml`` constrains them to zero, no amc channel at all)
-    or an absent channel falls back to INFERRED, exactly like any other
-    unmapped circuit.
+    Verify-and-flag (never fabricate): declared circuit drives are authoritative.
+    Their membership in ``active_circuits`` distinguishes supplied windings from
+    separately measured structural circuits, while ``circuit_drives`` supplies
+    the acquisition channel and ampere-turn weight.  A declared drive whose
+    channel is unavailable remains inferred rather than borrowing a nearby
+    winding's current.
 
     Sources that state which conductors are supplied
     -------------------------------------------------------------------------
-    Both passes above reconstruct, from position, a fact the ``efm`` filament
-    list does not record: which circuits carry a supplied current.  A source
+    The geometric fallback reconstructs, from position, a fact an
+    undifferentiated filament list does not record: which circuits carry a
+    supplied current.  A source
     that records it — an IMAS ``pf_active`` / ``pf_passive`` split — passes its
     supplied circuits as ``active_circuits``, and those become the only
     candidates for a KNOWN role; every other circuit is induced structure and
@@ -419,28 +389,27 @@ def classify_circuits(
     :data:`_COIL_MATCH_M` of the winding they enclose, so the geometric pass
     alone promotes a coil's own case, supports and neighbouring segments to
     driven columns and drives them all with the winding's measured current.
-    The case correction cannot rescue those either — :data:`_CASE_BY_CIRCUIT_ID`
-    is keyed by ``efm``'s circuit numbering, which no other source shares — so
-    it is not consulted when the source has stated the split itself.
-
-    Whether a structural conductor that IS separately supplied on the machine
-    can be driven by its measured channel then depends on the source recording
-    that supply.  One that files every case as passive states that it does not,
-    and those conductors keep inferred currents rather than borrowing a
-    channel on the strength of a centroid match.
+    Geometry cannot distinguish a winding from a nearby structural circuit;
+    callers requiring that distinction must provide the source declarations.
 
     Sources that also state WHICH channel supplies each conductor
     -------------------------------------------------------------------------
     ``circuit_drives`` is the full declaration -- circuit, channel and the
     ampere turns one ampere of it drives -- and it displaces every rule above;
-    see :func:`_declared_classes`.  Supplying it makes ``active_circuits``
-    redundant, since a declared drive is what being supplied means.
+    see :func:`_declared_classes`.  ``active_circuits`` remains necessary because
+    it states whether a driven circuit is a winding or a measured structural
+    circuit without relying on channel spelling.
     """
     if circuit_drives:
         by_circ_declared: dict[int, list[PFFilament]] = {}
         for f in filaments:
             by_circ_declared.setdefault(f.circuit, []).append(f)
-        return _declared_classes(by_circ_declared, circuit_drives, amc_channels)
+        return _declared_classes(
+            by_circ_declared,
+            active_circuits,
+            circuit_drives,
+            amc_channels,
+        )
 
     avail = set(amc_channels)
     declared_active = set(active_circuits)
@@ -469,40 +438,17 @@ def classify_circuits(
         role, coil_label, amc_channel, flag = "inferred_passive", "", "", ""
         eligible = (circ in declared_active) if declared_active else True
         if eligible and best_d <= _COIL_MATCH_M:
-            case = None if declared_active else _CASE_BY_CIRCUIT_ID.get(circ)
-            if case is not None and case.geometry_confusable_with == best_label:
-                # This efm circuit IS the coil's dedicated case circuit (id
-                # matches pfSystems.xml 1:1) — never drive it by the active
-                # coil's current, even though geometry alone would confuse them.
-                if not case.constrained_zero and case.l1_case_channel in avail:
-                    role = "known_case"
-                    coil_label = f"{best_label}_case"
-                    amc_channel = case.l1_case_channel or ""
-                elif case.constrained_zero:
-                    flag = (
-                        f"case circuit '{case.name}' (id={circ}) constrained to"
-                        " zero by pfSystems.xml (no amc channel) → INFERRED"
-                    )
-                else:
-                    flag = (
-                        f"case circuit '{case.name}' (id={circ}) channel"
-                        f" '{case.l1_case_channel}' absent from this campaign"
-                        " → INFERRED"
-                    )
+            pref = _PF_COIL_AMC.get(best_label, "")
+            fallback = f"{best_label}_current"
+            chan = pref if pref in avail else (fallback if fallback in avail else "")
+            if chan:
+                role, coil_label, amc_channel = "known_pf", best_label, chan
             else:
-                pref = _PF_COIL_AMC.get(best_label, "")
-                fallback = f"{best_label}_current"
-                chan = (
-                    pref if pref in avail else (fallback if fallback in avail else "")
+                flag = (
+                    f"coil '{best_label}' matched by geometry"
+                    f" (d={best_d * 1e3:.0f}mm) but no amc channel"
+                    " present → INFERRED"
                 )
-                if chan:
-                    role, coil_label, amc_channel = "known_pf", best_label, chan
-                else:
-                    flag = (
-                        f"coil '{best_label}' matched by geometry"
-                        f" (d={best_d * 1e3:.0f}mm) but no amc channel"
-                        " present → INFERRED"
-                    )
         out.append(
             CircuitClass(
                 circuit=circ,
