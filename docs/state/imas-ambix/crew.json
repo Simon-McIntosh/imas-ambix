@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-19T23:46:04",
+  "updated": "2026-08-19T23:50:49",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -15,7 +15,7 @@
         "id": "artifact-seam-diagnosis",
         "harness": "codex",
         "role": "investigate",
-        "session_id": null,
+        "session_id": "01a01bf5-9c17-73d3-aed1-e18f4a440356",
         "created": "2026-08-19"
       },
       {
@@ -87,6 +87,13 @@
         "role": "implement",
         "session_id": "01a009b8-ce6b-7013-ac16-0ca9ade1fa51",
         "created": "2026-08-13"
+      },
+      {
+        "id": "convention-validation",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-19"
       },
       {
         "id": "corpus-convention",
@@ -171,6 +178,13 @@
         "role": "implement",
         "session_id": "01a01087-bb8d-71b0-bb31-ce2f02765e11",
         "created": "2026-08-17"
+      },
+      {
+        "id": "pressure-closure",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-19"
       },
       {
         "id": "reader-audit",
@@ -4723,9 +4737,55 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260819T213715558098-artifact-seam-diagnosis",
+        "plan": "nova-physics-consumer-integration",
+        "section": "\u00a73",
+        "node": "artifact-seam-diagnosis",
+        "role": "investigate",
+        "member": "artifact-seam-diagnosis",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-08-19T21:37:51Z",
+        "completed_at": "2026-08-19T21:50:47Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 776,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 776,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "9e7266bc24bdf960ed0772d0aa93153c2ad10eeb",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "One artifact-versus-campaign version skew explains all four baseline failures: pinned Nova de3277a3 publishes superseded physical digest ca06c8f64481114f whose obsolete fl_p4l_1/fl_p4l_4 positions sit 0.370151 m and 0.437069 m from the vacuum-adjudicated ones, past Ambix's 0.05 m fail-closed bound, so the rows drop and perturb the p6l and solenoid ratio fixtures; Nova f8fc19ce, an ancestor of target aeffde05, republishes them as digest b55c5bb005a2cb67. Repair is the pin advance plus a G2 rerun, then rebaselining only the brittle 1e-12 solenoid golden; no Ambix adapter change is indicated",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T213715558098-artifact-seam-diagnosis/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01bf5-9c17-73d3-aed1-e18f4a440356",
+        "budget": {
+          "cost_usd": null,
+          "detail": "",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 142
+    "_version": 146
   }
 }

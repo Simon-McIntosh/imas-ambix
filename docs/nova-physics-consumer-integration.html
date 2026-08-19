@@ -19,11 +19,11 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-19">
-<meta name="plan-version" content="11">
+<meta name="plan-version" content="13">
 <meta name="plan-depends-on" content="">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
-<meta name="plan-impl" content="0.625">
+<meta name="plan-impl" content="0.667">
 <meta name="plan-artifacts" content="docs/evidence/archive/nova-physics-consumer-integration-landed.html,~/.cache/ambix-nova-integration/api-drift.md,~/.cache/ambix-nova-integration/donor-census.md">
 <meta name="plan-commits" content="4f432bc0a748c72dc66cef1f9265d6b8f3bd11e5,4dafbfd">
 </head>
@@ -210,6 +210,12 @@ Done-when
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20260819-api-drift" data-who="reckon-ship" data-when="2026-08-19T21:07:00+00:00">
     <div class="r-comment-body">nova-api-drift landed — no commit (read-only inventory); gate passed; measure 89 import occurrences over 74 unique Nova symbols in 19 Ambix files, 74 unchanged / 0 moved / 0 renamed / 0 removed between pin de3277a3238513b81be04dbc0980030b200ce420 and recommended target aeffde0546f1216632f4f55b0f390702efcb3c4d at +544 commits, 74/74 resolved at both revisions in isolated runtime probes, 0 wrong-tree imports, 0 defining-module changes, 3 additive defaulted signature changes (Arc, Line, CoilSet via f9a5fabfb161d783a9dd763345e335442d3cb8d2) forcing no edit. The pin advance needs a six-file coherence edit set (pyproject.toml, uv.lock, imas_ambix/statespace/nova_ensemble_estimator.py, tests/statespace/test_nova_ensemble_estimator.py, imas_ambix/fluxstate/adapters.py, tests/physics/test_dependency_contract.py), independently confirmed by grep. Import compatibility does not waive the G2 science gate. Artifacts ~/.cache/ambix-nova-integration/api-drift.md and docs/evidence/archive/nova-physics-consumer-integration-landed.html#api-drift.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260819-pin-priority" data-who="reckon-ship" data-when="2026-08-19T21:55:00+00:00">
+    <div class="r-comment-body">Priority note for f-npci-04: the pin advance is no longer hygiene. It repays four live test failures. The pinned revision publishes a superseded machine description (physical digest ca06c8f64481114f) whose flux-loop positions sit 0.370151 m and 0.437069 m from the vacuum-adjudicated ones, past Ambix's 0.05 m fail-closed mapping bound, so two channels drop and perturb the p6l and solenoid ratio fixtures. Nova f8fc19ce, an ancestor of the target aeffde05, republishes them as digest b55c5bb005a2cb67. Sequence once the environment carries gaeffde05: apply the six-file coherence edit, rerun the four focused artifact-geometry cases plus the G2 science gate, and expect one residual repair only, rebaselining the brittle 1e-12 solenoid identity golden while keeping its 0.06 science bound. Two independent lines of evidence now recommend the same target: the drift audit says it costs nothing, the seam diagnosis says it repays four failures.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260819-seam-diagnosis" data-who="reckon-ship" data-when="2026-08-19T21:52:00+00:00">
+    <div class="r-comment-body">artifact-seam-diagnosis landed — no commit (read-only); gate passed; measure one artifact-versus-campaign version skew explains all four baseline failures. Pinned Nova de3277a3 publishes superseded physical digest ca06c8f64481114f carrying obsolete flux-loop positions; Ambix applies the vacuum-adjudicated fl_p4l_1=(1.5984,-1.04443) and fl_p4l_4=(1.4005,-1.14403) at imas_ambix/data/geometry_adapter.py:750-766; the two disagree by 0.370151 m and 0.437069 m, past the 0.05 m fail-closed mapping bound at imas_ambix/gs/geometry.py:782-789, so the rows drop and perturb the p6l and solenoid ratio fixtures downstream. Nova f8fc19ce, an ancestor of target aeffde05, republishes them as digest b55c5bb005a2cb67. Repair verdicts: both flux-loop cases are Nova-side and already fixed upstream; p6l (1.010756018918288, over the 1 percent bound by 0.000756, drive independently correct at 1.0 A.turn/A evidence measured) needs the pin advance plus a G2 rerun, not a relaxed bound; solenoid (1.0508105926909095 vs golden 1.050802620352377, delta 7.97e-06, inside the 0.06 science bound with 0.00919 headroom) needs only the brittle 1e-12 identity golden rebaselined afterwards. No Ambix adapter change is indicated. This corroborates the drift audit's target from an independent direction. impl denominator now 9 executable nodes, 6 complete. Artifact docs/evidence/archive/nova-physics-consumer-integration-landed.html#seam-diagnosis.</div>
 </div>
 </section>
 </main>

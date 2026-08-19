@@ -65,6 +65,64 @@
   <code>~/.cache/ambix-nova-integration/api-drift.md</code>; the worker's sandbox refused the
   write outside its run directory, so the orchestrator materialised the report verbatim.</p>
 
+  <h2 id="seam-diagnosis">One version skew explains all four failures — and the pin advance is the fix</h2>
+  <p><strong>The four baseline failures are not four problems. They are one artifact-versus-campaign
+  version skew, and the repair is the pin advance already recommended on independent
+  grounds.</strong> Read-only diagnosis, no commit.</p>
+
+  <p>The pinned Nova revision publishes a <em>superseded</em> machine description. Its physical
+  digest is <code>ca06c8f64481114f</code>, carrying four obsolete flux-loop positions; the target
+  revision carries <code>b55c5bb005a2cb67</code>. Nova commit <code>f8fc19ce</code>, an ancestor of
+  the recommended target <code>aeffde05</code>, is what republishes the restored positions.</p>
+
+  <p>The failure chain is mechanical, and Ambix behaves correctly at every step:</p>
+  <ol>
+    <li>Ambix applies the vacuum-adjudicated positions <code>fl_p4l_1 = (1.5984, −1.04443)</code>
+    and <code>fl_p4l_4 = (1.4005, −1.14403)</code>
+    (<code>imas_ambix/data/geometry_adapter.py:750-766</code>).</li>
+    <li>The pinned Nova publisher reads its registry geometry directly
+    (<code>nova/imas/mast_geometry.py:235-245</code>) and still carries the obsolete positions.</li>
+    <li>The two disagree by <strong>0.370151 m and 0.437069 m</strong>, far past Ambix's 0.05 m
+    fail-closed mapping bound (<code>imas_ambix/gs/geometry.py:782-789</code>), so the channels are
+    dropped — giving the observed missing set <code>{fl_p4l_1, fl_p4l_4, fl_p6u_1}</code> where only
+    <code>fl_p6u_1</code> is expected.</li>
+    <li>The ratio fixture uses only artifact-present shared rows, so losing those two rows perturbs
+    the p6l and solenoid columns downstream.</li>
+  </ol>
+
+  <p>That fail-closed bound did its job: it refused to map a channel onto a position 37 cm away
+  rather than silently accepting it.</p>
+
+  <table>
+    <caption>Per-failure repair verdict</caption>
+    <thead><tr><th>Failure</th><th>Diagnosis</th><th>Correct repair</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Two flux-loop channel-set cases</td>
+        <td>Obsolete positions in the pinned machine description</td>
+        <td>Nova-side, already fixed upstream — arrives with the pin advance</td>
+      </tr>
+      <tr>
+        <td>p6l column ratio 1.010756018918288, over the 1 % bound by 0.000756</td>
+        <td>Downstream of the dropped rows; the manifest drive is independently correct at
+        1.0 A·turn/A, evidence <em>measured</em></td>
+        <td>Pin advance plus a science-gate rerun — not a relaxed bound</td>
+      </tr>
+      <tr>
+        <td>Solenoid 1.0508105926909095 versus golden 1.050802620352377</td>
+        <td>Differs by 7.97 × 10⁻⁶, but sits <em>inside</em> the documented 6 % science bound with
+        0.00919 headroom; the drive is 344.656565 A·turn/A, evidence <em>fitted</em></td>
+        <td>After the pin advance, rebaseline only the brittle 10⁻¹² identity golden and keep the
+        0.06 science bound</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p><strong>No Ambix adapter change is indicated for any of the four.</strong> This independently
+  corroborates the drift audit's target recommendation from a completely different direction: the
+  import inventory said <code>aeffde05</code> costs nothing, and the seam diagnosis says it
+  <em>repays</em> four live failures.</p>
+
   <h2 id="circuit-retirement">Circuit donor retired — operator matrix unchanged to the last bit</h2>
   <p><strong>The first Ambix physics donor is gone: <code>imas_ambix/gs/circuits.py</code> is
   deleted, its six consumers read the artifact table's declarations instead, and the coil-column
