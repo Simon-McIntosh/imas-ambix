@@ -159,6 +159,59 @@
   correction is implemented, with one caveat: these are skill scores against a train-mean baseline,
   not errors, and per-quantity baseline variance differs, so the asymmetry must be confirmed in
   metres rather than inferred from skill alone.</p>
+
+  <h2 id="component-error">Component error in metres — the correction was aimed the wrong way</h2>
+  <p><strong>Decomposing the frozen held-out error into physical units reverses two conclusions the
+  skill scores suggested, and inverts the direction of the correction this plan intended.</strong>
+  Errors below are read minus firewalled referee, in metres, computed from the frozen held-out arrays
+  (sha256 <code>916c93d2…</code>) with no rescore. Commit <code>80e84da</code>.</p>
+  <table>
+    <caption>Magnetic axis offset, read and train-mean baseline, median signed with interquartile range</caption>
+    <thead><tr><th>Arm</th><th>Radial (m)</th><th>Vertical (m)</th></tr></thead>
+    <tbody>
+      <tr><td>Read</td><td>+0.0874 [+0.0350, +0.1279]</td><td>−0.0411 [−0.0521, −0.0120]</td></tr>
+      <tr><td>Train-mean baseline</td><td>+0.0040 [−0.0165, +0.0707]</td><td>−0.0019 [−0.0053, +0.0056]</td></tr>
+    </tbody>
+  </table>
+  <p>First, the <strong>radial error dominates the vertical</strong> — 8.7 cm against 4.1 cm — the
+  opposite of what the per-quantity skill implied. That apparent vertical deficit was a
+  baseline-variance artifact: the train-mean baseline's own vertical spread is only
+  [−0.005, +0.006] m, so any vertical error scores harshly against it. Skill anisotropy is not error
+  anisotropy.</p>
+  <p>Second, and decisively, the <strong>sign is opposite to the assumed mechanism</strong>. The
+  Shafranov premise holds that the current centroid sits <em>inboard</em> of the flux axis, which
+  predicts an inboard read and therefore an outboard correction. The read axis in fact sits
+  <em>outboard</em> of the referee by 8.7 cm. Displacing the origin further outboard would worsen it.
+  An Ip-anchored moment centroid lying outboard of the EFIT flux axis is itself contrary to
+  Shafranov physics, which points at the centroid fit rather than at the harmonic read.</p>
+  <p>The LCFS rays corroborate a single mechanism rather than two. Signed medians across
+  0–315° are −0.129, −0.106, −0.103, +0.104, +0.082, +0.088, −0.181, −0.126 m: the read undershoots
+  on the outboard-upper side and overshoots inboard, which is what ray-casting from an origin
+  displaced outboard produces. Matched X-point offsets are small by comparison (radial −0.021 and
+  −0.011 m, vertical +0.013 and −0.016 m), so the boundary error is carried by the origin, not by the
+  null localisation.</p>
+  <figure>
+    <img src="/imas-ambix/figures/toroidal-harmonic-annulus-read/component-error.png"
+         alt="Median signed radial and vertical offsets with interquartile ranges for the magnetic axis, the matched X-points and the eight LCFS rays, comparing the read against the train-mean baseline. The axis radial offset is the largest single component at about +0.09 m."
+         style="max-width:100%">
+    <figcaption>Component offsets in metres, read against train-mean baseline. The axis radial
+    offset is the largest single term.</figcaption>
+  </figure>
+
+  <h2 id="anchor-wiring">The gate's circulation-anchor flag was inert</h2>
+  <p><strong><code>score_order</code> called <code>_fit_one</code> directly, bypassing
+  <code>fit_harmonic</code> — which is where the circulation virtual row is built — so the gate
+  constructed the anchored configuration and then discarded the constraint.</strong> The flag has been
+  inert for as long as it has existed, and every earlier attempt to measure the anchor through the
+  gate measured nothing. Commit <code>a50cf3b</code>.</p>
+  <p>The scored path now runs <code>--ip-anchor → args.ip_anchor → HarmonicFitConfig.ip_anchor →
+  fit_scoring_harmonic → fit_harmonic →</code> circulation virtual row <code>→
+  _fit_one(anchor=…)</code>. Evidence: a synthetic regression invokes the scoring seam twice on
+  identical sensors and payload, changing only the anchor flag, and the coefficients now differ by
+  L2 <strong>1.167</strong> (maximum absolute 1.111); against the previous code the same test fails at
+  collection because the seam did not exist. 15/15 harmonic tests pass, ruff clean, one test added.</p>
+  <p>The anchor's rejection recorded above is unaffected: that measurement had already bypassed the
+  gate to call <code>fit_harmonic</code> directly, which is why it produced a real answer.</p>
 </main>
 </body>
 </html>

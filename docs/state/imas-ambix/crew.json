@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T00:44:31",
+  "updated": "2026-08-20T00:45:21",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -5442,9 +5442,72 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260819T223914064316-harmonic-anchor-wiring",
+        "plan": "toroidal-harmonic-annulus-read",
+        "section": "\u00a76",
+        "node": "harmonic-anchor-wiring",
+        "role": "implement",
+        "member": "harmonic-anchor-wiring",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T22:39:16Z",
+        "completed_at": "2026-08-19T22:44:41Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 325,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 325,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "35a34d527307eb66dfa206d5ea46710c8c1bb8b9",
+        "commits": [
+          "a50cf3b"
+        ],
+        "changed_lines": {
+          "added": 58,
+          "removed": 9,
+          "files": 2
+        },
+        "tests_added": 1,
+        "gate": "passed",
+        "outcome": "Gate anchor flag now reaches the solve: --ip-anchor -> args.ip_anchor -> HarmonicFitConfig.ip_anchor -> fit_scoring_harmonic -> fit_harmonic -> circulation virtual row -> _fit_one(anchor=...). score_order previously called _fit_one directly, bypassing fit_harmonic, so the flag was inert. Synthetic same-input regression: anchored vs unanchored coefficient L2 delta 1.167, max abs delta 1.111; it fails by collection error against the old code. 15/15 tests pass, ruff clean. Wiring only, no science score.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T223914064316-harmonic-anchor-wiring/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01c2d-c6e4-7d62-88e6-1db06c8f2a81",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2678016,
+            "cached_input_tokens_cumulative": 2678016,
+            "input_tokens": 2807965,
+            "input_tokens_cumulative": 2807965,
+            "output_tokens": 12017,
+            "output_tokens_cumulative": 12017,
+            "reasoning_output_tokens": 4993,
+            "reasoning_output_tokens_cumulative": 4993
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 167
+    "_version": 168
   }
 }
