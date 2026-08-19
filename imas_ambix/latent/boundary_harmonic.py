@@ -226,6 +226,84 @@ class HarmonicFitConfig:
     sobolev_p: float = 0.0
 
 
+@dataclass(frozen=True)
+class OriginCorrection:
+    """Signed machine-scaled displacement applied to a harmonic-read origin.
+
+    Both components are fractions of the *uncorrected radial coordinate*.
+    This keeps radial and vertical displacements dimensionless and portable
+    across devices while retaining their independently fitted signs.
+    """
+
+    radial_fraction: float = 0.0
+    vertical_fraction: float = 0.0
+
+    def apply(self, origin: tuple[float, float]) -> tuple[float, float]:
+        """Return ``origin`` displaced by the two signed fractions."""
+        radius = float(origin[0])
+        return (
+            radius * (1.0 + float(self.radial_fraction)),
+            float(origin[1]) + radius * float(self.vertical_fraction),
+        )
+
+
+def origin_correction_loss(
+    origins: np.ndarray,
+    references: np.ndarray,
+    correction: OriginCorrection,
+) -> float:
+    """Robust dimensionless axis residual used to select a correction.
+
+    The objective is the sum of the componentwise median absolute residuals,
+    with both components normalised by each slice's uncorrected origin radius.
+    It is separable, so the componentwise residual medians are its exact L1
+    minimiser.
+    """
+    origins = np.asarray(origins, dtype=np.float64)
+    references = np.asarray(references, dtype=np.float64)
+    if origins.shape != references.shape or origins.ndim != 2 or origins.shape[1] != 2:
+        raise ValueError("origins and references must both have shape (N, 2)")
+    radius = origins[:, 0]
+    valid = np.all(np.isfinite(origins), axis=1) & np.all(
+        np.isfinite(references), axis=1
+    )
+    valid &= np.abs(radius) > 1e-12
+    if not np.any(valid):
+        raise ValueError("no finite non-zero-radius origin/reference pairs")
+    corrected = np.array(
+        [correction.apply(tuple(origin)) for origin in origins[valid]],
+        dtype=np.float64,
+    )
+    residual = (corrected - references[valid]) / radius[valid, None]
+    return float(np.median(np.abs(residual[:, 0])) + np.median(np.abs(residual[:, 1])))
+
+
+def fit_origin_correction(
+    origins: np.ndarray, references: np.ndarray
+) -> OriginCorrection:
+    """Fit the signed radial and vertical origin displacement by robust L1.
+
+    Only the supplied cohort participates.  Callers fit this on train shots,
+    persist the returned pair, and freeze it before any held-out scoring.
+    """
+    origins = np.asarray(origins, dtype=np.float64)
+    references = np.asarray(references, dtype=np.float64)
+    if origins.shape != references.shape or origins.ndim != 2 or origins.shape[1] != 2:
+        raise ValueError("origins and references must both have shape (N, 2)")
+    radius = origins[:, 0]
+    valid = np.all(np.isfinite(origins), axis=1) & np.all(
+        np.isfinite(references), axis=1
+    )
+    valid &= np.abs(radius) > 1e-12
+    if not np.any(valid):
+        raise ValueError("no finite non-zero-radius origin/reference pairs")
+    displacement = (references[valid] - origins[valid]) / radius[valid, None]
+    return OriginCorrection(
+        radial_fraction=float(np.median(displacement[:, 0])),
+        vertical_fraction=float(np.median(displacement[:, 1])),
+    )
+
+
 def harmonic_mode_penalty(order: int, p: float) -> np.ndarray:
     """Per-column Sobolev ridge multiplier ``(1 + degree)^p`` for the harmonic
     basis (column order matching :func:`harmonic_labels`: ``h0`` degree 0, then

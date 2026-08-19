@@ -13,16 +13,20 @@ masked fit API from ``SlicePayload`` through ``psi_on_grid``.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from imas_ambix.gs.operator import greens_psi
 from imas_ambix.latent.boundary_harmonic import (
     HarmonicFitConfig,
+    OriginCorrection,
     fit_harmonic,
+    fit_origin_correction,
     gs_operator,
     harmonic_columns,
     harmonic_labels,
     harmonic_sensor_matrix,
     mask_invalid_interior,
+    origin_correction_loss,
     ring_p1,
     toroidal_coords,
 )
@@ -188,6 +192,34 @@ def test_gate_scoring_path_applies_ip_circulation_anchor():
     anchored = fit_scoring_harmonic(sensors, payload, anchored_cfg)
 
     assert not np.allclose(anchored.coeffs, unanchored.coeffs, rtol=1e-7, atol=1e-10)
+
+
+def test_origin_correction_fits_signed_dimensionless_components_on_train_pairs():
+    """The robust fit recovers both signed fractions and reduces its L1 objective."""
+    origins = np.array(
+        [[0.8, -0.04], [1.0, 0.02], [1.2, 0.05], [1.4, -0.01]], dtype=float
+    )
+    expected = OriginCorrection(radial_fraction=-0.08, vertical_fraction=0.035)
+    references = np.array([expected.apply(tuple(origin)) for origin in origins])
+    references[0] += [0.002, -0.001]
+
+    fitted = fit_origin_correction(origins, references)
+
+    assert fitted.radial_fraction == pytest.approx(expected.radial_fraction, abs=2e-3)
+    assert fitted.vertical_fraction == pytest.approx(
+        expected.vertical_fraction, abs=1e-3
+    )
+    assert origin_correction_loss(origins, references, fitted) < origin_correction_loss(
+        origins, references, OriginCorrection()
+    )
+
+
+def test_origin_correction_rejects_missing_finite_train_pairs():
+    """A correction cannot be fitted without a finite, non-zero radial scale."""
+    origins = np.array([[0.0, 0.0], [np.nan, 0.1]])
+    references = np.zeros((2, 2))
+    with pytest.raises(ValueError, match="no finite non-zero-radius"):
+        fit_origin_correction(origins, references)
 
 
 def test_fit_ignores_masked_rows_and_grids():

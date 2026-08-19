@@ -57,6 +57,7 @@ import logging
 import os
 import sys
 import time
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -86,9 +87,12 @@ from patch_gate_eval import (
 from imas_ambix.latent.boundary_harmonic import (
     HarmonicFitConfig,
     HarmonicInversion,
+    OriginCorrection,
     fit_harmonic,
+    fit_origin_correction,
     harmonic_columns,
     mask_invalid_interior,
+    origin_correction_loss,
 )
 from imas_ambix.latent.boundary_moment import MomentFitConfig, fit_moment_currents
 from imas_ambix.latent.topology import (
@@ -299,6 +303,54 @@ def fit_scoring_harmonic(
     return fit_harmonic(sensors, payload, cfg)
 
 
+def fit_train_origin_correction(shots) -> tuple[OriginCorrection, dict]:
+    """Fit one signed dimensionless correction from train-shot axis pairs."""
+    origins, references = [], []
+    shot_ids = []
+    for payload in shots:
+        basis = payload["basis"]
+        cfg = MomentFitConfig(order=3)
+        for slice_payload, reference in zip(
+            payload["payloads"], payload["refs"], strict=True
+        ):
+            moment = fit_moment_currents(basis, slice_payload, cfg)
+            origins.append((moment.centroid_r, moment.centroid_z))
+            references.append(np.asarray(reference, dtype=np.float64)[:2])
+            shot_ids.append(int(slice_payload.shot))
+    origin_array = np.asarray(origins, dtype=np.float64)
+    reference_array = np.asarray(references, dtype=np.float64)
+    correction = fit_origin_correction(origin_array, reference_array)
+    corrected = np.asarray(
+        [correction.apply(tuple(origin)) for origin in origin_array], dtype=np.float64
+    )
+    before = origin_array - reference_array
+    after = corrected - reference_array
+    details = {
+        "criterion": (
+            "minimum sum of componentwise median absolute dimensionless axis residuals"
+        ),
+        "criterion_value_uncorrected": origin_correction_loss(
+            origin_array, reference_array, OriginCorrection()
+        ),
+        "criterion_value_fitted": origin_correction_loss(
+            origin_array, reference_array, correction
+        ),
+        "n_slices": int(origin_array.shape[0]),
+        "n_shots": int(np.unique(shot_ids).size),
+        "axis_signed_radial_offset_m_uncorrected": float(np.nanmedian(before[:, 0])),
+        "axis_signed_vertical_offset_m_uncorrected": float(np.nanmedian(before[:, 1])),
+        "axis_signed_radial_offset_m_fitted": float(np.nanmedian(after[:, 0])),
+        "axis_signed_vertical_offset_m_fitted": float(np.nanmedian(after[:, 1])),
+        "axis_distance_median_m_uncorrected": float(
+            np.nanmedian(np.linalg.norm(before, axis=1))
+        ),
+        "axis_distance_median_m_fitted": float(
+            np.nanmedian(np.linalg.norm(after, axis=1))
+        ),
+    }
+    return correction, details
+
+
 def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
     """Fit + score one (order, ridge, fraction) over the cohort; per-slice pole."""
     model_rows, ref_rows, flattop_flags, shot_rows = [], [], [], []
@@ -322,7 +374,10 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
             mom = fit_moment_currents(basis, p, mom_cfg)
             psi_mom = basis.psi_grid_2d_np(mom.i_cell, p.i_pf)
             if args.origin_source == "centroid":
-                origin = (mom.centroid_r, mom.centroid_z)
+                origin = OriginCorrection(
+                    radial_fraction=args.origin_radial_fraction,
+                    vertical_fraction=args.origin_vertical_fraction,
+                ).apply((mom.centroid_r, mom.centroid_z))
             elif args.origin_source == "patch":
                 origin, _ = _sign_aware_axis(patch_psis[si][k], grid)
             else:  # "harmonic" — the field's own O-point (set below, ablation)
@@ -398,12 +453,18 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
         ],
         dtype=bool,
     )
+    signed_axis_offsets = model[:, :2] - ref[:, :2]
     result = {
         "arm": f"toroidal-harmonic-{args.origin_source}origin",
         "order": order,
         "ridge": ridge,
         "kind": "P",
         "origin_source": args.origin_source,
+        "origin_correction": {
+            "radial_fraction": args.origin_radial_fraction,
+            "vertical_fraction": args.origin_vertical_fraction,
+            "scale": "uncorrected origin radius",
+        },
         "pole_source": args.pole_source,
         "pole_inboard_fraction": fraction,
         "mask_frac": args.mask_frac,
@@ -418,6 +479,8 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
         "lcfs_offset_median_cm_flattop": (float(np.nanmedian(ft)) if ft.size else None),
         "axis_error_median_m": float(np.nanmedian(axis_err)),
         "axis_error_mean_m": float(np.nanmean(axis_err)),
+        "axis_signed_radial_offset_m": float(np.nanmedian(signed_axis_offsets[:, 0])),
+        "axis_signed_vertical_offset_m": float(np.nanmedian(signed_axis_offsets[:, 1])),
         "saddles_mean": float(np.mean(saddles)) if saddles else None,
         "saddles_median": float(np.median(saddles)) if saddles else None,
         **saddle_stats,
@@ -432,19 +495,27 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
 
     rtag = f"-r{ridge:g}" if ridge != 1e-8 else ""
     ftag = f"-frac{fraction:g}" if args.pole_source != "fixed" else "-fixedpole"
-    suffix = f"-{args.origin_source}origin{ftag}{rtag}"
-    tag = f"harmonic-o{order}{suffix}" + ("" if split == "eval" else "-tune")
-    ARTIFACTS.mkdir(parents=True, exist_ok=True)
-    (ARTIFACTS / f"boundary_read_{tag}.json").write_text(json.dumps(result, indent=2))
-    np.savez(
-        ARTIFACTS / f"boundary_read_{tag}_arrays.npz",
-        model=model,
-        ref=ref,
-        baseline=np.tile(args._baseline, (len(model), 1)),
-        axis_errors=axis_err,
-        flattop_mask=flattop_mask,
-        saddles=np.asarray(saddles),
+    correction_tag = (
+        "-correctedorigin"
+        if args.origin_radial_fraction != 0.0 or args.origin_vertical_fraction != 0.0
+        else ""
     )
+    suffix = f"-{args.origin_source}origin{correction_tag}{ftag}{rtag}"
+    tag = f"harmonic-o{order}{suffix}" + ("" if split == "eval" else "-tune")
+    if not getattr(args, "_origin_correction_run", False):
+        ARTIFACTS.mkdir(parents=True, exist_ok=True)
+        (ARTIFACTS / f"boundary_read_{tag}.json").write_text(
+            json.dumps(result, indent=2)
+        )
+        np.savez(
+            ARTIFACTS / f"boundary_read_{tag}_arrays.npz",
+            model=model,
+            ref=ref,
+            baseline=np.tile(args._baseline, (len(model), 1)),
+            axis_errors=axis_err,
+            flattop_mask=flattop_mask,
+            saddles=np.asarray(saddles),
+        )
     logger.info(
         "[harmonic o=%d ridge=%g %s%s] n=%d axis_skill=%.3f xpt_skill=%s "
         "lcfs_skill=%.3f lcfs_cm(all/ft)=%.1f/%s diverted_frac(all/ft)=%s/%s "
@@ -499,6 +570,21 @@ def build_parser() -> argparse.ArgumentParser:
         "'patch' = the tuned free-current inverse O-point (ablation; mislocates the "
         "axis ~30 cm at ramp-up); 'harmonic' = the harmonic field O-point (ablation)",
     )
+    correction = ap.add_mutually_exclusive_group()
+    correction.add_argument(
+        "--fit-origin-correction",
+        action="store_true",
+        help="fit signed radial/vertical origin fractions on the train cohort, then "
+        "score that frozen pair on train and write the correction artifact",
+    )
+    correction.add_argument(
+        "--origin-correction-artifact",
+        type=str,
+        default=None,
+        help="load a train-fitted correction artifact and score its frozen pair",
+    )
+    ap.add_argument("--origin-radial-fraction", type=float, default=0.0)
+    ap.add_argument("--origin-vertical-fraction", type=float, default=0.0)
     ap.add_argument(
         "--pole-source",
         choices=["track", "fixed"],
@@ -573,8 +659,92 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
+def write_origin_correction_figure(record: dict) -> Path:
+    """Render the held-out skill and signed-axis-offset comparison."""
+    import matplotlib.pyplot as plt  # noqa: PLC0415
+
+    baseline = record["heldout_uncorrected_baseline"]
+    corrected = record["heldout_once"]
+    labels = ["X-point set", "axis", "LCFS"]
+    keys = ["xpoint_set_skill", "axis_skill", "lcfs_skill"]
+
+    def values_and_errors(source):
+        values = np.asarray([source[key] for key in keys], dtype=float)
+        intervals = np.asarray([source[f"{key}_ci"] for key in keys], dtype=float)
+        errors = np.vstack((values - intervals[:, 0], intervals[:, 1] - values))
+        return values, errors
+
+    before, before_err = values_and_errors(baseline)
+    after, after_err = values_and_errors(corrected)
+    x = np.arange(len(labels), dtype=float)
+    fig, axes = plt.subplots(1, 2, figsize=(10.2, 4.2), constrained_layout=True)
+    width = 0.36
+    axes[0].bar(
+        x - width / 2,
+        before,
+        width,
+        yerr=before_err,
+        capsize=3,
+        color="#9aa0a6",
+        label="uncorrected",
+    )
+    axes[0].bar(
+        x + width / 2,
+        after,
+        width,
+        yerr=after_err,
+        capsize=3,
+        color="#246b8f",
+        label="train-fitted correction",
+    )
+    axes[0].axhline(0.0, color="black", linewidth=0.8)
+    axes[0].set_xticks(x, labels)
+    axes[0].set_ylabel("held-out skill (95% CI)")
+    axes[0].legend(frameon=False)
+
+    offset_keys = ["axis_signed_radial_offset_m", "axis_signed_vertical_offset_m"]
+    before_offsets = [baseline[key] for key in offset_keys]
+    after_offsets = [corrected[key] for key in offset_keys]
+    axes[1].bar(x[:2] - width / 2, before_offsets, width, color="#9aa0a6")
+    axes[1].bar(x[:2] + width / 2, after_offsets, width, color="#246b8f")
+    axes[1].axhline(0.0, color="black", linewidth=0.8)
+    axes[1].set_xticks(x[:2], ["radial", "vertical"])
+    axes[1].set_ylabel("held-out signed axis offset [m]")
+    correction = record["fitted_correction"]
+    fig.suptitle(
+        "Signed origin correction: "
+        f"ΔR/R={correction['radial_fraction']:+.4f}, "
+        f"ΔZ/R={correction['vertical_fraction']:+.4f}"
+    )
+    path = Path("docs/figures/toroidal-harmonic-annulus-read/origin-correction.png")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=180)
+    plt.close(fig)
+    return path
+
+
 def main() -> int:
     args = build_parser().parse_args()
+
+    if args.fit_origin_correction and args.split != "train":
+        raise ValueError("--fit-origin-correction requires --split train")
+    correction_record = None
+    args._origin_correction_run = bool(
+        args.fit_origin_correction or args.origin_correction_artifact is not None
+    )
+    correction_path = ARTIFACTS / "harmonic_origin_correction.json"
+    if args.origin_correction_artifact is not None:
+        if args.split != "eval":
+            raise ValueError(
+                "--origin-correction-artifact is reserved for --split eval"
+            )
+        correction_path = Path(args.origin_correction_artifact).resolve()
+        correction_record = json.loads(correction_path.read_text())
+        if "heldout_once" in correction_record:
+            raise RuntimeError("held-out score already exists in correction artifact")
+        frozen = correction_record["fitted_correction"]
+        args.origin_radial_fraction = float(frozen["radial_fraction"])
+        args.origin_vertical_fraction = float(frozen["vertical_fraction"])
 
     device = (
         ("cuda" if torch.cuda.is_available() else "cpu")
@@ -592,6 +762,30 @@ def main() -> int:
     if not shots:
         logger.error("no shots loaded — nothing to score")
         return 1
+    if args.fit_origin_correction:
+        if args.origin_source != "centroid":
+            raise ValueError(
+                "origin correction fitting requires --origin-source centroid"
+            )
+        fitted, fit_details = fit_train_origin_correction(shots)
+        args.origin_radial_fraction = fitted.radial_fraction
+        args.origin_vertical_fraction = fitted.vertical_fraction
+        correction_record = {
+            "protocol": {
+                "fit_split": "train",
+                "heldout_policy": "score once after freezing the train-fitted pair",
+                "parameterisation": (
+                    "signed radial and vertical displacements as fractions of "
+                    "the uncorrected origin radius"
+                ),
+                "selection": fit_details,
+            },
+            "fitted_correction": {
+                "radial_fraction": fitted.radial_fraction,
+                "vertical_fraction": fitted.vertical_fraction,
+                "scale": "uncorrected origin radius",
+            },
+        }
     # the free-current patch carrier is ONLY needed for the 'patch' origin ablation;
     # the default 'centroid' origin comes from the (cheap) moment fit per slice, so
     # the expensive ~13-min carrier inverse is skipped entirely.
@@ -628,6 +822,43 @@ def main() -> int:
         args.split,
         args.origin_source,
     )
+    if correction_record is not None:
+        if args.split == "train":
+            correction_record["train_score"] = best
+        else:
+            baseline_json = (
+                ARTIFACTS / "boundary_read_harmonic-o3-centroidorigin-frac0.41.json"
+            )
+            baseline_arrays = (
+                ARTIFACTS
+                / "boundary_read_harmonic-o3-centroidorigin-frac0.41_arrays.npz"
+            )
+            baseline = json.loads(baseline_json.read_text())
+            arrays = np.load(baseline_arrays)
+            baseline_model = arrays["model"]
+            baseline_ref = arrays["ref"]
+            baseline_offsets = baseline_model[:, :2] - baseline_ref[:, :2]
+            correction_record["heldout_uncorrected_baseline"] = {
+                "artifact": str(baseline_json),
+                "xpoint_set_skill": baseline["xpoint_set_skill"],
+                "xpoint_set_skill_ci": baseline["xpoint_set_skill_ci"],
+                "axis_skill": baseline["axis_skill"],
+                "axis_skill_ci": baseline["axis_skill_ci"],
+                "lcfs_skill": baseline["lcfs_skill"],
+                "lcfs_skill_ci": baseline["lcfs_skill_ci"],
+                "axis_signed_radial_offset_m": float(
+                    np.nanmedian(baseline_offsets[:, 0])
+                ),
+                "axis_signed_vertical_offset_m": float(
+                    np.nanmedian(baseline_offsets[:, 1])
+                ),
+                "consistency_rms_annulus": baseline["consistency_rms_annulus"],
+            }
+            correction_record["heldout_once"] = best
+            correction_record["heldout_score_count"] = 1
+            figure = write_origin_correction_figure(correction_record)
+            correction_record["figure"] = os.fspath(figure)
+        Path(correction_path).write_text(json.dumps(correction_record, indent=2) + "\n")
     return 0
 
 
