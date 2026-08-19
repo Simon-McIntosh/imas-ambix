@@ -1,0 +1,519 @@
+{
+  "evaluation": "held-out partial-to-full reconstruction inferability curve",
+  "mask_protocol": "seeded random-position static compact rectangular clips; paired across predictors",
+  "bootstrap": {
+    "unit": "held-out shot",
+    "confidence": 0.95,
+    "resamples": 10000,
+    "equal_shot_weight": true
+  },
+  "carry_forward_likelihood": {
+    "tokenisation": "18 independent bits",
+    "unseen_cell_bit_probability": 0.5,
+    "seen_cell_error_floor": 1e-06,
+    "causal": true
+  },
+  "baseline_ckpt": "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_baseline/final.pt",
+  "dynamics_ckpt": "/work/projects/imas_gpu/mast-checkpoints/camdyn/cap_v1_dynamics/final.pt",
+  "baseline_params": 201929746,
+  "dynamics_params": 201929746,
+  "n_materialised_windows": 128,
+  "n_heldout_shots_sampled": 48,
+  "fractions": [
+    {
+      "requested_visible_fraction": 0.05,
+      "realised_visible_fraction": 0.046875,
+      "clip_shape_tokens": [
+        4,
+        3
+      ],
+      "dynamics": {
+        "masked_nll": {
+          "mean": 10.715967940745193,
+          "lo": 10.531861396906168,
+          "hi": 10.904686889702361,
+          "std_between_shots": 0.6612534903947851,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.002606486040143827,
+          "lo": 0.0019985941628207575,
+          "hi": 0.0032747299385282864,
+          "std_between_shots": 0.002297738054935226,
+          "n_shots": 48
+        },
+        "n_masked_tokens": 499712
+      },
+      "per_frame_baseline": {
+        "masked_nll": {
+          "mean": 10.927850331684263,
+          "lo": 10.742574464410616,
+          "hi": 11.109711374887194,
+          "std_between_shots": 0.6509389796259168,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.0019821183235309773,
+          "lo": 0.0015503129802766392,
+          "hi": 0.0024422629050494696,
+          "std_between_shots": 0.0015602092981412388,
+          "n_shots": 48
+        },
+        "n_masked_tokens": 499712
+      },
+      "carry_forward": {
+        "masked_nll": {
+          "mean": 12.47664925007902,
+          "lo": 12.47664925007902,
+          "hi": 12.47664925007902,
+          "std_between_shots": 1.6616296724220897e-15,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.0,
+          "lo": 0.0,
+          "hi": 0.0,
+          "std_between_shots": 0.0,
+          "n_shots": 48
+        },
+        "n_masked_tokens": 499712
+      },
+      "dynamics_vs_per_frame_baseline": {
+        "masked_nll": {
+          "mean": 0.21188239093907366,
+          "lo": 0.09677511185737041,
+          "hi": 0.3119173805353831,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.0006243677166128497,
+          "lo": 0.00019485910753280758,
+          "hi": 0.0010613268798383422,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        }
+      },
+      "dynamics_vs_carry_forward": {
+        "masked_nll": {
+          "mean": 1.760681309333828,
+          "lo": 1.5699968633155321,
+          "hi": 1.9460707881606953,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.002606486040143827,
+          "lo": 0.0019813728725061653,
+          "hi": 0.003262299719559101,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        }
+      }
+    },
+    {
+      "requested_visible_fraction": 0.1,
+      "realised_visible_fraction": 0.09765625,
+      "clip_shape_tokens": [
+        5,
+        5
+      ],
+      "dynamics": {
+        "masked_nll": {
+          "mean": 10.225533980453305,
+          "lo": 10.011442553200379,
+          "hi": 10.4406048418896,
+          "std_between_shots": 0.7584906333711984,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.004470275038964162,
+          "lo": 0.003307434963913251,
+          "hi": 0.005807079557460036,
+          "std_between_shots": 0.004319648574588578,
+          "n_shots": 48
+        },
+        "n_masked_tokens": 473088
+      },
+      "per_frame_baseline": {
+        "masked_nll": {
+          "mean": 10.469990354225919,
+          "lo": 10.269324711943842,
+          "hi": 10.67316885364494,
+          "std_between_shots": 0.7104254502900526,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.0034331433732813603,
+          "lo": 0.0025429170983275085,
+          "hi": 0.004467864851260752,
+          "std_between_shots": 0.003428693617296125,
+          "n_shots": 48
+        },
+        "n_masked_tokens": 473088
+      },
+      "carry_forward": {
+        "masked_nll": {
+          "mean": 12.476649250079019,
+          "lo": 12.476649250079019,
+          "hi": 12.476649250079019,
+          "std_between_shots": 4.440892098500626e-16,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.0,
+          "lo": 0.0,
+          "hi": 0.0,
+          "std_between_shots": 0.0,
+          "n_shots": 48
+        },
+        "n_masked_tokens": 473088
+      },
+      "dynamics_vs_per_frame_baseline": {
+        "masked_nll": {
+          "mean": 0.2444563737726131,
+          "lo": 0.15370187622476175,
+          "hi": 0.3466430700944715,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.0010371316656828022,
+          "lo": 0.00045200465832568107,
+          "hi": 0.001758199384264725,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        }
+      },
+      "dynamics_vs_carry_forward": {
+        "masked_nll": {
+          "mean": 2.2511152696257137,
+          "lo": 2.0321053510712557,
+          "hi": 2.4606106813541566,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.004470275038964162,
+          "lo": 0.0033231932382830312,
+          "hi": 0.005744823614205209,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        }
+      }
+    },
+    {
+      "requested_visible_fraction": 0.2,
+      "realised_visible_fraction": 0.19140625,
+      "clip_shape_tokens": [
+        7,
+        7
+      ],
+      "dynamics": {
+        "masked_nll": {
+          "mean": 9.872761156783023,
+          "lo": 9.602944840515871,
+          "hi": 10.12806005880334,
+          "std_between_shots": 0.9100323623400968,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.007188349865546423,
+          "lo": 0.005195736275474727,
+          "hi": 0.009423796333329848,
+          "std_between_shots": 0.007546075142788069,
+          "n_shots": 48
+        },
+        "n_masked_tokens": 423936
+      },
+      "per_frame_baseline": {
+        "masked_nll": {
+          "mean": 10.027297270163052,
+          "lo": 9.773291708475643,
+          "hi": 10.27781910601929,
+          "std_between_shots": 0.883340551899013,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.006079013914158843,
+          "lo": 0.00438186880477698,
+          "hi": 0.00799796974445978,
+          "std_between_shots": 0.006411580140696709,
+          "n_shots": 48
+        },
+        "n_masked_tokens": 423936
+      },
+      "carry_forward": {
+        "masked_nll": {
+          "mean": 12.47664925007902,
+          "lo": 12.476649250079019,
+          "hi": 12.47664925007902,
+          "std_between_shots": 1.794765173957993e-15,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.0,
+          "lo": 0.0,
+          "hi": 0.0,
+          "std_between_shots": 0.0,
+          "n_shots": 48
+        },
+        "n_masked_tokens": 423936
+      },
+      "dynamics_vs_per_frame_baseline": {
+        "masked_nll": {
+          "mean": 0.15453611338002934,
+          "lo": 0.10041074507439333,
+          "hi": 0.21274752025692298,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.0011093359513875817,
+          "lo": 0.0005569945200691352,
+          "hi": 0.001731162468750217,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        }
+      },
+      "dynamics_vs_carry_forward": {
+        "masked_nll": {
+          "mean": 2.6038880932959954,
+          "lo": 2.3435390301444885,
+          "hi": 2.859536078272456,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.007188349865546423,
+          "lo": 0.005169155648095866,
+          "hi": 0.00942055194914117,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        }
+      }
+    },
+    {
+      "requested_visible_fraction": 0.35,
+      "realised_visible_fraction": 0.3515625,
+      "clip_shape_tokens": [
+        9,
+        10
+      ],
+      "dynamics": {
+        "masked_nll": {
+          "mean": 9.57636514594568,
+          "lo": 9.293058408572321,
+          "hi": 9.867113744126621,
+          "std_between_shots": 1.0072547599817256,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.009509955406039742,
+          "lo": 0.006934912819907877,
+          "hi": 0.012421285860433073,
+          "std_between_shots": 0.009802951631778583,
+          "n_shots": 48
+        },
+        "n_masked_tokens": 339968
+      },
+      "per_frame_baseline": {
+        "masked_nll": {
+          "mean": 9.722680391898834,
+          "lo": 9.43571251626688,
+          "hi": 10.00480326510859,
+          "std_between_shots": 0.9903010433326974,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.008728803878935655,
+          "lo": 0.006334097550917958,
+          "hi": 0.011370419321020554,
+          "std_between_shots": 0.008954424500454465,
+          "n_shots": 48
+        },
+        "n_masked_tokens": 339968
+      },
+      "carry_forward": {
+        "masked_nll": {
+          "mean": 12.476649250079019,
+          "lo": 12.476649250079015,
+          "hi": 12.476649250079019,
+          "std_between_shots": 1.88411095042053e-15,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.0,
+          "lo": 0.0,
+          "hi": 0.0,
+          "std_between_shots": 0.0,
+          "n_shots": 48
+        },
+        "n_masked_tokens": 339968
+      },
+      "dynamics_vs_per_frame_baseline": {
+        "masked_nll": {
+          "mean": 0.1463152459531545,
+          "lo": 0.10102779830095476,
+          "hi": 0.20042168931760773,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.0007811515271040874,
+          "lo": 0.00023678270475027856,
+          "hi": 0.0013451294439799245,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        }
+      },
+      "dynamics_vs_carry_forward": {
+        "masked_nll": {
+          "mean": 2.9002841041333376,
+          "lo": 2.6134196576803017,
+          "hi": 3.185665449269382,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.009509955406039742,
+          "lo": 0.006885980661688964,
+          "hi": 0.01242427391859103,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        }
+      }
+    },
+    {
+      "requested_visible_fraction": 0.5,
+      "realised_visible_fraction": 0.5078125,
+      "clip_shape_tokens": [
+        10,
+        13
+      ],
+      "dynamics": {
+        "masked_nll": {
+          "mean": 9.352358145205574,
+          "lo": 9.03461659623586,
+          "hi": 9.660970184820815,
+          "std_between_shots": 1.1097353227347961,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.01221001960864312,
+          "lo": 0.008668564934259689,
+          "hi": 0.01592124017509992,
+          "std_between_shots": 0.01283521771783688,
+          "n_shots": 48
+        },
+        "n_masked_tokens": 258048
+      },
+      "per_frame_baseline": {
+        "masked_nll": {
+          "mean": 9.491991657803464,
+          "lo": 9.189504696087953,
+          "hi": 9.791988288442028,
+          "std_between_shots": 1.0708049443839893,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.011172200230049932,
+          "lo": 0.00794918665198613,
+          "hi": 0.014681977408098127,
+          "std_between_shots": 0.012049216881021644,
+          "n_shots": 48
+        },
+        "n_masked_tokens": 258048
+      },
+      "carry_forward": {
+        "masked_nll": {
+          "mean": 12.476649250079019,
+          "lo": 12.476649250079015,
+          "hi": 12.476649250079019,
+          "std_between_shots": 8.107922592650824e-16,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.0,
+          "lo": 0.0,
+          "hi": 0.0,
+          "std_between_shots": 0.0,
+          "n_shots": 48
+        },
+        "n_masked_tokens": 258048
+      },
+      "dynamics_vs_per_frame_baseline": {
+        "masked_nll": {
+          "mean": 0.139633512597889,
+          "lo": 0.09342275841406561,
+          "hi": 0.19428141154990558,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.001037819378593188,
+          "lo": 0.00017296456540318153,
+          "hi": 0.0019304232043722371,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        }
+      },
+      "dynamics_vs_carry_forward": {
+        "masked_nll": {
+          "mean": 3.124291104873444,
+          "lo": 2.806640347597151,
+          "hi": 3.440611129035278,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        },
+        "masked_top1": {
+          "mean": 0.01221001960864312,
+          "lo": 0.008769444294579152,
+          "hi": 0.01597499361171236,
+          "alpha": 0.05,
+          "favours_dynamics": true,
+          "clear_of_zero": true,
+          "n_shots": 48
+        }
+      }
+    }
+  ]
+}
