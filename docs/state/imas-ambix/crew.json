@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T01:15:08",
+  "updated": "2026-08-20T01:20:03",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -5568,9 +5568,72 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260819T224649314577-harmonic-origin-correction",
+        "plan": "toroidal-harmonic-annulus-read",
+        "section": "\u00a76",
+        "node": "harmonic-origin-correction",
+        "role": "implement",
+        "member": "harmonic-anchor-wiring",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T22:46:52Z",
+        "completed_at": "2026-08-19T23:18:55Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1923,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1923,
+        "stalled": false,
+        "time_budget": "50m",
+        "base_sha": "7e60f7142281a3cf0236fb689471f4e41f66ab0c",
+        "commits": [
+          "86295bc"
+        ],
+        "changed_lines": {
+          "added": 672,
+          "removed": 13,
+          "files": 5
+        },
+        "tests_added": 2,
+        "gate": "passed",
+        "outcome": "QUALIFIED TRADEOFF, not an unqualified pass. Train-fitted correction dR/R = -0.10338 (INBOARD, confirming the outboard Shafranov premise was inverted), dZ/R = +0.00232; train objective 0.1173 -> 0.0404, train axis distance 0.1087 -> 0.0451 m. Held-out scored once (n=160): axis skill -1.896 -> -1.559, LCFS skill -3.900 -> -2.466, LCFS median error 11.52 -> 4.51 cm (best this arm has recorded, beating the 2026-07-14 6.7 cm), axis radial offset +0.0874 -> -0.0098 m, consistency 0.0850 -> 0.0816. COSTS: X-point-set +0.689 [0.309,0.773] -> -2.719 [-4.575,+0.425]; vertical bias barely transferred (-0.0411 -> -0.0388 m). The X-point regression is concentrated in one component (xpt0_R -0.445 -> -2.624) while the other X-point improved in both (xpt1_R -1.874 -> -0.126, xpt1_Z -15.42 -> -7.23), which hints at an assignment artifact rather than uniform degradation. Correction is OPT-IN; scored default unchanged.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T224649314577-harmonic-origin-correction/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01c34-baea-76b0-aeac-bbeb07d6cb54",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 28990848,
+            "cached_input_tokens_cumulative": 28990848,
+            "input_tokens": 29290719,
+            "input_tokens_cumulative": 29290719,
+            "output_tokens": 35637,
+            "output_tokens_cumulative": 35637,
+            "reasoning_output_tokens": 8771,
+            "reasoning_output_tokens_cumulative": 8771
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 169
+    "_version": 170
   }
 }

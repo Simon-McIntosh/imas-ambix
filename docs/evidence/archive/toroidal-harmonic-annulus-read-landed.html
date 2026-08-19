@@ -233,6 +233,55 @@
     <figcaption>High-order train ladder with 95% intervals and the consistency guard on a
     logarithmic axis. No eligible arm reaches the standing order-3 optimum.</figcaption>
   </figure>
+
+  <h2 id="origin-correction">Origin correction — best LCFS on record, at the cost of X-point-set</h2>
+  <p><strong>The train fit chose an inboard displacement, independently confirming that the assumed
+  outboard direction was wrong, and it recovers the LCFS envelope past every figure this arm has
+  posted — but X-point-set skill regresses, so the result is a qualified tradeoff and ships
+  opt-in.</strong> Fitted on train shots as dimensionless fractions of the origin radius:
+  <strong>ΔR/R = −0.10338</strong>, ΔZ/R = +0.00232, with the selection objective falling
+  0.1173 → 0.0404 and train axis distance 0.1087 → 0.0451 m. Commit <code>86295bc</code>,
+  <code>heldout_score_count = 1</code>.</p>
+  <table>
+    <caption>Held-out at n=160, uncorrected against the frozen correction</caption>
+    <thead><tr><th>Quantity</th><th>Uncorrected</th><th>Corrected</th></tr></thead>
+    <tbody>
+      <tr><td>LCFS median error</td><td>11.52 cm</td><td><strong>4.51 cm</strong></td></tr>
+      <tr><td>LCFS skill</td><td>−3.900 [−5.168, −3.017]</td><td>−2.466 [−3.054, −1.859]</td></tr>
+      <tr><td>Axis skill</td><td>−1.896 [−2.776, −1.400]</td><td>−1.559 [−2.250, −1.214]</td></tr>
+      <tr><td>Axis radial offset</td><td>+0.0874 m</td><td>−0.0098 m</td></tr>
+      <tr><td>Axis vertical offset</td><td>−0.0411 m</td><td>−0.0388 m</td></tr>
+      <tr><td>X-point-set skill</td><td>+0.689 [0.309, 0.773]</td><td>−2.719 [−4.575, +0.425]</td></tr>
+      <tr><td>Annulus consistency</td><td>0.0850</td><td>0.0816</td></tr>
+    </tbody>
+  </table>
+  <p>Two honest qualifications. The <strong>vertical component does not transfer</strong> — the bias
+  moves only −0.0411 → −0.0388 m, so ΔZ is not doing work and the vertical residual survives. And the
+  <strong>X-point regression is structured, not uniform</strong>: it concentrates in
+  <code>xpt0_R</code> (−0.445 → −2.624) while the other X-point improves in both components
+  (<code>xpt1_R</code> −1.874 → −0.126, <code>xpt1_Z</code> −15.42 → −7.23). Displacing the origin
+  changes which referee null each emitted null is matched to, so a permutation effect could account
+  for part or all of the aggregate loss. That is a hypothesis and is left as such; it is decidable
+  from the committed per-slice arrays without rescoring.</p>
+  <p>The correction is <strong>opt-in</strong> — <code>--origin-radial-fraction</code> and
+  <code>--origin-vertical-fraction</code> default to 0.0 — so nothing was promoted by measurement
+  alone and the frozen default remains a decision to be taken.</p>
+  <figure>
+    <img src="/imas-ambix/figures/toroidal-harmonic-annulus-read/origin-correction.png"
+         alt="Held-out skill and offset comparison between the uncorrected read and the frozen origin correction, showing LCFS and axis improving while X-point-set regresses."
+         style="max-width:100%">
+    <figcaption>Held-out comparison at the frozen correction. LCFS and axis improve; X-point-set
+    regresses.</figcaption>
+  </figure>
+
+  <h2 id="protocol-note">Held-out multiplicity, recorded</h2>
+  <p>The held-out cohort was scored three times in this execution — the phase-split re-baseline, the
+  configuration re-freeze, and the origin correction — each exactly once per configuration frozen on
+  train shots, and so each individually protocol-clean. The multiplicity across nodes is nonetheless
+  real, and a claim resting on three looks at one cohort carries selection risk that a single look
+  does not. Recorded here rather than left implicit: further scoring of this arm should use an
+  untouched cohort or an explicitly authorised protocol. The high-order ladder and the component
+  decomposition did not touch it at all.</p>
 </main>
 </body>
 </html>

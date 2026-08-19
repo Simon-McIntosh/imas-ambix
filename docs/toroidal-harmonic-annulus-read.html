@@ -20,13 +20,13 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-20">
-<meta name="plan-version" content="18">
-<meta name="plan-impl" content="0.94">
+<meta name="plan-version" content="19">
+<meta name="plan-impl" content="0.85">
 <meta name="plan-sprint" content="S18">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
-<meta name="plan-commits" content="5fb7510,63f214a,7413d54,80e84da,a50cf3b,95872d2">
-<meta name="plan-artifacts" content="imas_ambix/latent/artifacts/patch_gate/harmonic_phase_rebaseline.json,imas_ambix/latent/artifacts/patch_gate/harmonic_configuration_selection.json,imas_ambix/latent/artifacts/patch_gate/boundary_read_harmonic-o3-centroidorigin-frac0.41.json,docs/figures/toroidal-harmonic-annulus-read/phase-split-skill.png,docs/figures/toroidal-harmonic-annulus-read/harmonic-configuration-selection.png">
+<meta name="plan-commits" content="5fb7510,63f214a,7413d54,80e84da,a50cf3b,95872d2,86295bc">
+<meta name="plan-artifacts" content="imas_ambix/latent/artifacts/patch_gate/harmonic_phase_rebaseline.json,imas_ambix/latent/artifacts/patch_gate/harmonic_configuration_selection.json,imas_ambix/latent/artifacts/patch_gate/harmonic_component_error.json,imas_ambix/latent/artifacts/patch_gate/harmonic_high_order_sweep.json,imas_ambix/latent/artifacts/patch_gate/harmonic_origin_correction.json,docs/figures/toroidal-harmonic-annulus-read/phase-split-skill.png,docs/figures/toroidal-harmonic-annulus-read/harmonic-configuration-selection.png,docs/figures/toroidal-harmonic-annulus-read/component-error.png,docs/figures/toroidal-harmonic-annulus-read/high-order-sweep.png,docs/figures/toroidal-harmonic-annulus-read/origin-correction.png">
 </head>
 <body>
   <main class="plan-doc">
@@ -178,52 +178,51 @@
       the calibrated carrier arm; saddle-excess; vacuum-annulus consistency RMS.</li>
     </ul>
 
-    <h2 id="s6">§6 — X-point-set and axis recovery under the centroid origin</h2>
-    <p>The centroid origin nearly halved the held-out LCFS error (11.8 → 6.8 cm) and made ramp-up
-    robust (7–14 cm, was 41–52 cm), but the aggregate X-point-set (−4.54) and axis (−1.58) skill
-    regressed against the carrier per-slice run (−1.11 / −0.27). Two mechanisms are suspected:
-    the current centroid sits <em>inboard</em> of the flux axis by the Shafranov shift, biasing both the
-    axis target and the confined-side flux reference; and the more robust centroid now <em>finds</em>
-    ramp-up X-points that get imperfectly matched, where the flat-top-tuned carrier found none
-    (NaN, silently excluded) and so scored deceptively better. Flat-top X-points are already ~5 cm,
-    so the aggregate is dragged by the low-Ip phases.</p>
-    <p>The read has since been reworked substantially — adaptive order/term selection by held-out-sensor
-    cross-validation, a graded Sobolev ridge on the coefficients, the flux-gauge-preserving ∇ψ read with
-    the Ip circulation tie, canonical probe orientation, and the connectivity LCFS
-    (<code>topology.py::lcfs_contour</code>) in place of the innermost-X-point ray-cast — so the
-    2026-07-14 numbers above are a stale baseline. Work proceeds in two beats:</p>
-    <ul>
-      <li><strong>Re-baseline and phase-split honesty audit.</strong> Score the harmonic arm held-out
-      under the current code and report X-point-set / axis / LCFS skill with CIs <em>split by phase</em>
-      (ramp-up vs flat-top), and audit per-slice whether the ramp-up X-points the centroid finds are
-      genuine (matching the firewalled referee) or spurious. Establishes whether the −4.54 / −1.58 gap
-      still exists before anything is tuned against it.</li>
-      <li><strong>Shafranov correction of the axis and flux reference.</strong> If the gap persists,
-      separate the axis / confined-side flux-reference point from the well-behaved ray-cast origin: a
-      dimensionless outboard correction of the current centroid toward the flux axis (a fraction of
-      <em>a/R</em> or of the pole-to-origin distance), tuned on train shots, frozen, scored held-out once,
-      with the vacuum-annulus consistency RMS as the guard. Also re-measure the order × ridge × fraction
-      ladder and the ablatable Ip-circulation anchor under the centroid origin, since the 0.41 fraction
-      was selected under the carrier.</li>
-    </ul>
-    <p><strong>Running the gate.</strong> The arm is scored by
-    <code>scripts/boundary_harmonic_gate_eval.py</code>. The frozen configuration is the locked
-    pole-and-truncation decision — <code>--origin-source centroid</code>, order 3, ridge 1e-8,
-    <code>--pole-inboard-fractions 0.41</code> — and <code>--split eval</code> scores it once on the
-    held-out cohort while <code>--split train</code> sweeps the order × ridge × fraction ladder.
-    Two operational facts bear on the phase split: <code>--min-ip-ka</code> (default 50) is an Ip floor
-    that decides whether ramp-up slices are in the cohort at all, so the audit must report what the
-    floor admits before drawing a ramp-up conclusion; and the gate is slow, so it belongs on a SLURM
-    debug partition (<code>--time</code> ≤ 01:00:00, <code>export TMPDIR=/tmp</code>), never a login
-    node. A worktree run must reuse the root project environment rather than build its own:
-    <code>UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH="$PWD"
-    uv run --no-sync …</code>.</p>
+    <section id="s6" class="section-landed">
+      <header><span class="badge badge-shipped">✓ landed 2026-08-20</span>
+      <h2>§6 — X-point-set and axis recovery under the centroid origin</h2></header>
+      <p class="landed-summary">
+      Six nodes. The followup's Shafranov premise was <strong>refuted</strong>: the read axis sits
+      +0.0874 m <em>outboard</em> of the referee, not inboard, and the train fit chose an inboard
+      ΔR/R = −0.10338. That correction posts this arm's best held-out LCFS — median error
+      11.52 → <strong>4.51 cm</strong>, skill −3.900 → −2.466, radial axis bias → −0.0098 m,
+      consistency 0.0816 — but costs X-point-set (+0.689 → −2.719), so it ships <strong>opt-in</strong>
+      with the scored default unchanged. Re-tuning was excluded first: order 3 / ridge 1e-8 /
+      fraction 0.41 survives 60 train arms (orders 3–8), and the Ip-circulation anchor is rejected
+      (−9.481, consistency 10.36) — and was found inert in the gate all along. The ramp-up X-points
+      are 21/28 wholly spurious, so the aggregate X-point gain was never ramp-up recovery.
+      Full record: <a href="/imas-ambix/evidence/archive/toroidal-harmonic-annulus-read-landed">§6 landed</a>
+      (commits <code>5fb7510</code>, <code>63f214a</code>, <code>7413d54</code>, <code>80e84da</code>,
+      <code>a50cf3b</code>, <code>95872d2</code>, <code>86295bc</code>).
+      </p>
+    </section>
 
-    <p>Gate: X-point-set and axis skill recover toward the carrier per-slice values <em>without</em>
-    losing the centroid LCFS and ramp-up win, or an honest characterisation of the tradeoff — recorded
-    either way. EFIT stays firewalled (referee scores only); coil couplings stay thick-cylinder
-    <code>hybrid_greens</code>; the pole and origin stay machine-agnostic (dimensionless fractions,
-    never fixed metres).</p>
+    <h2 id="s7">§7 — Adjudicate the X-point cost, then decide the frozen default</h2>
+    <p>The origin correction (§6) recovers the LCFS envelope to 4.51 cm held-out — the best this arm
+    has recorded, past even the 6.7 cm of 2026-07-14 — and nearly eliminates the radial axis bias
+    (+0.0874 → −0.0098 m), while the annulus-consistency guard holds at 0.0816. It costs X-point-set
+    skill: +0.689 [0.309, 0.773] → −2.719 [−4.575, +0.425]. It ships opt-in
+    (<code>--origin-radial-fraction</code> defaults to 0.0), so the scored default is unchanged and
+    nothing has been promoted by measurement alone. Two things remain.</p>
+    <ul>
+      <li><strong>Is the X-point cost an assignment artifact?</strong> The regression is not uniform:
+      it concentrates in a single component, <code>xpt0_R</code> −0.445 → −2.624, while the other
+      X-point <em>improves</em> in both (<code>xpt1_R</code> −1.874 → −0.126, <code>xpt1_Z</code>
+      −15.42 → −7.23). Moving the origin inboard changes which referee null each emitted null is
+      matched to, so a permutation effect could account for some or all of the aggregate loss. This is
+      a hypothesis, not a measurement: decide it from the per-slice matching on the arrays already
+      committed, without rescoring. If it is largely an artifact, the correction is close to a pure
+      win; if it is real, the tradeoff stands as scored.</li>
+      <li><strong>Which configuration is frozen as this arm's default?</strong> A lead-owned tradeoff
+      with no dominance — LCFS fidelity and radial axis bias against X-point-set skill. The precedent
+      in the locked pole-and-truncation decision favoured the LCFS envelope when the centroid origin
+      posed the same shape of choice, but that was recorded as a judgement, not a rule.</li>
+    </ul>
+    <p>Protocol constraint carried forward, binding on both items: the held-out cohort has now been
+    scored three times (re-baseline, re-freeze, origin correction), each once per train-frozen
+    configuration and so individually clean, but the multiplicity is real. The adjudication above
+    needs no rescore. Any further scoring requires an untouched cohort or an explicitly authorised
+    protocol.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -450,7 +449,7 @@ Guardrails
   pole stays machine-agnostic (fraction of axis R, never a fixed metre offset); no AI trailers.</pre>
     <p class="r-fu-outcome">RCA done, interim fix reverted, superseded by a new plan. Root cause of the ramp-up failure: MAST ramps up LIMITED (EFIT nXpt=0, Ip 21-66%) but hybrid_target_harmonic forced a DIVERTED read (innermost X-point, never comparing the limiter tangency); the too-binding candidates came from OUTSIDE the plasma-extent annulus (divertor |Z|~1.7, far saddles |Z|~1.4) where the truncated harmonic fit is ill-posed extrapolation. A limited-vs-diverted comparison + geometric annulus-cap fixed it per-slice on shot 18502 but did NOT generalize held-out (train X-point-set -0.23 -&gt; held-out -5.92; the cap severely overfits, no value transfers). Reverted the gate to the best-held-out boundary read (innermost X-point + limiter fallback; X-point-set -4.54, LCFS -2.48). The principled replacement is level-set CONNECTIVITY (find stationary points from grad-psi=0 first, then select the bounding surface by which one encloses the axis) -&gt; new plan connectivity-boundary-classification (f-cbc-01), which rejects far-field saddles structurally with no tuned cap. EFIT reconstructs a substantial limited boundary at breakdown (157 kA, minor radius ~0.45 m).</p>
     </article>
-<article class="r-fu" data-id="f-thar-xpt-shafranov" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-14T18:05:00+00:00" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-thar-xpt-shafranov" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-14T18:05:00+00:00" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read" data-resolved-at="2026-08-19T23:21:57+00:00" data-resolved-by="reckon-ship (premise refuted, tradeoff characterised)">
     <h4 class="r-fu-title">Recover X-point-set + axis under the centroid origin (Shafranov + ramp-up matching)</h4>
     <div class="r-fu-body"><p>The current-centroid origin nearly halved the held-out LCFS (11.8-&gt;6.8 cm) and made ramp-up robust (7-14 cm vs 41-52 cm), but the aggregate X-point-set (-4.54) and axis (-1.58) regressed vs the carrier per-slice run (-1.11 / -0.27). Two causes: (a) the current centroid sits inboard of the flux axis by the Shafranov shift, biasing the axis target and the boundary-flux reference; (b) the more-robust centroid FINDS ramp-up X-points that get imperfectly matched, where the carrier found none (NaN, excluded) and scored deceptively better. Flat-top X-points are already ~5 cm. Close the gap without losing the LCFS/ramp-up win.</p></div>
     <pre class="r-fu-prompt">Project: imas-ambix
@@ -486,6 +485,7 @@ Done-when
 Guardrails
   Stay on main; EFIT firewalled (referee scores only); coil couplings thick-cylinder; pole/origin
   machine-agnostic (fractions, never fixed metres); no AI trailers.</pre>
+    <p class="r-fu-outcome">Delivered as §6 over six nodes. The followup's own done-when is met (per-phase skill reported; an honest characterisation of the tradeoff recorded) but its stated MECHANISM was measurably refuted. It assumed the current centroid sits INBOARD of the flux axis by the Shafranov shift, implying an outboard correction; the held-out axis offset is +0.0874 m, so the read sits OUTBOARD of the referee, and the train fit independently chose an INBOARD displacement of dR/R = -0.10338. An outboard correction would have made it worse. Its second suspicion also fell: ramp-up X-points are not genuine-but-mismatched - of 96 ramp-up slices the read emits X-points on 28, 21 wholly spurious at 5 cm, so the aggregate X-point-set gain since 2026-07-14 (-4.54 -> +0.689) is not ramp-up recovery. Item 4 returned a CONFIRMATION: across 36 arms plus the 24 order-6/8 arms completed after, the optimum remains order 3 / ridge 1e-8 / fraction 0.41 unanchored, so the LCFS regression from 6.7 to 11.52 cm was structural rather than a stale tune. The Ip-circulation anchor is rejected (train LCFS -9.481, consistency 10.36) and was found inert in the gate all along, its flag never reaching the solve until repaired. Net: the origin correction recovers LCFS to 4.51 cm and nearly eliminates the radial axis bias, at the cost of X-point-set; it ships OPT-IN with the scored default unchanged. Continuation is same-plan and carried by the new section 7, not by another followup: adjudicate whether the X-point cost is an assignment artifact, then decide the frozen default. Commits 5fb7510, 63f214a, 7413d54, 80e84da, a50cf3b, 95872d2, 86295bc. Full record: docs/evidence/archive/toroidal-harmonic-annulus-read-landed.html.</p>
     </article>
 <article class="r-fu" data-id="f-thar-connectivity-ptr" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-07-14T18:50:00+00:00" data-recommends-skill="/reckon-ship connectivity-boundary-classification" data-resolved-at="2026-07-14T21:07:41+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Adopt the connectivity boundary read once it lands (limited/diverted + ramp-up)</h4>
@@ -515,6 +515,11 @@ Guardrails
   Stay on main; EFIT firewalled; coil couplings thick-cylinder; machine-agnostic pole/origin; no AI trailers.</pre>
     <p class="r-fu-outcome">Adopted. connectivity-boundary-classification landed (LCFS by outermost closed axis-enclosing flux contour; topology.py::lcfs_contour + emergent_xpoints) and was swapped into THIS gate's hybrid_target_harmonic in place of the innermost-X-point + limiter-fallback + ray-cast block. Re-scored held-out (n=160, firewalled EFIT, 2000-boot CIs), centroid origin o3: X-point-set -4.54 -&gt; -1.797, LCFS -2.48-class -&gt; -1.958, offset 6.7 cm; emergent limited/diverted diagnostic 0.40 all / 0.625 flat-top (MAST ramps up limited, diverts as it grows). Single code path, no tuned cap (§7 held). Figures regenerated (flux surfaces across breakdown-&gt;termination + skill/timing). See connectivity-boundary-classification (shipped) + its archive. The axis/Shafranov recovery (f-thar-xpt-shafranov) remains this plan's separate open concern.</p>
     </article>
+<article class="r-fu" data-id="f-thar-xpt-adjudication" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-08-20T01:25:00+00:00" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read §7" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Adjudicate the X-point cost of the origin correction, then decide the frozen default</h4>
+    <div class="r-fu-body"><p>§7. The origin correction posts this arm's best held-out LCFS (4.51 cm) and nearly eliminates the radial axis bias, but costs X-point-set skill (+0.689 → −2.719). The regression concentrates in <code>xpt0_R</code> while the other X-point improves in both components, so it may be an X-point assignment artifact — decidable from the committed per-slice arrays without rescoring. Then the lead-owned call: whether the correction becomes this arm's frozen default. The held-out cohort has been scored three times; any further scoring needs an untouched cohort or an authorised protocol.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship toroidal-harmonic-annulus-read §7</pre>
+    </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s6" data-id="c-20260819T2140" data-who="reckon-ship" data-when="2026-08-19T21:40:00+00:00">
@@ -534,6 +539,9 @@ Guardrails
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20260820T0115" data-who="reckon-ship" data-when="2026-08-20T01:15:00+00:00">
     <div class="r-comment-body">harmonic-order-sweep landed — commit 95872d2; coverage measure PASSED with a clean negative, and the earlier ladder's reported gap is now CLOSED. All 24 previously unswept arms scored train-only (orders 6 and 8 × ridges 1e-8/1e-4/1e-2/1e-1 × pole fractions 0.25/0.41/0.55): 6 pass the consistency_rms_annulus ≤ 1.0 guard, 18 fail — consistent with the historical finding that high order aliases this basis. The best eligible arm, order 6 / ridge 1e-8 / fraction 0.41, scores lcfs_skill −5.471 with CI [−5.925, −5.004] at consistency 0.0852: its <em>entire</em> interval lies below the standing order-3 point estimate of −3.3057, a margin of −2.165. No arm exceeds the standing optimum, so <strong>the order-3 selection is unchanged</strong> and raising the truncation is now excluded by measurement rather than by assumption. Leakage discipline verified in the artifact itself: <code>heldout_rescored=false</code> and <code>heldout_accessed=false</code>. SLURM job 1251905, 20m55s, 2000-draw paired bootstrap at seed 0.</div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20260820T0125" data-who="reckon-ship" data-when="2026-08-20T01:25:00+00:00">
+    <div class="r-comment-body">harmonic-origin-correction landed — commit 86295bc; QUALIFIED TRADEOFF, explicitly not an unqualified pass. Train-fitted signed displacement <strong>ΔR/R = −0.10338</strong> (INBOARD — the sign the data chose, confirming the outboard Shafranov premise was inverted) and ΔZ/R = +0.00232; train objective 0.1173 → 0.0404, train axis distance 0.1087 → 0.0451 m. Scored once held-out (n=160): axis skill −1.896 → <strong>−1.559</strong> [−2.250,−1.214], LCFS skill −3.900 → <strong>−2.466</strong> [−3.054,−1.859], LCFS median error 11.52 → <strong>4.51 cm</strong> — the best this arm has recorded, past even the 2026-07-14 6.7 cm — axis radial offset +0.0874 → −0.0098 m, consistency 0.0850 → 0.0816 so the guard holds. COSTS: X-point-set +0.689 [0.309,0.773] → −2.719 [−4.575,+0.425], and the vertical bias barely transferred (−0.0411 → −0.0388 m), so the ΔZ component is not doing work. Structure in the regression: it concentrates in a single component, xpt0_R −0.445 → −2.624, while the OTHER X-point improved in both (xpt1_R −1.874 → −0.126, xpt1_Z −15.42 → −7.23) — hinting at an X-point assignment artifact rather than uniform loss of null localisation, though that is a hypothesis, not a measurement. The correction is OPT-IN (<code>--origin-radial-fraction</code> defaults to 0.0); the scored default is deliberately unchanged, so promoting it stays an open decision rather than a fait accompli. Protocol: <code>heldout_score_count = 1</code>. Standing caveat — the held-out cohort has now been scored three times this session (re-baseline, re-freeze, origin correction), each once per train-frozen configuration and so individually clean, but the multiplicity is real and any further scoring should use an untouched cohort or an explicitly authorised protocol. §6 is complete at six nodes; the two residual items open as §7, so impl reflects 11 of 13 executable nodes rather than staying at the §6-complete figure.</div>
 </div>
 </section>
 </main>
