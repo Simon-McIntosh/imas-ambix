@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-19">
-<meta name="plan-version" content="10">
+<meta name="plan-version" content="11">
 <meta name="plan-depends-on" content="">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
@@ -56,6 +56,31 @@
     <h2 id="s4">§4 — Continuous tandem integration</h2>
     <p>Ambix follows exact, reviewed Nova revisions rather than waiting for a final API freeze or tracking an unrecorded moving branch. Each integration checkpoint updates the exact Nova SHA, migrates changed APIs, runs the focused consumer contract and records the corresponding Nova validation identity. Optional in-flight capabilities stay capability-gated; they do not block unrelated Ambix inference work. Donor deletion remains serial and waits for scientific, numerical, performance and provenance parity.</p>
     <p>The first tandem checkpoint is banked: Ambix moved to Nova <code>9c18d31f8bf0f424bd94d0a5c4ce5f1622d9fd8f</code>, adopted the traced flux-surface geometry API and canonical correction-scale contract, and passed 48 Nova-facing tests before commit <code>1b7e341</code>. Independent imas-efit GHCR validation remains Nova-owned; Ambix consumes its evidence rather than reproducing that solver-validation campaign.</p>
+
+    <h2 id="s5">§5 — The remaining donor ladder</h2>
+    <p>The census of 2026-08-19 measured every donor and fixed the order they can retire in. The rungs are not interchangeable: each is gated by a different thing, and only one was ever gated by consumer rewiring alone.</p>
+    <table>
+      <caption>Donor state, measured at pinned Nova <code>de3277a3</code></caption>
+      <thead><tr><th>Donor</th><th>Importers</th><th>What gates it</th><th>State</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>gs/circuits.py</code></td><td>6 → 0</td>
+          <td>Consumer rewiring only; the artifact table already declared 13 active circuits and 21 drives</td>
+          <td>✓ retired 2026-08-19 at exact parity (<code>4f432bc</code>)</td>
+        </tr>
+        <tr>
+          <td><code>gs/geometry.py</code></td><td>58</td>
+          <td>No replacement for the <code>GeometryTable</code> runtime type surface — <code>BProbe</code>, <code>FluxLoop</code>, <code>PFFilament</code>, <code>PassiveStructure</code>, <code>PolygonSection</code>, <code>CircuitDrive</code>, <code>SensorMapping</code>, <code>SetupSignature</code>, hashing, section construction and circuit collapse</td>
+          <td>Open — needs the compatibility boundary designed before any migration, and cache/signature and label-store identities held fixed across it</td>
+        </tr>
+        <tr>
+          <td><code>latent/current_diffusion.py</code></td><td>15</td>
+          <td>Eleven symbols map one-to-one onto <code>nova.transport.current_diffusion</code> (including <code>wpol_li3</code> → <code>poloidal_field_energy_li</code>), but <code>reconstruct_profile_scales</code> and <code>beta_p_coeff_sensitivity</code> have no counterpart, and no forward-transport contract exists at the pin</td>
+          <td>Open — trigger-gated on <code>nova:flux-function-forward-transport</code> (f-npci-03)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>The geometry rung is the one that needs design before it needs workers. Nova already owns the source authority through <code>resolve_machine_artifact</code> and <code>mast_solve_inputs.describe_machine</code>; what is missing is the Ambix-side boundary that lets 58 consumers stop importing a table type. Until that boundary exists, migrating importers would only move the coupling.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
