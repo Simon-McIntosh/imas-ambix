@@ -764,7 +764,7 @@ class MachineArtifactGeometryReader:
 
     def resolve(self) -> Any:
         """Return the verified artifact this reader addresses."""
-        from nova.imas.mast_artifact import resolve_machine_artifact  # noqa: PLC0415
+        from nova.imas.machine_artifact import resolve_machine_artifact  # noqa: PLC0415
 
         return resolve_machine_artifact(
             self.cache_directory,
