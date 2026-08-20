@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T17:47:14",
+  "updated": "2026-08-20T18:45:07",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -194,10 +194,31 @@
         "created": "2026-08-20"
       },
       {
+        "id": "geometry-tranche-core",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a01ff3-b6c0-7d81-bc65-1e70687612b9",
+        "created": "2026-08-20"
+      },
+      {
+        "id": "geometry-tranche-latent",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a01ff3-d34c-7d21-940f-b55962dcfcbf",
+        "created": "2026-08-20"
+      },
+      {
         "id": "geometry-tranche-producers",
         "harness": "codex",
         "role": "implement",
         "session_id": "01a01fa9-1e9e-7600-b35a-cc95e752b5d0",
+        "created": "2026-08-20"
+      },
+      {
+        "id": "geometry-tranche-scripts",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a01ff4-241d-7b40-bfb4-ea9b780cae37",
         "created": "2026-08-20"
       },
       {
@@ -248,6 +269,13 @@
         "role": "implement",
         "session_id": "01a01bf7-a60e-7be1-b50b-ff115d1a0feb",
         "created": "2026-08-19"
+      },
+      {
+        "id": "nova-artifact-module-rename",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-20"
       },
       {
         "id": "nova-dev-install",
@@ -6490,9 +6518,135 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260820T161416924841-geometry-tranche-core",
+        "plan": "nova-physics-consumer-integration",
+        "section": "\u00a75",
+        "node": "geometry-tranche-core",
+        "role": "implement",
+        "member": "geometry-tranche-core",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-20T16:14:20Z",
+        "completed_at": "2026-08-20T16:30:07Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 947,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 947,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "23a79eeed7a761a5e2e7e3001c7aaead79313f42",
+        "commits": [
+          "54a7d3dea9d0187d5f9c678e5427efd497e7211a"
+        ],
+        "changed_lines": {
+          "added": 207,
+          "removed": 233,
+          "files": 6
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260820T161416924841-geometry-tranche-core/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01ff3-b6c0-7d81-bc65-1e70687612b9",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 9517312,
+            "cached_input_tokens_cumulative": 9517312,
+            "input_tokens": 9721662,
+            "input_tokens_cumulative": 9721662,
+            "output_tokens": 30416,
+            "output_tokens_cumulative": 30416,
+            "reasoning_output_tokens": 9266,
+            "reasoning_output_tokens_cumulative": 9266
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
+      },
+      {
+        "run_id": "r-20260820T161444640172-geometry-tranche-scripts",
+        "plan": "nova-physics-consumer-integration",
+        "section": "\u00a75",
+        "node": "geometry-tranche-scripts",
+        "role": "implement",
+        "member": "geometry-tranche-scripts",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-20T16:14:48Z",
+        "completed_at": "2026-08-20T16:29:33Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 885,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 885,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "23a79eeed7a761a5e2e7e3001c7aaead79313f42",
+        "commits": [
+          "22fb9b990607d67569e8cae51b4e57fd1af3ec33"
+        ],
+        "changed_lines": {
+          "added": 151,
+          "removed": 112,
+          "files": 21
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260820T161444640172-geometry-tranche-scripts/manifest.md",
+        "scope_changed": true,
+        "session_id": "01a01ff4-241d-7b40-bfb4-ea9b780cae37",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 7484672,
+            "cached_input_tokens_cumulative": 7484672,
+            "input_tokens": 7702824,
+            "input_tokens_cumulative": 7702824,
+            "output_tokens": 30914,
+            "output_tokens_cumulative": 30914,
+            "reasoning_output_tokens": 12441,
+            "reasoning_output_tokens_cumulative": 12441
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 196
+    "_version": 205
   }
 }
