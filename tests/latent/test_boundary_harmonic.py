@@ -12,9 +12,12 @@ masked fit API from ``SlicePayload`` through ``psi_on_grid``.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
+import scripts.boundary_harmonic_gate_eval as harmonic_gate
 from imas_ambix.gs.operator import greens_psi
 from imas_ambix.latent.boundary_harmonic import (
     HarmonicFitConfig,
@@ -220,6 +223,139 @@ def test_origin_correction_rejects_missing_finite_train_pairs():
     references = np.zeros((2, 2))
     with pytest.raises(ValueError, match="no finite non-zero-radius"):
         fit_origin_correction(origins, references)
+
+
+def test_frozen_origin_correction_writes_distinct_prediction_arrays(
+    tmp_path, monkeypatch
+):
+    """A frozen corrected score retains the slice predictions for attribution."""
+
+    class Grid:
+        rg = np.array([0.8, 1.2])
+        zg = np.array([-0.1, 0.1])
+        nr = 2
+        nz = 2
+
+    class Basis:
+        r_cells = np.zeros(1)
+
+        @staticmethod
+        def psi_grid_2d_np(i_cell, i_pf):
+            return np.zeros((2, 2))
+
+    payload = SimpleNamespace(
+        ip_amperes=1.0e5,
+        i_pf=np.zeros(1),
+        shot=18502,
+    )
+    shots = [
+        {
+            "grid": Grid(),
+            "basis": Basis(),
+            "table": object(),
+            "payloads": [payload],
+            "refs": [np.zeros(14)],
+        }
+    ]
+    args = SimpleNamespace(
+        origin_source="centroid",
+        origin_radial_fraction=-0.1,
+        origin_vertical_fraction=0.0,
+        pole_source="track",
+        mask_frac=0.5,
+        exclude_frac=1.1,
+        ip_anchor=False,
+        xpoint_tol=0.05,
+        _baseline=np.zeros(14),
+        _origin_correction_run=True,
+    )
+
+    monkeypatch.setattr(harmonic_gate, "ARTIFACTS", tmp_path)
+    monkeypatch.setattr(
+        harmonic_gate,
+        "sensor_arrays",
+        lambda table: (
+            np.array([1.0]),
+            np.array([0.0]),
+            np.array([0.0]),
+            np.array([True]),
+        ),
+    )
+    monkeypatch.setattr(
+        harmonic_gate,
+        "fit_moment_currents",
+        lambda basis, slice_payload, config: SimpleNamespace(
+            i_cell=np.zeros(1), centroid_r=1.0, centroid_z=0.0
+        ),
+    )
+    monkeypatch.setattr(
+        harmonic_gate,
+        "fit_scoring_harmonic",
+        lambda sensors, slice_payload, config: SimpleNamespace(
+            coeffs=np.zeros(1), misfit=0.0
+        ),
+    )
+    monkeypatch.setattr(
+        harmonic_gate,
+        "harmonic_columns",
+        lambda r, z, config: (np.zeros((len(r), 1)), ("constant",)),
+    )
+    monkeypatch.setattr(
+        harmonic_gate,
+        "hybrid_target_harmonic",
+        lambda *call_args, **call_kwargs: (
+            np.zeros(14),
+            1.0,
+            0.0,
+            np.zeros((2, 2)),
+            False,
+        ),
+    )
+    monkeypatch.setattr(harmonic_gate, "count_saddles", lambda field, grid: 0)
+    monkeypatch.setattr(harmonic_gate, "annulus_consistency_rms", lambda *args: 0.0)
+    monkeypatch.setattr(
+        harmonic_gate,
+        "score",
+        lambda model, ref, baseline_vec, shot_ids: {
+            "axis_errors": np.zeros(len(model)),
+            "axis_skill": 0.0,
+            "xpoint_set_skill": 0.0,
+            "lcfs_skill": 0.0,
+        },
+    )
+    monkeypatch.setattr(harmonic_gate, "saddle_excess_stats", lambda *args: {})
+    monkeypatch.setattr(
+        harmonic_gate,
+        "_origin_and_pole",
+        lambda origin, grid, args, fraction: (origin, origin),
+    )
+    monkeypatch.setattr(
+        harmonic_gate, "_adaptive_radii", lambda origin, pole, args: (0.0, 0.0)
+    )
+
+    harmonic_gate.score_order(
+        shots,
+        patch_psis=None,
+        order=3,
+        ridge=1e-8,
+        fraction=0.41,
+        split="eval",
+        args=args,
+    )
+
+    corrected_stem = "boundary_read_harmonic-o3-centroidorigin-correctedorigin-frac0.41"
+    aggregate_path = tmp_path / f"{corrected_stem}.json"
+    arrays_path = tmp_path / f"{corrected_stem}_arrays.npz"
+    uncorrected_arrays_path = (
+        tmp_path / "boundary_read_harmonic-o3-centroidorigin-frac0.41_arrays.npz"
+    )
+
+    assert aggregate_path.exists()
+    assert arrays_path.exists()
+    assert not uncorrected_arrays_path.exists()
+    with np.load(arrays_path) as arrays:
+        np.testing.assert_array_equal(arrays["model"], np.zeros((1, 14)))
+        np.testing.assert_array_equal(arrays["ref"], np.zeros((1, 14)))
 
 
 def test_fit_ignores_masked_rows_and_grids():
