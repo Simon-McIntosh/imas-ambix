@@ -591,6 +591,73 @@
   upstream activity. Verification receipt:
   <code>PASS export_refs=0 matrix_delta=0 shape=3x10 nan_mask=identical kinds=identical
   names=10/10-ordered identity=unchanged exports=4/0/0 tests_gs=236p/0f digest=b55c5bb0-stable</code>.</p>
+
+  <h2 id="consumer-tranches">Two consumer tranches migrate — and the same question gets opposite answers</h2>
+  <p><strong>The core consumers and the whole script directory came off the geometry donor at
+  preserved identity, and the producer-retention question that tranche C opened resolved in both
+  directions at once.</strong> Commits <code>54a7d3de</code> (merged <code>e428c76</code>) and
+  <code>22fb9b99</code> (merged <code>307f87f</code>), pushed at <code>4388b48</code>. Both nodes
+  ran concurrently in detached worktrees over disjoint file sets, with
+  <code>machine_geometry.py</code> deliberately in neither write scope, so the facade's proven
+  identity surface could not drift while its consumers moved onto it.</p>
+
+  <table>
+    <caption>Tranche measures, frozen shot 11766</caption>
+    <thead><tr><th>Measure</th><th>Core consumers</th><th>Scripts</th></tr></thead>
+    <tbody>
+      <tr><td>Named geometry-record imports</td>
+          <td>0 across all 4 scoped source files</td>
+          <td>0 across 21 of 21 tracked scripts</td></tr>
+      <tr><td>Parity proof</td>
+          <td>Focused suite 35 passed / 0 failed</td>
+          <td>18 of 18 derivation ids UTF-8 byte-identical
+          (<code>ddv4-directed-probe-angle</code>) before and after</td></tr>
+      <tr><td>Full <code>tests/gs</code></td>
+          <td>236 passed / 0 failed in 577 s</td>
+          <td>Not in scope; compile check 23 of 23</td></tr>
+      <tr><td>Representation identity</td>
+          <td><code>mp78-fl80-fc70-lim37-2f6472393311692b</code> unchanged, both
+          <code>GeometryIdentity.representation_key</code> and
+          <code>SetupSignature.key</code></td>
+          <td>Read through the facade, not reconstructed</td></tr>
+      <tr><td>Lint</td>
+          <td>Scoped <code>ruff check</code> clean; <code>git diff --check</code> clean</td>
+          <td><code>ruff check --select F,E402</code> clean on 21 changed files</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>The adjudication is directional, which is why one edge was deleted and another
+  retained within the same hour.</strong> <code>geometry_export.py</code> is a genuine consumer:
+  migrating it onto <code>MachineGeometryService.operator()</code> and <code>sensors()</code>
+  <em>deleted</em> its duplicate sensor-row implementation, so the change removed code rather than
+  relocating coupling — 233 lines removed against 207 added across the commit. But
+  <code>description_reader.py</code> and <code>machine_selection.py</code> stay below the facade as
+  private kernel builders, and the deferred acquisition at
+  <code>machine_selection.py:158-160</code> is retained deliberately:
+  <code>MachineGeometryService</code> constructs <code>ArtifactMachineSelector</code>, whose
+  <code>_read</code> must acquire declared channel addresses through
+  <code>description_reader</code> before the kernel can be built, so routing that edge through the
+  service would recurse service to selector to acquisition to service. That is the reverse of the
+  cycle edge deleted at <code>machine_geometry.py:233</code>, and the distinction is the direction
+  of the reach: that one was a projection reaching <em>up</em> through an export module for two
+  fields already beneath it, this one is a builder reaching <em>down</em> for its own inputs. Both
+  files nonetheless carry 0 named record imports, so the retention costs the terminal gate
+  nothing.</p>
+
+  <p><strong>A census correction, and it matters for whether the terminal gate is passable at
+  all.</strong> The census opening this session measured 61 files and 67 import statements by
+  grepping the working tree, which silently counted two untracked user-owned scratch files —
+  <code>scripts/_diag_warm.py</code> and <code>scripts/efcc_absolute_coupling.py</code> — present in
+  no commit and no worktree. The tracked baseline is <strong>59 files and 65 import
+  statements</strong>, exactly the figure the boundary design had already corrected to. A gate
+  counting untracked scratch as consumers would be unpassable by construction. Both files are
+  adjudicated as bucket B rather than derivation-only — <code>_diag_warm.py</code> needs
+  <code>OperatorGeometry</code> for <code>PatchBasis</code> construction,
+  <code>efcc_absolute_coupling.py</code> needs <code>SensorGeometry</code> for its probe-family
+  read — and whether they are admitted to the repository is an ownership decision the user owns.
+  Verification receipt:
+  <code>PASS core_imports=0/4 core_focused=35p/0f tests_gs=236p/0f scripts_imports=0/21
+  derivation=18/18-byte-identical identity=unchanged tracked_baseline=59/65</code>.</p>
 </main>
 </body>
 </html>
