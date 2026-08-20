@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from imas_ambix.gs import geometry as gsg
+from imas_ambix.gs import geometry_export
 from imas_ambix.gs.geometry_export import (
     GEOMETRY_FEATURE_NAMES,
     KIND_BPOL_PROBE,
@@ -15,6 +17,12 @@ from imas_ambix.gs.geometry_export import (
     KIND_SXR_CHORD,
     N_GEOMETRY_FEATURES,
     build_geometry_fields_from_table,
+)
+from imas_ambix.gs.machine_geometry import (
+    GeometryIdentity,
+    SensorGeometry,
+    _project_operator_geometry,
+    _project_sensor_features,
 )
 
 
@@ -283,3 +291,53 @@ def test_to_dict_is_json_serialisable():
     json.dumps(d)  # must not raise
     assert d["feature_names"] == list(GEOMETRY_FEATURE_NAMES)
     assert "ccbv01" in d["channels"]
+
+
+def test_shot_builder_consumes_operator_and_sensor_projections(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    table = _synthetic_table()
+    identity = GeometryIdentity(
+        representation_key=table.signature.key,
+        representation_digest=table.signature.digest,
+        derivation_id="declared-probe-angle",
+        physical_digest="machine-digest",
+        registry_digest="registry-digest",
+    )
+    operator = _project_operator_geometry(table, identity=identity)
+    requested = tuple(
+        [mapping.amb_channel for mapping in table.sensor_map]
+        + table.amc_current_channels
+        + ["gas_valve_setpoint"]
+    )
+    matrix, kinds = _project_sensor_features(table, requested)
+    sensors = SensorGeometry(
+        identity=identity,
+        channels=requested,
+        feature_names=GEOMETRY_FEATURE_NAMES,
+        sensor_kinds=kinds,
+        feature_matrix=matrix,
+    )
+    calls: list[tuple[str, int]] = []
+
+    class StubService:
+        def operator(self, shot: int):
+            calls.append(("operator", shot))
+            return operator
+
+        def sensors(self, shot: int, channels):
+            calls.append(("sensors", shot))
+            assert tuple(channels) == requested
+            return sensors
+
+    monkeypatch.setattr(geometry_export, "MachineGeometryService", StubService)
+    fields = geometry_export.build_geometry_table(
+        12_345, extra_channel_names=["gas_valve_setpoint"]
+    )
+
+    assert calls == [("operator", 12_345), ("sensors", 12_345)]
+    assert fields.signature_key == identity.representation_key
+    assert fields.physical_digest == "machine-digest"
+    assert fields.shots == [12_345]
+    assert fields.get("ccbv01").r == pytest.approx(0.18)
+    assert fields.get("gas_valve_setpoint").sensor_kind == KIND_SCALAR

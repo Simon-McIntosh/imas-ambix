@@ -10,7 +10,7 @@ loop), and — for a line-integrated diagnostic — the chord it integrates alon
 the vessel/limiter contour, the PF-coil positions, and the nominal
 major/minor radius.
 
-This module turns the per-campaign :class:`imas_ambix.gs.geometry.GeometryTable`
+This module turns the per-campaign machine-geometry projections
 (B-probes, flux loops, PF filaments, limiter, the amb-sensor -> ``(R, Z, theta)``
 map) into a **flat, one-row-per-token-channel** table keyed by the token
 channel-name vocabulary the world-model dataset consumes (the ``signals_hf``
@@ -23,8 +23,8 @@ array aligned 1:1 with the store's ``channel_names``.
 Apparatus geometry only — never a reconstruction output
 -------------------------------------------------------
 Every coordinate here is **apparatus metadata** — the fixed *a-priori* setup a
-solver is *given*.  The upstream :mod:`imas_ambix.gs.geometry` reads ONLY the
-static-setup efm arrays (``magpr_r/z/ang/len``, ``silop_r/z``, ``fcoil``
+solver is *given*. The private geometry kernel reads only the static-setup
+arrays (``magpr_r/z/ang/len``, ``silop_r/z``, ``fcoil``
 geometry, ``limiter``) and DELIBERATELY EXCLUDES every fitted/reconstructed
 output (``*_c`` / ``*_x`` currents, ``psirz``, boundary, axis, ``q`` …).  This
 module sources geometry ONLY through that boundary; it never imports or reads
@@ -36,8 +36,7 @@ Per-campaign aware
 ------------------
 The efm setup is not constant across the corpus (the ``fcoil`` discretisation
 and the ``magpr_z`` positions drift between campaigns).  The flat table is
-built from one campaign's :class:`~imas_ambix.gs.geometry.GeometryTable` and
-carries that table's :class:`~imas_ambix.gs.geometry.SetupSignature` key so a
+built from one campaign's projections and carries their representation key so a
 consumer never mixes geometry from incompatible campaigns.
 """
 
@@ -46,12 +45,17 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from imas_ambix.data.description_reader import read_geometry_table
-from imas_ambix.gs.geometry import GeometryTable
+from imas_ambix.gs.machine_geometry import (
+    MachineGeometryService,
+    OperatorGeometry,
+    SensorGeometry,
+    _project_operator_geometry,
+    _project_sensor_features,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -121,20 +125,6 @@ _NORM_RE = re.compile(r"[\s_\-/.]+")
 def _normalise(name: str) -> str:
     """Lower-case, strip separators — the key both vocabularies match on."""
     return _NORM_RE.sub("", str(name).lower())
-
-
-# Channel-name prefixes whose channels are line-integrated diagnostics.  A
-# matching channel is tagged with the chord kind even when no chord endpoints
-# are known yet (the endpoint columns stay NaN — the schema is present and the
-# kind is explicit, ready for a machine whose chord geometry IS tabulated).
-_INTERFEROMETER_PREFIXES = ("interfer", "nbar", "density", "ne_", "ne")
-_SXR_PREFIXES = ("sxr", "softxray", "xsx")
-
-# Channel-name prefixes that are PF / plasma current actuators (coils).  These
-# carry geometry (a PF-coil R/Z position), surfaced via the campaign's PF
-# filaments grouped by circuit.  amc current-channel names look like ``p3u``,
-# ``p4l``, ``p5``, ``solenoid``/``sol``, ``pfx`` …
-_COIL_PREFIXES = ("p1", "p2", "p3", "p4", "p5", "p6", "pf", "sol", "tf", "ip")
 
 
 # --- The flat per-channel record --------------------------------------
@@ -279,7 +269,7 @@ class GeometryFields:
 
 
 def _pf_circuit_centroids(
-    table: GeometryTable,
+    geometry: Any,
 ) -> tuple[dict[int, tuple[float, float]], tuple[float, ...], tuple[float, ...]]:
     """Turns-weighted ``(R, Z)`` centroid per PF circuit.
 
@@ -288,7 +278,10 @@ def _pf_circuit_centroids(
     the flat (R, Z) lists for the machine block (sorted by circuit number).
     """
     by_circ: dict[int, list] = {}
-    for fil in table.pf_filaments:
+    filaments = getattr(geometry, "conductors", None)
+    if filaments is None:
+        filaments = geometry.pf_filaments
+    for fil in filaments:
         by_circ.setdefault(int(fil.circuit), []).append(fil)
     centroids: dict[int, tuple[float, float]] = {}
     for circ, fils in by_circ.items():
@@ -306,126 +299,13 @@ def _pf_circuit_centroids(
     return centroids, pf_r, pf_z
 
 
-def _classify_kind(channel_name: str) -> str:
-    """Tag a channel with no efm-sensor match by its name prefix.
-
-    A line-integrated diagnostic (interferometer / SXR chord) keeps its chord
-    kind even with no known endpoints; a coil / current actuator gets the coil
-    kind; everything else is a pure scalar.
-    """
-    n = _normalise(channel_name)
-    if n.startswith(_SXR_PREFIXES):
-        return KIND_SXR_CHORD
-    if n.startswith(_INTERFEROMETER_PREFIXES):
-        return KIND_INTERFEROMETER_CHORD
-    if n.startswith(_COIL_PREFIXES):
-        return KIND_COIL
-    return KIND_SCALAR
-
-
-def _bprobe_row(channel_name: str, mapping) -> ChannelGeometry:
-    """Build a B-probe channel row (orientation -> field-direction normal)."""
-    ang = float(mapping.angle_deg) if mapping.angle_deg is not None else float("nan")
-    if np.isfinite(ang):
-        rad = np.deg2rad(ang)
-        # angle_deg is the orientation of the probe; the field direction it
-        # reads is (cos, sin) of that angle in the (R, Z) plane.  0 deg = radial
-        # (reads B_R), 90 deg = vertical (reads B_Z).
-        nr, nz = float(np.cos(rad)), float(np.sin(rad))
-    else:
-        nr = nz = float("nan")
-    return ChannelGeometry(
-        channel_name=channel_name,
-        sensor_kind=KIND_BPOL_PROBE,
-        r=float(mapping.r),
-        z=float(mapping.z),
-        phi=0.0,
-        angle_deg=ang,
-        normal_r=nr,
-        normal_z=nz,
-        chord_r1=float("nan"),
-        chord_z1=float("nan"),
-        chord_r2=float("nan"),
-        chord_z2=float("nan"),
-    )
-
-
-def _flux_loop_row(channel_name: str, mapping) -> ChannelGeometry:
-    """Build a flux-loop channel row (point sensor, no orientation/chord)."""
-    return ChannelGeometry(
-        channel_name=channel_name,
-        sensor_kind=KIND_FLUX_LOOP,
-        r=float(mapping.r),
-        z=float(mapping.z),
-        phi=0.0,
-        angle_deg=float("nan"),
-        normal_r=float("nan"),
-        normal_z=float("nan"),
-        chord_r1=float("nan"),
-        chord_z1=float("nan"),
-        chord_r2=float("nan"),
-        chord_z2=float("nan"),
-    )
-
-
-def _coil_row(
-    channel_name: str, centroids: dict[int, tuple[float, float]]
-) -> ChannelGeometry:
-    """Build a coil channel row.
-
-    A coil's geometry is the turns-weighted centroid of its filaments.  Without
-    a per-channel circuit mapping in the geometry source we cannot resolve WHICH
-    circuit a named amc channel drives, so the position columns stay NaN but the
-    kind is explicitly ``coil`` (the schema is present; a downstream wiring step
-    can fill R/Z once an amc-channel -> circuit map is tabulated).
-    """
-    return ChannelGeometry(
-        channel_name=channel_name,
-        sensor_kind=KIND_COIL,
-        r=float("nan"),
-        z=float("nan"),
-        phi=0.0,
-        angle_deg=float("nan"),
-        normal_r=float("nan"),
-        normal_z=float("nan"),
-        chord_r1=float("nan"),
-        chord_z1=float("nan"),
-        chord_r2=float("nan"),
-        chord_z2=float("nan"),
-    )
-
-
-def _scalar_or_chord_row(channel_name: str) -> ChannelGeometry:
-    """Build a row for a channel with no efm-sensor geometry.
-
-    Pure scalars (``ip``, gas-valve setpoints) get ``scalar`` with all-NaN
-    coordinates; a line-integrated diagnostic gets its chord kind with NaN
-    endpoints (present, explicit, ready to fill).
-    """
-    kind = _classify_kind(channel_name)
-    return ChannelGeometry(
-        channel_name=channel_name,
-        sensor_kind=kind,
-        r=float("nan"),
-        z=float("nan"),
-        phi=0.0 if kind != KIND_SCALAR else float("nan"),
-        angle_deg=float("nan"),
-        normal_r=float("nan"),
-        normal_z=float("nan"),
-        chord_r1=float("nan"),
-        chord_z1=float("nan"),
-        chord_r2=float("nan"),
-        chord_z2=float("nan"),
-    )
-
-
 def build_geometry_fields_from_table(
-    table: GeometryTable,
+    table: Any,
     *,
     extra_channel_names: Iterable[str] | None = None,
     resolve_identity: bool = False,
 ) -> GeometryFields:
-    """Flatten a :class:`GeometryTable` to a per-channel geometry table.
+    """Project a private compatibility kernel to per-channel geometry.
 
     Every amb sensor mapping in ``table.sensor_map`` becomes a B-probe or
     flux-loop row keyed by its amb channel name.  Any ``extra_channel_names``
@@ -440,60 +320,24 @@ def build_geometry_fields_from_table(
     identity is provenance and never feeds the encoding.  A registry miss is
     non-fatal, matching the surrounding best-effort geometry contract.
     """
-    centroids, pf_r, pf_z = _pf_circuit_centroids(table)
-    machine = MachineGeometry(
-        limiter_r=tuple(float(x) for x in table.limiter_r),
-        limiter_z=tuple(float(x) for x in table.limiter_z),
-        pf_coil_r=pf_r,
-        pf_coil_z=pf_z,
-        r0=float(table.r0),
-        minor_radius=float(table.minor_radius),
-    )
-
-    channels: dict[str, ChannelGeometry] = {}
-    for m in table.sensor_map:
-        if m.kind == "b_probe":
-            row = _bprobe_row(m.amb_channel, m)
-        elif m.kind == "flux_loop":
-            row = _flux_loop_row(m.amb_channel, m)
-        else:  # defensive — gs.geometry only emits b_probe / flux_loop today
-            row = _scalar_or_chord_row(m.amb_channel)
-        channels[_normalise(m.amb_channel)] = row
-
-    # amc current channels (coils) — present and explicitly coil-kinded.
-    for name in table.amc_current_channels:
-        key = _normalise(name)
-        if key in channels:
-            continue
-        channels[key] = _coil_row(name, centroids)
-
-    # any extra token channel names the caller supplies (chords / scalars /
-    # re-encoded sensor names) — never silently dropped.
+    operator = _project_operator_geometry(table, resolve_identity=resolve_identity)
+    channel_names: dict[str, str] = {}
+    for mapping in operator.sensor_map:
+        channel_names.setdefault(_normalise(mapping.amb_channel), mapping.amb_channel)
+    for name in operator.available_current_channels:
+        channel_names.setdefault(_normalise(name), name)
     for name in extra_channel_names or ():
-        key = _normalise(name)
-        if key in channels:
-            continue
-        channels[key] = _scalar_or_chord_row(name)
-
-    physical_digest = ""
-    if resolve_identity:
-        from imas_ambix.gs.machine_identity import (  # noqa: PLC0415
-            MachineIdentityError,
-            identity_for_table,
-        )
-
-        try:
-            physical_digest = identity_for_table(table).physical_digest
-        except MachineIdentityError, ImportError, OSError, ValueError:
-            physical_digest = ""
-
-    return GeometryFields(
-        signature_key=table.signature.key,
-        physical_digest=physical_digest,
-        shots=list(table.shots),
-        machine=machine,
-        channels=channels,
+        channel_names.setdefault(_normalise(name), str(name))
+    requested = tuple(channel_names.values())
+    matrix, kinds = _project_sensor_features(table, requested)
+    sensors = SensorGeometry(
+        identity=operator.identity,
+        channels=requested,
+        feature_names=GEOMETRY_FEATURE_NAMES,
+        sensor_kinds=kinds,
+        feature_matrix=matrix,
     )
+    return _fields_from_projections(operator, sensors, table.shots)
 
 
 def build_geometry_table(
@@ -508,9 +352,70 @@ def build_geometry_table(
     The selected description is constant across its declared shot range, so one
     shot is a valid source for that range's table.
     """
-    table = read_geometry_table(shot_id)
-    return build_geometry_fields_from_table(
-        table, extra_channel_names=extra_channel_names
+    shot = int(shot_id)
+    service = MachineGeometryService()
+    operator = service.operator(shot)
+    channel_names: dict[str, str] = {}
+    for mapping in operator.sensor_map:
+        channel_names.setdefault(_normalise(mapping.amb_channel), mapping.amb_channel)
+    for name in operator.available_current_channels:
+        channel_names.setdefault(_normalise(name), name)
+    for name in extra_channel_names or ():
+        channel_names.setdefault(_normalise(name), str(name))
+    sensors = service.sensors(shot, channel_names.values())
+    return _fields_from_projections(operator, sensors, (shot,))
+
+
+def _fields_from_projections(
+    operator: OperatorGeometry,
+    sensors: SensorGeometry,
+    shots: Iterable[int],
+) -> GeometryFields:
+    """Build the outward DTO exclusively from facade projections."""
+    _, pf_r, pf_z = _pf_circuit_centroids(operator)
+    machine = MachineGeometry(
+        limiter_r=operator.limiter_r,
+        limiter_z=operator.limiter_z,
+        pf_coil_r=pf_r,
+        pf_coil_z=pf_z,
+        r0=operator.r0,
+        minor_radius=operator.minor_radius,
+    )
+    channels: dict[str, ChannelGeometry] = {}
+    mappings = {
+        _normalise(mapping.amb_channel): mapping for mapping in operator.sensor_map
+    }
+    for name, kind, row in zip(
+        sensors.channels,
+        sensors.sensor_kinds,
+        sensors.feature_matrix,
+        strict=True,
+    ):
+        values = dict(zip(GEOMETRY_FEATURE_NAMES, map(float, row), strict=True))
+        mapping = mappings.get(_normalise(name))
+        if mapping is not None and kind in (KIND_BPOL_PROBE, KIND_FLUX_LOOP):
+            # SensorGeometry is float32 by contract, while the outward JSON
+            # DTO retains exact source scalars. Read them from the operator
+            # projection instead of widening the rounded dense encoding.
+            values["r"] = float(mapping.r)
+            values["z"] = float(mapping.z)
+            if kind == KIND_BPOL_PROBE and mapping.angle_deg is not None:
+                angle = float(mapping.angle_deg)
+                values["angle_deg"] = angle
+                radians = np.deg2rad(angle)
+                values["normal_r"] = float(np.cos(radians))
+                values["normal_z"] = float(np.sin(radians))
+        channels[_normalise(name)] = ChannelGeometry(
+            channel_name=name,
+            sensor_kind=kind,
+            **values,
+        )
+    return GeometryFields(
+        signature_key=operator.identity.representation_key,
+        physical_digest=operator.identity.physical_digest,
+        shots=[int(shot) for shot in shots],
+        machine=machine,
+        channels=channels,
     )
 
 

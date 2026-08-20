@@ -1,8 +1,8 @@
 """Select a shot's machine geometry by which machine it is, not by how it was meshed.
 
 The declared selection route maps a shot range to a reviewed machine
-description and retains a :class:`~imas_ambix.gs.geometry.SetupSignature` as
-the discretization fingerprint every downstream consumer groups by.
+description and retains its setup signature as the discretization fingerprint
+every downstream consumer groups by.
 
 This route asks the other question.  A shot resolves through the Nova registry to
 a PHYSICAL identity -- the machine and its diagnostic pose -- and that identity
@@ -13,7 +13,7 @@ the identity rule doing its job.
 Identity and computation
 ------------------------
 Physical identity governs SELECTION and PROVENANCE; it is not a cache address.
-The table this returns still carries the ``SetupSignature`` its geometry
+The private kernel this returns still carries the setup signature its geometry
 determines, unchanged and uncomputed by this module, because every cached object
 downstream -- the grid, the Delta-star factorisation, the Green's and interaction
 matrices -- is a function of the discretization and must stay keyed by it.  Two
@@ -52,7 +52,6 @@ from imas_ambix.gs.machine_identity import IDENTITY_PHYSICAL, identity_for_shot
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from imas_ambix.gs.geometry import GeometryTable
     from imas_ambix.gs.machine_identity import MachineIdentity
 
 
@@ -67,7 +66,7 @@ class SelectedMachine:
     shot: int
     identity: MachineIdentity
     artifact: ResolvedArtifact
-    table: GeometryTable
+    table: Any
     #: What the description itself states about its own provenance -- the
     #: reader's block, carried through unchanged so a consumer records the
     #: evidence ledger and the forward-model blockers alongside the identity.
@@ -121,7 +120,7 @@ class ArtifactMachineSelector:
     cache_directory: str | None = None
     digest: str | None = None
     _artifact: ResolvedArtifact | None = field(default=None, init=False, repr=False)
-    _reads: dict[int, tuple[GeometryTable, dict[str, Any]]] = field(
+    _reads: dict[int, tuple[Any, dict[str, Any]]] = field(
         default_factory=dict, init=False, repr=False
     )
 
@@ -154,7 +153,7 @@ class ArtifactMachineSelector:
 
     def _read(
         self, shot: int, artifact: ResolvedArtifact, identity: MachineIdentity
-    ) -> tuple[GeometryTable, dict[str, Any]]:
+    ) -> tuple[Any, dict[str, Any]]:
         from imas_ambix.data.description_reader import (  # noqa: PLC0415
             read_acquisition_channels,
         )
