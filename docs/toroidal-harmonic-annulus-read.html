@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="toroidal-harmonic-annulus-read">
   <meta name="plan-title" content="Toroidal-Harmonic Annulus Read — the source-free vacuum-region boundary representation (R3)">
   <meta name="plan-summary" content="PRIMARY machine-agnostic boundary route (promoted from cross-check, 2026-07-14). Fit the vacuum-annulus ψ in the Δ*-eigenfunctions (half-integer-degree Legendre P_{n−1/2}, Q_{n−1/2} toroidal harmonics) matched to the RAW external magnetics + known coil field + Ip + li, and read the separatrix / X-point / LCFS + limited-vs-diverted class off that smooth SOURCE-FREE field WITHOUT reconstructing an interior current and WITHOUT EFIT (firewall stays). This decouples the boundary from the interior: the free-boundary GS solve conflated them and re-imported interior ambiguity + coil-model error into the near-edge ψ (the -3.70 LCFS bar was self-inflicted). Diverted and limited plasmas DO differ in the external field (an external X-point saddle vs a wall tangency), and Ip+li break the residual field→boundary degeneracy — so a low-order boundary is recoverable from low-order external moments (Braams 1991; Alladio-Crisanti 1986; our own thread-1 moment read already recovered the X-point class -0.61→-0.15). Feeds the fixed-boundary interior spine and is the classical baseline / inductive bias for the learned cross-machine boundary operator (the GenCast-style endgame). Valid ONLY in the source-free annulus; the axis stays with the interior carrier.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="M">
   <meta name="plan-milestone" content="M4">
@@ -20,12 +20,12 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-20">
-<meta name="plan-version" content="21">
-<meta name="plan-impl" content="0.85">
+<meta name="plan-version" content="22">
+<meta name="plan-impl" content="1.0">
 <meta name="plan-sprint" content="S18">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
-<meta name="plan-commits" content="5fb7510,63f214a,7413d54,80e84da,a50cf3b,95872d2,86295bc">
+<meta name="plan-commits" content="5fb7510,63f214a,7413d54,80e84da,a50cf3b,95872d2,86295bc,9bb9e40,01ddf97">
 <meta name="plan-artifacts" content="imas_ambix/latent/artifacts/patch_gate/harmonic_phase_rebaseline.json,imas_ambix/latent/artifacts/patch_gate/harmonic_configuration_selection.json,imas_ambix/latent/artifacts/patch_gate/harmonic_component_error.json,imas_ambix/latent/artifacts/patch_gate/harmonic_high_order_sweep.json,imas_ambix/latent/artifacts/patch_gate/harmonic_origin_correction.json,docs/figures/toroidal-harmonic-annulus-read/phase-split-skill.png,docs/figures/toroidal-harmonic-annulus-read/harmonic-configuration-selection.png,docs/figures/toroidal-harmonic-annulus-read/component-error.png,docs/figures/toroidal-harmonic-annulus-read/high-order-sweep.png,docs/figures/toroidal-harmonic-annulus-read/origin-correction.png">
 </head>
 <body>
@@ -197,32 +197,24 @@
       </p>
     </section>
 
-    <h2 id="s7">§7 — Adjudicate the X-point cost, then decide the frozen default</h2>
-    <p>The origin correction (§6) recovers the LCFS envelope to 4.51 cm held-out — the best this arm
-    has recorded, past even the 6.7 cm of 2026-07-14 — and nearly eliminates the radial axis bias
-    (+0.0874 → −0.0098 m), while the annulus-consistency guard holds at 0.0816. It costs X-point-set
-    skill: +0.689 [0.309, 0.773] → −2.719 [−4.575, +0.425]. It ships opt-in
-    (<code>--origin-radial-fraction</code> defaults to 0.0), so the scored default is unchanged and
-    nothing has been promoted by measurement alone. Two things remain.</p>
-    <ul>
-      <li><strong>Is the X-point cost an assignment artifact?</strong> The regression is not uniform:
-      it concentrates in a single component, <code>xpt0_R</code> −0.445 → −2.624, while the other
-      X-point <em>improves</em> in both (<code>xpt1_R</code> −1.874 → −0.126, <code>xpt1_Z</code>
-      −15.42 → −7.23). Moving the origin inboard changes which referee null each emitted null is
-      matched to, so a permutation effect could account for some or all of the aggregate loss. This is
-      a hypothesis, not a measurement: decide it from the per-slice matching on the arrays already
-      committed, without rescoring. If it is largely an artifact, the correction is close to a pure
-      win; if it is real, the tradeoff stands as scored.</li>
-      <li><strong>Which configuration is frozen as this arm's default?</strong> A lead-owned tradeoff
-      with no dominance — LCFS fidelity and radial axis bias against X-point-set skill. The precedent
-      in the locked pole-and-truncation decision favoured the LCFS envelope when the centroid origin
-      posed the same shape of choice, but that was recorded as a judgement, not a rule.</li>
-    </ul>
-    <p>Protocol constraint carried forward, binding on both items: the held-out cohort has now been
-    scored three times (re-baseline, re-freeze, origin correction), each once per train-frozen
-    configuration and so individually clean, but the multiplicity is real. The adjudication above
-    needs no rescore. Any further scoring requires an untouched cohort or an explicitly authorised
-    protocol.</p>
+    <section id="s7" class="section-landed">
+      <header><span class="badge badge-shipped">✓ landed 2026-08-20</span>
+      <h2>§7 — Adjudicate the X-point cost, then decide the frozen default</h2></header>
+      <p class="landed-summary">
+      The X-point cost is <strong>real, not a matching artifact</strong>: both scores already came
+      from the permutation-invariant <code>matched_xpoint_error</code>, so the whole 3.4085-point gap
+      survives permutation-invariant matching. The correction is therefore
+      <strong>promoted to the scored default</strong> on the LCFS-envelope precedent (lead decision
+      <code>origin-correction-default</code>) — defaults pinned by unit test to the committed fit so
+      they cannot drift, explicit zeros still reproducing the uncorrected read. Per-slice attribution
+      stayed underdetermined because the correction run silently dropped its arrays; that writer is
+      fixed, though it cannot recover the completed run. Residual: ΔZ does not transfer
+      (−0.0411 → −0.0388 m), and this cohort has had three looks, so the split-axis alternative would
+      need a fresh one.
+      Full record: <a href="/imas-ambix/evidence/archive/toroidal-harmonic-annulus-read-landed">§7 landed</a>
+      (commits <code>9bb9e40</code>, <code>01ddf97</code>).
+      </p>
+    </section>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -525,10 +517,16 @@ Guardrails
   Stay on main; EFIT firewalled; coil couplings thick-cylinder; machine-agnostic pole/origin; no AI trailers.</pre>
     <p class="r-fu-outcome">Adopted. connectivity-boundary-classification landed (LCFS by outermost closed axis-enclosing flux contour; topology.py::lcfs_contour + emergent_xpoints) and was swapped into THIS gate's hybrid_target_harmonic in place of the innermost-X-point + limiter-fallback + ray-cast block. Re-scored held-out (n=160, firewalled EFIT, 2000-boot CIs), centroid origin o3: X-point-set -4.54 -&gt; -1.797, LCFS -2.48-class -&gt; -1.958, offset 6.7 cm; emergent limited/diverted diagnostic 0.40 all / 0.625 flat-top (MAST ramps up limited, diverts as it grows). Single code path, no tuned cap (§7 held). Figures regenerated (flux surfaces across breakdown-&gt;termination + skill/timing). See connectivity-boundary-classification (shipped) + its archive. The axis/Shafranov recovery (f-thar-xpt-shafranov) remains this plan's separate open concern.</p>
     </article>
-<article class="r-fu" data-id="f-thar-xpt-adjudication" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-08-20T01:25:00+00:00" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read §7" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-thar-xpt-adjudication" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-08-20T01:25:00+00:00" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read §7" data-resolved-at="2026-08-20T13:04:50+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Adjudicate the X-point cost of the origin correction, then decide the frozen default</h4>
     <div class="r-fu-body"><p>§7. The origin correction posts this arm's best held-out LCFS (4.51 cm) and nearly eliminates the radial axis bias, but costs X-point-set skill (+0.689 → −2.719). The regression concentrates in <code>xpt0_R</code> while the other X-point improves in both components, so it may be an X-point assignment artifact — decidable from the committed per-slice arrays without rescoring. Then the lead-owned call: whether the correction becomes this arm's frozen default. The held-out cohort has been scored three times; any further scoring needs an untouched cohort or an authorised protocol.</p></div>
     <pre class="r-fu-prompt">/reckon-ship toroidal-harmonic-annulus-read §7</pre>
+    <p class="r-fu-outcome">Both items delivered. (1) The X-point cost is REAL, not a matching artifact: patch_gate_eval.matched_xpoint_error is documented and verified as the permutation-invariant X-point-set RMSE skill shared by the point estimate and every bootstrap resample, and it is the path behind BOTH the +0.689 uncorrected and the -2.719 corrected score, so the whole 3.4085-point gap already survives permutation-invariant matching. The adjudication node reported blocked rather than guessing, and its audit produced this answer; the per-slice attribution stayed underdetermined because the gate silently skipped its array writer whenever the correction flag was set, dropping every corrected per-slice prediction. That writer is fixed (9bb9e40) though it cannot recover the completed run, and the node correctly refused to replay the held-out cohort unauthorised. (2) The lead decided to promote, recorded as the locked decision origin-correction-default on the LCFS-envelope precedent; implemented at 01ddf97 with the defaults pinned by unit test to the committed fit artifact and explicit zeros still reproducing the uncorrected read. Two residuals remain and are carried by f-thar-vertical-residual under an authority-required exemption: the vertical component does not transfer held-out (-0.0411 -> -0.0388 m), and the split-axis alternative would need an untouched cohort since this one has now been scored three times.</p>
+    </article>
+<article class="r-fu" data-id="f-thar-vertical-residual" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-ship" data-written-at="2026-08-20T15:05:00+00:00" data-recommends-skill="/reckon-ship toroidal-harmonic-annulus-read" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Vertical residual and the split-axis alternative — both need cohort authority</h4>
+    <div class="r-fu-body"><p><strong>Exemption: authority-required.</strong> Both remaining items need a scored held-out evaluation, and this cohort has been scored three times (re-baseline, re-freeze, origin correction — each once per train-frozen configuration, so individually clean, but three looks all the same). Minting a fresh held-out cohort, or authorising a fourth look at this one, changes the evaluation substrate every arm in the project is compared on and is not the orchestrator's to take. Not forgotten executable work — blocked on that authority.</p><p>The items: (1) the vertical component of the origin correction does not transfer held-out (bias −0.0411 → −0.0388 m), so ΔZ is not doing work and the vertical residual is unaddressed; (2) correcting the axis and confined-side flux reference <em>separately</em> from the null read — the original followup's item 2 — is the live alternative if the accepted X-point-set cost (+0.689 → −2.719) later proves binding on the interior spine or the learned boundary operator. The gate machinery, the fitted correction and the attribution persistence are all in place; only the cohort decision is missing.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship toroidal-harmonic-annulus-read</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
@@ -555,6 +553,9 @@ Guardrails
 </div>
 <div class="r-comment" data-section="s7" data-id="c-20260820T0140" data-who="reckon-ship" data-when="2026-08-20T01:40:00+00:00">
     <div class="r-comment-body">harmonic-xpoint-adjudication reported BLOCKED with no commit — but its read-only audit answers the question it was sent to test, and the answer is a <strong>refutation</strong>. Both published X-point-set scores (+0.689 uncorrected, −2.719 corrected) were computed by <code>patch_gate_eval.matched_xpoint_error</code>, whose own docstring states it is the permutation-invariant X-point-set RMSE skill shared by the point estimate and every bootstrap resample; verified at source. The <strong>entire 3.4085-point regression therefore already survives permutation-invariant matching</strong> and cannot be a matching-permutation artifact. The concentration in <code>xpt0_R</code> is a real property of the corrected read, not a bookkeeping effect — so the §6 tradeoff stands exactly as scored, and the frozen-default choice is a genuine physics tradeoff rather than an artifact to be explained away. What remains underdetermined is only the per-slice attribution (which slices change assignment, and which change emitted-null COUNT). That is blocked by a source defect the node surfaced: <code>scripts/boundary_harmonic_gate_eval.py</code> skips its JSON and NPZ writer whenever the origin-correction run flag is set, so the correction run persisted aggregate scores while silently dropping every per-slice prediction; only the uncorrected 160×14 arrays are committed. Recovering those coordinates would require replaying the held-out cohort, which the node correctly declined to do unauthorised — the right call, and the block is a well-formed refusal rather than a failure. The persistence defect is folded as its own node so the next correction run keeps its attribution arrays.</div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-20260820T1505" data-who="reckon-ship" data-when="2026-08-20T15:05:00+00:00">
+    <div class="r-comment-body">origin-correction-default landed — commit 01ddf97; default-promotion measure PASSED. The scored defaults now come from named constants <code>FROZEN_ORIGIN_RADIAL_FRACTION = −0.10337916919607336</code> and <code>FROZEN_ORIGIN_VERTICAL_FRACTION = +0.0023196917177776104</code>, and a unit test reads <code>harmonic_origin_correction.json</code> and requires the parser defaults and the constants to equal its <code>fitted_correction</code> values — so the shipped default and the measurement that justified it cannot silently drift apart, which was the main risk in promoting a fitted number into a default. The same test requires the default pair to emit the <code>-correctedorigin</code> artifact tag while explicit command-line zeros apply an identity correction and emit the uncorrected tag, so the previous read stays reachable and the two runs' outputs cannot collide. 19/19 tests pass, ruff clean, one test added; no held-out cohort loaded or scored. Preceded by correction-attribution-persistence (commit 9bb9e40): frozen corrected scoring now persists its per-slice arrays under the corrected tag instead of silently skipping the writer, TDD-red against the previous code, suite 18/18 — it does not recover the completed correction run's dropped arrays, but the next one is auditable at slice level.</div>
 </div>
 </section>
 </main>

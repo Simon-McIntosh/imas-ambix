@@ -282,6 +282,49 @@
   does not. Recorded here rather than left implicit: further scoring of this arm should use an
   untouched cohort or an explicitly authorised protocol. The high-order ladder and the component
   decomposition did not touch it at all.</p>
+
+  <h2 id="xpoint-adjudication">The X-point cost is real, not a matching artifact</h2>
+  <p><strong>Both published X-point-set scores were already computed by the permutation-invariant
+  matcher, so the entire 3.4085-point regression survives permutation-invariant matching and cannot
+  be explained as a bookkeeping effect.</strong> <code>patch_gate_eval.matched_xpoint_error</code>
+  documents itself as "the permutation-invariant X-point-set RMSE skill (shared by the point estimate
+  and every bootstrap resample of it)", and it is the path behind both the +0.689 uncorrected and the
+  −2.719 corrected figure — verified at source. The concentration in <code>xpt0_R</code> is a real
+  property of the corrected read.</p>
+  <p>The per-slice attribution — which slices change assignment, which change emitted-null count —
+  remains underdetermined, and the reason is a defect this audit surfaced: the gate skipped its JSON
+  and NPZ writer whenever the origin-correction flag was set, so the correction run kept its
+  aggregate scores while silently dropping every per-slice prediction. Only the uncorrected 160×14
+  arrays are committed. Recovering the corrected coordinates would require replaying the held-out
+  cohort, which the node declined to do unauthorised — the correct refusal, and the reason this
+  landed as a well-formed block rather than a guess. The writer is fixed at commit
+  <code>9bb9e40</code>: frozen corrected scoring now persists its per-slice arrays under a
+  <code>-correctedorigin</code> tag that cannot overwrite the uncorrected ones, covered by a
+  regression that is red against the previous code. That fix cannot recover the run already
+  completed.</p>
+
+  <h2 id="frozen-default">Frozen default — the correction is promoted</h2>
+  <p><strong>Lead decision, recorded in the plan as <code>origin-correction-default</code>: the
+  fitted correction becomes this arm's scored default.</strong> The precedent is the locked
+  pole-and-truncation decision, where the centroid origin was adopted <em>because</em> it halved the
+  LCFS error even though X-point-set and axis both regressed. The gain here is larger — LCFS median
+  error 11.52 → 4.51 cm, radial axis bias 8.7 → 1.0 cm — and the source-free premise is undisturbed
+  (consistency 0.0850 → 0.0816). The X-point-set cost is accepted knowingly, having been confirmed
+  real above.</p>
+  <p>Commit <code>01ddf97</code>. The defaults are sourced from named constants
+  <code>FROZEN_ORIGIN_RADIAL_FRACTION = −0.10337916919607336</code> and
+  <code>FROZEN_ORIGIN_VERTICAL_FRACTION = +0.0023196917177776104</code>, and a unit test reads
+  <code>harmonic_origin_correction.json</code> and requires the parser defaults and the constants to
+  equal its <code>fitted_correction</code> values — so the shipped default and the measurement that
+  justified it cannot drift apart. The same test requires the default pair to emit the
+  <code>-correctedorigin</code> tag while explicit command-line zeros apply an identity correction and
+  emit the uncorrected tag, keeping the previous read reachable and the two runs' outputs distinct.
+  19/19 tests pass, ruff clean; no held-out cohort was loaded or scored.</p>
+  <p>Two residuals stand on the record rather than being closed by this decision: the vertical
+  component does not transfer held-out (−0.0411 → −0.0388 m), so the vertical residual is
+  unaddressed; and correcting the axis and flux reference <em>separately</em> from the null read —
+  the followup's original item 2, and the live alternative if the X-point cost later proves binding —
+  would need an untouched cohort, this one having now been scored three times.</p>
 </main>
 </body>
 </html>

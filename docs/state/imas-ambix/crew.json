@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T14:54:29",
+  "updated": "2026-08-20T15:03:04",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -155,7 +155,7 @@
         "id": "geometry-boundary-design",
         "harness": "codex",
         "role": "investigate",
-        "session_id": null,
+        "session_id": "01a01f3e-6582-7563-8e29-88bfd091f58e",
         "created": "2026-08-20"
       },
       {
@@ -5758,9 +5758,72 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260820T124957259320-origin-correction-default",
+        "plan": "toroidal-harmonic-annulus-read",
+        "section": "\u00a77",
+        "node": "origin-correction-default",
+        "role": "implement",
+        "member": "harmonic-anchor-wiring",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-20T12:50:06Z",
+        "completed_at": "2026-08-20T13:02:39Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 753,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 753,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "d1154be60e3d53d120acd2498ee6f3af02f94ea3",
+        "commits": [
+          "01ddf97"
+        ],
+        "changed_lines": {
+          "added": 81,
+          "removed": 6,
+          "files": 2
+        },
+        "tests_added": 1,
+        "gate": "passed",
+        "outcome": "Correction is now the scored default, per the lead decision. Defaults sourced from named constants FROZEN_ORIGIN_RADIAL_FRACTION=-0.10337916919607336 and FROZEN_ORIGIN_VERTICAL_FRACTION=+0.0023196917177776104, with a unit test reading harmonic_origin_correction.json and requiring the parser defaults and constants to equal its fitted_correction values, so shipped default and justifying measurement cannot drift. Same test requires the default pair to emit the -correctedorigin artifact tag while explicit command-line zeros apply an identity correction and emit the uncorrected tag, so the previous read stays reachable and outputs do not collide. 19/19 tests pass, ruff clean. No held-out cohort loaded or scored.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260820T124957259320-origin-correction-default/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01f38-bc62-7c70-84a5-24e465aa1751",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 5457408,
+            "cached_input_tokens_cumulative": 5457408,
+            "input_tokens": 5597761,
+            "input_tokens_cumulative": 5597761,
+            "output_tokens": 16901,
+            "output_tokens_cumulative": 16901,
+            "reasoning_output_tokens": 6241,
+            "reasoning_output_tokens_cumulative": 6241
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 173
+    "_version": 175
   }
 }
