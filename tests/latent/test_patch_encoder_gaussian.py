@@ -14,10 +14,12 @@ the Gaussian head is not selected.  This file splits into two concerns:
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
 
 import numpy as np
 import torch
 
+from imas_ambix.gs.machine_geometry import GeometryIdentity, OperatorGeometry
 from imas_ambix.latent.gs_solve import EquilibriumGrid, solve_equilibrium
 from imas_ambix.latent.patch_basis import PatchBasis
 from imas_ambix.latent.patch_encoder import (
@@ -30,41 +32,81 @@ from imas_ambix.latent.patch_encoder import (
 )
 
 
-def _confining_table():
-    """Synthetic machine: rectangular limiter + a vertical-field coil pair."""
-    from imas_ambix.gs import geometry as gsg
-
+def _operator_geometry() -> OperatorGeometry:
     probes = [
-        gsg.BProbe(index=i, r=1.35, z=-0.6 + 0.3 * i, angle_deg=-90.0, length=0.02)
+        SimpleNamespace(
+            index=i,
+            r=1.35,
+            z=-0.6 + 0.3 * i,
+            angle_deg=-90.0,
+            length=0.02,
+        )
         for i in range(5)
     ]
-    sensor_map = [
-        gsg.SensorMapping(f"obv{i:02d}", "b_probe", i, p.r, p.z, p.angle_deg, 0.001, "")
-        for i, p in enumerate(probes)
-    ]
-    pf = [
-        gsg.PFFilament(
-            r=1.1, z=1.0, turns=1.0, width=0.06, height=0.06, circuit=1, xmult=1.0
-        ),
-        gsg.PFFilament(
-            r=1.1, z=-1.0, turns=1.0, width=0.06, height=0.06, circuit=2, xmult=1.0
-        ),
-    ]
-    return gsg.GeometryTable(
-        signature=gsg.SetupSignature(
-            n_bprobe=5, n_fluxloop=0, n_pf_filament=2, n_limiter=5, digest="feed0000"
-        ),
-        shots=[1],
-        b_probes=probes,
-        flux_loops=[],
-        pf_filaments=pf,
-        limiter_r=[0.35, 1.45, 1.45, 0.35, 0.35],
-        limiter_z=[-0.85, -0.85, 0.85, 0.85, -0.85],
-        sensor_map=sensor_map,
-        passive_structures=[],
-        amc_current_channels=[],
-        unmatched_amb=[],
+    sensors = tuple(
+        SimpleNamespace(
+            amb_channel=f"obv{i:02d}",
+            kind="b_probe",
+            efm_index=i,
+            r=probe.r,
+            z=probe.z,
+            angle_deg=probe.angle_deg,
+            residual_m=0.001,
+            flag="",
+        )
+        for i, probe in enumerate(probes)
     )
+    conductors = (
+        SimpleNamespace(
+            r=1.1,
+            z=1.0,
+            turns=1.0,
+            width=0.06,
+            height=0.06,
+            circuit=1,
+            xmult=1.0,
+        ),
+        SimpleNamespace(
+            r=1.1,
+            z=-1.0,
+            turns=1.0,
+            width=0.06,
+            height=0.06,
+            circuit=2,
+            xmult=1.0,
+        ),
+    )
+    return OperatorGeometry(
+        identity=GeometryIdentity(
+            representation_key="mp5-fl0-fc2-lim5-feed0000",
+            representation_digest="feed0000",
+            derivation_id="synthetic-gaussian-encoder",
+            physical_digest="",
+            registry_digest="",
+        ),
+        probes=tuple(probes),
+        loops=(),
+        conductors=conductors,
+        passives=(),
+        limiter_r=(0.35, 1.45, 1.45, 0.35, 0.35),
+        limiter_z=(-0.85, -0.85, 0.85, 0.85, -0.85),
+        polygon_sections=(),
+        drive_map=(),
+        sensor_map=sensors,
+        unmatched_channels=(),
+        active_circuits=(),
+        available_current_channels=(),
+        r0=0.85,
+        minor_radius=0.65,
+        unresolved_turns={},
+        coil_channels=(),
+        coil_column_matrix=np.zeros((len(sensors), 0), dtype=np.float64),
+    )
+
+
+def _confining_table():
+    """Synthetic machine: rectangular limiter + a vertical-field coil pair."""
+    return _operator_geometry()
 
 
 def _small_encoder(*, n_coil: int, d_model=32, n_layers=1, n_time=4, head="direct"):

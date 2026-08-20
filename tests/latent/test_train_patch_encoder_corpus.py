@@ -17,12 +17,14 @@ Two mechanisms are exercised offline with synthetic geometry and no IMAS read:
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest import mock
 
 import numpy as np
 import torch
 
 import scripts.train_patch_encoder as tpe
+from imas_ambix.gs.machine_geometry import GeometryIdentity, OperatorGeometry
 from imas_ambix.latent.patch_basis import PatchBasis
 from imas_ambix.latent.patch_encoder import (
     DiscrepancyLambda,
@@ -49,10 +51,8 @@ NR, NZ, T_STEPS = 25, 33, 4
 
 def _synthetic_table(n_probe: int, digest: str):
     """Rectangular-limiter synthetic machine with ``n_probe`` B-probes, no coils."""
-    from imas_ambix.gs import geometry as gsg
-
     probes = [
-        gsg.BProbe(
+        SimpleNamespace(
             index=i,
             r=1.35,
             z=-0.6 + (1.2 / max(n_probe - 1, 1)) * i,
@@ -62,23 +62,43 @@ def _synthetic_table(n_probe: int, digest: str):
         for i in range(n_probe)
     ]
     sensor_map = [
-        gsg.SensorMapping(f"obv{i:02d}", "b_probe", i, p.r, p.z, p.angle_deg, 0.001, "")
+        SimpleNamespace(
+            amb_channel=f"obv{i:02d}",
+            kind="b_probe",
+            efm_index=i,
+            r=p.r,
+            z=p.z,
+            angle_deg=p.angle_deg,
+            residual_m=0.001,
+            flag="",
+        )
         for i, p in enumerate(probes)
     ]
-    return gsg.GeometryTable(
-        signature=gsg.SetupSignature(
-            n_bprobe=n_probe, n_fluxloop=0, n_pf_filament=0, n_limiter=5, digest=digest
+    return OperatorGeometry(
+        identity=GeometryIdentity(
+            representation_key=f"mp{n_probe}-fl0-fc0-lim5-{digest}",
+            representation_digest=digest,
+            derivation_id="synthetic-probes",
+            physical_digest="",
+            registry_digest="",
         ),
-        shots=[1],
-        b_probes=probes,
-        flux_loops=[],
-        pf_filaments=[],
-        limiter_r=[0.35, 1.45, 1.45, 0.35, 0.35],
-        limiter_z=[-0.85, -0.85, 0.85, 0.85, -0.85],
-        sensor_map=sensor_map,
-        passive_structures=[],
-        amc_current_channels=[],
-        unmatched_amb=[],
+        probes=tuple(probes),
+        loops=(),
+        conductors=(),
+        passives=(),
+        limiter_r=(0.35, 1.45, 1.45, 0.35, 0.35),
+        limiter_z=(-0.85, -0.85, 0.85, 0.85, -0.85),
+        polygon_sections=(),
+        drive_map=(),
+        sensor_map=tuple(sensor_map),
+        unmatched_channels=(),
+        active_circuits=(),
+        available_current_channels=(),
+        r0=0.85,
+        minor_radius=0.65,
+        unresolved_turns={},
+        coil_channels=(),
+        coil_column_matrix=np.zeros((n_probe, 0), dtype=np.float64),
     )
 
 
@@ -97,7 +117,7 @@ def _make_signature_corpus(
     s = len(channels)
     ip = rng.uniform(1e5, 5e5, n_examples)
     return SignatureCorpus(
-        key=table.signature.key,
+        key=table.identity.representation_key,
         basis=basis,
         sensor_channels=channels,
         sensor_geometry=sensor_geometry,
@@ -159,7 +179,7 @@ def test_config_hash_busts_on_any_version_constant(monkeypatch):
     h0 = tpe._config_hash(**base)
     for const_name in (
         "COIL_MODEL_VERSION",
-        "GEOMETRY_TABLE_VERSION",
+        "GEOMETRY_DERIVATION_ID",
         "CORPUS_ASSEMBLY_VERSION",
     ):
         monkeypatch.setattr(tpe, const_name, "changed-for-test")

@@ -19,47 +19,75 @@ synthetic geometry — no MAST data, no EFIT:
 
 from __future__ import annotations
 
+import dataclasses
+from types import SimpleNamespace
+
 import numpy as np
 import torch
 
+from imas_ambix.gs.machine_geometry import GeometryIdentity, OperatorGeometry
 from imas_ambix.latent.gs_solve import MU0, EquilibriumGrid
 from imas_ambix.latent.patch_basis import PatchBasis
 
 
 def _confining_table():
     """Synthetic machine: rectangular limiter + a vertical-field coil pair."""
-    from imas_ambix.gs import geometry as gsg
-
     probes = [
-        gsg.BProbe(index=i, r=1.35, z=-0.6 + 0.3 * i, angle_deg=-90.0, length=0.02)
+        SimpleNamespace(
+            index=i,
+            r=1.35,
+            z=-0.6 + 0.3 * i,
+            angle_deg=-90.0,
+            length=0.02,
+        )
         for i in range(5)
     ]
     sensor_map = [
-        gsg.SensorMapping(f"obv{i:02d}", "b_probe", i, p.r, p.z, p.angle_deg, 0.001, "")
+        SimpleNamespace(
+            amb_channel=f"obv{i:02d}",
+            kind="b_probe",
+            efm_index=i,
+            r=p.r,
+            z=p.z,
+            angle_deg=p.angle_deg,
+            residual_m=0.001,
+            flag="",
+        )
         for i, p in enumerate(probes)
     ]
     pf = [
-        gsg.PFFilament(
+        SimpleNamespace(
             r=1.1, z=1.0, turns=1.0, width=0.06, height=0.06, circuit=1, xmult=1.0
         ),
-        gsg.PFFilament(
+        SimpleNamespace(
             r=1.1, z=-1.0, turns=1.0, width=0.06, height=0.06, circuit=2, xmult=1.0
         ),
     ]
-    return gsg.GeometryTable(
-        signature=gsg.SetupSignature(
-            n_bprobe=5, n_fluxloop=0, n_pf_filament=2, n_limiter=5, digest="feed0000"
+    return OperatorGeometry(
+        identity=GeometryIdentity(
+            representation_key="mp5-fl0-fc2-lim5-feed0000",
+            representation_digest="feed0000",
+            derivation_id="synthetic-patch-basis",
+            physical_digest="",
+            registry_digest="",
         ),
-        shots=[1],
-        b_probes=probes,
-        flux_loops=[],
-        pf_filaments=pf,
-        limiter_r=[0.35, 1.45, 1.45, 0.35, 0.35],
-        limiter_z=[-0.85, -0.85, 0.85, 0.85, -0.85],
-        sensor_map=sensor_map,
-        passive_structures=[],
-        amc_current_channels=[],
-        unmatched_amb=[],
+        probes=tuple(probes),
+        loops=(),
+        conductors=tuple(pf),
+        passives=(),
+        limiter_r=(0.35, 1.45, 1.45, 0.35, 0.35),
+        limiter_z=(-0.85, -0.85, 0.85, 0.85, -0.85),
+        polygon_sections=(),
+        drive_map=(),
+        sensor_map=tuple(sensor_map),
+        unmatched_channels=(),
+        active_circuits=(),
+        available_current_channels=(),
+        r0=0.85,
+        minor_radius=0.65,
+        unresolved_turns={},
+        coil_channels=(),
+        coil_column_matrix=np.zeros((len(sensor_map), 0), dtype=np.float64),
     )
 
 
@@ -72,17 +100,22 @@ def _confining_table_with_interior_coil():
     inside a winding pack).  This adds an in-vessel-style pack at
     (r=0.9, z=0.4) that genuinely straddles in-limiter grid cells.
     """
-    from imas_ambix.gs import geometry as gsg
-
     table = _confining_table()
-    interior_coil = gsg.PFFilament(
+    interior_coil = SimpleNamespace(
         r=0.9, z=0.4, turns=1.0, width=0.12, height=0.12, circuit=3, xmult=1.0
     )
-    table.pf_filaments = [*table.pf_filaments, interior_coil]
-    table.signature = gsg.SetupSignature(
-        n_bprobe=5, n_fluxloop=0, n_pf_filament=3, n_limiter=5, digest="feed0001"
+    identity = GeometryIdentity(
+        representation_key="mp5-fl0-fc3-lim5-feed0001",
+        representation_digest="feed0001",
+        derivation_id=table.identity.derivation_id,
+        physical_digest="",
+        registry_digest="",
     )
-    return table
+    return dataclasses.replace(
+        table,
+        identity=identity,
+        conductors=(*table.conductors, interior_coil),
+    )
 
 
 def _delta_star(psi2d: np.ndarray, rg: np.ndarray, zg: np.ndarray) -> np.ndarray:
@@ -220,7 +253,7 @@ def test_cache_round_trip(tmp_path):
     """from_table assembles once, then loads the cached g_pg (byte-equal)."""
     table = _confining_table()
     basis1 = PatchBasis.from_table(table, nr=33, nz=45, cache_dir=tmp_path)
-    cache = tmp_path / f"g_pg_{table.signature.key}_33x45.npz"
+    cache = tmp_path / f"g_pg_{table.identity.representation_key}_33x45.npz"
     assert cache.exists(), "cache file was not written"
     basis2 = PatchBasis.from_table(table, nr=33, nz=45, cache_dir=tmp_path)
     np.testing.assert_array_equal(basis1._g_pg_np, basis2._g_pg_np)

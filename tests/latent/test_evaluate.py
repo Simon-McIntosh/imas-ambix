@@ -1,4 +1,4 @@
-"""Tests for the GS-readout-vs-referee scoring core (the gate-2 skill).
+"""Tests for the GS-readout-versus-referee scoring core.
 
 The gate scores the topology READ from the model's solved ψ against the
 firewalled EFIT referee, per-quantity, exactly as the absolute-magnetics oracle
@@ -9,8 +9,11 @@ PERMUTATION-INVARIANT match of the ≤2 predicted slots to the ≤2 reference sl
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 
+from imas_ambix.gs.machine_geometry import GeometryIdentity, OperatorGeometry
 from imas_ambix.latent.evaluate import (
     gs_inverse_theta,
     matched_xpoint_error,
@@ -63,12 +66,11 @@ def test_per_quantity_skill_respects_mask():
 
 def test_gs_inverse_theta_recovers_known_profile():
     """The ridge GS-inverse recovers the θ that generated the raw magnetics."""
-    from imas_ambix.gs import geometry as gsg
     from imas_ambix.latent.gs_observation import GSObservation
 
     # a synthetic campaign with enough sensors to identify 3 profile DOF
     probes = [
-        gsg.BProbe(
+        SimpleNamespace(
             index=i,
             r=1.4 + 0.02 * i,
             z=-0.4 + 0.16 * i,
@@ -78,29 +80,47 @@ def test_gs_inverse_theta_recovers_known_profile():
         for i in range(8)
     ]
     sensor_map = [
-        gsg.SensorMapping(f"obv{i:02d}", "b_probe", i, p.r, p.z, p.angle_deg, 0.001, "")
+        SimpleNamespace(
+            amb_channel=f"obv{i:02d}",
+            kind="b_probe",
+            efm_index=i,
+            r=p.r,
+            z=p.z,
+            angle_deg=p.angle_deg,
+            residual_m=0.001,
+            flag="",
+        )
         for i, p in enumerate(probes)
     ]
-    table = gsg.GeometryTable(
-        signature=gsg.SetupSignature(
-            n_bprobe=8, n_fluxloop=0, n_pf_filament=1, n_limiter=4, digest="eee0"
+    table = OperatorGeometry(
+        identity=GeometryIdentity(
+            representation_key="mp8-fl0-fc1-lim4-eee0",
+            representation_digest="eee0",
+            derivation_id="synthetic-evaluation",
+            physical_digest="",
+            registry_digest="",
         ),
-        shots=[1],
-        b_probes=probes,
-        flux_loops=[],
-        pf_filaments=[
-            gsg.PFFilament(
+        probes=tuple(probes),
+        loops=(),
+        conductors=(
+            SimpleNamespace(
                 r=1.5, z=1.1, turns=1.0, width=0.01, height=0.01, circuit=1, xmult=1.0
-            )
-        ],
-        limiter_r=[0.3, 1.6, 1.6, 0.3],
-        limiter_z=[-1.0, -1.0, 1.0, 1.0],
-        sensor_map=sensor_map,
-        passive_structures=[
-            gsg.PassiveStructure(name="w", r=2.0, z=0.0, obsolete=False)
-        ],
-        amc_current_channels=["p4u_coil_current"],
-        unmatched_amb=[],
+            ),
+        ),
+        passives=(SimpleNamespace(name="w", r=2.0, z=0.0, obsolete=False),),
+        limiter_r=(0.3, 1.6, 1.6, 0.3),
+        limiter_z=(-1.0, -1.0, 1.0, 1.0),
+        polygon_sections=(),
+        drive_map=(),
+        sensor_map=tuple(sensor_map),
+        unmatched_channels=(),
+        active_circuits=(),
+        available_current_channels=("p4u_coil_current",),
+        r0=0.85,
+        minor_radius=0.65,
+        unresolved_turns={},
+        coil_channels=(),
+        coil_column_matrix=np.zeros((len(sensor_map), 0), dtype=np.float64),
     )
     gs = GSObservation.from_table(table, grid_nr=9, grid_nz=11, profile_order=1)
     a_plasma = gs.a_plasma.numpy()
