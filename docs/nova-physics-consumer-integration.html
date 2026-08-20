@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-20">
-<meta name="plan-version" content="19">
+<meta name="plan-version" content="21">
 <meta name="plan-depends-on" content="">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
@@ -54,8 +54,13 @@
     </ul>
 
     <h2 id="s4">§4 — Continuous tandem integration</h2>
-    <p>Ambix follows exact, reviewed Nova revisions rather than waiting for a final API freeze or tracking an unrecorded moving branch. Each integration checkpoint updates the exact Nova SHA, migrates changed APIs, runs the focused consumer contract and records the corresponding Nova validation identity. Optional in-flight capabilities stay capability-gated; they do not block unrelated Ambix inference work. Donor deletion remains serial and waits for scientific, numerical, performance and provenance parity.</p>
+    <p>Ambix follows reviewed Nova revisions rather than waiting for a final API freeze. Each integration checkpoint migrates changed APIs, runs the focused consumer contract and records both the consumed Nova revision and the corresponding Nova validation identity. Optional in-flight capabilities stay capability-gated; they do not block unrelated Ambix inference work. Donor deletion remains serial and waits for scientific, numerical, performance and provenance parity.</p>
     <p>The first tandem checkpoint is banked: Ambix moved to Nova <code>9c18d31f8bf0f424bd94d0a5c4ce5f1622d9fd8f</code>, adopted the traced flux-surface geometry API and canonical correction-scale contract, and passed 48 Nova-facing tests before commit <code>1b7e341</code>. Independent imas-efit GHCR validation remains Nova-owned; Ambix consumes its evidence rather than reproducing that solver-validation campaign.</p>
+
+    <h3>§4.1 — How the dependency is wired, and where provenance lives</h3>
+    <p>Both repositories are under simultaneous active development, so Nova is consumed as an editable path dependency on the sibling checkout rather than re-pinned to a reviewed SHA per checkpoint. <code>pyproject.toml</code> declares <code>nova-stella</code> through <code>[tool.uv.sources]</code> exactly as <code>imas-ink</code> already is, and a checkpoint becomes a Nova-side pull plus a sync rather than a push, a re-pin and a reinstall.</p>
+    <p>That removes the re-pin ceremony and it removes something the plan needs, so the second half is not optional. <strong>Revision provenance moves out of the source tree and into the evidence record, captured from the consumed checkout at gate-run time.</strong> A pinned SHA carried its own provenance as a literal; a path dependency does not, so every gate run records the consumed Nova revision alongside its result, and the four sites that assert the revision as data read it from the installed distribution rather than from a hardcoded string. A consumed revision that is recorded nowhere would satisfy the convenience of this decision and none of its purpose.</p>
+    <p>Two operational consequences follow. Syncing the single root environment is authorised for the dependency change itself, which makes it the one node that deliberately drops <code>--no-sync</code> — so it is serialised against every other worker, because the sync mutates the environment they share. And the API-stability guarantee does not travel: the drift inventory measured 74 of 74 consumed symbols unchanged only as far as <code>aeffde05</code>, so any commits the local checkout carries beyond that revision are unmeasured and are re-probed at the checkpoint rather than assumed.</p>
 
     <h2 id="s5">§5 — The remaining donor ladder</h2>
     <p>The census of 2026-08-19 measured every donor and fixed the order they can retire in. The rungs are not interchangeable: each is gated by a different thing, and only one was ever gated by consumer rewiring alone.</p>
