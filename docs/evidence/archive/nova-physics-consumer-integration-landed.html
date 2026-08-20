@@ -360,8 +360,18 @@
     </tbody>
   </table>
 
-  <p><strong>The seam diagnosis of 2026-08-19 predicted this move would repay the four
-  artifact-geometry failures. It did not, and the negative result stands on the page.</strong> The
+  <p class="correction"><strong>Correction, recorded the same day.</strong> The paragraph below was
+  written after the rewire landed alone, and its conclusion was wrong. The seam diagnosis's
+  <em>mechanism</em> was right; the rewire simply could not exercise it, because
+  <code>PINNED_PHYSICAL_DIGEST</code> is a fail-closed guard that still named the superseded digest,
+  so resolution kept returning the old description and the republished positions never reached the
+  forward model. Advancing that guard fixed three of the four cases without touching
+  <code>test_artifact_geometry.py</code>. See <a href="#digest-identity">the digest identity
+  advance</a>. What the diagnosis actually got wrong was narrower: it named the pin advance as the
+  repair and omitted the three companion identity literals that gate it. The withdrawal of its
+  flux-loop verdict is itself withdrawn.</p>
+
+  <p><strong>Read as originally written, then corrected above:</strong> The
   diagnosis was half right: the machine-description physical digest did move from
   <code>ca06c8f64481114f</code> to the vacuum-adjudicated <code>b55c5bb005a2cb67</code> exactly as
   predicted, which is why eleven goldens asserting the old digest now fail. But the flux-loop
@@ -389,6 +399,50 @@
   <code>PASS-G1 symbols=74/74 rev=0be4ee95 literals=0/6-sites contract=83p/1f
   FAIL-G2 tests_gs=214p/16f fixed=0/4 new=12 digest=b55c5bb0-stable</code>. G2 remains unmet, so the
   geometry facade rung stays closed behind the digest-identity repair.</p>
+  <h2 id="digest-identity">The digest identity advance — four literals, three science fixes</h2>
+  <p><strong>A fail-closed guard was holding the republished machine description out of the forward
+  model, and advancing it repaired most of what looked like a physics problem.</strong> Commit
+  <code>254ea41</code>, merged <code>0870856</code>: four literal changes, 4 insertions and 4
+  deletions, across <code>imas_ambix/gs/artifact_resolution.py</code> and
+  <code>tests/gs/test_machine_identity.py</code>.</p>
+
+  <table>
+    <caption><code>tests/gs</code> across the two nodes, same Nova checkout</caption>
+    <thead><tr><th>State</th><th>Passed</th><th>Failed</th><th>What changed</th></tr></thead>
+    <tbody>
+      <tr><td>Before the dev install</td><td>226</td><td>4</td>
+          <td>Four artifact-geometry science cases</td></tr>
+      <tr><td>After the dev install alone</td><td>214</td><td>16</td>
+          <td>Same 4, plus 12 identity assertions naming the superseded digest</td></tr>
+      <tr><td>After the identity advance</td><td><strong>229</strong></td><td><strong>1</strong></td>
+          <td>All 12 identity cases green; 3 of the 4 science cases green as a side effect</td></tr>
+    </tbody>
+  </table>
+
+  <p>The guard was pinned as three coherent literals, and all three had to move together: physical
+  digest <code>ca06c8f64481114f</code> → <code>b55c5bb005a2cb67</code>, semantic identity
+  <code>sha256:ec2f7c60…</code> → <code>sha256:8df7a0a6…</code>, and registry digest
+  <code>7083e802…</code> → <code>2a26cc0a…</code>. Advancing only the first two made resolution
+  fail closed on the retired registry — the guard working exactly as intended, and the reason it is
+  kept as a literal rather than derived from the checkout. Deriving it would accept any future
+  description change in silence, which matters more now that the source is a moving checkout than
+  it did under a reviewed pin. The six historical
+  <code>imas_ambix/spine_bench/results/physics-spine-*.yaml</code> stamps keep the old digest, with
+  zero diffs under that directory: a recorded measurement is immutable.</p>
+
+  <p>The causal chain is established by construction, not inference: this commit touched no file
+  that the three recovered tests live in, so the pin advance is the only candidate. That is also
+  what corrects the dev-install anchor's conclusion above.</p>
+
+  <p>One residual remains, and it is the one the seam diagnosis predicted:
+  <code>test_declared_and_artifact_solenoid_columns_stay_within_source_tolerance</code>, observed
+  <code>1.0508102876881664</code> against an exact golden <code>1.050802620352377</code> — a delta
+  of 7.7e-6, comfortably inside the 0.06 science bound. The two nodes observed
+  <code>1.0508102876881664</code> and <code>1.0508105926909095</code>, differing at 3e-10, which is
+  independent evidence that a 1e-12 exact-identity golden is the wrong instrument for a quantity
+  this construction does not reproduce bit-for-bit. Verification receipt:
+  <code>PASS identity=12/12 tests_gs=229p/1f science_recovered=3/4 digest=b55c5bb0
+  registry=2a26cc0a spine_bench_stamps=unmodified</code>.</p>
 </main>
 </body>
 </html>
