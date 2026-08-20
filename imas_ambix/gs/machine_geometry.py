@@ -9,6 +9,7 @@ or identity view they need.
 from __future__ import annotations
 
 import dataclasses as _dataclasses
+import re as _re
 import types as _types
 import typing as _typing
 
@@ -16,6 +17,31 @@ import numpy as _np
 
 from imas_ambix.gs import geometry as _geometry
 from imas_ambix.gs import machine_selection as _machine_selection
+
+_SENSOR_FEATURE_NAMES: tuple[str, ...] = (
+    "r",
+    "z",
+    "phi",
+    "angle_deg",
+    "normal_r",
+    "normal_z",
+    "chord_r1",
+    "chord_z1",
+    "chord_r2",
+    "chord_z2",
+)
+
+_SENSOR_NAME_SEPARATOR_RE = _re.compile(r"[\s_\-/.]+")
+_INTERFEROMETER_PREFIXES = ("interfer", "nbar", "density", "ne_", "ne")
+_SXR_PREFIXES = ("sxr", "softxray", "xsx")
+_COIL_PREFIXES = ("p1", "p2", "p3", "p4", "p5", "p6", "pf", "sol", "tf", "ip")
+
+_KIND_BPOL_PROBE = "bpol_probe"
+_KIND_FLUX_LOOP = "flux_loop"
+_KIND_INTERFEROMETER_CHORD = "interferometer_chord"
+_KIND_SXR_CHORD = "sxr_chord"
+_KIND_COIL = "coil"
+_KIND_SCALAR = "scalar"
 
 
 @_dataclasses.dataclass(frozen=True)
@@ -77,6 +103,85 @@ def _readonly_sections(
         _dataclasses.replace(section, vertices=_readonly_array(section.vertices))
         for section in sections
     )
+
+
+def _normalise_sensor_name(name: str) -> str:
+    return _SENSOR_NAME_SEPARATOR_RE.sub("", str(name).lower())
+
+
+def _unmapped_sensor_kind(channel_name: str) -> str:
+    normalised = _normalise_sensor_name(channel_name)
+    if normalised.startswith(_SXR_PREFIXES):
+        return _KIND_SXR_CHORD
+    if normalised.startswith(_INTERFEROMETER_PREFIXES):
+        return _KIND_INTERFEROMETER_CHORD
+    if normalised.startswith(_COIL_PREFIXES):
+        return _KIND_COIL
+    return _KIND_SCALAR
+
+
+def _empty_sensor_row(*, phi: float = _np.nan) -> _np.ndarray:
+    row = _np.full(len(_SENSOR_FEATURE_NAMES), _np.nan, dtype=_np.float64)
+    row[2] = phi
+    return row
+
+
+def _mapped_sensor_row(mapping: _typing.Any) -> tuple[_np.ndarray, str]:
+    if mapping.kind == "b_probe":
+        row = _empty_sensor_row(phi=0.0)
+        row[0] = float(mapping.r)
+        row[1] = float(mapping.z)
+        angle = (
+            float(mapping.angle_deg) if mapping.angle_deg is not None else float("nan")
+        )
+        row[3] = angle
+        if _np.isfinite(angle):
+            radians = _np.deg2rad(angle)
+            row[4] = float(_np.cos(radians))
+            row[5] = float(_np.sin(radians))
+        return row, _KIND_BPOL_PROBE
+
+    if mapping.kind == "flux_loop":
+        row = _empty_sensor_row(phi=0.0)
+        row[0] = float(mapping.r)
+        row[1] = float(mapping.z)
+        return row, _KIND_FLUX_LOOP
+
+    kind = _unmapped_sensor_kind(mapping.amb_channel)
+    return _empty_sensor_row(phi=0.0 if kind != _KIND_SCALAR else _np.nan), kind
+
+
+def _project_sensor_features(
+    kernel: _typing.Any,
+    channels: tuple[str, ...],
+) -> tuple[_np.ndarray, tuple[str, ...]]:
+    """Project the private kernel onto aligned sensor features and kinds."""
+    rows_by_name: dict[str, tuple[_np.ndarray, str]] = {}
+    for mapping in kernel.sensor_map:
+        rows_by_name[_normalise_sensor_name(mapping.amb_channel)] = _mapped_sensor_row(
+            mapping
+        )
+
+    for channel in kernel.amc_current_channels:
+        key = _normalise_sensor_name(channel)
+        rows_by_name.setdefault(key, (_empty_sensor_row(phi=0.0), _KIND_COIL))
+
+    matrix = _np.full(
+        (len(channels), len(_SENSOR_FEATURE_NAMES)),
+        _np.nan,
+        dtype=_np.float32,
+    )
+    kinds: list[str] = []
+    for index, channel in enumerate(channels):
+        row_and_kind = rows_by_name.get(_normalise_sensor_name(channel))
+        if row_and_kind is None:
+            kind = _unmapped_sensor_kind(channel)
+            row = _empty_sensor_row(phi=0.0 if kind != _KIND_SCALAR else _np.nan)
+        else:
+            row, kind = row_and_kind
+        matrix[index] = _np.asarray(row, dtype=_np.float32)
+        kinds.append(kind)
+    return matrix, tuple(kinds)
 
 
 def _unresolved_turns(table: _typing.Any) -> _typing.Mapping[str, None]:
@@ -230,20 +335,16 @@ class MachineGeometryService:
 
     def sensors(self, shot: int, channels: _typing.Iterable[str]) -> SensorGeometry:
         """Return sensor features aligned to ``channels`` for ``shot``."""
-        from imas_ambix.gs import geometry_export as _geometry_export  # noqa: PLC0415
-
         addressed_shot = int(shot)
         requested = tuple(str(channel) for channel in channels)
-        fields = _geometry_export.build_geometry_fields_from_table(
-            self._compatibility_kernel(addressed_shot),
-            extra_channel_names=requested,
+        matrix, kinds = _project_sensor_features(
+            self._compatibility_kernel(addressed_shot), requested
         )
-        matrix, kinds = fields.feature_matrix(requested)
         return SensorGeometry(
             identity=self.identity(addressed_shot),
             channels=requested,
-            feature_names=tuple(_geometry_export.GEOMETRY_FEATURE_NAMES),
-            sensor_kinds=tuple(kinds),
+            feature_names=_SENSOR_FEATURE_NAMES,
+            sensor_kinds=kinds,
             feature_matrix=_readonly_array(matrix),
         )
 

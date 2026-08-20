@@ -85,3 +85,64 @@ def test_sensor_projection_is_channel_aligned_and_immutable(service):
     assert projected.sensor_kinds == ("bpol_probe", "flux_loop", "coil")
     assert projected.identity is service.identity(SHOT)
     assert not projected.feature_matrix.flags.writeable
+
+
+def test_sensor_projection_preserves_frozen_feature_values(service):
+    projected = service.sensors(SHOT, ("ccbv01", "fl_cc01", "ip"))
+    frozen_matrix = np.array(
+        [
+            [
+                0.18029999732971191,
+                1.4487500190734863,
+                0.0,
+                -90.00021362304688,
+                -3.6732051285071066e-06,
+                -1.0,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+            ],
+            [
+                0.1784999966621399,
+                1.2348999977111816,
+                0.0,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+            ],
+            [
+                np.nan,
+                np.nan,
+                0.0,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+                np.nan,
+            ],
+        ],
+        dtype=np.float32,
+    )
+
+    assert projected.feature_names == (
+        "r",
+        "z",
+        "phi",
+        "angle_deg",
+        "normal_r",
+        "normal_z",
+        "chord_r1",
+        "chord_z1",
+        "chord_r2",
+        "chord_z2",
+    )
+    assert projected.sensor_kinds == ("bpol_probe", "flux_loop", "coil")
+    assert np.array_equal(projected.feature_matrix, frozen_matrix, equal_nan=True)
+    assert float(np.nanmax(np.abs(projected.feature_matrix - frozen_matrix))) == 0.0
