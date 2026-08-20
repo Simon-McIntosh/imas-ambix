@@ -717,6 +717,54 @@
   <code>PASS census=4+kernel/permitted-5 consumers=0 exports=4/0/0
   identity=mp78-fl80-fc70-lim37-2f6472393311692b tests_gs=238p/0f tests_latent=496p/3f/3s-baseline
   description_identity=pre-existing nova=2c082127-stable digest=b55c5bb0</code>.</p>
+
+  <h2 id="scripts-shadowing">The sibling install was substituting our <code>scripts</code> package — silently</h2>
+  <p><strong>Nova ships a regular top-level <code>scripts</code> package; Ambix had a namespace
+  directory. A regular package wins on <code>sys.path</code>, so an ordinary import in this
+  repository resolved to Nova's module — and because it resolved rather than failed, nothing
+  announced the swap.</strong> Three separate nodes hit it and each neutralised it in-process, which
+  is correct for a fenced worker and unacceptable as standing policy: it meant the documented command
+  for the latent suite was not the command that worked. Commit <code>9a1ff6dc</code>, merged
+  <code>68c662a</code>.</p>
+
+  <table>
+    <caption>Repair and its gate</caption>
+    <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Resolution before</td><td><code>/home/ITER/mcintos/Code/nova/scripts/__init__.py</code></td></tr>
+      <tr><td>Resolution after, integrated</td>
+          <td><code>/home/ITER/mcintos/Code/imas-ambix/scripts/__init__.py</code> — no
+          <code>PYTHONPATH</code>, no injection</td></tr>
+      <tr><td>Blast radius</td>
+          <td>1 new marker file; 0 of 23 migrated scripts edited; 0 import statements changed;
+          <code>pyproject.toml</code> untouched; no <code>conftest.py</code> created</td></tr>
+      <tr><td><code>tests/gs</code>, ordinary invocation</td><td>238 passed / 0 failed in 325.74 s, exit 0</td></tr>
+      <tr><td><code>tests/latent</code>, ordinary invocation</td>
+          <td><code>3 failed, 496 passed, 3 skipped, 7 warnings in 546.29s</code> — baseline delta
+          +0 / +0 / +0</td></tr>
+      <tr><td>Where</td><td>SLURM job 1252512, node <code>98dci4-clu-3141</code>, partition
+          <code>all_debug</code>, <code>TMPDIR=/tmp</code></td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>The alternatives were rejected on blast radius, not on taste.</strong> Renaming
+  <code>scripts</code> would have churned imports across the 23 scripts the migration had just
+  touched, plus tests and runtime consumers. Excluding Nova's package is Nova-side, outside the
+  fence, and would risk Nova's own package users. Moving tests off <code>scripts</code> imports would
+  have left script-to-script and runtime imports shadowable while testing a different surface. The
+  marker changes package <em>resolution</em>; every alternative changes callers or test execution.</p>
+
+  <p><strong>Two operational findings that cost more than the repair did.</strong> First, a 500-test
+  suite with torch backward passes does not belong on a shared login node: it took 546 s on a
+  dedicated debug node, 387 s on a momentarily idle login node, and 2.5 hours to reach 52% on the
+  same login node under another session's load. That spread is the venue, not variance, and two nodes
+  burned their entire fences before the third ran it where it belonged. Second, the SLURM job's
+  terminal state is <code>FAILED</code> with <code>ExitCode 1:0</code> and the run nonetheless
+  PASSED — ordinary pytest exits nonzero for the three baseline failures, while the suite ran
+  uninterrupted to its terminal summary. A gate keyed on job state rather than on the suite's own
+  summary line would have rejected a passing run. Verification receipt:
+  <code>PASS resolution=ambix tests_gs=238p/0f tests_latent=496p/3f/3s-baseline delta=0/0/0
+  slurm=1252512@98dci4-clu-3141 injection=none</code>.</p>
 </main>
 </body>
 </html>
