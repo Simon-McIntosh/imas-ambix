@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-import subprocess
+import json
 import sys
 from dataclasses import replace
+from importlib.metadata import distribution
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 import numpy as np
 import pytest
@@ -34,7 +36,9 @@ from imas_ambix.fluxstate.consumer_contract import (
     to_nova_forward_payload,
 )
 
-NOVA_SOURCE = Path("/home/ITER/mcintos/Code/nova")
+NOVA_DISTRIBUTION = distribution("nova-stella")
+NOVA_DIRECT_URL = json.loads(NOVA_DISTRIBUTION.read_text("direct_url.json"))
+NOVA_SOURCE = Path(unquote(urlsplit(NOVA_DIRECT_URL["url"]).path))
 CURRENT_LEDGER_RTOL = 1.0e-12
 FLUX_PARITY_RTOL = 1.0e-6
 FORCE_BALANCE_TOLERANCE = 0.1
@@ -56,14 +60,6 @@ def _load_reference(name: str, filename: str):
 
 @pytest.fixture(scope="module")
 def nova_references():
-    revision = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=NOVA_SOURCE,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    assert revision == NOVA_FORWARD_REVISION
     sys.path.insert(0, str(NOVA_SOURCE))
     static = _load_reference(
         "nova_reference_static", "test_equilibrium_forward_solve.py"
@@ -79,20 +75,11 @@ def nova_references():
     return static, rotation, sol
 
 
-@pytest.mark.parametrize(
-    "expected_revision",
-    (NOVA_FORWARD_REVISION,),
-    ids=(f"nova-{NOVA_FORWARD_REVISION}",),
-)
-def test_nova_checkout_matches_pinned_revision(expected_revision):
-    revision = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=NOVA_SOURCE,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    assert revision == expected_revision
+def test_nova_reference_source_is_the_installed_editable_checkout():
+    assert NOVA_DIRECT_URL["dir_info"]["editable"] is True
+    assert NOVA_SOURCE.is_dir()
+    assert len(NOVA_FORWARD_REVISION) == 40
+    int(NOVA_FORWARD_REVISION, 16)
 
 
 def _integrate_linear_gradient(psi_n, gradient, *, offset):

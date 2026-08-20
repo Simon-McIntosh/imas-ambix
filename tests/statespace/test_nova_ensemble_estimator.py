@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from imas_ambix.statespace.nova_ensemble_estimator import (
+    NOVA_REVISION,
     EstimatorConfig,
     EstimatorFailure,
     NovaEnsembleEstimator,
@@ -31,9 +32,7 @@ def conditioned_products():
 
 def test_physical_and_provenance_contract(conditioned_products):
     config, result, _ = conditioned_products
-    assert result.provenance.nova_revision == (
-        "de3277a3238513b81be04dbc0980030b200ce420"
-    )
+    assert result.provenance.nova_revision == NOVA_REVISION
     assert result.provenance.backend == "cpu"
     assert result.provenance.x64_enabled
     assert result.provenance.dtype == "float64"

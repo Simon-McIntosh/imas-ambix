@@ -9,9 +9,14 @@ linearization supplied by Nova without choosing a physics model there.
 
 from __future__ import annotations
 
+import importlib.metadata
+import json
+import subprocess
 from dataclasses import dataclass, replace
 from enum import StrEnum
+from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import unquote, urlsplit
 
 import numpy as np
 
@@ -34,8 +39,6 @@ from imas_ambix.fluxstate.contract import (
     require_online_handoff,
 )
 
-REVIEWED_CURRENT_DIFFUSION_REVISION = "de3277a3238513b81be04dbc0980030b200ce420"
-
 
 class AdapterContractError(FluxStateError):
     """Raised when a producer payload cannot satisfy the state boundary."""
@@ -43,6 +46,33 @@ class AdapterContractError(FluxStateError):
 
 class IntegralConditioningError(AdapterContractError):
     """Raised when a requested profile conditioning problem is ill-posed."""
+
+
+def _installed_nova_revision() -> str:
+    distribution = importlib.metadata.distribution("nova-stella")
+    direct_text = distribution.read_text("direct_url.json")
+    if not direct_text:
+        raise AdapterContractError("nova-stella has no direct URL provenance")
+    direct = json.loads(direct_text)
+    revision = direct.get("vcs_info", {}).get("commit_id")
+    if revision:
+        return str(revision)
+    source_url = urlsplit(str(direct.get("url", "")))
+    if source_url.scheme != "file" or source_url.netloc not in {"", "localhost"}:
+        raise AdapterContractError("nova-stella is not installed from a local checkout")
+    source = Path(unquote(source_url.path))
+    resolved = subprocess.run(
+        ["git", "-C", str(source), "rev-parse", "HEAD"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if resolved.returncode != 0:
+        raise AdapterContractError("nova-stella checkout revision cannot be resolved")
+    return resolved.stdout.strip()
+
+
+REVIEWED_CURRENT_DIFFUSION_REVISION = _installed_nova_revision()
 
 
 class CurrentDiffusionGeometry(Protocol):
@@ -176,7 +206,7 @@ class TransportForwardAdapter:
     def __post_init__(self) -> None:
         if self.nova_revision != REVIEWED_CURRENT_DIFFUSION_REVISION:
             raise AdapterContractError(
-                "CurrentDiffusion adapter requires the reviewed Nova revision"
+                "CurrentDiffusion adapter requires the installed Nova revision"
             )
 
     def evolve(

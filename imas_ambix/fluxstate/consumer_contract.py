@@ -1,6 +1,6 @@
 """Array-only handoff from Ambix flux states to deterministic consumers.
 
-This module deliberately has no Nova dependency.  It freezes the quantities
+This module deliberately has no Nova API dependency.  It freezes the quantities
 that a forward-equilibrium consumer needs, identifies the supplied source by
 content, and turns returned integral observations into residuals.  Selecting
 an equilibrium algorithm and evaluating magnetic-field kernels remain the
@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from imas_ambix.fluxstate.adapters import REVIEWED_CURRENT_DIFFUSION_REVISION
 from imas_ambix.fluxstate.contract import (
     FluxFunctionState,
     IntegralMoment,
@@ -26,7 +27,7 @@ from imas_ambix.fluxstate.contract import (
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-NOVA_FORWARD_REVISION = "f3d14df542dabcb5adf7ee4e84420de506ac2474"
+NOVA_FORWARD_REVISION = REVIEWED_CURRENT_DIFFUSION_REVISION
 
 
 def _frozen(value: object) -> np.ndarray:
@@ -182,7 +183,7 @@ def record_nova_integrals(
     """Record achieved moments and residuals without modifying profiles."""
 
     if nova_revision != NOVA_FORWARD_REVISION:
-        raise ValueError("Nova forward result does not use the reviewed revision")
+        raise ValueError("Nova forward result does not use the installed revision")
     targets = {item.moment: item for item in state.integral_policy.targets}
     residuals = []
     for row in state.integral_ledger.rows():

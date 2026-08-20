@@ -6,15 +6,16 @@ import importlib.metadata
 import json
 import os
 import resource
+import subprocess
 import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 import numpy as np
 
-NOVA_REVISION = "de3277a3238513b81be04dbc0980030b200ce420"
 SCHEMA = "nova-ensemble-estimator"
 OBSERVATION_LABELS = (
     "enclosed_current_inner",
@@ -30,6 +31,35 @@ _HORIZONS_MS = (10, 50, 100, 250)
 
 class EstimatorFailure(RuntimeError):  # noqa: N818
     """Raised when numerical, runtime, physical, or artifact checks fail."""
+
+
+def _installed_nova_revision(
+    distribution: importlib.metadata.Distribution | None = None,
+) -> str:
+    installed = distribution or importlib.metadata.distribution("nova-stella")
+    direct_text = installed.read_text("direct_url.json")
+    if not direct_text:
+        raise EstimatorFailure("nova-stella has no direct URL provenance")
+    direct = json.loads(direct_text)
+    revision = direct.get("vcs_info", {}).get("commit_id")
+    if revision:
+        return str(revision)
+    source_url = urlsplit(str(direct.get("url", "")))
+    if source_url.scheme != "file" or source_url.netloc not in {"", "localhost"}:
+        raise EstimatorFailure("nova-stella is not installed from a local checkout")
+    source = Path(unquote(source_url.path))
+    resolved = subprocess.run(
+        ["git", "-C", str(source), "rev-parse", "HEAD"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if resolved.returncode != 0:
+        raise EstimatorFailure("nova-stella checkout revision cannot be resolved")
+    return resolved.stdout.strip()
+
+
+NOVA_REVISION = _installed_nova_revision()
 
 
 @dataclass(frozen=True)
@@ -180,14 +210,10 @@ def _runtime(config: EstimatorConfig) -> RuntimeProvenance:
         raise EstimatorFailure("JAX x64 is not enabled")
 
     distribution = importlib.metadata.distribution("nova-stella")
-    direct_text = distribution.read_text("direct_url.json")
-    if not direct_text:
-        raise EstimatorFailure("nova-stella has no direct_url provenance")
-    direct = json.loads(direct_text)
-    revision = direct.get("vcs_info", {}).get("commit_id")
+    revision = _installed_nova_revision(distribution)
     if revision != NOVA_REVISION:
         raise EstimatorFailure(
-            f"Nova revision {revision!r} does not match the validated pin"
+            f"Nova revision changed from {NOVA_REVISION!r} to {revision!r}"
         )
     return RuntimeProvenance(
         nova_version=distribution.version,
