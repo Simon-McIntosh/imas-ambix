@@ -115,10 +115,21 @@
     <p>The general lesson outlives this section. A fail-closed identity guard is a good thing that also silently withholds upstream fixes, so under a moving checkout a stale guard and a genuine physics defect present identically. Advancing the guard is therefore the first differential test to run, before any physics is suspected.</p>
 
     <h2 id="s7">§7 — The facade's dependency boundary</h2>
-    <p>Migrating the operator introduced an import cycle and broke it with a deferred import. That workaround was left visible rather than absorbed, and the adjudication has now measured it: the edge is removable, and the cycle was never irreducible.</p>
-    <p>The cycle is five edges — <code>machine_geometry.py:233</code> → <code>geometry_export.py:53</code> → <code>description_reader.py:20</code> → <code>geometry_adapter.py:34</code> → <code>operator.py:69-72</code> → back. The suspicious edge is the first one, and measurement confirms why: the facade references only <code>build_geometry_fields_from_table</code> and <code>GEOMETRY_FEATURE_NAMES</code>, then calls <code>GeometryFields.feature_matrix</code>, whereas a direct sensor projection needs just <code>kernel.sensor_map</code> and <code>kernel.amc_current_channels</code>. The export module's machine block, signature and shot list were never needed. A projection was reaching through an export module for two fields it already had beneath it.</p>
-    <p><strong>Recommended:</strong> a private sensor projection beneath <code>MachineGeometryService</code>, sharing the existing ten-column schema and the kernel-to-matrix-and-kinds semantics with <code>geometry_export</code>, and deleting the facade's dependency on it. Three alternatives were rejected — keeping the deferred import, inverting so <code>geometry_export</code> consumes the facade, and relocating the logic without sharing the schema. The recommendation makes none of the thirteen projection consumers harder, and it preserves <code>mp78-fl80-fc70-lim37-2f6472393311692b</code> exactly, because <code>identity()</code> sources the table signature independently of the export module.</p>
-    <p>This is the rung to take before the thirteen, because <code>description_reader.py</code> and <code>geometry_export.py</code> are both themselves in that group <em>and</em> inside the cycle: migrating them through an edge that is due to be deleted would compound the workaround instead of retiring it. A second deferred acquisition at <code>machine_selection.py:158-160</code> is noted for adjudication during the consumer tranche rather than folded in here.</p>
+    <p class="landed-summary"><span class="badge badge-shipped">✓ landed 2026-08-20</span>
+    Migrating the operator introduced a five-edge import cycle, broken by a deferred import left
+    deliberately visible. Measurement found the edge removable and the cycle never irreducible: a
+    projection was reaching <em>up</em> through an export module for two fields already beneath it in
+    the kernel. Replaced by a private sensor projection under <code>MachineGeometryService</code>,
+    output-identical including the NaN mask at max absolute delta 0, key
+    <code>mp78-fl80-fc70-lim37-2f6472393311692b</code> preserved with 0 rekey. Full record:
+    <a href="/imas-ambix/evidence/archive/nova-physics-consumer-integration-landed#sensor-projection">sensor projection</a>.</p>
+    <p>Taking this rung before the thirteen consumers was the right order and the reason generalises:
+    <code>description_reader.py</code> and <code>geometry_export.py</code> were both inside the cycle
+    <em>and</em> in that group, so migrating them through an edge due for deletion would have
+    compounded the workaround instead of retiring it. The consumer tranches then found the mirror
+    case — <code>machine_selection.py</code>'s deferred acquisition is <strong>retained</strong>,
+    because a builder reaching <em>down</em> for its own inputs is not the same defect as a
+    projection reaching up. Direction, not depth, decides it.</p>
 
     <h2 id="s8">§8 — The sibling install shadows our own <code>scripts</code> package</h2>
     <p class="landed-summary"><span class="badge badge-shipped">✓ landed 2026-08-21</span>
