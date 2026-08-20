@@ -26,13 +26,14 @@ All on an analytic single-ring fixture (no shot data):
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
 from imas_ambix.gs import force_balance as fb
-from imas_ambix.gs import geometry as gsg
 from imas_ambix.gs import operator as op
+from imas_ambix.gs.machine_geometry import GeometryIdentity, OperatorGeometry
 from imas_ambix.latent.plasma_screening import (
     plasma_self_inductance,
     solve_pinned_plasma_circuit,
@@ -49,32 +50,39 @@ TAU_RING = 0.02  # ring L/R time [s]
 R_RING = L_RING / TAU_RING
 
 
-def _ring_table(ring_r: float = RING_R, ring_z: float = RING_Z) -> gsg.GeometryTable:
+def _ring_geometry(ring_r: float = RING_R, ring_z: float = RING_Z) -> OperatorGeometry:
     """One passive toroidal ring; no coils, no sensors."""
-    pf = [
-        gsg.PFFilament(
+    conductors = [
+        SimpleNamespace(
             r=ring_r, z=ring_z, turns=1.0, width=0.04, height=0.04, circuit=2, xmult=1.0
         )
     ]
-    sig = gsg.SetupSignature(
-        n_bprobe=0,
-        n_fluxloop=0,
-        n_pf_filament=1,
-        n_limiter=4,
-        digest="deadbeef00000000",
+    identity = GeometryIdentity(
+        representation_key="mp0-fl0-fc1-lim4-deadbeef00000000",
+        representation_digest="deadbeef00000000",
+        derivation_id="synthetic-ring",
+        physical_digest="",
+        registry_digest="",
     )
-    return gsg.GeometryTable(
-        signature=sig,
-        shots=[1],
-        b_probes=[],
-        flux_loops=[],
-        pf_filaments=pf,
-        limiter_r=[0.3, 1.6, 1.6, 0.3],
-        limiter_z=[-1.0, -1.0, 1.0, 1.0],
-        sensor_map=[],
-        passive_structures=[],
-        amc_current_channels=[],
-        unmatched_amb=[],
+    return OperatorGeometry(
+        identity=identity,
+        probes=(),
+        loops=(),
+        conductors=tuple(conductors),
+        passives=(),
+        limiter_r=(0.3, 1.6, 1.6, 0.3),
+        limiter_z=(-1.0, -1.0, 1.0, 1.0),
+        polygon_sections=(),
+        drive_map=(),
+        sensor_map=(),
+        unmatched_channels=(),
+        active_circuits=(),
+        available_current_channels=(),
+        r0=0.85,
+        minor_radius=0.65,
+        unresolved_turns={},
+        coil_channels=(),
+        coil_column_matrix=np.zeros((0, 0), dtype=np.float64),
     )
 
 
@@ -117,7 +125,7 @@ def _drive(table, vsys, times, ip):
 
 
 def test_plasma_ramp_induces_lenz_confining_vessel_current():
-    table = _ring_table()
+    table = _ring_geometry()
     vsys = _ring_system()
     times, ip, t_ramp = _ramp_hold()
     i_coil, i_full = _drive(table, vsys, times, ip)
@@ -142,7 +150,7 @@ def test_plasma_ramp_induces_lenz_confining_vessel_current():
 
 
 def test_vessel_eddy_hold_decay_is_exact_single_mode():
-    table = _ring_table()
+    table = _ring_geometry()
     vsys = _ring_system()
     times, ip, t_ramp = _ramp_hold()
     _ic, i_full = _drive(table, vsys, times, ip)
@@ -183,7 +191,7 @@ def _pinned_solve(table, vsys, times, ip, axis_rz, a_minor, r_p=3.0e-6):
 def test_solved_loop_voltage_reduces_to_inductive_plus_resistive():
     # ring far enough that the plasma↔vessel coupling is negligible: on a
     # linear ramp with constant geometry, u = L_p·İp + R_p·Ip exactly
-    table = _ring_table(ring_r=30.0)
+    table = _ring_geometry(ring_r=30.0)
     vsys = _ring_system()
     times, ip, t_ramp = _ramp_hold(dt=1.0e-3)
     axis_rz = np.tile(np.asarray(AXIS), (times.size, 1))
@@ -203,7 +211,7 @@ def test_solved_loop_voltage_reduces_to_inductive_plus_resistive():
 def test_dl_dt_enters_the_solved_voltage():
     # CONSTANT current, growing minor radius: the entire non-resistive
     # voltage is Ip·dL_p/dt = −μ0·R·(ȧ/a)·Ip — the shape change is a drive
-    table = _ring_table(ring_r=30.0)
+    table = _ring_geometry(ring_r=30.0)
     vsys = _ring_system()
     dt = 1.0e-3
     times = np.arange(0.0, 0.2 + dt, dt)
@@ -225,7 +233,7 @@ def test_moving_centroid_drives_lenz_vessel_current():
     # constant Ip, centroid drifting toward the ring: the ring's linked flux
     # rises and Lenz demands an anti-parallel induced current — no coil
     # swing anywhere in the problem
-    table = _ring_table()
+    table = _ring_geometry()
     vsys = _ring_system()
     dt = 5.0e-4
     times = np.arange(0.0, 0.2 + dt, dt)

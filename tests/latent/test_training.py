@@ -19,11 +19,13 @@ device geometry). Two things are pinned here without touching the mirror:
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 import torch
 
-from imas_ambix.gs import geometry as gsg
+from imas_ambix.gs.machine_geometry import GeometryIdentity, OperatorGeometry
 from imas_ambix.latent.encoder import HybridLatentEncoder, LatentConfig
 from imas_ambix.latent.engine import GSGroundedLatentEngine
 from imas_ambix.latent.patch_basis import PatchBasis
@@ -50,9 +52,9 @@ def test_consecutive_pairs_break_across_a_gap():
     assert (4, 5) in pair_indices
 
 
-def _campaign_table(digest: str, r_shift: float = 0.0) -> gsg.GeometryTable:
+def _campaign_table(digest: str, r_shift: float = 0.0) -> OperatorGeometry:
     probes = [
-        gsg.BProbe(
+        SimpleNamespace(
             index=i,
             r=1.4 + r_shift + 0.02 * i,
             z=-0.4 + 0.16 * i,
@@ -62,33 +64,58 @@ def _campaign_table(digest: str, r_shift: float = 0.0) -> gsg.GeometryTable:
         for i in range(6)
     ]
     sensor_map = [
-        gsg.SensorMapping(f"obv{i:02d}", "b_probe", i, p.r, p.z, p.angle_deg, 0.001, "")
+        SimpleNamespace(
+            amb_channel=f"obv{i:02d}",
+            kind="b_probe",
+            efm_index=i,
+            r=p.r,
+            z=p.z,
+            angle_deg=p.angle_deg,
+            residual_m=0.001,
+            flag="",
+        )
         for i, p in enumerate(probes)
     ]
-    return gsg.GeometryTable(
-        signature=gsg.SetupSignature(
-            n_bprobe=6, n_fluxloop=0, n_pf_filament=1, n_limiter=4, digest=digest
-        ),
-        shots=[1],
-        b_probes=probes,
-        flux_loops=[],
-        pf_filaments=[
+    conductors = (
+        SimpleNamespace(
             # kept at the P4U-recognised centroid regardless of r_shift (only the
             # sensor layout varies between campaigns) — classify_circuits matches
             # a KNOWN coil by proximity to a fixed centroid table, so shifting
             # this would silently drop the coil to "inferred passive" (0 columns).
-            gsg.PFFilament(
-                r=1.5, z=1.1, turns=1.0, width=0.01, height=0.01, circuit=1, xmult=1.0
-            )
-        ],
-        limiter_r=[0.3, 1.6, 1.6, 0.3],
-        limiter_z=[-1.0, -1.0, 1.0, 1.0],
-        sensor_map=sensor_map,
-        passive_structures=[
-            gsg.PassiveStructure(name="w", r=2.0, z=0.0, obsolete=False)
-        ],
-        amc_current_channels=["p4u_coil_current"],
-        unmatched_amb=[],
+            r=1.5,
+            z=1.1,
+            turns=1.0,
+            width=0.01,
+            height=0.01,
+            circuit=1,
+            xmult=1.0,
+        ),
+    )
+    return OperatorGeometry(
+        identity=GeometryIdentity(
+            representation_key=f"mp6-fl0-fc1-lim4-{digest}",
+            representation_digest=digest,
+            derivation_id="synthetic-training",
+            physical_digest="",
+            registry_digest="",
+        ),
+        probes=tuple(probes),
+        loops=(),
+        conductors=conductors,
+        passives=(SimpleNamespace(name="w", r=2.0, z=0.0, obsolete=False),),
+        limiter_r=(0.3, 1.6, 1.6, 0.3),
+        limiter_z=(-1.0, -1.0, 1.0, 1.0),
+        polygon_sections=(),
+        drive_map=(),
+        sensor_map=tuple(sensor_map),
+        unmatched_channels=(),
+        active_circuits=(),
+        available_current_channels=("p4u_coil_current",),
+        r0=0.85,
+        minor_radius=0.65,
+        unresolved_turns={},
+        coil_channels=(),
+        coil_column_matrix=np.zeros((len(sensor_map), 0), dtype=np.float64),
     )
 
 

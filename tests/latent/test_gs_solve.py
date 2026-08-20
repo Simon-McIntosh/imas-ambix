@@ -23,14 +23,68 @@ pinned analytically — no EFIT anywhere:
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 
 from imas_ambix.cocos import project_poloidal_field
+from imas_ambix.gs.machine_geometry import GeometryIdentity, OperatorGeometry
 from imas_ambix.latent.gs_solve import (
     EquilibriumGrid,
     profile_jphi_shape,
     solve_equilibrium,
 )
+
+
+def _probe(index: int, r: float, z: float):
+    return SimpleNamespace(index=index, r=r, z=z, angle_deg=-90.0, length=0.02)
+
+
+def _sensor(index: int, probe):
+    return SimpleNamespace(
+        amb_channel=f"obv{index:02d}",
+        kind="b_probe",
+        efm_index=index,
+        r=probe.r,
+        z=probe.z,
+        angle_deg=probe.angle_deg,
+        residual_m=0.001,
+        flag="",
+    )
+
+
+def _operator_geometry(
+    *, digest: str, probes, conductors, limiter_r, limiter_z, current_channels=()
+) -> OperatorGeometry:
+    sensors = tuple(_sensor(index, probe) for index, probe in enumerate(probes))
+    return OperatorGeometry(
+        identity=GeometryIdentity(
+            representation_key=(
+                f"mp{len(probes)}-fl0-fc{len(conductors)}-lim{len(limiter_r)}-{digest}"
+            ),
+            representation_digest=digest,
+            derivation_id="synthetic-equilibrium",
+            physical_digest="",
+            registry_digest="",
+        ),
+        probes=tuple(probes),
+        loops=(),
+        conductors=tuple(conductors),
+        passives=(),
+        limiter_r=tuple(limiter_r),
+        limiter_z=tuple(limiter_z),
+        polygon_sections=(),
+        drive_map=(),
+        sensor_map=sensors,
+        unmatched_channels=(),
+        active_circuits=(),
+        available_current_channels=tuple(current_channels),
+        r0=0.85,
+        minor_radius=0.65,
+        unresolved_turns={},
+        coil_channels=(),
+        coil_column_matrix=np.zeros((len(sensors), 0), dtype=np.float64),
+    )
 
 
 def _confining_table():
@@ -40,38 +94,21 @@ def _confining_table():
     plasma produce the inward vertical field a positive-Ip plasma needs for
     radial force balance — the minimal confining configuration.
     """
-    from imas_ambix.gs import geometry as gsg
-
-    probes = [
-        gsg.BProbe(index=i, r=1.35, z=-0.6 + 0.3 * i, angle_deg=-90.0, length=0.02)
-        for i in range(5)
-    ]
-    sensor_map = [
-        gsg.SensorMapping(f"obv{i:02d}", "b_probe", i, p.r, p.z, p.angle_deg, 0.001, "")
-        for i, p in enumerate(probes)
-    ]
+    probes = [_probe(i, 1.35, -0.6 + 0.3 * i) for i in range(5)]
     pf = [
-        gsg.PFFilament(
+        SimpleNamespace(
             r=1.1, z=1.0, turns=1.0, width=0.06, height=0.06, circuit=1, xmult=1.0
         ),
-        gsg.PFFilament(
+        SimpleNamespace(
             r=1.1, z=-1.0, turns=1.0, width=0.06, height=0.06, circuit=2, xmult=1.0
         ),
     ]
-    return gsg.GeometryTable(
-        signature=gsg.SetupSignature(
-            n_bprobe=5, n_fluxloop=0, n_pf_filament=2, n_limiter=5, digest="feed0000"
-        ),
-        shots=[1],
-        b_probes=probes,
-        flux_loops=[],
-        pf_filaments=pf,
+    return _operator_geometry(
+        digest="feed0000",
+        probes=probes,
+        conductors=pf,
         limiter_r=[0.35, 1.45, 1.45, 0.35, 0.35],
         limiter_z=[-0.85, -0.85, 0.85, 0.85, -0.85],
-        sensor_map=sensor_map,
-        passive_structures=[],
-        amc_current_channels=[],
-        unmatched_amb=[],
     )
 
 
@@ -89,38 +126,22 @@ def _table_with_interior_coil():
     ``amc`` channel so both are classified ``known_pf`` and land in
     ``grid.coil_psi_columns``.
     """
-    from imas_ambix.gs import geometry as gsg
-
-    probes = [
-        gsg.BProbe(index=i, r=1.9, z=-0.6 + 0.3 * i, angle_deg=-90.0, length=0.02)
-        for i in range(5)
-    ]
-    sensor_map = [
-        gsg.SensorMapping(f"obv{i:02d}", "b_probe", i, p.r, p.z, p.angle_deg, 0.001, "")
-        for i, p in enumerate(probes)
-    ]
+    probes = [_probe(i, 1.9, -0.6 + 0.3 * i) for i in range(5)]
     pf = [
-        gsg.PFFilament(  # P2OU: exterior, harmonic everywhere in-domain
+        SimpleNamespace(  # P2OU: exterior, harmonic everywhere in-domain
             r=0.528, z=1.72, turns=1.0, width=0.10, height=0.10, circuit=2, xmult=1.0
         ),
-        gsg.PFFilament(  # P6U: genuinely in-vessel, inside the limiter
+        SimpleNamespace(  # P6U: genuinely in-vessel, inside the limiter
             r=1.43, z=0.90, turns=1.0, width=0.10, height=0.10, circuit=1, xmult=1.0
         ),
     ]
-    return gsg.GeometryTable(
-        signature=gsg.SetupSignature(
-            n_bprobe=5, n_fluxloop=0, n_pf_filament=2, n_limiter=5, digest="feed0002"
-        ),
-        shots=[1],
-        b_probes=probes,
-        flux_loops=[],
-        pf_filaments=pf,
+    return _operator_geometry(
+        digest="feed0002",
+        probes=probes,
+        conductors=pf,
         limiter_r=[0.3, 1.65, 1.65, 0.3, 0.3],
         limiter_z=[-1.05, -1.05, 1.05, 1.05, -1.05],
-        sensor_map=sensor_map,
-        passive_structures=[],
-        amc_current_channels=["p6u_current", "p2ou_coil_current"],
-        unmatched_amb=[],
+        current_channels=("p6u_current", "p2ou_coil_current"),
     )
 
 
@@ -317,7 +338,7 @@ def test_fit_profile_recovers_generating_beta0():
     vac = np.zeros(len(channels))
     for k, m in enumerate(table.sensor_map):
         assert m.angle_deg is not None
-        for f, cur in zip(table.pf_filaments, i_pf, strict=True):
+        for f, cur in zip(table.conductors, i_pf, strict=True):
             bz, br = greens_bz_br(np.array([m.r]), np.array([m.z]), f.r, f.z)
             vac[k] += cur * project_poloidal_field(br[0], bz[0], m.angle_deg)
     meas = vac + g_sens @ res.cell_currents
@@ -373,7 +394,7 @@ def _synthetic_confining_slice(grid, table, i_pf, ip, beta0, alpha):
     vac = np.zeros(len(channels))
     for k, m in enumerate(table.sensor_map):
         assert m.angle_deg is not None
-        for f, cur in zip(table.pf_filaments, i_pf, strict=True):
+        for f, cur in zip(table.conductors, i_pf, strict=True):
             bz, br = greens_bz_br(np.array([m.r]), np.array([m.z]), f.r, f.z)
             vac[k] += cur * project_poloidal_field(br[0], bz[0], m.angle_deg)
     meas = vac + g_sens @ res.cell_currents
@@ -768,7 +789,7 @@ def test_ladder_passive_sidecar_identity_when_off_and_absorbs_passive_signal():
                 max(abs(f.width), 0.01),
                 max(abs(f.height), 0.01),
             )[0]
-            for f in table.pf_filaments
+            for f in table.conductors
         ]
     )
     truth_grid = EquilibriumGrid(

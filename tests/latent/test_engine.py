@@ -15,54 +15,101 @@ raw-signal self-supervised objective. The load-bearing behaviour pinned here:
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 import torch
 
-from imas_ambix.gs import geometry as gsg
+from imas_ambix.gs.machine_geometry import GeometryIdentity, OperatorGeometry
 from imas_ambix.latent.encoder import HybridLatentEncoder, LatentConfig
 from imas_ambix.latent.engine import GSGroundedLatentEngine
 from imas_ambix.latent.patch_basis import PatchBasis
 from imas_ambix.latent.transport import FluxDiffusionPrior
 
 
-def _synthetic_table() -> gsg.GeometryTable:
-    bp_v = gsg.BProbe(index=0, r=1.5, z=0.0, angle_deg=-90.0, length=0.025)
-    bp_r = gsg.BProbe(index=1, r=1.4, z=0.3, angle_deg=0.0, length=0.025)
-    bp_v2 = gsg.BProbe(index=2, r=1.45, z=-0.3, angle_deg=-90.0, length=0.025)
-    fl = gsg.FluxLoop(index=0, r=1.3, z=0.5)
+def _synthetic_table() -> OperatorGeometry:
+    bp_v = SimpleNamespace(index=0, r=1.5, z=0.0, angle_deg=-90.0, length=0.025)
+    bp_r = SimpleNamespace(index=1, r=1.4, z=0.3, angle_deg=0.0, length=0.025)
+    bp_v2 = SimpleNamespace(index=2, r=1.45, z=-0.3, angle_deg=-90.0, length=0.025)
+    fl = SimpleNamespace(index=0, r=1.3, z=0.5)
     pf_known = [
-        gsg.PFFilament(
+        SimpleNamespace(
             r=1.50, z=1.10, turns=1.0, width=0.01, height=0.01, circuit=1, xmult=1.0
         ),
     ]
     pf_passive = [
-        gsg.PFFilament(
+        SimpleNamespace(
             r=2.0, z=0.0, turns=1.0, width=0.01, height=0.01, circuit=2, xmult=1.0
         ),
     ]
-    sig = gsg.SetupSignature(
-        n_bprobe=3, n_fluxloop=1, n_pf_filament=2, n_limiter=4, digest="abcd12340000"
+    identity = GeometryIdentity(
+        representation_key="mp3-fl1-fc2-lim4-abcd12340000",
+        representation_digest="abcd12340000",
+        derivation_id="synthetic-engine",
+        physical_digest="",
+        registry_digest="",
     )
     sensor_map = [
-        gsg.SensorMapping("obv01", "b_probe", 0, 1.5, 0.0, -90.0, 0.001, ""),
-        gsg.SensorMapping("obr01", "b_probe", 1, 1.4, 0.3, 0.0, 0.001, ""),
-        gsg.SensorMapping("obv02", "b_probe", 2, 1.45, -0.3, -90.0, 0.001, ""),
-        gsg.SensorMapping("fl_p4u_1", "flux_loop", 0, 1.3, 0.5, None, 0.001, ""),
+        SimpleNamespace(
+            amb_channel="obv01",
+            kind="b_probe",
+            efm_index=0,
+            r=1.5,
+            z=0.0,
+            angle_deg=-90.0,
+            residual_m=0.001,
+            flag="",
+        ),
+        SimpleNamespace(
+            amb_channel="obr01",
+            kind="b_probe",
+            efm_index=1,
+            r=1.4,
+            z=0.3,
+            angle_deg=0.0,
+            residual_m=0.001,
+            flag="",
+        ),
+        SimpleNamespace(
+            amb_channel="obv02",
+            kind="b_probe",
+            efm_index=2,
+            r=1.45,
+            z=-0.3,
+            angle_deg=-90.0,
+            residual_m=0.001,
+            flag="",
+        ),
+        SimpleNamespace(
+            amb_channel="fl_p4u_1",
+            kind="flux_loop",
+            efm_index=0,
+            r=1.3,
+            z=0.5,
+            angle_deg=None,
+            residual_m=0.001,
+            flag="",
+        ),
     ]
-    return gsg.GeometryTable(
-        signature=sig,
-        shots=[12345],
-        b_probes=[bp_v, bp_r, bp_v2],
-        flux_loops=[fl],
-        pf_filaments=pf_known + pf_passive,
-        limiter_r=[0.3, 1.6, 1.6, 0.3],
-        limiter_z=[-1.0, -1.0, 1.0, 1.0],
-        sensor_map=sensor_map,
-        passive_structures=[
-            gsg.PassiveStructure(name="wall_a", r=2.0, z=0.0, obsolete=False)
-        ],
-        amc_current_channels=["p4u_coil_current", "plasma_current"],
-        unmatched_amb=[],
+    return OperatorGeometry(
+        identity=identity,
+        probes=(bp_v, bp_r, bp_v2),
+        loops=(fl,),
+        conductors=tuple(pf_known + pf_passive),
+        passives=(SimpleNamespace(name="wall_a", r=2.0, z=0.0, obsolete=False),),
+        limiter_r=(0.3, 1.6, 1.6, 0.3),
+        limiter_z=(-1.0, -1.0, 1.0, 1.0),
+        polygon_sections=(),
+        drive_map=(),
+        sensor_map=tuple(sensor_map),
+        unmatched_channels=(),
+        active_circuits=(),
+        available_current_channels=("p4u_coil_current", "plasma_current"),
+        r0=0.85,
+        minor_radius=0.65,
+        unresolved_turns={},
+        coil_channels=(),
+        coil_column_matrix=np.zeros((len(sensor_map), 0), dtype=np.float64),
     )
 
 

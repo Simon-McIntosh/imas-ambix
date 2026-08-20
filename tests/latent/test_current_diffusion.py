@@ -21,9 +21,12 @@ no EFIT, no data dependency:
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 
 from imas_ambix.cocos import project_poloidal_field
+from imas_ambix.gs.machine_geometry import GeometryIdentity, OperatorGeometry
 from imas_ambix.latent.current_diffusion import (
     EtaProfile,
     FluxSurfaceGeometry,
@@ -200,7 +203,6 @@ def _interior_limiter_fixture():
     nested closed surfaces out to ψ_N ≈ 0.9, the configuration the
     flux-surface extraction actually meets on real spine equilibria.
     """
-    from imas_ambix.gs import geometry as gsg
     from imas_ambix.gs.cylinder import hybrid_greens
 
     lim_r = [0.9, 1.7, 1.7, 0.9, 0.9]
@@ -222,32 +224,65 @@ def _interior_limiter_fixture():
         conductor_rects=rects,
     )
     probes = [
-        gsg.BProbe(index=i, r=1.95, z=-0.6 + 0.3 * i, angle_deg=-90.0, length=0.02)
+        SimpleNamespace(
+            index=i,
+            r=1.95,
+            z=-0.6 + 0.3 * i,
+            angle_deg=-90.0,
+            length=0.02,
+        )
         for i in range(5)
     ]
     smap = [
-        gsg.SensorMapping(f"obv{i:02d}", "b_probe", i, p.r, p.z, p.angle_deg, 0.001, "")
+        SimpleNamespace(
+            amb_channel=f"obv{i:02d}",
+            kind="b_probe",
+            efm_index=i,
+            r=p.r,
+            z=p.z,
+            angle_deg=p.angle_deg,
+            residual_m=0.001,
+            flag="",
+        )
         for i, p in enumerate(probes)
     ]
-    table = gsg.GeometryTable(
-        signature=gsg.SetupSignature(
-            n_bprobe=5, n_fluxloop=0, n_pf_filament=2, n_limiter=5, digest="feed0004"
+    conductors = tuple(
+        SimpleNamespace(
+            r=cr,
+            z=cz,
+            turns=1.0,
+            width=0.06,
+            height=0.06,
+            circuit=k + 1,
+            xmult=1.0,
+        )
+        for k, (cr, cz) in enumerate(coils)
+    )
+    table = OperatorGeometry(
+        identity=GeometryIdentity(
+            representation_key="mp5-fl0-fc2-lim5-feed0004",
+            representation_digest="feed0004",
+            derivation_id="synthetic-current-diffusion",
+            physical_digest="",
+            registry_digest="",
         ),
-        shots=[1],
-        b_probes=probes,
-        flux_loops=[],
-        pf_filaments=[
-            gsg.PFFilament(
-                r=cr, z=cz, turns=1.0, width=0.06, height=0.06, circuit=k + 1, xmult=1.0
-            )
-            for k, (cr, cz) in enumerate(coils)
-        ],
-        limiter_r=lim_r,
-        limiter_z=lim_z,
-        sensor_map=smap,
-        passive_structures=[],
-        amc_current_channels=[],
-        unmatched_amb=[],
+        probes=tuple(probes),
+        loops=(),
+        conductors=conductors,
+        passives=(),
+        limiter_r=tuple(lim_r),
+        limiter_z=tuple(lim_z),
+        polygon_sections=(),
+        drive_map=(),
+        sensor_map=tuple(smap),
+        unmatched_channels=(),
+        active_circuits=(),
+        available_current_channels=(),
+        r0=0.85,
+        minor_radius=0.65,
+        unresolved_turns={},
+        coil_channels=(),
+        coil_column_matrix=np.zeros((len(smap), 0), dtype=np.float64),
     )
     return grid, table
 
@@ -265,7 +300,7 @@ def _ladder_slice(grid, table, i_pf, ip):
     g_sens, channels = grid.sensor_greens(table)
     vac = np.zeros(len(channels))
     for k, m in enumerate(table.sensor_map):
-        for f, cur in zip(table.pf_filaments, i_pf, strict=True):
+        for f, cur in zip(table.conductors, i_pf, strict=True):
             bz, br = greens_bz_br(np.array([m.r]), np.array([m.z]), f.r, f.z)
             vac[k] += cur * project_poloidal_field(br[0], bz[0], m.angle_deg)
     meas = vac + g_sens @ res.cell_currents
