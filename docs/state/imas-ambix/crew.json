@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T01:20:03",
+  "updated": "2026-08-20T14:44:02",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -5631,9 +5631,129 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260819T232323870001-harmonic-xpoint-adjudication",
+        "plan": "toroidal-harmonic-annulus-read",
+        "section": "\u00a77",
+        "node": "harmonic-xpoint-adjudication",
+        "role": "implement",
+        "member": "harmonic-rebaseline",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-19T23:23:27Z",
+        "completed_at": "2026-08-19T23:26:27Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 180,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 180,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "96d389d7e6bdc5a38f173ca1b9d6bf75e8326087",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "not-run",
+        "outcome": "BLOCKED on missing evidence, but its audit REFUTES the hypothesis it was sent to test. Both published X-point-set scores (+0.689 uncorrected, -2.719 corrected) were computed by patch_gate_eval.matched_xpoint_error, documented and verified as the permutation-invariant two-slot matcher, so the entire 3.4085-point regression ALREADY survives permutation-invariant matching and cannot be a matching-permutation artifact. The per-slice attribution remains underdetermined: boundary_harmonic_gate_eval.py line 505 skips the JSON+NPZ writer whenever _origin_correction_run is true, so the correction run persisted aggregate scores but no corrected per-slice predictions; only the uncorrected 160x14 arrays are committed. Producing the per-slice assignment and null-count deltas would need a held-out replay, which the node correctly refused to take unauthorised. No commit, no artifact.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260819T232323870001-harmonic-xpoint-adjudication/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01bd2-446e-7f23-a211-d13ce87a138d",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2575872,
+            "cached_input_tokens_cumulative": 51782144,
+            "input_tokens": 2663712,
+            "input_tokens_cumulative": 52719863,
+            "output_tokens": 6921,
+            "output_tokens_cumulative": 121115,
+            "reasoning_output_tokens": 2817,
+            "reasoning_output_tokens_cumulative": 30813
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
+      },
+      {
+        "run_id": "r-20260820T110935428709-correction-attribution-persistence",
+        "plan": "toroidal-harmonic-annulus-read",
+        "section": "\u00a77",
+        "node": "correction-attribution-persistence",
+        "role": "implement",
+        "member": "harmonic-anchor-wiring",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-20T11:09:38Z",
+        "completed_at": "2026-08-20T11:15:25Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 347,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 347,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "96d389d7e6bdc5a38f173ca1b9d6bf75e8326087",
+        "commits": [
+          "9bb9e40"
+        ],
+        "changed_lines": {
+          "added": 147,
+          "removed": 14,
+          "files": 2
+        },
+        "tests_added": 1,
+        "gate": "passed",
+        "outcome": "Frozen origin-correction scoring now persists its aggregate JSON and per-slice NPZ under the -correctedorigin tag, which distinguishes a corrected run from an uncorrected one so neither overwrites the other; the test also asserts the uncorrected path is not written. TDD: red before (1 failed, artifacts absent while _origin_correction_run=True), green after (1 passed); combined suite 18/18, ruff clean. Verified on a one-slice synthetic fixture; no held-out cohort loaded, accessed, or scored. Does not recover the already-completed correction run's dropped arrays.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260820T110935428709-correction-attribution-persistence/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01edc-c392-7f92-8655-6b2da97f8f61",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2493696,
+            "cached_input_tokens_cumulative": 2493696,
+            "input_tokens": 2609018,
+            "input_tokens_cumulative": 2609018,
+            "output_tokens": 12170,
+            "output_tokens_cumulative": 12170,
+            "reasoning_output_tokens": 4879,
+            "reasoning_output_tokens_cumulative": 4879
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 170
+    "_version": 172
   }
 }
