@@ -15,9 +15,7 @@ import typing as _typing
 import numpy as _np
 
 from imas_ambix.gs import geometry as _geometry
-from imas_ambix.gs import geometry_export as _geometry_export
 from imas_ambix.gs import machine_selection as _machine_selection
-from imas_ambix.gs import operator as _operator
 
 
 @_dataclasses.dataclass(frozen=True)
@@ -44,6 +42,12 @@ class OperatorGeometry:
     limiter_z: tuple[float, ...]
     polygon_sections: tuple[_typing.Any, ...]
     drive_map: tuple[_typing.Any, ...]
+    sensor_map: tuple[_typing.Any, ...]
+    unmatched_channels: tuple[str, ...]
+    active_circuits: tuple[int, ...]
+    available_current_channels: tuple[str, ...]
+    r0: float
+    minor_radius: float
     unresolved_turns: _typing.Mapping[str, None]
     coil_channels: tuple[str, ...]
     coil_column_matrix: _np.ndarray
@@ -93,6 +97,65 @@ def _unresolved_turns(table: _typing.Any) -> _typing.Mapping[str, None]:
     return _types.MappingProxyType(named)
 
 
+def _project_operator_geometry(
+    kernel: _typing.Any,
+    *,
+    identity: GeometryIdentity | None = None,
+    resolve_identity: bool = False,
+) -> OperatorGeometry:
+    """Project a private compatibility kernel onto the operator boundary."""
+    if isinstance(kernel, OperatorGeometry):
+        return kernel
+
+    if identity is None:
+        signature = kernel.signature
+        physical_digest = ""
+        registry_digest = ""
+        if resolve_identity:
+            from imas_ambix.gs.machine_identity import (  # noqa: PLC0415
+                MachineIdentityError,
+                identity_for_table,
+            )
+
+            try:
+                resolved = identity_for_table(kernel)
+            except MachineIdentityError, ImportError, OSError, TypeError, ValueError:
+                pass
+            else:
+                physical_digest = resolved.physical_digest
+                registry_digest = resolved.registry_digest
+        identity = GeometryIdentity(
+            representation_key=signature.key,
+            representation_digest=signature.digest,
+            derivation_id=_geometry.GEOMETRY_TABLE_VERSION,
+            physical_digest=physical_digest,
+            registry_digest=registry_digest,
+        )
+
+    return OperatorGeometry(
+        identity=identity,
+        probes=tuple(kernel.b_probes),
+        loops=tuple(kernel.flux_loops),
+        conductors=tuple(kernel.pf_filaments),
+        passives=tuple(kernel.passive_structures),
+        limiter_r=tuple(float(value) for value in kernel.limiter_r),
+        limiter_z=tuple(float(value) for value in kernel.limiter_z),
+        polygon_sections=_readonly_sections(kernel.polygon_sections),
+        drive_map=tuple(kernel.circuit_drives),
+        sensor_map=tuple(kernel.sensor_map),
+        unmatched_channels=tuple(str(value) for value in kernel.unmatched_amb),
+        active_circuits=tuple(int(value) for value in kernel.active_circuits),
+        available_current_channels=tuple(
+            str(value) for value in kernel.amc_current_channels
+        ),
+        r0=float(kernel.r0),
+        minor_radius=float(kernel.minor_radius),
+        unresolved_turns=_unresolved_turns(kernel),
+        coil_channels=(),
+        coil_column_matrix=_readonly_array(_np.zeros((len(kernel.sensor_map), 0))),
+    )
+
+
 class MachineGeometryService:
     """Resolve one shot and expose narrow, cached geometry projections."""
 
@@ -124,9 +187,13 @@ class MachineGeometryService:
     def _compatibility_operator(self, shot: int) -> _typing.Any:
         addressed_shot = int(shot)
         if addressed_shot not in self._operators:
-            self._operators[addressed_shot] = _operator.build_operator(
-                self._compatibility_kernel(addressed_shot)
+            from imas_ambix.gs import operator as _operator  # noqa: PLC0415
+
+            projected = _project_operator_geometry(
+                self._compatibility_kernel(addressed_shot),
+                identity=self.identity(addressed_shot),
             )
+            self._operators[addressed_shot] = _operator.build_operator(projected)
         return self._operators[addressed_shot]
 
     def identity(self, shot: int) -> GeometryIdentity:
@@ -150,17 +217,12 @@ class MachineGeometryService:
         if addressed_shot not in self._operator_projections:
             table = self._compatibility_kernel(addressed_shot)
             existing = self._compatibility_operator(addressed_shot)
-            self._operator_projections[addressed_shot] = OperatorGeometry(
+            projected = _project_operator_geometry(
+                table,
                 identity=self.identity(addressed_shot),
-                probes=tuple(table.b_probes),
-                loops=tuple(table.flux_loops),
-                conductors=tuple(table.pf_filaments),
-                passives=tuple(table.passive_structures),
-                limiter_r=tuple(float(value) for value in table.limiter_r),
-                limiter_z=tuple(float(value) for value in table.limiter_z),
-                polygon_sections=_readonly_sections(table.polygon_sections),
-                drive_map=tuple(table.circuit_drives),
-                unresolved_turns=_unresolved_turns(table),
+            )
+            self._operator_projections[addressed_shot] = _dataclasses.replace(
+                projected,
                 coil_channels=tuple(existing.pf_amc_channels),
                 coil_column_matrix=_readonly_array(existing.g_pf),
             )
@@ -168,6 +230,8 @@ class MachineGeometryService:
 
     def sensors(self, shot: int, channels: _typing.Iterable[str]) -> SensorGeometry:
         """Return sensor features aligned to ``channels`` for ``shot``."""
+        from imas_ambix.gs import geometry_export as _geometry_export  # noqa: PLC0415
+
         addressed_shot = int(shot)
         requested = tuple(str(channel) for channel in channels)
         fields = _geometry_export.build_geometry_fields_from_table(

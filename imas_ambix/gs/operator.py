@@ -66,12 +66,9 @@ from scipy.special import ellipe, ellipk  # type: ignore[import-untyped]
 
 from imas_ambix.cocos import project_poloidal_field
 from imas_ambix.data.paths import local_shot_path
-from imas_ambix.gs.geometry import (
-    MAST_A,
-    MAST_R0,
-    CircuitDrive,
-    GeometryTable,
-    PFFilament,
+from imas_ambix.gs.machine_geometry import (
+    OperatorGeometry,
+    _project_operator_geometry,
 )
 
 if TYPE_CHECKING:
@@ -130,6 +127,9 @@ SI conversion is a flat ×1000 (kA → A)."""
 
 # Numerical floor so on-axis / coincident points don't divide by zero.
 _R_FLOOR = 1.0e-9
+
+_DEFAULT_MAJOR_RADIUS = 0.85
+_DEFAULT_MINOR_RADIUS = 0.65
 
 
 # --- Green's functions (per unit current, SI) -------------------------
@@ -295,9 +295,9 @@ _KNOWN_ROLES = ("known_pf", "known_case")
 
 
 def _declared_classes(
-    by_circ: dict[int, list[PFFilament]],
+    by_circ: dict[int, list[Any]],
     active_circuits: Sequence[int],
-    circuit_drives: Sequence[CircuitDrive],
+    circuit_drives: Sequence[Any],
     amc_channels: Sequence[str],
 ) -> list[CircuitClass]:
     """Classify from the source's own circuit -> channel declaration.
@@ -361,10 +361,10 @@ def _declared_classes(
 
 
 def classify_circuits(
-    filaments: Sequence[PFFilament],
+    filaments: Sequence[Any],
     amc_channels: Sequence[str],
     active_circuits: Sequence[int] = (),
-    circuit_drives: Sequence[CircuitDrive] = (),
+    circuit_drives: Sequence[Any] = (),
 ) -> list[CircuitClass]:
     """Classify each fcoil circuit as KNOWN active PF, KNOWN case, or INFERRED.
 
@@ -401,7 +401,7 @@ def classify_circuits(
     circuit without relying on channel spelling.
     """
     if circuit_drives:
-        by_circ_declared: dict[int, list[PFFilament]] = {}
+        by_circ_declared: dict[int, list[Any]] = {}
         for f in filaments:
             by_circ_declared.setdefault(f.circuit, []).append(f)
         return _declared_classes(
@@ -413,7 +413,7 @@ def classify_circuits(
 
     avail = set(amc_channels)
     declared_active = set(active_circuits)
-    by_circ: dict[int, list[PFFilament]] = {}
+    by_circ: dict[int, list[Any]] = {}
     for f in filaments:
         by_circ.setdefault(f.circuit, []).append(f)
 
@@ -469,7 +469,7 @@ def classify_circuits(
 
 
 def _default_plasma_basis(
-    table: GeometryTable,
+    geometry: OperatorGeometry,
     nr: int = 9,
     nz: int = 13,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -481,8 +481,8 @@ def _default_plasma_basis(
     ``λ`` are the solver's sweep, NOT decided here.  Nodes outside the limiter contour
     are dropped (a plasma current element cannot live in the structure).
     """
-    lr = np.asarray(table.limiter_r, dtype=np.float64)
-    lz = np.asarray(table.limiter_z, dtype=np.float64)
+    lr = np.asarray(geometry.limiter_r, dtype=np.float64)
+    lz = np.asarray(geometry.limiter_z, dtype=np.float64)
     if lr.size >= 3:
         r_lo, r_hi = float(lr.min()), float(lr.max())
         z_lo, z_hi = float(lz.min()), float(lz.max())
@@ -541,8 +541,8 @@ class ForwardOperator:
     circuit_classes: list[CircuitClass]
     excluded_channels: list[str]  # table-unmatched amb flux loops (not predicted)
     flagged_channels: list[str]  # non-unique amb (predicted at index, flagged)
-    r0: float = MAST_R0
-    minor_radius: float = MAST_A
+    r0: float = _DEFAULT_MAJOR_RADIUS
+    minor_radius: float = _DEFAULT_MINOR_RADIUS
     #: The Nova registry physical digest of the machine this operator describes,
     #: when it was resolved.  ``signature_key`` above identifies the
     #: DISCRETIZATION the matrices were built on; this identifies the MACHINE, so
@@ -687,7 +687,7 @@ class ForwardOperator:
 
 
 def _sensor_rows(
-    table: GeometryTable,
+    geometry: OperatorGeometry | Any,
 ) -> tuple[
     list[str], list[str], np.ndarray, np.ndarray, np.ndarray, list[str], list[str]
 ]:
@@ -700,13 +700,14 @@ def _sensor_rows(
     because the amb identity is ambiguous (kept OUT of any comparison target by
     the consumer).  Returns row metadata + the excluded / flagged channel lists.
     """
+    geometry = _project_operator_geometry(geometry)
     channels: list[str] = []
     kinds: list[str] = []
     rs: list[float] = []
     zs: list[float] = []
     angs: list[float] = []
     flagged: list[str] = []
-    for m in table.sensor_map:
+    for m in geometry.sensor_map:
         if m.flag:
             flagged.append(m.amb_channel)
             # non-unique flux loops still have a usable (R,Z) index → predict,
@@ -716,7 +717,7 @@ def _sensor_rows(
         rs.append(m.r)
         zs.append(m.z)
         angs.append(0.0 if m.angle_deg is None else float(m.angle_deg))
-    excluded = list(table.unmatched_amb)
+    excluded = list(geometry.unmatched_channels)
     return (
         channels,
         kinds,
@@ -802,9 +803,9 @@ def polygon_section_column(
 
 
 def build_operator(
-    table: GeometryTable, *, resolve_identity: bool = False
+    geometry: OperatorGeometry | Any, *, resolve_identity: bool = False
 ) -> ForwardOperator:
-    """Build the per-campaign :class:`ForwardOperator` from a geometry table.
+    """Build the per-campaign :class:`ForwardOperator` from its projection.
 
     Pure geometry: assembles ``G_pf`` (KNOWN PF coils, columns = active circuits
     with their filaments weighted by ``xmult``), ``G_plasma`` (INFERRED plasma
@@ -818,17 +819,21 @@ def build_operator(
     A registry miss is non-fatal — the operator is still correct geometry, it just
     carries no physical identity.
     """
-    channels, kinds, srz_r, srz_z, srz_ang, excluded, flagged = _sensor_rows(table)
+    geometry = _project_operator_geometry(
+        geometry,
+        resolve_identity=resolve_identity,
+    )
+    channels, kinds, srz_r, srz_z, srz_ang, excluded, flagged = _sensor_rows(geometry)
     is_flux = np.array([k == "flux_loop" for k in kinds], dtype=bool)
 
     classes = classify_circuits(
-        table.pf_filaments,
-        table.amc_current_channels,
-        table.active_circuits,
-        table.circuit_drives,
+        geometry.conductors,
+        geometry.available_current_channels,
+        geometry.active_circuits,
+        geometry.drive_map,
     )
-    by_circ: dict[int, list[PFFilament]] = {}
-    for f in table.pf_filaments:
+    by_circ: dict[int, list[Any]] = {}
+    for f in geometry.conductors:
         by_circ.setdefault(f.circuit, []).append(f)
 
     def _circ_col(circ: int) -> np.ndarray:
@@ -887,8 +892,8 @@ def build_operator(
     # --- INFERRED passive block: one column per passive(structural) circuit ---
     # A circuit with a wired PolygonSection uses the exact shaped Urankar kernel
     # in place of its axis-aligned bounding-box cylinder (opt-in — an empty
-    # table.polygon_sections leaves every column byte-identical).
-    poly_by_circ = {ps.circuit: ps for ps in table.polygon_sections}
+    # geometry.polygon_sections leaves every column byte-identical).
+    poly_by_circ = {ps.circuit: ps for ps in geometry.polygon_sections}
     passive_rz: list[tuple[float, float]] = []
     passive_cols: list[np.ndarray] = []
     for cc in classes:
@@ -916,7 +921,7 @@ def build_operator(
     )
 
     # --- INFERRED plasma block: one column per limiter-masked grid node ---
-    pr, pz = _default_plasma_basis(table)
+    pr, pz = _default_plasma_basis(geometry)
     plasma_cols = [
         _green_columns(
             np.array([r]),
@@ -935,21 +940,9 @@ def build_operator(
         else np.zeros((srz_r.size, 0), dtype=np.float64)
     )
 
-    physical_digest = ""
-    if resolve_identity:
-        from imas_ambix.gs.machine_identity import (  # noqa: PLC0415
-            MachineIdentityError,
-            identity_for_table,
-        )
-
-        try:
-            physical_digest = identity_for_table(table).physical_digest
-        except MachineIdentityError, ImportError, OSError, ValueError:
-            physical_digest = ""
-
     return ForwardOperator(
-        signature_key=table.signature.key,
-        physical_digest=physical_digest,
+        signature_key=geometry.identity.representation_key,
+        physical_digest=geometry.identity.physical_digest,
         sensor_channels=channels,
         sensor_kind=kinds,
         g_pf=g_pf,
@@ -965,8 +958,8 @@ def build_operator(
         circuit_classes=classes,
         excluded_channels=excluded,
         flagged_channels=flagged,
-        r0=table.r0,
-        minor_radius=table.minor_radius,
+        r0=geometry.r0,
+        minor_radius=geometry.minor_radius,
     )
 
 
@@ -1005,7 +998,7 @@ def read_amc_currents_at_index(shot_id: int, t_index: int) -> dict[str, float]:
 
 
 def build_all_operators(
-    tables: dict[str, GeometryTable],
+    tables: dict[str, Any],
     *,
     resolve_identity: bool = False,
 ) -> dict[str, ForwardOperator]:
@@ -1018,7 +1011,7 @@ def build_all_operators(
 
 def write_operator_summary(
     operators: dict[str, ForwardOperator],
-    tables: dict[str, GeometryTable] | None = None,
+    tables: dict[str, Any] | None = None,
     out_path: Path | None = None,
 ) -> Path:
     """Write the compact committed operator summary (shapes, coil map, flags).
@@ -1051,12 +1044,14 @@ def write_operator_summary(
             "AVERAGED into one G_pf column so the coil current is applied once "
             "(a near-vacuum slice showed ~2x over-prediction without the merge)."
         ),
-        "r0": MAST_R0,
-        "minor_radius": MAST_A,
+        "r0": _DEFAULT_MAJOR_RADIUS,
+        "minor_radius": _DEFAULT_MINOR_RADIUS,
         "n_campaigns": len(operators),
         "campaigns": {
             k: o.to_summary(
-                amc_channels=tables[k].amc_current_channels
+                amc_channels=_project_operator_geometry(
+                    tables[k]
+                ).available_current_channels
                 if tables and k in tables
                 else None
             )
@@ -1071,7 +1066,7 @@ def write_operator_summary(
 
 
 def passive_amm_coincidence(
-    table: GeometryTable, tol_m: float = 0.02
+    geometry: OperatorGeometry | Any, tol_m: float = 0.02
 ) -> dict[str, Any]:
     """Diagnose the fcoil-structural vs amm passive-geometry double-representation.
 
@@ -1081,14 +1076,15 @@ def passive_amm_coincidence(
     overlap so a downstream consumer does not double-count passive elements.
     ``amm`` current VALUES are never read (adjudication).
     """
+    geometry = _project_operator_geometry(geometry)
     classes = classify_circuits(
-        table.pf_filaments,
-        table.amc_current_channels,
-        table.active_circuits,
-        table.circuit_drives,
+        geometry.conductors,
+        geometry.available_current_channels,
+        geometry.active_circuits,
+        geometry.drive_map,
     )
     passive = [c for c in classes if c.role == "inferred_passive"]
-    amm = np.array([[p.r, p.z] for p in table.passive_structures], dtype=np.float64)
+    amm = np.array([[p.r, p.z] for p in geometry.passives], dtype=np.float64)
     n_coin = 0
     if amm.size:
         for c in passive:
@@ -1097,7 +1093,7 @@ def passive_amm_coincidence(
                 n_coin += 1
     return {
         "n_inferred_passive_circuit": len(passive),
-        "n_amm_passive_structure": len(table.passive_structures),
+        "n_amm_passive_structure": len(geometry.passives),
         "n_coincident_within_tol": n_coin,
         "tol_m": tol_m,
         "passive_geometry_source": "fcoil-structural-circuits",
