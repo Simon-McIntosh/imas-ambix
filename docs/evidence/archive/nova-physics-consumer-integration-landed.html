@@ -254,6 +254,77 @@
   <code>.claude/worktrees/s12-*</code> copies — because
   <a href="/imas-ambix/plans/description-reader-migration">the description-reader migration</a>
   shipped on 2026-08-17 and drove that census 41 → 0.</p>
+  <h2 id="geometry-boundary">Geometry boundary design — a projection facade over a private, hash-frozen kernel</h2>
+  <p><strong>The geometry donor could not retire because 59 files import a table type, and the
+  fix is not a new import path but three narrow projections over a kernel whose hash is frozen.</strong>
+  Read-only design run at Ambix <code>ca0c674</code>, pinned Nova <code>de3277a3</code>, no commit.
+  Of the 22 imported names, only 7 are Nova-sourced; 12 are genuinely Ambix runtime concerns —
+  representation identity, the acquisition-address join, framing defaults — which is why adopting
+  Nova's <code>DescribedMachine</code> directly was rejected as an incomplete projection even
+  though it is textually identical at both revisions
+  (<code>DescribedMachine</code> SHA-256 prefix <code>faad7d63b8e12e58</code>,
+  <code>describe_machine</code> <code>378e42842436a9f0</code>).</p>
+
+  <figure>
+    <img src="/imas-ambix/figures/nova-physics-consumer-integration/geometry-boundary-layering.svg"
+         alt="Nova resolves the machine artifact and description; one Ambix adapter builds a private hash-frozen compatibility kernel; three narrow projections are the only public surface the 59 consumers import.">
+    <figcaption>The kernel stays private so representation identity cannot drift, and consumers
+    couple to projections rather than to a table type.</figcaption>
+  </figure>
+
+  <table>
+    <caption>Imported <code>GeometryTable</code> surface, classified — 22 of 22 names</caption>
+    <thead><tr><th>Class</th><th>Count</th><th>Representative names</th><th>Disposition</th></tr></thead>
+    <tbody>
+      <tr><td>Nova-sourced</td><td>7</td>
+        <td><code>BProbe</code> (18 files), <code>PFFilament</code> (24), <code>FluxLoop</code> (8),
+        <code>PassiveStructure</code> (7), <code>CircuitDrive</code> (5),
+        <code>PolygonSection</code> (3), <code>shaped_section_vertices</code> (1)</td>
+        <td>Project immutable rows from the resolved description; <code>DescribedMachine</code>
+        alone is insufficient for element geometry and probe length</td></tr>
+      <tr><td>Ambix-runtime</td><td>12</td>
+        <td><code>GeometryTable</code> (34), <code>SetupSignature</code> (21),
+        <code>GEOMETRY_TABLE_VERSION</code> (18), <code>SensorMapping</code> (18),
+        <code>round_geometry_hash</code> (4), <code>map_amb_sensors</code> (3)</td>
+        <td>Stay Ambix-side; the table type and its record constructors remain private and are
+        never re-exported by the facade</td></tr>
+      <tr><td>Absent from both</td><td>3</td>
+        <td><code>_MAST_SLANTED_PASSIVES</code>, <code>_MAX_RESIDUAL_M</code>,
+        <code>_round_hash</code></td>
+        <td>Private test leaks — replace with public fixtures and asserted verdicts</td></tr>
+    </tbody>
+  </table>
+
+  <p>Two results govern how the migration may proceed.</p>
+  <ul>
+    <li><strong>All five identity-bearing store families are PRESERVE EXACTLY.</strong> The
+    <code>SetupSignature</code>-keyed patch cache, 2 committed
+    <code>imas_ambix/gs/artifacts/*.json</code> signature keys, 25 benchmark
+    campaign/table stamps, the trained checkpoints and campaign dictionaries, and 101 gate/evidence
+    JSON geometry markers must all resolve to today's key for a frozen input. Keying any of them on
+    Nova's physical digest was rejected outright: physical identity merges distinct
+    discretizations, so it would collide or orphan representation-dependent matrices. Token and
+    equilibrium label stores are deliberately <em>not</em> signature-keyed — token identity is
+    <code>(shot_id, group)</code> — so the requirement there is array-equal derived geometry, not
+    a new key.</li>
+    <li><strong>The baseline is 59 files and 65 import statements, not 58 and 64.</strong> The
+    landed circuit retirement added <code>tests/gs/test_circuits.py</code> as a geometry importer.
+    The terminal zero-import gate must be run against the current tree; replaying the frozen 58
+    would pass while one importer survived.</li>
+  </ul>
+
+  <p>Migration cost buckets, to be taken in this order: <strong>C = 3</strong> boundary
+  producers (<code>geometry_adapter.py</code>, <code>artifact_geometry.py</code>,
+  <code>operator.py</code>) behind frozen six-shot operator and identity parity;
+  <strong>B = 13</strong> narrow projection consumers; <strong>A = 18</strong> scripts needing only
+  a derivation id; <strong>D = 25</strong> fixture and contract tests. The facade and private
+  kernel land first, with golden-key proof, before any consumer moves. Full report with every
+  per-file classification: <code>~/.cache/ambix-nova-integration/geometry-boundary-design.md</code>
+  — materialised verbatim from the run manifest, because the read-only sandbox again refused a
+  write outside its run directory, a dispatch-fence error on the orchestrator's side that left the
+  investigation itself untouched. Verification receipt:
+  <code>PASS names=22/22 nova=7 ambix=12 absent=3 stores=5/5-preserve buckets=18+13+3+24=58
+  current_baseline=59/65 shapes=1-recommended/4-rejected</code>.</p>
 </main>
 </body>
 </html>

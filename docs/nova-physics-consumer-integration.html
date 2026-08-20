@@ -19,12 +19,12 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-20">
-<meta name="plan-version" content="15">
+<meta name="plan-version" content="19">
 <meta name="plan-depends-on" content="">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
-<meta name="plan-impl" content="0.667">
-<meta name="plan-artifacts" content="docs/evidence/archive/nova-physics-consumer-integration-landed.html,~/.cache/ambix-nova-integration/api-drift.md,~/.cache/ambix-nova-integration/donor-census.md">
+<meta name="plan-impl" content="0.7">
+<meta name="plan-artifacts" content="docs/evidence/archive/nova-physics-consumer-integration-landed.html,~/.cache/ambix-nova-integration/api-drift.md,~/.cache/ambix-nova-integration/donor-census.md,~/.cache/ambix-nova-integration/geometry-boundary-design.md,docs/figures/nova-physics-consumer-integration/geometry-boundary-layering.svg">
 <meta name="plan-commits" content="4f432bc0a748c72dc66cef1f9265d6b8f3bd11e5,4dafbfd">
 </head>
 <body>
@@ -69,9 +69,9 @@
           <td>✓ retired 2026-08-19 at exact parity (<code>4f432bc</code>)</td>
         </tr>
         <tr>
-          <td><code>gs/geometry.py</code></td><td>58</td>
+          <td><code>gs/geometry.py</code></td><td>59</td>
           <td>No replacement for the <code>GeometryTable</code> runtime type surface — <code>BProbe</code>, <code>FluxLoop</code>, <code>PFFilament</code>, <code>PassiveStructure</code>, <code>PolygonSection</code>, <code>CircuitDrive</code>, <code>SensorMapping</code>, <code>SetupSignature</code>, hashing, section construction and circuit collapse</td>
-          <td>Open — needs the compatibility boundary designed before any migration, and cache/signature and label-store identities held fixed across it</td>
+          <td>Boundary designed 2026-08-20 — migration open. The count is 59, not the 58 measured on 2026-08-19: the circuit retirement added <code>tests/gs/test_circuits.py</code> as a geometry importer, so the terminal zero-import gate runs against the current tree</td>
         </tr>
         <tr>
           <td><code>latent/current_diffusion.py</code></td><td>15</td>
@@ -93,6 +93,18 @@
     </ul>
     <p>Representation is part of the deliverable: where the boundary's layering is clearer as a diagram than as prose, the design carries a diagram, and where a classification is clearer as rows and columns it stays a table rather than becoming a picture of one.</p>
 
+    <h3>§5.2 — The boundary the design recommends</h3>
+    <p class="landed-summary"><span class="badge badge-shipped">✓ designed 2026-08-20</span>
+    A projection facade over a private, hash-frozen kernel. Of the 22 imported names only 7 are Nova-sourced, 12 are genuinely Ambix runtime concerns and 3 are private test leaks, which is why re-exporting the table and adopting <code>DescribedMachine</code> directly were both rejected. All 5 identity-bearing store families are PRESERVE EXACTLY. Full record:
+    <a href="/imas-ambix/evidence/archive/nova-physics-consumer-integration-landed#geometry-boundary">geometry boundary</a>.</p>
+    <p>Consumers ask a shot-addressed service for one of three narrow projections — <code>GeometryIdentity</code>, <code>OperatorGeometry</code>, <code>SensorGeometry</code> — and the table type together with its record constructors stays private for the whole migration. That is the property that distinguishes this shape from the rejected one: an import-path change would relocate the coupling, because the aggregate and its constructors would remain the de facto API.</p>
+    <p>Two constraints carry into the migration and neither is negotiable at the boundary.</p>
+    <ul>
+      <li><strong>Representation identity, not physical identity, keys the stores.</strong> Keying the caches or checkpoints on Nova's physical digest was rejected: physical identity merges distinct discretizations, so it would collide or orphan the representation-dependent matrices. The kernel's own key, digest and version are copied into <code>GeometryIdentity</code>, and Nova's serialization is never hashed.</li>
+      <li><strong>The dependency rewire lands before the facade.</strong> The facade's value is a golden-key proof that a frozen input still selects the identical path and reads an array-equal matrix. The description the rewire brings in republishes two flux-loop positions that currently sit past the fail-closed mapping bound, so freezing golden keys first would bake in a superseded description and force an immediate rebaseline of the very goldens the proof rests on.</li>
+    </ul>
+    <p>The migration then runs in four measured tranches, boundary producers first so that the parity gate has something to bite on: <strong>C = 3</strong> producers behind frozen six-shot operator and identity parity, then <strong>B = 13</strong> projection consumers, then <strong>A = 18</strong> scripts needing only a derivation id, then <strong>D = 25</strong> fixture and contract tests. The terminal gate is zero imports of <code>imas_ambix.gs.geometry</code> across the current tree with no facade re-export of the table, and the private kernel is deleted only once the byte-stable hash has a separately owned, golden-tested home.</p>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="ownership-boundary" data-choice="nova-owns-physics" data-by="Simon McIntosh" data-when="2026-07-29">
@@ -102,6 +114,15 @@
       <button class="r-opt" data-value="dual-maintenance">Maintain both implementations</button>
       </p>
     <p class="r-dec-rat">The user set the boundary explicitly: Nova owns all physics-spine, equilibrium, transport, circuits/passives, IMAS and GPU physics work; Ambix is primarily a labeler and ML consumer.</p>
+    </div>
+<div class="r-dec" data-key="dependency-wiring" data-choice="local-dev-install" data-by="Simon McIntosh" data-when="2026-08-20T13:07:49+00:00">
+    <p class="r-dec-q">How is the Nova dependency wired while both repositories are in active development?</p>
+    <p class="r-dec-ctx">The tandem-integration model pinned an exact reviewed Nova SHA per checkpoint. Both repositories are under simultaneous active development, so every Nova change required a commit, a push and an Ambix re-pin before Ambix could consume it, and every verification required re-provisioning the single root environment.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="local-dev-install">Editable path dependency on the sibling Nova checkout</button>
+      <button class="r-opt" data-value="exact-sha-pin">Exact reviewed git SHA re-pinned per checkpoint</button>
+      </p>
+    <p class="r-dec-rat">The user wired it this way explicitly and authorised the sync: both projects are in active development, so a per-checkpoint SHA re-pin taxes every Nova change with a push-and-repin cycle. The consequence is that revision provenance leaves pyproject.toml, where it was a literal, and moves into the evidence record, where it is captured from the consumed checkout at gate-run time. The plan keeps recorded provenance and drops only the re-pin ceremony; a consumed revision that is never recorded anywhere would not satisfy this decision.</p>
     </div>
 </section>
 
@@ -230,6 +251,9 @@ Done-when
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20260819-seam-diagnosis" data-who="reckon-ship" data-when="2026-08-19T21:52:00+00:00">
     <div class="r-comment-body">artifact-seam-diagnosis landed — no commit (read-only); gate passed; measure one artifact-versus-campaign version skew explains all four baseline failures. Pinned Nova de3277a3 publishes superseded physical digest ca06c8f64481114f carrying obsolete flux-loop positions; Ambix applies the vacuum-adjudicated fl_p4l_1=(1.5984,-1.04443) and fl_p4l_4=(1.4005,-1.14403) at imas_ambix/data/geometry_adapter.py:750-766; the two disagree by 0.370151 m and 0.437069 m, past the 0.05 m fail-closed mapping bound at imas_ambix/gs/geometry.py:782-789, so the rows drop and perturb the p6l and solenoid ratio fixtures downstream. Nova f8fc19ce, an ancestor of target aeffde05, republishes them as digest b55c5bb005a2cb67. Repair verdicts: both flux-loop cases are Nova-side and already fixed upstream; p6l (1.010756018918288, over the 1 percent bound by 0.000756, drive independently correct at 1.0 A.turn/A evidence measured) needs the pin advance plus a G2 rerun, not a relaxed bound; solenoid (1.0508105926909095 vs golden 1.050802620352377, delta 7.97e-06, inside the 0.06 science bound with 0.00919 headroom) needs only the brittle 1e-12 identity golden rebaselined afterwards. No Ambix adapter change is indicated. This corroborates the drift audit's target from an independent direction. impl denominator now 9 executable nodes, 6 complete. Artifact docs/evidence/archive/nova-physics-consumer-integration-landed.html#seam-diagnosis.</div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20260820-geometry-boundary" data-who="reckon-ship" data-when="2026-08-20T13:20:00+00:00">
+    <div class="r-comment-body">geometry-boundary-design landed — no commit (read-only design); gate passed; measure 22/22 imported names classified as 7 nova-sourced, 12 ambix-runtime and 3 private test leaks, 5/5 identity-bearing store families verdicted PRESERVE EXACTLY, 58/58 frozen importers bucketed 18/13/3/24, 1 recommended shape against 4 named rejected alternatives, and DescribedMachine plus describe_machine probed text-identical at de3277a3 and aeffde05 (SHA-256 prefixes faad7d63b8e12e58 and 378e42842436a9f0). Recommended shape is a projection facade over a private hash-frozen kernel; re-exporting the table was rejected as coupling relocation, adopting DescribedMachine directly as an incomplete projection, and digest-keying the stores as identity conflation. Two corrections carry forward: the current baseline is 59 files / 65 statements because the circuit retirement added tests/gs/test_circuits.py as a geometry importer, so the terminal zero-import gate must run against the current tree rather than replaying the frozen 58; and the dependency rewire must precede the facade, because the description it brings in republishes the two out-of-bound flux-loop positions and would otherwise force an immediate rebaseline of the golden keys the facade's proof rests on. The run reported blocked rather than claiming success: its read-only sandbox grants no write outside the run directory, so the declared cache artifact path was a dispatch-fence error on the orchestrator's side (the same error the donor-census run hit on 2026-08-19) and the report was materialised verbatim from the durable manifest by programmatic extraction, not transcription. Artifacts ~/.cache/ambix-nova-integration/geometry-boundary-design.md and docs/evidence/archive/nova-physics-consumer-integration-landed.html#geometry-boundary. impl denominator = 10 executable nodes, 7 complete: pinned dependency plus physics adapter, first tandem checkpoint, API drift inventory, donor census, artifact-seam diagnosis, circuits retirement and this boundary design all landed; open are the dependency rewire, the geometry facade plus its four-tranche consumer migration, and the current-diffusion retirement. The migration is one staged node with four measured tranches rather than one edit, so the fraction understates its size deliberately in order to stay monotonic.</div>
 </div>
 </section>
 </main>
