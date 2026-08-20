@@ -546,6 +546,51 @@
   <p>Verification receipt:
   <code>PASS imports=3to0 operator_delta=0 shape=81x21 identity=unchanged exports=4/0/0
   tests_gs=235p/0f sensor_rows=7/7-sha-identical digest=b55c5bb0-stable</code>.</p>
+  <h2 id="sensor-projection">The cycle edge deleted — projection identical to the path it replaced</h2>
+  <p><strong>The facade no longer reaches through an export module, and the sensor values it
+  produces are bit-identical to the ones that route did.</strong> Commit <code>a98af482</code>,
+  merged <code>ba711f2</code>. The deferred import at <code>machine_geometry.py:233</code> —
+  <code>from imas_ambix.gs import geometry_export as _geometry_export</code> — is gone, and
+  <code>rg</code> finds zero <code>geometry_export</code> references in the module, so the five-edge
+  cycle no longer exists. <code>geometry_export.py</code> is untouched: it keeps its own path until
+  it migrates as one of the thirteen, and inverting that dependency now was explicitly rejected.</p>
+
+  <table>
+    <caption>Projection parity, frozen shot 11766, against values banked from <code>711204f</code>
+    before editing</caption>
+    <thead><tr><th>Compared</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Feature matrix</td>
+          <td>float32, shape (3, 10), array-equal including the NaN mask, max absolute delta 0</td></tr>
+      <tr><td>Channel kinds</td>
+          <td>Identical in order: <code>bpol_probe</code>, <code>flux_loop</code>,
+          <code>coil</code></td></tr>
+      <tr><td>Column names</td>
+          <td>All ten identical in order: <code>r</code>, <code>z</code>, <code>phi</code>,
+          <code>angle_deg</code>, <code>normal_r</code>, <code>normal_z</code>,
+          <code>chord_r1</code>, <code>chord_z1</code>, <code>chord_r2</code>,
+          <code>chord_z2</code></td></tr>
+      <tr><td>Representation identity</td>
+          <td><code>mp78-fl80-fc70-lim37-2f6472393311692b</code>, unchanged on both sides</td></tr>
+      <tr><td>Facade public surface</td>
+          <td>Exactly 4 names in <code>__all__</code>; 0 table and 0 record-constructor exports</td></tr>
+      <tr><td>Full <code>tests/gs</code></td>
+          <td>236 passed / 0 failed, above the 235 floor</td></tr>
+    </tbody>
+  </table>
+
+  <p>Including the NaN mask in the comparison matters more than it looks: a projection that
+  silently turned an absent channel value into a number would pass an array-equality check written
+  carelessly, and absent values are exactly what this boundary has to carry faithfully — the same
+  property the unresolved P6 turns exercise on the operator side.</p>
+
+  <p>The digest invariant was load-bearing again: Nova HEAD moved from <code>95911656</code> to
+  <code>a0e3e817</code> during the suite, while the resolved physical digest held at
+  <code>b55c5bb0</code>, so the run was retained rather than discarded and repeated. That is the
+  third time in this session the invariant kept a valid gate from being thrown away by unrelated
+  upstream activity. Verification receipt:
+  <code>PASS export_refs=0 matrix_delta=0 shape=3x10 nan_mask=identical kinds=identical
+  names=10/10-ordered identity=unchanged exports=4/0/0 tests_gs=236p/0f digest=b55c5bb0-stable</code>.</p>
 </main>
 </body>
 </html>

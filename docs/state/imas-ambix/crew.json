@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T17:30:23",
+  "updated": "2026-08-20T17:47:14",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -162,6 +162,13 @@
         "id": "facade-dependency-boundary",
         "harness": "codex",
         "role": "investigate",
+        "session_id": null,
+        "created": "2026-08-20"
+      },
+      {
+        "id": "facade-sensor-projection",
+        "harness": "codex",
+        "role": "implement",
         "session_id": null,
         "created": "2026-08-20"
       },
@@ -6420,9 +6427,72 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260820T153157690895-facade-sensor-projection",
+        "plan": "nova-physics-consumer-integration",
+        "section": "\u00a77",
+        "node": "facade-sensor-projection",
+        "role": "implement",
+        "member": "facade-sensor-projection",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-20T15:32:01Z",
+        "completed_at": "2026-08-20T15:46:45Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 884,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 884,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "711204f7620a8445c716b5738a4de6edce796944",
+        "commits": [
+          "a98af4823d5c7aebc84b43f0dc0176f60f2c7ea3"
+        ],
+        "changed_lines": {
+          "added": 170,
+          "removed": 8,
+          "files": 2
+        },
+        "tests_added": 1,
+        "gate": "passed",
+        "outcome": "Cycle edge deleted: 0 geometry_export references in machine_geometry.py, the former line 233 deferred import removed, geometry_export.py itself untouched. New private projection output-identical against values banked from 711204f before editing \u2014 float32 matrix shape 3x10 array-equal including NaN mask at max absolute delta 0, kinds identical in order, all ten column names identical in order. representation_key unchanged. Facade surface still exactly 4 public names, 0 table or record-constructor exports. tests/gs 236 passed / 0 failed, above the 235 floor. Digest held b55c5bb0 across a HEAD move, so the run was retained.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260820T153157690895-facade-sensor-projection/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01fcc-f934-78a3-8eaf-a67aa57e2e6d",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 5639680,
+            "cached_input_tokens_cumulative": 5639680,
+            "input_tokens": 5796934,
+            "input_tokens_cumulative": 5796934,
+            "output_tokens": 21020,
+            "output_tokens_cumulative": 21020,
+            "reasoning_output_tokens": 8032,
+            "reasoning_output_tokens_cumulative": 8032
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 194
+    "_version": 196
   }
 }
