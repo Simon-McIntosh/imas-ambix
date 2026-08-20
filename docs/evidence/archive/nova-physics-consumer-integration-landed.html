@@ -492,6 +492,60 @@
   <p>Verification receipt:
   <code>PASS facade_key=exact operator_delta=0 shape=81x21 unresolved=carried facade_tests=5/5
   tests_gs=230p/0f solenoid_tol=1e-6-vs-0.06-bound digest=b55c5bb0-stable</code>.</p>
+  <h2 id="operator-tranche">First consumer migrated — the operator takes a projection, not a table</h2>
+  <p><strong>The facade now has a real consumer, and the operator it produces is bit-identical to
+  the one it produced before.</strong> Commit <code>a24d2dba</code>, merged <code>67bb46a</code>.
+  Named geometry-record imports in <code>imas_ambix/gs/operator.py</code> went from 3
+  (<code>PFFilament</code>, <code>CircuitDrive</code>, <code>GeometryTable</code>) to 0.</p>
+
+  <table>
+    <caption>Tranche gate, frozen shot 11766</caption>
+    <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Operator matrix, banked-before versus after</td>
+          <td>Array-equal, shape (81, 21), max absolute delta 0</td></tr>
+      <tr><td>Independent rebuild from <code>OperatorGeometry</code></td>
+          <td>Array-equal against the same banked matrix, max absolute delta 0</td></tr>
+      <tr><td>Representation identity</td>
+          <td><code>mp78-fl80-fc70-lim37-2f6472393311692b</code>, unchanged</td></tr>
+      <tr><td>Facade public surface</td>
+          <td>Exactly 4 names; 0 table and 0 record-constructor exports</td></tr>
+      <tr><td>Full <code>tests/gs</code></td>
+          <td>235 passed / 0 failed, holding the merge baseline</td></tr>
+      <tr><td><code>_sensor_rows</code> semantic parity</td>
+          <td>All 7 return components SHA-256 identical against the helper extracted from
+          <code>330b66b</code>: 81 channels, 81 kinds, three 81-element arrays, 0 excluded,
+          0 flagged</td></tr>
+    </tbody>
+  </table>
+
+  <p>That last row exists because the node initially justified a private-helper change by its two
+  failing tests going green, which is how a migration leaks semantics. Requiring a direct
+  before-versus-after value comparison instead of a test outcome turned an assumption into a
+  measurement, and it held.</p>
+
+  <p><strong>One structural result the tranche surfaced, deliberately left visible rather than
+  absorbed.</strong> Introducing the facade created an eager import cycle —
+  <code>operator</code> → <code>machine_geometry</code> → <code>geometry_export</code> →
+  <code>description_reader</code> → <code>geometry_adapter</code> → <code>operator</code> — which
+  now breaks via a deferred import inside <code>MachineGeometryService.sensors</code>. That is a
+  workaround, not a design: whether it stays the intended dependency boundary is for the later
+  tranches to adjudicate once their consumers move, and it is recorded here so the decision is
+  taken rather than inherited.</p>
+
+  <p><strong>Two provenance corrections, both orchestrator-side.</strong> The run manifest reported
+  its commit as <code>a24d2db6e7229033c175109538680206032fcf7c</code>; the real object is
+  <code>a24d2dba5e6cf97e5d3a5c53969713815f5d658d</code>, sharing only the short prefix. The
+  mis-transcribed value was promoted into the run ledger before the merge was attempted — the merge
+  then failed on a bad object, which is what exposed it — so the ledger row was corrected in place
+  to the true SHA and the sequencing lesson is recorded: integrate before promoting, so a bad ref
+  cannot reach the ledger. Separately, the commit body contains literal <code>\n</code> escapes
+  where newlines were intended; that is left as-is, because rewriting pushed history to fix a
+  cosmetic message defect costs more than it repairs.</p>
+
+  <p>Verification receipt:
+  <code>PASS imports=3to0 operator_delta=0 shape=81x21 identity=unchanged exports=4/0/0
+  tests_gs=235p/0f sensor_rows=7/7-sha-identical digest=b55c5bb0-stable</code>.</p>
 </main>
 </body>
 </html>

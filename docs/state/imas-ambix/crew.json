@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T16:51:44",
+  "updated": "2026-08-20T17:14:50",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -177,6 +177,13 @@
         "harness": "codex",
         "role": "implement",
         "session_id": null,
+        "created": "2026-08-20"
+      },
+      {
+        "id": "geometry-tranche-producers",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a01fa9-1e9e-7600-b35a-cc95e752b5d0",
         "created": "2026-08-20"
       },
       {
@@ -6287,9 +6294,71 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260820T145248400995-geometry-tranche-producers",
+        "plan": "nova-physics-consumer-integration",
+        "section": "\u00a75.2",
+        "node": "geometry-tranche-producers",
+        "role": "implement",
+        "member": "geometry-tranche-producers",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-20T14:52:51Z",
+        "completed_at": "2026-08-20T15:14:38Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1307,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1307,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "330b66bbea6305405297ce0a7a9f6d0831459ac4",
+        "commits": [
+          "a24d2dba5e6cf97e5d3a5c53969713815f5d658d"
+        ],
+        "changed_lines": {
+          "available": false,
+          "reason": "unresolvable_revision"
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "outcome": "First migration tranche landed: operator.py named geometry-record imports 3 to 0, now taking OperatorGeometry from the facade. Banked-before versus post-change coil-column matrices array-equal at max absolute delta 0, shape 81x21, and an independent rebuild from the projection equally so. representation_key unchanged. Facade still exports exactly 4 public names with 0 table or record-constructor exports. tests/gs holds 235/0. The orchestrator required the _sensor_rows normalization be proven behaviour-preserving rather than test-green: all 7 return components matched by SHA-256 against the helper extracted from 330b66b. Structural finding: an eager import cycle through geometry_export is now a deferred import inside MachineGeometryService.sensors, flagged for deliberate adjudication by the later tranches.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260820T145248400995-geometry-tranche-producers/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01fa9-1e9e-7600-b35a-cc95e752b5d0",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 10740992,
+            "cached_input_tokens_cumulative": 10740992,
+            "input_tokens": 11088805,
+            "input_tokens_cumulative": 11088805,
+            "output_tokens": 32875,
+            "output_tokens_cumulative": 32875,
+            "reasoning_output_tokens": 12083,
+            "reasoning_output_tokens_cumulative": 12083
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 189
+    "_version": 192
   }
 }
