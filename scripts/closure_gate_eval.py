@@ -50,7 +50,8 @@ import matplotlib
 matplotlib.use("Agg")
 import numpy as np
 
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
+from imas_ambix.gs.machine_geometry import MachineGeometryService
+
 from imas_ambix.gs.operator import COIL_MODEL_VERSION
 from imas_ambix.latent.data import read_split_shot_lists
 
@@ -1182,7 +1183,7 @@ def run_gate(args) -> int:
             "min_ip_ka": args.min_ip_ka,
         },
         "coil_model_version": COIL_MODEL_VERSION,
-        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
         "n_scored": n_scored,
         "n_candidate": n_candidate,
         "scored_fraction": float(n_scored / max(n_candidate, 1)),

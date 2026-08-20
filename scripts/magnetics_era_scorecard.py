@@ -67,7 +67,8 @@ from scipy.optimize import linear_sum_assignment
 
 from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.data.paths import LEVEL1_DIR
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
+from imas_ambix.gs.machine_geometry import MachineGeometryService
+
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import feature_schema
 
@@ -421,7 +422,7 @@ def main() -> int:
         n_ch,
         n_coil,
         COIL_MODEL_VERSION,
-        GEOMETRY_TABLE_VERSION,
+        MachineGeometryService().identity(11766).derivation_id,
     )
 
     manifest = Path(args.manifest) if args.manifest else None
@@ -550,7 +551,7 @@ def main() -> int:
     # ---- assemble artifact ----
     out = {
         "coil_model_version": COIL_MODEL_VERSION,
-        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
         "leakage_free": True,
         "firewall_note": (
             "No EFIT and no plasma inversion enter this scorecard; it uses only "

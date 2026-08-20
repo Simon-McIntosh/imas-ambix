@@ -46,7 +46,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import matplotlib
 
@@ -54,9 +54,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
-from imas_ambix.data.description_reader import read_geometry_table  # noqa: E402
 from imas_ambix.gs.cylinder import hybrid_greens  # noqa: E402
 from imas_ambix.gs.force_balance import known_coil_bz  # noqa: E402
+from imas_ambix.gs.machine_geometry import MachineGeometryService  # noqa: E402
 from imas_ambix.gs.operator import (  # noqa: E402
     COIL_MODEL_VERSION,
     SOLENOID_RESPONSE_SCALE,
@@ -68,7 +68,7 @@ from imas_ambix.gs.operator import (  # noqa: E402
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from imas_ambix.gs.geometry import GeometryTable, PFFilament
+    from imas_ambix.gs.machine_geometry import OperatorGeometry
 
 logger = logging.getLogger("coil_column_audit")
 
@@ -102,7 +102,7 @@ class EvalPoint:
 
 
 def _circuit_bz_per_amp(
-    filaments: Sequence[PFFilament], r: np.ndarray, z: np.ndarray
+    filaments: Sequence[Any], r: np.ndarray, z: np.ndarray
 ) -> np.ndarray:
     """B_z [T per A] at ``(r, z)`` from one circuit's declared filaments.
 
@@ -123,7 +123,7 @@ def _circuit_bz_per_amp(
 
 
 def _declared_bz(
-    table: GeometryTable,
+    table: OperatorGeometry,
     r: np.ndarray,
     z: np.ndarray,
 ) -> tuple[dict[str, float], dict[str, list[int]], list]:
@@ -135,14 +135,14 @@ def _declared_bz(
     rule — but without the solenoid response
     scale.  Returns ``(coil -> B_z, coil -> circuit ids, circuit classes)``.
     """
-    declared_filaments = list(table.pf_filaments)
+    declared_filaments = list(table.conductors)
     classes = classify_circuits(
         declared_filaments,
-        table.amc_current_channels,
+        table.available_current_channels,
         table.active_circuits,
-        table.circuit_drives,
+        table.drive_map,
     )
-    by_circ: dict[int, list[PFFilament]] = {}
+    by_circ: dict[int, list[Any]] = {}
     for f in declared_filaments:
         by_circ.setdefault(f.circuit, []).append(f)
 
@@ -175,11 +175,11 @@ def _operator_bz(table, r: np.ndarray, z: np.ndarray) -> dict[str, float]:
 
 
 def _turns_cross_check(
-    coil: str, circs: list[int], table: GeometryTable
+    coil: str, circs: list[int], table: OperatorGeometry
 ) -> dict[str, object]:
     """Compare the declared drive weight against the filament current shares."""
-    by_circ: dict[int, list[PFFilament]] = {}
-    for f in table.pf_filaments:
+    by_circ: dict[int, list[Any]] = {}
+    for f in table.conductors:
         by_circ.setdefault(f.circuit, []).append(f)
     fils = [f for c in circs for f in by_circ.get(c, [])]
     sum_xmult = float(sum(f.xmult for f in fils))
@@ -188,7 +188,7 @@ def _turns_cross_check(
     drive = next(
         (
             item
-            for item in table.circuit_drives
+            for item in table.drive_map
             if item.circuit in circs and item.conductor == coil
         ),
         None,
@@ -206,7 +206,9 @@ def _turns_cross_check(
     }
 
 
-def _merge_case_check(merged: list[int], table: GeometryTable) -> dict[str, object]:
+def _merge_case_check(
+    merged: list[int], table: OperatorGeometry
+) -> dict[str, object]:
     """Verify no case circuit was folded into this active coil's column.
 
     The table's active membership distinguishes winding drives from measured
@@ -214,7 +216,7 @@ def _merge_case_check(merged: list[int], table: GeometryTable) -> dict[str, obje
     """
     active = set(table.active_circuits)
     structural_drives = {
-        drive.circuit for drive in table.circuit_drives if drive.circuit not in active
+        drive.circuit for drive in table.drive_map if drive.circuit not in active
     }
     folded_cases = [cid for cid in merged if cid in structural_drives]
     return {
@@ -249,8 +251,8 @@ def _find_flat_top_index(shot_id: int) -> tuple[int, float]:
 def run_audit(shot_id: int) -> dict[str, object]:
     """Build the full per-coil audit payload for one shot."""
     logger.info("reading declared winding table for shot %d", shot_id)
-    table = read_geometry_table(shot_id)
-    drives = {drive.circuit: drive for drive in table.circuit_drives}
+    table = MachineGeometryService().operator(shot_id)
+    drives = {drive.circuit: drive for drive in table.drive_map}
     active_drives = [
         drives[circuit] for circuit in table.active_circuits if circuit in drives
     ]

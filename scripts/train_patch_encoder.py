@@ -44,7 +44,8 @@ import numpy as np
 import torch
 
 from imas_ambix.data.description_reader import read_geometry_table
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
+from imas_ambix.gs.machine_geometry import MachineGeometryService
+
 from imas_ambix.gs.operator import (
     COIL_MODEL_VERSION,
     build_operator,
@@ -610,7 +611,7 @@ def _config_hash(
     Includes ``COIL_MODEL_VERSION`` (imas_ambix.gs.operator) so a corpus
     assembled under one coil-current model (the vacuum-field prediction the
     loss trains against) can never collide with one assembled after a coil
-    model fix; ``GEOMETRY_TABLE_VERSION`` (imas_ambix.gs.geometry) so the same
+    model fix; ``MachineGeometryService().identity(11766).derivation_id`` (imas_ambix.gs.geometry) so the same
     holds for a change in how a :class:`GeometryTable` — its sensor channel
     SET in particular — is derived from a fixed signature digest; and
     ``CORPUS_ASSEMBLY_VERSION`` (this module) so the same holds for a change
@@ -627,7 +628,7 @@ def _config_hash(
         "nr": int(nr),
         "nz": int(nz),
         "coil_model_version": COIL_MODEL_VERSION,
-        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
         "corpus_assembly_version": CORPUS_ASSEMBLY_VERSION,
     }
     blob = json.dumps(payload, sort_keys=True).encode()
@@ -828,7 +829,7 @@ def _save_corpus_dir(
     meta = {
         "config_hash": config_hash,
         "coil_model_version": COIL_MODEL_VERSION,
-        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
         "corpus_assembly_version": CORPUS_ASSEMBLY_VERSION,
         "n_shots": len({int(s) for s in shots}),
         "t_steps": t_steps,

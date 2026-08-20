@@ -60,7 +60,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from imas_ambix.data.description_reader import read_geometry_table
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
+from imas_ambix.gs.machine_geometry import MachineGeometryService
+
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, MU0, build_operator, greens_psi
 from scripts.flux_loop_column_decomposition import BAY_LOOPS, select_cohort
 from scripts.vacuum_coil_response_audit import _shot_coil_only
@@ -449,7 +450,7 @@ def main() -> int:
             "of a=1/R against the bay-loop flux residual; L,M from greens_psi."
         ),
         "coil_model_version": COIL_MODEL_VERSION,
-        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
         "cohort": {"n_requested": len(shots), "n_used": len(data["rows"])},
         "ramp_pctl": RAMP_PCTL,
         **res,

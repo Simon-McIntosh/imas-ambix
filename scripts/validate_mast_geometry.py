@@ -1,10 +1,10 @@
 """Independently validate the MAST machine-geometry table.
 
-``imas_ambix.data.description_reader.read_geometry_table`` emits the declared
-machine description and adapts its limiter contour, PF-coil filaments,
-B-probes, and flux loops for the GS-grounded latent engine's Green's-function
-observation operator.  This script cross-checks that adapted table against the
-underlying level-2 structures and independent geometric invariants:
+The machine-geometry facade projects the resolved description's limiter
+contour, PF-coil conductors, B-probes, and flux loops for the GS-grounded
+latent engine's Green's-function observation operator.  This script
+cross-checks that projection against the underlying level-2 structures and
+independent geometric invariants:
 
 * the level-2 Zarr mirror's ``wall`` / ``pf_active`` / ``pf_passive`` /
   ``magnetics`` groups, which carry independently-curated MAST geometry
@@ -31,11 +31,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import zarr
 
-from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.data.paths import local_shot_path
+from imas_ambix.gs.machine_geometry import MachineGeometryService
 
 if TYPE_CHECKING:
-    from imas_ambix.gs.geometry import GeometryTable
+    from imas_ambix.gs.machine_geometry import OperatorGeometry
 
 SHOT_ID = 18502
 
@@ -160,7 +160,7 @@ def point_in_polygon(
     return inside
 
 
-def validate_limiter(table: GeometryTable, l2_wall: Any) -> dict[str, Any]:
+def validate_limiter(table: OperatorGeometry, l2_wall: Any) -> dict[str, Any]:
     lr = np.array(table.limiter_r)
     lz = np.array(table.limiter_z)
     closed = bool(np.isclose(lr[0], lr[-1]) and np.isclose(lz[0], lz[-1]))
@@ -217,19 +217,19 @@ def reference_pf_groups(shot_id: int) -> dict[str, tuple[float, float, int]]:
 
 
 def validate_pf_coils(
-    table: GeometryTable,
+    table: OperatorGeometry,
     refs: dict[str, tuple[float, float, int]],
     match_tol_m: float = 0.02,
 ) -> dict[str, Any]:
-    circuits = sorted({f.circuit for f in table.pf_filaments})
+    circuits = sorted({f.circuit for f in table.conductors})
     ref_names = list(refs.keys())
     ref_rz = np.array([[refs[n][0], refs[n][1]] for n in ref_names])
 
     entries = []
     n_matched = 0
     for c in circuits:
-        rs = np.array([f.r for f in table.pf_filaments if f.circuit == c])
-        zs = np.array([f.z for f in table.pf_filaments if f.circuit == c])
+        rs = np.array([f.r for f in table.conductors if f.circuit == c])
+        zs = np.array([f.z for f in table.conductors if f.circuit == c])
         cr, cz = float(rs.mean()), float(zs.mean())
         d = np.hypot(ref_rz[:, 0] - cr, ref_rz[:, 1] - cz)
         j = int(np.argmin(d))
@@ -260,7 +260,10 @@ def validate_pf_coils(
 
 
 def validate_sensors(
-    table: GeometryTable, shot_id: int, limiter_r: np.ndarray, limiter_z: np.ndarray
+    table: OperatorGeometry,
+    shot_id: int,
+    limiter_r: np.ndarray,
+    limiter_z: np.ndarray,
 ) -> dict[str, Any]:
     mag = open_l2_group(shot_id, "magnetics")
 
@@ -271,8 +274,8 @@ def validate_sensors(
     ref_bp_r = np.concatenate(ref_r_parts)
     ref_bp_z = np.concatenate(ref_z_parts)
 
-    br = np.array([p.r for p in table.b_probes])
-    bz = np.array([p.z for p in table.b_probes])
+    br = np.array([p.r for p in table.probes])
+    bz = np.array([p.z for p in table.probes])
     bp_resid = np.array(
         [
             np.hypot(ref_bp_r - r, ref_bp_z - z).min()
@@ -282,8 +285,8 @@ def validate_sensors(
 
     ref_fl_r = np.asarray(mag["flux_loop_r"][:]).ravel()
     ref_fl_z = np.asarray(mag["flux_loop_z"][:]).ravel()
-    fr = np.array([p.r for p in table.flux_loops])
-    fz = np.array([p.z for p in table.flux_loops])
+    fr = np.array([p.r for p in table.loops])
+    fz = np.array([p.z for p in table.loops])
     fl_resid = np.array(
         [
             np.hypot(ref_fl_r - r, ref_fl_z - z).min()
@@ -388,7 +391,7 @@ def validate_lcfs_inside_limiter(
 
 
 def make_figure(
-    table: GeometryTable,
+    table: OperatorGeometry,
     pf_result: dict[str, Any],
     lcfs_r: np.ndarray,
     lcfs_z: np.ndarray,
@@ -401,11 +404,11 @@ def make_figure(
     lz = np.array(table.limiter_z)
     ax.plot(lr, lz, "-", color="black", lw=2.2, zorder=5, label="limiter (efm, closed)")
 
-    circuits = sorted({f.circuit for f in table.pf_filaments})
+    circuits = sorted({f.circuit for f in table.conductors})
     cmap = plt.get_cmap("tab20")
     for k, c in enumerate(circuits):
-        rs = np.array([f.r for f in table.pf_filaments if f.circuit == c])
-        zs = np.array([f.z for f in table.pf_filaments if f.circuit == c])
+        rs = np.array([f.r for f in table.conductors if f.circuit == c])
+        zs = np.array([f.z for f in table.conductors if f.circuit == c])
         color = cmap(k % 20)
         ax.scatter(rs, zs, s=6, color=color, alpha=0.7, zorder=3)
     for entry in pf_result["circuits"]:
@@ -420,9 +423,9 @@ def make_figure(
                 zorder=6,
             )
 
-    br = np.array([p.r for p in table.b_probes])
-    bz = np.array([p.z for p in table.b_probes])
-    bang = np.array([p.angle_deg for p in table.b_probes])
+    br = np.array([p.r for p in table.probes])
+    bz = np.array([p.z for p in table.probes])
+    bang = np.array([p.angle_deg for p in table.probes])
     vertical = np.isclose(bang, 90.0)
     ax.scatter(
         br[vertical],
@@ -443,8 +446,8 @@ def make_figure(
         zorder=4,
     )
 
-    fr = np.array([p.r for p in table.flux_loops])
-    fz = np.array([p.z for p in table.flux_loops])
+    fr = np.array([p.r for p in table.loops])
+    fz = np.array([p.z for p in table.loops])
     ax.scatter(
         fr,
         fz,
@@ -481,7 +484,7 @@ def make_figure(
 
 
 def main() -> None:
-    table = read_geometry_table(SHOT_ID)
+    table = MachineGeometryService().operator(SHOT_ID)
     l2_wall = open_l2_group(SHOT_ID, "wall")
 
     limiter_result = validate_limiter(table, l2_wall)

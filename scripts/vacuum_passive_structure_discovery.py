@@ -54,7 +54,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from imas_ambix.data.description_reader import read_geometry_table
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
+from imas_ambix.gs.machine_geometry import MachineGeometryService
+
 from imas_ambix.gs.operator import COIL_MODEL_VERSION
 from imas_ambix.latent.passive_resistance import (
     MULTIPLIER_BOUNDS,
@@ -1087,7 +1088,7 @@ def main() -> int:  # noqa: PLR0915 — one auditable discovery ladder
         provenance={
             "fitted": "2026-07-17",
             "coil_model_version": COIL_MODEL_VERSION,
-            "geometry_table_version": GEOMETRY_TABLE_VERSION,
+            "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
             "pool_artifact": str(args.pool_artifact),
             "baseline_calibration": str(args.baseline_calibration),
             "n_train_shots": len(train),
@@ -1110,7 +1111,7 @@ def main() -> int:  # noqa: PLR0915 — one auditable discovery ladder
     out = {
         "kind": "vacuum-passive-structure-discovery",
         "coil_model_version": COIL_MODEL_VERSION,
-        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
         "case_holdback": True,
         "pool": {
             "n_shots_prepared": len(data),
