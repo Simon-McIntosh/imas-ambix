@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T17:14:50",
+  "updated": "2026-08-20T17:30:23",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -157,6 +157,13 @@
         "role": "implement",
         "session_id": "01a01025-f9a4-7870-af91-cfee481f3762",
         "created": "2026-08-17"
+      },
+      {
+        "id": "facade-dependency-boundary",
+        "harness": "codex",
+        "role": "investigate",
+        "session_id": null,
+        "created": "2026-08-20"
       },
       {
         "id": "flux-loop-diagnosis",
@@ -6356,9 +6363,66 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260820T151900909276-facade-dependency-boundary",
+        "plan": "nova-physics-consumer-integration",
+        "section": "\u00a75.2",
+        "node": "facade-dependency-boundary",
+        "role": "investigate",
+        "member": "facade-dependency-boundary",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-08-20T15:19:05Z",
+        "completed_at": "2026-08-20T15:30:00Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 655,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 655,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "8da9bc3042b65eb7c562a8c639ddce30c51e3dc0",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "Boundary adjudicated: the facade-to-export edge is removable, not an irreducible cycle. The 5-edge cycle runs machine_geometry.py:233 to geometry_export.py:53 to description_reader.py:20 to geometry_adapter.py:34 to operator.py:69-72 and back. The facade references only build_geometry_fields_from_table and GEOMETRY_FEATURE_NAMES plus GeometryFields.feature_matrix, while a direct sensor projection needs just kernel.sensor_map and kernel.amc_current_channels, not the export module's machine block, signature or shots. Recommended: a private sensor projection beneath MachineGeometryService sharing the existing 10-column schema, removing machine_geometry.py:233. Makes 0 of 13 projection consumers harder, and preserves representation_key mp78-fl80-fc70-lim37-2f6472393311692b exactly because identity() sources table.signature independently of geometry_export. Test runs were partial (the sandbox made the default uv cache read-only, then a live-artifact probe was interrupted), but the identity-path probe passed with the exact key.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260820T151900909276-facade-dependency-boundary/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01fc1-2062-7de0-b8f4-62b0dd021bc0",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 3421184,
+            "cached_input_tokens_cumulative": 3421184,
+            "input_tokens": 3560552,
+            "input_tokens_cumulative": 3560552,
+            "output_tokens": 21238,
+            "output_tokens_cumulative": 21238,
+            "reasoning_output_tokens": 11393,
+            "reasoning_output_tokens_cumulative": 11393
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 192
+    "_version": 194
   }
 }
