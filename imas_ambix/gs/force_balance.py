@@ -28,7 +28,7 @@ itself.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -41,7 +41,9 @@ from imas_ambix.gs.operator import (
 )
 
 if TYPE_CHECKING:
-    from imas_ambix.gs.geometry import GeometryTable, PFFilament
+    from collections.abc import Sequence
+
+    from imas_ambix.gs.machine_geometry import OperatorGeometry
 
 #: Classic rigid-displacement stability window on the vacuum decay index:
 #: n > 0 for vertical stability, n < 3/2 for radial stability.
@@ -113,7 +115,7 @@ def decay_index(r: np.ndarray, bz: np.ndarray) -> np.ndarray:
 def _filament_field(
     r: np.ndarray,
     z: np.ndarray,
-    filaments: list[PFFilament],
+    filaments: Sequence[Any],
     component: int,
 ) -> np.ndarray:
     """One hybrid-kernel field component at (r, z) from a circuit's filaments.
@@ -141,7 +143,7 @@ def _filament_field(
 def filament_bz(
     r: np.ndarray,
     z: np.ndarray,
-    filaments: list[PFFilament],
+    filaments: Sequence[Any],
 ) -> np.ndarray:
     """B_z [T per A] at (r, z) from one circuit's filaments (xmult-weighted)."""
     return _filament_field(r, z, filaments, 2)
@@ -150,14 +152,14 @@ def filament_bz(
 def filament_psi(
     r: np.ndarray,
     z: np.ndarray,
-    filaments: list[PFFilament],
+    filaments: Sequence[Any],
 ) -> np.ndarray:
     """Total flux ψ [Wb per A] at (r, z) from one circuit's filaments."""
     return _filament_field(r, z, filaments, 0)
 
 
 def _known_coil_columns(
-    table: GeometryTable,
+    geometry: OperatorGeometry,
     r: np.ndarray,
     z: np.ndarray,
     component: int,
@@ -172,9 +174,14 @@ def _known_coil_columns(
     """
     rr = np.asarray(r, dtype=np.float64)
     zz = np.asarray(z, dtype=np.float64)
-    classes = classify_circuits(table.pf_filaments, table.amc_current_channels)
+    classes = classify_circuits(
+        geometry.conductors,
+        geometry.available_current_channels,
+        geometry.active_circuits,
+        geometry.drive_map,
+    )
     by_circ: dict[int, list] = {}
-    for f in table.pf_filaments:
+    for f in geometry.conductors:
         by_circ.setdefault(f.circuit, []).append(f)
 
     pf_by_chan: dict[str, list[int]] = {}
@@ -199,7 +206,7 @@ def _known_coil_columns(
 
 
 def known_coil_bz(
-    table: GeometryTable,
+    geometry: OperatorGeometry,
     r: np.ndarray,
     z: np.ndarray,
 ) -> tuple[list[str], np.ndarray]:
@@ -209,11 +216,11 @@ def known_coil_bz(
     as ``ForwardOperator.pf_amc_channels``, so ``cols @ i_pf`` consumes the
     ``load_shot_windows`` current vectors directly.
     """
-    return _known_coil_columns(table, r, z, 2)
+    return _known_coil_columns(geometry, r, z, 2)
 
 
 def known_coil_psi(
-    table: GeometryTable,
+    geometry: OperatorGeometry,
     r: np.ndarray,
     z: np.ndarray,
 ) -> tuple[list[str], np.ndarray]:
@@ -223,11 +230,11 @@ def known_coil_psi(
     flux-linkage row a plasma circuit needs when it joins the one-matrix
     coupled flux solve.
     """
-    return _known_coil_columns(table, r, z, 0)
+    return _known_coil_columns(geometry, r, z, 0)
 
 
 def passive_circuit_bz(
-    table: GeometryTable,
+    geometry: OperatorGeometry,
     circuits: np.ndarray,
     r: np.ndarray,
     z: np.ndarray,
@@ -242,7 +249,7 @@ def passive_circuit_bz(
     rr = np.asarray(r, dtype=np.float64)
     zz = np.asarray(z, dtype=np.float64)
     by_circ: dict[int, list] = {}
-    for f in table.pf_filaments:
+    for f in geometry.conductors:
         by_circ.setdefault(f.circuit, []).append(f)
     cols = [filament_bz(rr, zz, by_circ[int(c)]) for c in np.asarray(circuits)]
     if not cols:
@@ -251,7 +258,7 @@ def passive_circuit_bz(
 
 
 def passive_circuit_psi(
-    table: GeometryTable,
+    geometry: OperatorGeometry,
     circuits: np.ndarray,
     r: np.ndarray,
     z: np.ndarray,
@@ -264,7 +271,7 @@ def passive_circuit_psi(
     rr = np.asarray(r, dtype=np.float64)
     zz = np.asarray(z, dtype=np.float64)
     by_circ: dict[int, list] = {}
-    for f in table.pf_filaments:
+    for f in geometry.conductors:
         by_circ.setdefault(f.circuit, []).append(f)
     cols = [filament_psi(rr, zz, by_circ[int(c)]) for c in np.asarray(circuits)]
     if not cols:

@@ -17,6 +17,7 @@ import pytest
 from imas_ambix.gs import force_balance as fb
 from imas_ambix.gs import geometry as gsg
 from imas_ambix.gs import operator as op
+from imas_ambix.gs.machine_geometry import _project_operator_geometry
 
 # --- Shafranov vertical-field requirement ------------------------------
 
@@ -210,9 +211,10 @@ def test_known_coil_bz_merges_redundant_circuits_once():
     """Two redundant full-coil circuits must AVERAGE into one column — the
     same no-double-count rule the sensor operator applies."""
     table = _synthetic_table()
+    geometry = _project_operator_geometry(table)
     r = np.array([0.9])
     z = np.array([0.0])
-    channels, cols = fb.known_coil_bz(table, r, z)
+    channels, cols = fb.known_coil_bz(geometry, r, z)
     assert channels == ["p4u_coil_current"]
     assert cols.shape == (1, 1)
     single = fb.filament_bz(r, z, [table.pf_filaments[0]])
@@ -222,18 +224,21 @@ def test_known_coil_bz_merges_redundant_circuits_once():
 def test_known_coil_channel_order_matches_operator():
     """Column order must equal ForwardOperator.pf_amc_channels so measured
     i_pf vectors apply without permutation."""
-    table = _synthetic_table()
-    fwd = op.build_operator(table)
-    channels, _cols = fb.known_coil_bz(table, np.array([0.9]), np.array([0.0]))
+    geometry = _project_operator_geometry(_synthetic_table())
+    fwd = op.build_operator(geometry)
+    channels, _cols = fb.known_coil_bz(
+        geometry, np.array([0.9]), np.array([0.0])
+    )
     assert channels == fwd.pf_amc_channels
 
 
 def test_known_coil_psi_matches_operator_merge_and_order():
     """The ψ columns share the B_z assembly: same channels, same merge."""
     table = _synthetic_table()
+    geometry = _project_operator_geometry(table)
     r = np.array([0.9])
     z = np.array([0.0])
-    channels, cols = fb.known_coil_psi(table, r, z)
+    channels, cols = fb.known_coil_psi(geometry, r, z)
     assert channels == ["p4u_coil_current"]
     single = fb.filament_psi(r, z, [table.pf_filaments[0]])
     assert cols[0, 0] == pytest.approx(single[0], rel=1e-9)
@@ -241,7 +246,10 @@ def test_known_coil_psi_matches_operator_merge_and_order():
 
 def test_passive_circuit_bz_column_per_circuit():
     table = _synthetic_table()
-    cols = fb.passive_circuit_bz(table, np.array([2]), np.array([0.9]), np.array([0.0]))
+    geometry = _project_operator_geometry(table)
+    cols = fb.passive_circuit_bz(
+        geometry, np.array([2]), np.array([0.9]), np.array([0.0])
+    )
     assert cols.shape == (1, 1)
     expected = fb.filament_bz(np.array([0.9]), np.array([0.0]), [table.pf_filaments[2]])
     assert cols[0, 0] == pytest.approx(expected[0], rel=1e-12)
