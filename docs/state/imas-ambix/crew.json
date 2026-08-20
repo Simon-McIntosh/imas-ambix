@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T15:09:52",
+  "updated": "2026-08-20T16:00:26",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -199,6 +199,13 @@
         "role": "implement",
         "session_id": "01a01bf7-a60e-7be1-b50b-ff115d1a0feb",
         "created": "2026-08-19"
+      },
+      {
+        "id": "nova-dev-install",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a01f51-bba9-7ec2-bbde-4584e21befc1",
+        "created": "2026-08-20"
       },
       {
         "id": "nova-drift-audit",
@@ -5878,9 +5885,73 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260820T131712073017-nova-dev-install",
+        "plan": "nova-physics-consumer-integration",
+        "section": "\u00a74",
+        "node": "nova-dev-install",
+        "role": "implement",
+        "member": "nova-dev-install",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-20T13:17:23Z",
+        "completed_at": "2026-08-20T13:57:56Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 2433,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 2433,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "e2e86f6d9aaedb71b4d490233684c08a0d10563e",
+        "commits": [
+          "a2c15575746ec020a233fdee0bb8f1f7c62c79dd",
+          "3589486783b0541ba1389ec66efd8a1efaa0357e"
+        ],
+        "changed_lines": {
+          "added": 180,
+          "removed": 30,
+          "files": 6
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "outcome": "Nova wired as an editable sibling-path dependency with live provenance: 74/74 consumed symbols resolve from the checkout at 117 commits past aeffde05, zero dependency revision literals remain across six sites, dependency contract 3/3. Scope widened by consumer_contract.py plus its test, which the orchestrator's fence had missed. G1 met; G2 not met \u2014 tests/gs moved 226/4 to 214/16 with 0 of the 4 named cases fixed, refuting the seam diagnosis prediction, plus 12 new digest-identity failures.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260820T131712073017-nova-dev-install/manifest.md",
+        "scope_changed": true,
+        "session_id": "01a01f51-bba9-7ec2-bbde-4584e21befc1",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 17179392,
+            "cached_input_tokens_cumulative": 17179392,
+            "input_tokens": 17727867,
+            "input_tokens_cumulative": 17727867,
+            "output_tokens": 55909,
+            "output_tokens_cumulative": 55909,
+            "reasoning_output_tokens": 19871,
+            "reasoning_output_tokens_cumulative": 19871
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 176
+    "_version": 179
   }
 }

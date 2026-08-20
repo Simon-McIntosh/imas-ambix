@@ -325,6 +325,70 @@
   investigation itself untouched. Verification receipt:
   <code>PASS names=22/22 nova=7 ambix=12 absent=3 stores=5/5-preserve buckets=18+13+3+24=58
   current_baseline=59/65 shapes=1-recommended/4-rejected</code>.</p>
+  <h2 id="dev-install">Nova consumed as a sibling dev install — and the seam diagnosis refuted</h2>
+  <p><strong>The dependency now resolves from the sibling checkout with live provenance, and the same
+  run overturned the prediction that motivated the move.</strong> Commits
+  <code>a2c1557</code> and <code>3589486</code>, merged <code>831fa69</code>.
+  <code>pyproject.toml</code> declares plain <code>nova-stella</code> with
+  <code>[tool.uv.sources].nova-stella = { path = "../nova", editable = true }</code>, matching the
+  form <code>imas-ink</code> already used, and <code>uv.lock</code> records the editable source.</p>
+
+  <table>
+    <caption>The six declared facts, as measured</caption>
+    <thead><tr><th>Fact</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Dependency declared through <code>tool.uv.sources</code>, lock regenerated</td>
+          <td>PASS — editable <code>../nova</code> in both dependency and package-source rows</td></tr>
+      <tr><td>Root-environment sync</td>
+          <td>PASS — 223 packages in 18.05 s. A relative sibling source cannot resolve from a
+          detached worktree, so the sync used absolute paths and the committed form stayed
+          relative; the verification-to-commit diff is exactly that one string</td></tr>
+      <tr><td>Revision literals removed</td>
+          <td>PASS — 0 dependency literals across 6 sites. A full-tree 40-hex audit leaves 2 hits,
+          both data revisions (<code>challenge/download.py</code>,
+          <code>test_machine_map.py</code>), not the dependency</td></tr>
+      <tr><td>74 consumed symbols re-probed beyond the audited range</td>
+          <td>PASS — 74/74 from the editable checkout at
+          <code>0be4ee95</code>, 117 commits past <code>aeffde05</code></td></tr>
+      <tr><td>Nova-facing consumer contract</td>
+          <td>QUALIFIED — 83 passed, 1 failure belonging to the separately scoped digest-identity
+          class. <code>JAX_PLATFORMS=cpu</code> cleared all five estimator-resolution errors on this
+          GPU-bearing login host</td></tr>
+      <tr><td><code>tests/gs</code> baseline</td>
+          <td>REGRESSED — 226 passed / 4 failed → 214 passed / 16 failed. Fixed: <strong>0</strong>.
+          Unchanged: all four named cases. New: 12 artifact-identity failures</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>The seam diagnosis of 2026-08-19 predicted this move would repay the four
+  artifact-geometry failures. It did not, and the negative result stands on the page.</strong> The
+  diagnosis was half right: the machine-description physical digest did move from
+  <code>ca06c8f64481114f</code> to the vacuum-adjudicated <code>b55c5bb005a2cb67</code> exactly as
+  predicted, which is why eleven goldens asserting the old digest now fail. But the flux-loop
+  mismatch it named as the mechanism <em>survived the change</em>, with byte-identical
+  observations: the channel cases still report
+  <code>{fl_p4l_1, fl_p4l_4, fl_p6u_1}</code> missing where they expect <code>{fl_p6u_1}</code>,
+  the P6L ratio is still <code>1.010756018918288</code>, and the solenoid ratio is still
+  <code>1.0508105926909095</code> against golden <code>1.050802620352377</code>. Since the
+  positions were republished and the mismatch did not move, the superseded digest cannot have been
+  the cause. Those four failures need a fresh diagnosis, and the earlier verdict
+  &ldquo;both flux-loop cases are Nova-side and already fixed upstream&rdquo; is withdrawn.</p>
+
+  <p>Two consequences of the wiring decision are now measured rather than anticipated.
+  <strong>Nova moves under the consumer.</strong> The checkout advanced through at least six
+  revisions during this node, so no single revision describes all of its gates. The workable
+  invariant is not a stable Nova HEAD but a stable machine-description physical digest: every gate
+  here records HEAD and digest before and after, and the symbol probe stayed valid precisely
+  because HEAD moved from <code>86ff726f</code> to <code>0be4ee95</code> while the digest held at
+  <code>b55c5bb0</code>. <strong>And a contract that asserts a moving target can flake.</strong>
+  <code>test_installed_nova_distribution_reports_checkout_revision</code> compares a module
+  constant captured at import against <code>git rev-parse HEAD</code> read moments later; the
+  window is small but non-zero while Nova commits every few minutes.</p>
+
+  <p>Verification receipt:
+  <code>PASS-G1 symbols=74/74 rev=0be4ee95 literals=0/6-sites contract=83p/1f
+  FAIL-G2 tests_gs=214p/16f fixed=0/4 new=12 digest=b55c5bb0-stable</code>. G2 remains unmet, so the
+  geometry facade rung stays closed behind the digest-identity repair.</p>
 </main>
 </body>
 </html>
