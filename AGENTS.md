@@ -40,29 +40,34 @@ gh pr create --repo iterorganization/imas-ambix --base main
 
 ## Python environment (binding, repo-wide)
 
-One project virtualenv lives at the repository root (`.venv`), provisioned once
-by the user. Use it; never build another. Measured cost of getting this wrong:
-one environment here is ~70k filesystem entries and ~1.8 GiB on GPFS, so a fleet
-that each sync their own trips the storage alert.
+Policy lives in [`~/.agents/AGENTS.md`](~/.agents/AGENTS.md) "Development
+Environment": one virtualenv per repository, at its root; agents keep it
+current; every dependency change is durable and `pyproject.toml`-backed. The
+repo-specific parts:
 
-Run everything through the existing environment:
+**Main checkout** — the project environment is
+`/home/ITER/mcintos/Code/imas-ambix/.venv`. Run plain `uv run <cmd>`, which
+syncs that environment first; sync it directly with `uv sync` when it is stale,
+incomplete, or absent. Bringing it up to date is agent work, not a blocker to
+hand back — report only if the sync itself fails, with its output. Change
+dependencies with `uv add` / `uv remove` (or by editing `pyproject.toml`) and
+commit `pyproject.toml` together with `uv.lock`; never `pip install` into the
+environment.
 
-```bash
-uv run --no-sync <cmd>            # in the main checkout
-```
-
-**A detached worktree must point back at the main checkout's environment** — an
-inherited `VIRTUAL_ENV` does not do this (uv warns the path does not match the
-project and creates `.venv` anyway):
+**Detached worktree** — point back at the main checkout's environment; a
+worktree must never build its own. One environment here is ~70k filesystem
+entries and ~1.8 GiB on GPFS, so a fleet each building one trips the storage
+alert. An inherited `VIRTUAL_ENV` does not achieve the reuse (uv warns the path
+does not match the project and creates `.venv` anyway):
 
 ```bash
 UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH="$PWD" \
   uv run --no-sync pytest <targets>
 ```
 
-`uv sync`, `uv venv`, `pip install -e .` and friends are user-run provisioning
-steps, not agent workflow. A missing or broken `.venv` is a blocker to report,
-never a cue to build one.
+`--no-sync` belongs to the worktree case only, because that environment is
+shared with the main checkout and any concurrent workers. It is not how to run
+in the main checkout.
 
 ## Plans & docs (reckon — HTML-first)
 
