@@ -61,9 +61,12 @@ through it.
 
 The CUDA jaxlib is a **core dependency** (`jax[cuda12]` on Linux, plain `jax`
 elsewhere — see the root `pyproject.toml`). Per `~/.agents/AGENTS.md`
-"Development Environment", agents use the user-provisioned repository-root
-`.venv`; a missing or incompatible CUDA JAX stack is a blocker to report. In a
-detached worktree, reuse that environment explicitly:
+"Development Environment", the one environment is the repository-root `.venv`.
+Because the CUDA stack is *declared*, a missing or drifted one is fixed by
+`uv sync` — run it from a login node, where the package index is reachable — and
+is not something to report. What remains a genuine blocker is the hardware side:
+no visible GPU, or a driver too old for the `cuda12` wheels. In a detached
+worktree, reuse the root environment explicitly:
 
 ```bash
 export UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv
