@@ -12,6 +12,8 @@ masked fit API from ``SlicePayload`` through ``psi_on_grid``.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -223,6 +225,59 @@ def test_origin_correction_rejects_missing_finite_train_pairs():
     references = np.zeros((2, 2))
     with pytest.raises(ValueError, match="no finite non-zero-radius"):
         fit_origin_correction(origins, references)
+
+
+def test_fitted_origin_correction_is_scored_default_and_zero_is_uncorrected():
+    """CLI defaults stay frozen to the fitted artifact.
+
+    Explicit zeros retain the identity read.
+    """
+    artifact_path = (
+        Path(__file__).parents[2]
+        / "imas_ambix/latent/artifacts/patch_gate/harmonic_origin_correction.json"
+    )
+    fitted = json.loads(artifact_path.read_text())["fitted_correction"]
+
+    default_args = harmonic_gate.build_parser().parse_args([])
+    assert (
+        default_args.origin_radial_fraction
+        == harmonic_gate.FROZEN_ORIGIN_RADIAL_FRACTION
+        == fitted["radial_fraction"]
+    )
+    assert (
+        default_args.origin_vertical_fraction
+        == harmonic_gate.FROZEN_ORIGIN_VERTICAL_FRACTION
+        == fitted["vertical_fraction"]
+    )
+    assert (
+        harmonic_gate.origin_correction_artifact_tag(
+            default_args.origin_radial_fraction,
+            default_args.origin_vertical_fraction,
+        )
+        == "-correctedorigin"
+    )
+
+    zero_args = harmonic_gate.build_parser().parse_args(
+        [
+            "--origin-radial-fraction",
+            "0",
+            "--origin-vertical-fraction",
+            "0",
+        ]
+    )
+    origin = (1.2, -0.05)
+    zero_correction = OriginCorrection(
+        radial_fraction=zero_args.origin_radial_fraction,
+        vertical_fraction=zero_args.origin_vertical_fraction,
+    )
+    assert zero_correction.apply(origin) == origin
+    assert (
+        harmonic_gate.origin_correction_artifact_tag(
+            zero_args.origin_radial_fraction,
+            zero_args.origin_vertical_fraction,
+        )
+        == ""
+    )
 
 
 def test_frozen_origin_correction_writes_distinct_prediction_arrays(

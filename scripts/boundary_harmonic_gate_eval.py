@@ -107,6 +107,9 @@ from imas_ambix.latent.topology import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 logger = logging.getLogger("boundary-harmonic-gate")
 
+FROZEN_ORIGIN_RADIAL_FRACTION = -0.10337916919607336
+FROZEN_ORIGIN_VERTICAL_FRACTION = 0.0023196917177776104
+
 
 def sensor_arrays(table) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """``(sr, sz, sang_deg, is_flux)`` in ``table.sensor_map`` row order.
@@ -495,10 +498,8 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
 
     rtag = f"-r{ridge:g}" if ridge != 1e-8 else ""
     ftag = f"-frac{fraction:g}" if args.pole_source != "fixed" else "-fixedpole"
-    correction_tag = (
-        "-correctedorigin"
-        if args.origin_radial_fraction != 0.0 or args.origin_vertical_fraction != 0.0
-        else ""
+    correction_tag = origin_correction_artifact_tag(
+        args.origin_radial_fraction, args.origin_vertical_fraction
     )
     suffix = f"-{args.origin_source}origin{correction_tag}{ftag}{rtag}"
     tag = f"harmonic-o{order}{suffix}" + ("" if split == "eval" else "-tune")
@@ -534,6 +535,17 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
         dt,
     )
     return result
+
+
+def origin_correction_artifact_tag(
+    radial_fraction: float, vertical_fraction: float
+) -> str:
+    """Distinguish corrected artifacts while retaining the zero-correction name."""
+    return (
+        "-correctedorigin"
+        if radial_fraction != 0.0 or vertical_fraction != 0.0
+        else ""
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -580,8 +592,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="load a train-fitted correction artifact and score its frozen pair",
     )
-    ap.add_argument("--origin-radial-fraction", type=float, default=0.0)
-    ap.add_argument("--origin-vertical-fraction", type=float, default=0.0)
+    ap.add_argument(
+        "--origin-radial-fraction",
+        type=float,
+        default=FROZEN_ORIGIN_RADIAL_FRACTION,
+    )
+    ap.add_argument(
+        "--origin-vertical-fraction",
+        type=float,
+        default=FROZEN_ORIGIN_VERTICAL_FRACTION,
+    )
     ap.add_argument(
         "--pole-source",
         choices=["track", "fixed"],
