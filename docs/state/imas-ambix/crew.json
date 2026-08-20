@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T21:03:14",
+  "updated": "2026-08-21T00:38:29",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -271,6 +271,13 @@
         "created": "2026-08-19"
       },
       {
+        "id": "latent-aggregate-on-compute",
+        "harness": "codex",
+        "role": "test",
+        "session_id": null,
+        "created": "2026-08-20"
+      },
+      {
         "id": "machine-map",
         "harness": "codex",
         "role": "implement",
@@ -367,6 +374,13 @@
         "role": "implement",
         "session_id": "01a01007-a3ce-7d51-adb8-a75bca0ffd50",
         "created": "2026-08-17"
+      },
+      {
+        "id": "scripts-namespace-repair",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a02091-4e4f-7c70-8bca-1b00e7889c82",
+        "created": "2026-08-20"
       },
       {
         "id": "solenoid-golden-rebaseline",
@@ -7108,9 +7122,72 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260820T190624657604-scripts-namespace-repair",
+        "plan": "nova-physics-consumer-integration",
+        "section": "\u00a78",
+        "node": "scripts-namespace-repair",
+        "role": "implement",
+        "member": "scripts-namespace-repair",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-20T19:06:28Z",
+        "completed_at": "2026-08-20T22:36:23Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": null,
+        "worker_seconds_source": "stalled",
+        "wall_seconds": 12595,
+        "stalled": true,
+        "time_budget": "30m",
+        "base_sha": "c7a8e3417799e56c681557ec5f10ed0c428166c9",
+        "commits": [
+          "9a1ff6dce883a461d44ef6f7f2ff88c5e0354f02"
+        ],
+        "changed_lines": {
+          "added": 1,
+          "removed": 0,
+          "files": 1
+        },
+        "tests_added": 0,
+        "gate": "failed",
+        "outcome": "Mechanism PROVEN and integrated at 68c662a: ordinary repository-root import moved from /home/ITER/mcintos/Code/nova/scripts/__init__.py to the Ambix tree with no PYTHONPATH and no in-process injection, and the coordinator's post-merge probe printed /home/ITER/mcintos/Code/imas-ambix/scripts/__init__.py. First gate half MET on the ordinary invocation: full tests/gs 238 passed / 0 failed in 325.74 s, exit 0. Second half NOT MET: the full tests/latent aggregate never completed. It reached 52 percent after roughly 2.5 hours against an external nova-project session holding load average above 10, where the same suite took 387.57 s on an idle box, and was stopped deliberately rather than left burning a shared login node. Adjudication accepted as written: package marker over renaming, Nova-side exclusion, or moving tests off scripts imports; 1 new file, 0 of 23 migrated scripts edited, 0 import statements changed. The latent aggregate moves to scheduled compute.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260820T190624657604-scripts-namespace-repair/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a02091-4e4f-7c70-8bca-1b00e7889c82",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 11935232,
+            "cached_input_tokens_cumulative": 11935232,
+            "input_tokens": 12116393,
+            "input_tokens_cumulative": 12116393,
+            "output_tokens": 20092,
+            "output_tokens_cumulative": 20092,
+            "reasoning_output_tokens": 5903,
+            "reasoning_output_tokens_cumulative": 5903
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 223
+    "_version": 227
   }
 }
