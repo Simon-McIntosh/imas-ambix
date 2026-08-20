@@ -9,6 +9,7 @@ from the resolution path itself.
 
 from __future__ import annotations
 
+import inspect
 import json
 from pathlib import Path
 
@@ -21,6 +22,29 @@ from imas_ambix.gs import artifact_resolution as resolution
 def resolved():
     """The description the package pins, resolved however this machine can."""
     return resolution.resolve_machine_description()
+
+
+def test_machine_artifact_api_comes_from_the_machine_generic_module():
+    """The consumer follows Nova's machine-parameterized artifact API."""
+    from nova.imas.machine_artifact import (
+        MachineArtifactError,
+        MachineArtifactManifest,
+        resolve_machine_artifact,
+    )
+
+    module = "nova.imas.machine_artifact"
+    assert MachineArtifactError.__module__ == module
+    assert MachineArtifactManifest.__module__ == module
+    assert resolve_machine_artifact.__module__ == module
+
+    inspect.signature(MachineArtifactManifest.from_bytes).bind(b"{}")
+    inspect.signature(resolve_machine_artifact).bind(
+        "cache",
+        "sha256:" + "0" * 64,
+        expected_physical_digest=resolution.PINNED_PHYSICAL_DIGEST,
+        expected_registry_digest=resolution.PINNED_REGISTRY_DIGEST,
+        allow_incomplete=True,
+    )
 
 
 # --- the default path --------------------------------------------------------

@@ -35,7 +35,7 @@ there is no state a caller must set up before the geometry is available.
 
 Publishing where no-clobber rename exists
 -----------------------------------------
-:func:`nova.imas.mast_artifact.materialize_machine_artifact` publishes a
+:func:`nova.imas.machine_artifact.materialize_machine_artifact` publishes a
 freshly-authored bundle with ``renameat2(RENAME_NOREPLACE)``, which makes the
 publish atomic and refuses to overwrite a colliding object.  That call is not
 available everywhere: on the GPFS filesystems holding ``/home`` and ``/work`` it
@@ -168,7 +168,7 @@ def _semantic_identity_of(manifest_path: Path) -> str | None:
     re-hashes every dictionary container.  The winner is then resolved through
     nova's own reader, which does verify.
     """
-    from nova.imas.mast_artifact import MachineArtifactManifest  # noqa: PLC0415
+    from nova.imas.machine_artifact import MachineArtifactManifest  # noqa: PLC0415
 
     try:
         manifest = MachineArtifactManifest.from_bytes(manifest_path.read_bytes())
@@ -265,7 +265,7 @@ def _resolve_stored(
     *,
     require_pin: bool,
 ) -> ResolvedArtifact:
-    from nova.imas.mast_artifact import (  # noqa: PLC0415
+    from nova.imas.machine_artifact import (  # noqa: PLC0415
         MachineArtifactError,
         resolve_machine_artifact,
     )
@@ -312,7 +312,7 @@ def author_pinned_description(
     that cannot be written to is not an error, because the node-local object the
     caller was just handed is already verified and complete.
     """
-    from nova.imas.mast_artifact import MachineArtifactError  # noqa: PLC0415
+    from nova.imas.machine_artifact import MachineArtifactError  # noqa: PLC0415
     from nova.imas.mast_geometry import publish_refined_artifact  # noqa: PLC0415
 
     staging = staging_cache_root()
