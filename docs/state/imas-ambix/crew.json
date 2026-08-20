@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-20T16:17:31",
+  "updated": "2026-08-20T16:42:45",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -173,6 +173,13 @@
         "created": "2026-08-20"
       },
       {
+        "id": "geometry-facade",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-20"
+      },
+      {
         "id": "harmonic-anchor-wiring",
         "harness": "codex",
         "role": "implement",
@@ -199,6 +206,13 @@
         "role": "implement",
         "session_id": "019ff9fd-9b39-7363-bf7c-1be332c8e767",
         "created": "2026-08-13"
+      },
+      {
+        "id": "merged-gs-verify",
+        "harness": "codex",
+        "role": "test",
+        "session_id": null,
+        "created": "2026-08-20"
       },
       {
         "id": "mesh-resolution",
@@ -269,6 +283,13 @@
         "role": "implement",
         "session_id": "01a01007-a3ce-7d51-adb8-a75bca0ffd50",
         "created": "2026-08-17"
+      },
+      {
+        "id": "solenoid-golden-rebaseline",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "created": "2026-08-20"
       },
       {
         "id": "spine-restamp",
@@ -6083,9 +6104,135 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260820T141953170149-solenoid-golden-rebaseline",
+        "plan": "nova-physics-consumer-integration",
+        "section": "\u00a76.2",
+        "node": "solenoid-golden-rebaseline",
+        "role": "implement",
+        "member": "solenoid-golden-rebaseline",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-20T14:19:56Z",
+        "completed_at": "2026-08-20T14:40:31Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1235,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1235,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "8edbc08714e0f9fd57ff1287a0412177b7a9772f",
+        "commits": [
+          "2c463977d2c70d4c3ec6fb729627490a944cfba1"
+        ],
+        "changed_lines": {
+          "added": 1,
+          "removed": 1,
+          "files": 1
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "outcome": "Replaced the exact-identity solenoid comparison with abs=1e-6 centred on 1.0508104, retaining the 0.06 science bound unchanged. tests/gs 230 passed / 0 failed. Three fresh constructions all observed 1.0508102876881664 identically, and the worker corrected the dispatch's arithmetic: the cross-run envelope is 3.05e-7, not the 3e-10 the orchestrator stated. The tolerance is 60,000x tighter than the science bound and rejects the superseded golden by 6.78e-6 beyond tolerance.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260820T141953170149-solenoid-golden-rebaseline/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01f8a-fbd2-77f2-a6fc-9a885ad9e862",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 6028032,
+            "cached_input_tokens_cumulative": 6028032,
+            "input_tokens": 6173376,
+            "input_tokens_cumulative": 6173376,
+            "output_tokens": 16956,
+            "output_tokens_cumulative": 16956,
+            "reasoning_output_tokens": 5663,
+            "reasoning_output_tokens_cumulative": 5663
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
+      },
+      {
+        "run_id": "r-20260820T142014100966-geometry-facade",
+        "plan": "nova-physics-consumer-integration",
+        "section": "\u00a75.2",
+        "node": "geometry-facade",
+        "role": "implement",
+        "member": "geometry-facade",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-20T14:20:17Z",
+        "completed_at": "2026-08-20T14:40:53Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1236,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1236,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "8edbc08714e0f9fd57ff1287a0412177b7a9772f",
+        "commits": [
+          "472b074fbbf3527fd77c878cc6a3b52f3d2aa416"
+        ],
+        "changed_lines": {
+          "added": 281,
+          "removed": 0,
+          "files": 2
+        },
+        "tests_added": 5,
+        "gate": "passed",
+        "outcome": "Facade landed purely additive: 3 projections plus 1 service, 0 GeometryTable or record-constructor exports. Golden-key proof exact \u2014 representation_key and SetupSignature.key both mp78-fl80-fc70-lim37-2f6472393311692b for frozen shot 11766. Operator parity array-equal at max absolute delta 0, shape 81x21. P6 crosses as {p6_lower: None, p6_upper: None}, never substituted. 5/5 new tests; tests/gs +5 passes, +0 failures. No consumer migrated.",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260820T142014100966-geometry-facade/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a01f8b-4d1e-7b73-8646-1926641df243",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 12788736,
+            "cached_input_tokens_cumulative": 12788736,
+            "input_tokens": 13000680,
+            "input_tokens_cumulative": 13000680,
+            "output_tokens": 31943,
+            "output_tokens_cumulative": 31943,
+            "reasoning_output_tokens": 12397,
+            "reasoning_output_tokens_cumulative": 12397
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 183
+    "_version": 188
   }
 }

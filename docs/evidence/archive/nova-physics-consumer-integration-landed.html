@@ -443,6 +443,55 @@
   this construction does not reproduce bit-for-bit. Verification receipt:
   <code>PASS identity=12/12 tests_gs=229p/1f science_recovered=3/4 digest=b55c5bb0
   registry=2a26cc0a spine_bench_stamps=unmodified</code>.</p>
+  <h2 id="facade-and-baseline">The facade lands additive, and the baseline reaches zero failures</h2>
+  <p><strong>Representation identity survives the new boundary byte-for-byte, and the operator it
+  projects is bit-identical to the one consumers get today.</strong> Commits <code>472b074</code>
+  (facade) and <code>2c46397</code> (solenoid tolerance), merged <code>513222e</code> and
+  <code>42bfaf6</code>.</p>
+
+  <table>
+    <caption>Golden-key and parity proof, frozen shot 11766</caption>
+    <thead><tr><th>Property</th><th>Facade</th><th>Existing kernel</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>Representation key</td>
+          <td colspan="2"><code>mp78-fl80-fc70-lim37-2f6472393311692b</code> on both sides</td>
+          <td>Exact</td></tr>
+      <tr><td>Representation digest</td>
+          <td colspan="2"><code>2f6472393311692b</code> on both sides</td><td>Exact</td></tr>
+      <tr><td>Derivation id</td>
+          <td colspan="2"><code>ddv4-directed-probe-angle</code> on both sides</td><td>Exact</td></tr>
+      <tr><td>Coil-column operator</td>
+          <td><code>OperatorGeometry.coil_column_matrix</code></td><td><code>g_pf</code></td>
+          <td>Array-equal, shape (81, 21), max absolute delta 0</td></tr>
+      <tr><td>Unresolved turns</td>
+          <td colspan="2"><code>{"p6_lower": None, "p6_upper": None}</code></td>
+          <td>Carried, never substituted with 1, 0 or an inferred weight</td></tr>
+      <tr><td>Public surface</td>
+          <td colspan="2">3 projections behind 1 service</td>
+          <td>0 <code>GeometryTable</code> exports, 0 record-constructor exports</td></tr>
+    </tbody>
+  </table>
+
+  <p>The module is purely additive — <code>tests/gs</code> gained exactly 5 passes and 0 failures,
+  and no consumer moved. That is the point of taking the facade before the tranches: the golden-key
+  proof is meaningful only while the old path is still the one in use.</p>
+
+  <p><strong>Two corrections belong here, both to orchestrator claims rather than worker results.</strong>
+  The solenoid golden was described as brittle because a quantity was not bit-reproducible. It is
+  reproducible: three fresh CPU-only constructions returned
+  <code>1.0508102876881664</code> identically. The 3.05e-7 gap is between two <em>different resolved
+  descriptions</em> — the run before the guard advanced and the runs after — so the golden was
+  <em>stale</em>, not brittle, and it had already been failing before any of this work began. And
+  the orchestrator stated that gap as 3e-10; subtracting the two observed values gives 3.05e-7, as
+  the worker pointed out rather than quietly adopting the wrong figure. The replacement,
+  <code>pytest.approx(1.0508104, abs=1e-6)</code>, is 60,000x tighter than the retained 0.06 science
+  bound, leaves 0.00919 before the science limit, and rejects the superseded value by 6.78e-6 beyond
+  tolerance — so it absorbs a description-level shift without accepting a material regression.
+  Detecting description changes is the identity guard's job, not this test's.</p>
+
+  <p>Verification receipt:
+  <code>PASS facade_key=exact operator_delta=0 shape=81x21 unresolved=carried facade_tests=5/5
+  tests_gs=230p/0f solenoid_tol=1e-6-vs-0.06-bound digest=b55c5bb0-stable</code>.</p>
 </main>
 </body>
 </html>
