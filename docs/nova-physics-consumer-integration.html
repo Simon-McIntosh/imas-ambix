@@ -18,8 +18,8 @@
   <title>Nova Physics Consumer Integration | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-19">
-<meta name="plan-version" content="14">
+<meta name="plan-modified" content="2026-08-20">
+<meta name="plan-version" content="15">
 <meta name="plan-depends-on" content="">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
@@ -81,6 +81,17 @@
       </tbody>
     </table>
     <p>The geometry rung is the one that needs design before it needs workers. Nova already owns the source authority through <code>resolve_machine_artifact</code> and <code>mast_solve_inputs.describe_machine</code>; what is missing is the Ambix-side boundary that lets 58 consumers stop importing a table type. Until that boundary exists, migrating importers would only move the coupling.</p>
+
+    <h3>§5.1 — What the boundary design is fenced by</h3>
+    <p>The design rung is read-only by construction: it produces the boundary, not the migration. No importer moves and no repository file changes until a boundary shape is recommended and its identity consequences are measured. Five constraints are already known and must not be rediscovered.</p>
+    <ul>
+      <li><strong>The consumer surface is measured, not estimated.</strong> The 58 files and their 64 import lines are banked in the donor census and its <code>geometry-importers.log</code>. Start from that list; a design that classifies fewer symbols than the consumers actually import has not covered the contract.</li>
+      <li><strong>The design does not wait on the pin advance.</strong> The drift inventory measured <code>resolve_machine_artifact</code> and <code>MachineArtifactManifest</code> as unchanged between the pinned <code>de3277a3</code> and the recommended <code>aeffde05</code>, so the Nova-side surface this boundary maps onto is stable across that move.</li>
+      <li><strong>One Nova symbol pair is outside that guarantee.</strong> Ambix does not currently import <code>mast_solve_inputs.describe_machine</code> or <code>DescribedMachine</code>, so the 74-of-74-unchanged result says nothing about them. A design that recommends adopting either must probe both revisions and record what it found rather than inheriting the guarantee.</li>
+      <li><strong>Identity is the expensive axis.</strong> The artifact signature change from <code>fc938</code> to <code>fc70</code> rebuilt every efm-keyed compute cache and checkpoint. A boundary that alters the table hash or <code>SetupSignature</code> carries that cost again, so the identity-bearing stores are enumerated with a per-store verdict, never asserted as preserved.</li>
+      <li><strong>Unresolved turns stay unresolved.</strong> The pinned description carries NaN turns on the P6 pair. The boundary must be able to carry an unresolved-turns value across itself; fabricating a weight to make a type total is a defect, not a simplification.</li>
+    </ul>
+    <p>Representation is part of the deliverable: where the boundary's layering is clearer as a diagram than as prose, the design carries a diagram, and where a classification is clearer as rows and columns it stays a table rather than becoming a picture of one.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
