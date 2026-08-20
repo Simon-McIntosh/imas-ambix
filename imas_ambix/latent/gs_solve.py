@@ -62,7 +62,23 @@ from imas_ambix.latent.wall_mask import (
 logger = logging.getLogger("imas_ambix.gs_solve")
 
 if TYPE_CHECKING:
-    from imas_ambix.gs.geometry import GeometryTable
+    from imas_ambix.gs.machine_geometry import OperatorGeometry
+
+
+def _geometry_member(geometry, projection_name: str, compatibility_name: str):
+    """Read a projection field while synthetic table fixtures are retired."""
+    if hasattr(geometry, projection_name):
+        return getattr(geometry, projection_name)
+    return getattr(geometry, compatibility_name)
+
+
+def _representation_key(geometry) -> str | None:
+    identity = getattr(geometry, "identity", None)
+    if identity is not None:
+        return str(identity.representation_key)
+    signature = getattr(geometry, "signature", None)
+    return None if signature is None else str(signature.key)
+
 
 MU0 = 4.0e-7 * np.pi
 
@@ -252,7 +268,7 @@ class EquilibriumGrid:
 
     @classmethod
     def from_table(
-        cls, table: GeometryTable, *, nr: int = 65, nz: int = 97, cache: bool = False
+        cls, table: OperatorGeometry, *, nr: int = 65, nz: int = 97, cache: bool = False
     ) -> EquilibriumGrid:
         """Build the campaign grid and its interaction matrices from a table.
 
@@ -281,7 +297,7 @@ class EquilibriumGrid:
 
         fwd = op.build_operator(table)
         by_circ: dict[int, list] = {}
-        for f in table.pf_filaments:
+        for f in _geometry_member(table, "conductors", "pf_filaments"):
             by_circ.setdefault(f.circuit, []).append(f)
 
         def circ_col(circ: int) -> np.ndarray:
@@ -316,7 +332,7 @@ class EquilibriumGrid:
                     f.z - abs(f.height) / 2.0,
                     f.z + abs(f.height) / 2.0,
                 ]
-                for f in table.pf_filaments
+                for f in _geometry_member(table, "conductors", "pf_filaments")
             ]
         )
         grid = cls(
@@ -451,7 +467,7 @@ class EquilibriumGrid:
             return np.zeros(self.flat_r.size)
         return self._coil_psi_columns @ np.asarray(i_pf, dtype=np.float64)
 
-    def sensor_greens(self, table: GeometryTable) -> tuple[np.ndarray, list[str]]:
+    def sensor_greens(self, table: OperatorGeometry) -> tuple[np.ndarray, list[str]]:
         """Cell→sensor Green's matrix ``(n_sensor, n_cells)`` + channel names.
 
         Rows follow the mapped sensors in ``table.sensor_map`` order: flux
@@ -1210,7 +1226,7 @@ class ProfileFit:
 
 def fit_profile(
     grid: EquilibriumGrid,
-    table: GeometryTable,
+    table: OperatorGeometry,
     *,
     i_pf: np.ndarray,
     ip_amperes: float,
@@ -1269,7 +1285,7 @@ def fit_profile(
 
 def fit_profile_continuous(
     grid: EquilibriumGrid,
-    table: GeometryTable,
+    table: OperatorGeometry,
     *,
     i_pf: np.ndarray,
     ip_amperes: float,
@@ -1926,7 +1942,7 @@ class LadderFit:
 
 
 def build_passive_sidecar(
-    table: GeometryTable,
+    table: OperatorGeometry,
     grid: EquilibriumGrid,
     *,
     g_passive: np.ndarray,
@@ -1961,9 +1977,12 @@ def build_passive_sidecar(
     k = int(np.count_nonzero(keep))
     v_over_s = vt[:k].T / sv[np.newaxis, :k]  # (n_passive, k), unit whitened norm
 
-    classes = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
+    classes = op.classify_circuits(
+        _geometry_member(table, "conductors", "pf_filaments"),
+        _geometry_member(table, "available_current_channels", "amc_current_channels"),
+    )
     by_circ: dict[int, list] = {}
-    for f in table.pf_filaments:
+    for f in _geometry_member(table, "conductors", "pf_filaments"):
         by_circ.setdefault(f.circuit, []).append(f)
     psi_cols = []
     br_cols = []
@@ -2105,7 +2124,7 @@ class _AndersonMixer:
 
 def solve_equilibrium_lsq(
     grid: EquilibriumGrid,
-    table: GeometryTable,
+    table: OperatorGeometry,
     i_pf: np.ndarray,
     ip_amperes: float,
     *,
@@ -2569,7 +2588,7 @@ def solve_equilibrium_lsq(
 
 def fit_profile_ladder(
     grid: EquilibriumGrid,
-    table: GeometryTable,
+    table: OperatorGeometry,
     *,
     i_pf: np.ndarray,
     ip_amperes: float,

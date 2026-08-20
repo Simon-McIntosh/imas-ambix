@@ -59,8 +59,16 @@ from imas_ambix.physics import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from imas_ambix.gs.geometry import GeometryTable
+    from imas_ambix.gs.machine_geometry import OperatorGeometry
     from imas_ambix.latent.gs_solve import EquilibriumGrid
+
+
+def _geometry_member(geometry, projection_name: str, compatibility_name: str):
+    """Read a projection field while synthetic table fixtures are retired."""
+    if hasattr(geometry, projection_name):
+        return getattr(geometry, projection_name)
+    return getattr(geometry, compatibility_name)
+
 
 logger = logging.getLogger(__name__)
 
@@ -70,26 +78,31 @@ STEEL_RESISTIVITY = 7.2e-7
 
 
 def _declared_circuit_coupling(
-    table: GeometryTable,
+    table: OperatorGeometry,
     *,
     measured_channels: tuple[str, ...] = (),
 ) -> CircuitCoupling:
     """Emit Nova coupling directly from the table's circuit declarations."""
     active = set(table.active_circuits)
-    drives = {drive.circuit: drive for drive in table.circuit_drives}
+    drives = {
+        drive.circuit: drive
+        for drive in _geometry_member(table, "drive_map", "circuit_drives")
+    }
     if not active or not drives:
         raise ValueError(
             "temporal circuit construction requires active_circuits and "
             "circuit_drives from the machine-description table"
         )
-    if len(drives) != len(table.circuit_drives):
+    if len(drives) != len(_geometry_member(table, "drive_map", "circuit_drives")):
         raise ValueError("machine-description table declares duplicate circuit drives")
 
     by_circuit: dict[int, list] = {}
-    for filament in table.pf_filaments:
+    for filament in _geometry_member(table, "conductors", "pf_filaments"):
         by_circuit.setdefault(filament.circuit, []).append(filament)
 
-    available = set(table.amc_current_channels)
+    available = set(
+        _geometry_member(table, "available_current_channels", "amc_current_channels")
+    )
     classes: list[CircuitClass] = []
     for circuit in sorted(by_circuit):
         members = by_circuit[circuit]
@@ -136,20 +149,48 @@ def _declared_circuit_coupling(
         for section in table.polygon_sections
     )
     return couple_circuits(classes).emit(
-        r=np.asarray([row.r for row in table.pf_filaments], dtype=np.float64),
-        z=np.asarray([row.z for row in table.pf_filaments], dtype=np.float64),
-        dr=np.asarray([row.width for row in table.pf_filaments], dtype=np.float64),
-        dz=np.asarray([row.height for row in table.pf_filaments], dtype=np.float64),
-        current_share=np.asarray(
-            [row.xmult for row in table.pf_filaments], dtype=np.float64
+        r=np.asarray(
+            [row.r for row in _geometry_member(table, "conductors", "pf_filaments")],
+            dtype=np.float64,
         ),
-        circuit=np.asarray([row.circuit for row in table.pf_filaments], dtype=np.int64),
+        z=np.asarray(
+            [row.z for row in _geometry_member(table, "conductors", "pf_filaments")],
+            dtype=np.float64,
+        ),
+        dr=np.asarray(
+            [
+                row.width
+                for row in _geometry_member(table, "conductors", "pf_filaments")
+            ],
+            dtype=np.float64,
+        ),
+        dz=np.asarray(
+            [
+                row.height
+                for row in _geometry_member(table, "conductors", "pf_filaments")
+            ],
+            dtype=np.float64,
+        ),
+        current_share=np.asarray(
+            [
+                row.xmult
+                for row in _geometry_member(table, "conductors", "pf_filaments")
+            ],
+            dtype=np.float64,
+        ),
+        circuit=np.asarray(
+            [
+                row.circuit
+                for row in _geometry_member(table, "conductors", "pf_filaments")
+            ],
+            dtype=np.int64,
+        ),
         measured_channels=measured_channels,
         polygon_sections=sections,
     )
 
 
-def _sensor_set(table: GeometryTable) -> SensorSet:
+def _sensor_set(table: OperatorGeometry) -> SensorSet:
     """Project mapped diagnostics into Nova's axisymmetric sensor inputs.
 
     Field probes require an explicit poloidal-plane orientation. Flux-loop
@@ -184,7 +225,7 @@ def _sensor_set(table: GeometryTable) -> SensorSet:
 
 
 def build_passive_circuit_system(
-    table: GeometryTable,
+    table: OperatorGeometry,
     grid: EquilibriumGrid,
     *,
     resistivity: float = STEEL_RESISTIVITY,
@@ -199,9 +240,12 @@ def build_passive_circuit_system(
     measured_channels = (
         tuple(
             drive.channel
-            for drive in table.circuit_drives
+            for drive in _geometry_member(table, "drive_map", "circuit_drives")
             if drive.circuit not in active
-            and drive.channel in table.amc_current_channels
+            and drive.channel
+            in _geometry_member(
+                table, "available_current_channels", "amc_current_channels"
+            )
         )
         if hold_back_cases
         else ()
@@ -226,7 +270,7 @@ def build_passive_circuit_system(
 
 
 def build_drive_linkage(
-    table: GeometryTable,
+    table: OperatorGeometry,
     *,
     section_scale_frac: float = 1.0,
     section_n_max: int = 6,
@@ -249,7 +293,7 @@ def build_drive_linkage(
 
     coupling = _declared_circuit_coupling(table)
     by_circ: dict[int, list] = {}
-    for f in table.pf_filaments:
+    for f in _geometry_member(table, "conductors", "pf_filaments"):
         by_circ.setdefault(f.circuit, []).append(f)
     by_chan = coupling.channel_circuits
     channels = sorted(by_chan)
@@ -280,7 +324,7 @@ def build_drive_linkage(
 
 
 def predict_vessel_currents(
-    table: GeometryTable,
+    table: OperatorGeometry,
     system: PassiveCircuitSystem,
     i_pf_full: np.ndarray,
     channels: list[str],
@@ -331,7 +375,7 @@ def predict_vessel_currents(
     ip_amperes = np.asarray(ip_amperes, dtype=np.float64)
     axis_rz = np.asarray(axis_rz, dtype=np.float64)
     by_circ: dict[int, list] = {}
-    for f in table.pf_filaments:
+    for f in _geometry_member(table, "conductors", "pf_filaments"):
         by_circ.setdefault(f.circuit, []).append(f)
     fr, fz, fw, ci = [], [], [], []
     for i, c in enumerate(system.circuits):
@@ -493,7 +537,7 @@ def _linked_flux_columns(
 
 
 def build_passive_eigenbasis(
-    table: GeometryTable,
+    table: OperatorGeometry,
     grid: EquilibriumGrid,
     *,
     sensor_scale: np.ndarray,

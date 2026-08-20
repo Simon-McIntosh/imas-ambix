@@ -69,7 +69,15 @@ from imas_ambix.latent.patch_inverse import SlicePayload
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from imas_ambix.gs.geometry import GeometryTable
+    from imas_ambix.gs.machine_geometry import OperatorGeometry
+
+
+def _geometry_member(geometry, projection_name: str, compatibility_name: str):
+    """Read a projection field while synthetic table fixtures are retired."""
+    if hasattr(geometry, projection_name):
+        return getattr(geometry, projection_name)
+    return getattr(geometry, compatibility_name)
+
 
 # The declared conductor elements carry their winding turns in the Green's
 # weight.  On the common 49x65 grid their outer-coil vacuum field needs about
@@ -168,7 +176,7 @@ class Campaign:
     geometry + a noise floor; no truth, no EFIT.
     """
 
-    table: GeometryTable
+    table: OperatorGeometry
     fwd: op.ForwardOperator
     grid: EquilibriumGrid
     basis: PatchBasis
@@ -182,7 +190,7 @@ class Campaign:
 
 
 def _build_passive_columns(
-    table: GeometryTable, grid: EquilibriumGrid, fwd: op.ForwardOperator
+    table: OperatorGeometry, grid: EquilibriumGrid, fwd: op.ForwardOperator
 ) -> tuple[np.ndarray, np.ndarray]:
     """(grid-ψ, sensor) columns for every INFERRED passive circuit, grid order.
 
@@ -193,9 +201,12 @@ def _build_passive_columns(
     on this campaign zeroed) — the alignment the gate applies to real payloads.
     """
     _g, channels = grid.sensor_greens(table)
-    classes = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
+    classes = op.classify_circuits(
+        _geometry_member(table, "conductors", "pf_filaments"),
+        _geometry_member(table, "available_current_channels", "amc_current_channels"),
+    )
     by_circ: dict[int, list] = {}
-    for f in table.pf_filaments:
+    for f in _geometry_member(table, "conductors", "pf_filaments"):
         by_circ.setdefault(f.circuit, []).append(f)
     psi_cols = []
     for cc in classes:
@@ -236,7 +247,7 @@ def build_campaign(
     nr: int = 65,
     nz: int = 97,
     scale: np.ndarray | None = None,
-    table: GeometryTable | None = None,
+    table: OperatorGeometry | None = None,
 ) -> Campaign:
     """Assemble the shared campaign geometry + noise floor.
 
@@ -247,10 +258,10 @@ def build_campaign(
     (:func:`imas_ambix.latent.data.robust_channel_scale`), falling back to a
     5% relative floor on the coil vacuum field if the shot cannot be loaded.
     """
-    from imas_ambix.data.description_reader import read_geometry_table
+    from imas_ambix.gs.machine_geometry import MachineGeometryService
 
     if table is None:
-        table = read_geometry_table(int(shot))
+        table = MachineGeometryService().operator(int(shot))
     fwd = op.build_operator(table)
     grid = EquilibriumGrid.from_table(table, nr=nr, nz=nz)
     basis = PatchBasis.from_table(table, nr=nr, nz=nz, dtype=torch.float64)

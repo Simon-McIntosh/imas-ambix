@@ -56,7 +56,22 @@ from imas_ambix.gs.cylinder import hybrid_greens
 from imas_ambix.latent.gs_solve import EquilibriumGrid
 
 if TYPE_CHECKING:
-    from imas_ambix.gs.geometry import GeometryTable
+    from imas_ambix.gs.machine_geometry import OperatorGeometry
+
+
+def _geometry_member(geometry, projection_name: str, compatibility_name: str):
+    """Read a projection field while synthetic table fixtures are retired."""
+    if hasattr(geometry, projection_name):
+        return getattr(geometry, projection_name)
+    return getattr(geometry, compatibility_name)
+
+
+def _representation_key(geometry) -> str:
+    identity = getattr(geometry, "identity", None)
+    if identity is not None:
+        return str(identity.representation_key)
+    return str(geometry.signature.key)
+
 
 # Reuse the scoping cache so an already-assembled 65x97 matrix is not rebuilt.
 _DEFAULT_CACHE_DIR = Path("imas_ambix/latent/artifacts/patch_scoping")
@@ -94,7 +109,7 @@ def _load_or_assemble_g_pg(grid: EquilibriumGrid, cache: Path | None) -> np.ndar
     return g_pg
 
 
-def _coil_sensor_matrix(table: GeometryTable) -> np.ndarray:
+def _coil_sensor_matrix(table: OperatorGeometry) -> np.ndarray:
     """KNOWN-coil → sensor Green's matrix ``(n_sensor, n_coil)``.
 
     Assembled the same way as :meth:`EquilibriumGrid.from_table`'s coil ψ
@@ -107,7 +122,7 @@ def _coil_sensor_matrix(table: GeometryTable) -> np.ndarray:
     """
     fwd = op.build_operator(table)
     by_circ: dict[int, list] = {}
-    for f in table.pf_filaments:
+    for f in _geometry_member(table, "conductors", "pf_filaments"):
         by_circ.setdefault(f.circuit, []).append(f)
     n_coil = len(fwd.pf_merged_circuits)
     rows: list[np.ndarray] = []
@@ -146,7 +161,8 @@ def _coil_sensor_matrix(table: GeometryTable) -> np.ndarray:
 class PatchBasis(nn.Module):
     """Per-campaign patch-current forward substrate (fixed geometry, matmul-only).
 
-    Built once per campaign :class:`~imas_ambix.gs.geometry.GeometryTable`; a
+    Built once per campaign
+    :class:`~imas_ambix.gs.machine_geometry.OperatorGeometry`; a
     forward pass is a batched matmul against the precomputed interaction
     matrices.  All buffers are pure device geometry — no EFIT, no labels.
     """
@@ -206,14 +222,14 @@ class PatchBasis(nn.Module):
     @classmethod
     def from_table(
         cls,
-        table: GeometryTable,
+        table: OperatorGeometry,
         *,
         nr: int = 65,
         nz: int = 97,
         cache_dir: str | Path | None = None,
         dtype: torch.dtype = torch.float32,
     ) -> PatchBasis:
-        """Build from a campaign :class:`GeometryTable`.
+        """Build from a campaign :class:`OperatorGeometry`.
 
         Assembles in fp64 numpy and registers buffers at ``dtype``.  The
         expensive patch→grid matrix is cached to
@@ -224,7 +240,7 @@ class PatchBasis(nn.Module):
         """
         grid = EquilibriumGrid.from_table(table, nr=nr, nz=nz)
         cache_root = Path(cache_dir) if cache_dir is not None else _DEFAULT_CACHE_DIR
-        cache = cache_root / f"g_pg_{table.signature.key}_{nr}x{nz}.npz"
+        cache = cache_root / f"g_pg_{_representation_key(table)}_{nr}x{nz}.npz"
 
         g_pg = _load_or_assemble_g_pg(grid, cache)  # (G, n)
         g_cc = g_pg[grid.cells, :]  # (n, n) patch→cell-centroid flux
