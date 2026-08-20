@@ -14,11 +14,87 @@ These tests are pure-logic (synthetic geometry, no mirror needed).
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
-from imas_ambix.gs import geometry as gsg
 from imas_ambix.gs import operator as op
+
+
+class _Filament(SimpleNamespace):
+    def __init__(self, r, z, turns, width, height, circuit, xmult):
+        super().__init__(
+            r=r,
+            z=z,
+            turns=turns,
+            width=width,
+            height=height,
+            circuit=circuit,
+            xmult=xmult,
+        )
+
+
+class _CircuitDrive(SimpleNamespace):
+    def __init__(
+        self, circuit, channel, ampere_turns_per_ampere, evidence="", conductor=""
+    ):
+        super().__init__(
+            circuit=circuit,
+            channel=channel,
+            ampere_turns_per_ampere=ampere_turns_per_ampere,
+            evidence=evidence,
+            conductor=conductor,
+        )
+
+
+class _Signature(SimpleNamespace):
+    @property
+    def key(self):
+        counts = (
+            f"mp{self.n_bprobe}-fl{self.n_fluxloop}-fc{self.n_pf_filament}"
+            f"-lim{self.n_limiter}"
+        )
+        return f"{counts}-{self.digest}"
+
+
+class _GeometryFixture(SimpleNamespace):
+    def __init__(self, **values):
+        values.setdefault("polygon_sections", [])
+        values.setdefault("circuit_drives", [])
+        values.setdefault("active_circuits", [])
+        values.setdefault("provenance_flags", [])
+        values.setdefault("r0", 0.85)
+        values.setdefault("minor_radius", 0.65)
+        super().__init__(**values)
+
+
+class _BProbe(SimpleNamespace):
+    pass
+
+
+class _SensorMapping(SimpleNamespace):
+    def __init__(self, amb_channel, kind, efm_index, r, z, angle_deg, residual_m, flag):
+        super().__init__(
+            amb_channel=amb_channel,
+            kind=kind,
+            efm_index=efm_index,
+            r=r,
+            z=z,
+            angle_deg=angle_deg,
+            residual_m=residual_m,
+            flag=flag,
+        )
+
+
+_fixtures = SimpleNamespace(
+    BProbe=_BProbe,
+    CircuitDrive=_CircuitDrive,
+    GeometryTable=_GeometryFixture,
+    PFFilament=_Filament,
+    SensorMapping=_SensorMapping,
+    SetupSignature=_Signature,
+)
 
 # --- coil-model version marker ---------------------------------------------
 
@@ -71,18 +147,20 @@ def test_p6_case_has_no_declared_drive():
 # --- a minimal fixture builder ---------------------------------------------
 
 
-def _filament(r: float, z: float, circuit: int, xmult: float = 1.0) -> gsg.PFFilament:
-    return gsg.PFFilament(
+def _filament(
+    r: float, z: float, circuit: int, xmult: float = 1.0
+) -> _fixtures.PFFilament:
+    return _fixtures.PFFilament(
         r=r, z=z, turns=1.0, width=0.01, height=0.01, circuit=circuit, xmult=xmult
     )
 
 
 def _table(
-    filaments: list[gsg.PFFilament], amc_channels: list[str]
-) -> gsg.GeometryTable:
+    filaments: list[_fixtures.PFFilament], amc_channels: list[str]
+) -> _fixtures.GeometryTable:
     """A single-vertical-probe geometry table around whatever filaments are given."""
-    bp = gsg.BProbe(index=0, r=1.3, z=0.0, angle_deg=-90.0, length=0.025)
-    sig = gsg.SetupSignature(
+    bp = _fixtures.BProbe(index=0, r=1.3, z=0.0, angle_deg=-90.0, length=0.025)
+    sig = _fixtures.SetupSignature(
         n_bprobe=1,
         n_fluxloop=0,
         n_pf_filament=len(filaments),
@@ -105,7 +183,7 @@ def _table(
     }
     represented = {filament.circuit for filament in filaments}
     drives = [
-        gsg.CircuitDrive(
+        _fixtures.CircuitDrive(
             circuit=circuit,
             channel=channel,
             ampere_turns_per_ampere=1.0,
@@ -115,7 +193,7 @@ def _table(
         for circuit, channel in channel_by_circuit.items()
         if circuit in represented
     ]
-    return gsg.GeometryTable(
+    return _fixtures.GeometryTable(
         signature=sig,
         shots=[99999],
         b_probes=[bp],
@@ -124,7 +202,7 @@ def _table(
         limiter_r=[0.3, 1.6, 1.6, 0.3],
         limiter_z=[-1.0, -1.0, 1.0, 1.0],
         sensor_map=[
-            gsg.SensorMapping("obv01", "b_probe", 0, 1.3, 0.0, -90.0, 0.001, ""),
+            _fixtures.SensorMapping("obv01", "b_probe", 0, 1.3, 0.0, -90.0, 0.001, ""),
         ],
         passive_structures=[],
         amc_current_channels=amc_channels,
@@ -135,7 +213,7 @@ def _table(
 
 
 def _classify(
-    filaments: list[gsg.PFFilament], amc_channels: list[str]
+    filaments: list[_fixtures.PFFilament], amc_channels: list[str]
 ) -> list[op.CircuitClass]:
     table = _table(filaments, amc_channels)
     return op.classify_circuits(
@@ -234,7 +312,7 @@ def test_all_13_active_circuits_still_classify_known_pf():
         r, z = op._PF_COIL_CENTROID[label]
         filaments.append(_filament(r, z, circuit=circuit))
         amc_channels.append(channel)
-        drives.append(gsg.CircuitDrive(circuit, channel, 1.0, conductor=label))
+        drives.append(_fixtures.CircuitDrive(circuit, channel, 1.0, conductor=label))
 
     classes = op.classify_circuits(filaments, amc_channels, list(range(1, 14)), drives)
     by_circ = {c.circuit: c for c in classes}
@@ -435,13 +513,13 @@ def test_a_declared_drive_displaces_every_positional_rule():
     channels = ["p4u_coil_current", "p4u_case_current"]
     # deliberately CROSSED against what position would conclude
     drives = [
-        gsg.CircuitDrive(
+        _fixtures.CircuitDrive(
             circuit=8,
             channel="p4u_case_current",
             ampere_turns_per_ampere=1.0,
             evidence="generated",
         ),
-        gsg.CircuitDrive(
+        _fixtures.CircuitDrive(
             circuit=18,
             channel="p4u_coil_current",
             ampere_turns_per_ampere=1.0,
@@ -464,7 +542,7 @@ def test_a_declared_channel_this_campaign_lacks_stays_inferred():
     keeps an induced current rather than borrowing another channel."""
     filaments = [_filament(_P4U_R, _P4U_Z, circuit=8)]
     drives = [
-        gsg.CircuitDrive(
+        _fixtures.CircuitDrive(
             circuit=8,
             channel="p4u_coil_current",
             ampere_turns_per_ampere=1.0,
@@ -487,7 +565,7 @@ def test_a_stated_weight_withholds_the_fitted_solenoid_correction():
     table_inferred.circuit_drives = []
     table_stated = _table(filaments, ["sol_current"])
     table_stated.circuit_drives = [
-        gsg.CircuitDrive(
+        _fixtures.CircuitDrive(
             circuit=1,
             channel="sol_current",
             ampere_turns_per_ampere=1.0,

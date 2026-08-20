@@ -9,15 +9,85 @@ rectangular-kernel column it replaces.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from types import SimpleNamespace
+
 import numpy as np
 
-import imas_ambix.gs.geometry as gsg
 from imas_ambix.gs.cylinder import cylinder_greens
-from imas_ambix.gs.geometry import PolygonSection, parallelogram_vertices
 from imas_ambix.gs.operator import (
     _project_bprobe,
     build_operator,
     polygon_section_column,
+)
+
+
+class _Filament(SimpleNamespace):
+    pass
+
+
+class _SensorMapping(SimpleNamespace):
+    def __init__(self, amb_channel, kind, efm_index, r, z, angle_deg, residual_m, flag):
+        super().__init__(
+            amb_channel=amb_channel,
+            kind=kind,
+            efm_index=efm_index,
+            r=r,
+            z=z,
+            angle_deg=angle_deg,
+            residual_m=residual_m,
+            flag=flag,
+        )
+
+
+class _Signature(SimpleNamespace):
+    @property
+    def key(self):
+        counts = (
+            f"mp{self.n_bprobe}-fl{self.n_fluxloop}-fc{self.n_pf_filament}"
+            f"-lim{self.n_limiter}"
+        )
+        return f"{counts}-{self.digest}"
+
+
+class _GeometryFixture(SimpleNamespace):
+    def __init__(self, **values):
+        values.setdefault("circuit_drives", [])
+        values.setdefault("active_circuits", [])
+        values.setdefault("provenance_flags", [])
+        values.setdefault("r0", 0.85)
+        values.setdefault("minor_radius", 0.65)
+        values.setdefault("passive_structures", [])
+        super().__init__(**values)
+
+
+def parallelogram_vertices(r, z, width, height, angle_deg):
+    shear = 0.5 * height * np.tan(np.deg2rad(angle_deg))
+    return np.array(
+        [
+            (r - width / 2 - shear, z - height / 2),
+            (r + width / 2 - shear, z - height / 2),
+            (r + width / 2 + shear, z + height / 2),
+            (r - width / 2 + shear, z + height / 2),
+        ]
+    )
+
+
+@dataclass(frozen=True)
+class PolygonSection:
+    circuit: int
+    vertices: np.ndarray
+    xmult: float
+    name: str = ""
+
+
+_fixtures = SimpleNamespace(
+    BProbe=SimpleNamespace,
+    FluxLoop=SimpleNamespace,
+    GeometryTable=_GeometryFixture,
+    PFFilament=_Filament,
+    SensorMapping=_SensorMapping,
+    SetupSignature=_Signature,
 )
 
 # ----------------------------------------------------------- vertex builder --
@@ -69,13 +139,13 @@ def test_polygon_column_shaped_differs_from_box():
 # ------------------------------------------------ build_operator integration --
 
 
-def _passive_table(polygon_sections=None) -> gsg.GeometryTable:
+def _passive_table(polygon_sections=None) -> _fixtures.GeometryTable:
     """Minimal synthetic table: one INFERRED passive box circuit + 3 sensors.
 
     No amc channels ⇒ every circuit is inferred passive; sensors sit in the
     finite-area near band of the box (< 3·max(da,dz) from its centroid).
     """
-    sig = gsg.SetupSignature(
+    sig = _fixtures.SetupSignature(
         n_bprobe=2,
         n_fluxloop=1,
         n_pf_filament=1,
@@ -83,21 +153,21 @@ def _passive_table(polygon_sections=None) -> gsg.GeometryTable:
         digest="deadbeef0000abcd",
     )
     b_probes = [
-        gsg.BProbe(index=0, r=1.30, z=0.30, angle_deg=-90.0, length=0.001),
-        gsg.BProbe(index=1, r=1.30, z=0.50, angle_deg=0.0, length=0.001),
+        _fixtures.BProbe(index=0, r=1.30, z=0.30, angle_deg=-90.0, length=0.001),
+        _fixtures.BProbe(index=1, r=1.30, z=0.50, angle_deg=0.0, length=0.001),
     ]
-    flux_loops = [gsg.FluxLoop(index=0, r=0.70, z=0.40)]
+    flux_loops = [_fixtures.FluxLoop(index=0, r=0.70, z=0.40)]
     pf_filaments = [
-        gsg.PFFilament(
+        _fixtures.PFFilament(
             r=1.0, z=0.30, turns=1.0, width=0.12, height=0.18, circuit=2, xmult=1.0
         )
     ]
     sensor_map = [
-        gsg.SensorMapping("b1", "b_probe", 0, 1.30, 0.30, -90.0, 0.001, ""),
-        gsg.SensorMapping("b2", "b_probe", 1, 1.30, 0.50, 0.0, 0.001, ""),
-        gsg.SensorMapping("f1", "flux_loop", 0, 0.70, 0.40, None, 0.001, ""),
+        _fixtures.SensorMapping("b1", "b_probe", 0, 1.30, 0.30, -90.0, 0.001, ""),
+        _fixtures.SensorMapping("b2", "b_probe", 1, 1.30, 0.50, 0.0, 0.001, ""),
+        _fixtures.SensorMapping("f1", "flux_loop", 0, 0.70, 0.40, None, 0.001, ""),
     ]
-    return gsg.GeometryTable(
+    return _fixtures.GeometryTable(
         signature=sig,
         shots=[1],
         b_probes=b_probes,

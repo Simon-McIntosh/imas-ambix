@@ -11,10 +11,26 @@ current distribution that is genuinely off-centre or not box-uniform.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 
+from imas_ambix.data import geometry_adapter
 from imas_ambix.gs.cylinder import hybrid_greens
-from imas_ambix.gs.geometry import PFFilament, collapse_rectangular_circuits
+
+collapse_rectangular_circuits = geometry_adapter.collapse_rectangular_circuits
+
+
+def _filament(r, z, turns, width, height, circuit, xmult):
+    return SimpleNamespace(
+        r=r,
+        z=z,
+        turns=turns,
+        width=width,
+        height=height,
+        circuit=circuit,
+        xmult=xmult,
+    )
 
 
 def _pack(circuit, r0, z0, w, h, nr, nz, xmult_each):
@@ -24,7 +40,7 @@ def _pack(circuit, r0, z0, w, h, nr, nz, xmult_each):
     for i in range(nr):
         for j in range(nz):
             out.append(
-                PFFilament(
+                _filament(
                     r=r0 - w / 2 + (i + 0.5) * dr,
                     z=z0 - h / 2 + (j + 0.5) * dz,
                     turns=1.0,
@@ -74,7 +90,7 @@ def test_collapsed_field_matches_filament_sum():
 def test_sparse_ring_not_collapsed():
     # four filaments at the corners of a big box — area sum << box area
     fils = [
-        PFFilament(r, z, 1.0, 0.02, 0.02, 3, 1.0)
+        _filament(r, z, 1.0, 0.02, 0.02, 3, 1.0)
         for r, z in [(0.4, -0.4), (0.6, -0.4), (0.4, 0.4), (0.6, 0.4)]
     ]
     out = collapse_rectangular_circuits(fils)
@@ -83,7 +99,7 @@ def test_sparse_ring_not_collapsed():
 
 def test_mixed_sign_pack_not_collapsed():
     fils = _pack(circuit=9, r0=0.5, z0=0.0, w=0.1, h=0.4, nr=2, nz=10, xmult_each=0.5)
-    fils[0] = PFFilament(
+    fils[0] = _filament(
         fils[0].r, fils[0].z, 1.0, fils[0].width, fils[0].height, 9, -0.5
     )
     out = collapse_rectangular_circuits(fils)
@@ -91,7 +107,7 @@ def test_mixed_sign_pack_not_collapsed():
 
 
 def test_single_filament_passes_through():
-    fils = [PFFilament(0.5, 0.0, 1.0, 0.05, 0.05, 4, 1.0)]
+    fils = [_filament(0.5, 0.0, 1.0, 0.05, 0.05, 4, 1.0)]
     out = collapse_rectangular_circuits(fils)
     assert len(out) == 1 and out[0] is fils[0]
 
@@ -105,7 +121,7 @@ def _gapped_pack(circuit, r0, z0, w, h, nr, nz, gap):
     for i in range(nr):
         for j in range(nz):
             out.append(
-                PFFilament(
+                _filament(
                     r=r0 - w / 2 + (i + 0.5) * dr,
                     z=z0 - h / 2 + (j + 0.5) * dz,
                     turns=1.0,
@@ -132,11 +148,11 @@ def test_staggered_pack_not_collapsed():
     # the current-weighted centroid sits left of the bounding-box centre (the
     # P4/P5 ragged-winding signature).  A single rectangle would mis-place it.
     fils = []
-    for i, rr in enumerate((0.46, 0.48)):  # left block (more current)
+    for rr in (0.46, 0.48):  # left block (more current)
         for zz in (-0.02, 0.0, 0.02):
-            fils.append(PFFilament(rr, zz, 1.0, 0.02, 0.02, 8, 1.0))
+            fils.append(_filament(rr, zz, 1.0, 0.02, 0.02, 8, 1.0))
     for zz in (-0.02, 0.0, 0.02):  # single right column, far side
-        fils.append(PFFilament(0.56, zz, 1.0, 0.02, 0.02, 8, 1.0))
+        fils.append(_filament(0.56, zz, 1.0, 0.02, 0.02, 8, 1.0))
     out = collapse_rectangular_circuits(fils)
     assert len(out) == len(fils), "staggered pack must keep its exact lattice"
 
@@ -147,6 +163,6 @@ def test_hollow_frame_not_collapsed():
     fils = []
     for r in (0.40, 0.60):
         for z in np.linspace(-0.2, 0.2, 5):
-            fils.append(PFFilament(r, float(z), 1.0, 0.02, 0.02, 14, 1.0))
+            fils.append(_filament(r, float(z), 1.0, 0.02, 0.02, 14, 1.0))
     out = collapse_rectangular_circuits(fils)
     assert len(out) == len(fils), "hollow frame must keep its exact lattice"

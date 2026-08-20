@@ -10,14 +10,44 @@ pair evaluated through the module's own filament kernel.
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
 from imas_ambix.gs import force_balance as fb
-from imas_ambix.gs import geometry as gsg
 from imas_ambix.gs import operator as op
-from imas_ambix.gs.machine_geometry import _project_operator_geometry
+from imas_ambix.gs.machine_geometry import GeometryIdentity, OperatorGeometry
+
+
+def _filament(r, z, turns, width, height, circuit, xmult):
+    return SimpleNamespace(
+        r=r, z=z, turns=turns, width=width, height=height, circuit=circuit, xmult=xmult
+    )
+
+
+def _geometry(conductors):
+    return OperatorGeometry(
+        identity=GeometryIdentity("synthetic", "synthetic", "fixture", "", ""),
+        probes=(),
+        loops=(),
+        conductors=tuple(conductors),
+        passives=(),
+        limiter_r=(0.3, 1.6, 1.6, 0.3),
+        limiter_z=(-1.0, -1.0, 1.0, 1.0),
+        polygon_sections=(),
+        drive_map=(),
+        sensor_map=(),
+        unmatched_channels=(),
+        active_circuits=(),
+        available_current_channels=("p4u_coil_current", "plasma_current"),
+        r0=0.85,
+        minor_radius=0.65,
+        unresolved_turns={},
+        coil_channels=(),
+        coil_column_matrix=np.zeros((0, 0)),
+    )
+
 
 # --- Shafranov vertical-field requirement ------------------------------
 
@@ -125,10 +155,10 @@ def test_decay_index_coil_pair_dipole_limit():
     dipole fall-off B_z ∝ R⁻³ to within the O((a/R)²) correction.
     """
     pair = [
-        gsg.PFFilament(
+        _filament(
             r=0.1, z=+0.05, turns=1.0, width=0.0, height=0.0, circuit=1, xmult=1.0
         ),
-        gsg.PFFilament(
+        _filament(
             r=0.1, z=-0.05, turns=1.0, width=0.0, height=0.0, circuit=1, xmult=1.0
         ),
     ]
@@ -147,9 +177,7 @@ def test_decay_index_coil_pair_dipole_limit():
 def test_filament_bz_matches_textbook_loop_centre():
     """A unit point loop's central field is μ0/(2a) per ampere."""
     loop = [
-        gsg.PFFilament(
-            r=0.5, z=0.0, turns=1.0, width=0.0, height=0.0, circuit=1, xmult=1.0
-        )
+        _filament(r=0.5, z=0.0, turns=1.0, width=0.0, height=0.0, circuit=1, xmult=1.0)
     ]
     bz = fb.filament_bz(np.array([1e-8]), np.array([0.0]), loop)
     assert bz[0] == pytest.approx(op.MU0 / (2.0 * 0.5), rel=1e-6)
@@ -157,9 +185,7 @@ def test_filament_bz_matches_textbook_loop_centre():
 
 def test_filament_bz_respects_xmult_weighting():
     loop = [
-        gsg.PFFilament(
-            r=0.5, z=0.0, turns=1.0, width=0.0, height=0.0, circuit=1, xmult=0.25
-        )
+        _filament(r=0.5, z=0.0, turns=1.0, width=0.0, height=0.0, circuit=1, xmult=0.25)
     ]
     bz = fb.filament_bz(np.array([1e-8]), np.array([0.0]), loop)
     assert bz[0] == pytest.approx(0.25 * op.MU0 / (2.0 * 0.5), rel=1e-6)
@@ -168,90 +194,69 @@ def test_filament_bz_respects_xmult_weighting():
 # --- known-coil column assembly (mirror of the operator merge) -----------
 
 
-def _synthetic_table() -> gsg.GeometryTable:
+def _synthetic_table() -> OperatorGeometry:
     """One KNOWN P4U-like coil represented by two redundant circuits + one
     passive circuit — the merge/average case the operator resolves."""
     pf = [
         # circuit 1 and circuit 3 both represent the SAME physical coil,
         # each normalised to the full coil current (Σxmult = 1)
-        gsg.PFFilament(
+        _filament(
             r=1.50, z=1.10, turns=1.0, width=0.02, height=0.02, circuit=1, xmult=1.0
         ),
-        gsg.PFFilament(
+        _filament(
             r=1.50, z=1.10, turns=1.0, width=0.02, height=0.02, circuit=3, xmult=1.0
         ),
         # far structural conductor → INFERRED passive
-        gsg.PFFilament(
+        _filament(
             r=2.0, z=0.0, turns=1.0, width=0.01, height=0.01, circuit=2, xmult=1.0
         ),
     ]
-    sig = gsg.SetupSignature(
-        n_bprobe=0,
-        n_fluxloop=0,
-        n_pf_filament=3,
-        n_limiter=4,
-        digest="deadbeef00000000",
-    )
-    return gsg.GeometryTable(
-        signature=sig,
-        shots=[12345],
-        b_probes=[],
-        flux_loops=[],
-        pf_filaments=pf,
-        limiter_r=[0.3, 1.6, 1.6, 0.3],
-        limiter_z=[-1.0, -1.0, 1.0, 1.0],
-        sensor_map=[],
-        passive_structures=[],
-        amc_current_channels=["p4u_coil_current", "plasma_current"],
-        unmatched_amb=[],
-    )
+    return _geometry(pf)
 
 
 def test_known_coil_bz_merges_redundant_circuits_once():
     """Two redundant full-coil circuits must AVERAGE into one column — the
     same no-double-count rule the sensor operator applies."""
     table = _synthetic_table()
-    geometry = _project_operator_geometry(table)
+    geometry = table
     r = np.array([0.9])
     z = np.array([0.0])
     channels, cols = fb.known_coil_bz(geometry, r, z)
     assert channels == ["p4u_coil_current"]
     assert cols.shape == (1, 1)
-    single = fb.filament_bz(r, z, [table.pf_filaments[0]])
+    single = fb.filament_bz(r, z, [table.conductors[0]])
     assert cols[0, 0] == pytest.approx(single[0], rel=1e-9)
 
 
 def test_known_coil_channel_order_matches_operator():
     """Column order must equal ForwardOperator.pf_amc_channels so measured
     i_pf vectors apply without permutation."""
-    geometry = _project_operator_geometry(_synthetic_table())
+    geometry = _synthetic_table()
     fwd = op.build_operator(geometry)
-    channels, _cols = fb.known_coil_bz(
-        geometry, np.array([0.9]), np.array([0.0])
-    )
+    channels, _cols = fb.known_coil_bz(geometry, np.array([0.9]), np.array([0.0]))
     assert channels == fwd.pf_amc_channels
 
 
 def test_known_coil_psi_matches_operator_merge_and_order():
     """The ψ columns share the B_z assembly: same channels, same merge."""
     table = _synthetic_table()
-    geometry = _project_operator_geometry(table)
+    geometry = table
     r = np.array([0.9])
     z = np.array([0.0])
     channels, cols = fb.known_coil_psi(geometry, r, z)
     assert channels == ["p4u_coil_current"]
-    single = fb.filament_psi(r, z, [table.pf_filaments[0]])
+    single = fb.filament_psi(r, z, [table.conductors[0]])
     assert cols[0, 0] == pytest.approx(single[0], rel=1e-9)
 
 
 def test_passive_circuit_bz_column_per_circuit():
     table = _synthetic_table()
-    geometry = _project_operator_geometry(table)
+    geometry = table
     cols = fb.passive_circuit_bz(
         geometry, np.array([2]), np.array([0.9]), np.array([0.0])
     )
     assert cols.shape == (1, 1)
-    expected = fb.filament_bz(np.array([0.9]), np.array([0.0]), [table.pf_filaments[2]])
+    expected = fb.filament_bz(np.array([0.9]), np.array([0.0]), [table.conductors[2]])
     assert cols[0, 0] == pytest.approx(expected[0], rel=1e-12)
 
 
