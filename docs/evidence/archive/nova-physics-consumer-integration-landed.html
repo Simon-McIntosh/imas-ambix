@@ -658,6 +658,65 @@
   Verification receipt:
   <code>PASS core_imports=0/4 core_focused=35p/0f tests_gs=236p/0f scripts_imports=0/21
   derivation=18/18-byte-identical identity=unchanged tracked_baseline=59/65</code>.</p>
+
+  <h2 id="donor-retirement">The geometry donor's consumer surface is retired — 59 importers to zero</h2>
+  <p><strong>Every consumer stopped importing the table type, the facade's shape held under the
+  whole migration, and the two failures that looked like collateral damage were measured to be
+  neither.</strong> Terminal gate at integrated Ambix <code>a733d577</code>, run-only, no commit.
+  The census is word-boundary strict, because the loose pattern
+  <code>from imas_ambix.gs import geometry</code> is a prefix of <code>geometry_export</code> and
+  inflated every intermediate count in this session by exactly one file.</p>
+
+  <table>
+    <caption>Terminal gate, six clauses on one integrated run</caption>
+    <thead><tr><th>Clause</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Strict tracked import census</td>
+          <td>4 importers plus the defining kernel — the permitted five, <strong>0 consumer
+          importers</strong>, from 59 at design time</td></tr>
+      <tr><td>Facade public surface</td>
+          <td><code>__all__</code> exactly <code>GeometryIdentity</code>,
+          <code>MachineGeometryService</code>, <code>OperatorGeometry</code>,
+          <code>SensorGeometry</code>; 0 table exports, 0 record-constructor exports</td></tr>
+      <tr><td>Representation identity, shot 11766</td>
+          <td>Observed <code>mp78-fl80-fc70-lim37-2f6472393311692b</code></td></tr>
+      <tr><td>Full <code>tests/gs</code></td><td>238 passed / 0 failed</td></tr>
+      <tr><td>Full <code>tests/latent</code></td>
+          <td>496 passed / 3 failed / 3 skipped in 387.57 s — exactly the recorded baseline,
+          0 new failures</td></tr>
+      <tr><td><code>test_description_identity.py</code> classification</td>
+          <td>Base <code>23a79ee</code> 1 passed / 2 failed, identical failing paths and identical
+          first mismatch to HEAD — <strong>pre-existing and Nova-side</strong></td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>The permitted five, each justified rather than tolerated.</strong>
+  <code>imas_ambix/gs/geometry.py</code> is the private kernel itself;
+  <code>imas_ambix/data/geometry_adapter.py</code> and
+  <code>imas_ambix/gs/artifact_geometry.py</code> <em>build</em> it, so migrating them onto the
+  facade they feed would be circular; <code>imas_ambix/gs/machine_geometry.py</code> is the facade,
+  which must import the kernel privately for the projections to exist at all; and
+  <code>tests/gs/test_geometry.py</code> is the kernel's own unit test, which is exactly where a
+  private-name reference belongs. Any sixth survivor would be a defect.</p>
+
+  <p><strong>The differential classification is why this gate cost a resume, and it earned it.</strong>
+  Two <code>tests/data/test_description_identity.py</code> failures were fenced out of every
+  tranche, so nothing in the migration could have told us whose they were. A diff was suggestive —
+  <code>git diff 23a79ee..HEAD</code> is empty for that test, its imported modules and the packaged
+  machine-map assets — but that test reads the <em>live</em> corpus and the <em>live</em> Nova
+  description, and Nova republished descriptions repeatedly during this session, so only an
+  execution at base could separate our commits from Nova's churn. It came back identical. The
+  residual defect is Nova-side: corpus description partitions mismatch from shot 12417 onward.
+  The worker's first attempt correctly refused to substitute the diff for the run, and blocked on an
+  orchestrator fence error — it had been asked to run at a base revision while its contract forbids
+  creating worktrees. The coordinator supplied the worktree; the classification completed.</p>
+
+  <p>Nova HEAD did not move during this run, holding at <code>2c082127</code> before and after, with
+  the resolved physical digest at <code>b55c5bb0</code> — the one run today where the digest
+  invariant had nothing to absorb. Verification receipt:
+  <code>PASS census=4+kernel/permitted-5 consumers=0 exports=4/0/0
+  identity=mp78-fl80-fc70-lim37-2f6472393311692b tests_gs=238p/0f tests_latent=496p/3f/3s-baseline
+  description_identity=pre-existing nova=2c082127-stable digest=b55c5bb0</code>.</p>
 </main>
 </body>
 </html>
