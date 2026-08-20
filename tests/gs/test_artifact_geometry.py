@@ -18,6 +18,8 @@ Two layers:
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
@@ -27,7 +29,6 @@ from imas_ambix.data.description_reader import (
 )
 from imas_ambix.gs import artifact_geometry as ag
 from imas_ambix.gs import artifact_resolution as resolution
-from imas_ambix.gs.geometry import GeometryTable, SetupSignature
 
 imas = pytest.importorskip("imas")
 
@@ -417,18 +418,11 @@ def test_a_toroidally_spread_flux_loop_is_flagged_but_a_co_located_one_is_not():
 # --- the unresolved-turn guard ----------------------------------------------
 
 
-def _table(turns: list[float]) -> GeometryTable:
-    from imas_ambix.gs.geometry import PFFilament
-
-    return GeometryTable(
-        signature=SetupSignature(
-            n_bprobe=0, n_fluxloop=0, n_pf_filament=len(turns), n_limiter=0, digest="x"
-        ),
-        shots=[1],
-        b_probes=[],
-        flux_loops=[],
+def _table(turns: list[float]) -> SimpleNamespace:
+    return SimpleNamespace(
+        signature=SimpleNamespace(key="fixture"),
         pf_filaments=[
-            PFFilament(
+            SimpleNamespace(
                 r=1.0,
                 z=0.0,
                 turns=t,
@@ -439,12 +433,6 @@ def _table(turns: list[float]) -> GeometryTable:
             )
             for i, t in enumerate(turns)
         ],
-        limiter_r=[],
-        limiter_z=[],
-        sensor_map=[],
-        passive_structures=[],
-        amc_current_channels=[],
-        unmatched_amb=[],
     )
 
 
@@ -464,11 +452,9 @@ def test_the_guard_passes_a_fully_sourced_table():
 
 
 def test_the_sensor_arrays_are_presented_in_the_shape_the_mapper_reads():
-    from imas_ambix.gs.geometry import BProbe, FluxLoop
-
     arrays = ag.sensor_position_arrays(
-        [BProbe(index=0, r=1.0, z=0.5, angle_deg=-90.0, length=0.02)],
-        [FluxLoop(index=0, r=1.4, z=-0.3)],
+        [SimpleNamespace(index=0, r=1.0, z=0.5, angle_deg=-90.0, length=0.02)],
+        [SimpleNamespace(index=0, r=1.4, z=-0.3)],
     )
 
     assert set(arrays) == {"magpr_r", "magpr_z", "magpr_ang", "silop_r", "silop_z"}
@@ -707,6 +693,7 @@ def test_a_campaign_channel_set_is_what_makes_the_table_drivable(described_machi
     geometry table into one a forward operator can build a coil block from.
     """
     from imas_ambix.gs import operator as op
+
     channels = read_acquisition_channels((_SHOT,)).currents
     assert channels
 
@@ -806,6 +793,7 @@ def test_the_supplied_conductors_are_the_ones_the_source_files_as_active(
     classification takes.
     """
     from imas_ambix.gs import operator as op
+
     channels = read_acquisition_channels((_SHOT,)).currents
     table = ag.MachineArtifactGeometryReader(
         cache_directory=described_machine.cache_directory,
@@ -837,6 +825,7 @@ def test_the_supplied_conductors_are_the_ones_the_source_files_as_active(
 def driven_operators(described_machine):
     """The artifact operator and the campaign operator, on shared sensor rows."""
     from imas_ambix.gs import operator as op
+
     efm = read_geometry_table(_SHOT)
     acquisition = read_acquisition_channels((_SHOT,))
     artifact = ag.MachineArtifactGeometryReader(

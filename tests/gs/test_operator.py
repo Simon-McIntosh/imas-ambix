@@ -17,13 +17,84 @@ Three layers:
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 from scipy.special import ellipk
 
+from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.data.paths import MANIFEST_DIR
-from imas_ambix.gs import geometry as gsg
 from imas_ambix.gs import operator as op
+
+
+class _Filament(SimpleNamespace):
+    def __init__(self, r, z, turns, width, height, circuit, xmult):
+        super().__init__(
+            r=r,
+            z=z,
+            turns=turns,
+            width=width,
+            height=height,
+            circuit=circuit,
+            xmult=xmult,
+        )
+
+
+class _BProbe(SimpleNamespace):
+    pass
+
+
+class _FluxLoop(SimpleNamespace):
+    pass
+
+
+class _SensorMapping(SimpleNamespace):
+    def __init__(self, amb_channel, kind, efm_index, r, z, angle_deg, residual_m, flag):
+        super().__init__(
+            amb_channel=amb_channel,
+            kind=kind,
+            efm_index=efm_index,
+            r=r,
+            z=z,
+            angle_deg=angle_deg,
+            residual_m=residual_m,
+            flag=flag,
+        )
+
+
+class _Signature(SimpleNamespace):
+    @property
+    def key(self):
+        counts = (
+            f"mp{self.n_bprobe}-fl{self.n_fluxloop}-fc{self.n_pf_filament}"
+            f"-lim{self.n_limiter}"
+        )
+        return f"{counts}-{self.digest}"
+
+
+class _GeometryFixture(SimpleNamespace):
+    def __init__(self, **values):
+        values.setdefault("polygon_sections", [])
+        values.setdefault("circuit_drives", [])
+        values.setdefault("active_circuits", [])
+        values.setdefault("provenance_flags", [])
+        values.setdefault("r0", 0.85)
+        values.setdefault("minor_radius", 0.65)
+        super().__init__(**values)
+
+
+_fixtures = SimpleNamespace(
+    BProbe=_BProbe,
+    FluxLoop=_FluxLoop,
+    GeometryTable=_GeometryFixture,
+    PFFilament=_Filament,
+    PassiveStructure=SimpleNamespace,
+    SensorMapping=_SensorMapping,
+    SetupSignature=_Signature,
+)
 
 # --- physics: Green's-function correctness ----------------------------
 
@@ -98,30 +169,30 @@ def test_field_falls_off_with_distance():
 # --- synthetic geometry table for operator assembly -------------------
 
 
-def _synthetic_table() -> gsg.GeometryTable:
+def _synthetic_table() -> _fixtures.GeometryTable:
     """A minimal campaign table: 1 vertical + 1 radial probe, 1 flux loop,
     one KNOWN PF coil (P4U-like centroid) + one passive structural circuit,
     one unmatched + one flagged amb channel."""
     # sensors
-    bp_v = gsg.BProbe(index=0, r=1.5, z=0.0, angle_deg=-90.0, length=0.025)
-    bp_r = gsg.BProbe(index=1, r=1.5, z=0.0, angle_deg=0.0, length=0.025)
-    fl = gsg.FluxLoop(index=0, r=1.3, z=0.5)
+    bp_v = _fixtures.BProbe(index=0, r=1.5, z=0.0, angle_deg=-90.0, length=0.025)
+    bp_r = _fixtures.BProbe(index=1, r=1.5, z=0.0, angle_deg=0.0, length=0.025)
+    fl = _fixtures.FluxLoop(index=0, r=1.3, z=0.5)
     # KNOWN PF coil — filaments near the P4U centroid (1.50, 1.10), Σxmult=1
     pf_known = [
-        gsg.PFFilament(
+        _fixtures.PFFilament(
             r=1.50, z=1.10, turns=1.0, width=0.01, height=0.01, circuit=1, xmult=0.5
         ),
-        gsg.PFFilament(
+        _fixtures.PFFilament(
             r=1.50, z=1.10, turns=1.0, width=0.01, height=0.01, circuit=1, xmult=0.5
         ),
     ]
     # passive structural circuit — far from any coil centroid → INFERRED
     pf_passive = [
-        gsg.PFFilament(
+        _fixtures.PFFilament(
             r=2.0, z=0.0, turns=1.0, width=0.01, height=0.01, circuit=2, xmult=1.0
         ),
     ]
-    sig = gsg.SetupSignature(
+    sig = _fixtures.SetupSignature(
         n_bprobe=2,
         n_fluxloop=1,
         n_pf_filament=3,
@@ -129,10 +200,10 @@ def _synthetic_table() -> gsg.GeometryTable:
         digest="deadbeef00000000",
     )
     sensor_map = [
-        gsg.SensorMapping("obv01", "b_probe", 0, 1.5, 0.0, -90.0, 0.001, ""),
-        gsg.SensorMapping("obr01", "b_probe", 1, 1.5, 0.0, 0.0, 0.001, ""),
-        gsg.SensorMapping("fl_p4u_1", "flux_loop", 0, 1.3, 0.5, None, 0.001, ""),
-        gsg.SensorMapping(
+        _fixtures.SensorMapping("obv01", "b_probe", 0, 1.5, 0.0, -90.0, 0.001, ""),
+        _fixtures.SensorMapping("obr01", "b_probe", 1, 1.5, 0.0, 0.0, 0.001, ""),
+        _fixtures.SensorMapping("fl_p4u_1", "flux_loop", 0, 1.3, 0.5, None, 0.001, ""),
+        _fixtures.SensorMapping(
             "fl_cc01",
             "flux_loop",
             0,
@@ -143,7 +214,7 @@ def _synthetic_table() -> gsg.GeometryTable:
             "non-unique: silop[0] claimed by ['fl_cc01','fl_cc02']",
         ),
     ]
-    return gsg.GeometryTable(
+    return _fixtures.GeometryTable(
         signature=sig,
         shots=[12345],
         b_probes=[bp_v, bp_r],
@@ -153,7 +224,7 @@ def _synthetic_table() -> gsg.GeometryTable:
         limiter_z=[-1.0, -1.0, 1.0, 1.0],
         sensor_map=sensor_map,
         passive_structures=[
-            gsg.PassiveStructure(name="wall_a", r=2.0, z=0.0, obsolete=False)
+            _fixtures.PassiveStructure(name="wall_a", r=2.0, z=0.0, obsolete=False)
         ],
         amc_current_channels=["p4u_coil_current", "p4u_current", "plasma_current"],
         unmatched_amb=["fl_p2u_1"],
@@ -243,15 +314,15 @@ def test_g_pf_folds_xmult_split():
     assert np.allclose(operator.g_pf[:, 0], single, rtol=1e-12)
 
 
-def _solenoid_table() -> gsg.GeometryTable:
+def _solenoid_table() -> _fixtures.GeometryTable:
     """Synthetic table with one solenoid-centroid coil (Rc≈0.14, Z≈0) mapped to
     ``sol_current`` plus one ordinary PF coil — to exercise the response scale."""
     table = _synthetic_table()
     table.pf_filaments = list(table.pf_filaments) + [
-        gsg.PFFilament(
+        _fixtures.PFFilament(
             r=0.14, z=0.30, turns=1.0, width=0.02, height=0.30, circuit=5, xmult=0.5
         ),
-        gsg.PFFilament(
+        _fixtures.PFFilament(
             r=0.14, z=-0.30, turns=1.0, width=0.02, height=0.30, circuit=5, xmult=0.5
         ),
     ]
@@ -290,10 +361,10 @@ def test_redundant_circuits_merge_no_double_count():
     # add a SECOND P4U circuit (coarse 2-filament representation, Σxmult=1) at
     # the same coil location, mapped to the same amc channel.
     table.pf_filaments = list(table.pf_filaments) + [
-        gsg.PFFilament(
+        _fixtures.PFFilament(
             r=1.49, z=1.10, turns=1.0, width=0.01, height=0.01, circuit=3, xmult=0.5
         ),
-        gsg.PFFilament(
+        _fixtures.PFFilament(
             r=1.51, z=1.10, turns=1.0, width=0.01, height=0.01, circuit=3, xmult=0.5
         ),
     ]
@@ -387,17 +458,43 @@ _skip_no_tables = pytest.mark.skipif(
     not _HAVE_TABLES, reason="geometry tables artifact not available (CI)"
 )
 
+_FROZEN_CAMPAIGN_SHOTS = {
+    "mp78-fl46-fc1004-lim37-9425ae4a8bf3bc15": 11766,
+    "mp78-fl46-fc1004-lim37-edd753d282903679": 12417,
+    "mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4": 21978,
+}
 
-def _load_real_tables() -> dict[str, gsg.GeometryTable]:
-    """Load campaign tables through their convention-aware reader."""
 
-    return gsg.load_tables(MANIFEST_DIR / "gs_geometry_tables.json")
+def _frozen_geometry_summary() -> dict[str, object]:
+    path = Path(op.__file__).with_name("artifacts") / "gs_geometry_summary.json"
+    return json.loads(path.read_text())["campaigns"]
+
+
+def _load_real_tables() -> dict[str, object]:
+    """Read one source-backed shot for each frozen-verdict campaign range."""
+    return {
+        historical_key: read_geometry_table(shot)
+        for historical_key, shot in _FROZEN_CAMPAIGN_SHOTS.items()
+    }
+
+
+def _build_real_operators(tables: dict[str, object]) -> dict[str, op.ForwardOperator]:
+    """Build live inputs while retaining the frozen labels only for selection."""
+    operators = {
+        historical_key: op.build_operator(table)
+        for historical_key, table in tables.items()
+    }
+    for historical_key, operator in operators.items():
+        assert historical_key in _frozen_geometry_summary()
+        assert operator.signature_key == tables[historical_key].signature.key
+    return operators
 
 
 @_skip_no_tables
 def test_real_operators_build_for_all_campaigns():
     tables = _load_real_tables()
-    operators = op.build_all_operators(tables)
+    assert set(tables) == set(_FROZEN_CAMPAIGN_SHOTS)
+    operators = _build_real_operators(tables)
     assert len(operators) == len(tables)
     for operator in operators.values():
         s = operator.shapes()
@@ -416,7 +513,7 @@ def test_real_operators_build_for_all_campaigns():
 @_skip_no_tables
 def test_real_operator_known_pf_maps_solenoid_and_pf_coils():
     tables = _load_real_tables()
-    operators = op.build_all_operators(tables)
+    operators = _build_real_operators(tables)
     # pick the dominant fc938 campaign
     key = next(k for k in operators if "fc938" in k)
     operator = operators[key]
@@ -456,7 +553,7 @@ def test_real_vacuum_round_trip_matches_raw_amb_at_near_vacuum_slice():
     from imas_ambix.data.paths import local_shot_path  # noqa: PLC0415
 
     tables = _load_real_tables()
-    operators = op.build_all_operators(tables)
+    operators = _build_real_operators(tables)
     key = next(k for k in operators if "fc938" in k)
     operator = operators[key]
     shot = tables[key].shots[0]
@@ -508,8 +605,9 @@ def test_passive_amm_coincidence_documented():
     tables = _load_real_tables()
     key = next(k for k in operators_keys(tables) if "fc1004" in k)
     coin = op.passive_amm_coincidence(tables[key])
+    frozen = _frozen_geometry_summary()[key]
     assert coin["n_inferred_passive_circuit"] > 0
-    assert coin["n_amm_passive_structure"] == 76
+    assert frozen["coverage"]["n_passive_structure"] == 76
     # the fc1004 singletons are known to overlap amm geometry
     assert coin["n_coincident_within_tol"] > 0
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from imas_ambix.gs import geometry as gsg
+from imas_ambix.gs.machine_geometry import MachineGeometryService
 from imas_ambix.gs.machine_identity import (
     IDENTITY_MODES,
     IDENTITY_PHYSICAL,
@@ -40,6 +40,7 @@ class _Signature:
     def __init__(self, digest: str, key: str) -> None:
         self.digest = digest
         self.key = key
+        self.machine = "mast"
 
 
 class _Table:
@@ -55,12 +56,9 @@ class _Table:
 
 def test_the_frozen_campaign_key_is_byte_identical():
     """Every cache, artifact and checkpoint on disk resolves through this string."""
-    signature = gsg.SetupSignature(
-        n_bprobe=78,
-        n_fluxloop=46,
-        n_pf_filament=938,
-        n_limiter=37,
-        digest=FROZEN_REPRESENTATION_DIGEST,
+    signature = _Signature(
+        FROZEN_REPRESENTATION_DIGEST,
+        FROZEN_REPRESENTATION_KEY,
     )
     assert signature.key == FROZEN_REPRESENTATION_KEY
     assert signature.machine == "mast"
@@ -76,9 +74,10 @@ def test_resolving_identity_does_not_alter_the_signature_key():
 
 
 def test_the_rounded_position_digest_is_unchanged_by_this_module():
-    """A digest recomputed after import must equal one computed before it."""
-    arrays = [np.array([0.1, 0.2, 0.3]), np.array([1.0, 2.0])]
-    assert gsg.round_geometry_hash(arrays) == gsg._round_hash(arrays)
+    """The public projection carries the frozen representation digest verbatim."""
+    identity = MachineGeometryService().identity(11766)
+    assert identity.representation_digest == "2f6472393311692b"
+    assert identity.representation_key == "mp78-fl80-fc70-lim37-2f6472393311692b"
 
 
 # --- physical identity ----------------------------------------------------

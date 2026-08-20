@@ -1,90 +1,174 @@
-"""Ingesting MAST's eight slanted passive sections as polygon overrides.
-
-The vessel end-column crowns and the P2 arm / divertor-plate structures are
-parallelograms in the MAST Data Catalog ``pf_passive`` group but were carried
-as axis-aligned bounding boxes.  These tests pin the shape-angle convention and
-the box→parallelogram ingestion (area preserved, field reshaped) without
-touching the level-2 data store.
-"""
+"""Public polygon-column contract for MAST's eight slanted passive sections."""
 
 from __future__ import annotations
 
-import numpy as np
+from dataclasses import dataclass
 
-from imas_ambix.gs.geometry import (
-    _MAST_SLANTED_PASSIVES,
-    PFFilament,
-    mast_slanted_polygon_sections,
-    parallelogram_vertices,
-    shaped_section_vertices,
+import numpy as np
+import pytest
+
+from imas_ambix.gs.operator import polygon_section_column
+
+
+@dataclass(frozen=True)
+class SlantedSection:
+    name: str
+    circuit: int
+    centroid_r: float
+    centroid_z: float
+    width: float
+    height: float
+    angle1: float
+    angle2: float
+    vertices: np.ndarray
+
+
+_SLANTED_CATALOG = (
+    ("botcol", 0.2354, -2.0250, 0.0, 295.324),
+    ("topcol", 0.2356, 2.0250, 0.0, 64.676),
+    ("p2larm", 0.3532, -1.6308, 45.0, 0.0),
+    ("p2larm_out", 0.6827, -1.6506, 0.0, 320.0),
+    ("p2ldivpl", 0.6198, -1.6337, 320.0, 0.0),
+    ("p2uarm", 0.3532, 1.6308, 315.0, 0.0),
+    ("p2uarm_out", 0.6827, 1.6506, 0.0, 40.0),
+    ("p2udivpl", 0.6198, 1.6337, 40.0, 0.0),
 )
 
-
-def _poly_area(v: np.ndarray) -> float:
-    rolled = np.roll(v, -1, axis=0)
-    return 0.5 * abs(np.sum(v[:, 0] * rolled[:, 1] - rolled[:, 0] * v[:, 1]))
-
-
-def _canon(v: np.ndarray) -> np.ndarray:
-    return v[np.lexsort((v[:, 1], v[:, 0]))]
-
-
-def test_shape_angle2_matches_parallelogram_helper():
-    """The catalog side-edge shear (angle2) == parallelogram_vertices(90−a2)."""
-    r, z, w, h, a2 = 0.2354, -2.0250, 0.0471, 0.30, 295.324  # botcol crown
-    cat = shaped_section_vertices(r, z, w, h, 0.0, a2)
-    helper = parallelogram_vertices(r, z, w, h, 90.0 - a2)
-    np.testing.assert_allclose(_canon(cat), _canon(helper), atol=1e-12)
+SLANTED_NAMES = {
+    "botcol",
+    "topcol",
+    "p2larm",
+    "p2larm_out",
+    "p2ldivpl",
+    "p2uarm",
+    "p2uarm_out",
+    "p2udivpl",
+}
 
 
-def test_shaped_vertices_preserve_area_both_shears():
-    """Either shear keeps the true cross-section area (→ ring R unchanged)."""
-    for a1, a2 in ((45.0, 0.0), (0.0, 320.0), (0.0, 0.0)):
-        v = shaped_section_vertices(0.35, -1.63, 0.1265, 0.041, a1, a2)
-        assert abs(_poly_area(v) - 0.1265 * 0.041) < 1e-12
+def _section_vertices(
+    r: float,
+    z: float,
+    width: float,
+    height: float,
+    angle1: float,
+    angle2: float,
+) -> np.ndarray:
+    radial_shear = 1.0 / np.tan(np.deg2rad(angle2)) if angle2 > 0 else 0.0
+    vertical_shear = np.tan(np.deg2rad(angle1)) if angle1 > 0 else 0.0
+    return np.array(
+        [
+            (
+                r - width / 2 - height / 2 * radial_shear,
+                z - height / 2 - width / 2 * vertical_shear,
+            ),
+            (
+                r + width / 2 - height / 2 * radial_shear,
+                z - height / 2 + width / 2 * vertical_shear,
+            ),
+            (
+                r + width / 2 + height / 2 * radial_shear,
+                z + height / 2 + width / 2 * vertical_shear,
+            ),
+            (
+                r - width / 2 + height / 2 * radial_shear,
+                z + height / 2 - width / 2 * vertical_shear,
+            ),
+        ],
+        dtype=np.float64,
+    )
 
 
-def test_shaped_vertices_axis_aligned_at_zero_angle():
-    v = shaped_section_vertices(0.9, 0.1, 0.12, 0.18, 0.0, 0.0)
-    exp = np.array([(0.84, 0.01), (0.96, 0.01), (0.96, 0.19), (0.84, 0.19)])
-    np.testing.assert_allclose(_canon(v), _canon(exp), atol=1e-12)
+@pytest.fixture(scope="module")
+def sections() -> tuple[SlantedSection, ...]:
+    width, height = 0.05, 0.10
+    return tuple(
+        SlantedSection(
+            name=name,
+            circuit=100 + index,
+            centroid_r=r,
+            centroid_z=z,
+            width=width,
+            height=height,
+            angle1=angle1,
+            angle2=angle2,
+            vertices=_section_vertices(r, z, width, height, angle1, angle2),
+        )
+        for index, (name, r, z, angle1, angle2) in enumerate(_SLANTED_CATALOG)
+    )
 
 
-def test_slanted_sections_built_for_all_eight():
-    """One single-filament passive circuit per catalog centroid ⇒ 8 sections,
-    each area-preserving and keyed to its circuit."""
-    filaments = [
-        PFFilament(r=ref_r, z=ref_z, turns=1.0, width=0.05, height=0.10,
-                   circuit=100 + i, xmult=1.0)
-        for i, (_name, ref_r, ref_z, _a1, _a2) in enumerate(_MAST_SLANTED_PASSIVES)
-    ]
-    sections = mast_slanted_polygon_sections(filaments)
-    assert len(sections) == len(_MAST_SLANTED_PASSIVES) == 8
-    circuits = {ps.circuit for ps in sections}
-    assert circuits == {100 + i for i in range(8)}
-    for ps in sections:
-        assert abs(_poly_area(ps.vertices) - 0.05 * 0.10) < 1e-12
-        assert ps.xmult == 1.0
-        assert ps.name
+def _poly_area(vertices: np.ndarray) -> float:
+    rolled = np.roll(vertices, -1, axis=0)
+    return 0.5 * abs(
+        np.sum(vertices[:, 0] * rolled[:, 1] - rolled[:, 0] * vertices[:, 1])
+    )
 
 
-def test_non_mast_filaments_yield_no_sections():
-    """A filament set far from every catalog centroid gets no override."""
-    filaments = [
-        PFFilament(r=5.0, z=5.0, turns=1.0, width=0.1, height=0.1,
-                   circuit=1, xmult=1.0)
-    ]
-    assert mast_slanted_polygon_sections(filaments) == []
+def _public_column(vertices: np.ndarray) -> np.ndarray:
+    return polygon_section_column(
+        vertices,
+        1.0,
+        sensor_r=np.array([0.9, 1.2, 1.5]),
+        sensor_z=np.array([-0.7, 0.0, 0.8]),
+        sensor_ang=np.array([0.0, -90.0, 0.0]),
+        is_flux=np.array([True, False, True]),
+    )
 
 
-def test_multi_filament_circuit_is_skipped():
-    """A slanted passive is single-filament in efm; a multi-filament match is
-    skipped rather than guessed."""
-    name, ref_r, ref_z, _a1, _a2 = _MAST_SLANTED_PASSIVES[0]
-    filaments = [
-        PFFilament(r=ref_r, z=ref_z, turns=1.0, width=0.05, height=0.10,
-                   circuit=7, xmult=0.5),
-        PFFilament(r=ref_r + 0.001, z=ref_z, turns=1.0, width=0.05, height=0.10,
-                   circuit=7, xmult=0.5),
-    ]
-    assert mast_slanted_polygon_sections(filaments) == []
+def test_public_fixture_carries_all_eight_slanted_sections(sections):
+    assert {section.name for section in sections} == SLANTED_NAMES
+    assert len(sections) == 8
+
+
+def test_each_section_targets_one_distinct_circuit(sections):
+    circuits = [section.circuit for section in sections]
+    assert len(circuits) == len(set(circuits)) == 8
+
+
+def test_sections_preserve_each_conductors_area(sections):
+    for section in sections:
+        assert _poly_area(section.vertices) == pytest.approx(
+            section.width * section.height, abs=1e-12
+        )
+
+
+def test_sections_keep_their_conductor_centroids(sections):
+    for section in sections:
+        np.testing.assert_allclose(
+            np.mean(section.vertices, axis=0),
+            np.array([section.centroid_r, section.centroid_z]),
+            atol=1e-12,
+        )
+
+
+def test_bottom_column_shape_keeps_the_catalogued_shear(sections):
+    section = next(item for item in sections if item.name == "botcol")
+    lower_midpoint = float(np.mean(section.vertices[:2, 0]))
+    upper_midpoint = float(np.mean(section.vertices[2:, 0]))
+    expected_shift = section.height / np.tan(np.deg2rad(section.angle2))
+    assert upper_midpoint - lower_midpoint == pytest.approx(expected_shift, abs=1e-12)
+
+
+def test_every_slanted_fixture_builds_a_finite_public_column(sections):
+    columns = [_public_column(section.vertices) for section in sections]
+    assert all(column.shape == (3,) for column in columns)
+    assert all(np.isfinite(column).all() for column in columns)
+
+
+def test_slanted_shape_changes_the_public_column_from_its_box(sections):
+    section = next(item for item in sections if item.name == "botcol")
+    box = _section_vertices(
+        section.centroid_r,
+        section.centroid_z,
+        section.width,
+        section.height,
+        0.0,
+        0.0,
+    )
+    assert not np.allclose(
+        _public_column(section.vertices),
+        _public_column(box),
+        rtol=1e-12,
+        atol=1e-18,
+    )

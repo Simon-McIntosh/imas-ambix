@@ -7,12 +7,13 @@ store or maintaining a second machine-description module.
 
 from __future__ import annotations
 
-from imas_ambix.gs import geometry as gsg
+from types import SimpleNamespace
+
 from imas_ambix.gs import operator as op
 
 
-def _filament(r: float, z: float, circuit: int) -> gsg.PFFilament:
-    return gsg.PFFilament(
+def _filament(r: float, z: float, circuit: int) -> SimpleNamespace:
+    return SimpleNamespace(
         r=r,
         z=z,
         turns=1.0,
@@ -23,9 +24,9 @@ def _filament(r: float, z: float, circuit: int) -> gsg.PFFilament:
     )
 
 
-def _declared_table() -> gsg.GeometryTable:
+def _declared_table() -> SimpleNamespace:
     active_drives = [
-        gsg.CircuitDrive(
+        SimpleNamespace(
             circuit=index,
             channel=channel,
             ampere_turns_per_ampere=1.0,
@@ -45,7 +46,7 @@ def _declared_table() -> gsg.GeometryTable:
         "p5l_case_current",
     )
     case_drives = [
-        gsg.CircuitDrive(
+        SimpleNamespace(
             circuit=index,
             channel=channel,
             ampere_turns_per_ampere=1.0,
@@ -62,24 +63,12 @@ def _declared_table() -> gsg.GeometryTable:
         _filament(1.0 + 0.01 * drive.circuit, 0.0, drive.circuit)
         for drive in case_drives
     )
-    signature = gsg.SetupSignature(
-        n_bprobe=1,
-        n_fluxloop=0,
-        n_pf_filament=len(filaments),
-        n_limiter=4,
-        digest="declared-circuits",
-    )
-    return gsg.GeometryTable(
-        signature=signature,
-        shots=[11766],
-        b_probes=[gsg.BProbe(0, 1.3, 0.0, -90.0, 0.025)],
+    return SimpleNamespace(
         flux_loops=[],
         pf_filaments=filaments,
         limiter_r=[0.3, 1.6, 1.6, 0.3],
         limiter_z=[-1.0, -1.0, 1.0, 1.0],
-        sensor_map=[
-            gsg.SensorMapping("obv01", "b_probe", 0, 1.3, 0.0, -90.0, 0.001, "")
-        ],
+        sensor_map=[],
         passive_structures=[],
         amc_current_channels=[drive.channel for drive in active_drives + case_drives],
         unmatched_amb=[],
@@ -128,8 +117,20 @@ def test_declared_membership_decides_winding_and_structural_roles():
 def test_role_does_not_depend_on_channel_spelling():
     filaments = [_filament(1.0, 0.0, 4), _filament(1.1, 0.0, 19)]
     drives = [
-        gsg.CircuitDrive(4, "winding_case_current", 1.0, conductor="winding"),
-        gsg.CircuitDrive(19, "structure_coil_current", 1.0, conductor="structure"),
+        SimpleNamespace(
+            circuit=4,
+            channel="winding_case_current",
+            ampere_turns_per_ampere=1.0,
+            conductor="winding",
+            evidence="",
+        ),
+        SimpleNamespace(
+            circuit=19,
+            channel="structure_coil_current",
+            ampere_turns_per_ampere=1.0,
+            conductor="structure",
+            evidence="",
+        ),
     ]
 
     classes = op.classify_circuits(
@@ -144,10 +145,10 @@ def test_role_does_not_depend_on_channel_spelling():
 
 def test_missing_declared_channel_stays_inferred():
     filament = _filament(1.0, 0.0, 4)
-    drive = gsg.CircuitDrive(
-        4,
-        "winding_current",
-        1.0,
+    drive = SimpleNamespace(
+        circuit=4,
+        channel="winding_current",
+        ampere_turns_per_ampere=1.0,
         evidence="declared fixture",
         conductor="winding",
     )

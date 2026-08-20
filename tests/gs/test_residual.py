@@ -14,9 +14,13 @@ Layers:
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import numpy as np
 import pytest
 
+from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.data.paths import MANIFEST_DIR
 from imas_ambix.gs import operator as op
 from imas_ambix.gs import residual as res
@@ -184,18 +188,43 @@ _skip_no_tables = pytest.mark.skipif(
 
 
 def _load_real_fc938_operator() -> op.ForwardOperator:
-    from imas_ambix.gs import geometry as gsg  # noqa: PLC0415
+    return op.build_operator(read_geometry_table(21978))
 
-    tables = gsg.load_tables(MANIFEST_DIR / "gs_geometry_tables.json")
-    key = next(k for k in tables if "fc938" in k)
-    table = tables[key]
-    return op.build_operator(table)
+
+def _frozen_fc938_target_operator() -> op.ForwardOperator:
+    path = Path(op.__file__).with_name("artifacts") / "gs_operator_summary.json"
+    campaign = json.loads(path.read_text())["campaigns"][
+        "mp78-fl46-fc938-lim37-1cb6f2ee742c4ee4"
+    ]
+    flagged = list(campaign["flagged_channels"])
+    n_b = int(campaign["n_b_probe"])
+    n_f = int(campaign["n_flux_loop"])
+    assert (n_b, n_f, len(flagged)) == (76, 21, 20)
+    b_probes = [f"b_probe_{index}" for index in range(n_b)]
+    loops = [*flagged, "clean_flux_loop"]
+    n_sensor = n_b + n_f
+    return op.ForwardOperator(
+        signature_key=campaign["signature_key"],
+        sensor_channels=[*b_probes, *loops],
+        sensor_kind=["b_probe"] * n_b + ["flux_loop"] * n_f,
+        g_pf=np.zeros((n_sensor, 0)),
+        g_plasma=np.zeros((n_sensor, 0)),
+        g_passive=np.zeros((n_sensor, 0)),
+        pf_circuits=[],
+        pf_amc_channels=[],
+        pf_merged_circuits=[],
+        plasma_rz=np.zeros((0, 2)),
+        passive_rz=np.zeros((0, 2)),
+        circuit_classes=[],
+        excluded_channels=[],
+        flagged_channels=flagged,
+    )
 
 
 @_skip_no_tables
 def test_real_trustworthy_target_is_bprobes_plus_one_fl():
     """The trustworthy target excludes the flagged + unmatched flux loops."""
-    operator = _load_real_fc938_operator()
+    operator = _frozen_fc938_target_operator()
     target = res.trustworthy_target(operator)
     n_b = target.kinds.count("b_probe")
     n_f = target.kinds.count("flux_loop")
