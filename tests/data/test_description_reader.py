@@ -15,18 +15,19 @@ from imas_ambix.data.description_reader import (
 )
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
+PRIVATE_GEOMETRY_MODULE = "imas_ambix.gs.geometry"
 
 DESCRIPTION_READ_APIS = frozenset(
     {
-        "build_table_" "for_shot",
-        "canonical_amb_" "channels",
-        "discover_" "signatures",
-        "extract_campaign_" "tables",
-        "read_amb_" "channels",
-        "read_amc_current_" "channels",
-        "read_amm_" "passive",
-        "read_efm_" "geometry",
-        "setup_" "signature",
+        "build_table_for_shot",
+        "canonical_amb_channels",
+        "discover_signatures",
+        "extract_campaign_tables",
+        "read_amb_channels",
+        "read_amc_current_channels",
+        "read_amm_passive",
+        "read_efm_geometry",
+        "setup_signature",
     }
 )
 
@@ -36,12 +37,12 @@ def _description_read_calls(path: Path) -> frozenset[str]:
     direct: dict[str, str] = {}
     modules: set[str] = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "imas_ambix.gs.geometry":
+        if isinstance(node, ast.ImportFrom) and node.module == PRIVATE_GEOMETRY_MODULE:
             for alias in node.names:
                 direct[alias.asname or alias.name] = alias.name
         elif isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.name == "imas_ambix.gs.geometry":
+                if alias.name == PRIVATE_GEOMETRY_MODULE:
                     modules.add(alias.asname or alias.name)
 
     calls: set[str] = set()
@@ -89,9 +90,9 @@ def test_description_reader_census_is_zero() -> None:
 
 
 def test_raw_description_entrypoints_are_absent() -> None:
-    import imas_ambix.gs.geometry as geometry
+    from imas_ambix.gs import machine_geometry
 
-    assert all(not hasattr(geometry, name) for name in DESCRIPTION_READ_APIS)
+    assert all(not hasattr(machine_geometry, name) for name in DESCRIPTION_READ_APIS)
 
 
 def test_facade_rejects_a_description_that_was_not_emitted(

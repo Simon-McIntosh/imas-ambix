@@ -10,7 +10,6 @@ import numpy as np
 import pytest
 
 from imas_ambix.data.paths import LEVEL2_DIR
-from imas_ambix.gs.geometry import SensorMapping
 from imas_ambix.spine_bench.runner import CampaignGeometrySource
 from imas_ambix.spine_bench.shots import FROZEN_SHOTSET
 from imas_ambix.spine_bench.transform_geometry_source import (
@@ -22,6 +21,25 @@ from imas_ambix.spine_bench.transform_geometry_source import (
     coordinate_divergence,
     resolve_geometry_source,
 )
+
+
+def _sensor_mapping(
+    channel: str,
+    kind: str,
+    index: int,
+    r: float,
+    z: float,
+    angle_deg: float | None,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        amb_channel=channel,
+        kind=kind,
+        efm_index=index,
+        r=r,
+        z=z,
+        angle_deg=angle_deg,
+        flag="",
+    )
 
 
 def test_campaign_selection_preserves_the_existing_source_bytes() -> None:
@@ -79,9 +97,7 @@ def test_identity_bound_campaign_replaces_the_aliased_loop_join() -> None:
     )
     assert {
         channel: (item.r, item.z, item.flag) for channel, item in after.items()
-    } == {
-        channel: (item.r, item.z, item.flag) for channel, item in before.items()
-    }
+    } == {channel: (item.r, item.z, item.flag) for channel, item in before.items()}
     provenance = source.provenance()
     assert provenance["identity_channel_count"] == 19
     assert provenance["identity_geometry_rows_rebound"] == 19
@@ -106,21 +122,21 @@ def test_an_empty_residual_stamp_fails_visibly() -> None:
 def test_coordinate_divergence_counts_positions_and_maximum_separation() -> None:
     transformed = SimpleNamespace(
         sensor_map=[
-            SensorMapping("probe-a", "b_probe", 0, 1.0, 0.0, None, 0.0, ""),
-            SensorMapping("probe-b", "b_probe", 1, 2.0, 0.0, None, 0.0, ""),
-            SensorMapping("probe-c", "b_probe", 2, 3.0, 0.4, None, 0.0, ""),
-            SensorMapping("loop-a", "flux_loop", 0, 1.0, 0.0, None, 0.0, ""),
-            SensorMapping("loop-b", "flux_loop", 1, 2.0, 0.0, None, 0.0, ""),
+            _sensor_mapping("probe-a", "b_probe", 0, 1.0, 0.0, None),
+            _sensor_mapping("probe-b", "b_probe", 1, 2.0, 0.0, None),
+            _sensor_mapping("probe-c", "b_probe", 2, 3.0, 0.4, None),
+            _sensor_mapping("loop-a", "flux_loop", 0, 1.0, 0.0, None),
+            _sensor_mapping("loop-b", "flux_loop", 1, 2.0, 0.0, None),
         ]
     )
     campaign = SimpleNamespace(
         sensor_map=[
-            SensorMapping("probe-a", "b_probe", 0, 1.0, 0.0, 0.0, 0.0, ""),
-            SensorMapping("probe-b", "b_probe", 1, 2.0, 0.3, 0.0, 0.0, ""),
-            SensorMapping("probe-c", "b_probe", 2, 3.0, 0.0, 0.0, 0.0, ""),
-            SensorMapping("probe-d", "b_probe", 3, 4.0, 0.0, 0.0, 0.0, ""),
-            SensorMapping("loop-a", "flux_loop", 0, 1.0, 0.0, None, 0.0, ""),
-            SensorMapping("loop-b", "flux_loop", 1, 2.3, 0.4, None, 0.0, ""),
+            _sensor_mapping("probe-a", "b_probe", 0, 1.0, 0.0, 0.0),
+            _sensor_mapping("probe-b", "b_probe", 1, 2.0, 0.3, 0.0),
+            _sensor_mapping("probe-c", "b_probe", 2, 3.0, 0.0, 0.0),
+            _sensor_mapping("probe-d", "b_probe", 3, 4.0, 0.0, 0.0),
+            _sensor_mapping("loop-a", "flux_loop", 0, 1.0, 0.0, None),
+            _sensor_mapping("loop-b", "flux_loop", 1, 2.3, 0.4, None),
         ]
     )
 
@@ -188,9 +204,7 @@ def test_transform_source_binds_loop_identity_and_supplies_finite_angles() -> No
         pytest.approx(-1.04443),
     )
     assert "reconstruction" in loop_mappings["fl_p4l_1"].flag
-    assert all(
-        "undecided" not in mapping.flag for mapping in loop_mappings.values()
-    )
+    assert all("undecided" not in mapping.flag for mapping in loop_mappings.values())
     assert any(
         "no undecided positions present in this acquisition" in notice
         for notice in table.provenance_flags
