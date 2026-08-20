@@ -502,20 +502,17 @@ def score_order(shots, patch_psis, order, ridge, fraction, split, args) -> dict:
     )
     suffix = f"-{args.origin_source}origin{correction_tag}{ftag}{rtag}"
     tag = f"harmonic-o{order}{suffix}" + ("" if split == "eval" else "-tune")
-    if not getattr(args, "_origin_correction_run", False):
-        ARTIFACTS.mkdir(parents=True, exist_ok=True)
-        (ARTIFACTS / f"boundary_read_{tag}.json").write_text(
-            json.dumps(result, indent=2)
-        )
-        np.savez(
-            ARTIFACTS / f"boundary_read_{tag}_arrays.npz",
-            model=model,
-            ref=ref,
-            baseline=np.tile(args._baseline, (len(model), 1)),
-            axis_errors=axis_err,
-            flattop_mask=flattop_mask,
-            saddles=np.asarray(saddles),
-        )
+    ARTIFACTS.mkdir(parents=True, exist_ok=True)
+    (ARTIFACTS / f"boundary_read_{tag}.json").write_text(json.dumps(result, indent=2))
+    np.savez(
+        ARTIFACTS / f"boundary_read_{tag}_arrays.npz",
+        model=model,
+        ref=ref,
+        baseline=np.tile(args._baseline, (len(model), 1)),
+        axis_errors=axis_err,
+        flattop_mask=flattop_mask,
+        saddles=np.asarray(saddles),
+    )
     logger.info(
         "[harmonic o=%d ridge=%g %s%s] n=%d axis_skill=%.3f xpt_skill=%s "
         "lcfs_skill=%.3f lcfs_cm(all/ft)=%.1f/%s diverted_frac(all/ft)=%s/%s "
