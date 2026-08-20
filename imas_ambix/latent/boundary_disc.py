@@ -48,8 +48,15 @@ from imas_ambix.latent.boundary_moment import (
 from imas_ambix.latent.topology import lcfs_contour
 
 if TYPE_CHECKING:
-    from imas_ambix.gs.geometry import GeometryTable
+    from imas_ambix.gs.machine_geometry import OperatorGeometry
     from imas_ambix.latent.patch_basis import PatchBasis
+
+
+def _geometry_member(geometry, projection_name: str, compatibility_name: str):
+    """Read a projection field while synthetic table fixtures are retired."""
+    if hasattr(geometry, projection_name):
+        return getattr(geometry, projection_name)
+    return getattr(geometry, compatibility_name)
 
 
 @dataclass(frozen=True)
@@ -94,7 +101,7 @@ class DiscInversion:
 
 
 def sensor_signature_arrays(
-    table: GeometryTable,
+    table: OperatorGeometry,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """``(sr, sz, sang_deg, is_flux)`` in ``table.sensor_map`` row order.
 
@@ -127,7 +134,7 @@ def _filament_signature(
 
 
 def fit_current_centroid(
-    payload, table: GeometryTable, basis: PatchBasis, cfg: DiscReadConfig
+    payload, table: OperatorGeometry, basis: PatchBasis, cfg: DiscReadConfig
 ) -> tuple[float, float]:
     """Robust 2-DOF current-centroid fit (filament position, Ip pinned).
 
@@ -207,7 +214,7 @@ def ring_shift_rms(
 
 
 def passive_coupling_matrices(
-    grid, table: GeometryTable, *, circuits: list[int] | None = None
+    grid, table: OperatorGeometry, *, circuits: list[int] | None = None
 ) -> tuple[np.ndarray, np.ndarray]:
     """Sensor + grid couplings of every ``inferred_passive`` circuit.
 
@@ -223,14 +230,17 @@ def passive_coupling_matrices(
     from imas_ambix.gs.polygon import polygon_greens  # noqa: PLC0415
 
     sr, sz, sang, is_flux = sensor_signature_arrays(table)
-    classes = op.classify_circuits(table.pf_filaments, table.amc_current_channels)
+    classes = op.classify_circuits(
+        _geometry_member(table, "conductors", "pf_filaments"),
+        _geometry_member(table, "available_current_channels", "amc_current_channels"),
+    )
     passive_circuits = (
         list(circuits)
         if circuits is not None
         else sorted(c.circuit for c in classes if c.role == "inferred_passive")
     )
     by_circ: dict[int, list] = {}
-    for f in table.pf_filaments:
+    for f in _geometry_member(table, "conductors", "pf_filaments"):
         by_circ.setdefault(f.circuit, []).append(f)
     # a wired PolygonSection replaces its circuit's box couplings with the exact
     # shaped (Urankar) field — the same override the forward operator applies
@@ -278,7 +288,7 @@ def _push_boundary(psi: np.ndarray, grid, centre: tuple[float, float]):
 def disc_read(
     payload,
     grid,
-    table: GeometryTable,
+    table: OperatorGeometry,
     basis: PatchBasis,
     cfg: DiscReadConfig | None = None,
     passive: tuple[np.ndarray, np.ndarray] | None = None,

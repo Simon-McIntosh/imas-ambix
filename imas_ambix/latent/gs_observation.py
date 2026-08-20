@@ -3,17 +3,17 @@
 The geometry-only Green's-function :class:`imas_ambix.gs.operator.ForwardOperator`
 is a fixed *linear* map from current amplitudes to sensor signals — pure device
 geometry, no EFIT.  This module lifts it into a torch :class:`~torch.nn.Module`
-so the hybrid latent (v0 stage 2) can be grounded in the raw magnetics *and* so
+so the hybrid latent can be grounded in the raw magnetics *and* so
 field topology can be read from the reconstructed ψ field, both differentiably.
 
 Two products, one shared Green's physics:
 
 1. **Sensor prediction** ``B̂ = G_pf·i_pf + G_plasma·c_plasma`` — matched, at
-   training time, to the RAW measured magnetics (the spatial GS anchor, §8).
+   training time, to the RAW measured magnetics as its spatial GS anchor.
 2. **ψ-field reconstruction** ``ψ(R,Z) = Σ_node Φ(R,Z; node)·c_plasma
    + Σ_coil Φ(R,Z; coil)·i_pf`` on an arbitrary grid — the *one solved flux
    field* from which axis / X-points / LCFS / public-private are read
-   deterministically (§3, topology-from-psi).
+   deterministically from the solved flux topology.
 
 The inferred plasma current ``c_plasma = B·θ`` is restricted to the locked
 dimensionless polynomial profile basis ``B``
@@ -38,7 +38,14 @@ from imas_ambix.gs import operator as op
 from imas_ambix.gs.residual import plasma_poly_basis
 
 if TYPE_CHECKING:
-    from imas_ambix.gs.geometry import GeometryTable
+    from imas_ambix.gs.machine_geometry import OperatorGeometry
+
+
+def _geometry_member(geometry, projection_name: str, compatibility_name: str):
+    """Read a projection field while synthetic table fixtures are retired."""
+    if hasattr(geometry, projection_name):
+        return getattr(geometry, projection_name)
+    return getattr(geometry, compatibility_name)
 
 
 def greens_psi_matrix(
@@ -103,7 +110,7 @@ def _avoid_source_singularities(
 
 
 def _pf_psi_columns(
-    table: GeometryTable,
+    table: OperatorGeometry,
     pf_amc_channels: list[str],
     pf_merged_circuits: list[list[int]],
     grid_r: np.ndarray,
@@ -117,7 +124,7 @@ def _pf_psi_columns(
     keeps the ψ-field PF contribution consistent with the sensor operator.
     """
     by_circ: dict[int, list] = {}
-    for f in table.pf_filaments:
+    for f in _geometry_member(table, "conductors", "pf_filaments"):
         by_circ.setdefault(f.circuit, []).append(f)
 
     def _circ_col(circ: int) -> np.ndarray:
@@ -204,7 +211,7 @@ class GSObservation(nn.Module):
     @classmethod
     def from_table(
         cls,
-        table: GeometryTable,
+        table: OperatorGeometry,
         *,
         grid_nr: int = 65,
         grid_nz: int = 129,
@@ -213,7 +220,7 @@ class GSObservation(nn.Module):
         min_source_distance: float = 0.02,
         dtype: torch.dtype = torch.float64,
     ) -> GSObservation:
-        """Build from a campaign :class:`GeometryTable`.
+        """Build from a campaign :class:`OperatorGeometry`.
 
         The ψ reconstruction grid spans the limiter bounding box (optionally
         padded by ``grid_pad`` metres each side) at ``grid_nr × grid_nz``
@@ -231,9 +238,17 @@ class GSObservation(nn.Module):
         a_plasma = fwd.g_plasma @ basis  # (S, K)
         # PF + passive filament locations (MAST has IN-VESSEL PF coils, so these
         # sit inside the limiter and produce ψ O-points that are not the plasma).
-        coil_rz = np.array(
-            [[f.r, f.z] for f in table.pf_filaments], dtype=np.float64
-        ) if table.pf_filaments else np.zeros((0, 2))
+        coil_rz = (
+            np.array(
+                [
+                    [f.r, f.z]
+                    for f in _geometry_member(table, "conductors", "pf_filaments")
+                ],
+                dtype=np.float64,
+            )
+            if _geometry_member(table, "conductors", "pf_filaments")
+            else np.zeros((0, 2))
+        )
 
         lr = np.asarray(table.limiter_r, dtype=np.float64)
         lz = np.asarray(table.limiter_z, dtype=np.float64)
@@ -325,9 +340,7 @@ class GSObservation(nn.Module):
         """Unique Z coordinates of the reconstruction grid ``(nz,)``."""
         return self.grid_z.reshape(self.grid_nz, self.grid_nr)[:, 0]
 
-    def plasma_bbox(
-        self, pad: float = 0.0
-    ) -> tuple[float, float, float, float] | None:
+    def plasma_bbox(self, pad: float = 0.0) -> tuple[float, float, float, float] | None:
         """(r_lo, r_hi, z_lo, z_hi) bounding the plasma-current basis nodes.
 
         The magnetic axis / X-points must lie within the region where plasma
