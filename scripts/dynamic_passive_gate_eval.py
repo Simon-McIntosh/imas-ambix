@@ -56,7 +56,8 @@ import matplotlib
 matplotlib.use("Agg")
 import numpy as np
 
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
+from imas_ambix.gs.machine_geometry import MachineGeometryService
+
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import (
     anchored_columns,
@@ -769,7 +770,7 @@ def main() -> int:
         "n_modes": args.n_modes,
         "spine_config_sha256": shot_results[0]["config_sha"],
         "coil_model_version": COIL_MODEL_VERSION,
-        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
         "n_scored": n_scored,
         "n_dyn_masked": n_dyn_masked,
         "n_shots_iterated": int(sum(sr["n_iterated"] for sr in shot_results)),

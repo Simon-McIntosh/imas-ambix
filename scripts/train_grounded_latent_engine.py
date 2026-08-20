@@ -52,7 +52,8 @@ import torch
 
 from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.eval.excitation_selector import coil_ramp_profile
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
+from imas_ambix.gs.machine_geometry import MachineGeometryService
+
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import (
     ANCHORED_NAMES,
@@ -325,7 +326,7 @@ def _config_hash(shots: list[int], *, nr: int, nz: int, min_ip_ka: float) -> str
         # per-shot flux-loop presence) — folded in so a cache built before the
         # fix can never be silently reused after it; None (pre-fix checkout)
         # still busts a post-fix cache since it differs from the real string
-        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
         # NOTE: the sensor-scale kind-median floor (robust_channel_scale) is
         # NOT part of this key -- it is applied at batch-construction time
         # against the cached RAW scale, so a floor-formula change picks up
@@ -440,7 +441,7 @@ def _save_corpus_dir(
     meta = {
         "config_hash": config_hash,
         "coil_model_version": COIL_MODEL_VERSION,
-        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
         # cached scale is RAW nanstd -- robust_channel_scale is applied later,
         # at batch-construction time (see ckpt_extra's sensor_scale_floor)
         "signatures": list(corpora.keys()),
@@ -956,7 +957,7 @@ def main() -> int:  # noqa: PLR0915 — a single-file training driver
         "reference_signature": ref_key,
         "n_cells": ref_n_cells,
         "coil_model_version": COIL_MODEL_VERSION,
-        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
         "sensor_scale_floor": {
             "fn": "imas_ambix.latent.data.robust_channel_scale",
             "rel_floor": CHANNEL_SCALE_KIND_FLOOR_REL,

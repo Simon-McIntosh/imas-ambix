@@ -31,13 +31,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import zarr
 
-from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.data.paths import LEVEL1_DIR, LEVEL2_DIR
-from imas_ambix.gs.geometry import SensorMapping
+from imas_ambix.gs.machine_geometry import MachineGeometryService
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 
 if TYPE_CHECKING:
-    from imas_ambix.gs.geometry import GeometryTable
+    from imas_ambix.gs.machine_geometry import OperatorGeometry
 
 EARLY_REPRESENTATIVE = 11766
 LATE_REPRESENTATIVE = 12417
@@ -57,6 +56,21 @@ LATE_CANDIDATE_SOURCE = ARTIFACT_ROOT / "ivc_vacuum_candidates.json"
 FULL_SHOT_MANIFEST = Path("/work/projects/imas_gpu/mast/manifests/level1-all.json")
 NOTE_PATH = Path("docs/notes/vacuum-loop-adjudication.md")
 FIGURE_ROOT = Path("docs/figures/vacuum-loop-adjudication")
+_GEOMETRY_SERVICE = MachineGeometryService()
+
+
+@dataclass(frozen=True)
+class _CandidateSensorMapping:
+    """One locally adjudicated sensor position for a candidate operator."""
+
+    amb_channel: str
+    kind: str
+    efm_index: int
+    r: float
+    z: float
+    angle_deg: float | None
+    residual_m: float
+    flag: str
 
 
 @dataclass(frozen=True)
@@ -508,21 +522,21 @@ def _discover_cohorts(
     return early_selected, late_selected, all_receipts
 
 
-def _build_candidate_table_without_amm(shot: int) -> GeometryTable:
-    """Build declared candidate geometry without passive structures."""
+def _build_candidate_table_without_amm(shot: int) -> OperatorGeometry:
+    """Build a facade projection without passive structures."""
 
-    return replace(read_geometry_table(shot), passive_structures=[])
+    return replace(_GEOMETRY_SERVICE.operator(shot), passives=())
 
 
 def _operator_from_table(
-    table: GeometryTable,
+    table: OperatorGeometry,
     records: list[PositionRecord],
 ) -> Any:
-    mappings: list[SensorMapping] = []
+    mappings: list[_CandidateSensorMapping] = []
     for row in records:
         mappings.extend(
             [
-                SensorMapping(
+                _CandidateSensorMapping(
                     amb_channel=f"nominal:{row.loop}",
                     kind="flux_loop",
                     efm_index=-1,
@@ -532,7 +546,7 @@ def _operator_from_table(
                     residual_m=0.0,
                     flag="",
                 ),
-                SensorMapping(
+                _CandidateSensorMapping(
                     amb_channel=f"reconstruction:{row.loop}",
                     kind="flux_loop",
                     efm_index=row.reconstruction_index,
@@ -544,7 +558,11 @@ def _operator_from_table(
                 ),
             ]
         )
-    candidate_table = replace(table, sensor_map=mappings, unmatched_amb=[])
+    candidate_table = replace(
+        table,
+        sensor_map=tuple(mappings),
+        unmatched_channels=(),
+    )
     return build_operator(candidate_table)
 
 
@@ -556,8 +574,8 @@ def _candidate_operator(
     table = _build_candidate_table_without_amm(shot)
     key = (
         records[0].range_name,
-        table.signature.key,
-        tuple(table.amc_current_channels),
+        table.identity.representation_key,
+        tuple(table.available_current_channels),
     )
     if key in cache:
         return cache[key]
@@ -578,8 +596,8 @@ def _passive_independence_receipt(
             f"parity shot {EARLY_REPRESENTATIVE} does not expose amm after fallbacks: "
             f"{'; '.join(attempts)}"
         )
-    table_with_read = read_geometry_table(EARLY_REPRESENTATIVE)
-    if not table_with_read.passive_structures:
+    table_with_read = _GEOMETRY_SERVICE.operator(EARLY_REPRESENTATIVE)
+    if not table_with_read.passives:
         raise RuntimeError(
             f"parity shot {EARLY_REPRESENTATIVE} carries amm but yielded no structures"
         )
@@ -603,8 +621,8 @@ def _passive_independence_receipt(
         shot=EARLY_REPRESENTATIVE,
         metadata=metadata,
         open_mode=mode,
-        passive_structures_with_read=len(table_with_read.passive_structures),
-        passive_structures_without_read=len(table_without_read.passive_structures),
+        passive_structures_with_read=len(table_with_read.passives),
+        passive_structures_without_read=len(table_without_read.passives),
         g_pf_shape=with_columns.shape,
         max_absolute_difference=difference,
     )

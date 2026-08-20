@@ -53,7 +53,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from imas_ambix.data.description_reader import read_geometry_table
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
+from imas_ambix.gs.machine_geometry import MachineGeometryService
+
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import (
     align_sensor_columns,
@@ -696,7 +697,7 @@ def main() -> int:
 
     out = {
         "coil_model_version": COIL_MODEL_VERSION,
-        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
         "leakage_free": True,
         "leakage_note": (
             "No EFIT and no plasma inversion enter this audit; it uses only raw "

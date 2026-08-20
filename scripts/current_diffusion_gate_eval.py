@@ -56,7 +56,8 @@ import matplotlib
 matplotlib.use("Agg")
 import numpy as np
 
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
+from imas_ambix.gs.machine_geometry import MachineGeometryService
+
 from imas_ambix.gs.operator import COIL_MODEL_VERSION
 from imas_ambix.latent.current_diffusion import (
     EtaProfile,
@@ -1083,7 +1084,7 @@ def main() -> int:
         "par_weight": args.par_weight,
         "spine_config_sha256": shot_results[0]["config_sha"],
         "coil_model_version": COIL_MODEL_VERSION,
-        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
         "n_scored": n_scored,
         "n_dyn_masked": n_dyn_masked,
         "n_geo_missing": int(sum(sr["n_geo_missing"] for sr in shot_results)),

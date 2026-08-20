@@ -37,7 +37,8 @@ matplotlib.use("Agg")
 import numpy as np
 import torch
 
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
+from imas_ambix.gs.machine_geometry import MachineGeometryService
+
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.boundary_disc import sensor_signature_arrays
 from imas_ambix.latent.data import (
@@ -359,7 +360,7 @@ def main() -> int:
         "checkpoint": args.checkpoint,
         "spine_config_sha256": shot_results[0]["config_sha"],
         "coil_model_version": COIL_MODEL_VERSION,
-        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
         "n_scored": n_scored,
         "n_candidate": n_candidate,
         "non_inferiority_margin": args.margin,

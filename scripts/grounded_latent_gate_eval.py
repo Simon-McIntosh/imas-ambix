@@ -43,11 +43,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-try:  # very recent addition (sensor-channel-set determinism fix) -- an older
-    # checkpoint or checkout predates it; label honestly rather than crash
-    from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
-except ImportError:
-    GEOMETRY_TABLE_VERSION = None
+from imas_ambix.gs.machine_geometry import MachineGeometryService
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import (
     feature_schema,
@@ -289,12 +285,15 @@ def main() -> int:  # noqa: PLR0915
     # flux-loop-channel effect on one signature) -- label honestly, never fail
     ckpt_geometry_version = extra.get("geometry_table_version")
     geometry_version_label = ckpt_geometry_version or "pre-fix (absent from checkpoint)"
-    if ckpt_geometry_version != GEOMETRY_TABLE_VERSION:
+    installed_geometry_derivation = MachineGeometryService().identity(
+        11766
+    ).derivation_id
+    if ckpt_geometry_version != installed_geometry_derivation:
         logger.warning(
             "checkpoint geometry_table_version=%r != installed %r — gate "
             "numbers below are honest but predate the sensor-channel-set fix",
             geometry_version_label,
-            GEOMETRY_TABLE_VERSION,
+            installed_geometry_derivation,
         )
     cfg_train = extra["config"]
     feature_stats = extra["feature_stats"]
@@ -484,7 +483,7 @@ def main() -> int:  # noqa: PLR0915
         "device": device,
         "coil_model_version": COIL_MODEL_VERSION,
         "geometry_table_version": geometry_version_label,
-        "geometry_table_version_installed": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version_installed": installed_geometry_derivation,
         "sensor_scale_floor": extra.get(
             "sensor_scale_floor", "absent (pre-floor-fix training corpus)"
         ),

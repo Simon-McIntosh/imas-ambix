@@ -36,7 +36,8 @@ import numpy as np
 import torch
 
 from imas_ambix.data.description_reader import read_geometry_table
-from imas_ambix.gs.geometry import GEOMETRY_TABLE_VERSION
+from imas_ambix.gs.machine_geometry import MachineGeometryService
+
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
 from imas_ambix.latent.data import (
     CHANNEL_SCALE_KIND_FLOOR_REL,
@@ -817,7 +818,7 @@ def run_boundary_arm(args) -> int:
         "current_smooth_lambda": args.current_smooth_lambda,
         "frozen_config": {**FROZEN_INVERSE_KW, "iters": args.iters},
         "coil_model_version": COIL_MODEL_VERSION,
-        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
         "n_scored": int(len(model)),
         "n_candidate": int(len(model)),
         "scored_fraction": 1.0,
@@ -1043,7 +1044,7 @@ def run_boundary_arm_grid(args) -> int:
         "split": args.split,
         "frozen_config": {**FROZEN_INVERSE_KW, "iters": args.iters},
         "coil_model_version": COIL_MODEL_VERSION,
-        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
         "invert_wall_s": invert_wall_s,
         "points": results,
     }
@@ -1194,7 +1195,7 @@ def run_floor_sensitivity(args) -> int:
         "split": args.split,
         "frozen_config": {**FROZEN_INVERSE_KW, "iters": args.iters},
         "coil_model_version": COIL_MODEL_VERSION,
-        "geometry_table_version": GEOMETRY_TABLE_VERSION,
+        "geometry_table_version": MachineGeometryService().identity(11766).derivation_id,
         "n_tune_shots": args.n_tune_shots if args.split == "train" else None,
         "cohort": "rampup+flattop per shot"
         if args.split == "train"
