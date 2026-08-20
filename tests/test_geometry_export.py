@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
-from imas_ambix.gs import geometry as gsg
 from imas_ambix.gs import geometry_export
 from imas_ambix.gs.geometry_export import (
     GEOMETRY_FEATURE_NAMES,
@@ -16,117 +17,147 @@ from imas_ambix.gs.geometry_export import (
     KIND_SCALAR,
     KIND_SXR_CHORD,
     N_GEOMETRY_FEATURES,
-    build_geometry_fields_from_table,
+    _fields_from_projections,
 )
 from imas_ambix.gs.machine_geometry import (
     GeometryIdentity,
+    OperatorGeometry,
     SensorGeometry,
-    _project_operator_geometry,
-    _project_sensor_features,
 )
 
 
-def _synthetic_table() -> gsg.GeometryTable:
-    """A small but realistic GeometryTable built from synthetic efm geometry.
+def _sensor_row(
+    *, r: float = np.nan, z: float = np.nan, angle_deg: float = np.nan
+) -> np.ndarray:
+    row = np.full(N_GEOMETRY_FEATURES, np.nan, dtype=np.float32)
+    if np.isfinite(r) or np.isfinite(z) or np.isfinite(angle_deg):
+        row[GEOMETRY_FEATURE_NAMES.index("phi")] = 0.0
+    row[GEOMETRY_FEATURE_NAMES.index("r")] = r
+    row[GEOMETRY_FEATURE_NAMES.index("z")] = z
+    row[GEOMETRY_FEATURE_NAMES.index("angle_deg")] = angle_deg
+    if np.isfinite(angle_deg):
+        radians = np.deg2rad(angle_deg)
+        row[GEOMETRY_FEATURE_NAMES.index("normal_r")] = np.cos(radians)
+        row[GEOMETRY_FEATURE_NAMES.index("normal_z")] = np.sin(radians)
+    return row
 
-    Reuses the same synthetic geometry shape the gs.geometry tests pin: a
-    co-located radial/vertical B-probe pair, a clean flux loop, a small PF set.
-    """
-    geom = {
-        "magpr_r": np.array([0.18, 1.85, 1.85, 1.44]),
-        "magpr_z": np.array([1.0, 0.3, 0.3, -1.2]),
-        "magpr_ang": np.array([-90.0, -90.0, 0.0, 0.0]),
-        "magpr_len": np.array([0.025, 0.025, 0.025, 0.025]),
-        "silop_r": np.array([0.178, 1.163]),
-        "silop_z": np.array([1.235, 1.083]),
-        "fcoil_r": np.array([0.12, 0.13, 1.9, 1.92]),
-        "fcoil_z": np.array([-1.5, -1.4, 1.4, 1.5]),
-        "fcoil_turns": np.array([10.0, 10.0, 5.0, 5.0]),
-        "fcoil_width": np.full(4, 0.01),
-        "fcoil_height": np.full(4, 0.02),
-        "fcoil_circ": np.array([1.0, 1.0, 2.0, 2.0]),  # two circuits, 2 filaments each
-        "fcoil_xmult": np.full(4, 0.5),
-        "limiterr": np.array([1.9, 1.55, 1.40]),
-        "limiterz": np.array([0.4, 0.4, 0.82]),
-    }
-    sig = gsg.SetupSignature(
-        n_bprobe=4,
-        n_fluxloop=2,
-        n_pf_filament=4,
-        n_limiter=3,
-        digest=gsg.round_geometry_hash(
-            [
-                geom["magpr_r"],
-                geom["magpr_z"],
-                geom["magpr_ang"],
-                geom["silop_r"],
-                geom["silop_z"],
-                geom["fcoil_r"],
-                geom["fcoil_z"],
-                geom["fcoil_turns"],
-                geom["limiterr"],
-                geom["limiterz"],
-            ]
+
+def _synthetic_projections(
+    extra_channel_names: tuple[str, ...] = (),
+) -> tuple[OperatorGeometry, SensorGeometry]:
+    """Build realistic public projections without private geometry records."""
+    identity = GeometryIdentity(
+        representation_key="mp4-fl2-fc4-lim3-synthetic",
+        representation_digest="synthetic-geometry",
+        derivation_id="declared-probe-angle",
+        physical_digest="",
+        registry_digest="",
+    )
+    sensor_map = (
+        SimpleNamespace(
+            amb_channel="obv06",
+            kind="b_probe",
+            efm_index=1,
+            r=1.85,
+            z=0.3,
+            angle_deg=-90.0,
+            flag="",
+        ),
+        SimpleNamespace(
+            amb_channel="obr06",
+            kind="b_probe",
+            efm_index=2,
+            r=1.85,
+            z=0.3,
+            angle_deg=0.0,
+            flag="",
+        ),
+        SimpleNamespace(
+            amb_channel="ccbv01",
+            kind="b_probe",
+            efm_index=0,
+            r=0.18,
+            z=1.0,
+            angle_deg=-90.0,
+            flag="",
+        ),
+        SimpleNamespace(
+            amb_channel="fl_cc01",
+            kind="flux_loop",
+            efm_index=0,
+            r=0.178,
+            z=1.235,
+            angle_deg=None,
+            flag="",
         ),
     )
-    mr, mz, mang, mlen = (
-        geom["magpr_r"],
-        geom["magpr_z"],
-        geom["magpr_ang"],
-        geom["magpr_len"],
-    )
-    b_probes = [
-        gsg.BProbe(
-            index=i,
-            r=float(mr[i]),
-            z=float(mz[i]),
-            angle_deg=float(mang[i]),
-            length=float(mlen[i]),
+    conductors = tuple(
+        SimpleNamespace(r=r, z=z, turns=turns, circuit=circuit)
+        for r, z, turns, circuit in (
+            (0.12, -1.5, 10.0, 1),
+            (0.13, -1.4, 10.0, 1),
+            (1.9, 1.4, 5.0, 2),
+            (1.92, 1.5, 5.0, 2),
         )
-        for i in range(mr.size)
-    ]
-    flux_loops = [
-        gsg.FluxLoop(index=i, r=float(geom["silop_r"][i]), z=float(geom["silop_z"][i]))
-        for i in range(2)
-    ]
-    fr, fz, ft, fc = (
-        geom["fcoil_r"],
-        geom["fcoil_z"],
-        geom["fcoil_turns"],
-        geom["fcoil_circ"],
     )
-    pf = [
-        gsg.PFFilament(
-            r=float(fr[i]),
-            z=float(fz[i]),
-            turns=float(ft[i]),
-            width=0.01,
-            height=0.02,
-            circuit=int(fc[i]),
-            xmult=0.5,
-        )
-        for i in range(fr.size)
-    ]
-    amb = [
-        ("obv06", "Outer coil r=1.850, z=0.300"),
-        ("obr06", "Outer coil r=1.850, z=0.300"),
-        ("ccbv01", "Centre Column Vertical r=0.180, z=1.000"),
-        ("fl_cc01", "Flux Loop r=0.178, z=1.235"),
-    ]
-    sensor_map, unmatched = gsg.map_amb_sensors(geom, amb)
-    return gsg.GeometryTable(
-        signature=sig,
-        shots=[12345],
-        b_probes=b_probes,
-        flux_loops=flux_loops,
-        pf_filaments=pf,
-        limiter_r=geom["limiterr"].tolist(),
-        limiter_z=geom["limiterz"].tolist(),
+    operator = OperatorGeometry(
+        identity=identity,
+        probes=(),
+        loops=(),
+        conductors=conductors,
+        passives=(),
+        limiter_r=(1.9, 1.55, 1.4),
+        limiter_z=(0.4, 0.4, 0.82),
+        polygon_sections=(),
+        drive_map=(),
         sensor_map=sensor_map,
-        passive_structures=[],
-        amc_current_channels=["p3u", "p4l", "solenoid"],
-        unmatched_amb=unmatched,
+        unmatched_channels=(),
+        active_circuits=(1, 2),
+        available_current_channels=("p3u", "p4l", "solenoid"),
+        r0=0.85,
+        minor_radius=0.65,
+        unresolved_turns={},
+        coil_channels=(),
+        coil_column_matrix=np.empty((len(sensor_map), 0)),
     )
+    mapped = {
+        "obv06": (KIND_BPOL_PROBE, _sensor_row(r=1.85, z=0.3, angle_deg=-90.0)),
+        "obr06": (KIND_BPOL_PROBE, _sensor_row(r=1.85, z=0.3, angle_deg=0.0)),
+        "ccbv01": (KIND_BPOL_PROBE, _sensor_row(r=0.18, z=1.0, angle_deg=-90.0)),
+        "fl_cc01": (KIND_FLUX_LOOP, _sensor_row(r=0.178, z=1.235)),
+        "p3u": (KIND_COIL, _sensor_row()),
+        "p4l": (KIND_COIL, _sensor_row()),
+        "solenoid": (KIND_COIL, _sensor_row()),
+    }
+    channels = tuple(mapped) + tuple(extra_channel_names)
+    kinds: list[str] = []
+    rows: list[np.ndarray] = []
+    for channel in channels:
+        if channel in mapped:
+            kind, row = mapped[channel]
+        elif channel.startswith(("interferometer", "nbar")):
+            kind, row = KIND_INTERFEROMETER_CHORD, _sensor_row()
+        elif channel.startswith("sxr"):
+            kind, row = KIND_SXR_CHORD, _sensor_row()
+        elif channel == "ip":
+            kind, row = KIND_COIL, _sensor_row()
+        else:
+            kind, row = KIND_SCALAR, _sensor_row()
+        kinds.append(kind)
+        rows.append(row)
+    sensors = SensorGeometry(
+        identity=identity,
+        channels=channels,
+        feature_names=GEOMETRY_FEATURE_NAMES,
+        sensor_kinds=tuple(kinds),
+        feature_matrix=np.stack(rows),
+    )
+    return operator, sensors
+
+
+def _synthetic_fields(*extra_channel_names: str):
+    operator, sensors = _synthetic_projections(tuple(extra_channel_names))
+    return _fields_from_projections(operator, sensors, (12_345,))
 
 
 # --- schema ----------------------------------------------------------------
@@ -143,7 +174,7 @@ def test_feature_schema_is_stable():
 
 
 def test_bprobe_rows_carry_correct_rz_angle_and_normal():
-    fields = build_geometry_fields_from_table(_synthetic_table())
+    fields = _synthetic_fields()
 
     # obv06 (vertical, DD ang=-90) and obr06 (radial, ang=0) are co-located.
     obv = fields.get("obv06")
@@ -168,19 +199,18 @@ def test_bprobe_rows_carry_correct_rz_angle_and_normal():
 
 
 def test_bprobe_row_matches_source_bprobe_values():
-    """Cross-check the flat row's R/Z/angle against the gs.geometry BProbe."""
-    table = _synthetic_table()
-    fields = build_geometry_fields_from_table(table)
+    """Cross-check the flat row against the operator projection."""
+    operator, sensors = _synthetic_projections()
+    fields = _fields_from_projections(operator, sensors, (12_345,))
     ccbv = fields.get("ccbv01")
-    # ccbv01 maps to magpr index 0 (R=0.18, Z=1.0, ang=-90)
-    src = next(m for m in table.sensor_map if m.amb_channel == "ccbv01")
+    src = next(m for m in operator.sensor_map if m.amb_channel == "ccbv01")
     assert ccbv.r == src.r == 0.18
     assert ccbv.z == src.z == 1.0
     assert ccbv.angle_deg == src.angle_deg == -90.0
 
 
 def test_flux_loop_is_point_sensor_nan_angle_and_chord():
-    fields = build_geometry_fields_from_table(_synthetic_table())
+    fields = _synthetic_fields()
     fl = fields.get("fl_cc01")
     assert fl is not None
     assert fl.sensor_kind == KIND_FLUX_LOOP
@@ -196,10 +226,7 @@ def test_flux_loop_is_point_sensor_nan_angle_and_chord():
 
 
 def test_line_integrated_diagnostics_get_chord_kind_nan_endpoints():
-    fields = build_geometry_fields_from_table(
-        _synthetic_table(),
-        extra_channel_names=["interferometer_03", "sxr_t01", "nbar_core"],
-    )
+    fields = _synthetic_fields("interferometer_03", "sxr_t01", "nbar_core")
     interf = fields.get("interferometer_03")
     sxr = fields.get("sxr_t01")
     nbar = fields.get("nbar_core")
@@ -216,10 +243,7 @@ def test_line_integrated_diagnostics_get_chord_kind_nan_endpoints():
 
 
 def test_pure_scalar_channels_present_with_nan_coords():
-    fields = build_geometry_fields_from_table(
-        _synthetic_table(),
-        extra_channel_names=["ip", "gas_valve_setpoint", "density_unknown"],
-    )
+    fields = _synthetic_fields("ip", "gas_valve_setpoint", "density_unknown")
     ip = fields.get("ip")
     gas = fields.get("gas_valve_setpoint")
     assert ip is not None and gas is not None  # present, never dropped
@@ -230,7 +254,7 @@ def test_pure_scalar_channels_present_with_nan_coords():
 
 
 def test_coil_channels_kinded_coil():
-    fields = build_geometry_fields_from_table(_synthetic_table())
+    fields = _synthetic_fields()
     # amc current channels become explicit coil rows
     p3u = fields.get("p3u")
     sol = fields.get("solenoid")
@@ -242,7 +266,7 @@ def test_coil_channels_kinded_coil():
 
 
 def test_channel_lookup_is_separator_insensitive():
-    fields = build_geometry_fields_from_table(_synthetic_table())
+    fields = _synthetic_fields()
     # the amb sensor was 'ccbv01'; a re-encoded store names it 'ccbv_01'
     assert fields.get("ccbv_01") is not None
     assert fields.get("ccbv_01").r == fields.get("ccbv01").r
@@ -252,13 +276,13 @@ def test_channel_lookup_is_separator_insensitive():
 
 
 def test_machine_block_carries_limiter_pf_and_constants():
-    table = _synthetic_table()
-    fields = build_geometry_fields_from_table(table)
+    operator, sensors = _synthetic_projections()
+    fields = _fields_from_projections(operator, sensors, (12_345,))
     m = fields.machine
-    assert list(m.limiter_r) == table.limiter_r
-    assert list(m.limiter_z) == table.limiter_z
-    assert m.r0 == gsg.MAST_R0
-    assert m.minor_radius == gsg.MAST_A
+    assert m.limiter_r == operator.limiter_r
+    assert m.limiter_z == operator.limiter_z
+    assert m.r0 == operator.r0
+    assert m.minor_radius == operator.minor_radius
     # two PF circuits -> two coil centroids; the inner circuit's turns-weighted
     # R is between its two filaments' R (0.12, 0.13)
     assert len(m.pf_coil_r) == 2
@@ -269,7 +293,7 @@ def test_machine_block_carries_limiter_pf_and_constants():
 
 
 def test_feature_matrix_aligns_to_channel_names_with_nan_fill():
-    fields = build_geometry_fields_from_table(_synthetic_table())
+    fields = _synthetic_fields()
     names = ["ccbv01", "fl_cc01", "totally_unknown_channel", "obr06"]
     feats, kinds = fields.feature_matrix(names)
     assert feats.shape == (4, N_GEOMETRY_FEATURES)
@@ -286,7 +310,7 @@ def test_feature_matrix_aligns_to_channel_names_with_nan_fill():
 def test_to_dict_is_json_serialisable():
     import json
 
-    fields = build_geometry_fields_from_table(_synthetic_table())
+    fields = _synthetic_fields()
     d = fields.to_dict()
     json.dumps(d)  # must not raise
     assert d["feature_names"] == list(GEOMETRY_FEATURE_NAMES)
@@ -296,28 +320,22 @@ def test_to_dict_is_json_serialisable():
 def test_shot_builder_consumes_operator_and_sensor_projections(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    table = _synthetic_table()
+    operator, _ = _synthetic_projections()
     identity = GeometryIdentity(
-        representation_key=table.signature.key,
-        representation_digest=table.signature.digest,
-        derivation_id="declared-probe-angle",
+        representation_key=operator.identity.representation_key,
+        representation_digest=operator.identity.representation_digest,
+        derivation_id=operator.identity.derivation_id,
         physical_digest="machine-digest",
         registry_digest="registry-digest",
     )
-    operator = _project_operator_geometry(table, identity=identity)
+    operator = OperatorGeometry(**{**operator.__dict__, "identity": identity})
     requested = tuple(
-        [mapping.amb_channel for mapping in table.sensor_map]
-        + table.amc_current_channels
+        [mapping.amb_channel for mapping in operator.sensor_map]
+        + list(operator.available_current_channels)
         + ["gas_valve_setpoint"]
     )
-    matrix, kinds = _project_sensor_features(table, requested)
-    sensors = SensorGeometry(
-        identity=identity,
-        channels=requested,
-        feature_names=GEOMETRY_FEATURE_NAMES,
-        sensor_kinds=kinds,
-        feature_matrix=matrix,
-    )
+    _, sensors = _synthetic_projections(("gas_valve_setpoint",))
+    sensors = SensorGeometry(**{**sensors.__dict__, "identity": identity})
     calls: list[tuple[str, int]] = []
 
     class StubService:
