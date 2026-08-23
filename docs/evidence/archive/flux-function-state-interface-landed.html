@@ -53,7 +53,9 @@
     <h2 id="consumer-contract">§4 cross-repository consumer contract — 2026-08-17</h2>
     <p>Commit <code>729eb217</code>, pinned to nova revision <code>f3d14df5</code> and
     verified against that exact clean checkout. 6 focused tests plus the full 20-test
-    package. This is the seam demonstrated end to end rather than asserted.</p>
+    package. This is the seam demonstrated end to end rather than asserted.
+    <em>The literal pin described here was later replaced by a derived one — see
+    <a href="#pin-drift-recheck">the 2026-08-23 re-measurement</a>.</em></p>
     <table>
       <caption>Section-4 acceptance criteria, each with its measured result.</caption>
       <thead><tr><th>Criterion</th><th>Measured</th></tr></thead>
@@ -78,6 +80,40 @@
     <p>This record is also the evidence that closed nova's
     <code>flux-function-forward-equilibrium</code> §4 interface gate, allowing that plan to
     ship and unblocking both of nova's competition-critical plans.</p>
+
+    <h2 id="pin-drift-recheck">Pin drift and re-measurement — 2026-08-23</h2>
+    <p>The gate above was banked against a <strong>literal</strong> nova revision. Two later
+    commits, authored outside this plan, replaced that constant with one
+    <strong>derived at import time</strong> from the installed editable
+    <code>nova-stella</code> distribution — <code>a2c1557</code> (consume editable nova
+    checkout) and <code>3589486</code> (derive nova forward provenance), whose stated
+    intent is to keep the contract synchronised with dependency metadata while nova
+    develops concurrently. The consequence is that this plan's acceptance gate no longer
+    pins anything: it floats with whatever revision the local nova checkout is sitting on.</p>
+    <table>
+      <caption>How the section-4 gate resolves its nova revision, before and after.</caption>
+      <thead><tr><th></th><th>As banked 2026-08-17</th><th>As measured 2026-08-23</th></tr></thead>
+      <tbody>
+        <tr><td>Mechanism</td><td>literal constant in the test</td><td class="mono">NOVA_FORWARD_REVISION = REVIEWED_CURRENT_DIFFUSION_REVISION</td></tr>
+        <tr><td>Resolved revision</td><td class="mono">f3d14df5</td><td class="mono">905e7955 (nova HEAD, checkout clean)</td></tr>
+        <tr><td>Source</td><td>that exact clean checkout</td><td class="mono">/home/ITER/mcintos/Code/nova via direct_url.json</td></tr>
+        <tr><td>Distance</td><td>—</td><td><strong>947 nova commits</strong> later</td></tr>
+        <tr><td>Gate result</td><td>6 focused + 20 package green</td><td><strong>20/20 green in 88.70 s</strong>, 0 failed, 0 skipped</td></tr>
+      </tbody>
+    </table>
+    <p><strong>The seam holds.</strong> Every fluxstate test passes unchanged against a nova
+    that has moved 947 commits since the contract was banked: adapters 5/5, consumer contract
+    6/6, contract 4/4, validation 5/5. Nothing was modified to achieve this — the node was
+    fenced against editing source or tests, and its only commit is the captured log. The
+    floating pin is therefore recorded as a <em>property</em> of the gate rather than a
+    regression: it buys continuous compatibility signal against live nova, and it gives up
+    the reproducibility a literal pin provided. A consumer needing a frozen reference should
+    read the revision from the receipt the contract already emits rather than assume
+    <code>f3d14df5</code>.</p>
+    <p>Run <code>fluxstate-gate-recheck</code>, gate <em>cross-repository-fixtures</em>
+    <strong>passed</strong>, ambix HEAD <code>2f3dcd0</code>; worktree commit
+    <code>7d2f0c4</code> holds the captured pytest log and is deliberately not integrated —
+    it is a scratch artifact, and this record is its durable form.</p>
   </main>
 </body>
 </html>

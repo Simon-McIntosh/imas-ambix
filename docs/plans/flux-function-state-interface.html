@@ -24,10 +24,11 @@
   <title>Flux-Function State Interface | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-17">
-<meta name="plan-version" content="11">
+<meta name="plan-modified" content="2026-08-23">
+<meta name="plan-version" content="12">
 <meta name="plan-commits" content="226e431,2fd2577,729eb217">
 <meta name="plan-impl" content="1.0">
+<meta name="plan-artifacts" content="docs/evidence/archive/flux-function-state-interface-landed.html">
 </head>
 <body>
   <main class="plan-doc">
@@ -41,7 +42,24 @@
       <figcaption>One typed seam: Ambix produces the uncertain source state; Nova alone turns it into a force-balanced field.</figcaption>
     </figure>
 
-    <h2 id="s2">§2 — Contract carried across the seam</h2>
+    <section id="s2" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-17</span>
+        <h2>§2 — Contract carried across the seam</h2>
+      </header>
+      <p class="landed-summary">
+        Built <code>imas_ambix/fluxstate/contract.py</code>: the immutable
+        <code>FluxFunctionState</code> as a <strong>17-leaf NumPy/JAX array tree</strong> with a
+        lossless JSON round trip — normalised-poloidal-flux coordinate plus total-flux Jacobian,
+        pressure and F-family primitives with their derivatives under COCOS 17, two topology-keyed
+        domain policies, three-member weighted-ensemble identity, and the I_p/β_p/ℓ_i
+        target–achieved–residual ledger. Causality is a runtime type, not a convention:
+        <code>FixedLagSmoothing</code> and <code>FullSequenceSmoothing</code> are rejected at
+        <code>require_online_handoff</code>. Gate <em>contract-fixtures</em> <strong>9/9</strong>
+        in 3.43 s. Full record:
+        <a href="/imas-ambix/evidence/archive/flux-function-state-interface-landed#typed-contract">§2 landed</a> (commit <code>226e431</code>).
+      </p>
+
     <p>The first deliverable is a small immutable <code>FluxFunctionState</code> contract with a stable numpy/JAX boundary. It carries primitives as well as derivatives so a consumer can check calculus consistency instead of trusting two unrelated arrays.</p>
     <table>
       <thead><tr><th>Field</th><th>Required meaning</th><th>Failure mode prevented</th></tr></thead>
@@ -57,7 +75,27 @@
     </table>
     <p><strong>Temporal extension: the waveform form of the contract.</strong> A transport-coupled consumer exchanges trajectories, not slices. The flux-function waveform carries the same primitives, derivatives, units and provenance on a declared time grid, together with the evolving coordinate map — <code>Phi_b(t)</code> and the axis and separatrix references — and a declared interpolation policy, so temporal interpolation can never silently mix radial coordinates while the boundary moves. Window convergence receipts from Nova's coupled equilibrium–transport solve (iterations, contraction estimate, exit residual, damping) travel with the state as provenance: the assimilation layer classifies them beside the measurement innovation, and an unconverged or damped window is visible evidence, never a silent approximation. Learned corrections enter the coupled solve only as typed inputs — member closure parameters or declared model-error source terms through the new-physics registry — never as patches applied inside the seam.</p>
 
-    <h2 id="s3">§3 — Producer adapters</h2>
+    </section>
+
+    <section id="s3" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-17</span>
+        <h2>§3 — Producer adapters</h2>
+      </header>
+      <p class="landed-summary">
+        Built <code>imas_ambix/fluxstate/adapters.py</code>: three adapters that end at the
+        Nova call boundary and <strong>import no Nova module, solver, response kernel or
+        measurement fit</strong> — the authority boundary as an import-level fact.
+        <code>TransportForwardAdapter</code> round-trips final total flux, the
+        <code>ForecastHandoff</code> label, the three-member weighted identity and signed achieved
+        I_p = −780 kA; <code>SequentialEstimatorBatch</code> rejects <code>FixedLagSmoothing</code>
+        at the online handoff; <code>IntegralConstraintConditioner</code> accepted a one-amplitude
+        I_p closure (rank 1, condition 1, residual 0) and rejected an underdetermined two-moment
+        request, naming both unmet requirements. Gate <em>producer-adapters</em>
+        <strong>5/5</strong> focused, 14/14 package. Full record:
+        <a href="/imas-ambix/evidence/archive/flux-function-state-interface-landed#producer-adapters">§3 landed</a> (commit <code>2fd2577</code>).
+      </p>
+
     <ol>
       <li><strong>Transport-forward adapter.</strong> Convert Nova transport forward outputs — <code>CurrentDiffusion</code> today, the multi-channel <code>ForwardTransport</code> rungs as they land — and Ambix learned closure corrections into one causal <code>FluxFunctionState</code>. A projection onto a named representation is permitted only as deterministic state conversion; it must not use equilibrium measurements or re-fit a slice.</li>
       <li><strong>Sequential-estimator adapter.</strong> Batch ensemble members without collapsing them to one mean solve. Preserve forecast, analysis and smoothing labels; only forecast/analysis states qualify for an online handoff.</li>
@@ -80,7 +118,25 @@
     isoflux claim and its confidence are Ambix's. First consumer:
     <code>magnetics-free-equilibrium-recovery</code>.</p>
 
-    <h2 id="s4">§4 — Acceptance evidence</h2>
+    </section>
+
+    <section id="s4" class="section-landed">
+      <header>
+        <span class="badge badge-shipped">✓ landed 2026-08-17</span>
+        <h2>§4 — Acceptance evidence</h2>
+      </header>
+      <p class="landed-summary">
+        Built <code>imas_ambix/fluxstate/consumer_contract.py</code> and its cross-repository
+        fixtures: static, rotating and common-SOL manufactured states each reach a converged
+        force-balanced equilibrium (fixed-point residual &lt; 1e-6, SOL &lt; 1e-5), the current
+        ledger closes at <strong>rtol 1e-12</strong>, absolute sources arrive unrescaled (amplitude
+        exactly 1), three inconsistent I_p/β_p/ℓ_i targets return residuals with the source digest
+        and arrays <em>unchanged</em>, and eager-vs-jitted agrees to &lt; 1e-9 with batched-vs-single
+        &lt; 1e-6. Gate <em>cross-repository-fixtures</em> <strong>6 focused + 20 package</strong>
+        green. <strong>Re-measured 2026-08-23</strong> against nova HEAD <code>905e7955</code> — 947 commits past the original <code>f3d14df5</code> pin, which <code>a2c1557</code> and <code>3589486</code> replaced with a revision derived live from the editable <code>nova-stella</code> install: <strong>20/20 green in 88.7 s</strong>, so the seam still holds against nova as it stands today. Full record:
+        <a href="/imas-ambix/evidence/archive/flux-function-state-interface-landed#consumer-contract">§4 landed</a> (commit <code>729eb217</code>).
+      </p>
+
     <ul>
       <li>Round-trip fixtures preserve coordinate kind, total-flux units, COCOS, pressure, <code>F</code>, both derivatives, core/SOL domain policy and ensemble identity.</li>
       <li>Finite-difference and analytic derivative checks fail loudly if the primitive and derivative profiles disagree beyond the declared discretisation tolerance.</li>
@@ -91,6 +147,8 @@
       <li>Static, rotating and SOL-extended manufactured states each drive the Nova forward solve and return finite, force-balanced equilibria with a closed current ledger.</li>
       <li>The consumer contract test pins one reviewed Nova revision and exercises eager, jitted and batched member paths without importing Nova physics implementation into Ambix.</li>
     </ul>
+
+    </section>
 
     <h2 id="s5">§5 — Explicit exclusions</h2>
     <p>This plan does not choose a profile basis for learning, train the closure model, solve the Grad–Shafranov equation, or define a sheath/halo-current model. Profile conditioning against <code>I_p</code> or moment observations reuses the existing Ambix current-recovery and learned-closure authority; Nova's <code>ForwardProfile</code> supplies the deterministic observation operator and field, while a future open-field boundary-current model is required for material return currents.</p>
@@ -184,6 +242,9 @@ Done-when
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20260817-consumer-contract" data-who="reckon-ship" data-when="2026-08-17T19:20:00+00:00">
     <div class="r-comment-body">consumer-contract landed: commit 729eb217; gate cross-repository-fixtures PASSED, 6 focused and 20 whole-package tests green, pinned to Nova revision f3d14df5 and verified against that exact clean checkout. All three manufactured classes (static, analytic rotating, common-SOL) reach finite converged equilibria: static and rotating fixed-point residual below 1e-6 with force and Grad-Shafranov residuals below 0.1, SOL fixed-point residual below 1e-5 with residuals below 0.05. The total current ledger closes across all domains at rtol 1e-12 and the closed-core moment equals the core row at the same tolerance. Absolute normalisation amplitude is exactly 1 with rescaled false, so absolute sources reach Nova unrescaled. All three inconsistent Ip, beta-p and l-i targets return nonzero residuals with the source digest and primitive arrays UNCHANGED, demonstrating the no-silent-mutation rule rather than asserting it. Eager versus jitted parity below 1e-9, three batched members agree with single-member solves below 1e-6, and Ambix imports no Nova physics implementation, solver or field kernel. The node had blocked on a rotating-fixture shape mismatch and was resumed with the ruling to build the flow from the pinned analytic isothermal-surface closure at 33 points rather than interpolate a 9-point array, because interpolation would have tested the interpolant instead of Nova's locked rotation closure.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260823-gate-recheck" data-who="reckon-ship" data-when="2026-08-23T11:00:00+00:00">
+    <div class="r-comment-body">fluxstate-gate-recheck landed - run r-20260823T105000559017; gate cross-repository-fixtures PASSED; measure 20/20 fluxstate tests green in 88.70 s (adapters 5, consumer contract 6, contract 4, validation 5; 0 failed, 0 skipped) at ambix HEAD 2f3dcd0; artifact docs/evidence/archive/flux-function-state-interface-landed.html#pin-drift-recheck. RECORD CORRECTION: this section's banked claim that the fixtures are 'pinned to Nova revision f3d14df5 and verified against that exact clean checkout' describes a mechanism that later commits a2c1557 and 3589486 replaced. NOVA_FORWARD_REVISION is now derived at import from the installed editable nova-stella distribution; it resolved literally to 905e7955 - nova HEAD, checkout clean, 947 commits past f3d14df5. The gate passes unchanged at that distance, so the seam holds against nova as it stands today; the floating pin is recorded as a property of the gate rather than a regression, and a consumer needing a frozen reference should read the revision from the receipt the contract emits. No source or test file was modified; worktree commit 7d2f0c4 carries only the captured pytest log and is deliberately not integrated, the evidence record being its durable form. Sections 2, 3 and 4 were also collapsed to landed-summary cards in this beat, retaining the contract table and the response-kernel split as reference prose. DRAIN LEDGER - flux-function-state-interface @ 2026-08-23T11:00:00+00:00 :: (1) f-ffsi-002 consume the proven seam in the entry smoother = foreign-owner, owned by magnetics-free-equilibrium-recovery section 5, which is itself blocked on external nova:diiid-forward-onboarding (status active) and is visible in roadmap pending_work. (2) Section 4 record describes a superseded pinning mechanism = folded into node fluxstate-gate-recheck. (3) Sections 2 to 4 shipped on 2026-08-17 but never collapsed = folded into the coordinator plan-state write of this beat. Rows: 3. Foldable-remaining: 0.</div>
 </div>
 </section>
 </main>

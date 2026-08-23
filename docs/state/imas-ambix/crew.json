@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-21T00:52:24",
+  "updated": "2026-08-23T12:55:18",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -185,6 +185,13 @@
         "role": "investigate",
         "session_id": null,
         "created": "2026-08-20"
+      },
+      {
+        "id": "fluxstate-gate-recheck",
+        "harness": "codex",
+        "role": "test",
+        "session_id": null,
+        "created": "2026-08-23"
       },
       {
         "id": "geometry-boundary-design",
@@ -7242,9 +7249,73 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260823T105000559017-fluxstate-gate-recheck",
+        "plan": "flux-function-state-interface",
+        "section": "\u00a74",
+        "node": "fluxstate-gate-recheck",
+        "role": "test",
+        "spec_level": "exact",
+        "member": "fluxstate-gate-recheck",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-23T10:50:04Z",
+        "completed_at": "2026-08-23T10:55:05Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 301,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 301,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "2f3dcd0c87be908f3f7912c50168c6fc0dae2b79",
+        "commits": [
+          "7d2f0c42b62476e2ffdb695fca81a3cd8a264638"
+        ],
+        "changed_lines": {
+          "added": 31,
+          "removed": 0,
+          "files": 1
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260823T105000559017-fluxstate-gate-recheck/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a02e3d-eb32-7c13-ab8c-5cd05e4de17f",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1218560,
+            "cached_input_tokens_cumulative": 1218560,
+            "input_tokens": 1335623,
+            "input_tokens_cumulative": 1335623,
+            "output_tokens": 6993,
+            "output_tokens_cumulative": 6993,
+            "reasoning_output_tokens": 2572,
+            "reasoning_output_tokens_cumulative": 2572
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null
       }
     ],
     "holds": [],
-    "_version": 229
+    "_version": 231
   }
 }
