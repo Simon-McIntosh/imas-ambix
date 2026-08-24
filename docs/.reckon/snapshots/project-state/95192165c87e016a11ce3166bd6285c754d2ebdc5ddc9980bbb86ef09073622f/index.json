@@ -1,0 +1,1007 @@
+{
+  "updated": "2026-08-17T21:13:14",
+  "project": "imas-ambix",
+  "doc": "index",
+  "data": {
+    "active_sprint_id": "S17",
+    "projects": [
+      {
+        "project": "imas-ambix",
+        "path": "~/Code/imas-ambix/docs",
+        "published": "simon-mcintosh.github.io/imas-ambix/",
+        "owner": "Simon McIntosh",
+        "plans_count": 31,
+        "active": 7,
+        "blocked": 0,
+        "pending": 0,
+        "shipped": 15,
+        "last_modified": "2026-06-05",
+        "milestones": [
+          {
+            "id": "M0",
+            "name": "Probe & mirror",
+            "status": "shipped",
+            "pct": 100
+          },
+          {
+            "id": "M1",
+            "name": "Stage-1 state-space engine",
+            "status": "shipped",
+            "pct": 100
+          },
+          {
+            "id": "M2",
+            "name": "Stage-2 GS prior + discovery",
+            "status": "shipped",
+            "pct": 100
+          },
+          {
+            "id": "M3",
+            "name": "MSE-free current recovery",
+            "status": "active",
+            "pct": 5
+          },
+          {
+            "id": "PS",
+            "name": "Plan-system bootstrap",
+            "status": "active",
+            "pct": 40
+          }
+        ],
+        "top": [
+          {
+            "slug": "mse-free-current-recovery-v0",
+            "title": "MSE-Free Multi-Modal Current-Profile Recovery",
+            "status": "active",
+            "roi": "high",
+            "effort": "XL",
+            "ms": "M3",
+            "impl": 0,
+            "blockers": 0,
+            "dec_open": 4
+          },
+          {
+            "slug": "plasma-gs-prior-v0",
+            "title": "Stage-2 \u2014 GS soft-prior + structure discovery",
+            "status": "shipped",
+            "roi": "high",
+            "effort": "L",
+            "ms": "M2",
+            "impl": 1.0,
+            "blockers": 0,
+            "dec_open": 0
+          },
+          {
+            "slug": "plasma-state-space-v0",
+            "title": "Stage-1 state-space engine",
+            "status": "shipped",
+            "roi": "high",
+            "effort": "L",
+            "ms": "M1",
+            "impl": 1.0,
+            "blockers": 0,
+            "dec_open": 0
+          }
+        ],
+        "activity30": [
+          0,
+          0,
+          0,
+          1,
+          2,
+          1,
+          0,
+          2,
+          3,
+          1,
+          1,
+          0,
+          0,
+          1,
+          2,
+          2,
+          3,
+          1,
+          1,
+          0,
+          2,
+          4,
+          3,
+          2,
+          1,
+          1,
+          2,
+          3,
+          4,
+          9
+        ],
+        "tests_30d": {
+          "pass": 0.94,
+          "runs": 217
+        }
+      }
+    ],
+    "sprints": [
+      {
+        "id": "S0",
+        "status": "shipped",
+        "theme": "M0 \u00b7 probe & mirror MAST corpus",
+        "starts": "2026-04-29",
+        "ends": "2026-05-12",
+        "items": [
+          "data-acquisition"
+        ],
+        "summary": "Mirrored 11,573 shots (4.5 TB) from FAIR-MAST to /work/projects/imas_gpu/mast/. Phase 0 closed."
+      },
+      {
+        "id": "S1",
+        "status": "shipped",
+        "theme": "Tokenizer scaffold + data-quality gate",
+        "starts": "2026-05-06",
+        "ends": "2026-05-13",
+        "items": [
+          "data-quality",
+          "tokenizer-benchmarks"
+        ],
+        "summary": "Tokenizer protocol surfaces in tree; data-quality audit landed with 22 tests / 76% usable-rate on 25-shot sample."
+      },
+      {
+        "id": "S2",
+        "status": "done",
+        "theme": "M1 ramp \u00b7 close tokenizer track, unblock world-model",
+        "starts": "2026-05-13",
+        "ends": "2026-05-27",
+        "items": [
+          "tokenizers",
+          "v0-runway",
+          "compute",
+          "data-quality",
+          "tokenizer-benchmarks",
+          "world-model-v0"
+        ],
+        "summary": "Closed retroactively 2026-06-03 (status was stale). All items long since landed or archived: tokenizers/tokenizer-benchmarks shipped (S2-S4 era), compute shipped, data-quality shipped (training-grade gate), v0-runway + world-model-v0 archived at the S5/S7 pivot away from the camera world-model."
+      },
+      {
+        "id": "S3",
+        "status": "done",
+        "theme": "Plan-system bootstrap \u2014 eat our own dog food",
+        "starts": "2026-05-21",
+        "ends": "2026-05-25",
+        "items": [
+          {
+            "slug": "plans-migration-ambix",
+            "why_now": "S3 deliverable \u2014 the JSON\u2192HTML island migration that S3 set out to ship",
+            "done_when": "per-plan state served from HTML islands; sidecar JSON removed",
+            "status": "shipped",
+            "capability": {
+              "version": "1.0",
+              "class": "general",
+              "requirements": {}
+            }
+          }
+        ],
+        "summary": "Shipped 2026-05-27: plan-system migrated from per-plan JSON sidecars to embedded HTML islands (meta tags + data-reckon sections). reckon MCP server reads/writes the islands; index.json retained for project config (sprints/milestones/timeline) only. Eat-the-dog-food validated this session \u2014 the migration was tracked in the very system it built."
+      },
+      {
+        "id": "S4",
+        "status": "shipped",
+        "theme": "Saturate 4\u00d7H200 \u2014 GPU-bound by killing I/O+CPU tax in the encode path",
+        "starts": "2026-05-27",
+        "ends": "2026-06-03",
+        "items": [
+          "zarr-consolidate",
+          "frame-precompute"
+        ],
+        "summary": "Shipped 2026-05-27 (zarr-consolidate) + 2026-05-28 (frame-precompute). Both perf wins land; corpus encode hit 308 fps/GPU peak via the in-process stream_encode.py path that replaced the optimisation targets. Side-quest: bench harness moved to the same in-process pattern (commit c759282) \u2014 ~55\u00d7 speedup; rFID gate measurement landed at 16.25 on the 100-shot in-process bench (job 1208918)."
+      },
+      {
+        "id": "S5",
+        "status": "done",
+        "theme": "Plasma-domain decoder fine-tune \u2192 world-model-v0 kickoff",
+        "starts": "2026-05-28",
+        "ends": "2026-05-29",
+        "items": [
+          "plasma-decoder-finetune"
+        ],
+        "summary": "Closed 2026-05-29 with a NEGATIVE-but-decisive result that re-founded the project. The Open-MAGVIT2 decoder fine-tune (v0 0.1\u00b7LPIPS, Option B 1.0\u00b7LPIPS) was confirmed ~7pt WORSE than the untrained baseline on rFID \u2014 robust to rFID pool size (Option D, 8 & 32 frame) and to decoder precision (job 1209184 ruled out a bf16-measurement artifact). Conclusion: tuning a 2D decoder against rFID is a dead-end, and rFID is the wrong north-star for a dynamics model. world-model-v0 retains the baseline imagenet OMAG2 decoder where camera decoding is needed; the camera generative WM is demoted to a byproduct. The project pivots to a probabilistic state-space model (see physics-world-model-strategy); next sprint S7 stands up the Stage-1 engine. Bugs fixed en route: C5 resize, C8 frame-selection, rfid_frames_per_shot 8\u219232 default, merged-ckpt clobber, /tmp visibility, bench bf16-decode diagnostic toggles."
+      },
+      {
+        "id": "S7",
+        "status": "done",
+        "theme": "Plasma state-space engine \u2014 calibrated virtual diagnostics from raw signals",
+        "starts": "2026-05-29",
+        "ends": "2026-06-12",
+        "items": [
+          {
+            "slug": "plasma-state-space-v0",
+            "why_now": "Stage-1 of the re-founded physics-world-model strategy: prove the probabilistic state-space engine + its calibration on a cross-family raw-signal hold-out before physical grounding (GS prior) and discovery.",
+            "done_when": "Stage-1 acceptance: filtering calibrated (88-92% coverage); forecasting a WHOLE held-out diagnostic family (D\u03b1 / camera-derived boundary) through transients beats the static deep-ensemble baseline on CRPS at horizon>0; held-out regimes flagged OOD. No EFIT labels.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          }
+        ],
+        "summary": "Closed 2026-05-30: Stage-1 cross-family state-space engine stood up + proven (QUALIFIED). On raw MAST D\u03b1 from magnetics+interferometer (EFIT-free, leakage-audited whole-family hold-out): static deep-ensemble+conformal baseline (cov 0.903) -> RKN latent-SSM engine. Headline = metric-sensitive NEGATIVE: forecast CRPS LOSES to a persistence-of-nowcast (96.8%-stationary target). Re-scoped acceptance (user A+B) MET on criteria 1+2 (filtering 0.913; transient-NLL win at h>=5, sharpened by a Student-t emission head) + criterion-3 HONEST PARTIAL (engine OOD-honest via coverage non-collapse 0.94->0.76 + sigma-inflation x3.3, but engine-native OOD-detection 0.748 does NOT beat the static ensemble 0.810). Dynamics earn their keep on calibrated catastrophic-miss-avoidance + honest widening, NOT bulk CRPS. S7.1-S7.5 + scalar-fix + baseline grad-clip landed; package imas_ambix/statespace/ (inventory/families/splits/calibration/align/dataset/baseline/engine/filter; engine_metrics_v0/v1/v2). Stage-2 (GS prior) = GO -> S8."
+      },
+      {
+        "id": "S8",
+        "status": "done",
+        "theme": "Stage-2 \u2014 physical grounding (Grad-Shafranov soft prior) + structure discovery",
+        "items": [
+          {
+            "slug": "plasma-gs-prior-v0",
+            "title": "Stage-2 \u2014 GS soft-prior + structure discovery",
+            "why_now": "Stage-1 met (qualified) per S7; the GS prior grounds the latent in raw magnetics and is the principled path to a dynamics-native force-balance-departure detector that may close the Stage-1 criterion-3 OOD gap.",
+            "done_when": "Q1: GS force-balance-departure residual validated on known transients (beats a trivial |dB/dt| baseline + survives the eddy-current ablation); first discovered reduced-structure result (effective latent dim + sparse recurrence preserving D\u03b1 skill); grounding help/hurt on Stage-1 metrics reported honestly. Raw signals only.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          }
+        ],
+        "starts": "2026-05-30",
+        "ends": "2026-06-20",
+        "description": "Ground the Stage-1 latent in raw magnetics via a GS soft residual (data can override); stand up GS-residual monitoring as a force-balance-departure / dynamics-native OOD detector (may close Stage-1 criterion-3); apply SINDy/Koopman to the latent transition kernel toward dimensionless/invariant coordinates. First action: scaffold a dedicated Stage-2 plan + decompose GS-prior into scoped tasks; consider the open uq-level-v0 + extrapolation-coordinates decisions."
+      },
+      {
+        "id": "S9",
+        "status": "done",
+        "theme": "Stage-3 \u2014 MSE-free multi-modal current-profile recovery (beat EnKF)",
+        "items": [
+          {
+            "slug": "mse-free-current-recovery-v0",
+            "why_now": "The ratified pivot. Stage-1 + Stage-2 closed with honest results; recover the internal current profile WITHOUT MSE from raw multi-modal data, beating a classical EnKF baseline \u2014 the ITER-startup problem (no MSE, must still recover the current profile).",
+            "done_when": "An MSE-free end-to-end obs->state neural filter beats the EnKF baseline on the three-axis win (MSE-observable RMSE; coverage [0.88,0.92]; CRPS/NLL on transients), validated on held-out raw MSE. The EnKF baseline + held-out-MSE eval harness are built first.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          }
+        ],
+        "starts": "2026-05-31",
+        "ends": "2026-06-27",
+        "description": "Build an end-to-end observation->state deep neural filter on raw multi-modal diagnostics (magnetics + ane + bolometer + SXR + visible camera + Thomson) that recovers MSE-derived internal-current observables it never sees as input, beating a classical EnKF baseline. Front-load the EnKF baseline + held-out-MSE eval harness to learn the bar early. Scope locks: observables/on-axis only (full continuous q(psi) OUT); EFIT eval-only boundary/global sanity-check; architecture = end-to-end obs->state. Grounded in the 7-reader deep review (wpy0754zv, 2026-05-31).",
+        "summary": "Closed 2026-06-02. Delivered the eval substrate + a strong characterization of the MSE-free problem, ending in a principled NO-GO that re-shaped the path. Built: D1 held-out-MSE eval harness + 112-shot cross-family/cross-shot split (statespace/mse_eval+mse_split); D3 multi-modal loaders (camera/chord/Thomson); D2 classical EnKF/TORAX bar \u2014 full N=112 pitch RMSE 0.225 [0.199,0.259], recovery confirmed PHYSICS-driven (forecast~=analysis; magnetics assimilation barely moves the interior); a findings doc with j(rho,t) evolution plots. KEY RESULT: a supervised oracle (3 arms on the locked metric) returned QUALIFIED_NEGATIVE \u2014 time-history adds nothing (0.190~=0.188), the near-axis interior is model-failure-floored ~0.41 rad for magnetics+ALL multimodal (re-confirms equilibrium under-determination), SXR/rational-surface not significant, bolo only a small off-interior carrier. The binding constraint is interior INFORMATION, not ML architecture or dynamics. NO-GO on the multimodal-neural-D4 v0 -> PIVOT to S10 (strong sequential full-state baseline + kinetic-pressure-via-GS-p' before ML). Infra: reckon dangling-link check + stamp-on-serve fix landed. mse-free-current-recovery-v0 stays the M3 north-star (win condition unchanged); S10 builds the foundation under it."
+      },
+      {
+        "id": "S10",
+        "status": "done",
+        "theme": "Stage-3b \u2014 Strong physics baseline + internal-current diagnostics (before ML)",
+        "items": [
+          {
+            "slug": "sequential-current-da-v1",
+            "why_now": "The v0 EnKF is a weak parameter-smoother (cov90 0.465, noisy late-time j, biased q0); a sequential full-state psi(rho) EKF establishes the true achievable frontier and is the platform the pressure experiment rides on.",
+            "done_when": "Sequential reduced-EKF (TORAX out of the inner loop, validated vs TORAX q(rho,t)) + per-shot geometry + mandatory ~5-6 DOF localization + split-conformal cov90 in [0.88,0.92]; scored on the D1 harness; v1 bar with CIs; the late-time noise + q0 bias fixed.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "internal-current-diagnostics-v0",
+            "why_now": "Interior information is the binding wall; kinetic pressure via the GS-p' physics path is the one real new interior lever available on MAST (Faraday/polarimetry absent full-inventory). The decisive 45-shot cohort experiment.",
+            "done_when": "Thomson(atm)->pressure->GS-p' operator wired into the sequential EnKF; with/without-pressure near-axis interior RMSE measured on the 45-shot held-out cohort; honest verdict on whether pressure breaks the ~0.41 ceiling; CXRS(act)->Zeff assessed.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "neural-kf-architecture-survey",
+            "why_now": "Survey the principled neural-filter successors to the RKN (Koopman-linear-latent / learned-gain) for when a strong baseline + richer diagnostics exist; no ML build this sprint.",
+            "done_when": "Two-class verdict table + new primaries cited; positions Koopman-LAE-EnKF / Recursive-KalmanNet as the post-baseline architectures; framed as right-for-richer-data, not deferred-because-architecture-didn't-matter.",
+            "status": "shipped",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          }
+        ],
+        "starts": "2026-06-02",
+        "ends": "2026-06-20",
+        "description": "The oracle proved the binding constraint on MSE-free current recovery is interior INFORMATION, not the ML architecture (time-history adds nothing; near-axis interior model-failure-floored ~0.41 rad for magnetics+all multimodal). So shore up a STRONG physics baseline AND chain the one real new interior lever (kinetic pressure via GS-p'), BEFORE any ML. Frame: sure wins (sequential full-state EnKF: fixes cov90/q0/late-time-noise, approaches the ~0.19 ceiling) + one decisive bet (does GS-p' pressure beat the ~0.41 near-axis interior ceiling on the 45-shot cohort?). ML (Koopman/learned-gain successors to the RKN) is surveyed now, built later on the stronger baseline + richer data.",
+        "summary": "Closed administratively 2026-07-29 without asserting unfinished items shipped; remaining ML work stays in its source plans and physics ownership moves to Nova."
+      },
+      {
+        "id": "S11",
+        "status": "done",
+        "theme": "OPS \u00b7 GPU-drain coordinated-window campaign (backward-bisect + SLURM-side capture)",
+        "items": [
+          {
+            "slug": "drain-window-campaign",
+            "why_now": "14 repro attempts failed by bisecting FORWARD from guesses (0/13). Reverse it: resurrect the one confirmed drain artifact (pre-928ed0d MWE-01 v1 = job 1209813) and bisect BACKWARD, while capturing the never-observed SLURM half (slurmd Reason=, UnkillableStepTimeout, cgroup PIDs) \u2014 in one admin-coordinated window. Multi-hour outages are unacceptable.",
+            "done_when": "Pre-window fact resolved (did 1209813 drain a clean node?); dual-half capture harness built + dry-run green; Track C (non-GPU cgroup wedge) and Track A (frozen MWE-01 v1 + backward-bisection ladder) prepared as PREPARE-ONLY artifacts with run-cards; Recovery-track admin proposal (epilog gpu-reset + auto-resume + UnkillableStepTimeout review) authored. In-window runs (C then A) executed with admin on standby; minimal trigger isolated or non-reproducibility concluded over the budgeted verbatim runs.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "general",
+              "requirements": {}
+            }
+          }
+        ],
+        "starts": "2026-06-03",
+        "ends": "2026-06-17",
+        "description": "The drain RCAs rest on an UNOBSERVED causal half: every doc inferred 'D-state -> Kill task failed -> drain' from the training process and never read slurmd's own view, and the deliberate reproductions all bisected forward from a clean node (0/13; version stack did NOT drift, so that's not the excuse). New direction: backward-bisect the one confirmed artifact (1209813) and close the SLURM-side gap, inside a single coordinated admin window (Track C deterministic non-GPU warm-up validates harness+SLURM-chain+admin-loop, then Track A on the GPU; Track B reserved). Parallel, no window: an auto-recovery admin proposal so any future drain self-heals in minutes. Workers: Sonnet; reasoning/synthesis: Opus.",
+        "summary": "Closed administratively 2026-07-29; unresolved operational work remains in drain-window-campaign rather than a second active sprint."
+      },
+      {
+        "id": "S12",
+        "status": "done",
+        "theme": "Prise interior information from the dataset \u2014 fast magnetics & exotic sensors at H200 scale",
+        "items": [
+          {
+            "slug": "interior-information-discovery-v0",
+            "why_now": "The S9 oracle proved interior current is unrecoverable from SCALAR magnetics (~0.41 rad near-axis floor) \u2014 but it fed magnetics the EFIT/least-squares way. User priority 2026-06-04: systematically test whether the information survives in fast/exotic channels (xma 5 kHz Mirnov+flux, xsx 100\u2013500 kHz SXR, aoe, act) served as learned + hand-crafted time-frequency / mode representations. This was the intended near-term consumer of the 4xH200 reservation and directly attacked the project's binding constraint. Verified on disk: xma = 253 arrays on the 5 kHz compact axis.",
+            "done_when": "D0 fast-signal loaders + I/O strategy; D1 measurement-harness extension locking the ~0.41 floor bar on the reused 112-shot split; D2 hand-crafted (STFT + cross-coil mode decomposition / wavelet / k-omega / line-shape) + D3 learned (1D-CNN / wavelet-scattering / transformer) arms scored on the IDENTICAL oracle metric; D4 physics probes (n(t)/m, sawtooth inversion radius, rational-surface localisation vs EFIT/MSE); D5 verdict \u2014 does any representation break the floor? crafted vs learned? honest negative is a result.",
+            "status": "shipped",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          }
+        ],
+        "starts": "2026-06-04",
+        "ends": "2026-06-18",
+        "description": "Closed 2026-06-05 with a QUALIFIED_NEGATIVE. D0\u2013D3-phase completed across the fast/exotic panel after correcting the core rate and availability facts: xma is 5 kHz (not 660 kHz), xsx is 100\u2013500 kHz, held-out readability is xma 91%, xsx 78%, aoe 19%, act 95%. The decisive D3 phase-preserving oracle (commit ceb01ed; artifact oracle_probe_phase_v0.json) kept processed magnetics in front: A_mag 0.1879 rad, E_mag_sxr_phase 0.1889 with CI crossing 0, E_mag_mirnov_phase 0.1923, combined phase arm 0.1938. Bolometer remained the only real carrier and stayed off-interior (carrier_reaches_interior_reliable=false), so there is no clean H200 GO and no reason to spend the reservation on Arm B.",
+        "summary": "Closed 2026-06-05 with a QUALIFIED_NEGATIVE. Phase-preserving SXR/Mirnov features did not beat A_mag (0.1879 vs 0.1889/0.1923/0.1938); bolometer stayed off-interior, so S12 ends with no clean H200 GO."
+      },
+      {
+        "id": "S13",
+        "status": "done",
+        "theme": "World-model H200 builds \u2014 camera-dynamics reconstruction + learned physics closures",
+        "items": [],
+        "starts": "2026-06-10",
+        "ends": "2026-06-24",
+        "description": "Two physics-backed world-model builds that put the idle 4xH200 reservation to work, scoped per user directive 2026-06-10. Both are extraction-of-structure-from-raw-data projects: (A) camera-dynamics-wm-v0 learns reduced-order dynamics from the full-machine rbb camera via clipped-view full-stream reconstruction over the existing 4.02B-token corpus; (B) learned-closure-current-diffusion-v0 folds hard physics priors (positive resistivity, resistive diffusion timescale, Ip boundary condition) into multi-modal data by learning the closures inside a differentiable current-diffusion filter \u2014 the q-without-MSE path. Sequencing: B's D4 scoring waits on the S10 v1 bar freezing; everything else proceeds now. GPU safety: AGENTS.md 2a/2a-cancel/2a-cancel-time binding on every job.",
+        "summary": "Closed 2026-06-19 when the world-model focus pivoted to a demonstrable 'play the plasma' capability (S14). Headline landed: camera-dynamics-wm-v0 W1 \u2014 dynamics beat statics (matched-arm masked-token NLL +0.4587, CI clear of zero; pan +0.51, frontier +2.55 nats). Remaining camera probes (D3-D5) + the learned-closure current-diffusion thread roll forward to S15 (science follows)."
+      },
+      {
+        "id": "S14",
+        "status": "done",
+        "theme": "Play the plasma \u2014 demonstrable driveable camera world model",
+        "items": [],
+        "starts": "2026-06-19",
+        "ends": "2026-06-26",
+        "description": "One-week sprint (user-directed 2026-06-19): turn the camera world model from persistence-collapse into a DEMONSTRABLE, driveable demo. Fix the two collapse causes cheaply \u2014 sampling (not argmax) + context-corruption fine-tune + load-bearing control conditioning with classifier-free guidance \u2014 reusing the trained spatiotemporal checkpoint (spacetime-v2-1219852), the actuator conditioning + gas-puff controllability probe from camera-dynamics-wm-v0, and the frozen Open-MAGVIT2 decoder. Demonstrable capability is the primary goal; the science (virtual diagnostics, reduced dynamics, discovery) follows as the SAME generative model with observation guidance switched on (PLAY vs TRACK). SOTA-grounded: WHAM/Genie/GameNGen/EMERALD + SDA/Appa play-vs-track duality + FusionMAE/TCV NSSM scarce-data fusion precedents.",
+        "summary": "Superseded 2026-06-24 by the machine-agnostic latent world-model redesign (S16). playable-plasma-wm-v0 is the driveable-camera line that closed as the robust controllability NO-GO (the actuator plan was never load-bearing across every lever; root cause = causal under-identification). The camera-as-state-carrier path is replaced by a closed-loop latent state-space model in which the camera is a DECODE target, not the state. See machine-agnostic-latent-world-model + physics-world-model-strategy \u00a71a."
+      },
+      {
+        "id": "S15",
+        "status": "done",
+        "theme": "Science follows \u2014 virtual diagnostics, reduced dynamics, learned closures",
+        "items": [],
+        "starts": "2026-06-26",
+        "ends": "2026-07-17",
+        "description": "The science track that follows the playable-plasma demo (S14). Same generative substrate with observation guidance switched on (TRACK mode): predict withheld diagnostics from a subset (the over-diagnosis information-redundancy map), extract reduced nonlinear dynamics/closures (Koopman/SINDy), and ground correction in the working EKF \u2014 without hardcoding a forward simulator. Holds the camera-dynamics reconstruction/probe work + the learned-closure current-diffusion thread rolled forward from S13.",
+        "summary": "Superseded 2026-06-24 by the redesign (S16). camera-dynamics-wm-v0 (camera-as-state-carrier) is replaced. learned-closure-current-diffusion-v0 is NOT discarded \u2014 it is REUSED: its differentiable psi-diffusion filter + positive-resistivity / diffusion-timescale priors are the prior art for the \u00a77a flux-diffusion transport anchor, folded into the gs-grounded-latent-engine child plan."
+      },
+      {
+        "id": "S16",
+        "status": "done",
+        "theme": "Prove the Nova\u2013Ambix join and finish the grounded substrate",
+        "items": [
+          {
+            "slug": "evaluation-and-controllability-harness",
+            "why_now": "Parallel enabling track (P0) \u2014 model-independent eval spine; runs alongside stage 1; gates stage 2 (absolute-magnetics oracle) + stage 4 (raw-held-out + powered dN-M gate); fleet-suitable. Front-loads the acceptance bars (the S9/Stage-3 lesson).",
+            "done_when": "Five non-overlapping components built + tested (firewalled EFIT referee, absolute-magnetics oracle, raw-held-out + EnKF bar, powered n=10 dN-M gate, excitation-window selector); bars measured on existing data; excited held-out cohort defined + leakage-audited.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "patch-current-force-balance",
+            "why_now": "User-directed pivot 2026-07-03: the corrected GS source exposed the 2-DOF profile family as the binding constraint (12/160 scored); scoping showed the patch-current substrate + structure residual scores 12/12 held-out slices at 4.5 cm median vs 8.7 cm train-mean, training-free. Subsumes the f-ggl-02 encoder work as its P4.",
+            "done_when": "P3 gate: >=95% scored fraction + axis skill > 0 vs clustered train-mean on the 160-slice protocol; P4 gate: amortised patch-current encoder reaches/honestly-compares-to the 0.5-0.7 oracle bar with 100% readout availability and grounding >= 5.53x.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "hybrid-state-estimation-smoke",
+            "why_now": "The current Nova pin and all three Ambix estimator interfaces are banked; the missing decision-making evidence is the integrated Nova-propagated posterior and H200 capability measurement.",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            },
+            "done_when": "One Nova-led ensemble exposes forecast, causal analysis and non-causal smoothing; physical/proper-score/causality gates are recorded; CPU, one-H200 and eight-H200 evidence plus equilibrium and diagnostic artifacts are banked.",
+            "status": "pending"
+          }
+        ],
+        "starts": "2026-06-24",
+        "ends": "2026-08-16",
+        "description": "Active sprint: finish the absolute/geometry and grounded-state prerequisites, then execute the first integrated Nova-propagated forecast, causal analysis and non-causal smoother smoke. Bank CPU capability now and measure one/eight-H200 parity and throughput. The smoke is the exit gate; full probabilistic training moves to S18.",
+        "summary": "Closed 2026-08-17 at the end of its window (2026-06-24..2026-08-16). Landed: the toroidal-harmonic annulus read, the patch-current force-balance and hybrid-state-estimation smoke work, and the physics-world-model strategy refresh that added the derivative-level firewall. Carry-over, unchanged in status and still ready: mse-free-current-recovery-v0 (the M3 critical-path root), toroidal-harmonic-annulus-read follow-through into equilibrium-topology-fidelity, and physics-world-model-strategy at 70 percent. The world-model chain behind them (sequential-current-da-v1, machine-agnostic-latent-world-model, gs-grounded-latent-engine, absolute-geometry-token-substrate) stays blocked on that root and is re-homed by dependency rather than by sprint. Focus moves to S17 and the hard-dated Sophelio entry lane in S21."
+      },
+      {
+        "id": "S17",
+        "status": "active",
+        "theme": "Nova consumer integration and the magnetics-free entry substrate",
+        "items": [
+          {
+            "slug": "nova-physics-consumer-integration",
+            "why_now": "All physics ownership is moving to Nova; Ambix needs one explicit adapter, parity and donor-retirement plan.",
+            "done_when": "Pinned Nova dependency, thin CPU/GPU adapters, end-to-end label parity and donor deletion gates pass with evidence.",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "cocos-convention-hardening",
+            "why_now": "The Nova consumer seam must fail loudly across native and IMAS sign conventions before cross-machine integration expands.",
+            "done_when": "The working convention and IMAS angle transform are regression-tested, with one explicit normalization boundary.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "mast-machine-configuration-map",
+            "why_now": "Continuous Nova integration needs campaign-aware geometry, conductor and sensor identities rather than a frozen setup signature.",
+            "done_when": "A per-shot configuration registry drives geometry, sensor availability and evaluation stratification.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "flux-function-state-interface",
+            "why_now": "The landed ensemble smoke and parallel Nova solver work need one typed authority seam before consumer integration can remain continuous and scientifically reviewable.",
+            "done_when": "Ambix emits causal absolute or explicitly constrained core, rotation and topology-qualified SOL flux-function states with uncertainty, units, COCOS and integral-constraint provenance; pinned Nova contract fixtures pass.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {
+                "reasoning": "deep",
+                "verification": "strict",
+                "risk": "elevated"
+              }
+            }
+          },
+          {
+            "slug": "flux-function-evolution-prototype",
+            "why_now": "De-risks the magnetics-free entry's low-dimensional state thesis on a ~20-shot subset before the full corpus ingest and hardened kernels land; feeds the entry's label-pedigree and floor-bar decisions and the learned-closure loss-set decision, against a hard 2026-10-18 deadline.",
+            "done_when": "Extracted p-prime/FF-prime trajectories banked for >=15 shots with vacuum receipts; transport-vs-persistence explained-variance table banked with a verdict; one-shot GS+transport+Thomson closed-loop demo banked with innovation statistics and LCFS/q95/betaN error vs label.",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {
+                "verification": "strict"
+              }
+            }
+          }
+        ],
+        "starts": "2026-08-17",
+        "ends": "2026-08-30",
+        "description": "Keep Ambix and Nova moving in tandem through exact reviewed Nova SHAs, focused consumer-contract tests and linked Nova-owned independent GHCR/CPU/GPU evidence. Capability-gate in-flight APIs; do not wait for a final freeze and do not retire donors before parity."
+      },
+      {
+        "id": "S21",
+        "status": "planned",
+        "theme": "Magnetics-free equilibrium entry \u2014 ITER-pipeline rehearsal (Sophelio challenge)",
+        "items": [
+          {
+            "slug": "magnetics-free-equilibrium-recovery",
+            "status": "active",
+            "why_now": "Hard external deadline (2026-10-18) and the only adversarially-scored cross-machine validation available before ITER operations; builds the Thomson pseudo-magnetics operators, extraction-driven closure calibration and second-machine portability evidence the north star needs regardless of the competition.",
+            "done_when": "Flat-top floor gate met and a first submission made from it; limited-phase traversal bounded; sealed zero-shot rehearsal evidence banked (MAST EFIT untouched); blind-final submissions and the methods report with the FAIR-MAST non-training disclosure published; lessons-learned evidence wired back to physics-world-model-strategy.",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {
+                "reasoning": "deep",
+                "verification": "strict",
+                "risk": "elevated"
+              }
+            }
+          },
+          {
+            "slug": "sophelio-entry-master",
+            "why_now": "The entry spans two repositories and a hard 2026-10-18 deadline; a single persisted coordination plan carries the execution order, gate ledger and sequencing decisions so live status composes through one roadmap node instead of living in session transcripts.",
+            "done_when": "All three hard dependencies (both nova plans and the entry plan) are shipped, the gate ledger shows the blind-final submissions made, and the standing-state section records the final scores with evidence links.",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {
+                "reasoning": "deep",
+                "verification": "strict"
+              }
+            }
+          }
+        ],
+        "description": "Enter the Sophelio Fusion Equilibrium Challenge as an external, adversarially-scored rehearsal of the seam architecture: predict EFIT-scored equilibria from actuators and Thomson alone on DIII-D with zero-shot MAST transfer, under the locked data doctrine (derivative-level firewall; FAIR-MAST machine descriptions and signal semantics only, no training use, stated in the deliverable; MAST EFIT firewalled; sealed zero-shot rehearsal). Development phase closes 2026-10-18; blind final Oct 19-26. Objective is the ITER data-analysis pipeline, not the prize.",
+        "starts": "2026-08-17",
+        "ends": "2026-10-26"
+      },
+      {
+        "id": "S18",
+        "status": "planned",
+        "theme": "Probabilistic Nova ensemble \u2014 forecast, analysis and smoothing",
+        "items": [
+          {
+            "slug": "learned-closure-current-diffusion-v0",
+            "why_now": "The S9 D2 mechanism finding says internal-current recovery is carried by the psi-diffusion forward + sigma(Te) closure, not by assimilation, and the oracle refuted direct obs->state regression. The remaining principled ML lever is learning the closures (eta>0-constrained Sauter correction, bounded Zeff_eff) INSIDE a differentiable solver, MSE-free, amortized across 5,672 shots on 4xH200 \u2014 the q-without-MSE path that goes through the physics, and the home of the open neural-KF Class-2 prototype followup.",
+            "done_when": "Differentiable psi-diffusion core gradcheck-green + TORAX-validated (>=3 shots); constrained closure modules with Sauter-only ablation; MSE-free amortized training converged on 4xH200 (hardened sbatch); scored on the locked D1 harness vs the frozen sequential-EKF v1 bar (W1 RMSE + cov90 [0.88,0.92] + CRPS/NLL, bootstrap CIs); near-axis clean test (no overclaim); W4 closure-extraction maps published win or lose.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "closed-loop-latent-filter",
+            "why_now": "v0 stage 3 \u2014 the inference engine (space-time transformer prior + small LAE-EnKF ensemble correction); the structural fix for the open-loop persistence collapse.",
+            "done_when": "Overfit fits; closed-loop beats open-loop on held-out (no persistence collapse); calibrated coverage in [0.88,0.92]; dream+track from one checkpoint via observation-withholding.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "controllable-forecast-and-gate",
+            "why_now": "v0 stage 4 \u2014 THE goal gate: excitation-curated multi-modal corpus training + the powered controllability gate the prior camera/RSSM work failed + raw-held-out prediction.",
+            "done_when": "Powered dN-M controllability gate PASSES on excited held-out windows (true-plan moves the latent more than random; CI clear); raw-held-out signal prediction beats persistence AND the EnKF bar.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "learned-equilibrium-operator",
+            "why_now": "A learned equilibrium proposal/distillation challenger can be judged against the Nova-led ensemble after the integrated smoke and physical posterior exist.",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            },
+            "done_when": "The operator improves measured skill without violating physics/parity gates; it remains a challenger until it earns reference parity.",
+            "status": "active"
+          },
+          {
+            "slug": "internal-current-diagnostics-v0",
+            "why_now": "Measured pressure is the physical interior-information lever required by the learned closure and current-diffusion track.",
+            "done_when": "The Thomson-to-pressure operator is ablated on the held-out cohort and its information gain is recorded honestly.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "interior-closure-hardening",
+            "why_now": "The learned equilibrium challenger is blocked on a measured-Te resistivity closure and explicit interior representation.",
+            "done_when": "Each closure earns held-out-MSE skill or is rejected, with provenance and bias audits preserved.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "channel-uncertainty-management",
+            "why_now": "Calibrated ensemble inference needs persistent channel-level uncertainty rather than silent signal rewriting.",
+            "done_when": "Train-only channel weights improve calibration or are rejected by a frozen A/B gate without changing signals.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "general",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "mse-free-current-recovery-v0",
+            "why_now": "The ready MSE-free recovery plan is the first unresolved prerequisite on the live estimator critical path.",
+            "done_when": "The held-out-MSE recovery result is honestly closed or handed forward with its measured information limit.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "sequential-current-da-v1",
+            "why_now": "The strong sequential current estimator is a direct prerequisite of the grounded latent engine and the machine-agnostic parent.",
+            "done_when": "The reduced-EKF substrate and frozen calibration bar are complete enough for the integrated hybrid estimator.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "toroidal-harmonic-annulus-read",
+            "why_now": "This boundary read is the immediate prerequisite for topology fidelity and is already at the final X-point/axis trade-off followup.",
+            "done_when": "The centroid-origin X-point/axis trade-off is resolved honestly without losing the LCFS and ramp-up gain.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "equilibrium-topology-fidelity",
+            "why_now": "Topology fidelity is an explicit hard prerequisite of the machine-agnostic world-model parent.",
+            "done_when": "The externally constrained boundary and interior-diagnostic threads establish an honest topology carrier for the Nova-Ambix smoke.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "machine-agnostic-latent-world-model",
+            "why_now": "Parent architecture and transfer contract for the active grounded substrate and the integrated smoke.",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            },
+            "done_when": "North Star, ownership, invariant representation and child-gate relationships remain consistent with measured evidence.",
+            "status": "active"
+          },
+          {
+            "slug": "gs-grounded-latent-engine",
+            "why_now": "v0 stage 2 \u2014 the hybrid latent + its spatial (GS) and temporal (flux-diffusion + sign/irreversibility) anchors; boundary/X-point emerge as label-free psi readouts.",
+            "done_when": "From raw magnetics the GS-readout axis/X-point/boundary skill matches the absolute-magnetics oracle (~0.5-0.7) with NO EFIT labels; learned diffusivity verified D>=0; transport priors active + falsifiable.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "absolute-geometry-token-substrate",
+            "why_now": "v0 stage 1 \u2014 the representation upgrade everything downstream consumes; repairs the per-shot scale-free blocker and adds the cross-machine sensor-geometry positional encoding.",
+            "done_when": "Tokens carry corpus-level absolute (SI) values + per-diagnostic sensor geometry + machine geometry; per-modality reconstruction fidelity preserved; a diagnostics->equilibrium probe skill rises clearly off ~0.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "physics-world-model-strategy",
+            "why_now": "The North Star strategy governs the ownership and estimator contract being exercised by this sprint.",
+            "done_when": "The strategy remains consistent with the measured Nova-Ambix smoke, including forecast, analysis, smoothing and innovation semantics.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          }
+        ],
+        "starts": "2026-08-31",
+        "ends": "2026-09-20",
+        "description": "Learn transferable closure/source/boundary uncertainty around the Nova transition; deliver causal forecasts, causal reconstruction and fixed-lag/full-shot smoothing from one calibrated ensemble. Score against persistence and EnKF/EnKS, then demonstrate CPU, one-H200 and eight-H200 capability."
+      },
+      {
+        "id": "S19",
+        "status": "planned",
+        "theme": "Multimodal controllable dreams from the physical posterior",
+        "items": [
+          {
+            "slug": "world-model-prototype",
+            "why_now": "Provides the existing joint generative substrate after the physical posterior is validated.",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            },
+            "done_when": "The prototype consumes posterior/scenario state through a documented interface and preserves causal/provenance labels.",
+            "status": "pending"
+          },
+          {
+            "slug": "camera-dynamics-wm-v0",
+            "why_now": "User directive 2026-06-10: the 4xH200 reservation is idle while the 9,527-shot / 4.02B-token rbb camera corpus sits unused. The clipped-view -> full-stream reconstruction task is the fast-return dynamics-backed world-model build, with matched-arm (temporal vs per-frame) design so the dynamics claim is earned, and physics probes from the latent. Honours the S5 lesson (token-space metrics, frozen decoder, no rFID north-star) and the camera-role lock (generation is a byproduct; the latent is the product).",
+            "done_when": "W1 dynamics-beat-statics (matched-arm masked-token NLL, CI clear of zero); W2 forward-horizon reconstruction table (h=10/50/200 ms); W3 frozen-probe lift on held-out raw diagnostics; stretch pitch probe on the locked D1 MSE harness reported honestly; full-stream decoded demo as byproduct.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "playable-plasma-wm-v0",
+            "why_now": "The lead resolved the world-model fork to a demonstrable 'play the plasma' capability first (science follows). The persistence collapse is fixable cheaply (sample + context-corruption + control-CFG) by reusing the already-trained spatiotemporal checkpoint \u2014 no from-scratch rebuild.",
+            "done_when": "W1 responds-to-controls (control-divergence > same-schedule spread + gas-puff falsification passes); W2 non-collapse earned on a distributional metric (FVD/CRPS vs persistence) incl. the bright/high-motion held-out shots; W3 a driveable demo (3 rendered videos: faithful replay, counterfactual same-seed-two-plans, knob demo); honest verdict + plan collapsed; the TRACK/science follow-on queued.",
+            "status": "active",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            }
+          },
+          {
+            "slug": "joint-multimodal-plasma-wm",
+            "why_now": "Generates cameras and diagnostics from the validated physical posterior rather than asking cameras to carry the state.",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            },
+            "done_when": "Equilibrium and raw diagnostic ensembles respond to edited actuator trajectories; cameras are an honest conditional by-product; proper-score and controllability gates pass.",
+            "status": "pending"
+          }
+        ],
+        "starts": "2026-09-21",
+        "ends": "2026-10-11",
+        "description": "Decode the validated physical posterior into equilibrium and diagnostic trajectories under new commands. Reuse the camera world-model assets as one conditional observation product, repair the old sprint inversion and require command sensitivity in physical state before camera quality is celebrated."
+      },
+      {
+        "id": "S20",
+        "status": "planned",
+        "theme": "Cross-machine transfer and ITER first-plasma rehearsal",
+        "items": [
+          {
+            "slug": "iter-first-plasma-rehearsal",
+            "why_now": "The project North Star is useful ITER state estimation from first plasma, before an ITER-specific empirical history exists.",
+            "capability": {
+              "version": "1.0",
+              "class": "orchestrator",
+              "requirements": {}
+            },
+            "done_when": "Cross-machine gates, independent Nova evidence, ITER scenario ensembles, OOD attribution and the first-shot update playbook are reproducible from exact identities.",
+            "status": "pending"
+          }
+        ],
+        "starts": "2026-10-12",
+        "ends": "2026-11-08",
+        "description": "Exercise leave-one-machine-out transfer, then bind the validated Nova-led estimator to ITER geometry and proposed coil/actuator trajectories. Produce uncertainty-aware equilibrium and diagnostic scenario ensembles plus a first-shot innovation update playbook."
+      },
+      {
+        "id": "S22",
+        "status": "done",
+        "theme": "Machine description as data \u2014 measured stores, declared maps, one transform engine",
+        "items": [
+          {
+            "slug": "training-store-read-benchmark",
+            "why_now": "Every other property of a store is affordable only if it keeps four H200s fed; the format decision must be made on measured read rates, not on which container is most standard.",
+            "done_when": "Three arms measured across four access patterns plus the live-versus-mapped transport comparison on one node class, the IDSTensorizer subclassing seam verified or refuted, and a proposal naming a storage format for machine description and for experimental data separately with the numbers that decide each.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "general",
+              "requirements": {
+                "reasoning": "deep",
+                "verification": "strict"
+              }
+            }
+          },
+          {
+            "slug": "machine-map-transform-engine",
+            "why_now": "A reader per machine re-derives storage, semantics and reshaping every time; declared maps plus format-scoped engines make machines and stores vary independently, and the per-campaign geometry table and shot manifest already carry half of what this needs.",
+            "done_when": "A LinkML machine-map schema with MAST and DIII-D maps, transform engines for the formats the benchmark selected, the shot manifest extended with named geometry transitions, the three identity assertions tested over a real multi-campaign corpus, and description emitted for both machines through one code path with no machine-specific reader left.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "general",
+              "requirements": {
+                "reasoning": "deep",
+                "verification": "strict"
+              }
+            }
+          },
+          {
+            "slug": "machine-map-cocos-transform",
+            "why_now": "The engine now writes to Data Dictionary paths, which is exactly the IMAS ingestion seam the MAST COCOS evaluation flagged as the latent sign risk; the map binds probe orientation angles the DD marks COCOS-dependent, so a name map without a convention transform is a silent sign error rather than a missing feature.",
+            "done_when": "MAST's source convention identified as a COCOS number or explicitly recorded as not COCOS-expressible, asserted against real level-2 data at both current polarities with the per-quantity sign table printed; the Sauter coefficient set and derived factors to COCOS-17 committed as data; the transform applied in the engine for every COCOS-dependent target the catalog binds, with an undeclared source convention on such a target failing loudly; and a both-polarity round-trip test recovering source values.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "general",
+              "requirements": {
+                "reasoning": "deep",
+                "verification": "strict"
+              }
+            }
+          }
+        ],
+        "starts": "2026-08-17",
+        "ends": "2026-09-13",
+        "description": "Move machine-description production out of the physics solver and into a data layer that is measured before it is built. First the read-rate evidence: what IMAS-netCDF, zarr carrying DD-path metadata, and the native level-2 form each cost the GPU training path, for static description and streamed experimental data separately. Then the producer that evidence licenses: declared machine maps applied by transform engines scoped to store format, so adding a machine costs a map and adding a store costs one engine. Geometry stays a function of shot through named transitions in the shot manifest, and identity is asserted as determinism, partition consistency and visible change rather than a global digest a changing machine cannot satisfy. Supersedes the intent of the dangling mast-machine-configuration-map item in S17.",
+        "summary": "SHIPPED 3/3 plans, 57 worker commits, 0 wiring findings. THE FORMAT QUESTION IS ANSWERED AND LOCKED: DD-annotated zarr reads 9.02-10.28x native level-2 and ~3.2x IMAS-netCDF, invariant across 36 cells spanning a 64x payload range with ZERO crossings, so experimental data is locked to zarr carrying DD paths; machine description is left to the owner with evidence attached because its cost amortises to nothing and the choice is publishability, not speed. The finding that separates them: the IMAS shape costs about 3.2x as STORAGE and about nothing as INTERCHANGE, because the DD tensorization logic is reusable by subclass into a non-IMAS container. Transport measures 41.1x login / 129.1x on the storage-arm node class, the earlier 481x having been an artifact of comparing arrays of different length. THE PRODUCER IS BUILT AND VERIFIED AGAINST ITS CONSUMER: 2 format-scoped engines with 0 machine-name conditionals, 254 executable bindings plus qualifications over magnetics, pf_active, pf_passive and wall, and an adapter whose operator is STRUCTURALLY IDENTICAL to the legacy one \u2014 channel order, plasma grid, limiter mask, 251 columns and the 21/84/146 block split all exact, 0 non-finite entries, 0 unattributed metrics. Identity holds without a global digest: byte-identical re-emission, every one of 11,573 corpus shots resolving to exactly one range, and a non-empty inspectable diff at the real boundary. FOUR CONCLUSIONS WERE RETRACTED ON OWNER CHALLENGE and the pattern matters more than any one: three came from searching the Data Dictionary under the SOURCE's naming and recording 'unrepresentable' on failing to find it \u2014 a saddle is filed as a loop TYPE, a parallelogram as an oblique PRIMITIVE, drive as a CIRCUIT concept. The fourth, that mesh resolution is not geometry, collapsed 11 declared transitions to 2. TWO LIVE DEFECTS WERE FOUND IN SHIPPED CODE: the declared MAST coordinate convention, now recorded as a DECLARED ASSUMPTION of COCOS 3 with the measured sigma_Bp kept separately marked as measured; and a netCDF engine that collapsed any one-element structural array to a scalar. A THIRD, DEEPER DEFECT WAS FOUND UNDER THE BASELINE ITSELF: the frozen reference residual was produced with a sensor identity join that aliased 8 co-located acquisition addresses onto one reconstruction index, 37 of 50 loop rows misjoined across three shots with 2 of them silent. Level-1 versus level-2 was disentangled to a positional difference confined to flux loops, with the processed store exactly coincident with the reconstruction on the worst case and the raw store publishing one collapsed placeholder for a whole family. HANDED TO S23: the 41 consumers have not moved and the baseline needs re-stamping (description-reader-migration), and 19 loop positions remain disputed where only a measurement can arbitrate (vacuum-field-position-adjudication)."
+      },
+      {
+        "id": "S23",
+        "status": "done",
+        "theme": "Move the consumers onto the declared description, and let measurement settle where the sensors are",
+        "items": [
+          {
+            "slug": "description-reader-migration",
+            "why_now": "The producer is built and structurally verified, so the per-machine reader is now the only thing keeping production on the path this design replaces; leaving 41 call sites on it indefinitely means the description layer exists without being used.",
+            "done_when": "The count of modules invoking a legacy description-read API falls from 41 to 0 with the census reported at each step, the frozen spine stamp re-run after each library-module seam and staying inside the budget the re-stamped baseline establishes, the compatibility facade removed, and the raw per-machine reader deleted with a grep receipt showing no remaining reference.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "general",
+              "requirements": {
+                "reasoning": "deep",
+                "verification": "strict"
+              }
+            }
+          },
+          {
+            "slug": "vacuum-field-position-adjudication",
+            "why_now": "Nineteen loop positions disagree between two plausible descriptions of signal-proven identical hardware, and no further comparison between them can decide it; a vacuum shot makes the flux attributable to known coil currents so the measurement can adjudicate.",
+            "done_when": "A vacuum cohort selected with its plasma-current-free condition evidenced, predicted flux at both candidate positions compared against the measured signal for each of the 19 disputed loops with residual and margin reported, a verdict of nominal-table, reconstruction or null recorded per loop summing to 19, and the winning positions fed back to the catalog as evidence-carrying declarations or the nulls left explicitly undecided.",
+            "status": "pending",
+            "capability": {
+              "version": "1.0",
+              "class": "general",
+              "requirements": {
+                "reasoning": "deep",
+                "verification": "strict"
+              }
+            }
+          }
+        ],
+        "starts": "2026-08-17",
+        "ends": "2026-09-20",
+        "description": "S22 built a machine-description producer and proved it emits an operator structurally identical to the legacy one. Two things it deliberately did not do now become their own sprint. First, the consumers have not moved: 41 modules still read description through the per-machine reader the design exists to remove, which is a migration across a wide surface gated on a re-stamped baseline rather than on more design. Second, 19 flux-loop positions still disagree between the nominal table and the reconstruction, and comparing two descriptions to each other cannot settle which is right \u2014 a vacuum-shot forward prediction can, because with no plasma current the flux is attributable to known coil currents and the measurement arbitrates independently of both candidates. The sprint closes when the legacy reader census reaches zero and every disputed loop carries a verdict or an explicit null.",
+        "summary": "Both plans shipped with every step measured. description-reader-migration: census 41\u21920 (eight library seams at exactly 0.0 stamp movement within the 0.1245% re-stamped budget; declared-source content cutover \u22122.80%/\u22122.79% inside the 7.93% budget with improved fit and 36/36 vs 34/36 coverage; reader deleted with an 85\u21920 grep receipt and a 0.0-movement retirement stamp). vacuum-field-position-adjudication: 19/19 disputed loops adjudicated on measured vacuum cohorts (2 nominal-table, 14 reconstruction, 3 explicit nulls; fl_p4l_1/fl_p4l_4 decided for reconstruction at margins +3.93/+2.78), all verdicts now range-scoped evidence-carrying catalog declarations with the post-feedback stamp moving ~1e-8. Evidence: docs/evidence/archive/description-reader-migration-landed.html and docs/evidence/archive/vacuum-field-position-adjudication-landed.html. Feeds no downstream sprint."
+      }
+    ],
+    "blockers": [
+      {
+        "summary": "SDCC dedicated training reservation pending file",
+        "origin": "compute",
+        "n": 1,
+        "owner": "L. Holzl",
+        "next": "ITER batch-services ticket #4421 \u2014 lower urgency now that exclusive-pause wrapper landed"
+      }
+    ],
+    "timeline": [
+      {
+        "when": "2026-05-29 09:00",
+        "who": "agent/opus (coordinator)",
+        "what": "S5 closed (decoder fine-tune NEGATIVE; bf16 ruled out by job 1209184). Project re-founded on a probabilistic state-space model \u2014 new plans physics-world-model-strategy + plasma-state-space-v0 + probabilistic-state-space-methods. S7 opened: Stage-1 cross-family hold-out engine."
+      },
+      {
+        "when": "2026-05-28 00:00",
+        "who": "agent/sonnet",
+        "what": "S4 closed (shipped) \u2014 zarr-consolidate + frame-precompute done; S5 opened: plasma-decoder-finetune + world-model-v0; new plan plasma-decoder-finetune.html scaffolded"
+      },
+      {
+        "when": "2026-05-26 18:30",
+        "who": "Simon McIntosh",
+        "what": "S4 sprint opened \u2014 zarr-consolidate + frame-precompute drafted for the post-driver-fix push"
+      },
+      {
+        "when": "2026-05-26 18:18",
+        "who": "SDCC (auto)",
+        "what": "98dci4-gpu-0003 DOWN+DRAIN+NOT_RESPONDING after CUDA driver state wedged by Group B contention \u2014 reboot pending"
+      },
+      {
+        "when": "2026-05-26 17:25",
+        "who": "agent/sonnet (supervisor)",
+        "what": "torch upgraded in Open-MAGVIT2 venv to 2.5.1+cu124 + bf16 + TF32 + NHWC perf knobs (commit 4bb53f4)"
+      },
+      {
+        "when": "2026-05-26 16:31",
+        "who": "agent/sonnet",
+        "what": "training-grade-shots.json landed \u2014 430/1000 sample = 43% pass (commit 055f299)"
+      },
+      {
+        "when": "2026-05-26 14:15",
+        "who": "agent/sonnet (Agent B)",
+        "what": "compute \u00a72 SLURM wrapper set landed (commit a14f1ef); 4-shard array driver added (dce6c26)"
+      },
+      {
+        "when": "2026-05-21 09:14",
+        "who": "agent/sonnet",
+        "what": "tokenizers \u00a713.3 IR codebook benchmark wired (commit dec0082)"
+      },
+      {
+        "when": "2026-05-31 11:30",
+        "who": "Simon McIntosh (via orchestrator)",
+        "what": "S8 closed (Stage-2 GS-prior HONEST NEGATIVE: Q1 FAIL; magnetics under-determine the internal current; MSE unusable from level-1). PIVOT ratified -> S9 opened: MSE-free multi-modal current-profile recovery beating an EnKF baseline (plan mse-free-current-recovery-v0). 7-reader deep review wpy0754zv; figures + completed-work doc landed."
+      },
+      {
+        "when": "2026-06-04 16:00",
+        "who": "Simon McIntosh",
+        "what": "S12 launched \u2014 interior-information-discovery-v0 (Stage-3c): does interior-current info survive in fast/exotic channels (xma 5 kHz, xsx, aoe, act) as time-frequency reps? The near-term H200 push. Reckon fixes landed first: prompt-button open-decision block removed, cockpit live-count overlay, figure-style guidance (Tufte/legibility) in skills."
+      },
+      {
+        "when": "2026-06-05 15:10",
+        "who": "agent/gpt-5.4 (orchestrator)",
+        "what": "S12 closed (QUALIFIED_NEGATIVE). D3 phase-preserving oracle landed (commit ceb01ed; artifact oracle_probe_phase_v0.json): A_mag 0.1879 rad; E_mag_sxr_phase 0.1889 with CI crossing 0; E_mag_mirnov_phase 0.1923; combined phase arm 0.1938. Bolometer remained the only carrier and stayed off-interior (carrier_reaches_interior_reliable=false), so there is no clean H200 GO."
+      },
+      {
+        "when": "2026-06-10 12:00",
+        "who": "agent/opus (S13 author)",
+        "what": "S13 opened \u2014 two physics-backed world-model H200 builds scoped per user directive: camera-dynamics-wm-v0 (clipped-view full-stream reconstruction on the 4.02B-token rbb corpus, dynamics-backed via matched-arm design) + learned-closure-current-diffusion-v0 (positivity-constrained neural closures inside a differentiable psi-diffusion filter, MSE-free, scored vs the frozen v1 bar). New milestone M4; plans authored with figure annotations from held-out shot 24065."
+      },
+      {
+        "when": "2026-06-19",
+        "who": "Simon McIntosh (via orchestrator)",
+        "what": "S14 opened \u2014 playable-plasma-wm-v0. The lead resolved the world-model fork to a DEMONSTRABLE 'play the plasma' capability first (science follows). One-week sprint: fix the persistence collapse cheaply (sampling + context-corruption fine-tune + load-bearing control-CFG) on the trained spatiotemporal checkpoint; deliver a driveable camera demo. SOTA-grounded (WHAM/Genie/GameNGen/EMERALD + SDA/Appa play-vs-track + FusionMAE/TCV NSSM). Set active over S13; S13's camera-dynamics + learned-closure builds remain open (overlap flagged to the lead)."
+      },
+      {
+        "when": "2026-06-19",
+        "who": "Simon McIntosh (via orchestrator)",
+        "what": "Sprint reorg: S13 closed (camera-dynamics W1 landed); S14 'Play the plasma' is the single active sprint; S15 'Science follows' created (planned) holding camera-dynamics-wm-v0 + learned-closure-current-diffusion-v0. Also removed the GPU-drain/scancel defence apparatus from AGENTS.md \u00a72a + the playable-plasma plan per the settled RCA (drains are an environmental fabric condition, not an agent concern)."
+      },
+      {
+        "when": "2026-06-24",
+        "who": "Simon McIntosh (via orchestrator)",
+        "what": "S16 opened \u2014 machine-agnostic latent state-space world model (the ground-up redesign; parent machine-agnostic-latent-world-model, North Star physics-world-model-strategy \u00a71a refined). Four sequential v0 child plans (absolute-geometry-token-substrate -> gs-grounded-latent-engine -> closed-loop-latent-filter -> controllable-forecast-and-gate), each a verifiable goal+gate. Supersedes the camera-as-state-carrier direction: S14 (playable-plasma-wm-v0, the controllability NO-GO) + S15 (camera-dynamics-wm-v0) closed; learned-closure-current-diffusion-v0 reused as the flux-diffusion transport-anchor asset. This work is now the focus."
+      },
+      {
+        "when": "2026-07-03",
+        "who": "Simon McIntosh (via orchestrator)",
+        "what": "patch-current-force-balance plan opened (S16/M4) \u2014 pivot to Nova-style patch-current interaction matrices with force balance as a differentiable structure residual. Scoping landed same-day: 2pi source-scale defect found+fixed in gs_solve.py (plasma well was 6.3x too shallow); corrected gate-2 re-measure 12/160 @ 5.9 cm; training-free patch inverse 12/12 scored @ 4.5 cm median vs 8.7 cm train-mean."
+      },
+      {
+        "when": "2026-07-29",
+        "who": "codex",
+        "what": "S17 queued for the evidence-gated Nova consumer cutover; S16 remains the sole active sprint"
+      },
+      {
+        "when": "2026-08-11",
+        "who": "Simon McIntosh",
+        "what": "Sophelio challenge entry committed as an ITER-pipeline rehearsal. Sprint S21 created beside nova S10. Doctrine locked: derivative-level firewall, FAIR-MAST usage boundary, sealed zero-shot rehearsal, quarantined referee layer."
+      },
+      {
+        "when": "2026-08-13",
+        "who": "Simon McIntosh (via reckon-create)",
+        "what": "S22 created \u2014 machine description moves out of nova and becomes a measured, map-driven data layer here. Investigation established the premise: nova's artifact tooling writes only a local content-addressed cache, no machine-description package exists in the registry, and the consumer resolves geometry by importing nova's packaged registry through a git pin 202 commits stale. Benchmark gates the producer because the format decision is a read-rate question, not a standards question. Pairs with nova S11, which retires the surfaces this replaces."
+      }
+    ],
+    "milestones": [
+      {
+        "id": "M4",
+        "name": "Machine-portable probabilistic state estimator",
+        "status": "active",
+        "pct": 35
+      },
+      {
+        "id": "M5",
+        "name": "ITER first-plasma rehearsal",
+        "status": "planned",
+        "pct": 0
+      }
+    ],
+    "_version": 47
+  }
+}

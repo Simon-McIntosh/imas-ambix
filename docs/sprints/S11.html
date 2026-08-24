@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="sprint">
+  <meta name="reckon-id" content="S11">
+  <meta name="reckon-version" content="0">
+  <title>OPS · GPU-drain coordinated-window campaign (backward-bisect + SLURM-side capture) | sprint</title>
+</head>
+<body>
+<main class="reckon-resource" data-type="sprint" data-id="S11">
+  <ol data-reckon="sprint-items">
+  <li data-slug="drain-window-campaign" data-item="{&quot;capability&quot;: {&quot;class&quot;: &quot;general&quot;, &quot;requirements&quot;: {}, &quot;version&quot;: &quot;1.0&quot;}, &quot;done_when&quot;: &quot;Pre-window fact resolved (did 1209813 drain a clean node?); dual-half capture harness built + dry-run green; Track C (non-GPU cgroup wedge) and Track A (frozen MWE-01 v1 + backward-bisection ladder) prepared as PREPARE-ONLY artifacts with run-cards; Recovery-track admin proposal (epilog gpu-reset + auto-resume + UnkillableStepTimeout review) authored. In-window runs (C then A) executed with admin on standby; minimal trigger isolated or non-reproducibility concluded over the budgeted verbatim runs.&quot;, &quot;slug&quot;: &quot;drain-window-campaign&quot;, &quot;why_now&quot;: &quot;14 repro attempts failed by bisecting FORWARD from guesses (0/13). Reverse it: resurrect the one confirmed drain artifact (pre-928ed0d MWE-01 v1 = job 1209813) and bisect BACKWARD, while capturing the never-observed SLURM half (slurmd Reason=, UnkillableStepTimeout, cgroup PIDs) — in one admin-coordinated window. Multi-hour outages are unacceptable.&quot;}">drain-window-campaign</li>
+  </ol>
+  <script type="application/json" id="reckon-resource-state">{"description":"The drain RCAs rest on an UNOBSERVED causal half: every doc inferred 'D-state -> Kill task failed -> drain' from the training process and never read slurmd's own view, and the deliberate reproductions all bisected forward from a clean node (0/13; version stack did NOT drift, so that's not the excuse). New direction: backward-bisect the one confirmed artifact (1209813) and close the SLURM-side gap, inside a single coordinated admin window (Track C deterministic non-GPU warm-up validates harness+SLURM-chain+admin-loop, then Track A on the GPU; Track B reserved). Parallel, no window: an auto-recovery admin proposal so any future drain self-heals in minutes. Workers: Sonnet; reasoning/synthesis: Opus.","ends":"2026-06-17","id":"S11","items":[{"capability":{"class":"general","requirements":{},"version":"1.0"},"done_when":"Pre-window fact resolved (did 1209813 drain a clean node?); dual-half capture harness built + dry-run green; Track C (non-GPU cgroup wedge) and Track A (frozen MWE-01 v1 + backward-bisection ladder) prepared as PREPARE-ONLY artifacts with run-cards; Recovery-track admin proposal (epilog gpu-reset + auto-resume + UnkillableStepTimeout review) authored. In-window runs (C then A) executed with admin on standby; minimal trigger isolated or non-reproducibility concluded over the budgeted verbatim runs.","slug":"drain-window-campaign","why_now":"14 repro attempts failed by bisecting FORWARD from guesses (0/13). Reverse it: resurrect the one confirmed drain artifact (pre-928ed0d MWE-01 v1 = job 1209813) and bisect BACKWARD, while capturing the never-observed SLURM half (slurmd Reason=, UnkillableStepTimeout, cgroup PIDs) — in one admin-coordinated window. Multi-hour outages are unacceptable."}],"starts":"2026-06-03","status":"done","summary":"Closed administratively 2026-07-29; unresolved operational work remains in drain-window-campaign rather than a second active sprint.","theme":"OPS · GPU-drain coordinated-window campaign (backward-bisect + SLURM-side capture)","type":"sprint","version":0}</script>
+</main>
+</body>
+</html>
