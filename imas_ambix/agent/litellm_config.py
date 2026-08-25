@@ -1,9 +1,10 @@
 """Generate the secret-free LiteLLM routing config used by ``clive``.
 
 The local model uses LiteLLM's OpenAI-compatible transport so vLLM receives
-its credential as ``Authorization: Bearer``.  OpenRouter routes use its
-Anthropic-compatible endpoint so Anthropic message features remain intact.
-Keys are environment references and are resolved only by the per-user service.
+its credential as ``Authorization: Bearer``.  OpenRouter routes use the
+provider form matching each model family; Claude routes retain the Anthropic
+endpoint so Anthropic message features remain intact.  Keys are environment
+references and are resolved only by the per-user service.
 """
 
 from __future__ import annotations
@@ -47,16 +48,16 @@ model_list:
 
   - model_name: or-gpt-5.5
     litellm_params:
-      model: anthropic/openai/gpt-5.5
-      api_base: https://openrouter.ai/api
+      model: openai/gpt-5.5
+      api_base: https://openrouter.ai/api/v1
       api_key: os.environ/OPENROUTER_API_KEY
     model_info:
       description: "GPT-5.5 via OpenRouter"
 
   - model_name: or-glm-5.2
     litellm_params:
-      model: anthropic/z-ai/glm-5.2
-      api_base: https://openrouter.ai/api
+      model: openai/z-ai/glm-5.2
+      api_base: https://openrouter.ai/api/v1
       api_key: os.environ/OPENROUTER_API_KEY
     model_info:
       description: "GLM-5.2 via OpenRouter"
