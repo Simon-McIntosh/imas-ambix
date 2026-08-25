@@ -23,6 +23,7 @@ Usage
 
 from __future__ import annotations
 
+import contextlib
 import time
 import traceback
 from dataclasses import dataclass
@@ -75,8 +76,7 @@ class BenchConfig:
     estimates.  When set to or exceeding ``max_items_per_shot`` the bench
     uses every frame the worker processed (no random sub-sampling).
     Default 32 matches ``max_items_per_shot=32`` so every loaded frame enters
-    the rFID pool — Option D showed the old default of 8 biased rFID by ~+4 pt
-    (Fréchet bias from small N; baseline shifted 17.04→13.29 when raised to 32).
+    the rFID pool and avoids the Fréchet bias caused by smaller samples.
     """
 
 
@@ -226,7 +226,8 @@ def benchmark_frame_tokenizer(
             "benchmark_frame_tokenizer no longer supports OpenMagvit2Tokenizer: the "
             "subprocess-per-shot path is 10-55x slower than the in-process worker AND "
             "fragile (susceptible to SIGBUS on filesystem hiccups). Use "
-            "benchmark_frame_tokenizer_in_process() instead — or `imas-ambix tokenize bench` "
+            "benchmark_frame_tokenizer_in_process() instead — or "
+            "`imas-ambix tokenize bench` "
             "without --no-in-process."
         )
 
@@ -237,9 +238,11 @@ def benchmark_frame_tokenizer(
         centroid_mse,
         chord_nrmse,
         lpips,
-        modality_coherence as _modality_coherence,
         psnr,
         rfid,
+    )
+    from imas_ambix.eval.metrics import (
+        modality_coherence as _modality_coherence,
     )
 
     data_root = LEVEL1_DIR if tier == "level1" else LEVEL2_DIR
@@ -294,9 +297,7 @@ def benchmark_frame_tokenizer(
                 config.max_items_per_shot is not None
                 and frames.shape[0] > config.max_items_per_shot
             ):
-                # C8 fix (2026-05-28): uniform stride across the full shot
-                # matches training's np.linspace.  See stream_worker.py for
-                # the rationale.
+                # Uniform stride matches training and samples the full shot.
                 indices = np.linspace(
                     0, frames.shape[0] - 1, config.max_items_per_shot, dtype=int
                 )
@@ -413,8 +414,7 @@ def benchmark_frame_tokenizer(
             # Stratified rFID — split by frame activity class.  Mean rFID alone
             # can be misleading: a low mean dominated by blank/quiescent frames
             # hides poor performance on physically-relevant transients (ELMs,
-            # L-H transitions, filaments).  See 2026-05-28 frame-quality audit
-            # + tokenizers plan v1.
+            # L-H transitions, filaments).
             if "rfid_stratified" in config.metrics:
                 from imas_ambix.eval.metrics import (
                     rfid_stratified as _rfid_stratified,
@@ -461,8 +461,8 @@ def benchmark_frame_tokenizer_in_process(
     config: BenchConfig,
     shot_ids: list[int],
     camera: str = "rbb",
-    tier: "Tier" = "level1",
-    equilibrium_loader: "Callable[[int], np.ndarray | None] | None" = None,
+    tier: Tier = "level1",
+    equilibrium_loader: Callable[[int], np.ndarray | None] | None = None,
     magvit2_python: str = _MAGVIT2_PYTHON,
     magvit2_root: str = _MAGVIT2_ROOT,
     l1_root: str | None = None,
@@ -514,9 +514,11 @@ def benchmark_frame_tokenizer_in_process(
         centroid_mse,
         chord_nrmse,
         lpips,
-        modality_coherence as _modality_coherence,
         psnr,
         rfid,
+    )
+    from imas_ambix.eval.metrics import (
+        modality_coherence as _modality_coherence,
     )
 
     if config.tokenizer_kind != "frame":
@@ -618,8 +620,6 @@ def benchmark_frame_tokenizer_in_process(
         proc.wait()
 
     worker_exit = proc.returncode
-    aborted = worker_exit == 130
-
     # Now collect results per shot from saved .npy files.
     for shot_id in shot_ids:
         tokens_path = output_dir / f"{shot_id}-tokens.npy"
@@ -751,8 +751,7 @@ def benchmark_frame_tokenizer_in_process(
             # Stratified rFID — split by frame activity class.  Mean rFID alone
             # can be misleading: a low mean dominated by blank/quiescent frames
             # hides poor performance on physically-relevant transients (ELMs,
-            # L-H transitions, filaments).  See 2026-05-28 frame-quality audit
-            # + tokenizers plan v1.
+            # L-H transitions, filaments).
             if "rfid_stratified" in config.metrics:
                 from imas_ambix.eval.metrics import (
                     rfid_stratified as _rfid_stratified,
@@ -777,10 +776,8 @@ def benchmark_frame_tokenizer_in_process(
     aggregate["worker_exit_code"] = float(worker_exit)
 
     # Cleanup temp dir (idempotent — ignore errors if worker already cleaned up)
-    try:
+    with contextlib.suppress(Exception):
         tmpdir_obj.cleanup()
-    except Exception:  # noqa: BLE001
-        pass
 
     return BenchResult(
         config=config,

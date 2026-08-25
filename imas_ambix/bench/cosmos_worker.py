@@ -28,9 +28,9 @@ Cosmos encoder output:
 
 Cosmos decoder takes indices, returns (B, 3, 256, 256) bf16 in [-1, 1].
 
-C8 frame selection applies: shots are subsampled to ``max_items_per_shot``
-via np.linspace uniform stride across the full shot duration, matching
-fine-tune training and the C8-corrected stream_worker.
+Shots are subsampled to ``max_items_per_shot`` via an ``np.linspace`` uniform
+stride across the full shot duration, matching fine-tune training and the
+stream worker.
 """
 
 from __future__ import annotations
@@ -43,6 +43,9 @@ import time
 from pathlib import Path
 
 import numpy as np
+import torch
+
+_TorchTensor = torch.Tensor
 
 # ---------------------------------------------------------------------------
 # Graceful-shutdown flag
@@ -57,7 +60,7 @@ MODEL_FORWARD_BATCH = 4  # Mirror stream_worker; Cosmos JIT may be batch-invaria
                           # but using the same value keeps the comparison fair.
 
 
-class StreamAborted(RuntimeError):
+class StreamAbortedError(RuntimeError):
     pass
 
 
@@ -74,7 +77,7 @@ def _install_signal_handlers() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Frame I/O (byte-identical to stream_worker contract; C8 stride applies)
+# Frame I/O (byte-identical to the stream-worker uniform-stride contract)
 # ---------------------------------------------------------------------------
 
 
@@ -110,7 +113,7 @@ def load_shot_frames(
         raise ValueError(f"no data_vars in '{camera}' of shot {shot_id}")
     frames = ds[data_vars[0]].values
     if max_frames is not None and frames.shape[0] > max_frames:
-        # C8 frame selection — uniform stride across full shot.
+        # Uniform stride samples the full shot rather than only its prefix.
         indices = np.linspace(0, frames.shape[0] - 1, max_frames, dtype=int)
         frames = frames[indices]
     return np.asarray(frames)
@@ -120,12 +123,12 @@ def frames_to_input_device(
     frames_u8_rgb: np.ndarray,
     device: str,
     dtype,
-) -> "torch.Tensor":
+) -> _TorchTensor:
     """(T, H, W, 3) uint8 → (T, 3, 256, 256) bf16 in [-1, 1].
 
     Mirrors stream_encode.frames_to_input_device — F.interpolate bilinear,
     no antialias, align_corners=False.  Same operator contract as the
-    corpus encoder / fine-tune training (C5 fix).
+    corpus encoder and fine-tune training.
     """
     import torch
     import torch.nn.functional as F
@@ -205,7 +208,6 @@ def cosmos_decode_batch(
     with torch.no_grad():
         for i in range(0, T, model_forward_batch):
             chunk = indices_int32[i : i + model_forward_batch]
-            B = chunk.shape[0]
             idx = torch.from_numpy(chunk).to(device).to(torch.int32)
             recon = decoder(idx)  # (B, 3, 256, 256) bf16 in [-1, 1]
             t = recon.float().clamp(-1, 1).add(1.0).mul(127.5)
@@ -273,7 +275,7 @@ def run_worker(manifest: dict, device: str, model_forward_batch: int,
 
         for shot_id in shots:
             if STOP.is_set():
-                raise StreamAborted("STOP set before shot")
+                raise StreamAbortedError("STOP set before shot")
             t_shot_start = time.monotonic()
             try:
                 raw = load_shot_frames(shot_id, camera, l1_root, max_items)
@@ -312,7 +314,7 @@ def run_worker(manifest: dict, device: str, model_forward_batch: int,
                     "error": None,
                 }), flush=True)
 
-            except StreamAborted:
+            except StreamAbortedError:
                 raise
             except Exception as exc:  # noqa: BLE001
                 shots_fail += 1
@@ -323,7 +325,7 @@ def run_worker(manifest: dict, device: str, model_forward_batch: int,
                     "native_hw": None, "error": str(exc),
                 }), flush=True)
 
-    except StreamAborted:
+    except StreamAbortedError:
         aborted = True
     else:
         aborted = False

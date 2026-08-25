@@ -807,7 +807,9 @@ def _run_throughput(
 
     for test_name, max_tok in tests:
         for rep in range(repeat):
-            r = _stream_chat(base_url, model, prompt, max_tokens=max_tok, api_key=api_key)
+            r = _stream_chat(
+                base_url, model, prompt, max_tokens=max_tok, api_key=api_key
+            )
             r.category = "throughput"
             r.test_name = test_name
             r.repeat_index = rep
@@ -880,7 +882,9 @@ def _run_context(
                         ),
                     },
                 ]
-                r = _stream_chat(base_url, model, messages, max_tokens=64, api_key=api_key)
+                r = _stream_chat(
+                    base_url, model, messages, max_tokens=64, api_key=api_key
+                )
                 r.category = "context"
                 r.test_name = test_name
                 r.repeat_index = rep
@@ -958,7 +962,14 @@ def _run_tools(
 
     for test_name, messages, tools, validation in tool_tests:
         for rep in range(repeat):
-            r, data = _chat(base_url, model, messages, tools=tools, max_tokens=256, api_key=api_key)
+            r, data = _chat(
+                base_url,
+                model,
+                messages,
+                tools=tools,
+                max_tokens=256,
+                api_key=api_key,
+            )
             r.category = "tools"
             r.test_name = test_name
             r.repeat_index = rep
@@ -1053,7 +1064,13 @@ def _run_reasoning(
 
             if r.http_status in (400, 422):
                 # Thinking not supported — retry without and mark skipped
-                r2 = _stream_chat(base_url, model, messages, max_tokens=1024, api_key=api_key)
+                r2 = _stream_chat(
+                    base_url,
+                    model,
+                    messages,
+                    max_tokens=1024,
+                    api_key=api_key,
+                )
                 r2.category = "reasoning"
                 r2.test_name = test_name
                 r2.repeat_index = rep

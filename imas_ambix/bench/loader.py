@@ -20,7 +20,6 @@ import importlib
 from pathlib import Path
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Public helpers
 # ---------------------------------------------------------------------------
@@ -138,7 +137,8 @@ def _resolve_factory(factory_str: str, kwargs: dict[str, Any]):  # type: ignore[
     Parameters
     ----------
     factory_str:
-        A dotted import path of the form ``"imas_ambix.tokenizer.frames:OpenMagvit2Tokenizer"``.
+        A dotted import path of the form
+        ``"imas_ambix.tokenizer.frames:OpenMagvit2Tokenizer"``.
     kwargs:
         Keyword arguments that will be forwarded to the class constructor.
 
