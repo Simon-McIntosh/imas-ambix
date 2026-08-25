@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T20:19:54",
+  "updated": "2026-08-25T20:21:21",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -512,6 +512,15 @@
         "sessions": {
           "gpt-5.6-sol": "01a03a1c-1694-73e3-96d3-2b2042c6b002"
         },
+        "created": "2026-08-25"
+      },
+      {
+        "id": "or-optin-flag-b",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
         "created": "2026-08-25"
       },
       {
@@ -9048,9 +9057,85 @@
           "role": "test",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260825T180642850801-or-optin-flag",
+        "plan": "clive-openrouter-opt-in",
+        "section": "\u00a74d",
+        "node": "or-optin-flag",
+        "node_definition": {
+          "done_when": "The generated script is byte-identical to /work/projects/imas_gpu/agents/clive when neither --openrouter nor CLIVE_OPENROUTER is given, proved by a recorded cmp; the opt-in path starts the proxy and presents the or-* picker slots; a test asserts a readable openrouter key file alone does NOT reach the proxy; and 'uv run --no-sync pytest tests/test_agent.py -q' exits 0",
+          "estimated_hours": 1.0,
+          "goal": "Add the opt-in flag to the launcher generator and re-aim the fence to cover both modes",
+          "id": "or-optin-flag",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T180642850801-or-optin-flag/manifest.md",
+          "plan": "clive-openrouter-opt-in",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74d",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/agent/clive.py",
+            "tests/test_agent.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "or-optin-flag",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T18:08:29Z",
+        "completed_at": "2026-08-25T18:21:16Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 767,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 767,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "aa1e43b1ea4d077b0f29986aceb4eec450dc36ef",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "not-run",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T180642850801-or-optin-flag/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03a1c-1694-73e3-96d3-2b2042c6b002",
+        "budget": {
+          "cost_usd": null,
+          "detail": "",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 273
+    "_version": 275
   }
 }
