@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T21:40:20",
+  "updated": "2026-08-25T21:42:14",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -9977,9 +9977,84 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260825T185452876635-lint-reg-c2",
+        "plan": "whole-tree-lint-gate",
+        "section": "\u00a74e",
+        "node": "lint-reg-c2",
+        "node_definition": {
+          "done_when": "A recorded run of 'pytest tests/worldmodel/test_controllable_model.py tests/latent/test_train_grounded_latent_engine.py -q' exits 0 with counts quoted",
+          "estimated_hours": null,
+          "goal": "Prove the slow training pair of reformatted test files still passes",
+          "id": "lint-reg-c2",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T185452876635-lint-reg-c2/manifest.md",
+          "plan": "whole-tree-lint-gate",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a74e",
+          "spec_level": "exact",
+          "time_budget": "55m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/lint-reg-c2.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "lint-reg-c2",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T18:55:12Z",
+        "completed_at": "2026-08-25T19:42:11Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 2819,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 2819,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "07d1bb1902874e79d579989924a54cb833c8e3e4",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T185452876635-lint-reg-c2/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03a46-ca56-7023-8760-8a50f0974bce",
+        "budget": {
+          "cost_usd": null,
+          "detail": "no events yet",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_controllable_model.py",
+          "override": false,
+          "role": "test",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 291
+    "_version": 292
   }
 }

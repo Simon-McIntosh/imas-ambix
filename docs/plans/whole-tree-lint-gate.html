@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="whole-tree-lint-gate">
   <meta name="plan-title" content="Whole-Tree Lint Gate">
   <meta name="plan-summary" content="ruff check over imas_ambix and tests reports 266 errors, so no worker node can use whole-tree lint as a done-when measure. Decide the gate, then reach it.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="mid">
   <meta name="plan-effort-hours" content="3.0">
   <meta name="plan-capability-version" content="1.0">
@@ -18,7 +18,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-25">
-<meta name="plan-version" content="13">
+<meta name="plan-version" content="15">
+<meta name="plan-artifacts" content="docs/evidence/archive/whole-tree-lint-gate-landed.html">
+<meta name="plan-impl" content="1.0">
 </head>
 <body>
   <main class="plan-doc">
@@ -114,54 +116,19 @@
     file</strong> rather than by rule, so each node owns a disjoint write scope and its goal
     is simply "no ruff violation remains in these files".</p>
 
-    <h3 id="s4a">§4a — Exempt conventional notation</h3>
+    <h3 id="s4a"><span class="badge badge-shipped">✓ landed 2026-08-25</span> §4a-§4f — Cleared and gated</h3>
 
-    <p>In <code>pyproject.toml</code> only, extend
-    <code>[tool.ruff.lint.per-file-ignores]</code> to cover the math, design-matrix and
-    PyTorch-idiom naming rules for the twelve files that carry them, following the seven
-    existing entries and giving each a comment naming the convention it preserves. Do not
-    exempt the genuine residue in §3.</p>
-
-    <p><strong>Done when</strong> no source file is modified and the naming-family count in
-    <code>ruff check imas_ambix</code> falls to the genuine residue alone.</p>
-
-    <h3 id="s4b">§4b — Clear the statespace cluster</h3>
-
-    <p><code>baseline.py</code>, <code>sequential_da.py</code>, <code>filter.py</code>,
-    <code>oracle_probe.py</code>, <code>integrated_inputs.py</code>,
-    <code>internal_diagnostics_probe.py</code> — the largest share, ~70 rows after §4a,
-    mostly E501.</p>
-
-    <h3 id="s4c">§4c — Clear the bench and agent cluster</h3>
-
-    <p><code>bench/stream_worker.py</code>, <code>bench/cosmos_worker.py</code>,
-    <code>bench/tokenizer.py</code>, <code>bench/loader.py</code>,
-    <code>agent/slurm.py</code>, <code>agent/bench.py</code>. <strong>Carries the F821
-    undefined-name bug</strong>, which must be fixed as a real defect and its resolution
-    stated — not silenced with a noqa.</p>
-
-    <h3 id="s4d">§4d — Clear the tokenizer, latent, gs, data and eval cluster</h3>
-
-    <p><code>tokenizer/</code> (<code>finetune_decoder.py</code>, <code>cli.py</code>,
-    <code>patch_transformer.py</code>, <code>multimodal.py</code>), <code>latent/</code>
-    (<code>patch_encoder.py</code>, <code>patch_observation.py</code>,
-    <code>encoder.py</code>, <code>boundary_moment.py</code>),
-    <code>gs/filaments3d.py</code> (the three F811 redefinitions),
-    <code>data/stream_encode.py</code>, <code>eval/metrics.py</code>.</p>
-
-    <h3 id="s4e">§4e — Clear the test tree</h3>
-
-    <p>All remaining violations under <code>tests/</code>, ~16 rows, predominantly E501.</p>
-
-    <h3 id="s4f">§4f — Install the gate</h3>
-
-    <p>Record in the repository's <code>AGENTS.md</code> that whole-tree
-    <code>ruff check imas_ambix tests</code> is now a valid done-when measure and is expected
-    to hold, so a future node can rely on it — the absence of that statement is what let the
-    unachievable clause be authored in the first place.</p>
-
-    <p><strong>Done when</strong> <code>uv run --no-sync ruff check imas_ambix tests</code>
-    exits 0 on the integrated branch and the full test suite still passes.</p>
+    <p class="landed-summary"><code>ruff check imas_ambix tests</code> now reports
+    <strong>All checks passed!</strong> at exit 0, from <strong>266</strong>. Naming went 96→5
+    through ten commented per-file entries with <strong>no symbol renamed</strong>, so
+    <code>segment_B</code> is still the magnetic field. Two real bugs fixed without
+    suppressions: an undefined <code>torch</code> in the Cosmos worker, and three
+    redefinitions root-caused to a dead <code>dataclasses.field</code> import shadowing public
+    methods. Regression evidence <strong>223 passed, 6 skipped, zero failures</strong> across
+    four slices. Commits <code>a68bffa</code>, <code>81fa779</code>, <code>0e3617e</code>,
+    <code>426aaa6</code>, <code>e26ee65</code>, <code>9212bc5</code>, <code>ec2e960</code>,
+    <code>dedbebc</code>. Full record:
+    <a href="/imas-ambix/evidence/archive/whole-tree-lint-gate-landed">landed record</a>.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -183,11 +150,12 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-wlg-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-08-25" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-wlg-01" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-08-25" data-recommends-skill="" data-resolved-at="2026-08-25T19:43:33+00:00" data-resolved-by="">
     <h4 class="r-fu-title">Settle the lint posture, then implement whichever gate it names</h4>
     <div class="r-fu-body"><p>Posture locked to clear-and-gate. §4a exempts conventional notation, §4b-§4e
           clear the remaining violations partitioned by file, and §4f installs the gate.</p></div>
     <pre class="r-fu-prompt">/reckon-ship whole-tree-lint-gate</pre>
+    <p class="r-fu-outcome">Shipped. ruff check imas_ambix tests reports All checks passed at exit 0, from 266 findings. Naming went 96 to 5 via ten commented per-file entries with no symbol renamed, preserving segment_B as the magnetic field and functional as F as the PyTorch alias; the five genuine survivors were fixed. Two real defects fixed without suppressions: an undefined torch in bench/cosmos_worker.py, and three F811 redefinitions root-caused to a dead dataclasses.field import shadowing public field() methods on Line, Arc and Conductor. A rename this work introduced was reversed so StreamAborted keeps one spelling across three modules, matching CPython's control-flow exception precedent. Regression evidence 223 passed, 6 skipped, zero failures across four slices, after three mis-sized fences traced to one 45-minute training pair. AGENTS.md records the command as a usable measure. done — no followup.</p>
     </article>
 </section>
 
@@ -230,6 +198,9 @@
 </div>
 <div class="r-comment" data-section="§4e" data-id="c-run-r-20260825T185437060049-lint-reg-c1" data-who="lint-reg-c1" data-when="2026-08-25T18:58:47Z">
     <div class="r-comment-body"><p>pytest slice c1 exit 0</p></div>
+</div>
+<div class="r-comment" data-section="§4e" data-id="c-run-r-20260825T185452876635-lint-reg-c2" data-who="lint-reg-c2" data-when="2026-08-25T19:42:11Z">
+    <div class="r-comment-body"><p>pytest slice c2 (slow training pair) exit 0</p></div>
 </div>
 </section>
 </main>

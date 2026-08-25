@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="whole-tree-lint-gate-landed">
+  <meta name="plan-title" content="Whole-Tree Lint Gate — Landed Record">
+  <meta name="plan-summary" content="Execution record for clearing 266 ruff findings to zero and installing the whole-tree gate, including the naming-convention reasoning and a real undefined-name bug.">
+  <meta name="plan-evidence-for" content="whole-tree-lint-gate">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>Whole-Tree Lint Gate — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="gate">The gate</h2>
+
+    <p><code>uv run --no-sync ruff check imas_ambix tests</code> now reports
+    <strong>All checks passed!</strong> at exit 0, from <strong>266 findings</strong> at the
+    start. <code>AGENTS.md</code> records the command as a usable done-when measure so the
+    next node does not have to rediscover whether it can be trusted.</p>
+
+    <table>
+      <thead><tr><th>Node</th><th>Commit</th><th>Measure</th></tr></thead>
+      <tbody>
+        <tr><td>§4a convention exemptions</td><td><code>a68bffa</code></td><td>naming findings 96 → 5; only <code>pyproject.toml</code> changed (+20)</td></tr>
+        <tr><td>§4b statespace</td><td><code>81fa779</code></td><td>67 → 0; 206 tests pass</td></tr>
+        <tr><td>§4c bench + agent</td><td><code>0e3617e</code></td><td>38 → 0; 16 tests pass</td></tr>
+        <tr><td>§4c abort-name correction</td><td><code>426aaa6</code></td><td>one spelling repo-wide</td></tr>
+        <tr><td>§4d 3-D filaments</td><td><code>e26ee65</code></td><td>21 → 0; 238 tests pass</td></tr>
+        <tr><td>§4d tokenizer + latent + eval</td><td><code>9212bc5</code></td><td>27 → 0; 71 pass, 6 skip</td></tr>
+        <tr><td>§4e test tree</td><td><code>ec2e960</code></td><td>22 → 0 across twelve files</td></tr>
+        <tr><td>§4f gate documentation</td><td><code>dedbebc1c4f9</code></td><td>12-line section in <code>AGENTS.md</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="naming">Why 95 findings were exempted rather than renamed</h2>
+
+    <p>The naming family was <strong>36% of the total</strong>, and clearing it by renaming
+    would have damaged the code. The offenders in <code>gs/filaments3d.py</code> are
+    <code>segment_B</code> and <code>segment_A</code>, where <code>B</code> is the magnetic
+    field and <code>A</code> the vector potential; in <code>statespace/baseline.py</code> they
+    are <code>X</code>, <code>X_train</code>, <code>normalise_X</code> — the design matrix.
+    Eleven of the eleven <code>N812</code> hits are <code>functional as F</code>, the standard
+    PyTorch alias, and one is <code>DistributedDataParallel as DDP</code>.</p>
+
+    <p>The repository had already settled this question <strong>seven times</strong>:
+    <code>pyproject.toml</code> carried seven commented <code>per-file-ignores</code> entries
+    for the same rule set, each explaining that uppercase matches the mathematics. §4a
+    extended that established pattern with ten more entries, taking naming findings from 96 to
+    5 without renaming a single symbol.</p>
+
+    <p>The five survivors were genuine and were fixed rather than exempted: the
+    single-letter function alias <code>mse_split as M</code>, the
+    <code>OpenMagvit2Tokenizer as _OMT</code> import, and two exception names.</p>
+
+    <h2 id="defects">The findings that were real bugs</h2>
+
+    <p><strong>An undefined name.</strong>
+    <code>imas_ambix/bench/cosmos_worker.py:123</code> reported
+    <code>F821 Undefined name 'torch'</code> — a <code>NameError</code> waiting on that path,
+    in a file last touched months earlier by unrelated work. Fixed with a real module-level
+    import; a suppression was explicitly refused in the node contract. This single finding is
+    the argument for the gate: nothing was watching that file.</p>
+
+    <p><strong>Three redefinitions with a better root cause than expected.</strong>
+    <code>gs/filaments3d.py</code> reported <code>F811</code> three times on
+    <code>field</code>. The cause was not the methods but an unused
+    <code>dataclasses.field</code> import shadowing the public <code>field()</code> methods on
+    <code>Line</code>, <code>Arc</code> and <code>Conductor</code>. Deleting the dead import
+    cleared all three with no rename, no suppression, and no API change — and 238 GS tests
+    still pass.</p>
+
+    <h2 id="consistency">A consistency defect this work introduced, and reversed</h2>
+
+    <p>The §4c worker renamed <code>StreamAborted</code> to <code>StreamAbortedError</code> in
+    two bench modules to satisfy <code>N818</code>. But
+    <code>imas_ambix/data/stream_encode.py</code> defines the same concept and deliberately
+    keeps <code>StreamAborted</code> behind
+    <code># noqa: N818 # not an Error-class, a control-flow unwind</code>. That reasoning
+    follows CPython's own precedent — <code>StopIteration</code>,
+    <code>GeneratorExit</code> and <code>SystemExit</code> are all control-flow exceptions and
+    none carries an <code>Error</code> suffix. The rename left two spellings of one concept
+    across sibling modules, so it was reversed: all three definitions now carry the identical
+    documented annotation, and <code>StreamAbortedError</code> has zero hits in tracked
+    source.</p>
+
+    <h2 id="regression">Regression evidence, and three badly-sized fences</h2>
+
+    <p>The reformat touched twelve test files. Proving they still pass took four attempts,
+    because the gate measure was mis-sized three times — each failure was an authoring error,
+    not a worker failure:</p>
+
+    <table>
+      <thead><tr><th>Attempt</th><th>Scope</th><th>Outcome</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><code>pytest tests</code> (whole suite)</td><td>8% in 26 min; stopped. A ~5-hour measure for a 71-line diff</td></tr>
+        <tr><td>2</td><td>all twelve files</td><td>179 passed, 6 skipped, 0 failures at 62%; fence-interrupted</td></tr>
+        <tr><td>3</td><td>three slices of four</td><td>a and b green; c interrupted at 26:41 with 60 passed, 0 failures</td></tr>
+        <tr><td>4</td><td>c split into fast and slow pairs</td><td>all green</td></tr>
+      </tbody>
+    </table>
+
+    <p>The final evidence, all at exit 0: slice a <strong>47 passed</strong>; slice b
+    <strong>66 passed, 2 skipped</strong>; slice c1 <strong>51 passed, 4 skipped</strong>;
+    slice c2 <strong>59 passed</strong> — <strong>223 passed, 6 skipped, zero failures</strong>.</p>
+
+    <p>The cause was concentrated, and measuring it is what fixed it: slice c2's two training
+    tests take <strong>45 minutes 6 seconds by themselves</strong>. Any node containing them
+    was doomed against a 30-minute fence regardless of what else it held. Splitting by cost
+    rather than by tidy grouping is the lesson worth keeping.</p>
+
+    <h2 id="drain">Drain ledger</h2>
+
+    <pre>DRAIN LEDGER — whole-tree-lint-gate @ 2026-08-25T20:20Z
+  f-wlg-01  settle the posture, then implement the gate     folded -> 4a,4b,4c,4d,4e,4f
+  4b follow_on: assign owners for the 22 ruff violations    folded -> the clearing waves
+  4f follow_on: rerun whole-tree lint after integration     folded -> verified at integration, exit 0
+  4e regression evidence (3 mis-sized fences)               folded -> lint-reg-a,b,c1,c2
+  ---
+  rows: 4   foldable-remaining: 0   unreconciled-runs: 0</pre>
+
+  </main>
+</body>
+</html>
