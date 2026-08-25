@@ -69,6 +69,18 @@ UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH="$PWD
 shared with the main checkout and any concurrent workers. It is not how to run
 in the main checkout.
 
+## Whole-tree lint gate
+
+`uv run --no-sync ruff check imas_ambix tests` exits 0 and may be used as a
+done-when measure for a worker node. Keep this whole-tree gate green; do not
+silently replace it with a check limited to the files changed by one node.
+
+The commented `per-file-ignores` in `pyproject.toml` preserve established
+mathematical notation and standard PyTorch notation. Naming rules covered by
+those entries are convention exemptions rather than lint violations: keep the
+scientific or framework meaning explicit instead of renaming symbols merely to
+satisfy a generic naming rule.
+
 ## Plans & docs (reckon — HTML-first)
 
 All plans **and** non-plan structured docs (RCAs, incident reports,
