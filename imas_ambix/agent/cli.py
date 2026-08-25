@@ -907,6 +907,11 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
     is_flag=True,
     help="Write the generated launcher to the shared GPFS path (default action).",
 )
+@click.option(
+    "--openrouter",
+    is_flag=True,
+    help="Also install the per-user OpenRouter proxy configuration and unit.",
+)
 @click.option("--print", "print_only", is_flag=True, help="Print the script to stdout.")
 @click.option(
     "--path",
@@ -930,6 +935,7 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
 def clive_command(
     slug: str | None,
     deploy: bool,
+    openrouter: bool,
     print_only: bool,
     show_path: bool,
     model_override: str | None,
@@ -967,8 +973,50 @@ def clive_command(
     _ = deploy  # deploy is the default; the flag is for explicitness only
     _deploy_launcher("clive", deploy_path, clive_script)
 
+    if openrouter:
+        _deploy_openrouter_proxy(site, default_model)
+
     console.print(f"  Model: {default_model} · URL: {site.default_url}")
     console.print("  PATH line: [cyan]imas-ambix agent clive --path[/]")
+
+
+def _deploy_openrouter_proxy(site: SiteConfig, local_model: str) -> None:
+    """Install the explicitly requested per-user proxy artifacts and unit."""
+    from imas_ambix.agent.litellm_config import generate_litellm_config
+    from imas_ambix.agent.litellm_service import (
+        generate_litellm_env_helper,
+        generate_litellm_service,
+    )
+
+    executable = Path.home() / ".local" / "bin" / "litellm"
+    if not executable.is_file():
+        raise click.ClickException(
+            f"LiteLLM is absent at {executable}; use plain clive for the local model."
+        )
+
+    _deploy_launcher(
+        "litellm_config.yaml",
+        site.litellm_config_path,
+        generate_litellm_config(site, local_model),
+        0o644,
+    )
+    _deploy_launcher(
+        "imas-ambix-llm-env.sh",
+        site.litellm_env_helper_path,
+        generate_litellm_env_helper(site),
+    )
+
+    service_path = site.litellm_service_path
+    try:
+        service_path.parent.mkdir(parents=True, exist_ok=True)
+        service_path.write_text(generate_litellm_service(site), encoding="utf-8")
+        subprocess.run(["systemctl", "--user", "daemon-reload"], check=False)
+    except OSError as exc:
+        raise click.ClickException(
+            f"Could not install the OpenRouter proxy unit: {exc}. "
+            "Use plain clive for the local model."
+        ) from exc
+    console.print(f"[green]Installed[/] {service_path.name} (per-user systemd unit)")
 
 
 def _deploy_launcher(name: str, path, content: str, mode: int = 0o755) -> None:
