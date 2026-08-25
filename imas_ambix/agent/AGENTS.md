@@ -233,94 +233,47 @@ project-backed and shared legacy environments untouched.
 **both** `/v1/messages` and `/v1/chat/completions` on the same port, so one
 server, key, and model back either harness — with full reasoning, tool calling,
 and prompt caching (vLLM automatic prefix caching; >0.17.1 handles Claude
-Code's per-request hash, so caching is not defeated). No gateway/LiteLLM/router
-is needed — the Anthropic endpoint is native to vLLM.
+Code's per-request hash, so caching is not defeated). The launcher is strictly
+local-only: both harnesses connect directly to the served model, and every
+Claude Code tier alias resolves to that same model.
 
 ```bash
-clive "explain this repo"          # local H200 model; no OR key = direct
-clive "refactor this"              # with OR key = tiered routing (local+OR)
-clive --codex "write a test"       # local model via Codex CLI, same server
-orclaude "..."                     # all tiers -> OpenRouter (bashrc fn; key-holders)
-imas-ambix agent clive --deploy    # (re)generate + sync launcher + routing config
+clive "explain this repo"          # local model via Claude Code
+clive --codex "write a test"       # local model via Codex CLI
+imas-ambix agent clive --deploy    # generate and sync the shared launcher
 imas-ambix agent clive --path      # print the ~/.bashrc PATH line
 ```
 
-**One launcher (`clive`), adaptive routing:**
+**Local-only routing contract:**
 
-- **Without an OpenRouter key** (`~/.config/openrouter/key`): clive connects
-  directly to the local H200 model (all tiers → one model). Auto-detects the
-  running model from `/v1/models`. What every SDCC cluster user runs.
-- **With an OpenRouter key**: clive ensures the **per-user `imas-ambix-llm`
-  systemd service** is running (`systemctl --user start` — idempotent, **0 s
-  when already up**; ~11 s cold start once per login) and routes Claude Code
-  tiers through its LiteLLM proxy:
-  - Default / haiku → the local H200 model (named after the served model,
-    e.g. `deepseek-v4-flash`)
-  - Sonnet → `or-sonnet-4.6`, Opus → `or-opus-4.8` (OpenRouter)
-  - Also in the picker: `or-gpt-5.5`, `or-glm-5.2`
-  The proxy is **per-user** (runs as the invoking user with *their own* OR key,
-  bound to 127.0.0.1 only — NOT shared, no shared-key/budget exposure). No OR
-  key → no proxy, local-only.
-- **`orclaude` — all tiers → OpenRouter** (the `~/.bashrc` function).
+- `clive` discovers the served model from `/v1/models` unless `--model` or
+  `AMBIX_AGENT_MODEL` overrides it. Failure to reach that endpoint is fatal;
+  the launcher does not fall back to an external service.
+- Claude Code receives the local endpoint through `ANTHROPIC_BASE_URL` and the
+  local key through `ANTHROPIC_AUTH_TOKEN`. Its opus, sonnet, haiku, and session
+  default variables all name the one served model.
+- `clive --codex` uses the same endpoint, key, and detected model through the
+  OpenAI-compatible API.
+- Personal environment variables and key files never select another route.
+  The shared launcher has no user-specific billing or third-party-account
+  dependency.
+- The server-reported `max_model_len`, when present, is exported as
+  `CLAUDE_CODE_MAX_CONTEXT_TOKENS`; the launcher does not guess when the server
+  omits it.
 
-**Why systemd, not a per-run daemon:** litellm's import costs 10-20 s; starting
-it per `clive` invocation was the bottleneck. The `imas-ambix-llm.service`
-(installed by `--deploy`) stays alive across runs, so only the first launch
-after login pays the cost. `EnvironmentFile` MUST be `-`-optional (the
-ExecStartPre helper creates it) or systemd fails with `Result=resources`.
-
-**Model picker control (Claude Code 2.1+) — env vars, not discovery:** the
-picker is populated AND labelled purely with **startup env vars**, no settings
-file and no `/v1/models` gateway discovery. Two facts kill the discovery route:
-Claude Code **ignores any `/v1/models` entry whose `id` doesn't begin with
-`claude`/`anthropic`** (our `or-*`/local ids don't, so they're silently
-dropped), and `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` (which clive sets)
-disables discovery anyway. Instead clive uses the **five labellable slots Claude
-Code honours behind an `ANTHROPIC_BASE_URL` gateway** — the `opus` / `sonnet` /
-`haiku` / `fable` aliases plus one `ANTHROPIC_CUSTOM_MODEL_OPTION` — each taking
-a `_NAME` + `_DESCRIPTION` (model-config doc: the `_NAME`/`_DESCRIPTION` vars
-"also take effect when `ANTHROPIC_BASE_URL` points to an LLM gateway"). We have
-exactly five models, so the mapping is one-to-one:
-
-| Picker slot | Model | Notes |
-|---|---|---|
-| `haiku` (+ session default via `ANTHROPIC_MODEL=haiku`) | local H200 | also backs background tasks; free |
-| `opus` | `or-opus-4.8` | OpenRouter Claude, frontier |
-| `sonnet` | `or-sonnet-4.6` | OpenRouter Claude, balanced |
-| custom option | `or-gpt-5.5` | plain entry, no Claude-specific shaping |
-| `fable` | `or-glm-5.2` | ⚠ Claude Code treats the fable slot as Fable 5 → always-on adaptive thinking + safety auto-fallback to the opus slot; benign behind `drop_params`, and it's the only remaining labelled slot |
-
-This shows real names + descriptions (not "Custom * model"), needs no
-`--settings` and no deployed settings file, and touches **only clive's own
-process env** — the user's plain `claude` is completely unaffected. Set
-`ANTHROPIC_MODEL=haiku` (the alias), NOT the raw served id, or Claude Code adds
-a duplicate "Custom model" row alongside the haiku slot.
-
-**OpenRouter caching — use `anthropic/<model>` + `api_base`, NOT `openrouter/`:**
-verified 2026-06-26 (or-opus, 10,815-token prompt): `cache_creation` then
-`cache_read=10815` on the repeat → cost $0.068→$0.0055. The Anthropic-native
-passthrough preserves `cache_control`; `openrouter/anthropic/<model>` routes via
-the OpenAI chat_completions wire format and **silently drops caching**. Claude
-`or-*` models use `anthropic/` + `api_base`; OpenAI-family (`or-gpt-*`) use
-`openai/`.
-
-**Routing config = LiteLLM YAML, generated like the launcher.** Routing lives
-in `litellm_config.yaml` (deployed to `/work`), generated from
-`imas_ambix/agent/litellm_config.py` with the local URL/model auto-filled from
-SiteConfig. It is **secret-free** — the OpenRouter key is `os.environ/OPENROUTER_API_KEY`,
-injected by the systemd unit's env helper from the per-user
-`~/.config/openrouter/key`. To change routing, edit the generator's YAML and
-re-deploy.
+**Why the proxy route was removed:** LiteLLM's `anthropic/` provider sends the
+local credential as `x-api-key`, while vLLM accepts only `Authorization: Bearer`
+for API-key authentication. The former OpenRouter path also made a shared
+cluster launcher depend on a personal third-party account and its spend state.
+That mismatch and ownership boundary are reasons not to reintroduce the proxy,
+even as an automatic or dormant route.
 
 **Sync discipline — repo is the source of truth (binding):** `imas-ambix agent
-clive --deploy` generates and writes all of: `clive`, `litellm_config.yaml`,
-`imas-ambix-llm-env.sh` (→ `/work/.../agents/`, group
-`sdcc-imas_gpu`), and the per-user `imas-ambix-llm.service` (→
-`~/.config/systemd/user/`, then `daemon-reload`). Generators:
-`imas_ambix/agent/{clive,litellm_config,litellm_service}.py`. **NEVER hand-edit
-the deployed copies** — they are disposable artifacts. To change any: edit the
-generator in the repo, commit, then re-run `--deploy` to re-sync. This is the
-only thing that keeps the deployed copies from drifting from the repo.
+clive --deploy` generates and writes one artifact: the `clive` launcher. Its
+generator is `imas_ambix/agent/clive.py`. **NEVER hand-edit a deployed copy** —
+it is disposable. Edit the generator in the repo, commit, then re-run
+`--deploy` to re-sync it. Compare a deployed copy with `--print` when verifying
+that it has not drifted from the generator.
 
 - **Direct route, no tunnel.** Login and standard compute nodes route directly
   to `<gpu-node>:PORT` (verified 2026-06-25: login → `98dci4-gpu-0003:18800` =
