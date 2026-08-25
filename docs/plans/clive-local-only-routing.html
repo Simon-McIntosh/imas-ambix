@@ -22,7 +22,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-25">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
+<meta name="plan-commits" content="49d30657620ca5b2bd02b2b1aaf3a4fe3d7bbfe1,83ffb0b317dcd1857b5db6a56d38fa69c69d54af">
+<meta name="plan-artifacts" content="docs/evidence/archive/clive-local-only-routing-landed.html,/home/ITER/mcintos/.config/reckon/crew/reports/clive-reuse-map.md">
+<meta name="plan-impl" content="0.2857">
 </head>
 <body>
   <main class="plan-doc">
@@ -223,22 +226,17 @@ fi</pre>
     <p>Four work items. The first is the fix; the rest remove the surface the fix
     orphans, correct the documentation, and verify against the live endpoint.</p>
 
-    <h3 id="s4a">§4a — Strip the OpenRouter route from the clive generator</h3>
+    <h3 id="s4a"><span class="badge badge-shipped">✓ landed 2026-08-25</span> §4a — Strip the OpenRouter route from the clive generator</h3>
 
-    <p>In <code>imas_ambix/agent/clive.py</code>, remove the <code>_HAVE_OR</code> detection,
-    the systemd start-and-wait block, the readiness poll, the five labelled picker slots
-    and their <code>_NAME</code>/<code>_DESCRIPTION</code> variables, and the
-    <code>or-*</code> mentions in the usage text and module docstring. What remains is the
-    single direct route that is already proven to work: <code>ANTHROPIC_BASE_URL</code> at
-    the served endpoint, <code>ANTHROPIC_AUTH_TOKEN</code> carrying the local key (Claude
-    Code sends it as <code>Authorization: Bearer</code>, which is what vLLM requires), and
-    the opus/sonnet/haiku aliases plus <code>ANTHROPIC_MODEL</code> all set to the served
-    model name. The <code>--codex</code> branch is already local-only and stays as it is.</p>
-
-    <p><strong>Done when</strong> the generated script contains no occurrence of
-    <code>openrouter</code>, <code>OPENROUTER</code>, <code>or-</code>,
-    <code>litellm</code> or <code>systemctl</code>, and takes the same code path whether or
-    not <code>~/.config/openrouter/key</code> exists.</p>
+    <p class="landed-summary">Removed the route detection, the systemd start-and-wait block and
+    the five labelled picker slots from <code>imas_ambix/agent/clive.py</code> (−122/+16).
+    Gate passed: <strong>0</strong> matches for
+    <code>openrouter|litellm|systemctl|or-*</code> in the printed launcher;
+    <code>bash -n</code> and <code>ruff check</code> exit 0. The launcher now sets
+    <code>ANTHROPIC_BASE_URL</code>, <code>ANTHROPIC_AUTH_TOKEN</code> and every tier alias
+    to the auto-detected served model. Full record:
+    <a href="/imas-ambix/evidence/archive/clive-local-only-routing-landed#s4a">§4a landed</a>
+    (commit <code>49d3065</code>).</p>
 
     <h3 id="s4b">§4b — Retire the LiteLLM proxy surface</h3>
 
@@ -276,17 +274,16 @@ fi</pre>
     <p><strong>Done when</strong> a clive launch against the live endpoint no longer prints
     the unrecognized-model context warning.</p>
 
-    <h3 id="s4d">§4d — Correct the agent documentation</h3>
+    <h3 id="s4d"><span class="badge badge-shipped">✓ landed 2026-08-25</span> §4d — Correct the agent documentation</h3>
 
-    <p><code>imas_ambix/agent/AGENTS.md</code> §4a documents the adaptive two-route design as
-    the intended behaviour, across roughly 90 lines: the "One launcher, adaptive routing"
-    description, the five-slot picker table, the "Why systemd" rationale, the OpenRouter
-    caching note, the routing-config section, and the <code>orclaude</code> references.
-    Replace it with the local-only contract, and state the reason plainly so the route is
-    not reintroduced: LiteLLM's <code>anthropic/</code> provider authenticates with
-    <code>x-api-key</code>, which vLLM rejects, and a shared cluster launcher must not
-    depend on a personal third-party account. Update the sync-discipline paragraph to the
-    single generated artifact.</p>
+    <p class="landed-summary">Replaced 81 adaptive-proxy lines in
+    <code>imas_ambix/agent/AGENTS.md</code> with 34 local-only lines. Gate passed: the
+    proxy-surface grep returns exactly 2 matches, both inside the removal rationale. The
+    guide now records that LiteLLM's <code>anthropic/</code> provider sends
+    <code>x-api-key</code> while vLLM accepts only <code>Authorization: Bearer</code>, and
+    that a shared launcher must not depend on a personal account. Full record:
+    <a href="/imas-ambix/evidence/archive/clive-local-only-routing-landed#s4d">§4d landed</a>
+    (commit <code>83ffb0b</code>).</p>
 
     <h3 id="s4e">§4e — Verify against the live endpoint</h3>
 
