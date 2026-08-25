@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T20:54:31",
+  "updated": "2026-08-25T21:30:38",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -131,6 +131,15 @@
         "sessions": {
           "gpt-5.6-sol": "01a039cb-5b89-7c11-ad30-1d488f82eeec"
         },
+        "created": "2026-08-25"
+      },
+      {
+        "id": "clive-picker-inert",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
         "created": "2026-08-25"
       },
       {
@@ -9612,9 +9621,187 @@
           "role": "test",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260825T185357584934-clive-picker-labels",
+        "plan": "clive-openrouter-opt-in",
+        "section": "\u00a74d",
+        "node": "clive-picker-labels",
+        "node_definition": {
+          "done_when": "On the default path the generated launcher sets ANTHROPIC_DEFAULT_OPUS_MODEL, ANTHROPIC_DEFAULT_SONNET_MODEL, ANTHROPIC_DEFAULT_HAIKU_MODEL, ANTHROPIC_DEFAULT_FABLE_MODEL and ANTHROPIC_SMALL_FAST_MODEL all to the detected served model, each tier also exporting its _NAME and _DESCRIPTION so no picker row can fall back to a Custom label or to a built-in Claude model the endpoint cannot serve; the inert ANTHROPIC_MODEL_NAME and ANTHROPIC_MODEL_DESCRIPTION exports are removed from the opt-in path because the CLI binary does not read them; a recorded grep of the printed launcher shows 5 _DESCRIPTION assignments on the default path and 0 occurrences of ANTHROPIC_MODEL_NAME; and 'uv run --no-sync pytest tests/test_agent.py -q' exits 0",
+          "estimated_hours": 0.5,
+          "goal": "Make every model-picker row on the default clive path name the served local model with a real description",
+          "id": "clive-picker-labels",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T185357584934-clive-picker-labels/manifest.md",
+          "plan": "clive-openrouter-opt-in",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74d",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/agent/clive.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "clive-picker-labels",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T18:54:08Z",
+        "completed_at": "2026-08-25T18:57:00Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 172,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 172,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "ca2c5af3ee7efb91b51ec79be2db9f1502e33ead",
+        "commits": [
+          "2f87d6e7fdcad40c038019d95217e291415c6779"
+        ],
+        "changed_lines": {
+          "added": 12,
+          "removed": 2,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T185357584934-clive-picker-labels/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03a45-d129-7723-a390-fed10756bb99",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 783616,
+            "cached_input_tokens_cumulative": 783616,
+            "input_tokens": 851860,
+            "input_tokens_cumulative": 851860,
+            "output_tokens": 6265,
+            "output_tokens_cumulative": 6265,
+            "reasoning_output_tokens": 1227,
+            "reasoning_output_tokens_cumulative": 1227
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260825T185437060049-lint-reg-c1",
+        "plan": "whole-tree-lint-gate",
+        "section": "\u00a74e",
+        "node": "lint-reg-c1",
+        "node_definition": {
+          "done_when": "A recorded run of 'pytest tests/test_bench.py tests/test_eval.py -q' exits 0 with counts quoted",
+          "estimated_hours": null,
+          "goal": "Prove the fast pair of reformatted test files still passes",
+          "id": "lint-reg-c1",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T185437060049-lint-reg-c1/manifest.md",
+          "plan": "whole-tree-lint-gate",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a74e",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/lint-reg-c1.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "lint-reg-c1",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T18:54:51Z",
+        "completed_at": "2026-08-25T18:58:47Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 236,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 236,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "07d1bb1902874e79d579989924a54cb833c8e3e4",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T185437060049-lint-reg-c1/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03a46-77cd-7b72-8c41-f8670f115c03",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 989696,
+            "cached_input_tokens_cumulative": 989696,
+            "input_tokens": 1058120,
+            "input_tokens_cumulative": 1058120,
+            "output_tokens": 6544,
+            "output_tokens_cumulative": 6544,
+            "reasoning_output_tokens": 2306,
+            "reasoning_output_tokens_cumulative": 2306
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_bench.py",
+          "override": false,
+          "role": "test",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 286
+    "_version": 289
   }
 }
