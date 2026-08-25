@@ -17,6 +17,8 @@
   <title>Whole-Tree Lint Gate | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-08-25">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -162,36 +164,38 @@
     exits 0 on the integrated branch and the full test suite still passes.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-
-      <div class="r-dec" data-key="lint-gate-posture" data-choice="clear-and-gate" data-by="Simon McIntosh" data-when="2026-08-25">
-        <p class="r-dec-q">What lint posture should the repository commit to?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="scoped-only">scoped-only</button>
-          <button class="r-opt" data-value="ratchet">ratchet</button>
-          <button class="r-opt" data-value="clear-and-gate">clear-and-gate</button>
-        </p>
-        <p class="r-dec-rat">Clear all 266 and gate. Chosen with the cost and the risk
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="lint-gate-posture" data-choice="clear-and-gate" data-by="Simon McIntosh" data-when="2026-08-25">
+    <p class="r-dec-q">What lint posture should the repository commit to?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="scoped-only">scoped-only</button>
+      <button class="r-opt" data-value="ratchet">ratchet</button>
+      <button class="r-opt chosen" data-value="clear-and-gate">clear-and-gate</button>
+      </p>
+    <p class="r-dec-rat">Clear all 266 and gate. Chosen with the cost and the risk
         stated: the edits reach training and benchmark code that fast tests do not cover.
         Method follows from §3 — the naming family is exempted as convention (the repository
-        already carries seven such entries, and renaming <code>segment_B</code> would destroy
+        already carries seven such entries, and renaming segment_B would destroy
         the physics), everything else is genuinely fixed, and the gate is then real rather
         than aspirational.</p>
-      </div>
-    </section>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-wlg-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-08-25">
-        <h4 class="r-fu-title">Settle the lint posture, then implement whichever gate it names</h4>
-        <div class="r-fu-body">
-          <p>Posture locked to clear-and-gate. §4a exempts conventional notation, §4b-§4e
-          clear the remaining violations partitioned by file, and §4f installs the gate.</p>
-        </div>
-        <pre class="r-fu-prompt">/reckon-ship whole-tree-lint-gate</pre>
-      </article>
-    </section>
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-wlg-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-08-25" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Settle the lint posture, then implement whichever gate it names</h4>
+    <div class="r-fu-body"><p>Posture locked to clear-and-gate. §4a exempts conventional notation, §4b-§4e
+          clear the remaining violations partitioned by file, and §4f installs the gate.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship whole-tree-lint-gate</pre>
+    </article>
+</section>
 
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="§4a" data-id="c-run-r-20260825T171425475267-lint-convention-config" data-who="lint-convention-config" data-when="2026-08-25T17:18:31Z">
+    <div class="r-comment-body"><p>Naming findings 96 to 5 via 10 commented per-file entries; only pyproject.toml changed (+20); residue is StreamAborted x2, mse_split as M, _OMT x2</p></div>
+</div>
+</section>
+</main>
 </body>
 </html>

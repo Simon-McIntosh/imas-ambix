@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T18:45:02",
+  "updated": "2026-08-25T19:19:09",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -347,6 +347,69 @@
         "role": "test",
         "session_id": "01a02154-01df-7313-9880-e9ee9ef63565",
         "created": "2026-08-20"
+      },
+      {
+        "id": "lint-bench-agent",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-25"
+      },
+      {
+        "id": "lint-convention-config",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-25"
+      },
+      {
+        "id": "lint-gate-install",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-25"
+      },
+      {
+        "id": "lint-gs",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-25"
+      },
+      {
+        "id": "lint-statespace",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-25"
+      },
+      {
+        "id": "lint-tests",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-25"
+      },
+      {
+        "id": "lint-tokenizer-latent",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-25"
       },
       {
         "id": "machine-map",
@@ -8019,9 +8082,101 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260825T171425475267-lint-convention-config",
+        "plan": "whole-tree-lint-gate",
+        "section": "\u00a74a",
+        "node": "lint-convention-config",
+        "node_definition": {
+          "done_when": "git status shows only pyproject.toml modified, a recorded 'ruff check imas_ambix --select N' run reports only the genuine residue named in plan \u00a73 (StreamAborted N818 twice, mse_split as M N812, OpenMagvit2Tokenizer as _OMT N814), and every added per-file-ignores entry carries a comment naming the convention it preserves",
+          "estimated_hours": 0.5,
+          "goal": "Exempt conventional math, design-matrix and PyTorch-idiom naming from the ruff naming rules in pyproject.toml",
+          "id": "lint-convention-config",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T171425475267-lint-convention-config/manifest.md",
+          "plan": "whole-tree-lint-gate",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74a",
+          "spec_level": "exact",
+          "time_budget": "20m",
+          "write_paths": [
+            "pyproject.toml"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "lint-convention-config",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T17:14:32Z",
+        "completed_at": "2026-08-25T17:18:31Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 239,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 239,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "e0439b43528a35281b442da3b28bfb763dfcec41",
+        "commits": [
+          "a68bffa5477cb54aa485ddcb325670f6d1b6f54d"
+        ],
+        "changed_lines": {
+          "added": 20,
+          "removed": 0,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T171425475267-lint-convention-config/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a039ea-a18b-7eb2-bfe5-675c707ade72",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 852992,
+            "cached_input_tokens_cumulative": 852992,
+            "input_tokens": 930731,
+            "input_tokens_cumulative": 930731,
+            "output_tokens": 7150,
+            "output_tokens_cumulative": 7150,
+            "reasoning_output_tokens": 2505,
+            "reasoning_output_tokens_cumulative": 2505
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 249
+    "_version": 257
   }
 }
