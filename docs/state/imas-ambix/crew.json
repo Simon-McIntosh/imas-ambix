@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T20:28:31",
+  "updated": "2026-08-25T20:42:13",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -504,6 +504,15 @@
         "created": "2026-08-19"
       },
       {
+        "id": "or-cache-measure",
+        "harness": "codex",
+        "role": "test",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-25"
+      },
+      {
         "id": "or-optin-flag",
         "harness": "codex",
         "role": "implement",
@@ -523,6 +532,15 @@
         "sessions": {
           "gpt-5.6-sol": "01a03a28-bbbd-7161-8638-eb2ac413efba"
         },
+        "created": "2026-08-25"
+      },
+      {
+        "id": "or-provider-form",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
         "created": "2026-08-25"
       },
       {
@@ -9389,9 +9407,101 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260825T183415945624-or-provider-form",
+        "plan": "clive-openrouter-opt-in",
+        "section": "\u00a74b",
+        "node": "or-provider-form",
+        "node_definition": {
+          "done_when": "In imas_ambix/agent/litellm_config.py the or-gpt-5.5 entry is 'openai/gpt-5.5' and or-glm-5.2 is 'openai/z-ai/glm-5.2', both with api_base https://openrouter.ai/api/v1, while or-opus-4.8 and or-sonnet-4.6 keep anthropic/ with api_base https://openrouter.ai/api; a recorded grep of the rendered config shows no model id starting 'anthropic/openai' or 'anthropic/z-ai'; and 'uv run --no-sync pytest tests/test_agent.py -q' exits 0",
+          "estimated_hours": 0.25,
+          "goal": "Put the OpenAI-family OpenRouter models back on the openai provider form",
+          "id": "or-provider-form",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T183415945624-or-provider-form/manifest.md",
+          "plan": "clive-openrouter-opt-in",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74b",
+          "spec_level": "exact",
+          "time_budget": "20m",
+          "write_paths": [
+            "imas_ambix/agent/litellm_config.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "or-provider-form",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T18:35:45Z",
+        "completed_at": "2026-08-25T18:39:02Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 197,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 197,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "fa079ae9af695a75e44aa5242ca80a2a46b2f6a8",
+        "commits": [
+          "6061e6263b7a2363859bf7d8f0fa88ec6a91d461"
+        ],
+        "changed_lines": {
+          "added": 8,
+          "removed": 7,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T183415945624-or-provider-form/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03a35-0949-7cd2-9128-5d0702d10898",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 721152,
+            "cached_input_tokens_cumulative": 721152,
+            "input_tokens": 785492,
+            "input_tokens_cumulative": 785492,
+            "output_tokens": 4846,
+            "output_tokens_cumulative": 4846,
+            "reasoning_output_tokens": 766,
+            "reasoning_output_tokens_cumulative": 766
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 279
+    "_version": 282
   }
 }
