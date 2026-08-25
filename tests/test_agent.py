@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from imas_ambix.agent.profile import SiteConfig, list_profiles, load_profile
@@ -1428,18 +1429,13 @@ def test_siteconfig_launcher_paths():
     assert str(site.clive_path).endswith("agents/clive")
 
 
-def test_generate_clive_script_is_local_only():
-    """Every Claude model tier resolves directly to the served local model."""
-    import re
-
+def test_generate_clive_script_keeps_direct_local_default():
+    """The default branch preserves the direct local model environment."""
     from imas_ambix.agent.clive import generate_clive_script
 
     script = generate_clive_script(SiteConfig(), "served-local-model")
 
-    for forbidden in ("openrouter", "litellm", "systemctl"):
-        assert forbidden not in script.lower()
-    assert re.search(r"\bor-[a-z0-9]", script, flags=re.IGNORECASE) is None
-
+    assert 'if [[ "$CLIVE_OPENROUTER" != "1" ]]; then' in script
     assert 'ANTHROPIC_BASE_URL="$AMBIX_URL"' in script
     assert 'ANTHROPIC_AUTH_TOKEN="$KEY"' in script
     for alias in (
@@ -1451,18 +1447,146 @@ def test_generate_clive_script_is_local_only():
         assert f'{alias}="$AMBIX_MODEL"' in script
 
 
-def test_generate_clive_script_ignores_openrouter_key(monkeypatch):
-    """A personal provider key cannot alter the generated local route."""
+def test_clive_readable_openrouter_key_does_not_reach_proxy(tmp_path):
+    """A readable provider key alone cannot enter the proxy branch."""
+    import os
+    import subprocess
+
     from imas_ambix.agent.clive import generate_clive_script
 
-    site = SiteConfig()
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    without_key = generate_clive_script(site, "served-local-model")
+    launcher = tmp_path / "clive"
+    launcher.write_text(
+        generate_clive_script(SiteConfig(), "served-local-model"), encoding="utf-8"
+    )
+    launcher.chmod(0o755)
 
-    monkeypatch.setenv("OPENROUTER_API_KEY", "personal-key")
-    with_key = generate_clive_script(site, "served-local-model")
+    home = tmp_path / "home"
+    key_file = home / ".config" / "openrouter" / "key"
+    key_file.parent.mkdir(parents=True)
+    key_file.write_text("personal-key\n", encoding="utf-8")
+    key_file.chmod(0o600)
 
-    assert with_key == without_key
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    proxy_marker = tmp_path / "proxy-called"
+    trace = tmp_path / "claude-env"
+    (fake_bin / "systemctl").write_text(
+        f"#!/bin/sh\nprintf '%s\\n' \"$*\" >> {proxy_marker}\nexit 99\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "claude").write_text(
+        f"#!/bin/sh\nprintf '%s\\n' \"$ANTHROPIC_BASE_URL\" > {trace}\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "systemctl").chmod(0o755)
+    (fake_bin / "claude").chmod(0o755)
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "HOME": str(home),
+            "PATH": f"{fake_bin}:{env['PATH']}",
+            "AMBIX_AGENT_MODEL": "served-local-model",
+        }
+    )
+    env.pop("CLIVE_OPENROUTER", None)
+    result = subprocess.run(
+        [str(launcher)], capture_output=True, text=True, check=False, env=env
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert not proxy_marker.exists()
+    assert trace.read_text(encoding="utf-8").strip() == SiteConfig().default_url
+
+
+@pytest.mark.parametrize("opt_in", ["flag", "environment"])
+def test_clive_openrouter_opt_in_starts_proxy_and_presents_picker(tmp_path, opt_in):
+    """Either explicit opt-in starts the proxy and exports all picker slots."""
+    import os
+    import socket
+    import subprocess
+    import threading
+
+    from imas_ambix.agent.clive import generate_clive_script
+
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    proxy_port = listener.getsockname()[1]
+    accepted = []
+
+    def accept_probe():
+        connection, _ = listener.accept()
+        accepted.append(True)
+        connection.close()
+        listener.close()
+
+    probe = threading.Thread(target=accept_probe, daemon=True)
+    probe.start()
+
+    script = generate_clive_script(SiteConfig(), "served-local-model").replace(
+        'LITELLM_PORT="18399"', f'LITELLM_PORT="{proxy_port}"'
+    )
+    launcher = tmp_path / "clive"
+    launcher.write_text(script, encoding="utf-8")
+    launcher.chmod(0o755)
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    proxy_marker = tmp_path / "proxy-called"
+    trace = tmp_path / "claude-env"
+    (fake_bin / "systemctl").write_text(
+        "#!/bin/sh\n"
+        'if [ "$2" = "is-active" ]; then exit 1; fi\n'
+        f"printf '%s\\n' \"$*\" >> {proxy_marker}\n",
+        encoding="utf-8",
+    )
+    (fake_bin / "claude").write_text(
+        "#!/bin/sh\n"
+        f"printf '%s\\n' \"$ANTHROPIC_BASE_URL\" \"$ANTHROPIC_MODEL\" "
+        f'\"$ANTHROPIC_DEFAULT_HAIKU_MODEL\" \"$ANTHROPIC_DEFAULT_OPUS_MODEL\" '
+        f'\"$ANTHROPIC_DEFAULT_SONNET_MODEL\" \"$ANTHROPIC_CUSTOM_MODEL_OPTION\" '
+        f'\"$ANTHROPIC_DEFAULT_FABLE_MODEL\" > {trace}\n',
+        encoding="utf-8",
+    )
+    (fake_bin / "systemctl").chmod(0o755)
+    (fake_bin / "claude").chmod(0o755)
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "HOME": str(tmp_path / "home"),
+            "PATH": f"{fake_bin}:{env['PATH']}",
+            "AMBIX_AGENT_MODEL": "served-local-model",
+        }
+    )
+    command = [str(launcher)]
+    if opt_in == "flag":
+        command.append("--openrouter")
+    else:
+        env["CLIVE_OPENROUTER"] = "1"
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
+    probe.join(timeout=2)
+
+    assert result.returncode == 0, result.stderr
+    assert accepted == [True]
+    assert "start imas-ambix-llm.service" in proxy_marker.read_text(encoding="utf-8")
+    assert "or-opus-4.8, or-sonnet-4.6, or-gpt-5.5, or-glm-5.2" in result.stderr
+    assert trace.read_text(encoding="utf-8").splitlines() == [
+        f"http://127.0.0.1:{proxy_port}",
+        "served-local-model",
+        "served-local-model",
+        "or-opus-4.8",
+        "or-sonnet-4.6",
+        "or-gpt-5.5",
+        "or-glm-5.2",
+    ]
 
 
 def test_clive_deploy_writes_one_launcher(monkeypatch):

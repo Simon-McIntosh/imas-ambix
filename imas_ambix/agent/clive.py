@@ -1,11 +1,13 @@
 # ruff: noqa: E501 — the module is mostly an embedded bash template; line length
 # is governed by the generated shell script, not Python style.
-"""Generator for the ``clive`` local agent-CLI launcher.
+"""Generator for the ``clive`` agent-CLI launcher.
 
-clive points Claude Code or Codex directly at the GPU-served local model. The
-served model is auto-detected from ``/v1/models`` and supplies every Claude Code
-tier alias, so model selection cannot move a session away from the local
-endpoint. The launcher's environment affects only the child agent process.
+Plain ``clive`` points Claude Code or Codex directly at the GPU-served local
+model. An explicit ``--openrouter`` flag (or ``CLIVE_OPENROUTER=1``) routes
+Claude Code through the per-user LiteLLM proxy and exposes the local model plus
+the configured OpenRouter picker slots. Merely having a readable provider key
+never selects the proxy. The launcher's environment affects only the child
+agent process.
 
 Generated from :class:`SiteConfig` and synced repo → ``/work`` on
 ``imas-ambix agent clive --deploy``. Do not edit the deployed copy.
@@ -21,6 +23,8 @@ if TYPE_CHECKING:
 
 def generate_clive_script(site: SiteConfig, default_model: str) -> str:
     """Render the ``clive`` launcher for *site* defaulting to *default_model*."""
+    from imas_ambix.agent.litellm_service import LITELLM_PORT
+
     url = site.default_url
     key_file = str(site.api_key_file)
     return f'''#!/usr/bin/env bash
@@ -30,7 +34,7 @@ def generate_clive_script(site: SiteConfig, default_model: str) -> str:
 # the generator (imas_ambix/agent/clive.py) and re-deploy.
 #
 # Usage:
-#   clive [--claude|--codex] [--url URL] [--model NAME] [agent-args...]
+#   clive [--claude|--codex] [--openrouter] [--url URL] [--model NAME] [agent-args...]
 #   clive "explain this repo"            # Claude Code (default)
 #   clive --codex "write a test"         # OpenAI Codex CLI
 
@@ -40,16 +44,21 @@ set -euo pipefail
 AMBIX_URL="${{AMBIX_AGENT_URL:-{url}}}"
 AMBIX_MODEL="${{AMBIX_AGENT_MODEL:-}}"      # empty → auto-detect from /v1/models
 AMBIX_KEY_FILE="${{AMBIX_AGENT_KEY_FILE:-{key_file}}}"
+CLIVE_OPENROUTER="${{CLIVE_OPENROUTER:-0}}"
+LITELLM_PORT="{LITELLM_PORT}"
+LITELLM_SERVICE="imas-ambix-llm.service"
 HARNESS="claude"
 
 usage() {{
     cat >&2 <<'USAGE'
 clive — drive an agent CLI against the GPU-served local model.
 
-  clive [--claude|--codex] [--url URL] [--model NAME] [agent-args...]
+  clive [--claude|--codex] [--openrouter] [--url URL] [--model NAME] [agent-args...]
 
   --claude   Claude Code via the Anthropic Messages API (default).
   --codex    OpenAI Codex CLI via the OpenAI API.
+  --openrouter
+             Start the per-user proxy and offer local + or-* picker slots.
   --url URL  Local server base URL.   --model NAME  override served model.
 USAGE
 }}
@@ -60,6 +69,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --claude) HARNESS="claude"; shift ;;
         --codex)  HARNESS="codex";  shift ;;
+        --openrouter) CLIVE_OPENROUTER=1; shift ;;
         --url)    AMBIX_URL="$2";   shift 2 ;;
         --model)  AMBIX_MODEL="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
@@ -108,14 +118,65 @@ else
     unset CLAUDE_CODE_MAX_CONTEXT_TOKENS
 fi
 
-printf "\\nClive — local only — serving: %s\\n\\n" "$AMBIX_MODEL" >&2
-ANTHROPIC_BASE_URL="$AMBIX_URL" \\
-ANTHROPIC_AUTH_TOKEN="$KEY" \\
+# ── Default mode: preserve the direct local route, independent of OR state ──
+if [[ "$CLIVE_OPENROUTER" != "1" ]]; then
+    printf "\\nClive — local only — serving: %s\\n\\n" "$AMBIX_MODEL" >&2
+    ANTHROPIC_BASE_URL="$AMBIX_URL" \\
+    ANTHROPIC_AUTH_TOKEN="$KEY" \\
+    ANTHROPIC_API_KEY="" \\
+    ANTHROPIC_DEFAULT_OPUS_MODEL="$AMBIX_MODEL" \\
+    ANTHROPIC_DEFAULT_SONNET_MODEL="$AMBIX_MODEL" \\
+    ANTHROPIC_DEFAULT_HAIKU_MODEL="$AMBIX_MODEL" \\
+    ANTHROPIC_MODEL="$AMBIX_MODEL" \\
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \\
+    exec claude "${{ARGS[@]}}"
+fi
+
+# ── Opt-in mode: start the per-user proxy and expose its picker slots ──────
+if ! systemctl --user is-active --quiet "$LITELLM_SERVICE" 2>/dev/null; then
+    echo "clive: starting $LITELLM_SERVICE (first launch — a few seconds) ..." >&2
+    if ! systemctl --user start "$LITELLM_SERVICE" 2>/dev/null; then
+        echo "clive: could not start $LITELLM_SERVICE." >&2
+        echo "       Install it with: imas-ambix agent clive --deploy --openrouter" >&2
+        echo "       Or run plain clive for the direct local model." >&2
+        exit 1
+    fi
+fi
+
+_PROXY_READY=false
+for _attempt in $(seq 1 60); do
+    (exec 3<>"/dev/tcp/127.0.0.1/$LITELLM_PORT") 2>/dev/null && {{ exec 3>&- 3<&-; _PROXY_READY=true; break; }}
+    sleep 0.5
+done
+if ! $_PROXY_READY; then
+    echo "clive: $LITELLM_SERVICE did not become ready on 127.0.0.1:$LITELLM_PORT." >&2
+    echo "       Check: systemctl --user status $LITELLM_SERVICE; journalctl --user -u $LITELLM_SERVICE" >&2
+    echo "       Or run plain clive for the direct local model." >&2
+    exit 1
+fi
+
+printf "\\nClive — local + OpenRouter — picker: %s, or-opus-4.8, or-sonnet-4.6, or-gpt-5.5, or-glm-5.2\\n\\n" "$AMBIX_MODEL" >&2
+ANTHROPIC_BASE_URL="http://127.0.0.1:$LITELLM_PORT" \\
+ANTHROPIC_AUTH_TOKEN="clive" \\
 ANTHROPIC_API_KEY="" \\
-ANTHROPIC_DEFAULT_OPUS_MODEL="$AMBIX_MODEL" \\
-ANTHROPIC_DEFAULT_SONNET_MODEL="$AMBIX_MODEL" \\
 ANTHROPIC_DEFAULT_HAIKU_MODEL="$AMBIX_MODEL" \\
 ANTHROPIC_MODEL="$AMBIX_MODEL" \\
+ANTHROPIC_MODEL_NAME="$AMBIX_MODEL" \\
+ANTHROPIC_MODEL_DESCRIPTION="Local 8xH200 (vLLM) — fast + free" \\
+ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME="$AMBIX_MODEL" \\
+ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION="Local 8xH200 (vLLM) — fast + free" \\
+ANTHROPIC_DEFAULT_OPUS_MODEL="or-opus-4.8" \\
+ANTHROPIC_DEFAULT_OPUS_MODEL_NAME="or-opus-4.8" \\
+ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION="Claude Opus 4.8 via OpenRouter — frontier" \\
+ANTHROPIC_DEFAULT_SONNET_MODEL="or-sonnet-4.6" \\
+ANTHROPIC_DEFAULT_SONNET_MODEL_NAME="or-sonnet-4.6" \\
+ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION="Claude Sonnet 4.6 via OpenRouter — balanced" \\
+ANTHROPIC_DEFAULT_FABLE_MODEL="or-glm-5.2" \\
+ANTHROPIC_DEFAULT_FABLE_MODEL_NAME="or-glm-5.2" \\
+ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION="GLM-5.2 via OpenRouter — open-weight frontier, 1M ctx" \\
+ANTHROPIC_CUSTOM_MODEL_OPTION="or-gpt-5.5" \\
+ANTHROPIC_CUSTOM_MODEL_OPTION_NAME="or-gpt-5.5" \\
+ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION="GPT-5.5 via OpenRouter — coding model" \\
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \\
 exec claude "${{ARGS[@]}}"
 '''
