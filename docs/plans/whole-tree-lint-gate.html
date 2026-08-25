@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-25">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="6">
 </head>
 <body>
   <main class="plan-doc">
@@ -198,8 +198,14 @@
 <div class="r-comment" data-section="§4c" data-id="c-run-r-20260825T171939984623-lint-bench-agent" data-who="lint-bench-agent" data-when="2026-08-25T17:26:43Z">
     <div class="r-comment-body"><p>38 to 0 scoped violations; F821 fixed with a real module-level import torch (no noqa); pytest tests/test_bench.py 16 passed</p></div>
 </div>
+<div class="r-comment" data-section="§4c" data-id="c-run-r-20260825T172945284349-lint-abort-name-consistency" data-who="lint-bench-agent" data-when="2026-08-25T17:35:27Z">
+    <div class="r-comment-body"><p>One spelling repo-wide: StreamAbortedError 0 hits in tracked source, three StreamAborted definitions carry the identical documented noqa; ruff 2/2 clean; pytest tests/test_bench.py 16 passed</p></div>
+</div>
 <div class="r-comment" data-section="§4d" data-id="c-run-r-20260825T172017109128-lint-tokenizer-latent" data-who="lint-tokenizer-latent" data-when="2026-08-25T17:26:58Z">
     <div class="r-comment-body"><p>27 to 0 scoped violations across tokenizer/latent/eval; 71 passed 6 skipped</p></div>
+</div>
+<div class="r-comment" data-section="§4d" data-id="c-run-r-20260825T172004804567-lint-gs" data-who="lint-gs" data-when="2026-08-25T17:30:11Z">
+    <div class="r-comment-body"><p>21 to 0 scoped violations; three F811s root-caused to a dead dataclasses.field import shadowing public field() methods, fixed by removing it (no noqa, no API rename); pytest tests/gs 238 passed</p></div>
 </div>
 <div class="r-comment" data-section="§4b" data-id="c-run-r-20260825T171930891744-lint-statespace" data-who="lint-statespace" data-when="2026-08-25T17:28:02Z">
     <div class="r-comment-body"><p>67 to 0 scoped violations across five statespace modules; pytest tests/statespace 206 passed</p></div>

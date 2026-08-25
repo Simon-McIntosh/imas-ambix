@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T19:29:23",
+  "updated": "2026-08-25T19:36:21",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -397,9 +397,11 @@
         "id": "lint-tests",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a039f0-4e1a-7080-be81-670ea6c0deb5",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a039f0-4e1a-7080-be81-670ea6c0deb5"
+        },
         "created": "2026-08-25"
       },
       {
@@ -8461,9 +8463,194 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260825T172004804567-lint-gs",
+        "plan": "whole-tree-lint-gate",
+        "section": "\u00a74d",
+        "node": "lint-gs",
+        "node_definition": {
+          "done_when": "A recorded 'ruff check imas_ambix/gs/filaments3d.py' exits 0 with the three F811 redefinitions of field resolved by real renaming or restructuring rather than a noqa, the resolution stated in the manifest, and 'pytest tests/gs -q' exits 0 or reports no such directory",
+          "estimated_hours": 0.75,
+          "goal": "Clear every remaining ruff violation in the 3D filament module including the redefinition defects",
+          "id": "lint-gs",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T172004804567-lint-gs/manifest.md",
+          "plan": "whole-tree-lint-gate",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74d",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/gs/filaments3d.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "lint-gs",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T17:20:15Z",
+        "completed_at": "2026-08-25T17:30:11Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 596,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 596,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "b241ce7e85abd6ab5802201d9bb646b8935be083",
+        "commits": [
+          "e26ee652a0dc2946d0b4925c54ff7b1301fa3248"
+        ],
+        "changed_lines": {
+          "added": 37,
+          "removed": 20,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T172004804567-lint-gs/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a039ef-deac-7270-b521-2bf919de6f0a",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2030080,
+            "cached_input_tokens_cumulative": 2030080,
+            "input_tokens": 2113962,
+            "input_tokens_cumulative": 2113962,
+            "output_tokens": 9367,
+            "output_tokens_cumulative": 9367,
+            "reasoning_output_tokens": 2136,
+            "reasoning_output_tokens_cumulative": 2136
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/gs",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260825T172945284349-lint-abort-name-consistency",
+        "plan": "whole-tree-lint-gate",
+        "section": "\u00a74c",
+        "node": "lint-abort-name-consistency",
+        "node_definition": {
+          "done_when": "imas_ambix/bench/stream_worker.py and imas_ambix/bench/cosmos_worker.py define and raise StreamAborted carrying the same 'noqa: N818' plus explanatory comment used at imas_ambix/data/stream_encode.py line 95, a recorded repo-wide grep for StreamAbortedError returns no hits in tracked source, ruff check on both files exits 0, and pytest tests/test_bench.py exits 0",
+          "estimated_hours": 0.25,
+          "goal": "Restore the documented stream-abort exception name in the two bench workers",
+          "id": "lint-abort-name-consistency",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T172945284349-lint-abort-name-consistency/manifest.md",
+          "plan": "whole-tree-lint-gate",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74c",
+          "spec_level": "exact",
+          "time_budget": "20m",
+          "write_paths": [
+            "imas_ambix/bench/stream_worker.py",
+            "imas_ambix/bench/cosmos_worker.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "lint-bench-agent",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T17:30:44Z",
+        "completed_at": "2026-08-25T17:35:27Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 283,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 283,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "ddade5524569873eb0ebf26a1c3191316f2ada35",
+        "commits": [
+          "426aaa6e59ee7a81d94321c5548771ba45277f7a"
+        ],
+        "changed_lines": {
+          "added": 9,
+          "removed": 9,
+          "files": 2
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T172945284349-lint-abort-name-consistency/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a039f9-7876-7343-989d-7da45e418055",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 909568,
+            "cached_input_tokens_cumulative": 909568,
+            "input_tokens": 979561,
+            "input_tokens_cumulative": 979561,
+            "output_tokens": 6626,
+            "output_tokens_cumulative": 6626,
+            "reasoning_output_tokens": 1426,
+            "reasoning_output_tokens_cumulative": 1426
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_bench.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 260
+    "_version": 263
   }
 }
