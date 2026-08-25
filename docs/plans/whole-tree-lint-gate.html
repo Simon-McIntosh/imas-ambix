@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="whole-tree-lint-gate">
+  <meta name="plan-title" content="Whole-Tree Lint Gate">
+  <meta name="plan-summary" content="ruff check over imas_ambix and tests reports 266 errors, so no worker node can use whole-tree lint as a done-when measure. Decide the gate, then reach it.">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="mid">
+  <meta name="plan-effort-hours" content="3.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>Whole-Tree Lint Gate | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — What was found, and why it is worth a plan</h2>
+
+    <p>Surfaced while shipping <a href="/imas-ambix/plans/clive-local-only-routing">clive
+    local-only routing</a>. A worker node there was authored with the done-when clause
+    <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0. It cannot: that
+    command reports <strong>266 errors</strong> on <code>main</code>. The node was fenced to
+    five files and correctly reported <code>blocked</code> rather than editing outside its
+    scope, and the authored gate had to be corrected at integration.</p>
+
+    <p>The interesting finding is not the error count — accumulated style debt in a research
+    repository is unremarkable. It is that <strong>whole-tree lint is unusable as a gate</strong>.
+    Any future node that reaches for the obvious measure of "the linter is happy" will either
+    block on debt it does not own, or silently narrow its measure to a scoped run and report a
+    pass that means less than it appears to. The first costs a dispatch cycle; the second is
+    worse, because it produces confident evidence for a weaker claim.</p>
+
+    <p>Representative files, all last touched between May and June 2026 by unrelated work:
+    <code>imas_ambix/agent/bench.py</code>, <code>imas_ambix/agent/slurm.py</code>,
+    <code>imas_ambix/bench/cosmos_worker.py</code>, <code>imas_ambix/bench/loader.py</code>.
+    The bulk of the remaining count sits under the training and model code.</p>
+
+    <h2 id="s2">§2 — The decision this plan needs before any work</h2>
+
+    <p>There is no point clearing 266 errors if the repository does not intend to hold the
+    line afterwards, and no point declaring a gate the tree cannot meet. Three coherent
+    options, in rising cost:</p>
+
+    <ul>
+      <li><strong>Scoped gate only.</strong> Accept that whole-tree lint is not a gate;
+      require scoped lint over each node's own write paths, and say so in
+      <code>AGENTS.md</code> so nobody authors the whole-tree clause again. Cheapest, and it
+      removes the trap without touching the debt.</li>
+      <li><strong>Ratchet.</strong> Record the current count as a ceiling that may only fall,
+      so new code is clean and the debt drains opportunistically. Needs a checked-in baseline
+      and a comparison step.</li>
+      <li><strong>Clear and gate.</strong> Fix all 266, then require whole-tree exit 0.
+      Highest cost, and it touches training and benchmark code whose behaviour is not covered
+      by fast tests — the risk is a formatting change to code nothing exercises.</li>
+    </ul>
+
+    <p>The trap is closed by the first option alone, which is why it is the recommendation:
+    the value here is in not authoring an unachievable measure again, and that is a
+    documentation change, not a cleanup campaign.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+
+      <div class="r-dec" data-key="lint-gate-posture" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">What lint posture should the repository commit to?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="scoped-only">scoped-only</button>
+          <button class="r-opt" data-value="ratchet">ratchet</button>
+          <button class="r-opt" data-value="clear-and-gate">clear-and-gate</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-wlg-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-08-25">
+        <h4 class="r-fu-title">Settle the lint posture, then implement whichever gate it names</h4>
+        <div class="r-fu-body">
+          <p>Blocked on the owner's choice in §2 — the three options differ by more than an
+          order of magnitude in cost and the cheapest one already closes the trap that
+          surfaced this. Nothing should be cleaned up before the posture is chosen.</p>
+        </div>
+        <pre class="r-fu-prompt">/reckon-ship whole-tree-lint-gate</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>

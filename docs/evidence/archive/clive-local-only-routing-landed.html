@@ -122,6 +122,131 @@
     <code>Authorization: Bearer</code>, and that a shared cluster launcher must not depend on
     a personal account's spend state.</p>
 
+    <h2 id="s4b">§4b — Proxy surface retirement</h2>
+
+    <p>Commit <code>441f5b4</code>: <code>litellm_config.py</code> and
+    <code>litellm_service.py</code> deleted along with their CLI imports, deploy entries,
+    systemd install step, reporting lines and both <code>SiteConfig</code> launcher-path
+    fields — 5 files, <strong>−297 net lines</strong>. Gate <strong>passed</strong>: the
+    repository reference scan for <code>litellm</code>,
+    <code>litellm_config_path</code> and <code>litellm_service_path</code> exits 1 with
+    <strong>0</strong> hits; <code>pytest tests/test_agent.py</code> reports
+    <strong>100 passed</strong>; scoped ruff exits 0.</p>
+
+    <p><strong>Gate corrected at integration, and the correction is the point.</strong> The
+    node was authored with a done-when clause requiring
+    <code>ruff check imas_ambix tests</code> to exit 0. That command reports
+    <strong>266 pre-existing errors</strong> on the integration branch, in files
+    (<code>bench.py</code>, <code>slurm.py</code>, <code>cosmos_worker.py</code>,
+    <code>loader.py</code>) last touched between May and June 2026 by unrelated work — so no
+    node fenced to five files could ever satisfy it. The worker completed its assigned work,
+    verified it three ways, then reported <code>blocked</code> rather than editing outside
+    its fence or quietly narrowing the measure. The authored gate was wrong; the refusal was
+    correct. That pre-existing lint debt is recorded here as out of scope: folding it in
+    would widen the blocker and pull unrelated subsystems into a launcher-routing fix.</p>
+
+    <h2 id="s4c">§4c — Served context window</h2>
+
+    <p>Commit <code>3d2cd35</code>: the launcher parses <code>id</code> and
+    <code>max_model_len</code> from a single <code>/v1/models</code> response and exports
+    <code>CLAUDE_CODE_MAX_CONTEXT_TOKENS</code>. Gate <strong>passed</strong> against two
+    stub payloads: <code>{"data":[{"id":"deepseek-v4-flash","max_model_len":524288}]}</code>
+    exported exactly <strong>524288</strong>; <code>{"data":[{"id":"deepseek-v4-flash"}]}</code>
+    left the variable unset and cleared an inherited sentinel of 123456 rather than guessing.
+    <code>bash -n</code> and scoped ruff exit 0.</p>
+
+    <p>The effect is larger than the diff. Claude Code does not recognise
+    <code>deepseek-v4-flash</code> and was therefore assuming a 200k window against a model
+    serving <strong>524288</strong> — more than half the available context discarded on every
+    session, with only a startup warning to show for it.</p>
+
+    <h2 id="s4f">§4f — Generated mirror outside /work</h2>
+
+    <p>Commit <code>56f8676</code>: <code>--destination PATH</code> added to
+    <code>imas-ambix agent clive</code>, defaulting to the shared location and governing both
+    the deploy target and <code>--path</code> guidance, with <code>--print</code> unchanged.
+    Gate <strong>passed</strong>: <code>--help</code> lists the option, a deploy to a
+    temporary path produced a 4237-byte file byte-identical to <code>--print</code> under
+    <code>cmp</code>, executable mode retained, ruff and the 100-test suite exit 0.</p>
+
+    <p>A generated second copy rather than a hand-made one is the whole point: two
+    hand-copied launchers drift, two generated ones cannot.</p>
+
+    <h2 id="s4g">§4g — The local-only fence</h2>
+
+    <p>Commit <code>8855e1b</code>: three regression tests, +58 lines, asserting the generated
+    script carries none of three forbidden route names or the <code>or-</code> model-id
+    pattern; that it sets the two direct endpoint and auth variables and all four local-model
+    aliases; that it is <strong>byte-identical whether or not
+    <code>OPENROUTER_API_KEY</code> is set</strong> — the condition that used to change the
+    route; and that deployment writes exactly one artifact. Suite
+    <strong>103/103</strong> green.</p>
+
+    <p>The negative control is what makes these a fence rather than a restatement of the
+    fix. Loaded directly from pre-fix commit <code>6503254</code>, the run
+    <strong>exits 1</strong>, failing
+    <code>test_generate_clive_script_is_local_only</code> because that generator's script
+    contains <code>openrouter</code>. A test that cannot fail against the bug does not
+    prevent its return.</p>
+
+    <h2 id="s4e">§4e — Live endpoint verification</h2>
+
+    <p>Executed by the coordinator rather than a worker, as a reported exception: the crew
+    sandbox authorises writes only inside the work repository and the Reckon delivery
+    directories, so <code>/work</code>, <code>~/public</code> and the user systemd unit are
+    unreachable by any dispatched node. Dry-run refusal:
+    <em>"write path '/work/projects/imas_gpu/agents/clive' resolves outside the authorised
+    work repository"</em>.</p>
+
+    <p>Deployed to both targets and verified byte-identical to <code>--print</code> by
+    <code>cmp</code>, each with <strong>0</strong> forbidden tokens, mode
+    <code>-rwxr-xr-x</code>:</p>
+
+    <table>
+      <thead><tr><th>Target</th><th>cmp vs --print</th><th>Forbidden tokens</th></tr></thead>
+      <tbody>
+        <tr><td><code>/work/projects/imas_gpu/agents/clive</code></td><td>identical</td><td>0</td></tr>
+        <tr><td><code>~/public/bin/clive</code></td><td>identical</td><td>0</td></tr>
+      </tbody>
+    </table>
+
+    <p>The deployed launcher fell from <strong>171 lines carrying 38 forbidden tokens</strong>
+    to <strong>95 lines carrying 0</strong>. The per-user proxy unit was stopped, disabled and
+    removed (<code>is-active</code> now <code>inactive</code>, nothing listening on port
+    18399), and the three stale artifacts — <code>orclive</code>,
+    <code>litellm_config.yaml</code>, <code>imas-ambix-llm-env.sh</code> — were removed after
+    backup, leaving <code>clive</code> as the only file in the shared agents directory.</p>
+
+    <p><strong>The gate: the failing configuration now works.</strong> With
+    <code>~/.config/openrouter/key</code> still readable — the precise condition that
+    produced the outage — the module-published launcher
+    (<code>/work/imas/opt/EasyBuild/software/Clive/0.1.0/bin/clive</code>) banners
+    <em>"Clive — local only — serving: deepseek-v4-flash"</em> and returns
+    <code>local route works</code> with <strong>exit 0</strong>. The mirror at
+    <code>~/public/bin/clive</code> returns <code>mirror ok</code> with exit 0 from outside
+    <code>/work</code>. The 200k-context warning present before the fix no longer appears,
+    confirming §4c in the real path.</p>
+
+    <p>Not verified: the <code>--codex</code> branch was not driven end to end. It is
+    unchanged by this work and covered only by generated-script syntax checks.</p>
+
+    <h2 id="drain">Drain ledger</h2>
+
+    <pre>DRAIN LEDGER — clive-local-only-routing @ 2026-08-25T16:52Z
+  f-clv-01  ship the local-only fix                      folded  -> 4a,4b,4c,4d,4e,4f,4g
+  scout follow_on: no test covers the generator          folded  -> clive-guarantee-tests (4g)
+  4b follow_on: 266 pre-existing whole-tree ruff errors  foreign-owner -> whole-tree-lint-gate
+  4f follow_on: deploy + cross-user + live request       folded  -> clive-endpoint-verify (4e)
+  ---
+  rows: 4   foldable-remaining: 0   unreconciled-runs: 0</pre>
+
+    <p>The lint row is the only one not folded. It fails the convergence test in the
+    opposite direction from the rest: its blocker is <em>wider</em> than its parent's, it
+    pulls training and benchmark subsystems into a launcher-routing fix, and its measure gets
+    vaguer rather than more exact. That is scope change, not depth, so it went to its own
+    plan where <code>roadmap</code> can see it — appending it here would have hidden it
+    behind a shipped status.</p>
+
   </main>
 </body>
 </html>

@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="clive-local-only-routing">
   <meta name="plan-title" content="Clive Local-Only Routing">
   <meta name="plan-summary" content="The shared SDCC clive fails for every OpenRouter key-holder: the proxy route 401s the local model and 403s all or-* slots. Restore a DSv4-only direct route.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="3.0">
   <meta name="plan-capability-version" content="1.0">
@@ -22,10 +22,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-25">
-<meta name="plan-version" content="9">
-<meta name="plan-commits" content="49d30657620ca5b2bd02b2b1aaf3a4fe3d7bbfe1,83ffb0b317dcd1857b5db6a56d38fa69c69d54af,441f5b422e547452bf2e329a5cbbb71f2ca5cbe7,3d2cd351f801785ceac4e08665f91f0720d0a09d">
+<meta name="plan-version" content="10">
+<meta name="plan-commits" content="49d30657620ca5b2bd02b2b1aaf3a4fe3d7bbfe1,83ffb0b317dcd1857b5db6a56d38fa69c69d54af,441f5b422e547452bf2e329a5cbbb71f2ca5cbe7,3d2cd351f801785ceac4e08665f91f0720d0a09d,56f8676fda657b3ea379825eedd5e58220857af7,8855e1b0c245e805c837bdf9beae1ff03d65e4cf">
 <meta name="plan-artifacts" content="docs/evidence/archive/clive-local-only-routing-landed.html,/home/ITER/mcintos/.config/reckon/crew/reports/clive-reuse-map.md">
-<meta name="plan-impl" content="0.5714">
+<meta name="plan-impl" content="1.0">
 </head>
 <body>
   <main class="plan-doc">
@@ -272,57 +272,44 @@ fi</pre>
     <a href="/imas-ambix/evidence/archive/clive-local-only-routing-landed#s4d">§4d landed</a>
     (commit <code>83ffb0b</code>).</p>
 
-    <h3 id="s4e">§4e — Verify against the live endpoint</h3>
+    <h3 id="s4e"><span class="badge badge-shipped">✓ landed 2026-08-25</span> §4e — Verify against the live endpoint</h3>
 
-    <p>Re-deploy, confirm the deployed copy is byte-identical to
-    <code>--print</code>, and drive a real request through the module-published launcher
-    with the OpenRouter key file still in place — that is the configuration that was
-    failing, so it is the configuration that proves the fix. Record the reply, and confirm
-    <code>clive --codex</code> and <code>--help</code> still behave.</p>
+    <p class="landed-summary">Deployed to both targets, each byte-identical to
+    <code>--print</code> by <code>cmp</code> with <strong>0</strong> forbidden tokens; the
+    deployed launcher went from <strong>171 lines / 38 tokens</strong> to
+    <strong>95 / 0</strong>. Proxy unit stopped, disabled and removed (port 18399 clear);
+    <code>orclive</code>, <code>litellm_config.yaml</code> and
+    <code>imas-ambix-llm-env.sh</code> removed after backup, leaving one file in the shared
+    directory. <strong>Gate: with the OpenRouter key still readable</strong> — the failing
+    condition — the module launcher returned <code>local route works</code> and the mirror
+    <code>mirror ok</code>, both exit 0, and the 200k-context warning is gone. Run by the
+    coordinator as a reported exception: the crew sandbox cannot authorise writes outside
+    the repository. Full record:
+    <a href="/imas-ambix/evidence/archive/clive-local-only-routing-landed#s4e">§4e landed</a>.</p>
 
-    <h3 id="s4f">§4f — Mirror the launcher to a world-readable home path</h3>
+    <h3 id="s4f"><span class="badge badge-shipped">✓ landed 2026-08-25</span> §4f — Mirror the launcher to a world-readable home path</h3>
 
-    <p><code>/home/ITER/mcintos/public</code> is world-readable and traversable
-    (<code>drwxr-sr-x</code>, reached through a <code>drwxr-xr-x</code> home), so it can host a
-    second copy of the launcher that other users can execute. Deploying one there proves
-    the script's <em>location</em> is immaterial — useful because the current single copy
-    lives under <code>/work</code> alongside the model weights, which invites the assumption
-    that the launcher itself needs that filesystem.</p>
+    <p class="landed-summary">Added <code>--destination PATH</code> to
+    <code>imas-ambix agent clive</code>, defaulting to the shared location and governing
+    both deploy and <code>--path</code>, so a second copy is generated rather than
+    hand-copied. Deployed to <code>~/public/bin/clive</code>, mode
+    <code>-rwxr-xr-x</code>, byte-identical to <code>--print</code> by <code>cmp</code>. It
+    still reads the API key from <code>/work</code>, so a caller needs
+    <code>sdcc-imas_gpu</code> access or <code>AMBIX_AGENT_API_KEY</code>. Full record:
+    <a href="/imas-ambix/evidence/archive/clive-local-only-routing-landed#s4f">§4f landed</a>
+    (commit <code>56f8676</code>).</p>
 
-    <p>Make the second copy a first-class deploy target rather than a hand-made duplicate:
-    add a destination option to <code>imas-ambix agent clive</code> so any path can be
-    written from the same generator, and mirror to
-    <code>~/public/bin/clive</code>. Two hand-copied scripts would drift; two generated
-    ones cannot.</p>
+    <h3 id="s4g"><span class="badge badge-shipped">✓ landed 2026-08-25</span> §4g — Lock the local-only guarantee with a regression test</h3>
 
-    <p>Note what the mirror does <em>not</em> remove: the launcher still reads the local API
-    key from <code>/work/projects/imas_gpu/agents/.env</code>, so a caller needs
-    <code>sdcc-imas_gpu</code> group access to that file — or must supply
-    <code>AMBIX_AGENT_API_KEY</code>. The validation should state which of those two paths
-    the running copy used.</p>
-
-    <p><strong>Done when</strong> a copy at <code>~/public/bin/clive</code> is byte-identical
-    to <code>--print</code>, is executable by another user, and has driven a real request
-    against the live endpoint from outside <code>/work</code>.</p>
-
-    <h3 id="s4g">§4g — Lock the local-only guarantee with a regression test</h3>
-
-    <p>The reuse scout found that <strong>no test imports
-    <code>generate_clive_script</code></strong> and nothing exercised the routing branch at
-    all. That absence is why a shared launcher could carry a dead default model: §4a's
-    gate is a one-off grep run by hand, and a grep nobody runs again cannot stop the route
-    coming back. The removal needs a test, not just a commit.</p>
-
-    <p>Add tests over the generated script asserting that it contains none of
-    <code>openrouter</code>, <code>litellm</code>, <code>systemctl</code> or an
-    <code>or-</code> model id; that it sets <code>ANTHROPIC_BASE_URL</code>,
-    <code>ANTHROPIC_AUTH_TOKEN</code> and every tier alias to the served model; and that the
-    output is identical whether or not the OpenRouter environment variable is set — the
-    condition that used to change the route. Assert the deploy path writes exactly one
-    artifact.</p>
-
-    <p><strong>Done when</strong> the new tests fail against the pre-fix generator and pass
-    against the current one.</p>
+    <p class="landed-summary">Three tests over the generated script: no proxy token, the
+    direct-route variables present, byte identity across the presence of
+    <code>OPENROUTER_API_KEY</code>, and exactly one deployed artifact. Suite
+    <strong>103/103</strong> green. The negative control is what makes them a fence — loaded
+    at pre-fix commit <code>6503254</code> the run <strong>exits 1</strong>, failing
+    <code>test_generate_clive_script_is_local_only</code> because that generator emits
+    <code>openrouter</code>. Full record:
+    <a href="/imas-ambix/evidence/archive/clive-local-only-routing-landed#s4g">§4g landed</a>
+    (commit <code>8855e1b</code>).</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -352,7 +339,7 @@ fi</pre>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-clv-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-08-25" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-clv-01" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-08-25" data-recommends-skill="" data-resolved-at="2026-08-25T16:49:32+00:00" data-resolved-by="">
     <h4 class="r-fu-title">Ship the local-only clive routing fix and retire the OpenRouter surface</h4>
     <div class="r-fu-body"><p>RCA complete and the decision is locked: both faults live on the LiteLLM proxy
           route, and that route is being deleted rather than repaired. §4a-§4f carry the
@@ -361,6 +348,7 @@ fi</pre>
           documentation, mirror the launcher to a world-readable home path, and verify
           against the live endpoint with the OpenRouter key file still in place.</p></div>
     <pre class="r-fu-prompt">/reckon-ship clive-local-only-routing</pre>
+    <p class="r-fu-outcome">Shipped, 7 of 7 nodes. The proxy route is deleted rather than gated: the generated launcher greps clean of every proxy token, both deployed copies are byte-identical to --print with 0 forbidden tokens, and three regression tests fence the guarantee with a negative control that fails at pre-fix commit 6503254. Gate met in the failing configuration itself — with ~/.config/openrouter/key still readable the module launcher returns 'local route works' exit 0, and the mirror at ~/public/bin/clive returns 'mirror ok' exit 0 from outside /work. The 200k-context warning is gone; the endpoint's own max_model_len of 524288 is now exported. Proxy unit removed and the shared agents directory holds one file. Discovered lint debt handed to its own plan whole-tree-lint-gate; no followup remains on this plan.</p>
     </article>
 </section>
 
