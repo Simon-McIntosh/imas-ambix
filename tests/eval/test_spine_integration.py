@@ -1,12 +1,12 @@
 """Callable-API integration smoke for the model-independent eval spine.
 
-This LOCKS the interface a future stage-2 / stage-4 driver calls — fast,
+This locks the interface used by future scoring and closed-loop drivers — fast,
 CPU-only, and free of any /work or IMAS read.  It proves the three spine
 entrypoints compose cleanly through their PUBLIC library surface:
 
 - ``magnetics_oracle`` — the pure-NumPy skill / verdict math (``per_component_rmse``,
   ``mean_predictor_rmse``, ``oracle_skill``, ``verdict``) exercised on synthetic
-  arrays, returning the per-component + headline axis/X-point bar a stage-2
+  arrays, returning the per-component + headline axis/X-point bar a
   Grad-Shafranov readout is scored against;
 - ``prediction_bar`` — the persistence + EnKF bar assembled with a SYNTHETIC truth
   + manifest (persistence live) and the EnKF leg read from a synthetic reference
@@ -15,9 +15,9 @@ entrypoints compose cleanly through their PUBLIC library surface:
   (synthetic latent dynamics), in both the NULL (plan-ignored → no fire) and
   CONTROLLED (plan-driven → fire) regimes.
 
-The REAL runs (oracle on /work, EnKF on TORAX, the gate on a trained world model)
-are deferred — no model exists yet.  This is the contract test that the stage
-driver can call these without surprises.
+The full runs (oracle on /work, EnKF on TORAX, and the gate on a trained world
+model) require external artifacts. This contract test proves that the scoring
+driver can call these surfaces without surprises.
 """
 
 from __future__ import annotations
@@ -30,16 +30,15 @@ from imas_ambix.eval import controllability_gate as cg
 from imas_ambix.eval import magnetics_oracle as mo
 from imas_ambix.eval import prediction_bar as pb
 
-
 # ---------------------------------------------------------------------------
-# (A) magnetics_oracle — skill / verdict math is a clean stage-callable surface
+# magnetics_oracle — skill and verdict math form a clean callable surface
 # ---------------------------------------------------------------------------
 
 
 def test_magnetics_oracle_skill_and_verdict_callable():
     """The oracle's pure-NumPy skill + verdict compose into the headline bar.
 
-    A stage-2 driver will hand the harness its probe RMSE per geometry component
+    A scoring driver hands the harness its probe RMSE per geometry component
     and the mean-predictor baseline; the spine must turn that into per-component
     skill, the headline axis+X-point skill, and a PASS/FAIL verdict — all without
     torch, /work, or a checkpoint.
@@ -63,7 +62,7 @@ def test_magnetics_oracle_skill_and_verdict_callable():
 
     verd = mo.verdict(rmse_probe, rmse_base, names, ratio_threshold=1.3)
 
-    # The headline lands in the stage-2 target band (~0.5-0.7) and the verdict is
+    # The headline lands in the target band (~0.5-0.7) and the verdict is
     # a clean PASS (probe beats baseline / 1.3 for ALL axis+X-point components).
     assert verd.headline_skill is not None
     assert 0.5 <= verd.headline_skill <= 0.7
@@ -238,7 +237,7 @@ def _sample_random_plan_offset(rng):
 def _make_controlled_rollout(seed_base=11, gain=6.0):
     """STUB latent dynamics where the plan drives the latent to an operating point.
 
-    A future stage-4 driver supplies the real closed-loop latent rollout here; the
+    A future closed-loop driver supplies the real latent rollout here; the
     smoke proves the gate calls an opaque ``rollout_fn(plan) -> (T, D)`` and FIRES
     when the plan systematically moves the forecast latent to a distinguished point.
     """
@@ -283,7 +282,7 @@ def _controlled_cohort():
 
 
 def test_controllability_gate_fires_on_controlled_stub():
-    """A plan-driven STUB rollout makes the gate FIRE (PASS) — the stage-4 shape."""
+    """A plan-driven stub rollout makes the controllability gate pass."""
     cfg = cg.GateConfig(n_random=10, seed=0)
     verd = cg.controllability_gate(
         _make_controlled_rollout(), _controlled_cohort(),

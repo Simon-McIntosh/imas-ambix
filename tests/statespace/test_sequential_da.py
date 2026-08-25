@@ -1,4 +1,4 @@
-"""Unit tests for the S10 sequential ψ-state baseline substrate."""
+"""Unit tests for the sequential ψ-state baseline substrate."""
 
 from __future__ import annotations
 
@@ -7,12 +7,12 @@ from dataclasses import dataclass
 import numpy as np
 
 from imas_ambix.statespace.sequential_da import (
-    ConformalScale,
-    apply_conformal_scales,
     MAST_A,
     MAST_B0,
     MAST_R0,
     MU0,
+    ConformalScale,
+    apply_conformal_scales,
     build_h_psi,
     current_from_psi_profile,
     kalman_update,
@@ -124,7 +124,7 @@ def test_apply_conformal_scales_inflates_std_and_samples():
         min_points=1,
     )
     calibrated = apply_conformal_scales({1: pred}, manifest, scales)[1]
-    # channel 0 lives in the inner band -> scale 2; channel 1 lives in the mid band -> scale 4
+    # Channel 0 uses the inner-band scale; channel 1 uses the mid-band scale.
     np.testing.assert_allclose(
         calibrated.pitch_std,
         np.array([[1.0, 1.0], [1.0, 1.0]]),

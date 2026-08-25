@@ -1,7 +1,7 @@
 """Tests for the Open-MAGVIT2 decoder fine-tune scaffold.
 
 Covers:
-- Config defaults match the plan recipe.
+- Config defaults match the configured training recipe.
 - The module imports cleanly even when torch is absent.
 - The CLI ``finetune-decoder --dry-run`` subcommand exits 0 without training.
 - The trainer can be constructed without GPU access (no eager weight loading).
@@ -14,14 +14,13 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-
 # ---------------------------------------------------------------------------
 # test_config_defaults
 # ---------------------------------------------------------------------------
 
 
 def test_config_defaults() -> None:
-    """DecoderFinetuneConfig defaults match the plan §12.1 recipe."""
+    """DecoderFinetuneConfig defaults match the configured training recipe."""
     from imas_ambix.tokenizer.finetune_decoder import DecoderFinetuneConfig
 
     cfg = DecoderFinetuneConfig()

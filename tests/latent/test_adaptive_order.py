@@ -20,8 +20,7 @@ from imas_ambix.latent.boundary_harmonic import (
 )
 
 
-def _sensors(n=60, seed=1):
-    rng = np.random.default_rng(seed)
+def _sensors(n=60):
     ang = np.linspace(0, 2 * np.pi, n, endpoint=False)
     # a ring of sensors around the plasma
     sr = 0.9 + 0.7 * np.cos(ang)
@@ -116,7 +115,7 @@ def test_termwise_always_keeps_position_dipole_terms():
 
 def test_cv_keeps_full_order_when_well_constrained():
     """A clean order-3 signal with low noise and many sensors is CV-stable at 3."""
-    sr, sz, sang, is_flux = _sensors(n=80, seed=3)
+    sr, sz, sang, is_flux = _sensors(n=80)
     cfg_max = HarmonicFitConfig(pole_r=0.5, order=3)
     a_max = harmonic_sensor_matrix(sr, sz, sang, is_flux, cfg_max)
     rng = np.random.default_rng(2)

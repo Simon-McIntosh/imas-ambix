@@ -513,7 +513,7 @@ def test_encode_shot_with_block_kind_method(fresh_registry):
     np.testing.assert_array_equal(bk_flag, bk_method)
 
 
-# --- §12.4 Multi-modal alignment improvements --------------------------------
+# --- Multi-modal alignment --------------------------------------------------
 
 
 def _high_rate_signal_dataset(n_time: int = 100, hz: float = 1000.0) -> xr.Dataset:
@@ -543,7 +543,9 @@ def test_enforce_alignment_resamples_high_rate_signals(fresh_registry):
     shot_tok = ShotTokenizer(
         frame_tokenizer=ft, signal_tokenizer=st, model_hz=100.0, enforce_alignment=True
     )
-    tokens, bk = shot_tok.encode_shot(frames=frames, signals=ds_highrate, return_block_kind=True)
+    tokens, bk = shot_tok.encode_shot(
+        frames=frames, signals=ds_highrate, return_block_kind=True
+    )
 
     # Confirm stream is produced without error
     assert tokens.dtype == np.int32
@@ -568,7 +570,9 @@ def test_enforce_alignment_subsamples_excess_frames(fresh_registry):
     shot_tok = ShotTokenizer(
         frame_tokenizer=ft, signal_tokenizer=st, model_hz=100.0, enforce_alignment=True
     )
-    tokens, bk = shot_tok.encode_shot(frames=frames_4x, signals=ds, return_block_kind=True)
+    tokens, bk = shot_tok.encode_shot(
+        frames=frames_4x, signals=ds, return_block_kind=True
+    )
 
     from imas_ambix.tokenizer.base import BlockKind
     # Count frame blocks: each step contributes (16//4)*(16//4) = 16 frame tokens
@@ -595,7 +599,9 @@ def test_encode_shot_signal_only_no_frame_tokens(fresh_registry):
     assert tokens[0] == CONTROL_TOKENS["bos"]
     assert tokens[-1] == CONTROL_TOKENS["eos"]
     # No FRAME-kind tokens
-    assert BlockKind.FRAME not in bk.tolist(), "expected no FRAME tokens in signal-only stream"
+    assert BlockKind.FRAME not in bk.tolist(), (
+        "expected no FRAME tokens in signal-only stream"
+    )
     # SIGNAL tokens must be present
     assert BlockKind.SIGNAL in bk.tolist()
     # CONTROL tokens (bos, eos, sep, pad) must be present
@@ -619,7 +625,9 @@ def test_encode_shot_frames_only_no_signal_tokens(fresh_registry):
     assert tokens[0] == CONTROL_TOKENS["bos"]
     assert tokens[-1] == CONTROL_TOKENS["eos"]
     # No SIGNAL-kind tokens
-    assert BlockKind.SIGNAL not in bk.tolist(), "expected no SIGNAL tokens in frames-only stream"
+    assert BlockKind.SIGNAL not in bk.tolist(), (
+        "expected no SIGNAL tokens in frames-only stream"
+    )
     # FRAME tokens must be present
     assert BlockKind.FRAME in bk.tolist()
 
@@ -640,7 +648,7 @@ def test_enforce_alignment_false_preserves_min_behaviour(fresh_registry):
     shot_tok_off = ShotTokenizer(
         frame_tokenizer=ft, signal_tokenizer=st, enforce_alignment=False
     )
-    # Both (frames_long, ds_short) and (frames_short, ds_long) should truncate to 4 steps
+    # Both length-mismatch directions should truncate to four steps.
     tokens_a, bk_a = shot_tok_off.encode_shot(
         frames=frames_long, signals=ds_short, return_block_kind=True
     )

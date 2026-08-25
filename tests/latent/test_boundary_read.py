@@ -1,7 +1,6 @@
 """Tests for the opt-in saddle-robust LCFS boundary read.
 
-Measured pathology (patch-equilibrium-wm-integration, lever A4): on free
-(non-force-balanced) current, the innermost-ψ boundary pick sometimes locks
+On free (non-force-balanced) current, the innermost-ψ boundary pick can lock
 onto a SPURIOUS saddle in the current's sensor-null-space concentration — a
 saddle a hair's-breadth from the axis, not the genuine separatrix that bounds
 the whole confined region — which under-sizes the read LCFS by tens of cm.
@@ -179,7 +178,9 @@ def test_smoothing_also_suppresses_the_spurious_saddle():
     grid, psi2d = _spurious_saddle_grid_and_psi(r0=r0, rb=rb)
     axis, axis_psi = _read_axis(psi2d, grid, -1.0)
 
-    robust_bnd = _read_boundary_psi_robust(psi2d, grid, axis, axis_psi, smooth_sigma=3.0)
+    robust_bnd = _read_boundary_psi_robust(
+        psi2d, grid, axis, axis_psi, smooth_sigma=3.0
+    )
     radii = topo.lcfs_radii(psi2d, grid.rg, grid.zg, axis, robust_bnd)
     np.testing.assert_allclose(radii, rb, atol=0.01)
 

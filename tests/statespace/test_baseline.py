@@ -29,7 +29,6 @@ from imas_ambix.statespace.baseline import (
     compute_transient_mask,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -85,7 +84,8 @@ class TestMLPGaussianShapes:
         model.fit_sgd(X, y, n_epochs=20, batch_size=64, lr=1e-3, rng=rng)
         losses_after, _ = model.nll_and_grads(X, y)
         assert losses_after < losses_before, (
-            f"Training should reduce NLL: before={losses_before:.4f} after={losses_after:.4f}"
+            f"Training should reduce NLL: before={losses_before:.4f} "
+            f"after={losses_after:.4f}"
         )
 
 
@@ -185,7 +185,9 @@ class TestConformalCoverage:
 
         from imas_ambix.statespace.calibration import interval_coverage
 
-        cov = interval_coverage(y_test[:, 0], mu_phys[:, 0], sigma_phys[:, 0], alpha=0.10)
+        cov = interval_coverage(
+            y_test[:, 0], mu_phys[:, 0], sigma_phys[:, 0], alpha=0.10
+        )
         assert 0.88 <= cov <= 0.99, (
             f"Conformal coverage {cov:.3f} not in [0.88, 0.99]; "
             "conformal math may be wrong"

@@ -1,7 +1,7 @@
-"""Unit tests for the actuator-PLAN-conditioned camera transformer (M4 PLAY bridge).
+"""Unit tests for the actuator-plan-conditioned camera transformer.
 
 These assert the load-bearing properties of the actuator-plan drive surface on
-top of the v2 (measured-signal) contract:
+top of the measured-signal contract:
 
 * **shapes / causality** — the backbone still preserves ``(B, T, S, d)`` with the
   actuator + signal + plan prefix prepended and stripped, and a future camera
@@ -650,7 +650,7 @@ def test_delta_nm_gate_returns_structured_verdict_and_noise_floor():
 
 
 # ---------------------------------------------------------------------------
-# Gate-eval fixes (M4 re-train): trustworthy ΔN-M baseline + physical levers
+# Trustworthy ΔN-M baseline and physical command perturbations
 # ---------------------------------------------------------------------------
 
 
@@ -704,7 +704,7 @@ def test_random_plan_perturbs_commands_holds_states():
     plan = _full_plan(seed=1)
     rng = np.random.default_rng(0)
     rp = _random_actuator_like(plan, rng=rng)  # controllable_only=True default
-    # _perturbable_command_columns resolves by KEY against the plan's channel_keys.
+    # Command columns resolve by key against ActuatorPlan.channel_keys.
     cmd = _perturbable_command_columns(plan.channel_keys)
     # the PF coils ARE commands — they must be perturbed.
     tf = actuator_channel_index("tf_current")
@@ -807,7 +807,7 @@ def test_physical_command_floor_when_channel_flat_zero():
 
 
 # ---------------------------------------------------------------------------
-# Scheduled sampling / rollout-in-the-loop (M4 re-train)
+# Scheduled sampling and rollout-in-the-loop
 # ---------------------------------------------------------------------------
 
 
@@ -957,7 +957,7 @@ def test_random_plan_perturbation_is_bounded_and_shape_preserving():
     rp = _random_actuator_like(plan, rng=np.random.default_rng(0), perturb_scale=0.3)
     cols = _perturbable_command_columns(plan.channel_keys)
     # bounded: each perturbed channel's RAW change is within a sane multiple of its
-    # own window range (not the ~106% OOD blow-up the old version produced).
+    # own window range, preventing an unbounded OOD perturbation.
     for ch in cols:
         true_col = plan.raw_values[:, ch]
         new_col = rp.raw_values[:, ch]
@@ -1215,7 +1215,7 @@ def test_forward_return_components_breaks_out_the_diagnostic_ce():
 
 
 def test_diagnostic_heads_get_grad_on_signalless_batch():
-    """Every diagnostic head must receive a grad even with NO signals (DDP zero-touch)."""
+    """Give every diagnostic head a gradient on a signalless distributed batch."""
     cfg = _tiny_cfg(generate_diagnostics=True)
     model = ControllableSpacetimeTransformer(cfg).train()
     frames = torch.randint(0, cfg.vocab_size, (2, 4, cfg.n_spatial))
