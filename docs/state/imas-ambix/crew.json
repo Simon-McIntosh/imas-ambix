@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T19:36:21",
+  "updated": "2026-08-25T19:43:58",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -8648,9 +8648,100 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260825T173736050234-lint-gate-install",
+        "plan": "whole-tree-lint-gate",
+        "section": "\u00a74f",
+        "node": "lint-gate-install",
+        "node_definition": {
+          "done_when": "AGENTS.md gains a lint section stating that 'uv run --no-sync ruff check imas_ambix tests' exits 0 and may be used as a node done-when measure, naming the per-file-ignores convention for math and PyTorch notation as the reason some naming rules are exempt rather than violated, and a recorded 'ruff check imas_ambix' run showing exit 0 is quoted in the manifest",
+          "estimated_hours": 0.25,
+          "goal": "Record the whole-tree lint gate as a valid done-when measure in the repository guide",
+          "id": "lint-gate-install",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T173736050234-lint-gate-install/manifest.md",
+          "plan": "whole-tree-lint-gate",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74f",
+          "spec_level": "exact",
+          "time_budget": "20m",
+          "write_paths": [
+            "AGENTS.md"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "lint-gate-install",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T17:39:04Z",
+        "completed_at": "2026-08-25T17:43:35Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 271,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 271,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "51ba2859f6dc901c61577bbd8f43de34504768e6",
+        "commits": [
+          "dedbebc1c4f915b2f4aba650cd32634a6c15d9c0"
+        ],
+        "changed_lines": {
+          "available": false,
+          "reason": "unresolvable_revision"
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T173736050234-lint-gate-install/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03a01-2420-7893-9102-dbaf429ac6d5",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1167616,
+            "cached_input_tokens_cumulative": 1167616,
+            "input_tokens": 1253333,
+            "input_tokens_cumulative": 1253333,
+            "output_tokens": 7309,
+            "output_tokens_cumulative": 7309,
+            "reasoning_output_tokens": 2560,
+            "reasoning_output_tokens_cumulative": 2560
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 263
+    "_version": 264
   }
 }
