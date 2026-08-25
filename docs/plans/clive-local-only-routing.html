@@ -251,10 +251,12 @@ fi</pre>
     (<code>imas-ambix-llm.service</code>) and remove it from
     <code>~/.config/systemd/user/</code>; remove <code>litellm_config.yaml</code> and
     <code>imas-ambix-llm-env.sh</code> from <code>/work/projects/imas_gpu/agents/</code>.
-    Remove the stale <code>orclive</code> script there as well: it is an OpenRouter-capable
-    launcher in the group-shared directory whose generator
-    (<code>imas_ambix/agent/orclive.py</code>) does not exist in the repository, superseded
-    by the unified <code>clive</code> on the same day it was deployed.</p>
+    Remove the stale <code>orclive</code> script there as well. It is an OpenRouter-capable
+    launcher sitting in the group-shared directory as an orphan: its generator
+    <code>imas_ambix/agent/orclive.py</code> (125 lines) was deleted in commit
+    <code>7162db7</code> on 2026-06-26, the same day the unified <code>clive</code> superseded
+    it, but the deployed copy from three hours earlier was never cleaned up. Nothing
+    regenerates it and nothing references it.</p>
 
     <p><strong>Done when</strong> <code>imas-ambix agent clive --deploy</code> writes exactly
     one artifact, the group-shared agents directory holds no OpenRouter-capable launcher
