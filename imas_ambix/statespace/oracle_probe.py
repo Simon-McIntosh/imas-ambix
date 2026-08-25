@@ -1,21 +1,21 @@
-"""S9 oracle probe — IS the MSE pitch recoverable from NON-MSE diagnostics?
+"""Oracle probe: is MSE pitch recoverable from non-MSE diagnostics?
 
 THE FEASIBILITY GATE.  This is a *supervised diagnostic*, not a model we keep.
-It answers one question that decides whether S9-D4 (the neural filter) earns the
-4xH200: does any non-MSE diagnostic channel carry interior-current / pitch
+It answers one question that decides whether a neural filter earns a GPU run:
+does any non-MSE diagnostic channel carry interior-current or pitch
 information at all?
 
 Methodology (read carefully — a slip here flips the verdict):
 
 * **CALIBRATION shots only.**  We use ONLY ``partition == "calibration"`` shots
-  from the D1 manifest.  The 112 HELD-OUT shots are never touched here.
+  from the locked manifest. The 112 held-out shots are never touched here.
 * **Shot-level train/test split.**  A 70/30 split *by shot* (seeded), never by
   slice — within-shot slices are heavily autocorrelated, so a slice-level split
   leaks and inflates every arm equally.  Normalisation and grid-node positions
   are fit on TRAIN shots only.
 * **MSE pitch is a SUPERVISED LABEL here.**  That is legitimate: this probe
   measures information content, it is not the MSE-free filter.  The label is the
-  D1-gated pitch truth (rail + error gate via
+  gated pitch truth (rail + error gate via
   :func:`mse_split.pitch_point_gate`) at the MSE sightlines, interpolated onto a
   FIXED radial grid so the target is fixed-dim and cross-shot comparable.
 * **Extract once, ablate by column-slicing.**  ONE feature matrix per gated
@@ -24,7 +24,7 @@ Methodology (read carefully — a slip here flips the verdict):
 
 The decisive ablation (all arms scored on the identical test points):
 
-  A. magnetics-only (ama/amb/amc/ane/Ip)              [re-tests Stage-2]
+  A. magnetics-only (ama/amb/amc/ane/Ip)
   B. magnetics + Thomson
   C. magnetics + SXR + bolo
   D. magnetics + ALL (SXR + bolo + Thomson + camera)
@@ -33,9 +33,9 @@ The decisive ablation (all arms scored on the identical test points):
 Decision rule (stated explicitly in the artifact):
 
   * arm D (and/or arms in E) CLEARLY below persistence AND below magnetics-only
-    -> INFO EXISTS -> D4 earns the H200; report WHICH modalities carry it.
+    -> INFO EXISTS -> a neural-filter run is warranted; report its carriers.
   * all arms ~ persistence -> MSE-free recovery INFEASIBLE from this corpus ->
-    clean negative (Stage-2 extended to the full multimodal set), no H200.
+    clean negative for the full multimodal set; no GPU run.
 
 Run: ``uv run python -m imas_ambix.statespace.oracle_probe``  (CPU, minutes).
 """
@@ -135,7 +135,7 @@ _R0_NOMINAL = 0.85
 SXR_MODE_WINDOW_MS = 3.0  # trailing native-rate window for mode features
 SXR_MIN_NATIVE_HZ = 20_000.0  # below this, the mode-frequency feature is weak
 
-# D3-phase: phase-preserving cross-channel features.  The advisor's point is
+# Phase-preserving cross-channel features retain information that
 # that magnitude-only |rfft| features are structurally blind to the phase wraps
 # that encode m/n mode structure, so we explicitly preserve phase.
 PHASE_BAND_HZ = (10.0, 1_000.0)
@@ -777,7 +777,7 @@ def _xma_mirnov_block(shot_path: Path, slice_t):
     modern_names = [f"ccbv_{i:02d}" for i in range(1, N_MIRNOV_COILS + 1)]
     legacy_names = [f"ccbv{i:02d}" for i in range(1, N_MIRNOV_COILS + 1)]
     ccbv_cols = []
-    for name in (modern_names if xma_shot.schema == "modern" else legacy_names):
+    for name in modern_names if xma_shot.schema == "modern" else legacy_names:
         ccbv_cols.append(col_map.get(name, -1))
     n_loaded = sum(1 for c in ccbv_cols if c >= 0)
     if n_loaded == 0:
@@ -841,7 +841,9 @@ def _xma_mirnov_block(shot_path: Path, slice_t):
     return out, True
 
 
-def extract_shot(shot_id, entry, node_r, history=False, sxr_mode=False, phase_features=False):
+def extract_shot(
+    shot_id, entry, node_r, history=False, sxr_mode=False, phase_features=False
+):
     """Build a :class:`ShotFeatures` for one CAL shot (None if unusable)."""
     import zarr  # noqa: PLC0415
 
@@ -852,7 +854,7 @@ def extract_shot(shot_id, entry, node_r, history=False, sxr_mode=False, phase_fe
     if tr is None:
         return None
 
-    # gated pitch-valid slices (D1 gate)
+    # gated pitch-valid slices
     t = tr.time
     point_gate = M.pitch_point_gate(tr.pitch, tr.pitch_error)  # (K, C)
     pv = M.pitch_valid_mask(tr)  # (K,) >= PITCH_VALID_MIN_CH gated channels
@@ -986,7 +988,7 @@ def extract_shot(shot_id, entry, node_r, history=False, sxr_mode=False, phase_fe
     # Distinct from the ama NTM block (already in mag): raw ccbv vs pre-computed
     # mode scalars.  Pass path (not store) — _xma_mirnov_block uses read_xma_shot
     # which handles both modern (ccbv_01, time1) and legacy (ccbv01, sec) schemas
-    # with correct sparse-sample alignment (fixes D1 legacy-shot deadness bug).
+    # with correct sparse-sample alignment.
     mirnov_b, mirnov_ok = _xma_mirnov_block(path, sl_t)
     blocks["mirnov"] = mirnov_b
     present["mirnov"] = mirnov_ok
@@ -1055,7 +1057,7 @@ BASE_ARMS: dict[str, list[str]] = {
 }
 
 
-def _arms_for_config(cfg: "ProbeConfig") -> dict[str, list[str]]:
+def _arms_for_config(cfg: ProbeConfig) -> dict[str, list[str]]:
     arms = {name: list(mods) for name, mods in BASE_ARMS.items()}
     if cfg.phase_features:
         arms.update(
@@ -1068,14 +1070,14 @@ def _arms_for_config(cfg: "ProbeConfig") -> dict[str, list[str]]:
     return arms
 
 
-def _modalities_for_config(cfg: "ProbeConfig") -> list[str]:
+def _modalities_for_config(cfg: ProbeConfig) -> list[str]:
     modalities = list(BASE_MODALITIES)
     if cfg.phase_features:
         modalities.extend(PHASE_MODALITIES)
     return modalities
 
 
-def _carrier_arms_for_config(cfg: "ProbeConfig") -> list[str]:
+def _carrier_arms_for_config(cfg: ProbeConfig) -> list[str]:
     carriers = [
         "E_mag_sxr",
         "E_mag_bolo",
@@ -1125,7 +1127,7 @@ def assemble_matrix(shots, mods):
 
 
 # ---------------------------------------------------------------------------
-# Scoring helpers (LOCAL — D1's score()/Persistence are held-out-only)
+# Scoring helpers local to the calibration-only probe
 # ---------------------------------------------------------------------------
 
 
@@ -1137,7 +1139,7 @@ def pooled_rmse(y_true, y_pred):
 
 
 def per_shot_rmse(y_true, y_pred, shot_idx):
-    """Per-shot RMSE then mean over shots (mirrors D1's aggregation shape)."""
+    """Return per-shot RMSE averaged over shots."""
     vals = []
     for k in np.unique(shot_idx):
         m = shot_idx == k
@@ -1308,7 +1310,7 @@ def per_node_rmse(y_true, y_pred, node_r):
 # ---------------------------------------------------------------------------
 #
 # CONFOUND-1 FIX.  The radial-node pooled RMSE above is NOT comparable to the
-# EnKF, which is scored at the actual MSE SIGHTLINES with the D1-locked
+# EnKF, which is scored at the actual MSE sightlines with the locked
 # error-WEIGHTED gated metric (mse_eval.score).  Here we score every arm through
 # that exact metric on the SAME CAL-test shots:
 #   * map each arm's per-node prediction back onto the shot's sightline radii,
@@ -1362,7 +1364,7 @@ def build_sightline_prediction(sf, yhat_nodes, node_r, entry, resid_std=0.1):
 
 
 def mse_eval_per_shot_rmse(test_shots, arm_yhat, node_r, manifest, truth):
-    """Per-shot D1 error-weighted gated pitch RMSE via mse_eval.score.
+    """Return per-shot error-weighted gated pitch RMSE via mse_eval.score.
 
     ``arm_yhat`` is the arm's joint (n_test_pts, N) prediction stack in the same
     row order as ``test_shots`` are concatenated.  Returns dict[shot_id -> rmse]
@@ -1391,7 +1393,7 @@ def mse_eval_per_shot_rmse(test_shots, arm_yhat, node_r, manifest, truth):
 
 
 def mse_eval_persistence_per_shot(test_shots, manifest, truth):
-    """D1 PersistencePredictor RMSE per CAL-test shot (same error-weighted metric).
+    """Return persistence RMSE per calibration-test shot on the same metric.
 
     Recomputed on MY CAL-test shots (in-distribution) — NOT the cross-population
     OOD persistence (0.719) that the EnKF was scored against.
@@ -1528,7 +1530,7 @@ def localization_analysis(test_shots, arm_pred, node_r, manifest, carrier_arm):
         return {"carrier_arm": carrier_arm, "error": "no points"}
     et = np.percentile(err, [33, 66])
     rt = np.percentile(rmin, [33, 66])
-    # truth-axis interior tercile (the advisor's preferred cut: |R - rax|, not R0)
+    # Truth-axis interior tercile uses |R - rax| rather than nominal R0.
     rt_ax = np.percentile(rmin_ax, [33, 66])
 
     def band(mask_a, mask_c):
@@ -1655,7 +1657,7 @@ class ProbeConfig:
     # physics-targeted: native-rate per-chord SXR sawtooth/tearing mode features
     # (rational-surface localization — q=1 inversion, q=2/3-2 tearing).
     sxr_mode: bool = False
-    # D3-phase: preserve cross-channel phase for SXR / Mirnov instead of collapsing
+    # Preserve cross-channel phase for SXR / Mirnov instead of collapsing
     # to magnitude-only features.
     phase_features: bool = False
 
@@ -1835,7 +1837,7 @@ def run(cfg: ProbeConfig) -> dict:
             Xtr.shape[1],
         )
 
-    # --- CONFOUND-1: re-score every arm on the D1 mse_eval sightline metric ---
+    # Re-score every arm on the mse_eval sightline metric.
     # error-weighted gated pitch RMSE at the actual MSE sightlines, the SAME
     # ruler the EnKF baseline uses.  In-memory relabeled mini-manifests only.
     from imas_ambix.data.paths import LEVEL1_DIR as _L1  # noqa: PLC0415
@@ -2006,7 +2008,11 @@ def run(cfg: ProbeConfig) -> dict:
     hist_tag = (
         "phase"
         if cfg.phase_features
-        else ("sxr_mode" if cfg.sxr_mode else ("history" if cfg.history else "instantaneous"))
+        else (
+            "sxr_mode"
+            if cfg.sxr_mode
+            else ("history" if cfg.history else "instantaneous")
+        )
     )
     info_exists = bool(D_below_A) or len(carriers) > 0
 
@@ -2360,7 +2366,9 @@ def main() -> int:
         sxr = run(ProbeConfig(n_shots=args.n_shots, seed=args.seed, sxr_mode=True))
     if args.mode in ("phase", "all"):
         logger.info("=== PHASE-PRESERVING feature run ===")
-        phase = run(ProbeConfig(n_shots=args.n_shots, seed=args.seed, phase_features=True))
+        phase = run(
+            ProbeConfig(n_shots=args.n_shots, seed=args.seed, phase_features=True)
+        )
 
     # frontier read (instantaneous vs history mag-only on the mse_eval metric)
     if history is not None:

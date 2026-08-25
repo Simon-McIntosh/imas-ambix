@@ -4,7 +4,7 @@ This module turns two plan claims into reproducible artifacts:
 
 1. the decisive held-out Thompson cohort
    ``held_out_112 ∩ usable-near-axis atm Thomson == 45 shots``; and
-2. the CXRS (`act`) assessment needed for the plan's secondary-constraint note:
+2. the CXRS (`act`) assessment needed for the secondary-constraint note:
    Ti is available, Zeff is not obviously exposed in level-1.
 """
 
@@ -163,7 +163,9 @@ def main() -> None:
     import argparse  # noqa: PLC0415
 
     logging.basicConfig(level=logging.INFO)
-    ap = argparse.ArgumentParser(description="Probe internal-current-diagnostics evidence")
+    ap = argparse.ArgumentParser(
+        description="Probe internal-current-diagnostics evidence"
+    )
     ap.add_argument(
         "--manifest",
         type=Path,
@@ -172,7 +174,9 @@ def main() -> None:
     ap.add_argument(
         "--out",
         type=Path,
-        default=Path(__file__).parent / "artifacts" / "internal_diagnostics_probe_v0.json",
+        default=Path(__file__).parent
+        / "artifacts"
+        / "internal_diagnostics_probe_v0.json",
     )
     ap.add_argument("--radius-tol", type=float, default=DEFAULT_ATM_RADIUS_TOL)
     ap.add_argument("--act-system", default="c_pla")
