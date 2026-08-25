@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="clive-openrouter-opt-in">
+  <meta name="plan-title" content="Clive OpenRouter Opt-In">
+  <meta name="plan-summary" content="Restore the or-* models to clive behind an explicit opt-in flag, so the default invocation never touches the proxy and cannot be taken down by it again.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="mid">
+  <meta name="plan-effort-hours" content="3.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint" content="S17">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-informs" content="clive-local-only-routing">
+  <title>Clive OpenRouter Opt-In | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Why this reopens a decision that was locked</h2>
+
+    <p><a href="/imas-ambix/plans/clive-local-only-routing">clive local-only routing</a>
+    removed the OpenRouter surface on the premise that it was exposed on a shared cluster
+    launcher. <strong>That premise was wrong, and checking it is what reopened this.</strong>
+    The or-<code>*</code> models were never reachable by anyone but their key-holder, for three
+    independent reasons:</p>
+
+    <ul>
+      <li>The route was gated on <code>[[ -r "$HOME/.config/openrouter/key" ]]</code> — a
+      per-user, mode-600 path. No other user had one.</li>
+      <li><code>clive --deploy</code> installed the systemd unit into <strong>the deploying
+      user's</strong> <code>~/.config/systemd/user/</code>. Nobody else ever ran
+      <code>--deploy</code>, so nobody else had the unit.</li>
+      <li>The unit's <code>ExecStart</code> was <code>%h/.local/bin/litellm</code> — a pipx
+      install in one home directory.</li>
+    </ul>
+
+    <p>So another user holding an OpenRouter key would not have seen extra models; they would
+    have seen <code>clive: could not start imas-ambix-llm.service</code> and
+    <strong>exit 1</strong>. The old design was not a leaky public surface — it was a private
+    surface that broke the launcher for anyone else who tried to use it.</p>
+
+    <p><strong>What actually caused the outage was narrower than the removal.</strong> The
+    picker <em>default</em> was routed through the proxy, so a proxy-side auth fault took down
+    the model everyone relies on. The four or-<code>*</code> 403s were an unrelated exhausted
+    quota. Restoring the models is therefore compatible with the fix, provided the default
+    invocation stops depending on the proxy.</p>
+
+    <h2 id="s2">§2 — The shape that makes this safe</h2>
+
+    <p>Locked by owner directive: <strong>opt-in flag, and the default invocation never
+    touches the proxy.</strong></p>
+
+    <ul>
+      <li><code>clive</code> — unchanged from what shipped. Direct to the served model, no
+      proxy process, no key-file check, identical for every user. This is the invocation the
+      cluster depends on, and no OpenRouter state can affect it.</li>
+      <li><code>clive --openrouter</code> (or <code>CLIVE_OPENROUTER=1</code>) — starts the
+      per-user proxy and presents the local model plus the or-<code>*</code> slots.</li>
+    </ul>
+
+    <p>The distinction that matters is between the two <em>failure</em> modes, because the old
+    design conflated them:</p>
+
+    <table>
+      <thead><tr><th>Failure</th><th>Old design</th><th>This design</th></tr></thead>
+      <tbody>
+        <tr><td>OpenRouter quota exhausted</td><td>4 of 5 slots dead</td><td><code>clive</code> unaffected; opt-in mode loses the or-<code>*</code> slots, local slot still answers</td></tr>
+        <tr><td>Proxy down or litellm absent</td><td><strong>clive fully dead</strong> (exit 1)</td><td><code>clive</code> unaffected; opt-in mode refuses with a message naming plain <code>clive</code></td></tr>
+        <tr><td>Auth-header mismatch</td><td><strong>default model 401</strong></td><td>cannot reach the default model at all</td></tr>
+      </tbody>
+    </table>
+
+    <p>Note what is <em>not</em> claimed: inside <code>--openrouter</code> mode the local model
+    does traverse the proxy, because Claude Code has a single
+    <code>ANTHROPIC_BASE_URL</code> and cannot split routing per model. The guarantee is about
+    the default invocation, which is the one that was an outage.</p>
+
+    <h2 id="s3">§3 — The auth mismatch has to be fixed, not worked around</h2>
+
+    <p>The proxy's local slot 401s because litellm's <code>anthropic/</code> provider
+    authenticates with <code>x-api-key</code> and vLLM accepts only
+    <code>Authorization: Bearer</code>. Measured: Bearer → 200, <code>x-api-key</code> → 401,
+    no header → 401. Two ways to give litellm a Bearer header for the local model, and they
+    trade differently:</p>
+
+    <ul>
+      <li><strong>OpenAI-compatible form</strong> — declare the local model as
+      <code>openai/&lt;name&gt;</code> with an <code>api_base</code> ending in
+      <code>/v1</code>. litellm then sends <code>Authorization: Bearer</code> and it works
+      immediately. Cost: the request is translated Anthropic → OpenAI → Anthropic, so
+      Anthropic <code>cache_control</code> semantics are not carried end to end. vLLM's own
+      automatic prefix caching still applies server-side.</li>
+      <li><strong>Runtime header injection</strong> — keep <code>anthropic/</code> and supply
+      <code>extra_headers</code> with the Bearer value. The checked-in config stays
+      secret-free only if the mode-600 runtime config is generated at service start, the way
+      the env-file helper already works. Preserves Anthropic-native passthrough and
+      <code>cache_control</code>; costs a secret-bearing runtime artifact and more moving
+      parts.</li>
+    </ul>
+
+    <p>Recommendation is the OpenAI-compatible form, on the grounds that opt-in mode exists to
+    reach frontier models and the local slot there is a convenience — but the caching cost is
+    real and measurable, so §4 measures it rather than assuming.</p>
+
+    <h2 id="s4">§4 — Implementation</h2>
+
+    <h3 id="s4a">§4a — Decide the local-model transport by measurement</h3>
+
+    <p>Stand up the proxy with the local model declared both ways and measure whether a
+    repeated large prompt reports cache reads. Report tokens and latency for each. This settles
+    §3's open decision with a number instead of a preference.</p>
+
+    <h3 id="s4b">§4b — Restore the routing config generator</h3>
+
+    <p>Reinstate a routing-config generator carrying the local model on the transport §4a
+    selects, plus the four or-<code>*</code> entries. Claude <code>or-*</code> models keep the
+    <code>anthropic/</code> + <code>api_base</code> form, which is where cache_control
+    genuinely is preserved and was verified at 10,815 tokens. Secret-free: the key stays
+    <code>os.environ/OPENROUTER_API_KEY</code>.</p>
+
+    <h3 id="s4c">§4c — Restore the per-user service generator</h3>
+
+    <p>Reinstate the systemd unit and env-helper generators. Install the unit only when the
+    invoking user opts in, so a user who never passes the flag never acquires the unit — the
+    property whose absence made the old design fail for other users. Refuse with an
+    actionable message when litellm is absent, naming plain <code>clive</code> as the
+    fallback.</p>
+
+    <h3 id="s4d">§4d — Add the opt-in flag to the launcher generator</h3>
+
+    <p>Add <code>--openrouter</code> / <code>CLIVE_OPENROUTER</code> to the generated
+    launcher. Without it the script must be byte-for-byte what ships today. The existing
+    regression tests assert exactly that invariance, so they are the guard: the flag must not
+    perturb the default path.</p>
+
+    <h3 id="s4e">§4e — Extend the fence to cover both modes</h3>
+
+    <p>The three local-only tests currently assert the generated script contains no proxy
+    token at all, which the flag will break. Re-aim them: the <em>default</em> path must carry
+    no proxy token and stay invariant to <code>OPENROUTER_API_KEY</code>, while the opt-in
+    path may. A test must also assert the flag is the only way to reach the proxy — a readable
+    key file alone must not.</p>
+
+    <h3 id="s4f">§4f — Verify both modes against the live endpoint</h3>
+
+    <p>Drive plain <code>clive</code> and <code>clive --openrouter</code>. The or-<code>*</code>
+    slots need quota to answer; if the cap is still exhausted, record the 403 as the expected
+    account-state result and verify the local slot answers through the proxy regardless —
+    which is the property that distinguishes this design from the old one.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+
+      <div class="r-dec" data-key="openrouter-surface-shape" data-choice="opt-in-flag" data-by="Simon McIntosh" data-when="2026-08-25">
+        <p class="r-dec-q">How should the or-* models be reachable from clive?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="opt-in-flag">opt-in-flag</button>
+          <button class="r-opt" data-value="auto-detect-key">auto-detect-key</button>
+          <button class="r-opt" data-value="local-only">local-only</button>
+        </p>
+        <p class="r-dec-rat">An explicit flag, with the default invocation never touching the
+        proxy. Auto-detection on a readable key file is what turned a personal proxy fault
+        into an outage of the shared launcher, and it is rejected for that reason rather than
+        because the models themselves were a problem — they were only ever visible to their
+        key-holder.</p>
+      </div>
+
+      <div class="r-dec" data-key="local-model-transport" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">In opt-in mode, how does the local model authenticate through the proxy?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="openai-form">openai-form</button>
+          <button class="r-opt" data-value="runtime-header-injection">runtime-header-injection</button>
+        </p>
+        <p class="r-dec-rat">Deferred to §4a, which measures whether prompt caching survives
+        the OpenAI translation. Recommendation is the openai form unless the measurement shows
+        a material caching loss.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-cor-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-08-25">
+        <h4 class="r-fu-title">Restore the or-* models behind the opt-in flag</h4>
+        <div class="r-fu-body">
+          <p>Shape is locked; the transport decision is deferred to §4a's measurement rather
+          than guessed. §4b-§4f restore the generators, add the flag, re-aim the fence to
+          cover both modes, and verify against the live endpoint.</p>
+        </div>
+        <pre class="r-fu-prompt">/reckon-ship clive-openrouter-opt-in</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>
