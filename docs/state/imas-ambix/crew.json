@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T20:10:02",
+  "updated": "2026-08-25T20:19:54",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -385,6 +385,33 @@
         "created": "2026-08-25"
       },
       {
+        "id": "lint-reg-a",
+        "harness": "codex",
+        "role": "test",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-25"
+      },
+      {
+        "id": "lint-reg-b",
+        "harness": "codex",
+        "role": "test",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-25"
+      },
+      {
+        "id": "lint-reg-c",
+        "harness": "codex",
+        "role": "test",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-25"
+      },
+      {
         "id": "lint-statespace",
         "harness": "codex",
         "role": "implement",
@@ -480,9 +507,11 @@
         "id": "or-optin-flag",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a03a1c-1694-73e3-96d3-2b2042c6b002",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a03a1c-1694-73e3-96d3-2b2042c6b002"
+        },
         "created": "2026-08-25"
       },
       {
@@ -8933,9 +8962,95 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260825T174904964256-lint-tests-regression",
+        "plan": "whole-tree-lint-gate",
+        "section": "\u00a74e",
+        "node": "lint-tests-regression",
+        "node_definition": {
+          "done_when": "A recorded run of 'pytest tests/eval/test_spine_integration.py tests/latent/test_adaptive_order.py tests/latent/test_boundary_read.py tests/latent/test_train_grounded_latent_engine.py tests/statespace/test_baseline.py tests/statespace/test_engine.py tests/statespace/test_sequential_da.py tests/test_bench.py tests/test_eval.py tests/test_finetune_decoder.py tests/test_tokenizer.py tests/worldmodel/test_controllable_model.py -q' exits 0, with the passed and skipped counts quoted in the manifest",
+          "estimated_hours": 0.5,
+          "goal": "Prove the twelve reformatted test files still pass",
+          "id": "lint-tests-regression",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T174904964256-lint-tests-regression/manifest.md",
+          "plan": "whole-tree-lint-gate",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a74e",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/lint-tests-regression.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "lint-tests",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T17:49:17Z",
+        "completed_at": "2026-08-25T18:19:26Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1809,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1809,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "34147896a25259aa171ee05709c831a19fa7bd65",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "not-run",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T174904964256-lint-tests-regression/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a039f0-4e1a-7080-be81-670ea6c0deb5",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 9768704,
+            "cached_input_tokens_cumulative": 9768704,
+            "input_tokens": 9942877,
+            "input_tokens_cumulative": 9942877,
+            "output_tokens": 10889,
+            "output_tokens_cumulative": 10889,
+            "reasoning_output_tokens": 2418,
+            "reasoning_output_tokens_cumulative": 2418
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/eval/test_spine_integration.py",
+          "override": false,
+          "role": "test",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 268
+    "_version": 273
   }
 }

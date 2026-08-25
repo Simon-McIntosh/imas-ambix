@@ -143,6 +143,27 @@
     regression tests assert exactly that invariance, so they are the guard: the flag must not
     perturb the default path.</p>
 
+    <p><strong>The interface §4b landed, stated here so no node has to ask for it.</strong>
+    <code>imas_ambix/agent/litellm_service.py</code> exports <code>LITELLM_PORT = 18399</code>,
+    <code>generate_litellm_env_helper(site)</code> and
+    <code>generate_litellm_service(site)</code>.
+    <code>imas_ambix/agent/litellm_config.py</code> exports
+    <code>generate_litellm_config(site, local_model)</code>. <code>SiteConfig</code> carries
+    <code>litellm_config_path</code> (<code>&lt;base_dir&gt;/agents/litellm_config.yaml</code>),
+    <code>litellm_env_helper_path</code> (same directory,
+    <code>imas-ambix-llm-env.sh</code>) and <code>litellm_service_path</code>
+    (<code>~/.config/systemd/user/imas-ambix-llm.service</code>). The unit is named exactly
+    <code>imas-ambix-llm.service</code> and the proxy binds <code>127.0.0.1:18399</code>.</p>
+
+    <p>Routing-config model ids are the served local model name plus exactly
+    <code>or-opus-4.8</code>, <code>or-sonnet-4.6</code>, <code>or-gpt-5.5</code> and
+    <code>or-glm-5.2</code>. Picker mapping in opt-in mode: the haiku slot and
+    <code>ANTHROPIC_MODEL</code> take the local served model, <code>opus</code> takes
+    <code>or-opus-4.8</code>, <code>sonnet</code> takes <code>or-sonnet-4.6</code>,
+    <code>fable</code> takes <code>or-glm-5.2</code>, and
+    <code>ANTHROPIC_CUSTOM_MODEL_OPTION</code> takes <code>or-gpt-5.5</code>, each with its
+    <code>_NAME</code> and <code>_DESCRIPTION</code>.</p>
+
     <h3 id="s4e">§4e — Extend the fence to cover both modes</h3>
 
     <p>The three local-only tests currently assert the generated script contains no proxy
