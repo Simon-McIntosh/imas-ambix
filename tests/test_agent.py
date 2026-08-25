@@ -1426,3 +1426,61 @@ def test_siteconfig_launcher_paths():
     """The clive launcher deploys under agents/."""
     site = SiteConfig()
     assert str(site.clive_path).endswith("agents/clive")
+
+
+def test_generate_clive_script_is_local_only():
+    """Every Claude model tier resolves directly to the served local model."""
+    import re
+
+    from imas_ambix.agent.clive import generate_clive_script
+
+    script = generate_clive_script(SiteConfig(), "served-local-model")
+
+    for forbidden in ("openrouter", "litellm", "systemctl"):
+        assert forbidden not in script.lower()
+    assert re.search(r"\bor-[a-z0-9]", script, flags=re.IGNORECASE) is None
+
+    assert 'ANTHROPIC_BASE_URL="$AMBIX_URL"' in script
+    assert 'ANTHROPIC_AUTH_TOKEN="$KEY"' in script
+    for alias in (
+        "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+        "ANTHROPIC_MODEL",
+    ):
+        assert f'{alias}="$AMBIX_MODEL"' in script
+
+
+def test_generate_clive_script_ignores_openrouter_key(monkeypatch):
+    """A personal provider key cannot alter the generated local route."""
+    from imas_ambix.agent.clive import generate_clive_script
+
+    site = SiteConfig()
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    without_key = generate_clive_script(site, "served-local-model")
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "personal-key")
+    with_key = generate_clive_script(site, "served-local-model")
+
+    assert with_key == without_key
+
+
+def test_clive_deploy_writes_one_launcher(monkeypatch):
+    """One deploy invocation emits exactly one generated launcher artifact."""
+    from imas_ambix.agent import cli as cli_mod
+
+    deployed = []
+    monkeypatch.setattr(
+        cli_mod,
+        "_deploy_launcher",
+        lambda name, path, content: deployed.append((name, path, content)),
+    )
+
+    result = CliRunner().invoke(main, ["agent", "clive", "--deploy"])
+
+    assert result.exit_code == 0, result.output
+    assert len(deployed) == 1
+    name, path, content = deployed[0]
+    assert name == "clive"
+    assert path == SiteConfig().clive_path
+    assert content.startswith("#!/usr/bin/env bash\n")
