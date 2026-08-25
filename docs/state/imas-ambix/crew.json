@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T20:06:01",
+  "updated": "2026-08-25T20:10:02",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -8838,9 +8838,104 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260825T180145753726-or-proxy-generators",
+        "plan": "clive-openrouter-opt-in",
+        "section": "\u00a74b",
+        "node": "or-proxy-generators",
+        "node_definition": {
+          "done_when": "imas_ambix/agent/litellm_config.py and litellm_service.py exist again (recover them from commit 20fb27c and adapt), the local model is declared in the openai/ form with an api_base ending in /v1 so litellm sends Authorization Bearer, the four or-* entries keep the anthropic/ form, the config contains no literal key, 'imas-ambix agent clive --deploy' still writes exactly one launcher while a new opt-in path installs the unit, and 'uv run --no-sync pytest tests/test_agent.py -q' plus 'ruff check imas_ambix/agent' both exit 0",
+          "estimated_hours": 1.0,
+          "goal": "Restore the proxy routing and service generators wired into an opt-in deploy path",
+          "id": "or-proxy-generators",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T180145753726-or-proxy-generators/manifest.md",
+          "plan": "clive-openrouter-opt-in",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74b",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/agent/litellm_config.py",
+            "imas_ambix/agent/litellm_service.py",
+            "imas_ambix/agent/cli.py",
+            "imas_ambix/agent/profile.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "or-proxy-generators",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T18:03:14Z",
+        "completed_at": "2026-08-25T18:09:02Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 348,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 348,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "34147896a25259aa171ee05709c831a19fa7bd65",
+        "commits": [
+          "07b19a89cda1ab05dec1aaaf7a3920bd2e7c3f49"
+        ],
+        "changed_lines": {
+          "added": 194,
+          "removed": 0,
+          "files": 4
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T180145753726-or-proxy-generators/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03a17-4366-7243-99ff-530810c15ed6",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 964352,
+            "cached_input_tokens_cumulative": 964352,
+            "input_tokens": 1040641,
+            "input_tokens_cumulative": 1040641,
+            "output_tokens": 10483,
+            "output_tokens_cumulative": 10483,
+            "reasoning_output_tokens": 2337,
+            "reasoning_output_tokens_cumulative": 2337
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 267
+    "_version": 268
   }
 }
