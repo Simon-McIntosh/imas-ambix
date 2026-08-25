@@ -920,12 +920,20 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
     default=None,
     help="Override the default served-model name baked into the script.",
 )
+@click.option(
+    "--destination",
+    type=click.Path(path_type=Path, dir_okay=False),
+    default=None,
+    metavar="PATH",
+    help="Write the launcher to PATH instead of the shared GPFS location.",
+)
 def clive_command(
     slug: str | None,
     deploy: bool,
     print_only: bool,
     show_path: bool,
     model_override: str | None,
+    destination: Path | None,
 ) -> None:
     """Generate and deploy the local-model ``clive`` launcher.
 
@@ -938,6 +946,7 @@ def clive_command(
     profile = _load_profile(slug)
     default_model = model_override or profile.model.served_name
     clive_script = generate_clive_script(site, default_model)
+    deploy_path = destination or site.clive_path
 
     if print_only:
         # Emit verbatim (no rich newline/markup), byte-identical to deploy.
@@ -945,18 +954,18 @@ def clive_command(
         return
 
     if show_path:
-        console.print(f"clive:    {site.clive_path}")
+        console.print(f"clive:    {deploy_path}")
         console.print(f"Default model: {default_model}")
         console.print("Add to your ~/.bashrc to run as a bare command:")
         console.print(
-            f"  [dim][[ -d {site.clive_path.parent} ]] && "
-            f'export PATH="{site.clive_path.parent}:$PATH"[/]'
+            f"  [dim][[ -d {deploy_path.parent} ]] && "
+            f'export PATH="{deploy_path.parent}:$PATH"[/]'
         )
         return
 
     # Default action: deploy the shared launcher from the repository to /work.
     _ = deploy  # deploy is the default; the flag is for explicitness only
-    _deploy_launcher("clive", site.clive_path, clive_script)
+    _deploy_launcher("clive", deploy_path, clive_script)
 
     console.print(f"  Model: {default_model} · URL: {site.default_url}")
     console.print("  PATH line: [cyan]imas-ambix agent clive --path[/]")
