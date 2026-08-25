@@ -584,7 +584,7 @@ def test_benchmark_frame_tokenizer_with_equilibrium_loader(
 def test_benchmark_frame_tokenizer_loader_returns_none(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """When equilibrium_loader returns None for a shot, modality_coherence stays None."""
+    """Leave modality coherence unset when equilibrium loading returns nothing."""
     from imas_ambix.bench import BenchConfig, benchmark_frame_tokenizer
     from imas_ambix.tokenizer.frames import PlaceholderFrameTokenizer
 

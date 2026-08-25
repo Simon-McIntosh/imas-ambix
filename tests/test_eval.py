@@ -398,7 +398,6 @@ def test_modality_coherence_perfect_correlation():
     from imas_ambix.eval.metrics import modality_coherence
 
     t, h, w = 20, 32, 64
-    rng = np.random.default_rng(100)
     # Bright spot sweeps left to right across frames
     frames = np.zeros((t, h, w), dtype=np.uint8)
     col_positions = np.linspace(4, w - 5, t).astype(int)

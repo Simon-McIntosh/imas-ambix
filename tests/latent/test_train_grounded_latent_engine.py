@@ -61,7 +61,8 @@ def test_maybe_update_disc_throttles_ratchet_to_adapt_every():
     )
     ids = np.arange(4)
     warm_misfit = torch.full((4,), 2.0, dtype=torch.float64)
-    low_misfit = torch.full((4,), 1.0, dtype=torch.float64)  # < frozen target (3.0) -> "up"
+    # Below the frozen target, so the discrepancy multiplier increases.
+    low_misfit = torch.full((4,), 1.0, dtype=torch.float64)
 
     # epoch 0 (step 0): record the warm-up misfit
     tgle._maybe_update_disc(disc, ids, warm_misfit, epoch=0, step=0, adapt_every=5)
@@ -97,7 +98,8 @@ def test_maybe_update_disc_ratchets_faster_when_untethered():
     )
     ids = np.arange(4)
     warm_misfit = torch.full((4,), 2.0, dtype=torch.float64)
-    low_misfit = torch.full((4,), 1.0, dtype=torch.float64)  # < frozen target (3.0) -> "up"
+    # Below the frozen target, so the discrepancy multiplier increases.
+    low_misfit = torch.full((4,), 1.0, dtype=torch.float64)
 
     disc_throttled = DiscrepancyLambda(**kwargs)
     disc_untethered = DiscrepancyLambda(**kwargs)
@@ -122,7 +124,9 @@ def test_maybe_update_disc_never_throttles_during_warmup():
     """Warm-up recording (epoch <= warmup_epochs) must go through on every
     call regardless of `adapt_every` -- only the post-warm-up ratchet is
     throttled."""
-    disc = DiscrepancyLambda(n_examples=5, warmup_epochs=2, device="cpu", dtype=torch.float64)
+    disc = DiscrepancyLambda(
+        n_examples=5, warmup_epochs=2, device="cpu", dtype=torch.float64
+    )
     for step in range(5):
         ids = np.array([step])
         misfit = torch.tensor([float(step) + 1.0], dtype=torch.float64)

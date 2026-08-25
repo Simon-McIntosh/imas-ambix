@@ -1,4 +1,4 @@
-"""Tests for the S7.3 RKN latent state-space engine and inference modes.
+"""Tests for the recurrent Kalman network state-space engine and inference modes.
 
 Covers:
 - Module shapes (encode / update / predict / observe / filter / rollout).
@@ -327,7 +327,8 @@ def test_train_reduces_loss():
     assert len(state.epoch_losses) == cfg.n_epochs
     # loss should drop meaningfully from first to last epoch
     assert state.epoch_losses[-1] < state.epoch_losses[0], (
-        f"loss did not decrease: {state.epoch_losses[0]:.3f} → {state.epoch_losses[-1]:.3f}"
+        f"loss did not decrease: {state.epoch_losses[0]:.3f} → "
+        f"{state.epoch_losses[-1]:.3f}"
     )
 
 
@@ -369,7 +370,7 @@ def test_horizon_conformal_quantile():
 
 
 def test_quiescent_drift_penalty():
-    """The S7.4 drift regulariser is non-negative and quiescence-weighted.
+    """The drift regulariser is non-negative and quiescence-weighted.
 
     On a step with NO transient mass (fully quiescent) the penalty equals the
     full ||f_θ(z)||²; on a step that is the batch's peak transient it is ~0.
@@ -410,10 +411,10 @@ def test_quiescent_drift_penalty():
 
 
 def test_verdict_criterion2_nll_branch():
-    """_verdict reports the transient-NLL win branch (re-scoped criterion 2).
+    """_verdict reports the transient-NLL win branch.
 
-    The re-scoped Stage-1 bar is met on transient CRPS OR transient NLL.  This
-    synthetic metrics dict mirrors the v0 finding: the engine LOSES transient
+    The transient probabilistic bar is met on CRPS or NLL. This synthetic
+    metrics dictionary captures the case where the engine loses transient
     CRPS at every horizon but WINS transient NLL at h>=5 (the static is caught
     confidently-narrow when an ELM lands).  The verdict must flag criterion 2 met
     via the NLL basis, with same_windows_verified true.
@@ -467,7 +468,7 @@ def test_verdict_criterion2_nll_branch():
             },
         },
         "ood_honesty": {
-            # S7.5: criterion 3 is now judged on the ENGINE-NATIVE OOD-AUROC
+            # OOD honesty is judged on the engine-native innovation AUROC
             # (the engine's own innovation signal), with the static-ensemble
             # disagreement kept only as a clearly-labelled reference.  Here the
             # engine-native score clearly beats the static (~random) baseline.
@@ -503,16 +504,15 @@ def test_verdict_criterion2_nll_branch():
     assert rs["stretch_bulk_crps_beats_static"] is False
 
 
-def test_verdict_ood_partial_mirrors_v2_finding():
-    """Criterion 3 is a PARTIAL — the EXACT v2 finding (the headline of S7.5).
+def test_verdict_ood_partial_when_innovation_lags_static():
+    """OOD honesty is partial when innovation AUROC lags the static baseline.
 
     The dynamics-native innovation AUROC (0.748) does NOT clearly exceed the
     same-data static disagreement (0.810); the predictive-σ AUROC (0.831) only
     TIES it (and measures the same construct, so it can't count for 3b).  Coverage
-    non-collapse (3a) holds.  → criterion 3 is a PARTIAL, NOT forced to pass by
+    non-collapse holds. The verdict remains partial rather than being forced to pass by
     privileging pred-σ via max() or by swapping in the decimated 0.568 baseline.
-    This corrects v1's mislabelled "criterion 3 met" (which used the static's own
-    0.81 disagreement as if it were the engine's signal).
+    The static model's own disagreement cannot be treated as the engine's signal.
     """
     metrics = {
         "filtering": {"coverage_90_conf": 0.913},
@@ -524,7 +524,8 @@ def test_verdict_ood_partial_mirrors_v2_finding():
         "ood_honesty": {
             "ood_auroc_engine": 0.748,
             "ood_auroc_engine_innovation": 0.748,  # dynamics-native; below static
-            "ood_auroc_engine_predictive_sigma": 0.831,  # only ties static; not used for 3b
+            # Predictive sigma only ties the static model, so it is not selected.
+            "ood_auroc_engine_predictive_sigma": 0.831,
             "ood_auroc_static_ensemble_disagreement": 0.810,
             "filter_coverage90_raw_indist": 0.944,
             "filter_coverage90_raw_ood": 0.755,  # non-collapse holds
@@ -602,7 +603,7 @@ def test_gaussian_nll_matches_numpy():
 
 
 # ---------------------------------------------------------------------------
-# S7.5: Student-t emission head — CRPS / NLL correctness
+# Student-t emission head — CRPS and NLL correctness
 # ---------------------------------------------------------------------------
 
 
