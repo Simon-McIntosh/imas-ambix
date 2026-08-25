@@ -437,13 +437,17 @@ def bench_cmd(
         console.print(f"[bold]Running benchmark:[/bold] {cfg.name} ...")
 
         if cfg.tokenizer_kind == "frame" and in_process:
-            console.print("[dim]--in-process: dispatching to stream_worker (hold VQModel in memory)[/dim]")
+            console.print(
+                "[dim]--in-process: dispatching to stream_worker "
+                "(hold VQModel in memory)[/dim]"
+            )
             result = benchmark_frame_tokenizer_in_process(cfg, **run_kwargs)
         elif cfg.tokenizer_kind == "frame":
             # Guard: benchmark_frame_tokenizer raises for OpenMagvit2Tokenizer —
             # surface a clear CLI error before entering the function.
-            from imas_ambix.tokenizer.frames import OpenMagvit2Tokenizer as _OMT
-            if isinstance(cfg.tokenizer_factory(), _OMT):
+            from imas_ambix.tokenizer.frames import OpenMagvit2Tokenizer
+
+            if isinstance(cfg.tokenizer_factory(), OpenMagvit2Tokenizer):
                 raise click.UsageError(
                     "OpenMagvit2Tokenizer requires --in-process (the default). "
                     "The legacy subprocess-per-shot path is unsupported for this "
@@ -462,7 +466,8 @@ def bench_cmd(
         # Ad-hoc mode: build BenchConfig from CLI flags.
         if not tokenizers:
             raise click.UsageError(
-                "Either --config FILE or at least one --tokenizer NAME must be provided."
+                "Either --config FILE or at least one --tokenizer NAME must "
+                "be provided."
             )
         if shot_ids is None:
             raise click.UsageError(
@@ -471,7 +476,9 @@ def bench_cmd(
 
         parsed_shot_ids = [int(s.strip()) for s in shot_ids.split(",") if s.strip()]
         if not parsed_shot_ids:
-            raise click.UsageError("--shot-ids must contain at least one integer shot id.")
+            raise click.UsageError(
+                "--shot-ids must contain at least one integer shot id."
+            )
 
         # Resolve default tier
         effective_tier = tier or ("level1" if kind == "frame" else "level2")
@@ -499,7 +506,10 @@ def bench_cmd(
             console.print(f"[bold]Running benchmark:[/bold] {cfg.name} ...")
 
             if kind == "frame" and in_process:
-                console.print("[dim]--in-process: dispatching to stream_worker (hold VQModel in memory)[/dim]")
+                console.print(
+                    "[dim]--in-process: dispatching to stream_worker "
+                    "(hold VQModel in memory)[/dim]"
+                )
                 result = benchmark_frame_tokenizer_in_process(
                     cfg,
                     parsed_shot_ids,
@@ -509,8 +519,9 @@ def bench_cmd(
             elif kind == "frame":
                 # Guard: benchmark_frame_tokenizer raises for OpenMagvit2Tokenizer —
                 # surface a clear CLI error before entering the function.
-                from imas_ambix.tokenizer.frames import OpenMagvit2Tokenizer as _OMT
-                if isinstance(cfg.tokenizer_factory(), _OMT):
+                from imas_ambix.tokenizer.frames import OpenMagvit2Tokenizer
+
+                if isinstance(cfg.tokenizer_factory(), OpenMagvit2Tokenizer):
                     raise click.UsageError(
                         "OpenMagvit2Tokenizer requires --in-process (the default). "
                         "The legacy subprocess-per-shot path is unsupported for this "
@@ -613,8 +624,7 @@ def finetune_decoder_cmd(
     Freezes the encoder + codebook; trains only the decoder using pixel-level
     L1 + perceptual loss. Requires a 4×H200 exclusive GPU reservation.
 
-    See ``plans/tokenizers.md`` §12.1 for the design rationale and trigger
-    conditions.
+    The command requires explicitly separated training and validation shots.
 
     Examples
     --------

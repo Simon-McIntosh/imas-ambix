@@ -10,9 +10,7 @@ Grad-Shafranov structure residual under the bounded-discrepancy weight policy
 (:func:`amortised_losses`, :class:`DiscrepancyLambda`).  No reconstructed
 equilibrium ever enters the training path; the referee scores only at eval.
 
-Tokenisation recipe (provenance: the diagnostics->equilibrium oracle that set
-the stage-2 skill bar — one token per (sensor, time-step), never pool over
-sensors)
+Tokenisation recipe (validated against the diagnostics-to-equilibrium oracle)
 -----------------------------------------------------------------------------
 * one token per ``(sensor, step)`` — the channel and time axes are never pooled
   before the relational attention;
@@ -241,7 +239,8 @@ class PatchCurrentEncoder(nn.Module):
             self.residual_alpha = nn.Parameter(torch.tensor(0.1))
         else:
             raise ValueError(
-                f"unknown head: {config.head!r} (use 'direct'|'lowrank'|'gaussian-direct')"
+                f"unknown head: {config.head!r} "
+                "(use 'direct'|'lowrank'|'gaussian-direct')"
             )
 
     # ---- head arms ----
@@ -336,7 +335,8 @@ class PatchCurrentEncoder(nn.Module):
             pooled = enc.mean(dim=1)
         pooled = self.final_norm(pooled)
 
-        x = self._decode(pooled)  # (B, n_cells) dimensionless shape (or (mu, log_sigma))
+        # (B, n_cells) dimensionless shape, or (mu, log_sigma).
+        x = self._decode(pooled)
         if self.config.head == "gaussian-direct":
             mu_x, log_sigma_x = x
             i_mean = (

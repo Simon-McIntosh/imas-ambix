@@ -150,7 +150,6 @@ def align_frames_signals(
         :class:`xr.Dataset` on the model grid.
     """
     import numpy as np
-    import xarray as xr
 
     # --- Determine time window from signals coords ---------------------
     if time_dim in (signals.coords or {}):

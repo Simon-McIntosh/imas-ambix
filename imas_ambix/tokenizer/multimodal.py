@@ -2,8 +2,7 @@
 
 Given a shot's level-1 camera and level-2 diagnostic Zarrs, the
 :class:`ShotTokenizer` produces a single interleaved 1-D ``int32``
-token array suitable for the world-model training loop. The layout
-matches ``plans/world-model-v0.md`` §2:
+token array suitable for the world-model training loop. The layout is:
 
 ```
 <step_start>
@@ -236,7 +235,9 @@ class ShotTokenizer:
                     np.full(frame_flat.shape[0], BlockKind.FRAME, dtype=np.uint8)
                 )
             elif frame_pad_len > 0:
-                pad_block = np.full(frame_pad_len, CONTROL_TOKENS["pad"], dtype=np.int32)
+                pad_block = np.full(
+                    frame_pad_len, CONTROL_TOKENS["pad"], dtype=np.int32
+                )
                 stream.append(pad_block)
                 kinds.append(
                     np.full(frame_pad_len, BlockKind.CONTROL, dtype=np.uint8)

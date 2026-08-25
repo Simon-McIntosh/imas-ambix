@@ -1,16 +1,11 @@
 """Evaluation metrics for the Fusion World Model frame rollout.
 
-The model produces predicted frame sequences; we need quantitative signals
-to compare them against ground-truth footage. This module collects every
-metric referenced in ``plans/demo.md`` §4 and ``plans/world-model-v0.md``
-§5 into a single, dependency-minimal file. Heavy deps (LPIPS, Inception-V3)
-are lazily imported so the module loads instantly even in environments
-where torch/torchvision are absent.
-
-Related plans:
-- ``plans/demo.md`` §4.1 reconstruction metrics (rFID, PSNR, LPIPS)
-- ``plans/demo.md`` §4.2 physics-derived metrics (centroid, chord, edge)
-- ``plans/world-model-v0.md`` §5 training-time evaluation hooks
+The model produces predicted frame sequences; this module provides
+dependency-minimal quantitative comparisons against ground-truth footage.
+It includes reconstruction metrics (rFID, PSNR, LPIPS), physics-derived
+metrics (centroid, chord, edge), and training-time evaluation hooks. Heavy
+dependencies (LPIPS, Inception-V3) are lazily imported so the module loads
+even where torch and torchvision are absent.
 """
 
 from __future__ import annotations
@@ -307,7 +302,7 @@ def modality_coherence(
     magnetic_axis_r: np.ndarray,
     frame_image_extent_m: tuple[float, float] | None = None,
 ) -> float:
-    """Pearson r between the frame brightness centroid R and the equilibrium magnetic axis R.
+    """Correlate frame brightness centroid R with equilibrium magnetic-axis R.
 
     Measures cross-modality time-alignment quality: a high Pearson r (~0.7+)
     indicates the camera centroid tracks the equilibrium magnetic axis, as
@@ -340,11 +335,8 @@ def modality_coherence(
     if frame_image_extent_m is not None:
         r_min, r_max = frame_image_extent_m
         arr = np.asarray(decoded_frames)
-        # width from the frame array
-        if arr.ndim == 4:
-            w = arr.shape[2]
-        else:
-            w = arr.shape[2]
+        # Width from the frame array.
+        w = arr.shape[2]
         col_r = r_min + col_r * (r_max - r_min) / max(w - 1, 1)
 
     axis_r = np.asarray(magnetic_axis_r, dtype=np.float64)
