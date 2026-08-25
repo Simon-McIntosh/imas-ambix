@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T19:19:09",
+  "updated": "2026-08-25T19:29:23",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -8174,9 +8174,296 @@
           "role": "implement",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260825T171939984623-lint-bench-agent",
+        "plan": "whole-tree-lint-gate",
+        "section": "\u00a74c",
+        "node": "lint-bench-agent",
+        "node_definition": {
+          "done_when": "A recorded 'ruff check imas_ambix/bench/stream_worker.py imas_ambix/bench/cosmos_worker.py imas_ambix/bench/tokenizer.py imas_ambix/bench/loader.py imas_ambix/agent/slurm.py imas_ambix/agent/bench.py' exits 0 with the F821 undefined name torch at cosmos_worker.py resolved by a real import rather than a noqa, the resolution stated in the manifest, and 'pytest tests/test_bench.py -q' exits 0",
+          "estimated_hours": 0.75,
+          "goal": "Clear every remaining ruff violation in the bench and agent cluster including the undefined-name defect",
+          "id": "lint-bench-agent",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T171939984623-lint-bench-agent/manifest.md",
+          "plan": "whole-tree-lint-gate",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74c",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/bench/stream_worker.py",
+            "imas_ambix/bench/cosmos_worker.py",
+            "imas_ambix/bench/tokenizer.py",
+            "imas_ambix/bench/loader.py",
+            "imas_ambix/agent/slurm.py",
+            "imas_ambix/agent/bench.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "lint-bench-agent",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T17:19:48Z",
+        "completed_at": "2026-08-25T17:26:43Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 415,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 415,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "b241ce7e85abd6ab5802201d9bb646b8935be083",
+        "commits": [
+          "0e3617ea8640784457c4b24a958d89ad92d835d8"
+        ],
+        "changed_lines": {
+          "added": 129,
+          "removed": 77,
+          "files": 6
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T171939984623-lint-bench-agent/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a039ef-746e-70f2-81bd-6776cad2beb4",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2302976,
+            "cached_input_tokens_cumulative": 2302976,
+            "input_tokens": 2409302,
+            "input_tokens_cumulative": 2409302,
+            "output_tokens": 15937,
+            "output_tokens_cumulative": 15937,
+            "reasoning_output_tokens": 2007,
+            "reasoning_output_tokens_cumulative": 2007
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_bench.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260825T172017109128-lint-tokenizer-latent",
+        "plan": "whole-tree-lint-gate",
+        "section": "\u00a74d",
+        "node": "lint-tokenizer-latent",
+        "node_definition": {
+          "done_when": "A recorded 'ruff check imas_ambix/tokenizer imas_ambix/latent imas_ambix/eval' exits 0, and 'pytest tests/test_tokenizer.py tests/test_eval.py -q' exits 0",
+          "estimated_hours": 0.75,
+          "goal": "Clear every remaining ruff violation in the tokenizer, latent and eval cluster",
+          "id": "lint-tokenizer-latent",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T172017109128-lint-tokenizer-latent/manifest.md",
+          "plan": "whole-tree-lint-gate",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74d",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/tokenizer/",
+            "imas_ambix/latent/",
+            "imas_ambix/eval/"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "lint-tokenizer-latent",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T17:20:29Z",
+        "completed_at": "2026-08-25T17:26:58Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 389,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 389,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "b241ce7e85abd6ab5802201d9bb646b8935be083",
+        "commits": [
+          "9212bc5"
+        ],
+        "changed_lines": {
+          "added": 87,
+          "removed": 65,
+          "files": 10
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T172017109128-lint-tokenizer-latent/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a039f0-1386-7b71-8978-cd446ef64037",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1625344,
+            "cached_input_tokens_cumulative": 1625344,
+            "input_tokens": 1723544,
+            "input_tokens_cumulative": 1723544,
+            "output_tokens": 13052,
+            "output_tokens_cumulative": 13052,
+            "reasoning_output_tokens": 2265,
+            "reasoning_output_tokens_cumulative": 2265
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_tokenizer.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260825T171930891744-lint-statespace",
+        "plan": "whole-tree-lint-gate",
+        "section": "\u00a74b",
+        "node": "lint-statespace",
+        "node_definition": {
+          "done_when": "A recorded 'ruff check imas_ambix/statespace/baseline.py imas_ambix/statespace/sequential_da.py imas_ambix/statespace/oracle_probe.py imas_ambix/statespace/internal_diagnostics_probe.py imas_ambix/statespace/filter.py' exits 0, and 'pytest tests/statespace -q' exits 0",
+          "estimated_hours": 1.0,
+          "goal": "Clear every remaining ruff violation in the statespace cluster",
+          "id": "lint-statespace",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T171930891744-lint-statespace/manifest.md",
+          "plan": "whole-tree-lint-gate",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74b",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/statespace/baseline.py",
+            "imas_ambix/statespace/sequential_da.py",
+            "imas_ambix/statespace/oracle_probe.py",
+            "imas_ambix/statespace/internal_diagnostics_probe.py",
+            "imas_ambix/statespace/filter.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "lint-statespace",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T17:19:38Z",
+        "completed_at": "2026-08-25T17:28:02Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 504,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 504,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "b241ce7e85abd6ab5802201d9bb646b8935be083",
+        "commits": [
+          "81fa779"
+        ],
+        "changed_lines": {
+          "added": 378,
+          "removed": 166,
+          "files": 5
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T171930891744-lint-statespace/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a039ef-4cb2-7400-afd6-3fefb5ec93c5",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2554880,
+            "cached_input_tokens_cumulative": 2554880,
+            "input_tokens": 2671433,
+            "input_tokens_cumulative": 2671433,
+            "output_tokens": 15643,
+            "output_tokens_cumulative": 15643,
+            "reasoning_output_tokens": 2425,
+            "reasoning_output_tokens_cumulative": 2425
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/statespace",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 257
+    "_version": 260
   }
 }
