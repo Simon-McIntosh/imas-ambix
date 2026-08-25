@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="whole-tree-lint-gate">
   <meta name="plan-title" content="Whole-Tree Lint Gate">
   <meta name="plan-summary" content="ruff check over imas_ambix and tests reports 266 errors, so no worker node can use whole-tree lint as a done-when measure. Decide the gate, then reach it.">
-  <meta name="plan-status" content="draft">
+  <meta name="plan-status" content="active">
   <meta name="plan-roi" content="mid">
   <meta name="plan-effort-hours" content="3.0">
   <meta name="plan-capability-version" content="1.0">
@@ -65,17 +65,118 @@
     the value here is in not authoring an unachievable measure again, and that is a
     documentation change, not a cleanup campaign.</p>
 
+    <h2 id="s3">§3 — What the 266 actually are, and how clearing them works</h2>
+
+    <p>Posture locked: <strong>clear and gate</strong>. Measured composition on the
+    integration branch, which determines the method:</p>
+
+    <table>
+      <thead><tr><th>Family</th><th>Count</th><th>Disposition</th></tr></thead>
+      <tbody>
+        <tr><td>E501 line-too-long</td><td>118</td><td>wrap</td></tr>
+        <tr><td>N806 / N803 / N802 naming</td><td>95</td><td>exempt as convention</td></tr>
+        <tr><td>I001 / UP037 / UP035 / TC005</td><td>28</td><td>auto-fixable</td></tr>
+        <tr><td>F841 / F401 / F811 / F821 / B007 / SIM* / TC001</td><td>25</td><td>fix — genuine defects</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The naming family must be exempted, not renamed, and the repository already
+    says so.</strong> <code>pyproject.toml</code> carries <strong>seven</strong> existing
+    <code>per-file-ignores</code> entries for exactly this rule set, each commented with the
+    reason — "uppercase matches the math". The violations are the same class: in
+    <code>gs/filaments3d.py</code> the offenders are <code>segment_B</code> and
+    <code>segment_A</code>, where <code>B</code> is the magnetic field and <code>A</code> the
+    vector potential; in <code>statespace/baseline.py</code> they are <code>X</code>,
+    <code>X_train</code>, <code>normalise_X</code> — the design matrix. Renaming
+    <code>segment_B</code> to <code>segment_b</code> would destroy the physics meaning to
+    satisfy a linter, and it would contradict a convention this repository has already
+    written down seven times. Two import aliases fall the same way:
+    <code>functional as F</code> (11 of the 11 N812 hits) and
+    <code>DistributedDataParallel as DDP</code> are the standard PyTorch idioms.</p>
+
+    <p><strong>A genuine bug was found in the process.</strong>
+    <code>imas_ambix/bench/cosmos_worker.py:123</code> reports
+    <code>F821 Undefined name 'torch'</code> — a <code>NameError</code> waiting on that path.
+    That single finding is worth more than the other 265 combined, and it is the argument for
+    the gate: nothing was watching this file. Three <code>F811</code> redefinitions of
+    <code>field</code> in <code>gs/filaments3d.py</code> are the next most likely to be real.</p>
+
+    <p>A small residue of naming hits are genuine and get renamed rather than exempted:
+    <code>StreamAborted</code> (N818, twice), <code>mse_split as M</code> (N812), and
+    <code>OpenMagvit2Tokenizer as _OMT</code> (N814).</p>
+
+    <h2 id="s4">§4 — Implementation</h2>
+
+    <p>The convention exemptions land first and alone, because they remove 95 rows that no
+    source-editing node should waste effort on. The remaining work then partitions <strong>by
+    file</strong> rather than by rule, so each node owns a disjoint write scope and its goal
+    is simply "no ruff violation remains in these files".</p>
+
+    <h3 id="s4a">§4a — Exempt conventional notation</h3>
+
+    <p>In <code>pyproject.toml</code> only, extend
+    <code>[tool.ruff.lint.per-file-ignores]</code> to cover the math, design-matrix and
+    PyTorch-idiom naming rules for the twelve files that carry them, following the seven
+    existing entries and giving each a comment naming the convention it preserves. Do not
+    exempt the genuine residue in §3.</p>
+
+    <p><strong>Done when</strong> no source file is modified and the naming-family count in
+    <code>ruff check imas_ambix</code> falls to the genuine residue alone.</p>
+
+    <h3 id="s4b">§4b — Clear the statespace cluster</h3>
+
+    <p><code>baseline.py</code>, <code>sequential_da.py</code>, <code>filter.py</code>,
+    <code>oracle_probe.py</code>, <code>integrated_inputs.py</code>,
+    <code>internal_diagnostics_probe.py</code> — the largest share, ~70 rows after §4a,
+    mostly E501.</p>
+
+    <h3 id="s4c">§4c — Clear the bench and agent cluster</h3>
+
+    <p><code>bench/stream_worker.py</code>, <code>bench/cosmos_worker.py</code>,
+    <code>bench/tokenizer.py</code>, <code>bench/loader.py</code>,
+    <code>agent/slurm.py</code>, <code>agent/bench.py</code>. <strong>Carries the F821
+    undefined-name bug</strong>, which must be fixed as a real defect and its resolution
+    stated — not silenced with a noqa.</p>
+
+    <h3 id="s4d">§4d — Clear the tokenizer, latent, gs, data and eval cluster</h3>
+
+    <p><code>tokenizer/</code> (<code>finetune_decoder.py</code>, <code>cli.py</code>,
+    <code>patch_transformer.py</code>, <code>multimodal.py</code>), <code>latent/</code>
+    (<code>patch_encoder.py</code>, <code>patch_observation.py</code>,
+    <code>encoder.py</code>, <code>boundary_moment.py</code>),
+    <code>gs/filaments3d.py</code> (the three F811 redefinitions),
+    <code>data/stream_encode.py</code>, <code>eval/metrics.py</code>.</p>
+
+    <h3 id="s4e">§4e — Clear the test tree</h3>
+
+    <p>All remaining violations under <code>tests/</code>, ~16 rows, predominantly E501.</p>
+
+    <h3 id="s4f">§4f — Install the gate</h3>
+
+    <p>Record in the repository's <code>AGENTS.md</code> that whole-tree
+    <code>ruff check imas_ambix tests</code> is now a valid done-when measure and is expected
+    to hold, so a future node can rely on it — the absence of that statement is what let the
+    unachievable clause be authored in the first place.</p>
+
+    <p><strong>Done when</strong> <code>uv run --no-sync ruff check imas_ambix tests</code>
+    exits 0 on the integrated branch and the full test suite still passes.</p>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
       <h2><span class="sec">§</span> Decisions</h2>
 
-      <div class="r-dec" data-key="lint-gate-posture" data-choice="" data-by="" data-when="">
+      <div class="r-dec" data-key="lint-gate-posture" data-choice="clear-and-gate" data-by="Simon McIntosh" data-when="2026-08-25">
         <p class="r-dec-q">What lint posture should the repository commit to?</p>
         <p class="r-dec-opts">
           <button class="r-opt" data-value="scoped-only">scoped-only</button>
           <button class="r-opt" data-value="ratchet">ratchet</button>
           <button class="r-opt" data-value="clear-and-gate">clear-and-gate</button>
         </p>
-        <p class="r-dec-rat"></p>
+        <p class="r-dec-rat">Clear all 266 and gate. Chosen with the cost and the risk
+        stated: the edits reach training and benchmark code that fast tests do not cover.
+        Method follows from §3 — the naming family is exempted as convention (the repository
+        already carries seven such entries, and renaming <code>segment_B</code> would destroy
+        the physics), everything else is genuinely fixed, and the gate is then real rather
+        than aspirational.</p>
       </div>
     </section>
 
@@ -84,9 +185,8 @@
       <article class="r-fu" data-id="f-wlg-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-08-25">
         <h4 class="r-fu-title">Settle the lint posture, then implement whichever gate it names</h4>
         <div class="r-fu-body">
-          <p>Blocked on the owner's choice in §2 — the three options differ by more than an
-          order of magnitude in cost and the cheapest one already closes the trap that
-          surfaced this. Nothing should be cleaned up before the posture is chosen.</p>
+          <p>Posture locked to clear-and-gate. §4a exempts conventional notation, §4b-§4e
+          clear the remaining violations partitioned by file, and §4f installs the gate.</p>
         </div>
         <pre class="r-fu-prompt">/reckon-ship whole-tree-lint-gate</pre>
       </article>
