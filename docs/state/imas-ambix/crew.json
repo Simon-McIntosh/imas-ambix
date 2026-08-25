@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T21:32:38",
+  "updated": "2026-08-25T21:40:20",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -9885,9 +9885,101 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260825T193306752768-clive-picker-inert",
+        "plan": "clive-openrouter-opt-in",
+        "section": "\u00a74d",
+        "node": "clive-picker-inert",
+        "node_definition": {
+          "done_when": "On the default path the opus, sonnet, haiku and fable tier variables still resolve to the detected served model so no unservable id can be selected, but each exports a _NAME of a single em dash and a _DESCRIPTION reading 'unused tier - routes to' followed by the served model reference, leaving the Default row as the only entry naming a model; a recorded grep of the printed launcher shows 4 em-dash _NAME assignments and 0 occurrences of the string 'fast + free' on the default path; and 'uv run --no-sync pytest tests/test_agent.py -q' exits 0",
+          "estimated_hours": 0.25,
+          "goal": "Render the non-default picker tiers as inert on the local route so the default is the only apparent choice",
+          "id": "clive-picker-inert",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T193306752768-clive-picker-inert/manifest.md",
+          "plan": "clive-openrouter-opt-in",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74d",
+          "spec_level": "exact",
+          "time_budget": "22m",
+          "write_paths": [
+            "imas_ambix/agent/clive.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "clive-picker-inert",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T19:34:29Z",
+        "completed_at": "2026-08-25T19:38:32Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 243,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 243,
+        "stalled": false,
+        "time_budget": "22m",
+        "base_sha": "2ec30781c40fc974fd219c6d3026ece2d37a15a3",
+        "commits": [
+          "cfdda7b5bca3f93d053bdea79f64e0a118b10408"
+        ],
+        "changed_lines": {
+          "added": 8,
+          "removed": 11,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T193306752768-clive-picker-inert/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03a6a-cf4c-7481-9ae8-9fa88a2ddd32",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 904960,
+            "cached_input_tokens_cumulative": 904960,
+            "input_tokens": 975054,
+            "input_tokens_cumulative": 975054,
+            "output_tokens": 5800,
+            "output_tokens_cumulative": 5800,
+            "reasoning_output_tokens": 1294,
+            "reasoning_output_tokens_cumulative": 1294
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 290
+    "_version": 291
   }
 }
