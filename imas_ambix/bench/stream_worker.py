@@ -2,7 +2,8 @@
 
 Standalone script that runs inside the Open-MAGVIT2 venv
 (``/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/.venv/bin/python``).
-Loaded as a subprocess by :func:`imas_ambix.bench.tokenizer.benchmark_frame_tokenizer_in_process`.
+Loaded as a subprocess by
+:func:`imas_ambix.bench.tokenizer.benchmark_frame_tokenizer_in_process`.
 
 CLI
 ---
@@ -30,8 +31,8 @@ Exit codes: 0 = clean, 130 = SIGTERM/SIGINT aborted.
 Hardening mirrors ``imas_ambix.data.stream_encode``:
   - SIGTERM/SIGINT handler sets global STOP flag (< 5 s graceful exit).
   - Per-shot watchdog: fires at max(60, 8× running-median shot time).
-  - ``finally`` releases model + empties CUDA cache so the H200 node is
-    never drained by a wedged process (see ``docs/rca-node-drain-2026-05-27.md``).
+  - ``finally`` releases model + empties CUDA cache so a wedged process cannot
+    keep the node's accelerator memory allocated.
 
 Imports from ``imas_ambix.data.stream_encode`` when available (the ambix
 package may not be installed in the magvit2 venv); falls back to inlined
@@ -56,7 +57,7 @@ import numpy as np
 STOP = threading.Event()
 
 
-class StreamAborted(RuntimeError):
+class StreamAbortedError(RuntimeError):
     """Raised to unwind the per-shot loop when STOP is set."""
 
 
@@ -196,14 +197,10 @@ except ImportError:
         """Load shot frames, optionally subsampled to ``max_frames`` via uniform
         stride across the full shot duration.
 
-        C8 fix (2026-05-28): previously ``frames = frames[:max_frames]`` took
-        the FIRST N frames only — for MAST plasma shots this is the dim
-        ramp-up phase.  The fine-tune training samples via ``np.linspace``
-        across the full shot (ramp-up + flat-top + decay).  The frame
-        populations therefore differed structurally between training and
-        bench, producing a measurement gap (training rFID ≈ 14, bench rFID
-        ≈ 29) that we mis-attributed to encoder pipeline mismatches.  Fix:
-        match training's selection by using uniform stride here too.
+        Uniform ``np.linspace`` sampling covers ramp-up, flat-top, and decay,
+        matching fine-tune training. Prefix-only sampling over-represents the
+        dim ramp-up and makes the benchmark population structurally different
+        from the training population.
         """
         import xarray as xr
 
@@ -222,8 +219,9 @@ except ImportError:
             frames = frames[indices]
         return np.asarray(frames)
 
-    def load_model(magvit2_root: Path, device: str, ckpt_path: "Path | None" = None):
+    def load_model(magvit2_root: Path, device: str, ckpt_path: Path | None = None):
         import os
+
         import torch
         from omegaconf import OmegaConf
 
@@ -254,17 +252,20 @@ except ImportError:
             try:
                 torch.use_deterministic_algorithms(True, warn_only=True)
             except Exception as exc:  # noqa: BLE001
-                print(f"[bench-worker] use_deterministic_algorithms note: {exc}", flush=True)
+                print(
+                    f"[bench-worker] use_deterministic_algorithms note: {exc}",
+                    flush=True,
+                )
             model = model.to(
                 device=device, dtype=torch.bfloat16, memory_format=torch.channels_last
             )
-            # ── Diagnostic toggle: AMBIX_DECODER_FP32 (RCA 2026-05-29) ────────
+            # AMBIX_DECODER_FP32 isolates decoder precision effects.
             # Tests whether the fine-tune "regression" (bench rFID 24.5 vs
             # baseline 13.3) is a bf16 weight-PRECISION artifact in the decode
             # path rather than a real reconstruction failure.  The encoder and
             # quantizer stay bf16, so the LFQ token IDs remain byte-identical to
-            # every established bench (the regression is provably decode-only:
-            # encoder frozen, C6/C7 were no-ops).  We upcast ONLY the decoder
+            # every established bench (the encoder is frozen, so encoder-wide
+            # precision changes are no-ops). We upcast ONLY the decoder
             # (and post_quant_conv if present) to fp32 using the EXACT fp32
             # values from the checkpoint — note we ``.float()`` the module first
             # so the subsequent ``load_state_dict`` copy preserves full fp32
@@ -334,6 +335,7 @@ def decode_batch(
         ``(T, H, W, 3)`` uint8.
     """
     import os
+
     import torch
     import torch.nn.functional as F
 
@@ -342,7 +344,7 @@ def decode_batch(
     T, h, w = tokens_local_int64.shape
     out: list[np.ndarray] = []
 
-    # AMBIX_DECODE_NO_EMA (RCA 2026-05-29): decode via the LIVE decoder weights
+    # AMBIX_DECODE_NO_EMA decodes through the live decoder weights
     # instead of ema_scope().  Needed by the AMBIX_DECODER_FP32 diagnostic: with
     # the live decoder upcast to fp32 in load_model, ema_scope() would copy the
     # bf16 EMA shadow back over our fp32 weights and silently defeat the test.
@@ -363,7 +365,9 @@ def decode_batch(
             bhwc = (B, h, w, embed_dim)
             if _use_ema:
                 with model.ema_scope():
-                    quant = model.quantize.get_codebook_entry(idx, bhwc=bhwc, order="pre")
+                    quant = model.quantize.get_codebook_entry(
+                        idx, bhwc=bhwc, order="pre"
+                    )
                     quant = quant.to(target_dtype)
                     recon = model.decode(quant)  # (B, 3, 256, 256) in roughly [-1, 1]
             else:
@@ -399,7 +403,12 @@ def _running_median(samples: list[float]) -> float:
 # ---------------------------------------------------------------------------
 
 
-def run_worker(manifest: dict, device: str, model_forward_batch: int, batch_timeout_s: float) -> dict:
+def run_worker(
+    manifest: dict,
+    device: str,
+    model_forward_batch: int,
+    batch_timeout_s: float,
+) -> dict:
     """Load model once, encode + decode every shot in *manifest*.
 
     Returns a summary dict suitable for writing to ``--report``.
@@ -476,7 +485,7 @@ def run_worker(manifest: dict, device: str, model_forward_batch: int, batch_time
 
         for shot_id in shots:
             if STOP.is_set():
-                raise StreamAborted("STOP set before shot")
+                raise StreamAbortedError("STOP set before shot")
 
             t_shot_start = time.monotonic()
             budget = _shot_timeout()
@@ -486,7 +495,7 @@ def run_worker(manifest: dict, device: str, model_forward_batch: int, batch_time
 
             try:
                 raw = load_shot_frames(shot_id, camera, l1_root, max_items)
-                u8_rgb_native = frames_to_rgb_uint8(raw, presized=False)  # (T,H,W,3) uint8
+                u8_rgb_native = frames_to_rgb_uint8(raw, presized=False)
                 H, W = int(u8_rgb_native.shape[1]), int(u8_rgb_native.shape[2])
 
                 # Encode
@@ -507,9 +516,9 @@ def run_worker(manifest: dict, device: str, model_forward_batch: int, batch_time
                 decode_seconds = time.monotonic() - t_dec0
 
                 # Global tokens (with REGISTRY_OFFSET, cast to int32 for corpus compat)
-                tokens_global = (tokens_local.astype(np.int64) + REGISTRY_OFFSET).astype(
-                    np.int32
-                )
+                tokens_global = (
+                    tokens_local.astype(np.int64) + REGISTRY_OFFSET
+                ).astype(np.int32)
 
                 # Save outputs
                 np.save(str(output_dir / f"{shot_id}-tokens.npy"), tokens_global)
@@ -533,7 +542,7 @@ def run_worker(manifest: dict, device: str, model_forward_batch: int, batch_time
                 }
                 print(json.dumps(line), flush=True)
 
-            except StreamAborted:
+            except StreamAbortedError:
                 raise
             except Exception as exc:  # noqa: BLE001
                 shots_fail += 1
@@ -553,9 +562,9 @@ def run_worker(manifest: dict, device: str, model_forward_batch: int, batch_time
                     _wd_deadline["t"] = None
 
             if STOP.is_set():
-                raise StreamAborted("STOP set after shot")
+                raise StreamAbortedError("STOP set after shot")
 
-    except StreamAborted:
+    except StreamAbortedError:
         aborted = True
     else:
         aborted = False
@@ -597,25 +606,36 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="In-process bench worker: encode + decode shots, hold model in memory"
+        description=(
+            "In-process bench worker: encode + decode shots, hold model in memory"
+        )
     )
     parser.add_argument(
         "--manifest",
         required=True,
-        help="Path to JSON manifest: {shots, camera, l1_root, magvit2_root, max_items_per_shot, output_dir}",
+        help=(
+            "Path to JSON manifest: {shots, camera, l1_root, magvit2_root, "
+            "max_items_per_shot, output_dir}"
+        ),
     )
     parser.add_argument("--device", default="cuda", help="'cuda' or 'cpu'")
     parser.add_argument(
         "--model-forward-batch",
         type=int,
         default=MODEL_FORWARD_BATCH,
-        help=f"frames per model.encode/decode forward (default {MODEL_FORWARD_BATCH} — byte-identity with corpus)",
+        help=(
+            "frames per model.encode/decode forward "
+            f"(default {MODEL_FORWARD_BATCH} — byte-identity with corpus)"
+        ),
     )
     parser.add_argument(
         "--batch-timeout-s",
         type=float,
         default=0.0,
-        help="per-shot watchdog timeout in seconds; 0 = auto (max(60, 8x running-median))",
+        help=(
+            "per-shot watchdog timeout in seconds; "
+            "0 = auto (max(60, 8x running-median))"
+        ),
     )
     parser.add_argument(
         "--report",

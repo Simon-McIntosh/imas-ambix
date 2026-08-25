@@ -319,6 +319,10 @@ def generate_serve_script(
     kt_env_block = ""
     if is_kt:
         evictor_python = shlex.quote(str(site.python_path(profile.engine.type)))
+        engine_venv = site.venv_path(profile.engine.type)
+        cu13_lib = shlex.quote(
+            str(engine_venv / "lib/python3.12/site-packages/nvidia/cu13/lib")
+        )
         fadvise_cmd = (
             f'{evictor_python} -c {shlex.quote(_FADVISE_DROP_CODE)} "$MODEL_DIR"'
         )
@@ -339,7 +343,7 @@ def generate_serve_script(
             # sglang-kernel ships pre-compiled CUDA 13 binaries; expose the
             # nvidia-cu13 runtime libs so they can be loaded alongside the
             # CUDA 12.6 PyTorch stack (the driver supports both).
-            _CU13_LIB={shlex.quote(str(site.venv_path(profile.engine.type) / "lib/python3.12/site-packages/nvidia/cu13/lib"))}
+            _CU13_LIB={cu13_lib}
             if [[ -d "$_CU13_LIB" ]]; then
                 export LD_LIBRARY_PATH="${{_CU13_LIB}}:${{LD_LIBRARY_PATH:-}}"
             fi
@@ -360,15 +364,22 @@ def generate_serve_script(
                 for _i in $(seq 1 300); do
                     if grep -q "fired up" "$LOG_FILE" 2>/dev/null; then
                         sleep 5
-                        {fadvise_cmd} 2>/dev/null && echo "[$(date)] Post-startup: dropped safetensor page cache" || true
+                        if {fadvise_cmd} 2>/dev/null; then
+                            echo "[$(date)] Post-startup: dropped safetensor page cache"
+                        fi
                         echo "[$(date)] === Memory diagnostics ==="
-                        CGROUP_PATH="/sys/fs/cgroup/system.slice/slurmstepd.scope/job_${{SLURM_JOB_ID}}"
-                        echo "cgroup memory.current: $(cat ${{CGROUP_PATH}}/memory.current 2>/dev/null || echo N/A)"
-                        echo "cgroup memory.max: $(cat ${{CGROUP_PATH}}/memory.max 2>/dev/null || echo N/A)"
+                        CGROUP_ROOT="/sys/fs/cgroup/system.slice/slurmstepd.scope"
+                        CGROUP_PATH="$CGROUP_ROOT/job_${{SLURM_JOB_ID}}"
+                        CURRENT=$(cat "${{CGROUP_PATH}}/memory.current" \
+                            2>/dev/null || echo N/A)
+                        MAX=$(cat "${{CGROUP_PATH}}/memory.max" 2>/dev/null || echo N/A)
+                        echo "cgroup memory.current: $CURRENT"
+                        echo "cgroup memory.max: $MAX"
                         for pid in $(pgrep -P $SERVER_PID 2>/dev/null | head -8); do
                             if [[ -f /proc/$pid/smaps_rollup ]]; then
                                 echo "--- PID $pid ---"
-                                grep -E "Rss:|Anonymous:|Shared|Private" /proc/$pid/smaps_rollup 2>/dev/null | head -10
+                                grep -E "Rss:|Anonymous:|Shared|Private" \
+                                    /proc/$pid/smaps_rollup 2>/dev/null | head -10
                             fi
                         done
                         echo "[$(date)] === End diagnostics ==="
@@ -449,6 +460,9 @@ def generate_serve_script(
     env_block = "\n".join(
         f"export {k}={shlex.quote(str(v))}" for k, v in profile.engine.env.items()
     )
+    site_packages = shlex.quote(
+        str(site.venv_path(profile.engine.type) / "lib/python3.12/site-packages")
+    )
 
     script_body = dedent(
         f"""
@@ -465,9 +479,11 @@ def generate_serve_script(
 
         # Expose vendored nvidia libs (cuDNN, cuSPARSELt, NCCL, etc.)
         # installed by pip/uv into per-package subdirs under nvidia/.
-        _SITE={shlex.quote(str(site.venv_path(profile.engine.type) / "lib/python3.12/site-packages"))}
+        _SITE={site_packages}
         for _nv_lib in "$_SITE"/nvidia/*/lib; do
-            [[ -d "$_nv_lib" ]] && export LD_LIBRARY_PATH="${{_nv_lib}}:${{LD_LIBRARY_PATH:-}}"
+            if [[ -d "$_nv_lib" ]]; then
+                export LD_LIBRARY_PATH="${{_nv_lib}}:${{LD_LIBRARY_PATH:-}}"
+            fi
         done
         # PyTorch shared libs (libtorch.so, libc10.so, etc.) for vLLM C extensions
         export LD_LIBRARY_PATH="${{_SITE}}/torch/lib:${{LD_LIBRARY_PATH:-}}"
