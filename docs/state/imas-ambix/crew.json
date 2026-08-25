@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T21:42:14",
+  "updated": "2026-08-25T21:44:32",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -10052,9 +10052,101 @@
           "role": "test",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260825T194034252195-clive-small-fast-restore",
+        "plan": "clive-openrouter-opt-in",
+        "section": "\u00a74d",
+        "node": "clive-small-fast-restore",
+        "node_definition": {
+          "done_when": "The default path of the generated launcher exports ANTHROPIC_SMALL_FAST_MODEL set to the detected served model with no _NAME or _DESCRIPTION beside it, the four em-dash tier names and their inert descriptions are left exactly as they are, a recorded grep of the printed launcher shows exactly 1 ANTHROPIC_SMALL_FAST_MODEL assignment and still 4 em-dash _NAME assignments, and 'uv run --no-sync pytest tests/test_agent.py -q' exits 0",
+          "estimated_hours": 0.25,
+          "goal": "Restore the small-fast model pin on the default launcher path",
+          "id": "clive-small-fast-restore",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T194034252195-clive-small-fast-restore/manifest.md",
+          "plan": "clive-openrouter-opt-in",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74d",
+          "spec_level": "exact",
+          "time_budget": "20m",
+          "write_paths": [
+            "imas_ambix/agent/clive.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "clive-picker-inert",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T19:41:28Z",
+        "completed_at": "2026-08-25T19:43:51Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 143,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 143,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "0915c872e1c5d22853da9702554148060a7a9805",
+        "commits": [
+          "6f9a4ce"
+        ],
+        "changed_lines": {
+          "added": 1,
+          "removed": 0,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T194034252195-clive-small-fast-restore/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03a71-260d-7473-9408-c637d1ddee1f",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 994560,
+            "cached_input_tokens_cumulative": 994560,
+            "input_tokens": 1085077,
+            "input_tokens_cumulative": 1085077,
+            "output_tokens": 4926,
+            "output_tokens_cumulative": 4926,
+            "reasoning_output_tokens": 758,
+            "reasoning_output_tokens_cumulative": 758
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 292
+    "_version": 293
   }
 }

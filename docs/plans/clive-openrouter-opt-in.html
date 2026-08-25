@@ -21,7 +21,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-25">
-<meta name="plan-version" content="7">
+<meta name="plan-version" content="9">
+<meta name="plan-commits" content="07b19a89cda1ab05dec1aaaf7a3920bd2e7c3f49,6513837,6061e6263b7a2363859bf7d8f0fa88ec6a91d461,2f87d6e7fdcad40c038019d95217e291415c6779,cfdda7b5bca3f93d053bdea79f64e0a118b10408,6f9a4ce">
+<meta name="plan-artifacts" content="docs/evidence/archive/clive-openrouter-opt-in-landed.html">
+<meta name="plan-impl" content="0.8333">
 </head>
 <body>
   <main class="plan-doc">
@@ -194,10 +197,10 @@
         because the models themselves were a problem — they were only ever visible to their
         key-holder.</p>
     </div>
-<div class="r-dec" data-key="local-model-transport" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="local-model-transport" data-choice="openai-form" data-by="Simon McIntosh" data-when="2026-08-25">
     <p class="r-dec-q">In opt-in mode, how does the local model authenticate through the proxy?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="openai-form">openai-form</button>
+      <button class="r-opt chosen" data-value="openai-form">openai-form</button>
       <button class="r-opt" data-value="runtime-header-injection">runtime-header-injection</button>
       </p>
     <p class="r-dec-rat">Deferred to §4a, which measures whether prompt caching survives
@@ -208,11 +211,17 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-cor-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-08-25" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-cor-01" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-08-25" data-recommends-skill="" data-resolved-at="2026-08-25T19:46:02+00:00" data-resolved-by="">
     <h4 class="r-fu-title">Restore the or-* models behind the opt-in flag</h4>
     <div class="r-fu-body"><p>Shape is locked; the transport decision is deferred to §4a's measurement rather
           than guessed. §4b-§4f restore the generators, add the flag, re-aim the fence to
           cover both modes, and verify against the live endpoint.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship clive-openrouter-opt-in</pre>
+    <p class="r-fu-outcome">Landed and deployed, 5 of 6 nodes. The 401 is fixed: the local model answers through the proxy over Bearer, verified twice. The default invocation is provably unaffected — no key-file test remains in the script, a test asserts a readable key alone reaches no proxy, and live runs of the module launcher and the ~/public mirror both return exit 0 with the key present. Transport decision locked on measurement: cache telemetry is absent on the direct endpoint too, so the openai form costs nothing, with a 97.1 percent repeat-latency drop. Picker on the local route now shows one named model plus four inert em-dash tiers that still resolve to the served model, so no unservable id can be selected. Three node-contract defects corrected at integration: malformed anthropic/openai ids, two inert exports, and a deleted small-fast pin. Remaining: or-* live verification, exempt as authority-required.</p>
+    </article>
+<article class="r-fu" data-id="f-cor-02" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-08-25" data-recommends-skill="/reckon-ship clive-openrouter-opt-in" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Verify the or-* models once the provider key has credit</h4>
+    <div class="r-fu-body"><p>Exempt as authority-required: the key reports limit 3250, usage 3250.229, limit_remaining 0 and limit_reset null, so every or-* model returns 403 Key limit exceeded. This also blocks confirming the provider-form correction in commit 6061e62, because all four models hit the quota check before wire format matters. Adding credit is owner-only; once done, drive clive --openrouter and record a live or-* reply.</p></div>
     <pre class="r-fu-prompt">/reckon-ship clive-openrouter-opt-in</pre>
     </article>
 </section>
@@ -234,7 +243,10 @@
     <div class="r-comment-body"><p>All five tier/fast vars set to the served model with _NAME and _DESCRIPTION on the default path; 5 descriptions rendered, 0 ANTHROPIC_MODEL_NAME occurrences; 105 tests pass</p></div>
 </div>
 <div class="r-comment" data-section="§4d" data-id="c-run-r-20260825T193306752768-clive-picker-inert" data-who="clive-picker-inert" data-when="2026-08-25T19:38:32Z">
-    <div class="r-comment-body"><p>4 em-dash names, 4 inert descriptions, 0 &#x27;fast + free&#x27; strings; tier vars still resolve to the served model; 105 tests pass. Caveat found at integration: it also deleted ANTHROPIC_SMALL_FAST_MODEL, which is independently consulted and is being restored</p></div>
+    <div class="r-comment-body"><p>4 em-dash names, 4 inert descriptions, 0 'fast + free' strings; tier vars still resolve to the served model; 105 tests pass. Caveat found at integration: it also deleted ANTHROPIC_SMALL_FAST_MODEL, which is independently consulted and is being restored</p></div>
+</div>
+<div class="r-comment" data-section="§4d" data-id="c-run-r-20260825T194034252195-clive-small-fast-restore" data-who="clive-picker-inert" data-when="2026-08-25T19:43:51Z">
+    <div class="r-comment-body"><p>1 ANTHROPIC_SMALL_FAST_MODEL assignment restored, 4 em-dash tier names intact; 105 tests pass</p></div>
 </div>
 <div class="r-comment" data-section="§4a" data-id="c-run-r-20260825T184341150839-or-cache-measure" data-who="or-cache-measure" data-when="2026-08-25T18:51:35Z">
     <div class="r-comment-body"><p>4/4 HTTP 200 at 6510 input tokens per call on an identical 78178-byte payload with cache_control: cache_creation_input_tokens and cache_read_input_tokens absent on BOTH the proxy path and the direct control, so the OpenAI-form transport costs nothing the direct endpoint provides; proxy repeat latency fell 97.1 percent, indicating vLLM prefix reuse survives</p></div>

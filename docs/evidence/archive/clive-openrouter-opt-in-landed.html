@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="clive-openrouter-opt-in-landed">
+  <meta name="plan-title" content="Clive OpenRouter Opt-In — Landed Record">
+  <meta name="plan-summary" content="Execution record for restoring the or-* models behind an explicit opt-in, fixing the proxy auth fault, and making the local picker legible.">
+  <meta name="plan-evidence-for" content="clive-openrouter-opt-in">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>Clive OpenRouter Opt-In — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="auth">The 401 is fixed, measured against the live endpoint</h2>
+
+    <p>The fault that took the shared launcher down was the local model returning
+    <code>401 Unauthorized</code> through the proxy, because litellm's
+    <code>anthropic/</code> provider authenticates with <code>x-api-key</code> and vLLM
+    accepts only <code>Authorization: Bearer</code>. Declaring the local model in the
+    <code>openai/</code> form at a <code>/v1</code> base makes litellm send Bearer. Retested
+    through the proxy on the same request that used to 401:</p>
+
+    <pre>POST 127.0.0.1:18399/v1/messages   model=deepseek-v4-flash
+→ "Hi there! How can I help you today?"      (was: {"error":"Unauthorized"} 401)</pre>
+
+    <p>Re-verified after the provider-form correction and a redeploy, returning
+    <code>ok</code>.</p>
+
+    <h2 id="default">The default invocation is provably unaffected</h2>
+
+    <p>The premise the removal rested on was wrong, and checking it is what reopened the
+    decision: the <code>or-*</code> models were never reachable by anyone but their
+    key-holder. The route was gated on a per-user mode-600 file,
+    <code>--deploy</code> installed the systemd unit into the deploying user's own
+    <code>$HOME</code>, and the unit's <code>ExecStart</code> pointed at a pipx install in one
+    home directory. A second key-holder would have seen
+    <code>clive: could not start imas-ambix-llm.service</code> and exit 1 — not extra
+    models.</p>
+
+    <p>What actually caused the outage was narrower: the picker <em>default</em> was routed
+    through the proxy. So the restoration is gated on an explicit flag, and the default path
+    no longer consults OpenRouter state at all — there is no key-file test left anywhere in
+    the script. Verified live through the module-published launcher with
+    <code>~/.config/openrouter/key</code> still readable:</p>
+
+    <table>
+      <thead><tr><th>Invocation</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td><code>clive -p …</code> (key present)</td><td><code>default still direct</code>, exit 0</td></tr>
+        <tr><td><code>clive -p …</code> after the picker work</td><td><code>picker fixed</code>, exit 0</td></tr>
+        <tr><td><code>~/public/bin/clive -p …</code></td><td><code>mirror ok</code>, exit 0</td></tr>
+      </tbody>
+    </table>
+
+    <p>A dedicated test asserts that a readable provider key alone produces zero proxy calls,
+    so the property cannot silently regress.</p>
+
+    <h2 id="transport">The transport decision, settled by measurement</h2>
+
+    <p>The plan deferred the local-model transport to a measurement rather than a preference,
+    on the suspicion that the OpenAI translation would cost Anthropic prompt caching. It does
+    not. Four calls, an identical 78,178-byte payload carrying <code>cache_control</code> on a
+    6,500-word system block, 6,510 input tokens each:</p>
+
+    <ul>
+      <li><strong>Proxy path:</strong> usage exactly
+      <code>{"input_tokens": 6510, "output_tokens": 2}</code> both times —
+      <code>cache_creation_input_tokens</code> and <code>cache_read_input_tokens</code>
+      absent.</li>
+      <li><strong>Direct control:</strong> the same shape, both fields <strong>also
+      absent</strong>.</li>
+    </ul>
+
+    <p>So the telemetry is not lost by the translation — the local endpoint never reported it.
+    Repeat latency through the proxy fell <strong>97.1%</strong>, indicating vLLM's own prefix
+    reuse survives. The <code>openai/</code> form therefore costs nothing the direct route
+    provides, and the decision is locked on evidence.</p>
+
+    <h2 id="picker">The model picker on the local route</h2>
+
+    <p>The hand-written model descriptions were never lost: they only ever existed on the
+    OpenRouter branch, and the pre-fix local branch at <code>6503254</code> set the tier
+    aliases with no <code>_NAME</code> or <code>_DESCRIPTION</code> at all. The owner had
+    simply never seen that path, because a readable key always routed around it.</p>
+
+    <p>Read out of the CLI binary, each tier row renders as
+    <code>label: _NAME ?? modelId</code> and
+    <code>description: _DESCRIPTION ?? "Custom &lt;Tier&gt; model"</code> — so "Custom Opus
+    model" was the unset-fallback. More seriously, an <em>unset</em> alias does not remove its
+    row: the assembler pushes a built-in Claude entry instead
+    (<code>s.push(kn() ?? fo())</code> always pushes, and the finaliser's <code>pt()</code>
+    re-inserts a missing sonnet or opus row). The Fable row visible before this work was
+    exactly that — selecting it would have sent <code>fable</code> to a server holding only
+    <code>deepseek-v4-flash</code>.</p>
+
+    <p>One row is therefore not reachable through environment variables. The chosen rendering
+    keeps every tier variable resolving to the served model, so nothing unservable can be
+    selected, while presenting the non-default tiers as inert: <code>_NAME</code> is a single
+    em dash and <code>_DESCRIPTION</code> reads
+    <code>unused tier - routes to &lt;model&gt;</code>. The default entry is the only row that
+    names a model.</p>
+
+    <h2 id="corrections">Three corrections made at integration</h2>
+
+    <p>Each was a defect in a node contract rather than in a worker's execution, and each was
+    caught by auditing the merged result rather than the report:</p>
+
+    <ul>
+      <li><strong>All four <code>or-*</code> entries were put on the Anthropic provider</strong>,
+      yielding malformed ids <code>anthropic/openai/gpt-5.5</code> and
+      <code>anthropic/z-ai/glm-5.2</code>, because the dispatch said "the four or-* entries
+      keep the anthropic/ form" when only the two Claude models should.
+      Corrected in <code>6061e62</code>; the OpenAI-family entries are back on
+      <code>openai/</code> at the <code>/v1</code> base while the Claude entries keep the
+      Anthropic-native passthrough that preserves <code>cache_control</code>. Not verifiable
+      while the provider quota is spent — all four models hit the quota check before wire
+      format matters.</li>
+      <li><strong>Two inert exports</strong> (<code>ANTHROPIC_MODEL_NAME</code>,
+      <code>ANTHROPIC_MODEL_DESCRIPTION</code>) were added by a worker; the binary does not
+      read them. Removed.</li>
+      <li><strong><code>ANTHROPIC_SMALL_FAST_MODEL</code> was deleted</strong> along with its
+      labels, read as a "redundant triplet". It is consulted on its own branch, independent of
+      the haiku alias, so background work was briefly free to request an unservable id.
+      Restored in <code>6f9a4ce</code>.</li>
+    </ul>
+
+    <h2 id="blocked">What remains unverified, and why</h2>
+
+    <p>The four <code>or-*</code> models cannot answer. The provider key reports
+    <code>limit 3250</code>, <code>usage 3250.229</code>, <code>limit_remaining 0</code> and
+    <code>limit_reset: null</code> — spent, with no automatic reset. Every model returns
+    <code>403 Key limit exceeded (total limit)</code>. This is account state, not code, and it
+    also blocks confirming the provider-form correction above. Adding credit to the key is the
+    only way to close it.</p>
+
+  </main>
+</body>
+</html>
