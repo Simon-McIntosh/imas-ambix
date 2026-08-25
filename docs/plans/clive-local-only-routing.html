@@ -321,6 +321,25 @@ fi</pre>
     to <code>--print</code>, is executable by another user, and has driven a real request
     against the live endpoint from outside <code>/work</code>.</p>
 
+    <h3 id="s4g">§4g — Lock the local-only guarantee with a regression test</h3>
+
+    <p>The reuse scout found that <strong>no test imports
+    <code>generate_clive_script</code></strong> and nothing exercised the routing branch at
+    all. That absence is why a shared launcher could carry a dead default model: §4a's
+    gate is a one-off grep run by hand, and a grep nobody runs again cannot stop the route
+    coming back. The removal needs a test, not just a commit.</p>
+
+    <p>Add tests over the generated script asserting that it contains none of
+    <code>openrouter</code>, <code>litellm</code>, <code>systemctl</code> or an
+    <code>or-</code> model id; that it sets <code>ANTHROPIC_BASE_URL</code>,
+    <code>ANTHROPIC_AUTH_TOKEN</code> and every tier alias to the served model; and that the
+    output is identical whether or not the OpenRouter environment variable is set — the
+    condition that used to change the route. Assert the deploy path writes exactly one
+    artifact.</p>
+
+    <p><strong>Done when</strong> the new tests fail against the pre-fix generator and pass
+    against the current one.</p>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="clive-openrouter-surface" data-choice="remove-entirely" data-by="Simon McIntosh" data-when="2026-08-25">
