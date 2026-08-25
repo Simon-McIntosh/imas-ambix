@@ -57,7 +57,7 @@ import numpy as np
 STOP = threading.Event()
 
 
-class StreamAbortedError(RuntimeError):
+class StreamAborted(RuntimeError):  # noqa: N818  # not an Error-class, a control-flow unwind
     """Raised to unwind the per-shot loop when STOP is set."""
 
 
@@ -485,7 +485,7 @@ def run_worker(
 
         for shot_id in shots:
             if STOP.is_set():
-                raise StreamAbortedError("STOP set before shot")
+                raise StreamAborted("STOP set before shot")
 
             t_shot_start = time.monotonic()
             budget = _shot_timeout()
@@ -542,7 +542,7 @@ def run_worker(
                 }
                 print(json.dumps(line), flush=True)
 
-            except StreamAbortedError:
+            except StreamAborted:
                 raise
             except Exception as exc:  # noqa: BLE001
                 shots_fail += 1
@@ -562,9 +562,9 @@ def run_worker(
                     _wd_deadline["t"] = None
 
             if STOP.is_set():
-                raise StreamAbortedError("STOP set after shot")
+                raise StreamAborted("STOP set after shot")
 
-    except StreamAbortedError:
+    except StreamAborted:
         aborted = True
     else:
         aborted = False

@@ -60,7 +60,7 @@ MODEL_FORWARD_BATCH = 4  # Mirror stream_worker; Cosmos JIT may be batch-invaria
                           # but using the same value keeps the comparison fair.
 
 
-class StreamAbortedError(RuntimeError):
+class StreamAborted(RuntimeError):  # noqa: N818  # not an Error-class, a control-flow unwind
     pass
 
 
@@ -275,7 +275,7 @@ def run_worker(manifest: dict, device: str, model_forward_batch: int,
 
         for shot_id in shots:
             if STOP.is_set():
-                raise StreamAbortedError("STOP set before shot")
+                raise StreamAborted("STOP set before shot")
             t_shot_start = time.monotonic()
             try:
                 raw = load_shot_frames(shot_id, camera, l1_root, max_items)
@@ -314,7 +314,7 @@ def run_worker(manifest: dict, device: str, model_forward_batch: int,
                     "error": None,
                 }), flush=True)
 
-            except StreamAbortedError:
+            except StreamAborted:
                 raise
             except Exception as exc:  # noqa: BLE001
                 shots_fail += 1
@@ -325,7 +325,7 @@ def run_worker(manifest: dict, device: str, model_forward_batch: int,
                     "native_hw": None, "error": str(exc),
                 }), flush=True)
 
-    except StreamAbortedError:
+    except StreamAborted:
         aborted = True
     else:
         aborted = False
