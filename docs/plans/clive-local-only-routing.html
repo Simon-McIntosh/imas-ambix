@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="clive-local-only-routing">
+  <meta name="plan-title" content="Clive Local-Only Routing">
+  <meta name="plan-summary" content="The shared SDCC clive fails for every OpenRouter key-holder: the proxy route 401s the local model and 403s all or-* slots. Restore a DSv4-only direct route.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="3.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="moderate">
+  <meta name="plan-sprint" content="S17">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>Clive Local-Only Routing | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Symptom and reproduction</h2>
+
+    <p>The shared SDCC launcher <code>clive</code> — published on <code>PATH</code> by the
+    <code>Clive/0.1.0</code> environment module, which symlinks
+    <code>/work/imas/opt/EasyBuild/software/Clive/0.1.0/bin/clive</code> to
+    <code>/work/projects/imas_gpu/agents/clive</code> — returns errors and then hangs.
+    A launch with a non-interactive prompt produced no completion and was killed at
+    the 180 s mark.</p>
+
+    <p>The served model is <strong>healthy</strong>. SLURM job <code>1252401</code>
+    (<code>deepseek-v4-flash</code>) has been running 5 days on <code>98dci4-gpu-0003</code>
+    in partition <code>betelgeuse</code>, and the endpoint answers correctly on both
+    surfaces:</p>
+
+    <table>
+      <thead><tr><th>Probe</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET /v1/models</code></td><td>200 — one entry, <code>deepseek-v4-flash</code>, <code>max_model_len</code> 524288</td></tr>
+        <tr><td><code>POST /v1/messages</code> with <code>Authorization: Bearer &lt;key&gt;</code></td><td>200 — <em>"Hi! How can I help you today?"</em></td></tr>
+        <tr><td><code>claude -p</code> against the endpoint with clive's direct-route env vars</td><td>200 — replied <code>OK</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>So the fault is not the model, not the GPU node, and not the vLLM server. It sits
+    entirely in the routing layer that <code>clive</code> selects at launch.</p>
+
+    <h2 id="s2">§2 — Root cause</h2>
+
+    <p><code>clive</code> chooses between two routes at startup, and the selector is the
+    mere <em>readability of a personal key file</em>:</p>
+
+    <pre>if [[ -n "${OPENROUTER_API_KEY:-}" ]] || [[ -r "$HOME/.config/openrouter/key" ]]; then
+    _HAVE_OR=true
+fi</pre>
+
+    <p>With no key, clive points Claude Code straight at the vLLM endpoint and everything
+    works. With a key present, clive instead starts a per-user
+    <code>imas-ambix-llm.service</code> LiteLLM proxy and points Claude Code at
+    <code>127.0.0.1:18399</code>. <strong>On that second route every one of the five picker
+    slots is dead</strong>, from two independent causes.</p>
+
+    <figure>
+      <svg viewBox="0 0 720 300" width="100%" role="img" aria-label="Clive's two routes: the direct route returns 200; the proxy route returns 401 on the local model and 403 on the four OpenRouter models." style="max-width:720px">
+        <g font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a">
+
+          <text x="0" y="14" font-size="14" font-weight="600">Route A — no OpenRouter key (works)</text>
+          <rect x="0" y="26" width="104" height="34" fill="#ffffff" stroke="#4a4a4a" stroke-width="1"/>
+          <text x="52" y="47" text-anchor="middle">clive</text>
+          <line x1="104" y1="43" x2="150" y2="43" stroke="#4a4a4a" stroke-width="1"/>
+          <polygon points="150,43 143,39.5 143,46.5" fill="#4a4a4a"/>
+          <rect x="150" y="26" width="118" height="34" fill="#ffffff" stroke="#4a4a4a" stroke-width="1"/>
+          <text x="209" y="47" text-anchor="middle">Claude Code</text>
+          <line x1="268" y1="43" x2="330" y2="43" stroke="#4a4a4a" stroke-width="1"/>
+          <polygon points="330,43 323,39.5 323,46.5" fill="#4a4a4a"/>
+          <text x="299" y="36" text-anchor="middle" font-size="11">Authorization: Bearer</text>
+          <rect x="330" y="26" width="150" height="34" fill="#ffffff" stroke="#4a4a4a" stroke-width="1"/>
+          <text x="405" y="47" text-anchor="middle">vLLM /v1/messages</text>
+          <text x="496" y="47" font-weight="600">200 OK</text>
+
+          <line x1="0" y1="86" x2="720" y2="86" stroke="#d0d0d0" stroke-width="1"/>
+
+          <text x="0" y="112" font-size="14" font-weight="600">Route B — OpenRouter key readable (all five slots fail)</text>
+          <rect x="0" y="124" width="104" height="34" fill="#ffffff" stroke="#4a4a4a" stroke-width="1"/>
+          <text x="52" y="145" text-anchor="middle">clive</text>
+          <line x1="104" y1="141" x2="150" y2="141" stroke="#4a4a4a" stroke-width="1"/>
+          <polygon points="150,141 143,137.5 143,144.5" fill="#4a4a4a"/>
+          <rect x="150" y="124" width="118" height="34" fill="#ffffff" stroke="#4a4a4a" stroke-width="1"/>
+          <text x="209" y="145" text-anchor="middle">Claude Code</text>
+          <line x1="268" y1="141" x2="314" y2="141" stroke="#4a4a4a" stroke-width="1"/>
+          <polygon points="314,141 307,137.5 307,144.5" fill="#4a4a4a"/>
+          <rect x="314" y="124" width="128" height="34" fill="#ffffff" stroke="#4a4a4a" stroke-width="1"/>
+          <text x="378" y="145" text-anchor="middle">LiteLLM proxy</text>
+
+          <path d="M442 134 L488 110" stroke="#4a4a4a" stroke-width="1" fill="none"/>
+          <polygon points="488,110 480,111 483.5,116.5" fill="#4a4a4a"/>
+          <text x="492" y="102" font-size="11">x-api-key only</text>
+          <rect x="492" y="112" width="150" height="30" fill="#ffffff" stroke="#b03030" stroke-width="1"/>
+          <text x="567" y="131" text-anchor="middle">vLLM (local slot)</text>
+          <text x="650" y="131" font-weight="600" fill="#b03030">401</text>
+
+          <path d="M442 150 L488 182" stroke="#4a4a4a" stroke-width="1" fill="none"/>
+          <polygon points="488,182 483.5,175.5 480,181" fill="#4a4a4a"/>
+          <rect x="492" y="166" width="150" height="30" fill="#ffffff" stroke="#b03030" stroke-width="1"/>
+          <text x="567" y="185" text-anchor="middle">OpenRouter (4 slots)</text>
+          <text x="650" y="185" font-weight="600" fill="#b03030">403</text>
+
+          <text x="0" y="232" font-size="12">Fault 1 — vLLM's api-key middleware accepts only <tspan font-family="ui-monospace, monospace">Authorization: Bearer</tspan>;</text>
+          <text x="0" y="250" font-size="12">LiteLLM's <tspan font-family="ui-monospace, monospace">anthropic/</tspan> provider authenticates with <tspan font-family="ui-monospace, monospace">x-api-key</tspan> and never sets Bearer.</text>
+          <text x="0" y="274" font-size="12">Fault 2 — the OpenRouter key's spend cap is exhausted: <em>"Key limit exceeded (total limit)"</em>.</text>
+        </g>
+      </svg>
+      <figcaption>Clive's two startup routes and where each terminates. The route is chosen
+      by whether a personal key file is readable, so the working path is the one taken by
+      users who have no OpenRouter key at all.</figcaption>
+    </figure>
+
+    <h3 id="s2a">Fault 1 — auth-header mismatch kills the default (local) model</h3>
+
+    <p>The picker default is the <code>haiku</code> slot, which the proxy route maps to the
+    local <code>deepseek-v4-flash</code>. In <code>litellm_config.yaml</code> that model is
+    declared with LiteLLM's Anthropic-native provider — <code>model: anthropic/&lt;name&gt;</code>
+    plus <code>api_base</code> — a form chosen deliberately so that <code>cache_control</code>
+    survives. But that provider authenticates the Anthropic way. In litellm 1.80.13,
+    <code>AnthropicConfig.get_anthropic_headers</code> builds exactly:</p>
+
+    <pre>headers = {
+    "anthropic-version": anthropic_version or "2023-06-01",
+    "x-api-key": api_key,
+    "accept": "application/json",
+    "content-type": "application/json",
+}</pre>
+
+    <p>There is no <code>Authorization</code> header on that path. vLLM's API-key middleware
+    only honours <code>Authorization: Bearer</code>. Probing the endpoint directly isolates the
+    boundary unambiguously:</p>
+
+    <table>
+      <thead><tr><th>Header sent to <code>POST /v1/messages</code></th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><code>Authorization: Bearer &lt;key&gt;</code></td><td>200</td></tr>
+        <tr><td><code>x-api-key: &lt;key&gt;</code></td><td>401</td></tr>
+        <tr><td>no auth header</td><td>401</td></tr>
+      </tbody>
+    </table>
+
+    <p>Through the proxy the same request returns
+    <code>{"error":"Unauthorized"} … Received Model Group=deepseek-v4-flash</code> with code
+    <code>401</code>. The credential itself is fine: the systemd env helper writes a correct
+    43-character <code>AMBIX_LOCAL_KEY</code> into
+    <code>$XDG_RUNTIME_DIR/imas-ambix-llm.env</code>, byte-for-byte what the same extraction
+    yields when run by hand. The key is right; the header carrying it is wrong.</p>
+
+    <h3 id="s2b">Fault 2 — the OpenRouter key's spend cap is exhausted</h3>
+
+    <p>All four <code>or-*</code> slots return <code>403</code> with
+    <em>"Key limit exceeded (total limit)"</em> — <code>or-opus-4.8</code> and
+    <code>or-sonnet-4.6</code> as an Anthropic <code>permission_error</code>,
+    <code>or-gpt-5.5</code> and <code>or-glm-5.2</code> as a LiteLLM
+    <code>APIError</code>. This is account state, not a code defect, but it means the four
+    remaining picker entries were dead alongside the default.</p>
+
+    <h3 id="s2c">The design defect behind both</h3>
+
+    <p>Neither fault would have taken down the shared launcher had the launcher not
+    silently rerouted itself. Three properties combined to make this a production outage
+    on a shared tool:</p>
+
+    <ul>
+      <li><strong>An implicit, invisible route switch.</strong> Nothing the user typed selected
+      the proxy. Merely owning a file at <code>~/.config/openrouter/key</code> — possibly
+      created months earlier for an unrelated purpose — moved every request onto a
+      different transport with different auth semantics.</li>
+      <li><strong>The failure is invisible to anyone who cannot reproduce it.</strong> Users
+      without a key were unaffected, so the outage looked intermittent and
+      user-specific rather than systematic.</li>
+      <li><strong>A shared cluster launcher acquired a personal-billing dependency.</strong> A
+      tool whose purpose is to expose the local H200 model to SDCC users routed its
+      <em>default</em> model through a third-party proxy and made it contingent on a
+      personal OpenRouter account's remaining credit.</li>
+    </ul>
+
+    <p>The generator is confirmed authoritative, so the bug is in committed source rather
+    than a hand-edit of the deployed copy:
+    <code>imas-ambix agent clive --print</code> is <strong>byte-identical</strong> to
+    <code>/work/projects/imas_gpu/agents/clive</code>. Every fix below is therefore a
+    version-tracked change to <code>imas_ambix/agent/</code> followed by a re-deploy.</p>
+
+    <h2 id="s3">§3 — Decision: clive is DSv4-only</h2>
+
+    <p>Locked by owner directive: the shared SDCC <code>clive</code> serves the local model
+    and nothing else. It must not be OpenRouter-accessible. This is not a workaround for
+    the exhausted key — it is the correct boundary for a cluster-wide launcher, and it
+    resolves Fault 1 and Fault 2 together by deleting the route on which both occur.</p>
+
+    <p>Consequences that follow directly:</p>
+
+    <ul>
+      <li>The five-slot picker collapses to one model. Every tier alias points at the
+      served local model, as the working no-key route already does.</li>
+      <li>The LiteLLM proxy has no remaining consumer in <code>clive</code>. Its generators,
+      its deploy entries, its <code>/work</code> artifacts and the per-user systemd unit all
+      become dead surface and are removed rather than left dormant — a dormant
+      OpenRouter route in a group-shared directory is precisely what this decision
+      excludes.</li>
+      <li><code>~/.config/openrouter/key</code> stops having any effect on <code>clive</code>.
+      No env var and no file changes its routing.</li>
+    </ul>
+
+    <p>A separate, private, non-deployed launcher for a key-holder's own OpenRouter use is
+    out of scope here and must not live in the group-shared agents directory.</p>
+
+    <h2 id="s4">§4 — Implementation</h2>
+
+    <p>Four work items. The first is the fix; the rest remove the surface the fix
+    orphans, correct the documentation, and verify against the live endpoint.</p>
+
+    <h3 id="s4a">§4a — Strip the OpenRouter route from the clive generator</h3>
+
+    <p>In <code>imas_ambix/agent/clive.py</code>, remove the <code>_HAVE_OR</code> detection,
+    the systemd start-and-wait block, the readiness poll, the five labelled picker slots
+    and their <code>_NAME</code>/<code>_DESCRIPTION</code> variables, and the
+    <code>or-*</code> mentions in the usage text and module docstring. What remains is the
+    single direct route that is already proven to work: <code>ANTHROPIC_BASE_URL</code> at
+    the served endpoint, <code>ANTHROPIC_AUTH_TOKEN</code> carrying the local key (Claude
+    Code sends it as <code>Authorization: Bearer</code>, which is what vLLM requires), and
+    the opus/sonnet/haiku aliases plus <code>ANTHROPIC_MODEL</code> all set to the served
+    model name. The <code>--codex</code> branch is already local-only and stays as it is.</p>
+
+    <p><strong>Done when</strong> the generated script contains no occurrence of
+    <code>openrouter</code>, <code>OPENROUTER</code>, <code>or-</code>,
+    <code>litellm</code> or <code>systemctl</code>, and takes the same code path whether or
+    not <code>~/.config/openrouter/key</code> exists.</p>
+
+    <h3 id="s4b">§4b — Retire the LiteLLM proxy surface</h3>
+
+    <p>Delete <code>imas_ambix/agent/litellm_config.py</code> and
+    <code>imas_ambix/agent/litellm_service.py</code>, and remove their imports, generation
+    calls, deploy-table entries, systemd install step and reporting lines from
+    <code>imas_ambix/agent/cli.py</code>'s <code>clive_command</code>. Drop any now-unused
+    <code>SiteConfig</code> fields (<code>litellm_config_path</code>,
+    <code>litellm_service_path</code>) once nothing references them.</p>
+
+    <p>Then clear the deployed artifacts. Stop and disable the per-user unit
+    (<code>imas-ambix-llm.service</code>) and remove it from
+    <code>~/.config/systemd/user/</code>; remove <code>litellm_config.yaml</code> and
+    <code>imas-ambix-llm-env.sh</code> from <code>/work/projects/imas_gpu/agents/</code>.
+    Remove the stale <code>orclive</code> script there as well: it is an OpenRouter-capable
+    launcher in the group-shared directory whose generator
+    (<code>imas_ambix/agent/orclive.py</code>) does not exist in the repository, superseded
+    by the unified <code>clive</code> on the same day it was deployed.</p>
+
+    <p><strong>Done when</strong> <code>imas-ambix agent clive --deploy</code> writes exactly
+    one artifact, the group-shared agents directory holds no OpenRouter-capable launcher
+    or config, and the unit is gone.</p>
+
+    <h3 id="s4c">§4c — Declare the real context window</h3>
+
+    <p>Claude Code does not recognize <code>deepseek-v4-flash</code> and therefore assumes a
+    200k context window, warning as much on every launch, while the server reports
+    <code>max_model_len</code> 524288. clive already queries <code>/v1/models</code> to
+    discover the model name; it should read <code>max_model_len</code> from the same
+    response and export <code>CLAUDE_CODE_MAX_CONTEXT_TOKENS</code>. Omit the variable when
+    the field is absent rather than guessing a value.</p>
+
+    <p><strong>Done when</strong> a clive launch against the live endpoint no longer prints
+    the unrecognized-model context warning.</p>
+
+    <h3 id="s4d">§4d — Correct the agent documentation</h3>
+
+    <p><code>imas_ambix/agent/AGENTS.md</code> §4a documents the adaptive two-route design as
+    the intended behaviour, across roughly 90 lines: the "One launcher, adaptive routing"
+    description, the five-slot picker table, the "Why systemd" rationale, the OpenRouter
+    caching note, the routing-config section, and the <code>orclaude</code> references.
+    Replace it with the local-only contract, and state the reason plainly so the route is
+    not reintroduced: LiteLLM's <code>anthropic/</code> provider authenticates with
+    <code>x-api-key</code>, which vLLM rejects, and a shared cluster launcher must not
+    depend on a personal third-party account. Update the sync-discipline paragraph to the
+    single generated artifact.</p>
+
+    <h3 id="s4e">§4e — Verify against the live endpoint</h3>
+
+    <p>Re-deploy, confirm the deployed copy is byte-identical to
+    <code>--print</code>, and drive a real request through the module-published launcher
+    with the OpenRouter key file still in place — that is the configuration that was
+    failing, so it is the configuration that proves the fix. Record the reply, and confirm
+    <code>clive --codex</code> and <code>--help</code> still behave.</p>
+
+    <h3 id="s4f">§4f — Mirror the launcher to a world-readable home path</h3>
+
+    <p><code>/home/ITER/mcintos/public</code> is world-readable and traversable
+    (<code>drwxr-sr-x</code>, reached through a <code>drwxr-xr-x</code> home), so it can host a
+    second copy of the launcher that other users can execute. Deploying one there proves
+    the script's <em>location</em> is immaterial — useful because the current single copy
+    lives under <code>/work</code> alongside the model weights, which invites the assumption
+    that the launcher itself needs that filesystem.</p>
+
+    <p>Make the second copy a first-class deploy target rather than a hand-made duplicate:
+    add a destination option to <code>imas-ambix agent clive</code> so any path can be
+    written from the same generator, and mirror to
+    <code>~/public/bin/clive</code>. Two hand-copied scripts would drift; two generated
+    ones cannot.</p>
+
+    <p>Note what the mirror does <em>not</em> remove: the launcher still reads the local API
+    key from <code>/work/projects/imas_gpu/agents/.env</code>, so a caller needs
+    <code>sdcc-imas_gpu</code> group access to that file — or must supply
+    <code>AMBIX_AGENT_API_KEY</code>. The validation should state which of those two paths
+    the running copy used.</p>
+
+    <p><strong>Done when</strong> a copy at <code>~/public/bin/clive</code> is byte-identical
+    to <code>--print</code>, is executable by another user, and has driven a real request
+    against the live endpoint from outside <code>/work</code>.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+
+      <div class="r-dec" data-key="clive-openrouter-surface" data-choice="remove-entirely" data-by="Simon McIntosh" data-when="2026-08-25">
+        <p class="r-dec-q">Should the shared SDCC clive keep any OpenRouter capability?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="remove-entirely">remove-entirely</button>
+          <button class="r-opt" data-value="opt-in-flag">opt-in-flag</button>
+          <button class="r-opt" data-value="fix-proxy-auth">fix-proxy-auth</button>
+        </p>
+        <p class="r-dec-rat">Owner directive: clive is for DSv4, the local model, and the
+        SDCC-public version must not be OpenRouter-accessible. Removal — rather than an
+        opt-in flag or repairing the proxy's auth header — is what makes that boundary
+        real: a dormant route in a group-shared directory is still an OpenRouter surface,
+        and it keeps a cluster launcher's default model contingent on a personal
+        third-party account's credit.</p>
+      </div>
+
+      <div class="r-dec" data-key="local-auth-transport" data-choice="claude-code-direct" data-by="Simon McIntosh" data-when="2026-08-25">
+        <p class="r-dec-q">How should clive authenticate to the local vLLM endpoint?</p>
+        <p class="r-dec-rat">Directly, with <code>ANTHROPIC_AUTH_TOKEN</code>, which Claude
+        Code sends as <code>Authorization: Bearer</code> — the only scheme vLLM's api-key
+        middleware accepts, verified 200 against 401 for <code>x-api-key</code>. Removing
+        the proxy removes the mismatch at its source rather than patching a header
+        override into a gateway that no longer has a purpose.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-clv-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-08-25">
+        <h4 class="r-fu-title">Ship the local-only clive routing fix and retire the OpenRouter surface</h4>
+        <div class="r-fu-body">
+          <p>RCA complete and the decision is locked: both faults live on the LiteLLM proxy
+          route, and that route is being deleted rather than repaired. §4a-§4f carry the
+          work — strip the route from the generator, retire the proxy surface and its
+          deployed artifacts, declare the real context window, correct the agent
+          documentation, mirror the launcher to a world-readable home path, and verify
+          against the live endpoint with the OpenRouter key file still in place.</p>
+        </div>
+        <pre class="r-fu-prompt">/reckon-ship clive-local-only-routing</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>
