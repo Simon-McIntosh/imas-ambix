@@ -9,9 +9,9 @@ kernels.  Everything here is a thin-wire (filament) Biot–Savart evaluation of 
 
 Self-contained (numpy + ``scipy.special`` only), re-implemented in-tree so the
 equilibrium decoder carries its own kernels rather than importing the ``nova``
-prototype (``nova/biot/{line,arc}.py``, ``nova/geometry/{polyline,rdp}.py``,
-author Simon McIntosh).  ``nova`` remains only the cross-check oracle
-(:func:`tests.test_filaments3d`).
+prototype (``nova/biot/{line,arc}.py`` and
+``nova/geometry/{polyline,rdp}.py``).  ``nova`` remains only the cross-check
+oracle (:func:`tests.test_filaments3d`).
 
 Primitives
 ----------
@@ -54,8 +54,7 @@ tesla, ``A`` in T·m, flux in weber, mutual in henry.  ``MU0 = 4e-7·π``.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Sequence
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -101,7 +100,7 @@ def segment_B(
 def segment_A(
     points: np.ndarray, a: np.ndarray, b: np.ndarray, current: float
 ) -> np.ndarray:
-    """Vector potential ``A`` [T·m] at ``points`` of a finite segment ``a→b`` (Coulomb gauge).
+    """Vector potential ``A`` [T·m] at points of a finite segment (Coulomb gauge).
 
     ``A = μ0 I/(4π)·û·ln((r1 + s)/(r2 + s − L))`` — the arcsinh antiderivative of
     ``1/r`` along the wire, directed along the wire tangent ``û``.
@@ -121,7 +120,7 @@ def segment_A(
 
 
 def polyline_B(points: np.ndarray, path: np.ndarray, current: float) -> np.ndarray:
-    """``B`` at ``points`` from a polyline ``path`` (M,3) carrying ``current`` (sum of segments)."""
+    """``B`` from a polyline carrying ``current``, summed over its segments."""
     path = np.asarray(path, dtype=np.float64)
     return sum(
         segment_B(points, path[i], path[i + 1], current)
@@ -130,7 +129,7 @@ def polyline_B(points: np.ndarray, path: np.ndarray, current: float) -> np.ndarr
 
 
 def polyline_A(points: np.ndarray, path: np.ndarray, current: float) -> np.ndarray:
-    """``A`` at ``points`` from a polyline ``path`` (M,3) carrying ``current`` (sum of segments)."""
+    """``A`` from a polyline carrying ``current``, summed over its segments."""
     path = np.asarray(path, dtype=np.float64)
     return sum(
         segment_A(points, path[i], path[i + 1], current)
@@ -215,7 +214,7 @@ class Arc:
         axis: np.ndarray,
         start_point: np.ndarray,
         angle: float,
-    ) -> "Arc":
+    ) -> Arc:
         """Build an arc from its centre, plane normal, a start point and signed span."""
         centre = np.asarray(centre, dtype=np.float64)
         start_radial = np.asarray(start_point, dtype=np.float64) - centre
@@ -223,7 +222,7 @@ class Arc:
         return cls(centre, np.asarray(axis, float), radius, start_radial, float(angle))
 
     @classmethod
-    def from_points(cls, p0: np.ndarray, pmid: np.ndarray, p1: np.ndarray) -> "Arc":
+    def from_points(cls, p0: np.ndarray, pmid: np.ndarray, p1: np.ndarray) -> Arc:
         """Build the circular arc through three 3-D points ``p0 → pmid → p1``."""
         centre, radius, axis = _circle_through_three(p0, pmid, p1)
         e1 = np.asarray(p0, float) - centre
@@ -278,12 +277,22 @@ class Arc:
         return prev
 
     def field(
-        self, points: np.ndarray, current: float, *, tol: float = 1e-8, max_n: int = 8192
+        self,
+        points: np.ndarray,
+        current: float,
+        *,
+        tol: float = 1e-8,
+        max_n: int = 8192,
     ) -> np.ndarray:
         return self._adaptive(points, current, polyline_B, tol, max_n)
 
     def potential(
-        self, points: np.ndarray, current: float, *, tol: float = 1e-8, max_n: int = 8192
+        self,
+        points: np.ndarray,
+        current: float,
+        *,
+        tol: float = 1e-8,
+        max_n: int = 8192,
     ) -> np.ndarray:
         return self._adaptive(points, current, polyline_A, tol, max_n)
 
@@ -397,7 +406,9 @@ def _field_of(source, points: np.ndarray, current: float, **kw: object) -> np.nd
     return polyline_B(points, np.asarray(source, float), current)
 
 
-def _potential_of(source, points: np.ndarray, current: float, **kw: object) -> np.ndarray:
+def _potential_of(
+    source, points: np.ndarray, current: float, **kw: object
+) -> np.ndarray:
     if isinstance(source, (Conductor, Line, Arc)):
         return source.potential(points, current, **kw)
     return polyline_A(points, np.asarray(source, float), current)
@@ -414,8 +425,10 @@ def _as_path(obj, *, arc_points: int) -> np.ndarray:
 # ------------------------------------------------------- RDP / arc decimation
 
 
-def _point_line_distance(points: np.ndarray, start: np.ndarray, end: np.ndarray) -> np.ndarray:
-    """Perpendicular distance from each of ``points`` to the line ``start–end`` (n-D)."""
+def _point_line_distance(
+    points: np.ndarray, start: np.ndarray, end: np.ndarray
+) -> np.ndarray:
+    """Return each point's perpendicular distance to the line ``start–end``."""
     d = end - start
     dl = np.linalg.norm(d)
     if dl < 1e-14:
@@ -455,7 +468,7 @@ def rdp(points: np.ndarray, epsilon: float) -> np.ndarray:
 
 
 def _arc_residual(points: np.ndarray) -> tuple:
-    """Fit a circular arc to ``points`` (>=3, N,3); return ``(Arc, normalised_residual)``.
+    """Fit a circular arc and return it with its normalised residual.
 
     SVD plane alignment (smallest singular direction = plane normal), 2-D
     least-squares circle fit in that plane.  The residual is the **maximum**
@@ -480,7 +493,6 @@ def _arc_residual(points: np.ndarray) -> tuple:
     sol, *_ = np.linalg.lstsq(a_mat, rhs, rcond=None)
     c2d = sol[:2] / 2.0
     radius = float(np.sqrt(sol[2] + c2d @ c2d))
-    centre = centroid + c2d[0] * e1 + c2d[1] * e2
     in_plane = np.hypot(xy[:, 0] - c2d[0], xy[:, 1] - c2d[1]) - radius
     out_plane = centred @ axis
     deviation = float(np.max(np.hypot(in_plane, out_plane)))
@@ -497,7 +509,7 @@ def decimate(
     rdp_eps: float = 1e-3,
     minimum_arc_nodes: int = 4,
 ) -> list:
-    """Greedily defeature a dense centreline ``points`` (N,3) into ``Line`` / ``Arc`` elements.
+    """Greedily defeature a dense centreline into ``Line`` and ``Arc`` elements.
 
     Ported (numpy-only) from ``nova.geometry.polyline``'s hybrid arc/line RDP: at
     each position grow the longest run of points that a single circular arc fits
@@ -579,7 +591,9 @@ def _merge_collinear(segments: list, rdp_eps: float) -> list:
 # ----------------------------------------------------------------- convenience
 
 
-def circle(radius: float, z: float, n: int = 720, *, centre_r: float = 0.0) -> np.ndarray:
+def circle(
+    radius: float, z: float, n: int = 720, *, centre_r: float = 0.0
+) -> np.ndarray:
     """Return a closed axisymmetric loop of ``radius`` at height ``z`` (n+1 points)."""
     t = np.linspace(0.0, 2.0 * np.pi, n + 1)
     return np.column_stack(
@@ -596,7 +610,10 @@ def maxwell_mutual(r1: float, r2: float, dz: float) -> float:
     return float(
         MU0
         * np.sqrt(r1 * r2)
-        * ((2.0 / k - k) * scipy.special.ellipk(k2) - (2.0 / k) * scipy.special.ellipe(k2))
+        * (
+            (2.0 / k - k) * scipy.special.ellipk(k2)
+            - (2.0 / k) * scipy.special.ellipe(k2)
+        )
     )
 
 
