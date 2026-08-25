@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T18:34:30",
+  "updated": "2026-08-25T18:39:45",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -126,9 +126,11 @@
         "id": "clive-proxy-retire",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a039c6-c781-79b0-a6a4-a95977392d86",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a039c6-c781-79b0-a6a4-a95977392d86"
+        },
         "created": "2026-08-25"
       },
       {
@@ -7634,9 +7636,197 @@
           "role": "implement",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260825T163524266796-clive-context-window",
+        "plan": "clive-local-only-routing",
+        "section": "\u00a74c",
+        "node": "clive-context-window",
+        "node_definition": {
+          "done_when": "The printed launcher exports CLAUDE_CODE_MAX_CONTEXT_TOKENS from the max_model_len field of the /v1/models response and omits the variable when that field is absent, demonstrated by a recorded run against two stub JSON payloads (one with max_model_len, one without), and 'bash -n' on the printed script exits 0",
+          "estimated_hours": 0.5,
+          "goal": "Export the served context window into the clive launcher from the endpoint's reported max_model_len",
+          "id": "clive-context-window",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T163524266796-clive-context-window/manifest.md",
+          "plan": "clive-local-only-routing",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74c",
+          "spec_level": "guided",
+          "time_budget": "20m",
+          "write_paths": [
+            "imas_ambix/agent/clive.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "clive-route-strip",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T16:35:34Z",
+        "completed_at": "2026-08-25T16:38:26Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 172,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 172,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "20fb27c95cedd7afba0c446a1ec1a65ac1b44f9f",
+        "commits": [
+          "3d2cd351f801785ceac4e08665f91f0720d0a09d"
+        ],
+        "changed_lines": {
+          "added": 11,
+          "removed": 3,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T163524266796-clive-context-window/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a039c1-ca48-7db1-b6fa-5ad358014ff2",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 654336,
+            "cached_input_tokens_cumulative": 1416704,
+            "input_tokens": 623752,
+            "input_tokens_cumulative": 1460905,
+            "output_tokens": 2,
+            "output_tokens_cumulative": 7502,
+            "reasoning_output_tokens": 1594,
+            "reasoning_output_tokens_cumulative": 2721
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
+      },
+      {
+        "run_id": "r-20260825T163513463363-clive-proxy-retire",
+        "plan": "clive-local-only-routing",
+        "section": "\u00a74b",
+        "node": "clive-proxy-retire",
+        "node_definition": {
+          "done_when": "imas_ambix/agent/litellm_config.py and litellm_service.py no longer exist, a recorded 'grep -rn litellm|litellm_config_path|litellm_service_path imas_ambix tests' exits 1 with no hits, 'uv run --no-sync pytest tests/test_agent.py' exits 0, and 'uv run --no-sync ruff check imas_ambix tests' exits 0",
+          "estimated_hours": 0.75,
+          "goal": "Delete the LiteLLM proxy generators and every repository reference to them",
+          "id": "clive-proxy-retire",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T163513463363-clive-proxy-retire/manifest.md",
+          "plan": "clive-local-only-routing",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74b",
+          "spec_level": "guided",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/agent/cli.py",
+            "imas_ambix/agent/litellm_config.py",
+            "imas_ambix/agent/litellm_service.py",
+            "imas_ambix/agent/profile.py",
+            "tests/test_agent.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "clive-proxy-retire",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T16:35:22Z",
+        "completed_at": "2026-08-25T16:39:10Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 228,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 228,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "20fb27c95cedd7afba0c446a1ec1a65ac1b44f9f",
+        "commits": [
+          "441f5b422e547452bf2e329a5cbbb71f2ca5cbe7"
+        ],
+        "changed_lines": {
+          "added": 7,
+          "removed": 297,
+          "files": 5
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T163513463363-clive-proxy-retire/manifest.md",
+        "scope_changed": true,
+        "session_id": "01a039c6-c781-79b0-a6a4-a95977392d86",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1217536,
+            "cached_input_tokens_cumulative": 1217536,
+            "input_tokens": 1303579,
+            "input_tokens_cumulative": 1303579,
+            "output_tokens": 9184,
+            "output_tokens_cumulative": 9184,
+            "reasoning_output_tokens": 1415,
+            "reasoning_output_tokens_cumulative": 1415
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent.py'",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 242
+    "_version": 245
   }
 }
