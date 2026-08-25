@@ -22,10 +22,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-25">
-<meta name="plan-version" content="6">
-<meta name="plan-commits" content="49d30657620ca5b2bd02b2b1aaf3a4fe3d7bbfe1,83ffb0b317dcd1857b5db6a56d38fa69c69d54af">
+<meta name="plan-version" content="8">
+<meta name="plan-commits" content="49d30657620ca5b2bd02b2b1aaf3a4fe3d7bbfe1,83ffb0b317dcd1857b5db6a56d38fa69c69d54af,441f5b422e547452bf2e329a5cbbb71f2ca5cbe7,3d2cd351f801785ceac4e08665f91f0720d0a09d">
 <meta name="plan-artifacts" content="docs/evidence/archive/clive-local-only-routing-landed.html,/home/ITER/mcintos/.config/reckon/crew/reports/clive-reuse-map.md">
-<meta name="plan-impl" content="0.2857">
+<meta name="plan-impl" content="0.5714">
 </head>
 <body>
   <main class="plan-doc">
@@ -238,41 +238,28 @@ fi</pre>
     <a href="/imas-ambix/evidence/archive/clive-local-only-routing-landed#s4a">§4a landed</a>
     (commit <code>49d3065</code>).</p>
 
-    <h3 id="s4b">§4b — Retire the LiteLLM proxy surface</h3>
+    <h3 id="s4b"><span class="badge badge-shipped">✓ landed 2026-08-25</span> §4b — Retire the LiteLLM proxy surface</h3>
 
-    <p>Delete <code>imas_ambix/agent/litellm_config.py</code> and
-    <code>imas_ambix/agent/litellm_service.py</code>, and remove their imports, generation
-    calls, deploy-table entries, systemd install step and reporting lines from
-    <code>imas_ambix/agent/cli.py</code>'s <code>clive_command</code>. Drop any now-unused
-    <code>SiteConfig</code> fields (<code>litellm_config_path</code>,
-    <code>litellm_service_path</code>) once nothing references them.</p>
+    <p class="landed-summary">Deleted <code>litellm_config.py</code> and
+    <code>litellm_service.py</code> with their CLI imports, deploy entries, systemd install
+    step and both <code>SiteConfig</code> launcher paths — <strong>−297 net lines</strong>.
+    Gate passed: the repository reference scan exits 1 with <strong>0</strong> hits,
+    <code>pytest tests/test_agent.py</code> reports <strong>100 passed</strong>, and deploy
+    now writes exactly one artifact. The authored whole-tree lint clause was corrected at
+    integration as unachievable against 266 pre-existing repository errors. Full record:
+    <a href="/imas-ambix/evidence/archive/clive-local-only-routing-landed#s4b">§4b landed</a>
+    (commit <code>441f5b4</code>).</p>
 
-    <p>Then clear the deployed artifacts. Stop and disable the per-user unit
-    (<code>imas-ambix-llm.service</code>) and remove it from
-    <code>~/.config/systemd/user/</code>; remove <code>litellm_config.yaml</code> and
-    <code>imas-ambix-llm-env.sh</code> from <code>/work/projects/imas_gpu/agents/</code>.
-    Remove the stale <code>orclive</code> script there as well. It is an OpenRouter-capable
-    launcher sitting in the group-shared directory as an orphan: its generator
-    <code>imas_ambix/agent/orclive.py</code> (125 lines) was deleted in commit
-    <code>7162db7</code> on 2026-06-26, the same day the unified <code>clive</code> superseded
-    it, but the deployed copy from three hours earlier was never cleaned up. Nothing
-    regenerates it and nothing references it.</p>
+    <h3 id="s4c"><span class="badge badge-shipped">✓ landed 2026-08-25</span> §4c — Declare the real context window</h3>
 
-    <p><strong>Done when</strong> <code>imas-ambix agent clive --deploy</code> writes exactly
-    one artifact, the group-shared agents directory holds no OpenRouter-capable launcher
-    or config, and the unit is gone.</p>
-
-    <h3 id="s4c">§4c — Declare the real context window</h3>
-
-    <p>Claude Code does not recognize <code>deepseek-v4-flash</code> and therefore assumes a
-    200k context window, warning as much on every launch, while the server reports
-    <code>max_model_len</code> 524288. clive already queries <code>/v1/models</code> to
-    discover the model name; it should read <code>max_model_len</code> from the same
-    response and export <code>CLAUDE_CODE_MAX_CONTEXT_TOKENS</code>. Omit the variable when
-    the field is absent rather than guessing a value.</p>
-
-    <p><strong>Done when</strong> a clive launch against the live endpoint no longer prints
-    the unrecognized-model context warning.</p>
+    <p class="landed-summary">The launcher now reads <code>id</code> and
+    <code>max_model_len</code> from one <code>/v1/models</code> response and exports
+    <code>CLAUDE_CODE_MAX_CONTEXT_TOKENS</code>. Gate passed: a stub reporting 524288
+    exported exactly <strong>524288</strong>, and a stub omitting the field left the
+    variable unset, clearing an inherited sentinel rather than guessing. Claude Code had
+    been assuming 200k on a 512k model. Full record:
+    <a href="/imas-ambix/evidence/archive/clive-local-only-routing-landed#s4c">§4c landed</a>
+    (commit <code>3d2cd35</code>).</p>
 
     <h3 id="s4d"><span class="badge badge-shipped">✓ landed 2026-08-25</span> §4d — Correct the agent documentation</h3>
 
@@ -382,7 +369,7 @@ fi</pre>
     <div class="r-comment-body"><p>Reuse map: 2 modules to delete, 3 production symbols to edit, 2 affected tests; no test imports generate_clive_script</p></div>
 </div>
 <div class="r-comment" data-section="§4b" data-id="c-run-r-20260825T163513463363-clive-proxy-retire" data-who="clive-proxy-retire" data-when="2026-08-25T16:39:10Z">
-    <div class="r-comment-body"><p>Both generators deleted, -297 net lines; repository reference grep exits 1 with 0 hits; pytest tests/test_agent.py 100 passed; scoped ruff exit 0. Gate corrected at integration: the authored whole-tree ruff clause was unachievable (266 pre-existing errors on main, outside any node fence) and is not this plan&#x27;s scope</p></div>
+    <div class="r-comment-body"><p>Both generators deleted, -297 net lines; repository reference grep exits 1 with 0 hits; pytest tests/test_agent.py 100 passed; scoped ruff exit 0. Gate corrected at integration: the authored whole-tree ruff clause was unachievable (266 pre-existing errors on main, outside any node fence) and is not this plan's scope</p></div>
 </div>
 <div class="r-comment" data-section="§4a" data-id="c-run-r-20260825T162947507227-clive-route-strip" data-who="clive-route-strip" data-when="2026-08-25T16:32:47Z">
     <div class="r-comment-body"><p>Generated launcher has 0 matches for openrouter/litellm/systemctl/or-*; bash -n and ruff clean; direct-route env vars present</p></div>
@@ -392,6 +379,9 @@ fi</pre>
 </div>
 <div class="r-comment" data-section="§4c" data-id="c-run-r-20260825T163524266796-clive-context-window" data-who="clive-route-strip" data-when="2026-08-25T16:38:26Z">
     <div class="r-comment-body"><p>Stub with max_model_len 524288 exported exactly 524288; stub without the field omitted the variable and cleared an inherited sentinel; bash -n and scoped ruff exit 0</p></div>
+</div>
+<div class="r-comment" data-section="§4f" data-id="c-run-r-20260825T164025016573-clive-public-mirror" data-who="clive-proxy-retire" data-when="2026-08-25T16:42:46Z">
+    <div class="r-comment-body"><p>--destination PATH lists in --help, defaults to the shared path, governs deploy and --path; cmp against --print exit 0 on a 4237-byte mirror, executable mode kept; ruff exit 0; pytest 100 passed</p></div>
 </div>
 </section>
 </main>
