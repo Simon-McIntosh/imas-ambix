@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-23T12:55:18",
+  "updated": "2026-08-25T18:34:30",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -101,6 +101,57 @@
         "role": "implement",
         "session_id": "01a01bd6-abe8-7c22-95dc-d619d5b858e2",
         "created": "2026-08-19"
+      },
+      {
+        "id": "clive-doc-contract",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a039c2-19f2-73a0-b862-9609dbc0e3f5",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a039c2-19f2-73a0-b862-9609dbc0e3f5"
+        },
+        "created": "2026-08-25"
+      },
+      {
+        "id": "clive-endpoint-verify",
+        "harness": "codex",
+        "role": "test",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-25"
+      },
+      {
+        "id": "clive-proxy-retire",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-25"
+      },
+      {
+        "id": "clive-reuse-scout",
+        "harness": "codex",
+        "role": "investigate",
+        "session_id": "01a039c1-79ad-7ef3-a70a-f81c5f93ea7d",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a039c1-79ad-7ef3-a70a-f81c5f93ea7d"
+        },
+        "created": "2026-08-25"
+      },
+      {
+        "id": "clive-route-strip",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a039c1-ca48-7db1-b6fa-5ad358014ff2",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a039c1-ca48-7db1-b6fa-5ad358014ff2"
+        },
+        "created": "2026-08-25"
       },
       {
         "id": "cocos-transform",
@@ -7313,9 +7364,279 @@
           "detail": "backend reports token usage but no headroom"
         },
         "lineage": null
+      },
+      {
+        "run_id": "r-20260825T162924258303-clive-reuse-map",
+        "plan": "clive-local-only-routing",
+        "section": "\u00a74b",
+        "node": "clive-reuse-map",
+        "node_definition": {
+          "done_when": "The report lists each file and symbol referencing litellm_config, litellm_service, litellm_config_path, litellm_service_path, or clive OpenRouter routing, each with a keep-or-remove verdict, and names every test that imports them",
+          "estimated_hours": null,
+          "goal": "Map every consumer of the LiteLLM proxy surface in the imas-ambix repository",
+          "id": "clive-reuse-map",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T162924258303-clive-reuse-map/manifest.md",
+          "plan": "clive-local-only-routing",
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a74b",
+          "spec_level": "guided",
+          "time_budget": "8m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/clive-reuse-map.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "guided",
+        "member": "clive-reuse-scout",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-08-25T16:29:35Z",
+        "completed_at": "2026-08-25T16:33:47Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 252,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 252,
+        "stalled": false,
+        "time_budget": "8m",
+        "base_sha": "ef8db4f00530180411df6e5c2aaaacafb867af77",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T162924258303-clive-reuse-map/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a039c1-79ad-7ef3-a70a-f81c5f93ea7d",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1539584,
+            "cached_input_tokens_cumulative": 1539584,
+            "input_tokens": 1649763,
+            "input_tokens_cumulative": 1649763,
+            "output_tokens": 9813,
+            "output_tokens_cumulative": 9813,
+            "reasoning_output_tokens": 3083,
+            "reasoning_output_tokens_cumulative": 3083
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        }
+      },
+      {
+        "run_id": "r-20260825T162947507227-clive-route-strip",
+        "plan": "clive-local-only-routing",
+        "section": "\u00a74a",
+        "node": "clive-route-strip",
+        "node_definition": {
+          "done_when": "A recorded 'grep -Eic openrouter|litellm|systemctl|or-opus|or-sonnet|or-gpt|or-glm' over the output of 'uv run imas-ambix agent clive --print' returns 0, and the printed script sets ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN and the opus/sonnet/haiku aliases plus ANTHROPIC_MODEL to the auto-detected served model",
+          "estimated_hours": 0.5,
+          "goal": "Remove the OpenRouter and LiteLLM proxy route from the clive launcher generator so it always routes directly to the local served model",
+          "id": "clive-route-strip",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T162947507227-clive-route-strip/manifest.md",
+          "plan": "clive-local-only-routing",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74a",
+          "spec_level": "guided",
+          "time_budget": "20m",
+          "write_paths": [
+            "imas_ambix/agent/clive.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "clive-route-strip",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T16:29:56Z",
+        "completed_at": "2026-08-25T16:32:47Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 171,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 171,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "ef8db4f00530180411df6e5c2aaaacafb867af77",
+        "commits": [
+          "49d30657620ca5b2bd02b2b1aaf3a4fe3d7bbfe1"
+        ],
+        "changed_lines": {
+          "added": 16,
+          "removed": 122,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T162947507227-clive-route-strip/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a039c1-ca48-7db1-b6fa-5ad358014ff2",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 762368,
+            "cached_input_tokens_cumulative": 762368,
+            "input_tokens": 837153,
+            "input_tokens_cumulative": 837153,
+            "output_tokens": 7500,
+            "output_tokens_cumulative": 7500,
+            "reasoning_output_tokens": 1127,
+            "reasoning_output_tokens_cumulative": 1127
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
+      },
+      {
+        "run_id": "r-20260825T163006774804-clive-doc-contract",
+        "plan": "clive-local-only-routing",
+        "section": "\u00a74d",
+        "node": "clive-doc-contract",
+        "node_definition": {
+          "done_when": "A recorded 'grep -Ein orclaude|openrouter|litellm|or-opus|or-sonnet|or-gpt|or-glm|imas-ambix-llm' over imas_ambix/agent/AGENTS.md returns only lines that explain why the proxy route was removed, and the clive section states that LiteLLM's anthropic provider sends x-api-key while vLLM accepts only Authorization Bearer",
+          "estimated_hours": 0.5,
+          "goal": "Rewrite the clive section of the agent guide to document the local-only routing contract",
+          "id": "clive-doc-contract",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T163006774804-clive-doc-contract/manifest.md",
+          "plan": "clive-local-only-routing",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74d",
+          "spec_level": "guided",
+          "time_budget": "20m",
+          "write_paths": [
+            "imas_ambix/agent/AGENTS.md"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "clive-doc-contract",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T16:30:16Z",
+        "completed_at": "2026-08-25T16:33:43Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 207,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 207,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "ef8db4f00530180411df6e5c2aaaacafb867af77",
+        "commits": [
+          "83ffb0b317dcd1857b5db6a56d38fa69c69d54af"
+        ],
+        "changed_lines": {
+          "added": 34,
+          "removed": 81,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T163006774804-clive-doc-contract/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a039c2-19f2-73a0-b862-9609dbc0e3f5",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 895488,
+            "cached_input_tokens_cumulative": 895488,
+            "input_tokens": 966342,
+            "input_tokens_cumulative": 966342,
+            "output_tokens": 9032,
+            "output_tokens_cumulative": 9032,
+            "reasoning_output_tokens": 2341,
+            "reasoning_output_tokens_cumulative": 2341
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 231
+    "_version": 242
   }
 }

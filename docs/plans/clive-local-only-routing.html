@@ -21,6 +21,8 @@
   <title>Clive Local-Only Routing | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-08-25">
+<meta name="plan-version" content="3">
 </head>
 <body>
   <main class="plan-doc">
@@ -320,49 +322,56 @@ fi</pre>
     against the live endpoint from outside <code>/work</code>.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-
-      <div class="r-dec" data-key="clive-openrouter-surface" data-choice="remove-entirely" data-by="Simon McIntosh" data-when="2026-08-25">
-        <p class="r-dec-q">Should the shared SDCC clive keep any OpenRouter capability?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="remove-entirely">remove-entirely</button>
-          <button class="r-opt" data-value="opt-in-flag">opt-in-flag</button>
-          <button class="r-opt" data-value="fix-proxy-auth">fix-proxy-auth</button>
-        </p>
-        <p class="r-dec-rat">Owner directive: clive is for DSv4, the local model, and the
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="clive-openrouter-surface" data-choice="remove-entirely" data-by="Simon McIntosh" data-when="2026-08-25">
+    <p class="r-dec-q">Should the shared SDCC clive keep any OpenRouter capability?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="remove-entirely">remove-entirely</button>
+      <button class="r-opt" data-value="opt-in-flag">opt-in-flag</button>
+      <button class="r-opt" data-value="fix-proxy-auth">fix-proxy-auth</button>
+      </p>
+    <p class="r-dec-rat">Owner directive: clive is for DSv4, the local model, and the
         SDCC-public version must not be OpenRouter-accessible. Removal — rather than an
-        opt-in flag or repairing the proxy's auth header — is what makes that boundary
+        opt-in flag or repairing the proxy&#x27;s auth header — is what makes that boundary
         real: a dormant route in a group-shared directory is still an OpenRouter surface,
-        and it keeps a cluster launcher's default model contingent on a personal
-        third-party account's credit.</p>
-      </div>
-
-      <div class="r-dec" data-key="local-auth-transport" data-choice="claude-code-direct" data-by="Simon McIntosh" data-when="2026-08-25">
-        <p class="r-dec-q">How should clive authenticate to the local vLLM endpoint?</p>
-        <p class="r-dec-rat">Directly, with <code>ANTHROPIC_AUTH_TOKEN</code>, which Claude
-        Code sends as <code>Authorization: Bearer</code> — the only scheme vLLM's api-key
-        middleware accepts, verified 200 against 401 for <code>x-api-key</code>. Removing
+        and it keeps a cluster launcher&#x27;s default model contingent on a personal
+        third-party account&#x27;s credit.</p>
+    </div>
+<div class="r-dec" data-key="local-auth-transport" data-choice="claude-code-direct" data-by="Simon McIntosh" data-when="2026-08-25">
+    <p class="r-dec-q">How should clive authenticate to the local vLLM endpoint?</p>
+    <p class="r-dec-rat">Directly, with ANTHROPIC_AUTH_TOKEN , which Claude
+        Code sends as Authorization: Bearer — the only scheme vLLM&#x27;s api-key
+        middleware accepts, verified 200 against 401 for x-api-key . Removing
         the proxy removes the mismatch at its source rather than patching a header
         override into a gateway that no longer has a purpose.</p>
-      </div>
-    </section>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-clv-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-08-25">
-        <h4 class="r-fu-title">Ship the local-only clive routing fix and retire the OpenRouter surface</h4>
-        <div class="r-fu-body">
-          <p>RCA complete and the decision is locked: both faults live on the LiteLLM proxy
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-clv-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-08-25" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Ship the local-only clive routing fix and retire the OpenRouter surface</h4>
+    <div class="r-fu-body"><p>RCA complete and the decision is locked: both faults live on the LiteLLM proxy
           route, and that route is being deleted rather than repaired. §4a-§4f carry the
           work — strip the route from the generator, retire the proxy surface and its
           deployed artifacts, declare the real context window, correct the agent
           documentation, mirror the launcher to a world-readable home path, and verify
-          against the live endpoint with the OpenRouter key file still in place.</p>
-        </div>
-        <pre class="r-fu-prompt">/reckon-ship clive-local-only-routing</pre>
-      </article>
-    </section>
+          against the live endpoint with the OpenRouter key file still in place.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship clive-local-only-routing</pre>
+    </article>
+</section>
 
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="§4b" data-id="c-run-r-20260825T162924258303-clive-reuse-map" data-who="clive-reuse-scout" data-when="2026-08-25T16:33:47Z">
+    <div class="r-comment-body"><p>Reuse map: 2 modules to delete, 3 production symbols to edit, 2 affected tests; no test imports generate_clive_script</p></div>
+</div>
+<div class="r-comment" data-section="§4a" data-id="c-run-r-20260825T162947507227-clive-route-strip" data-who="clive-route-strip" data-when="2026-08-25T16:32:47Z">
+    <div class="r-comment-body"><p>Generated launcher has 0 matches for openrouter/litellm/systemctl/or-*; bash -n and ruff clean; direct-route env vars present</p></div>
+</div>
+<div class="r-comment" data-section="§4d" data-id="c-run-r-20260825T163006774804-clive-doc-contract" data-who="clive-doc-contract" data-when="2026-08-25T16:33:43Z">
+    <div class="r-comment-body"><p>Agent guide clive section replaced: 81 adaptive-proxy lines to 34 local-only lines; remaining proxy-surface grep matches are the removal rationale only</p></div>
+</div>
+</section>
+</main>
 </body>
 </html>
