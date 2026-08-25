@@ -1,4 +1,4 @@
-"""Filtering / forecasting / smoothing inference for the RKN engine (S7.3).
+"""Filtering, forecasting and smoothing inference for the RKN engine.
 
 Three inference modes over the latent state-space engine in ``engine.py``:
 
@@ -7,8 +7,7 @@ Three inference modes over the latent state-space engine in ``engine.py``:
                    transition kernel forward h steps WITHOUT seeing inputs_{t+1..}
                    and WITHOUT observing Dα; push the propagated belief through the
                    observation head → Dα_{t+h} with propagated uncertainty.
-  3. SMOOTHING   — OPTIONAL: backward RTS-style pass for the best trajectory
-                   ("for later discovery" per plan §3).
+  3. SMOOTHING   — OPTIONAL: backward RTS-style pass for the best trajectory.
 
 These wrap the module methods (``filter_sequence``, ``rollout``) and return
 numpy arrays so the calibration harness (``calibration.py``) can score them.
@@ -17,7 +16,7 @@ Conventions (match baseline.py so the comparison is clean)
 ----------------------------------------------------------
 - Inputs / targets are normalised with the SAME ``ChannelStats`` as the static
   comparator; predictions are denormalised back to physical Dα units before
-  scoring, so CRPS/NLL are in the same units as S7.2's 0.334 / 0.634.
+  scoring, so CRPS/NLL remain in the comparator's physical units.
 - CRPS / NLL are reported on RAW predictive σ (matching baseline ``_eval_split``);
   coverage / PI-width use per-horizon split-conformal σ.
 """
@@ -26,11 +25,13 @@ from __future__ import annotations
 
 import logging
 import math
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
 
-from imas_ambix.statespace.engine import RKNEngine
+if TYPE_CHECKING:
+    from imas_ambix.statespace.engine import RKNEngine
 
 logger = logging.getLogger(__name__)
 
@@ -151,8 +152,7 @@ def smooth_shot(
     one-step-ahead prediction using a per-dimension smoother gain derived from the
     learned variance-transition factor a².  Returns smoothed Dα (mean, var).
 
-    This is the "best trajectory, for later discovery" mode (plan §3); it does not
-    enter the acceptance gate.
+    This best-trajectory mode does not enter the acceptance gate.
     """
     model.eval()
     xb = torch.from_numpy(x_norm[np.newaxis]).float().to(device)
@@ -182,7 +182,7 @@ def smooth_shot(
 
 
 # ---------------------------------------------------------------------------
-# Latent-surfacing variants (T7 discovery track — additive; no change to above)
+# Additive latent-surfacing variants for downstream diagnostics
 # ---------------------------------------------------------------------------
 
 
@@ -196,8 +196,7 @@ def filter_shot_latents(
 
     A strict superset of :func:`filter_shot`: the existing public function is
     unchanged and its return contract is unchanged.  This companion surfaces the
-    posterior latent means / variances that ``filter_shot`` previously discarded
-    (the ``_z, _v`` stubs in the original).
+    posterior latent means and variances alongside the observation outputs.
 
     Parameters
     ----------
@@ -224,7 +223,7 @@ def smooth_shot_latents(
 
     A strict superset of :func:`smooth_shot`: the existing public function is
     unchanged.  This companion exposes the per-timestep smoothed (and filtered)
-    latent means / variances that the discovery track (T7+) needs, without
+    latent means and variances that downstream diagnostics need, without
     duplicating the backward pass.
 
     Parameters

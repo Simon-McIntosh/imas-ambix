@@ -1,6 +1,6 @@
 """Static cross-family baseline: deep ensemble + split-conformal calibration.
 
-Implements the S7.2 static comparator for the plasma-state-space-v0 pipeline.
+Implements the static comparator for the plasma state-space pipeline.
 
 Architecture
 ------------
@@ -50,17 +50,13 @@ from __future__ import annotations
 import json
 import logging
 import math
-import os
 import time
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -79,43 +75,127 @@ _AMA_CHANNELS: list[str] = [
     "n=odd_signal",
 ]
 
-# All 73 amb channels present in >90% of shots (empirically verified on 300-shot sample).
+# All 73 amb channels present in >90% of shots (verified on a 300-shot sample).
 _AMB_CHANNELS: list[str] = [
-    "ccbv03", "ccbv04", "ccbv05", "ccbv07", "ccbv08", "ccbv09",
-    "ccbv11", "ccbv12", "ccbv14", "ccbv15", "ccbv16", "ccbv17",
-    "ccbv18", "ccbv19", "ccbv20", "ccbv21", "ccbv24", "ccbv25",
-    "ccbv26", "ccbv27", "ccbv28", "ccbv29", "ccbv30", "ccbv31",
-    "ccbv32", "ccbv33", "ccbv34", "ccbv36", "ccbv37", "ccbv38",
-    "ccbv39", "ccbv40",
-    "fl_cc03", "fl_cc04", "fl_cc05", "fl_cc07", "fl_cc09",
-    "fl_p2l_1", "fl_p3u_1", "fl_p3u_4",
-    "fl_p4l_1", "fl_p4l_4", "fl_p4u_4",
-    "fl_p5l_1", "fl_p5l_4", "fl_p5u_1",
-    "obr01", "obr04", "obr05", "obr06", "obr08",
-    "obr09", "obr10", "obr12", "obr13", "obr14",
-    "obr15", "obr16", "obr17", "obr18",
-    "obv03", "obv04", "obv05", "obv06", "obv08",
-    "obv09", "obv11", "obv13", "obv14", "obv16",
-    "obv17", "obv18", "obv19",
+    "ccbv03",
+    "ccbv04",
+    "ccbv05",
+    "ccbv07",
+    "ccbv08",
+    "ccbv09",
+    "ccbv11",
+    "ccbv12",
+    "ccbv14",
+    "ccbv15",
+    "ccbv16",
+    "ccbv17",
+    "ccbv18",
+    "ccbv19",
+    "ccbv20",
+    "ccbv21",
+    "ccbv24",
+    "ccbv25",
+    "ccbv26",
+    "ccbv27",
+    "ccbv28",
+    "ccbv29",
+    "ccbv30",
+    "ccbv31",
+    "ccbv32",
+    "ccbv33",
+    "ccbv34",
+    "ccbv36",
+    "ccbv37",
+    "ccbv38",
+    "ccbv39",
+    "ccbv40",
+    "fl_cc03",
+    "fl_cc04",
+    "fl_cc05",
+    "fl_cc07",
+    "fl_cc09",
+    "fl_p2l_1",
+    "fl_p3u_1",
+    "fl_p3u_4",
+    "fl_p4l_1",
+    "fl_p4l_4",
+    "fl_p4u_4",
+    "fl_p5l_1",
+    "fl_p5l_4",
+    "fl_p5u_1",
+    "obr01",
+    "obr04",
+    "obr05",
+    "obr06",
+    "obr08",
+    "obr09",
+    "obr10",
+    "obr12",
+    "obr13",
+    "obr14",
+    "obr15",
+    "obr16",
+    "obr17",
+    "obr18",
+    "obv03",
+    "obv04",
+    "obv05",
+    "obv06",
+    "obv08",
+    "obv09",
+    "obv11",
+    "obv13",
+    "obv14",
+    "obv16",
+    "obv17",
+    "obv18",
+    "obv19",
 ]
 
 # amc channels (excludes: time, passnumber, status, timesec, error_field_{a,b})
 _AMC_CHANNELS: list[str] = [
     "efps_current",
-    "p2il_coil_current", "p2il_feed_current",
-    "p2iu_coil_current", "p2iu_feed_current",
-    "p2l_case_current", "p2l_current",
-    "p2ol_coil_current", "p2ol_feed_current",
-    "p2ou_coil_current", "p2ou_feed_current",
-    "p2u_case_current", "p2u_current",
-    "p3l_case_current", "p3l_coil_current", "p3l_current", "p3l_feed_current",
-    "p3u_case_current", "p3u_coil_current", "p3u_current", "p3u_feed_current",
-    "p4l_case_current", "p4l_coil_current", "p4l_current", "p4l_feed_current",
-    "p4u_case_current", "p4u_coil_current", "p4u_current", "p4u_feed_current",
-    "p5l_case_current", "p5l_coil_current", "p5l_current", "p5l_feed_current",
-    "p5u_case_current", "p5u_coil_current", "p5u_current", "p5u_feed_current",
-    "p6l_current", "p6u_current",
-    "plasma_current", "sol_current", "tf_current",
+    "p2il_coil_current",
+    "p2il_feed_current",
+    "p2iu_coil_current",
+    "p2iu_feed_current",
+    "p2l_case_current",
+    "p2l_current",
+    "p2ol_coil_current",
+    "p2ol_feed_current",
+    "p2ou_coil_current",
+    "p2ou_feed_current",
+    "p2u_case_current",
+    "p2u_current",
+    "p3l_case_current",
+    "p3l_coil_current",
+    "p3l_current",
+    "p3l_feed_current",
+    "p3u_case_current",
+    "p3u_coil_current",
+    "p3u_current",
+    "p3u_feed_current",
+    "p4l_case_current",
+    "p4l_coil_current",
+    "p4l_current",
+    "p4l_feed_current",
+    "p4u_case_current",
+    "p4u_coil_current",
+    "p4u_current",
+    "p4u_feed_current",
+    "p5l_case_current",
+    "p5l_coil_current",
+    "p5l_current",
+    "p5l_feed_current",
+    "p5u_case_current",
+    "p5u_coil_current",
+    "p5u_current",
+    "p5u_feed_current",
+    "p6l_current",
+    "p6u_current",
+    "plasma_current",
+    "sol_current",
+    "tf_current",
 ]
 
 # ane: single density channel (line-integrated, m^-2)
@@ -221,7 +301,7 @@ def _build_common_time_grid(
     """Build a uniform time grid for one shot from the anchor group's extent."""
     if anchor_group not in store:
         return None
-    t = np.asarray(store[anchor_group]["time"] if "time" in store[anchor_group] else [])
+    t = np.asarray(store[anchor_group].get("time", []))
     if t.size < 2:
         return None
     t_start = float(t.min())
@@ -300,7 +380,11 @@ def load_shot_slices(
     plasma_on = np.zeros(len(times), dtype=bool)
     if "amc" in store and "plasma_current" in store["amc"]:
         ip = np.asarray(store["amc"]["plasma_current"], dtype=np.float64)
-        ip_t = np.asarray(store["amc"]["time"], dtype=np.float64) if "time" in store["amc"] else None
+        ip_t = (
+            np.asarray(store["amc"]["time"], dtype=np.float64)
+            if "time" in store["amc"]
+            else None
+        )
         if ip_t is not None and ip.shape == ip_t.shape:
             ip_on_grid = np.interp(times, ip_t, np.abs(ip))
             peak = float(np.nanmax(ip_on_grid))
@@ -360,7 +444,9 @@ def load_shot_slices(
     return X, y, times, plasma_on
 
 
-def compute_transient_mask(y: np.ndarray, threshold_sigma: float = _TRANSIENT_DDALPHA_THRESHOLD) -> np.ndarray:
+def compute_transient_mask(
+    y: np.ndarray, threshold_sigma: float = _TRANSIENT_DDALPHA_THRESHOLD
+) -> np.ndarray:
     """Classify slices as transient (ELM) vs quiescent from Dα activity.
 
     A slice is transient if |dDα/dt| > threshold_sigma × std(|dDα/dt|),
@@ -396,10 +482,11 @@ class ChannelStats:
 
     Fit on training slices only; applied to all splits.
     """
+
     feature_mean: np.ndarray  # (F,)
-    feature_std: np.ndarray   # (F,) — clamped to ≥ 1e-8
-    target_mean: np.ndarray   # (D,)
-    target_std: np.ndarray    # (D,) — clamped to ≥ 1e-8
+    feature_std: np.ndarray  # (F,) — clamped to ≥ 1e-8
+    target_mean: np.ndarray  # (D,)
+    target_std: np.ndarray  # (D,) — clamped to ≥ 1e-8
 
     def normalise_X(self, X: np.ndarray) -> np.ndarray:
         return (X - self.feature_mean) / self.feature_std
@@ -422,7 +509,7 @@ class ChannelStats:
         }
 
     @classmethod
-    def fit(cls, X_list: list[np.ndarray], y_list: list[np.ndarray]) -> "ChannelStats":
+    def fit(cls, X_list: list[np.ndarray], y_list: list[np.ndarray]) -> ChannelStats:
         """Fit on a list of per-shot arrays (pools all slices)."""
         X_all = np.concatenate(X_list, axis=0)
         y_all = np.concatenate(y_list, axis=0)
@@ -474,7 +561,9 @@ class MLPGaussian:
 
         # He-initialise weights, zero-init biases
         def _he(fan_in: int, fan_out: int) -> np.ndarray:
-            return rng.normal(0, math.sqrt(2.0 / fan_in), (fan_in, fan_out)).astype(np.float64)
+            return rng.normal(0, math.sqrt(2.0 / fan_in), (fan_in, fan_out)).astype(
+                np.float64
+            )
 
         self.W1 = _he(input_dim, hidden_size)
         self.b1 = np.zeros(hidden_size)
@@ -585,14 +674,14 @@ class MLPGaussian:
         decimated-data behaviour) applies global-norm gradient clipping. Set it
         (e.g. ``grad_clip=10.0``) when training on sharp targets — dense,
         un-decimated Dα ELM spikes drove unclipped members to NLL≈+7 / σ≈87 and
-        a meaningless predictor (found during S7.3, 2026-05-29). Off by default
-        so existing S7.2 (decimated-slice) runs are bit-for-bit unchanged.
+        a meaningless predictor. Off by default so decimated-slice runs remain
+        bit-for-bit unchanged.
         """
         if rng is None:
             rng = np.random.default_rng(self.seed + 1000)
         N = X_train.shape[0]
         epoch_losses: list[float] = []
-        for epoch in range(n_epochs):
+        for _epoch in range(n_epochs):
             perm = rng.permutation(N)
             epoch_loss = 0.0
             n_batches = 0
@@ -644,7 +733,7 @@ class DeepEnsemble:
         input_dim: int,
         output_dim: int,
         cfg: EnsembleConfig,
-    ) -> "DeepEnsemble":
+    ) -> DeepEnsemble:
         members = [
             MLPGaussian(
                 input_dim=input_dim,
@@ -682,9 +771,7 @@ class DeepEnsemble:
                 time.time() - t0,
             )
 
-    def predict(
-        self, X: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def predict(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Predict predictive mean, total std, and per-member arrays.
 
         Returns
@@ -982,15 +1069,17 @@ def _eval_split(
     ood_ood_scores: np.ndarray | None = None,
     distances: np.ndarray | None = None,
 ) -> dict:
-    """Evaluate all §4 metrics on a split.
+    """Evaluate all calibration and predictive metrics on a split.
 
     Returns a dict of metrics (JSON-serialisable).
     """
     from imas_ambix.statespace.calibration import (  # noqa: PLC0415
         compute_calibration_report,
         coverage_vs_distance,
-        crps_ensemble as _crps_ens,
         ensemble_disagreement,
+    )
+    from imas_ambix.statespace.calibration import (
+        crps_ensemble as _crps_ens,
     )
 
     if not Xs:
@@ -1001,8 +1090,6 @@ def _eval_split(
     tmask_all = np.concatenate(tmasks, axis=0)
 
     X_norm = stats.normalise_X(X_all)
-    y_norm = stats.normalise_y(y_all)
-
     mu_norm, sigma_raw, sigma_conf, ens_preds = conformal.predict_calibrated(X_norm)
 
     # Denormalise for physical-space metrics
@@ -1030,14 +1117,18 @@ def _eval_split(
     # Full calibration report (using conformal-scaled σ for coverage gate;
     # raw σ for NLL + CRPS to avoid distorting likelihood metrics)
     report_conf = compute_calibration_report(
-        y_1d, mu_1d, sc_1d,
+        y_1d,
+        mu_1d,
+        sc_1d,
         ensemble=ens_preds[:, :, 0:1] if D >= 1 else ens_preds,
         ood_in_dist_scores=ood_in_dist_scores,
         ood_ood_scores=ood_ood_scores,
     )
     # Raw report for NLL / CRPS
     report_raw = compute_calibration_report(
-        y_1d, mu_1d, sr_1d,
+        y_1d,
+        mu_1d,
+        sr_1d,
     )
 
     # Energy score (true multivariate, using ensemble samples)
@@ -1045,7 +1136,11 @@ def _eval_split(
     # Sample from each member's Gaussian: X_m_sample ~ N(mu_m, sigma_m)
     rng_es = np.random.default_rng(1234)
     n_es = min(len(X_all), 10000)  # cap for speed
-    idx_es = np.arange(len(X_all)) if len(X_all) <= n_es else rng_es.choice(len(X_all), size=n_es, replace=False)
+    idx_es = (
+        np.arange(len(X_all))
+        if len(X_all) <= n_es
+        else rng_es.choice(len(X_all), size=n_es, replace=False)
+    )
     ens_sample = ens_preds[idx_es]  # (n_es, M, D) — member means (use as samples)
     y_es = y_all[idx_es] if y_all.ndim == 2 else y_all[idx_es, np.newaxis]
     if D == 1:
@@ -1053,7 +1148,6 @@ def _eval_split(
         energy_score = _crps_ens(y_es[:, 0], ens_sample[:, :, 0])
     else:
         # True vector energy score
-        N_es = ens_sample.shape[0]
         M_es = ens_sample.shape[1]
         # E||X_m - y||_2
         diff_xy = np.linalg.norm(ens_sample - y_es[:, np.newaxis, :], axis=-1)  # (N, M)
@@ -1062,7 +1156,9 @@ def _eval_split(
         pair_sum = 0.0
         for mi in range(M_es):
             for mj in range(mi + 1, M_es):
-                pair_sum += np.linalg.norm(ens_sample[:, mi, :] - ens_sample[:, mj, :], axis=-1).mean()
+                pair_sum += np.linalg.norm(
+                    ens_sample[:, mi, :] - ens_sample[:, mj, :], axis=-1
+                ).mean()
         n_pairs = M_es * (M_es - 1) / 2
         term2 = pair_sum / max(n_pairs, 1)
         energy_score = float(term1 - 0.5 * term2)
@@ -1071,12 +1167,11 @@ def _eval_split(
     covdist: dict = {}
     if distances is not None:
         valid_d = np.isfinite(distances)
-        if valid_d.any():
+        if valid_d.any() and len(distances) == len(y_1d):
             # Broadcast per-shot distances to slices — use mean distance if
             # distances array length matches shots, not slices
             # Here distances should already be per-slice if passed correctly
-            if len(distances) == len(y_1d):
-                covdist = coverage_vs_distance(y_1d, mu_1d, sc_1d, distances)
+            covdist = coverage_vs_distance(y_1d, mu_1d, sc_1d, distances)
 
     result = {
         "n_slices": int(len(y_1d)),
@@ -1112,11 +1207,16 @@ def _eval_split(
             nll_gaussian,
             prediction_interval_width,
         )
+
         result[f"{stratum_label}_n"] = int(mask.sum())
-        result[f"{stratum_label}_coverage_90"] = float(interval_coverage(y_s, mu_s, sc_s, alpha=0.10))
+        result[f"{stratum_label}_coverage_90"] = float(
+            interval_coverage(y_s, mu_s, sc_s, alpha=0.10)
+        )
         result[f"{stratum_label}_crps"] = float(crps_gaussian(y_s, mu_s, sr_s))
         result[f"{stratum_label}_nll"] = float(nll_gaussian(y_s, mu_s, sr_s))
-        result[f"{stratum_label}_pi_width_90"] = float(prediction_interval_width(sc_s, alpha=0.10))
+        result[f"{stratum_label}_pi_width_90"] = float(
+            prediction_interval_width(sc_s, alpha=0.10)
+        )
 
     logger.info(
         "[%s] N=%d  cov@90=%.3f  CRPS=%.4f  NLL=%.4f  transient=%d  quiescent=%d",
@@ -1137,10 +1237,10 @@ def _eval_split(
 
 
 def run_baseline(cfg: BaselineConfig) -> BaselineResult:
-    """Run the full S7.2 static baseline pipeline.
+    """Run the full static baseline pipeline.
 
     Reads pre-computed splits, loads data, trains ensemble, calibrates
-    with split-conformal, and evaluates all §4 metrics.
+    with split-conformal, and evaluates all declared metrics.
 
     Parameters
     ----------
@@ -1178,10 +1278,18 @@ def run_baseline(cfg: BaselineConfig) -> BaselineResult:
     in_dist_test_shots = sorted(cal_arr[perm[n_conf:]].tolist())
 
     # Verify disjointness (defensive check)
-    assert frozenset(train_shots).isdisjoint(frozenset(conf_cal_shots)), "TRAIN ∩ CONF-CAL not empty!"
-    assert frozenset(train_shots).isdisjoint(frozenset(in_dist_test_shots)), "TRAIN ∩ IN-DIST-TEST not empty!"
-    assert frozenset(conf_cal_shots).isdisjoint(frozenset(in_dist_test_shots)), "CONF-CAL ∩ IN-DIST-TEST not empty!"
-    assert frozenset(ood_shots).isdisjoint(frozenset(conf_cal_shots + in_dist_test_shots + train_shots)), "OOD overlaps!"
+    assert frozenset(train_shots).isdisjoint(frozenset(conf_cal_shots)), (
+        "TRAIN ∩ CONF-CAL not empty!"
+    )
+    assert frozenset(train_shots).isdisjoint(frozenset(in_dist_test_shots)), (
+        "TRAIN ∩ IN-DIST-TEST not empty!"
+    )
+    assert frozenset(conf_cal_shots).isdisjoint(frozenset(in_dist_test_shots)), (
+        "CONF-CAL ∩ IN-DIST-TEST not empty!"
+    )
+    assert frozenset(ood_shots).isdisjoint(
+        frozenset(conf_cal_shots + in_dist_test_shots + train_shots)
+    ), "OOD overlaps!"
 
     logger.info(
         "4-way split: train=%d  conf_cal=%d  in_dist_test=%d  ood=%d",
@@ -1222,7 +1330,9 @@ def run_baseline(cfg: BaselineConfig) -> BaselineResult:
 
     result.n_train_shots = len(Xs_train)
     result.n_train_slices = sum(len(x) for x in Xs_train)
-    logger.info("TRAIN: %d shots, %d slices", result.n_train_shots, result.n_train_slices)
+    logger.info(
+        "TRAIN: %d shots, %d slices", result.n_train_shots, result.n_train_slices
+    )
 
     # -----------------------------------------------------------------------
     # 5. Fit normaliser on TRAIN slices only
@@ -1256,11 +1366,19 @@ def run_baseline(cfg: BaselineConfig) -> BaselineResult:
     # -----------------------------------------------------------------------
     logger.info("Loading CONFORMAL-CAL slices...")
     Xs_conf, ys_conf, tmasks_conf, conf_ok_ids = _load_split_slices(
-        conf_cal_shots, feature_schema, target_channels, cfg.level1_dir, cfg.max_slices_per_shot
+        conf_cal_shots,
+        feature_schema,
+        target_channels,
+        cfg.level1_dir,
+        cfg.max_slices_per_shot,
     )
     result.n_conf_cal_shots = len(Xs_conf)
     result.n_conf_cal_slices = sum(len(x) for x in Xs_conf)
-    logger.info("CONF-CAL: %d shots, %d slices", result.n_conf_cal_shots, result.n_conf_cal_slices)
+    logger.info(
+        "CONF-CAL: %d shots, %d slices",
+        result.n_conf_cal_shots,
+        result.n_conf_cal_slices,
+    )
 
     X_conf_all = np.concatenate(Xs_conf, axis=0)
     y_conf_all = np.concatenate(ys_conf, axis=0)
@@ -1275,12 +1393,18 @@ def run_baseline(cfg: BaselineConfig) -> BaselineResult:
     # -----------------------------------------------------------------------
     logger.info("Loading IN-DIST-TEST slices...")
     Xs_idt, ys_idt, tmasks_idt, _idt_ok_ids = _load_split_slices(
-        in_dist_test_shots, feature_schema, target_channels, cfg.level1_dir, cfg.max_slices_per_shot
+        in_dist_test_shots,
+        feature_schema,
+        target_channels,
+        cfg.level1_dir,
+        cfg.max_slices_per_shot,
     )
     result.n_in_dist_test_shots = len(Xs_idt)
     result.n_in_dist_test_slices = sum(len(x) for x in Xs_idt)
 
-    in_dist_metrics = _eval_split("IN-DIST-TEST", Xs_idt, ys_idt, tmasks_idt, conformal, stats)
+    in_dist_metrics = _eval_split(
+        "IN-DIST-TEST", Xs_idt, ys_idt, tmasks_idt, conformal, stats
+    )
     result.in_dist = in_dist_metrics
 
     cov_90 = float(in_dist_metrics.get("coverage_90_conf", 0.0))
@@ -1295,16 +1419,25 @@ def run_baseline(cfg: BaselineConfig) -> BaselineResult:
     # -----------------------------------------------------------------------
     logger.info("Loading OOD-REGIME-TEST slices...")
     Xs_ood, ys_ood, tmasks_ood, ood_ok_ids = _load_split_slices(
-        ood_shots, feature_schema, target_channels, cfg.level1_dir, cfg.max_slices_per_shot
+        ood_shots,
+        feature_schema,
+        target_channels,
+        cfg.level1_dir,
+        cfg.max_slices_per_shot,
     )
     result.n_ood_shots = len(Xs_ood)
     result.n_ood_slices = sum(len(x) for x in Xs_ood)
 
     # Compute ensemble disagreement for OOD-AUROC
-    X_idt_all_norm = stats.normalise_X(np.concatenate(Xs_idt, axis=0)) if Xs_idt else None
-    X_ood_all_norm = stats.normalise_X(np.concatenate(Xs_ood, axis=0)) if Xs_ood else None
+    X_idt_all_norm = (
+        stats.normalise_X(np.concatenate(Xs_idt, axis=0)) if Xs_idt else None
+    )
+    X_ood_all_norm = (
+        stats.normalise_X(np.concatenate(Xs_ood, axis=0)) if Xs_ood else None
+    )
 
     from imas_ambix.statespace.calibration import ensemble_disagreement  # noqa: PLC0415
+
     idt_disag = None
     ood_disag = None
     if X_idt_all_norm is not None:
@@ -1327,18 +1460,23 @@ def run_baseline(cfg: BaselineConfig) -> BaselineResult:
     train_ne_arr = np.array(train_ne_vals) if train_ne_vals else np.array([1e19])
 
     # OOD shot distances — use ood_ok_ids (surviving shots) not ood_shots (full list)
-    # This avoids indexing Xs_ood by position in the full list (which includes skipped shots)
-    ood_ok_dists = _compute_regime_distances(ood_ok_ids, regime_scalars, train_ip_arr, train_ne_arr)
+    # This avoids indexing by position in the full list, which includes skipped shots.
+    ood_ok_dists = _compute_regime_distances(
+        ood_ok_ids, regime_scalars, train_ip_arr, train_ne_arr
+    )
     # Broadcast per-shot distances to per-slice
     ood_slice_dists: list[float] = []
-    for i, (sid, xs) in enumerate(zip(ood_ok_ids, Xs_ood, strict=True)):
+    for i, (_sid, xs) in enumerate(zip(ood_ok_ids, Xs_ood, strict=True)):
         ood_slice_dists.extend([float(ood_ok_dists[i])] * len(xs))
     ood_slice_dist_arr = np.array(ood_slice_dists) if ood_slice_dists else None
 
     ood_metrics = _eval_split(
         "OOD-REGIME-TEST",
-        Xs_ood, ys_ood, tmasks_ood,
-        conformal, stats,
+        Xs_ood,
+        ys_ood,
+        tmasks_ood,
+        conformal,
+        stats,
         ood_in_dist_scores=idt_disag,
         ood_ood_scores=ood_disag,
         distances=ood_slice_dist_arr,
@@ -1449,7 +1587,9 @@ def _compute_ane_lift(
 
     # Mag+ane predictions on the SAME slices
     X_idt_mane_n = stats_mag_ane.normalise_X(np.concatenate(Xs_idt, axis=0))
-    mu_mane_n, sr_mane_n, sc_mane_n, _ = conformal_mag_ane.predict_calibrated(X_idt_mane_n)
+    mu_mane_n, sr_mane_n, sc_mane_n, _ = conformal_mag_ane.predict_calibrated(
+        X_idt_mane_n
+    )
     mu_mane_p = stats_mag_ane.denormalise_y_mean(mu_mane_n)[:, 0]
     sr_mane_p = stats_mag_ane.denormalise_y_std(sr_mane_n)[:, 0]
     sc_mane_p = stats_mag_ane.denormalise_y_std(sc_mane_n)[:, 0]
@@ -1474,10 +1614,17 @@ def _compute_ane_lift(
             nll_gaussian(y_1d, mu_mag_p, sr_mag_p)
             - nll_gaussian(y_1d, mu_mane_p, sr_mane_p)
         ),
-        "mag_only_coverage90": float(interval_coverage(y_1d, mu_mag_p, sc_mag_p, alpha=0.10)),
-        "mag_ane_coverage90": float(interval_coverage(y_1d, mu_mane_p, sc_mane_p, alpha=0.10)),
+        "mag_only_coverage90": float(
+            interval_coverage(y_1d, mu_mag_p, sc_mag_p, alpha=0.10)
+        ),
+        "mag_ane_coverage90": float(
+            interval_coverage(y_1d, mu_mane_p, sc_mane_p, alpha=0.10)
+        ),
         "method": "column-slice: mag-only = mag+ane X[:, :-1] (same shots/slices)",
-        "note": "positive CRPS/NLL lift = mag+ane is better (lower score); negative = mag-only is better",
+        "note": (
+            "positive CRPS/NLL lift = mag+ane is better (lower score); "
+            "negative = mag-only is better"
+        ),
     }
 
 
@@ -1495,7 +1642,9 @@ def main(argv: list[str] | None = None) -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    parser = argparse.ArgumentParser(description="S7.2 static baseline: deep ensemble + conformal")
+    parser = argparse.ArgumentParser(
+        description="Static baseline: deep ensemble + conformal"
+    )
     parser.add_argument("--target", choices=["primary", "multi"], default="primary")
     parser.add_argument("--modality", choices=["mag", "mag_ane"], default="mag_ane")
     parser.add_argument("--max-train-shots", type=int, default=2000)
@@ -1540,7 +1689,15 @@ def main(argv: list[str] | None = None) -> None:
         print(f"  {k}: {v}")
     print()
     print("IN-DIST-TEST:")
-    for k in ["coverage_90_conf", "nll_raw", "crps_raw", "pi_width_90_conf", "ece_conf", "ood_auroc", "energy_score"]:
+    for k in [
+        "coverage_90_conf",
+        "nll_raw",
+        "crps_raw",
+        "pi_width_90_conf",
+        "ece_conf",
+        "ood_auroc",
+        "energy_score",
+    ]:
         v = result.in_dist.get(k)
         if v is not None:
             print(f"  {k}: {v}")
@@ -1559,7 +1716,14 @@ def main(argv: list[str] | None = None) -> None:
             print(f"  {k}: {v}")
     print()
     print("ane LIFT:")
-    for k in ["mag_only_crps", "mag_ane_crps", "crps_lift", "mag_only_nll", "mag_ane_nll", "nll_lift"]:
+    for k in [
+        "mag_only_crps",
+        "mag_ane_crps",
+        "crps_lift",
+        "mag_only_nll",
+        "mag_ane_nll",
+        "nll_lift",
+    ]:
         v = result.ane_lift.get(k)
         if v is not None:
             print(f"  {k}: {v:.4f}")

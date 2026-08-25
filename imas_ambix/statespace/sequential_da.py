@@ -1,4 +1,4 @@
-"""S10 v1 sequential current-profile DA substrate.
+"""Sequential current-profile data-assimilation substrate.
 
 This module implements the causal current-profile baseline requested by
 ``docs/sequential-current-da-v1.html``:
@@ -17,8 +17,8 @@ only a *reduced observable correction* on top of the nominal physics trajectory:
 
 where ``psi_nominal_t`` comes from a once-per-shot TORAX run and ``V_obs`` are the
 leading right-singular vectors of the whitened ``H_psi`` design.  Modes below the
-cutoff stay on the physics prior, matching the plan's "localize the analysis
-update, leave the hidden directions on the prior" requirement.
+cutoff stay on the physics prior: localize the analysis update and leave hidden
+directions on the prior.
 """
 
 from __future__ import annotations
@@ -35,11 +35,11 @@ import numpy as np
 from imas_ambix.data.paths import LEVEL1_DIR, MANIFEST_DIR
 from imas_ambix.gs.residual import robust_sensor_scale
 from imas_ambix.statespace.enkf_baseline import (
-    EnKFConfig,
-    MagneticsObs,
     MAST_A,
     MAST_B0,
     MAST_R0,
+    EnKFConfig,
+    MagneticsObs,
     ShotInputs,
     ToraxTrajectory,
     _campaign_representatives,
@@ -59,7 +59,7 @@ _TORAX_Q_CONVENTION = 1.25
 
 @dataclass
 class SequentialDAConfig(EnKFConfig):
-    """Configuration for the S10 sequential ψ-state baseline."""
+    """Configuration for the sequential ψ-state baseline."""
 
     localization_rank: int = 6
     correction_decay: float = 0.94
@@ -146,7 +146,7 @@ class ConformalScale:
 
 @dataclass
 class NominalTrajectory:
-    """Once-per-shot TORAX trajectory with the ψ/Φ fields the S10 filter needs."""
+    """Once-per-shot TORAX trajectory with the ψ/Φ fields the filter needs."""
 
     time: np.ndarray
     rho_norm: np.ndarray
@@ -217,7 +217,7 @@ def current_from_psi_profile(
     r_major: float = MAST_R0,
     a_minor: float = MAST_A,
 ) -> np.ndarray:
-    """Cylindrical ``psi(rho) -> j_phi(rho)`` map used by the S10 EKF."""
+    """Cylindrical ``psi(rho) -> j_phi(rho)`` map used by the sequential EKF."""
 
     psi_rho, squeezed = _as_2d(profile)
     rho = np.asarray(rho_grid, dtype=np.float64)
@@ -231,8 +231,10 @@ def current_from_psi_profile(
     dflux_dr = np.gradient(flux, r, axis=-1, edge_order=2)
     j = dflux_dr / (MU0 * float(r_major) * np.maximum(r[np.newaxis, :], 1.0e-12))
     dr0 = float(r[1] - r[0])
-    j[..., 0] = 4.0 * (psi_rho[..., 1] - psi_rho[..., 0]) / (
-        MU0 * float(r_major) * max(dr0 * dr0, 1.0e-12)
+    j[..., 0] = (
+        4.0
+        * (psi_rho[..., 1] - psi_rho[..., 0])
+        / (MU0 * float(r_major) * max(dr0 * dr0, 1.0e-12))
     )
     return j[0] if squeezed else j
 
@@ -283,7 +285,7 @@ def q_from_psi_phi(
         field: the raw finite-difference ratio reproduces the reported ``q`` shape
         exactly but sits at a fixed 0.8 scale across representative shots.  Applying
         the constant convention factor recovers TORAX's face-grid ``q``.
-        """
+    """
 
     psi_rho, squeezed = _as_2d(psi_profile)
     phi_rho, squeezed_phi = _as_2d(phi_profile)
@@ -291,7 +293,9 @@ def q_from_psi_phi(
         raise ValueError("psi_profile and phi_profile must have matching rank")
     rho = np.asarray(rho_grid, dtype=np.float64)
     if rho.ndim != 1 or rho.size != psi_rho.shape[1] or rho.size != phi_rho.shape[1]:
-        raise ValueError("rho_grid must match the last axis of psi_profile and phi_profile")
+        raise ValueError(
+            "rho_grid must match the last axis of psi_profile and phi_profile"
+        )
     dpsi = np.diff(psi_rho, axis=-1)
     dphi = np.diff(phi_rho, axis=-1)
     q = _TORAX_Q_CONVENTION * dphi / np.where(np.abs(dpsi) > floor, dpsi, np.nan)
@@ -318,7 +322,7 @@ def build_h_psi(
 ) -> np.ndarray:
     """Explicit ``H_psi`` matrix by basis application.
 
-    ``gs/operator.py`` is linear in plasma current but the S10 filter state lives
+    ``gs/operator.py`` is linear in plasma current but the filter state lives
     in ``psi(rho)``.  ``H_psi`` therefore composes
 
         psi(rho) -> j_phi(rho) -> c_plasma -> trustworthy amb
@@ -426,7 +430,9 @@ def _sample_gaussian(
     """Stable multivariate normal sampler with eigenvalue clipping."""
 
     mean = np.asarray(mean, dtype=np.float64)
-    cov = _stabilize_cov(np.asarray(cov, dtype=np.float64), eigen_cap=1.0e6, ridge=1.0e-9)
+    cov = _stabilize_cov(
+        np.asarray(cov, dtype=np.float64), eigen_cap=1.0e6, ridge=1.0e-9
+    )
     vals, vecs = np.linalg.eigh(cov)
     vals = np.clip(vals, 0.0, 1.0e6)
     root = vecs @ np.diag(np.sqrt(vals))
@@ -445,7 +451,9 @@ def _q_at_slices(traj: ToraxTrajectory, slice_t: np.ndarray) -> np.ndarray:
     return out
 
 
-def _interp_profile(values: np.ndarray, time: np.ndarray, slice_t: np.ndarray) -> np.ndarray:
+def _interp_profile(
+    values: np.ndarray, time: np.ndarray, slice_t: np.ndarray
+) -> np.ndarray:
     """Interpolate a ``(T, G)`` profile bank onto the eval slice times."""
 
     vals = np.asarray(values, dtype=np.float64)
@@ -458,7 +466,9 @@ def _interp_profile(values: np.ndarray, time: np.ndarray, slice_t: np.ndarray) -
     return out
 
 
-def run_nominal_trajectory(inp: ShotInputs, cfg: SequentialDAConfig) -> NominalTrajectory:
+def run_nominal_trajectory(
+    inp: ShotInputs, cfg: SequentialDAConfig
+) -> NominalTrajectory:
     """Run the once-per-shot TORAX nominal trajectory, exposing ψ and Φ."""
 
     import torax  # noqa: PLC0415
@@ -500,7 +510,7 @@ def run_shot(
     obs: MagneticsObs,
     cfg: SequentialDAConfig,
 ) -> SequentialShotResult:
-    """Run the S10 sequential ψ-state baseline on one shot."""
+    """Run the sequential ψ-state baseline on one shot."""
 
     from imas_ambix.statespace.mse_eval import pitch_from_current_profile
 
@@ -666,7 +676,7 @@ def fit_conformal_scales(
     from scipy.stats import norm  # noqa: PLC0415
 
     from imas_ambix.statespace import mse_eval as eval_mod  # noqa: PLC0415
-    from imas_ambix.statespace import mse_split as M  # noqa: PLC0415
+    from imas_ambix.statespace import mse_split as mse_split_mod  # noqa: PLC0415
 
     if truth is None:
         truth = eval_mod.MseTruth(level1_dir=LEVEL1_DIR)
@@ -682,7 +692,10 @@ def fit_conformal_scales(
         except ValueError:
             continue
         rminor_all.extend(
-            np.abs(np.asarray(entry["active_channel_rpos"], dtype=np.float64) - eval_mod.DEFAULT_R0)
+            np.abs(
+                np.asarray(entry["active_channel_rpos"], dtype=np.float64)
+                - eval_mod.DEFAULT_R0
+            )
         )
     if rminor_all:
         q33, q66 = np.quantile(np.asarray(rminor_all), [1.0 / 3.0, 2.0 / 3.0])
@@ -710,13 +723,22 @@ def fit_conformal_scales(
         pt_truth = np.asarray(tr.pitch, dtype=np.float64)
         pm = np.asarray(pred.pitch_mean, dtype=np.float64)
         ps = np.asarray(pred.pitch_std, dtype=np.float64)
-        gate = M.pitch_point_gate(tr.pitch, tr.pitch_error)
-        valid = gate & np.isfinite(pt_truth) & np.isfinite(pm) & np.isfinite(ps) & (ps > 1.0e-12)
+        gate = mse_split_mod.pitch_point_gate(tr.pitch, tr.pitch_error)
+        valid = (
+            gate
+            & np.isfinite(pt_truth)
+            & np.isfinite(pm)
+            & np.isfinite(ps)
+            & (ps > 1.0e-12)
+        )
         if not valid.any():
             continue
         scores = np.abs(pt_truth - pm) / np.maximum(ps, 1.0e-12)
         global_scores.extend(scores[valid].tolist())
-        rminor = np.abs(np.asarray(entry["active_channel_rpos"], dtype=np.float64) - eval_mod.DEFAULT_R0)
+        rminor = np.abs(
+            np.asarray(entry["active_channel_rpos"], dtype=np.float64)
+            - eval_mod.DEFAULT_R0
+        )
         bands = np.digitize(rminor, band_edges, right=False)
         for idx in range(c):
             chan_vals = scores[:, idx][valid[:, idx]]
@@ -760,13 +782,17 @@ def apply_conformal_scales(
         if entry is None:
             calibrated[sid] = pred
             continue
-        scale = scales.scale_for(np.asarray(entry["active_channel_rpos"], dtype=np.float64))
+        scale = scales.scale_for(
+            np.asarray(entry["active_channel_rpos"], dtype=np.float64)
+        )
         pm = np.asarray(pred.pitch_mean, dtype=np.float64)
         ps = np.asarray(pred.pitch_std, dtype=np.float64) * scale[np.newaxis, :]
         samples = None
         if pred.pitch_samples is not None:
             raw = np.asarray(pred.pitch_samples, dtype=np.float64)
-            samples = pm[:, :, None] + (raw - pm[:, :, None]) * scale[np.newaxis, :, None]
+            samples = (
+                pm[:, :, None] + (raw - pm[:, :, None]) * scale[np.newaxis, :, None]
+            )
         calibrated[sid] = ShotPrediction(
             t=np.asarray(pred.t, dtype=np.float64),
             pitch_mean=pm,
@@ -819,8 +845,14 @@ def score_manifest_artifact(
     cfg = cfg or SequentialDAConfig()
     manifest_path = manifest_path or (MANIFEST_DIR / "mse_heldout_split_v0.json")
     manifest = json.loads(manifest_path.read_text())
-    cal = [int(k) for k, v in manifest["shots"].items() if v.get("partition") == "calibration"]
-    held = [int(k) for k, v in manifest["shots"].items() if v.get("partition") == "held_out"]
+    cal = [
+        int(k)
+        for k, v in manifest["shots"].items()
+        if v.get("partition") == "calibration"
+    ]
+    held = [
+        int(k) for k, v in manifest["shots"].items() if v.get("partition") == "held_out"
+    ]
     if cal_limit is not None:
         cal = cal[: int(cal_limit)]
     if held_limit is not None:
@@ -832,10 +864,14 @@ def score_manifest_artifact(
     scored = score_calibrated_holdout(
         preds, manifest, alpha=alpha, min_points=min_points
     )
-    q_validation_path = Path(__file__).parent / "artifacts" / "sequential_da_q_validation_v1.json"
+    q_validation_path = (
+        Path(__file__).parent / "artifacts" / "sequential_da_q_validation_v1.json"
+    )
     payload: dict[str, Any] = {
         "schema": "sequential-da-metrics-v1",
-        "method": "psi-state sequential baseline with manifest-calibrated split conformal",
+        "method": (
+            "psi-state sequential baseline with manifest-calibrated split conformal"
+        ),
         "config": {
             **cfg.to_dict(),
             "localization_rank": cfg.localization_rank,
@@ -858,7 +894,9 @@ def score_manifest_artifact(
         payload["v0_reference"] = json.loads(v0_path.read_text())
     if q_validation_path.exists():
         payload["q_validation"] = json.loads(q_validation_path.read_text())
-    out_path = out_path or (Path(__file__).parent / "artifacts" / "sequential_da_metrics_v1.json")
+    out_path = out_path or (
+        Path(__file__).parent / "artifacts" / "sequential_da_metrics_v1.json"
+    )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(payload, indent=2, default=float))
     return payload
@@ -868,7 +906,7 @@ def _main() -> None:
     import argparse  # noqa: PLC0415
 
     logging.basicConfig(level=logging.INFO)
-    ap = argparse.ArgumentParser(description="Run the S10 sequential current-DA baseline")
+    ap = argparse.ArgumentParser(description="Run the sequential current-DA baseline")
     ap.add_argument(
         "--manifest",
         type=Path,
@@ -897,10 +935,9 @@ def _main() -> None:
         alpha=a.alpha,
         min_points=a.min_points,
     )
-    print(
-        f"SEQUENTIAL_DA_DONE held={payload['n_heldout_shots']} cal={payload['n_calibration_shots']} out={a.out}",
-        flush=True,
-    )
+    held = payload["n_heldout_shots"]
+    calibration = payload["n_calibration_shots"]
+    print(f"SEQUENTIAL_DA_DONE held={held} cal={calibration} out={a.out}", flush=True)
 
 
 def predict_shots(
