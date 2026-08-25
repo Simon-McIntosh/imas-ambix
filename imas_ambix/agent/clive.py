@@ -79,10 +79,12 @@ read_key() {{
 }}
 KEY="$(read_key)"; [[ -n "$KEY" ]] || KEY="no-auth"
 
-# ── Resolve the local served model name (no fallback: error if unreachable) ──
+# ── Resolve served model metadata (no fallback: error if unreachable) ────────
+AMBIX_MAX_CONTEXT_TOKENS=""
 if [[ -z "$AMBIX_MODEL" ]]; then
-    AMBIX_MODEL="$(curl -sf --max-time 5 -H "Authorization: Bearer $KEY" "$AMBIX_URL/v1/models" 2>/dev/null \\
-        | python3 -c "import sys,json; print(json.load(sys.stdin)['data'][0]['id'])" 2>/dev/null || true)"
+    _MODEL_INFO="$(curl -sf --max-time 5 -H "Authorization: Bearer $KEY" "$AMBIX_URL/v1/models" 2>/dev/null \\
+        | python3 -c "import sys,json; model=json.load(sys.stdin)['data'][0]; print(model['id'], model.get('max_model_len', ''))" 2>/dev/null || true)"
+    read -r AMBIX_MODEL AMBIX_MAX_CONTEXT_TOKENS <<< "$_MODEL_INFO"
     if [[ -z "$AMBIX_MODEL" ]]; then
         echo "clive: no model reachable at $AMBIX_URL/v1/models." >&2
         echo "       The serve job is likely down — check: imas-ambix agent status" >&2
@@ -99,6 +101,12 @@ if [[ "$HARNESS" == "codex" ]]; then
 fi
 
 command -v claude >/dev/null 2>&1 || {{ echo "clive: 'claude' (Claude Code) not on PATH — https://code.claude.com/download" >&2; exit 127; }}
+
+if [[ -n "$AMBIX_MAX_CONTEXT_TOKENS" ]]; then
+    export CLAUDE_CODE_MAX_CONTEXT_TOKENS="$AMBIX_MAX_CONTEXT_TOKENS"
+else
+    unset CLAUDE_CODE_MAX_CONTEXT_TOKENS
+fi
 
 printf "\\nClive — local only — serving: %s\\n\\n" "$AMBIX_MODEL" >&2
 ANTHROPIC_BASE_URL="$AMBIX_URL" \\
