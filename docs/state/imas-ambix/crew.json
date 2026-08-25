@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T20:42:13",
+  "updated": "2026-08-25T20:54:31",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -131,6 +131,15 @@
         "sessions": {
           "gpt-5.6-sol": "01a039cb-5b89-7c11-ad30-1d488f82eeec"
         },
+        "created": "2026-08-25"
+      },
+      {
+        "id": "clive-picker-labels",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
         "created": "2026-08-25"
       },
       {
@@ -404,6 +413,24 @@
       },
       {
         "id": "lint-reg-c",
+        "harness": "codex",
+        "role": "test",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-25"
+      },
+      {
+        "id": "lint-reg-c1",
+        "harness": "codex",
+        "role": "test",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-25"
+      },
+      {
+        "id": "lint-reg-c2",
         "harness": "codex",
         "role": "test",
         "session_id": null,
@@ -9499,9 +9526,95 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260825T182344556020-lint-reg-c",
+        "plan": "whole-tree-lint-gate",
+        "section": "\u00a74e",
+        "node": "lint-reg-c",
+        "node_definition": {
+          "done_when": "A recorded run of 'pytest tests/test_bench.py tests/test_eval.py tests/worldmodel/test_controllable_model.py tests/latent/test_train_grounded_latent_engine.py -q' exits 0 with its passed and skipped counts quoted in the manifest",
+          "estimated_hours": null,
+          "goal": "Prove the reformatted test files in this slice still pass",
+          "id": "lint-reg-c",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T182344556020-lint-reg-c/manifest.md",
+          "plan": "whole-tree-lint-gate",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a74e",
+          "spec_level": "exact",
+          "time_budget": "28m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/lint-reg-c.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "lint-reg-c",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T18:24:23Z",
+        "completed_at": "2026-08-25T18:53:37Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1754,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1754,
+        "stalled": false,
+        "time_budget": "28m",
+        "base_sha": "632f3e6745d4e35ab55dd814f8b9e09c03588947",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "not-run",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T182344556020-lint-reg-c/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03a2a-959e-7f73-90bf-7b22f985631c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 4071936,
+            "cached_input_tokens_cumulative": 4071936,
+            "input_tokens": 4181358,
+            "input_tokens_cumulative": 4181358,
+            "output_tokens": 10739,
+            "output_tokens_cumulative": 10739,
+            "reasoning_output_tokens": 2705,
+            "reasoning_output_tokens_cumulative": 2705
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_bench.py",
+          "override": false,
+          "role": "test",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 282
+    "_version": 286
   }
 }
