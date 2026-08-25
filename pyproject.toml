@@ -163,6 +163,26 @@ select = ["E", "F", "W", "I", "UP", "N", "B", "A", "SIM", "TCH"]
 "scripts/gpu_labeler_foundation_spike.py" = ["N803", "N806", "E741"]
 # The single-shot device rollout shares the same convention (G, T, W).
 "scripts/device_rollout_single_shot.py" = ["N803", "N806"]
+# Cosmos workers use T/B/H/W for tensor dimensions and PyTorch's F alias.
+"imas_ambix/bench/cosmos_worker.py" = ["N806", "N812"]
+# Stream workers use T/B/H/W for tensor dimensions and PyTorch's F alias.
+"imas_ambix/bench/stream_worker.py" = ["N806", "N812"]
+# Tokenizer benchmark constants preserve the uppercase configuration convention.
+"imas_ambix/bench/tokenizer.py" = ["N806"]
+# Stream encoding uses PyTorch's conventional functional-as-F alias.
+"imas_ambix/data/stream_encode.py" = ["N812"]
+# Activity metrics use T for the temporal tensor dimension.
+"imas_ambix/eval/metrics.py" = ["N806"]
+# Filament helpers preserve A for vector potential and B for magnetic field.
+"imas_ambix/gs/filaments3d.py" = ["N802"]
+# Baseline fitting uses X/Xs for design matrices and uppercase math dimensions.
+"imas_ambix/statespace/baseline.py" = ["N802", "N803", "N806"]
+# State filtering uses T/D/L for temporal, state and latent dimensions.
+"imas_ambix/statespace/filter.py" = ["N806"]
+# Integrated inputs use X for the design matrix and T for its time dimension.
+"imas_ambix/statespace/integrated_inputs.py" = ["N806"]
+# Decoder training preserves tensor dimensions, PyTorch F, and the standard DDP alias.
+"imas_ambix/tokenizer/finetune_decoder.py" = ["N806", "N812", "N817"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
