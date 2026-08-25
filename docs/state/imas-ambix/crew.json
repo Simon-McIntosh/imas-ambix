@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T21:30:38",
+  "updated": "2026-08-25T21:32:38",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -9799,9 +9799,95 @@
           "role": "test",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260825T184341150839-or-cache-measure",
+        "plan": "clive-openrouter-opt-in",
+        "section": "\u00a74a",
+        "node": "or-cache-measure",
+        "node_definition": {
+          "done_when": "A report records, for the local model sent twice through http://127.0.0.1:18399/v1/messages with an identical prompt of at least 4000 tokens carrying cache_control on the system block, the usage fields returned on each call including any cache_creation_input_tokens and cache_read_input_tokens, plus the same pair sent direct to http://98dci4-gpu-0003:18800/v1/messages as the control, and states plainly whether cache reads appear on the proxy path",
+          "estimated_hours": 0.5,
+          "goal": "Measure whether prompt caching survives the local model's OpenAI-form transport through the proxy",
+          "id": "or-cache-measure",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T184341150839-or-cache-measure/manifest.md",
+          "plan": "clive-openrouter-opt-in",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a74a",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/or-cache-measure.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "or-cache-measure",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-25T18:44:58Z",
+        "completed_at": "2026-08-25T18:51:35Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 397,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 397,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "ca2c5af3ee7efb91b51ec79be2db9f1502e33ead",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260825T184341150839-or-cache-measure/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03a3d-7911-7123-8278-7e3211da2c3c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 912640,
+            "cached_input_tokens_cumulative": 912640,
+            "input_tokens": 978510,
+            "input_tokens_cumulative": 978510,
+            "output_tokens": 10483,
+            "output_tokens_cumulative": 10483,
+            "reasoning_output_tokens": 4423,
+            "reasoning_output_tokens_cumulative": 4423
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 289
+    "_version": 290
   }
 }
