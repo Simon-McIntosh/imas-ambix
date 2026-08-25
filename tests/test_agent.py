@@ -1422,36 +1422,7 @@ def test_engine_pyproject_bundled():
         assert f"ambix-agent-{engine}" in content
 
 
-def test_litellm_config_is_secret_free_and_routes_models():
-    """Map the served model locally and pinned gateway models remotely."""
-    import yaml
-
-    from imas_ambix.agent.litellm_config import generate_litellm_config
-
-    cfg = generate_litellm_config(SiteConfig(), "deepseek-v4-flash")
-    assert "sk-or-" not in cfg and "sk-litellm" not in cfg  # no literal keys
-    assert "os.environ/OPENROUTER_API_KEY" in cfg  # OR key via env
-    data = yaml.safe_load(cfg)
-    names = {m["model_name"] for m in data["model_list"]}
-    assert names == {
-        "deepseek-v4-flash",
-        "or-opus-4.8",
-        "or-sonnet-4.6",
-        "or-gpt-5.5",
-        "or-glm-5.2",
-    }
-    # The served model uses the local endpoint; gateway models use OpenRouter.
-    by = {m["model_name"]: m["litellm_params"]["api_base"] for m in data["model_list"]}
-    assert by["deepseek-v4-flash"] == SiteConfig().default_url
-    for n in ["or-opus-4.8", "or-sonnet-4.6", "or-gpt-5.5", "or-glm-5.2"]:
-        assert "openrouter" in by[n], f"{n} should route to OpenRouter"
-    # model_info carries the served model name for proxy metadata queries.
-    info = {m["model_name"]: m.get("model_info", {}) for m in data["model_list"]}
-    assert "deepseek-v4-flash" in info["deepseek-v4-flash"].get("description", "")
-
-
 def test_siteconfig_launcher_paths():
-    """clive and the routing config deploy under agents/."""
+    """The clive launcher deploys under agents/."""
     site = SiteConfig()
     assert str(site.clive_path).endswith("agents/clive")
-    assert str(site.litellm_config_path).endswith("agents/litellm_config.yaml")
