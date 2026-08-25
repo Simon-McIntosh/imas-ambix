@@ -1,6 +1,6 @@
 """The hybrid latent encoder (anchored ⊕ free ⊕ ψ), in dimensionless coordinates.
 
-The shared latent has two parts (§6):
+The shared latent has two parts:
 
 * an **anchored block** supervised *only* on genuinely raw measured scalars
   (plasma current Ip from the Rogowski coil, coil currents, line-averaged
@@ -132,9 +132,11 @@ class HybridLatentEncoder(nn.Module):
             # i_cell on the NEXT forward pass (via the backbone weight update),
             # even though the loss never touches patch_head's own parameters --
             # exactly the indirect "closure loss reshapes the currents" coupling
-            # that let a diverging closure term drag i_cell to 60-2800x its
-            # expected scale (job 1225447's post-mortem).
-            closure = self.closure_head(h.detach()).view(-1, self.config.n_closure_bins, 2)
+            # so a diverging closure term cannot drag i_cell far beyond its
+            # expected scale.
+            closure = self.closure_head(h.detach()).view(
+                -1, self.config.n_closure_bins, 2
+            )
         return HybridLatent(
             theta=self.theta_head(h),
             anchored=self.anchored_head(h),
@@ -216,7 +218,7 @@ class HybridLatentEncoder(nn.Module):
     ) -> torch.Tensor:
         """KL(belief ‖ 𝒩(0,1)) on the free block with a free-bits floor.
 
-        Keeps the stochastic free block informative without collapse (§9).
+        Keeps the stochastic free block informative without collapse.
         Returns zero when the encoder is deterministic (no belief emitted).
         """
         if latent.free_logvar is None:

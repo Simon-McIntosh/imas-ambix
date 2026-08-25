@@ -482,9 +482,9 @@ class PatchTransformerTokenizer:
 
     Holds a config + (after :meth:`fit`) a trained autoencoder.  Encodes a
     native-cadence ``(C, T)`` signal window into per-patch codes plus the
-    per-channel validity needed for the v2 store.  The model is loaded once
+    per-channel validity needed for the token store.  The model is loaded once
     (in :meth:`fit` / :meth:`load`) and reused across many windows — the
-    in-process performant pattern (repo §2b).
+    efficient in-process pattern.
     """
 
     cfg: PatchTokenizerConfig = field(default_factory=PatchTokenizerConfig)
@@ -615,7 +615,8 @@ class PatchTransformerTokenizer:
         """``(C,)`` bool: channels whose CORPUS calibration is non-physical.
 
         A ``True`` row is a dead/saturated detector (stuck overflow sentinel)
-        whose calibration :meth:`~imas_ambix.calibration.signals.ChannelCalibration.is_physical`
+        whose calibration
+        :meth:`~imas_ambix.calibration.signals.ChannelCalibration.is_physical`
         is ``False`` — the encoder masks it (valid=False, safe zero embedding)
         instead of encoding the sentinel.  All ``False`` when no calibration is
         supplied (per-window mode never masks a channel).

@@ -153,7 +153,8 @@ class MomentFitConfig:
     rather than leaving them silently disagree.
     """
 
-    model: str = "polynomial"  # "polynomial" (moment basis, default) | "gaussian" (compact blob)
+    # "polynomial" uses the default moment basis; "gaussian" uses a compact blob.
+    model: str = "polynomial"
     order: int = 3  # max monomial degree of the polynomial moment basis
     ip_anchor: bool = True  # hard-pin the total current to the Rogowski Ip
     ridge: float = (

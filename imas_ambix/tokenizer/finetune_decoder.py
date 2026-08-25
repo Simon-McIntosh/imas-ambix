@@ -46,9 +46,11 @@ import time
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     import torch
 
 # ---------------------------------------------------------------------------
@@ -132,7 +134,9 @@ class DecoderFinetuneConfig:
 
     frame_root: Path = _DEFAULT_L1_ROOT
     magvit2_root: Path = _DEFAULT_MAGVIT2_ROOT
-    output_path: Path = _DEFAULT_MAGVIT2_ROOT / "weights" / "plasma-decoder-v1.safetensors"
+    output_path: Path = (
+        _DEFAULT_MAGVIT2_ROOT / "weights" / "plasma-decoder-v1.safetensors"
+    )
     train_shot_ids: list[int] = field(default_factory=list)
     val_shot_ids: list[int] = field(default_factory=list)
     camera: str = "rbb"
@@ -312,14 +316,17 @@ class DecoderFinetuneTrainer:
         tuple
             ``(train_loader, val_loader)``.
         """
-        import numpy as np
         import torch
         import torch.distributed as dist
         from torch.utils.data import DataLoader
         from torch.utils.data.distributed import DistributedSampler
 
         rank = dist.get_rank() if (dist.is_available() and dist.is_initialized()) else 0
-        world_size = dist.get_world_size() if (dist.is_available() and dist.is_initialized()) else 1
+        world_size = (
+            dist.get_world_size()
+            if dist.is_available() and dist.is_initialized()
+            else 1
+        )
 
         cfg = self.config
 
@@ -341,10 +348,10 @@ class DecoderFinetuneTrainer:
             def __len__(self) -> int:
                 return len(self.entries)
 
-            def __getitem__(self, i: int) -> "torch.Tensor":
+            def __getitem__(self, i: int) -> torch.Tensor:
                 import numpy as _np
-                import zarr as _zarr
                 import torch.nn.functional as _F
+                import zarr as _zarr
 
                 zarr_path, arr_key, frame_idx, lo, hi = self.entries[i]
 
@@ -604,10 +611,10 @@ class DecoderFinetuneTrainer:
         # MODEL_FORWARD_BATCH is part of the tokenizer's bit-exact contract
         # (see imas_ambix/data/stream_encode.py:159).  The Open-MAGVIT2 VQ
         # encoder forward is batch-size sensitive — feeding 16 frames at once
-        # produces different LFQ token IDs than feeding 4 (1209084 confirmed:
-        # bench rFID 28.87 vs training-time 14.04 on the same decoder weights,
-        # attributed to this mismatch).  C6 fix: sub-batch the encoder forward
-        # to MODEL_FORWARD_BATCH=4, matching bench/corpus.
+        # produces different LFQ token IDs than feeding 4. The measured bench
+        # rFID was 28.87 versus 14.04 during training on the same decoder
+        # weights. Sub-batch the encoder forward to MODEL_FORWARD_BATCH=4,
+        # matching bench/corpus.
         try:
             from imas_ambix.data.stream_encode import MODEL_FORWARD_BATCH
         except ImportError:
@@ -615,7 +622,7 @@ class DecoderFinetuneTrainer:
 
         raw = model.module if hasattr(model, "module") else model
 
-        # C7 fix: encoder + quantize must run in EVAL mode to match
+        # Encoder + quantize must run in EVAL mode to match the
         # bench/corpus contract (stream_worker calls model.eval() at load).
         # The training loop's model.train() sets all submodules to train mode;
         # if any encoder layer has BatchNorm/Dropout, train-mode forward
@@ -632,7 +639,7 @@ class DecoderFinetuneTrainer:
             frames_normed = frames_normed.to(memory_format=torch.channels_last)
 
             B = frames_input.shape[0]
-            # C6: chunk encoder forward to MODEL_FORWARD_BATCH-sized batches.
+            # Chunk encoder forward to MODEL_FORWARD_BATCH-sized batches.
             idx_chunks = []
             for i in range(0, B, MODEL_FORWARD_BATCH):
                 chunk = frames_normed[i : i + MODEL_FORWARD_BATCH]
@@ -774,9 +781,9 @@ class DecoderFinetuneTrainer:
         torch.Tensor
             ``(B, 2048)`` fp32 features on ``device``.
         """
+        import numpy as np
         import torch
         import torch.nn.functional as F
-        import numpy as np
 
         inception = self._get_inception(device)
 
@@ -906,8 +913,12 @@ class DecoderFinetuneTrainer:
         rfid_val = float("nan")
         if rank == 0:
             try:
-                non_empty_t = [a for a in gathered_t if a is not None and a.shape[0] > 0]
-                non_empty_r = [a for a in gathered_r if a is not None and a.shape[0] > 0]
+                non_empty_t = [
+                    a for a in gathered_t if a is not None and a.shape[0] > 0
+                ]
+                non_empty_r = [
+                    a for a in gathered_r if a is not None and a.shape[0] > 0
+                ]
                 if non_empty_t:
                     ref_feats = np.concatenate(non_empty_t, axis=0)
                     pred_feats = np.concatenate(non_empty_r, axis=0)
@@ -1137,7 +1148,7 @@ class DecoderFinetuneTrainer:
                             )
 
                             improved = (
-                                not (current_rfid != current_rfid)
+                                current_rfid == current_rfid
                                 and current_rfid < best_rfid
                             )
                             if improved:

@@ -8,8 +8,7 @@ ensemble Kalman filter wants for its observation operator ``H`` — and because 
 is a *fixed* matrix (no re-linearisation, no grid solve), the analysis step is a
 matmul, not an optimisation.
 
-This module wires the patch layer into that role as a prototype for the
-stage-3 closed-loop filter (``docs/closed-loop-latent-filter.html``):
+This module wires the patch layer into a prototype closed-loop filter:
 
 * :func:`build_observation_matrix` restricts ``M`` to a caller-chosen set of
   trusted/finite sensor rows — the same "trust mask" concept used throughout
@@ -80,7 +79,11 @@ def build_observation_matrix(
     m = np.asarray(m_sens, dtype=np.float64)
     if m.ndim != 2:
         raise ValueError(f"m_sens must be 2D (S, n), got shape {m.shape}")
-    keep = np.ones(m.shape[0], dtype=bool) if mask is None else np.asarray(mask, dtype=bool)
+    keep = (
+        np.ones(m.shape[0], dtype=bool)
+        if mask is None
+        else np.asarray(mask, dtype=bool)
+    )
     if keep.shape != (m.shape[0],):
         raise ValueError(f"mask shape {keep.shape} != sensor rows {(m.shape[0],)}")
     return m[keep], keep
@@ -218,7 +221,9 @@ def ensemble_correct(
         raise ValueError(f"ensemble must be (K, n), got shape {ens.shape}")
     k, n = ens.shape
     if k < 2:
-        raise ValueError(f"ensemble needs >= 2 members to estimate a covariance, got {k}")
+        raise ValueError(
+            f"ensemble needs >= 2 members to estimate a covariance, got {k}"
+        )
 
     h = np.asarray(h_mat, dtype=np.float64)
     y = np.asarray(y_obs, dtype=np.float64)
