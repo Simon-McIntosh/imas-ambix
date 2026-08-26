@@ -36,9 +36,11 @@ class ModelConfig(BaseModel):
     checkpoint_precision: str | None = None
     # Directory key under ``agents/<slug>/`` holding the downloaded weights.
     # Injected by the loader for ``_base`` inheritance, so two profiles in one
-    # chain share one download. Set it explicitly ONLY in a ``gpu_variants``
-    # entry, where a card count needs a different checkpoint and therefore a
-    # separate weights directory from the base.
+    # chain share one download. Declare it explicitly to redirect the weights
+    # elsewhere: in a ``gpu_variants`` entry whose card count needs a different
+    # checkpoint, or on a profile whose release does not share a directory with
+    # the one it superseded. An explicit value always wins over the injected
+    # one, including for variants inheriting from it.
     weights_slug: str | None = None
 
 
@@ -479,5 +481,11 @@ def load_profile(slug: str) -> ModelProfile:
     """
     data, canonical_slug = _load_raw(slug)
     if canonical_slug != slug:
-        data.setdefault("model", {})["weights_slug"] = canonical_slug
+        # Point a variant at the root of its inheritance chain so one download
+        # serves the whole chain -- but never over a weights_slug the chain
+        # declared for itself. A profile that redirects its weights (because
+        # the release it tracks ships a different shard count, say) means that
+        # redirect for its variants too; overwriting it here would silently
+        # load a different checkpoint under the variant's name.
+        data.setdefault("model", {}).setdefault("weights_slug", canonical_slug)
     return ModelProfile(slug=slug, **data)
