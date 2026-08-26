@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T13:06:10",
+  "updated": "2026-08-26T13:27:39",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -137,18 +137,22 @@
         "id": "clive-live-impl",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a03dc0-e26e-7f02-b4a2-b547b2bcd513",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a03dc0-e26e-7f02-b4a2-b547b2bcd513"
+        },
         "created": "2026-08-26"
       },
       {
         "id": "clive-live-review",
         "harness": "codex",
         "role": "review",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a03dcd-6ecd-7f90-81de-4826bb289e0b",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a03dcd-6ecd-7f90-81de-4826bb289e0b"
+        },
         "created": "2026-08-26"
       },
       {
@@ -10276,9 +10280,201 @@
           "role": "investigate",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T110719114728-clive-live-routing",
+        "plan": "clive-live-model-discovery",
+        "section": "\u00a72",
+        "node": "clive-live-routing",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent.py exits 0 with at least 12 new focused tests covering readiness, keyless probing, future model ids, 2x 4x 6x 8x topology, ambiguity, overrides, and both harnesses; uv run --no-sync ruff check imas_ambix tests exits 0; the manifest records both full logs",
+          "estimated_hours": 2.0,
+          "goal": "Implement the probe-qualified Clive live-route contract defined by the scout report",
+          "id": "clive-live-routing",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T110719114728-clive-live-routing/manifest.md",
+          "plan": "clive-live-model-discovery",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/agent/cli.py",
+            "imas_ambix/agent/slurm.py",
+            "imas_ambix/agent/clive.py",
+            "tests/test_agent.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "clive-live-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T11:07:25Z",
+        "completed_at": "2026-08-26T11:20:17Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 772,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 772,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "35ea0721fc1c5ba0e51cfc6dedc76d13ba0c8d40",
+        "commits": [
+          "60b0e49548789cc8f542e86a1ed259860d890af1"
+        ],
+        "changed_lines": {
+          "added": 856,
+          "removed": 150,
+          "files": 4
+        },
+        "tests_added": 20,
+        "gate": "failed",
+        "gate_check": null,
+        "failure_classification": "work-rejected",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T110719114728-clive-live-routing/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03dc0-e26e-7f02-b4a2-b547b2bcd513",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 5873408,
+            "cached_input_tokens_cumulative": 5873408,
+            "input_tokens": 6035299,
+            "input_tokens_cumulative": 6035299,
+            "output_tokens": 32400,
+            "output_tokens_cumulative": 32400,
+            "reasoning_output_tokens": 8836,
+            "reasoning_output_tokens_cumulative": 8836
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260826T112053210318-clive-live-code-review",
+        "plan": "clive-live-model-discovery",
+        "section": "\u00a72",
+        "node": "clive-live-code-review",
+        "node_definition": {
+          "done_when": "test -s /home/ITER/mcintos/.config/reckon/crew/reports/clive-live-code-review.md exits 0; the report records integer critical, high, medium, and low finding counts; it gives an integrate or repair verdict with exact file and line evidence",
+          "estimated_hours": 0.5,
+          "goal": "Audit commit 60b0e49548789cc8f542e86a1ed259860d890af1 against the live-route contract",
+          "id": "clive-live-code-review",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T112053210318-clive-live-code-review/manifest.md",
+          "plan": "clive-live-model-discovery",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "12m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-code-review.md"
+          ]
+        },
+        "role": "review",
+        "spec_level": "exact",
+        "member": "clive-live-review",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-08-26T11:21:07Z",
+        "completed_at": "2026-08-26T11:26:59Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 352,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 352,
+        "stalled": false,
+        "time_budget": "12m",
+        "base_sha": "60b0e49548789cc8f542e86a1ed259860d890af1",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "test -s clive-live-code-review.md",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-code-review.md",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T112053210318-clive-live-code-review/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03dcd-6ecd-7f90-81de-4826bb289e0b",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1844224,
+            "cached_input_tokens_cumulative": 1844224,
+            "input_tokens": 1955914,
+            "input_tokens_cumulative": 1955914,
+            "output_tokens": 11870,
+            "output_tokens_cumulative": 11870,
+            "reasoning_output_tokens": 5715,
+            "reasoning_output_tokens_cumulative": 5715
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 299
+    "_version": 303
   }
 }
