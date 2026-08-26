@@ -195,16 +195,16 @@
       <em>work-rejected</em> gate: its 145 passing tests remain evidence, but its
       candidate commit is deliberately absent from the integrated commit list.</p>
 
-      <aside class="callout note">
-        <strong>Repair candidate passed its implementation gate.</strong>
+      <aside class="callout success">
+        <strong>Repaired launcher approved for integration.</strong>
         Commits <code>caed14e686b5c9dee0c58a25fbd5de2f53504025</code>
         and <code>2b454dd49b4b5c47b9024e359f3e83aa4b899388</code>
         add the distinct validated global-origin authority, bounded interactive
         selection, pre-launch proxy-alias refusal, and a profile-authoritative
         context assertion. The worker's full <code>tests/test_agent.py</code>
-        capture passed 159 of 159 cases. This entry records the candidate gate;
-        integration remains separate until the independent review receipt is
-        promoted.
+        capture passed 159 of 159 cases. Independent testing and architectural
+        review now approve the exact candidate tip; repository integration is
+        the next separate action.
       </aside>
 
       <p><strong>Independent executable gate: PASS.</strong> At the exact
@@ -220,6 +220,18 @@
       <code>r-20260826T141852178111-clive-global-repaired-launcher-independent-test</code>
       and durable report
       <code>clive-global-repaired-launcher-independent-test.md</code>.</p>
+
+      <p><strong>Independent architecture gate: INTEGRATE.</strong> The final
+      review reports 0 critical, 0 high, 0 medium, and 0 low findings. All four
+      findings from the rejected candidate are closed, and all 12 locked
+      contract properties pass using the exact-tip source audit plus the
+      independent executable evidence. This verdict remains deliberately
+      separate from production deployment: the configured global endpoint is
+      still unproven and its most recent anonymous probe was refused before
+      HTTP. Evidence: Crew run
+      <code>r-20260826T141852178071-clive-global-repaired-launcher-independent-review</code>
+      and durable report
+      <code>clive-global-repaired-launcher-independent-review.md</code>.</p>
 
       <p>The repair run performed no scheduler or service mutation: it did not
       submit, launch, stop, restart, or cancel a SLURM job or vLLM process.
