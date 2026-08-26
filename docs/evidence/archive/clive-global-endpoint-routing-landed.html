@@ -113,6 +113,34 @@
       catalog-enabled profile remains a required deployment input, not an
       inferred value.</p>
     </section>
+
+    <section id="live-endpoint-probe">
+      <h2>Anonymous live endpoint probe</h2>
+      <aside class="callout warning">
+        <strong>Negative service gate — unreachable.</strong> At
+        <time datetime="2026-08-26T13:53:57Z">2026-08-26 15:53:57 CEST</time>,
+        two keyless requests to
+        <code>http://98dci4-gpu-0003:18800/v1/models</code> were refused at the
+        TCP layer. Both returned curl exit 7 and HTTP sentinel 000; neither
+        reached an authentication challenge or model catalog.
+      </aside>
+
+      <p>The first request supplied no credential or authorization option. The
+      second deliberately suppressed the <code>Authorization</code> header.
+      Both retained the exact collection URL with zero redirects. The probe
+      consulted no scheduler, job owner, user identity, profile, repository,
+      key file, or credential source, and performed no service or scheduler
+      mutation.</p>
+
+      <p><strong>Observed:</strong> 0 HTTP responses, 0 model ids, 0 context
+      values, and 0 accelerator-family/count/precision field sets. This result
+      is <em>UNREACHABLE</em>, not <em>AUTH-REQUIRED</em> and not
+      <em>REACHABLE-BUT-LEGACY-CATALOG</em>. Global model availability and
+      keyless server behavior therefore remain unconfirmed until a resident
+      service accepts the same anonymous reads. Evidence: Crew run
+      <code>r-20260826T135202645449-clive-global-live-endpoint-probe</code> and
+      durable report <code>clive-global-live-endpoint-probe.md</code>.</p>
+    </section>
   </main>
 </body>
 </html>

@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T15:54:40",
+  "updated": "2026-08-26T15:56:27",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -168,9 +168,11 @@
         "id": "clive-live-probe",
         "harness": "codex",
         "role": "test",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a03e57-d8dd-7723-9222-81e852a49ecd",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a03e57-d8dd-7723-9222-81e852a49ecd"
+        },
         "created": "2026-08-26"
       },
       {
@@ -11809,9 +11811,102 @@
           "role": "investigate",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T135202645449-clive-global-live-endpoint-probe",
+        "plan": "clive-global-endpoint-routing",
+        "section": "\u00a74",
+        "node": "clive-global-live-endpoint-probe",
+        "node_definition": {
+          "done_when": "The durable report records timestamped unauthenticated GET results for http://98dci4-gpu-0003:18800/v1/models from the shared environment, status code, response model ids, max context and ambix accelerator family count precision fields without exposing secrets; it repeats the request with a deliberately absent Authorization header, records whether any scheduler or user identity lookup was needed, checks the endpoint is not redirected to an item URL, and gives a strict AVAILABLE, REACHABLE-BUT-LEGACY-CATALOG, AUTH-REQUIRED, or UNREACHABLE verdict. No service mutation, scheduler action, restart, job cancellation, or source edit is permitted.",
+          "estimated_hours": 0.2,
+          "goal": "Produce a current anonymous reachability and catalog-contract verdict for the site-wide vLLM endpoint.",
+          "id": "clive-global-live-endpoint-probe",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T135202645449-clive-global-live-endpoint-probe/manifest.md",
+          "plan": "clive-global-endpoint-routing",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "12m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-live-endpoint-probe.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "clive-live-probe",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T13:52:18Z",
+        "completed_at": "2026-08-26T13:55:01Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 163,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 163,
+        "stalled": false,
+        "time_budget": "12m",
+        "base_sha": "485373c88765458ba31dd83c7bb02de8c8047739",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": null,
+        "failure_classification": "negative-result",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T135202645449-clive-global-live-endpoint-probe/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03e57-d8dd-7723-9222-81e852a49ecd",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 832768,
+            "cached_input_tokens_cumulative": 832768,
+            "input_tokens": 916656,
+            "input_tokens_cumulative": 916656,
+            "output_tokens": 5933,
+            "output_tokens_cumulative": 5933,
+            "reasoning_output_tokens": 2073,
+            "reasoning_output_tokens_cumulative": 2073
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 329
+    "_version": 331
   }
 }
