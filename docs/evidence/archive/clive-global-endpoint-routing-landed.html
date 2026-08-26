@@ -141,6 +141,39 @@
       <code>r-20260826T135202645449-clive-global-live-endpoint-probe</code> and
       durable report <code>clive-global-live-endpoint-probe.md</code>.</p>
     </section>
+
+    <section id="launcher-architecture-review">
+      <h2>Standalone launcher architecture gate</h2>
+      <aside class="callout warning">
+        <strong>Repair required.</strong> The independent review found
+        0 critical, 1 high, 2 medium, and 1 low issue in candidate commit
+        <code>87611f69c5a005559c22ba5e17685a157e8d4516</code>. The commit is not
+        integrated while these findings remain.
+      </aside>
+
+      <p>The high finding is an authority defect: launcher generation embeds
+      <code>SiteConfig.default_url</code>, but that value still recombines the
+      per-serve GPU host and port. A transient operator override could therefore
+      become the shared consumer origin. The repair must add a distinct,
+      validated site-global origin that per-serve settings cannot alter.</p>
+
+      <p>The two medium findings concern deterministic selection and the
+      explicit proxy branch. Interactive choices of zero or a negative integer
+      currently index unintended catalog items, and a dynamically selected
+      release may be absent from the proxy's statically generated alias set.
+      The low finding is stale source documentation that still describes a
+      removed runtime key-file dependency.</p>
+
+      <p>The same review passed ten core properties: anonymous catalog access,
+      item-URL rejection, native model identity, server-owned topology,
+      future-release handling, same-origin default harness routing, absence of
+      hidden user and scheduler dependencies, fail-closed catalog handling,
+      removal of the launcher-facing operator API, and non-fallback OpenRouter
+      isolation. Whole-tree Ruff passed, two structural regressions passed, and
+      commit whitespace and message hygiene checks passed. Evidence: Crew run
+      <code>r-20260826T135108594773-clive-global-standalone-independent-review</code>
+      and durable report <code>clive-global-standalone-independent-review.md</code>.</p>
+    </section>
   </main>
 </body>
 </html>

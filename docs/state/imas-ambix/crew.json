@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T15:56:27",
+  "updated": "2026-08-26T15:59:06",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -137,9 +137,11 @@
         "id": "clive-live-config",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a03e5a-4865-7293-a05b-2a5cbd5377a7",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a03e5a-4865-7293-a05b-2a5cbd5377a7"
+        },
         "created": "2026-08-26"
       },
       {
@@ -11904,9 +11906,102 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T135108594773-clive-global-standalone-independent-review",
+        "plan": "clive-global-endpoint-routing",
+        "section": "\u00a73",
+        "node": "clive-global-standalone-independent-review",
+        "node_definition": {
+          "done_when": "The durable report reviews base 87611f69c5a005559c22ba5e17685a157e8d4516 against the locked plan decisions, reuse map, and provider schema; it records pass or fail for sole global origin authority, anonymous keyless access, item URL rejection, native model identity, server-owned 2x 4x 6x 8x metadata, future glm-5.3 behavior, same-origin Claude and Codex routing, absence of hidden per-user scheduler key repo or virtualenv dependencies, fail-closed catalog behavior, removed hidden machine API, isolated OpenRouter opt-in, and names every finding with file and line evidence.",
+          "estimated_hours": 0.4,
+          "goal": "Produce an independent architectural review verdict for the committed standalone Clive launcher.",
+          "id": "clive-global-standalone-independent-review",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T135108594773-clive-global-standalone-independent-review/manifest.md",
+          "plan": "clive-global-endpoint-routing",
+          "requires_decisions": [],
+          "role": "review",
+          "section": "\u00a73",
+          "spec_level": "open",
+          "time_budget": "20m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-standalone-independent-review.md"
+          ]
+        },
+        "role": "review",
+        "spec_level": "open",
+        "member": "clive-live-review",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-08-26T13:51:30Z",
+        "completed_at": "2026-08-26T13:57:02Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 332,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 332,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "87611f69c5a005559c22ba5e17685a157e8d4516",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": null,
+        "failure_classification": "negative-result",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T135108594773-clive-global-standalone-independent-review/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03dcd-6ecd-7f90-81de-4826bb289e0b",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 658432,
+            "cached_input_tokens_cumulative": 2804480,
+            "input_tokens": 812612,
+            "input_tokens_cumulative": 3000078,
+            "output_tokens": 4487,
+            "output_tokens_cumulative": 13305,
+            "reasoning_output_tokens": 2104,
+            "reasoning_output_tokens_cumulative": 6071
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "review",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 331
+    "_version": 333
   }
 }
