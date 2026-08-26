@@ -20,10 +20,11 @@ version = "0.1.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     # --- Core ML runtime ---
-    # Pin torch to match vllm's compiled ABI — vllm 0.23.0 links torch 2.11.0
-    "torch==2.11.0",
-    "torchaudio==2.11.0",
-    "torchvision==0.26.0",
+    # Pin torch to match vllm's compiled ABI — vllm 0.27.x links torch 2.13.0
+    "torch==2.13.0",
+    # torchaudio and torchvision are not needed for LLM serving — pin only
+    # torch to match vllm's compiled deep_gemm ABI (c10::ValueError
+    # constructor changed signature after 2.11.0).
     "transformers>=4.56",
     "tokenizers>=0.21.1",
     "numpy",
@@ -123,5 +124,3 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu126" }
-torchaudio = { index = "pytorch-cu126" }
-torchvision = { index = "pytorch-cu126" }
