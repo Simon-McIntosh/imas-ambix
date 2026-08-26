@@ -286,19 +286,51 @@ that it has not drifted from the generator.
 
 ## 5. Available Model Profiles
 
-| Profile | Model | Engine | Size | Context | License |
-|---------|-------|--------|------|---------|---------|
-| `kimi-k2-6` | Kimi-K2.6 (1T MoE) | KTransformers+SGLang | 555 GB | 262K | Modified MIT |
-| `deepseek-v4-flash` | DeepSeek V4-Flash (284B MoE) | SGLang | 164 GB | 1M | MIT |
-| `minimax-m2-7` | MiniMax M2.7 (~220B MoE) | SGLang | 220 GB | 200K | Custom |
-| `glm-5-2` | GLM-5.2 (~744B MoE) | vLLM | 744 GB | 224K¹ | MIT |
+| Profile | Model | Engine | Checkpoint | Cards¹ | Context | License |
+|---------|-------|--------|------------|--------|---------|---------|
+| `kimi-k2-6` | Kimi-K2.6 (1T MoE) | KTransformers+SGLang | 555 GB | 4 | 262K | Modified MIT |
+| `deepseek-v4-flash` | DeepSeek V4-Flash (284B MoE) | vLLM | 164 GB FP4+FP8 | 4 | 1M | MIT |
+| `minimax-m2-7` | MiniMax M2.7 (~220B MoE) | SGLang | 220 GB FP8 | 4 | 200K | Custom |
+| `glm-5-2` | GLM-5.2 (~744B MoE) | vLLM | 744 GB FP8 | 8 | 224K² | MIT |
+| `glm-5-2-int4` | GLM-5.2 (~744B MoE) | vLLM | ~447 GiB INT4 AWQ | 4 | 128K | MIT |
+| `glm-5-3` | GLM-5.3 (~744B MoE) | vLLM | FP8 | 8 | — | unconfirmed³ |
+| `glm-5-3-int4` | GLM-5.3 (~744B MoE) | vLLM | INT4 AWQ | 4 | — | unconfirmed³ |
 
-¹ GLM-5.2 context is capped at **224K** on this hardware, not its native 1M —
+¹ The card count is the profile's default sizing, not part of its identity —
+`imas-ambix agent serve <slug> --gpus N` rescales tensor-parallel width, cores,
+and memory at launch. See the naming convention below.
+² GLM-5.2 FP8 context is capped at **224K** on eight cards, not its native 1M —
 see the deployment note below.
+³ **The GLM-5.3 profiles are stubs and not usable.** The weights were announced
+but are not open-source as of 2026-08-26, and the license is unconfirmed. Do not
+submit a download or a serve against them until both are resolved; the INT4 stub
+additionally has no real checkpoint repository to point at.
 
 **Kimi-K2.6** — CPU-offloaded via KTransformers. 5 tok/s, best code quality (SWE 65.8%).
 **DeepSeek V4-Flash** — Full GPU, FP4+FP8. 500–800 tok/s est., 1M context, MIT license.
 **MiniMax M2.7** — Full GPU, FP8 native. 400–600 tok/s est., best agentic (GDPval-AA 1495).
+**GLM-5.2** — Full GPU, vLLM, MTP speculative decoding. Two checkpoints for two
+node sizes: FP8 on eight cards, INT4 AWQ on four.
+
+### Variant naming convention (binding)
+
+- **One release, one client-visible name.** Every variant of a release is served
+  under the same `served_name` (`glm-5.2` — never `glm-5.2-fp8` or
+  `glm-5.2-int4`), so a consumer never has to know which node size answered its
+  request. `model.name` is likewise the plain release name (`GLM-5.2`) on every
+  variant, exactly as the two-card DeepSeek variant reports `DeepSeek-V4-Flash`.
+- **The card count never appears in a profile slug, a display name, or a SLURM
+  job name.** It is a launch-time flag — `imas-ambix agent serve <slug> --gpus N`
+  — which rescales tensor-parallel width, cores, and memory off the base profile.
+  Two DeepSeek cards are served from the plain `deepseek-v4-flash` slug that way,
+  and that is the pattern to follow; a card-count-suffixed profile is only a thin
+  topology override of its base, not a distinct model.
+- **Where two profiles are genuinely needed, the slug names the checkpoint
+  precision** (`-int4`), because the checkpoint is the real differentiator. GLM
+  needs two profiles because the two node sizes require different checkpoints —
+  INT4 at ~440 GB fits four cards, FP8 at ~744 GB needs eight. DeepSeek needs one
+  because both of its sizes load the same checkpoint and differ only in
+  tensor-parallel width.
 
 ### Kimi-K2.6 Deployment
 
@@ -360,7 +392,10 @@ curl -H "Authorization: Bearer $KEY" http://<compute-node>:18800/v1/models
 
 **Profiles:**
 - `deepseek-v4-flash` — 4×H200, TP=4, target 500–800 tok/s
-- `deepseek-v4-flash-2x` — 2×H200, TP=2, ~100 tok/s single / ~114 tok/s 8-way concurrent
+- `deepseek-v4-flash-2x` — 2×H200, TP=2, ~100 tok/s single / ~114 tok/s 8-way
+  concurrent. A topology override of the base profile that also raises the
+  context cap to 1M and halves the sequence cap. The card count in its slug is
+  not a pattern to copy — a plain two-card serve is `--gpus 2` on the base slug.
 
 **Memory budget (4×H200):**
 - Weights: ~164 GB total (~41 GB/card)
@@ -417,77 +452,134 @@ imas-ambix agent serve minimax-m2-7      # submit to betelgeuse
 
 **Recommended inference params:** temperature=1.0, top_p=0.95, top_k=40
 
-### GLM-5.2 Deployment
+### GLM-5.2 on eight cards (FP8)
 
-**Engine:** vLLM native, full-GPU, **TP=8 on all 8×H200** (no CPU offload).
+**Profile:** `glm-5-2` — vLLM native, full-GPU, **TP=8 across all 8×H200**, no
+CPU offload. The ~744 GB FP8 checkpoint needs the whole 8×140 GB of VRAM, so this
+serve fills the node and no other GPU job coexists with it. vLLM exposes the
+OpenAI API and the **Anthropic Messages API** (`/v1/messages`) on the same port,
+so `clive` (§4a) drives it directly.
 **Model path:** `/work/projects/imas_gpu/agents/glm-5-2/model`
-**Why all 8 cards:** the ~744 GB FP8 checkpoint needs the full 8×140 GB VRAM;
-this run fills the node (no coexisting GPU job). vLLM exposes both the OpenAI
-API and the **Anthropic Messages API** (`/v1/messages`) natively → drive it with
-`clive` (§4a).
 
-**Hard-won deployment facts (measured 2026-06-25; working config = 224K @ 0.86,
-job 1222821 — verified with a real decode + a live `clive`/Claude Code request).**
-- **Two HBM constraints fight; context capped at 224K, not 1M.** The FP8 weights
-  + MTP draft model + the FP8 sparse-MLA attention kernel (which allocates
-  **~8 GiB/card of scratch lazily on the FIRST real decode**) leave little room
-  for KV. Measured: at `mem_fraction 0.95` the KV pool was ~24 GiB (256K fits)
-  but the first real decode **OOM'd** (8 GiB needed, 2.4 free → EngineDeadError,
-  job 1222807); at `0.86` decode scratch is ample but KV is only 13.63 GiB, so
-  256K KV-init **fails** (needs 15.2; job 1222818). Resolution: keep
-  `mem_fraction 0.86` (decode-safe) and size context to fit the KV that leaves —
-  **`max_total_tokens=229376` (224K) needs ~13.3 GiB < 13.63**. **Startup +
-  KV-init passing does NOT prove inference fits** — the kernel scratch is lazy,
-  so always validate with a real generation. The native 1M needs 8×B200.
-- **CUDA graphs are ON** (graph-accelerated). The earlier "capture stalls" on
-  jobs 1222717/1222745/1222792 were **memory pressure** at `mem_fraction`
-  0.90/0.95, not an inherent TP=8+MTP bug — at 0.86 capture completes in ~70 s
-  ("Graph capturing finished in 70 secs, took 2.84 GiB", job 1222821) and the
-  server serves real traffic. (`disable_cuda_graph` in the profile is a no-op
-  here: vLLM ignores it — it is an SGLang-only flag.) One root cause —
-  mem_fraction too high — caused both the capture stalls and the decode OOM.
+Deployment facts — eight-card FP8 only (measured 2026-06-25/26 at 224K context
+and `mem_fraction 0.86`, verified with a real decode and a live Claude Code
+request):
+
+- **Two HBM constraints fight, and the ceiling is 224K rather than the native
+  1M.** The FP8 weights, the MTP draft model, and the FP8 sparse-MLA decode
+  kernel — which allocates **~8 GiB/card of scratch lazily, on the first real
+  decode** — leave little room for KV. At `mem_fraction 0.95` the KV pool reaches
+  ~24 GiB (256K fits) but the first decode finds only ~2.4 GiB of the 8 GiB it
+  needs and the engine dies; at 0.86 the decode scratch is ample and the KV pool
+  is 13.63 GiB, so a 256K pool (needs 15.2 GiB) cannot initialise while 224K
+  (`max_total_tokens=229376`, ~13.3 GiB) does. **Startup and KV-init passing are
+  not proof that inference fits** — the scratch is lazy, so always validate with
+  a real generation. The native 1M context needs Blackwell cards.
+- **CUDA graphs are on and carry the decode.** At 0.86 capture completes in ~70 s
+  for 2.84 GiB. Capture stalls at `mem_fraction` 0.90/0.95 are the same memory
+  pressure that kills the first decode, not a TP=8-plus-MTP defect: one cause,
+  two symptoms. `disable_cuda_graph` is an SGLang-only flag and vLLM ignores it.
 - **MTP speculative decoding** (`--speculative-config.method mtp`,
-  `num_speculative_tokens 5`) is GLM-5.2's headline throughput feature and is
+  `num_speculative_tokens 5`) is this model's headline throughput feature and is
   enabled in the profile.
-- **Throughput (measured 2026-06-26, job 1222821, 224K/0.86):** single request
-  **~33–37 tok/s** decode; **aggregate** throughput scales with concurrency —
-  ~210 tok/s @ 8 concurrent, ~457 @ 16, ~680 @ 32, **~974 tok/s @ 48**. Healthy
-  concurrency is **~16–32 simultaneous requests** (per-request rate holds ~25–35
-  tok/s through n=16, then trades latency for aggregate). The scheduler cap is
-  `max_num_seqs=1024` (not the bottleneck); the real ceiling is the ~13.6 GiB KV
-  pool — at 224K/request the KV-limited concurrency is ~1× (one full-context
-  request), but typical agent requests use far less context, so dozens run
-  concurrently. **Low concurrency (n=1–4) is MTP-overhead-dominated** and slower
-  per-aggregate than n=8+; the model shines under batch load.
-- **Reasoning effort wired** end-to-end (Claude Code `effort` → vLLM
-  `reasoning_effort` → GLM template `enable_thinking`), but GLM-5.2's chat
-  template effectively offers **two levels** — `high`, or `max` for everything
-  else.
-- **vLLM env required transformers 5.x + flashinfer 0.6.12 etc.** The serve venv
-  was upgraded 0.20.2 → **0.23.0** for GLM-5.2 (`GlmMoeDsaForCausalLM`, glm45/
-  glm47 parsers, MTP). The setup wheel-resolver was fixed for the
-  manylinux_2_28 tag drop.
+- **Throughput:** single request **~33–37 tok/s** decode; aggregate scales with
+  concurrency — ~210 tok/s @ 8 concurrent, ~457 @ 16, ~680 @ 32, **~974 @ 48**.
+  Healthy concurrency is **~16–32 simultaneous requests** (per-request rate holds
+  ~25–35 tok/s through n=16, then trades latency for aggregate). The scheduler
+  cap (`max_num_seqs=1024`) is not the bottleneck; the ~13.6 GiB KV pool is — at
+  224K per request only one full-context request fits, but typical agent requests
+  use far less context, so dozens run concurrently. **Low concurrency (n=1–4) is
+  MTP-overhead-dominated** and worse per-aggregate than n=8+; the model shines
+  under batch load.
+- **Reasoning effort is wired end to end** (Claude Code `effort` → vLLM
+  `reasoning_effort` → GLM template `enable_thinking`), but the chat template
+  offers effectively two levels — `high`, or `max` for everything else.
+- **Engine floor:** vLLM ≥ 0.23.0 for `GlmMoeDsaForCausalLM`, the glm45/glm47
+  parsers, and MTP, alongside transformers 5.x and flashinfer. The vLLM engine
+  environment is shared across profiles, so the higher four-card INT4 floor below
+  governs whichever version is actually installed.
+- **The FP8 KV pool is engine-dependent, and the 224K number travels with it.**
+  `kv_cache_dtype = "fp8"` and the sizing above were measured together. The
+  sparse-attention KV-dtype constraint recorded for the four-card path below is a
+  property of the same architecture, and a bf16 pool holds roughly half the
+  tokens for the same bytes — so re-measure the pool and the context ceiling
+  against the engine actually installed before quoting 224K.
 - **FP8 is the only practical precision on H200 — FP4 is Blackwell-only.**
-  Native FP4 tensor cores do not exist on Hopper (H200, CC 9.0); they were
-  introduced with Blackwell (B200/GB200/RTX PRO 6000). A `GLM-5.2-NVFP4`
-  checkpoint exists (~459 GB vs our 744 GB FP8 — would free ~285 GB for KV), but
-  it **requires Blackwell**: on H200 vLLM can only load it via the Marlin
-  software fallback, which is *unaccelerated* (no FP4 silicon → likely slower
-  than FP8, not faster) and *correctness-buggy* ("NVFP4 Marlin assumes scales
-  ≥0 but encountered negative scales"). So **224K-FP8 is the best/only sound
-  setup on this hardware** — the tightness is the 744 GB footprint + MTP, not a
-  quantization choice. The lever that would actually free headroom on H200 is
-  **dropping MTP** (reclaims the draft model's weights + scratch for KV/context),
-  trading its throughput benefit. FP4 only becomes viable if Group A gets
-  Blackwell cards. (NVFP4 details: <https://developer.nvidia.com/blog/introducing-nvfp4-for-efficient-and-accurate-low-precision-inference/>;
+  Native FP4 tensor cores do not exist on Hopper (H200, CC 9.0); they arrived
+  with Blackwell (B200/GB200/RTX PRO 6000). A `GLM-5.2-NVFP4` checkpoint exists
+  (~459 GB vs 744 GB FP8 — would free ~285 GB for KV), but it **requires
+  Blackwell**: on H200 vLLM can only load it through the Marlin software
+  fallback, which is *unaccelerated* (no FP4 silicon, so likely slower than FP8,
+  not faster) and *correctness-buggy* (NVFP4 Marlin assumes scales ≥0 and
+  encounters negative ones). The tightness here is the 744 GB footprint plus MTP,
+  not a quantization choice. The lever that frees headroom on H200 is **dropping
+  MTP** (reclaims the draft model's weights and scratch for KV/context), trading
+  its throughput benefit; FP4 becomes viable only on Blackwell cards. (NVFP4
+  details: <https://developer.nvidia.com/blog/introducing-nvfp4-for-efficient-and-accurate-low-precision-inference/>;
   H200 = Hopper/FP8, B200 = Blackwell/FP4.)
 
 **Deploy:**
 ```bash
 imas-ambix agent download glm-5-2   # ~744 GB, run from sirius
-imas-ambix agent serve glm-5-2      # all 8 cards; ~30 min weight load (GPFS-cold)
+imas-ambix agent serve glm-5-2      # eight cards; ~30 min weight load (GPFS-cold)
 clive "..."                          # drive Claude Code against it (§4a)
 ```
+
+### GLM-5.2 on four cards (INT4 AWQ)
+
+**Profile:** `glm-5-2-int4` — vLLM native, TP=4, INT4 AWQ
+(compressed-tensors/Marlin), 128K context (`max_total_tokens=131072`) at
+`mem_fraction_static 0.90`.
+**Weights:** `cyankiwi/GLM-5.2-AWQ-INT4` — 83 shards, ~447 GiB, at
+`/work/projects/imas_gpu/agents/glm-5-2-int4/model`.
+**MTP draft:** `CosmicRaisins/GLM-5.2-MTP-INT4` (~5.5 GiB, 3122 tensors) in the
+`mtp-draft/` subdirectory of that model directory. AWQ requantisation damages the
+integrated MTP head, so the draft is loaded as a separate model.
+**Coexistence:** this serve holds **4 cards on port 18801** while the two-card
+DeepSeek serve holds 18800 — 6 of the 8 cards in use, both endpoints live.
+
+Deployment facts — four-card INT4 only (measured 2026-08-26):
+
+- **The KV cache must be `bfloat16`.** GLM-5.2's sparse (DSA) attention has no
+  FP8 KV kernel in vLLM: every candidate attention backend rejects `fp8_e4m3`,
+  each reporting either that sparse attention is unsupported or that the KV dtype
+  is. The FP8-KV throughput gain widely quoted for this model is an SGLang result
+  and does not transfer to vLLM. It costs KV capacity — bf16 holds half the
+  tokens per byte — and is worth re-testing when a later vLLM ships the kernel.
+- **The accepted spelling is `bfloat16`.** `bf16` is rejected at argument parse.
+- **vLLM 0.27.1 requires torch 2.13.0.** The wheel is compiled against that ABI;
+  against torch 2.11.0 the bundled `deep_gemm` extension fails to import on an
+  undefined `c10` symbol, and because the sparse-attention indexer depends on
+  that extension the server refuses to start with "Sparse Attention Indexer CUDA
+  op requires DeepGEMM support". `deep_gemm` additionally needs the CUDA 13
+  runtime (`libcudart.so.13`, `libnvrtc.so.13`), which the environment carries
+  under `site-packages/nvidia/cu13/lib` and which the generated serve script puts
+  on `LD_LIBRARY_PATH` through its `nvidia/*/lib` glob. torchaudio and
+  torchvision are not needed for serving and are not pinned.
+- **MTP speculative decoding needs vLLM ≥ 0.27.0.** The community INT4 draft
+  stores experts individually
+  (`model.layers.78.mlp.experts.N.{gate,up,down}_proj.weight_packed`); a loader
+  that expects a single fused `routed_experts` tensor raises a missing-key error
+  on it. The 0.27.x loader rewrites the layer prefix to `mtp_block.` and fuses
+  the per-expert weights itself, so this layout is the supported one.
+- **The scheduler sequence cap is 64** — above the benchmark's maximum
+  concurrency of 32, and low enough not to inflate CUDA-graph capture against a
+  bf16 KV pool.
+
+**Deploy:**
+```bash
+imas-ambix agent download glm-5-2-int4                  # ~447 GiB + draft, from sirius
+imas-ambix agent serve glm-5-2-int4 --port 18801        # four cards, beside DeepSeek
+```
+
+### Measuring serving throughput
+
+Serving throughput is recorded with `imas-ambix agent bench`; saved runs land
+under `~/.local/share/ambix/bench/`. A run is comparable only when it carries its
+provenance — the serving configuration it ran against and the engine version —
+and a draft-token acceptance rate, because a silently degraded speculator costs
+throughput without raising an error. Comparison tooling over the saved runs is
+still being built; read its flags from its own `--help` rather than from here.
 
 ## 6. Models we evaluated and rejected
 
