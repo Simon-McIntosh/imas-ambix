@@ -1,7 +1,7 @@
 """Generate the secret-free LiteLLM routing config used by ``clive``.
 
-The local model uses LiteLLM's OpenAI-compatible transport so vLLM receives
-its credential as ``Authorization: Bearer``.  OpenRouter routes use the
+The site-global native release uses LiteLLM's OpenAI-compatible transport.
+OpenRouter routes use the
 provider form matching each model family; Claude routes retain the Anthropic
 endpoint so Anthropic message features remain intact.  Keys are environment
 references and are resolved only by the per-user service.
@@ -15,20 +15,20 @@ if TYPE_CHECKING:
     from imas_ambix.agent.profile import SiteConfig
 
 
-def generate_litellm_config(site: SiteConfig, local_model: str) -> str:
-    """Render the LiteLLM routing YAML for *local_model* and OpenRouter."""
-    local_url = f"{site.default_url.rstrip('/')}/v1"
+def generate_litellm_config(site: SiteConfig, native_release: str) -> str:
+    """Render the proxy YAML for one native release and OpenRouter."""
+    global_url = f"{site.global_origin}/v1"
     return f"""# Generated LiteLLM routing config for the per-user clive proxy.
 # Keys are loaded from the service environment; this file contains no secrets.
 
 model_list:
-  - model_name: {local_model}
+  - model_name: {native_release}
     litellm_params:
-      model: openai/{local_model}
-      api_base: {local_url}
+      model: openai/{native_release}
+      api_base: {global_url}
       api_key: os.environ/AMBIX_LOCAL_KEY
     model_info:
-      description: "{local_model} — local 8xH200 (vLLM), fast + free"
+      description: "{native_release} — site-global native release"
 
   - model_name: or-opus-4.8
     litellm_params:
