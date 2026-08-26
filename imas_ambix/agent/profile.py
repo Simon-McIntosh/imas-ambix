@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # -- Model identity ----------------------------------------------------------
 
@@ -149,6 +149,26 @@ class EngineConfig(BaseModel):
     env: dict[str, str] = {}
     ktransformers: KTransformersConfig | None = None
     parsers: ParsersConfig = ParsersConfig()
+
+    @model_validator(mode="after")
+    def _absent_speculation_is_none(self) -> EngineConfig:
+        """Treat an empty speculative setting as absent rather than as a value.
+
+        A ``gpu_variants`` entry can only override a key, never delete one, so a
+        variant that must run WITHOUT speculative decoding has to express "off"
+        as an empty method and a zero draft count. Those would otherwise be
+        forwarded verbatim and rejected by the engine, which accepts neither an
+        empty method name nor a non-positive draft count. Normalising them to
+        ``None`` here makes the serve command omit the flags entirely, which is
+        what "off" means.
+        """
+        if not self.speculative_method:
+            self.speculative_method = None
+        if not self.speculative_num_tokens or self.speculative_num_tokens <= 0:
+            self.speculative_num_tokens = None
+        if self.speculative_method is None:
+            self.speculative_model = None
+        return self
 
 
 # -- SLURM defaults ----------------------------------------------------------
