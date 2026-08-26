@@ -24,6 +24,9 @@
   <title>Clive Global Endpoint Routing | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-08-26">
+<meta name="plan-version" content="3">
+<meta name="plan-impl" content="0.2">
 </head>
 <body>
   <main class="plan-doc">
@@ -39,6 +42,15 @@
 
     <section id="s1">
       <h2>§1 — Corrected authority boundary</h2>
+      <aside class="callout success">
+        <strong>Reuse scout landed.</strong> Twenty seams were classified:
+        8 keep, 6 adapt, 4 delete, and 2 replace. Installed vLLM 0.28.0
+        supports a pure-ASGI <code>--middleware</code> hook and extra model-card
+        fields, so the global catalog can publish site-owned topology metadata
+        without any consumer-side operator dependency. One active topology per
+        release id is required until the global origin owns a separate routing
+        discriminator.
+      </aside>
       <p>
         The global endpoint configured by <code>SiteConfig.default_url</code> is
         the sole consumer authority. Clive polls
@@ -120,33 +132,34 @@
     </section>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="catalog-authority" data-choice="single-global-models-endpoint" data-by="Simon McIntosh" data-when="2026-08-26">
-        <p class="r-dec-q">What determines which models Clive makes available?</p>
-        <p class="r-dec-rat">Only the successful model catalog returned by one globally accessible vLLM base URL.</p>
-      </div>
-      <div class="r-dec" data-key="consumer-identity" data-choice="anonymous-shared-consumer" data-by="Simon McIntosh" data-when="2026-08-26">
-        <p class="r-dec-q">Does discovery depend on a user's scheduler jobs, repository, or credentials?</p>
-        <p class="r-dec-rat">No. The launcher is shared, standalone, keyless, and identical for every user.</p>
-      </div>
-      <div class="r-dec" data-key="topology-authority" data-choice="server-catalog-metadata" data-by="Simon McIntosh" data-when="2026-08-26">
-        <p class="r-dec-q">Where does the 2×, 4×, 6×, or 8× H200 distinction come from?</p>
-        <p class="r-dec-rat">From site-owned metadata in the global model response, separate from the release model id and never inferred client-side.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="catalog-authority" data-choice="single-global-models-endpoint" data-by="Simon McIntosh" data-when="2026-08-26">
+    <p class="r-dec-q">What determines which models Clive makes available?</p>
+    <p class="r-dec-rat">Only the successful model catalog returned by one globally accessible vLLM base URL.</p>
+    </div>
+<div class="r-dec" data-key="consumer-identity" data-choice="anonymous-shared-consumer" data-by="Simon McIntosh" data-when="2026-08-26">
+    <p class="r-dec-q">Does discovery depend on a user&#x27;s scheduler jobs, repository, or credentials?</p>
+    <p class="r-dec-rat">No. The launcher is shared, standalone, keyless, and identical for every user.</p>
+    </div>
+<div class="r-dec" data-key="topology-authority" data-choice="server-catalog-metadata" data-by="Simon McIntosh" data-when="2026-08-26">
+    <p class="r-dec-q">Where does the 2×, 4×, 6×, or 8× H200 distinction come from?</p>
+    <p class="r-dec-rat">From site-owned metadata in the global model response, separate from the release model id and never inferred client-side.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-cger-001" data-status="open"
-               data-capability-version="1.0" data-capability-class="orchestrator"
-               data-capability-reasoning="deep" data-capability-verification="strict"
-               data-written-by="reckon-create" data-written-at="2026-08-26"
-               data-recommends-skill="/reckon-ship clive-global-endpoint-routing">
-        <h4 class="r-fu-title">Replace user-scoped discovery with the global endpoint contract</h4>
-        <div class="r-fu-body"><p>Implement, independently review, test, deploy, and record the global shared-consumer route.</p></div>
-        <pre class="r-fu-prompt">/reckon-ship clive-global-endpoint-routing</pre>
-      </article>
-    </section>
-  </main>
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-cger-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-26" data-recommends-skill="/reckon-ship clive-global-endpoint-routing" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Replace user-scoped discovery with the global endpoint contract</h4>
+    <div class="r-fu-body"><p>Implement, independently review, test, deploy, and record the global shared-consumer route.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship clive-global-endpoint-routing</pre>
+    </article>
+</section>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s1" data-id="c-run-r-20260826T125942404962-clive-global-reuse-scout" data-who="clive-live-scout" data-when="2026-08-26T13:09:46Z">
+    <div class="r-comment-body"><p>Mapped 20 existing Clive and vLLM seams and selected a pure-ASGI vLLM catalog middleware plus standalone same-origin Clive consumer design.</p></div>
+</div>
+</section>
+</main>
 </body>
 </html>

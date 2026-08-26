@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="clive-global-endpoint-routing-landed">
+  <meta name="plan-title" content="Clive Global Endpoint Routing — Landed Record">
+  <meta name="plan-summary" content="Cumulative execution evidence for the anonymous global model catalog and standalone shared Clive launcher.">
+  <meta name="plan-evidence-for" content="clive-global-endpoint-routing">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-recorded-at" content="2026-08-26">
+  <title>Clive Global Endpoint Routing — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <header>
+      <p class="eyebrow">Cumulative execution evidence</p>
+      <h1>One anonymous catalog, one inference origin</h1>
+      <p class="lead">This record accumulates implementation, verification,
+      and deployment evidence for the globally shared Clive route.</p>
+    </header>
+
+    <section id="reuse-map">
+      <h2>Reuse map and server extension seam</h2>
+      <p><strong>Passed.</strong> The read-only reuse scout classified 20 existing
+      seams: 8 keep, 6 adapt, 4 delete, and 2 replace. The existing generated
+      launcher and serving-script construction are reusable, while the
+      scheduler-derived consumer route, key-file read, personal environment
+      overrides, and per-user operator CLI dependency must leave the shared
+      launch path.</p>
+
+      <p>Installed vLLM 0.28.0 provides a repeatable import-path
+      <code>--middleware</code> hook, and its model-card schema permits additional
+      fields. The selected provider design is therefore a site-owned pure-ASGI
+      middleware that intersects vLLM's native live model cards with explicit
+      site metadata. It may enrich a currently served model; it may never
+      synthesize an absent one.</p>
+
+      <table>
+        <thead>
+          <tr><th>Catalog field</th><th>Authority</th><th>Consumer use</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>id</code></td><td>vLLM live model card</td><td>Inference model identity</td></tr>
+          <tr><td><code>max_model_len</code></td><td>vLLM live model card</td><td>Context display when present</td></tr>
+          <tr><td><code>ambix.accelerator_family</code></td><td>Site launch metadata</td><td>Topology display and validation</td></tr>
+          <tr><td><code>ambix.accelerator_count</code></td><td>Site launch metadata</td><td>Validated as 2, 4, 6, or 8</td></tr>
+          <tr><td><code>ambix.checkpoint_precision</code></td><td>Site launch metadata</td><td>Precision display and validation</td></tr>
+        </tbody>
+      </table>
+
+      <p>The standalone consumer contract is stricter than the prior route:
+      discovery requires only Bash, Python 3's standard library, the selected
+      harness executable, and network access to the embedded global origin. It
+      does not depend on user identity, a home directory, scheduler or job
+      state, batch scripts, credentials, a repository checkout, a virtual
+      environment, model profiles, or the <code>imas-ambix</code> operator CLI.
+      Both catalog polling and inference remain on the same origin.</p>
+
+      <aside class="callout warning">
+        <strong>Compatibility boundary.</strong> OpenAI-compatible inference
+        routes by the model string. Until the global origin owns another
+        routing discriminator, it must publish at most one active topology per
+        release id. The 2×, 4×, 6×, and 8× distinction remains metadata and is
+        not encoded into the release identity.
+      </aside>
+
+      <p>Evidence: Crew run
+      <code>r-20260826T125942404962-clive-global-reuse-scout</code>; durable reuse
+      report <code>clive-global-endpoint-reuse-map.md</code>; non-empty report
+      check passed and the exact 20-row seam check passed. No product files,
+      jobs, services, installed packages, or deployed artifacts were changed by
+      this node.</p>
+    </section>
+  </main>
+</body>
+</html>
