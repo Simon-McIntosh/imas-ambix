@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="clive-live-model-discovery-landed">
+  <meta name="plan-title" content="Clive Live Model Discovery — Landed Record">
+  <meta name="plan-summary" content="Cumulative execution evidence for probe-qualified, topology-aware Clive route discovery and deployment.">
+  <meta name="plan-evidence-for" content="clive-live-model-discovery">
+  <meta name="plan-verifies" content="clive-live-model-discovery#s1,clive-live-model-discovery#s2,clive-live-model-discovery#s3">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>Clive Live Model Discovery — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>Clive live model discovery — execution record</h1>
+
+    <h2 id="reuse-map">Reuse map and authority boundary</h2>
+
+    <p>The read-only Crew scout inventoried <strong>19</strong> existing scheduler,
+    endpoint, launcher, and regression-test seams. All 19 received a fitness
+    verdict: <strong>7 keep, 9 adapt, 3 replace</strong>. It bounded the source
+    implementation to <code>imas_ambix/agent/cli.py</code>,
+    <code>imas_ambix/agent/slurm.py</code>,
+    <code>imas_ambix/agent/clive.py</code>, and
+    <code>tests/test_agent.py</code>. The durable map is
+    <code>~/.config/reckon/crew/reports/clive-live-reuse-map.md</code>; its
+    19-line inventory and non-empty report checks both exited 0.</p>
+
+    <p>The resulting authority rule is fail-closed: a running scheduler allocation
+    is only a candidate. A route is available only after its own
+    <code>/v1/models</code> response succeeds and reports at least one model id.
+    Runtime scheduler facts supply the node, concrete port, GPU count, and job id;
+    the endpoint supplies model identity and optional context metadata.</p>
+
+    <h2 id="rejected-implementation">Rejected implementation and repair gate</h2>
+
+    <p>The first implementation commit <code>60b0e49548789cc8f542e86a1ed259860d890af1</code>
+    produced <strong>128/128 passing agent tests</strong>, added 20 focused test
+    functions collecting 25 cases, and left the whole-tree Ruff gate clean.
+    It was deliberately <strong>not integrated</strong>: independent review found
+    <strong>0 critical, 1 high, 0 medium, 0 low</strong> findings.</p>
+
+    <p>The high finding was credential propagation. The generated launcher read an
+    <code>AMBIX_AGENT_KEY_FILE</code> credential but did not pass it into the
+    operator subprocess that performs endpoint discovery. A consumer relying only
+    on that documented key-file path therefore received <code>auth-fail</code>
+    before either Claude Code or Codex started. The review report is
+    <code>~/.config/reckon/crew/reports/clive-live-code-review.md</code>; its
+    non-empty delivery check exited 0. The implementation run remains recorded as
+    a failed <code>work-rejected</code> gate so the negative result is visible.</p>
+
+    <h2 id="accepted-implementation">Accepted implementation</h2>
+
+    <p>This anchor is reserved for the independently accepted repair head and its
+    integration evidence. It remains open until the reviewer, separate test worker,
+    and live deployment worker all report.</p>
+
+    <h2 id="live-deployment">Live deployment and endpoint evidence</h2>
+
+    <p>This anchor is reserved for the deployed launcher byte comparison, dynamic
+    route listing, selected model/topology/endpoint, and the current endpoint's
+    authenticated-versus-keyless result.</p>
+  </main>
+</body>
+</html>
