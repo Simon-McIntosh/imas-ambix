@@ -12,11 +12,12 @@
 # Unlike the 4-card glm-5-1 profile (which had to spill experts to CPU via
 # KTransformers), the FP8 checkpoint fits entirely in 8×140 GB = 1,123 GB VRAM:
 #   * Weights:  ~744 GB FP8  → ~93 GB/card at TP=8
-#   * Free:     ~47 GB/card  → FP8 KV cache for the full 1M context
+#   * Free:     ~47 GB/card  → KV cache, well short of the native 1M context
 # This is exactly the case the official vLLM recipe targets ("fits on a single
 # 8×H200 node"). Requires vLLM ≥ 0.23.0 (MTP + tool calling together want main).
 #
-# Authoritative serve command — https://recipes.vllm.ai/zai-org/GLM-5.2:
+# Upstream serve command — https://recipes.vllm.ai/zai-org/GLM-5.2 — note its
+# --kv-cache-dtype fp8 does NOT hold on this engine; see the KV note below:
 #   vllm serve zai-org/GLM-5.2-FP8 --tensor-parallel-size 8 --kv-cache-dtype fp8 \
 #     --speculative-config.method mtp --speculative-config.num_speculative_tokens 5 \
 #     --tool-call-parser glm47 --reasoning-parser glm45 --enable-auto-tool-choice
@@ -26,7 +27,8 @@
 #    If KV is tight at 1M context, lower max_total_tokens or mem_fraction_static.
 # 2. max_num_seqs/max_num_batched_tokens are set high to exploit the KV budget
 #    (the vLLM default 256-seq cap is the throughput bottleneck — see deepseek).
-# 3. fp8 KV cache (kv_cache_dtype) is mandatory at 1M context per the recipe.
+# 3. Re-measure the KV pool line at startup before quoting any context ceiling;
+#    the bf16 entry size makes every previously-recorded fp8 figure optimistic.
 
 [model]
 name = "GLM-5.2"
@@ -47,21 +49,28 @@ enable_auto_tool_choice = true
 # (verified job 1222821: "Graph capturing finished in 70 secs, took 2.84 GiB",
 # then served real traffic). One root cause — mem_fraction too high — explained
 # both the capture stalls and the decode OOM.
-# Context: 224K. Two HBM constraints fight on 8×H200 (measured 2026-06-25):
-#   * Decode scratch is a HARD FLOOR: the FP8 sparse-MLA attention kernel
+# Two HBM constraints fight on 8×H200 (measured 2026-06-25):
+#   * Decode scratch is a HARD FLOOR: the sparse-MLA attention kernel
 #     (flash_mla sparse_decode_fwd) allocates ~8 GiB/card lazily on the FIRST
 #     real decode. At mem_fraction 0.95 the KV pool took almost all HBM, leaving
 #     only ~2.4 GiB free → EngineDeadError on the first Claude Code request
 #     (job 1222807). So mem_fraction must stay low enough to keep ~8 GiB free.
-#   * At mem_fraction 0.86 (ample decode headroom), the KV pool is 13.63 GiB →
-#     est. max context 235K; 256K needs 15.2 GiB and KV-init failed (job 1222818).
+#   * At mem_fraction 0.86 (ample decode headroom) the KV pool measured
+#     13.63 GiB, so context has to be sized to the pool the scratch leaves.
 # Resolution: keep mem_fraction LOW (0.86, proven decode-safe) and size context
-# to the KV that leaves: 229376 (224K) needs ~13.3 GiB < 13.63 available. This
-# trades 32K of context for a launch that survives real inference instead of
-# gambling on a narrow mem_fraction window. Startup KV-init passing does NOT
-# prove inference fits — the kernel scratch is allocated lazily on first decode.
-max_total_tokens = 229376
-kv_cache_dtype = "fp8"
+# to fit. Startup KV-init passing does NOT prove inference fits — the kernel
+# scratch is allocated lazily on the first real decode, so always validate with
+# a real generation rather than a successful launch.
+# KV dtype is forced, not chosen. This model's sparse attention has no FP8 KV
+# kernel in vLLM, and "fp8" resolves to the same fp8_e4m3 that every candidate
+# sparse/MLA backend rejects, so the server cannot start with it. A bf16 entry
+# costs twice the bytes per token, which halves what the same pool holds: the
+# 13.6 GiB pool this mem_fraction leaves fits roughly 112K rather than 224K.
+# Both numbers are engine-dependent and neither is measured against the
+# installed engine yet -- validating this path needs all eight cards, so it is
+# sequenced after the four-card INT4 serve is confirmed.
+max_total_tokens = 114688
+kv_cache_dtype = "bfloat16"
 mem_fraction_static = 0.86
 # Lift the scheduler caps off the vLLM defaults (256 seqs) so the large KV
 # budget is actually exploited; mirrors the deepseek-v4-flash tuning.

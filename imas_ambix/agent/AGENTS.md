@@ -291,7 +291,7 @@ that it has not drifted from the generator.
 | `kimi-k2-6` | Kimi-K2.6 (1T MoE) | KTransformers+SGLang | 555 GB | 4 | 262K | Modified MIT |
 | `deepseek-v4-flash` | DeepSeek V4-Flash (284B MoE) | vLLM | 164 GB FP4+FP8 | 4 | 1M | MIT |
 | `minimax-m2-7` | MiniMax M2.7 (~220B MoE) | SGLang | 220 GB FP8 | 4 | 200K | Custom |
-| `glm-5-2` | GLM-5.2 (~744B MoE) | vLLM | 744 GB FP8 | 8 | 224K² | MIT |
+| `glm-5-2` | GLM-5.2 (~744B MoE) | vLLM | 744 GB FP8 | 8 | 112K² | MIT |
 | `glm-5-2-int4` | GLM-5.2 (~744B MoE) | vLLM | ~447 GiB INT4 AWQ | 4 | 128K | MIT |
 | `glm-5-3` | GLM-5.3 (~744B MoE) | vLLM | FP8 | 8 | — | unconfirmed³ |
 | `glm-5-3-int4` | GLM-5.3 (~744B MoE) | vLLM | INT4 AWQ | 4 | — | unconfirmed³ |
@@ -299,8 +299,11 @@ that it has not drifted from the generator.
 ¹ The card count is the profile's default sizing, not part of its identity —
 `imas-ambix agent serve <slug> --gpus N` rescales tensor-parallel width, cores,
 and memory at launch. See the naming convention below.
-² GLM-5.2 FP8 context is capped at **224K** on eight cards, not its native 1M —
-see the deployment note below.
+² Far below the native 1M, and **provisional**: the eight-card path has not been
+launched against the installed engine, because doing so needs all eight cards and
+is sequenced after the four-card serve. The 112K figure is the 224K that was
+measured with an FP8 KV pool, halved for the bf16 entry size the installed engine
+forces. Re-measure the startup KV line before quoting any ceiling.
 ³ **The GLM-5.3 profiles are stubs and not usable.** The weights were announced
 but are not open-source as of 2026-08-26, and the license is unconfirmed. Do not
 submit a download or a serve against them until both are resolved; the INT4 stub
@@ -461,12 +464,13 @@ OpenAI API and the **Anthropic Messages API** (`/v1/messages`) on the same port,
 so `clive` (§4a) drives it directly.
 **Model path:** `/work/projects/imas_gpu/agents/glm-5-2/model`
 
-Deployment facts — eight-card FP8 only (measured 2026-06-25/26 at 224K context
-and `mem_fraction 0.86`, verified with a real decode and a live Claude Code
-request):
+Deployment facts — eight-card FP8 only. The memory behaviour below was measured
+2026-06-25/26 at `mem_fraction 0.86` and verified with a real decode and a live
+Claude Code request, but on an earlier engine with an FP8 KV pool; the KV note
+below governs what still holds:
 
-- **Two HBM constraints fight, and the ceiling is 224K rather than the native
-  1M.** The FP8 weights, the MTP draft model, and the FP8 sparse-MLA decode
+- **Two HBM constraints fight, and the ceiling lands far below the native
+  1M.** The FP8 weights, the MTP draft model, and the sparse-MLA decode
   kernel — which allocates **~8 GiB/card of scratch lazily, on the first real
   decode** — leave little room for KV. At `mem_fraction 0.95` the KV pool reaches
   ~24 GiB (256K fits) but the first decode finds only ~2.4 GiB of the 8 GiB it
@@ -486,8 +490,8 @@ request):
   concurrency — ~210 tok/s @ 8 concurrent, ~457 @ 16, ~680 @ 32, **~974 @ 48**.
   Healthy concurrency is **~16–32 simultaneous requests** (per-request rate holds
   ~25–35 tok/s through n=16, then trades latency for aggregate). The scheduler
-  cap (`max_num_seqs=1024`) is not the bottleneck; the ~13.6 GiB KV pool is — at
-  224K per request only one full-context request fits, but typical agent requests
+  cap (`max_num_seqs=1024`) is not the bottleneck; the ~13.6 GiB KV pool is —
+  only one full-context request fits in it, but typical agent requests
   use far less context, so dozens run concurrently. **Low concurrency (n=1–4) is
   MTP-overhead-dominated** and worse per-aggregate than n=8+; the model shines
   under batch load.
@@ -498,12 +502,15 @@ request):
   parsers, and MTP, alongside transformers 5.x and flashinfer. The vLLM engine
   environment is shared across profiles, so the higher four-card INT4 floor below
   governs whichever version is actually installed.
-- **The FP8 KV pool is engine-dependent, and the 224K number travels with it.**
-  `kv_cache_dtype = "fp8"` and the sizing above were measured together. The
-  sparse-attention KV-dtype constraint recorded for the four-card path below is a
-  property of the same architecture, and a bf16 pool holds roughly half the
-  tokens for the same bytes — so re-measure the pool and the context ceiling
-  against the engine actually installed before quoting 224K.
+- **This profile now declares `bfloat16` KV, and its context ceiling is
+  unvalidated.** The KV-dtype constraint recorded for the four-card path below is
+  a property of the same sparse attention, and `"fp8"` resolves to the very
+  `fp8_e4m3` those backends reject, so an FP8 KV entry cannot start on the
+  installed engine at all. Because a bf16 entry costs twice the bytes per token,
+  the profile is set to 112K — half the previously measured 224K — and both
+  numbers are engine-dependent. Treat the ceiling as provisional until a real
+  decode confirms it; the eight-card launch needs the whole node, so it is
+  sequenced after the four-card serve is confirmed.
 - **FP8 is the only practical precision on H200 — FP4 is Blackwell-only.**
   Native FP4 tensor cores do not exist on Hopper (H200, CC 9.0); they arrived
   with Blackwell (B200/GB200/RTX PRO 6000). A `GLM-5.2-NVFP4` checkpoint exists
