@@ -56,8 +56,15 @@ dependencies = [
     # cache are already allocated. Verify with:
     #   grep -E '^Requires-Dist: (flashinfer|apache-tvm|humming|quack|tilelang|tokenspeed|nvidia-cutlass)' \
     #     "$VENV"/lib/python3.12/site-packages/vllm-*.dist-info/METADATA
+    #
+    # flashinfer-cubin is deliberately absent. It ships precompiled kernels and
+    # is not something the engine asks for, but it hard-fails on any version
+    # skew against flashinfer-python and publishes no release matching the
+    # version the engine pins. Without it flashinfer compiles kernels on first
+    # use instead, which costs startup time rather than correctness. Do not
+    # re-add it with a version guard disabled: that pairs binaries with a
+    # library they were not built for.
     "flashinfer-python==0.6.16.post3",
-    "flashinfer-cubin==0.6.13",
     "quack-kernels==0.6.4",
     "tokenspeed-mla==0.1.8",
     "humming-kernels[cu13]==0.1.12",
