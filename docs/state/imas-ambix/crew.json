@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T16:33:07",
+  "updated": "2026-08-26T16:42:59",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -12688,9 +12688,115 @@
           "role": "review",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T135446023482-clive-global-catalog-profile-metadata",
+        "plan": "clive-global-endpoint-routing",
+        "section": "\u00a72",
+        "node": "clive-global-catalog-profile-metadata",
+        "node_definition": {
+          "done_when": "DeepSeek V4-Flash declares its mixed checkpoint precision once in the inherited base profile, the GLM-5.3 stub declares fp8 without changing its inactive status or release identity, and MiniMax M3 declares bfloat16; inherited and launch-time 2x 4x 6x 8x topologies retain native served_name values and resolve metadata through existing profile inheritance. Focused profile-load and dry-run generation checks prove each configured vLLM profile either emits validated ambix precision and topology metadata or retains its documented activation block; scoped Ruff or TOML parsing checks pass; the commit touches only the three declared profile paths and carries a conventional subject with body.",
+          "estimated_hours": 0.3,
+          "goal": "Declare explicit site-owned checkpoint precision for every remaining vLLM model profile that may publish into the global catalog.",
+          "id": "clive-global-catalog-profile-metadata",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T135446023482-clive-global-catalog-profile-metadata/manifest.md",
+          "plan": "clive-global-endpoint-routing",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "18m",
+          "write_paths": [
+            "imas_ambix/agent/profiles/deepseek-v4-flash.toml",
+            "imas_ambix/agent/profiles/glm-5-3.toml",
+            "imas_ambix/agent/profiles/minimax-m3.toml"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "clive-live-config",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T13:54:58Z",
+        "completed_at": "2026-08-26T14:05:55Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 657,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 657,
+        "stalled": false,
+        "time_budget": "18m",
+        "base_sha": "2577216610d89eb51f94fdc85b4a82b81fc16295",
+        "commits": [
+          "3aca5925c74dedb18e16fff326eeecc29ae2c6a5"
+        ],
+        "changed_lines": {
+          "added": 3,
+          "removed": 0,
+          "files": 3
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=\"$PWD\" uv run --no-sync pytest -p no:cacheprovider <focused profile metadata cases>",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T135446023482-clive-global-catalog-profile-metadata/logs/focused-tests.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T135446023482-clive-global-catalog-profile-metadata/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03e5a-4865-7293-a05b-2a5cbd5377a7",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 558592,
+            "cached_input_tokens_cumulative": 558592,
+            "input_tokens": 569234,
+            "input_tokens_cumulative": 569234,
+            "output_tokens": 2389,
+            "output_tokens_cumulative": 2389,
+            "reasoning_output_tokens": 719,
+            "reasoning_output_tokens_cumulative": 719
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "attempt": 3,
+        "attempt_kind": "resume",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 345
+    "_version": 346
   }
 }
