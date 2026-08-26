@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T15:10:48",
+  "updated": "2026-08-26T15:23:40",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -11410,9 +11410,99 @@
           "role": "investigate",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T125440150654-glm-tp4-mtp-live-probe",
+        "plan": "glm-52-local-serve-performance",
+        "section": "\u00a72",
+        "node": "glm-tp4-mtp-live-probe",
+        "node_definition": {
+          "done_when": "The retained evidence identifies the SLURM job and exact launch, all four ranks complete main and MTP weight loading, vLLM allocates at least 49152 bf16 KV tokens and reports application startup, an unauthenticated /v1/models request returns glm-5.2, an unauthenticated chat completion for say pong returns a nonempty response containing pong, the first decode survives lazy sparse-attention allocation, and the running endpoint/job remains available; on any failure stop at HOLD with the exact log cause and do not retry a second weight load",
+          "estimated_hours": 0.8,
+          "goal": "Submit exactly the preflight-approved four-H200 GLM-5.2 INT4 plus separate MTP keyless launch and prove the endpoint through first decode",
+          "id": "glm-tp4-mtp-live-probe",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/glm-tp4-mtp-live-probe.json",
+          "plan": "glm-52-local-serve-performance",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "50m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/glm-tp4-mtp-live-probe.md",
+            "/home/ITER/mcintos/.config/reckon/crew/runs/glm-tp4-mtp-live-probe"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "glm-mtp-live-probe",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T12:54:53Z",
+        "completed_at": "2026-08-26T13:23:26Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1713,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1713,
+        "stalled": false,
+        "time_budget": "50m",
+        "base_sha": "517c95c4df5a34a1c78a963960b2298bb1af5e32",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": null,
+        "failure_classification": "negative-result",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/glm-tp4-mtp-live-probe.json",
+        "scope_changed": false,
+        "session_id": "01a03e07-af44-7f60-a55e-89eb96c2dbd0",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 8834560,
+            "cached_input_tokens_cumulative": 10936832,
+            "input_tokens": 8848379,
+            "input_tokens_cumulative": 11063345,
+            "output_tokens": 7133,
+            "output_tokens_cumulative": 18784,
+            "reasoning_output_tokens": 100,
+            "reasoning_output_tokens_cumulative": 3990
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 323
+    "_version": 324
   }
 }
