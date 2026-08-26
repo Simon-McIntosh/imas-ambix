@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T16:04:33",
+  "updated": "2026-08-26T16:06:43",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -12114,9 +12114,101 @@
           "role": "implement",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T134126718076-glm-mtp-draft-config-repair",
+        "plan": "glm-52-local-serve-performance",
+        "section": "\u00a72",
+        "node": "glm-mtp-draft-config-repair",
+        "node_definition": {
+          "done_when": "A retained CPU-debug-job log using the installed vLLM 0.28.0 and real GLM target/draft configs records baseline nonzero with exact missing w13_weight_packed and w2_weight_packed names, repaired zero with both actual names present, no target or draft weights loaded; the generated keyless separate-MTP serve command deterministically activates the version-gated repair; focused tests and ruff on every changed Python path exit 0; the worker commits only its scoped repository files with a conventional subject and body and writes the manifest/report",
+          "estimated_hours": 0.55,
+          "goal": "Implement a durable, version-gated vLLM separate-MTP draft configuration repair in the Ambix serving path, and prove on a zero-GPU CPU debug job that the installed baseline lacks both packed routed-expert carriers while the repaired path instantiates both before any further H200 allocation",
+          "id": "glm-mtp-draft-config-repair",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/glm-mtp-draft-config-repair.json",
+          "plan": "glm-52-local-serve-performance",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "35m",
+          "write_paths": [
+            "imas_ambix/agent/vllm_compat.py",
+            "imas_ambix/agent/slurm.py",
+            "tests/agent/test_vllm_compat.py",
+            "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/glm-mtp-draft-config-repair.md"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "glm-tp4-preflight-worker",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T13:41:34Z",
+        "completed_at": "2026-08-26T14:06:14Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1480,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1480,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "8b342390a07218ece0bc3dedb9ab8dc7a96462d2",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": null,
+        "failure_classification": "correct-refusal",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/glm-mtp-draft-config-repair.json",
+        "scope_changed": false,
+        "session_id": "01a03e16-fcb8-7bc0-a267-d84eb0d7fef3",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 900096,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 913442,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 5909,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 977
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 3,
+        "attempt_kind": "resume",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 336
+    "_version": 337
   }
 }
