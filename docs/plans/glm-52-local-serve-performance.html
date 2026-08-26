@@ -4,23 +4,25 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="glm-52-local-serve-performance">
-  <meta name="plan-title"     content="GLM-5.2 Local Serve and Measured Throughput">
-  <meta name="plan-summary"   content="Serve GLM-5.2 INT4 on four cards beside DeepSeek, and record throughput with enough provenance to compare runs">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="glm-52-local-serve-performance">
+  <meta name="plan-title" content="GLM-5.2 Local Serve and Measured Throughput">
+  <meta name="plan-summary" content="Serve GLM-5.2 INT4 on four cards beside DeepSeek, and record throughput with enough provenance to compare runs">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="6.0">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="orchestrator">
   <meta name="plan-capability-reasoning" content="deep">
   <meta name="plan-capability-verification" content="strict">
-  <meta name="plan-sprint"    content="S17">
-  <meta name="plan-owner"     content="Simon McIntosh">
-  <meta name="plan-tags"      content="agent-serving,gpu-deployment,benchmarking">
+  <meta name="plan-sprint" content="S17">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment,benchmarking">
   <title>GLM-5.2 Local Serve and Measured Throughput | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-08-26">
+<meta name="plan-version" content="2">
 </head>
 <body>
   <main class="plan-doc">
@@ -183,36 +185,44 @@
     </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="variant-naming" data-choice="precision" data-by="Simon McIntosh" data-when="2026-08-26">
-        <p class="r-dec-q">What distinguishes the two GLM profiles in their name?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="precision">Checkpoint precision</button>
-          <button class="r-opt" data-value="gpu-count">Card count</button>
-        </p>
-        <p class="r-dec-rat">Card count is a launch flag, as it already is for the
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="variant-naming" data-choice="precision" data-by="Simon McIntosh" data-when="2026-08-26">
+    <p class="r-dec-q">What distinguishes the two GLM profiles in their name?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="precision">Checkpoint precision</button>
+      <button class="r-opt" data-value="gpu-count">Card count</button>
+      </p>
+    <p class="r-dec-rat">Card count is a launch flag, as it already is for the
         DeepSeek serve, which holds two cards under its plain slug. The profiles
         differ because the checkpoints differ, so precision is the honest
         differentiator and the client-visible model name stays constant per
         release.</p>
-      </div>
-      <div class="r-dec" data-key="kv-dtype" data-choice="bfloat16" data-by="Simon McIntosh" data-when="2026-08-26">
-        <p class="r-dec-q">Which KV cache dtype for the INT4 serve?</p>
-        <p class="r-dec-rat">Forced, not chosen: no FP8 KV kernel exists for this
-        model's sparse attention in this engine. Revisit if a later engine adds
+    </div>
+<div class="r-dec" data-key="kv-dtype" data-choice="bfloat16" data-by="Simon McIntosh" data-when="2026-08-26">
+    <p class="r-dec-q">Which KV cache dtype for the INT4 serve?</p>
+    <p class="r-dec-rat">Forced, not chosen: no FP8 KV kernel exists for this
+        model&#x27;s sparse attention in this engine. Revisit if a later engine adds
         one, since it would restore both throughput and KV capacity.</p>
-      </div>
-    </section>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-glm-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-08-26">
-        <h4 class="r-fu-title">Record throughput for the INT4 serve and re-baseline DeepSeek on the same stack</h4>
-        <div class="r-fu-body">The stored DeepSeek baselines predate the current engine and framework pin, so they cannot be compared against a run taken today. Once the INT4 serve answers, benchmark it with provenance capture active, then re-run the same suite against the DeepSeek serve so both numbers come from one stack. Report time to first token, single-stream decode rate, and the aggregate curve, and state the draft-token acceptance rate.</div>
-        <pre class="r-fu-prompt">/reckon-ship glm-52-local-serve-performance §4</pre>
-      </article>
-    </section>
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-glm-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-08-26" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Record throughput for the INT4 serve and re-baseline DeepSeek on the same stack</h4>
+    <div class="r-fu-body">The stored DeepSeek baselines predate the current engine and framework pin, so they cannot be compared against a run taken today. Once the INT4 serve answers, benchmark it with provenance capture active, then re-run the same suite against the DeepSeek serve so both numbers come from one stack. Report time to first token, single-stream decode rate, and the aggregate curve, and state the draft-token acceptance rate.</div>
+    <pre class="r-fu-prompt">/reckon-ship glm-52-local-serve-performance §4</pre>
+    </article>
+</section>
 
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260826T120503255823-glm-int4-mtp-readiness" data-who="glm-int4-mtp-scout" data-when="2026-08-26T12:15:13Z">
+    <div class="r-comment-body"><p>Six-card INT4 plus separate MTP draft is ready for a keyless 8K live probe under vLLM 0.28.0 when tensor parallelism is paired with expert parallelism.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-direct-long-context-probe" data-who="Simon McIntosh" data-when="2026-08-26T12:18:00Z">
+    <div class="r-comment-body"><p>Execution choice: skip the 8K-only startup fence because it pays the full weight-load cost and would require a second hour-scale reload. The next keyless probe will combine TP6, expert parallelism, the separate INT4 MTP draft, and max_model_len=262144; its retained log must distinguish loader, topology, KV-allocation, readiness, and first-decode outcomes.</p></div>
+</div>
+</section>
+</main>
 </body>
 </html>

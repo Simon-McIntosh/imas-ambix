@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T14:10:18",
+  "updated": "2026-08-26T14:17:22",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -10913,9 +10913,107 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T120503255823-glm-int4-mtp-readiness",
+        "plan": "glm-52-local-serve-performance",
+        "section": "\u00a72",
+        "node": "glm-int4-mtp-readiness",
+        "node_definition": {
+          "done_when": "The report cites the prior loader failure, traces the installed loader mapping, quantifies six-card memory headroom, and emits a GO or HOLD verdict with an exact keyless probe command",
+          "estimated_hours": 0.25,
+          "goal": "Determine whether installed vLLM 0.28.0 can load the GLM-5.2 INT4 separate MTP draft on six tensor-parallel ranks",
+          "id": "glm-int4-mtp-readiness",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/glm-int4-mtp-readiness.json",
+          "plan": "glm-52-local-serve-performance",
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "15m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/glm-int4-mtp-readiness.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "guided",
+        "member": "glm-int4-mtp-scout",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-08-26T12:06:12Z",
+        "completed_at": "2026-08-26T12:15:13Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 541,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 541,
+        "stalled": false,
+        "time_budget": "15m",
+        "base_sha": "0ac45d640d55d6094b233bfd6d1c215cfaa79c5d",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "python artifact-contract-check",
+          "exit_status": 0,
+          "log_path": null,
+          "log_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/glm-int4-mtp-readiness.json",
+        "scope_changed": false,
+        "session_id": "01a03df6-bd65-75d2-9776-b56803ae2f64",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 3236608,
+            "cached_input_tokens_cumulative": 3236608,
+            "input_tokens": 3406496,
+            "input_tokens_cumulative": 3406496,
+            "output_tokens": 16212,
+            "output_tokens_cumulative": 16212,
+            "reasoning_output_tokens": 6236,
+            "reasoning_output_tokens_cumulative": 6236
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 312
+    "_version": 313
   }
 }
