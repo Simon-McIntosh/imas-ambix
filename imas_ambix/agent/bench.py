@@ -1467,8 +1467,16 @@ def _run_concurrency(
     model: str,
     repeat: int,
     api_key: str | None = None,
+    gen_tokens: int = 1024,
 ) -> list[BenchResult]:
-    """Parallel request handling tests."""
+    """Parallel request handling tests.
+
+    *gen_tokens* sets how much each worker generates. It has to be long enough
+    that steady-state decoding dominates the measurement: a short generation
+    spends most of its wall time on scheduler warm-up and first-token latency,
+    which do not scale with the concurrency level, so the aggregate rate comes
+    out non-monotone and says more about the transient than about the server.
+    """
     levels = [1, 2, 4, 8, 16, 32]
     prompt = [
         {
@@ -1491,7 +1499,7 @@ def _run_concurrency(
                 def _worker(idx: int) -> BenchResult:
                     _barrier.wait()
                     r = _stream_chat(
-                        base_url, model, prompt, max_tokens=256,
+                        base_url, model, prompt, max_tokens=gen_tokens,
                         api_key=api_key,
                     )
                     r.category = "concurrency"
@@ -1540,6 +1548,7 @@ def run_benchmark(
     api_key: str | None = None,
     profile: ModelProfile | None = None,
     serve_job_id: str | None = None,
+    concurrency_tokens: int = 1024,
 ) -> BenchReport:
     """Run the full benchmark suite and return a :class:`BenchReport`.
 
@@ -1594,7 +1603,9 @@ def run_benchmark(
         "context": lambda: _run_context(base_url, model, repeat, max_context, api_key),
         "tools": lambda: _run_tools(base_url, model, repeat, api_key),
         "reasoning": lambda: _run_reasoning(base_url, model, repeat, api_key),
-        "concurrency": lambda: _run_concurrency(base_url, model, repeat, api_key),
+        "concurrency": lambda: _run_concurrency(
+            base_url, model, repeat, api_key, gen_tokens=concurrency_tokens
+        ),
     }
 
     spec_before: dict[str, Any] | None = None
