@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T14:17:22",
+  "updated": "2026-08-26T14:31:56",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -401,6 +401,17 @@
         "session_model": "gpt-5.6-sol",
         "sessions": {
           "gpt-5.6-sol": "01a03df6-bd65-75d2-9776-b56803ae2f64"
+        },
+        "created": "2026-08-26"
+      },
+      {
+        "id": "glm-mtp-live-probe",
+        "harness": "codex",
+        "role": "test",
+        "session_id": "01a03e07-af44-7f60-a55e-89eb96c2dbd0",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a03e07-af44-7f60-a55e-89eb96c2dbd0"
         },
         "created": "2026-08-26"
       },
@@ -11011,9 +11022,98 @@
           "role": "investigate",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T122413058160-glm-mtp-live-probe",
+        "plan": "glm-52-local-serve-performance",
+        "section": "\u00a72",
+        "node": "glm-mtp-live-probe",
+        "node_definition": {
+          "done_when": "A retained vLLM 0.28.0 log proves TP6, expert parallelism, separate MTP draft, bfloat16 KV, max_model_len=262144, and no API key; unauthenticated /v1/models plus chat completions return successfully while the SLURM serve job remains RUNNING",
+          "estimated_hours": 1.0,
+          "goal": "Bring the six-card GLM-5.2 INT4 plus separate MTP draft endpoint to a keyless first-decode response at 262144 configured context",
+          "id": "glm-mtp-live-probe",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/glm-mtp-live-probe.json",
+          "plan": "glm-52-local-serve-performance",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "60m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/glm-mtp-live-probe.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "glm-mtp-live-probe",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T12:24:45Z",
+        "completed_at": "2026-08-26T12:31:44Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 419,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 419,
+        "stalled": false,
+        "time_budget": "60m",
+        "base_sha": "3e9f0149645e6822ae4f10734fe6297eb2318d2c",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "failed",
+        "gate_check": null,
+        "failure_classification": "negative-result",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/glm-mtp-live-probe.json",
+        "scope_changed": false,
+        "session_id": "01a03e07-af44-7f60-a55e-89eb96c2dbd0",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2102272,
+            "cached_input_tokens_cumulative": 2102272,
+            "input_tokens": 2214966,
+            "input_tokens_cumulative": 2214966,
+            "output_tokens": 11651,
+            "output_tokens_cumulative": 11651,
+            "reasoning_output_tokens": 3890,
+            "reasoning_output_tokens_cumulative": 3890
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 313
+    "_version": 316
   }
 }

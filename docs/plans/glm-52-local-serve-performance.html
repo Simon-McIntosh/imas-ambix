@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-26">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="3">
 </head>
 <body>
   <main class="plan-doc">
@@ -221,6 +221,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-direct-long-context-probe" data-who="Simon McIntosh" data-when="2026-08-26T12:18:00Z">
     <div class="r-comment-body"><p>Execution choice: skip the 8K-only startup fence because it pays the full weight-load cost and would require a second hour-scale reload. The next keyless probe will combine TP6, expert parallelism, the separate INT4 MTP draft, and max_model_len=262144; its retained log must distinguish loader, topology, KV-allocation, readiness, and first-decode outcomes.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260826T122413058160-glm-mtp-live-probe" data-who="glm-mtp-live-probe" data-when="2026-08-26T12:31:44Z">
+    <div class="r-comment-body"><p>TP6 plus separate MTP draft fails before weight loading because the draft has 64 attention heads, which cannot divide across six tensor-parallel ranks; the keyless configuration itself was confirmed and cost only 5.6 GPU-minutes.</p></div>
 </div>
 </section>
 </main>
