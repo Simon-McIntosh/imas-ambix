@@ -184,7 +184,7 @@ def test_load_glm_5_2_profile():
     assert profile.engine.tensor_parallel == 8
     assert profile.engine.ktransformers is None
     assert profile.engine.enable_auto_tool_choice is True
-    assert profile.engine.kv_cache_dtype == "fp8"
+    assert profile.engine.kv_cache_dtype == "bfloat16"
     assert profile.engine.speculative_method == "mtp"
     assert profile.engine.speculative_num_tokens == 5
     assert profile.engine.parsers.tool_call == "glm47"
@@ -204,7 +204,7 @@ def test_generate_glm_5_2_serve_script():
     assert "#SBATCH --gres=gpu:8" in script
     assert "--tensor-parallel-size 8" in script
     assert "vllm.entrypoints.openai.api_server" in script
-    assert "--kv-cache-dtype fp8" in script
+    assert "--kv-cache-dtype bfloat16" in script
     assert "--speculative-config.method mtp" in script
     assert "--speculative-config.num_speculative_tokens 5" in script
     assert "--tool-call-parser glm47" in script
@@ -326,6 +326,7 @@ def test_generate_serve_script():
     assert "--max-total-tokens 49152" in script
     assert "--moe-runner-backend triton" in script
     assert "--port" in script
+    assert "#SBATCH --comment=ambix-serve;port=8000" in script
 
 
 def test_serve_script_launches_drain_sidecar():
@@ -377,7 +378,10 @@ def test_serve_script_uses_venv_python():
 # -- CLI commands ------------------------------------------------------------
 
 
-def test_agent_list():
+def test_agent_list(monkeypatch):
+    from imas_ambix.agent import cli as cli_mod
+
+    monkeypatch.setattr(cli_mod, "_serving_slugs", lambda site: set())
     runner = CliRunner()
     result = runner.invoke(main, ["agent", "list"])
     assert result.exit_code == 0
@@ -392,43 +396,373 @@ def test_agent_info():
     assert "ktransformers" in result.output.lower()
 
 
-def test_serving_slugs_marks_running_serve(monkeypatch):
-    """A RUNNING job whose name is a known slug is reported as serving."""
+def _live_job(
+    *,
+    job_id="42",
+    name="glm-5-2",
+    node="98dci4-gpu-0003",
+    port=19123,
+    gpus=8,
+):
+    return {
+        "jobid": job_id,
+        "name": name,
+        "state": "RUNNING",
+        "time": "5:00",
+        "node": node,
+        "gres": f"gpu:h200:{gpus}",
+        "comment": f"ambix-serve;port={port}",
+    }
+
+
+def _ready_probe(model="glm-5.2", context=131072):
+    from imas_ambix.agent.cli import ModelMetadata, ProbeResult
+
+    return ProbeResult("ready", (ModelMetadata(model, context),))
+
+
+def test_running_jobs_parses_scheduler_route_fields(monkeypatch):
+    """Scheduler output preserves allocation, port comment, node, and job id."""
+    import subprocess
+
     from imas_ambix.agent import cli as cli_mod
 
     monkeypatch.setattr(
-        cli_mod,
-        "_running_jobs",
-        lambda site: [
-            {
-                "jobid": "1",
-                "name": "glm-5-2",
-                "state": "RUNNING",
-                "time": "1:00",
-                "node": "98dci4-gpu-0003",
-            },
-            {
-                "jobid": "2",
-                "name": "download-glm-5-2",
-                "state": "RUNNING",
-                "time": "1:00",
-                "node": "sirius-1",
-            },
-            {
-                "jobid": "3",
-                "name": "kimi-k2-6",
-                "state": "PENDING",
-                "time": "0:00",
-                "node": "(Resources)",
-            },
-        ],
+        cli_mod.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0],
+            0,
+            "malformed scheduler row\n"
+            "42|glm-5-2|RUNNING|5:00|gpu-node|gpu:h200:6|ambix-serve;port=19123\n",
+            "",
+        ),
     )
-    serving = cli_mod._serving_slugs(SiteConfig())
-    # Only the RUNNING job whose name matches a profile slug counts.
-    assert serving == {"glm-5-2"}
-    # Download jobs (download-*) and PENDING jobs are excluded.
-    assert "download-glm-5-2" not in serving
-    assert "kimi-k2-6" not in serving
+    jobs = cli_mod._running_jobs(SiteConfig())
+
+    assert jobs == [
+        {
+            "jobid": "42",
+            "name": "glm-5-2",
+            "state": "RUNNING",
+            "time": "5:00",
+            "node": "gpu-node",
+            "gres": "gpu:h200:6",
+            "comment": "ambix-serve;port=19123",
+        }
+    ]
+
+
+def test_running_jobs_reports_scheduler_failure(monkeypatch):
+    """A scheduler query failure is not reported as an empty queue."""
+    import subprocess
+
+    from imas_ambix.agent import cli as cli_mod
+
+    monkeypatch.setattr(
+        cli_mod.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 1, "", "denied"),
+    )
+    with pytest.raises(Exception, match="denied"):
+        cli_mod._running_jobs(SiteConfig())
+
+
+def test_probe_endpoint_authenticated_metadata(monkeypatch):
+    """Authenticated probes retain model and context metadata in memory."""
+    import io
+    import urllib.request
+
+    from imas_ambix.agent.cli import _probe_endpoint
+
+    class Response(io.BytesIO):
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.close()
+
+    def open_request(request, timeout):
+        assert request.get_header("Authorization") == "Bearer secret"
+        return Response(b'{"data":[{"id":"future-model","max_model_len":262144}]}')
+
+    monkeypatch.setattr(urllib.request, "urlopen", open_request)
+    probe = _probe_endpoint("http://gpu-node:19123", "secret")
+
+    assert probe.readiness == "ready"
+    assert probe.models[0].model_id == "future-model"
+    assert probe.models[0].max_context == 262144
+
+
+def test_probe_endpoint_keyless_omits_authorization(monkeypatch):
+    """A keyless endpoint is probed without an Authorization header."""
+    import io
+    import urllib.request
+
+    from imas_ambix.agent.cli import _probe_endpoint
+
+    class Response(io.BytesIO):
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.close()
+
+    def open_request(request, timeout):
+        assert request.get_header("Authorization") is None
+        return Response(b'{"data":[{"id":"keyless-model"}]}')
+
+    monkeypatch.setattr(urllib.request, "urlopen", open_request)
+    probe = _probe_endpoint("http://gpu-node:19123", None)
+
+    assert probe.readiness == "ready"
+    assert probe.models[0].model_id == "keyless-model"
+
+
+@pytest.mark.parametrize(
+    ("payload", "readiness"),
+    [(b"not-json", "malformed response"), (b'{"data":[]}', "empty models")],
+)
+def test_probe_endpoint_rejects_unusable_payloads(monkeypatch, payload, readiness):
+    """Malformed or empty models responses never establish readiness."""
+    import io
+    import urllib.request
+
+    from imas_ambix.agent.cli import _probe_endpoint
+
+    class Response(io.BytesIO):
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.close()
+
+    monkeypatch.setattr(
+        urllib.request, "urlopen", lambda request, timeout: Response(payload)
+    )
+    assert _probe_endpoint("http://gpu-node:19123", None).readiness == readiness
+
+
+@pytest.mark.parametrize("code", [401, 403])
+def test_probe_endpoint_reports_authentication_failure(monkeypatch, code):
+    """Authentication failures remain distinct from network unreachability."""
+    import urllib.error
+    import urllib.request
+
+    from imas_ambix.agent.cli import _probe_endpoint
+
+    def reject(request, timeout):
+        raise urllib.error.HTTPError(request.full_url, code, "denied", {}, None)
+
+    monkeypatch.setattr(urllib.request, "urlopen", reject)
+    assert _probe_endpoint("http://gpu-node:19123", "wrong").readiness == "auth-fail"
+
+
+def test_probe_endpoint_reports_timeout(monkeypatch):
+    """A timed-out endpoint cannot enter the ready route set."""
+    import urllib.request
+
+    from imas_ambix.agent.cli import _probe_endpoint
+
+    def time_out(request, timeout):
+        raise TimeoutError
+
+    monkeypatch.setattr(urllib.request, "urlopen", time_out)
+    assert _probe_endpoint("http://gpu-node:19123", None).readiness == "unreachable"
+
+
+def test_running_allocation_requires_successful_probe(monkeypatch):
+    """A running allocation with an unreachable endpoint is not live."""
+    from imas_ambix.agent import cli as cli_mod
+
+    monkeypatch.setattr(
+        cli_mod, "_probe_endpoint", lambda url, key: cli_mod.ProbeResult("unreachable")
+    )
+    routes, rejected = cli_mod._discover_live_routes(
+        SiteConfig(), None, jobs=[_live_job()]
+    )
+
+    assert routes == []
+    assert rejected == ["job 42: unreachable"]
+
+
+def test_pre_comment_job_recovers_port_without_exposing_batch_script(
+    monkeypatch, capsys
+):
+    """Scheduler batch metadata can qualify a running pre-comment serve."""
+    import subprocess
+
+    from imas_ambix.agent import cli as cli_mod
+
+    job = _live_job(port=19444, gpus=4)
+    job["comment"] = ""
+    script_marker = "batch-script-private-content"
+    seen = []
+
+    def batch_script(args, **kwargs):
+        seen.append(args)
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            f"#!/bin/bash\n{script_marker}\nPORT=${{AMBIX_PORT:-19444}}\n",
+            "",
+        )
+
+    monkeypatch.setattr(cli_mod.subprocess, "run", batch_script)
+    monkeypatch.setattr(
+        cli_mod, "_probe_endpoint", lambda url, key: _ready_probe("glm-5.2")
+    )
+
+    routes, rejected = cli_mod._discover_live_routes(
+        SiteConfig(), None, jobs=[job]
+    )
+    captured = capsys.readouterr()
+
+    assert seen == [["scontrol", "write", "batch_script", "42", "-"]]
+    assert rejected == []
+    assert routes[0].port == 19444
+    assert routes[0].base_url == "http://98dci4-gpu-0003:19444"
+    assert script_marker not in captured.out + captured.err
+
+
+def test_future_server_model_is_discovered_without_profile(monkeypatch):
+    """Server metadata, not the local profile catalogue, names a live model."""
+    from imas_ambix.agent import cli as cli_mod
+
+    monkeypatch.setattr(
+        cli_mod, "_probe_endpoint", lambda url, key: _ready_probe("glm-5.3")
+    )
+    routes, rejected = cli_mod._discover_live_routes(
+        SiteConfig(), None, jobs=[_live_job(name="future-serve")]
+    )
+
+    assert rejected == []
+    assert routes[0].model_id == "glm-5.3"
+    assert routes[0].job_name == "future-serve"
+
+
+@pytest.mark.parametrize("gpus", [2, 4, 6, 8])
+def test_live_route_uses_actual_h200_topology(monkeypatch, gpus):
+    """Topology labels come from each allocation rather than profile defaults."""
+    from imas_ambix.agent import cli as cli_mod
+
+    monkeypatch.setattr(
+        cli_mod, "_probe_endpoint", lambda url, key: _ready_probe("deepseek-v4-flash")
+    )
+    routes, _ = cli_mod._discover_live_routes(
+        SiteConfig(), None, jobs=[_live_job(gpus=gpus)]
+    )
+
+    assert routes[0].topology == f"{gpus}×H200"
+    assert f"@{gpus}xh200#42" in routes[0].selector
+
+
+def test_duplicate_model_routes_have_unique_selectors(monkeypatch):
+    """Matching model ids remain unambiguous through topology and job identity."""
+    from imas_ambix.agent import cli as cli_mod
+
+    monkeypatch.setattr(
+        cli_mod, "_probe_endpoint", lambda url, key: _ready_probe("glm-5.2")
+    )
+    routes, _ = cli_mod._discover_live_routes(
+        SiteConfig(),
+        None,
+        jobs=[_live_job(job_id="42", gpus=4), _live_job(job_id="43", gpus=8)],
+    )
+
+    assert len({route.selector for route in routes}) == 2
+
+
+def test_one_live_route_selects_automatically():
+    """A sole live route needs no selector."""
+    from imas_ambix.agent import cli as cli_mod
+
+    route = cli_mod.LiveRoute(
+        "glm-5.2",
+        "gpu-node",
+        19123,
+        8,
+        "42",
+        "http://gpu-node:19123",
+        131072,
+        "ready",
+        "glm-5-2",
+    )
+    assert cli_mod._resolve_live_route([route], None, interactive=False) is route
+
+
+def test_noninteractive_ambiguous_route_requires_selector():
+    """Non-interactive selection never guesses between live allocations."""
+    from imas_ambix.agent import cli as cli_mod
+
+    routes = [
+        cli_mod.LiveRoute("glm-5.2", "n", 1, 4, "42", "http://n:1", None, "ready", "a"),
+        cli_mod.LiveRoute("glm-5.2", "n", 2, 8, "43", "http://n:2", None, "ready", "b"),
+    ]
+    with pytest.raises(Exception, match="Ambiguous live route"):
+        cli_mod._resolve_live_route(routes, "glm-5.2", interactive=False)
+
+
+def test_interactive_ambiguous_route_prompts_for_choice(monkeypatch):
+    """Interactive selection presents the live routes and honours the choice."""
+    from imas_ambix.agent import cli as cli_mod
+
+    routes = [
+        cli_mod.LiveRoute(
+            "glm-5.2", "n", 1, 4, "42", "http://n:1", None, "ready", "a"
+        ),
+        cli_mod.LiveRoute(
+            "glm-5.2", "n", 2, 8, "43", "http://n:2", None, "ready", "b"
+        ),
+    ]
+    monkeypatch.setattr(cli_mod.click, "prompt", lambda *args, **kwargs: 2)
+    selected = cli_mod._resolve_live_route(routes, "glm-5.2", interactive=True)
+
+    assert selected.job_id == "43"
+
+
+def test_zero_live_routes_fail_locally():
+    """An empty local route set produces an error rather than a fallback."""
+    from imas_ambix.agent import cli as cli_mod
+
+    with pytest.raises(Exception, match="No ready local model route"):
+        cli_mod._resolve_live_route([], None, interactive=False)
+
+
+def test_exact_job_and_topology_selectors_resolve():
+    """Job ids and topology-qualified model selectors resolve deterministically."""
+    from imas_ambix.agent import cli as cli_mod
+
+    routes = [
+        cli_mod.LiveRoute("glm-5.2", "n", 1, 4, "42", "http://n:1", None, "ready", "a"),
+        cli_mod.LiveRoute("glm-5.2", "n", 2, 8, "43", "http://n:2", None, "ready", "b"),
+    ]
+    assert cli_mod._resolve_live_route(routes, "42", interactive=False).job_id == "42"
+    assert (
+        cli_mod._resolve_live_route(routes, "glm-5.2@8xh200", interactive=False).job_id
+        == "43"
+    )
+
+
+def test_explicit_url_and_model_are_probe_validated(monkeypatch):
+    """Explicit overrides remain candidates and cannot bypass model membership."""
+    from imas_ambix.agent import cli as cli_mod
+
+    monkeypatch.setattr(
+        cli_mod, "_probe_endpoint", lambda url, key: _ready_probe("reported-model")
+    )
+    route = cli_mod._explicit_live_route(
+        "http://gpu-node:19123/", "reported-model", None
+    )
+    assert route.base_url == "http://gpu-node:19123"
+    with pytest.raises(Exception, match="not reported"):
+        cli_mod._explicit_live_route("http://gpu-node:19123", "stale-model", None)
 
 
 def test_list_shows_serving_marker(monkeypatch):
@@ -440,6 +774,22 @@ def test_list_shows_serving_marker(monkeypatch):
     result = runner.invoke(main, ["agent", "list"])
     assert result.exit_code == 0
     assert "serving" in result.output
+
+
+def _status_route(model="glm-5.2-fp8", port=19123, context=229376):
+    from imas_ambix.agent.cli import LiveRoute
+
+    return LiveRoute(
+        model,
+        "98dci4-gpu-0003",
+        port,
+        8,
+        "42",
+        f"http://98dci4-gpu-0003:{port}",
+        context,
+        "ready",
+        "glm-5-2",
+    )
 
 
 def test_status_no_jobs(monkeypatch):
@@ -471,12 +821,16 @@ def test_status_running_serve_shows_connection(monkeypatch):
         ],
     )
     monkeypatch.setattr(cli_mod, "_read_key_file", lambda path: "supersecretkey1234")
-    monkeypatch.setattr(cli_mod, "_probe_endpoint", lambda url, key, **kw: "ready")
+    monkeypatch.setattr(
+        cli_mod,
+        "_discover_live_routes",
+        lambda site, key, jobs: ([_status_route()], []),
+    )
     runner = CliRunner()
     result = runner.invoke(main, ["agent", "status"])
     assert result.exit_code == 0
     assert "glm-5.2-fp8" in result.output  # served model name
-    assert "18800" in result.output  # URL port
+    assert "19123" in result.output  # scheduler-recorded URL port
     assert "READY" in result.output.upper()  # endpoint probe verdict
     # Key is masked by default (full key absent).
     assert "supersecretkey1234" not in result.output
@@ -500,7 +854,11 @@ def test_status_reveal_shows_full_key(monkeypatch):
         ],
     )
     monkeypatch.setattr(cli_mod, "_read_key_file", lambda path: "supersecretkey1234")
-    monkeypatch.setattr(cli_mod, "_probe_endpoint", lambda url, key, **kw: "ready")
+    monkeypatch.setattr(
+        cli_mod,
+        "_discover_live_routes",
+        lambda site, key, jobs: ([_status_route()], []),
+    )
     runner = CliRunner()
     result = runner.invoke(main, ["agent", "status", "--reveal"])
     assert result.exit_code == 0
@@ -528,7 +886,11 @@ def test_status_key_no_access(monkeypatch):
         ],
     )
     monkeypatch.setattr(cli_mod, "_read_key_file", _denied)
-    monkeypatch.setattr(cli_mod, "_probe_endpoint", lambda url, key, **kw: "ready")
+    monkeypatch.setattr(
+        cli_mod,
+        "_discover_live_routes",
+        lambda site, key, jobs: ([_status_route()], []),
+    )
     runner = CliRunner()
     result = runner.invoke(main, ["agent", "status"])
     assert result.exit_code == 0
@@ -553,17 +915,15 @@ def test_status_uses_direct_url(monkeypatch):
         ],
     )
     monkeypatch.setattr(cli_mod, "_read_key_file", lambda path: "k")
-    seen = {}
     monkeypatch.setattr(
         cli_mod,
-        "_probe_endpoint",
-        lambda url, key, **kw: seen.setdefault("url", url) and "ready" or "ready",
+        "_discover_live_routes",
+        lambda site, key, jobs: ([_status_route(port=19123)], []),
     )
     runner = CliRunner()
     result = runner.invoke(main, ["agent", "status"])
     assert result.exit_code == 0
-    assert "98dci4-gpu-0003:18800" in result.output
-    assert seen["url"] == "http://98dci4-gpu-0003:18800"
+    assert "98dci4-gpu-0003:19123" in result.output
 
 
 def test_status_uptime_formatted(monkeypatch):
@@ -585,7 +945,9 @@ def test_status_uptime_formatted(monkeypatch):
     )
     monkeypatch.setattr(cli_mod, "_read_key_file", lambda path: "k")
     monkeypatch.setattr(
-        cli_mod, "_probe_endpoint", lambda url, key, **kw: "unreachable"
+        cli_mod,
+        "_discover_live_routes",
+        lambda site, key, jobs: ([_status_route()], []),
     )
     runner = CliRunner()
     result = runner.invoke(main, ["agent", "status"])
@@ -611,7 +973,11 @@ def test_status_engine_facts_use_served_context(monkeypatch):
         ],
     )
     monkeypatch.setattr(cli_mod, "_read_key_file", lambda path: "k")
-    monkeypatch.setattr(cli_mod, "_probe_endpoint", lambda url, key, **kw: "ready")
+    monkeypatch.setattr(
+        cli_mod,
+        "_discover_live_routes",
+        lambda site, key, jobs: ([_status_route()], []),
+    )
     runner = CliRunner()
     result = runner.invoke(main, ["agent", "status"])
     assert result.exit_code == 0
@@ -1429,6 +1795,20 @@ def test_siteconfig_launcher_paths():
     assert str(site.clive_path).endswith("agents/clive")
 
 
+def _write_fake_operator(path, model="reported-model", url="http://gpu-node:19123"):
+    listing = f"reported-model@8xh200#42\\t{model} · 8×H200 · gpu-node:19123 · job 42"
+    route = f'{{"model_id":"{model}","base_url":"{url}","max_context":131072}}'
+    path.write_text(
+        "#!/bin/sh\n"
+        'case " $* " in\n'
+        f"  *\" --live-list \"*) printf '%s\\n' '{listing}' ;;\n"
+        f"  *) printf '%s\\n' '{route}' ;;\n"
+        "esac\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+
+
 def test_generate_clive_script_keeps_direct_local_default():
     """The default branch preserves the direct local model environment."""
     from imas_ambix.agent.clive import generate_clive_script
@@ -1436,6 +1816,8 @@ def test_generate_clive_script_keeps_direct_local_default():
     script = generate_clive_script(SiteConfig(), "served-local-model")
 
     assert 'if [[ "$CLIVE_OPENROUTER" != "1" ]]; then' in script
+    assert "agent clive --resolve-live" in script
+    assert "/v1/models" not in script
     assert 'ANTHROPIC_BASE_URL="$AMBIX_URL"' in script
     assert 'ANTHROPIC_AUTH_TOKEN="$KEY"' in script
     for alias in (
@@ -1468,6 +1850,7 @@ def test_clive_readable_openrouter_key_does_not_reach_proxy(tmp_path):
 
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
+    _write_fake_operator(fake_bin / "imas-ambix", url=SiteConfig().default_url)
     proxy_marker = tmp_path / "proxy-called"
     trace = tmp_path / "claude-env"
     (fake_bin / "systemctl").write_text(
@@ -1475,7 +1858,8 @@ def test_clive_readable_openrouter_key_does_not_reach_proxy(tmp_path):
         encoding="utf-8",
     )
     (fake_bin / "claude").write_text(
-        f"#!/bin/sh\nprintf '%s\\n' \"$ANTHROPIC_BASE_URL\" > {trace}\n",
+        "#!/bin/sh\n"
+        f'printf \'%s\\n\' "$ANTHROPIC_BASE_URL" "$ANTHROPIC_MODEL" > {trace}\n',
         encoding="utf-8",
     )
     (fake_bin / "systemctl").chmod(0o755)
@@ -1486,7 +1870,7 @@ def test_clive_readable_openrouter_key_does_not_reach_proxy(tmp_path):
         {
             "HOME": str(home),
             "PATH": f"{fake_bin}:{env['PATH']}",
-            "AMBIX_AGENT_MODEL": "served-local-model",
+            "AMBIX_AGENT_CLI": str(fake_bin / "imas-ambix"),
         }
     )
     env.pop("CLIVE_OPENROUTER", None)
@@ -1496,7 +1880,140 @@ def test_clive_readable_openrouter_key_does_not_reach_proxy(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert not proxy_marker.exists()
-    assert trace.read_text(encoding="utf-8").strip() == SiteConfig().default_url
+    assert trace.read_text(encoding="utf-8").splitlines() == [
+        SiteConfig().default_url,
+        "reported-model",
+    ]
+
+
+def test_clive_key_file_authenticates_discovery_without_output(tmp_path):
+    """A key-file-only credential reaches discovery without entering output."""
+    import os
+    import subprocess
+
+    from imas_ambix.agent.clive import generate_clive_script
+
+    launcher = tmp_path / "clive"
+    launcher.write_text(
+        generate_clive_script(SiteConfig(), "unused-model"), encoding="utf-8"
+    )
+    launcher.chmod(0o755)
+    key = "file-only-private-key"
+    key_file = tmp_path / "consumer.env"
+    key_file.write_text(f"AMBIX_AGENT_API_KEY={key}\n", encoding="utf-8")
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    operator = fake_bin / "imas-ambix"
+    operator.write_text(
+        "#!/bin/sh\n"
+        f'[ "$AMBIX_AGENT_API_KEY" = "{key}" ] || exit 9\n'
+        "printf '%s\\n' "
+        "'{\"model_id\":\"authenticated-model\","
+        "\"base_url\":\"http://gpu-node:19123\","
+        "\"max_context\":131072}'\n",
+        encoding="utf-8",
+    )
+    harness_marker = tmp_path / "harness-started"
+    (fake_bin / "claude").write_text(
+        f"#!/bin/sh\nprintf '%s\\n' started > {harness_marker}\n",
+        encoding="utf-8",
+    )
+    operator.chmod(0o755)
+    (fake_bin / "claude").chmod(0o755)
+    env = os.environ.copy()
+    env.pop("AMBIX_AGENT_API_KEY", None)
+    env.update(
+        {
+            "PATH": f"{fake_bin}:{env['PATH']}",
+            "AMBIX_AGENT_CLI": str(operator),
+            "AMBIX_AGENT_KEY_FILE": str(key_file),
+        }
+    )
+
+    result = subprocess.run(
+        [str(launcher)], capture_output=True, text=True, check=False, env=env
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert harness_marker.is_file()
+    assert key not in result.stdout + result.stderr
+
+
+def test_clive_list_prints_sanitized_live_routes(tmp_path):
+    """Listing exits before either harness and contains no credential."""
+    import os
+    import subprocess
+
+    from imas_ambix.agent.clive import generate_clive_script
+
+    launcher = tmp_path / "clive"
+    launcher.write_text(
+        generate_clive_script(SiteConfig(), "unused-model"), encoding="utf-8"
+    )
+    launcher.chmod(0o755)
+    operator = tmp_path / "imas-ambix"
+    _write_fake_operator(operator, model="glm-5.3")
+    env = os.environ.copy()
+    env.update(
+        {
+            "AMBIX_AGENT_CLI": str(operator),
+            "AMBIX_AGENT_API_KEY": "private-secret",
+        }
+    )
+
+    result = subprocess.run(
+        [str(launcher), "--list"], capture_output=True, text=True, check=False, env=env
+    )
+
+    assert result.returncode == 0
+    assert "glm-5.3" in result.stdout
+    assert "8×H200" in result.stdout
+    assert "private-secret" not in result.stdout + result.stderr
+
+
+def test_clive_codex_receives_selected_model_and_url(tmp_path):
+    """Codex receives the same selected route as the Claude harness."""
+    import os
+    import subprocess
+
+    from imas_ambix.agent.clive import generate_clive_script
+
+    launcher = tmp_path / "clive"
+    launcher.write_text(
+        generate_clive_script(SiteConfig(), "unused-model"), encoding="utf-8"
+    )
+    launcher.chmod(0o755)
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    operator = fake_bin / "imas-ambix"
+    _write_fake_operator(operator, model="glm-5.3", url="http://gpu-node:19444")
+    trace = tmp_path / "codex-env"
+    (fake_bin / "codex").write_text(
+        f'#!/bin/sh\nprintf \'%s\\n\' "$OPENAI_BASE_URL" "$*" > {trace}\n',
+        encoding="utf-8",
+    )
+    (fake_bin / "codex").chmod(0o755)
+    env = os.environ.copy()
+    env.update(
+        {
+            "PATH": f"{fake_bin}:{env['PATH']}",
+            "AMBIX_AGENT_CLI": str(operator),
+        }
+    )
+
+    result = subprocess.run(
+        [str(launcher), "--codex", "prompt"],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert trace.read_text(encoding="utf-8").splitlines() == [
+        "http://gpu-node:19444/v1",
+        "--model glm-5.3 prompt",
+    ]
 
 
 @pytest.mark.parametrize("opt_in", ["flag", "environment"])
@@ -1533,6 +2050,7 @@ def test_clive_openrouter_opt_in_starts_proxy_and_presents_picker(tmp_path, opt_
 
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
+    _write_fake_operator(fake_bin / "imas-ambix", model="served-local-model")
     proxy_marker = tmp_path / "proxy-called"
     trace = tmp_path / "claude-env"
     (fake_bin / "systemctl").write_text(
@@ -1543,10 +2061,10 @@ def test_clive_openrouter_opt_in_starts_proxy_and_presents_picker(tmp_path, opt_
     )
     (fake_bin / "claude").write_text(
         "#!/bin/sh\n"
-        f"printf '%s\\n' \"$ANTHROPIC_BASE_URL\" \"$ANTHROPIC_MODEL\" "
-        f'\"$ANTHROPIC_DEFAULT_HAIKU_MODEL\" \"$ANTHROPIC_DEFAULT_OPUS_MODEL\" '
-        f'\"$ANTHROPIC_DEFAULT_SONNET_MODEL\" \"$ANTHROPIC_CUSTOM_MODEL_OPTION\" '
-        f'\"$ANTHROPIC_DEFAULT_FABLE_MODEL\" > {trace}\n',
+        f'printf \'%s\\n\' "$ANTHROPIC_BASE_URL" "$ANTHROPIC_MODEL" '
+        f'"$ANTHROPIC_DEFAULT_HAIKU_MODEL" "$ANTHROPIC_DEFAULT_OPUS_MODEL" '
+        f'"$ANTHROPIC_DEFAULT_SONNET_MODEL" "$ANTHROPIC_CUSTOM_MODEL_OPTION" '
+        f'"$ANTHROPIC_DEFAULT_FABLE_MODEL" > {trace}\n',
         encoding="utf-8",
     )
     (fake_bin / "systemctl").chmod(0o755)
@@ -1557,7 +2075,7 @@ def test_clive_openrouter_opt_in_starts_proxy_and_presents_picker(tmp_path, opt_
         {
             "HOME": str(tmp_path / "home"),
             "PATH": f"{fake_bin}:{env['PATH']}",
-            "AMBIX_AGENT_MODEL": "served-local-model",
+            "AMBIX_AGENT_CLI": str(fake_bin / "imas-ambix"),
         }
     )
     command = [str(launcher)]

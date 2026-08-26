@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import getpass
+import json
 import os
+import re
 import secrets
 import shlex
 import subprocess
+import sys
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -24,6 +28,58 @@ console = Console()
 
 # Engine types that have uv-managed environments
 ENGINE_TYPES = ("vllm", "sglang")
+
+_SERVE_COMMENT_PREFIX = "ambix-serve;"
+_SUPPORTED_GPU_COUNTS = frozenset({2, 4, 6, 8})
+
+
+@dataclass(frozen=True)
+class ModelMetadata:
+    """Model identity and optional context reported by a live endpoint."""
+
+    model_id: str
+    max_context: int | None = None
+
+
+@dataclass(frozen=True)
+class ProbeResult:
+    """Sanitized result of probing an OpenAI-compatible models endpoint."""
+
+    readiness: str
+    models: tuple[ModelMetadata, ...] = ()
+
+
+@dataclass(frozen=True)
+class LiveRoute:
+    """A scheduler candidate qualified by its own models endpoint."""
+
+    model_id: str
+    node: str
+    port: int
+    gpu_count: int
+    job_id: str
+    base_url: str
+    max_context: int | None
+    readiness: str
+    job_name: str
+
+    @property
+    def topology(self) -> str:
+        """Human-readable launch topology."""
+        return f"{self.gpu_count}×H200" if self.gpu_count else "override"
+
+    @property
+    def selector(self) -> str:
+        """Canonical route selector, unique across concurrent allocations."""
+        return f"{self.model_id}@{self.gpu_count}xh200#{self.job_id}"
+
+    @property
+    def label(self) -> str:
+        """Credential-free display label."""
+        return (
+            f"{self.model_id} · {self.topology} · "
+            f"{self.node}:{self.port} · job {self.job_id}"
+        )
 
 
 # ── Config resolution ───────────────────────────────────────────────
@@ -356,10 +412,10 @@ def serve(
     console.print(message)
 
 
-def _job_node(job: dict[str, str], site: SiteConfig) -> str:
-    """Resolve a serve job's compute-node host (``%R`` is the node when RUNNING)."""
+def _job_node(job: dict[str, str]) -> str | None:
+    """Return a trustworthy compute-node host for a running allocation."""
     node = job.get("node", "")
-    return node if node and "(" not in node else site.gpu_host
+    return node if node and "(" not in node else None
 
 
 @agent.command()
@@ -386,68 +442,52 @@ def status(reveal: bool) -> None:
         console.print("No imas-ambix agent jobs found.")
         return
 
-    known = set(list_profiles())
-    serve_jobs = [
-        job for job in jobs if job["state"] == "RUNNING" and job["name"] in known
-    ]
-    pending = [job for job in jobs if job not in serve_jobs]
-
-    # -- Header line -------------------------------------------------------
-    summary = f"{len(serve_jobs)} serving"
-    if pending:
-        summary += f" · {len(pending)} other"
-    console.print(
-        f"[bold]imas-ambix agents[/]  ·  {site.partition}    [dim]{summary}[/]"
-    )
-
-    # -- One boxed panel per RUNNING serve job -----------------------------
-    key: str | None = None
     try:
         key = _read_key_file(site.api_key_file)
         key_display = (
             (key if reveal else _mask_key(key)) if key else "(none configured)"
         )
     except PermissionError:
+        key = None
         key_display = "(no access — not key owner)"
 
-    port = site.default_port
-    for job in serve_jobs:
+    routes, rejected = _discover_live_routes(site, key, jobs=jobs)
+    live_job_ids = {route.job_id for route in routes}
+    pending = [job for job in jobs if job["jobid"] not in live_job_ids]
+
+    # -- Header line -------------------------------------------------------
+    summary = f"{len(routes)} serving"
+    if pending:
+        summary += f" · {len(pending)} other"
+    console.print(
+        f"[bold]imas-ambix agents[/]  ·  {site.partition}    [dim]{summary}[/]"
+    )
+
+    # -- One boxed panel per probe-qualified route -------------------------
+    jobs_by_id = {job["jobid"]: job for job in jobs}
+    for route in routes:
+        job = jobs_by_id[route.job_id]
         try:
-            profile = load_profile(job["name"])
-            served = profile.model.served_name
+            profile = load_profile(route.job_name)
             facts = _engine_facts(profile)
-            gpus = _gpu_spec(profile)
-            compute = f"{job['node']} · {gpus} · TP={profile.engine.tensor_parallel}"
-            compute += f" · {profile.slurm.cpus} CPU · {profile.slurm.memory}"
         except FileNotFoundError:
-            served = job["name"]
             facts = ""
-            compute = job["node"]
-        node = _job_node(job, site)
-
-        # Login and standard compute nodes route DIRECTLY to the GPU node's
-        # serve port — no SSH tunnel (port-forwarding to the compute node is
-        # administratively prohibited; the direct route is what works).
-        url = f"http://{node}:{port}"
-        readiness = _probe_endpoint(url, key)
-
-        ready_styles = {"ready": "green", "auth-fail": "red"}
-        ready_label = {"ready": "READY", "auth-fail": "AUTH-FAIL"}.get(
-            readiness, readiness.upper()
-        )
-        ready_tag = f"[{ready_styles.get(readiness, 'yellow')}]{ready_label}[/]"
+        compute = f"{route.node} · {route.topology}"
 
         body = Table.grid(padding=(0, 2))
         body.add_column(style="cyan", no_wrap=True)
         body.add_column()
-        body.add_row("URL", url)
+        body.add_row("URL", route.base_url)
         body.add_row("Key", key_display)
         if facts:
             body.add_row("Engine", facts)
         body.add_row("Compute", compute)
+        if route.max_context is not None:
+            body.add_row("Reported context", _fmt_context(route.max_context))
+        body.add_row("Selector", route.selector)
 
         title = (
-            f"[bold]{job['name']}[/] → {served}   "
+            f"[bold]{route.job_name}[/] → {route.model_id}   "
             f"[green]RUNNING[/] {_fmt_uptime(job['time'])} · job {job['jobid']}"
         )
         console.print()
@@ -456,12 +496,18 @@ def status(reveal: bool) -> None:
                 body,
                 title=title,
                 title_align="left",
-                subtitle=ready_tag,
+                subtitle="[green]READY[/]",
                 subtitle_align="right",
-                border_style="green" if readiness == "ready" else "blue",
+                border_style="green",
                 padding=(0, 1),
             )
         )
+
+    if rejected:
+        console.print()
+        console.print("[dim]rejected serve candidates[/]")
+        for reason in rejected:
+            console.print(f"  [yellow]{reason}[/]")
 
     # -- Pending / non-serve jobs (download, setup, queued) ----------------
     if pending:
@@ -574,22 +620,31 @@ def _running_jobs(site: SiteConfig) -> list[dict[str, str]]:
     """Return this user's Ambix SLURM jobs as a list of field dicts.
 
     Each entry has ``jobid``, ``name`` (the profile slug), ``state``,
-    ``time``, and ``node`` (or the pending reason).  Returns an empty
-    list when squeue fails or there are no jobs.
+    ``time``, ``node`` (or the pending reason), allocated ``gres``, and the
+    scheduler ``comment``. Query failure is distinct from an empty queue.
     """
     user = os.environ.get("USER") or getpass.getuser()
     result = subprocess.run(
-        ["squeue", "-h", "-u", user, "-A", site.account, "-o", "%i|%j|%T|%M|%R"],
+        [
+            "squeue",
+            "-h",
+            "-u",
+            user,
+            "-A",
+            site.account,
+            "-o",
+            "%i|%j|%T|%M|%R|%b|%k",
+        ],
         capture_output=True,
         text=True,
         check=False,
     )
     if result.returncode != 0:
-        return []
+        raise click.ClickException(result.stderr.strip() or "Failed to query squeue")
     jobs: list[dict[str, str]] = []
     for line in result.stdout.strip().splitlines():
         parts = line.split("|")
-        if len(parts) < 5:
+        if len(parts) != 7:
             continue
         jobs.append(
             {
@@ -598,33 +653,23 @@ def _running_jobs(site: SiteConfig) -> list[dict[str, str]]:
                 "state": parts[2].strip(),
                 "time": parts[3].strip(),
                 "node": parts[4].strip(),
+                "gres": parts[5].strip(),
+                "comment": parts[6].strip(),
             }
         )
     return jobs
 
 
 def _serving_slugs(site: SiteConfig) -> set[str]:
-    """Slugs of profiles with a RUNNING serve job (job name == slug).
-
-    Download/setup jobs are named ``download-*`` / ``ambix-setup-*`` so
-    they never collide with a profile slug.
-    """
+    """Profile slugs whose running allocation passed its endpoint probe."""
     known = set(list_profiles())
-    return {
-        job["name"]
-        for job in _running_jobs(site)
-        if job["state"] == "RUNNING" and job["name"] in known
-    }
+    routes, _ = _discover_live_routes(site, _read_key_file(site.api_key_file))
+    return {route.job_name for route in routes if route.job_name in known}
 
 
-def _probe_endpoint(url: str, api_key: str | None, timeout: float = 4.0) -> str:
-    """Probe ``{url}/v1/models`` and return a short readiness verdict.
-
-    Returns ``"ready"`` on HTTP 200, ``"auth-fail"`` on HTTP 401/403,
-    ``"http <code>"`` on any other status, or ``"unreachable"`` on a
-    connection error (no route from here — e.g. probing a compute-node
-    port directly from a login node without a tunnel).
-    """
+def _probe_endpoint(url: str, api_key: str | None, timeout: float = 4.0) -> ProbeResult:
+    """Probe ``{url}/v1/models`` and return validated, sanitized metadata."""
+    import json as json_module
     import urllib.error
     import urllib.request
 
@@ -633,19 +678,214 @@ def _probe_endpoint(url: str, api_key: str | None, timeout: float = 4.0) -> str:
         req.add_header("Authorization", f"Bearer {api_key}")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return "ready" if resp.status == 200 else f"http {resp.status}"
+            if resp.status != 200:
+                return ProbeResult(f"http {resp.status}")
+            try:
+                payload = json_module.load(resp)
+            except json_module.JSONDecodeError, UnicodeDecodeError, TypeError:
+                return ProbeResult("malformed response")
+            raw_models = payload.get("data") if isinstance(payload, dict) else None
+            if not isinstance(raw_models, list) or not raw_models:
+                return ProbeResult("empty models")
+            models: list[ModelMetadata] = []
+            for item in raw_models:
+                if not isinstance(item, dict):
+                    continue
+                model_id = item.get("id")
+                if not isinstance(model_id, str) or not model_id.strip():
+                    continue
+                if any(ord(character) < 32 for character in model_id):
+                    continue
+                context = item.get("max_model_len", item.get("max_context_length"))
+                if not isinstance(context, int) or isinstance(context, bool):
+                    context = None
+                models.append(ModelMetadata(model_id.strip(), context))
+            if not models:
+                return ProbeResult("empty models")
+            return ProbeResult("ready", tuple(models))
     except urllib.error.HTTPError as exc:
         if exc.code in (401, 403):
-            return "auth-fail"
-        return f"http {exc.code}"
+            return ProbeResult("auth-fail")
+        return ProbeResult(f"http {exc.code}")
     except urllib.error.URLError, TimeoutError, OSError:
-        return "unreachable"
+        return ProbeResult("unreachable")
 
 
-def _gpu_spec(profile) -> str:
-    """Compact GPU descriptor, e.g. ``8×H200`` (H200 is the only card here)."""
-    n = profile.slurm.gpus
-    return f"{n}×H200" if n else "—"
+def _serve_port(comment: str) -> int | None:
+    """Extract a validated port from an Ambix scheduler comment."""
+    if not comment.startswith(_SERVE_COMMENT_PREFIX):
+        return None
+    fields = dict(
+        field.split("=", 1)
+        for field in comment[len(_SERVE_COMMENT_PREFIX) :].split(";")
+        if "=" in field
+    )
+    try:
+        port = int(fields.get("port", ""))
+    except ValueError:
+        return None
+    return port if 1 <= port <= 65535 else None
+
+
+def _batch_script_port(job_id: str) -> int | None:
+    """Recover one concrete serve port from scheduler-owned batch metadata."""
+    result = subprocess.run(
+        ["scontrol", "write", "batch_script", job_id, "-"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    pattern = re.compile(
+        r"^\s*PORT=(?:['\"]?(\d+)['\"]?|\$\{AMBIX_PORT:-(\d+)\})\s*$",
+        re.MULTILINE,
+    )
+    ports = {
+        int(value)
+        for match in pattern.finditer(result.stdout)
+        for value in match.groups()
+        if value is not None and 1 <= int(value) <= 65535
+    }
+    return ports.pop() if len(ports) == 1 else None
+
+
+def _allocated_gpus(gres: str) -> int | None:
+    """Extract the GPU count from SLURM's allocated generic resources."""
+    match = re.search(r"(?:^|,)gpu(?::[^,:=]+)?[:=](\d+)(?:\(|,|$)", gres)
+    return int(match.group(1)) if match else None
+
+
+def _discover_live_routes(
+    site: SiteConfig,
+    api_key: str | None,
+    *,
+    jobs: list[dict[str, str]] | None = None,
+) -> tuple[list[LiveRoute], list[str]]:
+    """Probe scheduler candidates and return only route-local ready models."""
+    candidates = _running_jobs(site) if jobs is None else jobs
+    routes: list[LiveRoute] = []
+    rejected: list[str] = []
+    known_profiles = set(list_profiles())
+    for job in candidates:
+        if job.get("state") != "RUNNING":
+            continue
+        comment = job.get("comment", "")
+        job_name = job.get("name", "")
+        if comment.startswith(_SERVE_COMMENT_PREFIX):
+            port = _serve_port(comment)
+        elif job_name in known_profiles:
+            port = _batch_script_port(job.get("jobid", ""))
+        else:
+            continue
+        job_id = job.get("jobid", "?")
+        node = _job_node(job)
+        gpu_count = _allocated_gpus(job.get("gres", ""))
+        if node is None:
+            rejected.append(f"job {job_id}: no allocated compute node")
+            continue
+        if port is None:
+            rejected.append(f"job {job_id}: no trustworthy serve port")
+            continue
+        if gpu_count not in _SUPPORTED_GPU_COUNTS:
+            rejected.append(f"job {job_id}: unsupported or missing GPU allocation")
+            continue
+        base_url = f"http://{node}:{port}"
+        probe = _probe_endpoint(base_url, api_key)
+        if probe.readiness != "ready":
+            rejected.append(f"job {job_id}: {probe.readiness}")
+            continue
+        for model in probe.models:
+            routes.append(
+                LiveRoute(
+                    model_id=model.model_id,
+                    node=node,
+                    port=port,
+                    gpu_count=gpu_count,
+                    job_id=job_id,
+                    base_url=base_url,
+                    max_context=model.max_context,
+                    readiness=probe.readiness,
+                    job_name=job_name,
+                )
+            )
+    routes.sort(key=lambda route: (route.model_id, route.gpu_count, route.job_id))
+    return routes, rejected
+
+
+def _resolve_live_route(
+    routes: list[LiveRoute],
+    selector: str | None,
+    *,
+    interactive: bool,
+) -> LiveRoute:
+    """Resolve a live route without silently choosing among ambiguous matches."""
+    matches = routes
+    if selector:
+        folded = selector.casefold()
+        matches = [
+            route
+            for route in routes
+            if selector in {route.selector, route.job_id}
+            or folded
+            in {
+                route.model_id.casefold(),
+                f"{route.model_id}@{route.gpu_count}xh200".casefold(),
+            }
+        ]
+    if not matches:
+        detail = f" matching {selector!r}" if selector else ""
+        raise click.ClickException(f"No ready local model route{detail}.")
+    if len(matches) == 1:
+        return matches[0]
+    if not interactive:
+        choices = ", ".join(route.selector for route in matches)
+        raise click.ClickException(f"Ambiguous live route; choose one of: {choices}")
+    for index, route in enumerate(matches, start=1):
+        click.echo(f"  {index}) {route.label}", err=True)
+    choice = click.prompt(
+        "Select local route", type=click.IntRange(1, len(matches)), err=True
+    )
+    return matches[choice - 1]
+
+
+def _explicit_live_route(
+    url: str,
+    model_id: str | None,
+    api_key: str | None,
+) -> LiveRoute:
+    """Probe and validate an explicitly supplied local endpoint."""
+    base_url = url.rstrip("/")
+    if not base_url or any(ord(character) < 32 for character in base_url):
+        raise click.ClickException("Explicit local endpoint URL is invalid.")
+    probe = _probe_endpoint(base_url, api_key)
+    if probe.readiness != "ready":
+        raise click.ClickException(
+            f"Explicit local endpoint is not ready: {probe.readiness}."
+        )
+    models = {model.model_id: model for model in probe.models}
+    if model_id is not None and model_id not in models:
+        raise click.ClickException(
+            f"Model {model_id!r} is not reported by the explicit local endpoint."
+        )
+    if model_id is None and len(models) != 1:
+        choices = ", ".join(sorted(models))
+        raise click.ClickException(
+            f"Explicit local endpoint reports several models; select one of: {choices}"
+        )
+    selected_id = model_id or next(iter(models))
+    selected = models[selected_id]
+    return LiveRoute(
+        model_id=selected.model_id,
+        node="explicit",
+        port=0,
+        gpu_count=0,
+        job_id="explicit",
+        base_url=base_url,
+        max_context=selected.max_context,
+        readiness=probe.readiness,
+        job_name="explicit",
+    )
 
 
 # Display names for engine types (TOML stores the lowercase launcher key).
@@ -928,7 +1168,23 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
     "--model",
     "model_override",
     default=None,
-    help="Override the default served-model name baked into the script.",
+    help="Select or validate a server-reported model.",
+)
+@click.option("--url", "url_override", default=None, help="Probe this local URL.")
+@click.option(
+    "--selector",
+    default=None,
+    help="Select a live route by canonical selector, job id, model, or topology.",
+)
+@click.option(
+    "--live-list",
+    is_flag=True,
+    help="List probe-qualified local routes without deploying a launcher.",
+)
+@click.option(
+    "--resolve-live",
+    is_flag=True,
+    help="Resolve one probe-qualified local route as sanitized JSON.",
 )
 @click.option(
     "--destination",
@@ -944,6 +1200,10 @@ def clive_command(
     print_only: bool,
     show_path: bool,
     model_override: str | None,
+    url_override: str | None,
+    selector: str | None,
+    live_list: bool,
+    resolve_live: bool,
     destination: Path | None,
 ) -> None:
     """Generate and deploy the local-model ``clive`` launcher.
@@ -954,6 +1214,33 @@ def clive_command(
     from imas_ambix.agent.clive import generate_clive_script
 
     site = SiteConfig.from_env()
+    if live_list or resolve_live:
+        api_key = _resolve_api_key(None)
+        if url_override:
+            routes = [_explicit_live_route(url_override, model_override, api_key)]
+        else:
+            routes, rejected = _discover_live_routes(site, api_key)
+            if live_list and rejected:
+                for reason in rejected:
+                    click.echo(f"rejected: {reason}", err=True)
+        if live_list:
+            if not routes:
+                raise click.ClickException("No ready local model routes.")
+            for route in routes:
+                click.echo(f"{route.selector}\t{route.label}")
+            return
+        chosen = _resolve_live_route(
+            routes,
+            selector or (model_override if not url_override else None),
+            interactive=sys.stdin.isatty(),
+        )
+        if model_override is not None and chosen.model_id != model_override:
+            raise click.ClickException(
+                f"Selected route reports {chosen.model_id!r}, not {model_override!r}."
+            )
+        click.echo(json.dumps(asdict(chosen), sort_keys=True))
+        return
+
     profile = _load_profile(slug)
     default_model = model_override or profile.model.served_name
     clive_script = generate_clive_script(site, default_model)
