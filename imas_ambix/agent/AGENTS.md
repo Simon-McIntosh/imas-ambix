@@ -210,11 +210,21 @@ imas-ambix agent download kimi-k2-6           # Submit SLURM download job (siriu
 imas-ambix agent serve kimi-k2-6              # Submit SLURM serve job (betelgeuse partition)
 imas-ambix agent serve kimi-k2-6 --dry-run    # Print script without submitting
 imas-ambix agent status                        # Jobs + connection block (URL, key, readiness)
-imas-ambix agent key --rotate                 # Rotate the shared API key + restart serve
+imas-ambix agent key --rotate                 # Operator-only authenticated-backend maintenance
 imas-ambix agent clive --deploy               # Generate+deploy the clive launcher (see §4a)
 ```
 
 Adding a new model: create a TOML file in `imas_ambix/agent/profiles/<slug>.toml`.
+
+**Operator authority (binding):** setup, download, serve, key rotation, global
+endpoint configuration, and deployment are operator work. Run those commands
+only in a node explicitly assigned that authority. Documentation, review,
+read-only verification, operator-unassigned work, and default shared-consumer
+operation must not start, stop, restart, or cancel scheduler jobs or services.
+`clive` has no scheduler or deployment authority. Its sole service exception is
+explicit OpenRouter opt-in: after successful global model selection, it may
+start an already-installed per-user proxy, but it does not install, stop,
+restart, or cancel that service.
 
 **Setup readiness contract:** `agent setup` submits a network-enabled install
 job followed by a dependent runtime verification job on `betelgeuse`. The
@@ -226,63 +236,86 @@ not readiness. If verification fails, do not submit a serve job. Relocation is
 rollback-free: setup writes a new engine-isolated home path and leaves the
 project-backed and shared legacy environments untouched.
 
-## 4a. Driving an interactive agent against the local model (`clive`)
+## 4a. Driving an interactive agent against the global catalog (`clive`)
 
-`clive` ("CLI + live") points **Claude Code** (Anthropic Messages API) or the
-**OpenAI Codex CLI** (OpenAI API) at the served model. The vLLM server exposes
-**both** `/v1/messages` and `/v1/chat/completions` on the same port, so one
-server, key, and model back either harness — with full reasoning, tool calling,
-and prompt caching (vLLM automatic prefix caching; >0.17.1 handles Claude
-Code's per-request hash, so caching is not defeated). The launcher is strictly
-local-only: both harnesses connect directly to the served model, and every
-Claude Code tier alias resolves to that same model.
+`clive` ("CLI + live") is the standalone, shared consumer for **Claude Code**
+(Anthropic Messages API) and the **OpenAI Codex CLI** (OpenAI API). An operator
+sets `AMBIX_AGENT_GLOBAL_URL` when generating the launcher; the normalized
+origin is embedded in the deployed script and is identical for every user.
+Consumers do not need the repository, its virtual environment, operator CLI,
+credentials, or scheduler access.
 
 ```bash
-clive "explain this repo"          # local model via Claude Code
-clive --codex "write a test"       # local model via Codex CLI
-imas-ambix agent clive --deploy    # generate and sync the shared launcher
-imas-ambix agent clive --path      # print the ~/.bashrc PATH line
+clive --list                                      # list the global catalog
+clive "explain this repo"                         # select interactively if needed
+clive --selector deepseek-v4-flash@4xh200 "..."  # exact release and topology
+clive --model glm-5.3 "..."                       # exact native release id
+clive --codex --model glm-5.3 "write a test"      # same origin through Codex
 ```
 
-**Local-only routing contract:**
+**Anonymous global discovery contract:**
 
-- `clive` discovers the served model from `/v1/models` unless `--model` or
-  `AMBIX_AGENT_MODEL` overrides it. Failure to reach that endpoint is fatal;
-  the launcher does not fall back to an external service.
-- Claude Code receives the local endpoint through `ANTHROPIC_BASE_URL` and the
-  local key through `ANTHROPIC_AUTH_TOKEN`. Its opus, sonnet, haiku, and session
-  default variables all name the one served model.
-- `clive --codex` uses the same endpoint, key, and detected model through the
-  OpenAI-compatible API.
-- Personal environment variables and key files never select another route.
-  The shared launcher has no user-specific billing or third-party-account
-  dependency.
-- The server-reported `max_model_len`, when present, is exported as
-  `CLAUDE_CODE_MAX_CONTEXT_TOKENS`; the launcher does not guess when the server
-  omits it.
+- Each discovery run makes exactly one anonymous
+  `GET $AMBIX_AGENT_GLOBAL_URL/v1/models` request to the embedded origin. It
+  sends no `Authorization` header and never reads a user name, home directory,
+  key file, repository, `AMBIX_AGENT_*` consumer override, profile, batch
+  script, or SLURM state. It never runs `squeue`, `scontrol`, `sbatch`, or the
+  operator CLI. Redirect responses are rejected rather than followed, so no
+  second endpoint can become catalog authority.
+- A successful, non-empty response is the complete availability authority.
+  Clive uses each native model-card `id` as the release identity; it never
+  substitutes a profile slug, local alias, filename-derived name, or URL from
+  the response.
+- The server-owned `ambix` metadata supplies checkpoint precision and runtime
+  topology. `accelerator_family` is displayed with an explicit
+  `accelerator_count` of 2, 4, 6, or 8, yielding `2×H200`, `4×H200`,
+  `6×H200`, or `8×H200`. Clive validates those fields and does not infer
+  them from scheduler state or client-side profiles.
+- Selection changes only the native model id sent back to the same global
+  origin. A future catalog item with `id: glm-5.3` is therefore immediately
+  selectable by `--model glm-5.3`, without a Clive source or deployment change.
+- The server-reported `max_model_len`, when present, becomes
+  `CLAUDE_CODE_MAX_CONTEXT_TOKENS`; absence leaves the context unknown rather
+  than guessed.
+- Unreachable, non-successful, empty, malformed, duplicate, or incompletely
+  annotated catalogs fail closed before either harness starts. Endpoint-down
+  evidence is a service failure; Clive never falls back to scheduler discovery,
+  a personal provider, a key file, or another endpoint.
 
-**Why the proxy route was removed:** LiteLLM's `anthropic/` provider sends the
-local credential as `x-api-key`, while vLLM accepts only `Authorization: Bearer`
-for API-key authentication. The former OpenRouter path also made a shared
-cluster launcher depend on a personal third-party account and its spend state.
-That mismatch and ownership boundary are reasons not to reintroduce the proxy,
-even as an automatic or dormant route.
+After selection, Claude Code receives the global origin through
+`ANTHROPIC_BASE_URL`; Codex receives the same origin with `/v1` appended. The
+fixed client API-key values satisfy harness configuration only and are not
+credentials. The global vLLM endpoint is keyless and both harnesses send
+inference to the selected native release at that same origin.
+
+**Explicit external-provider mode is separate from discovery.** A readable
+personal key never changes the default route. `--openrouter` or
+`CLIVE_OPENROUTER=1` is an explicit opt-in after the anonymous global catalog
+has selected a native release; catalog failure still stops before the per-user
+proxy is considered. Installing its artifacts is operator-authorized deployment
+work. Once installed, explicit opt-in may start that per-user proxy; the proxy
+is not part of default shared-consumer discovery.
 
 **Sync discipline — repo is the source of truth (binding):** `imas-ambix agent
-clive --deploy` generates and writes one artifact: the `clive` launcher. Its
-generator is `imas_ambix/agent/clive.py`. **NEVER hand-edit a deployed copy** —
-it is disposable. Edit the generator in the repo, commit, then re-run
-`--deploy` to re-sync it. Compare a deployed copy with `--print` when verifying
-that it has not drifted from the generator.
+clive --deploy` generates the default shared artifact at
+`/work/projects/imas_gpu/agents/clive` from `imas_ambix/agent/clive.py`.
+`--destination PATH` writes the same generated launcher elsewhere.
+`AMBIX_AGENT_GLOBAL_URL` is operator input at generation time, not a consumer
+override. **NEVER hand-edit a deployed copy** — edit the generator, commit it,
+and redeploy. Read-only verification may compare
+`imas-ambix agent clive --print` byte-for-byte with a deployed copy; deployment
+itself requires explicit operator authority.
 
 - **Direct route, no tunnel.** Login and standard compute nodes route directly
   to `<gpu-node>:PORT` (verified 2026-06-25: login → `98dci4-gpu-0003:18800` =
   200). SSH `-L` port-forwarding to the compute node is **administratively
   prohibited** (`channel … open failed: administratively prohibited`), so the
   launchers use the direct URL and do not tunnel.
-- **Operator vs consumer.** `imas-ambix` is the *operator* CLI (serve/manage,
-  per-user repo venv); `clive` is the *consumer* launcher (shared on GPFS,
-  secret-free).
+- **Operator vs consumer.** `imas-ambix agent` owns profiles, scheduler
+  inspection, serving, key management for authenticated backends, and launcher
+  deployment from the repository environment. `clive` owns only anonymous
+  catalog discovery, selection, and harness launch from the shared GPFS script.
+  Neither user identity nor operator state crosses that boundary.
 
 ## 5. Available Model Profiles
 

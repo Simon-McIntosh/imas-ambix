@@ -106,8 +106,21 @@ def valid_text(value):
     )
 
 
+class RejectRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, message, headers, new_url):
+        raise urllib.error.HTTPError(
+            request.full_url,
+            code,
+            "global catalog redirect refused",
+            headers,
+            fp,
+        )
+
+
 request = urllib.request.Request(origin + "/v1/models", method="GET")
-opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+opener = urllib.request.build_opener(
+    urllib.request.ProxyHandler({}), RejectRedirects()
+)
 try:
     with opener.open(request, timeout=5) as response:
         if response.status < 200 or response.status >= 300:
