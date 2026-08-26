@@ -34,6 +34,7 @@
 name = "GLM-5.2"
 hf_repo = "zai-org/GLM-5.2-FP8"
 served_name = "glm-5.2"
+checkpoint_precision = "fp8"
 size_gb = 744
 max_context = 1048576
 
@@ -65,17 +66,34 @@ enable_auto_tool_choice = true
 # kernel in vLLM, and "fp8" resolves to the same fp8_e4m3 that every candidate
 # sparse/MLA backend rejects, so the server cannot start with it.
 #
-# The bf16 entry still fits 224K here. KV costs ~362 KiB/token in total and is
-# sharded across ranks, so at TP=8 that is ~45 KiB/token/card: 224K needs
-# ~10.1 GiB against the ~17 GiB this mem_fraction leaves once the FP8 weights
-# take ~87 GiB/card. The penalty lands on the four-card variant below, where
-# the weights leave far less room, not here.
-max_total_tokens = 229376
+# Context is sized from the checkpoint's own KV geometry, not from a remembered
+# figure. This is MLA: the cache holds a compressed latent of
+# kv_lora_rank + qk_rope_head_dim = 512 + 64 = 576 elements per token per
+# layer, so at bf16 across 78 layers it costs 576*2*78 = ~87.75 KiB/token.
+# That latent is REPLICATED on every rank rather than sharded, so per-card KV
+# cost does not fall as cards are added -- more cards help only by shrinking
+# weights-per-card and freeing room. (Confirmed against a measured four-card
+# pool, which came in at ~90 KiB/token.)
+#
+# Eight cards: the engine reported 16.53 GiB of pool at mem_fraction 0.90 and
+# named 188,992 as its own ceiling there, against a predicted ~29 GiB -- the
+# runtime overhead is ~12 GiB larger than the weights and MTP draft alone
+# suggest, most of it CUDA graphs. The KV cost per token was right (25.79 GiB
+# for 288K is 91.7 KiB/token against 87.75 predicted); only the overhead was
+# not. So this is sized from the reported pool, not from arithmetic: 0.92 buys
+# ~2.8 GiB more budget and a 256-sequence cap returns graph memory to the pool,
+# which together carry 200K.
+max_total_tokens = 204800
 kv_cache_dtype = "bfloat16"
-mem_fraction_static = 0.86
-# Lift the scheduler caps off the vLLM defaults (256 seqs) so the large KV
-# budget is actually exploited; mirrors the deepseek-v4-flash tuning.
-max_num_seqs = 1024
+# 0.92 leaves ~11 GiB/card outside the budget. That reserve is not spare: the
+# sparse-MLA kernel claims ~8 GiB/card lazily on the FIRST real decode, and a
+# run that left only ~2.4 GiB there reached READY and then died on its first
+# request. Do not raise this without re-checking that margin.
+mem_fraction_static = 0.92
+# 256 sequences, not 1024: CUDA graph capture scales with this cap and the
+# memory it takes comes straight out of the KV pool. 256 still sits far above
+# any measured concurrency here, so the cap costs nothing and buys context.
+max_num_seqs = 256
 max_num_batched_tokens = 32768
 # MTP speculative decoding — GLM-5.2 ships an MTP head tuned for 5 draft tokens.
 speculative_method = "mtp"
@@ -134,6 +152,7 @@ time_download = "24:00:00"
 
 [gpu_variants.4.model]
 hf_repo = "cyankiwi/GLM-5.2-AWQ-INT4"
+checkpoint_precision = "int4"
 # Separate download directory -- both checkpoints coexist on disk.
 weights_slug = "glm-5-2-int4"
 size_gb = 440
@@ -158,6 +177,7 @@ memory = "320G"
 # nearer 700K, and 256K is chosen to stay well inside it.
 [gpu_variants.6.model]
 hf_repo = "cyankiwi/GLM-5.2-AWQ-INT4"
+checkpoint_precision = "int4"
 weights_slug = "glm-5-2-int4"
 size_gb = 440
 

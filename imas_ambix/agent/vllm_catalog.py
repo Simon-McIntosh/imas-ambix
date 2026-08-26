@@ -78,7 +78,7 @@ def catalog_metadata_from_environment() -> CatalogMetadata:
 def _rewrite_catalog(body: bytes, metadata: CatalogMetadata) -> bytes:
     try:
         payload = json.loads(body)
-    except UnicodeDecodeError, json.JSONDecodeError:
+    except (UnicodeDecodeError, json.JSONDecodeError):
         payload = {"object": "list", "data": []}
 
     if not isinstance(payload, dict):
