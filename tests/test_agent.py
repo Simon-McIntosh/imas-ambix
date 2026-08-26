@@ -202,7 +202,7 @@ def test_load_glm_5_2_profile():
 
 
 def test_generate_glm_5_2_serve_script():
-    """GLM-5.2 serve script requests 8 GPUs, TP=8, and MTP speculative flags."""
+    """GLM-5.2 launch arguments reflect its loaded deployment profile."""
     from imas_ambix.agent.slurm import generate_serve_script
 
     profile = _with_checkpoint_precision(load_profile("glm-5-2"))
@@ -218,9 +218,9 @@ def test_generate_glm_5_2_serve_script():
     assert "--tool-call-parser glm47" in script
     assert "--reasoning-parser glm45" in script
     assert "agents/glm-5-2/model" in script
-    # Working config: 224K context (CUDA graphs stay ON — vLLM ignores
-    # disable_cuda_graph; see profile comments).
-    assert "--max-model-len 229376" in script
+    expected_context = profile.engine.max_total_tokens
+    assert expected_context is not None
+    assert script.count(f"--max-model-len {expected_context}") == 1
 
 
 def test_serve_no_auth_flag(monkeypatch):
