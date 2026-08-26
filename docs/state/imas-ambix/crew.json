@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T16:30:00",
+  "updated": "2026-08-26T16:32:17",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -12423,9 +12423,142 @@
           "role": "implement",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T141852178111-clive-global-repaired-launcher-independent-test",
+        "plan": "clive-global-endpoint-routing",
+        "section": "\u00a73",
+        "node": "clive-global-repaired-launcher-independent-test",
+        "node_definition": {
+          "done_when": "At base 2b454dd49b4b5c47b9024e359f3e83aa4b899388, one captured tests/test_agent.py run reports exact pass count and exit status, scoped Ruff passes, and external sentinels prove distinct global-origin authority survives conflicting per-serve overrides, malformed origins fail before deploy, interactive 0 negative and out-of-range choices fail, dynamic proxy alias mismatch fails before proxy launch, and existing anonymous keyless same-origin 2x 4x 6x 8x future glm-5.3 no-item-URL no-hidden-dependency and no-fallback behavior remains intact. The GLM serve context assertion must follow loaded profile authority. Commit chain, exact scope, body, naming, and attribution are recorded.",
+          "estimated_hours": 0.4,
+          "goal": "Produce an independent executable verdict for the corrected standalone Clive candidate tip.",
+          "id": "clive-global-repaired-launcher-independent-test",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T141852178111-clive-global-repaired-launcher-independent-test/manifest.md",
+          "plan": "clive-global-endpoint-routing",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a73",
+          "spec_level": "exact",
+          "time_budget": "18m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-repaired-launcher-independent-test.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "clive-live-repair-test",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T14:19:06Z",
+        "completed_at": "2026-08-26T14:27:55Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 529,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 529,
+        "stalled": false,
+        "time_budget": "18m",
+        "base_sha": "2b454dd49b4b5c47b9024e359f3e83aa4b899388",
+        "commits": [
+          "caed14e686b5c9dee0c58a25fbd5de2f53504025",
+          "2b454dd49b4b5c47b9024e359f3e83aa4b899388"
+        ],
+        "changed_lines": {
+          "available": false,
+          "reason": "diff_unavailable"
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=\"$PWD\" uv run --no-sync pytest tests/test_agent.py -p no:cacheprovider -vv",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T141852178111-clive-global-repaired-launcher-independent-test/pytest-test-agent.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T141852178111-clive-global-repaired-launcher-independent-test/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03e70-6278-7003-825f-7498d5f65360",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 344320,
+            "cached_input_tokens_cumulative": 344320,
+            "input_tokens": 349936,
+            "input_tokens_cumulative": 349936,
+            "output_tokens": 2829,
+            "output_tokens_cumulative": 2829,
+            "reasoning_output_tokens": 230,
+            "reasoning_output_tokens_cumulative": 230
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 1080,
+              "classification": "completed_unpromoted",
+              "detail": "the worker manifest reports completion and the run is still a pointer; promoting it moves the delivered record into the repository ledger",
+              "elapsed_seconds": 851,
+              "log_age_seconds": 787,
+              "log_fresh": true,
+              "manifest_commits": [
+                "3aca5925c74dedb18e16fff326eeecc29ae2c6a5"
+              ],
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T135446023482-clive-global-catalog-profile-metadata/manifest.md",
+              "manifest_present": true,
+              "manifest_status": "complete",
+              "next_action": "reckon crew complete --run r-20260826T135446023482-clive-global-catalog-profile-metadata --gate <verdict> --commit 3aca5925c74dedb18e16fff326eeecc29ae2c6a5",
+              "node": "clive-global-catalog-profile-metadata",
+              "phase": "working",
+              "plan": "clive-global-endpoint-routing",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260826T135446023482-clive-global-catalog-profile-metadata",
+              "terminal_age_seconds": 808,
+              "terminal_at": "2026-08-26T14:05:34Z",
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/clive-global-endpoint-20260826/clive-global-catalog-profile-metadata"
+            }
+          ]
+        },
+        "attempt": 2,
+        "attempt_kind": "resume",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 343
+    "_version": 344
   }
 }
