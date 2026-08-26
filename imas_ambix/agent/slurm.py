@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import shlex
 import subprocess
 from pathlib import Path
 from textwrap import dedent
 from typing import TYPE_CHECKING
+
+from imas_ambix.agent.vllm_catalog import validate_catalog_metadata
 
 if TYPE_CHECKING:
     from imas_ambix.agent.profile import ModelProfile, SiteConfig
@@ -20,6 +23,7 @@ _DRAIN_SIDECAR = (
 
 _MODEL_DIR_TOKEN = "__AMBIX_MODEL_DIR__"
 _PORT_TOKEN = "__AMBIX_PORT__"
+_CATALOG_MIDDLEWARE = "imas_ambix.agent.vllm_catalog.GlobalModelCatalogMiddleware"
 
 # Python one-liner that calls posix_fadvise(FADV_DONTNEED) on all
 # safetensor files in a directory, advising the kernel to drop their
@@ -189,6 +193,8 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
             "0.0.0.0",
             "--port",
             _PORT_TOKEN,
+            "--middleware",
+            _CATALOG_MIDDLEWARE,
         ]
         _append_flag(args, "--trust-remote-code", engine.trust_remote_code)
         _append_flag(
@@ -211,12 +217,11 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
             # Separate draft-model checkpoint: emit as a compact JSON dict so
             # vLLM loads the MTP head from a different weight directory.
             import json as _json
+
             spec = {
                 "model": engine.speculative_model,
                 "method": engine.speculative_method,
-                "num_speculative_tokens": (
-                    engine.speculative_num_tokens or 3
-                ),
+                "num_speculative_tokens": (engine.speculative_num_tokens or 3),
             }
             args.extend(["--speculative-config", _json.dumps(spec)])
         else:
@@ -292,6 +297,27 @@ def generate_serve_script(
         ``ps aux`` output.
     """
     model_dir = site.model_dir(profile)
+    catalog_env_block = ""
+    if profile.engine.type == "vllm":
+        precision = profile.model.checkpoint_precision
+        if precision is None or not precision.strip():
+            raise ValueError("vLLM catalog serving requires model.checkpoint_precision")
+        metadata = {
+            profile.model.served_name: {
+                "accelerator_family": "H200",
+                "accelerator_count": profile.slurm.gpus,
+                "checkpoint_precision": precision,
+            }
+        }
+        validate_catalog_metadata(metadata)
+        repo_root = Path(__file__).resolve().parents[2]
+        catalog_env_block = "\n".join(
+            [
+                "export AMBIX_VLLM_CATALOG_METADATA="
+                + shlex.quote(json.dumps(metadata, separators=(",", ":"))),
+                f"export PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}}",
+            ]
+        )
     headers = _sbatch_headers(
         job_name=profile.slug,
         partition=site.partition,
@@ -490,6 +516,8 @@ def generate_serve_script(
         {api_key_block}
 
         {env_block}
+
+        {catalog_env_block}
 
         # Expose vendored nvidia libs (cuDNN, cuSPARSELt, NCCL, etc.)
         # installed by pip/uv into per-package subdirs under nvidia/.
