@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-25T21:44:32",
+  "updated": "2026-08-26T13:06:10",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -132,6 +132,44 @@
           "gpt-5.6-sol": "01a039cb-5b89-7c11-ad30-1d488f82eeec"
         },
         "created": "2026-08-25"
+      },
+      {
+        "id": "clive-live-impl",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-26"
+      },
+      {
+        "id": "clive-live-review",
+        "harness": "codex",
+        "role": "review",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-26"
+      },
+      {
+        "id": "clive-live-scout",
+        "harness": "codex",
+        "role": "investigate",
+        "session_id": "01a03dba-f46e-79b3-aac3-c6db36a94ffd",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a03dba-f46e-79b3-aac3-c6db36a94ffd"
+        },
+        "created": "2026-08-26"
+      },
+      {
+        "id": "clive-live-test",
+        "harness": "codex",
+        "role": "test",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-08-26"
       },
       {
         "id": "clive-picker-inert",
@@ -10144,9 +10182,103 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260826T110053740101-clive-live-reuse-map",
+        "plan": "clive-live-model-discovery",
+        "section": "\u00a71",
+        "node": "clive-live-reuse-map",
+        "node_definition": {
+          "done_when": "test -s /home/ITER/mcintos/.config/reckon/crew/reports/clive-live-reuse-map.md exits 0; the report records the rg -n inventory match count; every hit has a keep, adapt, or replace verdict; one bounded implementation scope is named",
+          "estimated_hours": 0.3,
+          "goal": "Map reusable scheduler discovery, endpoint probing, launcher selection, topology display, and regression-test seams",
+          "id": "clive-live-reuse-map",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T110053740101-clive-live-reuse-map/manifest.md",
+          "plan": "clive-live-model-discovery",
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a71",
+          "spec_level": "guided",
+          "time_budget": "8m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-reuse-map.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "guided",
+        "member": "clive-live-scout",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-08-26T11:00:57Z",
+        "completed_at": "2026-08-26T11:05:51Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 294,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 294,
+        "stalled": false,
+        "time_budget": "8m",
+        "base_sha": "714d824b4899a96a7658f8b428147d6fbbcb13da",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "test -s clive-live-reuse-map.md; test inventory line count equals 19",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T110053740101-clive-live-reuse-map/reuse-inventory.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T110053740101-clive-live-reuse-map/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03dba-f46e-79b3-aac3-c6db36a94ffd",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1153280,
+            "cached_input_tokens_cumulative": 1153280,
+            "input_tokens": 1254212,
+            "input_tokens_cumulative": 1254212,
+            "output_tokens": 12143,
+            "output_tokens_cumulative": 12143,
+            "reasoning_output_tokens": 5873,
+            "reasoning_output_tokens_cumulative": 5873
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 293
+    "_version": 299
   }
 }
