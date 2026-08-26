@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T16:18:27",
+  "updated": "2026-08-26T16:30:00",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -203,9 +203,11 @@
         "id": "clive-live-repair-test",
         "harness": "codex",
         "role": "test",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a03e70-6278-7003-825f-7498d5f65360",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a03e70-6278-7003-825f-7498d5f65360"
+        },
         "created": "2026-08-26"
       },
       {
@@ -12312,9 +12314,118 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T140353458933-clive-global-launcher-authority-repair",
+        "plan": "clive-global-endpoint-routing",
+        "section": "\u00a73",
+        "node": "clive-global-launcher-authority-repair",
+        "node_definition": {
+          "done_when": "A distinct validated site-global origin authority with an explicit site default of http://98dci4-gpu-0003:18800 is independent of per-serve gpu_host/default_port and cannot be changed by AMBIX_AGENT_GPU_HOST or AMBIX_AGENT_PORT; operator-only global-origin configuration is normalized and malformed values fail before deployment. Interactive selection accepts only displayed integers from 1 through the model count. Explicit OpenRouter opt-in either represents the dynamically selected native release in its generated proxy configuration or fails before proxy launch with a precise error, while never becoming fallback. Stale key-file and local-route descriptions in touched source are corrected. All previously passing anonymous keyless same-origin, 2x 4x 6x 8x, future glm-5.3, no item URL, no hidden user/scheduler dependency, removed machine API, and clean-directory cases remain green. One captured tests/test_agent.py run and scoped Ruff pass; focused regressions cover conflicting per-serve overrides, malformed global origins, 0 and negative and out-of-range interactive choices, and a dynamic release differing from the deployment-profile alias. Commit scope, conventional body, naming, attribution, and exact changed paths are recorded.",
+          "estimated_hours": 0.7,
+          "goal": "Deliver a corrected standalone Clive launcher candidate that closes every independent architectural review finding.",
+          "id": "clive-global-launcher-authority-repair",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T140353458933-clive-global-launcher-authority-repair/manifest.md",
+          "plan": "clive-global-endpoint-routing",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "open",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/agent/profile.py",
+            "imas_ambix/agent/clive.py",
+            "imas_ambix/agent/cli.py",
+            "imas_ambix/agent/litellm_config.py",
+            "tests/test_agent.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "open",
+        "member": "clive-live-repair",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T14:04:04Z",
+        "completed_at": "2026-08-26T14:23:00Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1136,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1136,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "87611f69c5a005559c22ba5e17685a157e8d4516",
+        "commits": [
+          "caed14e686b5c9dee0c58a25fbd5de2f53504025",
+          "2b454dd49b4b5c47b9024e359f3e83aa4b899388"
+        ],
+        "changed_lines": {
+          "added": 213,
+          "removed": 55,
+          "files": 5
+        },
+        "tests_added": 14,
+        "gate": "passed",
+        "gate_check": {
+          "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=\"$PWD\" uv run --no-sync pytest tests/test_agent.py -p no:cacheprovider",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T140353458933-clive-global-launcher-authority-repair/pytest-test-agent-tip.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T140353458933-clive-global-launcher-authority-repair/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03e62-9c4a-7320-89a0-198f8e23ebf6",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 321024,
+            "cached_input_tokens_cumulative": 321024,
+            "input_tokens": 324575,
+            "input_tokens_cumulative": 324575,
+            "output_tokens": 1584,
+            "output_tokens_cumulative": 1584,
+            "reasoning_output_tokens": 455,
+            "reasoning_output_tokens_cumulative": 455
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "attempt": 3,
+        "attempt_kind": "resume",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 341
+    "_version": 343
   }
 }

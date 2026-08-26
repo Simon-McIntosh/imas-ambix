@@ -194,6 +194,24 @@
       The corresponding implementation run was promoted with a
       <em>work-rejected</em> gate: its 145 passing tests remain evidence, but its
       candidate commit is deliberately absent from the integrated commit list.</p>
+
+      <aside class="callout note">
+        <strong>Repair candidate passed its implementation gate.</strong>
+        Commits <code>caed14e686b5c9dee0c58a25fbd5de2f53504025</code>
+        and <code>2b454dd49b4b5c47b9024e359f3e83aa4b899388</code>
+        add the distinct validated global-origin authority, bounded interactive
+        selection, pre-launch proxy-alias refusal, and a profile-authoritative
+        context assertion. The worker's full <code>tests/test_agent.py</code>
+        capture passed 159 of 159 cases. This entry records the candidate gate;
+        integration remains separate until the independent test and review
+        receipts are promoted.
+      </aside>
+
+      <p>The repair run performed no scheduler or service mutation: it did not
+      submit, launch, stop, restart, or cancel a SLURM job or vLLM process.
+      Evidence: Crew run
+      <code>r-20260826T140353458933-clive-global-launcher-authority-repair</code>
+      and its durable manifest.</p>
     </section>
   </main>
 </body>
