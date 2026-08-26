@@ -88,3 +88,33 @@ cpus = 30
 memory = "640G"
 time_serve = "7-00:00:00"
 time_download = "24:00:00"
+
+# ─── GLM-5.3 Migration (weights expected ~Aug 28) ───────────────────────
+# GLM-5.3 shares GLM-5.2's glm_moe_dsa architecture — the FP8 checkpoint
+# format, MTP head, TP layout, and SGLang/vLLM recipes all carry over.
+# When the open-weight release lands:
+#   1. Replace hf_repo with ``zai-org/GLM-5.3-FP8``
+#   2. Rerun ``imas-ambix agent download glm-5-2``
+#   3. Rerun ``imas-ambix agent serve glm-5-2``
+# No other config changes are expected (same FP8 scheme, same parsers, same
+# MTP head depth).  The SGLang low-latency recipe (see bottom comments) works
+# as-is for 5.3 production — adjust chunked-prefill and mem-fraction only if
+# the 5.3 KV budget differs (unlikely — same base model).
+#
+# ─── SGLang alternative (8×H200, low-latency production serving) ─────────
+# The SGLang v0.5.14+ cookbook defines a proven FP8 recipe at higher
+# aggregate throughput than the vLLM path for concurrency ≥16:
+#   python -m sglang.launch_server \
+#     --model-path /work/projects/imas_gpu/agents/glm-5-2/model \
+#     --tp-size 8 \
+#     --speculative-algorithm EAGLE \
+#     --speculative-num-steps 5 \
+#     --speculative-eagle-topk 1 \
+#     --speculative-num-draft-tokens 6 \
+#     --mem-fraction-static 0.8 \
+#     --chunked-prefill-size 8192 \
+#     --max-running-requests 48
+# Measured (8K-in/1K-out): TTFT 668 ms, TPOT 5.05 ms, ~197 tok/s/GPU @ c=1.
+# Swap engine.type to "sglang" and uncomment the fields above to test it.
+# The balanced recipe (DP=8, DeepEP, chunked-prefill=32768) hits ~2,390 tok/s/GPU
+# at concurrency 256 — use that for production batch serving.

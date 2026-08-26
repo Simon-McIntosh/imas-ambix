@@ -207,14 +207,27 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
         # KV block size (MiniMax M3 MSA requires --block-size 128).
         _append_option(args, "--block-size", engine.block_size)
         # MTP speculative decoding (GLM-5.2): draft several tokens per step.
-        _append_option(
-            args, "--speculative-config.method", engine.speculative_method
-        )
-        _append_option(
-            args,
-            "--speculative-config.num_speculative_tokens",
-            engine.speculative_num_tokens,
-        )
+        if engine.speculative_method and engine.speculative_model:
+            # Separate draft-model checkpoint: emit as a compact JSON dict so
+            # vLLM loads the MTP head from a different weight directory.
+            import json as _json
+            spec = {
+                "model": engine.speculative_model,
+                "method": engine.speculative_method,
+                "num_speculative_tokens": (
+                    engine.speculative_num_tokens or 3
+                ),
+            }
+            args.extend(["--speculative-config", _json.dumps(spec)])
+        else:
+            _append_option(
+                args, "--speculative-config.method", engine.speculative_method
+            )
+            _append_option(
+                args,
+                "--speculative-config.num_speculative_tokens",
+                engine.speculative_num_tokens,
+            )
         return _render_shell_command(args)
 
     if engine.type != "ktransformers":

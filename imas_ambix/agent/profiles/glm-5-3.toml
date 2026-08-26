@@ -1,0 +1,55 @@
+# GLM-5.3 — Z.ai (Zhipu AI) 744B MoE frontier coding model — STUB
+#
+# WARNING: GLM-5.3 weights are NOT YET OPEN (announced Aug 14, API-only;
+# open-weight release expected ~Aug 28 pending safety review).
+#
+# This profile is pre-configured for when the weights drop — same architecture
+# as GLM-5.2 (glm_moe_dsa, ~744B total / ~40B active, FP8), so every setting
+# is identical to glm-5-2.toml except the HuggingFace repo.
+#
+# Activation steps when the release lands:
+#   1. Verify the repo path (may be zai-org/GLM-5.3-FP8 or similar)
+#   2. ``imas-ambix agent download glm-5-3``   # from a network-enabled node
+#   3. ``imas-ambix agent serve glm-5-3``       # all 8 cards
+#
+# If the license is not permissive (5.2 was MIT, 5.3 is unconfirmed due to
+# emergent cyber capabilities), remove this profile and restore the 5.2 one.
+# See: https://huggingface.co/zai-org/
+#
+# Architecture: fine-grained MoE, ~744B total / ~40B active per token, native
+#   FP8 (E4M3) weights, 1,048,576-token context, native thinking mode.
+#   Multi-Token-Prediction (MTP) draft depth 5 tokens.
+# License: TBC (MIT if GLM-5.2 precedent holds; may change given the
+#   CyberGym SOTA and additional safety-staging layer).
+
+[model]
+name = "GLM-5.3"
+hf_repo = "zai-org/GLM-5.3-FP8"
+served_name = "glm-5.3-fp8"
+size_gb = 744
+max_context = 1048576
+
+[engine]
+type = "vllm"
+tensor_parallel = 8
+trust_remote_code = true
+enable_auto_tool_choice = true
+# Memory budget identical to 5.2 (FP8 weights, same architecture)
+max_total_tokens = 229376
+kv_cache_dtype = "fp8"
+mem_fraction_static = 0.86
+max_num_seqs = 1024
+max_num_batched_tokens = 32768
+speculative_method = "mtp"
+speculative_num_tokens = 5
+
+[engine.parsers]
+tool_call = "glm47"
+reasoning = "glm45"
+
+[slurm]
+gpus = 8
+cpus = 30
+memory = "640G"
+time_serve = "7-00:00:00"
+time_download = "24:00:00"

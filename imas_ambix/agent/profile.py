@@ -121,8 +121,20 @@ class EngineConfig(BaseModel):
     # ``--speculative-config.num_speculative_tokens`` so the model drafts
     # several tokens per step (GLM-5.2 ships an MTP head tuned for 5 draft
     # tokens — the headline throughput win over GLM-5.1). vLLM-only.
+    #
+    # When ``speculative_model`` is also set, the speculative-config is
+    # emitted as a compact JSON string:
+    #   ``{"model": "<speculative_model>", "method": "mtp",
+    #     "num_speculative_tokens": N}``
+    # so vLLM loads a *separate* draft-model checkpoint (needed when AWQ
+    # quantization damages the integrated MTP head — GLM-5.2 INT4 uses
+    # the community ``CosmicRaisins/GLM-5.2-MTP-INT4`` draft).
     speculative_method: str | None = None
     speculative_num_tokens: int | None = None
+    # HF repo or local path for a separate draft-model checkpoint.
+    # Mutually complementary with ``speculative_method``: set both
+    # together when the draft lives in a different weight directory.
+    speculative_model: str | None = None
     # Extra environment variables exported into the serve job before launch.
     # For engine/kernel quirks that are set via env, not CLI flags — e.g.
     # ``VLLM_USE_FLASHINFER_SAMPLER = "0"`` to route sampling around a broken

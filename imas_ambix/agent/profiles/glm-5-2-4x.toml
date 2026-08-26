@@ -1,0 +1,72 @@
+# GLM-5.2 — 4×H200 INT4 AWQ variant
+#
+# Runs alongside the 2×H200 DeepSeek V4-Flash serve (4 + 2 = 6 of 8 GPUs).
+# Uses port 18801 to coexist with DSv4 on 18800.
+#
+# Weights: cyankiwi/GLM-5.2-AWQ-INT4 (compressed-tensors Marlin, ~440 GB)
+# Architecture: ~744B total / ~40B active per token MoE
+# Context: 128K (practical ceiling at TP=4 on 4×H200 for this model size)
+# License: MIT
+#
+# Memory budget on 4×H200 (140.4 GB each, TP=4, mem_fraction=0.90):
+#   Weights: ~440 GB AWQ-INT4  → ~110 GB/card at TP=4
+#   Free:    ~30 GB/card       → FP8 KV cache for 128K+ contexts
+#
+# ─── Adding MTP speculative decoding (optional, 75–80 % acceptance) ─────
+# AWQ quantization can damage the integrated MTP head.  The community provides
+# a separately requantized MTP draft model:
+#
+#   1. Download the draft weights:
+#      huggingface-cli download CosmicRaisins/GLM-5.2-MTP-INT4 \
+#        --local-dir /work/projects/imas_gpu/agents/glm-5-2-int4/model/mtp/
+#
+#   2. Uncomment these lines in [engine]:
+#      speculative_method = "mtp"
+#      speculative_num_tokens = 4
+#      speculative_model = "/work/projects/imas_gpu/agents/glm-5-2-int4/model/mtp"
+#
+# ─── Migration to GLM-5.3 (weights expected ~Aug 28) ────────────────────
+# GLM-5.3 shares GLM-5.2's base architecture (glm_moe_dsa), so the INT4 4x
+# setup carries over nearly unchanged:
+#   1. Wait for the open-weight release (expected ~Aug 28)
+#   2. Update hf_repo to the 5.3 INT4 / AWQ repo
+#   3. Rerun ``imas-ambix agent download glm-5-2-4x``
+#   4. Rerun ``imas-ambix agent serve glm-5-2-4x``
+
+[model]
+name = "GLM-5.2 (4×H200 INT4)"
+hf_repo = "cyankiwi/GLM-5.2-AWQ-INT4"
+served_name = "glm-5.2-int4"
+size_gb = 440
+max_context = 1048576
+
+[engine]
+type = "vllm"
+tensor_parallel = 4
+trust_remote_code = true
+enable_auto_tool_choice = true
+# AWQ-INT4 + fp8 KV has ample headroom on 4×140 GB cards (~30 GB free/GPU).
+mem_fraction_static = 0.90
+# 128K context ceiling at TP=4 — 256K starves KV under concurrency.
+max_total_tokens = 131072
+# FP8 KV cache (fp8_e4m3): ~21 % throughput uplift, no measured accuracy loss.
+kv_cache_dtype = "fp8_e4m3"
+# CUDA graphs ON (default — don't pass --enforce-eager): ~3.1 × decode uplift.
+# Scheduler caps — lift off vLLM defaults to exploit the large KV budget.
+max_num_seqs = 512
+max_num_batched_tokens = 32768
+# No MTP initially — see the comment block at the top of this file for
+# how to add speculative decoding with the community MTP-INT4 draft.
+
+[engine.parsers]
+# GLM-5.x function-calling + chain-of-thought output formats.
+tool_call = "glm47"
+reasoning = "glm45"
+
+[slurm]
+gpus = 4
+# CPU sizing: DSv4 runs on 2 GPUs and holds some cores, leaving ~12 for this job.
+cpus = 12
+memory = "320G"
+time_serve = "7-00:00:00"
+time_download = "24:00:00"
