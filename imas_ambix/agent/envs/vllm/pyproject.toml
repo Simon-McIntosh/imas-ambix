@@ -22,9 +22,11 @@ dependencies = [
     # --- Core ML runtime ---
     # Pin torch to match vllm's compiled ABI — vllm 0.27.x links torch 2.13.0
     "torch==2.13.0",
-    # torchaudio and torchvision are not needed for LLM serving — pin only
-    # torch to match vllm's compiled deep_gemm ABI (c10::ValueError
-    # constructor changed signature after 2.11.0).
+    # torchvision is NOT optional: vLLM imports it while executing the model,
+    # so dropping it passes every startup check and then kills the worker after
+    # the weights and the KV cache are already allocated. Keep it pinned to the
+    # release that matches torch 2.13. torchaudio genuinely is unused.
+    "torchvision==0.28.0",
     "transformers>=4.56",
     "tokenizers>=0.21.1",
     "numpy",
@@ -124,3 +126,4 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu126" }
+torchvision = { index = "pytorch-cu126" }

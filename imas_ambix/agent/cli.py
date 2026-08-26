@@ -142,6 +142,11 @@ def _scale_profile(profile, gpus: int):
     Adjusts ``engine.tensor_parallel``, ``slurm.gpus``, ``slurm.cpus``, and
     ``slurm.memory`` proportionally.  The caller's profile is not mutated.
     """
+    # A declared variant for this card count carries its own checkpoint and
+    # sizing, so it replaces proportional scaling rather than being scaled.
+    variant = profile.for_gpus(gpus)
+    if variant is not profile:
+        return variant
     base_gpus = profile.slurm.gpus
     if gpus == base_gpus:
         return profile

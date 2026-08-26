@@ -29,9 +29,11 @@ class ModelConfig(BaseModel):
     served_name: str
     size_gb: int
     max_context: int
-    # Injected by the profile loader when this profile inherits from a base
-    # via ``_base``.  Points to the root-of-chain slug whose ``agents/<slug>/``
-    # directory holds the downloaded weights.  Never set manually in a TOML file.
+    # Directory key under ``agents/<slug>/`` holding the downloaded weights.
+    # Injected by the loader for ``_base`` inheritance, so two profiles in one
+    # chain share one download. Set it explicitly ONLY in a ``gpu_variants``
+    # entry, where a card count needs a different checkpoint and therefore a
+    # separate weights directory from the base.
     weights_slug: str | None = None
 
 
@@ -165,12 +167,44 @@ class SlurmDefaults(BaseModel):
 
 
 class ModelProfile(BaseModel):
-    """Complete deployment profile for one LLM model."""
+    """Complete deployment profile for one LLM model.
+
+    ``gpu_variants`` lets one profile carry more than one checkpoint for the
+    same model release, keyed on the card count it is sized for. A release is
+    then one slug whose deployment is chosen at launch with ``--gpus N``,
+    rather than several slugs that each bake a card count or a precision into
+    their name. Use it only where the card counts genuinely need DIFFERENT
+    WEIGHTS; where they differ only in tensor-parallel width, plain ``--gpus``
+    rescaling already covers it and no variant is needed.
+
+    Each entry may override any ``[model]``, ``[engine]``, or ``[slurm]`` key,
+    and is deep-merged over the base when that card count is requested.
+    """
 
     slug: str
     model: ModelConfig
     engine: EngineConfig
     slurm: SlurmDefaults = SlurmDefaults()
+    # Per-card-count checkpoint overrides, keyed on the GPU count they suit.
+    gpu_variants: dict[int, dict] = {}
+
+    def for_gpus(self, gpus: int) -> ModelProfile:
+        """Return this profile resolved for a *gpus*-card deployment.
+
+        Applies the matching :attr:`gpu_variants` entry when one exists and
+        returns ``self`` unchanged otherwise, so a profile without variants
+        behaves exactly as before.
+        """
+        variant = self.gpu_variants.get(gpus)
+        if not variant:
+            return self
+        merged = _deep_merge(
+            self.model_dump(exclude={"gpu_variants"}), dict(variant)
+        )
+        merged.pop("slug", None)
+        return ModelProfile(
+            slug=self.slug, gpu_variants=self.gpu_variants, **merged
+        )
 
 
 # -- Site / cluster configuration ---------------------------------------------

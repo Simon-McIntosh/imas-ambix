@@ -63,13 +63,14 @@ enable_auto_tool_choice = true
 # a real generation rather than a successful launch.
 # KV dtype is forced, not chosen. This model's sparse attention has no FP8 KV
 # kernel in vLLM, and "fp8" resolves to the same fp8_e4m3 that every candidate
-# sparse/MLA backend rejects, so the server cannot start with it. A bf16 entry
-# costs twice the bytes per token, which halves what the same pool holds: the
-# 13.6 GiB pool this mem_fraction leaves fits roughly 112K rather than 224K.
-# Both numbers are engine-dependent and neither is measured against the
-# installed engine yet -- validating this path needs all eight cards, so it is
-# sequenced after the four-card INT4 serve is confirmed.
-max_total_tokens = 114688
+# sparse/MLA backend rejects, so the server cannot start with it.
+#
+# The bf16 entry still fits 224K here. KV costs ~362 KiB/token in total and is
+# sharded across ranks, so at TP=8 that is ~45 KiB/token/card: 224K needs
+# ~10.1 GiB against the ~17 GiB this mem_fraction leaves once the FP8 weights
+# take ~87 GiB/card. The penalty lands on the four-card variant below, where
+# the weights leave far less room, not here.
+max_total_tokens = 229376
 kv_cache_dtype = "bfloat16"
 mem_fraction_static = 0.86
 # Lift the scheduler caps off the vLLM defaults (256 seqs) so the large KV
@@ -97,6 +98,82 @@ cpus = 30
 memory = "640G"
 time_serve = "7-00:00:00"
 time_download = "24:00:00"
+
+# ─── INT4 AWQ deployments (four or six cards) ───────────────────────────
+# The card counts need genuinely different weights -- the FP8 checkpoint does
+# not fit below eight cards -- so the checkpoint travels here as a variant
+# rather than in a second slug. Everything not listed is inherited above.
+#
+# Sizing rule, measured on this node: KV costs ~362 KiB/token in total and is
+# sharded across ranks, so per card it is ~362/N KiB/token. The weights are the
+# binding constraint, because ~447 GiB spread over N cards leaves only what is
+# left of ~131 GiB per card:
+#
+#   cards   weights/card   KV room/card   200K needs/card
+#   4       ~102 GiB       ~6.5 GiB       ~17.7 GiB   -> cannot reach 200K
+#   6       ~74 GiB        ~43 GiB        ~12.4 GiB   -> comfortable
+#
+# So six cards is the long-context deployment and still coexists with a
+# two-card neighbour. Four cards is the compact option, capped near 64K: the
+# engine put its own workable ceiling at ~74.7K there, so 64K is the honest
+# figure rather than a hopeful one.
+#
+# mem_fraction stays at 0.90 deliberately: it leaves ~14 GB/card outside the
+# budget, and the sparse-MLA kernel claims ~8 GiB/card lazily on the FIRST real
+# decode. Raising it buys KV but eats that reserve, which is what turns a clean
+# launch into a dead engine on the first request. Reaching READY is not
+# evidence the reserve suffices -- only a real generation is.
+#
+# MTP speculative decoding is unavailable here: vLLM cannot build an MTP draft
+# against a compressed-tensors MoE checkpoint. The draft weights are fine and
+# the loader reads their per-expert layout, but the MTP block's quantized MoE
+# never registers the fused `routed_experts` parameter the expert mapping
+# resolves against. The main model loads the same layout without trouble, so
+# this is specific to the draft path. Draft weights are kept beside the
+# checkpoint in `mtp-draft/` for when the engine supports it.
+
+[gpu_variants.4.model]
+hf_repo = "cyankiwi/GLM-5.2-AWQ-INT4"
+# Separate download directory -- both checkpoints coexist on disk.
+weights_slug = "glm-5-2-int4"
+size_gb = 440
+
+[gpu_variants.4.engine]
+tensor_parallel = 4
+mem_fraction_static = 0.90
+max_total_tokens = 65536
+kv_cache_dtype = "bfloat16"
+max_num_seqs = 64
+# No speculative decoding -- see the note above.
+speculative_method = ""
+speculative_num_tokens = 0
+
+[gpu_variants.4.slurm]
+gpus = 4
+cpus = 12
+memory = "320G"
+
+# Six cards -- the long-context INT4 deployment. 256K needs ~15.1 GiB/card of
+# the ~43 GiB the weights leave, so the margin is wide; the ceiling here is
+# nearer 700K, and 256K is chosen to stay well inside it.
+[gpu_variants.6.model]
+hf_repo = "cyankiwi/GLM-5.2-AWQ-INT4"
+weights_slug = "glm-5-2-int4"
+size_gb = 440
+
+[gpu_variants.6.engine]
+tensor_parallel = 6
+mem_fraction_static = 0.90
+max_total_tokens = 262144
+kv_cache_dtype = "bfloat16"
+max_num_seqs = 64
+speculative_method = ""
+speculative_num_tokens = 0
+
+[gpu_variants.6.slurm]
+gpus = 6
+cpus = 12
+memory = "420G"
 
 # ─── GLM-5.3 Migration (weights expected ~Aug 28) ───────────────────────
 # GLM-5.3 shares GLM-5.2's glm_moe_dsa architecture — the FP8 checkpoint
