@@ -218,10 +218,13 @@ Adding a new model: create a TOML file in `imas_ambix/agent/profiles/<slug>.toml
 
 **Operator authority (binding):** setup, download, serve, key rotation, global
 endpoint configuration, and deployment are operator work. Run those commands
-only in a node explicitly assigned that authority. Consumer, documentation,
-review, and read-only verification work must not start, stop, restart, or cancel
-any job or service. `clive` itself is a shared consumer and has no scheduler or
-deployment authority.
+only in a node explicitly assigned that authority. Documentation, review,
+read-only verification, operator-unassigned work, and default shared-consumer
+operation must not start, stop, restart, or cancel scheduler jobs or services.
+`clive` has no scheduler or deployment authority. Its sole service exception is
+explicit OpenRouter opt-in: after successful global model selection, it may
+start an already-installed per-user proxy, but it does not install, stop,
+restart, or cancel that service.
 
 **Setup readiness contract:** `agent setup` submits a network-enabled install
 job followed by a dependent runtime verification job on `betelgeuse`. The
@@ -257,7 +260,8 @@ clive --codex --model glm-5.3 "write a test"      # same origin through Codex
   sends no `Authorization` header and never reads a user name, home directory,
   key file, repository, `AMBIX_AGENT_*` consumer override, profile, batch
   script, or SLURM state. It never runs `squeue`, `scontrol`, `sbatch`, or the
-  operator CLI.
+  operator CLI. Redirect responses are rejected rather than followed, so no
+  second endpoint can become catalog authority.
 - A successful, non-empty response is the complete availability authority.
   Clive uses each native model-card `id` as the release identity; it never
   substitutes a profile slug, local alias, filename-derived name, or URL from
@@ -289,7 +293,8 @@ personal key never changes the default route. `--openrouter` or
 `CLIVE_OPENROUTER=1` is an explicit opt-in after the anonymous global catalog
 has selected a native release; catalog failure still stops before the per-user
 proxy is considered. Installing its artifacts is operator-authorized deployment
-work; the opt-in proxy is not part of shared-consumer discovery.
+work. Once installed, explicit opt-in may start that per-user proxy; the proxy
+is not part of default shared-consumer discovery.
 
 **Sync discipline — repo is the source of truth (binding):** `imas-ambix agent
 clive --deploy` generates the default shared artifact at

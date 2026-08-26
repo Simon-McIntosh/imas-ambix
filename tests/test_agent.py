@@ -1866,7 +1866,7 @@ def _catalog_item(
 
 
 @contextmanager
-def _serve_catalog(payload, *, status=200):
+def _serve_catalog(payload, *, status=200, response_headers=None):
     """Serve one anonymous catalog and record every request header."""
     import json
     import threading
@@ -1881,6 +1881,8 @@ def _serve_catalog(payload, *, status=200):
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
+            for name, value in (response_headers or {}).items():
+                self.send_header(name, value)
             self.end_headers()
             self.wfile.write(body)
 
@@ -2271,6 +2273,61 @@ def test_clive_unreachable_catalog_never_falls_back_to_openrouter(tmp_path):
     assert result.returncode != 0
     assert "global catalog is unreachable" in result.stderr
     assert not marker.exists()
+
+
+def test_clive_redirect_catalog_fails_without_leaving_global_origin(tmp_path):
+    import os
+    import subprocess
+
+    from imas_ambix.agent.clive import generate_clive_script
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    harness_marker = tmp_path / "harness-called"
+    proxy_marker = tmp_path / "proxy-called"
+    _write_executable(fake_bin / "claude", f"#!/bin/sh\ntouch {harness_marker}\n")
+    _write_executable(
+        fake_bin / "systemctl",
+        f"#!/bin/sh\ntouch {proxy_marker}\nexit 99\n",
+    )
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+
+    with (
+        _serve_catalog({"data": [_catalog_item("redirected-release")]}) as (
+            redirect_target,
+            target_requests,
+        ),
+        _serve_catalog(
+            b"",
+            status=302,
+            response_headers={"Location": f"{redirect_target.global_origin}/v1/models"},
+        ) as (global_site, global_requests),
+    ):
+        launcher = tmp_path / "clive"
+        launcher.write_text(
+            generate_clive_script(
+                global_site, openrouter_native_release="redirected-release"
+            ),
+            encoding="utf-8",
+        )
+        launcher.chmod(0o755)
+        result = subprocess.run(
+            [str(launcher), "--openrouter"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+    assert result.returncode == 2
+    assert "HTTP Error 302: global catalog redirect refused" in result.stderr
+    assert len(global_requests) == 1
+    assert global_requests[0][0] == "/v1/models"
+    assert "Authorization" not in global_requests[0][1]
+    assert target_requests == []
+    assert not harness_marker.exists()
+    assert not proxy_marker.exists()
 
 
 def test_clive_operator_command_removes_hidden_consumer_machine_api():
