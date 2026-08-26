@@ -368,6 +368,13 @@ def download(slug: str | None, dry_run: bool) -> None:
     help="Override number of GPUs (and tensor-parallel size). "
     "Scales cpus and memory proportionally from the profile default.",
 )
+@click.option(
+    "--no-speculative",
+    is_flag=True,
+    help="Serve without speculative decoding. Drafting only pays for itself "
+    "when acceptance is high and the batch is large enough to amortise the "
+    "draft pass; below that it costs decode rate, so measure both ways.",
+)
 def serve(
     slug: str | None,
     dry_run: bool,
@@ -375,6 +382,7 @@ def serve(
     api_key: str | None,
     no_auth: bool,
     gpus: int | None,
+    no_speculative: bool,
 ) -> None:
     """Generate and submit a model serving job."""
     from imas_ambix.agent.slurm import generate_serve_script, submit_script
@@ -382,6 +390,18 @@ def serve(
     profile = _load_profile(slug)
     if gpus is not None:
         profile = _scale_profile(profile, gpus)
+    if no_speculative:
+        profile = profile.model_copy(
+            update={
+                "engine": profile.engine.model_copy(
+                    update={
+                        "speculative_method": None,
+                        "speculative_num_tokens": None,
+                        "speculative_model": None,
+                    }
+                )
+            }
+        )
     site = SiteConfig.from_env()
     resolved_port = port if port is not None else site.default_port
     # --no-auth serves an open endpoint (no key). Otherwise resolve the key
