@@ -303,6 +303,7 @@ def generate_serve_script(
         time_limit=profile.slurm.time_serve,
         output_name=f"{profile.slug}-%j.log",
     )
+    headers.append(f"#SBATCH --comment=ambix-serve;port={port}")
     launch_command = _build_serve_command(profile, site)
     venv_bin = str(site.python_path(profile.engine.type).parent)
     is_kt = profile.engine.type == "ktransformers"

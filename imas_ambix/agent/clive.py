@@ -25,7 +25,6 @@ def generate_clive_script(site: SiteConfig, default_model: str) -> str:
     """Render the ``clive`` launcher for *site* defaulting to *default_model*."""
     from imas_ambix.agent.litellm_service import LITELLM_PORT
 
-    url = site.default_url
     key_file = str(site.api_key_file)
     return f'''#!/usr/bin/env bash
 # clive — drive an agent CLI against the GPU-served local model.
@@ -34,32 +33,39 @@ def generate_clive_script(site: SiteConfig, default_model: str) -> str:
 # the generator (imas_ambix/agent/clive.py) and re-deploy.
 #
 # Usage:
-#   clive [--claude|--codex] [--openrouter] [--url URL] [--model NAME] [agent-args...]
+#   clive [--claude|--codex] [--openrouter] [--list] [--selector ROUTE] [agent-args...]
 #   clive "explain this repo"            # Claude Code (default)
 #   clive --codex "write a test"         # OpenAI Codex CLI
 
 set -euo pipefail
 
 # ── Defaults (generated from ambix SiteConfig; override via env or flags) ────
-AMBIX_URL="${{AMBIX_AGENT_URL:-{url}}}"
-AMBIX_MODEL="${{AMBIX_AGENT_MODEL:-}}"      # empty → auto-detect from /v1/models
+AMBIX_URL="${{AMBIX_AGENT_URL:-}}"
+AMBIX_MODEL="${{AMBIX_AGENT_MODEL:-}}"
 AMBIX_KEY_FILE="${{AMBIX_AGENT_KEY_FILE:-{key_file}}}"
+AMBIX_CLI="${{AMBIX_AGENT_CLI:-imas-ambix}}"
+AMBIX_SELECTOR="${{AMBIX_AGENT_SELECTOR:-}}"
 CLIVE_OPENROUTER="${{CLIVE_OPENROUTER:-0}}"
 LITELLM_PORT="{LITELLM_PORT}"
 LITELLM_SERVICE="imas-ambix-llm.service"
 HARNESS="claude"
+LIST_ONLY=false
 
 usage() {{
     cat >&2 <<'USAGE'
 clive — drive an agent CLI against the GPU-served local model.
 
-  clive [--claude|--codex] [--openrouter] [--url URL] [--model NAME] [agent-args...]
+  clive [--claude|--codex] [--openrouter] [--list] [--selector ROUTE]
+        [--url URL] [--model NAME] [agent-args...]
 
   --claude   Claude Code via the Anthropic Messages API (default).
   --codex    OpenAI Codex CLI via the OpenAI API.
   --openrouter
              Start the per-user proxy and offer local + or-* picker slots.
-  --url URL  Local server base URL.   --model NAME  override served model.
+  --list     List only probe-qualified local routes and exit.
+  --selector ROUTE
+             Select by canonical route, job id, model id, or model@Nxh200.
+  --url URL  Probe an explicit local URL.  --model NAME validates/selects model.
 USAGE
 }}
 
@@ -70,6 +76,8 @@ while [[ $# -gt 0 ]]; do
         --claude) HARNESS="claude"; shift ;;
         --codex)  HARNESS="codex";  shift ;;
         --openrouter) CLIVE_OPENROUTER=1; shift ;;
+        --list) LIST_ONLY=true; shift ;;
+        --selector) AMBIX_SELECTOR="$2"; shift 2 ;;
         --url)    AMBIX_URL="$2";   shift 2 ;;
         --model)  AMBIX_MODEL="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
@@ -89,19 +97,31 @@ read_key() {{
 }}
 KEY="$(read_key)"; [[ -n "$KEY" ]] || KEY="no-auth"
 
-# ── Resolve served model metadata (no fallback: error if unreachable) ────────
-AMBIX_MAX_CONTEXT_TOKENS=""
-if [[ -z "$AMBIX_MODEL" ]]; then
-    _MODEL_INFO="$(curl -sf --max-time 5 -H "Authorization: Bearer $KEY" "$AMBIX_URL/v1/models" 2>/dev/null \\
-        | python3 -c "import sys,json; model=json.load(sys.stdin)['data'][0]; print(model['id'], model.get('max_model_len', ''))" 2>/dev/null || true)"
-    read -r AMBIX_MODEL AMBIX_MAX_CONTEXT_TOKENS <<< "$_MODEL_INFO"
-    if [[ -z "$AMBIX_MODEL" ]]; then
-        echo "clive: no model reachable at $AMBIX_URL/v1/models." >&2
-        echo "       The serve job is likely down — check: imas-ambix agent status" >&2
-        echo "       (or set --model / AMBIX_AGENT_MODEL to bypass the query)." >&2
-        exit 1
-    fi
+# ── Resolve one probe-qualified local route through the operator CLI ──────
+command -v "$AMBIX_CLI" >/dev/null 2>&1 || {{
+    echo "clive: '$AMBIX_CLI' is not available; load the imas-ambix operator CLI." >&2
+    exit 127
+}}
+_ROUTE_ARGS=(agent clive --resolve-live)
+if $LIST_ONLY; then _ROUTE_ARGS=(agent clive --live-list); fi
+[[ -n "$AMBIX_SELECTOR" ]] && _ROUTE_ARGS+=(--selector "$AMBIX_SELECTOR")
+[[ -n "$AMBIX_URL" ]] && _ROUTE_ARGS+=(--url "$AMBIX_URL")
+[[ -n "$AMBIX_MODEL" ]] && _ROUTE_ARGS+=(--model "$AMBIX_MODEL")
+if $LIST_ONLY; then
+    exec "$AMBIX_CLI" "${{_ROUTE_ARGS[@]}}"
 fi
+_ROUTE_JSON="$("$AMBIX_CLI" "${{_ROUTE_ARGS[@]}}")"
+mapfile -t _ROUTE_FIELDS < <(
+    python3 -c 'import json,sys; r=json.load(sys.stdin); print(r["model_id"]); print(r["base_url"]); print(r.get("max_context") or "")' \
+        <<< "$_ROUTE_JSON"
+)
+if [[ "${{#_ROUTE_FIELDS[@]}}" -ne 3 || -z "${{_ROUTE_FIELDS[0]}}" || -z "${{_ROUTE_FIELDS[1]}}" ]]; then
+    echo "clive: operator CLI returned an invalid local route." >&2
+    exit 1
+fi
+AMBIX_MODEL="${{_ROUTE_FIELDS[0]}}"
+AMBIX_URL="${{_ROUTE_FIELDS[1]}}"
+AMBIX_MAX_CONTEXT_TOKENS="${{_ROUTE_FIELDS[2]}}"
 
 # ── Codex: use the local model directly ─────────────────────────────────────
 if [[ "$HARNESS" == "codex" ]]; then
