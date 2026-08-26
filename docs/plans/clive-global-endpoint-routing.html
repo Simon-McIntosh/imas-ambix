@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="clive-global-endpoint-routing">
+  <meta name="plan-title" content="Clive Global Endpoint Routing">
+  <meta name="plan-summary" content="Make one keyless global vLLM endpoint the sole model catalog for every Clive user">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="2.5">
+  <meta name="plan-wall-clock-hours" content="1.5">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-tool-autonomy" content="autonomous">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="moderate">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <meta name="plan-supersedes" content="clive-live-model-discovery">
+  <title>Clive Global Endpoint Routing | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <header>
+      <p class="eyebrow">Corrective architecture &middot; shared consumer service</p>
+      <h1>One endpoint, one catalog, available to everyone</h1>
+      <p class="lead">
+        Replace user-scoped scheduler discovery with a site-owned, keyless vLLM
+        catalog. Every Clive consumer polls the same base URL and sees exactly
+        the models that endpoint currently reports ready.
+      </p>
+    </header>
+
+    <section id="s1">
+      <h2>§1 — Corrected authority boundary</h2>
+      <p>
+        The global endpoint configured by <code>SiteConfig.default_url</code> is
+        the sole consumer authority. Clive polls
+        <code>GET &lt;base-url&gt;/v1/models</code>; a successful, non-empty response
+        defines availability. It never runs <code>squeue</code>, reads SLURM job
+        ownership, opens batch scripts, imports model profiles, or inspects a
+        user's repository, environment, home directory, or credentials.
+      </p>
+      <p>
+        Scheduler and deployment state remain operator concerns. Operators may
+        use them to decide which backend the stable endpoint publishes, but
+        those facts do not cross into the shared launcher. The consumer path is
+        keyless and secret-free. Failure to reach the endpoint is fatal and
+        cannot fall back to a personal or external provider.
+      </p>
+      <figure>
+        <img src="/imas-ambix/figures/clive-global-endpoint/global-clive-routing.svg"
+             alt="One global vLLM endpoint supplies the shared Clive catalog to every user; scheduler state remains operator-only.">
+        <figcaption>The global HTTP catalog is the only discovery seam visible to consumers.</figcaption>
+      </figure>
+    </section>
+
+    <section id="s2">
+      <h2>§2 — Global model and topology catalog</h2>
+      <p>
+        Each <code>/v1/models</code> item carries the server-reported release id,
+        context length when known, and site-owned topology metadata: accelerator
+        family, GPU count, and checkpoint precision. The model id stays the
+        release identity, while Clive renders the separate runtime topology as
+        <code>2×H200</code>, <code>4×H200</code>, <code>6×H200</code>, or
+        <code>8×H200</code>. Missing or invalid topology metadata is rejected
+        rather than inferred from filenames, profiles, or scheduler state.
+      </p>
+      <p>
+        The global endpoint may report one model or route several ready
+        backends behind the same origin. Clive always sends inference back to
+        that same base URL with the selected model id. A future endpoint item
+        whose id is <code>glm-5.3</code> therefore becomes selectable without a
+        Clive source or deployment change.
+      </p>
+    </section>
+
+    <section id="s3">
+      <h2>§3 — Standalone shared launcher</h2>
+      <p>
+        Remove the runtime dependency on the per-user <code>imas-ambix</code>
+        operator CLI. The generated GPFS launcher embeds the site URL, performs
+        its own standard-library HTTP and JSON handling, and offers a dynamic
+        list and deterministic model/topology selector. It does not read the
+        shared API-key file or any personal override for default discovery.
+      </p>
+      <p>
+        The selected model and the one global base URL feed both Claude Code and
+        Codex. Multiple catalog items require an explicit selection in
+        non-interactive use; a single item may be selected automatically. The
+        explicit OpenRouter branch remains isolated and opt-in.
+      </p>
+    </section>
+
+    <section id="s4">
+      <h2>§4 — Verification and global deployment</h2>
+      <p>
+        Cover the global catalog schema, keyless requests, endpoint failure,
+        empty and malformed catalogs, topology validation, one- and multi-model
+        selection, future release ids, and propagation into both harnesses.
+        Prove that discovery makes no scheduler, batch-script, key-file, profile,
+        or operator-CLI call. Run the focused agent suite and whole-tree Ruff
+        gate through a separate test worker.
+      </p>
+      <p>
+        Deploy only the repo-generated launcher to
+        <code>/work/projects/imas_gpu/agents/clive</code>. Verify byte identity,
+        executable world-readable permissions, operation from a clean directory
+        with the repository virtual environment absent from <code>PATH</code>,
+        and live polling of the configured global endpoint. A down endpoint is
+        retained as negative service evidence, not misreported as launcher
+        availability.
+      </p>
+    </section>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="catalog-authority" data-choice="single-global-models-endpoint" data-by="Simon McIntosh" data-when="2026-08-26">
+        <p class="r-dec-q">What determines which models Clive makes available?</p>
+        <p class="r-dec-rat">Only the successful model catalog returned by one globally accessible vLLM base URL.</p>
+      </div>
+      <div class="r-dec" data-key="consumer-identity" data-choice="anonymous-shared-consumer" data-by="Simon McIntosh" data-when="2026-08-26">
+        <p class="r-dec-q">Does discovery depend on a user's scheduler jobs, repository, or credentials?</p>
+        <p class="r-dec-rat">No. The launcher is shared, standalone, keyless, and identical for every user.</p>
+      </div>
+      <div class="r-dec" data-key="topology-authority" data-choice="server-catalog-metadata" data-by="Simon McIntosh" data-when="2026-08-26">
+        <p class="r-dec-q">Where does the 2×, 4×, 6×, or 8× H200 distinction come from?</p>
+        <p class="r-dec-rat">From site-owned metadata in the global model response, separate from the release model id and never inferred client-side.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-cger-001" data-status="open"
+               data-capability-version="1.0" data-capability-class="orchestrator"
+               data-capability-reasoning="deep" data-capability-verification="strict"
+               data-written-by="reckon-create" data-written-at="2026-08-26"
+               data-recommends-skill="/reckon-ship clive-global-endpoint-routing">
+        <h4 class="r-fu-title">Replace user-scoped discovery with the global endpoint contract</h4>
+        <div class="r-fu-body"><p>Implement, independently review, test, deploy, and record the global shared-consumer route.</p></div>
+        <pre class="r-fu-prompt">/reckon-ship clive-global-endpoint-routing</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
