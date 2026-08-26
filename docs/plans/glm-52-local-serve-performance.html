@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-26">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="5">
 </head>
 <body>
   <main class="plan-doc">
@@ -224,6 +224,12 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260826T122413058160-glm-mtp-live-probe" data-who="glm-mtp-live-probe" data-when="2026-08-26T12:31:44Z">
     <div class="r-comment-body"><p>TP6 plus separate MTP draft fails before weight loading because the draft has 64 attention heads, which cannot divide across six tensor-parallel ranks; the keyless configuration itself was confirmed and cost only 5.6 GPU-minutes.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260826T123314175143-glm-pipeline-mtp-readiness" data-who="glm-pipeline-mtp-scout" data-when="2026-08-26T12:39:27Z">
+    <div class="r-comment-body"><p>HOLD: installed vLLM 0.28.0 validates the GLM target at TP2 by PP3 but rejects the separate DeepSeekMTPModel because the draft lacks pipeline-parallel support; no GPU job was launched</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260826T124121642533-glm-tp4-failclosed-preflight" data-who="glm-tp4-preflight-worker" data-when="2026-08-26T12:53:07Z">
+    <div class="r-comment-body"><p>GO-to-submit: TP4 plus separate MTP at 49152 context and max_num_seqs=1 passes environment, topology, loader mapping, checkpoint integrity, keyless generation, and conservative KV-capacity checks with 15.86% margin; no GPU job was launched</p></div>
 </div>
 </section>
 </main>
