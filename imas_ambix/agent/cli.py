@@ -1232,6 +1232,7 @@ def bench(
         base_url = url or _default_url() or "http://localhost:18800"
         model = model_name or profile.model.served_name
     elif url:
+        profile = None
         base_url = url
         model = model_name or "default"
     else:
@@ -1272,6 +1273,9 @@ def bench(
         max_context=max_context,
         warmup=warmup,
         api_key=resolved_key,
+        # Without this the saved run records no serving configuration, and an
+        # unattributable run cannot be compared against another.
+        profile=profile,
     )
 
     # Auto-save results
