@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="glm-52-local-serve-performance">
+  <meta name="plan-title"     content="GLM-5.2 Local Serve and Measured Throughput">
+  <meta name="plan-summary"   content="Serve GLM-5.2 INT4 on four cards beside DeepSeek, and record throughput with enough provenance to compare runs">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort-hours" content="6.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint"    content="S17">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-tags"      content="agent-serving,gpu-deployment,benchmarking">
+  <title>GLM-5.2 Local Serve and Measured Throughput | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — What this plan is for</h2>
+    <p>Two deliverables. First, a GLM-5.2 serve that is actually fast on this node
+    rather than merely running: the INT4 checkpoint on four H200 cards, coexisting
+    with the two-card DeepSeek V4-Flash serve, with speculative decoding active.
+    Second, throughput measurement that carries enough provenance to be worth
+    keeping — today a saved benchmark records numbers but not the configuration
+    that produced them, so a fast run and a slow one are indistinguishable after
+    the fact.</p>
+    <p>The GPU-count-in-the-name question is settled and is not revisited here:
+    a release is served under one client-visible model name, the profile slug
+    names the checkpoint precision, and the card count is a launch flag. The two
+    node sizes need genuinely different checkpoints, so they cannot collapse into
+    one profile the way DeepSeek's two sizes do.</p>
+
+    <h2 id="s2">§2 — Serve bring-up: what the attempts established</h2>
+    <p>Bring-up took several attempts because four independent constraints sit in
+    series, and each one only becomes visible after the previous is satisfied.
+    Three of the four are now settled facts about this hardware and engine, worth
+    recording so they are not rediscovered.</p>
+
+    <table>
+      <thead>
+        <tr><th>Setting tried</th><th>Result</th><th>What it established</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>kv_cache_dtype = "fp8_e4m3"</code></td>
+          <td>No valid attention backend</td>
+          <td>GLM-5.2's sparse attention has no FP8 KV kernel in vLLM. Every
+          candidate backend rejected it, each naming either
+          <em>sparse not supported</em> or <em>kv_cache_dtype not supported</em>.
+          The often-quoted FP8-KV throughput gain is an SGLang result and does not
+          transfer to this engine.</td>
+        </tr>
+        <tr>
+          <td><code>kv_cache_dtype = "bf16"</code></td>
+          <td>Rejected at argument parse</td>
+          <td>The accepted spelling is <code>bfloat16</code>; <code>bf16</code> is
+          not in the engine's value list.</td>
+        </tr>
+        <tr>
+          <td>Draft model on the older engine</td>
+          <td>Missing weight key</td>
+          <td>Not a truncated download. The checkpoint is structurally complete
+          and stores experts individually, while the older loader looked for a
+          single fused tensor per layer. The newer loader rewrites the layer
+          prefix and fuses the per-expert weights itself, so the checkpoint
+          layout is the supported one.</td>
+        </tr>
+        <tr>
+          <td>Newer engine, older framework pin</td>
+          <td>Sparse indexer refused to start</td>
+          <td>The engine wheel is compiled against a newer framework ABI than the
+          pin allowed, so its matrix-multiply extension could not load, and the
+          sparse attention indexer depends on that extension. Advancing the pin
+          resolves it; the CUDA 13 runtime the extension also needs is already
+          present in the environment and already on the serve script's library
+          path.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 id="s2a">Why the order matters</h3>
+    <p>Each constraint masks the next, which is why a single change never
+    produced a working serve.</p>
+    <figure>
+      <svg viewBox="0 0 760 96" width="100%" role="img"
+           aria-label="Four constraints in series: KV dtype, dtype spelling, framework ABI, then draft-model layout.">
+        <g font-family="system-ui, sans-serif" font-size="13" fill="#1a1a1a">
+          <rect x="4"   y="30" width="150" height="38" fill="#ffffff" stroke="#9a9a9a" stroke-width="1"/>
+          <text x="79"  y="46" text-anchor="middle">KV cache dtype</text>
+          <text x="79"  y="61" text-anchor="middle" font-size="11">bfloat16 only</text>
+
+          <rect x="200" y="30" width="150" height="38" fill="#ffffff" stroke="#9a9a9a" stroke-width="1"/>
+          <text x="275" y="46" text-anchor="middle">Accepted spelling</text>
+          <text x="275" y="61" text-anchor="middle" font-size="11">not bf16</text>
+
+          <rect x="396" y="30" width="150" height="38" fill="#ffffff" stroke="#2f6f4f" stroke-width="2"/>
+          <text x="471" y="46" text-anchor="middle">Framework ABI</text>
+          <text x="471" y="61" text-anchor="middle" font-size="11">unlocks sparse indexer</text>
+
+          <rect x="592" y="30" width="160" height="38" fill="#ffffff" stroke="#9a9a9a" stroke-width="1"/>
+          <text x="672" y="46" text-anchor="middle">Draft-model layout</text>
+          <text x="672" y="61" text-anchor="middle" font-size="11">per-expert, fused on load</text>
+
+          <g stroke="#6a6a6a" stroke-width="1.2" fill="none">
+            <path d="M156 49 H196"/><path d="M352 49 H392"/><path d="M548 49 H588"/>
+          </g>
+          <g fill="#6a6a6a">
+            <path d="M196 49 l-6 -3.4 v6.8 z"/><path d="M392 49 l-6 -3.4 v6.8 z"/><path d="M588 49 l-6 -3.4 v6.8 z"/>
+          </g>
+          <text x="4" y="16" font-size="11" fill="#5a5a5a">each constraint is only visible once the one to its left is satisfied</text>
+        </g>
+      </svg>
+      <figcaption>The framework ABI (heavier outline) was the blocking constraint:
+      until the pin advanced, the sparse attention indexer could not start
+      regardless of any KV or draft-model setting.</figcaption>
+    </figure>
+
+    <h3 id="s2b">Integrity of the weights</h3>
+    <p>The download job reported failure, so the weights were verified rather than
+    assumed: all 83 shards of the main checkpoint parse as valid safetensors and
+    every shard's declared tensor extent matches its file size exactly. The draft
+    model likewise matches its index with no absent keys. The job's failure was
+    raised after transfer, by an accelerated-download helper that is not installed;
+    it did not truncate anything.</p>
+
+    <h2 id="s3">§3 — Measurement: what exists and what is missing</h2>
+    <p>The benchmark harness itself is sound and needs no redesign. It already
+    measures time to first token, decode rate, prefill rate, and aggregate
+    throughput across concurrency levels, alongside retrieval, tool-calling, and
+    reasoning checks, and it saves every run as JSON. What it does not do is
+    record <em>which configuration produced a number</em>, which is precisely what
+    is needed to compare node sizes or to judge real workload behaviour.</p>
+
+    <table>
+      <thead><tr><th>Capability</th><th>State</th><th>Consequence</th></tr></thead>
+      <tbody>
+        <tr><td>Latency and throughput metrics</td><td>Present</td>
+            <td>Time to first token, decode and prefill rates, aggregate rate under load.</td></tr>
+        <tr><td>Concurrency sweep</td><td>Present</td>
+            <td>Scaling curve up to 32 simultaneous requests.</td></tr>
+        <tr><td>Run provenance</td><td><strong>Missing</strong></td>
+            <td>Saved runs carry only the served model name. Precision, card count,
+            parallel width, KV dtype, speculative settings, engine version and the
+            scheduler job are all absent, so two runs cannot be attributed.</td></tr>
+        <tr><td>Speculative-decode acceptance</td><td><strong>Missing</strong></td>
+            <td>A silently degraded draft model costs throughput without raising an
+            error. Acceptance rate is the only signal that distinguishes this from
+            ordinary slowness.</td></tr>
+        <tr><td>Run-to-run comparison</td><td><strong>Missing</strong></td>
+            <td>No way to place two saved runs side by side, so any comparison is
+            done by hand and is not reproducible.</td></tr>
+        <tr><td>Baselines on the current stack</td><td><strong>Stale</strong></td>
+            <td>The stored DeepSeek baselines predate the current engine and
+            framework by three months and cannot be compared to a run taken today.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s4">§4 — Work</h2>
+    <p>Three strands, each owning a disjoint set of files so they can run at once,
+    then a measurement pass once the serve is up.</p>
+    <ul>
+      <li><strong>Provenance and acceptance capture</strong> — record the serving
+      configuration and engine version into every saved run, and poll the engine's
+      metrics endpoint for draft-token acceptance so a degraded speculator is
+      visible as a number rather than as unexplained slowness.</li>
+      <li><strong>Comparison reporting</strong> — read two or more saved runs and
+      render the differences, so a node-size or precision comparison is a command
+      rather than a manual exercise.</li>
+      <li><strong>Deployment notes</strong> — fold the established constraints in
+      §2 into the serving guidance next to the code, including the naming
+      convention and the framework pin requirement.</li>
+      <li><strong>Measurement</strong> — once the serve answers, benchmark it and
+      re-baseline DeepSeek on the same stack so the comparison is like-for-like.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="variant-naming" data-choice="precision" data-by="Simon McIntosh" data-when="2026-08-26">
+        <p class="r-dec-q">What distinguishes the two GLM profiles in their name?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="precision">Checkpoint precision</button>
+          <button class="r-opt" data-value="gpu-count">Card count</button>
+        </p>
+        <p class="r-dec-rat">Card count is a launch flag, as it already is for the
+        DeepSeek serve, which holds two cards under its plain slug. The profiles
+        differ because the checkpoints differ, so precision is the honest
+        differentiator and the client-visible model name stays constant per
+        release.</p>
+      </div>
+      <div class="r-dec" data-key="kv-dtype" data-choice="bfloat16" data-by="Simon McIntosh" data-when="2026-08-26">
+        <p class="r-dec-q">Which KV cache dtype for the INT4 serve?</p>
+        <p class="r-dec-rat">Forced, not chosen: no FP8 KV kernel exists for this
+        model's sparse attention in this engine. Revisit if a later engine adds
+        one, since it would restore both throughput and KV capacity.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-glm-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-08-26">
+        <h4 class="r-fu-title">Record throughput for the INT4 serve and re-baseline DeepSeek on the same stack</h4>
+        <div class="r-fu-body">The stored DeepSeek baselines predate the current engine and framework pin, so they cannot be compared against a run taken today. Once the INT4 serve answers, benchmark it with provenance capture active, then re-run the same suite against the DeepSeek serve so both numbers come from one stack. Report time to first token, single-stream decode rate, and the aggregate curve, and state the draft-token acceptance rate.</div>
+        <pre class="r-fu-prompt">/reckon-ship glm-52-local-serve-performance §4</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>
