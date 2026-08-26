@@ -1179,19 +1179,22 @@ def clive_command(
 ) -> None:
     """Generate and deploy the standalone global ``clive`` launcher.
 
-    The global endpoint is resolved from site config at generation time. With
-    no flags, deploys the launcher to ``{base_dir}/agents/``. A profile is
-    consulted only when explicitly installing the optional OpenRouter proxy.
+    The distinct site-global origin is resolved from operator config at
+    generation time. With no flags, deploys the launcher to
+    ``{base_dir}/agents/``. A profile is consulted only when explicitly
+    installing the optional OpenRouter proxy.
     """
     from imas_ambix.agent.clive import generate_clive_script
 
     site = SiteConfig.from_env()
     if slug is not None and not openrouter:
         raise click.ClickException("A profile slug applies only with --openrouter.")
-    openrouter_model = None
+    proxy_native_release = None
     if openrouter:
-        openrouter_model = _load_profile(slug).model.served_name
-    clive_script = generate_clive_script(site)
+        proxy_native_release = _load_profile(slug).model.served_name
+    clive_script = generate_clive_script(
+        site, openrouter_native_release=proxy_native_release
+    )
     deploy_path = destination or site.clive_path
 
     if print_only:
@@ -1201,7 +1204,7 @@ def clive_command(
 
     if show_path:
         console.print(f"clive:    {deploy_path}")
-        console.print(f"Global endpoint: {site.default_url}")
+        console.print(f"Global endpoint: {site.global_origin}")
         console.print("Add to your ~/.bashrc to run as a bare command:")
         console.print(
             f"  [dim][[ -d {deploy_path.parent} ]] && "
@@ -1213,14 +1216,14 @@ def clive_command(
     _ = deploy  # deploy is the default; the flag is for explicitness only
     _deploy_launcher("clive", deploy_path, clive_script)
 
-    if openrouter_model is not None:
-        _deploy_openrouter_proxy(site, openrouter_model)
+    if proxy_native_release is not None:
+        _deploy_openrouter_proxy(site, proxy_native_release)
 
-    console.print(f"  Global endpoint: {site.default_url}")
+    console.print(f"  Global endpoint: {site.global_origin}")
     console.print("  PATH line: [cyan]imas-ambix agent clive --path[/]")
 
 
-def _deploy_openrouter_proxy(site: SiteConfig, local_model: str) -> None:
+def _deploy_openrouter_proxy(site: SiteConfig, native_release: str) -> None:
     """Install the explicitly requested per-user proxy artifacts and unit."""
     from imas_ambix.agent.litellm_config import generate_litellm_config
     from imas_ambix.agent.litellm_service import (
@@ -1231,13 +1234,14 @@ def _deploy_openrouter_proxy(site: SiteConfig, local_model: str) -> None:
     executable = Path.home() / ".local" / "bin" / "litellm"
     if not executable.is_file():
         raise click.ClickException(
-            f"LiteLLM is absent at {executable}; use plain clive for the local model."
+            f"LiteLLM is absent at {executable}; "
+            "use plain clive for the global release."
         )
 
     _deploy_launcher(
         "litellm_config.yaml",
         site.litellm_config_path,
-        generate_litellm_config(site, local_model),
+        generate_litellm_config(site, native_release),
         0o644,
     )
     _deploy_launcher(
@@ -1254,7 +1258,7 @@ def _deploy_openrouter_proxy(site: SiteConfig, local_model: str) -> None:
     except OSError as exc:
         raise click.ClickException(
             f"Could not install the OpenRouter proxy unit: {exc}. "
-            "Use plain clive for the local model."
+            "Use plain clive for the global release."
         ) from exc
     console.print(f"[green]Installed[/] {service_path.name} (per-user systemd unit)")
 

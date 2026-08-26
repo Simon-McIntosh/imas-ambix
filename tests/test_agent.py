@@ -304,7 +304,8 @@ def test_site_config_engine_isolation():
 def test_site_config_gpu_host():
     site = SiteConfig()
     assert site.gpu_host == "98dci4-gpu-0003"
-    assert site.default_url == "http://98dci4-gpu-0003:18800"
+    assert site.default_port == 18800
+    assert site.global_origin == "http://98dci4-gpu-0003:18800"
 
 
 def test_site_config_from_env(monkeypatch):
@@ -319,6 +320,37 @@ def test_site_config_from_env(monkeypatch):
     assert site.engine_env_min_free_gb == 48
     assert site.partition == "test-partition"
     assert site.download_partition == "test-dl"
+
+
+def test_site_global_origin_is_independent_of_per_serve_overrides(monkeypatch):
+    monkeypatch.setenv("AMBIX_AGENT_GLOBAL_URL", "https://catalog.example:19444/")
+    monkeypatch.setenv("AMBIX_AGENT_GPU_HOST", "transient-backend.example")
+    monkeypatch.setenv("AMBIX_AGENT_PORT", "29999")
+
+    site = SiteConfig.from_env()
+
+    assert site.global_origin == "https://catalog.example:19444"
+    assert site.gpu_host == "transient-backend.example"
+    assert site.default_port == 29999
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "",
+        "catalog.example:18800",
+        "ftp://catalog.example:18800",
+        "http://",
+        "http://user@catalog.example:18800",
+        "http://catalog.example:bad",
+        "http://catalog.example:18800/v1",
+        "http://catalog.example:18800?route=other",
+        "http://catalog.example:18800#fragment",
+    ],
+)
+def test_site_global_origin_rejects_malformed_values(origin):
+    with pytest.raises(ValueError, match="global origin"):
+        SiteConfig(global_origin=origin)
 
 
 # -- SLURM script generation -------------------------------------------------
@@ -1860,7 +1892,7 @@ def _serve_catalog(payload, *, status=200):
     thread.start()
     host, port = server.server_address
     try:
-        yield SiteConfig(gpu_host=host, default_port=port), requests
+        yield SiteConfig(global_origin=f"http://{host}:{port}"), requests
     finally:
         server.shutdown()
         server.server_close()
@@ -1876,7 +1908,7 @@ def test_generate_clive_script_embeds_standalone_global_contract():
     """The default branch embeds one origin and no operator dependencies."""
     from imas_ambix.agent.clive import generate_clive_script
 
-    site = SiteConfig(gpu_host="catalog.example", default_port=19444)
+    site = SiteConfig(global_origin="http://catalog.example:19444/")
     script = generate_clive_script(site)
 
     assert 'if [[ "$CLIVE_OPENROUTER" != "1" ]]; then' in script
@@ -1959,7 +1991,7 @@ def test_clive_readable_openrouter_key_does_not_reach_proxy(tmp_path):
 
         assert result.returncode == 0, result.stderr
         assert trace.read_text(encoding="utf-8").splitlines() == [
-            site.default_url,
+            site.global_origin,
             "reported-model",
             "8×H200 · fp8, 128k ctx",
         ]
@@ -2029,7 +2061,7 @@ def test_clive_clean_directory_uses_no_forbidden_consumer_dependency(tmp_path):
             assert "private-secret" not in result.stdout + result.stderr
 
         assert traces[0] == traces[1]
-        assert traces[0].splitlines() == [site.default_url, "glm-5.3", "prompt"]
+        assert traces[0].splitlines() == [site.global_origin, "glm-5.3", "prompt"]
         assert all("Authorization" not in headers for _, headers in requests)
     assert not forbidden_marker.exists()
 
@@ -2097,7 +2129,7 @@ def test_clive_codex_receives_selected_model_and_same_origin(tmp_path, selector)
 
     assert result.returncode == 0, result.stderr
     assert trace.read_text(encoding="utf-8").splitlines() == [
-        f"{site.default_url}/v1",
+        f"{site.global_origin}/v1",
         "--model glm-5.3 prompt",
     ]
 
@@ -2171,6 +2203,40 @@ def test_clive_requires_noninteractive_selection_for_multiple_items(tmp_path):
     assert "beta@6xh200" in result.stderr
 
 
+@pytest.mark.parametrize("choice", ["0", "-1", "3"])
+def test_clive_interactive_selection_rejects_undisplayed_integers(tmp_path, choice):
+    import os
+    import pty
+    import subprocess
+
+    from imas_ambix.agent.clive import generate_clive_script
+
+    with _serve_catalog(
+        {"data": [_catalog_item("alpha", count=2), _catalog_item("beta", count=6)]}
+    ) as (site, _requests):
+        launcher = tmp_path / "clive"
+        launcher.write_text(generate_clive_script(site), encoding="utf-8")
+        launcher.chmod(0o755)
+        master, slave = pty.openpty()
+        process = subprocess.Popen(
+            [str(launcher)],
+            stdin=slave,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=os.environ.copy(),
+        )
+        os.close(slave)
+        try:
+            os.write(master, f"{choice}\n".encode())
+            stdout, stderr = process.communicate(timeout=5)
+        finally:
+            os.close(master)
+
+    assert process.returncode == 2, stdout + stderr
+    assert "model selection must be an integer from 1 through 2" in stderr
+
+
 def test_clive_unreachable_catalog_never_falls_back_to_openrouter(tmp_path):
     import os
     import socket
@@ -2184,7 +2250,7 @@ def test_clive_unreachable_catalog_never_falls_back_to_openrouter(tmp_path):
     probe.close()
     launcher = tmp_path / "clive"
     launcher.write_text(
-        generate_clive_script(SiteConfig(gpu_host=host, default_port=port)),
+        generate_clive_script(SiteConfig(global_origin=f"http://{host}:{port}")),
         encoding="utf-8",
     )
     launcher.chmod(0o755)
@@ -2272,9 +2338,9 @@ def test_clive_openrouter_opt_in_starts_proxy_and_presents_picker(tmp_path, opt_
         site,
         _requests,
     ):
-        script = generate_clive_script(site).replace(
-            'LITELLM_PORT="18399"', f'LITELLM_PORT="{proxy_port}"'
-        )
+        script = generate_clive_script(
+            site, openrouter_native_release="served-local-model"
+        ).replace('LITELLM_PORT="18399"', f'LITELLM_PORT="{proxy_port}"')
         launcher = tmp_path / "clive"
         launcher.write_text(script, encoding="utf-8")
         launcher.chmod(0o755)
@@ -2305,6 +2371,55 @@ def test_clive_openrouter_opt_in_starts_proxy_and_presents_picker(tmp_path, opt_
         "or-gpt-5.5",
         "or-glm-5.2",
     ]
+
+
+def test_clive_openrouter_rejects_unconfigured_dynamic_release_before_proxy(
+    tmp_path,
+):
+    import os
+    import subprocess
+
+    from imas_ambix.agent.clive import generate_clive_script
+    from imas_ambix.agent.litellm_config import generate_litellm_config
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    proxy_marker = tmp_path / "proxy-called"
+    _write_executable(
+        fake_bin / "systemctl",
+        f"#!/bin/sh\nprintf '%s\\n' \"$*\" >> {proxy_marker}\nexit 99\n",
+    )
+    _write_executable(fake_bin / "claude", "#!/bin/sh\nexit 0\n")
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+
+    with _serve_catalog({"data": [_catalog_item("dynamic-release")]}) as (
+        site,
+        _requests,
+    ):
+        config = generate_litellm_config(site, "profile-alias")
+        launcher = tmp_path / "clive"
+        launcher.write_text(
+            generate_clive_script(site, openrouter_native_release="profile-alias"),
+            encoding="utf-8",
+        )
+        launcher.chmod(0o755)
+        result = subprocess.run(
+            [str(launcher), "--openrouter"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+    assert "model_name: profile-alias" in config
+    assert "model_name: dynamic-release" not in config
+    assert result.returncode == 2
+    assert (
+        "selected native release 'dynamic-release' is not configured in the "
+        "OpenRouter proxy (configured: 'profile-alias')"
+    ) in result.stderr
+    assert not proxy_marker.exists()
 
 
 def test_clive_deploy_writes_one_launcher(monkeypatch):

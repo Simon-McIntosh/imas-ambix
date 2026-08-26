@@ -16,11 +16,14 @@ if TYPE_CHECKING:
     from imas_ambix.agent.profile import SiteConfig
 
 
-def generate_clive_script(site: SiteConfig) -> str:
-    """Render a standalone launcher with the current site URL embedded."""
+def generate_clive_script(
+    site: SiteConfig, *, openrouter_native_release: str | None = None
+) -> str:
+    """Render a launcher with its site origin and optional proxy alias embedded."""
     from imas_ambix.agent.litellm_service import LITELLM_PORT
 
-    origin = site.default_url.rstrip("/")
+    origin = site.global_origin
+    proxy_native_release = openrouter_native_release or ""
     template = r"""#!/usr/bin/env bash
 # clive — drive an agent CLI against the site model catalog.
 #
@@ -34,6 +37,7 @@ def generate_clive_script(site: SiteConfig) -> str:
 set -euo pipefail
 
 GLOBAL_ORIGIN=__GLOBAL_ORIGIN__
+OPENROUTER_NATIVE_RELEASE=__OPENROUTER_NATIVE_RELEASE__
 CLIVE_OPENROUTER="${CLIVE_OPENROUTER:-0}"
 LITELLM_PORT="__LITELLM_PORT__"
 LITELLM_SERVICE="imas-ambix-llm.service"
@@ -51,7 +55,7 @@ clive — drive an agent CLI against the site model catalog.
   --claude   Claude Code via the Anthropic Messages API (default).
   --codex    OpenAI Codex CLI via the OpenAI API.
   --openrouter
-             Explicitly start the per-user proxy after local selection.
+             Explicitly start the per-user proxy after global selection.
   --list     List the global catalog and exit.
   --selector RELEASE[@NxFAMILY]
              Select an exact release id or release-at-topology label.
@@ -189,9 +193,12 @@ elif interactive == "true":
     with os.fdopen(3) as terminal_input:
         answer = terminal_input.readline().strip()
     try:
-        chosen = items[int(answer) - 1]
-    except (ValueError, IndexError):
+        choice = int(answer)
+    except ValueError:
         fail("invalid model selection")
+    if not 1 <= choice <= len(items):
+        fail(f"model selection must be an integer from 1 through {len(items)}")
+    chosen = items[choice - 1]
 else:
     available = ", ".join(item["selector"] for item in items)
     fail(f"multiple models are available; use --selector ({available})")
@@ -268,6 +275,14 @@ if [[ "$CLIVE_OPENROUTER" != "1" ]]; then
 fi
 
 # OpenRouter is reached only by explicit opt-in after global catalog selection.
+if [[ -z "$OPENROUTER_NATIVE_RELEASE" ]]; then
+    echo "clive: OpenRouter proxy support is not installed; redeploy with 'imas-ambix agent clive PROFILE --openrouter'." >&2
+    exit 2
+fi
+if [[ "$MODEL_ID" != "$OPENROUTER_NATIVE_RELEASE" ]]; then
+    echo "clive: selected native release '$MODEL_ID' is not configured in the OpenRouter proxy (configured: '$OPENROUTER_NATIVE_RELEASE'); redeploy the proxy for that release." >&2
+    exit 2
+fi
 if ! systemctl --user is-active --quiet "$LITELLM_SERVICE" 2>/dev/null; then
     echo "clive: starting $LITELLM_SERVICE ..." >&2
     if ! systemctl --user start "$LITELLM_SERVICE" 2>/dev/null; then
@@ -286,7 +301,7 @@ if ! $_PROXY_READY; then
     exit 1
 fi
 
-printf "\nClive — local + OpenRouter — picker: %s, or-opus-4.8, or-sonnet-4.6, or-gpt-5.5, or-glm-5.2\n\n" "$MODEL_ID" >&2
+printf "\nClive — global + OpenRouter — picker: %s, or-opus-4.8, or-sonnet-4.6, or-gpt-5.5, or-glm-5.2\n\n" "$MODEL_ID" >&2
 ANTHROPIC_BASE_URL="http://127.0.0.1:$LITELLM_PORT" \
 ANTHROPIC_AUTH_TOKEN="clive" \
 ANTHROPIC_API_KEY="" \
@@ -309,6 +324,8 @@ ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION="GPT-5.5 via OpenRouter — coding mod
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
 exec claude "${ARGS[@]}"
 """
-    return template.replace("__GLOBAL_ORIGIN__", shlex.quote(origin)).replace(
-        "__LITELLM_PORT__", str(LITELLM_PORT)
+    return (
+        template.replace("__GLOBAL_ORIGIN__", shlex.quote(origin))
+        .replace("__OPENROUTER_NATIVE_RELEASE__", shlex.quote(proxy_native_release))
+        .replace("__LITELLM_PORT__", str(LITELLM_PORT))
     )
