@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T16:01:20",
+  "updated": "2026-08-26T16:02:54",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -12008,9 +12008,106 @@
           "role": "review",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T133310993386-clive-global-standalone-launcher",
+        "plan": "clive-global-endpoint-routing",
+        "section": "\u00a73",
+        "node": "clive-global-standalone-launcher",
+        "node_definition": {
+          "done_when": "The generated launcher bakes the literal SiteConfig.default_url resolved at generation time, fetches its keyless GET /v1/models response with Python 3 standard library code, validates native id plus required ambix accelerator family, accelerator count in {2,4,6,8}, and checkpoint precision, rejects unreachable, empty, malformed, duplicate, or invalid catalogs, renders release and topology labels dynamically, supports deterministic release-id and release-at-topology selection, auto-selects only one item, and requires explicit non-interactive selection for several items. Item-level URLs are ignored. Claude Code and Codex use the selected native release id on that same origin. The default consumer has no user identity, HOME, scheduler, batch-script, key-file, credential, repo, virtualenv, profile, AMBIX_AGENT runtime override, or imas-ambix operator CLI dependency. Explicit OpenRouter remains isolated and never becomes fallback. The hidden old launcher machine API is removed while operator status, deployment, print, and path operations remain. Future glm-5.3 items require no launcher source change. One captured tests/test_agent.py run passes, owned-path Ruff passes, sentinel tests prove every forbidden dependency remains unused, and the manifest records the commit, exact paths, commands, statuses, and logs.",
+          "estimated_hours": 0.8,
+          "goal": "Deliver one generated standalone shared Clive launcher for the anonymous global endpoint contract, with the minimal operator-command cleanup plus focused regression coverage required to make that launcher the only default consumer route.",
+          "id": "clive-global-standalone-launcher",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/clive-global-standalone-launcher.json",
+          "plan": "clive-global-endpoint-routing",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "open",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/agent/clive.py",
+            "imas_ambix/agent/cli.py",
+            "tests/test_agent.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "open",
+        "member": "clive-live-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T13:33:34Z",
+        "completed_at": "2026-08-26T14:02:51Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1757,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1757,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "fdc235e1edea0bc079c9e99da33553e577bf4d1c",
+        "commits": [
+          "87611f69c5a005559c22ba5e17685a157e8d4516"
+        ],
+        "changed_lines": {
+          "added": 635,
+          "removed": 393,
+          "files": 3
+        },
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": null,
+        "failure_classification": "work-rejected",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/clive-global-standalone-launcher.json",
+        "scope_changed": false,
+        "session_id": "01a03dc0-e26e-7f02-b4a2-b547b2bcd513",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 220928,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 221756,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 317,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 153
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 4,
+        "attempt_kind": "resume",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 334
+    "_version": 335
   }
 }
