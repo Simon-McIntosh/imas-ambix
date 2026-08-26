@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="clive-live-model-discovery">
+  <meta name="plan-title" content="Clive Live Model Discovery">
+  <meta name="plan-summary" content="Discover ready local model endpoints from running SLURM serves and let Clive select only live, topology-qualified routes.">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort" content="M">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-tool-autonomy" content="autonomous">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="moderate">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>Clive Live Model Discovery | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — Outcome and authority boundary</h2>
+    <p>
+      Replace Clive's single configured URL assumption with live discovery of this user's
+      running Ambix serve jobs. A route becomes selectable only after its own
+      <code>/v1/models</code> endpoint answers successfully; a SLURM allocation, listening
+      socket, or configured profile alone is not availability. The launcher remains local-only
+      by default and never falls back to an external provider when discovery is empty or a
+      selected route fails.
+    </p>
+    <p>
+      The serving CLI owns job and endpoint facts; the generated launcher consumes those facts
+      and sets the selected model and base URL for Claude Code or Codex. Discovery must support
+      authenticated and keyless vLLM endpoints without printing credentials. It must not cancel,
+      restart, or otherwise mutate serve jobs.
+    </p>
+
+    <h2 id="s2">§2 — Dynamic discovery and topology-qualified selection</h2>
+    <p>
+      Build one structured discovery path from RUNNING SLURM jobs to probed endpoints. Each live
+      entry carries the server-reported model id, compute node, actual port, GPU count, job id,
+      and context metadata when reported. Extract launch-specific ports and GPU allocation from
+      job state rather than assuming port <code>18800</code> or a profile's default card count.
+    </p>
+    <p>
+      Display DeepSeek and GLM routes with an explicit <code>2×</code>, <code>4×</code>,
+      <code>6×</code>, or <code>8×</code> H200 topology beside the server-reported release name
+      and endpoint. Topology is runtime presentation data, not a new profile slug, SLURM job name,
+      or served-model identity. If more than one live route reports the same model id, its
+      topology-qualified selector must choose the intended endpoint unambiguously.
+    </p>
+    <p>
+      Add a non-interactive listing mode and a deterministic selection contract. One live route
+      may be selected automatically; several live routes are presented for interactive choice,
+      while non-interactive use requires an unambiguous selector. Explicit URL/model overrides
+      remain available but are probed before launch. The selected route supplies both model and
+      endpoint to the child harness, so no stale models appear as available.
+    </p>
+
+    <h2 id="s3">§3 — Family-independent launch, verification, and deployment</h2>
+    <p>
+      Derive availability from endpoint responses rather than a hard-coded DeepSeek or GLM release
+      list. A future GLM-5.3 serve therefore appears automatically when its running endpoint reports
+      <code>glm-5.3</code>, with the launch topology and endpoint that actually answered. Keep the
+      direct-local no-fallback behavior and the explicit OpenRouter branch isolated from local
+      discovery.
+    </p>
+    <p>
+      Cover job parsing, port and GPU extraction, authenticated and keyless probes, readiness
+      filtering, selector ambiguity, topology labels, one-route auto-selection, multi-route
+      selection, and propagation into both harness environments. Run the focused agent tests and
+      the repository's whole-tree Ruff gate. Deploy only the repo-generated launcher, confirm the
+      deployed bytes match <code>imas-ambix agent clive --print</code>, and exercise live listing
+      against the current serve without exposing its key.
+    </p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="availability-authority" data-choice="successful-models-probe" data-by="Simon McIntosh" data-when="2026-08-26">
+        <p class="r-dec-q">What makes a local model available in Clive?</p>
+        <p class="r-dec-rat">Only a successful live models response from the route itself; scheduler state alone is insufficient.</p>
+      </div>
+      <div class="r-dec" data-key="topology-identity" data-choice="runtime-label" data-by="Simon McIntosh" data-when="2026-08-26">
+        <p class="r-dec-q">Where does the card-count distinction belong?</p>
+        <p class="r-dec-rat">In the discovered route label and selector, while the served model remains the release identity reported by the engine.</p>
+      </div>
+      <div class="r-dec" data-key="future-release-discovery" data-choice="server-reported" data-by="Simon McIntosh" data-when="2026-08-26">
+        <p class="r-dec-q">How does Clive acquire future GLM releases?</p>
+        <p class="r-dec-rat">Generically from live server metadata, so a GLM-5.3 endpoint requires no launcher source edit.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-clmd-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-26" data-resolved-at="" data-resolved-by="">
+        <h4 class="r-fu-title">Implement and deploy live topology-qualified Clive discovery</h4>
+        <div class="r-fu-body"><p>Execute all three sections, preserving direct-local routing and proving only ready endpoints enter selection.</p></div>
+        <pre class="r-fu-prompt">/reckon-ship clive-live-model-discovery</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
