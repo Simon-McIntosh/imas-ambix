@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-26">
-<meta name="plan-version" content="8">
+<meta name="plan-version" content="10">
 </head>
 <body>
   <main class="plan-doc">
@@ -213,6 +213,11 @@
     <div class="r-fu-body">The stored DeepSeek baselines predate the current engine and framework pin, so they cannot be compared against a run taken today. Once the INT4 serve answers, benchmark it with provenance capture active, then re-run the same suite against the DeepSeek serve so both numbers come from one stack. Report time to first token, single-stream decode rate, and the aggregate curve, and state the draft-token acceptance rate.</div>
     <pre class="r-fu-prompt">/reckon-ship glm-52-local-serve-performance §4</pre>
     </article>
+<article class="r-fu" data-id="f-glm-02" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-ship" data-written-at="2026-08-26" data-recommends-skill="/reckon-ship glm-52-local-serve-performance §4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Repair the GPU-allocation parsing that makes agent status blind to live serves</h4>
+    <div class="r-fu-body">The status command reports zero serving while two serve jobs run, and flags every running job as a rejected serve candidate with 'unsupported or missing GPU allocation'. Reported by a peer session whose own serve was flagged, so it is not specific to one profile or card count; it appeared alongside the live-route discovery work. The scheduler itself is fine -- reading squeue directly gives the correct allocation -- so the fault is in how the command parses the generic-resource field. It matters because operators use this command to decide whether an endpoint is up.</div>
+    <pre class="r-fu-prompt">/reckon-ship glm-52-local-serve-performance §4</pre>
+    </article>
 </section>
 
   <section data-reckon="comments" id="comments" class="r-comments">
@@ -239,6 +244,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260826T134126718076-glm-mtp-draft-config-repair" data-who="glm-tp4-preflight-worker" data-when="2026-08-26T14:06:14Z">
     <div class="r-comment-body"><p>Implemented but withheld a version-gated separate-MTP draft configuration adapter; zero-GPU validation reached the exact installed DeepseekV2MoE class with real metadata but the GPU-built environment lacked the CPU silu_and_mul extension before routed-expert registration, so no source commit or H200 retry was authorized.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260826T205230330579-glm-matrix-reuse-scout" data-who="glm-matrix-scout" data-when="2026-08-26T20:59:26Z">
+    <div class="r-comment-body"><p>Reuse map delivered: 13 candidates with verdicts. Build on bench_report load_report/describe_run/compare_runs as the sole numeric authority; compare_runs output is NOT JSON-serialisable (tuple-keyed tests dict) so project flat rows; evidence belongs at docs/evidence/archive/&lt;slug&gt;-landed.html per the existing template</p></div>
 </div>
 </section>
 </main>
