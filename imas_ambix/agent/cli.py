@@ -1471,8 +1471,16 @@ def bench(
 
     # Resolve base_url and model — try slug, then default profile, then url-only
     resolved_slug = slug or _default_profile()
+    serve_job: str | None = None
     if resolved_slug:
         profile = _load_profile(resolved_slug)
+        # Attribute the run to the deployment that is actually serving, not to
+        # the profile's default card count.
+        serve_gpus, serve_job = _running_serve_gpus(
+            resolved_slug, SiteConfig.from_env()
+        )
+        if serve_gpus:
+            profile = profile.for_gpus(serve_gpus)
         base_url = url or _default_url() or "http://localhost:18800"
         model = model_name or profile.model.served_name
     elif url:
@@ -1520,6 +1528,7 @@ def bench(
         # Without this the saved run records no serving configuration, and an
         # unattributable run cannot be compared against another.
         profile=profile,
+        serve_job_id=serve_job,
     )
 
     # Auto-save results
@@ -1740,6 +1749,33 @@ def bench_compare(
         render_run(reports[0])
         return
     render_comparison(compare_runs(reports))
+
+
+def _running_serve_gpus(slug: str, site: SiteConfig) -> tuple[int | None, str | None]:
+    """Return ``(gpu_count, job_id)`` for *slug*'s RUNNING serve job.
+
+    A profile describes a default deployment, but a card count is chosen at
+    launch, so the profile alone cannot say which variant is answering. Ask the
+    scheduler what is actually running instead of assuming the default, or a
+    benchmark of one deployment gets attributed to another.
+    """
+    user = os.environ.get("USER") or getpass.getuser()
+    result = subprocess.run(
+        ["squeue", "-h", "-u", user, "-A", site.account, "-o", "%i|%j|%T|%b"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None, None
+    for line in result.stdout.strip().splitlines():
+        parts = line.split("|")
+        if len(parts) < 4 or parts[1].strip() != slug or parts[2].strip() != "RUNNING":
+            continue
+        # %b renders the generic-resource request, e.g. "gres/gpu:4".
+        tail = parts[3].strip().rsplit(":", maxsplit=1)[-1]
+        return (int(tail) if tail.isdigit() else None), parts[0].strip()
+    return None, None
 
 
 def _engine_pyproject(engine: str) -> str:

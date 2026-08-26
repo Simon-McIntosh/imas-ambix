@@ -930,6 +930,7 @@ def capture_provenance(
     api_key: str | None = None,
     profile: ModelProfile | None = None,
     models_payload: Any = None,
+    serve_job_id: str | None = None,
 ) -> dict[str, Any]:
     """Build the configuration fingerprint that attributes a saved report.
 
@@ -963,7 +964,11 @@ def capture_provenance(
             engine.speculative_num_tokens if engine is not None else None
         ),
         "quantization": None,
+        # The allocation the CLIENT runs in, which is usually none.
         "slurm_job_id": _slurm_job_id(),
+        # The allocation that SERVED the run -- the one worth citing when a
+        # number is questioned later. Distinct from the field above.
+        "serve_job_id": serve_job_id,
         "gpu_host": _gpu_host(base_url),
         "captured_at": _dt.datetime.now(_dt.UTC).isoformat(),
     }
@@ -1534,6 +1539,7 @@ def run_benchmark(
     warmup: bool = True,
     api_key: str | None = None,
     profile: ModelProfile | None = None,
+    serve_job_id: str | None = None,
 ) -> BenchReport:
     """Run the full benchmark suite and return a :class:`BenchReport`.
 
@@ -1579,6 +1585,7 @@ def run_benchmark(
         api_key=api_key,
         profile=profile,
         models_payload=models_payload,
+        serve_job_id=serve_job_id,
     )
 
     runners = {
