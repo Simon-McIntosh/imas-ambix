@@ -285,14 +285,19 @@
       report: <code>clive-global-operator-contract-independent-review.md</code>.</p>
 
       <aside class="callout note">
-        <strong>Repair candidate passed its implementation gate.</strong>
+        <strong>Repair candidate passed implementation and independent executable gates.</strong>
         Commit <code>4a0a1070645967dfd361a76ce58bf908cde62795</code>
         rejects redirects before another HTTP authority, adds executable
         two-server coverage, and narrows the guide to the explicit per-user
-        OpenRouter start exception. The combined agent and catalog suite passed
-        181 of 181 cases and whole-tree Ruff reported zero findings. Integration
-        remains separate until the independent test and review receipts are
-        promoted.
+        OpenRouter start exception. An independent worker passed 181 of 181
+        tests and whole-tree Ruff with zero findings; its external redirect
+        sentinel measured exactly one origin request, zero redirect-target
+        requests, zero authorization headers, zero harness launches, and zero
+        proxy launches. Integration remains separate until the independent
+        review receipt is promoted. Evidence: Crew run
+        <code>r-20260826T150552804601-clive-global-operator-contract-repair-independent-test</code>
+        and durable report
+        <code>clive-global-operator-contract-repair-independent-test.md</code>.
       </aside>
     </section>
   </main>

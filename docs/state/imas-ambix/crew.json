@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T17:13:21",
+  "updated": "2026-08-26T17:14:29",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -13351,9 +13351,112 @@
           "role": "implement",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T150552804601-clive-global-operator-contract-repair-independent-test",
+        "plan": "clive-global-endpoint-routing",
+        "section": "\u00a74",
+        "node": "clive-global-operator-contract-repair-independent-test",
+        "node_definition": {
+          "done_when": "At base 4a0a1070645967dfd361a76ce58bf908cde62795, one captured tests/test_agent.py tests/test_agent_catalog.py run passes with exact count and exit status; whole-tree Ruff passes; an independent generated-launcher sentinel proves one anonymous origin request, zero redirect-target requests, zero Authorization headers, zero harness launches, and zero proxy launches for a 302 even under explicit OpenRouter; assertions retain 2x 4x 6x 8x, future glm-5.3, same-origin routing, invalid selection and proxy mismatch behavior; exact three-path delta, commit body, naming, attribution, and no live mutation are recorded. Any failure blocks integration.",
+          "estimated_hours": 0.4,
+          "goal": "Independently execute the repaired redirect and operator-authority contract at the exact candidate tip.",
+          "id": "clive-global-operator-contract-repair-independent-test",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T150552804601-clive-global-operator-contract-repair-independent-test/manifest.md",
+          "plan": "clive-global-endpoint-routing",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "18m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-operator-contract-repair-independent-test.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "clive-live-repair-test",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T15:06:02Z",
+        "completed_at": "2026-08-26T15:12:40Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 398,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 398,
+        "stalled": false,
+        "time_budget": "18m",
+        "base_sha": "4a0a1070645967dfd361a76ce58bf908cde62795",
+        "commits": [
+          "4a0a1070645967dfd361a76ce58bf908cde62795"
+        ],
+        "changed_lines": {
+          "available": false,
+          "reason": "diff_unavailable"
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=\"$PWD\" uv run --no-sync pytest -p no:cacheprovider tests/test_agent.py tests/test_agent_catalog.py -vv",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T150552804601-clive-global-operator-contract-repair-independent-test/pytest-combined.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T150552804601-clive-global-operator-contract-repair-independent-test/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03e70-6278-7003-825f-7498d5f65360",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 4059392,
+            "cached_input_tokens_cumulative": 4403712,
+            "input_tokens": 4147421,
+            "input_tokens_cumulative": 4497357,
+            "output_tokens": 10830,
+            "output_tokens_cumulative": 13659,
+            "reasoning_output_tokens": 2852,
+            "reasoning_output_tokens_cumulative": 3082
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 351
+    "_version": 352
   }
 }
