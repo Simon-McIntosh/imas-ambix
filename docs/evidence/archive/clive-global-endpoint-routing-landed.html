@@ -259,6 +259,28 @@
       <code>r-20260826T140353458933-clive-global-launcher-authority-repair</code>
       and its durable manifest.</p>
     </section>
+
+    <section id="operator-contract-review">
+      <h2>Scoped operator guidance gate</h2>
+      <aside class="callout warning">
+        <strong>Initial documentation candidate rejected.</strong> Candidate
+        <code>752e53398592f7f48d3f09b88055b36daad4571e</code> passed its focused
+        documentation checks but is not integrated. Independent review found
+        0 critical, 1 high, 1 medium, and 0 low issue.
+      </aside>
+      <p>The high issue is behavioral, not editorial: the standard urllib
+      opener follows redirects, so the guide's exact single-request,
+      same-origin, and non-success fail-closed claims are not yet guaranteed.
+      The medium issue is an overbroad authority sentence: default Clive does
+      not mutate services, but explicit OpenRouter mode may start its installed
+      per-user proxy. The repair must reject catalog redirects with executable
+      coverage and narrow that sentence without weakening the default global
+      endpoint boundary.</p>
+      <p>Evidence: documentation run
+      <code>r-20260826T143803196724-clive-global-operator-contract-documentation</code>
+      and independent review run
+      <code>r-20260826T144643565761-clive-global-operator-contract-independent-review</code>.</p>
+    </section>
   </main>
 </body>
 </html>
