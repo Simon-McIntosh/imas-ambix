@@ -15,11 +15,18 @@ import concurrent.futures
 import datetime as _dt
 import hashlib
 import json
+import os
+import re
 import statistics
 import threading
 import time
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    # Import-time only: the profile loader pulls in pydantic and the profile
+    # package data, which the benchmark itself never needs.
+    from imas_ambix.agent.profile import ModelProfile
 
 # ── Data model ──────────────────────────────────────────────────────
 
@@ -781,6 +788,371 @@ def _chat(
     return result, data
 
 
+# ── Provenance capture ──────────────────────────────────────────────
+
+# Provenance probes annotate a run; they must never slow it down or fail it.
+_PROBE_TIMEOUT_S = 5.0
+
+# A loopback URL names the client, not the serving node.
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+
+def _fetch_body(
+    url: str,
+    api_key: str | None = None,
+    timeout: float = _PROBE_TIMEOUT_S,
+) -> str | None:
+    """GET *url* and return the decoded body, or ``None`` on any failure.
+
+    Every provenance probe is advisory: a route the engine does not expose,
+    a rejected credential, or a slow response must leave the benchmark it
+    annotates untouched.
+    """
+    import urllib.request
+
+    req = urllib.request.Request(url, headers=_auth_headers(api_key))
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.read().decode("utf-8", errors="replace")
+    except Exception:
+        return None
+
+
+def _coerce_int(value: Any) -> int | None:
+    """Convert *value* to ``int``, or ``None`` when it is not numeric."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except TypeError, ValueError:
+        return None
+
+
+def _model_card(models_payload: Any) -> dict[str, Any]:
+    """First model entry of a ``/v1/models`` payload, or an empty dict."""
+    if not isinstance(models_payload, dict):
+        return {}
+    data = models_payload.get("data")
+    if isinstance(data, list) and data and isinstance(data[0], dict):
+        return data[0]
+    return {}
+
+
+def _lookup(mapping: dict[str, Any], *needles: str) -> Any:
+    """First non-``None`` value whose key contains one of *needles*.
+
+    Engines spell the same field differently (``max_model_len`` against
+    ``max_context_length``), so match on substrings instead of pinning one
+    spelling that a version bump can retire.
+    """
+    for needle in needles:
+        for key, val in mapping.items():
+            if needle in key.lower() and val is not None:
+                return val
+    return None
+
+
+def _probe_engine_version(base_url: str, api_key: str | None = None) -> str | None:
+    """Version the engine reports at ``/version``, or ``None``.
+
+    vLLM answers with a ``{"version": ...}`` object; other engines answer
+    with a bare string or do not expose the route at all.
+    """
+    body = _fetch_body(f"{base_url}/version", api_key)
+    if not body:
+        return None
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        text = body.strip()
+        # A plain-text route answers with the version alone; anything long
+        # is an error page, not a version.
+        return text if 0 < len(text) <= 64 else None
+    if isinstance(payload, str):
+        return payload.strip() or None
+    if isinstance(payload, dict):
+        val = _lookup(payload, "version")
+        return str(val) if val is not None else None
+    return None
+
+
+def _slurm_job_id() -> str | None:
+    """Job id of the surrounding SLURM allocation, if the run is inside one."""
+    for var in ("SLURM_JOB_ID", "SLURM_JOBID"):
+        val = os.environ.get(var, "").strip()
+        if val:
+            return val
+    return None
+
+
+def _gpu_host(base_url: str) -> str | None:
+    """Host that serves the model, or ``None`` when it is not determinable.
+
+    The benchmark client usually runs off-node, so the serving host is the
+    one named in *base_url*; a loopback URL means the client shares the node
+    and SLURM's own node name is the better answer. Resolved from the URL and
+    the environment only — querying the scheduler would add seconds of
+    latency to every run.
+    """
+    import urllib.parse
+
+    host = urllib.parse.urlsplit(base_url).hostname or ""
+    if host and host.lower() not in _LOOPBACK_HOSTS:
+        return host
+    return os.environ.get("SLURMD_NODENAME", "").strip() or None
+
+
+def _record_server_value(
+    provenance: dict[str, Any],
+    key: str,
+    served: Any,
+    requested: Any,
+) -> None:
+    """Store the engine-reported value for *key*, keeping a disagreeing request.
+
+    The server describes the deployment that actually ran, so it wins. A
+    profile value that disagrees is preserved beside it under
+    ``<key>_profile`` rather than dropped — the disagreement is precisely
+    the signal that a report is not describing the configuration its author
+    believes it is.
+    """
+    if served is None:
+        provenance[key] = requested
+        return
+    provenance[key] = served
+    if requested is not None and requested != served:
+        provenance[f"{key}_profile"] = requested
+
+
+def capture_provenance(
+    base_url: str,
+    *,
+    api_key: str | None = None,
+    profile: ModelProfile | None = None,
+    models_payload: Any = None,
+) -> dict[str, Any]:
+    """Build the configuration fingerprint that attributes a saved report.
+
+    Every key is always present, and every value is ``None`` when its source
+    is unavailable: a stored report must never carry a figure that was
+    assumed rather than observed.
+
+    *profile* supplies what the deployment **requested**; ``/version`` and
+    ``/v1/models`` supply what the engine **runs**. Where both exist and
+    disagree the server value is kept and the requested one is preserved
+    under a ``_profile`` suffix (see :func:`_record_server_value`).
+    """
+    engine = profile.engine if profile is not None else None
+    card = _model_card(models_payload)
+
+    provenance: dict[str, Any] = {
+        "profile_slug": profile.slug if profile is not None else None,
+        "model_name": profile.model.name if profile is not None else None,
+        "served_name": profile.model.served_name if profile is not None else None,
+        "engine_type": engine.type if engine is not None else None,
+        "engine_version": _probe_engine_version(base_url, api_key),
+        "tensor_parallel": engine.tensor_parallel if engine is not None else None,
+        "gpus": profile.slurm.gpus if profile is not None else None,
+        "kv_cache_dtype": engine.kv_cache_dtype if engine is not None else None,
+        "max_model_len": None,
+        "max_num_seqs": engine.max_num_seqs if engine is not None else None,
+        "speculative_method": (
+            engine.speculative_method if engine is not None else None
+        ),
+        "speculative_num_tokens": (
+            engine.speculative_num_tokens if engine is not None else None
+        ),
+        "quantization": None,
+        "slurm_job_id": _slurm_job_id(),
+        "gpu_host": _gpu_host(base_url),
+        "captured_at": _dt.datetime.now(_dt.UTC).isoformat(),
+    }
+
+    _record_server_value(
+        provenance,
+        "max_model_len",
+        _coerce_int(_lookup(card, "max_model_len", "max_context", "context_length")),
+        engine.max_total_tokens if engine is not None else None,
+    )
+    _record_server_value(
+        provenance,
+        "quantization",
+        _lookup(card, "quant"),
+        None,
+    )
+    return provenance
+
+
+# ── Speculative-decode acceptance ───────────────────────────────────
+
+# ``name{label="value",…} 1.5`` — the Prometheus text exposition format.
+_SAMPLE_RE = re.compile(
+    r"^(?P<name>[a-zA-Z_:][a-zA-Z0-9_:]*)"
+    r"(?:\{(?P<labels>[^}]*)\})?"
+    r"\s+(?P<value>\S+)"
+)
+_LABEL_RE = re.compile(
+    r'(?P<key>[a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*"(?P<val>(?:[^"\\]|\\.)*)"'
+)
+
+
+def _parse_prometheus_text(text: str) -> list[tuple[str, dict[str, str], float]]:
+    """Parse a Prometheus scrape into ``(name, labels, value)`` samples.
+
+    Comments, blank lines, and samples with an unparseable value are
+    skipped: a scrape is diagnostic, so one malformed line must not discard
+    the counters around it.
+    """
+    samples: list[tuple[str, dict[str, str], float]] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = _SAMPLE_RE.match(line)
+        if match is None:
+            continue
+        try:
+            value = float(match.group("value"))
+        except ValueError:
+            continue
+        labels = {
+            m.group("key"): m.group("val")
+            for m in _LABEL_RE.finditer(match.group("labels") or "")
+        }
+        samples.append((match.group("name"), labels, value))
+    return samples
+
+
+def _spec_decode_snapshot(text: str) -> dict[str, Any]:
+    """Speculative-decode counters read out of one ``/metrics`` scrape.
+
+    Counter names move between engine versions, so the counters are found by
+    substring rather than by an exact name: among the speculative-decode
+    metrics, one mentioning ``draft`` carries the tokens the draft model
+    proposed and one mentioning ``accept`` carries the tokens the target
+    model kept. A name that also mentions tokens is a true token count and
+    is preferred; any other cumulative speculative counter is a fallback for
+    engines that omit the word. Values are summed across label sets so a
+    multi-engine scrape totals correctly.
+    """
+    # Index 0 holds counters whose name mentions tokens, index 1 the fallback.
+    tiers: list[dict[str, float]] = [{}, {}]
+    per_position: dict[int, float] = {}
+
+    for name, labels, value in _parse_prometheus_text(text):
+        lowered = name.lower()
+        if "spec" not in lowered:
+            continue
+        if "per_pos" in lowered:
+            pos = _coerce_int(labels.get("position"))
+            if pos is not None:
+                per_position[pos] = per_position.get(pos, 0.0) + value
+            continue
+        if "draft" in lowered:
+            role = "draft_tokens_total"
+        elif "accept" in lowered:
+            role = "accepted_tokens_total"
+        else:
+            continue
+        tier = tiers[0] if "token" in lowered else tiers[1]
+        tier[role] = tier.get(role, 0.0) + value
+
+    snapshot: dict[str, Any] = {
+        role: tiers[0].get(role, tiers[1].get(role))
+        for role in ("draft_tokens_total", "accepted_tokens_total")
+    }
+    snapshot["num_accepted_per_pos"] = (
+        [per_position[pos] for pos in sorted(per_position)] if per_position else None
+    )
+    return snapshot
+
+
+def _scrape_spec_decode(
+    base_url: str, api_key: str | None = None
+) -> dict[str, Any] | None:
+    """Snapshot the engine's speculative-decode counters, or ``None``."""
+    body = _fetch_body(f"{base_url}/metrics", api_key)
+    if body is None:
+        return None
+    return _spec_decode_snapshot(body)
+
+
+def _counter_delta(
+    before: dict[str, Any],
+    after: dict[str, Any],
+    key: str,
+) -> int | None:
+    """Increment of one cumulative counter between two snapshots.
+
+    A counter absent from the earlier snapshot had not been recorded yet, so
+    it starts from zero. A negative difference means the engine restarted
+    and reset its counters, which leaves the window meaningless.
+    """
+    end = after.get(key)
+    if end is None:
+        return None
+    start = before.get(key) or 0.0
+    delta = end - start
+    return None if delta < 0 else int(round(delta))
+
+
+def _per_position_delta(
+    before: dict[str, Any],
+    after: dict[str, Any],
+) -> list[int] | None:
+    """Per-position acceptance increments, or ``None`` when unusable."""
+    end = after.get("num_accepted_per_pos")
+    if not end:
+        return None
+    start = before.get("num_accepted_per_pos") or []
+    deltas: list[int] = []
+    for pos, value in enumerate(end):
+        base = start[pos] if pos < len(start) else 0.0
+        delta = value - base
+        if delta < 0:
+            return None
+        deltas.append(int(round(delta)))
+    return deltas
+
+
+def _spec_decode_window(
+    before: dict[str, Any] | None,
+    after: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Speculative-decode acceptance over the window between two snapshots.
+
+    A draft model that has silently degraded still serves tokens, so nothing
+    in the latency or throughput numbers separates it from ordinary
+    slowness; the fraction of its proposals the target model keeps does.
+    The engine's counters are cumulative from its start, so the figures here
+    are differences — both snapshots are required, and a missing one reports
+    ``unavailable`` rather than passing lifetime totals off as this run's.
+    """
+    window: dict[str, Any] = {
+        "draft_tokens_total": None,
+        "accepted_tokens_total": None,
+        "acceptance_rate": None,
+        "num_accepted_per_pos": None,
+        "source": "unavailable",
+    }
+    if before is None or after is None:
+        return window
+
+    draft = _counter_delta(before, after, "draft_tokens_total")
+    accepted = _counter_delta(before, after, "accepted_tokens_total")
+    per_position = _per_position_delta(before, after)
+    if draft is None and accepted is None and per_position is None:
+        return window
+
+    window["draft_tokens_total"] = draft
+    window["accepted_tokens_total"] = accepted
+    window["num_accepted_per_pos"] = per_position
+    window["source"] = "metrics"
+    if draft is not None and draft > 0 and accepted is not None:
+        window["acceptance_rate"] = round(accepted / draft, 4)
+    return window
+
+
 # ── Test runners per category ───────────────────────────────────────
 
 
@@ -1161,8 +1533,24 @@ def run_benchmark(
     max_context: int | None = None,
     warmup: bool = True,
     api_key: str | None = None,
+    profile: ModelProfile | None = None,
 ) -> BenchReport:
-    """Run the full benchmark suite and return a :class:`BenchReport`."""
+    """Run the full benchmark suite and return a :class:`BenchReport`.
+
+    ``report.server_info`` keeps the raw ``/v1/models`` payload at the top
+    level — its ``object`` and ``data`` keys, unchanged, so existing readers
+    keep working — and adds three keys beside them:
+
+    - ``models`` — the same payload, addressable by name (the canonical
+      spelling for new readers);
+    - ``provenance`` — the configuration fingerprint that attributes the
+      report, from :func:`capture_provenance`;
+    - ``spec_decode`` — speculative-decode acceptance measured across the
+      throughput category, from :func:`_spec_decode_window`.
+
+    *profile* supplies the requested-configuration half of the provenance;
+    without it those fields stay ``None`` rather than being guessed.
+    """
     cats = categories or CATEGORIES
     report = BenchReport(
         timestamp=_dt.datetime.now(_dt.UTC).isoformat(),
@@ -1170,6 +1558,7 @@ def run_benchmark(
     )
 
     # Fetch server info
+    models_payload: Any = {}
     try:
         import urllib.request
 
@@ -1177,9 +1566,20 @@ def run_benchmark(
             f"{base_url}/v1/models", headers=_auth_headers(api_key)
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
-            report.server_info = json.loads(resp.read())
+            models_payload = json.loads(resp.read())
     except Exception:
-        report.server_info = {}
+        models_payload = {}
+
+    report.server_info = (
+        dict(models_payload) if isinstance(models_payload, dict) else {}
+    )
+    report.server_info["models"] = models_payload
+    report.server_info["provenance"] = capture_provenance(
+        base_url,
+        api_key=api_key,
+        profile=profile,
+        models_payload=models_payload,
+    )
 
     runners = {
         "throughput": lambda: _run_throughput(base_url, model, repeat, warmup, api_key),
@@ -1190,9 +1590,20 @@ def run_benchmark(
         "concurrency": lambda: _run_concurrency(base_url, model, repeat, api_key),
     }
 
+    spec_before: dict[str, Any] | None = None
+    spec_after: dict[str, Any] | None = None
     for cat in cats:
-        if cat in runners:
-            report.results.extend(runners[cat]())
+        if cat not in runners:
+            continue
+        # The engine's speculative counters are cumulative, so bracket the
+        # decode-heavy category to attribute acceptance to this run's tokens.
+        if cat == "throughput":
+            spec_before = _scrape_spec_decode(base_url, api_key)
+        report.results.extend(runners[cat]())
+        if cat == "throughput":
+            spec_after = _scrape_spec_decode(base_url, api_key)
+
+    report.server_info["spec_decode"] = _spec_decode_window(spec_before, spec_after)
 
     return report
 
