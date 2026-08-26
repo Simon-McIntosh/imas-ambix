@@ -592,6 +592,45 @@ def test_running_allocation_requires_successful_probe(monkeypatch):
     assert rejected == ["job 42: unreachable"]
 
 
+def test_pre_comment_job_recovers_port_without_exposing_batch_script(
+    monkeypatch, capsys
+):
+    """Scheduler batch metadata can qualify a running pre-comment serve."""
+    import subprocess
+
+    from imas_ambix.agent import cli as cli_mod
+
+    job = _live_job(port=19444, gpus=4)
+    job["comment"] = ""
+    script_marker = "batch-script-private-content"
+    seen = []
+
+    def batch_script(args, **kwargs):
+        seen.append(args)
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            f"#!/bin/bash\n{script_marker}\nPORT=${{AMBIX_PORT:-19444}}\n",
+            "",
+        )
+
+    monkeypatch.setattr(cli_mod.subprocess, "run", batch_script)
+    monkeypatch.setattr(
+        cli_mod, "_probe_endpoint", lambda url, key: _ready_probe("glm-5.2")
+    )
+
+    routes, rejected = cli_mod._discover_live_routes(
+        SiteConfig(), None, jobs=[job]
+    )
+    captured = capsys.readouterr()
+
+    assert seen == [["scontrol", "write", "batch_script", "42", "-"]]
+    assert rejected == []
+    assert routes[0].port == 19444
+    assert routes[0].base_url == "http://98dci4-gpu-0003:19444"
+    assert script_marker not in captured.out + captured.err
+
+
 def test_future_server_model_is_discovered_without_profile(monkeypatch):
     """Server metadata, not the local profile catalogue, names a live model."""
     from imas_ambix.agent import cli as cli_mod
@@ -1845,6 +1884,59 @@ def test_clive_readable_openrouter_key_does_not_reach_proxy(tmp_path):
         SiteConfig().default_url,
         "reported-model",
     ]
+
+
+def test_clive_key_file_authenticates_discovery_without_output(tmp_path):
+    """A key-file-only credential reaches discovery without entering output."""
+    import os
+    import subprocess
+
+    from imas_ambix.agent.clive import generate_clive_script
+
+    launcher = tmp_path / "clive"
+    launcher.write_text(
+        generate_clive_script(SiteConfig(), "unused-model"), encoding="utf-8"
+    )
+    launcher.chmod(0o755)
+    key = "file-only-private-key"
+    key_file = tmp_path / "consumer.env"
+    key_file.write_text(f"AMBIX_AGENT_API_KEY={key}\n", encoding="utf-8")
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    operator = fake_bin / "imas-ambix"
+    operator.write_text(
+        "#!/bin/sh\n"
+        f'[ "$AMBIX_AGENT_API_KEY" = "{key}" ] || exit 9\n'
+        "printf '%s\\n' "
+        "'{\"model_id\":\"authenticated-model\","
+        "\"base_url\":\"http://gpu-node:19123\","
+        "\"max_context\":131072}'\n",
+        encoding="utf-8",
+    )
+    harness_marker = tmp_path / "harness-started"
+    (fake_bin / "claude").write_text(
+        f"#!/bin/sh\nprintf '%s\\n' started > {harness_marker}\n",
+        encoding="utf-8",
+    )
+    operator.chmod(0o755)
+    (fake_bin / "claude").chmod(0o755)
+    env = os.environ.copy()
+    env.pop("AMBIX_AGENT_API_KEY", None)
+    env.update(
+        {
+            "PATH": f"{fake_bin}:{env['PATH']}",
+            "AMBIX_AGENT_CLI": str(operator),
+            "AMBIX_AGENT_KEY_FILE": str(key_file),
+        }
+    )
+
+    result = subprocess.run(
+        [str(launcher)], capture_output=True, text=True, check=False, env=env
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert harness_marker.is_file()
+    assert key not in result.stdout + result.stderr
 
 
 def test_clive_list_prints_sanitized_live_routes(tmp_path):

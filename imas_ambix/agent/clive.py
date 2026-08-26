@@ -95,7 +95,8 @@ read_key() {{
     line="${{line#*=}}"; line="${{line%\\"}}"; line="${{line#\\"}}"; line="${{line%\\'}}"; line="${{line#\\'}}"
     printf '%s' "$line"
 }}
-KEY="$(read_key)"; [[ -n "$KEY" ]] || KEY="no-auth"
+DISCOVERY_KEY="$(read_key)"
+KEY="${{DISCOVERY_KEY:-no-auth}}"
 
 # ── Resolve one probe-qualified local route through the operator CLI ──────
 command -v "$AMBIX_CLI" >/dev/null 2>&1 || {{
@@ -108,9 +109,16 @@ if $LIST_ONLY; then _ROUTE_ARGS=(agent clive --live-list); fi
 [[ -n "$AMBIX_URL" ]] && _ROUTE_ARGS+=(--url "$AMBIX_URL")
 [[ -n "$AMBIX_MODEL" ]] && _ROUTE_ARGS+=(--model "$AMBIX_MODEL")
 if $LIST_ONLY; then
+    if [[ -n "$DISCOVERY_KEY" ]]; then
+        AMBIX_AGENT_API_KEY="$DISCOVERY_KEY" exec "$AMBIX_CLI" "${{_ROUTE_ARGS[@]}}"
+    fi
     exec "$AMBIX_CLI" "${{_ROUTE_ARGS[@]}}"
 fi
-_ROUTE_JSON="$("$AMBIX_CLI" "${{_ROUTE_ARGS[@]}}")"
+if [[ -n "$DISCOVERY_KEY" ]]; then
+    _ROUTE_JSON="$(AMBIX_AGENT_API_KEY="$DISCOVERY_KEY" "$AMBIX_CLI" "${{_ROUTE_ARGS[@]}}")"
+else
+    _ROUTE_JSON="$("$AMBIX_CLI" "${{_ROUTE_ARGS[@]}}")"
+fi
 mapfile -t _ROUTE_FIELDS < <(
     python3 -c 'import json,sys; r=json.load(sys.stdin); print(r["model_id"]); print(r["base_url"]); print(r.get("max_context") or "")' \
         <<< "$_ROUTE_JSON"

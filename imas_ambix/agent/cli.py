@@ -727,6 +727,29 @@ def _serve_port(comment: str) -> int | None:
     return port if 1 <= port <= 65535 else None
 
 
+def _batch_script_port(job_id: str) -> int | None:
+    """Recover one concrete serve port from scheduler-owned batch metadata."""
+    result = subprocess.run(
+        ["scontrol", "write", "batch_script", job_id, "-"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    pattern = re.compile(
+        r"^\s*PORT=(?:['\"]?(\d+)['\"]?|\$\{AMBIX_PORT:-(\d+)\})\s*$",
+        re.MULTILINE,
+    )
+    ports = {
+        int(value)
+        for match in pattern.finditer(result.stdout)
+        for value in match.groups()
+        if value is not None and 1 <= int(value) <= 65535
+    }
+    return ports.pop() if len(ports) == 1 else None
+
+
 def _allocated_gpus(gres: str) -> int | None:
     """Extract the GPU count from SLURM's allocated generic resources."""
     match = re.search(r"(?:^|,)gpu(?::[^,:=]+)?[:=](\d+)(?:\(|,|$)", gres)
@@ -743,15 +766,20 @@ def _discover_live_routes(
     candidates = _running_jobs(site) if jobs is None else jobs
     routes: list[LiveRoute] = []
     rejected: list[str] = []
+    known_profiles = set(list_profiles())
     for job in candidates:
         if job.get("state") != "RUNNING":
             continue
         comment = job.get("comment", "")
-        if not comment.startswith(_SERVE_COMMENT_PREFIX):
+        job_name = job.get("name", "")
+        if comment.startswith(_SERVE_COMMENT_PREFIX):
+            port = _serve_port(comment)
+        elif job_name in known_profiles:
+            port = _batch_script_port(job.get("jobid", ""))
+        else:
             continue
         job_id = job.get("jobid", "?")
         node = _job_node(job)
-        port = _serve_port(comment)
         gpu_count = _allocated_gpus(job.get("gres", ""))
         if node is None:
             rejected.append(f"job {job_id}: no allocated compute node")
@@ -778,7 +806,7 @@ def _discover_live_routes(
                     base_url=base_url,
                     max_context=model.max_context,
                     readiness=probe.readiness,
-                    job_name=job.get("name", ""),
+                    job_name=job_name,
                 )
             )
     routes.sort(key=lambda route: (route.model_id, route.gpu_count, route.job_id))
