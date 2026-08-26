@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T17:18:47",
+  "updated": "2026-08-26T17:26:59",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -13558,9 +13558,103 @@
           "role": "review",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T152415796756-clive-global-anonymous-endpoint-reprobe",
+        "plan": "clive-global-endpoint-routing",
+        "section": "\u00a74",
+        "node": "clive-global-anonymous-endpoint-reprobe",
+        "node_definition": {
+          "done_when": "A durable report records two direct anonymous GET attempts to http://98dci4-gpu-0003:18800/v1/models, classifies redirect and authentication behavior, records valid native model ids plus site-owned topology and precision when reachable or the exact fail-closed state otherwise, and proves zero scheduler operator-CLI job service or credential access.",
+          "estimated_hours": 0.17,
+          "goal": "Determine the current anonymous catalog state at the sole global origin.",
+          "id": "clive-global-anonymous-endpoint-reprobe",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T152415796756-clive-global-anonymous-endpoint-reprobe/manifest.md",
+          "plan": "clive-global-endpoint-routing",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "10m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-anonymous-endpoint-reprobe.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "clive-live-probe",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T15:24:23Z",
+        "completed_at": "2026-08-26T15:26:43Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 140,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 140,
+        "stalled": false,
+        "time_budget": "10m",
+        "base_sha": "12779f6a6425dbc0b675c89e0cb2c53bc065d900",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": {
+          "command": "two direct anonymous curl GET attempts to http://98dci4-gpu-0003:18800/v1/models",
+          "exit_status": 7,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-anonymous-endpoint-reprobe.md",
+          "log_digest": null
+        },
+        "failure_classification": "negative-result",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T152415796756-clive-global-anonymous-endpoint-reprobe/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03e57-d8dd-7723-9222-81e852a49ecd",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 170240,
+            "cached_input_tokens_cumulative": 1003008,
+            "input_tokens": 214259,
+            "input_tokens_cumulative": 1130915,
+            "output_tokens": 92,
+            "output_tokens_cumulative": 6025,
+            "reasoning_output_tokens": 505,
+            "reasoning_output_tokens_cumulative": 2578
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 353
+    "_version": 354
   }
 }
