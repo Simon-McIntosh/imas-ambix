@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T16:42:59",
+  "updated": "2026-08-26T16:44:09",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -12794,9 +12794,136 @@
           "role": "implement",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T143704659949-clive-global-profile-integrated-independent-test",
+        "plan": "clive-global-endpoint-routing",
+        "section": "\u00a72",
+        "node": "clive-global-profile-integrated-independent-test",
+        "node_definition": {
+          "done_when": "At exact base 7d07e7364fe9cf320baa57f1ec3725d8b45214cd, one captured combined run of tests/test_agent.py and tests/test_agent_catalog.py passes with exact count and exit status; explicit assertions prove every resolved vLLM deployment has valid checkpoint precision and topology, including 2x 4x 6x 8x counts and the future glm-5.3 profile; whole-tree Ruff passes; the exact three-line profile delta, merge parents, commit bodies, naming, attribution, and no scheduler or service mutation are recorded. Any failure blocks integration. Use the resolved gpt-5.6-sol model at high effort.",
+          "estimated_hours": 0.4,
+          "goal": "Produce an independent combined-tree verdict for the catalog profile metadata after the repaired standalone launcher is integrated.",
+          "id": "clive-global-profile-integrated-independent-test",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T143704659949-clive-global-profile-integrated-independent-test/manifest.md",
+          "plan": "clive-global-endpoint-routing",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "18m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-profile-integrated-independent-test.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "clive-live-profile-test",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T14:37:14Z",
+        "completed_at": "2026-08-26T14:42:39Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 325,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 325,
+        "stalled": false,
+        "time_budget": "18m",
+        "base_sha": "7d07e7364fe9cf320baa57f1ec3725d8b45214cd",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=\"$PWD\" uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent.py tests/test_agent_catalog.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T143704659949-clive-global-profile-integrated-independent-test/combined-agent-catalog-pytest.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T143704659949-clive-global-profile-integrated-independent-test/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03e63-895b-75f3-91ab-7c85a8212ee3",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 719872,
+            "cached_input_tokens_cumulative": 3165440,
+            "input_tokens": 684215,
+            "input_tokens_cumulative": 3255946,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 12995,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 3958
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": true,
+              "budget_overrun_seconds": 860,
+              "budget_seconds": 1080,
+              "classification": "completed_unpromoted",
+              "detail": "the worker manifest reports completion and the run is still a pointer; promoting it moves the delivered record into the repository ledger",
+              "elapsed_seconds": 1940,
+              "log_age_seconds": 1876,
+              "log_fresh": false,
+              "manifest_commits": [
+                "3aca5925c74dedb18e16fff326eeecc29ae2c6a5"
+              ],
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T135446023482-clive-global-catalog-profile-metadata/manifest.md",
+              "manifest_present": true,
+              "manifest_status": "complete",
+              "next_action": "reckon crew complete --run r-20260826T135446023482-clive-global-catalog-profile-metadata --gate <verdict> --commit 3aca5925c74dedb18e16fff326eeecc29ae2c6a5",
+              "node": "clive-global-catalog-profile-metadata",
+              "phase": "working",
+              "plan": "clive-global-endpoint-routing",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260826T135446023482-clive-global-catalog-profile-metadata",
+              "terminal_age_seconds": 1897,
+              "terminal_at": "2026-08-26T14:05:34Z",
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/clive-global-endpoint-20260826/clive-global-catalog-profile-metadata"
+            }
+          ]
+        },
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 346
+    "_version": 347
   }
 }

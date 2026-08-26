@@ -113,8 +113,8 @@
       catalog-enabled profile remains a required deployment input, not an
       inferred value.</p>
 
-      <aside class="callout note">
-        <strong>Profile metadata candidate passed its implementation gate.</strong>
+      <aside class="callout success">
+        <strong>Profile metadata candidate passed combined-tree verification.</strong>
         Candidate commit
         <code>3aca5925c74dedb18e16fff326eeecc29ae2c6a5</code> adds exactly three
         explicit precision facts: DeepSeek <code>fp4+fp8</code>, future
@@ -122,17 +122,22 @@
         profile-load and generation checks passed for every configured vLLM
         profile, focused pytest passed 10 of 10 cases, and all 9 profile TOMLs
         parsed successfully. Native release identities are unchanged and the
-        GLM-5.3 profile remains an inactive stub.
+        GLM-5.3 profile remains an inactive stub. The exact combined tree at
+        <code>7d07e7364fe9cf320baa57f1ec3725d8b45214cd</code> then passed 180 of
+        180 agent and catalog tests, all 7 resolved deployments, and whole-tree
+        Ruff with zero findings.
       </aside>
 
       <p>The earlier isolated combined check reported 150 passes and one stale
       GLM context assertion failure. That assertion has since been repaired to
-      follow the loaded profile authority, but the metadata commit remains
-      outside <code>main</code> until the new combined-tree independent receipt
-      is promoted. Evidence: implementation run
+      follow the loaded profile authority. The new verifier covered 5 vLLM
+      profile files, native identities, explicit precision, and the complete
+      topology set {2, 4, 6, 8}; it performed no scheduler or service mutation.
+      The metadata commit remains outside <code>main</code> only until the
+      reviewed merge is applied to the current mainline. Evidence: implementation run
       <code>r-20260826T135446023482-clive-global-catalog-profile-metadata</code>
-      and earlier negative test run
-      <code>r-20260826T140451098479-clive-global-catalog-profile-independent-test</code>.</p>
+      and independent run
+      <code>r-20260826T143704659949-clive-global-profile-integrated-independent-test</code>.</p>
     </section>
 
     <section id="live-endpoint-probe">
