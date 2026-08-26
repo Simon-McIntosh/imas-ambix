@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T15:23:40",
+  "updated": "2026-08-26T15:29:35",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -11500,9 +11500,112 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T131408205476-clive-global-catalog-provider",
+        "plan": "clive-global-endpoint-routing",
+        "section": "\u00a72",
+        "node": "clive-global-catalog-provider",
+        "node_definition": {
+          "done_when": "The new focused catalog test file passes in one captured run. Owned-path Ruff passes. Generated vLLM scripts contain the middleware and exact actual GPU and precision metadata. Invalid or missing metadata drops or fails closed. Absent native models are never synthesized. Multi-frame catalog rewriting and non-catalog byte passthrough are proven. The worker manifest names the commit, exact changed paths, commands, exit statuses, logs, and remaining profile-population follow-on.",
+          "estimated_hours": 0.6,
+          "goal": "Implement the server-owned global model catalog provider described by the plan and reuse report. Add a pure-ASGI vLLM middleware that rewrites only successful GET /v1/models responses, intersects native vLLM cards with explicit launch-owned metadata, preserves native release id and max context, adds a validated namespaced metadata object with accelerator family, accelerator count in {2,4,6,8}, and checkpoint precision, enforces unique release ids, recomputes content length, and passes every other response byte-for-byte. Wire installed-vLLM 0.28.0 through the existing generated serve script using its repeatable --middleware hook and literal launch metadata derived from the actual requested GPU count. Add an explicit checkpoint-precision field to the profile model without inferring it from names, quantization, weight paths, or KV dtype. Existing profiles may remain loadable, but a catalog-enabled serve must fail closed if required metadata is absent. Do not edit any profile TOML in this node because the GLM profile is owned by another live workflow. Add focused tests in tests/test_agent_catalog.py. Use only the four declared product/test paths, preserve operator scheduler observability, add no dependency, run formatting and lint only on owned paths, and commit locally with a conventional subject plus non-empty body and no attribution.",
+          "id": "clive-global-catalog-provider",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/clive-global-catalog-provider.json",
+          "plan": "clive-global-endpoint-routing",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "20m",
+          "write_paths": [
+            "imas_ambix/agent/profile.py",
+            "imas_ambix/agent/vllm_catalog.py",
+            "imas_ambix/agent/slurm.py",
+            "tests/test_agent_catalog.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "clive-live-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T13:14:25Z",
+        "completed_at": "2026-08-26T13:21:39Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 434,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 434,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "47b0e91d9b4d39d1be8cd957f688b83ad7fa8f6e",
+        "commits": [
+          "8d27afa1e704862d241bac62bc6747c3890bfa79"
+        ],
+        "changed_lines": {
+          "added": 435,
+          "removed": 9,
+          "files": 4
+        },
+        "tests_added": 21,
+        "gate": "passed",
+        "gate_check": {
+          "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD uv run --no-sync pytest tests/test_agent_catalog.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T131408205476-clive-global-catalog-provider/catalog-pytest-final.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/clive-global-catalog-provider.json",
+        "scope_changed": false,
+        "session_id": "01a03dc0-e26e-7f02-b4a2-b547b2bcd513",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 1890816,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 2213686,
+            "output_tokens": 4366,
+            "output_tokens_cumulative": 14514,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 3135
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 324
+    "_version": 325
   }
 }

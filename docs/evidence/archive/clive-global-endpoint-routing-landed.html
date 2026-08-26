@@ -76,6 +76,41 @@
       jobs, services, installed packages, or deployed artifacts were changed by
       this node.</p>
     </section>
+
+    <section id="catalog-provider">
+      <h2>Server-owned catalog provider</h2>
+      <p><strong>Landed and independently verified.</strong> Commit
+      <code>8d27afa1e704862d241bac62bc6747c3890bfa79</code> adds the
+      pure-ASGI middleware, explicit checkpoint-precision profile field,
+      generated vLLM middleware registration, and focused contract tests. The
+      middleware rewrites only successful <code>GET /v1/models</code> responses
+      and returns the intersection of native vLLM model cards with explicit
+      launch metadata. It cannot advertise a configured model that the running
+      engine did not report.</p>
+
+      <ul>
+        <li>Native release ids, context limits, and other model-card fields are preserved.</li>
+        <li>Accelerator count accepts only integer values 2, 4, 6, or 8.</li>
+        <li>Accelerator family and checkpoint precision must be explicit, non-empty site facts.</li>
+        <li>Duplicate ids, unmapped cards, missing metadata, and invalid metadata fail closed.</li>
+        <li>Successful multi-frame catalog responses are buffered and emitted with a corrected content length.</li>
+        <li>Every non-catalog route, method, error response, and streaming message passes through unchanged.</li>
+      </ul>
+
+      <p>The implementation worker's focused suite passed <strong>21/21</strong>
+      in 0.70 seconds, and owned-path Ruff passed. A separate test worker then
+      checked the exact four-path commit and repeated the suite once:
+      <strong>21 collected, 21 passed, 0 failed</strong> in 0.39 seconds. Its
+      Ruff, naming, commit-body, and attribution checks also passed, yielding an
+      unqualified provider verdict.</p>
+
+      <p>No profile TOML was changed in this node because the GLM profile was
+      owned by an active serving workflow. Existing profiles remain parseable,
+      but a generated vLLM catalog serve now refuses to start without explicit
+      <code>model.checkpoint_precision</code>. Populating that site fact in each
+      catalog-enabled profile remains a required deployment input, not an
+      inferred value.</p>
+    </section>
   </main>
 </body>
 </html>

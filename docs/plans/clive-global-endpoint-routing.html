@@ -25,8 +25,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-26">
-<meta name="plan-version" content="3">
-<meta name="plan-impl" content="0.2">
+<meta name="plan-version" content="6">
+<meta name="plan-impl" content="0.4">
+<meta name="plan-commits" content="8d27afa1e704862d241bac62bc6747c3890bfa79">
 </head>
 <body>
   <main class="plan-doc">
@@ -75,6 +76,15 @@
 
     <section id="s2">
       <h2>§2 — Global model and topology catalog</h2>
+      <aside class="callout success">
+        <strong>Provider landed.</strong> Commit <code>8d27afa</code> adds a
+        pure-ASGI vLLM catalog middleware and launch-owned metadata wiring.
+        Twenty-one focused tests pass, covering native-only intersection,
+        2/4/6/8 accelerator counts, explicit precision, invalid and duplicate
+        fail-closed behavior, multi-frame response repair, and byte-preserving
+        non-catalog passthrough. An independent worker repeated the suite at
+        21/21 and returned an unqualified pass.
+      </aside>
       <p>
         Each <code>/v1/models</code> item carries the server-reported release id,
         context length when known, and site-owned topology metadata: accelerator
@@ -158,6 +168,9 @@
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s1" data-id="c-run-r-20260826T125942404962-clive-global-reuse-scout" data-who="clive-live-scout" data-when="2026-08-26T13:09:46Z">
     <div class="r-comment-body"><p>Mapped 20 existing Clive and vLLM seams and selected a pure-ASGI vLLM catalog middleware plus standalone same-origin Clive consumer design.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260826T131408205476-clive-global-catalog-provider" data-who="clive-live-impl" data-when="2026-08-26T13:21:39Z">
+    <div class="r-comment-body"><p>Implemented native-only vLLM catalog enrichment with validated launch-owned topology and precision metadata.</p></div>
 </div>
 </section>
 </main>
