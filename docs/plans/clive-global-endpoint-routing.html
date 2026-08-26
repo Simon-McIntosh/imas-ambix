@@ -25,9 +25,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-26">
-<meta name="plan-version" content="21">
-<meta name="plan-impl" content="0.4">
-<meta name="plan-commits" content="8d27afa1e704862d241bac62bc6747c3890bfa79">
+<meta name="plan-version" content="25">
+<meta name="plan-impl" content="0.65">
+<meta name="plan-commits" content="8d27afa1e704862d241bac62bc6747c3890bfa79,caed14e686b5c9dee0c58a25fbd5de2f53504025,2b454dd49b4b5c47b9024e359f3e83aa4b899388,4115fcd84fad1a0a92664ffe2ed597432b8d805d">
 <meta name="plan-artifacts" content="imas_ambix/agent/vllm_catalog.py,tests/test_agent_catalog.py,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-live-endpoint-probe.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-standalone-independent-review.md,/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/clive-global-standalone-launcher.json,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-catalog-profile-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T140353458933-clive-global-launcher-authority-repair/manifest.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-repaired-launcher-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-repaired-launcher-independent-review.md">
 </head>
 <body>
@@ -54,7 +54,7 @@
         discriminator.
       </aside>
       <p>
-        The global endpoint configured by <code>SiteConfig.default_url</code> is
+        The global endpoint configured by <code>SiteConfig.global_origin</code> is
         the sole consumer authority. Clive polls
         <code>GET &lt;base-url&gt;/v1/models</code>; a successful, non-empty response
         defines availability. It never runs <code>squeue</code>, reads SLURM job
@@ -106,18 +106,27 @@
 
     <section id="s3">
       <h2>§3 — Standalone shared launcher</h2>
+      <aside class="callout success">
+        <strong>Launcher code landed.</strong> Merge commit
+        <code>4115fcd</code> integrates the exact independently approved
+        candidate. The shared script reads only the anonymous global catalog,
+        keeps 2×/4×/6×/8× topology separate from native release identity,
+        routes Claude and Codex through the selected model at the same origin,
+        and admits future releases such as <code>glm-5.3</code> without a source
+        change.
+      </aside>
       <p>
-        Remove the runtime dependency on the per-user <code>imas-ambix</code>
-        operator CLI. The generated GPFS launcher embeds the site URL, performs
-        its own standard-library HTTP and JSON handling, and offers a dynamic
-        list and deterministic model/topology selector. It does not read the
-        shared API-key file or any personal override for default discovery.
+        The executable gate passed 159 of 159 pytest cases, 33 of 33 external
+        launcher sentinels, and scoped Ruff with no findings. Final architecture
+        review found 0 critical, 0 high, 0 medium, and 0 low issues and passed
+        all 12 locked properties. Invalid catalog data, undisplayed selections,
+        and dynamic OpenRouter alias mismatches fail closed.
       </p>
       <p>
-        The selected model and the one global base URL feed both Claude Code and
-        Codex. Multiple catalog items require an explicit selection in
-        non-interactive use; a single item may be selected automatically. The
-        explicit OpenRouter branch remains isolated and opt-in.
+        No scheduler job or vLLM process was started, stopped, restarted, or
+        cancelled by this work. Production deployment and anonymous endpoint
+        reachability remain in §4; the latest live probe was refused before
+        HTTP and is not a successful availability result.
       </p>
     </section>
 
