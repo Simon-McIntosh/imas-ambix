@@ -112,6 +112,24 @@
       <code>model.checkpoint_precision</code>. Populating that site fact in each
       catalog-enabled profile remains a required deployment input, not an
       inferred value.</p>
+
+      <aside class="callout warning">
+        <strong>Profile integration gate held.</strong> Candidate commit
+        <code>3aca5925c74dedb18e16fff326eeecc29ae2c6a5</code> adds exactly three
+        explicit precision facts: DeepSeek <code>fp4+fp8</code>, future
+        GLM-5.3 <code>fp8</code>, and MiniMax M3 <code>bfloat16</code>. An
+        independent verifier passed the metadata contract for 9/9 TOML files,
+        5 vLLM profiles, 7 resolved deployments, and all 2/4/6/8-card
+        topologies, but the combined suite finished 150 passed and 1 failed.
+      </aside>
+
+      <p>The sole failure is a stale GLM-5.2 serve-script assertion expecting
+      229,376 tokens after the concurrent measured profile update changed the
+      configured ceiling to 204,800. The metadata commit is not integrated
+      until that pre-existing assertion is repaired and the independent gate
+      is rerun. Evidence: Crew run
+      <code>r-20260826T140451098479-clive-global-catalog-profile-independent-test</code>
+      and durable report <code>clive-global-catalog-profile-independent-test.md</code>.</p>
     </section>
 
     <section id="live-endpoint-probe">
