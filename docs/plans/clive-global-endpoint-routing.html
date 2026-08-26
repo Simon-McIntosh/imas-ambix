@@ -25,10 +25,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-26">
-<meta name="plan-version" content="47">
-<meta name="plan-impl" content="0.9">
+<meta name="plan-version" content="49">
+<meta name="plan-impl" content="0.95">
 <meta name="plan-commits" content="8d27afa1e704862d241bac62bc6747c3890bfa79,caed14e686b5c9dee0c58a25fbd5de2f53504025,2b454dd49b4b5c47b9024e359f3e83aa4b899388,4115fcd84fad1a0a92664ffe2ed597432b8d805d,3aca5925c74dedb18e16fff326eeecc29ae2c6a5,3af7bfd4985af31e7775cd63b8280c610569c4f0,752e53398592f7f48d3f09b88055b36daad4571e,1f3e5e3dc8883148b4ddbd7ccb7822f37ed16d4a,4a0a1070645967dfd361a76ce58bf908cde62795,3eef2e9aef5ec57ba3c2a7cf031d0ce3483cf989">
-<meta name="plan-artifacts" content="imas_ambix/agent/vllm_catalog.py,tests/test_agent_catalog.py,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-live-endpoint-probe.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-standalone-independent-review.md,/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/clive-global-standalone-launcher.json,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-catalog-profile-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T140353458933-clive-global-launcher-authority-repair/manifest.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-repaired-launcher-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-repaired-launcher-independent-review.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T135446023482-clive-global-catalog-profile-metadata/manifest.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-profile-integrated-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-profile-current-main-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T143803196724-clive-global-operator-contract-documentation/manifest.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-operator-contract-independent-review.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T145926849471-clive-global-operator-contract-repair/manifest.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-operator-contract-repair-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-operator-contract-repair-independent-review.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-anonymous-endpoint-reprobe.md">
+<meta name="plan-artifacts" content="imas_ambix/agent/vllm_catalog.py,tests/test_agent_catalog.py,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-live-endpoint-probe.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-standalone-independent-review.md,/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/clive-global-standalone-launcher.json,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-catalog-profile-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T140353458933-clive-global-launcher-authority-repair/manifest.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-repaired-launcher-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-repaired-launcher-independent-review.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T135446023482-clive-global-catalog-profile-metadata/manifest.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-profile-integrated-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-profile-current-main-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T143803196724-clive-global-operator-contract-documentation/manifest.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-operator-contract-independent-review.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T145926849471-clive-global-operator-contract-repair/manifest.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-operator-contract-repair-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-operator-contract-repair-independent-review.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-anonymous-endpoint-reprobe.md,/work/projects/imas_gpu/agents/clive,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-shared-launcher-deployment.md">
 </head>
 <body>
   <main class="plan-doc">
@@ -140,15 +140,22 @@
         tests and whole-tree Ruff, with a separate redirect sentinel and
         zero-finding final review.
       </aside>
-      <p>
-        Deploy only the repo-generated launcher to
-        <code>/work/projects/imas_gpu/agents/clive</code>. Verify byte identity,
-        executable world-readable permissions, operation from a clean directory
-        with the repository virtual environment absent from <code>PATH</code>,
-        and live polling of the configured global endpoint. A down endpoint is
-        retained as negative service evidence, not misreported as launcher
-        availability.
-      </p>
+      <aside class="callout success">
+        <strong>Shared deployment passed.</strong> The repo-generated launcher
+        and <code>/work/projects/imas_gpu/agents/clive</code> are byte-identical
+        at 11,528 bytes with SHA-256
+        <code>4498c1e374189a8011caad2535d85ced84827008f97b309ffbc41741b906c469</code>.
+        Mode is 0755, and a clean-directory invocation used only the embedded
+        global origin and failed closed before any harness when it was refused.
+      </aside>
+      <aside class="callout warning">
+        <strong>Live service gate remains closed.</strong> Two fresh anonymous
+        direct requests to <code>http://98dci4-gpu-0003:18800/v1/models</code>
+        were refused before HTTP. No redirect, authentication challenge, model
+        card, or topology metadata was observed, so no model is currently
+        available through Clive. Starting or restarting the serving allocation
+        is outside this execution authority.
+      </aside>
     </section>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
@@ -220,6 +227,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260826T152415796756-clive-global-anonymous-endpoint-reprobe" data-who="clive-live-probe" data-when="2026-08-26T15:26:43Z">
     <div class="r-comment-body"><p>Anonymous global endpoint reprobe retained FAIL-CLOSED / UNREACHABLE: both direct keyless GET attempts resolved the host but were refused before HTTP, with zero redirects, authentication challenges, model cards, scheduler access, operator calls, credentials, or mutation.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260826T152324632319-clive-global-shared-launcher-deployment" data-who="clive-live-deploy" data-when="2026-08-26T15:27:36Z">
+    <div class="r-comment-body"><p>Deployed the sole shared launcher with exact generated-byte identity at 11,528 bytes and SHA-256 4498c1e374189a8011caad2535d85ced84827008f97b309ffbc41741b906c469, mode 0755, and clean-directory fail-closed use of the embedded global origin; endpoint readiness remains negative.</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20260826T135108594773-clive-global-standalone-independent-review" data-who="clive-live-review" data-when="2026-08-26T13:57:02Z">
     <div class="r-comment-body"><p>Architectural review requires repair: 0 critical, 1 high, 2 medium, and 1 low finding; the global origin lacks independent authority and selection/proxy edges are unsafe.</p></div>

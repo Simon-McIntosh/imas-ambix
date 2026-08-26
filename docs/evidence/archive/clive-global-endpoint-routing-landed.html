@@ -181,6 +181,32 @@
       independent probe reached the same fail-closed classification.</p>
     </section>
 
+    <section id="shared-launcher-deployment">
+      <h2>Shared launcher deployment</h2>
+      <aside class="callout success">
+        <strong>Deployment integrity passed.</strong> The sole shared artifact
+        <code>/work/projects/imas_gpu/agents/clive</code> is 11,528 bytes, mode
+        0755, and byte-identical to fresh repository generation. Both copies
+        have SHA-256
+        <code>4498c1e374189a8011caad2535d85ced84827008f97b309ffbc41741b906c469</code>;
+        <code>cmp</code> exited 0.
+      </aside>
+      <p>A clean-directory run from <code>/</code> used
+      <code>PATH=/usr/bin:/bin</code>, an unusable home, and hostile operator
+      override variables. The deployed script ignored those variables, used its
+      sole embedded origin <code>http://98dci4-gpu-0003:18800</code>, and exited
+      2 on connection refusal before any harness or explicit OpenRouter branch.
+      It contains zero consumer operator-override references and zero scheduler
+      command references.</p>
+      <p>No model-serving job or Clive-related service was submitted, started,
+      stopped, restarted, or cancelled. Endpoint reachability remains the one
+      negative gate and is not converted into an availability claim. Evidence:
+      Crew run
+      <code>r-20260826T152324632319-clive-global-shared-launcher-deployment</code>
+      and durable report
+      <code>clive-global-shared-launcher-deployment.md</code>.</p>
+    </section>
+
     <section id="launcher-architecture-review">
       <h2>Standalone launcher architecture gate</h2>
       <aside class="callout warning">
@@ -297,8 +323,8 @@
         requests, zero authorization headers, zero harness launches, and zero
         proxy launches. Final independent review approved integration with
         0 critical, 0 high, 0 medium, and 0 low findings; both prior findings
-        closed and all 16 contract properties passed. Production deployment
-        and reachability remain a separate unproven gate. The approved candidate
+        closed and all 16 contract properties passed. Production deployment is
+        now separately proven; reachability remains an unproven gate. The approved candidate
         was integrated on <code>main</code> by merge
         <code>3eef2e9aef5ec57ba3c2a7cf031d0ce3483cf989</code>. Test evidence: Crew run
         <code>r-20260826T150552804601-clive-global-operator-contract-repair-independent-test</code>

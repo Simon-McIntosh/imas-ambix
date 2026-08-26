@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T17:26:59",
+  "updated": "2026-08-26T17:28:12",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -13652,9 +13652,103 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T152324632319-clive-global-shared-launcher-deployment",
+        "plan": "clive-global-endpoint-routing",
+        "section": "\u00a74",
+        "node": "clive-global-shared-launcher-deployment",
+        "node_definition": {
+          "done_when": "A durable report proves repo-generated and deployed bytes are identical, mode is 0755 with world read and execute, clean-directory list behavior uses only the embedded global origin, and no scheduler job or service was submitted started stopped restarted or cancelled.",
+          "estimated_hours": 0.25,
+          "goal": "Deploy the committed shared Clive launcher as the sole shared artifact.",
+          "id": "clive-global-shared-launcher-deployment",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T152324632319-clive-global-shared-launcher-deployment/manifest.md",
+          "plan": "clive-global-endpoint-routing",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "15m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-shared-launcher-deployment.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "clive-live-deploy",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T15:23:32Z",
+        "completed_at": "2026-08-26T15:27:36Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 244,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 244,
+        "stalled": false,
+        "time_budget": "15m",
+        "base_sha": "12779f6a6425dbc0b675c89e0cb2c53bc065d900",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "agent clive --deploy; generated/deployed byte count, sha256, cmp and stat; clean-directory deployed clive --list",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-shared-launcher-deployment.md",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T152324632319-clive-global-shared-launcher-deployment/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03df4-c5e0-7083-95cb-b3d71fc549e5",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 837120,
+            "cached_input_tokens_cumulative": 2429440,
+            "input_tokens": 903079,
+            "input_tokens_cumulative": 2587650,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 9721,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 3330
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 354
+    "_version": 355
   }
 }
