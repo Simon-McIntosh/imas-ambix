@@ -29,6 +29,10 @@ class ModelConfig(BaseModel):
     served_name: str
     size_gb: int
     max_context: int
+    # Checkpoint precision is catalog metadata, distinct from KV-cache dtype.
+    # It remains optional so existing profiles load, but vLLM catalog serving
+    # requires an explicit value.
+    checkpoint_precision: str | None = None
     # Directory key under ``agents/<slug>/`` holding the downloaded weights.
     # Injected by the loader for ``_base`` inheritance, so two profiles in one
     # chain share one download. Set it explicitly ONLY in a ``gpu_variants``
@@ -198,13 +202,9 @@ class ModelProfile(BaseModel):
         variant = self.gpu_variants.get(gpus)
         if not variant:
             return self
-        merged = _deep_merge(
-            self.model_dump(exclude={"gpu_variants"}), dict(variant)
-        )
+        merged = _deep_merge(self.model_dump(exclude={"gpu_variants"}), dict(variant))
         merged.pop("slug", None)
-        return ModelProfile(
-            slug=self.slug, gpu_variants=self.gpu_variants, **merged
-        )
+        return ModelProfile(slug=self.slug, gpu_variants=self.gpu_variants, **merged)
 
 
 # -- Site / cluster configuration ---------------------------------------------
@@ -337,6 +337,7 @@ class SiteConfig(BaseModel):
     def litellm_service_path(self) -> Path:
         """Per-user systemd unit for the opt-in proxy."""
         return Path.home() / ".config" / "systemd" / "user" / "imas-ambix-llm.service"
+
 
 # -- Profile loader -----------------------------------------------------------
 
