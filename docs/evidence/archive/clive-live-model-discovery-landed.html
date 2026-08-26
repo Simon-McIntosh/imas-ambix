@@ -56,9 +56,31 @@
 
     <h2 id="accepted-implementation">Accepted implementation</h2>
 
-    <p>This anchor is reserved for the independently accepted repair head and its
-    integration evidence. It remains open until the reviewer, separate test worker,
-    and live deployment worker all report.</p>
+    <p>The audited implementation and its same-scope repair landed through merge
+    commit <code>b10fe2f</code>, carrying worker commits
+    <code>60b0e49548789cc8f542e86a1ed259860d890af1</code> and
+    <code>8ab74856577a397d5e891485d7a3452b1502eff1</code>. It adds one immutable
+    live-route record, scheduler-derived node/port/GPU/job facts, endpoint-local
+    readiness qualification, server-reported model/context metadata, deterministic
+    model/topology/job selectors, explicit-override validation, and propagation of
+    the selected route into both Claude Code and Codex.</p>
+
+    <p>The repair keeps keyless discovery genuinely header-free while confining a
+    present <code>AMBIX_AGENT_KEY_FILE</code> credential to the operator subprocess
+    environment. It also admits already-running jobs created before structured
+    scheduler comments by reading their owner-visible batch metadata and accepting
+    exactly one valid <code>PORT</code> assignment; captured script contents and
+    errors are never emitted, and the route still must pass its own models probe.</p>
+
+    <table>
+      <thead><tr><th>Gate</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Exact repair regressions</td><td>2/2 passed</td></tr>
+        <tr><td>Focused agent suite</td><td>130/130 passed</td></tr>
+        <tr><td>Whole-tree Ruff</td><td>All checks passed</td></tr>
+        <tr><td>Worker commit hygiene</td><td>Body present; no attribution trailer</td></tr>
+      </tbody>
+    </table>
 
     <h2 id="live-deployment">Live deployment and endpoint evidence</h2>
 
