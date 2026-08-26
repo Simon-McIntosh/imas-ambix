@@ -37,7 +37,7 @@ dependencies = [
     "nvidia-nccl-cu12>=2.21",
     "nvidia-cusparselt-cu12",
     "nvidia-cudnn-frontend>=1.19.1",
-    "nvidia-cutlass-dsl[cu13]==4.5.2",
+    "nvidia-cutlass-dsl[cu13]==4.6.2",
 
     # --- Web serving (vLLM OpenAI-compatible API) ---
     "fastapi[standard]>=0.115",
@@ -48,12 +48,20 @@ dependencies = [
     "prometheus-fastapi-instrumentator>=7.0",
 
     # --- Inference kernels ---
-    "flashinfer-python==0.6.12",
-    "flashinfer-cubin==0.6.12",
-    "quack-kernels>=0.3.3",
-    "tokenspeed-mla==0.1.2",
-    "humming-kernels[cu13]==0.1.4",
-    "tilelang==0.1.9",
+    # These MUST equal the exact versions the installed vLLM wheel declares.
+    # vLLM pins its kernel packages with == , and the wheel is installed with
+    # --no-deps, so nothing enforces agreement: a vLLM bump leaves these behind
+    # and the mismatch surfaces as an ImportError for a symbol a newer kernel
+    # package added -- raised at CUDA-graph capture, after the weights and KV
+    # cache are already allocated. Verify with:
+    #   grep -E '^Requires-Dist: (flashinfer|apache-tvm|humming|quack|tilelang|tokenspeed|nvidia-cutlass)' \
+    #     "$VENV"/lib/python3.12/site-packages/vllm-*.dist-info/METADATA
+    "flashinfer-python==0.6.16.post3",
+    "flashinfer-cubin==0.6.13",
+    "quack-kernels==0.6.4",
+    "tokenspeed-mla==0.1.8",
+    "humming-kernels[cu13]==0.1.12",
+    "tilelang==0.1.12",
     "numba==0.65.0",
 
     # --- Model / tokenizer support ---
@@ -116,7 +124,7 @@ dependencies = [
     "watchfiles",
     "protobuf>=5.29.6",
     "opencv-python-headless>=4.13",
-    "apache-tvm-ffi==0.1.9",
+    "apache-tvm-ffi==0.1.11",
 ]
 
 [[tool.uv.index]]
