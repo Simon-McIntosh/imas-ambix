@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-26">
-<meta name="plan-version" content="49">
+<meta name="plan-version" content="50">
 <meta name="plan-impl" content="0.95">
 <meta name="plan-commits" content="8d27afa1e704862d241bac62bc6747c3890bfa79,caed14e686b5c9dee0c58a25fbd5de2f53504025,2b454dd49b4b5c47b9024e359f3e83aa4b899388,4115fcd84fad1a0a92664ffe2ed597432b8d805d,3aca5925c74dedb18e16fff326eeecc29ae2c6a5,3af7bfd4985af31e7775cd63b8280c610569c4f0,752e53398592f7f48d3f09b88055b36daad4571e,1f3e5e3dc8883148b4ddbd7ccb7822f37ed16d4a,4a0a1070645967dfd361a76ce58bf908cde62795,3eef2e9aef5ec57ba3c2a7cf031d0ce3483cf989">
 <meta name="plan-artifacts" content="imas_ambix/agent/vllm_catalog.py,tests/test_agent_catalog.py,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-live-endpoint-probe.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-standalone-independent-review.md,/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/clive-global-standalone-launcher.json,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-catalog-profile-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T140353458933-clive-global-launcher-authority-repair/manifest.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-repaired-launcher-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-repaired-launcher-independent-review.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T135446023482-clive-global-catalog-profile-metadata/manifest.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-profile-integrated-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-profile-current-main-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T143803196724-clive-global-operator-contract-documentation/manifest.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-operator-contract-independent-review.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T145926849471-clive-global-operator-contract-repair/manifest.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-operator-contract-repair-independent-test.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-operator-contract-repair-independent-review.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-anonymous-endpoint-reprobe.md,/work/projects/imas_gpu/agents/clive,/home/ITER/mcintos/.config/reckon/crew/reports/clive-global-shared-launcher-deployment.md">
@@ -176,9 +176,15 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-cger-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-26" data-recommends-skill="/reckon-ship clive-global-endpoint-routing" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-cger-001" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-26" data-recommends-skill="/reckon-ship clive-global-endpoint-routing" data-resolved-at="2026-08-26T15:30:41+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Replace user-scoped discovery with the global endpoint contract</h4>
     <div class="r-fu-body"><p>Implement, independently review, test, deploy, and record the global shared-consumer route.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship clive-global-endpoint-routing</pre>
+    <p class="r-fu-outcome">Code, independent verification, guidance, and shared launcher deployment completed. Resident endpoint authority is carried by f-cger-002.</p>
+    </article>
+<article class="r-fu" data-id="f-cger-002" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-08-26" data-recommends-skill="/reckon-ship clive-global-endpoint-routing" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Establish the resident keyless global endpoint</h4>
+    <div class="r-fu-body"><p><strong>Authority-required:</strong> an operator must start or assign a resident vLLM service at <code>http://98dci4-gpu-0003:18800</code> without returning discovery to user scheduler state. The launcher, catalog provider, deployment, and independent verification are complete; the current endpoint refuses connections. This plan does not authorize starting, restarting, or cancelling a serving allocation.</p></div>
     <pre class="r-fu-prompt">/reckon-ship clive-global-endpoint-routing</pre>
     </article>
 </section>
@@ -230,6 +236,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260826T152324632319-clive-global-shared-launcher-deployment" data-who="clive-live-deploy" data-when="2026-08-26T15:27:36Z">
     <div class="r-comment-body"><p>Deployed the sole shared launcher with exact generated-byte identity at 11,528 bytes and SHA-256 4498c1e374189a8011caad2535d85ced84827008f97b309ffbc41741b906c469, mode 0755, and clean-directory fail-closed use of the embedded global origin; endpoint readiness remains negative.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-drain-ledger-20260826" data-who="reckon-ship" data-when="2026-08-26T15:30:00Z">
+    <div class="r-comment-body"><p><strong>DRAIN LEDGER:</strong> f-cger-001 resolved after code, review, deployment, and negative live gate; f-cger-002 = authority-required → explicit operator authority to start or assign the resident keyless vLLM service. Rows: 2; foldable-remaining: 0; unreconciled-runs: 0.</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20260826T135108594773-clive-global-standalone-independent-review" data-who="clive-live-review" data-when="2026-08-26T13:57:02Z">
     <div class="r-comment-body"><p>Architectural review requires repair: 0 critical, 1 high, 2 medium, and 1 low finding; the global origin lacks independent authority and selection/proxy edges are unsafe.</p></div>
