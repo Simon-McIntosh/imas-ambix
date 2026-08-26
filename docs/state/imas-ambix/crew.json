@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T16:56:06",
+  "updated": "2026-08-26T17:13:21",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -13245,9 +13245,115 @@
           "role": "review",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T145926849471-clive-global-operator-contract-repair",
+        "plan": "clive-global-endpoint-routing",
+        "section": "\u00a74",
+        "node": "clive-global-operator-contract-repair",
+        "node_definition": {
+          "done_when": "At base 1f3e5e3dc8883148b4ddbd7ccb7822f37ed16d4a, change only imas_ambix/agent/clive.py, tests/test_agent.py, and imas_ambix/agent/AGENTS.md. Catalog discovery must disable HTTP redirects so a 3xx fails closed after exactly one anonymous request to the embedded global origin, never contacts the redirect target, and launches neither harness nor proxy; add executable regression coverage for request count, redirect-target absence, and failure behavior. Narrow the guide so documentation, review, operator-unassigned work, and default shared-consumer operation perform no scheduler or service mutation, while explicit OpenRouter opt-in may start its already installed per-user proxy only after successful global model selection. Preserve same-origin routing, no Authorization, all 2x 4x 6x 8x and future glm-5.3 behavior, invalid selection handling, dynamic proxy mismatch refusal, and production endpoint caveat. Run affected tests first, then one captured tests/test_agent.py tests/test_agent_catalog.py run and whole-tree Ruff; audit exact paths, naming, bodies, attribution, and no live mutation. Commit with conventional subject and body and write the durable manifest.",
+          "estimated_hours": 0.6,
+          "goal": "Repair the global Clive authority boundary and scoped operator guidance rejected by independent review.",
+          "id": "clive-global-operator-contract-repair",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T145926849471-clive-global-operator-contract-repair/manifest.md",
+          "plan": "clive-global-endpoint-routing",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/agent/clive.py",
+            "tests/test_agent.py",
+            "imas_ambix/agent/AGENTS.md"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "clive-live-repair",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T14:59:36Z",
+        "completed_at": "2026-08-26T15:05:04Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 328,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 328,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "1f3e5e3dc8883148b4ddbd7ccb7822f37ed16d4a",
+        "commits": [
+          "4a0a1070645967dfd361a76ce58bf908cde62795"
+        ],
+        "changed_lines": {
+          "added": 83,
+          "removed": 8,
+          "files": 3
+        },
+        "tests_added": 1,
+        "gate": "passed",
+        "gate_check": {
+          "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=\"$PWD\" uv run --no-sync pytest -p no:cacheprovider tests/test_agent.py tests/test_agent_catalog.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T145926849471-clive-global-operator-contract-repair/pytest-combined.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T145926849471-clive-global-operator-contract-repair/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03e62-9c4a-7320-89a0-198f8e23ebf6",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 3708672,
+            "cached_input_tokens_cumulative": 4029696,
+            "input_tokens": 3780992,
+            "input_tokens_cumulative": 4105567,
+            "output_tokens": 9611,
+            "output_tokens_cumulative": 11195,
+            "reasoning_output_tokens": 3344,
+            "reasoning_output_tokens_cumulative": 3799
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 350
+    "_version": 351
   }
 }
