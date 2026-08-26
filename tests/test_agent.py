@@ -1,5 +1,6 @@
 """Tests for the imas-ambix agent CLI and profile system."""
 
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,13 @@ from click.testing import CliRunner
 
 from imas_ambix.agent.profile import SiteConfig, list_profiles, load_profile
 from imas_ambix.cli import main
+
+
+def _with_checkpoint_precision(profile, precision="fp8"):
+    """Return a catalog-ready profile without mutating shipped profile data."""
+    model = profile.model.model_copy(update={"checkpoint_precision": precision})
+    return profile.model_copy(update={"model": model})
+
 
 # -- Profile loader ----------------------------------------------------------
 
@@ -197,7 +205,7 @@ def test_generate_glm_5_2_serve_script():
     """GLM-5.2 serve script requests 8 GPUs, TP=8, and MTP speculative flags."""
     from imas_ambix.agent.slurm import generate_serve_script
 
-    profile = load_profile("glm-5-2")
+    profile = _with_checkpoint_precision(load_profile("glm-5-2"))
     site = SiteConfig()
     script = generate_serve_script(profile, site, port=8000)
 
@@ -221,6 +229,12 @@ def test_serve_no_auth_flag(monkeypatch):
 
     # A key IS resolvable, but --no-auth must override it.
     monkeypatch.setattr(cli_mod, "_resolve_api_key", lambda v: "should-not-be-used")
+    real_load_profile = cli_mod.load_profile
+    monkeypatch.setattr(
+        cli_mod,
+        "load_profile",
+        lambda slug: _with_checkpoint_precision(real_load_profile(slug)),
+    )
     runner = CliRunner()
     result = runner.invoke(
         main, ["agent", "serve", "glm-5-2", "--no-auth", "--dry-run"]
@@ -235,7 +249,7 @@ def test_generate_vllm_2x_serve_script():
     """2x serve script requests 2 GPUs and TP=2."""
     from imas_ambix.agent.slurm import generate_serve_script
 
-    profile = load_profile("deepseek-v4-flash-2x")
+    profile = _with_checkpoint_precision(load_profile("deepseek-v4-flash-2x"))
     site = SiteConfig()
     script = generate_serve_script(profile, site, port=8000)
 
@@ -619,9 +633,7 @@ def test_pre_comment_job_recovers_port_without_exposing_batch_script(
         cli_mod, "_probe_endpoint", lambda url, key: _ready_probe("glm-5.2")
     )
 
-    routes, rejected = cli_mod._discover_live_routes(
-        SiteConfig(), None, jobs=[job]
-    )
+    routes, rejected = cli_mod._discover_live_routes(SiteConfig(), None, jobs=[job])
     captured = capsys.readouterr()
 
     assert seen == [["scontrol", "write", "batch_script", "42", "-"]]
@@ -714,12 +726,8 @@ def test_interactive_ambiguous_route_prompts_for_choice(monkeypatch):
     from imas_ambix.agent import cli as cli_mod
 
     routes = [
-        cli_mod.LiveRoute(
-            "glm-5.2", "n", 1, 4, "42", "http://n:1", None, "ready", "a"
-        ),
-        cli_mod.LiveRoute(
-            "glm-5.2", "n", 2, 8, "43", "http://n:2", None, "ready", "b"
-        ),
+        cli_mod.LiveRoute("glm-5.2", "n", 1, 4, "42", "http://n:1", None, "ready", "a"),
+        cli_mod.LiveRoute("glm-5.2", "n", 2, 8, "43", "http://n:2", None, "ready", "b"),
     ]
     monkeypatch.setattr(cli_mod.click, "prompt", lambda *args, **kwargs: 2)
     selected = cli_mod._resolve_live_route(routes, "glm-5.2", interactive=True)
@@ -1053,7 +1061,7 @@ def test_generate_vllm_serve_script():
     """vLLM-engine profiles should use vllm.entrypoints."""
     from imas_ambix.agent.slurm import generate_serve_script
 
-    profile = load_profile("deepseek-v4-flash")
+    profile = _with_checkpoint_precision(load_profile("deepseek-v4-flash"))
     site = SiteConfig()
     script = generate_serve_script(profile, site, port=8000)
 
@@ -1144,7 +1152,15 @@ def test_agent_list_includes_new_profiles():
     assert "mimo-v2-5-pro" in result.output
 
 
-def test_agent_serve_dry_run_deepseek():
+def test_agent_serve_dry_run_deepseek(monkeypatch):
+    from imas_ambix.agent import cli as cli_mod
+
+    real_load_profile = cli_mod.load_profile
+    monkeypatch.setattr(
+        cli_mod,
+        "load_profile",
+        lambda slug: _with_checkpoint_precision(real_load_profile(slug)),
+    )
     runner = CliRunner()
     result = runner.invoke(main, ["agent", "serve", "deepseek-v4-flash", "--dry-run"])
     assert result.exit_code == 0
@@ -1795,52 +1811,100 @@ def test_siteconfig_launcher_paths():
     assert str(site.clive_path).endswith("agents/clive")
 
 
-def _write_fake_operator(path, model="reported-model", url="http://gpu-node:19123"):
-    listing = f"reported-model@8xh200#42\\t{model} · 8×H200 · gpu-node:19123 · job 42"
-    route = f'{{"model_id":"{model}","base_url":"{url}","max_context":131072}}'
-    path.write_text(
-        "#!/bin/sh\n"
-        'case " $* " in\n'
-        f"  *\" --live-list \"*) printf '%s\\n' '{listing}' ;;\n"
-        f"  *) printf '%s\\n' '{route}' ;;\n"
-        "esac\n",
-        encoding="utf-8",
-    )
+def _catalog_item(
+    release_id="reported-model",
+    *,
+    count=8,
+    family="H200",
+    precision="fp8",
+    max_context=131072,
+    **extra,
+):
+    item = {
+        "id": release_id,
+        "max_model_len": max_context,
+        "ambix": {
+            "accelerator_family": family,
+            "accelerator_count": count,
+            "checkpoint_precision": precision,
+        },
+    }
+    item.update(extra)
+    return item
+
+
+@contextmanager
+def _serve_catalog(payload, *, status=200):
+    """Serve one anonymous catalog and record every request header."""
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    body = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
+    requests = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            requests.append((self.path, dict(self.headers)))
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, _format, *args):
+            return None
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    try:
+        yield SiteConfig(gpu_host=host, default_port=port), requests
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def _write_executable(path, content):
+    path.write_text(content, encoding="utf-8")
     path.chmod(0o755)
 
 
-def test_generate_clive_script_keeps_direct_local_default():
-    """The default branch preserves the direct local model environment."""
+def test_generate_clive_script_embeds_standalone_global_contract():
+    """The default branch embeds one origin and no operator dependencies."""
     from imas_ambix.agent.clive import generate_clive_script
 
-    script = generate_clive_script(SiteConfig(), "served-local-model")
+    site = SiteConfig(gpu_host="catalog.example", default_port=19444)
+    script = generate_clive_script(site)
 
     assert 'if [[ "$CLIVE_OPENROUTER" != "1" ]]; then' in script
-    assert "agent clive --resolve-live" in script
-    assert "/v1/models" not in script
-    assert 'ANTHROPIC_BASE_URL="$AMBIX_URL"' in script
-    assert 'ANTHROPIC_AUTH_TOKEN="$KEY"' in script
+    assert "GLOBAL_ORIGIN=http://catalog.example:19444" in script
+    assert 'origin + "/v1/models"' in script
+    assert "urllib.request" in script
+    assert 'ANTHROPIC_BASE_URL="$GLOBAL_ORIGIN"' in script
+    assert 'OPENAI_BASE_URL="${GLOBAL_ORIGIN}/v1"' in script
+    assert "agent clive --resolve-live" not in script
+    assert "AMBIX_AGENT_" not in script
+    assert "squeue" not in script
+    assert "scontrol" not in script
+    assert "sbatch" not in script
     for alias in (
         "ANTHROPIC_DEFAULT_OPUS_MODEL",
         "ANTHROPIC_DEFAULT_SONNET_MODEL",
         "ANTHROPIC_DEFAULT_HAIKU_MODEL",
         "ANTHROPIC_MODEL",
     ):
-        assert f'{alias}="$AMBIX_MODEL"' in script
+        assert f'{alias}="$MODEL_ID"' in script
 
 
 def test_clive_readable_openrouter_key_does_not_reach_proxy(tmp_path):
-    """A readable provider key alone cannot enter the proxy branch."""
+    """Personal credentials and route overrides cannot affect default launch."""
     import os
     import subprocess
 
     from imas_ambix.agent.clive import generate_clive_script
-
-    launcher = tmp_path / "clive"
-    launcher.write_text(
-        generate_clive_script(SiteConfig(), "served-local-model"), encoding="utf-8"
-    )
-    launcher.chmod(0o755)
 
     home = tmp_path / "home"
     key_file = home / ".config" / "openrouter" / "key"
@@ -1850,170 +1914,307 @@ def test_clive_readable_openrouter_key_does_not_reach_proxy(tmp_path):
 
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
-    _write_fake_operator(fake_bin / "imas-ambix", url=SiteConfig().default_url)
     proxy_marker = tmp_path / "proxy-called"
+    operator_marker = tmp_path / "operator-called"
     trace = tmp_path / "claude-env"
-    (fake_bin / "systemctl").write_text(
+    _write_executable(
+        fake_bin / "systemctl",
         f"#!/bin/sh\nprintf '%s\\n' \"$*\" >> {proxy_marker}\nexit 99\n",
-        encoding="utf-8",
     )
-    (fake_bin / "claude").write_text(
+    _write_executable(
+        fake_bin / "imas-ambix",
+        f"#!/bin/sh\ntouch {operator_marker}\nexit 99\n",
+    )
+    _write_executable(
+        fake_bin / "claude",
         "#!/bin/sh\n"
-        f'printf \'%s\\n\' "$ANTHROPIC_BASE_URL" "$ANTHROPIC_MODEL" > {trace}\n',
-        encoding="utf-8",
-    )
-    (fake_bin / "systemctl").chmod(0o755)
-    (fake_bin / "claude").chmod(0o755)
-
-    env = os.environ.copy()
-    env.update(
-        {
-            "HOME": str(home),
-            "PATH": f"{fake_bin}:{env['PATH']}",
-            "AMBIX_AGENT_CLI": str(fake_bin / "imas-ambix"),
-        }
-    )
-    env.pop("CLIVE_OPENROUTER", None)
-    result = subprocess.run(
-        [str(launcher)], capture_output=True, text=True, check=False, env=env
+        f'printf \'%s\\n\' "$ANTHROPIC_BASE_URL" "$ANTHROPIC_MODEL" '
+        f'"$ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION" > {trace}\n',
     )
 
-    assert result.returncode == 0, result.stderr
+    with _serve_catalog({"data": [_catalog_item(url="http://attacker.invalid")]}) as (
+        site,
+        requests,
+    ):
+        launcher = tmp_path / "clive"
+        launcher.write_text(generate_clive_script(site), encoding="utf-8")
+        launcher.chmod(0o755)
+        env = os.environ.copy()
+        env.update(
+            {
+                "HOME": str(home),
+                "PATH": f"{fake_bin}:{env['PATH']}",
+                "AMBIX_AGENT_URL": "http://override.invalid",
+                "AMBIX_AGENT_MODEL": "override-model",
+                "AMBIX_AGENT_SELECTOR": "override-selector",
+                "AMBIX_AGENT_CLI": str(fake_bin / "imas-ambix"),
+                "AMBIX_AGENT_API_KEY": "private-secret",
+                "AMBIX_AGENT_KEY_FILE": str(key_file),
+            }
+        )
+        env.pop("CLIVE_OPENROUTER", None)
+        result = subprocess.run(
+            [str(launcher)], capture_output=True, text=True, check=False, env=env
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert trace.read_text(encoding="utf-8").splitlines() == [
+            site.default_url,
+            "reported-model",
+            "8×H200 · fp8, 128k ctx",
+        ]
+        assert requests[0][0] == "/v1/models"
+        assert "Authorization" not in requests[0][1]
     assert not proxy_marker.exists()
-    assert trace.read_text(encoding="utf-8").splitlines() == [
-        SiteConfig().default_url,
-        "reported-model",
-    ]
-
-
-def test_clive_key_file_authenticates_discovery_without_output(tmp_path):
-    """A key-file-only credential reaches discovery without entering output."""
-    import os
-    import subprocess
-
-    from imas_ambix.agent.clive import generate_clive_script
-
-    launcher = tmp_path / "clive"
-    launcher.write_text(
-        generate_clive_script(SiteConfig(), "unused-model"), encoding="utf-8"
-    )
-    launcher.chmod(0o755)
-    key = "file-only-private-key"
-    key_file = tmp_path / "consumer.env"
-    key_file.write_text(f"AMBIX_AGENT_API_KEY={key}\n", encoding="utf-8")
-    fake_bin = tmp_path / "bin"
-    fake_bin.mkdir()
-    operator = fake_bin / "imas-ambix"
-    operator.write_text(
-        "#!/bin/sh\n"
-        f'[ "$AMBIX_AGENT_API_KEY" = "{key}" ] || exit 9\n'
-        "printf '%s\\n' "
-        "'{\"model_id\":\"authenticated-model\","
-        "\"base_url\":\"http://gpu-node:19123\","
-        "\"max_context\":131072}'\n",
-        encoding="utf-8",
-    )
-    harness_marker = tmp_path / "harness-started"
-    (fake_bin / "claude").write_text(
-        f"#!/bin/sh\nprintf '%s\\n' started > {harness_marker}\n",
-        encoding="utf-8",
-    )
-    operator.chmod(0o755)
-    (fake_bin / "claude").chmod(0o755)
-    env = os.environ.copy()
-    env.pop("AMBIX_AGENT_API_KEY", None)
-    env.update(
-        {
-            "PATH": f"{fake_bin}:{env['PATH']}",
-            "AMBIX_AGENT_CLI": str(operator),
-            "AMBIX_AGENT_KEY_FILE": str(key_file),
-        }
-    )
-
-    result = subprocess.run(
-        [str(launcher)], capture_output=True, text=True, check=False, env=env
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert harness_marker.is_file()
-    assert key not in result.stdout + result.stderr
-
-
-def test_clive_list_prints_sanitized_live_routes(tmp_path):
-    """Listing exits before either harness and contains no credential."""
-    import os
-    import subprocess
-
-    from imas_ambix.agent.clive import generate_clive_script
-
-    launcher = tmp_path / "clive"
-    launcher.write_text(
-        generate_clive_script(SiteConfig(), "unused-model"), encoding="utf-8"
-    )
-    launcher.chmod(0o755)
-    operator = tmp_path / "imas-ambix"
-    _write_fake_operator(operator, model="glm-5.3")
-    env = os.environ.copy()
-    env.update(
-        {
-            "AMBIX_AGENT_CLI": str(operator),
-            "AMBIX_AGENT_API_KEY": "private-secret",
-        }
-    )
-
-    result = subprocess.run(
-        [str(launcher), "--list"], capture_output=True, text=True, check=False, env=env
-    )
-
-    assert result.returncode == 0
-    assert "glm-5.3" in result.stdout
-    assert "8×H200" in result.stdout
+    assert not operator_marker.exists()
     assert "private-secret" not in result.stdout + result.stderr
 
 
-def test_clive_codex_receives_selected_model_and_url(tmp_path):
-    """Codex receives the same selected route as the Claude harness."""
+def test_clive_clean_directory_uses_no_forbidden_consumer_dependency(tmp_path):
+    """Sentinels prove the shared path needs only Bash, Python, and a harness."""
+    import shutil
+    import subprocess
+
+    from imas_ambix.agent.clive import generate_clive_script
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    (fake_bin / "bash").symlink_to(shutil.which("bash"))
+    (fake_bin / "python3").symlink_to(shutil.which("python3"))
+    forbidden_marker = tmp_path / "forbidden-called"
+    for command in ("imas-ambix", "squeue", "scontrol", "sbatch"):
+        _write_executable(
+            fake_bin / command,
+            f"#!/bin/bash\necho {command} >> {forbidden_marker}\nexit 99\n",
+        )
+    trace = tmp_path / "claude-env"
+    _write_executable(
+        fake_bin / "claude",
+        "#!/bin/bash\n"
+        f'printf \'%s\\n\' "$ANTHROPIC_BASE_URL" "$ANTHROPIC_MODEL" "$*" > {trace}\n',
+    )
+    tempting_key = tmp_path / "consumer.env"
+    tempting_key.write_text("AMBIX_AGENT_API_KEY=file-only-private-key\n")
+    empty_cwd = tmp_path / "empty"
+    empty_cwd.mkdir()
+
+    with _serve_catalog({"data": [_catalog_item("glm-5.3")]}) as (site, requests):
+        launcher = tmp_path / "clive"
+        launcher.write_text(generate_clive_script(site), encoding="utf-8")
+        launcher.chmod(0o755)
+        traces = []
+        for user in ("first-user", "second-user"):
+            home = tmp_path / user
+            home.mkdir()
+            env = {
+                "HOME": str(home),
+                "USER": user,
+                "PATH": str(fake_bin),
+                "AMBIX_AGENT_URL": "http://override.invalid",
+                "AMBIX_AGENT_MODEL": "wrong-model",
+                "AMBIX_AGENT_CLI": str(fake_bin / "imas-ambix"),
+                "AMBIX_AGENT_KEY_FILE": str(tempting_key),
+                "AMBIX_AGENT_API_KEY": "private-secret",
+            }
+            result = subprocess.run(
+                [str(launcher), "prompt"],
+                cwd=empty_cwd,
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+            assert result.returncode == 0, result.stderr
+            traces.append(trace.read_text(encoding="utf-8"))
+            assert "private-secret" not in result.stdout + result.stderr
+
+        assert traces[0] == traces[1]
+        assert traces[0].splitlines() == [site.default_url, "glm-5.3", "prompt"]
+        assert all("Authorization" not in headers for _, headers in requests)
+    assert not forbidden_marker.exists()
+
+
+def test_clive_list_renders_future_releases_and_all_topologies(tmp_path):
+    """Listing is dynamic and displays release, topology, and precision."""
     import os
     import subprocess
 
     from imas_ambix.agent.clive import generate_clive_script
 
+    items = [
+        _catalog_item(f"release-{count}", count=count, precision=f"p{count}")
+        for count in (2, 4, 6, 8)
+    ]
+    items[-1]["id"] = "glm-5.3"
+    with _serve_catalog({"data": items}) as (site, _requests):
+        launcher = tmp_path / "clive"
+        launcher.write_text(generate_clive_script(site), encoding="utf-8")
+        launcher.chmod(0o755)
+        result = subprocess.run(
+            [str(launcher), "--list"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=os.environ.copy(),
+        )
+
+    assert result.returncode == 0, result.stderr
+    assert "glm-5.3@8xh200\tglm-5.3 · 8×H200 · p8" in result.stdout
+    for count in (2, 4, 6, 8):
+        assert f"{count}×H200" in result.stdout
+
+
+@pytest.mark.parametrize("selector", ["glm-5.3", "glm-5.3@8xh200"])
+def test_clive_codex_receives_selected_model_and_same_origin(tmp_path, selector):
+    """Release and topology selectors both preserve native Codex identity."""
+    import os
+    import subprocess
+
+    from imas_ambix.agent.clive import generate_clive_script
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    trace = tmp_path / "codex-env"
+    _write_executable(
+        fake_bin / "codex",
+        f'#!/bin/sh\nprintf \'%s\\n\' "$OPENAI_BASE_URL" "$*" > {trace}\n',
+    )
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
+    with _serve_catalog(
+        {"data": [_catalog_item("glm-5.3", url="http://ignored.invalid")]}
+    ) as (site, _requests):
+        launcher = tmp_path / "clive"
+        launcher.write_text(generate_clive_script(site), encoding="utf-8")
+        launcher.chmod(0o755)
+        result = subprocess.run(
+            [str(launcher), "--codex", "--selector", selector, "prompt"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+    assert result.returncode == 0, result.stderr
+    assert trace.read_text(encoding="utf-8").splitlines() == [
+        f"{site.default_url}/v1",
+        "--model glm-5.3 prompt",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ({"data": []}, "contains no models"),
+        (b"not-json", "malformed"),
+        ({"data": "wrong"}, "model data list"),
+        (
+            {"data": [_catalog_item("same"), _catalog_item("same")]},
+            "repeats release id",
+        ),
+        ({"data": [{"id": "missing-metadata"}]}, "no ambix metadata"),
+        ({"data": [_catalog_item(count=3)]}, "accelerator count"),
+        ({"data": [_catalog_item(count=True)]}, "accelerator count"),
+        ({"data": [_catalog_item(count=2.0)]}, "accelerator count"),
+        ({"data": [_catalog_item(family="")]}, "accelerator family"),
+        ({"data": [_catalog_item(precision="bad\nvalue")]}, "checkpoint precision"),
+        ({"data": [_catalog_item(max_context=False)]}, "maximum context"),
+    ],
+)
+def test_clive_rejects_empty_malformed_duplicate_or_invalid_catalogs(
+    tmp_path, payload, message
+):
+    import os
+    import subprocess
+
+    from imas_ambix.agent.clive import generate_clive_script
+
+    with _serve_catalog(payload) as (site, _requests):
+        launcher = tmp_path / "clive"
+        launcher.write_text(generate_clive_script(site), encoding="utf-8")
+        launcher.chmod(0o755)
+        result = subprocess.run(
+            [str(launcher), "--list"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=os.environ.copy(),
+        )
+
+    assert result.returncode != 0
+    assert message in result.stderr
+
+
+def test_clive_requires_noninteractive_selection_for_multiple_items(tmp_path):
+    import os
+    import subprocess
+
+    from imas_ambix.agent.clive import generate_clive_script
+
+    with _serve_catalog(
+        {"data": [_catalog_item("alpha", count=2), _catalog_item("beta", count=6)]}
+    ) as (site, _requests):
+        launcher = tmp_path / "clive"
+        launcher.write_text(generate_clive_script(site), encoding="utf-8")
+        launcher.chmod(0o755)
+        result = subprocess.run(
+            [str(launcher)],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=os.environ.copy(),
+        )
+
+    assert result.returncode == 2
+    assert "multiple models are available; use --selector" in result.stderr
+    assert "alpha@2xh200" in result.stderr
+    assert "beta@6xh200" in result.stderr
+
+
+def test_clive_unreachable_catalog_never_falls_back_to_openrouter(tmp_path):
+    import os
+    import socket
+    import subprocess
+
+    from imas_ambix.agent.clive import generate_clive_script
+
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    host, port = probe.getsockname()
+    probe.close()
     launcher = tmp_path / "clive"
     launcher.write_text(
-        generate_clive_script(SiteConfig(), "unused-model"), encoding="utf-8"
+        generate_clive_script(SiteConfig(gpu_host=host, default_port=port)),
+        encoding="utf-8",
     )
     launcher.chmod(0o755)
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
-    operator = fake_bin / "imas-ambix"
-    _write_fake_operator(operator, model="glm-5.3", url="http://gpu-node:19444")
-    trace = tmp_path / "codex-env"
-    (fake_bin / "codex").write_text(
-        f'#!/bin/sh\nprintf \'%s\\n\' "$OPENAI_BASE_URL" "$*" > {trace}\n',
-        encoding="utf-8",
-    )
-    (fake_bin / "codex").chmod(0o755)
+    marker = tmp_path / "proxy-called"
+    _write_executable(fake_bin / "systemctl", f"#!/bin/sh\ntouch {marker}\n")
     env = os.environ.copy()
-    env.update(
-        {
-            "PATH": f"{fake_bin}:{env['PATH']}",
-            "AMBIX_AGENT_CLI": str(operator),
-        }
-    )
-
+    env["PATH"] = f"{fake_bin}:{env['PATH']}"
     result = subprocess.run(
-        [str(launcher), "--codex", "prompt"],
+        [str(launcher), "--openrouter"],
         capture_output=True,
         text=True,
         check=False,
         env=env,
     )
 
-    assert result.returncode == 0, result.stderr
-    assert trace.read_text(encoding="utf-8").splitlines() == [
-        "http://gpu-node:19444/v1",
-        "--model glm-5.3 prompt",
-    ]
+    assert result.returncode != 0
+    assert "global catalog is unreachable" in result.stderr
+    assert not marker.exists()
+
+
+def test_clive_operator_command_removes_hidden_consumer_machine_api():
+    result = CliRunner().invoke(main, ["agent", "clive", "--help"])
+
+    assert result.exit_code == 0, result.output
+    for removed in ("--live-list", "--resolve-live", "--selector", "--url", "--model"):
+        assert removed not in result.output
+    for retained in ("--deploy", "--print", "--path", "--destination"):
+        assert retained in result.output
 
 
 @pytest.mark.parametrize("opt_in", ["flag", "environment"])
@@ -2041,55 +2242,54 @@ def test_clive_openrouter_opt_in_starts_proxy_and_presents_picker(tmp_path, opt_
     probe = threading.Thread(target=accept_probe, daemon=True)
     probe.start()
 
-    script = generate_clive_script(SiteConfig(), "served-local-model").replace(
-        'LITELLM_PORT="18399"', f'LITELLM_PORT="{proxy_port}"'
-    )
-    launcher = tmp_path / "clive"
-    launcher.write_text(script, encoding="utf-8")
-    launcher.chmod(0o755)
-
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
-    _write_fake_operator(fake_bin / "imas-ambix", model="served-local-model")
     proxy_marker = tmp_path / "proxy-called"
     trace = tmp_path / "claude-env"
-    (fake_bin / "systemctl").write_text(
+    _write_executable(
+        fake_bin / "systemctl",
         "#!/bin/sh\n"
         'if [ "$2" = "is-active" ]; then exit 1; fi\n'
         f"printf '%s\\n' \"$*\" >> {proxy_marker}\n",
-        encoding="utf-8",
     )
-    (fake_bin / "claude").write_text(
+    _write_executable(
+        fake_bin / "claude",
         "#!/bin/sh\n"
         f'printf \'%s\\n\' "$ANTHROPIC_BASE_URL" "$ANTHROPIC_MODEL" '
         f'"$ANTHROPIC_DEFAULT_HAIKU_MODEL" "$ANTHROPIC_DEFAULT_OPUS_MODEL" '
         f'"$ANTHROPIC_DEFAULT_SONNET_MODEL" "$ANTHROPIC_CUSTOM_MODEL_OPTION" '
         f'"$ANTHROPIC_DEFAULT_FABLE_MODEL" > {trace}\n',
-        encoding="utf-8",
     )
-    (fake_bin / "systemctl").chmod(0o755)
-    (fake_bin / "claude").chmod(0o755)
 
     env = os.environ.copy()
     env.update(
         {
             "HOME": str(tmp_path / "home"),
             "PATH": f"{fake_bin}:{env['PATH']}",
-            "AMBIX_AGENT_CLI": str(fake_bin / "imas-ambix"),
         }
     )
-    command = [str(launcher)]
-    if opt_in == "flag":
-        command.append("--openrouter")
-    else:
-        env["CLIVE_OPENROUTER"] = "1"
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=env,
-    )
+    with _serve_catalog({"data": [_catalog_item("served-local-model")]}) as (
+        site,
+        _requests,
+    ):
+        script = generate_clive_script(site).replace(
+            'LITELLM_PORT="18399"', f'LITELLM_PORT="{proxy_port}"'
+        )
+        launcher = tmp_path / "clive"
+        launcher.write_text(script, encoding="utf-8")
+        launcher.chmod(0o755)
+        command = [str(launcher)]
+        if opt_in == "flag":
+            command.append("--openrouter")
+        else:
+            env["CLIVE_OPENROUTER"] = "1"
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
     probe.join(timeout=2)
 
     assert result.returncode == 0, result.stderr
