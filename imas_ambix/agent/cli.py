@@ -1424,6 +1424,76 @@ def _render_concurrency(results: list, repeat: int) -> None:
     console.print()
 
 
+@agent.command(name="bench-compare")
+@click.argument("paths", nargs=-1, type=click.Path(exists=True, dir_okay=False))
+@click.option(
+    "--model",
+    default=None,
+    help="Restrict discovery to saved runs whose model name contains this text.",
+)
+@click.option(
+    "--last",
+    type=int,
+    default=None,
+    help="Compare the N most recent saved runs (default 2 when no PATHS given).",
+)
+@click.option(
+    "--dir",
+    "directory",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Directory of saved runs (default: ~/.local/share/ambix/bench).",
+)
+def bench_compare(
+    paths: tuple[str, ...],
+    model: str | None,
+    last: int | None,
+    directory: str | None,
+) -> None:
+    """Compare saved benchmark runs, or summarise a single run.
+
+    \b
+    Two most recent runs:              imas-ambix agent bench-compare
+    Two most recent for one model:     imas-ambix agent bench-compare --model glm
+    Specific runs:                     imas-ambix agent bench-compare a.json b.json
+
+    A run only compares meaningfully when it carries provenance (serving
+    configuration and engine version); runs saved before provenance capture
+    show their configuration as unknown rather than a guessed value.
+    """
+    from imas_ambix.agent.bench_report import (
+        BenchReportError,
+        compare_runs,
+        discover_reports,
+        load_report,
+        render_comparison,
+        render_run,
+    )
+
+    try:
+        if paths:
+            selected = [Path(p) for p in paths]
+        else:
+            selected = discover_reports(
+                directory=directory, model=model, limit=last or 2
+            )
+        if not selected:
+            raise click.ClickException(
+                "No saved benchmark runs found. Run 'imas-ambix agent bench' first."
+            )
+        reports = [load_report(p) for p in selected]
+    except BenchReportError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    for path in selected:
+        console.print(f"[dim]{path}[/]")
+
+    if len(reports) == 1:
+        render_run(reports[0])
+        return
+    render_comparison(compare_runs(reports))
+
+
 def _engine_pyproject(engine: str) -> str:
     """Return the bundled pyproject.toml content for *engine*."""
     from importlib import resources
