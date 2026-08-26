@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T15:31:29",
+  "updated": "2026-08-26T15:39:33",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -11702,9 +11702,98 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T132412877627-glm-mtp-instantiated-loader-repair",
+        "plan": "glm-52-local-serve-performance",
+        "section": "\u00a72",
+        "node": "glm-mtp-instantiated-loader-repair",
+        "node_definition": {
+          "done_when": "A retained report reproduces the exact KeyError without loading the 447 GiB main checkpoint if technically possible, enumerates the actual instantiated draft params_dict around mtp_block MLP experts, traces quantization metadata and class selection, identifies whether an upstream vLLM fix or local durable adapter is correct, and provides an executable zero-GPU regression test that fails before and passes after the proposed repair for both W13 and W2 mapped names; no GPU job or managed-environment mutation is performed",
+          "estimated_hours": 0.4,
+          "goal": "Determine a durable repair for vLLM 0.28.0 separate INT4 MTP loading after job 1257039 proved the instantiated draft lacks the mapped routed-expert W2 packed parameter",
+          "id": "glm-mtp-instantiated-loader-repair",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/glm-mtp-instantiated-loader-repair.json",
+          "plan": "glm-52-local-serve-performance",
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "25m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/glm-mtp-instantiated-loader-repair.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "guided",
+        "member": "glm-int4-mtp-scout",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-08-26T13:24:29Z",
+        "completed_at": "2026-08-26T13:38:57Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 868,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 868,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "fe7a6a07abdc99cfe84305f385151e2f9df02324",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": null,
+        "failure_classification": "correct-refusal",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/manifests/imas-ambix/glm-mtp-instantiated-loader-repair.json",
+        "scope_changed": false,
+        "session_id": "01a03df6-bd65-75d2-9776-b56803ae2f64",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2063872,
+            "cached_input_tokens_cumulative": 5300480,
+            "input_tokens": 2268131,
+            "input_tokens_cumulative": 5674627,
+            "output_tokens": 7458,
+            "output_tokens_cumulative": 23670,
+            "reasoning_output_tokens": 1978,
+            "reasoning_output_tokens_cumulative": 8214
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 326
+    "_version": 327
   }
 }

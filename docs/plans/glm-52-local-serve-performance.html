@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-26">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 </head>
 <body>
   <main class="plan-doc">
@@ -233,6 +233,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260826T125440150654-glm-tp4-mtp-live-probe" data-who="glm-mtp-live-probe" data-when="2026-08-26T13:23:26Z">
     <div class="r-comment-body"><p>HOLD: job 1257039 loaded all 83 main INT4 shards but vLLM 0.28.0 failed on the separate MTP shard because the instantiated draft lacked model.layers.78.mtp_block.mlp.experts.routed_experts.w2_weight_packed; no endpoint bound and no retry was attempted</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260826T132412877627-glm-mtp-instantiated-loader-repair" data-who="glm-int4-mtp-scout" data-when="2026-08-26T13:38:57Z">
+    <div class="r-comment-body"><p>Localized the four-rank packed-expert loader failure to target quantization metadata crossing into the separate draft; retained a two-mode zero-GPU constructor regression, with execution held because the read-only sandbox denied its Gloo loopback socket.</p></div>
 </div>
 </section>
 </main>
