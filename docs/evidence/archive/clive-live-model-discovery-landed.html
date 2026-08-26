@@ -91,6 +91,23 @@
     than represented as a complete suite run. The separate acceptance worker
     owns the full execution gate.</p>
 
+    <h3>Independent acceptance</h3>
+
+    <table>
+      <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Focused agent suite</td><td>130 collected, 130 passed, 0 failed in 1.18 seconds</td></tr>
+        <tr><td>Whole-tree Ruff</td><td>All checks passed</td></tr>
+        <tr><td>Generated launcher</td><td>8,708 bytes; SHA-256 <code>0f7f24599e306338a2f4b7a96abd5f3dc37b5a132a7ede840a7054644f5e248c</code></td></tr>
+        <tr><td>Launcher shell syntax</td><td><code>bash -n</code> exited 0</td></tr>
+      </tbody>
+    </table>
+
+    <p>The acceptance worker made no repository changes. This proves source,
+    tests, lint, and generated-launcher syntax; deployed-byte identity and
+    live-service reachability remain explicitly assigned to the deployment
+    worker.</p>
+
     <h2 id="live-deployment">Live deployment and endpoint evidence</h2>
 
     <p>This anchor is reserved for the deployed launcher byte comparison, dynamic
