@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="clive-live-model-discovery">
   <meta name="plan-title" content="Clive Live Model Discovery">
   <meta name="plan-summary" content="Discover ready local model endpoints from running SLURM serves and let Clive select only live, topology-qualified routes.">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort" content="M">
   <meta name="plan-capability-version" content="1.0">
@@ -22,27 +22,20 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-08-26">
-<meta name="plan-version" content="11">
-<meta name="plan-artifacts" content="docs/evidence/archive/clive-live-model-discovery-landed.html,/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-code-review.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T112905805756-clive-live-routing-repair/manifest.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-repair-review.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-acceptance-tests.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T114309117669-clive-live-acceptance-tests/pytest-test-agent.log,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T114309117669-clive-live-acceptance-tests/ruff-whole-tree.log,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T114309117669-clive-live-acceptance-tests/bash-n-launcher.log">
-<meta name="plan-impl" content="0.8">
+<meta name="plan-version" content="15">
+<meta name="plan-artifacts" content="docs/evidence/archive/clive-live-model-discovery-landed.html,/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-reuse-map.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-code-review.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T112905805756-clive-live-routing-repair/manifest.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-repair-review.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-acceptance-tests.md,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T114309117669-clive-live-acceptance-tests/pytest-test-agent.log,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T114309117669-clive-live-acceptance-tests/ruff-whole-tree.log,/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T114309117669-clive-live-acceptance-tests/bash-n-launcher.log,/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-deployment.md,/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-deployment-manifest.md,/work/projects/imas_gpu/agents/clive">
+<meta name="plan-impl" content="1.0">
 <meta name="plan-commits" content="8ab74856577a397d5e891485d7a3452b1502eff1,b10fe2fc54ca65c219ad38eeab5067910aac0a83">
 </head>
 <body>
   <main class="plan-doc">
     <h2 id="s1">§1 — Outcome and authority boundary</h2>
-    <p>
-      Replace Clive's single configured URL assumption with live discovery of this user's
-      running Ambix serve jobs. A route becomes selectable only after its own
-      <code>/v1/models</code> endpoint answers successfully; a SLURM allocation, listening
-      socket, or configured profile alone is not availability. The launcher remains local-only
-      by default and never falls back to an external provider when discovery is empty or a
-      selected route fails.
-    </p>
-    <p>
-      The serving CLI owns job and endpoint facts; the generated launcher consumes those facts
-      and sets the selected model and base URL for Claude Code or Codex. Discovery must support
-      authenticated and keyless vLLM endpoints without printing credentials. It must not cancel,
-      restart, or otherwise mutate serve jobs.
+    <p class="landed-summary">
+      <strong>Shipped.</strong> The serving CLI is authoritative for scheduler and endpoint
+      facts, while Clive admits a route only after that endpoint's own
+      <code>/v1/models</code> response succeeds. Local discovery fails closed, never silently
+      falls back to an external provider, supports authenticated and keyless probes without
+      printing credentials, and does not mutate serve jobs.
     </p>
 
     <h2 id="s2">§2 — Dynamic discovery and topology-qualified selection</h2>
@@ -57,20 +50,14 @@
     </p>
 
     <h2 id="s3">§3 — Family-independent launch, verification, and deployment</h2>
-    <p>
-      Derive availability from endpoint responses rather than a hard-coded DeepSeek or GLM release
-      list. A future GLM-5.3 serve therefore appears automatically when its running endpoint reports
-      <code>glm-5.3</code>, with the launch topology and endpoint that actually answered. Keep the
-      direct-local no-fallback behavior and the explicit OpenRouter branch isolated from local
-      discovery.
-    </p>
-    <p>
-      Cover job parsing, port and GPU extraction, authenticated and keyless probes, readiness
-      filtering, selector ambiguity, topology labels, one-route auto-selection, multi-route
-      selection, and propagation into both harness environments. Run the focused agent tests and
-      the repository's whole-tree Ruff gate. Deploy only the repo-generated launcher, confirm the
-      deployed bytes match <code>imas-ambix agent clive --print</code>, and exercise live listing
-      against the current serve without exposing its key.
+    <p class="landed-summary">
+      <strong>Shipped with a negative current-service result.</strong> The family-independent
+      launcher is deployed byte-identically, future server-reported releases such as
+      <code>glm-5.3</code> require no source edit, and independent acceptance passed 130/130
+      tests plus whole-tree Ruff. Job <code>1256575</code> had ended <strong>FAILED</strong>;
+      both probe modes received HTTP <code>000</code> connection refused, so Clive correctly
+      exposed zero routes. See
+      <a href="/imas-ambix/evidence/archive/clive-live-model-discovery-landed.html#live-deployment">the deployment receipt summary</a>.
     </p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
@@ -91,10 +78,11 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-clmd-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-26" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-clmd-001" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-08-26" data-recommends-skill="" data-resolved-at="2026-08-26T12:11:10+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Implement and deploy live topology-qualified Clive discovery</h4>
     <div class="r-fu-body"><p>Execute all three sections, preserving direct-local routing and proving only ready endpoints enter selection.</p></div>
     <pre class="r-fu-prompt">/reckon-ship clive-live-model-discovery</pre>
+    <p class="r-fu-outcome">done — no followup. Dynamic discovery, topology-qualified selection, deployment, independent acceptance, and negative live-readiness evidence are complete; a future serve launch is operational work.</p>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
@@ -130,6 +118,12 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20260826-acceptance-evidence" data-who="reckon-ship" data-when="2026-08-26T12:01:00Z">
     <div class="r-comment-body"><p>Independent acceptance recorded: 130/130 tests in 1.18 seconds, whole-tree Ruff clean, generated launcher 8,708 bytes with SHA-256 <code>0f7f24599e306338a2f4b7a96abd5f3dc37b5a132a7ede840a7054644f5e248c</code>, and shell syntax clean. Live deployment remains the final distinct evidence level; implementation fraction advanced to 0.8.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260826T120252551938-clive-live-deployment" data-who="clive-live-deploy" data-when="2026-08-26T12:09:38Z">
+    <div class="r-comment-body"><p>Deployment integrity passed and live readiness was negative: generated/deployed launcher bytes matched at 8,708 bytes and SHA-256 0f7f24599e306338a2f4b7a96abd5f3dc37b5a132a7ede840a7054644f5e248c; job 1256575 was FAILED and both probe modes received HTTP 000 connection refused, so Clive exposed zero routes and failed closed.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260826-live-deployment-evidence" data-who="reckon-ship" data-when="2026-08-26T12:12:00Z">
+    <div class="r-comment-body"><p>Deployment shipped byte-identically at 8,708 bytes and SHA-256 <code>0f7f24599e306338a2f4b7a96abd5f3dc37b5a132a7ede840a7054644f5e248c</code>. Live readiness was negative: job 1256575 ended FAILED with 8×H200 allocated; both probe modes returned HTTP 000 connection refused, and Clive correctly exposed zero routes. Followup drain recorded 1 folded row, 0 remaining.</p></div>
 </div>
 </section>
 </main>

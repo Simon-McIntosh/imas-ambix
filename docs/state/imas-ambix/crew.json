@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T14:01:56",
+  "updated": "2026-08-26T14:10:18",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -137,9 +137,11 @@
         "id": "clive-live-deploy",
         "harness": "codex",
         "role": "test",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a03df4-c5e0-7083-95cb-b3d71fc549e5",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a03df4-c5e0-7083-95cb-b3d71fc549e5"
+        },
         "created": "2026-08-26"
       },
       {
@@ -395,9 +397,11 @@
         "id": "glm-int4-mtp-scout",
         "harness": "codex",
         "role": "investigate",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a03df6-bd65-75d2-9776-b56803ae2f64",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a03df6-bd65-75d2-9776-b56803ae2f64"
+        },
         "created": "2026-08-26"
       },
       {
@@ -10815,9 +10819,103 @@
           "role": "test",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260826T120252551938-clive-live-deployment",
+        "plan": "clive-live-model-discovery",
+        "section": "\u00a73",
+        "node": "clive-live-deployment",
+        "node_definition": {
+          "done_when": "uv run imas-ambix agent clive --deploy exits 0; deployed bytes exactly match imas-ambix agent clive --print and SHA-256 is recorded; deployed clive --list emits only successfully probed live routes; job 1256575 scheduler state, node, actual GRES, and port are recorded; unauthenticated and authenticated /v1/models HTTP statuses are recorded without revealing credentials; the report records exact server-reported model id, topology, endpoint, and selector when ready or the exact rejection reason; no serve job is mutated or restarted",
+          "estimated_hours": 0.5,
+          "goal": "Produce one deployment receipt proving the repo-generated Clive launcher exposes only ready current routes and records job 1256575 authentication behavior without mutating the serve.",
+          "id": "clive-live-deployment",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-deployment-manifest.md",
+          "plan": "clive-live-model-discovery",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a73",
+          "spec_level": "exact",
+          "time_budget": "15m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-deployment.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "clive-live-deploy",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T12:04:03Z",
+        "completed_at": "2026-08-26T12:09:38Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 335,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 335,
+        "stalled": false,
+        "time_budget": "15m",
+        "base_sha": "0ac45d640d55d6094b233bfd6d1c215cfaa79c5d",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "clive --deploy && cmp generated deployed && clive --list",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-deployment.md",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/reports/clive-live-deployment-manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03df4-c5e0-7083-95cb-b3d71fc549e5",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1592320,
+            "cached_input_tokens_cumulative": 1592320,
+            "input_tokens": 1684571,
+            "input_tokens_cumulative": 1684571,
+            "output_tokens": 10570,
+            "output_tokens_cumulative": 10570,
+            "reasoning_output_tokens": 4110,
+            "reasoning_output_tokens_cumulative": 4110
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 309
+    "_version": 312
   }
 }

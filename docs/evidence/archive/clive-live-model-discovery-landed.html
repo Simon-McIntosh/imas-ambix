@@ -110,9 +110,35 @@
 
     <h2 id="live-deployment">Live deployment and endpoint evidence</h2>
 
-    <p>This anchor is reserved for the deployed launcher byte comparison, dynamic
-    route listing, selected model/topology/endpoint, and the current endpoint's
-    authenticated-versus-keyless result.</p>
+    <p>The repository-generated launcher deployed successfully to
+    <code>/work/projects/imas_gpu/agents/clive</code>. Generated and deployed
+    files were both 8,708 bytes, <code>cmp</code> exited 0, and both had SHA-256
+    <code>0f7f24599e306338a2f4b7a96abd5f3dc37b5a132a7ede840a7054644f5e248c</code>.</p>
+
+    <p>The current-service result is a negative readiness receipt. Job
+    <code>1256575</code> had ended <strong>FAILED</strong> with exit
+    <code>1:0</code> after using node <code>98dci4-gpu-0003</code> and an actual
+    allocation of <code>gres/gpu=8</code>, corresponding to 8×H200. Its recorded
+    port was <code>18800</code>. Both unauthenticated and credential-bearing
+    probes of <code>/v1/models</code> received HTTP <code>000</code> with
+    <code>ConnectionRefusedError</code>; the credential value was never emitted.
+    Because no HTTP server answered, this observation cannot use response status
+    to distinguish keyless from authenticated handling.</p>
+
+    <p>Clive emitted zero route lines and failed closed with
+    <code>No ready local model routes</code>. Resolving selector
+    <code>1256575</code> likewise failed locally. No server-reported model id or
+    canonical live selector was invented from scheduler state. No serve job was
+    cancelled, restarted, requeued, submitted, or otherwise mutated.</p>
+
+    <h2 id="followup-drain">Followup drain</h2>
+
+    <table>
+      <thead><tr><th>Driving followup</th><th>Disposition</th><th>Remaining</th></tr></thead>
+      <tbody><tr><td><code>f-clmd-001</code></td><td>Folded into and completed by <code>clive-live-deployment</code></td><td>0</td></tr></tbody>
+    </table>
+    <p>Worker follow-ons: none. The dynamic Clive capability is shipped; a new
+    serve launch is operational work, not an implementation followup.</p>
   </main>
 </body>
 </html>
