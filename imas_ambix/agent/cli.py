@@ -369,6 +369,15 @@ def download(slug: str | None, dry_run: bool) -> None:
     "Scales cpus and memory proportionally from the profile default.",
 )
 @click.option(
+    "--time",
+    "time_limit",
+    default=None,
+    help="SLURM walltime for this serve, e.g. 3:00:00. Declaring far more than "
+    "the work needs makes the scheduler plan the node as occupied for that "
+    "long, so short jobs from other users pend behind it. Set it for a "
+    "measurement run; the profile default suits a persistent service.",
+)
+@click.option(
     "--no-speculative",
     is_flag=True,
     help="Serve without speculative decoding. Drafting only pays for itself "
@@ -383,6 +392,7 @@ def serve(
     no_auth: bool,
     gpus: int | None,
     no_speculative: bool,
+    time_limit: str | None,
 ) -> None:
     """Generate and submit a model serving job."""
     from imas_ambix.agent.slurm import generate_serve_script, submit_script
@@ -390,6 +400,11 @@ def serve(
     profile = _load_profile(slug)
     if gpus is not None:
         profile = _scale_profile(profile, gpus)
+    if time_limit:
+        profile = profile.model_copy(
+            update={"slurm": profile.slurm.model_copy(
+                update={"time_serve": time_limit})}
+        )
     if no_speculative:
         profile = profile.model_copy(
             update={
