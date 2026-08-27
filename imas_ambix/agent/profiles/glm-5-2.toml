@@ -160,7 +160,15 @@ size_gb = 440
 [gpu_variants.4.engine]
 tensor_parallel = 4
 mem_fraction_static = 0.90
-max_total_tokens = 65536
+# 32K, not the 64K a single run once reached. Measured across three launches
+# of this identical configuration on clean cards, the pool came back at 6.4,
+# 3.14 and 6.33 GiB -- roughly 3 GiB of run-to-run variance in the non-KV
+# footprint, which at four cards is a large fraction of what is left after the
+# weights. 64K needs 5.65 GiB and so fails whenever the pool lands low; 32K
+# needs ~2.8 GiB and clears even the worst observation. The engine's own
+# estimate at the low reading was 36,288 tokens, which is the bound this
+# respects.
+max_total_tokens = 32768
 kv_cache_dtype = "bfloat16"
 max_num_seqs = 64
 # No speculative decoding -- see the note above.
