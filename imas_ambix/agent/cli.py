@@ -1500,7 +1500,11 @@ def bench(
             resolved_slug, SiteConfig.from_env()
         )
         if serve_gpus:
-            profile = profile.for_gpus(serve_gpus)
+            # Resolve exactly as the serve path does. for_gpus alone only
+            # applies a DECLARED variant, so a card count reached by
+            # proportional scaling kept the profile's default width and the
+            # run was filed under the wrong topology.
+            profile = _scale_profile(profile, serve_gpus)
         base_url = url or _default_url() or "http://localhost:18800"
         model = model_name or profile.model.served_name
     elif url:
