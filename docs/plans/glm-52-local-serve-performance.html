@@ -21,8 +21,11 @@
   <title>GLM-5.2 Local Serve and Measured Throughput | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-26">
-<meta name="plan-version" content="10">
+<meta name="plan-modified" content="2026-08-27">
+<meta name="plan-version" content="12">
+<meta name="plan-commits" content="51952fc,793b381,af94098,bf5b417">
+<meta name="plan-artifacts" content="docs/figures/glm-52-local-serve-performance/aggregate-throughput.svg,docs/figures/glm-52-local-serve-performance/per-stream-throughput.svg,docs/figures/glm-52-local-serve-performance/headline-performance.svg,scripts/bench_matrix_figures.py,_matrix/facts.tsv">
+<meta name="plan-impl" content="0.83">
 </head>
 <body>
   <main class="plan-doc">
@@ -247,6 +250,12 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260826T205230330579-glm-matrix-reuse-scout" data-who="glm-matrix-scout" data-when="2026-08-26T20:59:26Z">
     <div class="r-comment-body"><p>Reuse map delivered: 13 candidates with verdicts. Build on bench_report load_report/describe_run/compare_runs as the sole numeric authority; compare_runs output is NOT JSON-serialisable (tuple-keyed tests dict) so project flat rows; evidence belongs at docs/evidence/archive/&lt;slug&gt;-landed.html per the existing template</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260826T213245444628-glm-matrix-figures" data-who="glm-matrix-evidence" data-when="2026-08-27T00:14:52Z">
+    <div class="r-comment-body"><p>Dependency-free SVG generator: 3 figures written and XML-parsed, 6 tests pass, ruff clean. Renders all five runs from bench_report pure functions; the row measured at 256 tokens per worker is marked with a dagger and dashed line rather than plotted as comparable</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-matrix-complete" data-who="reckon-ship" data-when="2026-08-27T09:50:00Z">
+    <div class="r-comment-body"><p>Matrix complete, six configurations, 84 tests each, zero failures. Decode tok/s, TTFT, aggregate at 32 concurrent: DeepSeek 2 cards 127.1 / 36 ms / 1649; 4 cards 114.5 / 37 ms / 1696; 8 cards 103.8 / 36 ms / 1845. GLM 4 cards 84.2 / 33 ms / 1109 at 32K; 8 cards with drafting 30.0 / 530 ms / 942 at 42.15 percent acceptance; 8 cards without drafting 45.7 / 425 ms / 58.</p><p>Three findings the numbers force. Tensor-parallel width must divide 64 attention heads, so only 2, 4 and 8 cards are possible and 6 is not; GLM cannot run below 4 because its weights would need 218 GiB per card. Adding cards costs DeepSeek single-stream speed and buys KV capacity, 740k to 3.37M tokens. Disabling drafting on 8 cards raises single-stream 52 percent and collapses aggregate 16-fold, the two serve configurations differing in that one flag alone, so the setting is workload-dependent rather than simply on or off.</p><p>Two measurement defects were corrected rather than reported around. Concurrency workers generated 256 tokens, short enough that scheduler warm-up dominated and one deployment measured a higher aggregate at sixteen concurrent than at thirty-two; regenerated at 1024. The four-card context was sized from a single lucky launch: three launches of the identical configuration on clean cards returned pools of 6.4, 3.14 and 6.33 GiB, so 64K fails whenever the pool lands low and 32K is the figure that holds.</p></div>
 </div>
 </section>
 </main>
