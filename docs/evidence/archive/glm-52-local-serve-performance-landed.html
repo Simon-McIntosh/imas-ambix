@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="glm-52-local-serve-performance-landed">
+  <meta name="plan-title" content="GLM-5.2 Local Serving Performance — Landed Evidence">
+  <meta name="plan-summary" content="Cumulative H200 serving evidence for six DeepSeek-V4-Flash and GLM-5.2 configurations, including decode, latency, concurrency scaling, KV capacity, method corrections, and workload-dependent deployment findings.">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-recorded-at" content="2026-08-27">
+  <meta name="plan-evidence-for" content="glm-52-local-serve-performance">
+  <meta name="plan-verifies" content="glm-52-local-serve-performance#s4">
+  <meta name="plan-verdict" content="qualified-pass">
+  <meta name="plan-source-quality" content="six saved same-stack benchmark reports, scheduler launch facts, direct server metadata, and three repeated GLM four-card starts; three figures are an explicitly qualified five-run intermediate cut">
+  <title>GLM-5.2 Local Serving Performance — Landed Evidence | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h1>GLM-5.2 local serving performance — landed evidence</h1>
+
+    <p>Cumulative execution record for
+    <a href="/imas-ambix/plans/glm-52-local-serve-performance">GLM-5.2 local serving performance</a>.
+    It preserves the six measured H200 configurations, the method corrections needed to compare
+    them, and the capacity-versus-latency trade-offs that determine deployment choice.</p>
+
+    <h2 id="matrix-verdict">Matrix verdict</h2>
+
+    <p><strong>Six configurations completed 84/84 cases each: 504/504 passed, 0 failed.</strong>
+    No configuration is a universal winner. DeepSeek-V4-Flash leads single-stream decode at two
+    cards, while its eight-card arm has the largest KV pool and the highest 32-worker aggregate.
+    GLM-5.2 with multi-token prediction gives much stronger aggregate throughput than the same
+    eight-card deployment without drafting, despite losing single-stream decode. GLM-5.2 at four
+    cards is the strongest GLM single-stream arm and is stable at a 32K context, not at 64K.</p>
+
+    <p>The comparison is therefore a <strong>qualified pass</strong>: every active report uses the
+    corrected 1,024-output-token concurrency method, but the useful choice remains workload
+    dependent. Use the two-card DeepSeek arm for best single-stream speed, the eight-card
+    DeepSeek arm for capacity and high concurrency, the four-card GLM arm for the best measured
+    GLM single stream, and eight-card GLM with drafting when aggregate throughput matters.</p>
+
+    <h2 id="measured-configurations">Measured configurations</h2>
+
+    <table>
+      <caption>Configuration identity for the six active reports. Accelerator count comes from
+      direct server metadata; serve job and engine settings come from the captured run and launch
+      facts.</caption>
+      <thead>
+        <tr>
+          <th>Configuration</th>
+          <th>H200 cards / TP</th>
+          <th>Checkpoint / KV dtype</th>
+          <th>Maximum context</th>
+          <th>Maximum sequences</th>
+          <th>Drafting</th>
+          <th>Serve job</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>DeepSeek-V4-Flash, 2 cards</td>
+          <td>2 / 2</td>
+          <td>FP4+FP8 / FP8</td>
+          <td>524,288</td>
+          <td>1,024</td>
+          <td>off</td>
+          <td><code>1258408</code></td>
+        </tr>
+        <tr>
+          <td>DeepSeek-V4-Flash, 4 cards</td>
+          <td>4 / 4</td>
+          <td>FP4+FP8 / FP8</td>
+          <td>524,288</td>
+          <td>1,024</td>
+          <td>off</td>
+          <td><code>1258411</code></td>
+        </tr>
+        <tr>
+          <td>DeepSeek-V4-Flash, 8 cards</td>
+          <td>8 / 8</td>
+          <td>FP4+FP8 / FP8</td>
+          <td>1,048,576</td>
+          <td>1,024</td>
+          <td>off</td>
+          <td><code>1258413</code></td>
+        </tr>
+        <tr>
+          <td>GLM-5.2, 4 cards</td>
+          <td>4 / 4</td>
+          <td>INT4 / BF16</td>
+          <td>32,768</td>
+          <td>64</td>
+          <td>off</td>
+          <td><code>1258531</code></td>
+        </tr>
+        <tr>
+          <td>GLM-5.2, 8 cards, MTP</td>
+          <td>8 / 8</td>
+          <td>FP8 / BF16</td>
+          <td>204,800</td>
+          <td>256</td>
+          <td>MTP, 5 draft tokens</td>
+          <td><code>1257996</code></td>
+        </tr>
+        <tr>
+          <td>GLM-5.2, 8 cards, no MTP</td>
+          <td>8 / 8</td>
+          <td>FP8 / BF16</td>
+          <td>204,800</td>
+          <td>256</td>
+          <td>off</td>
+          <td><code>1258474</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="headline-performance">Decode and latency headline</h2>
+
+    <table>
+      <caption>Measured 1,024-token decode rate in output tokens per second. Each configuration
+      completed 84 cases with no failures.</caption>
+      <thead>
+        <tr>
+          <th>Configuration</th>
+          <th>Decode</th>
+          <th>MTP acceptance</th>
+          <th>Cases</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>DeepSeek, 2 cards</td><td>127.118</td><td>not used</td><td>84/84</td></tr>
+        <tr><td>DeepSeek, 4 cards</td><td>114.458</td><td>not used</td><td>84/84</td></tr>
+        <tr><td>DeepSeek, 8 cards</td><td>103.800</td><td>not used</td><td>84/84</td></tr>
+        <tr><td>GLM, 4 cards</td><td>84.153</td><td>not used</td><td>84/84</td></tr>
+        <tr><td>GLM, 8 cards, MTP</td><td>30.002</td><td>42.15%</td><td>84/84</td></tr>
+        <tr><td>GLM, 8 cards, no MTP</td><td>45.743</td><td>not used</td><td>84/84</td></tr>
+      </tbody>
+    </table>
+
+    <table>
+      <caption>Measured time to first token for the 1,024-token decode test, in milliseconds,
+      with the corresponding aggregate output at 32 concurrent workers.</caption>
+      <thead>
+        <tr>
+          <th>Configuration</th>
+          <th>TTFT</th>
+          <th>Aggregate at 32</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>DeepSeek, 2 cards</td><td>36.003</td><td>1,649.3</td></tr>
+        <tr><td>DeepSeek, 4 cards</td><td>37.016</td><td>1,696.0</td></tr>
+        <tr><td>DeepSeek, 8 cards</td><td>35.829</td><td>1,845.4</td></tr>
+        <tr><td>GLM, 4 cards</td><td>33.267</td><td>1,108.7</td></tr>
+        <tr><td>GLM, 8 cards, MTP</td><td>526.533</td><td>942.4</td></tr>
+        <tr><td>GLM, 8 cards, no MTP</td><td>426.228</td><td>57.6</td></tr>
+      </tbody>
+    </table>
+
+    <p>The headline decode and TTFT cells are the <code>decode_1024</code> test rather than a
+    median pooled across unrelated prefill, context, reasoning, and concurrency cases. The GLM
+    MTP acceptance measurement is 4,531 accepted of 10,750 drafted tokens, with accepted counts
+    by position 1,722, 1,165, 779, 517, and 348.</p>
+
+    <h2 id="aggregate-scaling">Aggregate concurrency scaling</h2>
+
+    <table>
+      <caption>Aggregate output tokens per second by concurrent worker count. Every worker
+      requests 1,024 output tokens in the final active reports.</caption>
+      <thead>
+        <tr>
+          <th>Configuration</th>
+          <th>1 worker</th>
+          <th>2 workers</th>
+          <th>4 workers</th>
+          <th>8 workers</th>
+          <th>16 workers</th>
+          <th>32 workers</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>DeepSeek, 2 cards</td><td>126.1</td><td>221.5</td><td>418.1</td><td>656.4</td><td>1,046.8</td><td>1,649.3</td></tr>
+        <tr><td>DeepSeek, 4 cards</td><td>113.9</td><td>218.0</td><td>402.1</td><td>701.3</td><td>1,096.5</td><td>1,696.0</td></tr>
+        <tr><td>DeepSeek, 8 cards</td><td>103.6</td><td>182.1</td><td>355.9</td><td>684.9</td><td>1,190.6</td><td>1,845.4</td></tr>
+        <tr><td>GLM, 4 cards</td><td>83.8</td><td>152.2</td><td>268.0</td><td>437.9</td><td>714.4</td><td>1,108.7</td></tr>
+        <tr><td>GLM, 8 cards, MTP</td><td>27.9</td><td>28.4</td><td>29.5</td><td>299.2</td><td>575.3</td><td>942.4</td></tr>
+        <tr><td>GLM, 8 cards, no MTP</td><td>44.8</td><td>52.1</td><td>60.6</td><td>58.8</td><td>59.0</td><td>57.6</td></tr>
+      </tbody>
+    </table>
+
+    <p>Turning MTP off on eight-card GLM raises 1,024-token single-stream decode from 30.002 to
+    45.743 tokens/s, a 52.5% gain, and reduces TTFT by 19.1%. At 32 workers, however, aggregate
+    throughput falls from 942.4 to 57.6 tokens/s, a 16.4× collapse. The non-MTP arm peaks at
+    60.6 tokens/s with four workers; quoting only its single-stream rate would therefore reverse
+    the deployment conclusion for a concurrent workload.</p>
+
+    <h2 id="kv-capacity">KV-pool capacity and launch cost</h2>
+
+    <table>
+      <caption>Final successful launch facts. KV tokens and GiB come from the engine allocation;
+      concurrency multiplier is the captured capacity ratio; load time is wall-clock seconds.</caption>
+      <thead>
+        <tr>
+          <th>Configuration</th>
+          <th>KV tokens</th>
+          <th>KV pool GiB</th>
+          <th>Concurrency multiplier</th>
+          <th>Load time</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>DeepSeek, 2 cards</td><td>740,338</td><td>37.83</td><td>1.41×</td><td>761 s</td></tr>
+        <tr><td>DeepSeek, 4 cards</td><td>1,453,347</td><td>74.26</td><td>2.77×</td><td>782 s</td></tr>
+        <tr><td>DeepSeek, 8 cards</td><td>3,370,578</td><td>92.26</td><td>3.21×</td><td>1,081 s</td></tr>
+        <tr><td>GLM, 4 cards</td><td>74,240</td><td>6.41</td><td>2.27×</td><td>1,643 s</td></tr>
+        <tr><td>GLM, 8 cards, MTP</td><td>214,464</td><td>18.76</td><td>1.05×</td><td>5,430 s</td></tr>
+        <tr><td>GLM, 8 cards, no MTP</td><td>259,264</td><td>22.38</td><td>1.27×</td><td>4,787 s</td></tr>
+      </tbody>
+    </table>
+
+    <p>DeepSeek's move from two to eight cards reduces single-stream decode by 18.3%, from
+    127.118 to 103.800 tokens/s, but grows the KV capacity 4.55× and improves the 32-worker
+    aggregate by 11.9%. This is a capacity and concurrency trade, not a monotonic speedup.</p>
+
+    <h2 id="comparison-figures">Comparison figures and their evidence boundary</h2>
+
+    <p><strong>These three SVGs are an intermediate five-report rendering, retained for visual
+    traceability rather than promoted as the final six-row authority.</strong> They predate the
+    no-MTP arm and display the GLM four-card concurrency row under its superseded 256-token
+    method. The four tables above are the final comparison: they include all six reports and the
+    regenerated 1,024-token concurrency rows. The figures must not be used to reintroduce the
+    superseded qualifier or omit the no-MTP result.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/glm-52-local-serve-performance/headline-performance.svg"
+           alt="Intermediate five-run bars comparing decode rate, time to first token, and aggregate throughput">
+      <figcaption>Headline decode, TTFT, and aggregate comparison from the five-report intermediate cut.</figcaption>
+    </figure>
+
+    <figure>
+      <img src="/imas-ambix/figures/glm-52-local-serve-performance/aggregate-throughput.svg"
+           alt="Intermediate five-run lines showing aggregate throughput from one to thirty-two workers">
+      <figcaption>Aggregate scaling in the intermediate cut; the final six-run values are in the aggregate table above.</figcaption>
+    </figure>
+
+    <figure>
+      <img src="/imas-ambix/figures/glm-52-local-serve-performance/per-stream-throughput.svg"
+           alt="Intermediate five-run lines showing per-stream throughput as concurrency increases">
+      <figcaption>Per-stream scaling in the intermediate cut, retained to show saturation shape rather than final row coverage.</figcaption>
+    </figure>
+
+    <h2 id="method-corrections">Method corrections and qualifications</h2>
+
+    <ul>
+      <li><strong>Concurrency length corrected.</strong> Warmed-up concurrency rows originally
+      generated 256 output tokens per worker while the throughput headline used 1,024. All six
+      active reports were regenerated at 1,024 tokens; superseded reports are excluded from the
+      tables.</li>
+      <li><strong>GLM four-card context corrected.</strong> Three clean launches of the same
+      configuration exposed 6.41, 3.14, and 6.33 GiB KV pools. A 64K context requires about
+      5.65 GiB and is therefore not repeatably available. The recorded configuration uses 32K,
+      which requires about 2.8 GiB and clears the lowest observed allocation.</li>
+      <li><strong>Two stale profile fields were not treated as measurement authority.</strong>
+      The two-card DeepSeek report inherited four-card TP/GPU fields in its profile provenance,
+      while its direct <code>/v1/models</code> metadata reports two H200 accelerators and the run
+      identity is the two-card arm. The no-MTP GLM report inherited the profile's MTP declaration,
+      while its run identity and absent draft metrics establish that drafting was disabled.
+      Configuration labels above use the direct run facts.</li>
+      <li><strong>Topology is discrete.</strong> Tensor parallelism must divide 64 attention
+      heads, so the feasible matrix widths are 2, 4, and 8 cards; six cards is not a valid arm.
+      GLM cannot fit below four cards because its weights would require about 218 GiB per card.</li>
+      <li><strong>The figures are qualified.</strong> Their selectable, theme-neutral SVG text
+      remains useful, but their five-run content is not a substitute for the final six-run tables.</li>
+    </ul>
+
+    <h2 id="evidence-provenance">Evidence provenance</h2>
+
+    <table>
+      <caption>Durable inputs and the claims each one supports.</caption>
+      <thead><tr><th>Input</th><th>Evidence carried</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>_matrix/dsv4-2card.json</code>, <code>dsv4-4card.json</code>,
+          <code>dsv4-8card.json</code></td>
+          <td>DeepSeek test outcomes, decode and TTFT, full concurrency curves, direct model metadata</td>
+        </tr>
+        <tr>
+          <td><code>_matrix/glm-4card.json</code>, <code>glm-8card.json</code>,
+          <code>glm-8card-nomtp.json</code></td>
+          <td>GLM test outcomes, decode and TTFT, full concurrency curves, MTP counters, direct model metadata</td>
+        </tr>
+        <tr>
+          <td><code>_matrix/facts.tsv</code></td>
+          <td>Serve jobs, KV token and GiB allocations, capacity multipliers, load times, repeated-start observations</td>
+        </tr>
+        <tr>
+          <td><code>51952fc</code></td>
+          <td>Dependency-free SVG generator and three intermediate comparison figures</td>
+        </tr>
+        <tr>
+          <td><code>af94098</code></td>
+          <td>Repeatable 32K GLM four-card context decision from three observed pool allocations</td>
+        </tr>
+        <tr>
+          <td><code>bf5b417</code></td>
+          <td>Serve walltime override used to declare bounded measurement allocations accurately</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>All six reports were captured from vLLM 0.28.0 on H200 host
+    <code>98dci4-gpu-0003</code>. Numeric report projections use the shared benchmark-report
+    interpreter; the tuple-keyed per-run test map is projected into the flat cells above rather
+    than serialized as a comparison object.</p>
+  </main>
+</body>
+</html>
