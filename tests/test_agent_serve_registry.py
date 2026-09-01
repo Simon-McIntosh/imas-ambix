@@ -20,6 +20,7 @@ from imas_ambix.agent.registry import (
 from imas_ambix.agent.slurm import generate_serve_script
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+_AGENT_PACKAGE = _REPOSITORY_ROOT / "imas_ambix/agent"
 _SERVING_ENVIRONMENT = _REPOSITORY_ROOT / "imas_ambix/agent/envs/vllm/pyproject.toml"
 
 
@@ -33,20 +34,8 @@ def _serving_python_feature_version() -> tuple[int, int]:
     return int(lower_bound.group(1)), int(lower_bound.group(2))
 
 
-def _repository_modules_referenced_by(script: str) -> tuple[Path, ...]:
-    paths: set[Path] = set()
-    references = set(re.findall(r"\bimas_ambix(?:\.[A-Za-z_]\w*)+", script))
-    for reference in references:
-        parts = reference.split(".")
-        for length in range(1, len(parts) + 1):
-            package = _REPOSITORY_ROOT.joinpath(*parts[:length], "__init__.py")
-            if package.is_file():
-                paths.add(package)
-            module = _REPOSITORY_ROOT.joinpath(*parts[:length]).with_suffix(".py")
-            if module.is_file():
-                paths.add(module)
-                break
-    return tuple(sorted(paths))
+def _agent_package_modules() -> tuple[Path, ...]:
+    return tuple(sorted(_AGENT_PACKAGE.rglob("*.py")))
 
 
 def _registration(job_id: str = "42", model_id: str = "glm-5.3") -> ServeRegistration:
@@ -132,17 +121,11 @@ def test_generated_serve_script_owns_registration_lifecycle(tmp_path):
     assert "trap terminate_serve TERM INT" in script
 
 
-def test_generated_serve_script_modules_parse_with_serving_python(tmp_path):
-    profile = load_profile("glm-5-3").for_gpus(4)
-    script = generate_serve_script(
-        profile, SiteConfig(base_dir=str(tmp_path)), port=18801
-    )
-    module_paths = _repository_modules_referenced_by(script)
+def test_agent_package_modules_parse_with_serving_python():
+    module_paths = _agent_package_modules()
+    parsed = 0
 
-    assert {path.relative_to(_REPOSITORY_ROOT).as_posix() for path in module_paths} >= {
-        "imas_ambix/agent/registry.py",
-        "imas_ambix/agent/vllm_catalog.py",
-    }
+    assert len(module_paths) == 16
     for path in module_paths:
         source = path.read_text(encoding="utf-8")
         try:
@@ -157,6 +140,9 @@ def test_generated_serve_script_modules_parse_with_serving_python(tmp_path):
                 f"{error.msg}",
                 pytrace=False,
             )
+        parsed += 1
+
+    assert parsed == len(module_paths)
 
 
 def test_serving_python_guard_rejects_unparenthesized_exception_tuple():

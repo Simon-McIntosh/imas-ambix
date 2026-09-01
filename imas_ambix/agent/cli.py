@@ -816,7 +816,11 @@ def _probe_endpoint(url: str, api_key: str | None, timeout: float = 4.0) -> Prob
                 return ProbeResult(f"http {resp.status}")
             try:
                 payload = json_module.load(resp)
-            except json_module.JSONDecodeError, UnicodeDecodeError, TypeError:
+            except (
+                json_module.JSONDecodeError,
+                UnicodeDecodeError,
+                TypeError,
+            ):
                 return ProbeResult("malformed response")
             raw_models = payload.get("data") if isinstance(payload, dict) else None
             if not isinstance(raw_models, list) or not raw_models:
@@ -841,7 +845,11 @@ def _probe_endpoint(url: str, api_key: str | None, timeout: float = 4.0) -> Prob
         if exc.code in (401, 403):
             return ProbeResult("auth-fail")
         return ProbeResult(f"http {exc.code}")
-    except urllib.error.URLError, TimeoutError, OSError:
+    except (
+        urllib.error.URLError,
+        TimeoutError,
+        OSError,
+    ):
         return ProbeResult("unreachable")
 
 
