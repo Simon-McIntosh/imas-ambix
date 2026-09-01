@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="5">
 <meta name="plan-depends-on" content="glm-53-serve-and-wiring">
 <meta name="plan-commits" content="a1ebcaf193ebd31d3d220ef635bd8155574c0ffb">
 <meta name="plan-artifacts" content="imas_ambix/agent/router.py,tests/test_agent_router.py">
@@ -227,6 +227,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-20260901-router-passthrough" data-who="reckon-ship" data-when="2026-09-01T12:50:00+00:00">
     <div class="r-comment-body">router-passthrough landed — commit a1ebcaf; gate 'router contract against fixture upstreams' passed; measure 4/4 tests in 0.41s over two fixture catalogs and every required protocol path. The union preserves each native card unchanged including engine-reported max_model_len and the complete metadata block, validated through the existing schema validator rather than a second one. A native id two upstreams both claim returns 409 rather than being resolved implicitly, an unknown id returns 404 rather than falling back to a default upstream, and one upstream being unreachable degrades the union to its reachable peer instead of failing outright. Streaming is byte-faithful: the fixture asserts an exact thinking signature and an exact tool-use identifier survive the relay, an upstream 429 and its headers pass through unchanged, and a downstream disconnect closes the upstream response. Upstreams arrive through an injected resolver, so the module never queries the scheduler itself — which is what lets the registration store and the existing discovery path supply it without either being duplicated here. No protocol translation anywhere, per the locked decision. Artifacts imas_ambix/agent/router.py, tests/test_agent_router.py.</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260901T103626077252-serve-registration-store" data-who="s24-router-impl" data-when="2026-09-01T10:50:48Z">
+    <div class="r-comment-body"><p>Per-serve registration record lands: six identity fields written atomically, idempotent removal on EXIT and TERM/INT, live records separated from stale, and 100 concurrent atomic replacements observed with no partial read</p></div>
 </div>
 </section>
 </main>

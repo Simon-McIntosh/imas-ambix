@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T12:49:21",
+  "updated": "2026-09-01T12:51:37",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -14744,9 +14744,205 @@
           "role": "documentation",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T102739091952-glm53-bringup",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a72",
+        "node": "glm53-bringup",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-glm53-bringup.md records, each with the verbatim command and its output: (1) the srun --test-only probe for --gres=gpu:4 --cpus-per-task=12 --mem=320G on partition betelgeuse with reservation gpu_0003_grpA, run BEFORE any submission. (2) the job id returned by 'uv run --no-sync imas-ambix agent serve glm-5-3 --gpus 4 --cpus 12 --port 18801', which takes no auth flag because keyless is the serve default. (3) the engine's own startup KV-cache pool line quoted verbatim from the job log, with the context ceiling it implies stated as a number - this is ground truth and the profile's 262144 is arithmetic. (4) a successful non-empty GET http://98dci4-gpu-0003:18801/v1/models whose card carries served id glm-5.3 and an intact ambix metadata block naming accelerator count 4 and precision int4. (5) a REAL streaming generation through POST /v1/messages returning non-empty assistant text. A ready state is NOT evidence: this architecture's sparse-MLA attention kernel claims roughly 8 GiB per card lazily on the first real decode, which has turned a clean startup into an engine that dies on its first request. If the engine dies on first decode, report that as the finding with the log excerpt rather than retrying blindly. Do not stop, cancel or resize any other job on the node - jobs 1260660 (DeepSeek serve) and 1260043 (nova physics) must still be RUNNING at the end.",
+          "estimated_hours": null,
+          "goal": "Prove a four-card INT4 GLM-5.3 deployment serving on port 18801 beside the running DeepSeek serve with a real generation",
+          "id": "glm53-bringup",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T102739091952-glm53-bringup/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "55m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-glm53-bringup.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "guided",
+        "member": "s24-glm-bringup",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T10:27:52Z",
+        "completed_at": "2026-09-01T10:41:13Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 801,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 801,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "fd80138571391309f45f42bf4f208368801f1b07",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": {
+          "command": "uv run --no-sync imas-ambix agent serve glm-5-3 --gpus 4 --cpus 6 --port 18801 then anonymous GET /v1/models and streaming POST /v1/messages",
+          "exit_status": 7,
+          "log_path": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/s24-ship-01/glm53-bringup/glm-5-3-1260688.log",
+          "log_digest": null
+        },
+        "failure_classification": "pre-existing-failure",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T102739091952-glm53-bringup/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c82-d605-7472-9bb3-1d541a3193d7",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1526272,
+            "cached_input_tokens_cumulative": 1526272,
+            "input_tokens": 1567438,
+            "input_tokens_cumulative": 1567438,
+            "output_tokens": 12690,
+            "output_tokens_cumulative": 12690,
+            "reasoning_output_tokens": 3784,
+            "reasoning_output_tokens_cumulative": 3784
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 2,
+        "attempt_kind": "resume",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
+      },
+      {
+        "run_id": "r-20260901T103626077252-serve-registration-store",
+        "plan": "serving-endpoint-indirection",
+        "section": "\u00a74",
+        "node": "serve-registration-store",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_serve_registry.py -q exits 0. A new module imas_ambix/agent/registry.py owns the record and the generated serve script writes one at startup and removes it at shutdown. Tests assert: a record carries the served model id, the origin host, the port, the job id, the accelerator count and the checkpoint precision. Writes are atomic, so a concurrent reader never observes a partial record. Reading returns every current record. A record whose job is no longer running is treated as stale rather than as an upstream. A record alone never establishes availability - the reader must still qualify it, which is why the scheduler discovery already in the tree stays the reconciling fallback rather than being replaced. The generated script removes its record on normal exit and on SIGTERM. Extend generate_serve_script for the lifecycle exactly as the reuse map at /home/ITER/mcintos/.config/reckon/crew/reports/s24-reuse-map.md directs, and do not write a second scheduler parser or catalog schema.",
+          "estimated_hours": null,
+          "goal": "Give every serve a registration record written at startup and removed at shutdown, so upstream resolution does not depend on one operator's scheduler queue",
+          "id": "serve-registration-store",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T103626077252-serve-registration-store/manifest.md",
+          "plan": "serving-endpoint-indirection",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/agent/registry.py",
+            "imas_ambix/agent/slurm.py",
+            "tests/test_agent_serve_registry.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "s24-router-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T10:36:36Z",
+        "completed_at": "2026-09-01T10:50:48Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 852,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 852,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "ba093e292217e38139e90bf9160003586dbad63f",
+        "commits": [
+          "965f4e2f21e759a60efbd7ffa4dfec4f7c25fe38"
+        ],
+        "changed_lines": {
+          "added": 328,
+          "removed": 1,
+          "files": 3
+        },
+        "tests_added": 5,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_serve_registry.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T103626077252-serve-registration-store/logs/pytest-agent-serve-registry-post-review.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T103626077252-serve-registration-store/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c83-5de8-74c3-a1d9-db6b19b95c3e",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1736960,
+            "cached_input_tokens_cumulative": 2940928,
+            "input_tokens": 2019568,
+            "input_tokens_cumulative": 3323033,
+            "output_tokens": 8616,
+            "output_tokens_cumulative": 13983,
+            "reasoning_output_tokens": 3446,
+            "reasoning_output_tokens_cumulative": 4704
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_serve_registry.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 383
+    "_version": 385
   }
 }

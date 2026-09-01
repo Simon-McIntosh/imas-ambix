@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 <meta name="plan-commits" content="3dd736597952c097de5c997b0613b8b166a7558b,53b4fc31f7b7e609f8d14c4b051f1b3d12a4bc65">
 <meta name="plan-artifacts" content="tests/test_agent_glm_5_3.py,docs/evidence/archive/glm-53-serve-and-wiring-landed.html">
 <meta name="plan-impl" content="0.4">
@@ -171,6 +171,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-20260901-serve-operator-instructions" data-who="reckon-ship" data-when="2026-09-01T12:41:00+00:00">
     <div class="r-comment-body">serve-operator-instructions landed — commit 53b4fc3; gate 'agent CLI suite' passed; measure 183/183 tests in 17.82s with two assertions added. The prior-art scout found two operator-facing strings contradicting the code: the generated serve banner recommended an ssh -N -L port forward that is administratively prohibited on compute nodes, and the --gpus help claimed host cores scale with the card count while the sizing path deliberately leaves them unchanged. The banner now prints the direct node-and-port origin the status command already reports, and the help names --cpus as the override. Sizing, submission and catalog metadata behaviour are unchanged. Artifacts imas_ambix/agent/slurm.py, imas_ambix/agent/cli.py.</div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260901T102739091952-glm53-bringup" data-who="s24-glm-bringup" data-when="2026-09-01T10:41:13Z">
+    <div class="r-comment-body"><p>Core ladder measured: 12/10/8 cores all deferred to 15:21:36, 6 and 4 immediate; chose 6. Job 1260688 allocated 4 H200 and died in 59s during tokenizer construction, before any weight or KV initialisation, because the community INT4 checkpoint ships no tokenizer assets while the official FP8 release on the same disk has tokenizer.json and tokenizer_config.json. No KV pool line, catalog and streaming probes both connection-refused. DeepSeek 1260660 untouched and still RUNNING.</p></div>
 </div>
 </section>
 </main>
