@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="clive-launch-modes-landed">
+  <meta name="plan-title" content="Clive Launch Modes — Landed Record">
+  <meta name="plan-summary" content="Execution record for the local-only mode axis, catalog-derived picker rows, declared capabilities, and the local-alias dispatch statement.">
+  <meta name="plan-evidence-for" content="clive-launch-modes">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>Clive Launch Modes — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="summary">What landed</h2>
+    <table>
+      <thead><tr><th>Node</th><th>Commit</th><th>Measure</th></tr></thead>
+      <tbody>
+        <tr><td>Mode axis</td><td><code>526195c</code></td><td>7/7; implicit launch byte-identical to explicit local</td></tr>
+        <tr><td>Picker rows + capabilities</td><td><code>5fd71b1</code></td><td>3/3; 5 rows from a 5-item catalog against 4 alias slots</td></tr>
+        <tr><td>Local-alias statement</td><td><code>cb5c6e1</code></td><td>2/2; alias mapping unchanged</td></tr>
+        <tr><td>Hybrid alias alignment</td><td><code>1c602d0</code></td><td>10/10; no hosted id on sonnet or haiku</td></tr>
+        <tr><td>Legacy surface repair</td><td><code>c197e3d</code></td><td>183/183 with no production change</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="default">The default is guarded by a negative</h2>
+    <p>The load-bearing assertion is not that local mode works — it is that nothing else
+    can silently displace it. A route once selected by whether a personal credential
+    happened to be readable made the launcher's default model hostage to one account, and
+    gave holders of that file dead picker slots while everyone else got the working route.
+    That is now fenced by test rather than by intent:</p>
+    <ul>
+      <li>an unqualified launch and an explicit <code>--mode local</code> launch generate
+      <strong>byte-identical</strong> content, so a cautious caller can assert the default
+      instead of trusting it;</li>
+      <li>a well-formed hosted credential present on disk changes <strong>zero bytes</strong>
+      of that output;</li>
+      <li>only an explicit <code>--mode hybrid</code> embeds any hosted slot or invokes
+      proxy installation;</li>
+      <li>an unrecognised mode value exits non-zero naming both valid values rather than
+      falling back;</li>
+      <li>the axis parses independently of the existing harness selection it must not
+      collide with.</li>
+    </ul>
+
+    <h2 id="mechanisms">Two mechanisms, and why both were needed</h2>
+    <p>Alias slots decide dispatch; curated rows decide presentation; a row is
+    <strong>not</strong> a name a delegated worker can be sent to. Building only the
+    prettier one would have produced a picker whose models no worker could reach.</p>
+    <p>Rows are derived from the catalog the launcher already fetches, so a two-item
+    fixture emits two independently-labelled rows — <em>2×H200 int4 512k</em> against
+    <em>4×H200 fp8 256k</em> — with topology and context read from each card rather than a
+    shared default. A five-item catalog emits five rows against four alias slots, proving
+    row count is not capped by the slot count, and a release the launcher has no built-in
+    knowledge of still gets one. All four slots now declare supported capabilities, which
+    the launcher previously left unset, leaving the harness to guess.</p>
+
+    <h2 id="dispatch">Telling a session where local work goes</h2>
+    <p>Routing already worked and needed no harness change, because a delegated worker's
+    model is requested by alias. The gap was knowledge. The default local launch now states
+    that <code>sonnet</code> is the primary local worker, carrying that release's own
+    validated accelerator count, family and exact <code>max_model_len</code> from its
+    catalog card, the division of labour — bulk, parallel and mechanical work local,
+    adjudication and physics-critical judgement on a frontier slot — and the plain fact
+    that local-only mode has no frontier slot. It describes the mapping rather than
+    creating one, so every alias resolves exactly as before.</p>
+    <p><strong>Landing that statement exposed a contradiction worth recording.</strong> The
+    hybrid branch had inherited a mapping that gave its local release to
+    <code>haiku</code> and <code>sonnet</code> to a hosted model. A session told sonnet is
+    local in the default lineup would have reached a hosted model after switching mode —
+    exactly the confusion an alias mapping exists to remove. Hybrid now places the first
+    local release on sonnet and the second on haiku, with no hosted id on either.</p>
+
+    <h2 id="regression">A regression this sprint caused, and how it was caught</h2>
+    <p>The mode axis moved hosted paths behind explicit selection and broke six older
+    launcher tests. Each node's gate ran only its own focused file, so nothing caught it
+    until a whole-surface verification node was dispatched for that gap. The repair changed
+    <strong>no production file</strong>: tests that supply a hosted release now select
+    hybrid explicitly, picker cases assert the current alias mapping, and assertions on the
+    retired selection surface were replaced by their equivalents against the mode axis that
+    superseded it. Every property still has a test on it — notably the credential test
+    stays unqualified and local, and the catalog-failure test still proves no hosted
+    fallback. Final measure: <code>tests/test_agent.py</code> 183/183, focused launcher
+    suites 13/13.</p>
+
+    <h2 id="open">What is not proven here</h2>
+    <p>Curated rows are asserted to be generated correctly, not to <em>render</em>. A
+    non-interactive run cannot show a picker, so interactive confirmation remains
+    outstanding and requires a human at a terminal.</p>
+
+  </main>
+</body>
+</html>

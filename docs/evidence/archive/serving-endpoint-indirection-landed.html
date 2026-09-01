@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-endpoint-indirection-landed">
+  <meta name="plan-title" content="Serving Endpoint Indirection — Landed Record">
+  <meta name="plan-summary" content="Execution record for the pass-through router, its per-serve registration store, upstream resolution, and the serving-interpreter defect the work exposed.">
+  <meta name="plan-evidence-for" content="serving-endpoint-indirection">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>Serving Endpoint Indirection — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="summary">What landed</h2>
+    <p>One origin now fronts many engines. The router's whole contract is
+    <code>model id → (upstream base, auth header)</code> plus a byte-faithful relay, with
+    upstreams resolved from per-serve registration records and reconciled against the
+    scheduler. Every component below is proven against fixture upstreams; the two-engine
+    live union remains open behind the second engine, recorded in
+    <a href="/imas-ambix/evidence/archive/glm-53-serve-and-wiring-landed">the bring-up record</a>.</p>
+
+    <table>
+      <thead><tr><th>Node</th><th>Commit</th><th>Measure</th></tr></thead>
+      <tbody>
+        <tr><td>Pass-through router</td><td><code>a1ebcaf</code></td><td>4/4 fixture tests, two upstreams</td></tr>
+        <tr><td>Registration store</td><td><code>965f4e2</code></td><td>5/5; 100 concurrent atomic replacements, no partial read</td></tr>
+        <tr><td>Upstream resolution + command</td><td><code>892050c</code></td><td>6/6; restart on a new port resolved with no config edit</td></tr>
+        <tr><td>Serving-interpreter guard</td><td><code>8cbc2f7</code></td><td>7/7; guard derives 3.12 from the serving env's own pin</td></tr>
+        <tr><td>Package-wide grammar sweep</td><td><code>25b1be1</code></td><td>16/16 agent modules parse at 3.12</td></tr>
+        <tr><td>Per-consumer admission</td><td><code>b76d9cb</code></td><td>3/3; 429 with Retry-After 7 past the bound</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="union">The union catalog, and what it refuses</h2>
+    <p>The union preserves each upstream card unchanged — native <code>id</code>,
+    engine-reported <code>max_model_len</code>, and the complete <code>ambix</code> block —
+    validated through the schema validator the engines already use rather than a second
+    one. Three refusals are the substance, because a merge that resolves ambiguity
+    silently is worse than one that stops:</p>
+    <ul>
+      <li>a native id two upstreams both claim returns <strong>409</strong> rather than
+      picking one;</li>
+      <li>an unknown id returns <strong>404</strong> rather than falling back to a default
+      upstream;</li>
+      <li>one upstream being unreachable degrades the union to its reachable peer instead
+      of failing the whole catalog.</li>
+    </ul>
+    <p>Streaming fidelity is asserted at byte level: the fixture pins an exact thinking
+    signature and an exact <code>tool_use</code> identifier surviving the relay, an
+    upstream 429 and its headers passing through unchanged, and a downstream disconnect
+    closing the upstream response. No protocol translation exists anywhere on the path,
+    per the locked decision.</p>
+
+    <h2 id="resolution">Upstream resolution</h2>
+    <p>Locked to a registration record preferred with scheduler discovery reconciling it.
+    A record becomes a candidate only after its job is still running <em>and</em> an
+    anonymous probe returns the same native model id, so a record never establishes
+    availability on its own — which is what stops a stale file becoming a phantom
+    upstream. Records win over scheduler rows describing the same allocation, producing no
+    duplicate engine, and job-id reconciliation is owner-independent so the router is not
+    limited to one operator's queue. A stale allocation beside a running replacement
+    resolves only the replacement's new port, with no configuration edit and no launcher
+    redeploy — the acceptance property the plan named.</p>
+
+    <h2 id="interpreter">The defect this work exposed</h2>
+    <p><strong>A module's unit tests passing proved nothing about the interpreter that
+    actually imports it.</strong> The registration module used the unparenthesized
+    multi-exception form that Python 3.14 permits; the project targets 3.14, its tests
+    passed there, and the whole-tree lint was clean. But the generated serve script imports
+    repository modules <em>on the compute node</em>, under the vLLM environment pinned to
+    <code>&gt;=3.12,&lt;3.13</code>, where that form is a hard <code>SyntaxError</code>. Serve
+    job <code>1260703</code> died two seconds in.</p>
+    <p>The first guard covered only the modules the generated script names. Widening it to
+    the whole package immediately exposed a fourth clause that <code>ast.parse</code> could
+    not report while an earlier error in the same file stood — three modules had been
+    reported, four clauses existed. The guard now parses every module under the agent
+    package at the serving environment's declared lower bound, derived from that
+    environment's own <code>requires-python</code> rather than hardcoded, with an inline
+    negative control proving it rejects the form that caused the failure.</p>
+
+    <h2 id="admission">Admission control</h2>
+    <p>Admission sits on the router because the engine will not self-limit usefully: it
+    accepts far more concurrency than the node serves at acceptable latency. Each consumer
+    defaults to two in flight plus four queued, all three limits configurable, sized for
+    the group best-effort audience. Under deliberate overload against a one-active
+    one-queued limit, a third request receives HTTP 429 with <code>Retry-After 7</code>
+    while a second consumer completes independently — the property that makes a heavy
+    caller degrade its own latency rather than everyone's. Capacity is released in a
+    <code>finally</code>, so a client disconnecting mid-stream cannot leak a slot; the test
+    shows the same consumer immediately reusing a one-active zero-queued router.</p>
+
+    <h2 id="verification">Whole-surface verification</h2>
+    <p>Per-node gates ran only their own focused files, which is how a regression reached
+    <code>main</code> unnoticed. A whole-tree node was dispatched for exactly that gap and
+    found it: 2654 passed, 14 failed, 0 errors, 20 skipped across 212 of 221 files, with
+    six failures in <code>tests/test_agent.py</code> caused by this sprint's own launch-mode
+    work. Whole-tree lint reported 0 findings and all 16 agent modules parsed at 3.12. The
+    nine files that exceeded the compute allocation were measured separately: 171 passed,
+    0 failed, 3 skipped over eight of them, leaving
+    <code>tests/fluxstate/test_consumer_contract.py</code> as the only unmeasured file.</p>
+
+  </main>
+</body>
+</html>
