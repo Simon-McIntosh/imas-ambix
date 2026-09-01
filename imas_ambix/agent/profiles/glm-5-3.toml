@@ -54,12 +54,13 @@ mem_fraction_static = 0.90
 # REPLICATED on every rank rather than sharded -- so more cards buy room only
 # by shrinking weights-per-card.
 #
-# Four cards: 80.1 GiB of weights and ~11 GiB of runtime overhead leave ~35 GiB
-# of pool inside a 0.90 budget, a ceiling near 400K. 256K uses about 65% of
-# that, which keeps margin for the run-to-run variance in non-KV footprint that
-# was measured at roughly 3 GiB on this card count. Read the startup pool line
-# before raising it; that number is ground truth and this one is arithmetic.
-max_total_tokens = 262144
+# Four cards, measured after all 241 shards loaded at 94.38 GiB per card: the
+# engine reported 20.74 GiB available for KV, while 262144 tokens required
+# 22.61 GiB and its own maximum was 240384. The configured 131072 tokens need
+# about 11.3 GiB, leaving about 9.4 GiB for the sparse-MLA kernel's roughly
+# 8 GiB per-card allocation on the first real decode. Using the engine maximum
+# would consume the pool before that lazy allocation and can fail after ready.
+max_total_tokens = 131072
 
 # The sparse attention has no FP8 KV kernel in vLLM, and "fp8" resolves to the
 # fp8_e4m3 those backends reject, so an FP8 entry cannot start at all.
