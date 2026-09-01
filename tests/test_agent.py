@@ -40,7 +40,9 @@ def test_load_kimi_profile():
 def test_load_deepseek_v4_flash_profile():
     profile = load_profile("deepseek-v4-flash")
     assert profile.slug == "deepseek-v4-flash"
-    assert profile.model.hf_repo == "deepseek-ai/DeepSeek-V4-Flash"
+    # The vendor and model are the identity worth pinning; the release suffix
+    # is expected to move as new checkpoints ship.
+    assert profile.model.hf_repo.startswith("deepseek-ai/DeepSeek-V4-Flash")
     assert profile.engine.type == "vllm"
     assert profile.engine.tensor_parallel == 4
     assert profile.engine.ktransformers is None
@@ -140,15 +142,22 @@ def test_load_deepseek_v4_flash_2x_inherits_base():
 
 
 def test_variant_weights_slug_redirects_to_base():
-    """weights_slug is auto-injected from the _base chain."""
-    variant = load_profile("deepseek-v4-flash-2x")
-    assert variant.model.weights_slug == "deepseek-v4-flash"
-
-
-def test_base_profile_has_no_weights_slug():
-    """Standalone profiles have weights_slug=None (use own directory)."""
+    """A topology variant loads the same weights directory as its base."""
     base = load_profile("deepseek-v4-flash")
-    assert base.model.weights_slug is None
+    variant = load_profile("deepseek-v4-flash-2x")
+    assert variant.model.weights_slug == base.weights_directory_slug
+
+
+def test_profile_without_weights_slug_uses_its_own_slug():
+    """With no override declared, a profile's weights live under its own slug.
+
+    A profile MAY declare ``weights_slug`` to keep one release's shards out of
+    another's directory, so the absence of an override -- not the absence of a
+    value -- is what this pins.
+    """
+    profile = load_profile("glm-5-2")
+    assert profile.model.weights_slug is None
+    assert profile.weights_directory_slug == profile.slug
 
 
 def test_variant_model_dir_uses_base_slug():
@@ -158,13 +167,16 @@ def test_variant_model_dir_uses_base_slug():
     variant = load_profile("deepseek-v4-flash-2x")
 
     assert site.model_dir(base) == site.model_dir(variant)
-    assert str(site.model_dir(variant)).endswith("agents/deepseek-v4-flash/model")
+    expected = f"agents/{base.weights_directory_slug}/model"
+    assert str(site.model_dir(variant)).endswith(expected)
 
 
 def test_variant_cache_dir_uses_base_slug():
     site = SiteConfig()
+    base = load_profile("deepseek-v4-flash")
     variant = load_profile("deepseek-v4-flash-2x")
-    assert str(site.cache_dir(variant)).endswith("agents/deepseek-v4-flash/.cache")
+    expected = f"agents/{base.weights_directory_slug}/.cache"
+    assert str(site.cache_dir(variant)).endswith(expected)
 
 
 def test_inheritance_cycle_detection():
@@ -237,6 +249,31 @@ def _serve_cli(monkeypatch, resolved_key):
     return CliRunner()
 
 
+@pytest.mark.parametrize(
+    ("gres", "expected"),
+    [
+        # squeue %b on this scheduler: TRES form, with and without a type.
+        ("gres/gpu:2", 2),
+        ("gres/gpu:h200:1", 1),
+        ("gres/gpu:h200:8(S:0-1)", 8),
+        # A TRES list, where the resource name is neither first nor last.
+        ("cpu=30,mem=600G,node=1,billing=30,gres/gpu=8", 8),
+        # Unprefixed spellings.
+        ("gpu:2", 2),
+        ("gpu:h200:1(IDX:0-1)", 1),
+        # No GPU allocation at all.
+        ("N/A", None),
+        ("", None),
+        ("cpu=4,mem=16G", None),
+    ],
+)
+def test_allocated_gpus_reads_every_scheduler_spelling(gres, expected):
+    """A prefixed resource name must not read as an absent allocation."""
+    from imas_ambix.agent.cli import _allocated_gpus
+
+    assert _allocated_gpus(gres) == expected
+
+
 def test_serve_is_keyless_unless_auth_is_requested(monkeypatch):
     """A resolvable key is not enough: the default endpoint stays open."""
     runner = _serve_cli(monkeypatch, "should-not-be-used")
@@ -297,7 +334,7 @@ def test_generate_vllm_2x_serve_script():
     assert "#SBATCH --gres=gpu:2" in script
     assert "--tensor-parallel-size 2" in script
     assert "vllm.entrypoints.openai.api_server" in script
-    assert "agents/deepseek-v4-flash/model" in script
+    assert f"agents/{profile.weights_directory_slug}/model" in script
 
 
 # -- SiteConfig --------------------------------------------------------------

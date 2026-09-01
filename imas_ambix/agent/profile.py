@@ -229,6 +229,16 @@ class ModelProfile(BaseModel):
         merged.pop("slug", None)
         return ModelProfile(slug=self.slug, gpu_variants=self.gpu_variants, **merged)
 
+    @property
+    def weights_directory_slug(self) -> str:
+        """Directory name this profile's checkpoint is stored under.
+
+        A declared ``weights_slug`` wins, which is how a topology variant
+        shares its base's download and how two releases of one model keep
+        their shards apart; otherwise the profile's own slug is used.
+        """
+        return self.model.weights_slug or self.slug
+
 
 # -- Site / cluster configuration ---------------------------------------------
 
@@ -340,7 +350,7 @@ class SiteConfig(BaseModel):
         Variant profiles that inherit from a base via ``_base`` redirect to
         the base's directory so weights are not downloaded twice.
         """
-        return profile.model.weights_slug or profile.slug
+        return profile.weights_directory_slug
 
     def model_dir(self, profile: ModelProfile) -> Path:
         """Filesystem path for downloaded model weights."""

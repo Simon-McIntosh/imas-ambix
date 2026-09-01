@@ -137,6 +137,29 @@ def _resolve_api_key(cli_value: str | None) -> str | None:
     return _read_key_file(site.api_key_file)
 
 
+def _resolve_serve_auth(auth: bool, cli_value: str | None, site) -> str | None:
+    """Resolve the key a serve should enforce, or ``None`` for an open port.
+
+    An open endpoint is the default: the cluster is already the authentication
+    boundary, and a key readable only inside one storage group would lock the
+    standalone consumer launcher out of the endpoint it exists to reach.
+    Naming a key implies wanting it enforced, so a value arms auth on its own
+    rather than being silently discarded, and asking for auth with no
+    resolvable key is a launch error rather than a quiet downgrade to an open
+    port -- an operator who asked to be protected must not be handed the
+    opposite.
+    """
+    if not (auth or cli_value):
+        return None
+    resolved = _resolve_api_key(cli_value)
+    if resolved is None:
+        raise click.ClickException(
+            "--auth was requested but no API key resolved from --api-key, "
+            f"AMBIX_AGENT_API_KEY, or {site.api_key_file}."
+        )
+    return resolved
+
+
 def _agent_config() -> dict[str, str]:
     """Resolve ``[tool.ambix.agent]`` from nearest pyproject.toml."""
     for parent in [Path.cwd(), *Path.cwd().parents]:
@@ -372,6 +395,17 @@ def download(slug: str | None, dry_run: bool) -> None:
     "Scales cpus and memory proportionally from the profile default.",
 )
 @click.option(
+    "--cpus",
+    type=click.IntRange(1, 64),
+    default=None,
+    help="Override host cores, applied after any --gpus scaling. This node "
+    "carries two overlapping 30-core reservations, so cores are the scarce "
+    "resource a serve competes for: an inference server spends most of its "
+    "time blocked on the device, and the proportional default reserves cores "
+    "a co-running job could use. Probe with `srun --test-only` before "
+    "committing to a value.",
+)
+@click.option(
     "--time",
     "time_limit",
     default=None,
@@ -394,6 +428,7 @@ def serve(
     api_key: str | None,
     auth: bool,
     gpus: int | None,
+    cpus: int | None,
     no_speculative: bool,
     time_limit: str | None,
 ) -> None:
@@ -403,6 +438,10 @@ def serve(
     profile = _load_profile(slug)
     if gpus is not None:
         profile = _scale_profile(profile, gpus)
+    if cpus is not None:
+        profile = profile.model_copy(
+            update={"slurm": profile.slurm.model_copy(update={"cpus": cpus})}
+        )
     if time_limit:
         profile = profile.model_copy(
             update={"slurm": profile.slurm.model_copy(
@@ -422,17 +461,7 @@ def serve(
         )
     site = SiteConfig.from_env()
     resolved_port = port if port is not None else site.default_port
-    # An open endpoint is the default; a key is opt-in. Naming a key implies
-    # wanting it enforced, so --api-key arms auth on its own rather than being
-    # silently discarded. Asking for auth with no resolvable key is a launch
-    # error, not a downgrade to keyless -- an operator who asked to be
-    # protected must not be handed an open port instead.
-    resolved_key = _resolve_api_key(api_key) if (auth or api_key) else None
-    if (auth or api_key) and resolved_key is None:
-        raise click.ClickException(
-            "--auth was requested but no API key resolved from --api-key, "
-            f"AMBIX_AGENT_API_KEY, or {site.api_key_file}."
-        )
+    resolved_key = _resolve_serve_auth(auth, api_key, site)
     script = generate_serve_script(
         profile, site, port=resolved_port, api_key=resolved_key
     )
@@ -448,7 +477,11 @@ def serve(
     except RuntimeError as exc:
         raise click.ClickException(str(exc)) from exc
     key_note = " (API key enabled)" if resolved_key else " (NO AUTH — open endpoint)"
-    gpu_note = f" ({profile.slurm.gpus}×GPU)" if gpus is not None else ""
+    gpu_note = (
+        f" ({profile.slurm.gpus}×GPU, {profile.slurm.cpus} CPU)"
+        if gpus is not None or cpus is not None
+        else ""
+    )
     message = (
         f"Submitted serve job {job_id} for {profile.slug}{gpu_note} "
         f"on port {resolved_port}{key_note}."
@@ -795,8 +828,18 @@ def _batch_script_port(job_id: str) -> int | None:
 
 
 def _allocated_gpus(gres: str) -> int | None:
-    """Extract the GPU count from SLURM's allocated generic resources."""
-    match = re.search(r"(?:^|,)gpu(?::[^,:=]+)?[:=](\d+)(?:\(|,|$)", gres)
+    """Extract the GPU count from SLURM's allocated generic resources.
+
+    The scheduler spells the same allocation several ways, and the resource
+    name is not always the first token: ``squeue %b`` reports the TRES form
+    ``gres/gpu:2`` and the typed form ``gres/gpu:h200:1``, while a plain
+    ``gpu:2`` and the ``gres/gpu=2`` of a TRES list also occur. Anchoring on
+    the bare name alone silently reads every prefixed form as no allocation,
+    which presents a healthy endpoint as an unsupported one.
+    """
+    match = re.search(
+        r"(?:^|,)(?:gres/)?gpu(?::[^,:=]+)?[:=](\d+)(?:\(|,|$)", gres
+    )
     return int(match.group(1)) if match else None
 
 
@@ -1344,18 +1387,40 @@ def _deploy_launcher(name: str, path, content: str, mode: int = 0o755) -> None:
     help="API key for authenticating client requests (also AMBIX_AGENT_API_KEY).",
 )
 @click.option(
+    "--auth",
+    "auth",
+    is_flag=True,
+    help="Require an API key on /v1/* requests, resolved from --api-key, "
+    "AMBIX_AGENT_API_KEY, or the shared key file. The default is an open "
+    "endpoint: the cluster is already the authentication boundary, and a key "
+    "readable only inside one storage group would lock consumers out of it.",
+)
+@click.option(
     "--gpus",
     type=int,
     default=None,
     help="Override number of GPUs (and tensor-parallel size). "
     "Scales cpus and memory proportionally from the profile default.",
 )
+@click.option(
+    "--cpus",
+    type=click.IntRange(1, 64),
+    default=None,
+    help="Override host cores, applied after any --gpus scaling. This node "
+    "carries two overlapping 30-core reservations, so cores are the scarce "
+    "resource a serve competes for: an inference server spends most of its "
+    "time blocked on the device, and the proportional default reserves cores "
+    "a co-running job could use. Probe with `srun --test-only` before "
+    "committing to a value.",
+)
 def restart(
     slug: str | None,
     dry_run: bool,
     port: int | None,
     api_key: str | None,
+    auth: bool,
     gpus: int | None,
+    cpus: int | None,
 ) -> None:
     """Restart a model serving job (shutdown + serve).
 
@@ -1370,9 +1435,13 @@ def restart(
     profile = _load_profile(slug)
     if gpus is not None:
         profile = _scale_profile(profile, gpus)
+    if cpus is not None:
+        profile = profile.model_copy(
+            update={"slurm": profile.slurm.model_copy(update={"cpus": cpus})}
+        )
     site = SiteConfig.from_env()
     resolved_port = port if port is not None else site.default_port
-    resolved_key = _resolve_api_key(api_key)
+    resolved_key = _resolve_serve_auth(auth, api_key, site)
 
     # Find active serve jobs for this profile
     user = os.environ.get("USER") or getpass.getuser()
@@ -1435,8 +1504,14 @@ def restart(
         job_id = submit_script(script)
     except RuntimeError as exc:
         raise click.ClickException(str(exc)) from exc
-    key_note = " (API key enabled)" if resolved_key else ""
-    gpu_note = f" ({profile.slurm.gpus}×GPU)" if gpus is not None else ""
+    key_note = (
+        " (API key enabled)" if resolved_key else " (NO AUTH — open endpoint)"
+    )
+    gpu_note = (
+        f" ({profile.slurm.gpus}×GPU, {profile.slurm.cpus} CPU)"
+        if gpus is not None or cpus is not None
+        else ""
+    )
     message = (
         f"Submitted serve job {job_id} for {profile.slug}{gpu_note} "
         f"on port {resolved_port}{key_note}."
