@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T14:04:18",
+  "updated": "2026-09-01T14:20:45",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -16343,9 +16343,103 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T114634550197-glm53-live-proof",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a72",
+        "node": "glm53-live-proof",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-glm53-live-proof.md records each item with its verbatim command and output. Three prior attempts each found a distinct defect, all now fixed at HEAD: no tokenizer in the INT4 checkpoint, a module the serving interpreter could not parse, and a configured context of 262144 exceeding the engine's 20.74 GiB pool. The configured ceiling is now 131072. (1) re-run the descending core ladder 12, 10, 8, 6 then 4 with --gres=gpu:4 --mem=320G on partition betelgeuse with reservation gpu_0003_grpA, quoting each probe, and take the LARGEST count starting immediately. (2) submit one keyless serve at that count on port 18801 and record the job id. Weight loading took 861 seconds last time, so poll patiently rather than concluding failure early. (3) quote the engine's startup KV-cache pool line verbatim and state the ceiling it implies. (4) show a successful anonymous GET http://98dci4-gpu-0003:18801/v1/models whose card carries served id glm-5.3 with an intact ambix block naming accelerator count 4 and precision int4. (5) show a REAL streaming POST /v1/messages returning non-empty assistant text \u2014 the decisive gate, because the sparse-MLA kernel claims roughly 8 GiB per card lazily on this first decode and the 131072 ceiling was chosen specifically to leave room for it. (6) show one tool-use round trip and one reasoning response against THIS engine, whose parsers differ from DeepSeek's. If the first decode dies, quote the log excerpt and state the pool figures rather than retrying blindly. Do not cancel, resize or requeue any job you did not submit, and leave DeepSeek job 1260660 RUNNING.",
+          "estimated_hours": null,
+          "goal": "Prove the four-card GLM-5.3 deployment answers a real streaming generation on port 18801 at the measured context ceiling",
+          "id": "glm53-live-proof",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T114634550197-glm53-live-proof/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "55m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-glm53-live-proof.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "guided",
+        "member": "s24-glm-bringup",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T11:46:40Z",
+        "completed_at": "2026-09-01T12:20:13Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 2013,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 2013,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "f2498eedaf47d55cfd3baae687a805e72cc422d3",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": {
+          "command": "serve glm-5-3 --gpus 4 --cpus 6 --port 18801 then anonymous GET /v1/models, streaming POST /v1/messages, tool-use and reasoning round trips",
+          "exit_status": 1,
+          "log_path": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/s24-ship-01/glm53-live-proof/glm-5-3-1260720.log",
+          "log_digest": null
+        },
+        "failure_classification": "negative-result",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T114634550197-glm53-live-proof/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c82-d605-7472-9bb3-1d541a3193d7",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 8659456,
+            "cached_input_tokens_cumulative": 13968128,
+            "input_tokens": 8760804,
+            "input_tokens_cumulative": 14231676,
+            "output_tokens": 18258,
+            "output_tokens_cumulative": 39836,
+            "reasoning_output_tokens": 2500,
+            "reasoning_output_tokens_cumulative": 6402
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 401
+    "_version": 402
   }
 }

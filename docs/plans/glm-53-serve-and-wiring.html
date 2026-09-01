@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="13">
+<meta name="plan-version" content="14">
 <meta name="plan-commits" content="3dd736597952c097de5c997b0613b8b166a7558b,53b4fc31f7b7e609f8d14c4b051f1b3d12a4bc65,3bb3d7621b5afa74b3a8752a900966b18c19166e">
 <meta name="plan-artifacts" content="tests/test_agent_glm_5_3.py,docs/evidence/archive/glm-53-serve-and-wiring-landed.html">
 <meta name="plan-impl" content="0.5">
@@ -191,7 +191,10 @@
     <div class="r-comment-body"><p>Both prior defects cleared: tokenizer argument present, registry imports under serving Python 3.12.11. Job 1260712 loaded all 241/241 shards in 861s at 94.38 GiB per card, then aborted at KV init because the profile's configured 262144 tokens need 22.61 GiB against 20.74 GiB available. The engine's own ceiling is 240384 — the startup pool line the plan said to read instead of trusting arithmetic, and the profile comment had predicted near 400K. DeepSeek 1260660 untouched.</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260901T114053173120-glm53-context-ceiling" data-who="s24-catalog-metadata" data-when="2026-09-01T11:43:12Z">
-    <div class="r-comment-body"><p>Four-card context set from measurement: 131072 tokens needing about 11.3 GiB against the engine&#x27;s reported 20.74 GiB pool, leaving about 9.4 GiB for the sparse-MLA lazy first-decode claim rather than taking the engine&#x27;s 240384 maximum. Eight-card variant unchanged at 204800. 3/3 focused, whole-tree lint 0 findings</p></div>
+    <div class="r-comment-body"><p>Four-card context set from measurement: 131072 tokens needing about 11.3 GiB against the engine's reported 20.74 GiB pool, leaving about 9.4 GiB for the sparse-MLA lazy first-decode claim rather than taking the engine's 240384 maximum. Eight-card variant unchanged at 204800. 3/3 focused, whole-tree lint 0 findings</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260901T114634550197-glm53-live-proof" data-who="s24-glm-bringup" data-when="2026-09-01T12:20:13Z">
+    <div class="r-comment-body"><p>Engine is UP and healthy: job 1260720, 241 shards in 859s, 20.71 GiB KV pool, 240064-token cache, 1.83x concurrency at the configured 131072, Application startup complete, anonymous catalog returns glm-5.3 with intact ambix block naming count 4 and int4, and the first real decode survived the lazy sparse-MLA claim returning 128 non-empty tokens. But every decoded output is INCOHERENT and tool-use returns 0/2 tool_use blocks across two attempts, so the release is served and unusable. Both jobs 1260660 and 1260720 left RUNNING.</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20260901-fp8-deferral" data-who="reckon-ship" data-when="2026-09-01T13:01:00+00:00">
     <div class="r-comment-body">Scope correction recorded by the lead: the fifth done-when item, a single-model quality measurement of the eight-card FP8 deployment, is deliberately NOT taken. That measurement needs the whole node, which would mean stopping the running keyless DeepSeek serve, and no multi-model result depends on it. FP8 stands recorded as a whole-node alternative to concurrency rather than a default deployment, which is the substance the item was for. The measurement itself belongs to a future single-model quality plan, not to this bring-up.</div>
