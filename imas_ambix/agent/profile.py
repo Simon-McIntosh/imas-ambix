@@ -289,6 +289,7 @@ class SiteConfig(BaseModel):
     gpu_host: str = "98dci4-gpu-0003"
     global_origin: str = "http://98dci4-gpu-0003:18800"
     endpoint_document_path: str = Field(default_factory=_default_endpoint_document_path)
+    preferred_release_id: str | None = None
 
     @field_validator("global_origin", mode="before")
     @classmethod
@@ -311,6 +312,21 @@ class SiteConfig(BaseModel):
         except ValueError as exc:
             raise ValueError("global origin contains an invalid port") from exc
         return candidate.rstrip("/")
+
+    @field_validator("preferred_release_id", mode="before")
+    @classmethod
+    def _normalize_preferred_release_id(cls, value: object) -> str | None:
+        """Normalize the optional release selected by an unqualified launch."""
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("preferred release id must be text")
+        candidate = value.strip()
+        if not candidate:
+            return None
+        if any(ord(character) < 32 or ord(character) == 127 for character in candidate):
+            raise ValueError("preferred release id contains control characters")
+        return candidate
 
     @classmethod
     def from_env(cls) -> SiteConfig:
@@ -337,6 +353,7 @@ class SiteConfig(BaseModel):
             endpoint_document_path=os.environ.get(
                 "AMBIX_AGENT_ENDPOINT_DOCUMENT", _default_endpoint_document_path()
             ),
+            preferred_release_id=os.environ.get("AMBIX_AGENT_PREFERRED_RELEASE"),
         )
 
     @property
