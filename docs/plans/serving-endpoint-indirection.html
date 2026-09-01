@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="9">
+<meta name="plan-version" content="10">
 <meta name="plan-depends-on" content="glm-53-serve-and-wiring">
 <meta name="plan-commits" content="a1ebcaf193ebd31d3d220ef635bd8155574c0ffb">
 <meta name="plan-artifacts" content="imas_ambix/agent/router.py,tests/test_agent_router.py">
@@ -238,10 +238,13 @@
     <div class="r-comment-body"><p>Serving-interpreter compatibility guarded: exception tuple parenthesized, and every module the generated script references is now parsed at the serving environment's declared lower bound of 3.12, derived from its own requires-python, with an inline negative control proving the guard rejects the form that killed job 1260703. 7/7 focused, whole-tree lint 0 findings</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260901T114119877308-agent-grammar-compatibility" data-who="s24-router-impl" data-when="2026-09-01T11:45:46Z">
-    <div class="r-comment-body"><p>All 16 agent modules now parse at the serving environment&#x27;s 3.12: four clauses parenthesized across three modules, and the guard widened from serve-script-referenced modules to the whole package, which immediately exposed a fourth clause ast.parse could not report while an earlier error stood. 7/7 focused, whole-tree lint clean</p></div>
+    <div class="r-comment-body"><p>All 16 agent modules now parse at the serving environment's 3.12: four clauses parenthesized across three modules, and the guard widened from serve-script-referenced modules to the whole package, which immediately exposed a fourth clause ast.parse could not report while an earlier error stood. 7/7 focused, whole-tree lint clean</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20260901T111423344139-agent-suite-verification" data-who="s24-router-test" data-when="2026-09-01T11:39:41Z">
     <div class="r-comment-body"><p>Whole-tree lint 0 findings and the four-card dry-run renders both the INT4 weights and official tokenizer directories. Two real gaps found: 3 of 16 agent modules fail a Python 3.12 parse (bench.py:831, cli.py:821, router.py:101) with the same unparenthesized multi-exception form that killed a serve, and the whole-tree pytest was terminated at 22 minutes having shown 2 failures by 10% with no final counts</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20260901T120524655239-whole-suite-verification" data-who="s24-router-test" data-when="2026-09-01T12:56:50Z">
+    <div class="r-comment-body"><p>212 of 221 files completed: 2654 passed, 14 failed, 0 errors, 20 skipped; 9 files hit the 45-minute allocation. Whole-tree lint 0 findings and 16/16 agent modules parse at 3.12. Of the 14, six in tests/test_agent.py are REGRESSIONS from this session&#x27;s mode-axis work and two in test_bench_matrix_figures.py follow the figure refresh merged at session start; the remaining six under tests/data and tests/latent are foreign to this sprint</p></div>
 </div>
 </section>
 </main>

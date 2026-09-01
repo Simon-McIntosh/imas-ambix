@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T14:38:40",
+  "updated": "2026-09-01T14:57:20",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -16533,9 +16533,197 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T120524655239-whole-suite-verification",
+        "plan": "serving-endpoint-indirection",
+        "section": "\u00a76",
+        "node": "whole-suite-verification",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-whole-suite.md records three checks with verbatim commands, exit statuses and summary lines. (1) uv run --no-sync pytest tests/ -q run to COMPLETION, quoting the final summary line with its pass, fail, error and skip counts, and listing every failing node id with the first ten lines of its traceback. An earlier attempt was terminated at 22 minutes having shown two failure markers by 10 percent with no final counts, so the counts and names are the deliverable here. If the suite is genuinely slower than this node's budget, run it in parts by top-level test file, record each part's command and summary separately, and state which parts completed. (2) uv run --no-sync ruff check imas_ambix tests --no-cache, quoting its exit status and finding count. (3) every module under imas_ambix/agent parsed with ast.parse at feature_version 3.12, reporting the count parsed out of the total and naming with its line any file that raises SyntaxError. Report results exactly as observed, including failures that predate this session. Do not fix anything and do not commit any source change, because this node's deliverable is the report.",
+          "estimated_hours": null,
+          "goal": "Run the whole test tree to completion at the integrated head and name every failing test",
+          "id": "whole-suite-verification",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T120524655239-whole-suite-verification/manifest.md",
+          "plan": "serving-endpoint-indirection",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a76",
+          "spec_level": "exact",
+          "time_budget": "55m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-whole-suite.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "s24-router-test",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T12:05:30Z",
+        "completed_at": "2026-09-01T12:56:50Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 3080,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 3080,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "6e3ff11f53bda47d381de0b3232b9394aa0f259c",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": {
+          "command": "per-file pytest across tests/ plus ruff check imas_ambix tests and an ast.parse 3.12 sweep",
+          "exit_status": 1,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T120524655239-whole-suite-verification/failure-excerpts.md",
+          "log_digest": null
+        },
+        "failure_classification": "negative-result",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T120524655239-whole-suite-verification/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c8b-3372-71e1-b506-e2ff2f281895",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 15385088,
+            "cached_input_tokens_cumulative": 23925760,
+            "input_tokens": 15590445,
+            "input_tokens_cumulative": 24317011,
+            "output_tokens": 9187,
+            "output_tokens_cumulative": 21706,
+            "reasoning_output_tokens": 1891,
+            "reasoning_output_tokens_cumulative": 6000
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/",
+          "override": false,
+          "role": "test",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260901T123857927925-glm53-serveable-variant-search",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a71",
+        "node": "glm53-serveable-variant-search",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-glm53-variants.md answers two questions with evidence and recommends one concrete option. Context: the goal is specifically to serve GLM-5.3, not a substitute family. The vendor FP8 release at 704 GiB needs all eight cards and so forecloses concurrency. The community requant vikasclawd/GLM-5.3-Int4-Int8Mix is on disk and PROVEN BROKEN today: its tokenizer pairing and chat template were both exonerated by measurement, yet raw completions with no chat template emit 32 repeated odesk tokens, so the weights or their compressed-tensors execution path are at fault. QUESTION ONE: enumerate other published GLM-5.3 quantizations that would fit four H200 cards, meaning roughly 560 GiB or less, searching the Hugging Face API from a login node which has outbound internet. For each candidate report the repo id, total size, quantization format, whether it ships tokenizer.json and tokenizer_config.json, and whether the format is one the installed vLLM registers. QUESTION TWO: determine definitively whether GLM-5.3-Flash can be served here. The profile asserts Flash is Glm5NextForConditionalGeneration, multimodal, 45 layers, and that no released vLLM registers it, but that claim predates the installed engine, so verify it against the ACTUAL installed vLLM rather than repeating it: inspect that package's own model registry for the architecture string and report the installed version beside the answer. If it is registered, report the Flash release size and whether it fits four cards. Recommend one option with the reason. This node is read-only: query and inspect, download nothing, change no source, and submit no job.",
+          "estimated_hours": null,
+          "goal": "Find a GLM-5.3 release we can actually serve on four cards, since the requant currently profiled decodes garbage",
+          "id": "glm53-serveable-variant-search",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T123857927925-glm53-serveable-variant-search/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a71",
+          "spec_level": "open",
+          "time_budget": "30m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-glm53-variants.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "open",
+        "member": "s24-glm-bringup",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-09-01T12:39:03Z",
+        "completed_at": "2026-09-01T12:51:59Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 776,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 776,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "c6b0548f2ab61d9c42a81962577903ecc19c1359",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": {
+          "command": "installed-package registry inspection plus Hugging Face API census",
+          "exit_status": 1,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T123857927925-glm53-serveable-variant-search/vllm-registry-evidence.log",
+          "log_digest": null
+        },
+        "failure_classification": "infrastructure-failure",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T123857927925-glm53-serveable-variant-search/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c82-d605-7472-9bb3-1d541a3193d7",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 6046976,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 6297990,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 24632,
+            "reasoning_output_tokens": 4125,
+            "reasoning_output_tokens_cumulative": 10527
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 404
+    "_version": 406
   }
 }

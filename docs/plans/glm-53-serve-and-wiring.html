@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="15">
+<meta name="plan-version" content="16">
 <meta name="plan-commits" content="3dd736597952c097de5c997b0613b8b166a7558b,53b4fc31f7b7e609f8d14c4b051f1b3d12a4bc65,3bb3d7621b5afa74b3a8752a900966b18c19166e">
 <meta name="plan-artifacts" content="tests/test_agent_glm_5_3.py,docs/evidence/archive/glm-53-serve-and-wiring-landed.html">
 <meta name="plan-impl" content="0.5">
@@ -201,6 +201,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20260901-fp8-deferral" data-who="reckon-ship" data-when="2026-09-01T13:01:00+00:00">
     <div class="r-comment-body">Scope correction recorded by the lead: the fifth done-when item, a single-model quality measurement of the eight-card FP8 deployment, is deliberately NOT taken. That measurement needs the whole node, which would mean stopping the running keyless DeepSeek serve, and no multi-model result depends on it. FP8 stands recorded as a whole-node alternative to concurrency rather than a default deployment, which is the substance the item was for. The measurement itself belongs to a future single-model quality plan, not to this bring-up.</div>
+</div>
+<div class="r-comment" data-section="s1" data-id="c-run-r-20260901T123857927925-glm53-serveable-variant-search" data-who="s24-glm-bringup" data-when="2026-09-01T12:51:59Z">
+    <div class="r-comment-body"><p>Recommends camel-ai/GLM-5.3-W4A8, 372.3 GiB Hopper-native W4A8 with its own tokenizer files, fitting four cards with about 164 GB headroom, publisher reporting GPQA parity with official FP8. Two gaps: the managed shell cannot resolve huggingface.co so the byte-exact census is incomplete, and the registry check inspected the PROJECT venv&#x27;s vLLM 0.23.0 rather than the serving environment that actually runs 0.28.0, so its Flash exclusion rests on the wrong engine</p></div>
 </div>
 </section>
 </main>
