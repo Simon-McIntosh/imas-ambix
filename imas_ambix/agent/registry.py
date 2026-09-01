@@ -136,7 +136,12 @@ def read_registrations(
             if not isinstance(raw, dict):
                 continue
             registration = ServeRegistration(**raw)
-        except OSError, TypeError, ValueError, json.JSONDecodeError:
+        except (
+            OSError,
+            TypeError,
+            ValueError,
+            json.JSONDecodeError,
+        ):
             continue
         destination = current if job_is_running(registration.job_id) else stale
         destination.append(registration)
