@@ -356,10 +356,13 @@ def download(slug: str | None, dry_run: bool) -> None:
     help="API key for authenticating client requests (also AMBIX_AGENT_API_KEY).",
 )
 @click.option(
-    "--no-auth",
+    "--auth",
+    "auth",
     is_flag=True,
-    help="Serve WITHOUT an API key (open endpoint — anyone who can route to the "
-    "port can use it). Overrides --api-key and the shared key file.",
+    help="Require an API key on /v1/* requests, resolved from --api-key, "
+    "AMBIX_AGENT_API_KEY, or the shared key file. The default is an open "
+    "endpoint: the cluster is already the authentication boundary, and a key "
+    "readable only inside one storage group would lock consumers out of it.",
 )
 @click.option(
     "--gpus",
@@ -389,7 +392,7 @@ def serve(
     dry_run: bool,
     port: int | None,
     api_key: str | None,
-    no_auth: bool,
+    auth: bool,
     gpus: int | None,
     no_speculative: bool,
     time_limit: str | None,
@@ -419,9 +422,17 @@ def serve(
         )
     site = SiteConfig.from_env()
     resolved_port = port if port is not None else site.default_port
-    # --no-auth serves an open endpoint (no key). Otherwise resolve the key
-    # from the flag/env/shared file as usual.
-    resolved_key = None if no_auth else _resolve_api_key(api_key)
+    # An open endpoint is the default; a key is opt-in. Naming a key implies
+    # wanting it enforced, so --api-key arms auth on its own rather than being
+    # silently discarded. Asking for auth with no resolvable key is a launch
+    # error, not a downgrade to keyless -- an operator who asked to be
+    # protected must not be handed an open port instead.
+    resolved_key = _resolve_api_key(api_key) if (auth or api_key) else None
+    if (auth or api_key) and resolved_key is None:
+        raise click.ClickException(
+            "--auth was requested but no API key resolved from --api-key, "
+            f"AMBIX_AGENT_API_KEY, or {site.api_key_file}."
+        )
     script = generate_serve_script(
         profile, site, port=resolved_port, api_key=resolved_key
     )

@@ -223,26 +223,67 @@ def test_generate_glm_5_2_serve_script():
     assert script.count(f"--max-model-len {expected_context}") == 1
 
 
-def test_serve_no_auth_flag(monkeypatch):
-    """`serve --no-auth` generates a keyless server even when a key file exists."""
+def _serve_cli(monkeypatch, resolved_key):
+    """Patch profile loading and key resolution, then return a CLI runner."""
     from imas_ambix.agent import cli as cli_mod
 
-    # A key IS resolvable, but --no-auth must override it.
-    monkeypatch.setattr(cli_mod, "_resolve_api_key", lambda v: "should-not-be-used")
+    monkeypatch.setattr(cli_mod, "_resolve_api_key", lambda v: v or resolved_key)
     real_load_profile = cli_mod.load_profile
     monkeypatch.setattr(
         cli_mod,
         "load_profile",
         lambda slug: _with_checkpoint_precision(real_load_profile(slug)),
     )
-    runner = CliRunner()
-    result = runner.invoke(
-        main, ["agent", "serve", "glm-5-2", "--no-auth", "--dry-run"]
-    )
+    return CliRunner()
+
+
+def test_serve_is_keyless_unless_auth_is_requested(monkeypatch):
+    """A resolvable key is not enough: the default endpoint stays open."""
+    runner = _serve_cli(monkeypatch, "should-not-be-used")
+    result = runner.invoke(main, ["agent", "serve", "glm-5-2", "--dry-run"])
     assert result.exit_code == 0
     # No VLLM_API_KEY export → open endpoint.
     assert "VLLM_API_KEY" not in result.output
     assert "should-not-be-used" not in result.output
+
+
+def test_serve_auth_flag_enforces_the_resolved_key(monkeypatch):
+    """`--auth` arms the engine's key middleware without exposing the value."""
+    runner = _serve_cli(monkeypatch, "resolved-from-shared-file")
+    result = runner.invoke(main, ["agent", "serve", "glm-5-2", "--auth", "--dry-run"])
+    assert result.exit_code == 0
+    assert "VLLM_API_KEY" in result.output
+    # --dry-run masks the secret rather than printing it.
+    assert "resolved-from-shared-file" not in result.output
+
+
+def test_serve_api_key_arms_auth_without_the_flag(monkeypatch):
+    """Naming a key means wanting it enforced, not silently discarded."""
+    runner = _serve_cli(monkeypatch, None)
+    result = runner.invoke(
+        main,
+        ["agent", "serve", "glm-5-2", "--api-key", "explicit-key", "--dry-run"],
+    )
+    assert result.exit_code == 0
+    assert "VLLM_API_KEY" in result.output
+    assert "explicit-key" not in result.output
+
+
+def test_serve_auth_without_a_resolvable_key_fails(monkeypatch):
+    """Requesting protection and getting an open port instead is a launch error."""
+    runner = _serve_cli(monkeypatch, None)
+    result = runner.invoke(main, ["agent", "serve", "glm-5-2", "--auth", "--dry-run"])
+    assert result.exit_code != 0
+    assert "no API key resolved" in result.output
+
+
+def test_serve_rejects_the_retired_negative_flag(monkeypatch):
+    """The old opt-out spelling must fail loudly rather than serve keyed."""
+    runner = _serve_cli(monkeypatch, "should-not-be-used")
+    result = runner.invoke(
+        main, ["agent", "serve", "glm-5-2", "--no-auth", "--dry-run"]
+    )
+    assert result.exit_code != 0
 
 
 def test_generate_vllm_2x_serve_script():
