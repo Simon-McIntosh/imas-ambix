@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T16:24:25",
+  "updated": "2026-09-01T16:35:45",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -17953,9 +17953,98 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T142449132323-w4a8-coherence-proof",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a72",
+        "node": "w4a8-coherence-proof",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-w4a8-coherence.md records each item with its verbatim command and output. HEAD now sizes the four-card deployment at memory fraction 0.94 and a 65536-token ceiling, from the measurement that job 1260770 aborted at KV init with only 8.32 GiB available against 11.31 GiB needed. Confirm in a dry run that the generated command carries --gpu-memory-utilization 0.94 and --max-model-len 65536 and names the W4A8 weights with no tokenizer argument, since that checkpoint is self-contained. Then: (1) the descending core ladder 12, 10, 8, 6 then 4 with --gres=gpu:4 --mem=320G on partition betelgeuse with reservation gpu_0003_grpA, quoting each probe and taking the LARGEST count starting immediately. (2) one keyless serve at that count on port 18801 with its job id, polling patiently because loading has taken about 860 seconds. (3) the engine's startup KV-cache pool line quoted verbatim with the ceiling it implies, so the 0.94 pairing is confirmed or refuted by the engine rather than by arithmetic. (4) an anonymous GET http://98dci4-gpu-0003:18801/v1/models showing served id glm-5.3 with an intact ambix block naming accelerator count 4. (5) THE DECISIVE GATE: a real streaming POST /v1/messages returning semantically COHERENT text, not merely non-empty. Ask something with a checkable answer so coherence is judgeable, quote the full response, and also send one raw POST /v1/completions with no chat template, because that is exactly where the previous checkpoint emitted 32 repeated odesk tokens. (6) one tool-use round trip returning at least one real tool_use block, and one reasoning response. Report (5) and (6) as pass or fail with the evidence quoted. If output is incoherent again, say so plainly with the samples rather than reporting the serve as working. Do not cancel, resize or requeue any job you did not submit, and leave DeepSeek job 1260660 RUNNING.",
+          "estimated_hours": null,
+          "goal": "Prove the W4A8 four-card deployment answers coherently and calls a tool",
+          "id": "w4a8-coherence-proof",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T142449132323-w4a8-coherence-proof/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "55m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-w4a8-coherence.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "guided",
+        "member": "s24-glm-bringup",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T14:24:58Z",
+        "completed_at": "2026-09-01T14:30:29Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 331,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 331,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "5082dc052a76b4e3e0778079b31049590e6669fb",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "not-run",
+        "gate_check": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T142449132323-w4a8-coherence-proof/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c82-d605-7472-9bb3-1d541a3193d7",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 2044672,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 2182077,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 9950,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 2763
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 428
+    "_version": 429
   }
 }
