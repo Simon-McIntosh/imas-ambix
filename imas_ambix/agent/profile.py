@@ -42,6 +42,18 @@ class ModelConfig(BaseModel):
     # the one it superseded. An explicit value always wins over the injected
     # one, including for variants inheriting from it.
     weights_slug: str | None = None
+    # Directory key under ``agents/<slug>/`` for tokenizer assets when they
+    # come from a different released checkpoint than the model weights.
+    # An empty variant override restores the default of loading tokenizer
+    # assets from the weights directory.
+    tokenizer_source_slug: str | None = None
+
+    @field_validator("tokenizer_source_slug", mode="before")
+    @classmethod
+    def _empty_tokenizer_source_is_none(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 # -- Engine configuration ----------------------------------------------------
@@ -352,9 +364,18 @@ class SiteConfig(BaseModel):
         """
         return profile.weights_directory_slug
 
+    def _checkpoint_dir(self, slug: str) -> Path:
+        """Return the model directory for a checkpoint storage slug."""
+        return Path(self.base_dir) / "agents" / slug / "model"
+
     def model_dir(self, profile: ModelProfile) -> Path:
         """Filesystem path for downloaded model weights."""
-        return Path(self.base_dir) / "agents" / self._weights_slug(profile) / "model"
+        return self._checkpoint_dir(self._weights_slug(profile))
+
+    def tokenizer_dir(self, profile: ModelProfile) -> Path | None:
+        """Filesystem path for an explicitly separate tokenizer checkpoint."""
+        slug = profile.model.tokenizer_source_slug
+        return self._checkpoint_dir(slug) if slug is not None else None
 
     def cache_dir(self, profile: ModelProfile) -> Path:
         """HuggingFace cache directory for a model."""

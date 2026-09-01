@@ -25,6 +25,7 @@ def test_four_card_int4_profile_and_serve_script() -> None:
     assert profile.slurm.cpus == 12
     assert profile.model.checkpoint_precision == "int4"
     assert profile.model.weights_slug == "glm-5-3-int4"
+    assert profile.model.tokenizer_source_slug == "glm-5-3"
     assert profile.model.served_name == "glm-5.3"
     assert profile.engine.tensor_parallel == 4
     assert profile.engine.kv_cache_dtype == "bfloat16"
@@ -37,6 +38,7 @@ def test_four_card_int4_profile_and_serve_script() -> None:
     assert "#SBATCH --gres=gpu:4" in script
     assert "#SBATCH --cpus-per-task=12" in script
     assert "agents/glm-5-3-int4/model" in script
+    assert "--tokenizer /work/projects/imas_gpu/agents/glm-5-3/model" in script
     assert "--served-model-name glm-5.3" in script
     assert "--tensor-parallel-size 4" in script
     assert "--kv-cache-dtype bfloat16" in script
@@ -61,6 +63,7 @@ def test_eight_card_fp8_profile_and_serve_script() -> None:
     assert profile.slurm.cpus == 16
     assert profile.model.checkpoint_precision == "fp8"
     assert profile.model.weights_slug == "glm-5-3"
+    assert profile.model.tokenizer_source_slug is None
     assert profile.model.served_name == "glm-5.3"
     assert profile.engine.tensor_parallel == 8
     assert profile.engine.max_total_tokens == 204800
@@ -70,6 +73,7 @@ def test_eight_card_fp8_profile_and_serve_script() -> None:
     assert "#SBATCH --gres=gpu:8" in script
     assert "#SBATCH --cpus-per-task=16" in script
     assert "agents/glm-5-3/model" in script
+    assert "--tokenizer " not in script
     assert "--served-model-name glm-5.3" in script
     assert "--tensor-parallel-size 8" in script
     assert "--max-model-len 204800" in script
@@ -81,3 +85,10 @@ def test_eight_card_fp8_profile_and_serve_script() -> None:
             "checkpoint_precision": "fp8",
         }
     }
+
+
+def test_profile_without_tokenizer_source_uses_its_own_checkpoint() -> None:
+    profile = load_profile("glm-5-2")
+
+    assert profile.model.tokenizer_source_slug is None
+    assert "--tokenizer " not in generate_serve_script(profile, SiteConfig())
