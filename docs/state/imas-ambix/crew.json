@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T20:53:01",
+  "updated": "2026-09-01T21:29:05",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -19197,9 +19197,92 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T184751135650-context-headroom-probe",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a72",
+        "node": "context-headroom-probe",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-context-headroom.md states the largest configured context that both starts AND survives a real generation on four cards, with the evidence for each point tried. The decision is to stay at four cards and raise the ceiling within the current pool rather than take the two spare cards. Measured at the current setting: memory fraction 0.94, configured 65536, engine-reported pool 13.9 GiB giving a 160512-token cache at 2.45x concurrency. The engine's cache is therefore about 2.45 times the configured window, so raising the window trades concurrency for context. Sweep the configured context upward - 98304 and 131072 at least, and a higher point if those hold - keeping four cards. For EACH point record: whether the engine started, its verbatim startup KV-cache pool line with the resulting cache size and concurrency figure, and whether a REAL streaming generation returned coherent text, because a ready state is not evidence and this architecture's attention kernel claims scratch lazily on the first decode. Also try raising the memory fraction one step at the best surviving context and report whether the pool grows usefully or the engine fails to start. Recommend one configured context with its measured concurrency, and say plainly what concurrency is being given up relative to today's 2.45x. Stop each engine you start before starting the next so you never hold more than four cards, and do not disturb DeepSeek job 1260660 or the router job 1260928. Job 1260907 is the current GLM serve and you may stop it, since it is the thing being resized.",
+          "estimated_hours": null,
+          "goal": "Find the largest four-card context this checkpoint sustains through a real decode",
+          "id": "context-headroom-probe",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T184751135650-context-headroom-probe/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "50m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-context-headroom.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "guided",
+        "member": "s24-glm-bringup",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T18:47:58Z",
+        "completed_at": "2026-09-01T19:28:58Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 2460,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 2460,
+        "stalled": false,
+        "time_budget": "50m",
+        "base_sha": "6a9cb884606e8ea1be58ed9eeeba91d3fc31155b",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "four-card context sweep at 98304 and 131072 with a real decode at each surviving point",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T184751135650-context-headroom-probe/logs/98304-stream-128.txt",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T184751135650-context-headroom-probe/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c82-d605-7472-9bb3-1d541a3193d7",
+        "budget": {
+          "cost_usd": null,
+          "detail": "",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 441
+    "_version": 442
   }
 }
