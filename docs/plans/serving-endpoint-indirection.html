@@ -24,9 +24,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="16">
+<meta name="plan-version" content="17">
 <meta name="plan-depends-on" content="glm-53-serve-and-wiring">
-<meta name="plan-commits" content="a1ebcaf193ebd31d3d220ef635bd8155574c0ffb,965f4e2f21e759a60efbd7ffa4dfec4f7c25fe38,892050cc9030b581379ac2a5c9739bf34a64655c,8cbc2f733d0c87b2e584ac1d1656315cf478ec5f,25b1be15de962c370731e481f5bf1b9ec14d84f3,b76d9cbfb26701fa98a54a2e34f7b74a327bbf0e">
+<meta name="plan-commits" content="a1ebcaf193ebd31d3d220ef635bd8155574c0ffb,965f4e2f21e759a60efbd7ffa4dfec4f7c25fe38,892050cc9030b581379ac2a5c9739bf34a64655c,8cbc2f733d0c87b2e584ac1d1656315cf478ec5f,25b1be15de962c370731e481f5bf1b9ec14d84f3,b76d9cbfb26701fa98a54a2e34f7b74a327bbf0e,ad192c30f8a7c0671240bf6162226a315d510c16,03bf0652e41fcf440c9254260e0f31221e132a89">
 <meta name="plan-artifacts" content="imas_ambix/agent/router.py,imas_ambix/agent/registry.py,tests/test_agent_router.py,tests/test_agent_router_resolution.py,tests/test_agent_router_admission.py,tests/test_agent_serve_registry.py,docs/evidence/archive/serving-endpoint-indirection-landed.html">
 <meta name="plan-impl" content="1.0">
 </head>
@@ -221,10 +221,16 @@
     <pre class="r-fu-prompt">/reckon-ship serving-endpoint-indirection</pre>
     <p class="r-fu-outcome">Shipped. The pass-through router, its registration store, upstream resolution and admission control all landed and are proven live over two concurrent engines at one origin, with the generated launcher needing no source change. Continuation passes to clive-launch-modes as f-sei-02, which owns the context-budget question this proof surfaced.</p>
     </article>
-<article class="r-fu" data-id="f-sei-02" data-status="open" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship clive-launch-modes" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-sei-02" data-status="resolved" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship clive-launch-modes" data-resolved-at="2026-09-01T18:18:14+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Decide how a 64k release handles a full-workspace prompt</h4>
     <div class="r-fu-body">Raised by the live union proof and owned by <code>clive-launch-modes</code>, not by this plan. A normal full-workspace launch against the four-card release exceeded its 65536-token window by exactly one token — 33537 input plus a 32000 output reservation — while the standard bare mode reduced input to 1285 and succeeded. So the launcher needs a rule for releases whose context is smaller than the reservation assumes: reduce the output reservation, select a smaller context mode automatically, or state the limit at selection time. The router is not involved; this is launcher presentation and defaults.</div>
     <pre class="r-fu-prompt">/reckon-ship clive-launch-modes</pre>
+    <p class="r-fu-outcome">Folded and shipped in this session as commit 8bea195 on clive-launch-modes rather than handed over. The output reservation now derives from the selected release's own engine-reported context, so the 64k release exposes 49152 usable input tokens against the 33537-token prompt that previously overflowed by one token, and a context too small to hold both a prompt and a response fails before the harness starts. Verified on the deployed launcher. Continuation passes to glm-parser-output-shape as f-sei-03.</p>
+    </article>
+<article class="r-fu" data-id="f-sei-03" data-status="open" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship glm-parser-output-shape" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Frame the served engine&#x27;s reasoning and tool output correctly</h4>
+    <div class="r-fu-body">Owned by <code>glm-parser-output-shape</code>. Observed while proving the served engine coherent, and neither defect blocks serving: a tool response carrying no thinking block still emits the reasoning parser's closing marker in its adjacent text, and a reasoning request consumed its whole output cap inside the thought without emitting a separate final text block. Both are about how the engine frames output rather than about routing, which is why they sit outside this plan.</div>
+    <pre class="r-fu-prompt">/reckon-ship glm-parser-output-shape</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
@@ -250,7 +256,16 @@
     <div class="r-comment-body"><p>All 16 agent modules now parse at the serving environment's 3.12: four clauses parenthesized across three modules, and the guard widened from serve-script-referenced modules to the whole package, which immediately exposed a fourth clause ast.parse could not report while an earlier error stood. 7/7 focused, whole-tree lint clean</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260901T174521161626-launcher-endpoint-discovery" data-who="s24-router-impl" data-when="2026-09-01T17:56:03Z">
-    <div class="r-comment-body"><p>Launcher discovers endpoints from a published document and routes directly to each release&#x27;s own origin, no always-on component required. Default path is one site setting at a world-traversable location outside /work/projects/imas_gpu, which grants no world execute bit and is therefore unreachable for non-group users. Malformed or incomplete documents fail closed before probing, dead endpoints are dropped rather than listed. 5/5 new, 183/183 existing, lint clean</p></div>
+    <div class="r-comment-body"><p>Launcher discovers endpoints from a published document and routes directly to each release's own origin, no always-on component required. Default path is one site setting at a world-traversable location outside /work/projects/imas_gpu, which grants no world execute bit and is therefore unreachable for non-group users. Malformed or incomplete documents fail closed before probing, dead endpoints are dropped rather than listed. 5/5 new, 183/183 existing, lint clean</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260901-discovery-and-daemon" data-who="reckon-ship" data-when="2026-09-01T20:18:00+00:00">
+    <div class="r-comment-body">Two nodes landed after the live union, and the second reopened a premise this plan had inherited rather than examined.
+
+router-durable-service — commit ad192c3; gate 'router service contract' passed; 3/3 focused plus a foreground regression. The router is now submittable as a long-lived CPU-only service, requesting zero accelerators, stamping a discoverable port comment, requesting no finite time cap, invoking the serving environment's interpreter because the project environment does not install the ASGI server it imports, and taking its admission limits at submission. Submitted and verified as job 1260928 with TimeLimit UNLIMITED and no gres/gpu entry, serving both releases correctly.
+
+launcher-endpoint-discovery — commit 03bf065; gate 'endpoint discovery contract' passed; 5/5 new plus 183/183 existing. Challenged on whether a continuously-running component was needed at all, the honest answer is that for listing and routing it is not: the single-origin premise came from the existing launcher contract, not from anything intrinsic. The launcher now discovers releases from a published document and sends inference directly to each release's own origin, with nothing on the request path. The router remains for the two things a client-side merge cannot do — per-consumer admission and keeping consumer addresses out of the engine log — and holds no accelerator.
+
+Where the document lives was decided by measurement, not preference: /work/projects/imas_gpu is mode drwxrws--- and grants no world execute bit, so a user outside the storage group cannot traverse into it at all, the launcher included. The document therefore sits outside that tree at a path whose every ancestor grants world execute, which was verified end to end before deployment.</div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20260901T111423344139-agent-suite-verification" data-who="s24-router-test" data-when="2026-09-01T11:39:41Z">
     <div class="r-comment-body"><p>Whole-tree lint 0 findings and the four-card dry-run renders both the INT4 weights and official tokenizer directories. Two real gaps found: 3 of 16 agent modules fail a Python 3.12 parse (bench.py:831, cli.py:821, router.py:101) with the same unparenthesized multi-exception form that killed a serve, and the whole-tree pytest was terminated at 22 minutes having shown 2 failures by 10% with no final counts</p></div>

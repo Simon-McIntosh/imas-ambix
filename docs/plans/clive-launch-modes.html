@@ -22,10 +22,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="11">
-<meta name="plan-commits" content="526195c8c059efe5f73439ae1fed626407f11322,5fd71b1b1e2d12c0e160816e24f3ca7055f718cf,cb5c6e12775124169e3402065a87c5e920a912ed,1c602d0ecc7f7fe1c03530bfe848266fd93b565b,c197e3d2f3ed6c57ecda748cebdd2262f5adfbcb,03bf0652e41fcf440c9254260e0f31221e132a89">
+<meta name="plan-version" content="13">
+<meta name="plan-commits" content="526195c8c059efe5f73439ae1fed626407f11322,5fd71b1b1e2d12c0e160816e24f3ca7055f718cf,cb5c6e12775124169e3402065a87c5e920a912ed,1c602d0ecc7f7fe1c03530bfe848266fd93b565b,c197e3d2f3ed6c57ecda748cebdd2262f5adfbcb,03bf0652e41fcf440c9254260e0f31221e132a89,8bea195">
 <meta name="plan-artifacts" content="imas_ambix/agent/clive.py,tests/test_agent_clive_modes.py,tests/test_agent_clive_picker.py,tests/test_agent_clive_dispatch_guidance.py">
-<meta name="plan-impl" content="0.9">
+<meta name="plan-impl" content="0.95">
 </head>
 <body>
   <main class="plan-doc">
@@ -181,10 +181,11 @@ clive --mode hybrid      # local releases plus the hosted frontier slots</pre>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-clm-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship clive-launch-modes" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-clm-01" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship clive-launch-modes" data-resolved-at="2026-09-01T18:17:14+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Name the mode axis, then build the picker and capability declarations</h4>
     <div class="r-fu-body">Two naming decisions gate the CLI surface and are the lead's to make: whether model scope is a <code>--mode</code> axis or a boolean opt-in, and what the non-default value is called (<code>tiered</code> recommended, because it names the working pattern rather than the vendor). Everything else is buildable now against the local-only default: curated picker rows with real topology labels, supported-capability declarations for every slot the launcher sets, and the session-scoped statement of which alias is local. Alias-resolution behaviour is already measured, so worker dispatch needs no harness change. The one unverified item is that curated rows actually render — confirm interactively, since a headless run cannot show a picker.</div>
     <pre class="r-fu-prompt">/reckon-ship clive-launch-modes</pre>
+    <p class="r-fu-outcome">Shipped. The mode axis is named and locked with local as the default, fenced by the assertion that a present hosted credential changes zero bytes of an unqualified launch. Curated rows are generated from the live catalog with each release's own topology and context, capabilities are declared on every alias slot, and the session is told which alias is local without being asked. Both lineups now put the primary local release on the same alias, after landing that statement exposed a contradiction in the hybrid branch. The one item this could not close is interactive rendering, which no headless node can show; it is carried by f-mmsc-02.</p>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
@@ -209,6 +210,12 @@ clive --mode hybrid      # local releases plus the hosted frontier slots</pre>
 Two things followed. First, launcher-endpoint-discovery landed — commit 03bf065; gate 'endpoint discovery contract' passed; measure 5/5 new plus 183/183 existing. The launcher now discovers releases from a published endpoint document and sends inference directly to each release's own origin, with no always-on component on the request path, per the lead's design call that a proxy is not needed for listing and routing. The document's default path is one site setting outside the storage-group tree, which is load-bearing rather than cosmetic: that tree is mode drwxrws--- and grants no world execute bit, so a user outside the group cannot traverse into it at all — the launcher included. Malformed or incomplete documents fail closed before probing and an endpoint that does not answer is dropped rather than listed.
 
 Second, the operator steps ran. The endpoint document was published to a path whose every ancestor grants world execute, carrying both releases with their real topology and engine-reported context, and the shared launcher was regenerated and deployed at 17,662 bytes against the stale 11,528. Measured against the deployed artifact: <code>--list</code> returns 'deepseek-v4-flash@2xh200 · 2×H200 · fp4+fp8 · 512k ctx' and 'glm-5.3@4xh200 · 4×H200 · w4a8 · 64k ctx'. A non-interactive launch now requires a selector and an interactive one presents a numbered prompt, which is the existing fail-closed rule rather than a regression. Remaining: the in-harness picker rendering still needs a human at a terminal.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260901T180855775817-small-context-launch-budget" data-who="s24-clive-modes" data-when="2026-09-01T18:14:45Z">
+    <div class="r-comment-body"><p>Output reservation now derives from the selected release's own card: the 524288-token release keeps its 32000 reservation and 492288 usable input, while the 65536-token release reserves 16384 and exposes 49152 usable input — 15615 above the 33537-token prompt that previously overflowed by one token. A two-card test proves the second, smaller card's own context governs rather than the first's. 15/15 focused and 183/183 legacy</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260901-context-budget" data-who="reckon-ship" data-when="2026-09-01T20:16:00+00:00">
+    <div class="r-comment-body">small-context-launch-budget landed — commit 8bea195; gate 'per-release output budget' passed; measure 15/15 focused and 183/183 legacy. The live union surfaced this rather than a test: a normal full-workspace launch against the four-card release exceeded its 65536-token window by exactly one token, 33537 input against a 32000 output reservation, while bare mode reduced input to 1285 and succeeded. The reservation now derives from the SELECTED release's own catalog card rather than a constant, so the 524288-token release keeps its 32000 reservation and 492288 usable input while the 65536-token release reserves 16384 and exposes 49152 usable input — 15615 tokens above the prompt that had failed. A two-card test proves the smaller card's own context governs rather than the first card's. A context too small to hold both a prompt and a response now fails before the harness starts rather than after. Verified live on the deployed launcher, which reports 'glm-5.3 · 4×H200 · w4a8 · 49152-token usable input budget · 16384-token output reservation'.</div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260901T114750299760-clive-local-alias-statement" data-who="s24-clive-modes" data-when="2026-09-01T11:53:09Z">
     <div class="r-comment-body"><p>Default local launch now states sonnet is the primary local worker, carrying that release's own accelerator count, family and exact max_model_len from its catalog card, plus the division of labour and the fact that local-only mode has no frontier slot. All four alias assignments unchanged. 2/2 tests</p></div>

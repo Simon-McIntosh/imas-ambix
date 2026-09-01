@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="glm-parser-output-shape">
+  <meta name="plan-title" content="GLM Parser Output Shape — what the engine emits around a tool call and a thought">
+  <meta name="plan-summary" content="Two measured defects in how the GLM reasoning and tool parsers frame their output, both observed against a live coherent engine">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="mid">
+  <meta name="plan-effort-hours" content="2.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint" content="S24">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving">
+  <meta name="plan-informs" content="clive-launch-modes">
+  <title>GLM Parser Output Shape | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Why this is separate from the bring-up</h2>
+    <p>The four-card GLM release now serves coherently and calls tools correctly, so the
+    engine works. What this plan covers is narrower and was only observable <em>because</em>
+    it works: two defects in how that engine's reasoning and tool parsers frame their
+    output. Both were measured against a live, healthy endpoint rather than inferred, and
+    neither blocks serving — which is exactly why they belong here rather than holding up
+    a bring-up that has shipped.</p>
+
+    <h2 id="s2">§2 — A closing think marker leaks into tool responses</h2>
+    <p>A tool-use response that carries no thinking block still emits the literal closing
+    marker of the reasoning parser in its adjacent text. A consumer reading that text sees
+    a stray token that belongs to a block which was never opened. The reasoning parser and
+    the tool parser are configured independently for this release, so the fix is a question
+    of which one owns suppressing the marker when no thought was produced.</p>
+
+    <h2 id="s3">§3 — Reasoning consumes the whole output budget</h2>
+    <p>A reasoning request spent its entire 512-token cap inside the thinking block and
+    emitted no separate final text block before the response ended. The answer was correct
+    and the thinking block was real, so nothing is broken; but a consumer asking a question
+    and reading only the text block would receive nothing. Either the reservation must be
+    split so a final block is always reachable, or the caller must be told that this
+    release answers inside its thought for short budgets.</p>
+    <p>The launcher's per-release budgeting, which now derives an output reservation from
+    the selected card's own context, is the natural place for a split to live if that is
+    the chosen shape.</p>
+
+    <h2 id="s4">§4 — Done-when</h2>
+    <ul>
+      <li>A tool response carrying no thinking block contains no closing reasoning marker,
+      asserted against a live engine rather than a fixture.</li>
+      <li>A reasoning request at a realistic output budget produces both a thinking block
+      and a non-empty final text block, or the launcher states the behaviour at selection
+      time so a consumer is not surprised by it.</li>
+      <li>Neither change alters tool-call correctness or coherence, re-checked by the same
+      probes that proved them.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="marker-owner" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Does the reasoning parser suppress its closing marker when no thought was produced, or does the tool path strip it?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="reasoning-parser">reasoning-parser</button>
+      <button class="r-opt" data-value="tool-path">tool-path</button>
+      </p>
+    <p class="r-dec-rat">Recommendation: the reasoning parser, because it is the component
+        that owns the marker and the only one that knows whether a block was opened.
+        Stripping downstream would leave every other consumer of that engine seeing the
+        same stray token.</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-gpos-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship glm-parser-output-shape" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Fix the two parser framing defects against a live engine</h4>
+    <div class="r-fu-body">Both were observed on the live four-card release during its coherence proof, so both are reproducible against a running endpoint rather than needing a fixture. The stray closing marker appears in tool responses that carry no thinking block; the reasoning cap is consumed inside the thought so no separate final text block is emitted. Neither blocks serving, which is why they were split out of the bring-up rather than holding it. Re-run the same tool-use and reasoning probes afterwards to confirm correctness and coherence are unchanged.</div>
+    <pre class="r-fu-prompt">/reckon-ship glm-parser-output-shape</pre>
+    </article>
+</section>
+  </main>
+</body>
+</html>

@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="24">
+<meta name="plan-version" content="25">
 <meta name="plan-commits" content="3dd736597952c097de5c997b0613b8b166a7558b,53b4fc31f7b7e609f8d14c4b051f1b3d12a4bc65,3bb3d7621b5afa74b3a8752a900966b18c19166e,6aba87634c77327990d87388f6c50c011d7da8eb,8b82a9747819a058744c79373abcc287e99cb6b1,7f70e653382227eb49476eab39167d4e51e7d9e4">
 <meta name="plan-artifacts" content="imas_ambix/agent/profiles/glm-5-3.toml,imas_ambix/agent/profile.py,tests/test_agent_glm_5_3.py,docs/evidence/archive/glm-53-serve-and-wiring-landed.html">
 <meta name="plan-impl" content="1.0">
@@ -156,10 +156,16 @@
     <pre class="r-fu-prompt">/reckon-ship glm-53-serve-and-wiring</pre>
     <p class="r-fu-outcome">Shipped, after four bring-up attempts each finding a different real defect: the profiled checkpoint had no tokenizer, a repository module could not be parsed by the serving interpreter, the context ceiling was arithmetic rather than measurement, and the community requant itself decoded garbage with its tokenizer and template both exonerated. The four-card deployment now runs camel-ai/GLM-5.3-W4A8, verified against the serving engine's own registry, serving coherently with working tool calls. Continuation passes to multi-model-serving-capacity as f-gsw-02.</p>
     </article>
-<article class="r-fu" data-id="f-gsw-02" data-status="open" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship multi-model-serving-capacity" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-gsw-02" data-status="resolved" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship multi-model-serving-capacity" data-resolved-at="2026-09-01T18:16:27+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Size and cap the concurrent pair now that both engines run</h4>
     <div class="r-fu-body">Owned by <code>multi-model-serving-capacity</code>, not by this plan. Both releases now serve concurrently — four cards and twelve cores for GLM-5.3, two cards and eight cores for DeepSeek — so the budget that plan describes can be recorded against a real pair, and its admission cap can be demonstrated under deliberate overload against live engines rather than fixtures. The parser polish this bring-up observed belongs there too: a literal closing think marker leaks into non-thinking tool responses, and reasoning consumes the output cap before a separate final text block is emitted.</div>
     <pre class="r-fu-prompt">/reckon-ship multi-model-serving-capacity</pre>
+    <p class="r-fu-outcome">Resolved. The sizing and capping half is done and shipped: both releases serve concurrently inside a measured budget, and the per-consumer cap was demonstrated against those live engines rather than fixtures, with a second consumer served in 0.252s during the first's saturation. The parser-framing half is NOT done and has moved to its own plan, glm-parser-output-shape, tracked here as f-gsw-03 — leaving it as a followup on a shipped plan would have hidden it rather than tracked it.</p>
+    </article>
+<article class="r-fu" data-id="f-gsw-03" data-status="open" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship glm-parser-output-shape" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Fix the two parser framing defects this bring-up observed</h4>
+    <div class="r-fu-body">Owned by <code>glm-parser-output-shape</code>, a plan created for them because this one has shipped and a followup left here would be hidden from every view that decides what to run next. Both were seen on the live four-card release while proving coherence, and neither blocks serving: a tool response carrying no thinking block still emits the reasoning parser's closing marker in its adjacent text, and a reasoning request consumed its whole output cap inside the thought without emitting a separate final text block.</div>
+    <pre class="r-fu-prompt">/reckon-ship glm-parser-output-shape</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">

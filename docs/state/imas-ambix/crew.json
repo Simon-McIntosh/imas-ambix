@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T19:56:20",
+  "updated": "2026-09-01T20:15:00",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -18797,9 +18797,111 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T180855775817-small-context-launch-budget",
+        "plan": "clive-launch-modes",
+        "section": "\u00a73",
+        "node": "small-context-launch-budget",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_clive_picker.py tests/test_agent_clive_modes.py -q exits 0 with added assertions, and uv run --no-sync pytest tests/test_agent.py -q still exits 0. Measured on the live union: a normal full-workspace launch against the four-card release exceeded its 65536-token window by exactly one token, 33537 input plus a 32000 output reservation, while the standard bare mode reduced input to 1285 and succeeded. So the launcher must not hand a caller a configuration that cannot start. Derive the output reservation from the selected release's own engine-reported context rather than a constant, so a release with a small window gets a reservation that leaves room for a real prompt, and state the resulting usable input budget where the caller can see it before the session starts. Tests assert that a release reporting a large context keeps today's behaviour unchanged, that a release reporting 65536 produces a reservation leaving demonstrable input headroom rather than consuming the window, and that the launcher never emits a combination whose reservation plus a minimal prompt exceeds the selected release's reported context. Take the context from the catalog card for that release, never a shared default, since two releases now differ by an order of magnitude.",
+          "estimated_hours": null,
+          "goal": "Stop a full-workspace launch overflowing a release whose context is smaller than the output reservation assumes",
+          "id": "small-context-launch-budget",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T180855775817-small-context-launch-budget/manifest.md",
+          "plan": "clive-launch-modes",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/agent/clive.py",
+            "tests/test_agent_clive_picker.py",
+            "tests/test_agent_clive_modes.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "s24-clive-modes",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T18:09:10Z",
+        "completed_at": "2026-09-01T18:14:45Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 335,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 335,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "f0972b0f37f76a4705a05bf193716e1a255d88f8",
+        "commits": [
+          "8bea1959390a938ececa0db28e4e47f02c987d4e"
+        ],
+        "changed_lines": {
+          "added": 80,
+          "removed": 3,
+          "files": 3
+        },
+        "tests_added": 2,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_clive_picker.py tests/test_agent_clive_modes.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T180855775817-small-context-launch-budget/focused-pytest-final.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T180855775817-small-context-launch-budget/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c99-a254-70b0-9b28-a7cdeedfa454",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 1646336,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 1986257,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 10158,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 3007
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_clive_picker.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 437
+    "_version": 438
   }
 }
