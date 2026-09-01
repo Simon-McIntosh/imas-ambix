@@ -15,6 +15,9 @@ import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
+
+from imas_ambix.agent.vllm_catalog import validate_catalog_metadata
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -63,6 +66,56 @@ class RegistrationRead:
 
     current: tuple[ServeRegistration, ...]
     stale: tuple[ServeRegistration, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PublishedEndpoint:
+    """One anonymously reachable engine exposed to standalone launchers."""
+
+    model_id: str
+    host: str
+    port: int
+    accelerator_family: str
+    accelerator_count: int
+    checkpoint_precision: str
+    max_context: int
+
+    def __post_init__(self) -> None:
+        for name in (
+            "model_id",
+            "host",
+            "accelerator_family",
+            "checkpoint_precision",
+        ):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a non-empty string")
+            if any(ord(character) < 32 or ord(character) == 127 for character in value):
+                raise ValueError(f"{name} contains control characters")
+        if not isinstance(self.port, int) or isinstance(self.port, bool):
+            raise ValueError("port must be an integer")
+        if not 1 <= self.port <= 65535:
+            raise ValueError("port must be between 1 and 65535")
+        validate_catalog_metadata(
+            {
+                self.model_id: {
+                    "accelerator_family": self.accelerator_family,
+                    "accelerator_count": self.accelerator_count,
+                    "checkpoint_precision": self.checkpoint_precision,
+                }
+            }
+        )
+        if (
+            not isinstance(self.max_context, int)
+            or isinstance(self.max_context, bool)
+            or self.max_context < 1
+        ):
+            raise ValueError("max_context must be a positive integer")
+
+    @property
+    def origin(self) -> str:
+        """Direct HTTP origin for this engine."""
+        return f"http://{self.host}:{self.port}"
 
 
 def registration_directory(base_dir: str | Path) -> Path:
@@ -154,6 +207,170 @@ def read_registrations(
     )
 
 
+def _endpoint_from_catalog(
+    registration: ServeRegistration, payload: object
+) -> PublishedEndpoint:
+    if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
+        raise ValueError("endpoint catalog must contain a data list")
+    matches = [
+        item
+        for item in payload["data"]
+        if isinstance(item, dict) and item.get("id") == registration.model_id
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            "endpoint catalog must contain the registered model exactly once"
+        )
+    item = matches[0]
+    metadata = validate_catalog_metadata(
+        {registration.model_id: item.get("ambix")}
+    )[registration.model_id]
+    if metadata["accelerator_count"] != registration.accelerator_count:
+        raise ValueError("endpoint accelerator count disagrees with registration")
+    if metadata["checkpoint_precision"] != registration.checkpoint_precision:
+        raise ValueError("endpoint checkpoint precision disagrees with registration")
+    parsed = urlsplit(registration.origin)
+    if parsed.hostname is None or parsed.port is None:
+        raise ValueError("registration origin is incomplete")
+    return PublishedEndpoint(
+        model_id=registration.model_id,
+        host=parsed.hostname,
+        port=parsed.port,
+        accelerator_family=str(metadata["accelerator_family"]),
+        accelerator_count=registration.accelerator_count,
+        checkpoint_precision=registration.checkpoint_precision,
+        max_context=item.get("max_model_len"),
+    )
+
+
+def build_endpoint_document(
+    registrations: Sequence[ServeRegistration],
+    *,
+    fetch_catalog: Callable[[str], object],
+) -> tuple[PublishedEndpoint, ...]:
+    """Probe registrations anonymously and retain complete live endpoints."""
+    endpoints: list[PublishedEndpoint] = []
+    seen_models: set[str] = set()
+    for registration in registrations:
+        try:
+            endpoint = _endpoint_from_catalog(
+                registration, fetch_catalog(registration.origin)
+            )
+        except (OSError, TypeError, ValueError):
+            continue
+        if endpoint.model_id in seen_models:
+            raise ValueError(f"multiple live endpoints publish {endpoint.model_id!r}")
+        endpoints.append(endpoint)
+        seen_models.add(endpoint.model_id)
+    return tuple(sorted(endpoints, key=lambda endpoint: endpoint.model_id))
+
+
+def write_endpoint_document(
+    endpoints: Sequence[PublishedEndpoint], path: str | Path
+) -> Path:
+    """Atomically publish launcher endpoints as a world-readable document."""
+    target = Path(path)
+    missing_parents: list[Path] = []
+    parent = target.parent
+    while not parent.exists():
+        missing_parents.append(parent)
+        parent = parent.parent
+    for directory in reversed(missing_parents):
+        directory.mkdir(mode=0o755)
+        directory.chmod(0o755)
+
+    payload = json.dumps(
+        {"endpoints": [asdict(endpoint) for endpoint in endpoints]},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=target.parent,
+            prefix=f".{target.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+            temporary.write(payload)
+            temporary.write("\n")
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        os.chmod(temporary_path, 0o644)
+        os.replace(temporary_path, target)
+        directory_fd = os.open(target.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        if temporary_path is not None and temporary_path.exists():
+            temporary_path.unlink()
+    return target
+
+
+def read_endpoint_document(path: str | Path) -> tuple[PublishedEndpoint, ...]:
+    """Read a complete endpoint document, rejecting the whole malformed file."""
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"endpoint document is unreadable: {error}") from error
+    if not isinstance(payload, dict) or not isinstance(payload.get("endpoints"), list):
+        raise ValueError("endpoint document must contain an endpoints list")
+    try:
+        endpoints = tuple(PublishedEndpoint(**entry) for entry in payload["endpoints"])
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            f"endpoint document contains an invalid entry: {error}"
+        ) from error
+    if not endpoints:
+        raise ValueError("endpoint document contains no endpoints")
+    model_ids = [endpoint.model_id for endpoint in endpoints]
+    if len(model_ids) != len(set(model_ids)):
+        raise ValueError("endpoint document repeats a model id")
+    return endpoints
+
+
+def publish_endpoint_document(
+    registrations: Sequence[ServeRegistration],
+    path: str | Path,
+    *,
+    fetch_catalog: Callable[[str], object],
+) -> Path:
+    """Build and atomically write the current anonymous endpoint document."""
+    return write_endpoint_document(
+        build_endpoint_document(registrations, fetch_catalog=fetch_catalog), path
+    )
+
+
+def _fetch_anonymous_catalog(origin: str) -> object:
+    """Fetch one engine catalog without credentials or ambient proxies."""
+    import urllib.error
+    import urllib.request
+
+    class RejectRedirects(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, request, fp, code, message, headers, new_url):
+            raise urllib.error.HTTPError(
+                request.full_url,
+                code,
+                "endpoint redirect refused",
+                headers,
+                fp,
+            )
+
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({}), RejectRedirects()
+    )
+    request = urllib.request.Request(f"{origin}/v1/models", method="GET")
+    with opener.open(request, timeout=5) as response:
+        if not 200 <= response.status < 300:
+            raise OSError(f"endpoint returned HTTP {response.status}")
+        return json.load(response)
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Manage one serve registration")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -168,6 +385,9 @@ def _parser() -> argparse.ArgumentParser:
     remove = subparsers.add_parser("remove")
     remove.add_argument("--directory", required=True)
     remove.add_argument("--job-id", required=True)
+    publish = subparsers.add_parser("publish")
+    publish.add_argument("--directory")
+    publish.add_argument("--output")
     return parser
 
 
@@ -186,8 +406,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             ),
             args.directory,
         )
-    else:
+    elif args.command == "remove":
         remove_registration(args.job_id, args.directory)
+    else:
+        from imas_ambix.agent.profile import SiteConfig
+
+        site = SiteConfig.from_env()
+        directory = args.directory or registration_directory(site.base_dir)
+        output = args.output or site.endpoint_document
+        registrations = read_registrations(
+            directory, job_is_running=lambda _job_id: True
+        ).current
+        publish_endpoint_document(
+            registrations, output, fetch_catalog=_fetch_anonymous_catalog
+        )
     return 0
 
 

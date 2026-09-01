@@ -2,10 +2,10 @@
 # is governed by the generated shell script, not Python style.
 """Generate the standalone shared ``clive`` consumer launcher.
 
-Plain ``clive`` discovers releases from one anonymous site catalog and points
-Claude Code or Codex back at that same origin. Hosted frontier slots are
-compiled in only for the explicit ``hybrid`` launch mode; catalog failure never
-enters the hosted proxy path.
+Plain ``clive`` discovers releases from the published endpoint document and
+points Claude Code or Codex directly at the selected engine. Hosted frontier
+slots are compiled in only for the explicit ``hybrid`` launch mode; discovery
+failure never enters the hosted proxy path.
 """
 
 from __future__ import annotations
@@ -33,7 +33,9 @@ def generate_clive_script(
     if mode == "local" and openrouter_native_release is not None:
         raise ValueError("an OpenRouter native release requires hybrid mode")
 
-    origin = site.global_origin
+    default_origin = site.__class__.model_fields["global_origin"].default
+    legacy_origin = site.global_origin if site.global_origin != default_origin else ""
+    endpoint_document = str(site.endpoint_document)
     proxy_native_release = openrouter_native_release or ""
     template = r"""#!/usr/bin/env bash
 # clive — drive an agent CLI against the site model catalog.
@@ -48,6 +50,7 @@ def generate_clive_script(
 set -euo pipefail
 
 GLOBAL_ORIGIN=__GLOBAL_ORIGIN__
+ENDPOINT_DOCUMENT=__ENDPOINT_DOCUMENT__
 OPENROUTER_NATIVE_RELEASE=__OPENROUTER_NATIVE_RELEASE__
 LITELLM_PORT="__LITELLM_PORT__"
 LITELLM_SERVICE="imas-ambix-llm.service"
@@ -101,14 +104,14 @@ done
 
 INTERACTIVE=false
 [[ -t 0 ]] && INTERACTIVE=true
-if _CATALOG_RESULT="$(python3 - "$GLOBAL_ORIGIN" "$SELECTOR" "$LIST_ONLY" "$INTERACTIVE" "$MODE" 3<&0 <<'PY'
+if _CATALOG_RESULT="$(python3 - "$ENDPOINT_DOCUMENT" "$GLOBAL_ORIGIN" "$SELECTOR" "$LIST_ONLY" "$INTERACTIVE" "$MODE" 3<&0 <<'PY'
 import json
 import os
 import sys
 import urllib.error
 import urllib.request
 
-origin, selector, list_only, interactive, mode = sys.argv[1:]
+document_path, legacy_origin, selector, list_only, interactive, mode = sys.argv[1:]
 
 
 def fail(message):
@@ -135,36 +138,23 @@ class RejectRedirects(urllib.request.HTTPRedirectHandler):
         )
 
 
-request = urllib.request.Request(origin + "/v1/models", method="GET")
 opener = urllib.request.build_opener(
     urllib.request.ProxyHandler({}), RejectRedirects()
 )
-try:
+
+
+def fetch_catalog(origin):
+    request = urllib.request.Request(origin + "/v1/models", method="GET")
     with opener.open(request, timeout=5) as response:
         if response.status < 200 or response.status >= 300:
-            fail(f"global catalog returned HTTP {response.status}")
-        raw = response.read()
-except (OSError, urllib.error.URLError) as error:
-    fail(f"global catalog is unreachable: {error}")
+            raise OSError(f"HTTP {response.status}")
+        return json.loads(response.read())
 
-try:
-    payload = json.loads(raw)
-except (UnicodeDecodeError, json.JSONDecodeError) as error:
-    fail(f"global catalog is malformed: {error}")
-if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
-    fail("global catalog must contain a model data list")
-if not payload["data"]:
-    fail("global catalog contains no models")
 
-items = []
-release_ids = set()
-for item in payload["data"]:
+def validate_catalog_item(item, *, expected=None):
     if not isinstance(item, dict) or not valid_text(item.get("id")):
         fail("global catalog contains an invalid release id")
     release_id = item["id"]
-    if release_id in release_ids:
-        fail(f"global catalog repeats release id {release_id!r}")
-    release_ids.add(release_id)
     metadata = item.get("ambix")
     if not isinstance(metadata, dict):
         fail(f"release {release_id!r} has no ambix metadata")
@@ -182,21 +172,150 @@ for item in payload["data"]:
         type(max_context) is not int or max_context <= 0
     ):
         fail(f"release {release_id!r} has an invalid maximum context")
+    if expected is not None and (
+        release_id != expected["model_id"]
+        or family != expected["accelerator_family"]
+        or count != expected["accelerator_count"]
+        or precision != expected["checkpoint_precision"]
+        or max_context != expected["max_context"]
+    ):
+        raise ValueError("engine catalog disagrees with endpoint document")
+    return release_id, family, count, precision, max_context
+
+
+def launcher_item(entry, *, catalog_item=None):
+    if not isinstance(entry, dict):
+        fail("endpoint document contains an invalid entry")
+    required = {
+        "model_id",
+        "host",
+        "port",
+        "accelerator_family",
+        "accelerator_count",
+        "checkpoint_precision",
+        "max_context",
+    }
+    if set(entry) != required:
+        fail("endpoint document contains an incomplete entry")
+    host = entry.get("host")
+    port = entry.get("port")
+    if (
+        not valid_text(host)
+        or any(character.isspace() or character in "/?#@" for character in host)
+        or type(port) is not int
+        or not 1 <= port <= 65535
+    ):
+        fail("endpoint document contains an invalid origin")
+    release_id = entry.get("model_id")
+    family = entry.get("accelerator_family")
+    count = entry.get("accelerator_count")
+    precision = entry.get("checkpoint_precision")
+    max_context = entry.get("max_context")
+    if not valid_text(release_id):
+        fail("endpoint document contains an invalid release id")
+    if not valid_text(family):
+        fail(f"release {release_id!r} has an invalid accelerator family")
+    if type(count) is not int or count not in {2, 4, 6, 8}:
+        fail(f"release {release_id!r} has an invalid accelerator count")
+    if not valid_text(precision):
+        fail(f"release {release_id!r} has an invalid checkpoint precision")
+    if type(max_context) is not int or max_context <= 0:
+        fail(f"release {release_id!r} has an invalid maximum context")
+    if catalog_item is not None:
+        validate_catalog_item(catalog_item, expected=entry)
+    origin = f"http://{host}:{port}"
     topology_selector = f"{release_id}@{count}x{family.lower()}"
     label = f"{release_id} · {count}×{family} · {precision}"
-    if max_context is not None:
-        label += f" · {max_context // 1024}k ctx"
-    items.append(
-        {
-            "id": release_id,
-            "family": family,
-            "count": count,
-            "precision": precision,
-            "max_context": max_context,
-            "selector": topology_selector,
-            "label": label,
-        }
-    )
+    label += f" · {max_context // 1024}k ctx"
+    return {
+        "id": release_id,
+        "origin": origin,
+        "family": family,
+        "count": count,
+        "precision": precision,
+        "max_context": max_context,
+        "selector": topology_selector,
+        "label": label,
+    }
+
+
+items = []
+release_ids = set()
+if legacy_origin:
+    try:
+        payload = fetch_catalog(legacy_origin)
+    except (OSError, urllib.error.URLError) as error:
+        fail(f"global catalog is unreachable: {error}")
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        fail(f"global catalog is malformed: {error}")
+    if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
+        fail("global catalog must contain a model data list")
+    if not payload["data"]:
+        fail("global catalog contains no models")
+    for catalog_item in payload["data"]:
+        release_id, family, count, precision, max_context = validate_catalog_item(
+            catalog_item
+        )
+        if release_id in release_ids:
+            fail(f"global catalog repeats release id {release_id!r}")
+        release_ids.add(release_id)
+        topology_selector = f"{release_id}@{count}x{family.lower()}"
+        label = f"{release_id} · {count}×{family} · {precision}"
+        if max_context is not None:
+            label += f" · {max_context // 1024}k ctx"
+        items.append(
+            {
+                "id": release_id,
+                "origin": legacy_origin,
+                "family": family,
+                "count": count,
+                "precision": precision,
+                "max_context": max_context,
+                "selector": topology_selector,
+                "label": label,
+            }
+        )
+else:
+    try:
+        with open(document_path, encoding="utf-8") as document:
+            payload = json.load(document)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        fail(f"endpoint document is unreadable: {error}")
+    if not isinstance(payload, dict) or not isinstance(payload.get("endpoints"), list):
+        fail("endpoint document must contain an endpoints list")
+    if not payload["endpoints"]:
+        fail("endpoint document contains no endpoints")
+    entries = payload["endpoints"]
+    for entry in entries:
+        candidate = launcher_item(entry)
+        if candidate["id"] in release_ids:
+            fail(f"endpoint document repeats release id {candidate['id']!r}")
+        release_ids.add(candidate["id"])
+    for entry in entries:
+        origin = f'http://{entry["host"]}:{entry["port"]}'
+        try:
+            catalog = fetch_catalog(origin)
+            if not isinstance(catalog, dict) or not isinstance(catalog.get("data"), list):
+                continue
+            matches = [
+                item
+                for item in catalog["data"]
+                if isinstance(item, dict) and item.get("id") == entry["model_id"]
+            ]
+            if len(matches) != 1:
+                continue
+            items.append(launcher_item(entry, catalog_item=matches[0]))
+        except (
+            OSError,
+            TypeError,
+            ValueError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            urllib.error.URLError,
+        ):
+            continue
+    if not items:
+        fail("endpoint discovery contains no reachable models")
 
 if list_only == "true":
     for item in items:
@@ -260,6 +379,7 @@ else:
     fail(f"multiple models are available; use --selector ({available})")
 
 print(chosen["id"])
+print(chosen["origin"])
 print(chosen["max_context"] or "")
 print(chosen["family"])
 print(chosen["count"])
@@ -324,21 +444,22 @@ if $LIST_ONLY; then
 fi
 
 mapfile -t _CATALOG_FIELDS <<< "$_CATALOG_RESULT"
-if [[ "${#_CATALOG_FIELDS[@]}" -ne 11 ]]; then
+if [[ "${#_CATALOG_FIELDS[@]}" -ne 12 ]]; then
     echo "clive: catalog selection returned invalid data." >&2
     exit 2
 fi
 MODEL_ID="${_CATALOG_FIELDS[0]}"
-MAX_CONTEXT="${_CATALOG_FIELDS[1]}"
-ACCELERATOR_FAMILY="${_CATALOG_FIELDS[2]}"
-ACCELERATOR_COUNT="${_CATALOG_FIELDS[3]}"
-CHECKPOINT_PRECISION="${_CATALOG_FIELDS[4]}"
-PICKER_SETTINGS="${_CATALOG_FIELDS[5]}"
-DISPATCH_GUIDANCE="${_CATALOG_FIELDS[6]}"
-PRIMARY_LOCAL_MODEL="${_CATALOG_FIELDS[7]}"
-PRIMARY_LOCAL_DESCRIPTION="${_CATALOG_FIELDS[8]}"
-SECONDARY_LOCAL_MODEL="${_CATALOG_FIELDS[9]}"
-SECONDARY_LOCAL_DESCRIPTION="${_CATALOG_FIELDS[10]}"
+GLOBAL_ORIGIN="${_CATALOG_FIELDS[1]}"
+MAX_CONTEXT="${_CATALOG_FIELDS[2]}"
+ACCELERATOR_FAMILY="${_CATALOG_FIELDS[3]}"
+ACCELERATOR_COUNT="${_CATALOG_FIELDS[4]}"
+CHECKPOINT_PRECISION="${_CATALOG_FIELDS[5]}"
+PICKER_SETTINGS="${_CATALOG_FIELDS[6]}"
+DISPATCH_GUIDANCE="${_CATALOG_FIELDS[7]}"
+PRIMARY_LOCAL_MODEL="${_CATALOG_FIELDS[8]}"
+PRIMARY_LOCAL_DESCRIPTION="${_CATALOG_FIELDS[9]}"
+SECONDARY_LOCAL_MODEL="${_CATALOG_FIELDS[10]}"
+SECONDARY_LOCAL_DESCRIPTION="${_CATALOG_FIELDS[11]}"
 RUNTIME_LABEL="${ACCELERATOR_COUNT}×${ACCELERATOR_FAMILY} · ${CHECKPOINT_PRECISION}"
 CONTEXT_LABEL="unknown"
 if [[ -n "$MAX_CONTEXT" ]]; then
@@ -449,7 +570,8 @@ exec claude --settings "$PICKER_SETTINGS" --append-system-prompt "$DISPATCH_GUID
 exit 2
 """
     return (
-        template.replace("__GLOBAL_ORIGIN__", shlex.quote(origin))
+        template.replace("__GLOBAL_ORIGIN__", shlex.quote(legacy_origin))
+        .replace("__ENDPOINT_DOCUMENT__", shlex.quote(endpoint_document))
         .replace("__OPENROUTER_NATIVE_RELEASE__", shlex.quote(proxy_native_release))
         .replace("__LITELLM_PORT__", str(LITELLM_PORT))
         .replace(

@@ -262,6 +262,11 @@ def _default_engine_env_root() -> str:
     return str(root / "ambix" / "engine-envs")
 
 
+def _default_endpoint_document_path() -> str:
+    """Return the public, home-backed endpoint publication path."""
+    return str(Path.home() / "public" / "imas-ambix" / "endpoints.json")
+
+
 class SiteConfig(BaseModel):
     """Cluster-specific settings, layered separately from model profiles.
 
@@ -283,6 +288,7 @@ class SiteConfig(BaseModel):
     default_port: int = 18800
     gpu_host: str = "98dci4-gpu-0003"
     global_origin: str = "http://98dci4-gpu-0003:18800"
+    endpoint_document_path: str = Field(default_factory=_default_endpoint_document_path)
 
     @field_validator("global_origin", mode="before")
     @classmethod
@@ -328,7 +334,15 @@ class SiteConfig(BaseModel):
             global_origin=os.environ.get(
                 "AMBIX_AGENT_GLOBAL_URL", "http://98dci4-gpu-0003:18800"
             ),
+            endpoint_document_path=os.environ.get(
+                "AMBIX_AGENT_ENDPOINT_DOCUMENT", _default_endpoint_document_path()
+            ),
         )
+
+    @property
+    def endpoint_document(self) -> Path:
+        """Public document from which standalone launchers discover engines."""
+        return Path(self.endpoint_document_path).expanduser()
 
     def _engine_key(self, engine_type: str) -> str:
         """Map engine type to venv directory name.
