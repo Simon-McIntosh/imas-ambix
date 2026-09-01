@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="serving-endpoint-indirection">
+  <meta name="plan-title" content="Serving Endpoint Indirection — one origin in front of many engines">
+  <meta name="plan-summary" content="A pass-through router giving consumers one origin, a union model catalog, and per-consumer log separation">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="6.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="moderate">
+  <meta name="plan-sprint" content="S24">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <meta name="plan-blocks" content="clive-launch-modes,multi-model-serving-capacity">
+  <title>Serving Endpoint Indirection | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-01">
+<meta name="plan-version" content="1">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — What forces the indirection</h2>
+    <p>One vLLM process serves one model and binds one port. Every consumer-facing
+    contract we have assumes the opposite. <code>SiteConfig.global_origin</code> is a
+    single origin, and the generated <code>clive</code> launcher makes exactly one
+    anonymous <code>GET &lt;origin&gt;/v1/models</code> request whose non-empty response it
+    treats as the complete availability authority. That works while precisely one model
+    is served and fails the moment a second one is, because the second model answers on
+    a different port and therefore publishes a different catalog.</p>
+    <p>The documented claim that <em>"a future catalog item with <code>id: glm-5.3</code>
+    is immediately selectable by <code>--model glm-5.3</code> without a Clive source or
+    deployment change"</em> is true only if both releases appear in the <strong>same</strong>
+    catalog. Nothing in the tree produces such a catalog today. That is the gap this plan
+    closes, and it is the prerequisite for both downstream plans.</p>
+    <p>Two further problems resolve in the same component, which is why they are scoped
+    here rather than separately:</p>
+    <ul>
+      <li><strong>Consumer metadata in the operator's job log.</strong> Prompts do not
+      leak — vLLM 0.28 defaults <code>enable_log_requests</code> to false and a 2.7 MB
+      live log contained zero request-body lines — but every consumer's IP, endpoint and
+      status does, in the serve job's own stdout. With a router in front, the engine log
+      records one client address and the router owns per-consumer accounting under its
+      own retention policy.</li>
+      <li><strong>A GPU node named in the client-facing URL.</strong> Resolved in §3:
+      the origin stays on the GPU node deliberately, and the reasoning is recorded so it
+      is not re-litigated.</li>
+    </ul>
+
+    <h2 id="s2">§2 — Pass-through, not translation</h2>
+    <p><strong>Decision locked: no LiteLLM on the inference path.</strong> The measured
+    reason is that every leg already speaks the same wire protocol, so there is nothing
+    for a translating proxy to add and a great deal for it to lose. Probed against the
+    live engine, vLLM exposes the complete Anthropic surface Claude Code drives:</p>
+    <table>
+      <thead><tr><th>Path</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td><code>POST /v1/messages</code></td><td>200; SSE with real <code>thinking</code> content blocks</td></tr>
+        <tr><td><code>POST /v1/messages/count_tokens</code></td><td>200</td></tr>
+        <tr><td><code>POST /v1/messages</code> with <code>tools</code></td><td>200</td></tr>
+        <tr><td><code>GET /v1/models</code></td><td>200, carrying the launch-owned <code>ambix</code> metadata</td></tr>
+      </tbody>
+    </table>
+    <p>A translating proxy would convert a native Anthropic request into OpenAI chat and
+    the response back again, and that conversion is where <code>thinking</code> blocks,
+    <code>tool_use</code> identifiers, <code>cache_control</code> and interleaved-thinking
+    signatures are lost or mangled. The failure mode is not hypothetical: the previous
+    proxy attempt died on a dialect mismatch, because LiteLLM's <code>anthropic/</code>
+    provider emits <code>x-api-key</code> and no <code>Authorization</code> header while
+    the engine's key middleware accepts only <code>Authorization: Bearer</code>. A
+    correct credential returned 401 on every request.</p>
+    <p>So the router dispatches and streams. Its whole contract is
+    <code>model id → (upstream base, auth header)</code> plus byte-faithful streaming,
+    which preserves the wire format by construction and has no dialect surface to get
+    wrong. LiteLLM keeps its existing job on the genuinely polyglot path — the separate
+    proxy already serving OpenRouter, Gemini and OpenAI routes on a login node — and the
+    two are not merged.</p>
+    <figure>
+      <img src="/imas-ambix/figures/serving-endpoint-indirection/routing-topology.svg"
+           alt="clive reaches one router origin on the GPU node, which dispatches by model id to two vLLM ports; a dashed deferred leg reaches Anthropic through a login-node egress hop.">
+      <figcaption>One origin in front of many engines. Solid legs are in scope;
+      dashed legs are deferred to <code>clive-launch-modes</code>. The GPU node's lack
+      of outbound internet is measured, not assumed.</figcaption>
+    </figure>
+
+    <h2 id="s3">§3 — Where it runs, and why the GPU node wins</h2>
+    <p>The earlier recommendation was a pinned login node, on the reasoning that a
+    client-facing URL should not name a GPU host that SLURM might reassign. Measurement
+    retired that reasoning: <code>sinfo -p betelgeuse</code> returns exactly one node.
+    The serve host does not move between relaunches, so the premise for relocating was
+    wrong, and <code>98dci4-gpu-0003</code> is the more descriptive name of the two.</p>
+    <p><strong>Decision locked: the router runs on the GPU node and the origin stays
+    <code>http://98dci4-gpu-0003:&lt;port&gt;</code>.</strong> It keeps the client-facing
+    URL stable across engine restarts and port changes, needs no second host to be
+    healthy for local inference to work, and adds no network hop to the hot path.</p>
+    <p>The cost is real and measured. From inside a betelgeuse allocation:</p>
+    <table>
+      <thead><tr><th>Target from 98dci4-gpu-0003</th><th>Reachability</th></tr></thead>
+      <tbody>
+        <tr><td><code>api.anthropic.com:443</code></td><td>blocked</td></tr>
+        <tr><td><code>1.1.1.1:443</code></td><td>blocked</td></tr>
+        <tr><td><code>98dci4-srv-1006:18400</code> (login node)</td><td>open</td></tr>
+      </tbody>
+    </table>
+    <p>So a router here cannot reach a hosted provider directly. It can reach a login
+    node, which has full egress, so a hosted leg remains available through one internal
+    hop rather than being foreclosed. That keeps the locked origin compatible with the
+    deferred work instead of trading it away.</p>
+    <p>Reachability of the origin itself is not in question: a standard compute node
+    already reaches both the GPU node's serve port and the login node's proxy port, so
+    consumers on login nodes and inside compute jobs are both served.</p>
+
+    <h2 id="s4">§4 — Resolving upstreams without hand-edited config</h2>
+    <p>The router must learn where each engine is listening without a human editing a
+    file, or it reintroduces by hand the coupling it exists to remove. The data already
+    exists and needs no new mechanism: <code>agent serve</code> stamps the scheduler
+    comment <code>ambix-serve;port=&lt;port&gt;</code>, and live discovery already
+    reconstructs node, port, model id, card count, reported context and checkpoint
+    precision from the scheduler plus an endpoint probe.</p>
+    <p>Two resolution sources, and the plan builds the second:</p>
+    <ul>
+      <li><strong>Scheduler discovery</strong> — reuse the existing path on a short TTL.
+      Cheap, but it queries one user's queue, so a router run by one operator sees only
+      that operator's serves.</li>
+      <li><strong>A registration file per serve</strong> — the serve job writes its
+      resolved identity to shared storage at startup and removes it on shutdown. User
+      independent, survives a scheduler outage, and is the source the router should
+      prefer. Build this one; keep scheduler discovery as the fallback that reconciles
+      a stale file against reality.</li>
+    </ul>
+    <p>The prerequisite defect here is already fixed: live discovery had been rejecting
+    a healthy serve outright because the allocation parser anchored the resource name to
+    the start of the field, and this scheduler reports the TRES form
+    <code>gres/gpu:2</code>. Six spellings are now covered by a table test.</p>
+
+    <h2 id="s5">§5 — The union catalog</h2>
+    <p>The router's <code>GET /v1/models</code> merges each upstream's catalog into one
+    response, preserving the per-release <code>ambix</code> metadata block the launcher
+    validates: accelerator family, an accelerator count restricted to 2, 4, 6 or 8,
+    checkpoint precision, and the engine's own <code>max_model_len</code>. The launcher
+    already fails closed on a duplicate, malformed or incompletely annotated catalog, and
+    already renders a release-at-topology selector per item, so a correct union needs
+    <strong>no launcher source change at all</strong> — which is the test that the
+    indirection is faithful rather than merely functional.</p>
+    <p>Done-when for this section is exactly that: with two engines up,
+    <code>clive --list</code> shows both releases with correct topology labels, and
+    <code>clive --model &lt;either&gt;</code> reaches the right engine, using the
+    launcher as currently generated.</p>
+
+    <h2 id="s6">§6 — Done-when</h2>
+    <ul>
+      <li>One origin serves a union catalog over two concurrently-running engines, with
+      per-release <code>ambix</code> metadata intact and the engine-reported context
+      preserved.</li>
+      <li><code>clive --list</code> and <code>clive --model &lt;id&gt;</code> work
+      against both releases with no change to the generated launcher.</li>
+      <li>Streaming is byte-faithful: an SSE response through the router carries the same
+      event sequence and <code>thinking</code>/<code>tool_use</code> blocks as the same
+      request made directly against the engine.</li>
+      <li><code>count_tokens</code> and the OpenAI chat path both work through the router.</li>
+      <li>The engine's job log records one client address; per-consumer accounting lives
+      in the router's own log.</li>
+      <li>An engine restart on a new port is picked up without editing router config or
+      redeploying the launcher.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="translation-layer" data-choice="pass-through" data-by="Simon McIntosh" data-when="2026-09-01">
+    <p class="r-dec-q">Does the router translate protocols, or stream through?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="pass-through">pass-through</button>
+      <button class="r-opt" data-value="litellm">litellm</button>
+      </p>
+    <p class="r-dec-rat">Locked to pass-through. Every leg already speaks Anthropic /v1/messages — measured on the live engine, including SSE thinking blocks, count_tokens and tool definitions — so
+        translation buys nothing and risks the exact class of failure that killed the
+        previous proxy, where LiteLLM&#x27;s anthropic/ provider sent x-api-key against a Bearer-only engine and a correct key 401&#x27;d.</p>
+    </div>
+<div class="r-dec" data-key="router-host" data-choice="gpu-node" data-by="Simon McIntosh" data-when="2026-09-01">
+    <p class="r-dec-q">Which host owns the client-facing origin?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="gpu-node">gpu-node</button>
+      <button class="r-opt" data-value="login-node">login-node</button>
+      <button class="r-opt" data-value="dns-alias">dns-alias</button>
+      </p>
+    <p class="r-dec-rat">Locked to the GPU node. betelgeuse is a
+        single-node partition, so the serve host does not move and the argument for
+        relocating to a login node fell away; the GPU host is also the better-named of
+        the two. Accepted cost, measured: no outbound internet from there, so a hosted
+        provider leg needs one hop through a login node.</p>
+    </div>
+<div class="r-dec" data-key="upstream-resolution" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Does the router resolve upstreams from a per-serve registration file, from scheduler discovery, or from both with the file preferred?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="file">file</button>
+      <button class="r-opt" data-value="scheduler">scheduler</button>
+      <button class="r-opt" data-value="file-with-scheduler-fallback">file-with-scheduler-fallback</button>
+      </p>
+    <p class="r-dec-rat">Recommendation: file with scheduler fallback. The file is
+        user-independent and survives a scheduler outage; scheduler discovery already
+        exists and reconciles a stale file against reality. Scheduler-only inherits the
+        one-user limitation of squeue -u .</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-sei-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship serving-endpoint-indirection" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Build the pass-through router and prove the union catalog</h4>
+    <div class="r-fu-body">Both engine-side prerequisites are met: the allocation parser now reads this scheduler's TRES spelling, and both GLM checkpoints are on disk beside a running keyless DeepSeek serve. The open decision to resolve first is upstream resolution (§4); the recommendation is a per-serve registration file with scheduler discovery as the reconciling fallback. The acceptance test that matters is that the generated launcher needs no source change: with two engines up, <code>--list</code> must show both releases with correct topology labels and <code>--model &lt;either&gt;</code> must reach the right engine.</div>
+    <pre class="r-fu-prompt">/reckon-ship serving-endpoint-indirection</pre>
+    </article>
+</section>
+  </main>
+</body>
+</html>

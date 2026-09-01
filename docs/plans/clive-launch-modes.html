@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="clive-launch-modes">
+  <meta name="plan-title" content="Clive Launch Modes — a local-only default and one named mode that adds hosted tiers">
+  <meta name="plan-summary" content="Curated picker rows, declared model capabilities, alias-mapped worker dispatch, and one mode flag over a local-only default">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="3.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint" content="S24">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving">
+  <meta name="plan-depends-on" content="serving-endpoint-indirection">
+  <title>Clive Launch Modes | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-01">
+<meta name="plan-version" content="1">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — The default is local-only, and that is load-bearing</h2>
+    <p>The shared launcher's value is that a consumer needs nothing: no repository, no
+    virtual environment, no credential, no scheduler access. Every route that reaches
+    off-cluster erodes that, and one particular way of eroding it has already caused an
+    outage. A route selected by nothing the user typed — merely whether a personal
+    credential file happened to be readable — silently made the launcher's default model
+    hostage to one person's account balance, and holders of that file got five dead
+    picker slots while everyone else got the working route.</p>
+    <p>So <strong>local-only remains the default and stays the route that needs no
+    argument</strong>. Anything hosted is reached only by an explicit, named mode. This
+    plan does not relax that; it names the mode and builds the surface around it.</p>
+
+    <h2 id="s2">§2 — Naming the mode</h2>
+    <p><code>--claude</code> is unavailable: the launcher already uses it for the
+    <em>harness</em> axis, opposite <code>--codex</code>. A model-scope flag must not
+    collide with that, and <code>--anthropic</code> was rejected. The remaining question
+    is whether the scope axis is a boolean opt-in or a named mode with values.</p>
+    <p><strong>Recommendation: a <code>--mode</code> axis with <code>local</code> as the
+    default.</strong> One axis is self-documenting, lets a cautious caller state the
+    default explicitly rather than trusting it, and leaves room for a third value later
+    without a second boolean. The open question is what to call the non-default value;
+    the candidates and their arguments are in the decision block, with
+    <code>tiered</code> recommended because it names the working pattern rather than the
+    vendor — cheap local models carrying bulk and parallel work, a frontier model
+    reserved for adjudication.</p>
+    <p>Whatever is chosen, the mode must not silently change which model answers by
+    default. Selecting a mode adds rows to the picker and changes what the alias slots
+    map to; it never redirects an unqualified request off-cluster.</p>
+
+    <h2 id="s3">§3 — Two mechanisms, two jobs</h2>
+    <p>The harness offers two ways to present models, and they are not
+    interchangeable. Both were measured against the live engine rather than read from
+    documentation.</p>
+    <p><strong>Alias slots decide dispatch.</strong> The four
+    <code>ANTHROPIC_DEFAULT_&lt;ALIAS&gt;_MODEL</code> variables map each alias onto a
+    concrete model id, and that mapping is what a delegated worker resolves through. With
+    two slots pointed at the local release and one at a deliberately invalid id:</p>
+    <table>
+      <thead><tr><th>Requested alias</th><th>Outcome</th><th>Model actually used</th></tr></thead>
+      <tbody>
+        <tr><td><code>sonnet</code></td><td>success</td><td><code>deepseek-v4-flash</code></td></tr>
+        <tr><td><code>fable</code></td><td>success</td><td><code>deepseek-v4-flash</code></td></tr>
+        <tr><td><code>opus</code></td><td>error</td><td>the invalid id, as mapped</td></tr>
+      </tbody>
+    </table>
+    <p>The invalid slot failing is the informative half: it proves each alias resolves
+    through its own slot rather than through a shared default, so different aliases can
+    carry genuinely different models. This is the whole mechanism behind §4.</p>
+    <p><strong>Curated picker rows decide presentation.</strong> A settings key accepts
+    an ordered list of rows, each with its own model id, label and description, and a
+    flag that replaces the built-in lineup rather than appending to it. Rows are not
+    capped at the number of alias slots and an unrecognised model id is accepted as-is,
+    so this is how two local releases get honest side-by-side labels
+    (<em>2×H200, 512k context</em> against <em>4×H200</em>) instead of being squeezed
+    into alias names that mean something else. It is honoured from managed settings,
+    from <code>--settings</code>, and from user settings, but not from a project
+    checkout, and the highest-precedence source that defines it wins outright with no
+    merging across sources.</p>
+    <p>Crucially, <strong>picker rows do not create aliases</strong>. A row is a thing a
+    human can select; it is not a name a delegated worker can be sent to. Both mechanisms
+    are therefore needed, and confusing them would produce a beautiful picker whose
+    models no worker can be dispatched onto.</p>
+    <p>An arbitrary local id also works as a direct selection: a headless run against the
+    live endpoint reported the correct 524,288-token window and named the local release as
+    the model used, emitting an unrecognised-model telemetry line without blocking. One
+    limit on the evidence: the settings file was accepted without error, but a
+    non-interactive run cannot show the rows rendering, so an interactive confirmation is
+    a done-when item rather than a claim.</p>
+    <p>Each slot and the curated rows additionally accept a supported-capabilities
+    declaration. The launcher currently sets none, which leaves the harness guessing what
+    a local release supports; declaring them is in scope here.</p>
+
+    <h2 id="s4">§4 — Dispatching work onto a local worker</h2>
+    <p>The capability the lead asked for — a session that can be told to send work to
+    local workers and knows what to do — decomposes into routing and knowledge, and only
+    the second needs building.</p>
+    <p>Routing already works, by §3: because a delegated worker's model is requested by
+    alias, mapping an alias to a local release sends every worker requested under that
+    alias to the local engine, while another alias keeps a frontier model for the
+    coordinator. No harness change is involved.</p>
+    <p>Knowledge is the gap. A session has no way to know which alias is local, what it
+    costs, or what belongs there. The coordinator skill already handles this for its own
+    dispatch path, routing every delegated node through a configured local backend alias
+    when asked; what is missing is the same statement for ordinary delegation. The
+    launcher is the right place to inject it, because it is the only component that knows
+    the mapping it just created, and it already has a precedent for passing
+    session-scoped settings. Scope here: state which alias is local, what its context and
+    topology are, and the division of labour — bulk, parallel and mechanical work local;
+    adjudication and physics-critical judgement on the frontier slot.</p>
+
+    <h2 id="s5">§5 — The hosted leg, and why it is deferred</h2>
+    <p>Deferred by the lead, and there is a measured constraint the deferral must carry
+    forward. The origin is locked to the GPU node, which has no outbound internet: from
+    inside a betelgeuse allocation both <code>api.anthropic.com:443</code> and
+    <code>1.1.1.1:443</code> are blocked, while a login node's proxy port is reachable.
+    A hosted leg is therefore not foreclosed but is not free either — it needs one
+    internal hop through a login node.</p>
+    <p>Two properties to preserve when it lands. The hop must carry the caller's own
+    credential rather than storing one, so a shared component never holds anyone's key.
+    And catalog failure must continue to stop before the hosted leg is considered, so a
+    local outage never silently promotes a metered route.</p>
+
+    <h2 id="s6">§6 — Done-when</h2>
+    <ul>
+      <li>An unqualified launch serves local models only, and no readable credential
+      anywhere on the system changes that.</li>
+      <li>The mode axis is named, documented in <code>--help</code>, and fenced by a test
+      that an unqualified launch and an explicitly-local launch produce identical
+      environments.</li>
+      <li>Curated rows present each local release with its real topology and context, and
+      the rows are confirmed rendering in an interactive session, not merely accepted.</li>
+      <li>Supported capabilities are declared for every slot the launcher sets.</li>
+      <li>A delegated worker requested under the local alias is observed running on the
+      local engine, and the session is told which alias that is without being asked.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="mode-axis" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Is model scope a named --mode axis with a default of local , or a single boolean opt-in flag over a local default?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="mode-axis">mode-axis</button>
+      <button class="r-opt" data-value="boolean-opt-in">boolean-opt-in</button>
+      </p>
+    <p class="r-dec-rat">Recommendation: the mode axis. It is self-documenting, lets
+        a caller assert the default rather than trust it, and extends to a third value
+        without adding a second boolean. A boolean is shorter to type but says nothing
+        about what the default was.</p>
+    </div>
+<div class="r-dec" data-key="hosted-mode-name" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">What is the non-default mode value called — the one that adds the hosted frontier models to the local lineup?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="tiered">tiered</button>
+      <button class="r-opt" data-value="hosted">hosted</button>
+      <button class="r-opt" data-value="mixed">mixed</button>
+      <button class="r-opt" data-value="hybrid">hybrid</button>
+      </p>
+    <p class="r-dec-rat">Recommendation: tiered . It names the working
+        pattern — cheap local models for bulk and parallel work, a frontier model for
+        adjudication — which is the reason to select it, and it reads correctly for a
+        lineup that is still mostly local. hosted is the most literal
+        description of what is added but misreads as only hosted. mixed and hybrid are accurate and vague: they say two
+        kinds are present without saying which or why.</p>
+    </div>
+<div class="r-dec" data-key="local-alias" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Which alias slot carries the local release in the mode that includes hosted models?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="sonnet">sonnet</button>
+      <button class="r-opt" data-value="haiku">haiku</button>
+      </p>
+    <p class="r-dec-rat">Recommendation: sonnet for the primary local
+        release, leaving haiku for the second one. The bulk-worker alias
+        should be the one a delegating session reaches for by habit, and the smallest
+        alias also feeds background harness traffic that a large local model serves
+        expensively.</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-clm-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship clive-launch-modes" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Name the mode axis, then build the picker and capability declarations</h4>
+    <div class="r-fu-body">Two naming decisions gate the CLI surface and are the lead's to make: whether model scope is a <code>--mode</code> axis or a boolean opt-in, and what the non-default value is called (<code>tiered</code> recommended, because it names the working pattern rather than the vendor). Everything else is buildable now against the local-only default: curated picker rows with real topology labels, supported-capability declarations for every slot the launcher sets, and the session-scoped statement of which alias is local. Alias-resolution behaviour is already measured, so worker dispatch needs no harness change. The one unverified item is that curated rows actually render — confirm interactively, since a headless run cannot show a picker.</div>
+    <pre class="r-fu-prompt">/reckon-ship clive-launch-modes</pre>
+    </article>
+</section>
+  </main>
+</body>
+</html>

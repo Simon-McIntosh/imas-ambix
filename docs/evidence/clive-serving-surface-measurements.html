@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="clive-serving-surface-measurements">
+  <meta name="plan-title" content="Serving Surface Measurements — probes behind the indirection decisions">
+  <meta name="plan-summary" content="Endpoint probes, protocol surface, egress, host topology and harness model mechanisms measured 2026-09-01">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <meta name="plan-evidence-for" content="serving-endpoint-indirection,clive-launch-modes,multi-model-serving-capacity">
+  <meta name="plan-verifies" content="serving-endpoint-indirection#s2,serving-endpoint-indirection#s3,clive-launch-modes#s3,multi-model-serving-capacity#s1">
+  <title>Serving Surface Measurements | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Scope and method</h2>
+    <p>Everything below was measured on 2026-09-01 against live services, a live
+    scheduler, and the shipped harness binary. Where a claim could not be measured it is
+    marked as such rather than asserted. Two facts recorded here contradicted the
+    reasoning they were gathered to support, and both changed a decision: the GPU node
+    turned out to be a single-node partition, which retired the case for relocating the
+    origin, and a translating proxy turned out to be unnecessary because every leg
+    already speaks the same protocol.</p>
+
+    <h2 id="s2">§2 — Endpoint probes</h2>
+    <p>The DeepSeek serve then running had been launched with key enforcement on, which
+    is what made the shared launcher unusable — it sends no authorization header at all.
+    Reaching the same endpoint with the shared key confirmed the engine itself was
+    healthy throughout:</p>
+    <table>
+      <thead><tr><th>Request</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET /v1/models</code>, no header</td><td>401</td></tr>
+        <tr><td><code>GET /v1/models</code>, <code>Authorization: Bearer</code></td><td>200, one release with intact <code>ambix</code> metadata (H200, count 2, fp4+fp8), <code>max_model_len</code> 524288</td></tr>
+        <tr><td><code>POST /v1/chat/completions</code></td><td>200, content <code>OK</code>, 9 completion tokens of which 6 reasoning</td></tr>
+        <tr><td>launcher <code>--list</code></td><td><code>global catalog is unreachable: HTTP Error 401</code></td></tr>
+      </tbody>
+    </table>
+    <p>The embedding service on the other GPU node needs no credential and answered every
+    path: health and info returned 200, and a single-text request returned a normalised
+    256-dimensional vector. It is not an OpenAI-shaped API — its paths are
+    <code>/embed</code>, <code>/health</code>, <code>/info</code> and
+    <code>/workers</code>, with no <code>/v1/</code> prefix. Reported state at the time:
+    Qwen3-Embedding-0.6B on a Tesla P100, native dimension 1024 reduced to 256 on output,
+    25,164 requests served at a mean 125 ms.</p>
+
+    <h2 id="s3">§3 — The engine's Anthropic surface is complete</h2>
+    <p>This is the measurement that removed a translation layer from the design. The
+    engine's own path list contains <code>/v1/messages</code>,
+    <code>/v1/messages/count_tokens</code>, <code>/v1/models</code>,
+    <code>/v1/chat/completions</code> and its render variants. Exercised rather than
+    listed:</p>
+    <table>
+      <thead><tr><th>Probe</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td><code>/v1/messages</code>, non-streaming</td><td>200</td></tr>
+        <tr><td><code>/v1/messages</code>, <code>stream: true</code></td><td>200; correct SSE — <code>message_start</code>, then <code>content_block_start</code> of type <code>thinking</code>, then <code>thinking_delta</code> events</td></tr>
+        <tr><td><code>/v1/messages</code> with a tool definition</td><td>200</td></tr>
+        <tr><td><code>/v1/messages/count_tokens</code></td><td>200</td></tr>
+      </tbody>
+    </table>
+    <p>Because a hosted Anthropic endpoint is the same protocol, no leg in the intended
+    topology needs its format converted. A translating proxy would convert to a different
+    dialect and back, and that round trip is where thinking blocks, tool-use identifiers
+    and cache directives are lost. The prior failure of exactly this kind is on record:
+    the proxy's local route emitted <code>x-api-key</code> with no
+    <code>Authorization</code> header while the engine accepts only Bearer, so a correct
+    credential returned 401 on every request — measured as Bearer 200, <code>x-api-key</code>
+    401, no header 401.</p>
+
+    <h2 id="s4">§4 — What the serve log does and does not contain</h2>
+    <p>Prompts do not reach the operator's job log. Two independent confirmations: the
+    engine build defaults request logging to false, with a separate output-logging flag
+    also defaulted off and neither passed by the generated batch script; and a search of
+    the 2.7 MB live log for request-body and prompt markers returned zero hits.</p>
+    <p>What the log does contain is per-consumer access metadata — client address, path,
+    status, timestamp:</p>
+    <table>
+      <thead><tr><th>Count</th><th>Request</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>403</td><td><code>POST /v1/messages?beta=true</code></td><td>200</td></tr>
+        <tr><td>16</td><td><code>GET /v1/models</code></td><td>401</td></tr>
+        <tr><td>6</td><td><code>GET /v1/models</code></td><td>200</td></tr>
+        <tr><td>1</td><td><code>POST /v1/messages/count_tokens</code></td><td>200</td></tr>
+      </tbody>
+    </table>
+    <p>Caveat worth keeping: request logging being off by default is not the same as
+    payload being structurally unable to appear, since an engine traceback can carry
+    fragments. Separately, prefix caching is enabled, so concurrent consumers share a
+    key-value cache — not a logging matter, but shared state between users.</p>
+
+    <h2 id="s5">§5 — Host topology and egress</h2>
+    <p>Measured from inside a betelgeuse allocation and from a standard compute node,
+    using direct socket connections rather than inferring from documentation:</p>
+    <table>
+      <thead><tr><th>From</th><th>To</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>GPU node</td><td><code>api.anthropic.com:443</code></td><td>blocked</td></tr>
+        <tr><td>GPU node</td><td><code>1.1.1.1:443</code></td><td>blocked</td></tr>
+        <tr><td>GPU node</td><td>login node proxy port</td><td>open</td></tr>
+        <tr><td>compute node</td><td>login node proxy port</td><td>open</td></tr>
+        <tr><td>compute node</td><td>GPU node serve port</td><td>open</td></tr>
+        <tr><td>compute node</td><td>embedding service port</td><td>open</td></tr>
+      </tbody>
+    </table>
+    <p>Naming: <code>sinfo -p betelgeuse</code> returns exactly one node, which is why the
+    serve host does not move between relaunches and why the origin was locked there.
+    There are six login nodes on one subnet; the cluster's single published login name
+    resolves to a different subnet with no reverse record, so it is an entry point rather
+    than a host a service can bind. User services persist across logout — lingering is
+    enabled — and three already run on one login node, including a proxy bound to all
+    interfaces, so the pattern for a pinned host service is established rather than new.</p>
+
+    <h2 id="s6">§6 — Harness model mechanisms</h2>
+    <p><strong>Alias resolution is per-slot.</strong> Two alias slots were pointed at the
+    local release and one at a deliberately invalid identifier, then each alias was
+    requested in a headless run against the live endpoint:</p>
+    <table>
+      <thead><tr><th>Alias requested</th><th>Error</th><th>Model used</th></tr></thead>
+      <tbody>
+        <tr><td><code>sonnet</code></td><td>no</td><td><code>deepseek-v4-flash</code></td></tr>
+        <tr><td><code>fable</code></td><td>no</td><td><code>deepseek-v4-flash</code></td></tr>
+        <tr><td><code>opus</code></td><td>yes</td><td>none — the invalid mapping</td></tr>
+      </tbody>
+    </table>
+    <p>The failing slot is the load-bearing observation: it shows each alias resolves
+    through its own variable rather than a shared default, so aliases can carry different
+    models. Since delegated workers are requested by alias, this is the mechanism by which
+    a session sends bulk work to a local engine while keeping a frontier model for
+    adjudication.</p>
+    <p><strong>An arbitrary local identifier is accepted directly.</strong> A headless run
+    selecting the local release by name completed without error and reported a context
+    window of 524288, the local release as the canonical model, and an unknown cost basis.
+    It emits an unrecognised-model telemetry line but is not blocked.</p>
+    <p><strong>Curated picker rows are a separate mechanism.</strong> Read from the shipped
+    binary: a settings key takes an ordered list of rows, each carrying its own model
+    identifier, label and description, plus a boolean that replaces the built-in lineup
+    instead of appending to it. When that boolean is set, only a default row and the
+    supplied rows are shown and the built-in lineup, gateway-discovered models and the
+    single custom-model variable are all hidden. It is honoured from managed settings,
+    from an explicit settings file and from user settings, but not from a project
+    checkout, and the highest-precedence source defining it wins outright with no merging.
+    Row eligibility passes an unrecognised identifier straight through, so local
+    identifiers qualify. Each alias slot and the custom option additionally accept a
+    supported-capabilities declaration, none of which the launcher currently sets.</p>
+    <p>Two honest limits. The row semantics were read out of the binary rather than from
+    published documentation. And while a settings file carrying curated rows was accepted
+    without error, a headless run cannot display a picker, so the rows were not observed
+    rendering — that confirmation is a done-when item, not a result.</p>
+    <p>One nearby find, recorded so it is not mistaken for a general restriction: a
+    telemetry path names suppression of curated rows under a foreign base URL, but the
+    function carrying it is gated to a single editor entry point and concerns showing
+    unavailable rows, not curation generally.</p>
+
+    <h2 id="s7">§7 — Defects found, and their disposition</h2>
+    <table>
+      <thead><tr><th>Defect</th><th>Cause</th><th>Disposition</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Launcher fails with 401 against a healthy engine</td>
+          <td>The launcher was rewritten to make an anonymous catalog request with no authorization header; the serve was launched the next day with key enforcement on. Tests mock a keyless catalog, so nothing caught the mismatch.</td>
+          <td>Resolved by making an open endpoint the serve default and relaunching. Verification of the launcher against the relaunched endpoint remains open.</td>
+        </tr>
+        <tr>
+          <td>Live discovery reports zero endpoints while one answers</td>
+          <td>The allocation parser anchored the resource name to the start of the field or a comma, but this scheduler reports the TRES form <code>gres/gpu:2</code> and the typed form <code>gres/gpu:h200:1</code>, so every prefixed spelling read as no allocation.</td>
+          <td>Fixed; six observed spellings covered by a table test.</td>
+        </tr>
+        <tr>
+          <td><code>restart</code> would have restored key enforcement</td>
+          <td>It resolved a key unconditionally, independent of the new default.</td>
+          <td>Fixed; both commands share one auth resolution.</td>
+        </tr>
+        <tr>
+          <td>Six profile tests failing before any change</td>
+          <td>They pinned a superseded DeepSeek release string and a directory rule that a deliberate checkpoint change had inverted.</td>
+          <td>Reframed to assert the relationship they mean, so they survive the next checkpoint bump; the fallback rule they half-covered now has its own test on a profile that exercises it.</td>
+        </tr>
+        <tr>
+          <td>Sub-tree guidance describes both GLM profiles as unusable stubs with unpublished weights</td>
+          <td>True when written; the profile has since been corrected and both checkpoints have downloaded.</td>
+          <td>Open — correction is in scope for the capacity plan.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="s8">§8 — Capacity state at the time of writing</h2>
+    <p>Both GLM checkpoints completed downloading: the INT4 requant at 321 GiB over 248
+    files, and the vendor FP8 release at 704 GiB over 149 files. The relaunched DeepSeek
+    serve holds 2 cards and 8 cores, sized by probing the scheduler with a no-op
+    allocation at 6, 8, 10 and 12 cores — all of which would have started immediately —
+    rather than by scaling the profile default, which would have taken 15. That leaves 7
+    of the 30 reserved cores free alongside a co-running job holding 15.</p>
+    <p>The core constraint is the one that binds: the node carries two overlapping
+    30-core reservations, and a serve sized at the proportional default has previously
+    left a training job pending on cores while the GPUs it wanted were idle.</p>
+
+  </main>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="multi-model-serving-capacity">
+  <meta name="plan-title" content="Multi-Model Serving Capacity — two releases on one node, and what we can promise">
+  <meta name="plan-summary" content="Concurrent DeepSeek and GLM serves inside the card and core budget, with admission control and an honest service statement">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="4.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="moderate">
+  <meta name="plan-sprint" content="S24">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <meta name="plan-depends-on" content="serving-endpoint-indirection">
+  <title>Multi-Model Serving Capacity | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-01">
+<meta name="plan-impl" content="0.2">
+<meta name="plan-version" content="1">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — The keyless relaunch (landed)</h2>
+    <p>An open endpoint is now what a serve produces without argument, and the running
+    DeepSeek serve is the first one launched that way. The reasoning is that the cluster
+    is already the authentication boundary — only users who can route to the compute node
+    reach the port — so a key buys capacity accounting rather than confidentiality, and
+    it costs something concrete: the shared key is readable only inside one storage
+    group, so a keyed endpoint locks the standalone launcher out of the very endpoint it
+    exists to reach. The world-readable launcher mirror was unusable for anyone outside
+    that group for exactly this reason.</p>
+    <p>What landed:</p>
+    <ul>
+      <li><code>serve --no-auth</code> replaced by <code>serve --auth</code>; keyless is
+      the default. Naming a key arms enforcement on its own rather than being silently
+      discarded, and asking for auth with no resolvable key is a launch error rather than
+      a quiet downgrade to an open port. The retired negative spelling fails loudly.</li>
+      <li><code>restart</code> had kept resolving a key unconditionally, which would have
+      restored a keyed endpoint the next time anyone used it. Both commands now share one
+      auth resolution.</li>
+      <li>A <code>--cpus</code> override, because cores rather than cards are the scarce
+      resource here and the count that scales proportionally with cards reserves cores a
+      co-running job could use.</li>
+      <li>The relaunch itself: 2 cards and 8 cores, probed against the scheduler before
+      committing, leaving 7 of the 30 reserved cores free rather than the 15 the previous
+      launch held.</li>
+    </ul>
+    <p>The launcher's 401 failure had one cause and this removes it. Confirming
+    <code>clive --list</code> against the relaunched endpoint is a done-when item for
+    <code>serving-endpoint-indirection</code> §5, not a claim made here.</p>
+
+    <h2 id="s2">§2 — Both GLM checkpoints are on disk</h2>
+    <p>The second release is no longer hypothetical. The profile was corrected to name
+    the artifacts actually published, and the download has completed for both variants:</p>
+    <table>
+      <thead><tr><th>Variant</th><th>On disk</th><th>Files</th><th>Cards</th><th>Coexists with a 2-card DeepSeek</th></tr></thead>
+      <tbody>
+        <tr><td>INT4 requant</td><td>321 GiB</td><td>248</td><td>4</td><td>yes — 6 of 8 cards</td></tr>
+        <tr><td>vendor FP8</td><td>704 GiB</td><td>149</td><td>8</td><td>no — fills the node</td></tr>
+      </tbody>
+    </table>
+    <p>So the concurrent configuration is the INT4 variant beside the existing DeepSeek
+    serve, on a second port, with two cards spare. The FP8 variant is a whole-node
+    deployment and therefore an alternative to concurrency rather than part of it — worth
+    measuring for single-model quality, but it cannot be the multi-model configuration.</p>
+    <p>The sub-tree guidance still describes both GLM profiles as unusable stubs whose
+    weights are not published. That was true when written and is now wrong in a way that
+    would stop someone serving a model that is sitting on disk. Correcting it is in
+    scope.</p>
+
+    <h2 id="s3">§3 — The budget that actually binds</h2>
+    <p>Cards are not the constraint; cores are. The node carries two overlapping 30-core
+    reservations, and an inference server spends most of its life blocked on the device,
+    so a proportionally-scaled core count reserves capacity that a co-running job could
+    use. A serve sized at the proportional default has previously left a training job
+    pending on cores while every GPU it wanted sat idle.</p>
+    <table>
+      <thead><tr><th>Component</th><th>Cards</th><th>Cores</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td>DeepSeek, running</td><td>2</td><td>8</td><td>probed before submit</td></tr>
+        <tr><td>GLM INT4, planned</td><td>4</td><td>12 (profile default)</td><td>re-probe; likely reducible</td></tr>
+        <tr><td>Remaining of the reservation</td><td>2</td><td>10</td><td>for co-running work</td></tr>
+      </tbody>
+    </table>
+    <p>Every serve is sized by probing the scheduler with a no-op allocation first, never
+    by arithmetic on the profile default. The engine's own memory budget is separately
+    measured at startup rather than predicted: this GLM architecture replicates a
+    compressed attention latent on every rank rather than sharding it, so additional
+    cards buy context only by shrinking weights per card, and the startup pool line is
+    the ground truth for any context ceiling quoted afterwards.</p>
+
+    <h2 id="s4">§4 — Admission control, and what can be promised</h2>
+    <p>The engine will not self-limit usefully. The DeepSeek serve runs with a
+    1024-sequence ceiling against a very compact KV cache, so it will accept far more
+    concurrency than the node serves at acceptable latency. Admission control therefore
+    belongs in the router, and this is the second reason that component earns its place.</p>
+    <p>In order of leverage:</p>
+    <ul>
+      <li><strong>Per-consumer concurrency cap with a bounded queue.</strong> A heavy
+      consumer degrades their own latency instead of everyone's, and past the bound the
+      router returns a retry directive rather than queueing without limit.</li>
+      <li><strong>Capacity split by alias.</strong> An interactive serve and a batch
+      serve, selected by which alias a request arrives under. This is the second use of
+      the alias mapping built in <code>clive-launch-modes</code>.</li>
+      <li><strong>Per-consumer accounting</strong> in the router's own log, which is the
+      same mechanism that keeps consumer metadata out of the operator's job log.</li>
+    </ul>
+    <p>None of this manufactures capacity. Eight cards is eight cards, and if demand
+    exceeds them the honest answer is a queue with a published wait rather than more
+    knobs. That makes the audience question a real input rather than a detail: a
+    group-sized service can run best-effort on spare cards, whereas anything wider needs
+    a reserved floor that is not also the training pool, and the two imply different card
+    budgets. It is recorded as an open decision because it sizes everything above it.</p>
+
+    <h2 id="s5">§5 — Done-when</h2>
+    <ul>
+      <li>Two releases serve concurrently on distinct ports inside the card and core
+      budget, each sized from a scheduler probe rather than a scaled default.</li>
+      <li>Each engine's context ceiling is quoted from its own startup pool line, and
+      each is validated by a real generation rather than by reaching a ready state.</li>
+      <li>A per-consumer concurrency cap is enforced with a bounded queue and a retry
+      directive past the bound, demonstrated under deliberate overload.</li>
+      <li>The sub-tree guidance describes the GLM profiles as they now are.</li>
+      <li>A written service statement says who the audience is, what the reserved floor
+      is, and what a consumer should expect when the node is busy.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="serve-auth-default" data-choice="open-by-default" data-by="Simon McIntosh" data-when="2026-09-01">
+    <p class="r-dec-q">Does a serve enforce an API key unless told not to, or serve openly unless told to enforce one?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="open-by-default">open-by-default</button>
+      <button class="r-opt" data-value="keyed-by-default">keyed-by-default</button>
+      </p>
+    <p class="r-dec-rat">Locked to open by default. The cluster is the authentication
+        boundary, so a key buys capacity accounting rather than confidentiality, while a
+        key readable only inside one storage group locks the shared launcher out of its
+        own endpoint. Where accounting matters it belongs on the router, which can hold a
+        key without the consumer needing one.</p>
+    </div>
+<div class="r-dec" data-key="concurrent-glm-variant" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Which GLM checkpoint is the concurrent deployment — the 4-card INT4 requant, or the 8-card vendor FP8 as a whole-node alternative?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="int4-concurrent">int4-concurrent</button>
+      <button class="r-opt" data-value="fp8-whole-node">fp8-whole-node</button>
+      </p>
+    <p class="r-dec-rat">Recommendation: INT4 for the concurrent surface, because
+        multi-model is the point of this sprint and FP8 forecloses it by filling the node.
+        Measure FP8 separately for single-model quality; do not make it the default
+        deployment.</p>
+    </div>
+<div class="r-dec" data-key="service-audience" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Is the served endpoint a group-sized best-effort service, or a cluster-wide service with a reserved floor?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="group-best-effort">group-best-effort</button>
+      <button class="r-opt" data-value="cluster-wide-reserved">cluster-wide-reserved</button>
+      </p>
+    <p class="r-dec-rat">This sizes the card budget, the admission limits and whether
+        a serve may be cancelled for a training campaign, so it should be answered before
+        the second engine is brought up rather than inferred from whoever starts using it.
+        A keyless endpoint on a routable port makes the wider audience the default outcome
+        unless the choice is made deliberately.</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-mmsc-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-written-by="reckon-create" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship multi-model-serving-capacity" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Bring up the second engine on its own port, then size and cap it</h4>
+    <div class="r-fu-body">§1 has landed: keyless is the serve default, <code>restart</code> shares the same resolution, a <code>--cpus</code> override exists, and the DeepSeek serve is running keyless on 2 cards and 8 cores. Next: decide the concurrent GLM variant (INT4 recommended — the FP8 release fills the node and forecloses the multi-model surface this sprint exists for), probe its cores rather than taking the profile default, and quote its context from the startup pool line rather than arithmetic. Validate with a real generation, not a ready state — this architecture's attention kernel claims scratch lazily on the first decode, which has turned a clean launch into a dead engine before. Correct the sub-tree guidance that still calls both GLM profiles unusable stubs. The audience decision sizes the card budget and should be answered before the second engine comes up.</div>
+    <pre class="r-fu-prompt">/reckon-ship multi-model-serving-capacity</pre>
+    </article>
+</section>
+  </main>
+</body>
+</html>

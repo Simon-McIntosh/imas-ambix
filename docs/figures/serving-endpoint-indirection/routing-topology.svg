@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 430" width="900" height="430" font-family="system-ui, -apple-system, Segoe UI, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1a1a1a"/>
+    </marker>
+    <marker id="ad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8a8a8a"/>
+    </marker>
+  </defs>
+
+  <!-- consumers -->
+  <rect x="14" y="150" width="132" height="66" fill="#ffffff" stroke="#1a1a1a" stroke-width="1"/>
+  <text x="80" y="176" text-anchor="middle" font-size="14" font-weight="600" fill="#1a1a1a">clive</text>
+  <text x="80" y="196" text-anchor="middle" font-size="13" fill="#3a3a3a">one origin</text>
+
+  <!-- router -->
+  <rect x="266" y="120" width="196" height="126" fill="#ffffff" stroke="#0b6b5e" stroke-width="1.5"/>
+  <line x1="266" y1="147" x2="462" y2="147" stroke="#0b6b5e" stroke-width="1.5"/>
+  <text x="364" y="140" text-anchor="middle" font-size="14" font-weight="600" fill="#0b6b5e">pass-through router</text>
+  <text x="364" y="169" text-anchor="middle" font-size="13" fill="#1a1a1a">GET /v1/models → union</text>
+  <text x="364" y="189" text-anchor="middle" font-size="13" fill="#1a1a1a">POST /v1/messages → by id</text>
+  <text x="364" y="209" text-anchor="middle" font-size="13" fill="#1a1a1a">/v1/chat/completions</text>
+  <text x="364" y="233" text-anchor="middle" font-size="13" fill="#3a3a3a">no format translation</text>
+
+  <!-- engines -->
+  <rect x="600" y="60" width="176" height="60" fill="#ffffff" stroke="#1a1a1a" stroke-width="1"/>
+  <text x="688" y="84" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1a1a">deepseek-v4-flash</text>
+  <text x="688" y="104" text-anchor="middle" font-size="13" fill="#3a3a3a">:18800 · 2×H200 · 512k</text>
+
+  <rect x="600" y="146" width="176" height="60" fill="#ffffff" stroke="#1a1a1a" stroke-width="1"/>
+  <text x="688" y="170" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1a1a">glm-5.3</text>
+  <text x="688" y="190" text-anchor="middle" font-size="13" fill="#3a3a3a">:18801 · 4×H200</text>
+
+  <!-- deferred leg -->
+  <rect x="600" y="300" width="176" height="60" fill="#ffffff" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="688" y="324" text-anchor="middle" font-size="13" font-weight="600" fill="#3a3a3a">opus · fable</text>
+  <text x="688" y="344" text-anchor="middle" font-size="13" fill="#5a5a5a">api.anthropic.com</text>
+
+  <rect x="330" y="300" width="168" height="60" fill="#ffffff" stroke="#8a8a8a" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="414" y="324" text-anchor="middle" font-size="13" font-weight="600" fill="#3a3a3a">egress hop</text>
+  <text x="414" y="344" text-anchor="middle" font-size="13" fill="#5a5a5a">login node</text>
+
+  <!-- arrows -->
+  <line x1="146" y1="183" x2="260" y2="183" stroke="#1a1a1a" stroke-width="1.2" marker-end="url(#a)"/>
+  <line x1="462" y1="160" x2="594" y2="96"  stroke="#1a1a1a" stroke-width="1.2" marker-end="url(#a)"/>
+  <line x1="462" y1="183" x2="594" y2="176" stroke="#1a1a1a" stroke-width="1.2" marker-end="url(#a)"/>
+  <line x1="380" y1="246" x2="404" y2="294" stroke="#8a8a8a" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ad)"/>
+  <line x1="498" y1="330" x2="594" y2="330" stroke="#8a8a8a" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ad)"/>
+
+  <!-- node boundary: everything left of the engines lives on the GPU node -->
+  <rect x="252" y="44" width="538" height="218" fill="none" stroke="#0b6b5e" stroke-width="1" stroke-dasharray="2 4"/>
+  <text x="262" y="60" font-size="13" fill="#0b6b5e">98dci4-gpu-0003 — no outbound internet (measured)</text>
+
+  <text x="14" y="392" font-size="13" fill="#3a3a3a">Every leg speaks Anthropic /v1/messages already, so the router dispatches by model id and streams bytes through.</text>
+  <text x="14" y="412" font-size="13" fill="#3a3a3a">Dashed = deferred. The GPU node reaches the login node's port but not the internet, so an Anthropic leg needs one internal hop.</text>
+</svg>
