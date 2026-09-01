@@ -450,8 +450,9 @@ def serve(
         )
     if time_limit:
         profile = profile.model_copy(
-            update={"slurm": profile.slurm.model_copy(
-                update={"time_serve": time_limit})}
+            update={
+                "slurm": profile.slurm.model_copy(update={"time_serve": time_limit})
+            }
         )
     if no_speculative:
         profile = profile.model_copy(
@@ -882,9 +883,7 @@ def _allocated_gpus(gres: str) -> int | None:
     the bare name alone silently reads every prefixed form as no allocation,
     which presents a healthy endpoint as an unsupported one.
     """
-    match = re.search(
-        r"(?:^|,)(?:gres/)?gpu(?::[^,:=]+)?[:=](\d+)(?:\(|,|$)", gres
-    )
+    match = re.search(r"(?:^|,)(?:gres/)?gpu(?::[^,:=]+)?[:=](\d+)(?:\(|,|$)", gres)
     return int(match.group(1)) if match else None
 
 
@@ -1285,9 +1284,11 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
     help="Write the generated launcher to the shared GPFS path (default action).",
 )
 @click.option(
-    "--openrouter",
-    is_flag=True,
-    help="Also install the per-user OpenRouter proxy configuration and unit.",
+    "--mode",
+    type=click.Choice(("local", "hybrid"), case_sensitive=True),
+    default="local",
+    show_default=True,
+    help="Model scope; hybrid adds the hosted frontier slots.",
 )
 @click.option("--print", "print_only", is_flag=True, help="Print the script to stdout.")
 @click.option(
@@ -1306,7 +1307,7 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
 def clive_command(
     slug: str | None,
     deploy: bool,
-    openrouter: bool,
+    mode: str,
     print_only: bool,
     show_path: bool,
     destination: Path | None,
@@ -1321,13 +1322,13 @@ def clive_command(
     from imas_ambix.agent.clive import generate_clive_script
 
     site = SiteConfig.from_env()
-    if slug is not None and not openrouter:
-        raise click.ClickException("A profile slug applies only with --openrouter.")
+    if slug is not None and mode != "hybrid":
+        raise click.ClickException("A profile slug applies only with --mode hybrid.")
     proxy_native_release = None
-    if openrouter:
+    if mode == "hybrid":
         proxy_native_release = _load_profile(slug).model.served_name
     clive_script = generate_clive_script(
-        site, openrouter_native_release=proxy_native_release
+        site, mode=mode, openrouter_native_release=proxy_native_release
     )
     deploy_path = destination or site.clive_path
 
@@ -1350,7 +1351,8 @@ def clive_command(
     _ = deploy  # deploy is the default; the flag is for explicitness only
     _deploy_launcher("clive", deploy_path, clive_script)
 
-    if proxy_native_release is not None:
+    if mode == "hybrid":
+        assert proxy_native_release is not None
         _deploy_openrouter_proxy(site, proxy_native_release)
 
     console.print(f"  Global endpoint: {site.global_origin}")
@@ -1549,9 +1551,7 @@ def restart(
         job_id = submit_script(script)
     except RuntimeError as exc:
         raise click.ClickException(str(exc)) from exc
-    key_note = (
-        " (API key enabled)" if resolved_key else " (NO AUTH — open endpoint)"
-    )
+    key_note = " (API key enabled)" if resolved_key else " (NO AUTH — open endpoint)"
     gpu_note = (
         f" ({profile.slurm.gpus}×GPU, {profile.slurm.cpus} CPU)"
         if gpus is not None or cpus is not None
