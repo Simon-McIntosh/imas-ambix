@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+import ast
+import re
 import threading
+import tomllib
+from pathlib import Path
+
+import pytest
 
 from imas_ambix.agent.profile import SiteConfig, load_profile
 from imas_ambix.agent.registry import (
@@ -12,6 +18,35 @@ from imas_ambix.agent.registry import (
     write_registration,
 )
 from imas_ambix.agent.slurm import generate_serve_script
+
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+_SERVING_ENVIRONMENT = _REPOSITORY_ROOT / "imas_ambix/agent/envs/vllm/pyproject.toml"
+
+
+def _serving_python_feature_version() -> tuple[int, int]:
+    environment = tomllib.loads(_SERVING_ENVIRONMENT.read_text(encoding="utf-8"))
+    requires_python = environment["project"]["requires-python"]
+    lower_bound = re.search(r"(?:^|,)\s*>=\s*(\d+)\.(\d+)", requires_python)
+    assert lower_bound is not None, (
+        f"{_SERVING_ENVIRONMENT} requires-python has no inclusive minor lower bound"
+    )
+    return int(lower_bound.group(1)), int(lower_bound.group(2))
+
+
+def _repository_modules_referenced_by(script: str) -> tuple[Path, ...]:
+    paths: set[Path] = set()
+    references = set(re.findall(r"\bimas_ambix(?:\.[A-Za-z_]\w*)+", script))
+    for reference in references:
+        parts = reference.split(".")
+        for length in range(1, len(parts) + 1):
+            package = _REPOSITORY_ROOT.joinpath(*parts[:length], "__init__.py")
+            if package.is_file():
+                paths.add(package)
+            module = _REPOSITORY_ROOT.joinpath(*parts[:length]).with_suffix(".py")
+            if module.is_file():
+                paths.add(module)
+                break
+    return tuple(sorted(paths))
 
 
 def _registration(job_id: str = "42", model_id: str = "glm-5.3") -> ServeRegistration:
@@ -95,3 +130,45 @@ def test_generated_serve_script_owns_registration_lifecycle(tmp_path):
     assert "-m imas_ambix.agent.registry remove" in script
     assert "trap cleanup_serve EXIT" in script
     assert "trap terminate_serve TERM INT" in script
+
+
+def test_generated_serve_script_modules_parse_with_serving_python(tmp_path):
+    profile = load_profile("glm-5-3").for_gpus(4)
+    script = generate_serve_script(
+        profile, SiteConfig(base_dir=str(tmp_path)), port=18801
+    )
+    module_paths = _repository_modules_referenced_by(script)
+
+    assert {path.relative_to(_REPOSITORY_ROOT).as_posix() for path in module_paths} >= {
+        "imas_ambix/agent/registry.py",
+        "imas_ambix/agent/vllm_catalog.py",
+    }
+    for path in module_paths:
+        source = path.read_text(encoding="utf-8")
+        try:
+            ast.parse(
+                source,
+                filename=str(path),
+                feature_version=_serving_python_feature_version(),
+            )
+        except SyntaxError as error:
+            pytest.fail(
+                f"{path}:{error.lineno}: is not valid for the serving Python: "
+                f"{error.msg}",
+                pytrace=False,
+            )
+
+
+def test_serving_python_guard_rejects_unparenthesized_exception_tuple():
+    invalid_source = """\
+try:
+    pass
+except OSError, TypeError:
+    pass
+"""
+
+    with pytest.raises(SyntaxError):
+        ast.parse(
+            invalid_source,
+            feature_version=_serving_python_feature_version(),
+        )
