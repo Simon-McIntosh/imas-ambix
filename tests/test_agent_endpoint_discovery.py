@@ -11,7 +11,10 @@ import urllib.request
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 
+from imas_ambix.agent import cli as agent_cli
+from imas_ambix.agent import registry as registry_mod
 from imas_ambix.agent.clive import generate_clive_script
 from imas_ambix.agent.profile import SiteConfig
 from imas_ambix.agent.registry import (
@@ -21,6 +24,7 @@ from imas_ambix.agent.registry import (
     publish_endpoint_document,
     read_endpoint_document,
     write_endpoint_document,
+    write_registration,
 )
 
 
@@ -133,6 +137,137 @@ def _launcher(tmp_path, document, *, harness=None, preferred_release_id=None):
     if harness is not None:
         environment["PATH"] = f"{harness}:{environment['PATH']}"
     return path, environment
+
+
+def _publish_with_router_jobs(tmp_path, monkeypatch, jobs, probes):
+    records = (
+        ServeRegistration("alpha", "node-a", 19001, "41", 2, "bf16"),
+        ServeRegistration("beta", "node-b", 19002, "42", 8, "fp8"),
+    )
+    directory = tmp_path / "records"
+    for record in records:
+        write_registration(record, directory)
+    catalogs = {
+        records[0].origin: _catalog("alpha", "H100", 2, "bf16", 131072),
+        records[1].origin: _catalog("beta", "H200", 8, "fp8", 262144),
+    }
+    target = tmp_path / "endpoints.json"
+    monkeypatch.setattr(
+        registry_mod, "_fetch_anonymous_catalog", catalogs.__getitem__
+    )
+    monkeypatch.setattr(agent_cli, "_running_jobs", lambda _site: jobs)
+    monkeypatch.setattr(
+        agent_cli,
+        "_probe_endpoint",
+        lambda origin, _api_key: probes[origin],
+    )
+
+    assert (
+        registry_mod.main(
+            [
+                "publish",
+                "--directory",
+                str(directory),
+                "--output",
+                str(target),
+            ]
+        )
+        == 0
+    )
+    return json.loads(target.read_text(encoding="utf-8"))
+
+
+def _probe(readiness, *model_ids):
+    return SimpleNamespace(
+        readiness=readiness,
+        models=tuple(SimpleNamespace(model_id=model_id) for model_id in model_ids),
+    )
+
+
+def test_publish_command_records_router_covering_every_release(tmp_path, monkeypatch):
+    origin = "http://router-node:19003"
+    document = _publish_with_router_jobs(
+        tmp_path,
+        monkeypatch,
+        [
+            {
+                "state": "RUNNING",
+                "node": "router-node",
+                "comment": "ambix-router;port=19003",
+            }
+        ],
+        {origin: _probe("ready", "alpha", "beta")},
+    )
+
+    assert document["routing_origins"] == [{"host": "router-node", "port": 19003}]
+
+
+def test_publish_command_omits_router_covering_only_some_releases(
+    tmp_path, monkeypatch
+):
+    origin = "http://router-node:19003"
+    document = _publish_with_router_jobs(
+        tmp_path,
+        monkeypatch,
+        [
+            {
+                "state": "RUNNING",
+                "node": "router-node",
+                "comment": "ambix-router;port=19003",
+            }
+        ],
+        {origin: _probe("ready", "alpha")},
+    )
+
+    assert document["routing_origins"] == []
+
+
+def test_publish_command_omits_unreachable_router(tmp_path, monkeypatch):
+    origin = "http://router-node:19003"
+    document = _publish_with_router_jobs(
+        tmp_path,
+        monkeypatch,
+        [
+            {
+                "state": "RUNNING",
+                "node": "router-node",
+                "comment": "ambix-router;port=19003",
+            }
+        ],
+        {origin: _probe("unreachable")},
+    )
+
+    assert document["routing_origins"] == []
+
+
+def test_publish_command_without_router_preserves_endpoint_document(
+    tmp_path, monkeypatch
+):
+    document = _publish_with_router_jobs(tmp_path, monkeypatch, [], {})
+
+    assert document == {
+        "endpoints": [
+            {
+                "accelerator_count": 2,
+                "accelerator_family": "H100",
+                "checkpoint_precision": "bf16",
+                "host": "node-a",
+                "max_context": 131072,
+                "model_id": "alpha",
+                "port": 19001,
+            },
+            {
+                "accelerator_count": 8,
+                "accelerator_family": "H200",
+                "checkpoint_precision": "fp8",
+                "host": "node-b",
+                "max_context": 262144,
+                "model_id": "beta",
+                "port": 19002,
+            },
+        ],
+        "routing_origins": [],
+    }
 
 
 def test_publisher_derives_complete_atomic_document_from_registrations(tmp_path):
