@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T19:10:39",
+  "updated": "2026-09-01T19:44:44",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -18600,9 +18600,103 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T171100306371-router-service-submit",
+        "plan": "serving-endpoint-indirection",
+        "section": "\u00a73",
+        "node": "router-service-submit",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-router-standing.md records each item with its verbatim command and output. HEAD can now submit the router as a long-lived CPU-only service. Both engines are live and BOTH MUST BE LEFT RUNNING: GLM-5.3 job 1260907 on port 18801 and DeepSeek job 1260660 on port 18800. (1) Dry-run the router submission first and quote the generated script, confirming it requests zero accelerators, carries the ambix-router port comment, requests no finite time cap and names the serving environment's interpreter. (2) Submit it on a free port and record the job id, then show it RUNNING. (3) Show an anonymous GET on its /v1/models returning BOTH releases with native ids, engine-reported context and complete metadata intact. (4) Show a request naming each release reaching the right engine and returning a checkably-correct answer. (5) Confirm the router's port is discoverable from its scheduler comment the same way an engine's is, quoting the squeue output that carries it. Report the router's final origin as host and port on its own line, clearly, because a launcher will be generated against it next. Do not cancel, resize or requeue either engine job, and do not edit any source file.",
+          "estimated_hours": null,
+          "goal": "Bring the router service up as a standing origin over both live engines",
+          "id": "router-service-submit",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T171100306371-router-service-submit/manifest.md",
+          "plan": "serving-endpoint-indirection",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a73",
+          "spec_level": "guided",
+          "time_budget": "40m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-router-standing.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "guided",
+        "member": "s24-router-test",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T17:11:09Z",
+        "completed_at": "2026-09-01T17:21:05Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 596,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 596,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "e637dba2fa8d025608d33a60978124a793d1c21f",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "router dry-run, submission, scheduler verification, anonymous catalog and per-id inference",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T171100306371-router-service-submit/catalog.txt",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T171100306371-router-service-submit/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c8b-3372-71e1-b506-e2ff2f281895",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 4532736,
+            "cached_input_tokens_cumulative": 4532736,
+            "input_tokens": 4677671,
+            "input_tokens_cumulative": 4677671,
+            "output_tokens": 22380,
+            "output_tokens_cumulative": 22380,
+            "reasoning_output_tokens": 9028,
+            "reasoning_output_tokens_cumulative": 9028
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 435
+    "_version": 436
   }
 }
