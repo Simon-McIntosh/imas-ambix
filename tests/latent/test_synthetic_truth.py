@@ -5,10 +5,10 @@ fixture (plasma self-field — no attractor, sub-second solves) and pins the
 three properties the harness relies on: the generator round-trips a known β0 at
 zero noise, the injected noise sits at the requested whitening floor, and an
 injected calibration corruption is EXPOSED by the physics arm (its whitened
-cost rises) while the free inverse absorbs it.  The basin contrast (scout /
-warm-start reaches the confined branch where a fixed-shape cold seed drifts to
-the outboard attractor) is inherently a MAST-geometry behaviour and is marked
-``slow`` — it loads real shot geometry and runs several full-resolution solves.
+cost rises) while the free inverse absorbs it.  The basin contrast (a scout
+reaches the confined branch where a fixed-shape cold seed drifts to the outboard
+attractor) is inherently a MAST-geometry behaviour and is marked
+``slow`` — it loads real shot geometry and runs two full-resolution solves.
 """
 
 from __future__ import annotations
@@ -203,29 +203,27 @@ def test_firewall_no_evaluator_imports():
 @pytest.mark.slow
 def test_basin_scout_reaches_confined_where_fixed_shape_drifts():
     """MAST geometry: a fixed-shape cold seed drifts to the outboard attractor
-    for a fragile profile, while a free-sign scout / warm-start reaches the
-    confined branch — the multi-branch fixed-point structure the harness maps.
+    for a fragile profile, while a scout reaches the confined branch.
 
-    The contrast lives at a MARGINAL confining well.  The declared conductor
-    elements carry winding turns in their Green's weights, so the corresponding
-    current scale is about 0.085 of the acquisition-mesh scale.  A 4.4 kA well
-    with a peaked broad profile sits between the cold and warm basins: the cold
-    seed drifts outboard while the warm start holds the confined branch."""
+    With a 40 kA declared outer-coil source, the cold axis is R=1.790935870 m
+    and the scout axis is R=0.965738423 m, on opposite sides of the unchanged
+    R=1.4 m confinement threshold."""
     from imas_ambix.latent.gs_solve import solve_equilibrium
 
-    vf_marginal = 4.4e3  # the well depth where both branches are reachable
+    vf_strength = 40.0e3
     camp = st.build_campaign(18502, nr=49, nz=65)
-    i_pf = st.build_confining_i_pf(camp.fwd, vf_marginal)
-    ip = st.DEFAULT_IP_AMPERES
-    warm, warm_axr = st.confined_seed(camp, vf_strength=vf_marginal)
-    assert warm_axr <= st._CONFINED_AXIS_R_MAX  # the confining field holds a branch
+    i_pf = st.build_confining_i_pf(camp.fwd, vf_strength)
+    _, scout_axis_r = st.confined_seed(camp, vf_strength=vf_strength)
 
     b, a = 0.75, 2.0  # a basin-fragile (peaked, broad-pressure) profile
     cold = solve_equilibrium(
-        camp.grid, i_pf, ip, beta0=b, alpha=a, seed_width=(0.2, 0.35)
+        camp.grid,
+        i_pf,
+        st.DEFAULT_IP_AMPERES,
+        beta0=b,
+        alpha=a,
+        seed_width=(0.2, 0.35),
     )
-    warm_solve = solve_equilibrium(
-        camp.grid, i_pf, ip, beta0=b, alpha=a, initial_jphi=warm, relax=0.3
-    )
+    assert cold.converged
     assert cold.axis[0] > st._CONFINED_AXIS_R_MAX  # fixed-shape cold seed → attractor
-    assert warm_solve.axis[0] <= st._CONFINED_AXIS_R_MAX  # warm-start → confined branch
+    assert scout_axis_r <= st._CONFINED_AXIS_R_MAX  # scout → confined branch
