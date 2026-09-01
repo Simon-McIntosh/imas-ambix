@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="10">
+<meta name="plan-version" content="11">
 <meta name="plan-depends-on" content="glm-53-serve-and-wiring">
 <meta name="plan-commits" content="a1ebcaf193ebd31d3d220ef635bd8155574c0ffb">
 <meta name="plan-artifacts" content="imas_ambix/agent/router.py,tests/test_agent_router.py">
@@ -244,7 +244,10 @@
     <div class="r-comment-body"><p>Whole-tree lint 0 findings and the four-card dry-run renders both the INT4 weights and official tokenizer directories. Two real gaps found: 3 of 16 agent modules fail a Python 3.12 parse (bench.py:831, cli.py:821, router.py:101) with the same unparenthesized multi-exception form that killed a serve, and the whole-tree pytest was terminated at 22 minutes having shown 2 failures by 10% with no final counts</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20260901T120524655239-whole-suite-verification" data-who="s24-router-test" data-when="2026-09-01T12:56:50Z">
-    <div class="r-comment-body"><p>212 of 221 files completed: 2654 passed, 14 failed, 0 errors, 20 skipped; 9 files hit the 45-minute allocation. Whole-tree lint 0 findings and 16/16 agent modules parse at 3.12. Of the 14, six in tests/test_agent.py are REGRESSIONS from this session&#x27;s mode-axis work and two in test_bench_matrix_figures.py follow the figure refresh merged at session start; the remaining six under tests/data and tests/latent are foreign to this sprint</p></div>
+    <div class="r-comment-body"><p>212 of 221 files completed: 2654 passed, 14 failed, 0 errors, 20 skipped; 9 files hit the 45-minute allocation. Whole-tree lint 0 findings and 16/16 agent modules parse at 3.12. Of the 14, six in tests/test_agent.py are REGRESSIONS from this session's mode-axis work and two in test_bench_matrix_figures.py follow the figure refresh merged at session start; the remaining six under tests/data and tests/latent are foreign to this sprint</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20260901T131054338159-suite-remaining-files" data-who="s24-suite-finish" data-when="2026-09-01T13:55:11Z">
+    <div class="r-comment-body"><p>8 of the 9 unmeasured files completed with 171 passed, 0 failed, 0 errors, 3 skipped — so the tree carries NO failures beyond the 14 already known. Only tests/fluxstate/test_consumer_contract.py remains unmeasured, exiting 124 after 1200s with five passing progress markers and no final summary</p></div>
 </div>
 </section>
 </main>
