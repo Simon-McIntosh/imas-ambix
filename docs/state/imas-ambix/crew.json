@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T15:12:41",
+  "updated": "2026-09-01T15:23:10",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -931,9 +931,11 @@
         "id": "s24-w4a8-profile",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a05d17-d9be-7bf3-9bda-508c6e3c03ea",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a05d17-d9be-7bf3-9bda-508c6e3c03ea"
+        },
         "created": "2026-09-01"
       },
       {
@@ -17060,9 +17062,110 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T131030495543-w4a8-profile-entry",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a71",
+        "node": "w4a8-profile-entry",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_glm_5_3.py -q exits 0 with the four-card assertions updated. The currently profiled four-card checkpoint, vikasclawd/GLM-5.3-Int4-Int8Mix, is proven unusable: it serves and then emits 32 repeated odesk tokens from raw completions with no chat template, while its tokenizer pairing and template were both exonerated by measurement. Replace it as the four-card deployment with camel-ai/GLM-5.3-W4A8, which was verified against the serving vLLM 0.28.0: architecture GlmMoeDsaForCausalLM is registered, both compressed-tensors W4A8 loader classes import from the serving package, the complete manifest is 154 files totalling 399754189403 bytes, and it ships tokenizer.json and tokenizer_config.json of its own. Because it carries its own tokenizer, the borrowed tokenizer source must be REMOVED from the four-card deployment rather than retained. Give it its own weights directory so the broken checkpoint's bytes are not overwritten or reused. Record in the profile comments what was measured rather than what was predicted: the engine reported 20.71 GiB of KV cache and a 240064-token pool at the previous four-card configuration, which is why the configured ceiling is 131072 and not the engine maximum. Tests assert the four-card resolution names the W4A8 repository and its own weights directory, sets no tokenizer argument because the checkpoint is self-contained, keeps served name glm-5.3, and that the eight-card FP8 variant is untouched. Name nothing after a plan stage, ticket or version, and do not modify anything under /work.",
+          "estimated_hours": null,
+          "goal": "Make the verified W4A8 release the four-card GLM-5.3 deployment and fail the broken requant closed",
+          "id": "w4a8-profile-entry",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T131030495543-w4a8-profile-entry/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a71",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/agent/profiles/glm-5-3.toml",
+            "tests/test_agent_glm_5_3.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "s24-w4a8-profile",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T13:10:38Z",
+        "completed_at": "2026-09-01T13:13:58Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 200,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 200,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "24c27d5c40f28b5ef92a7ba5590d3e25341eaa8f",
+        "commits": [
+          "8b82a9747819a058744c79373abcc287e99cb6b1"
+        ],
+        "changed_lines": {
+          "added": 22,
+          "removed": 27,
+          "files": 2
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_glm_5_3.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T131030495543-w4a8-profile-entry/pytest.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T131030495543-w4a8-profile-entry/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05d17-d9be-7bf3-9bda-508c6e3c03ea",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1580544,
+            "cached_input_tokens_cumulative": 1580544,
+            "input_tokens": 1676612,
+            "input_tokens_cumulative": 1676612,
+            "output_tokens": 7564,
+            "output_tokens_cumulative": 7564,
+            "reasoning_output_tokens": 1633,
+            "reasoning_output_tokens_cumulative": 1633
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_glm_5_3.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 414
+    "_version": 416
   }
 }

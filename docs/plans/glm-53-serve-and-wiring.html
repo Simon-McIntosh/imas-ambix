@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="17">
+<meta name="plan-version" content="18">
 <meta name="plan-commits" content="3dd736597952c097de5c997b0613b8b166a7558b,53b4fc31f7b7e609f8d14c4b051f1b3d12a4bc65,3bb3d7621b5afa74b3a8752a900966b18c19166e">
 <meta name="plan-artifacts" content="tests/test_agent_glm_5_3.py,docs/evidence/archive/glm-53-serve-and-wiring-landed.html">
 <meta name="plan-impl" content="0.5">
@@ -206,7 +206,10 @@
     <div class="r-comment-body"><p>Recommends camel-ai/GLM-5.3-W4A8, 372.3 GiB Hopper-native W4A8 with its own tokenizer files, fitting four cards with about 164 GB headroom, publisher reporting GPQA parity with official FP8. Two gaps: the managed shell cannot resolve huggingface.co so the byte-exact census is incomplete, and the registry check inspected the PROJECT venv's vLLM 0.23.0 rather than the serving environment that actually runs 0.28.0, so its Flash exclusion rests on the wrong engine</p></div>
 </div>
 <div class="r-comment" data-section="s1" data-id="c-run-r-20260901T125850182734-glm53-flash-and-w4a8-verdict" data-who="s24-agentic-probe" data-when="2026-09-01T13:07:03Z">
-    <div class="r-comment-body"><p>Settled against the serving vLLM 0.28.0 rather than the project venv&#x27;s 0.23.0. GLM-5.3-Flash is NOT serveable: ModelRegistry returns 0 entries for Glm5NextForConditionalGeneration. camel-ai/GLM-5.3-W4A8 IS: its GlmMoeDsaForCausalLM architecture is registered, both compressed-tensors W4A8 loader classes import from the serving package, its complete 4-page manifest is 154 files totalling 399,754,189,403 bytes, it carries tokenizer.json and tokenizer_config.json, and it fits four 141 GB cards with about 164 GB aggregate headroom</p></div>
+    <div class="r-comment-body"><p>Settled against the serving vLLM 0.28.0 rather than the project venv's 0.23.0. GLM-5.3-Flash is NOT serveable: ModelRegistry returns 0 entries for Glm5NextForConditionalGeneration. camel-ai/GLM-5.3-W4A8 IS: its GlmMoeDsaForCausalLM architecture is registered, both compressed-tensors W4A8 loader classes import from the serving package, its complete 4-page manifest is 154 files totalling 399,754,189,403 bytes, it carries tokenizer.json and tokenizer_config.json, and it fits four 141 GB cards with about 164 GB aggregate headroom</p></div>
+</div>
+<div class="r-comment" data-section="s1" data-id="c-run-r-20260901T131030495543-w4a8-profile-entry" data-who="s24-w4a8-profile" data-when="2026-09-01T13:13:58Z">
+    <div class="r-comment-body"><p>Four-card deployment now resolves camel-ai/GLM-5.3-W4A8 with its own glm-5-3-w4a8 weights directory, no tokenizer argument because the checkpoint is self-contained, w4a8 catalog precision and served name glm-5.3; eight-card FP8 untouched at TP8 and 204800. 3/3 tests</p></div>
 </div>
 </section>
 </main>
