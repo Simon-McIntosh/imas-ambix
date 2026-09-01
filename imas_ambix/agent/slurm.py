@@ -9,6 +9,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import TYPE_CHECKING
 
+from imas_ambix.agent.registry import registration_directory
 from imas_ambix.agent.vllm_catalog import validate_catalog_metadata
 
 if TYPE_CHECKING:
@@ -333,6 +334,10 @@ def generate_serve_script(
     launch_command = _build_serve_command(profile, site)
     venv_bin = str(site.python_path(profile.engine.type).parent)
     is_kt = profile.engine.type == "ktransformers"
+    repo_root = Path(__file__).resolve().parents[2]
+    registry_dir = registration_directory(site.base_dir)
+    registry_python = site.python_path(profile.engine.type)
+    checkpoint_precision = profile.model.checkpoint_precision or "unknown"
 
     # Launch the drain-forensics sidecar first thing, so it samples the whole
     # job life including the teardown/kill window. The serving job is the
@@ -432,7 +437,6 @@ def generate_serve_script(
                 done
             ) &
             _EVICTOR_PID=$!
-            trap 'kill $_EVICTOR_PID 2>/dev/null || true' EXIT
             """
         ).strip()
 
@@ -552,6 +556,31 @@ def generate_serve_script(
 
         MODEL_DIR={shlex.quote(str(model_dir))}
         PORT=${{AMBIX_PORT:-{port}}}
+        _REGISTRY_DIR={shlex.quote(str(registry_dir))}
+        _REGISTRY_PYTHON={shlex.quote(str(registry_python))}
+        _REGISTRATION_ACTIVE=0
+        _EVICTOR_PID=""
+
+        cleanup_serve() {{
+            if [[ -n "$_EVICTOR_PID" ]]; then
+                kill "$_EVICTOR_PID" 2>/dev/null || true
+            fi
+            if [[ "$_REGISTRATION_ACTIVE" == 1 ]]; then
+                PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}} \
+                    "$_REGISTRY_PYTHON" -m imas_ambix.agent.registry remove \
+                    --directory "$_REGISTRY_DIR" \
+                    --job-id "$SLURM_JOB_ID" || true
+            fi
+        }}
+
+        terminate_serve() {{
+            if [[ -n "${{SERVER_PID:-}}" ]] && kill -0 "$SERVER_PID" 2>/dev/null; then
+                kill -TERM "$SERVER_PID" 2>/dev/null || true
+            fi
+        }}
+
+        trap cleanup_serve EXIT
+        trap terminate_serve TERM INT
 
         if [[ ! -f "$MODEL_DIR/config.json" ]]; then
             echo "Error: missing model config at $MODEL_DIR/config.json" >&2
@@ -579,6 +608,17 @@ def generate_serve_script(
         echo "[$(date)] Starting {profile.model.name} server"
         {launch_command} &
         SERVER_PID=$!
+
+        _REGISTRATION_ACTIVE=1
+        PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}} \
+            "$_REGISTRY_PYTHON" -m imas_ambix.agent.registry write \
+            --directory "$_REGISTRY_DIR" \
+            --model-id {shlex.quote(profile.model.served_name)} \
+            --host "$(hostname)" \
+            --port "$PORT" \
+            --job-id "$SLURM_JOB_ID" \
+            --accelerator-count "${{SLURM_GPUS_ON_NODE:-{profile.slurm.gpus}}}" \
+            --checkpoint-precision {shlex.quote(checkpoint_precision)}
 
         {evictor_block}
 
