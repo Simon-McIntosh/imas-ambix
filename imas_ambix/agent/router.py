@@ -20,16 +20,27 @@ Send = Callable[[AsgiMessage], Awaitable[None]]
 
 @dataclass(frozen=True, slots=True)
 class Upstream:
-    """One engine base URL and its optional launch-owned authentication header."""
+    """One engine origin, optional auth header, and reported native model id."""
 
     base_url: str
     auth_header: tuple[str, str] | None = None
+    model_id: str | None = None
 
 
 class UpstreamResolver(Protocol):
     """Return the engine endpoints currently eligible for routing."""
 
     async def resolve(self) -> Sequence[Upstream]: ...
+
+
+class DynamicUpstreamResolver:
+    """Adapt a synchronous discovery supplier to the router's async interface."""
+
+    def __init__(self, supplier: Callable[[], Sequence[Upstream]]) -> None:
+        self._supplier = supplier
+
+    async def resolve(self) -> Sequence[Upstream]:
+        return await asyncio.to_thread(self._supplier)
 
 
 @dataclass(frozen=True, slots=True)
@@ -292,3 +303,12 @@ class RouterApp:
 def create_router_app(resolver: UpstreamResolver) -> RouterApp:
     """Build the ASGI application around an injected upstream resolver."""
     return RouterApp(resolver)
+
+
+def serve_router(
+    resolver: UpstreamResolver, *, host: str = "0.0.0.0", port: int
+) -> None:
+    """Run the router ASGI application with the serving runtime."""
+    import uvicorn
+
+    uvicorn.run(create_router_app(resolver), host=host, port=port)
