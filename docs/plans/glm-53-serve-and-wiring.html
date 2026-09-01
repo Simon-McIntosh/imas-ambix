@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="30">
+<meta name="plan-version" content="31">
 <meta name="plan-commits" content="3dd736597952c097de5c997b0613b8b166a7558b,53b4fc31f7b7e609f8d14c4b051f1b3d12a4bc65,3bb3d7621b5afa74b3a8752a900966b18c19166e,6aba87634c77327990d87388f6c50c011d7da8eb,8b82a9747819a058744c79373abcc287e99cb6b1,7f70e653382227eb49476eab39167d4e51e7d9e4">
 <meta name="plan-artifacts" content="imas_ambix/agent/profiles/glm-5-3.toml,imas_ambix/agent/profile.py,tests/test_agent_glm_5_3.py,docs/evidence/archive/glm-53-serve-and-wiring-landed.html">
 <meta name="plan-impl" content="1.0">
@@ -237,6 +237,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260901T195250584793-context-120k-probe" data-who="s24-agentic-probe" data-when="2026-09-01T20:34:57Z">
     <div class="r-comment-body"><p>122880 is intermittent, not dependable: under identical settings one fresh launch started with a 13.91 GiB pool giving 161216 cache tokens at 1.31x, and the next failed admission with 10.42 GiB available against 10.6 GiB required, the engine again estimating 120768 as its ceiling. Completed-start rate 1/2; a third attempt was cancelled before allocation. So the answer to whether 120k is serveable is sometimes, which for a shared endpoint is the wrong kind of answer. 98304 stays, having started and decoded coherently at both pool sizes. 114688 is the reasoned next candidate at 6080 tokens below the observed low boundary but was NOT validated and must not be recorded as such. Both protected jobs untouched</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260901T203533951598-restore-glm-endpoint" data-who="s24-glm-bringup" data-when="2026-09-01T21:01:22Z">
+    <div class="r-comment-body"><p>Endpoint restored: job 1260990 on four cards and twelve cores, catalog reporting glm-5.3 at max_model_len 98304, and a real streaming decode returning the exact correct text. The refreshed ladder returned 5/5 immediate, confirming the earlier 0/5 was a transient contention window rather than a standing block. The KV pool came up at 10.42 GiB with 120768 cached tokens at 1.23x — the low end of the observed variance, where 98304 serves and 122880 would have failed, which is the intermittency finding confirmed on the value actually shipped. Both protected jobs left RUNNING</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20260901-fp8-deferral" data-who="reckon-ship" data-when="2026-09-01T13:01:00+00:00">
     <div class="r-comment-body">Scope correction recorded by the lead: the fifth done-when item, a single-model quality measurement of the eight-card FP8 deployment, is deliberately NOT taken. That measurement needs the whole node, which would mean stopping the running keyless DeepSeek serve, and no multi-model result depends on it. FP8 stands recorded as a whole-node alternative to concurrency rather than a default deployment, which is the substance the item was for. The measurement itself belongs to a future single-model quality plan, not to this bring-up.</div>

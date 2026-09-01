@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T22:49:05",
+  "updated": "2026-09-01T23:01:34",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -19649,9 +19649,104 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T203533951598-restore-glm-endpoint",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a72",
+        "node": "restore-glm-endpoint",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-restore.md records each item with its verbatim command and output. A context probe stopped every GLM engine it started, so port 18801 is currently down and only DeepSeek is serving. The committed profile configures 98304 tokens at memory fraction 0.94, which started and decoded coherently at both of the two KV pool sizes this configuration has produced. (1) Run the descending core ladder 12, 10, 8, 6 then 4 with --gres=gpu:4 --mem=320G on partition betelgeuse with reservation gpu_0003_grpA, quote each probe, and take the LARGEST count starting immediately. (2) Submit one keyless serve at that count on port 18801 and record the job id, polling patiently because loading takes about 680 to 830 seconds. (3) Quote the startup KV-cache pool line verbatim with its cache size and concurrency figure, since that figure varies between launches and the actual value matters. (4) Show an anonymous GET http://98dci4-gpu-0003:18801/v1/models returning glm-5.3 with max_model_len 98304. (5) Show a real streaming POST /v1/messages that returns the exact correct answer to a checkable question, using an output budget of at least 128 tokens so the answer is not truncated before it appears. Report each as pass or fail. Do not cancel, resize or requeue DeepSeek job 1260660 or router job 1260928, both of which must still be RUNNING at the end.",
+          "estimated_hours": null,
+          "goal": "Restore the four-card GLM endpoint at the committed context so the surface is multi-model again",
+          "id": "restore-glm-endpoint",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T203533951598-restore-glm-endpoint/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "45m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-restore.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "s24-glm-bringup",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T20:35:47Z",
+        "completed_at": "2026-09-01T21:01:22Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1535,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1535,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "30d1f97b55caf1e4325cf38825d052cbf870150d",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "core ladder, keyless serve, KV startup gate, anonymous catalog and a real streaming decode",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T203533951598-restore-glm-endpoint/logs/final-state.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T203533951598-restore-glm-endpoint/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c82-d605-7472-9bb3-1d541a3193d7",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1023744,
+            "cached_input_tokens_cumulative": 1023744,
+            "input_tokens": 1125198,
+            "input_tokens_cumulative": 1125198,
+            "output_tokens": 7177,
+            "output_tokens_cumulative": 7177,
+            "reasoning_output_tokens": 1594,
+            "reasoning_output_tokens_cumulative": 1594
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 2,
+        "attempt_kind": "resume",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 446
+    "_version": 447
   }
 }
