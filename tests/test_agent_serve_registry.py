@@ -1,0 +1,97 @@
+"""Serve registration lifecycle and qualification tests."""
+
+from __future__ import annotations
+
+import threading
+
+from imas_ambix.agent.profile import SiteConfig, load_profile
+from imas_ambix.agent.registry import (
+    ServeRegistration,
+    read_registrations,
+    remove_registration,
+    write_registration,
+)
+from imas_ambix.agent.slurm import generate_serve_script
+
+
+def _registration(job_id: str = "42", model_id: str = "glm-5.3") -> ServeRegistration:
+    return ServeRegistration(
+        model_id=model_id,
+        host="98dci4-gpu-0003",
+        port=18801,
+        job_id=job_id,
+        accelerator_count=4,
+        checkpoint_precision="int4",
+    )
+
+
+def test_record_round_trip_carries_resolved_launch_identity(tmp_path):
+    record = _registration()
+    path = write_registration(record, tmp_path)
+    read = read_registrations(tmp_path, job_is_running=lambda job_id: job_id == "42")
+
+    assert path.name == "42.json"
+    assert read.current == (record,)
+    assert read.stale == ()
+    assert read.current[0].origin == "http://98dci4-gpu-0003:18801"
+
+
+def test_atomic_replacement_never_exposes_a_partial_record(tmp_path):
+    first = _registration(model_id="glm-5.3")
+    second = _registration(model_id="deepseek-v4-flash")
+    write_registration(first, tmp_path)
+    observed: list[tuple[ServeRegistration, ...]] = []
+
+    def replace_repeatedly() -> None:
+        for index in range(100):
+            write_registration(first if index % 2 else second, tmp_path)
+
+    writer = threading.Thread(target=replace_repeatedly)
+    writer.start()
+    while writer.is_alive():
+        observed.append(
+            read_registrations(tmp_path, job_is_running=lambda _job_id: True).current
+        )
+    writer.join()
+
+    assert observed
+    assert all(snapshot in {(first,), (second,)} for snapshot in observed)
+
+
+def test_reader_returns_current_records_and_separates_stale_jobs(tmp_path):
+    current = _registration(job_id="42", model_id="glm-5.3")
+    stale = _registration(job_id="41", model_id="deepseek-v4-flash")
+    write_registration(current, tmp_path)
+    write_registration(stale, tmp_path)
+
+    read = read_registrations(tmp_path, job_is_running=lambda job_id: job_id == "42")
+
+    assert read.current == (current,)
+    assert read.stale == (stale,)
+
+
+def test_remove_registration_is_idempotent(tmp_path):
+    path = write_registration(_registration(), tmp_path)
+
+    remove_registration("42", tmp_path)
+    remove_registration("42", tmp_path)
+
+    assert not path.exists()
+
+
+def test_generated_serve_script_owns_registration_lifecycle(tmp_path):
+    profile = load_profile("glm-5-3").for_gpus(4)
+    script = generate_serve_script(
+        profile, SiteConfig(base_dir=str(tmp_path)), port=18801
+    )
+
+    assert "-m imas_ambix.agent.registry write" in script
+    assert "--model-id glm-5.3" in script
+    assert '--host "$(hostname)"' in script
+    assert '--port "$PORT"' in script
+    assert '--job-id "$SLURM_JOB_ID"' in script
+    assert '--accelerator-count "${SLURM_GPUS_ON_NODE:-4}"' in script
+    assert "--checkpoint-precision int4" in script
+    assert "-m imas_ambix.agent.registry remove" in script
+    assert "trap cleanup_serve EXIT" in script
+    assert "trap terminate_serve TERM INT" in script
