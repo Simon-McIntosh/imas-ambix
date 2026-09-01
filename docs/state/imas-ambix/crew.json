@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T15:07:27",
+  "updated": "2026-09-01T15:12:41",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -837,6 +837,15 @@
         "created": "2026-09-01"
       },
       {
+        "id": "s24-data-repair",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-01"
+      },
+      {
         "id": "s24-docs",
         "harness": "codex",
         "role": "documentation",
@@ -856,6 +865,15 @@
         "sessions": {
           "gpt-5.6-sol": "01a05c82-d605-7472-9bb3-1d541a3193d7"
         },
+        "created": "2026-09-01"
+      },
+      {
+        "id": "s24-latent-repair",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
         "created": "2026-09-01"
       },
       {
@@ -889,6 +907,33 @@
         "sessions": {
           "gpt-5.6-sol": "01a05c8b-3372-71e1-b506-e2ff2f281895"
         },
+        "created": "2026-09-01"
+      },
+      {
+        "id": "s24-suite-finish",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-01"
+      },
+      {
+        "id": "s24-w4a8-download",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-01"
+      },
+      {
+        "id": "s24-w4a8-profile",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
         "created": "2026-09-01"
       },
       {
@@ -16915,9 +16960,109 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T125801437855-clive-legacy-surface-repair",
+        "plan": "clive-launch-modes",
+        "section": "\u00a72",
+        "node": "clive-legacy-surface-repair",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent.py -q exits 0, and uv run --no-sync pytest tests/test_agent_clive_modes.py tests/test_agent_clive_picker.py tests/test_agent_clive_dispatch_guidance.py -q still exits 0. Six tests in tests/test_agent.py fail at head, all raising 'an OpenRouter native release requires hybrid mode' from imas_ambix/agent/clive.py: test_generate_clive_script_embeds_standalone_global_contract, test_clive_clean_directory_uses_no_forbidden_consumer_dependency, test_clive_redirect_catalog_fails_without_leaving_global_origin, both parameterisations of test_clive_openrouter_opt_in_starts_proxy_and_presents_picker, and test_clive_openrouter_rejects_unconfigured_dynamic_release_before_proxy. Each supplies a hosted native release, which the locked mode axis deliberately moved behind explicit hybrid selection, so the tests encode a surface that was intentionally replaced. Update each of the six to select hybrid mode explicitly and keep every one of its original assertions byte-for-byte unchanged. Change no behaviour in clive.py. If any of the six cannot be made to pass this way with its assertions unchanged, leave it failing and report that test by name as a finding, because that would mean the mode axis broke something it should not have and the source is then at fault. Do not relax any guarantee to make a test pass: an unqualified launch stays local-only and byte-identical to an explicit local launch, a readable hosted credential never selects a hosted route, the catalog failure path never falls back to a hosted provider, and exactly one origin is used.",
+          "estimated_hours": null,
+          "goal": "Restore the six launcher tests this session's mode axis broke, without weakening the local-only default they guard",
+          "id": "clive-legacy-surface-repair",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T125801437855-clive-legacy-surface-repair/manifest.md",
+          "plan": "clive-launch-modes",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "tests/test_agent.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-clive-modes",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T12:58:10Z",
+        "completed_at": "2026-09-01T13:11:47Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 817,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 817,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "f20cd6462dee0c988cbe4a206caee27984c25cb1",
+        "commits": [
+          "c197e3d2f3ed6c57ecda748cebdd2262f5adfbcb"
+        ],
+        "changed_lines": {
+          "added": 64,
+          "removed": 26,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T125801437855-clive-legacy-surface-repair/pytest-test-agent-final.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T125801437855-clive-legacy-surface-repair/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c99-a254-70b0-9b28-a7cdeedfa454",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 260608,
+            "cached_input_tokens_cumulative": 3004672,
+            "input_tokens": 598095,
+            "input_tokens_cumulative": 3439706,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 10285,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 3038
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 2,
+        "attempt_kind": "resume",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 408
+    "_version": 414
   }
 }
