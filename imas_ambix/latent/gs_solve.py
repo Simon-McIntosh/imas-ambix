@@ -1980,6 +1980,8 @@ def build_passive_sidecar(
     classes = op.classify_circuits(
         _geometry_member(table, "conductors", "pf_filaments"),
         _geometry_member(table, "available_current_channels", "amc_current_channels"),
+        _geometry_member(table, "active_circuits", "active_circuits"),
+        _geometry_member(table, "drive_map", "circuit_drives"),
     )
     by_circ: dict[int, list] = {}
     for f in _geometry_member(table, "conductors", "pf_filaments"):

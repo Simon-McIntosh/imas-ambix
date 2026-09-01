@@ -15,11 +15,21 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import torch
 
 from imas_ambix.latent import synthetic_truth as st
 from tests.latent.test_gs_solve import _confining_table
 
 _SCALE = np.full(5, 1.0e-3)  # explicit whitening floor for the 5-probe fixture
+
+
+@pytest.fixture(scope="module", autouse=True)
+def single_threaded_torch():
+    """Keep synthetic solves independent of host OpenMP oversubscription."""
+    previous = torch.get_num_threads()
+    torch.set_num_threads(1)
+    yield
+    torch.set_num_threads(previous)
 
 
 @pytest.fixture(scope="module")

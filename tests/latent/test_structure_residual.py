@@ -10,7 +10,6 @@ adversarial battery mirrors the scoping discrimination ratios (oracle floor
 
 from __future__ import annotations
 
-import os
 import time
 from pathlib import Path
 
@@ -304,22 +303,19 @@ def test_cost_at_realistic_size():
     psi = torch.as_tensor(-((r - 0.9) ** 2 + z**2), dtype=torch.float32)
     jphi = torch.as_tensor(rng.normal(1.0, 0.3, n), dtype=torch.float32)
 
-    # Measure at a normal CPU-deployment thread count.  On very-high-core nodes
-    # (e.g. 48-way login boxes) torch's OpenMP fan-out for elementwise
-    # transcendentals (the Gaussian kernel's exp) has a pathological per-op
-    # barrier cost — an environment artifact, not the algorithm's cost (the op is
-    # ~5 ms single-threaded).  This test guards against ALGORITHMIC regressions,
-    # so it pins a realistic thread count and restores it afterward.
+    # Measure single-threaded CPU time.  The guard targets algorithmic work, so
+    # neither scheduler contention from concurrent test processes nor OpenMP
+    # oversubscription should count against it.
     prev = torch.get_num_threads()
-    torch.set_num_threads(min(8, os.cpu_count() or 8))
+    torch.set_num_threads(1)
     try:
         for _ in range(10):  # warmup (thread-pool spin-up, allocator)
             structure_residual(psi, r, jphi, n_bins=24)
         per_call = []
         for _ in range(21):
-            t0 = time.perf_counter()
+            t0 = time.process_time()
             structure_residual(psi, r, jphi, n_bins=24)
-            per_call.append((time.perf_counter() - t0) * 1e3)
+            per_call.append((time.process_time() - t0) * 1e3)
     finally:
         torch.set_num_threads(prev)
     ms = float(np.median(per_call))

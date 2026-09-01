@@ -61,11 +61,13 @@ def case_label_by_circuit() -> dict[int, str]:
     identity comes from the case circuit's own NAME ("P4U case current"), not
     ``geometry_confusable_with`` (which names the enclosed WINDING — "p2iu"
     for the P2U case — and would mis-pair the P2 cases)."""
-    from imas_ambix.gs import operator as op  # noqa: PLC0415
-
+    circuit_path = (
+        Path(__file__).parents[1] / "gs" / "artifacts" / "mast_pf_circuits.json"
+    )
+    payload = json.loads(circuit_path.read_text())
     return {
-        circ: case.name.split()[0].lower()
-        for circ, case in op._CASE_BY_CIRCUIT_ID.items()  # noqa: SLF001
+        int(case["circuit_id"]): str(case["name"]).split()[0].lower()
+        for case in payload["case_circuits"]
     }
 
 

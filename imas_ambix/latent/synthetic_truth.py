@@ -201,10 +201,7 @@ def _build_passive_columns(
     on this campaign zeroed) — the alignment the gate applies to real payloads.
     """
     _g, channels = grid.sensor_greens(table)
-    classes = op.classify_circuits(
-        _geometry_member(table, "conductors", "pf_filaments"),
-        _geometry_member(table, "available_current_channels", "amc_current_channels"),
-    )
+    classes = fwd.circuit_classes
     by_circ: dict[int, list] = {}
     for f in _geometry_member(table, "conductors", "pf_filaments"):
         by_circ.setdefault(f.circuit, []).append(f)
