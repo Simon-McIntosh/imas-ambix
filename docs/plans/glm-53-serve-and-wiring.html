@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="28">
+<meta name="plan-version" content="29">
 <meta name="plan-commits" content="3dd736597952c097de5c997b0613b8b166a7558b,53b4fc31f7b7e609f8d14c4b051f1b3d12a4bc65,3bb3d7621b5afa74b3a8752a900966b18c19166e,6aba87634c77327990d87388f6c50c011d7da8eb,8b82a9747819a058744c79373abcc287e99cb6b1,7f70e653382227eb49476eab39167d4e51e7d9e4">
 <meta name="plan-artifacts" content="imas_ambix/agent/profiles/glm-5-3.toml,imas_ambix/agent/profile.py,tests/test_agent_glm_5_3.py,docs/evidence/archive/glm-53-serve-and-wiring-landed.html">
 <meta name="plan-impl" content="1.0">
@@ -230,7 +230,10 @@
     <div class="r-comment-body"><p>Largest proven four-card context is 98304 at memory fraction 0.94: pool 13.92 GiB, 161280 cached tokens, 1.64x concurrency, and a real streaming decode returning coherent correct text. 131072 fails at KV init needing 11.31 GiB against 10.42 available, with the engine estimating 120768 as its ceiling. The trade is explicit: 98304 gives up 0.81x absolute concurrency, 33 percent relative, against the 65536 baseline. Untried: a 0.95 memory-fraction step and the interval between 98304 and 120768. Both protected jobs left RUNNING and the probe stopped every engine it started</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260901T192924352937-context-raise-to-measured" data-who="s24-w4a8-profile" data-when="2026-09-01T19:31:25Z">
-    <div class="r-comment-body"><p>Four-card context raised 65536 to 98304 at the proven memory fraction 0.94, a 50 percent increase, with the concurrency cost from 2.45x to 1.64x and the engine&#x27;s own 120768 ceiling recorded in the rationale. Eight-card FP8 untouched. 3/3 and lint clean</p></div>
+    <div class="r-comment-body"><p>Four-card context raised 65536 to 98304 at the proven memory fraction 0.94, a 50 percent increase, with the concurrency cost from 2.45x to 1.64x and the engine's own 120768 ceiling recorded in the rationale. Eight-card FP8 untouched. 3/3 and lint clean</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260901T193158208922-relaunch-at-measured-context" data-who="s24-glm-bringup" data-when="2026-09-01T19:52:27Z">
+    <div class="r-comment-body"><p>GLM-5.3 live at 98304 on four cards, job 1260954: catalog reports max_model_len 98304 and a real streaming decode returned the coherent correct answer 703. Notable measurement: this launch&#x27;s KV pool came up at 10.42 GiB giving a 120768-token cache and 1.23x concurrency, against 13.92 GiB and 1.64x for the identical configuration earlier, so the non-KV footprint varies about 3.5 GiB between launches. Both protected jobs left RUNNING</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20260901-fp8-deferral" data-who="reckon-ship" data-when="2026-09-01T13:01:00+00:00">
     <div class="r-comment-body">Scope correction recorded by the lead: the fifth done-when item, a single-model quality measurement of the eight-card FP8 deployment, is deliberately NOT taken. That measurement needs the whole node, which would mean stopping the running keyless DeepSeek serve, and no multi-model result depends on it. FP8 stands recorded as a whole-node alternative to concurrency rather than a default deployment, which is the substance the item was for. The measurement itself belongs to a future single-model quality plan, not to this bring-up.</div>

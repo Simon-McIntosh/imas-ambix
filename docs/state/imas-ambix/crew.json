@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T21:31:35",
+  "updated": "2026-09-01T21:52:30",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -19370,9 +19370,92 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T193158208922-relaunch-at-measured-context",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a72",
+        "node": "relaunch-at-measured-context",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-relaunch.md records each item with its verbatim command and output. The four-card profile now configures 98304 tokens at memory fraction 0.94, the largest value a sweep proved serves. Port 18801 is currently down because the sweep stopped its own engines. (1) Confirm in a dry run that the generated command carries a 98304 max-model-len and a 0.94 memory utilisation. (2) Run the descending core ladder 12, 10, 8, 6 then 4 with --gres=gpu:4 --mem=320G on partition betelgeuse with reservation gpu_0003_grpA, quote each probe and take the LARGEST count starting immediately. (3) Submit one keyless serve at that count on port 18801 and record the job id, polling patiently because loading takes about 830 seconds. (4) Quote the startup KV-cache pool line verbatim with its cache size and concurrency figure. (5) Show an anonymous GET http://98dci4-gpu-0003:18801/v1/models returning glm-5.3 with max_model_len 98304. (6) Show a real streaming POST /v1/messages returning coherent correct text, asking something with a checkable answer. Report each as pass or fail with the evidence quoted. Do not cancel, resize or requeue DeepSeek job 1260660 or router job 1260928, both of which must still be RUNNING at the end.",
+          "estimated_hours": null,
+          "goal": "Bring the four-card engine back up at the raised context and confirm it answers",
+          "id": "relaunch-at-measured-context",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T193158208922-relaunch-at-measured-context/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "45m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-relaunch.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "s24-glm-bringup",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T19:32:05Z",
+        "completed_at": "2026-09-01T19:52:27Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1222,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1222,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "57b0dfc709166ebe5ae111fe8debab2bb9c1b5b7",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "dry run, core ladder, keyless serve, anonymous catalog and a real streaming decode",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T193158208922-relaunch-at-measured-context/logs/stream.txt",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T193158208922-relaunch-at-measured-context/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c82-d605-7472-9bb3-1d541a3193d7",
+        "budget": {
+          "cost_usd": null,
+          "detail": "",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 443
+    "_version": 444
   }
 }
