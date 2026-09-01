@@ -24,10 +24,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-impl" content="0.4">
-<meta name="plan-version" content="6">
-<meta name="plan-commits" content="f63f3bae5c97aef7bf852404630eecb5f560b71f">
-<meta name="plan-artifacts" content="imas_ambix/agent/AGENTS.md">
+<meta name="plan-impl" content="0.6">
+<meta name="plan-version" content="7">
+<meta name="plan-commits" content="f63f3bae5c97aef7bf852404630eecb5f560b71f,b76d9cbfb26701fa98a54a2e34f7b74a327bbf0e">
+<meta name="plan-artifacts" content="imas_ambix/agent/AGENTS.md,imas_ambix/agent/router.py,tests/test_agent_router_admission.py">
 </head>
 <body>
   <main class="plan-doc">
@@ -184,6 +184,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260901T114716249437-capacity-admission-control" data-who="s24-capacity-impl" data-when="2026-09-01T11:53:17Z">
     <div class="r-comment-body"><p>Per-consumer admission on the router: default 2 in-flight plus 4 queued, all configurable; a third request against a 1-active/1-queued limit gets HTTP 429 with Retry-After 7 while a second consumer completes independently; capacity released in a finally so a mid-stream disconnect frees the slot immediately. 3/3 admission plus 4/4 existing relay tests</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260901-capacity-admission" data-who="reckon-ship" data-when="2026-09-01T14:07:00+00:00">
+    <div class="r-comment-body">capacity-admission-control landed — commit b76d9cb; gate 'per-consumer admission contract' passed; measure 3/3 admission tests plus the existing 4/4 relay suite still green. Admission sits on the router exactly as §4 argued, because the engine will not self-limit usefully. Each consumer defaults to two in flight plus four queued, with all three limits configurable rather than baked in, sized for the group best-effort audience the plan locked. Demonstrated under deliberate overload: against a one-active one-queued limit a third request receives HTTP 429 with Retry-After 7 while a second consumer completes independently, which is the property that makes a heavy caller degrade its own latency rather than everyone's. Capacity is released in a finally, so the disconnect test shows the same consumer immediately reusing a one-active zero-queued router — a dropped connection cannot leak a slot. Per-consumer accounting lands in the router's own log, the same mechanism that keeps consumer addresses out of the engine's job log. Artifacts imas_ambix/agent/router.py, tests/test_agent_router_admission.py.</div>
 </div>
 </section>
 </main>

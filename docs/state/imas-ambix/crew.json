@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T13:53:49",
+  "updated": "2026-09-01T14:04:18",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -16241,9 +16241,111 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T115409946782-clive-hybrid-alias-alignment",
+        "plan": "clive-launch-modes",
+        "section": "\u00a74",
+        "node": "clive-hybrid-alias-alignment",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_clive_dispatch_guidance.py tests/test_agent_clive_modes.py -q exits 0. An inherited inconsistency was found while landing the local statement: the hybrid branch maps its selected local release to haiku and gives sonnet to a hosted release, while the locked decision and the default local lineup both put the primary local release on sonnet. That contradiction means a delegating session told sonnet is local in one mode reaches a hosted model in the other, which is the confusion the alias mapping exists to remove. Align hybrid so the primary local release takes sonnet and the second local release takes haiku, leaving the hosted frontier slots on the remaining aliases. Tests assert: in hybrid mode sonnet resolves to the primary local release and haiku to the second local release when two are present, no hosted slot occupies sonnet or haiku, the default local mode is unchanged, and the session statement names the same alias as local in both modes. Do not reintroduce any hosted slot into the default local mode.",
+          "estimated_hours": null,
+          "goal": "Make the hybrid lineup put the primary local release on the same alias the local lineup uses",
+          "id": "clive-hybrid-alias-alignment",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T115409946782-clive-hybrid-alias-alignment/manifest.md",
+          "plan": "clive-launch-modes",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/agent/clive.py",
+            "tests/test_agent_clive_dispatch_guidance.py",
+            "tests/test_agent_clive_modes.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-clive-modes",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T11:54:16Z",
+        "completed_at": "2026-09-01T11:58:50Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 274,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 274,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "3cb49b9d6f06f97946534ebd04434b8a3e64fda9",
+        "commits": [
+          "1c602d0ecc7f7fe1c03530bfe848266fd93b565b"
+        ],
+        "changed_lines": {
+          "added": 144,
+          "removed": 36,
+          "files": 3
+        },
+        "tests_added": 3,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_clive_dispatch_guidance.py tests/test_agent_clive_modes.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T115409946782-clive-hybrid-alias-alignment/pytest-hybrid-alias-alignment.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T115409946782-clive-hybrid-alias-alignment/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c99-a254-70b0-9b28-a7cdeedfa454",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1026048,
+            "cached_input_tokens_cumulative": 2744064,
+            "input_tokens": 965024,
+            "input_tokens_cumulative": 2841611,
+            "output_tokens": 869,
+            "output_tokens_cumulative": 11009,
+            "reasoning_output_tokens": 203,
+            "reasoning_output_tokens_cumulative": 3750
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_clive_dispatch_guidance.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 400
+    "_version": 401
   }
 }

@@ -22,10 +22,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="7">
-<meta name="plan-commits" content="526195c8c059efe5f73439ae1fed626407f11322">
-<meta name="plan-artifacts" content="imas_ambix/agent/clive.py,tests/test_agent_clive_modes.py">
-<meta name="plan-impl" content="0.34">
+<meta name="plan-version" content="9">
+<meta name="plan-commits" content="526195c8c059efe5f73439ae1fed626407f11322,5fd71b1b1e2d12c0e160816e24f3ca7055f718cf,cb5c6e12775124169e3402065a87c5e920a912ed,1c602d0ecc7f7fe1c03530bfe848266fd93b565b">
+<meta name="plan-artifacts" content="imas_ambix/agent/clive.py,tests/test_agent_clive_modes.py,tests/test_agent_clive_picker.py,tests/test_agent_clive_dispatch_guidance.py">
+<meta name="plan-impl" content="0.8">
 </head>
 <body>
   <main class="plan-doc">
@@ -197,8 +197,19 @@ clive --mode hybrid      # local releases plus the hosted frontier slots</pre>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20260901T110812547382-clive-picker-presentation" data-who="s24-clive-modes" data-when="2026-09-01T11:13:02Z">
     <div class="r-comment-body"><p>Curated rows derived from the catalog: two-item fixture emits two independently-labelled rows (2xH200 int4 512k vs 4xH200 fp8 256k), a 5-item catalog emits 5 rows against 4 alias slots, an unknown future id still gets a row, all 4 slots declare supported capabilities, and every alias still resolves to the selected native model</p></div>
 </div>
+<div class="r-comment" data-section="s3" data-id="c-20260901-clive-picker-presentation" data-who="reckon-ship" data-when="2026-09-01T14:05:00+00:00">
+    <div class="r-comment-body">clive-picker-presentation landed — commit 5fd71b1; gate 'curated row contract' passed; measure 3/3 tests. Rows are derived from the catalog the launcher already fetches, so a two-item fixture emits two independently-labelled rows (2×H200 int4 512k against 4×H200 fp8 256k) with topology and context read from each card rather than a shared default. A five-item catalog emits five rows against four alias slots, proving rows are not capped by the slot count, and a release the launcher has no built-in knowledge of still gets one. All four slots now declare supported capabilities, which the launcher previously left unset. The plan's distinction held under test: every alias still resolves to the selected native model, because a row is presentation and not a name a delegated worker can be sent to. Artifacts imas_ambix/agent/clive.py, tests/test_agent_clive_picker.py.</div>
+</div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260901T114750299760-clive-local-alias-statement" data-who="s24-clive-modes" data-when="2026-09-01T11:53:09Z">
-    <div class="r-comment-body"><p>Default local launch now states sonnet is the primary local worker, carrying that release&#x27;s own accelerator count, family and exact max_model_len from its catalog card, plus the division of labour and the fact that local-only mode has no frontier slot. All four alias assignments unchanged. 2/2 tests</p></div>
+    <div class="r-comment-body"><p>Default local launch now states sonnet is the primary local worker, carrying that release's own accelerator count, family and exact max_model_len from its catalog card, plus the division of labour and the fact that local-only mode has no frontier slot. All four alias assignments unchanged. 2/2 tests</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260901T115409946782-clive-hybrid-alias-alignment" data-who="s24-clive-modes" data-when="2026-09-01T11:58:50Z">
+    <div class="r-comment-body"><p>Hybrid now maps catalog release 1 to sonnet and release 2 to haiku with no hosted id on either, frontier slots keep opus and fable, and hybrid gains the same session statement naming sonnet local; default local generation unchanged and implicit still byte-identical to explicit. 10/10 tests</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260901-clive-alias-dispatch" data-who="reckon-ship" data-when="2026-09-01T14:06:00+00:00">
+    <div class="r-comment-body">clive-local-alias-statement landed — commit cb5c6e1; gate 'dispatch guidance contract' passed; measure 2/2 tests. The default local launch now tells the session that sonnet is the primary local worker, carrying that release's own validated accelerator count, family and exact max_model_len from its catalog card, plus the division of labour and the plain statement that local-only mode has no frontier slot. All four alias assignments are unchanged, because the statement describes the mapping rather than creating one.
+
+clive-hybrid-alias-alignment landed — commit 1c602d0; gate 'hybrid alias contract' passed; measure 10/10 tests. Landing the statement exposed an inherited contradiction: the hybrid branch mapped its local release to haiku and gave sonnet to a hosted model, so a session told sonnet is local in the default lineup would have reached a hosted model after switching mode — the exact confusion this mapping exists to remove. Hybrid now places the first local release on sonnet and the second on haiku with no hosted id on either, frontier slots keep the remaining aliases, and hybrid receives the same session statement. Default local generation is unchanged and implicit remains byte-identical to explicit.</div>
 </div>
 </section>
 </main>
