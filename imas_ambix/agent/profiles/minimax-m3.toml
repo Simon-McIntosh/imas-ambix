@@ -112,9 +112,17 @@ max_total_tokens = 131072
 tool_call = "minimax-m2"
 reasoning = "minimax-append-think"
 
+# Host cores for a full-GPU serve. Cores do NOT scale with cards: the engine
+# runs one API server, one engine core, and one worker per tensor-parallel rank,
+# and every worker spends most of its time blocked on the device. What the extra
+# cores would buy is detokenization headroom at high concurrency, which is far
+# below the reservation ceiling. Requesting the ceiling instead is what leaves a
+# co-running job pending on cores while the cards it wants sit idle, on a node
+# carrying two overlapping 30-core reservations. Probe with `srun --test-only`
+# before raising this, and use `serve --cpus N` for a one-off.
 [slurm]
 gpus = 8
-cpus = 30
+cpus = 16
 memory = "640G"
 time_serve = "7-00:00:00"
 time_download = "24:00:00"

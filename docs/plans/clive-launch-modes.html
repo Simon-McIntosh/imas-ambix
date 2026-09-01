@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="3">
 </head>
 <body>
   <main class="plan-doc">
@@ -44,17 +44,20 @@
     <em>harness</em> axis, opposite <code>--codex</code>. A model-scope flag must not
     collide with that, and <code>--anthropic</code> was rejected. The remaining question
     is whether the scope axis is a boolean opt-in or a named mode with values.</p>
-    <p><strong>Recommendation: a <code>--mode</code> axis with <code>local</code> as the
-    default.</strong> One axis is self-documenting, lets a cautious caller state the
-    default explicitly rather than trusting it, and leaves room for a third value later
-    without a second boolean. The open question is what to call the non-default value;
-    the candidates and their arguments are in the decision block, with
-    <code>tiered</code> recommended because it names the working pattern rather than the
-    vendor — cheap local models carrying bulk and parallel work, a frontier model
-    reserved for adjudication.</p>
-    <p>Whatever is chosen, the mode must not silently change which model answers by
-    default. Selecting a mode adds rows to the picker and changes what the alias slots
-    map to; it never redirects an unqualified request off-cluster.</p>
+    <p><strong>Locked: a <code>--mode</code> axis, default <code>local</code>, with
+    <code>hybrid</code> as the value that adds the hosted slots.</strong></p>
+    <pre>clive                    # local models only — the default, no argument
+clive --mode local       # the same thing, stated explicitly
+clive --mode hybrid      # local releases plus the hosted frontier slots</pre>
+    <p>One axis rather than a boolean, because it is self-documenting, lets a cautious
+    caller assert the default instead of trusting it, and leaves room for a third value
+    without a second flag. <code>hybrid</code> over <code>tiered</code> because it reads
+    as an equal statement about a lineup that carries both kinds, which is what the mode
+    is, and it does not invite the reading that one kind is subordinate to the other.</p>
+    <p>The mode must not silently change which model answers by default. Selecting it
+    adds rows to the picker and changes what the alias slots map to; it never redirects
+    an unqualified request off-cluster, and it is never selected by the mere presence of
+    a readable credential.</p>
 
     <h2 id="s3">§3 — Two mechanisms, two jobs</h2>
     <p>The harness offers two ways to present models, and they are not
@@ -145,31 +148,23 @@
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="mode-axis" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="mode-axis" data-choice="mode-axis" data-by="Simon McIntosh" data-when="2026-09-01T10:00:07+00:00">
     <p class="r-dec-q">Is model scope a named --mode axis with a default of local , or a single boolean opt-in flag over a local default?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="mode-axis">mode-axis</button>
+      <button class="r-opt chosen" data-value="mode-axis">mode-axis</button>
       <button class="r-opt" data-value="boolean-opt-in">boolean-opt-in</button>
       </p>
-    <p class="r-dec-rat">Recommendation: the mode axis. It is self-documenting, lets
-        a caller assert the default rather than trust it, and extends to a third value
-        without adding a second boolean. A boolean is shorter to type but says nothing
-        about what the default was.</p>
+    <p class="r-dec-rat">Locked to the mode axis. One self-documenting axis lets a caller assert the default rather than trust it, and extends to a third value without a second boolean.</p>
     </div>
-<div class="r-dec" data-key="hosted-mode-name" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="hosted-mode-name" data-choice="hybrid" data-by="Simon McIntosh" data-when="2026-09-01T10:00:07+00:00">
     <p class="r-dec-q">What is the non-default mode value called — the one that adds the hosted frontier models to the local lineup?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="tiered">tiered</button>
       <button class="r-opt" data-value="hosted">hosted</button>
       <button class="r-opt" data-value="mixed">mixed</button>
-      <button class="r-opt" data-value="hybrid">hybrid</button>
+      <button class="r-opt chosen" data-value="hybrid">hybrid</button>
       </p>
-    <p class="r-dec-rat">Recommendation: tiered . It names the working
-        pattern — cheap local models for bulk and parallel work, a frontier model for
-        adjudication — which is the reason to select it, and it reads correctly for a
-        lineup that is still mostly local. hosted is the most literal
-        description of what is added but misreads as only hosted. mixed and hybrid are accurate and vague: they say two
-        kinds are present without saying which or why.</p>
+    <p class="r-dec-rat">Locked to &lt;code&gt;hybrid&lt;/code&gt; by the lead, over &lt;code&gt;tiered&lt;/code&gt; and &lt;code&gt;boss&lt;/code&gt;. So the surface is &lt;code&gt;clive&lt;/code&gt; (local only, no argument), &lt;code&gt;--mode local&lt;/code&gt; (the default stated explicitly), &lt;code&gt;--mode hybrid&lt;/code&gt; (local releases plus the hosted frontier slots). It reads as an equal statement about a lineup that carries both kinds, which is what the mode is, and it does not invite the reading that one tier is subordinate.</p>
     </div>
 <div class="r-dec" data-key="local-alias" data-choice="" data-by="" data-when="">
     <p class="r-dec-q">Which alias slot carries the local release in the mode that includes hosted models?</p>

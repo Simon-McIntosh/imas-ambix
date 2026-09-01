@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
 <meta name="plan-impl" content="0.2">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
 </head>
 <body>
   <main class="plan-doc">
@@ -59,24 +59,22 @@
     <code>clive --list</code> against the relaunched endpoint is a done-when item for
     <code>serving-endpoint-indirection</code> §5, not a claim made here.</p>
 
-    <h2 id="s2">§2 — Both GLM checkpoints are on disk</h2>
-    <p>The second release is no longer hypothetical. The profile was corrected to name
-    the artifacts actually published, and the download has completed for both variants:</p>
-    <table>
-      <thead><tr><th>Variant</th><th>On disk</th><th>Files</th><th>Cards</th><th>Coexists with a 2-card DeepSeek</th></tr></thead>
-      <tbody>
-        <tr><td>INT4 requant</td><td>321 GiB</td><td>248</td><td>4</td><td>yes — 6 of 8 cards</td></tr>
-        <tr><td>vendor FP8</td><td>704 GiB</td><td>149</td><td>8</td><td>no — fills the node</td></tr>
-      </tbody>
-    </table>
-    <p>So the concurrent configuration is the INT4 variant beside the existing DeepSeek
-    serve, on a second port, with two cards spare. The FP8 variant is a whole-node
-    deployment and therefore an alternative to concurrency rather than part of it — worth
-    measuring for single-model quality, but it cannot be the multi-model configuration.</p>
-    <p>The sub-tree guidance still describes both GLM profiles as unusable stubs whose
-    weights are not published. That was true when written and is now wrong in a way that
-    would stop someone serving a model that is sitting on disk. Correcting it is in
-    scope.</p>
+    <h2 id="s2">§2 — The second engine, and where it is owned</h2>
+    <p>The concurrent configuration is the four-card INT4 variant beside the existing
+    two-card DeepSeek serve — 6 of 8 cards, two spare — because the vendor FP8 release
+    fills the node and so is an alternative to concurrency rather than part of it. Both
+    checkpoints are on disk.</p>
+    <p><strong>The bringup and its wiring are owned by
+    <code>glm-53-serve-and-wiring</code></strong>, which is a prerequisite of the router
+    rather than a consequence of this plan: nothing here can be measured until a second
+    engine is listening. What stays here is what the second engine makes newly answerable
+    — the budget that binds in §3, the admission limits in §4, and the service statement
+    those imply.</p>
+    <p>One documentation correction belongs with the budget rather than the bringup: the
+    sub-tree guidance described both GLM profiles as unusable stubs whose weights were
+    unpublished. That was true when written and is now wrong in a way that would stop
+    someone serving a model sitting on disk, so it has been corrected alongside the
+    core-budget rules it sits next to.</p>
 
     <h2 id="s3">§3 — The budget that actually binds</h2>
     <p>Cards are not the constraint; cores are. The node carries two overlapping 30-core

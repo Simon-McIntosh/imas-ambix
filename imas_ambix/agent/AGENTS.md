@@ -198,6 +198,67 @@ default follows `XDG_DATA_HOME` or `~/.local/share`. Setup requires at least
 32 GiB free by default, configurable with
 `AMBIX_AGENT_ENGINE_ENV_MIN_FREE_GB`.
 
+## 3a. Live endpoints — what to point a client at
+
+Two services, two different shapes. Both are **keyless** and both are reached
+**directly** from login and standard compute nodes (measured: compute node to
+each port, open). There is no SSH tunnel — port-forwarding to a compute node is
+administratively prohibited.
+
+| Service | Origin | Shape | Owner |
+|---|---|---|---|
+| LLM serving (this repo) | `http://98dci4-gpu-0003:18800` | OpenAI **and** Anthropic native | `imas-ambix agent serve` |
+| Text embeddings | `http://98dci4-gpu-0002:18765` | custom, **not** OpenAI-shaped | imas-codex |
+
+The serve port is a `SiteConfig` default (`AMBIX_AGENT_PORT`), so a second
+concurrent model is served on a **different port on the same host**. One vLLM
+process serves one model, so the origin above is one model's catalog, not the
+site's. `imas-ambix agent status` lists every live route with its port; `clive
+--list` lists what a consumer can select.
+
+**LLM serving — paths that exist on the engine:**
+
+```bash
+curl http://98dci4-gpu-0003:18800/v1/models                  # catalog + ambix metadata
+curl http://98dci4-gpu-0003:18800/v1/messages       -d @body  # Anthropic native, SSE-capable
+curl http://98dci4-gpu-0003:18800/v1/messages/count_tokens -d @body
+curl http://98dci4-gpu-0003:18800/v1/chat/completions -d @body # OpenAI
+```
+
+The Anthropic surface is complete — streaming emits real `thinking` content
+blocks and tool definitions are accepted — which is why a consumer points
+`ANTHROPIC_BASE_URL` straight at the origin and needs no translating proxy.
+
+**The model id is the profile's `served_name`, not its slug:**
+
+| Profile slug | Model id a client sends |
+|---|---|
+| `deepseek-v4-flash`, `deepseek-v4-flash-2x` | `deepseek-v4-flash` |
+| `glm-5-2`, `glm-5-2` INT4 variants | `glm-5.2` |
+| `glm-5-3`, `glm-5-3` FP8 variant | `glm-5.3` |
+| `minimax-m2-7` | `minimax-m2.7` |
+| `minimax-m3` | `minimax-m3` |
+
+One release keeps one client-visible name across every card count, so a
+consumer never has to know which node size answered.
+
+**Embeddings — a different API, so do not send it OpenAI requests:**
+
+```bash
+curl http://98dci4-gpu-0002:18765/health                       # 200 when ready
+curl http://98dci4-gpu-0002:18765/info                         # model, device, dims, stats
+curl http://98dci4-gpu-0002:18765/embed -H 'Content-Type: application/json' \
+     -d '{"texts":["plasma current"]}'                          # -> {"embeddings":[[...]]}
+```
+
+Paths are `/embed`, `/health`, `/info`, `/workers` — there is **no `/v1/`
+prefix** and no `/v1/embeddings`. Qwen3-Embedding-0.6B on a P100, native
+dimension 1024 reduced to 256 on output, L2-normalised.
+
+**Auth:** a serve is open unless launched with `--auth` (§4). Where a key IS
+enforced it is `AMBIX_AGENT_API_KEY` in the shared `agents/.env`, and the engine
+accepts it **only** as `Authorization: Bearer` — never `x-api-key`.
+
 ## 4. Composable Agent CLI
 
 The `imas-ambix agent` CLI manages LLM deployments via TOML model profiles:
@@ -209,12 +270,32 @@ imas-ambix agent setup vllm                   # Install, then verify on the serv
 imas-ambix agent download kimi-k2-6           # Submit SLURM download job (sirius partition)
 imas-ambix agent serve kimi-k2-6              # Submit SLURM serve job (betelgeuse partition)
 imas-ambix agent serve kimi-k2-6 --dry-run    # Print script without submitting
+imas-ambix agent serve glm-5-3 --gpus 4 --cpus 12 --port 18801   # coexist with another serve
+imas-ambix agent serve glm-5-3 --auth         # Require a key; open endpoint is the DEFAULT
 imas-ambix agent status                        # Jobs + connection block (URL, key, readiness)
 imas-ambix agent key --rotate                 # Operator-only authenticated-backend maintenance
 imas-ambix agent clive --deploy               # Generate+deploy the clive launcher (see §4a)
 ```
 
 Adding a new model: create a TOML file in `imas_ambix/agent/profiles/<slug>.toml`.
+
+**A serve is an OPEN endpoint by default; `--auth` opts in.** The cluster is the
+authentication boundary, and the shared key is readable only inside the
+`sdcc-imas_gpu` group, so a keyed endpoint locks the standalone launcher out of
+the endpoint it exists to reach. Naming `--api-key` arms enforcement on its own;
+asking for `--auth` with no resolvable key is a launch error, not a downgrade to
+an open port. There is no `--no-auth` — it fails loudly.
+
+**Cores do not follow cards, and `--gpus` no longer scales them.** A serve runs
+one API server, one engine core and one worker per rank, each mostly blocked on
+the device, so a full-GPU profile declares 12 cores at four cards and 16 at
+eight — not the 30-core reservation ceiling. The exception is mechanism, not
+preference: a KTransformers profile computes cold experts on the host, so
+`glm-5-1`, `kimi-k2-6` and `mimo-v2-5-pro` legitimately keep 30. Probe with
+`srun --test-only --reservation=gpu_0003_grpA --account=grpa --gres=gpu:N
+--cpus-per-task=M --mem=… true` before raising any of them, and use `--cpus` for
+a one-off. Taking the ceiling is what leaves a co-running job pending on
+`Resources` while every GPU it wants sits idle.
 
 **Operator authority (binding):** setup, download, serve, key rotation, global
 endpoint configuration, and deployment are operator work. Run those commands
@@ -337,10 +418,11 @@ launched against the installed engine, because doing so needs all eight cards an
 is sequenced after the four-card serve. The 112K figure is the 224K that was
 measured with an FP8 KV pool, halved for the bf16 entry size the installed engine
 forces. Re-measure the startup KV line before quoting any ceiling.
-³ **The GLM-5.3 profiles are stubs and not usable.** The weights were announced
-but are not open-source as of 2026-08-26, and the license is unconfirmed. Do not
-submit a download or a serve against them until both are resolved; the INT4 stub
-additionally has no real checkpoint repository to point at.
+³ **GLM-5.3 is downloaded and servable.** Both checkpoints are on disk as of
+2026-09-01: the four-card INT4 requant at 321 GiB (248 files) and the vendor FP8
+release at 704 GiB (149 files). The FP8 release fills the node, so the INT4
+variant is the one that coexists with another serve. The upstream license is
+still unconfirmed — treat output accordingly — but nothing blocks a serve.
 
 **Kimi-K2.6** — CPU-offloaded via KTransformers. 5 tok/s, best code quality (SWE 65.8%).
 **DeepSeek V4-Flash** — Full GPU, FP4+FP8. 500–800 tok/s est., 1M context, MIT license.

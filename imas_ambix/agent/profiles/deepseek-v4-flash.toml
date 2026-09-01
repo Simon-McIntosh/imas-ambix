@@ -71,19 +71,27 @@ VLLM_USE_FLASHINFER_SAMPLER = "0"
 tool_call = "deepseek_v4"
 reasoning = "deepseek_v4"
 
+# Host cores for a full-GPU serve. Cores do NOT scale with cards: the engine
+# runs one API server, one engine core, and one worker per tensor-parallel rank,
+# and every worker spends most of its time blocked on the device. What the extra
+# cores would buy is detokenization headroom at high concurrency, which is far
+# below the reservation ceiling. Requesting the ceiling instead is what leaves a
+# co-running job pending on cores while the cards it wants sit idle, on a node
+# carrying two overlapping 30-core reservations. Probe with `srun --test-only`
+# before raising this, and use `serve --cpus N` for a one-off.
 [slurm]
 gpus = 4
-cpus = 30
+cpus = 12
 memory = "300G"
 time_serve = "7-00:00:00"
 time_download = "24:00:00"
 
 # ─── Eight-card deployment ───────────────────────────────────────────────
-# Selected by `serve deepseek-v4-flash --gpus 8`. Declared rather than left to
-# proportional scaling because the core count does NOT scale: this node carries
-# two overlapping 30-core reservations, so 30 is the schedulable ceiling for a
-# job of any width here and a doubled request pends forever on Resources while
-# every GPU sits idle.
+# Selected by `serve deepseek-v4-flash --gpus 8`. Cores are declared rather than
+# derived, because they do not follow the card count: eight ranks need four more
+# support cores than four ranks, not double. The node carries two overlapping
+# 30-core reservations, so a request scaled off the card count exhausts the
+# schedulable pool and then pends on Resources while every GPU sits idle.
 #
 # One checkpoint serves every card count -- unlike GLM, whose card counts need
 # different weights -- so only the topology and the KV budget move. This
@@ -95,5 +103,5 @@ max_total_tokens = 1048576
 
 [gpu_variants.8.slurm]
 gpus = 8
-cpus = 30
+cpus = 16
 memory = "600G"

@@ -108,11 +108,13 @@ reasoning = "glm45"
 # All 8 cards — this run fills the node (the GLM-5.2 FP8 checkpoint needs the
 # whole 8×H200 VRAM, so no other GPU job can coexist). Check squeue first.
 gpus = 8
-# 30 = the full grpA reservation core count (probed 2026-06-25: `gpu:8 cpus=30`
-# starts immediately; cpus=60 is denied — the node's other 30 cores belong to
-# grpB's overlapping reservation, and betelgeuse refuses jobs without our
-# reservation). 30 is therefore the schedulable ceiling for an 8-GPU job.
-cpus = 30
+# Cores for a device-bound engine, not the reservation ceiling. 30 is what the
+# reservation grants and an 8-card serve does start with it, but taking all of it
+# leaves nothing schedulable for a co-running job; the node's other 30 cores
+# belong to grpB's overlapping reservation, so this pool is the whole budget.
+# Sixteen covers one API server, one engine core, eight ranks and detokenization
+# headroom. Probe with `srun --test-only` before raising it.
+cpus = 16
 memory = "640G"
 time_serve = "7-00:00:00"
 time_download = "24:00:00"

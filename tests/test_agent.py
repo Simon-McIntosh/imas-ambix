@@ -121,7 +121,7 @@ def test_load_deepseek_v4_flash_2x_inherits_base():
     # Overridden topology
     assert variant.engine.tensor_parallel == 2
     assert variant.slurm.gpus == 2
-    assert variant.slurm.cpus == 15
+    assert variant.slurm.cpus != base.slurm.cpus
     assert variant.slurm.memory == "200G"
 
     # Inherited engine settings
@@ -590,6 +590,52 @@ def test_running_jobs_reports_scheduler_failure(monkeypatch):
     )
     with pytest.raises(Exception, match="denied"):
         cli_mod._running_jobs(SiteConfig())
+
+
+@pytest.mark.parametrize("gpus", [2, 4, 8])
+def test_card_count_override_never_inflates_host_cores(gpus):
+    """Cores must not follow the card count off a profile default.
+
+    An engine's cores run one API server, one engine core and one worker per
+    rank, and every worker is mostly blocked on the device, so a count derived
+    from cards exhausts a reservation two groups share and strands a co-running
+    job on cores beside idle GPUs.
+    """
+    from imas_ambix.agent.cli import _scale_profile
+
+    base = load_profile("deepseek-v4-flash")
+    resolved = _scale_profile(base, gpus)
+    assert resolved.slurm.gpus == gpus
+    assert resolved.engine.tensor_parallel == gpus
+
+    # Cores come from exactly one of two places: a variant that declares them
+    # for this topology, or the base inherited unchanged. Never a ratio.
+    declared = (base.gpu_variants.get(gpus) or {}).get("slurm", {}).get("cpus")
+    assert resolved.slurm.cpus == (declared or base.slurm.cpus)
+
+    # Host memory does still follow the cards, since it stages the weights.
+    assert resolved.slurm.memory != base.slurm.memory or gpus == base.slurm.gpus
+
+
+def test_every_full_gpu_serve_leaves_reservation_headroom():
+    """A full-GPU profile must not claim the whole shared core reservation.
+
+    Host cores are load-bearing only where experts are computed on the host, so
+    a device-resident engine asking for the reservation ceiling is what leaves a
+    neighbour pending on cores. CPU-offloading engines are exempt by mechanism.
+    """
+    from imas_ambix.agent.profile import list_profiles
+
+    reservation_cores = 30
+    offenders = []
+    for slug in list_profiles():
+        profile = load_profile(slug)
+        if profile.engine.type == "ktransformers":
+            continue  # cold experts are computed on the host; cores are the work
+        for resolved in [profile, *(profile.for_gpus(n) for n in (2, 4, 6, 8))]:
+            if resolved.slurm.cpus >= reservation_cores:
+                offenders.append((slug, resolved.slurm.gpus, resolved.slurm.cpus))
+    assert not offenders, f"full-GPU serves claiming the reservation: {offenders}"
 
 
 def test_endpoint_requires_key_reads_the_endpoint_not_the_key_file(monkeypatch):

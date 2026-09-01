@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="glm-53-serve-and-wiring">
+  <meta name="plan-title" content="GLM-5.3 Serve and Wiring — the second engine that makes the surface multi-model">
+  <meta name="plan-summary" content="Bring GLM-5.3 up on its own port beside DeepSeek and wire it through the catalog, picker and alias slots">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="3.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="moderate">
+  <meta name="plan-sprint" content="S24">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <meta name="plan-blocks" content="serving-endpoint-indirection">
+  <title>GLM-5.3 Serve and Wiring | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-01">
+<meta name="plan-version" content="2">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Why this comes first</h2>
+    <p>Every other item in this sprint is about serving more than one model, and none of
+    them can be <em>proven</em> until a second model is actually listening. The router's
+    acceptance test is that one origin lists two releases and routes each to the right
+    engine; the launch surface's is that a picker shows two rows with honest topology
+    labels. Both need this. So this plan is a prerequisite of the router rather than a
+    consequence of it, and it is the one item that is ready to start with nothing
+    outstanding.</p>
+    <p>It is also ready in the literal sense. The profile was corrected to name the
+    artifacts actually published, the download completed on 2026-09-01, and both
+    checkpoints are on disk:</p>
+    <table>
+      <thead><tr><th>Variant</th><th>Checkpoint</th><th>On disk</th><th>Cards</th><th>Coexists with the 2-card DeepSeek serve</th></tr></thead>
+      <tbody>
+        <tr><td>four-card</td><td>community INT4 requant</td><td>321 GiB, 248 files</td><td>4</td><td>yes — 6 of 8 cards, 2 spare</td></tr>
+        <tr><td>eight-card</td><td>vendor FP8</td><td>704 GiB, 149 files</td><td>8</td><td>no — fills the node</td></tr>
+      </tbody>
+    </table>
+    <p>The INT4 variant is therefore the multi-model deployment and the FP8 release is an
+    alternative to concurrency, not a part of it. Budgets, admission control and the
+    service statement belong to <code>multi-model-serving-capacity</code>; this plan owns
+    the bringup and the wiring.</p>
+
+    <h2 id="s2">§2 — Bringing it up beside DeepSeek</h2>
+    <p>A second engine needs a second port, because one process serves one model and both
+    default to the same one. The launch is therefore explicit about port as well as
+    topology:</p>
+    <pre>imas-ambix agent serve glm-5-3 --gpus 4 --cpus 12 --port 18801</pre>
+    <p>No auth flag: an open endpoint is now the default. Cores are declared rather than
+    derived — they do not follow the card count — and 12 is the profile's own figure for
+    four cards, which leaves the reservation's shared pool usable by the physics jobs that
+    run on this node. Probe it before committing, as with every serve here:</p>
+    <pre>srun --test-only --partition=betelgeuse --reservation=gpu_0003_grpA \
+     --account=grpa --gres=gpu:4 --cpus-per-task=12 --mem=320G --time=00:01:00 true</pre>
+    <p><strong>Reaching a ready state is not evidence that this engine works.</strong> The
+    sparse-MLA attention kernel claims roughly 8 GiB per card lazily on the
+    <em>first real decode</em>, so a launch that reports ready with a thin reserve dies on
+    its first request — that is exactly how a sibling deployment failed after a clean
+    startup. Validation is a real generation, and the context ceiling is read from the
+    engine's own startup pool line rather than computed: this architecture replicates a
+    compressed attention latent on every rank instead of sharding it, so more cards buy
+    context only by shrinking weights per card, and arithmetic has already been wrong
+    about the runtime overhead by about 12 GiB on a neighbouring variant.</p>
+
+    <h2 id="s3">§3 — Wiring it through to a consumer</h2>
+    <p>A running engine nobody can select is not a served model. Four things must be true,
+    and each has a distinct failure mode:</p>
+    <ul>
+      <li><strong>The catalog</strong> must carry this release with intact launch-owned
+      metadata — accelerator family, a card count of 2, 4, 6 or 8, and checkpoint
+      precision — because the launcher fails closed on an incompletely annotated entry
+      rather than degrading. Note the precision differs by variant here (<code>int4</code>
+      against <code>fp8</code>), unlike DeepSeek where one checkpoint serves every width,
+      so this is the first release that will exercise per-variant metadata.</li>
+      <li><strong>The union</strong> — both releases at one origin — is verified in the
+      router's plan, not here, and that is why this plan is its prerequisite rather than
+      its consequence. Everything in this section is checkable against this engine's own
+      port, so nothing here waits on the router; the router then cannot close until this
+      engine exists to be listed beside the first.</li>
+      <li><strong>The client-visible name</strong> is <code>glm-5.3</code> — the profile's
+      served name, not its slug, and the same name at every card count so a consumer never
+      has to know which node size answered.</li>
+      <li><strong>Tool calling and reasoning must actually work through the harness.</strong>
+      This release uses different parsers from DeepSeek, and an agentic consumer is
+      useless without tool calls. Verify a real tool-use round trip and a reasoning
+      response against this engine specifically; do not carry the DeepSeek result over.</li>
+    </ul>
+    <p>Once selectable, it becomes the second local release in the launch surface, which
+    is what gives the alias mapping something to distribute: one local release for bulk
+    and parallel work and a second for the other local slot, per
+    <code>clive-launch-modes</code>.</p>
+
+    <h2 id="s4">§4 — Done-when</h2>
+    <ul>
+      <li>The four-card INT4 deployment serves on its own port beside the DeepSeek serve,
+      sized from a scheduler probe, with 6 of 8 cards in use and the shared core pool not
+      exhausted.</li>
+      <li>Its context ceiling is quoted from the engine's startup pool line, and a real
+      generation succeeds — not merely a ready state.</li>
+      <li>A tool-use round trip and a reasoning response both succeed against this engine.</li>
+      <li>The release appears in the catalog with complete metadata and correct
+      per-variant precision, and the generated launcher lists and selects it with no
+      source change.</li>
+      <li>The eight-card FP8 deployment is measured once for single-model quality and
+      explicitly recorded as an alternative to concurrency rather than a default.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="second-serve-port" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Is the second engine&#x27;s port a fixed convention, or allocated per serve and discovered?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="fixed-convention">fixed-convention</button>
+      <button class="r-opt" data-value="allocated-and-discovered">allocated-and-discovered</button>
+      </p>
+    <p class="r-dec-rat">Recommendation: allocated and discovered. A fixed convention
+        is simpler to type but becomes a second thing consumers learn and a collision
+        waiting to happen once more than two engines run; the router already has to
+        resolve upstreams dynamically, so discovery costs nothing extra and keeps the port
+        an implementation detail behind one origin.</p>
+    </div>
+<div class="r-dec" data-key="speculative-decoding" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Is speculative decoding enabled for this release, or left off pending measurement?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="measure-first">measure-first</button>
+      <button class="r-opt" data-value="enable">enable</button>
+      </p>
+    <p class="r-dec-rat">Recommendation: measure first, and expect it to be
+        unavailable. This checkpoint does quantize a draft head, but the engine could not
+        construct a draft against a compressed-tensors mixture-of-experts on the
+        neighbouring variant, and the same loader path applies. Where drafting did work it
+        cost single-stream throughput at low concurrency, which is the regime an
+        interactive consumer sits in.</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-gsw-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-written-by="reckon-create" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship glm-53-serve-and-wiring" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Serve the four-card INT4 deployment on its own port and prove it end to end</h4>
+    <div class="r-fu-body">Nothing is outstanding: the profile names the published artifacts, both checkpoints are on disk, and an open endpoint is the serve default. Probe cores with <code>srun --test-only</code>, then <code>serve glm-5-3 --gpus 4 --cpus 12 --port 18801</code> beside the running DeepSeek serve for 6 of 8 cards. Two traps to respect rather than rediscover: a ready state is not evidence, because the sparse-MLA kernel claims ~8 GiB/card lazily on the FIRST real decode and a thin reserve produces a clean launch that dies on its first request; and the context ceiling comes from the engine's startup pool line, not arithmetic, which has already been ~12 GiB wrong about runtime overhead on the neighbouring variant. Verify a tool-use round trip and a reasoning response against THIS engine — it uses different parsers from DeepSeek and an agentic consumer is useless without tool calls.</div>
+    <pre class="r-fu-prompt">/reckon-ship glm-53-serve-and-wiring</pre>
+    </article>
+</section>
+  </main>
+</body>
+</html>

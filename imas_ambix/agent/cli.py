@@ -216,8 +216,14 @@ def _load_profile(slug: str | None):
 def _scale_profile(profile, gpus: int):
     """Return a copy of *profile* with GPU count and dependent resources scaled.
 
-    Adjusts ``engine.tensor_parallel``, ``slurm.gpus``, ``slurm.cpus``, and
-    ``slurm.memory`` proportionally.  The caller's profile is not mutated.
+    Adjusts ``engine.tensor_parallel``, ``slurm.gpus`` and ``slurm.memory``.
+    Host memory scales because it stages weights, whose footprint follows the
+    card count; ``slurm.cpus`` deliberately does NOT, because an engine's cores
+    run one API server, one engine core and one worker per rank, and every
+    worker spends most of its time blocked on the device. Scaling them off cards
+    exhausts a reservation that two groups share and leaves a co-running job
+    pending on cores beside idle GPUs. Override a single launch with ``--cpus``.
+    The caller's profile is not mutated.
     """
     # A declared variant for this card count carries its own checkpoint and
     # sizing, so it replaces proportional scaling rather than being scaled.
@@ -232,12 +238,11 @@ def _scale_profile(profile, gpus: int):
     mem_val = int(mem_str[:-1])
     mem_unit = mem_str[-1]
     new_memory = f"{max(1, round(mem_val * ratio))}{mem_unit}"
-    new_cpus = max(1, round(profile.slurm.cpus * ratio))
     return profile.model_copy(
         deep=True,
         update={
             "slurm": profile.slurm.model_copy(
-                update={"gpus": gpus, "cpus": new_cpus, "memory": new_memory}
+                update={"gpus": gpus, "memory": new_memory}
             ),
             "engine": profile.engine.model_copy(update={"tensor_parallel": gpus}),
         },
