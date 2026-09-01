@@ -2113,7 +2113,10 @@ def test_generate_clive_script_embeds_standalone_global_contract():
     site = SiteConfig(global_origin="http://catalog.example:19444/")
     script = generate_clive_script(site)
 
-    assert 'if [[ "$CLIVE_OPENROUTER" != "1" ]]; then' in script
+    assert 'MODE="local"' in script
+    assert "--mode local|hybrid" in script
+    assert 'if [[ "$MODE" == "local" ]]; then' in script
+    assert "CLIVE_OPENROUTER" not in script
     assert "GLOBAL_ORIGIN=http://catalog.example:19444" in script
     assert 'origin + "/v1/models"' in script
     assert "urllib.request" in script
@@ -2186,7 +2189,6 @@ def test_clive_readable_openrouter_key_does_not_reach_proxy(tmp_path):
                 "AMBIX_AGENT_KEY_FILE": str(key_file),
             }
         )
-        env.pop("CLIVE_OPENROUTER", None)
         result = subprocess.run(
             [str(launcher)], capture_output=True, text=True, check=False, env=env
         )
@@ -2206,6 +2208,7 @@ def test_clive_readable_openrouter_key_does_not_reach_proxy(tmp_path):
 
 def test_clive_clean_directory_uses_no_forbidden_consumer_dependency(tmp_path):
     """Sentinels prove the shared path needs only Bash, Python, and a harness."""
+    import json
     import shutil
     import subprocess
 
@@ -2225,7 +2228,8 @@ def test_clive_clean_directory_uses_no_forbidden_consumer_dependency(tmp_path):
     _write_executable(
         fake_bin / "claude",
         "#!/bin/bash\n"
-        f'printf \'%s\\n\' "$ANTHROPIC_BASE_URL" "$ANTHROPIC_MODEL" "$*" > {trace}\n',
+        f'printf \'%s\\n\' "$ANTHROPIC_BASE_URL" "$ANTHROPIC_MODEL" > {trace}\n'
+        f'printf \'%s\\n\' "$@" >> {trace}\n',
     )
     tempting_key = tmp_path / "consumer.env"
     tempting_key.write_text("AMBIX_AGENT_API_KEY=file-only-private-key\n")
@@ -2263,7 +2267,16 @@ def test_clive_clean_directory_uses_no_forbidden_consumer_dependency(tmp_path):
             assert "private-secret" not in result.stdout + result.stderr
 
         assert traces[0] == traces[1]
-        assert traces[0].splitlines() == [site.global_origin, "glm-5.3", "prompt"]
+        trace_lines = traces[0].splitlines()
+        assert trace_lines[:2] == [site.global_origin, "glm-5.3"]
+        arguments = trace_lines[2:]
+        assert arguments[0] == "--settings"
+        settings = json.loads(arguments[1])
+        assert settings["modelPicker"]["replaceBuiltInOptions"] is True
+        assert settings["modelPicker"]["options"][0]["model"] == "glm-5.3"
+        assert arguments[2] == "--append-system-prompt"
+        assert "sonnet alias is the primary local worker" in arguments[3]
+        assert arguments[4:] == ["prompt"]
         assert all("Authorization" not in headers for _, headers in requests)
     assert not forbidden_marker.exists()
 
@@ -2452,7 +2465,11 @@ def test_clive_unreachable_catalog_never_falls_back_to_openrouter(tmp_path):
     probe.close()
     launcher = tmp_path / "clive"
     launcher.write_text(
-        generate_clive_script(SiteConfig(global_origin=f"http://{host}:{port}")),
+        generate_clive_script(
+            SiteConfig(global_origin=f"http://{host}:{port}"),
+            mode="hybrid",
+            openrouter_native_release="configured-release",
+        ),
         encoding="utf-8",
     )
     launcher.chmod(0o755)
@@ -2463,7 +2480,7 @@ def test_clive_unreachable_catalog_never_falls_back_to_openrouter(tmp_path):
     env = os.environ.copy()
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
     result = subprocess.run(
-        [str(launcher), "--openrouter"],
+        [str(launcher), "--mode", "hybrid"],
         capture_output=True,
         text=True,
         check=False,
@@ -2507,13 +2524,15 @@ def test_clive_redirect_catalog_fails_without_leaving_global_origin(tmp_path):
         launcher = tmp_path / "clive"
         launcher.write_text(
             generate_clive_script(
-                global_site, openrouter_native_release="redirected-release"
+                global_site,
+                mode="hybrid",
+                openrouter_native_release="redirected-release",
             ),
             encoding="utf-8",
         )
         launcher.chmod(0o755)
         result = subprocess.run(
-            [str(launcher), "--openrouter"],
+            [str(launcher), "--mode", "hybrid"],
             capture_output=True,
             text=True,
             check=False,
@@ -2540,9 +2559,17 @@ def test_clive_operator_command_removes_hidden_consumer_machine_api():
         assert retained in result.output
 
 
-@pytest.mark.parametrize("opt_in", ["flag", "environment"])
-def test_clive_openrouter_opt_in_starts_proxy_and_presents_picker(tmp_path, opt_in):
-    """Either explicit opt-in starts the proxy and exports all picker slots."""
+@pytest.mark.parametrize(
+    "mode_arguments",
+    [
+        ("--mode", "hybrid", "--claude"),
+        ("--claude", "--mode", "hybrid"),
+    ],
+)
+def test_clive_openrouter_opt_in_starts_proxy_and_presents_picker(
+    tmp_path, mode_arguments
+):
+    """Explicit hybrid selection starts the proxy and exports every picker slot."""
     import os
     import socket
     import subprocess
@@ -2591,21 +2618,28 @@ def test_clive_openrouter_opt_in_starts_proxy_and_presents_picker(tmp_path, opt_
             "PATH": f"{fake_bin}:{env['PATH']}",
         }
     )
-    with _serve_catalog({"data": [_catalog_item("served-local-model")]}) as (
-        site,
-        _requests,
-    ):
+    with _serve_catalog(
+        {
+            "data": [
+                _catalog_item("served-local-model"),
+                _catalog_item("served-secondary-model", count=4),
+            ]
+        }
+    ) as (site, _requests):
         script = generate_clive_script(
-            site, openrouter_native_release="served-local-model"
+            site,
+            mode="hybrid",
+            openrouter_native_release="served-local-model",
         ).replace('LITELLM_PORT="18399"', f'LITELLM_PORT="{proxy_port}"')
         launcher = tmp_path / "clive"
         launcher.write_text(script, encoding="utf-8")
         launcher.chmod(0o755)
-        command = [str(launcher)]
-        if opt_in == "flag":
-            command.append("--openrouter")
-        else:
-            env["CLIVE_OPENROUTER"] = "1"
+        command = [
+            str(launcher),
+            *mode_arguments,
+            "--model",
+            "served-local-model",
+        ]
         result = subprocess.run(
             command,
             capture_output=True,
@@ -2618,13 +2652,13 @@ def test_clive_openrouter_opt_in_starts_proxy_and_presents_picker(tmp_path, opt_
     assert result.returncode == 0, result.stderr
     assert accepted == [True]
     assert "start imas-ambix-llm.service" in proxy_marker.read_text(encoding="utf-8")
-    assert "or-opus-4.8, or-sonnet-4.6, or-gpt-5.5, or-glm-5.2" in result.stderr
+    assert "or-opus-4.8, or-gpt-5.5, or-glm-5.2" in result.stderr
     assert trace.read_text(encoding="utf-8").splitlines() == [
         f"http://127.0.0.1:{proxy_port}",
         "served-local-model",
-        "served-local-model",
+        "served-secondary-model",
         "or-opus-4.8",
-        "or-sonnet-4.6",
+        "served-local-model",
         "or-gpt-5.5",
         "or-glm-5.2",
     ]
@@ -2657,12 +2691,16 @@ def test_clive_openrouter_rejects_unconfigured_dynamic_release_before_proxy(
         config = generate_litellm_config(site, "profile-alias")
         launcher = tmp_path / "clive"
         launcher.write_text(
-            generate_clive_script(site, openrouter_native_release="profile-alias"),
+            generate_clive_script(
+                site,
+                mode="hybrid",
+                openrouter_native_release="profile-alias",
+            ),
             encoding="utf-8",
         )
         launcher.chmod(0o755)
         result = subprocess.run(
-            [str(launcher), "--openrouter"],
+            [str(launcher), "--mode", "hybrid"],
             capture_output=True,
             text=True,
             check=False,
