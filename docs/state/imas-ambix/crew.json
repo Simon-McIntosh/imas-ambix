@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T21:29:05",
+  "updated": "2026-09-01T21:31:35",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -19280,9 +19280,99 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T192924352937-context-raise-to-measured",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a72",
+        "node": "context-raise-to-measured",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_glm_5_3.py -q exits 0 with the four-card assertion updated to 98304, and uv run --no-sync ruff check imas_ambix tests --no-cache still exits 0. A four-card sweep proved 98304 at memory fraction 0.94: the engine reported a 13.92 GiB pool, 161280 cached tokens and 1.64x concurrency, and a real streaming decode returned coherent correct text. 131072 failed at KV initialisation needing 11.31 GiB against 10.42 available, with the engine estimating its own ceiling at 120768. Set max_total_tokens to 98304 and leave the memory fraction at 0.94, which is the pairing that was proven. Replace the profile comment's rationale with these measured figures, and state the trade explicitly: concurrency falls from 2.45x to 1.64x, and the engine's own estimated ceiling is 120768 so this is a proven point rather than the maximum. Leave the eight-card FP8 variant untouched.",
+          "estimated_hours": null,
+          "goal": "Raise the four-card context to the largest value proven to serve",
+          "id": "context-raise-to-measured",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T192924352937-context-raise-to-measured/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "20m",
+          "write_paths": [
+            "imas_ambix/agent/profiles/glm-5-3.toml",
+            "tests/test_agent_glm_5_3.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-w4a8-profile",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T19:29:32Z",
+        "completed_at": "2026-09-01T19:31:25Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 113,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 113,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "f0b62c5a6e14b3a31eb312e9232d2cf2ec5e27c9",
+        "commits": [
+          "94d140cea085c22d8cee85ac3afef77f7a3936c3"
+        ],
+        "changed_lines": {
+          "added": 10,
+          "removed": 9,
+          "files": 2
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_glm_5_3.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T192924352937-context-raise-to-measured/manifest.md",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T192924352937-context-raise-to-measured/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05d17-d9be-7bf3-9bda-508c6e3c03ea",
+        "budget": {
+          "cost_usd": null,
+          "detail": "",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_glm_5_3.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 442
+    "_version": 443
   }
 }
