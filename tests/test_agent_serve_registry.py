@@ -115,7 +115,7 @@ def test_generated_serve_script_owns_registration_lifecycle(tmp_path):
     assert '--port "$PORT"' in script
     assert '--job-id "$SLURM_JOB_ID"' in script
     assert '--accelerator-count "${SLURM_GPUS_ON_NODE:-4}"' in script
-    assert "--checkpoint-precision int4" in script
+    assert f"--checkpoint-precision {profile.model.checkpoint_precision}" in script
     assert "-m imas_ambix.agent.registry remove" in script
     assert "trap cleanup_serve EXIT" in script
     assert "trap terminate_serve TERM INT" in script
