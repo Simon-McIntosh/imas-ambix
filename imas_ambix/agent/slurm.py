@@ -642,6 +642,77 @@ def generate_serve_script(
     return "\n".join([*headers, "", script_body, ""])
 
 
+def generate_router_script(
+    site: SiteConfig,
+    *,
+    port: int,
+    cpus: int = 2,
+    memory: str = "8G",
+    max_in_flight: int = 2,
+    max_queued: int = 4,
+    retry_after_seconds: int = 5,
+) -> str:
+    """Generate a CPU-only SLURM script for the standing router endpoint."""
+    if not 1 <= port <= 65535:
+        raise ValueError("port must be between 1 and 65535")
+    if cpus < 1:
+        raise ValueError("cpus must be positive")
+    if not memory.strip():
+        raise ValueError("memory must not be empty")
+    if max_in_flight < 1:
+        raise ValueError("max_in_flight must be positive")
+    if max_queued < 0:
+        raise ValueError("max_queued must not be negative")
+    if retry_after_seconds < 1:
+        raise ValueError("retry_after_seconds must be positive")
+
+    headers = _sbatch_headers(
+        job_name="ambix-router",
+        partition=site.partition,
+        account=site.account,
+        reservation=site.reservation,
+        gpus=0,
+        cpus=cpus,
+        memory=memory,
+        time_limit="0",
+        output_name="ambix-router-%j.log",
+    )
+    headers.append(f"#SBATCH --comment=ambix-router;port={port}")
+    repo_root = Path(__file__).resolve().parents[2]
+    command = shlex.join(
+        [
+            str(site.python_path("vllm")),
+            "-c",
+            "from imas_ambix.cli import main; main()",
+            "agent",
+            "router",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            str(port),
+            "--max-in-flight",
+            str(max_in_flight),
+            "--max-queued",
+            str(max_queued),
+            "--retry-after-seconds",
+            str(retry_after_seconds),
+        ]
+    )
+    script_body = dedent(
+        f"""
+        set -euo pipefail
+
+        export TMPDIR=/scratch_local/$SLURM_JOB_ID
+        mkdir -p "$TMPDIR"
+        export PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}}
+
+        echo "[$(date)] Starting keyless Ambix router on $(hostname):{port}"
+        exec {command}
+        """
+    ).strip()
+    return "\n".join([*headers, "", script_body, ""])
+
+
 def generate_download_script(profile: ModelProfile, site: SiteConfig) -> str:
     """Generate a SLURM batch script for downloading model weights.
 
