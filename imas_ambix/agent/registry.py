@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
 _SAFE_JOB_ID = re.compile(r"^[A-Za-z0-9_.-]+$")
+_ROUTER_COMMENT_PREFIX = "ambix-router;"
 
 
 @dataclass(frozen=True, slots=True)
@@ -378,6 +379,48 @@ def publish_endpoint_document(
     )
 
 
+def discover_routing_origins(
+    endpoints: Sequence[PublishedEndpoint], jobs: Sequence[dict[str, str]]
+) -> tuple[PublishedOrigin, ...]:
+    """Qualify scheduler-discovered routers against every published release."""
+    from imas_ambix.agent.cli import (
+        _SERVE_COMMENT_PREFIX,
+        _job_node,
+        _probe_endpoint,
+        _serve_port,
+    )
+
+    required_models = {endpoint.model_id for endpoint in endpoints}
+    if not required_models:
+        return ()
+    origins: list[PublishedOrigin] = []
+    seen_origins: set[str] = set()
+    for job in jobs:
+        comment = job.get("comment", "")
+        if job.get("state") != "RUNNING" or not comment.startswith(
+            _ROUTER_COMMENT_PREFIX
+        ):
+            continue
+        node = _job_node(job)
+        port = _serve_port(
+            _SERVE_COMMENT_PREFIX + comment.removeprefix(_ROUTER_COMMENT_PREFIX)
+        )
+        if node is None or port is None:
+            continue
+        origin = f"http://{node}:{port}"
+        if origin in seen_origins:
+            continue
+        probe = _probe_endpoint(origin, None)
+        if probe.readiness != "ready":
+            continue
+        available_models = {model.model_id for model in probe.models}
+        if not required_models.issubset(available_models):
+            continue
+        origins.append(PublishedOrigin(host=node, port=port))
+        seen_origins.add(origin)
+    return tuple(sorted(origins, key=lambda item: (item.host, item.port)))
+
+
 def _fetch_anonymous_catalog(origin: str) -> object:
     """Fetch one engine catalog without credentials or ambient proxies."""
     import urllib.error
@@ -441,6 +484,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif args.command == "remove":
         remove_registration(args.job_id, args.directory)
     else:
+        from imas_ambix.agent.cli import _running_jobs
         from imas_ambix.agent.profile import SiteConfig
 
         site = SiteConfig.from_env()
@@ -449,8 +493,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         registrations = read_registrations(
             directory, job_is_running=lambda _job_id: True
         ).current
-        publish_endpoint_document(
-            registrations, output, fetch_catalog=_fetch_anonymous_catalog
+        endpoints = build_endpoint_document(
+            registrations, fetch_catalog=_fetch_anonymous_catalog
+        )
+        write_endpoint_document(
+            endpoints,
+            output,
+            routing_origins=discover_routing_origins(
+                endpoints, _running_jobs(site)
+            ),
         )
     return 0
 
