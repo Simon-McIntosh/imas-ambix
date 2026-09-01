@@ -587,11 +587,11 @@ def generate_serve_script(
             echo "============================================="
             echo "{profile.model.name} is starting on $(hostname):$PORT"
             echo ""
-            echo "Connect from a login node with:"
-            echo "  ssh -N -L $PORT:$(hostname):$PORT <login-node>"
+            echo "Connect directly from a login or standard compute node:"
+            echo "  http://$(hostname):$PORT"
             echo ""
             echo "Then verify with:"
-            echo "  curl http://localhost:$PORT/v1/models"
+            echo "  curl http://$(hostname):$PORT/v1/models"
             echo "============================================="
         fi
 

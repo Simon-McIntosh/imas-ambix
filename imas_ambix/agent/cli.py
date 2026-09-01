@@ -397,7 +397,8 @@ def download(slug: str | None, dry_run: bool) -> None:
     type=int,
     default=None,
     help="Override number of GPUs (and tensor-parallel size). "
-    "Scales cpus and memory proportionally from the profile default.",
+    "Scales memory proportionally from the profile default. Host cores do "
+    "not scale with cards; use --cpus to override them.",
 )
 @click.option(
     "--cpus",
