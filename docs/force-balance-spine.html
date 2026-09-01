@@ -18,10 +18,10 @@
   <title>Force-Balance Spine | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-08-09">
+<meta name="plan-modified" content="2026-09-01">
 <meta name="plan-blocks" content="">
 <meta name="plan-informs" content="">
-<meta name="plan-version" content="10">
+<meta name="plan-version" content="11">
 <meta name="plan-impl" content="1.0">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
@@ -529,6 +529,11 @@ Done-when
     </article>
 </section>
 
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s1" data-id="c-run-r-20260901T131139746205-latent-suite-failures" data-who="s24-latent-repair" data-when="2026-09-01T13:51:37Z">
+    <div class="r-comment-body"><p>42/43 in the three-file gate, up from 40/43. Two failures root-caused and fixed: a stale read of a private operator map removed when declared circuit metadata became authoritative, and a wall-clock measurement destabilised by fleet oversubscription now measured as single-thread CPU time against the same 50 ms bound. A real code defect surfaced too: synthetic and sidecar builders omitted active-circuit declarations, giving 29 passive columns against the operator&#x27;s 35. The basin contrast remains genuinely unmet — warm-axis R measures 1.7836 m at 4.4 kA and 1.7834 m at 5.1 kA against an unchanged 1.4 m threshold, so no field strength tested holds the warm branch. No threshold, skip or xfail was relaxed</p></div>
+</div>
+</section>
+</main>
 </body>
 </html>
