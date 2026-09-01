@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T16:14:41",
+  "updated": "2026-09-01T16:24:25",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -17752,9 +17752,210 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T141505380425-w4a8-context-sizing",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a72",
+        "node": "w4a8-context-sizing",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_glm_5_3.py -q exits 0 with the four-card assertions updated. Measured on job 1260770: at four cards with mem_fraction_static 0.90 the W4A8 build left only 8.32 GiB of KV cache available against 11.31 GiB needed for the configured 131072 tokens, and the engine put its own maximum at 96384. The predecessor INT4 build had reported 20.71 GiB in the same topology, so the ceiling inherited from that measurement no longer fits. Make two changes together, because either alone is insufficient. First raise mem_fraction_static from 0.90 to 0.94, which on a 141 GB card returns roughly 5.6 GB per card to the pool and should approximately double it. Second set max_total_tokens to 65536, which by the measured 11.31 GiB per 131072 tokens needs about 5.7 GiB. That pairing is chosen to leave roughly 8 GiB spare for the sparse-MLA kernel's lazy per-card claim on the first real decode, which is the same headroom reasoning that let the predecessor survive its first decode where the engine maximum would not have. Record both measured figures and that reasoning in the profile comments, replacing any inherited number that came from the previous checkpoint. Assert the four-card resolution reports 65536 and mem_fraction_static 0.94, and that the eight-card FP8 variant is untouched at 204800.",
+          "estimated_hours": null,
+          "goal": "Resize the four-card context and memory budget to what the W4A8 checkpoint actually leaves",
+          "id": "w4a8-context-sizing",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T141505380425-w4a8-context-sizing/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/agent/profiles/glm-5-3.toml",
+            "tests/test_agent_glm_5_3.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-w4a8-profile",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T14:15:16Z",
+        "completed_at": "2026-09-01T14:18:00Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 164,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 164,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "fd4401bf6bd20156b76aa66fa059f1d7548f3957",
+        "commits": [
+          "7f70e653382227eb49476eab39167d4e51e7d9e4"
+        ],
+        "changed_lines": {
+          "added": 12,
+          "removed": 8,
+          "files": 2
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_glm_5_3.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T141505380425-w4a8-context-sizing/pytest.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T141505380425-w4a8-context-sizing/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05d17-d9be-7bf3-9bda-508c6e3c03ea",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 414720,
+            "cached_input_tokens_cumulative": 1995264,
+            "input_tokens": 384187,
+            "input_tokens_cumulative": 2060799,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 5860,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 1270
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_glm_5_3.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260901T141540877437-basin-scout-contrast-retune",
+        "plan": "force-balance-spine",
+        "section": "\u00a71",
+        "node": "basin-scout-contrast-retune",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/latent/test_synthetic_truth.py -q exits 0. The census in /home/ITER/mcintos/.config/reckon/crew/reports/s24-basin-window.md measured 13 field strengths over 0-60 kA and found the contrast the test asserts: at 40 kA the cold fixed-shape seed sits outboard at R=1.790935870 m while the scout reaches the confined basin at R=0.965738423 m, well inside the unchanged 1.4 m threshold, and it holds at eight points from 40 through 54 kA. Retune the declared source strength to 40 kA and keep the test to the scout-versus-fixed-shape contrast, which is exactly what its name states. Remove or separate the additional fragile-profile warm solve, because the census proved it does not converge: its apparently-confined 50 kA snapshot carries residual 0.1475 at 80 steps while a bounded extended solve converges at iteration 153 to an outboard R=1.787247745 m at residual 2.966977e-4, so keeping it would pin a transient. If you separate rather than remove it, the separated test must assert only what converges. Do not change the 1.4 m topology threshold, do not add a skip or xfail, and do not weaken the contrast. Record the two measured radii in the test's own docstring so the next reader sees the numbers the choice rests on rather than the history of how it was chosen.",
+          "estimated_hours": null,
+          "goal": "Settle the basin test on the converged contrast its own name claims",
+          "id": "basin-scout-contrast-retune",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T141540877437-basin-scout-contrast-retune/manifest.md",
+          "plan": "force-balance-spine",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a71",
+          "spec_level": "exact",
+          "time_budget": "40m",
+          "write_paths": [
+            "tests/latent/test_synthetic_truth.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-latent-repair",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T14:15:51Z",
+        "completed_at": "2026-09-01T14:21:57Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 366,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 366,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "fd4401bf6bd20156b76aa66fa059f1d7548f3957",
+        "commits": [
+          "95591ccafba1dba93c678ee631e80d7f39d1c89c"
+        ],
+        "changed_lines": {
+          "added": 20,
+          "removed": 22,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/latent/test_synthetic_truth.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T141540877437-basin-scout-contrast-retune/pytest.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T141540877437-basin-scout-contrast-retune/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05d18-ea81-7520-8aaa-12032b7bea58",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 816384,
+            "cached_input_tokens_cumulative": 4278528,
+            "input_tokens": 862169,
+            "input_tokens_cumulative": 4468920,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 9629,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 2625
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/latent/test_synthetic_truth.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 426
+    "_version": 428
   }
 }
