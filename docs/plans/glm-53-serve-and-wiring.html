@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="14">
+<meta name="plan-version" content="15">
 <meta name="plan-commits" content="3dd736597952c097de5c997b0613b8b166a7558b,53b4fc31f7b7e609f8d14c4b051f1b3d12a4bc65,3bb3d7621b5afa74b3a8752a900966b18c19166e">
 <meta name="plan-artifacts" content="tests/test_agent_glm_5_3.py,docs/evidence/archive/glm-53-serve-and-wiring-landed.html">
 <meta name="plan-impl" content="0.5">
@@ -165,6 +165,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20260901-glm53-profile-tests" data-who="reckon-ship" data-when="2026-09-01T12:40:00+00:00">
     <div class="r-comment-body">glm53-profile-tests landed — commit 3dd7365; gate 'focused GLM-5.3 profile contract' passed; measure 2/2 tests in 0.23s. The four-card base resolves to 4 GPUs, 12 cores, int4, glm-5-3-int4 weights, TP4, bfloat16 KV, 262144 tokens, glm47/glm45 parsers and no speculative flag; --gpus 8 resolves to the vendor FP8 checkpoint on 8 cards and 16 cores at 204800 tokens. Both keep served name glm-5.3, and generated AMBIX_VLLM_CATALOG_METADATA records H200 count 4 with int4 and count 8 with fp8. Per-variant precision is therefore proven at the launch boundary rather than assumed. Artifacts tests/test_agent_glm_5_3.py.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260901T122105779991-int4-coherence-diagnosis" data-who="s24-agentic-probe" data-when="2026-09-01T12:30:03Z">
+    <div class="r-comment-body"><p>Cause localised and our own change exonerated: official tokenizer matches the live endpoint 4/4 exactly on ids and round-trips, the INT4 and official chat templates are byte-identical at 10465 bytes and one SHA-256, yet raw /v1/completions with no chat template emits 32/32 repeated odesk tokens. Tokenizer and template hypotheses ruled out; the community requant weights or their compressed-tensors execution path are at fault. Recommends failing that checkpoint closed and keeping the verified tokenizer pairing</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260901T102815510208-serve-operator-instructions" data-who="s24-router-impl" data-when="2026-09-01T10:34:05Z">
     <div class="r-comment-body"><p>Prohibited ssh -N -L banner replaced by the direct node-and-port origin, and the --gpus help no longer claims host cores scale with cards; 183/183 agent tests pass</p></div>

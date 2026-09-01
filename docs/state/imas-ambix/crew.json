@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T14:20:45",
+  "updated": "2026-09-01T14:38:40",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -796,9 +796,11 @@
         "id": "s24-agentic-probe",
         "harness": "codex",
         "role": "test",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a05cea-93e8-7fa1-976f-1a105e8abc45",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a05cea-93e8-7fa1-976f-1a105e8abc45"
+        },
         "created": "2026-09-01"
       },
       {
@@ -16437,9 +16439,103 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T122105779991-int4-coherence-diagnosis",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a73",
+        "node": "int4-coherence-diagnosis",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-int4-coherence.md names the cause with the evidence that distinguishes it from the alternatives. The live engine is job 1260720 on http://98dci4-gpu-0003:18801, keyless, serving glm-5.3, and it must be LEFT RUNNING - diagnose against it rather than launching another. It is healthy by every structural measure: 241 shards loaded, 20.71 GiB KV pool, 240064-token cache, catalog intact, and the first decode survives. Yet text is incoherent and two tool attempts produced zero tool_use blocks. This deployment is the only one in the tree that pairs weights from one checkpoint with a tokenizer from another, because the community INT4 requant ships no tokenizer, so that pairing is the first suspect. Distinguish at least these: (a) tokenizer or vocabulary mismatch, tested by round-tripping representative strings through both the INT4 directory's own assets and the official tokenizer directory and comparing token ids rather than trusting the matching vocab_size already recorded. (b) chat-template mismatch, tested by comparing the template the INT4 directory carries in chat_template.jinja against whatever template the official tokenizer_config.json embeds, and by sending one completion that bypasses chat formatting to see whether raw continuation is coherent when chat formatting is not applied. (c) a damaged or mislabelled requant, evidenced by incoherence that survives both a correct tokenizer and no chat template at all. State which hypothesis the evidence supports, quote the outputs that decide it, and recommend the concrete change. Do not modify anything under /work, do not edit source, and do not cancel or resubmit any job.",
+          "estimated_hours": null,
+          "goal": "Determine why the served four-card release decodes incoherently, while the engine it runs on is healthy",
+          "id": "int4-coherence-diagnosis",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T122105779991-int4-coherence-diagnosis/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a73",
+          "spec_level": "guided",
+          "time_budget": "40m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-int4-coherence.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "guided",
+        "member": "s24-agentic-probe",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T12:21:11Z",
+        "completed_at": "2026-09-01T12:30:03Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 532,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 532,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "315e2ceacdf44f24152263d5849046b7b7122ec3",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "official tokenizer vs live /tokenize and /detokenize on 4 strings, template SHA-256 comparison, raw POST /v1/completions with no chat template",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/s24-int4-coherence.md",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T122105779991-int4-coherence-diagnosis/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05cea-93e8-7fa1-976f-1a105e8abc45",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 3104256,
+            "cached_input_tokens_cumulative": 3104256,
+            "input_tokens": 3240696,
+            "input_tokens_cumulative": 3240696,
+            "output_tokens": 18654,
+            "output_tokens_cumulative": 18654,
+            "reasoning_output_tokens": 7810,
+            "reasoning_output_tokens_cumulative": 7810
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 402
+    "_version": 404
   }
 }
