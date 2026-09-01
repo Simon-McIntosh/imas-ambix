@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T20:42:45",
+  "updated": "2026-09-01T20:53:01",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -19093,9 +19093,113 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T184723206288-launcher-default-and-labels",
+        "plan": "clive-launch-modes",
+        "section": "\u00a73",
+        "node": "launcher-default-and-labels",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_clive_picker.py tests/test_agent_clive_modes.py tests/test_agent_endpoint_discovery.py -q exits 0 with added assertions, and uv run --no-sync pytest tests/test_agent.py -q still exits 0. Two changes, both about what a person sees. FIRST: an unqualified launch currently prompts for a model when more than one is available. Add a site setting naming the preferred release id, and when it is set and that release is present, an unqualified launch selects it with no prompt while an explicit selector still overrides it and the in-harness picker still switches freely. When the setting is unset, or names a release absent from the document, keep exactly today's behaviour of prompting interactively and requiring a selector non-interactively, because silently picking something else would be worse than asking. SECOND: picker rows currently repeat the whole descriptor in the visible name, so a row reads 'glm-5.3 with topology and context' and its description repeats the same facts. Make the row name the release id alone, for example glm-5.3, and leave topology, precision and context to the description field beside it. Tests assert: with the preferred release set, an unqualified launch resolves to it and emits no prompt; with it unset, the existing prompt and selector behaviour is unchanged; with it naming an absent release, the launch falls back to that same existing behaviour rather than failing or choosing arbitrarily; and every generated picker row's name is exactly its native model id while its description carries the accelerator count, precision and context.",
+          "estimated_hours": null,
+          "goal": "Give an unqualified launch a configured default release and name picker rows by the release alone",
+          "id": "launcher-default-and-labels",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T184723206288-launcher-default-and-labels/manifest.md",
+          "plan": "clive-launch-modes",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/agent/clive.py",
+            "imas_ambix/agent/profile.py",
+            "tests/test_agent_clive_picker.py",
+            "tests/test_agent_clive_modes.py",
+            "tests/test_agent_endpoint_discovery.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-clive-modes",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T18:47:30Z",
+        "completed_at": "2026-09-01T18:52:45Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 315,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 315,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "6a9cb884606e8ea1be58ed9eeeba91d3fc31155b",
+        "commits": [
+          "6fbc48d535d9c1768fb694ccf3778f069e3710f5"
+        ],
+        "changed_lines": {
+          "added": 181,
+          "removed": 12,
+          "files": 5
+        },
+        "tests_added": 3,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_clive_picker.py tests/test_agent_clive_modes.py tests/test_agent_endpoint_discovery.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T184723206288-launcher-default-and-labels/focused-pytest.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T184723206288-launcher-default-and-labels/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c99-a254-70b0-9b28-a7cdeedfa454",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1210880,
+            "cached_input_tokens_cumulative": 2857216,
+            "input_tokens": 1058071,
+            "input_tokens_cumulative": 3044328,
+            "output_tokens": 2115,
+            "output_tokens_cumulative": 12273,
+            "reasoning_output_tokens": 1321,
+            "reasoning_output_tokens_cumulative": 4328
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_clive_picker.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 440
+    "_version": 441
   }
 }

@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="13">
+<meta name="plan-version" content="14">
 <meta name="plan-commits" content="526195c8c059efe5f73439ae1fed626407f11322,5fd71b1b1e2d12c0e160816e24f3ca7055f718cf,cb5c6e12775124169e3402065a87c5e920a912ed,1c602d0ecc7f7fe1c03530bfe848266fd93b565b,c197e3d2f3ed6c57ecda748cebdd2262f5adfbcb,03bf0652e41fcf440c9254260e0f31221e132a89,8bea195">
 <meta name="plan-artifacts" content="imas_ambix/agent/clive.py,tests/test_agent_clive_modes.py,tests/test_agent_clive_picker.py,tests/test_agent_clive_dispatch_guidance.py">
 <meta name="plan-impl" content="0.95">
@@ -216,6 +216,9 @@ Second, the operator steps ran. The endpoint document was published to a path wh
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20260901-context-budget" data-who="reckon-ship" data-when="2026-09-01T20:16:00+00:00">
     <div class="r-comment-body">small-context-launch-budget landed — commit 8bea195; gate 'per-release output budget' passed; measure 15/15 focused and 183/183 legacy. The live union surfaced this rather than a test: a normal full-workspace launch against the four-card release exceeded its 65536-token window by exactly one token, 33537 input against a 32000 output reservation, while bare mode reduced input to 1285 and succeeded. The reservation now derives from the SELECTED release's own catalog card rather than a constant, so the 524288-token release keeps its 32000 reservation and 492288 usable input while the 65536-token release reserves 16384 and exposes 49152 usable input — 15615 tokens above the prompt that had failed. A two-card test proves the smaller card's own context governs rather than the first card's. A context too small to hold both a prompt and a response now fails before the harness starts rather than after. Verified live on the deployed launcher, which reports 'glm-5.3 · 4×H200 · w4a8 · 49152-token usable input budget · 16384-token output reservation'.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260901T184723206288-launcher-default-and-labels" data-who="s24-clive-modes" data-when="2026-09-01T18:52:45Z">
+    <div class="r-comment-body"><p>Preferred release is an operator setting embedded into the generated launcher, with unset and absent-release both falling back to the existing prompt-and-selector behaviour rather than choosing arbitrarily. A five-row fixture proves every row label equals its native model id while each description retains family, count, precision and context. 24/24 focused, 183/183 legacy, lint clean</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260901T114750299760-clive-local-alias-statement" data-who="s24-clive-modes" data-when="2026-09-01T11:53:09Z">
     <div class="r-comment-body"><p>Default local launch now states sonnet is the primary local worker, carrying that release's own accelerator count, family and exact max_model_len from its catalog card, plus the division of labour and the fact that local-only mode has no frontier slot. All four alias assignments unchanged. 2/2 tests</p></div>
