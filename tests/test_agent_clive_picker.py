@@ -9,6 +9,8 @@ import threading
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import pytest
+
 from imas_ambix.agent.clive import generate_clive_script
 from imas_ambix.agent.profile import SiteConfig
 
@@ -113,7 +115,7 @@ def test_each_release_gets_its_own_topology_and_context(tmp_path):
         ),
     ]
 
-    result, settings, _environment, requests = _run_launcher(
+    result, settings, environment, requests = _run_launcher(
         tmp_path, items, "narrow-release"
     )
 
@@ -133,6 +135,62 @@ def test_each_release_gets_its_own_topology_and_context(tmp_path):
             "description": "4×H200 · fp8 · 256k context",
         },
     ]
+    assert environment["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] == "524288"
+    assert environment["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] == "32000"
+    assert "492288-token usable input budget" in result.stderr
+    assert "32000-token output reservation" in result.stderr
+
+
+def test_small_context_uses_its_own_safe_output_reservation(tmp_path):
+    items = [
+        _catalog_item(
+            "large-release",
+            accelerator_count=2,
+            max_model_len=524_288,
+        ),
+        _catalog_item(
+            "small-release",
+            accelerator_count=4,
+            max_model_len=65_536,
+        ),
+    ]
+
+    result, _settings, environment, _requests = _run_launcher(
+        tmp_path, items, "small-release"
+    )
+
+    assert result.returncode == 0, result.stderr
+    context = int(environment["CLAUDE_CODE_MAX_CONTEXT_TOKENS"])
+    reservation = int(environment["CLAUDE_CODE_MAX_OUTPUT_TOKENS"])
+    usable_input = context - reservation
+    assert context == 65_536
+    assert reservation == 16_384
+    assert usable_input == 49_152
+    assert usable_input > 33_537
+    assert reservation + 1 <= context
+    assert "49152-token usable input budget" in result.stderr
+    assert "16384-token output reservation" in result.stderr
+
+
+@pytest.mark.parametrize("max_model_len", [2, 3, 65_536, 524_288])
+def test_output_reservation_always_leaves_a_minimal_prompt(tmp_path, max_model_len):
+    items = [
+        _catalog_item(
+            "bounded-release",
+            accelerator_count=2,
+            max_model_len=max_model_len,
+        )
+    ]
+
+    result, _settings, environment, _requests = _run_launcher(
+        tmp_path, items, "bounded-release"
+    )
+
+    assert result.returncode == 0, result.stderr
+    context = int(environment["CLAUDE_CODE_MAX_CONTEXT_TOKENS"])
+    reservation = int(environment["CLAUDE_CODE_MAX_OUTPUT_TOKENS"])
+    assert reservation >= 1
+    assert reservation + 1 <= context
 
 
 def test_picker_rows_do_not_create_or_redirect_aliases(tmp_path):

@@ -462,11 +462,28 @@ SECONDARY_LOCAL_MODEL="${_CATALOG_FIELDS[10]}"
 SECONDARY_LOCAL_DESCRIPTION="${_CATALOG_FIELDS[11]}"
 RUNTIME_LABEL="${ACCELERATOR_COUNT}×${ACCELERATOR_FAMILY} · ${CHECKPOINT_PRECISION}"
 CONTEXT_LABEL="unknown"
+BUDGET_LABEL="engine context unavailable"
 if [[ -n "$MAX_CONTEXT" ]]; then
+    if (( MAX_CONTEXT < 2 )); then
+        echo "clive: selected release '$MODEL_ID' has too little context for a prompt and response." >&2
+        exit 2
+    fi
     export CLAUDE_CODE_MAX_CONTEXT_TOKENS="$MAX_CONTEXT"
+    # Keep the harness default for large windows. Smaller windows reserve at
+    # most one quarter for a response so prompt and tool history retain room.
+    OUTPUT_RESERVATION=$(( MAX_CONTEXT / 4 ))
+    if (( OUTPUT_RESERVATION > 32000 )); then
+        OUTPUT_RESERVATION=32000
+    elif (( OUTPUT_RESERVATION < 1 )); then
+        OUTPUT_RESERVATION=1
+    fi
+    export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$OUTPUT_RESERVATION"
+    USABLE_INPUT_BUDGET=$(( MAX_CONTEXT - OUTPUT_RESERVATION ))
     CONTEXT_LABEL="$(( MAX_CONTEXT / 1024 ))k"
+    BUDGET_LABEL="${USABLE_INPUT_BUDGET}-token usable input budget · ${OUTPUT_RESERVATION}-token output reservation"
 else
     unset CLAUDE_CODE_MAX_CONTEXT_TOKENS
+    unset CLAUDE_CODE_MAX_OUTPUT_TOKENS
 fi
 
 # The global service is anonymous. Harnesses receive a fixed non-secret value
@@ -483,7 +500,7 @@ fi
 command -v claude >/dev/null 2>&1 || { echo "clive: 'claude' not on PATH." >&2; exit 127; }
 
 if [[ "$MODE" == "local" ]]; then
-    printf "\nClive — global only — serving: %s · %s\n\n" "$MODEL_ID" "$RUNTIME_LABEL" >&2
+    printf "\nClive — global only — serving: %s · %s · %s\n\n" "$MODEL_ID" "$RUNTIME_LABEL" "$BUDGET_LABEL" >&2
     ANTHROPIC_BASE_URL="$GLOBAL_ORIGIN" \
     ANTHROPIC_AUTH_TOKEN="$KEY" \
     ANTHROPIC_API_KEY="" \
@@ -538,7 +555,7 @@ if ! $_PROXY_READY; then
     exit 1
 fi
 
-printf "\nClive — global + OpenRouter — picker: %s, or-opus-4.8, or-gpt-5.5, or-glm-5.2\n\n" "$MODEL_ID" >&2
+printf "\nClive — global + OpenRouter — picker: %s, or-opus-4.8, or-gpt-5.5, or-glm-5.2 · %s\n\n" "$MODEL_ID" "$BUDGET_LABEL" >&2
 ANTHROPIC_BASE_URL="http://127.0.0.1:$LITELLM_PORT" \
 ANTHROPIC_AUTH_TOKEN="clive" \
 ANTHROPIC_API_KEY="" \
