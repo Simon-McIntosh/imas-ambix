@@ -36,11 +36,9 @@ FIGURE_NAMES = (
 _SVG_NS = "http://www.w3.org/2000/svg"
 _COLORS = ("#2563a6", "#4c90c0", "#83b9d8", "#c75b28", "#e39b42", "#6f5ba7")
 _MARKERS = ("circle", "square", "triangle", "diamond", "plus", "cross")
-_METHOD_NOTES = {
-    "glm-4card": (
-        "† GLM-5.2 · 4 H200 used 256 generated tokens per worker; "
-        "the other rows used 1024. Remeasurement is pending."
-    )
+_RUN_LABEL_OVERRIDES = {
+    "glm-8card": "GLM-5.2 · 8 H200 · MTP",
+    "glm-8card-nomtp": "GLM-5.2 · 8 H200 · no MTP",
 }
 
 
@@ -50,7 +48,6 @@ class BenchmarkMatrix:
 
     paths: tuple[Path, ...]
     labels: tuple[str, ...]
-    method_notes: tuple[str | None, ...]
     reports: tuple[dict[str, Any], ...]
     summaries: tuple[dict[str, Any], ...]
     comparison: dict[str, Any]
@@ -58,6 +55,8 @@ class BenchmarkMatrix:
 
 def _display_label(path: Path, summary: dict[str, Any]) -> str:
     """Return a concise matrix label, preferring the matrix row name."""
+    if label := _RUN_LABEL_OVERRIDES.get(path.stem):
+        return label
     tokens = path.stem.split("-")
     if len(tokens) >= 2 and tokens[-1].endswith("card"):
         cards = tokens[-1].removesuffix("card")
@@ -86,12 +85,11 @@ def load_matrix(matrix_dir: str | Path) -> BenchmarkMatrix:
     reports = tuple(load_report(path) for path in paths)
     summaries = tuple(describe_run(report) for report in reports)
     comparison = compare_runs(reports)
-    method_notes = tuple(_METHOD_NOTES.get(path.stem) for path in paths)
     labels = tuple(
-        f"{_display_label(path, summary)}{' †' if note else ''}"
-        for path, summary, note in zip(paths, summaries, method_notes, strict=True)
+        _display_label(path, summary)
+        for path, summary in zip(paths, summaries, strict=True)
     )
-    return BenchmarkMatrix(paths, labels, method_notes, reports, summaries, comparison)
+    return BenchmarkMatrix(paths, labels, reports, summaries, comparison)
 
 
 def _element(parent: ET.Element, tag: str, **attributes: object) -> ET.Element:
@@ -322,10 +320,9 @@ def _plot_concurrency(
     )
     y_label.set("transform", f"rotate(-90 24 {top + plot_height / 2:.1f})")
 
-    for index, (label, note, run) in enumerate(
+    for index, (label, run) in enumerate(
         zip(
             matrix.labels,
-            matrix.method_notes,
             matrix.comparison["runs"],
             strict=True,
         )
@@ -353,7 +350,6 @@ def _plot_concurrency(
             fill="none",
             stroke=color,
             stroke_width=2.4,
-            stroke_dasharray="8 5" if note else "none",
         )
         for x, y in points:
             _marker(root, marker, x, y, color)
@@ -369,14 +365,9 @@ def _plot_concurrency(
             y2=legend_y,
             stroke=color,
             stroke_width=2.4,
-            stroke_dasharray="8 5" if note else "none",
         )
         _marker(root, marker, legend_x + 14, legend_y, color)
         _text(root, label, legend_x + 38, legend_y + 4, css_class="legend")
-
-    for note in matrix.method_notes:
-        if note:
-            _text(root, note, 28, 644, css_class="subtitle")
 
     _write_svg(root, output_path)
 
@@ -412,7 +403,7 @@ def _plot_headlines(matrix: BenchmarkMatrix, output_path: Path) -> None:
     _text(
         root,
         "Native units shown separately; lower latency is better, "
-        "higher throughput is better · † different output-length method",
+        "higher throughput is better",
         28,
         62,
         css_class="subtitle",
@@ -465,10 +456,6 @@ def _plot_headlines(matrix: BenchmarkMatrix, output_path: Path) -> None:
                 css_class="value",
                 anchor=anchor,
             )
-
-    for note in matrix.method_notes:
-        if note:
-            _text(root, note, 28, 584, css_class="subtitle")
 
     _write_svg(root, output_path)
 
