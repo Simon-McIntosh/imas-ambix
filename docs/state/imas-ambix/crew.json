@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T18:16:23",
+  "updated": "2026-09-01T18:28:24",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -18219,9 +18219,92 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T161644985045-router-live-union",
+        "plan": "serving-endpoint-indirection",
+        "section": "\u00a75",
+        "node": "router-live-union",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-router-union.md records each item with its verbatim command and output. Two engines are live on 98dci4-gpu-0003 right now and BOTH MUST BE LEFT RUNNING: GLM-5.3 as job 1260907 on port 18801 with four cards, and DeepSeek as job 1260660 on its own port with two. Discover DeepSeek's port from the scheduler comment rather than assuming it. Start the router from the agent command group on a free port on that node, resolving upstreams the way HEAD does, from per-serve registration records with scheduler discovery reconciling them. Then evidence, each quoted: (1) a single anonymous GET on the router's own /v1/models returning BOTH releases in one catalog, each keeping its native id, its engine-reported max_model_len and its complete ambix metadata block including accelerator count and precision. (2) a request naming glm-5.3 reaching the GLM engine and a request naming the DeepSeek release reaching the DeepSeek engine, each returning coherent text, evidenced by an answer that is checkably correct rather than merely non-empty. (3) an unknown model id refused rather than served by a default upstream. (4) a streaming request through the router compared against the same request sent directly to the engine, showing the same event sequence and the same thinking or tool_use blocks. (5) count_tokens working through the router. (6) clive --list showing both releases with correct topology labels, and clive --model naming each release reaching the right engine, using the launcher AS CURRENTLY GENERATED with no source change, which is the test that the indirection is faithful rather than merely functional. Report each as pass or fail with evidence. Do not cancel, resize or requeue either serve job, and do not edit any source file.",
+          "estimated_hours": null,
+          "goal": "Prove one origin serves both live engines and routes each request to the right one",
+          "id": "router-live-union",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T161644985045-router-live-union/manifest.md",
+          "plan": "serving-endpoint-indirection",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a75",
+          "spec_level": "guided",
+          "time_budget": "45m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-router-union.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "guided",
+        "member": "s24-router-test",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T16:16:51Z",
+        "completed_at": "2026-09-01T16:28:17Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 686,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 686,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "b6028a8ee419a1b9754875f72d2411044a18f8e4",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "anonymous union catalog, per-id routing, unknown-id refusal, direct-versus-router SSE comparison, count_tokens, and clive --list plus --model against both releases",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T161644985045-router-live-union/stream-comparison.txt",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T161644985045-router-live-union/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c8b-3372-71e1-b506-e2ff2f281895",
+        "budget": {
+          "cost_usd": null,
+          "detail": "",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 431
+    "_version": 432
   }
 }

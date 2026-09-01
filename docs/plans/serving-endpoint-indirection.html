@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="serving-endpoint-indirection">
   <meta name="plan-title" content="Serving Endpoint Indirection — one origin in front of many engines">
   <meta name="plan-summary" content="A pass-through router giving consumers one origin, a union model catalog, and per-consumer log separation">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="6.0">
   <meta name="plan-capability-version" content="1.0">
@@ -24,11 +24,11 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="11">
+<meta name="plan-version" content="13">
 <meta name="plan-depends-on" content="glm-53-serve-and-wiring">
-<meta name="plan-commits" content="a1ebcaf193ebd31d3d220ef635bd8155574c0ffb">
-<meta name="plan-artifacts" content="imas_ambix/agent/router.py,tests/test_agent_router.py">
-<meta name="plan-impl" content="0.25">
+<meta name="plan-commits" content="a1ebcaf193ebd31d3d220ef635bd8155574c0ffb,965f4e2f21e759a60efbd7ffa4dfec4f7c25fe38,892050cc9030b581379ac2a5c9739bf34a64655c,8cbc2f733d0c87b2e584ac1d1656315cf478ec5f,25b1be15de962c370731e481f5bf1b9ec14d84f3,b76d9cbfb26701fa98a54a2e34f7b74a327bbf0e">
+<meta name="plan-artifacts" content="imas_ambix/agent/router.py,imas_ambix/agent/registry.py,tests/test_agent_router.py,tests/test_agent_router_resolution.py,tests/test_agent_router_admission.py,tests/test_agent_serve_registry.py,docs/evidence/archive/serving-endpoint-indirection-landed.html">
+<meta name="plan-impl" content="1.0">
 </head>
 <body>
   <main class="plan-doc">
@@ -215,10 +215,16 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-sei-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship serving-endpoint-indirection" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-sei-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship serving-endpoint-indirection" data-resolved-at="2026-09-01T16:29:20+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Build the pass-through router and prove the union catalog</h4>
     <div class="r-fu-body">Both engine-side prerequisites are met: the allocation parser now reads this scheduler's TRES spelling, and both GLM checkpoints are on disk beside a running keyless DeepSeek serve. The open decision to resolve first is upstream resolution (§4); the recommendation is a per-serve registration file with scheduler discovery as the reconciling fallback. The acceptance test that matters is that the generated launcher needs no source change: with two engines up, <code>--list</code> must show both releases with correct topology labels and <code>--model &lt;either&gt;</code> must reach the right engine.</div>
     <pre class="r-fu-prompt">/reckon-ship serving-endpoint-indirection</pre>
+    <p class="r-fu-outcome">Shipped. The pass-through router, its registration store, upstream resolution and admission control all landed and are proven live over two concurrent engines at one origin, with the generated launcher needing no source change. Continuation passes to clive-launch-modes as f-sei-02, which owns the context-budget question this proof surfaced.</p>
+    </article>
+<article class="r-fu" data-id="f-sei-02" data-status="open" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship clive-launch-modes" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Decide how a 64k release handles a full-workspace prompt</h4>
+    <div class="r-fu-body">Raised by the live union proof and owned by <code>clive-launch-modes</code>, not by this plan. A normal full-workspace launch against the four-card release exceeded its 65536-token window by exactly one token — 33537 input plus a 32000 output reservation — while the standard bare mode reduced input to 1285 and succeeded. So the launcher needs a rule for releases whose context is smaller than the reservation assumes: reduce the output reservation, select a smaller context mode automatically, or state the limit at selection time. The router is not involved; this is launcher presentation and defaults.</div>
+    <pre class="r-fu-prompt">/reckon-ship clive-launch-modes</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
@@ -227,6 +233,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-20260901-router-passthrough" data-who="reckon-ship" data-when="2026-09-01T12:50:00+00:00">
     <div class="r-comment-body">router-passthrough landed — commit a1ebcaf; gate 'router contract against fixture upstreams' passed; measure 4/4 tests in 0.41s over two fixture catalogs and every required protocol path. The union preserves each native card unchanged including engine-reported max_model_len and the complete metadata block, validated through the existing schema validator rather than a second one. A native id two upstreams both claim returns 409 rather than being resolved implicitly, an unknown id returns 404 rather than falling back to a default upstream, and one upstream being unreachable degrades the union to its reachable peer instead of failing outright. Streaming is byte-faithful: the fixture asserts an exact thinking signature and an exact tool-use identifier survive the relay, an upstream 429 and its headers pass through unchanged, and a downstream disconnect closes the upstream response. Upstreams arrive through an injected resolver, so the module never queries the scheduler itself — which is what lets the registration store and the existing discovery path supply it without either being duplicated here. No protocol translation anywhere, per the locked decision. Artifacts imas_ambix/agent/router.py, tests/test_agent_router.py.</div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20260901T161644985045-router-live-union" data-who="s24-router-test" data-when="2026-09-01T16:28:17Z">
+    <div class="r-comment-body"><p>6/6 live checks. One origin at 18802 returns both native cards with engine max_model_len and complete metadata intact (glm-5.3 65536 H200/4/w4a8, deepseek-v4-flash 524288 H200/2/fp4+fp8), both validating through the existing schema validator. Each native id routes to its own engine returning the checkably-correct answer 17; an unknown id is refused 404. Router SSE matches direct 43/43 events with identical sequence, thinking text, block types and tool JSON. count_tokens 200 with 19 tokens. Decisively, clive --list shows glm-5.3@4xh200 and deepseek-v4-flash@2xh200 and both answer 17 using the launcher generated UNCHANGED from HEAD. DeepSeek's port was discovered from its scheduler comment, and only GLM had a registration record, so registration-preference plus scheduler fallback was genuinely exercised</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260901T103626077252-serve-registration-store" data-who="s24-router-impl" data-when="2026-09-01T10:50:48Z">
     <div class="r-comment-body"><p>Per-serve registration record lands: six identity fields written atomically, idempotent removal on EXIT and TERM/INT, live records separated from stale, and 100 concurrent atomic replacements observed with no partial read</p></div>
@@ -248,6 +257,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20260901T131054338159-suite-remaining-files" data-who="s24-suite-finish" data-when="2026-09-01T13:55:11Z">
     <div class="r-comment-body"><p>8 of the 9 unmeasured files completed with 171 passed, 0 failed, 0 errors, 3 skipped — so the tree carries NO failures beyond the 14 already known. Only tests/fluxstate/test_consumer_contract.py remains unmeasured, exiting 124 after 1200s with five passing progress markers and no final summary</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20260901-router-live-union" data-who="reckon-ship" data-when="2026-09-01T18:30:00+00:00">
+    <div class="r-comment-body">router-live-union landed — gate 'live union over two engines' PASSED; measure 6/6 checks against GLM-5.3 job 1260907 on four cards and DeepSeek job 1260660 on two. One origin at port 18802 returns both native cards with engine-reported max_model_len and complete metadata intact — glm-5.3 at 65536 with H200/4/w4a8, deepseek-v4-flash at 524288 with H200/2/fp4+fp8 — both validating through the existing schema validator rather than a second one. Each native id routes to its own engine and returns the checkably-correct answer 17, and an unknown id is refused 404 rather than served by a default upstream. Streaming through the router matches a direct request 43/43 events with identical sequence, thinking text, block types and tool JSON. count_tokens returns 200. The decisive check is the last one: clive --list shows glm-5.3@4xh200 and deepseek-v4-flash@2xh200 and both answer correctly using the launcher generated UNCHANGED from HEAD, which is the test that the indirection is faithful rather than merely functional. Resolution was genuinely exercised rather than assumed: DeepSeek's port was discovered from its scheduler comment, and only GLM had a registration record, so registration-preference with scheduler fallback both ran. Full record: docs/evidence/archive/serving-endpoint-indirection-landed.html</div>
 </div>
 </section>
 </main>
