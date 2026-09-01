@@ -21,6 +21,7 @@ from imas_ambix.agent.profile import SiteConfig, list_profiles, load_profile
 
 if TYPE_CHECKING:
     from imas_ambix.agent.bench import BenchReport
+    from imas_ambix.agent.router import Upstream
 
 console = Console()
 
@@ -717,20 +718,30 @@ def _mask_key(key: str) -> str:
     return key[:4] + "..." + key[-4:]
 
 
-def _running_jobs(site: SiteConfig) -> list[dict[str, str]]:
-    """Return this user's Ambix SLURM jobs as a list of field dicts.
+def _running_jobs(
+    site: SiteConfig, *, job_ids: tuple[str, ...] = ()
+) -> list[dict[str, str]]:
+    """Return Ambix SLURM jobs as a list of field dicts.
 
     Each entry has ``jobid``, ``name`` (the profile slug), ``state``,
     ``time``, ``node`` (or the pending reason), allocated ``gres``, and the
-    scheduler ``comment``. Query failure is distinct from an empty queue.
+    scheduler ``comment``. With explicit ids the query reconciles shared
+    registrations independent of their owner; otherwise it retains the
+    operator-scoped status view. Query failure is distinct from an empty queue.
     """
-    user = os.environ.get("USER") or getpass.getuser()
+    selector = (
+        ["-j", ",".join(job_ids)]
+        if job_ids
+        else [
+            "-u",
+            os.environ.get("USER") or getpass.getuser(),
+        ]
+    )
     result = subprocess.run(
         [
             "squeue",
             "-h",
-            "-u",
-            user,
+            *selector,
             "-A",
             site.account,
             "-o",
@@ -942,6 +953,94 @@ def _discover_live_routes(
             )
     routes.sort(key=lambda route: (route.model_id, route.gpu_count, route.job_id))
     return routes, rejected
+
+
+def _router_auth_header(api_key: str | None) -> tuple[str, str] | None:
+    return ("Authorization", f"Bearer {api_key}") if api_key else None
+
+
+def _resolve_router_upstreams(site: SiteConfig, api_key: str | None) -> list[Upstream]:
+    """Prefer probe-qualified registrations, then add scheduler-only routes."""
+    from imas_ambix.agent.registry import read_registrations, registration_directory
+    from imas_ambix.agent.router import Upstream
+
+    directory = registration_directory(site.base_dir)
+    records = read_registrations(directory, job_is_running=lambda _job_id: True).current
+    running_ids: set[str] | None = None
+    if records:
+        try:
+            jobs = _running_jobs(
+                site, job_ids=tuple(record.job_id for record in records)
+            )
+        except click.ClickException:
+            # A scheduler outage must not erase still-probeable shared records.
+            running_ids = None
+        else:
+            running_ids = {
+                job["jobid"] for job in jobs if job.get("state") == "RUNNING"
+            }
+
+    auth_header = _router_auth_header(api_key)
+    upstreams: list[Upstream] = []
+    seen_origins: set[str] = set()
+    registered_job_ids: set[str] = set()
+    for record in records:
+        if running_ids is not None and record.job_id not in running_ids:
+            continue
+        probe = _probe_endpoint(record.origin, None)
+        if probe.readiness != "ready" or record.model_id not in {
+            model.model_id for model in probe.models
+        }:
+            continue
+        upstreams.append(
+            Upstream(
+                base_url=record.origin,
+                auth_header=auth_header,
+                model_id=record.model_id,
+            )
+        )
+        seen_origins.add(record.origin.rstrip("/"))
+        registered_job_ids.add(record.job_id)
+
+    try:
+        scheduler_routes, _ = _discover_live_routes(site, api_key)
+    except click.ClickException:
+        if upstreams:
+            return upstreams
+        raise
+    for route in scheduler_routes:
+        normalized_origin = route.base_url.rstrip("/")
+        if route.job_id in registered_job_ids or normalized_origin in seen_origins:
+            continue
+        upstreams.append(
+            Upstream(
+                base_url=route.base_url,
+                auth_header=auth_header,
+                model_id=route.model_id,
+            )
+        )
+        seen_origins.add(normalized_origin)
+    return upstreams
+
+
+@agent.command(name="router")
+@click.option("--host", default="0.0.0.0", show_default=True)
+@click.option("--port", type=click.IntRange(1, 65535), required=True)
+@click.option(
+    "--api-key",
+    default=None,
+    help="Optional key forwarded to authenticated upstream engines.",
+)
+def router_command(host: str, port: int, api_key: str | None) -> None:
+    """Serve the local multi-engine pass-through router."""
+    from imas_ambix.agent.router import DynamicUpstreamResolver, serve_router
+
+    site = SiteConfig.from_env()
+    resolved_key = _resolve_api_key(api_key) if api_key else None
+    resolver = DynamicUpstreamResolver(
+        lambda: _resolve_router_upstreams(site, resolved_key)
+    )
+    serve_router(resolver, host=host, port=port)
 
 
 def _resolve_live_route(
