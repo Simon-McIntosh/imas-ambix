@@ -31,7 +31,7 @@ def test_four_card_w4a8_profile_and_serve_script() -> None:
     assert profile.engine.tensor_parallel == 4
     assert profile.engine.mem_fraction_static == 0.94
     assert profile.engine.kv_cache_dtype == "bfloat16"
-    assert profile.engine.max_total_tokens == 65536
+    assert profile.engine.max_total_tokens == 98304
     assert profile.engine.parsers.tool_call == "glm47"
     assert profile.engine.parsers.reasoning == "glm45"
 
@@ -45,7 +45,7 @@ def test_four_card_w4a8_profile_and_serve_script() -> None:
     assert "--tensor-parallel-size 4" in script
     assert "--gpu-memory-utilization 0.94" in script
     assert "--kv-cache-dtype bfloat16" in script
-    assert "--max-model-len 65536" in script
+    assert "--max-model-len 98304" in script
     assert "--tool-call-parser glm47" in script
     assert "--reasoning-parser glm45" in script
     assert "--speculative-config" not in script
