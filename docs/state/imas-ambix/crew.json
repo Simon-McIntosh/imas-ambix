@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T12:19:19",
+  "updated": "2026-09-01T12:25:31",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -14248,9 +14248,92 @@
           "role": "documentation",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T101655047681-s24-reuse-scout",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a73",
+        "node": "s24-reuse-scout",
+        "node_definition": {
+          "done_when": "A written reuse map at /home/ITER/mcintos/.config/reckon/crew/reports/s24-reuse-map.md lists every relevant module, symbol, test and config file with a one-line fitness verdict for each, covering (a) serve launch and SLURM sizing, (b) vLLM catalog assembly and its ambix metadata block, (c) live endpoint discovery from the scheduler comment, (d) clive launcher generation and its single-origin availability probe, and (e) any existing proxy/router code; and it names for each of the four S24 plans which named machinery a new node should extend rather than re-author",
+          "estimated_hours": null,
+          "goal": "Produce a reuse map of the serving, catalog, discovery and launcher machinery already in this repo that the S24 multi-model serving surface can extend",
+          "id": "s24-reuse-scout",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T101655047681-s24-reuse-scout/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a73",
+          "spec_level": "guided",
+          "time_budget": "20m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-reuse-map.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "guided",
+        "member": "s24-reuse-scout",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-09-01T10:17:02Z",
+        "completed_at": "2026-09-01T10:25:17Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 495,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 495,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "f069b6f28b9729f6044bc156b91ab086072cde92",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "read-only generation smoke: 4-card GLM -> 4 GPU/12 CPU/int4/262144, 8-card -> 8 GPU/16 CPU/fp8/204800, port comment and ambix metadata present, clive script one catalog GET and no scheduler command",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T101655047681-s24-reuse-scout/reuse-smoke.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T101655047681-s24-reuse-scout/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c78-e8a9-7582-96a8-ae726b37b147",
+        "budget": {
+          "cost_usd": null,
+          "detail": "",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 373
+    "_version": 374
   }
 }
