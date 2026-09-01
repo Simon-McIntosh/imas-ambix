@@ -126,6 +126,7 @@ def test_generated_launcher_keeps_mode_and_harness_axes_independent():
     assert 'OPENAI_BASE_URL="${GLOBAL_ORIGIN}/v1"' in local
     assert 'ANTHROPIC_BASE_URL="$GLOBAL_ORIGIN"' in local
     assert 'ANTHROPIC_MODEL="$MODEL_ID"' in local
+    assert "PREFERRED_RELEASE_ID=" in local
     assert 'CLAUDE_CODE_MAX_OUTPUT_TOKENS="$OUTPUT_RESERVATION"' in local
     assert "USABLE_INPUT_BUDGET=$(( MAX_CONTEXT - OUTPUT_RESERVATION ))" in local
     assert "CLIVE_OPENROUTER" not in local

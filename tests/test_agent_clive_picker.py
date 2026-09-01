@@ -62,7 +62,13 @@ def _serve_catalog(items: list[dict[str, object]]):
         thread.join(timeout=2)
 
 
-def _run_launcher(tmp_path, items, selected_model):
+def _run_launcher(
+    tmp_path,
+    items,
+    selected_model=None,
+    *,
+    preferred_release_id=None,
+):
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     arguments_file = tmp_path / "claude-arguments"
@@ -78,12 +84,16 @@ def _run_launcher(tmp_path, items, selected_model):
     (fake_bin / "claude").chmod(0o755)
 
     with _serve_catalog(items) as (site, requests):
+        site = site.model_copy(update={"preferred_release_id": preferred_release_id})
         launcher.write_text(generate_clive_script(site), encoding="utf-8")
         launcher.chmod(0o755)
         environment = os.environ.copy()
         environment["PATH"] = f"{fake_bin}:{environment['PATH']}"
+        command = [str(launcher)]
+        if selected_model is not None:
+            command.extend(("--model", selected_model))
         result = subprocess.run(
-            [str(launcher), "--model", selected_model],
+            command,
             capture_output=True,
             text=True,
             check=False,
@@ -98,6 +108,35 @@ def _run_launcher(tmp_path, items, selected_model):
     )
     settings = json.loads(arguments[arguments.index("--settings") + 1])
     return result, settings, harness_environment, requests
+
+
+def test_preferred_release_selects_without_narrowing_picker(tmp_path):
+    items = [
+        _catalog_item(
+            "first-release",
+            accelerator_count=2,
+            max_model_len=524_288,
+        ),
+        _catalog_item(
+            "preferred-release",
+            accelerator_count=4,
+            max_model_len=65_536,
+        ),
+    ]
+
+    result, settings, environment, _requests = _run_launcher(
+        tmp_path,
+        items,
+        preferred_release_id="preferred-release",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Select model" not in result.stderr
+    assert environment["ANTHROPIC_MODEL"] == "preferred-release"
+    assert [row["model"] for row in settings["modelPicker"]["options"]] == [
+        "first-release",
+        "preferred-release",
+    ]
 
 
 def test_each_release_gets_its_own_topology_and_context(tmp_path):
@@ -126,12 +165,12 @@ def test_each_release_gets_its_own_topology_and_context(tmp_path):
     assert settings["modelPicker"]["options"] == [
         {
             "model": "narrow-release",
-            "label": "narrow-release · 2×H200 · int4 · 512k ctx",
+            "label": "narrow-release",
             "description": "2×H200 · int4 · 512k context",
         },
         {
             "model": "wide-release",
-            "label": "wide-release · 4×H200 · fp8 · 256k ctx",
+            "label": "wide-release",
             "description": "4×H200 · fp8 · 256k context",
         },
     ]
@@ -210,6 +249,11 @@ def test_picker_rows_do_not_create_or_redirect_aliases(tmp_path):
     assert result.returncode == 0, result.stderr
     assert len(settings["modelPicker"]["options"]) == 5
     assert settings["modelPicker"]["options"][-1]["model"] == "catalog-release-5"
+    for row in settings["modelPicker"]["options"]:
+        assert row["label"] == row["model"]
+        assert "×H200" in row["description"]
+        assert "fp8" in row["description"]
+        assert "context" in row["description"]
     for alias in ("OPUS", "SONNET", "HAIKU", "FABLE"):
         assert environment[f"ANTHROPIC_DEFAULT_{alias}_MODEL"] == "catalog-release-5"
 

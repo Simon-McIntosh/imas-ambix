@@ -36,6 +36,7 @@ def generate_clive_script(
     default_origin = site.__class__.model_fields["global_origin"].default
     legacy_origin = site.global_origin if site.global_origin != default_origin else ""
     endpoint_document = str(site.endpoint_document)
+    preferred_release_id = site.preferred_release_id or ""
     proxy_native_release = openrouter_native_release or ""
     template = r"""#!/usr/bin/env bash
 # clive — drive an agent CLI against the site model catalog.
@@ -51,6 +52,7 @@ set -euo pipefail
 
 GLOBAL_ORIGIN=__GLOBAL_ORIGIN__
 ENDPOINT_DOCUMENT=__ENDPOINT_DOCUMENT__
+PREFERRED_RELEASE_ID=__PREFERRED_RELEASE_ID__
 OPENROUTER_NATIVE_RELEASE=__OPENROUTER_NATIVE_RELEASE__
 LITELLM_PORT="__LITELLM_PORT__"
 LITELLM_SERVICE="imas-ambix-llm.service"
@@ -104,14 +106,22 @@ done
 
 INTERACTIVE=false
 [[ -t 0 ]] && INTERACTIVE=true
-if _CATALOG_RESULT="$(python3 - "$ENDPOINT_DOCUMENT" "$GLOBAL_ORIGIN" "$SELECTOR" "$LIST_ONLY" "$INTERACTIVE" "$MODE" 3<&0 <<'PY'
+if _CATALOG_RESULT="$(python3 - "$ENDPOINT_DOCUMENT" "$GLOBAL_ORIGIN" "$SELECTOR" "$LIST_ONLY" "$INTERACTIVE" "$MODE" "$PREFERRED_RELEASE_ID" 3<&0 <<'PY'
 import json
 import os
 import sys
 import urllib.error
 import urllib.request
 
-document_path, legacy_origin, selector, list_only, interactive, mode = sys.argv[1:]
+(
+    document_path,
+    legacy_origin,
+    selector,
+    list_only,
+    interactive,
+    mode,
+    preferred_release_id,
+) = sys.argv[1:]
 
 
 def fail(message):
@@ -327,7 +337,7 @@ picker_settings = {
         "options": [
             {
                 "model": item["id"],
-                "label": item["label"],
+                "label": item["id"],
                 "description": (
                     f'{item["count"]}×{item["family"]} · '
                     f'{item["precision"]} · '
@@ -358,9 +368,16 @@ if selector:
         available = ", ".join(item["selector"] for item in items)
         fail(f"selector {selector!r} did not identify one model; available: {available}")
     chosen = matches[0]
-elif len(items) == 1:
+elif preferred_release_id:
+    preferred_matches = [
+        item for item in items if item["id"] == preferred_release_id
+    ]
+    if len(preferred_matches) == 1:
+        chosen = preferred_matches[0]
+
+if chosen is None and len(items) == 1:
     chosen = items[0]
-elif interactive == "true":
+elif chosen is None and interactive == "true":
     print("Clive global models:", file=sys.stderr)
     for index, item in enumerate(items, 1):
         print(f"  {index}) {item['label']}", file=sys.stderr)
@@ -374,7 +391,7 @@ elif interactive == "true":
     if not 1 <= choice <= len(items):
         fail(f"model selection must be an integer from 1 through {len(items)}")
     chosen = items[choice - 1]
-else:
+elif chosen is None:
     available = ", ".join(item["selector"] for item in items)
     fail(f"multiple models are available; use --selector ({available})")
 
@@ -589,6 +606,7 @@ exit 2
     return (
         template.replace("__GLOBAL_ORIGIN__", shlex.quote(legacy_origin))
         .replace("__ENDPOINT_DOCUMENT__", shlex.quote(endpoint_document))
+        .replace("__PREFERRED_RELEASE_ID__", shlex.quote(preferred_release_id))
         .replace("__OPENROUTER_NATIVE_RELEASE__", shlex.quote(proxy_native_release))
         .replace("__LITELLM_PORT__", str(LITELLM_PORT))
         .replace(

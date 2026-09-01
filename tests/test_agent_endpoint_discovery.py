@@ -75,8 +75,11 @@ def _engine(model_id, family, count, precision, context):
         thread.join(timeout=2)
 
 
-def _launcher(tmp_path, document, *, harness=None):
-    site = SiteConfig(endpoint_document_path=str(document))
+def _launcher(tmp_path, document, *, harness=None, preferred_release_id=None):
+    site = SiteConfig(
+        endpoint_document_path=str(document),
+        preferred_release_id=preferred_release_id,
+    )
     path = tmp_path / "clive"
     path.write_text(generate_clive_script(site), encoding="utf-8")
     path.chmod(0o755)
@@ -216,3 +219,89 @@ def test_selected_release_targets_its_own_engine_origin(tmp_path):
         f"{beta.origin}/v1",
         "--model beta prompt",
     ]
+
+
+def test_preferred_release_is_default_and_explicit_selector_overrides(tmp_path):
+    with (
+        _engine("alpha", "H100", 2, "bf16", 131072) as (alpha, _),
+        _engine("beta", "H200", 8, "fp8", 262144) as (beta, _),
+    ):
+        document = write_endpoint_document((alpha, beta), tmp_path / "endpoints.json")
+        fake_bin = tmp_path / "bin"
+        fake_bin.mkdir()
+        trace = tmp_path / "trace"
+        harness = fake_bin / "codex"
+        harness.write_text(
+            f'#!/bin/sh\nprintf \'%s\\n\' "$OPENAI_BASE_URL" "$*" > {trace}\n',
+            encoding="utf-8",
+        )
+        harness.chmod(0o755)
+        launcher, environment = _launcher(
+            tmp_path,
+            document,
+            harness=fake_bin,
+            preferred_release_id="beta",
+        )
+        unqualified = subprocess.run(
+            [str(launcher), "--codex", "prompt"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=environment,
+        )
+        default_trace = trace.read_text(encoding="utf-8").splitlines()
+        explicit = subprocess.run(
+            [str(launcher), "--codex", "--selector", "alpha", "prompt"],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=environment,
+        )
+        explicit_trace = trace.read_text(encoding="utf-8").splitlines()
+
+    assert unqualified.returncode == 0, unqualified.stderr
+    assert "Select model" not in unqualified.stderr
+    assert default_trace == [f"{beta.origin}/v1", "--model beta prompt"]
+    assert explicit.returncode == 0, explicit.stderr
+    assert explicit_trace == [f"{alpha.origin}/v1", "--model alpha prompt"]
+
+
+def test_unset_or_absent_preference_keeps_selector_requirement(tmp_path):
+    with (
+        _engine("alpha", "H100", 2, "bf16", 131072) as (alpha, _),
+        _engine("beta", "H200", 8, "fp8", 262144) as (beta, _),
+    ):
+        document = write_endpoint_document((alpha, beta), tmp_path / "endpoints.json")
+        launcher, environment = _launcher(tmp_path, document)
+        unset = subprocess.run(
+            [str(launcher)],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=environment,
+        )
+        launcher, environment = _launcher(
+            tmp_path,
+            document,
+            preferred_release_id="not-published",
+        )
+        absent = subprocess.run(
+            [str(launcher)],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=environment,
+        )
+
+    assert unset.returncode == 2
+    assert "multiple models are available; use --selector" in unset.stderr
+    assert absent.returncode == 2
+    assert absent.stderr == unset.stderr
+
+
+def test_preferred_release_site_setting_reads_environment(monkeypatch):
+    monkeypatch.setenv("AMBIX_AGENT_PREFERRED_RELEASE", " preferred-release ")
+
+    site = SiteConfig.from_env()
+
+    assert site.preferred_release_id == "preferred-release"
