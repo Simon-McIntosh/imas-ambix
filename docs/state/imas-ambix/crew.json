@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T14:57:20",
+  "updated": "2026-09-01T15:07:27",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -16721,9 +16721,203 @@
           "role": "investigate",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T125824010245-bench-figures-test-realign",
+        "plan": "glm-52-local-serve-performance",
+        "section": "\u00a74",
+        "node": "bench-figures-test-realign",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/agent/test_bench_matrix_figures.py -q exits 0. Two tests fail at head, test_load_matrix_uses_matrix_row_names and test_generate_figures_writes_three_parseable_svgs, because the figure generator was refreshed to render all six saved benchmark reports and to drop a superseded dagger suffix, a dashed-series treatment and a textual 256-token qualifier, now that every active concurrency report uses 1024 tokens per worker. The tests still assert the removed behaviour. Update their expectations to the current generator, keeping each test's purpose intact: one still pins that matrix row names drive the loaded labels, the other still pins that three parseable SVGs are written naming every active run. Do not change scripts/bench_matrix_figures.py, which is the authority here, and do not weaken either test to a smoke check.",
+          "estimated_hours": null,
+          "goal": "Realign the benchmark-figure tests with the generator they now describe",
+          "id": "bench-figures-test-realign",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T125824010245-bench-figures-test-realign/manifest.md",
+          "plan": "glm-52-local-serve-performance",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "tests/agent/test_bench_matrix_figures.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-docs",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T12:58:31Z",
+        "completed_at": "2026-09-01T13:01:38Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 187,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 187,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "f20cd6462dee0c988cbe4a206caee27984c25cb1",
+        "commits": [
+          "5d57d966a51db951450b43afdfc72dd6e5856ce0"
+        ],
+        "changed_lines": {
+          "added": 4,
+          "removed": 10,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/agent/test_bench_matrix_figures.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T125824010245-bench-figures-test-realign/manifest.md",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T125824010245-bench-figures-test-realign/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c8b-9816-73c1-9a1c-6c01b0721354",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 2397440,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 2575292,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 6694,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 1908
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/agent/test_bench_matrix_figures.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260901T125850182734-glm53-flash-and-w4a8-verdict",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a71",
+        "node": "glm53-flash-and-w4a8-verdict",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-glm53-flash-verdict.md answers with evidence from the SERVING environment. A prior node answered this against the project virtualenv's vLLM 0.23.0, but that is not the engine that serves: the last live serve job logged 'Initializing a V1 LLM engine (v0.28.0)', so the serving environment under imas_ambix/agent/envs/vllm is the only authority and its version must be reported first, quoted from the package itself. (1) State whether that engine's model registry contains Glm5NextForConditionalGeneration, the architecture the GLM-5.3-Flash config declares, quoting the registry lookup and its result rather than a documentation claim. If it is registered, report the Flash release's total size and whether it fits four H200 cards at 141 GB each. (2) State whether that same engine registers the compressed-tensors W4A8 loader path that camel-ai/GLM-5.3-W4A8 needs, again quoting the lookup. (3) Report whether huggingface.co resolves and is reachable from the shell you are in, since a prior node was blocked by DNS there; if it resolves, retrieve that repo's file manifest and report its byte-exact total plus whether tokenizer.json and tokenizer_config.json are present. Close with a single recommendation naming the one GLM-5.3 artifact to pursue for a four-card serve, or state plainly that none of the examined options is serveable on four cards with this engine. Download nothing, submit no job, and change no source.",
+          "estimated_hours": null,
+          "goal": "Settle whether GLM-5.3-Flash is serveable here by asking the engine that actually serves, and confirm the W4A8 candidate against it too",
+          "id": "glm53-flash-and-w4a8-verdict",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T125850182734-glm53-flash-and-w4a8-verdict/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a71",
+          "spec_level": "guided",
+          "time_budget": "35m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-glm53-flash-verdict.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "guided",
+        "member": "s24-agentic-probe",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T12:58:56Z",
+        "completed_at": "2026-09-01T13:07:03Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 487,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 487,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "f20cd6462dee0c988cbe4a206caee27984c25cb1",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "serving-package version and ModelRegistry lookups plus a recursive Hugging Face manifest census",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/s24-glm53-flash-verdict.md",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T125850182734-glm53-flash-and-w4a8-verdict/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05cea-93e8-7fa1-976f-1a105e8abc45",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2715648,
+            "cached_input_tokens_cumulative": 5819904,
+            "input_tokens": 2729718,
+            "input_tokens_cumulative": 5970414,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 15414,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 6256
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 406
+    "_version": 408
   }
 }
