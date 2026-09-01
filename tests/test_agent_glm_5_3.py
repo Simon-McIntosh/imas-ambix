@@ -29,7 +29,7 @@ def test_four_card_int4_profile_and_serve_script() -> None:
     assert profile.model.served_name == "glm-5.3"
     assert profile.engine.tensor_parallel == 4
     assert profile.engine.kv_cache_dtype == "bfloat16"
-    assert profile.engine.max_total_tokens == 262144
+    assert profile.engine.max_total_tokens == 131072
     assert profile.engine.parsers.tool_call == "glm47"
     assert profile.engine.parsers.reasoning == "glm45"
 
@@ -42,7 +42,7 @@ def test_four_card_int4_profile_and_serve_script() -> None:
     assert "--served-model-name glm-5.3" in script
     assert "--tensor-parallel-size 4" in script
     assert "--kv-cache-dtype bfloat16" in script
-    assert "--max-model-len 262144" in script
+    assert "--max-model-len 131072" in script
     assert "--tool-call-parser glm47" in script
     assert "--reasoning-parser glm45" in script
     assert "--speculative-config" not in script
