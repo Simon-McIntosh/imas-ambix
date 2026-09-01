@@ -1250,6 +1250,7 @@ def test_agent_serve_dry_run():
     assert result.exit_code == 0
     assert "sglang.launch_server" in result.output
     assert "--partition=betelgeuse" in result.output
+    assert "#SBATCH --time=0" in result.output
 
 
 def test_agent_download_dry_run():
