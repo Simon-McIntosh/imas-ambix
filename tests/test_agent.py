@@ -456,7 +456,10 @@ def test_generate_serve_script():
 
 def test_agent_serve_gpu_help_matches_core_scaling():
     result = CliRunner().invoke(main, ["agent", "serve", "--help"])
-    assert result.exit_code == 0 and "Host cores do not scale with cards" in result.output
+    assert (
+        result.exit_code == 0
+        and "Host cores do not scale with cards" in result.output
+    )
 
 
 def test_serve_script_launches_drain_sidecar():
