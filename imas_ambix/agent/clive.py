@@ -263,6 +263,19 @@ print(chosen["family"])
 print(chosen["count"])
 print(chosen["precision"])
 print(json.dumps(picker_settings, ensure_ascii=False, separators=(",", ":")))
+context_description = (
+    f'{chosen["max_context"]:,}-token engine-reported context'
+    if chosen["max_context"] is not None
+    else "engine-reported context unavailable"
+)
+print(
+    "Clive dispatch guidance: the sonnet alias is the primary local worker "
+    f'and resolves to {chosen["id"]} '
+    f'({chosen["count"]}×{chosen["family"]}, {context_description}). '
+    "Send bulk, parallel, and mechanical work to sonnet. Keep adjudication "
+    "and physics-critical judgement on a frontier slot when one is available; "
+    "local-only mode does not provide a frontier slot."
+)
 PY
 )"; then
     :
@@ -276,7 +289,7 @@ if $LIST_ONLY; then
 fi
 
 mapfile -t _CATALOG_FIELDS <<< "$_CATALOG_RESULT"
-if [[ "${#_CATALOG_FIELDS[@]}" -ne 6 ]]; then
+if [[ "${#_CATALOG_FIELDS[@]}" -ne 7 ]]; then
     echo "clive: catalog selection returned invalid data." >&2
     exit 2
 fi
@@ -286,6 +299,7 @@ ACCELERATOR_FAMILY="${_CATALOG_FIELDS[2]}"
 ACCELERATOR_COUNT="${_CATALOG_FIELDS[3]}"
 CHECKPOINT_PRECISION="${_CATALOG_FIELDS[4]}"
 PICKER_SETTINGS="${_CATALOG_FIELDS[5]}"
+DISPATCH_GUIDANCE="${_CATALOG_FIELDS[6]}"
 RUNTIME_LABEL="${ACCELERATOR_COUNT}×${ACCELERATOR_FAMILY} · ${CHECKPOINT_PRECISION}"
 CONTEXT_LABEL="unknown"
 if [[ -n "$MAX_CONTEXT" ]]; then
@@ -332,7 +346,7 @@ if [[ "$MODE" == "local" ]]; then
     ANTHROPIC_SMALL_FAST_MODEL="$MODEL_ID" \
     ANTHROPIC_MODEL="$MODEL_ID" \
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
-    exec claude --settings "$PICKER_SETTINGS" "${ARGS[@]}"
+    exec claude --settings "$PICKER_SETTINGS" --append-system-prompt "$DISPATCH_GUIDANCE" "${ARGS[@]}"
 fi
 
 __HYBRID_BRANCH__
