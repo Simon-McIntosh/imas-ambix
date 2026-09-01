@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="clive-launch-modes">
   <meta name="plan-title" content="Clive Launch Modes — a local-only default and one named mode that adds hosted tiers">
   <meta name="plan-summary" content="Curated picker rows, declared model capabilities, alias-mapped worker dispatch, and one mode flag over a local-only default">
-  <meta name="plan-status" content="draft">
+  <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="3.0">
   <meta name="plan-capability-version" content="1.0">
@@ -22,7 +22,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="5">
+<meta name="plan-commits" content="526195c8c059efe5f73439ae1fed626407f11322">
+<meta name="plan-artifacts" content="imas_ambix/agent/clive.py,tests/test_agent_clive_modes.py">
+<meta name="plan-impl" content="0.34">
 </head>
 <body>
   <main class="plan-doc">
@@ -166,17 +169,13 @@ clive --mode hybrid      # local releases plus the hosted frontier slots</pre>
       </p>
     <p class="r-dec-rat">Locked to &lt;code&gt;hybrid&lt;/code&gt; by the lead, over &lt;code&gt;tiered&lt;/code&gt; and &lt;code&gt;boss&lt;/code&gt;. So the surface is &lt;code&gt;clive&lt;/code&gt; (local only, no argument), &lt;code&gt;--mode local&lt;/code&gt; (the default stated explicitly), &lt;code&gt;--mode hybrid&lt;/code&gt; (local releases plus the hosted frontier slots). It reads as an equal statement about a lineup that carries both kinds, which is what the mode is, and it does not invite the reading that one tier is subordinate.</p>
     </div>
-<div class="r-dec" data-key="local-alias" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="local-alias" data-choice="sonnet" data-by="reckon-ship" data-when="2026-09-01T10:58:14+00:00">
     <p class="r-dec-q">Which alias slot carries the local release in the mode that includes hosted models?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="sonnet">sonnet</button>
+      <button class="r-opt chosen" data-value="sonnet">sonnet</button>
       <button class="r-opt" data-value="haiku">haiku</button>
       </p>
-    <p class="r-dec-rat">Recommendation: sonnet for the primary local
-        release, leaving haiku for the second one. The bulk-worker alias
-        should be the one a delegating session reaches for by habit, and the smallest
-        alias also feeds background harness traffic that a large local model serves
-        expensively.</p>
+    <p class="r-dec-rat">Locked to the recommendation on execution. The primary local release takes the sonnet slot because that is the alias a delegating session reaches for by habit for bulk and parallel work, so mapping it local is what actually sends delegated workers to the local engine. The second local release takes haiku, which also feeds background harness traffic that a large local model would serve expensively.</p>
     </div>
 </section>
 
@@ -188,6 +187,14 @@ clive --mode hybrid      # local releases plus the hosted frontier slots</pre>
     <pre class="r-fu-prompt">/reckon-ship clive-launch-modes</pre>
     </article>
 </section>
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260901T105238970097-clive-mode-axis" data-who="s24-clive-modes" data-when="2026-09-01T10:56:57Z">
+    <div class="r-comment-body"><p>Mode axis lands local-by-default: implicit generation byte-identical to --mode local, a readable hosted credential changes zero bytes, only explicit hybrid embeds hosted slots or installs the proxy, invalid values exit non-zero naming both, and the axis parses independently of the harness flags. 7/7 tests</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-20260901-clive-mode-axis" data-who="reckon-ship" data-when="2026-09-01T13:02:00+00:00">
+    <div class="r-comment-body">clive-mode-axis landed — commit 526195c; gate 'launcher mode contract' passed; measure 7/7 focused tests in 0.92s. The load-bearing assertion is the negative one: an unqualified launch and an explicit local launch generate byte-identical content, and a well-formed hosted credential present on disk changes zero bytes of that output. That is the outage this plan exists to prevent, now fenced by a test rather than by intent — previously a route was selected by whether a personal credential happened to be readable, which made the default model hostage to one account and gave that file's holders dead picker slots. Only an explicit hybrid mode embeds any hosted slot or invokes proxy installation, an unrecognised value exits non-zero naming both valid values rather than falling back, and the axis parses independently of the existing harness selection it must not collide with. Artifacts imas_ambix/agent/clive.py, tests/test_agent_clive_modes.py.</div>
+</div>
+</section>
+</main>
 </body>
 </html>

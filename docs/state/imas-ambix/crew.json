@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T12:51:37",
+  "updated": "2026-09-01T12:57:33",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -825,9 +825,11 @@
         "id": "s24-clive-modes",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a05c99-a254-70b0-9b28-a7cdeedfa454",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a05c99-a254-70b0-9b28-a7cdeedfa454"
+        },
         "created": "2026-09-01"
       },
       {
@@ -14940,9 +14942,214 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T105218069311-int4-tokenizer-source",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a72",
+        "node": "int4-tokenizer-source",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_glm_5_3.py -q exits 0 with added assertions. The live bring-up proved the community INT4 requant at /work/projects/imas_gpu/agents/glm-5-3-int4/model holds 241 safetensors shards but no tokenizer.json and no tokenizer_config.json, while the official FP8 release at /work/projects/imas_gpu/agents/glm-5-3/model has both, so job 1260688 died 59 seconds in during tokenizer construction before any weight or KV initialisation. Add an optional model-level setting naming the released checkpoint a deployment borrows its tokenizer from, resolved through the same site path helper that resolves weights, and render it as the engine tokenizer argument in the generated serve command. Set it on the four-card GLM base only. Tests assert: the four-card generated command names the official checkpoint directory as its tokenizer while still naming the INT4 directory as its weights, the eight-card variant sets no tokenizer argument because its own checkpoint carries one, and a profile that omits the setting generates a command with no tokenizer argument at all so every other model is unaffected. Before setting it, verify compatibility rather than assuming: compare vocab_size and every tokenizer-related key between the two config.json files, and record that comparison verbatim in the manifest evidence. If they disagree, leave the field unset and report the disagreement as the finding. Name the setting for what it does and never after a plan stage, a ticket or a version. Do not modify anything under /work.",
+          "estimated_hours": null,
+          "goal": "Let a deployment take its tokenizer from a different released checkpoint than its weights, so the four-card INT4 build can serve at all",
+          "id": "int4-tokenizer-source",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T105218069311-int4-tokenizer-source/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/agent/profile.py",
+            "imas_ambix/agent/slurm.py",
+            "imas_ambix/agent/profiles/glm-5-3.toml",
+            "tests/test_agent_glm_5_3.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "s24-catalog-metadata",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T10:52:26Z",
+        "completed_at": "2026-09-01T10:57:03Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 277,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 277,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "9bf01b8324848561923a5412ac179a4a8f80fc56",
+        "commits": [
+          "3bb3d7621b5afa74b3a8752a900966b18c19166e"
+        ],
+        "changed_lines": {
+          "added": 38,
+          "removed": 1,
+          "files": 4
+        },
+        "tests_added": 1,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_glm_5_3.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T105218069311-int4-tokenizer-source/pytest-focused.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T105218069311-int4-tokenizer-source/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c82-49c2-76f2-8235-735c7a23ac45",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1377792,
+            "cached_input_tokens_cumulative": 2709760,
+            "input_tokens": 1337104,
+            "input_tokens_cumulative": 2781506,
+            "output_tokens": 4635,
+            "output_tokens_cumulative": 12090,
+            "reasoning_output_tokens": 1684,
+            "reasoning_output_tokens_cumulative": 3788
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_glm_5_3.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260901T105238970097-clive-mode-axis",
+        "plan": "clive-launch-modes",
+        "section": "\u00a72",
+        "node": "clive-mode-axis",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_clive_modes.py -q exits 0. The launcher gains --mode with values local and hybrid, defaulting to local, which must not collide with the existing --claude and --codex harness axis. Tests assert: a launch with no mode argument and a launch with --mode local produce byte-identical generated launcher content, so a cautious caller can assert the default rather than trust it. --mode hybrid is the only input under which any hosted frontier slot appears in the generated script. With a well-formed hosted credential file present on disk and no mode argument given, the generated script stays byte-identical to the local one and contains no hosted slot, because a route selected by the presence of a personal credential rather than by what the caller typed has already caused an outage. An unrecognised mode value exits non-zero with an error naming the valid values rather than silently falling back. The --help output contains the mode axis and states local as the default. The mode never redirects an unqualified request off-cluster and never changes which model answers by default. Extend the existing generator and launcher command named in the reuse map at /home/ITER/mcintos/.config/reckon/crew/reports/s24-reuse-map.md rather than creating a second launcher, and keep the hosted-proxy installation isolated behind explicit hybrid selection.",
+          "estimated_hours": null,
+          "goal": "Give the launcher a mode axis whose default is local-only and whose one named alternative adds the hosted frontier slots",
+          "id": "clive-mode-axis",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T105238970097-clive-mode-axis/manifest.md",
+          "plan": "clive-launch-modes",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/agent/clive.py",
+            "imas_ambix/agent/cli.py",
+            "tests/test_agent_clive_modes.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-clive-modes",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T10:52:47Z",
+        "completed_at": "2026-09-01T10:56:57Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 250,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 250,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "9bf01b8324848561923a5412ac179a4a8f80fc56",
+        "commits": [
+          "526195c8c059efe5f73439ae1fed626407f11322"
+        ],
+        "changed_lines": {
+          "added": 200,
+          "removed": 30,
+          "files": 3
+        },
+        "tests_added": 7,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_clive_modes.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T105238970097-clive-mode-axis/pytest-clive-modes.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T105238970097-clive-mode-axis/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c99-a254-70b0-9b28-a7cdeedfa454",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1804800,
+            "cached_input_tokens_cumulative": 1804800,
+            "input_tokens": 1923889,
+            "input_tokens_cumulative": 1923889,
+            "output_tokens": 10620,
+            "output_tokens_cumulative": 10620,
+            "reasoning_output_tokens": 2938,
+            "reasoning_output_tokens_cumulative": 2938
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_clive_modes.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 385
+    "_version": 388
   }
 }
