@@ -198,6 +198,7 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
             _CATALOG_MIDDLEWARE,
         ]
         _append_flag(args, "--trust-remote-code", engine.trust_remote_code)
+        _append_option(args, "--tokenizer", site.tokenizer_dir(profile))
         _append_flag(
             args,
             "--enable-auto-tool-choice",

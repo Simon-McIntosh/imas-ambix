@@ -32,6 +32,9 @@ hf_repo = "vikasclawd/GLM-5.3-Int4-Int8Mix"
 # The two card counts need different checkpoints, so each keeps its own
 # directory; the eight-card variant redirects to the official FP8 download.
 weights_slug = "glm-5-3-int4"
+# This requant carries weights only. Its tokenizer contract matches the
+# official release, so the engine loads tokenizer assets from that checkpoint.
+tokenizer_source_slug = "glm-5-3"
 served_name = "glm-5.3"
 checkpoint_precision = "int4"
 size_gb = 344
@@ -92,6 +95,7 @@ time_download = "24:00:00"
 [gpu_variants.8.model]
 hf_repo = "zai-org/GLM-5.3"
 weights_slug = "glm-5-3"
+tokenizer_source_slug = ""
 checkpoint_precision = "fp8"
 size_gb = 704
 
