@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
 <meta name="plan-impl" content="0.6">
-<meta name="plan-version" content="8">
+<meta name="plan-version" content="9">
 <meta name="plan-commits" content="f63f3bae5c97aef7bf852404630eecb5f560b71f,b76d9cbfb26701fa98a54a2e34f7b74a327bbf0e">
 <meta name="plan-artifacts" content="imas_ambix/agent/AGENTS.md,imas_ambix/agent/router.py,tests/test_agent_router_admission.py">
 </head>
@@ -182,6 +182,9 @@
 <div class="r-comment" data-section="s3" data-id="c-20260901-capacity-service-statement" data-who="reckon-ship" data-when="2026-09-01T12:52:00+00:00">
     <div class="r-comment-body">capacity-service-statement landed — commit f63f3ba; gate 'documentation content check' passed; measure 14/14 assertions over the rewritten guidance. The sub-tree guidance no longer calls both GLM profiles unusable stubs with unpublished weights: it records the four-card community INT4 requant at 321 GiB and the eight-card vendor FP8 release at 704 GiB, both downloaded, sharing served name glm-5.3 and differing only in checkpoint precision. It carries the locked audience statement — group-sized best effort on spare cards, no reserved floor, cancellable for a training campaign, admission sized for a handful of consumers, widening later a card-budget change rather than a redesign. The core thesis of §3 is now measured rather than argued: at 12:38 the reservation's 30 cores were held 8 by the DeepSeek serve and 16 by a co-running CPU-only job, leaving at most 6, so a 12-core serve could not be admitted even with four cards free. Cards were never the constraint. Artifacts imas_ambix/agent/AGENTS.md.</div>
 </div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260901T170001931924-serve-time-limit" data-who="s24-capacity-impl" data-when="2026-09-01T17:04:07Z">
+    <div class="r-comment-body"><p>All nine resolved profiles request an unlimited serve window, verified rather than assumed: sinfo reports the partition timelimit infinite and a test-only submission carrying the unlimited spelling returned exit 0. Download limits untouched. 186/186 tests, whole-tree lint clean</p></div>
+</div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260901T114716249437-capacity-admission-control" data-who="s24-capacity-impl" data-when="2026-09-01T11:53:17Z">
     <div class="r-comment-body"><p>Per-consumer admission on the router: default 2 in-flight plus 4 queued, all configurable; a third request against a 1-active/1-queued limit gets HTTP 429 with Retry-After 7 while a second consumer completes independently; capacity released in a finally so a mid-stream disconnect frees the slot immediately. 3/3 admission plus 4/4 existing relay tests</p></div>
 </div>
@@ -189,7 +192,7 @@
     <div class="r-comment-body">capacity-admission-control landed — commit b76d9cb; gate 'per-consumer admission contract' passed; measure 3/3 admission tests plus the existing 4/4 relay suite still green. Admission sits on the router exactly as §4 argued, because the engine will not self-limit usefully. Each consumer defaults to two in flight plus four queued, with all three limits configurable rather than baked in, sized for the group best-effort audience the plan locked. Demonstrated under deliberate overload: against a one-active one-queued limit a third request receives HTTP 429 with Retry-After 7 while a second consumer completes independently, which is the property that makes a heavy caller degrade its own latency rather than everyone's. Capacity is released in a finally, so the disconnect test shows the same consumer immediately reusing a one-active zero-queued router — a dropped connection cannot leak a slot. Per-consumer accounting lands in the router's own log, the same mechanism that keeps consumer addresses out of the engine's job log. Artifacts imas_ambix/agent/router.py, tests/test_agent_router_admission.py.</div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260901T163047411095-capacity-live-overload" data-who="s24-capacity-impl" data-when="2026-09-01T16:38:54Z">
-    <div class="r-comment-body"><p>5/5 live against both engines. At a deliberately small limit of 1 in-flight and 1 queued, consumer A&#x27;s three requests returned 200/200/429 with the rejection carrying Retry-After 9 and arriving in 0.024s, while admitted requests took 9.31s and 18.33s. The property the cap exists for held: consumer B was served in 0.252s during A&#x27;s saturation, about 8.43s before A released its slot. The router logged 8 accounting transitions across both consumer addresses, and the engine POST records show only router interfaces — consumer A&#x27;s distinct address never reached the engine log</p></div>
+    <div class="r-comment-body"><p>5/5 live against both engines. At a deliberately small limit of 1 in-flight and 1 queued, consumer A's three requests returned 200/200/429 with the rejection carrying Retry-After 9 and arriving in 0.024s, while admitted requests took 9.31s and 18.33s. The property the cap exists for held: consumer B was served in 0.252s during A's saturation, about 8.43s before A released its slot. The router logged 8 accounting transitions across both consumer addresses, and the engine POST records show only router interfaces — consumer A's distinct address never reached the engine log</p></div>
 </div>
 </section>
 </main>

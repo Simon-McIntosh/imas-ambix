@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T18:39:30",
+  "updated": "2026-09-01T19:04:38",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -18396,9 +18396,111 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T170001931924-serve-time-limit",
+        "plan": "multi-model-serving-capacity",
+        "section": "\u00a73",
+        "node": "serve-time-limit",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent.py tests/test_agent_glm_5_3.py -q exits 0 with an added assertion. Every model profile currently sets a seven-day serve window, but the partition these serves run on reports TIMELIMIT=infinite, so the cap is self-imposed and truncates a healthy endpoint for no scheduler reason. Availability is managed by the operator, not by a wall clock. Change the serve time across the profiles so a serve is not time-capped, using whatever spelling the scheduler accepts for an unlimited request and confirming that spelling is accepted rather than assuming it. Leave the download time limit alone, since transfers are bounded work on a different partition. Add an assertion that a generated serve script requests no finite time cap, and confirm with a scheduler test-only submission that the new spelling is accepted, quoting that output in the manifest. Do not change any other sizing field.",
+          "estimated_hours": null,
+          "goal": "Stop serves capping themselves against a partition that has no time limit",
+          "id": "serve-time-limit",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T170001931924-serve-time-limit/manifest.md",
+          "plan": "multi-model-serving-capacity",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/agent/profiles",
+            "imas_ambix/agent/slurm.py",
+            "tests/test_agent.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-capacity-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T17:00:10Z",
+        "completed_at": "2026-09-01T17:04:07Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 237,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 237,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "6a0f410858aaf03ab5bc87ffb7baf99c77c60464",
+        "commits": [
+          "560038df708e4df868636da894965e4714e0c66c"
+        ],
+        "changed_lines": {
+          "added": 9,
+          "removed": 8,
+          "files": 9
+        },
+        "tests_added": 1,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent.py tests/test_agent_glm_5_3.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T170001931924-serve-time-limit/pytest-agent.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T170001931924-serve-time-limit/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c9f-7fa0-7353-b56f-090a024d590c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 1036032,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 1350191,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 7340,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 1312
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 433
+    "_version": 434
   }
 }
