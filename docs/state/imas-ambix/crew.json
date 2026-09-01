@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T12:57:33",
+  "updated": "2026-09-01T13:07:21",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -805,9 +805,11 @@
         "id": "s24-capacity-impl",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a05c9f-7fa0-7353-b56f-090a024d590c",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a05c9f-7fa0-7353-b56f-090a024d590c"
+        },
         "created": "2026-09-01"
       },
       {
@@ -15147,9 +15149,305 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T105925852851-router-upstream-resolution",
+        "plan": "serving-endpoint-indirection",
+        "section": "\u00a74",
+        "node": "router-upstream-resolution",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_router_resolution.py -q exits 0. The locked decision is a registration record preferred with scheduler discovery as the reconciling fallback. Build a resolver satisfying the interface the router already injects, so router.py's dispatch logic is not rewritten. Tests assert: records written by the registration store become candidate upstreams carrying model id, origin and auth header. A record whose job is no longer running is discarded rather than offered. A record that survives but whose endpoint fails an anonymous probe is discarded too, because a record alone never establishes availability. When no record exists the resolver falls back to the scheduler discovery already in the tree and reaches the same upstreams. When both sources describe the same serve the record wins and no duplicate upstream is produced. A serve that restarts on a different port is resolved at its new port with no configuration edit and no launcher redeploy, which is the acceptance property the plan names. Add a command under the existing agent command group that serves the router on a port, resolving upstreams this way. Follow the reuse map at /home/ITER/mcintos/.config/reckon/crew/reports/s24-reuse-map.md, which directs you to consume the existing scheduler adapter and endpoint probe rather than writing a second one.",
+          "estimated_hours": null,
+          "goal": "Resolve the router's upstreams from the per-serve registration records with scheduler discovery reconciling them, and give the router a command that runs it",
+          "id": "router-upstream-resolution",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T105925852851-router-upstream-resolution/manifest.md",
+          "plan": "serving-endpoint-indirection",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "guided",
+          "time_budget": "35m",
+          "write_paths": [
+            "imas_ambix/agent/router.py",
+            "imas_ambix/agent/cli.py",
+            "tests/test_agent_router_resolution.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "s24-router-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T10:59:35Z",
+        "completed_at": "2026-09-01T11:05:19Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 344,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 344,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "4188f32d375c889b7aa425c0ba9a196b0d66f03a",
+        "commits": [
+          "892050cc9030b581379ac2a5c9739bf34a64655c"
+        ],
+        "changed_lines": {
+          "added": 305,
+          "removed": 7,
+          "files": 3
+        },
+        "tests_added": 6,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_router_resolution.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T105925852851-router-upstream-resolution/logs/pytest-agent-router-resolution-final.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T105925852851-router-upstream-resolution/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c83-5de8-74c3-a1d9-db6b19b95c3e",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1536768,
+            "cached_input_tokens_cumulative": 4477696,
+            "input_tokens": 1230331,
+            "input_tokens_cumulative": 4553364,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 13818,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 4596
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_router_resolution.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260901T105905229628-lint-gate-repair",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a72",
+        "node": "lint-gate-repair",
+        "node_definition": {
+          "done_when": "uv run --no-sync ruff check imas_ambix tests --no-cache exits 0. One line introduced earlier in this session, tests/test_agent.py:459, is 90 characters against the 88 limit and is the only finding in the tree. Rewrap that line without changing what the assertion tests. Do not reformat any other line and do not run a whole-tree formatter, because a repo-wide sweep would fold unrelated rewrites into this commit.",
+          "estimated_hours": null,
+          "goal": "Return the whole-tree lint gate to a clean exit after a line-length regression",
+          "id": "lint-gate-repair",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T105905229628-lint-gate-repair/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "15m",
+          "write_paths": [
+            "tests/test_agent.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-capacity-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T10:59:11Z",
+        "completed_at": "2026-09-01T11:01:04Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 113,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 113,
+        "stalled": false,
+        "time_budget": "15m",
+        "base_sha": "4188f32d375c889b7aa425c0ba9a196b0d66f03a",
+        "commits": [
+          "37090ec5eb33000a3fb80a1bacbc2bc32f57334b"
+        ],
+        "changed_lines": {
+          "added": 4,
+          "removed": 1,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync ruff check imas_ambix tests --no-cache",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T105905229628-lint-gate-repair/ruff-whole-tree.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T105905229628-lint-gate-repair/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c9f-7fa0-7353-b56f-090a024d590c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 822784,
+            "cached_input_tokens_cumulative": 822784,
+            "input_tokens": 900429,
+            "input_tokens_cumulative": 900429,
+            "output_tokens": 4129,
+            "output_tokens_cumulative": 4129,
+            "reasoning_output_tokens": 1007,
+            "reasoning_output_tokens_cumulative": 1007
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
+      },
+      {
+        "run_id": "r-20260901T105848415588-glm53-bringup-retry",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a72",
+        "node": "glm53-bringup-retry",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-glm53-bringup-retry.md records each item with its verbatim command and output. The earlier attempt, job 1260688, died in 59 seconds during tokenizer construction because the INT4 checkpoint carries no tokenizer assets. That is now fixed at HEAD: the four-card profile borrows the official release's tokenizer and the generated command carries a tokenizer argument. Confirm that argument is present in a dry run before submitting anything. Then: (1) re-run the descending core ladder of 12, 10, 8, 6 then 4 with --gres=gpu:4 --mem=320G on partition betelgeuse with reservation gpu_0003_grpA, quoting each probe verbatim, and take the LARGEST count whose predicted start is immediate rather than a future timestamp. (2) submit one keyless serve at that count on port 18801 and record the job id. (3) quote the engine's own startup KV-cache pool line verbatim and state the context ceiling it implies as a number, which is ground truth where the profile's 262144 is arithmetic. (4) show a successful anonymous GET http://98dci4-gpu-0003:18801/v1/models whose card carries served id glm-5.3 with an intact ambix block naming accelerator count 4 and precision int4. (5) show a REAL streaming POST /v1/messages returning non-empty assistant text, because a ready state is not evidence: this architecture's sparse-MLA kernel claims roughly 8 GiB per card lazily on the first real decode. If the engine dies again, report the log excerpt as the finding rather than retrying blindly. Do not cancel, resize or requeue any job you did not submit yourself, and leave the DeepSeek serve job 1260660 RUNNING.",
+          "estimated_hours": null,
+          "goal": "Prove the four-card INT4 GLM-5.3 deployment serving on port 18801 with a real streaming generation now that its tokenizer resolves",
+          "id": "glm53-bringup-retry",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T105848415588-glm53-bringup-retry/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "55m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-glm53-bringup-retry.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "guided",
+        "member": "s24-glm-bringup",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T10:58:54Z",
+        "completed_at": "2026-09-01T11:03:24Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 270,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 270,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "4188f32d375c889b7aa425c0ba9a196b0d66f03a",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": {
+          "command": "uv run --no-sync imas-ambix agent serve glm-5-3 --gpus 4 --cpus 6 --port 18801 then anonymous GET /v1/models and streaming POST /v1/messages",
+          "exit_status": 1,
+          "log_path": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/s24-ship-01/glm53-bringup-retry/glm-5-3-1260703.log",
+          "log_digest": null
+        },
+        "failure_classification": "pre-existing-failure",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T105848415588-glm53-bringup-retry/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c82-d605-7472-9bb3-1d541a3193d7",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 706816,
+            "cached_input_tokens_cumulative": 2233088,
+            "input_tokens": 745215,
+            "input_tokens_cumulative": 2312653,
+            "output_tokens": 242,
+            "output_tokens_cumulative": 12932,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 2517
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 388
+    "_version": 392
   }
 }
