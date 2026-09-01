@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="multi-model-serving-capacity">
   <meta name="plan-title" content="Multi-Model Serving Capacity — two releases on one node, and what we can promise">
   <meta name="plan-summary" content="Concurrent DeepSeek and GLM serves inside the card and core budget, with admission control and an honest service statement">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="4.0">
   <meta name="plan-capability-version" content="1.0">
@@ -24,9 +24,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-impl" content="0.6">
-<meta name="plan-version" content="9">
-<meta name="plan-commits" content="f63f3bae5c97aef7bf852404630eecb5f560b71f,b76d9cbfb26701fa98a54a2e34f7b74a327bbf0e">
+<meta name="plan-impl" content="1.0">
+<meta name="plan-version" content="10">
+<meta name="plan-commits" content="f63f3bae5c97aef7bf852404630eecb5f560b71f,b76d9cbfb26701fa98a54a2e34f7b74a327bbf0e,560038df708e4df868636da894965e4714e0c66c">
 <meta name="plan-artifacts" content="imas_ambix/agent/AGENTS.md,imas_ambix/agent/router.py,tests/test_agent_router_admission.py">
 </head>
 <body>
@@ -169,10 +169,16 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-mmsc-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-written-by="reckon-create" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship multi-model-serving-capacity" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-mmsc-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-written-by="reckon-create" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship multi-model-serving-capacity" data-resolved-at="2026-09-01T17:58:48+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Bring up the second engine on its own port, then size and cap it</h4>
     <div class="r-fu-body">§1 has landed: keyless is the serve default, <code>restart</code> shares the same resolution, a <code>--cpus</code> override exists, and the DeepSeek serve is running keyless on 2 cards and 8 cores. Next: decide the concurrent GLM variant (INT4 recommended — the FP8 release fills the node and forecloses the multi-model surface this sprint exists for), probe its cores rather than taking the profile default, and quote its context from the startup pool line rather than arithmetic. Validate with a real generation, not a ready state — this architecture's attention kernel claims scratch lazily on the first decode, which has turned a clean launch into a dead engine before. Correct the sub-tree guidance that still calls both GLM profiles unusable stubs. The audience decision sizes the card budget and should be answered before the second engine comes up.</div>
     <pre class="r-fu-prompt">/reckon-ship multi-model-serving-capacity</pre>
+    <p class="r-fu-outcome">Shipped. Both releases serve concurrently on one node inside a measured card and core budget, admission control is demonstrated live under deliberate overload with per-consumer separation and consumer addresses kept out of the engine log, the serving guidance describes the deployments as they are, and the service statement records the group best-effort audience. The self-imposed seven-day serve cap is gone. Continuation passes to clive-launch-modes as f-mmsc-02 for the interactive confirmation no automated node can produce.</p>
+    </article>
+<article class="r-fu" data-id="f-mmsc-02" data-status="open" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship clive-launch-modes" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Confirm the refreshed launcher presents both releases at a terminal</h4>
+    <div class="r-fu-body">Owned by <code>clive-launch-modes</code>, not by this plan. The shared launcher has been regenerated and deployed, and <code>--list</code> now returns both releases with their real topology and engine-reported context, discovered from a world-readable endpoint document rather than a single hard-pinned origin. What no automated node can show is the interactive path: a bare launch should present a numbered model prompt, and the model picker inside the harness should carry one row per release rather than one per alias slot. That needs a human at a terminal.</div>
+    <pre class="r-fu-prompt">/reckon-ship clive-launch-modes</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
@@ -193,6 +199,13 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260901T163047411095-capacity-live-overload" data-who="s24-capacity-impl" data-when="2026-09-01T16:38:54Z">
     <div class="r-comment-body"><p>5/5 live against both engines. At a deliberately small limit of 1 in-flight and 1 queued, consumer A's three requests returned 200/200/429 with the rejection carrying Retry-After 9 and arriving in 0.024s, while admitted requests took 9.31s and 18.33s. The property the cap exists for held: consumer B was served in 0.252s during A's saturation, about 8.43s before A released its slot. The router logged 8 accounting transitions across both consumer addresses, and the engine POST records show only router interfaces — consumer A's distinct address never reached the engine log</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260901-capacity-live" data-who="reckon-ship" data-when="2026-09-01T20:00:00+00:00">
+    <div class="r-comment-body">capacity-live-overload landed — gate 'per-consumer cap under live overload' PASSED; measure 5/5 against both running engines rather than fixtures. At a deliberately small limit of one in flight and one queued, consumer A's three requests returned 200/200/429, the rejection carrying Retry-After 9 and arriving in 0.024s while admitted requests took 9.31s and 18.33s. The property the cap exists for held under measurement: consumer B was served in 0.252s during A's saturation, roughly 8.43s before A released its slot. The router logged eight accounting transitions across both consumer addresses, and the engine POST records carried only router interfaces — consumer A's distinct address never appeared in the engine log, which is the consumer-metadata separation §1 wanted.
+
+serve-time-limit landed — commit 560038d; gate 'agent suite' passed; measure 186/186. Every profile had requested a seven-day serve window while the partition reports an infinite time limit, so the cap was self-imposed and would have truncated a healthy endpoint for no scheduler reason. All nine resolved profiles now request no finite cap, verified by a test-only submission rather than assumed, with download limits untouched because transfers are bounded work.
+
+The §3 thesis is now measured rather than argued: two jobs alone held 24 of the 30 reserved cores, so a serve at the profile's default core count could not be admitted at all while four cards sat idle. Full record: docs/evidence/archive/multi-model-serving-capacity-landed.html</div>
 </div>
 </section>
 </main>

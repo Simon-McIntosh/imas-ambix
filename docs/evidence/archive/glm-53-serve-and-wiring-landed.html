@@ -17,11 +17,12 @@
 <body>
   <main class="plan-doc">
 
-    <h2 id="summary">What landed, and what did not</h2>
-    <p>The wiring landed and is proven. The engine did not: four bring-up attempts each
-    found a <em>different</em> real defect, and the checkpoint the plan named turned out to
-    be unusable. Every attempt is recorded below, because the sequence is the result — each
-    failure was upstream of the trap the plan had warned about, and none repeated another.</p>
+    <h2 id="summary">What landed</h2>
+    <p>GLM-5.3 serves coherently on four cards with working tool calls, on a checkpoint the
+    plan did not name. Getting there took five bring-up attempts, and the first four each
+    found a <em>different</em> real defect. Every attempt is recorded below, because the
+    sequence is the result — each failure sat upstream of the trap the plan had warned
+    about, and none repeated another.</p>
 
     <table>
       <thead><tr><th>Node</th><th>Commit</th><th>Measure</th></tr></thead>
@@ -96,6 +97,19 @@
     </ul>
     <p>Transferred as job <code>1260756</code> into its own weights directory, completing in
     ten minutes.</p>
+
+    <h2 id="proof">The engine, proven</h2>
+    <p>Job <code>1260907</code>, four cards and twelve cores. 141/141 shards in 832.66 s at
+    102.46 GiB per card. The engine reported <strong>13.9 GiB</strong> of KV and 160,512
+    cached tokens at 2.45× concurrency for the configured 65,536 — confirming by measurement
+    the pairing chosen after the same topology had reported only 8.32 GiB, since this
+    checkpoint's budget is tighter than the one it replaced. The anonymous card shows
+    <code>glm-5.3</code> with accelerator count 4 and precision <code>w4a8</code>.</p>
+    <p>Every gate the previous checkpoint failed now passes: the streaming decode is
+    coherent and correct, the raw no-template completion — precisely where the old requant
+    emitted 32 repeated tokens — returns the right answer with zero repeats, one real
+    <code>tool_use</code> block returns the correct result, and one real thinking block
+    reasons correctly.</p>
 
     <h2 id="scope">Scope recorded by the lead</h2>
     <p>The eight-card FP8 single-model quality measurement is deliberately not taken. It

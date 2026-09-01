@@ -73,14 +73,31 @@
     cards is eight cards, and past the bound the router returns a retry directive rather
     than queueing without end.</p>
 
-    <h2 id="open">What remains unproven</h2>
-    <p>Two engines have not yet served concurrently. The second engine's checkpoint was
-    substituted mid-sprint after the profiled one proved unusable, and the replacement's
-    own budget is tighter than the release it replaced: at four cards it reported
-    <strong>8.32 GiB</strong> of KV cache available against 11.31 GiB needed for the
-    configured ceiling, with an engine-estimated maximum of 96384 tokens. So the concurrent
-    demonstration, and the overload measurement against two live engines, remain open
-    behind a further sizing pass rather than behind any component built here.</p>
+    <h2 id="live">The cap, demonstrated against live engines</h2>
+    <p>Both releases now serve concurrently and the cap was measured against them rather
+    than against fixtures. At a deliberately small limit of one in flight and one queued,
+    one consumer's three requests returned 200/200/429 — the rejection carrying
+    <code>Retry-After 9</code> and arriving in 0.024 s, while its admitted requests took
+    9.31 s and 18.33 s. The property the cap exists for held: a second consumer was served
+    in <strong>0.252 s</strong> during the first's saturation, about 8.43 s before the first
+    released its slot. The router logged eight accounting transitions across both consumer
+    addresses, and the engine's own POST records carried only router interfaces — the first
+    consumer's distinct address never appeared there, which is the consumer-metadata
+    separation §1 wanted.</p>
+    <p>Reaching that point needed one more sizing pass, and it is worth recording why. The
+    substituted checkpoint has a tighter budget than the release it replaced: at four cards
+    it left <strong>8.32 GiB</strong> of KV against 11.31 GiB needed, where its predecessor
+    had reported 20.71 GiB in the same topology. Raising the memory fraction and lowering
+    the ceiling together returned the pool to 13.9 GiB and 160,512 cached tokens — measured
+    by the engine, not predicted.</p>
+
+    <h2 id="timelimit">A cap that was ours, not the scheduler's</h2>
+    <p>Every profile requested a seven-day serve window while the partition reports an
+    infinite time limit. That cap was self-imposed and would have truncated a healthy
+    endpoint for no scheduler reason; availability here is the operator's to manage. All
+    nine resolved profiles now request no finite cap, verified accepted by a test-only
+    submission rather than assumed. Download limits are untouched, because transfers are
+    bounded work.</p>
 
   </main>
 </body>

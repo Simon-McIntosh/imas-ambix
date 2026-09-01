@@ -21,8 +21,9 @@
     <p>One origin now fronts many engines. The router's whole contract is
     <code>model id → (upstream base, auth header)</code> plus a byte-faithful relay, with
     upstreams resolved from per-serve registration records and reconciled against the
-    scheduler. Every component below is proven against fixture upstreams; the two-engine
-    live union remains open behind the second engine, recorded in
+    scheduler. Every component below was proven against fixture upstreams first and then
+    <a href="#live">live over two concurrent engines</a>, with the second engine's own
+    bring-up recorded in
     <a href="/imas-ambix/evidence/archive/glm-53-serve-and-wiring-landed">the bring-up record</a>.</p>
 
     <table>
@@ -33,7 +34,7 @@
         <tr><td>Upstream resolution + command</td><td><code>892050c</code></td><td>6/6; restart on a new port resolved with no config edit</td></tr>
         <tr><td>Serving-interpreter guard</td><td><code>8cbc2f7</code></td><td>7/7; guard derives 3.12 from the serving env's own pin</td></tr>
         <tr><td>Package-wide grammar sweep</td><td><code>25b1be1</code></td><td>16/16 agent modules parse at 3.12</td></tr>
-        <tr><td>Per-consumer admission</td><td><code>b76d9cb</code></td><td>3/3; 429 with Retry-After 7 past the bound</td></tr>
+        <tr><td>Per-consumer admission</td><td><code>b76d9cb</code></td><td>3/3 fixture, then 5/5 live under deliberate overload</td></tr>
       </tbody>
     </table>
 
@@ -104,6 +105,37 @@
     nine files that exceeded the compute allocation were measured separately: 171 passed,
     0 failed, 3 skipped over eight of them, leaving
     <code>tests/fluxstate/test_consumer_contract.py</code> as the only unmeasured file.</p>
+
+
+    <h2 id="live">Proven live over two engines</h2>
+    <p>With GLM-5.3 on four cards and DeepSeek on two, one origin returned both native
+    cards with engine-reported context and complete metadata intact, each id reached its
+    own engine returning a checkably-correct answer, an unknown id was refused 404, and a
+    streamed response matched a direct request <strong>43/43 events</strong> with identical
+    sequence, thinking text, block types and tool JSON. The decisive check was the last:
+    <code>clive --list</code> showed both releases and both answered <em>using the launcher
+    generated unchanged from HEAD</em>. Resolution was genuinely exercised rather than
+    assumed — DeepSeek's port came from its scheduler comment and only GLM had a
+    registration record, so registration-preference and scheduler fallback both ran.</p>
+
+    <h2 id="topology">The daemon question, and the answer</h2>
+    <p><strong>The plan locked how to route and where the origin lives, but never examined
+    whether a continuously-running component was needed at all.</strong> Challenged on it,
+    the honest reckoning is that for listing and routing it is not. The single-origin
+    premise came from the existing launcher contract — one anonymous
+    <code>GET origin/v1/models</code> treated as the complete availability authority —
+    not from anything intrinsic.</p>
+    <p>So the launcher now discovers releases from a published document and sends inference
+    <em>directly</em> to each release's own origin: nothing on the request path, no extra
+    hop, no component whose death takes a healthy surface down. The router remains, earning
+    its place on the two things a client-side merge cannot do — per-consumer admission and
+    keeping consumer addresses out of the engine job log — and it holds no accelerator:
+    <code>AllocTRES=cpu=2,mem=8G</code> with no <code>gres/gpu</code> entry.</p>
+    <p>One constraint decided where the document lives, and it is not cosmetic.
+    <code>/work/projects/imas_gpu</code> is mode <code>drwxrws---</code> and grants no world
+    execute bit, so a user outside the storage group cannot traverse into it at all — the
+    launcher included. The document therefore sits outside that tree at a path whose every
+    ancestor grants world execute.</p>
 
   </main>
 </body>
