@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T16:35:45",
+  "updated": "2026-09-01T17:45:44",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -18042,9 +18042,103 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T135807159327-fluxstate-contract-measure",
+        "plan": "flux-function-state-interface",
+        "section": "\u00a71",
+        "node": "fluxstate-contract-measure",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-fluxstate-contract.md records the verbatim command, its exit status, its elapsed time and its final pytest summary line with pass, fail, error and skip counts, plus every failing node id with the first ten lines of its traceback. The file is tests/fluxstate/test_consumer_contract.py. It is the last unmeasured part of the tree: it exited 124 after 1200 seconds on its previous attempt with five passing progress markers and no final summary, so it needs more than twenty minutes rather than a different command. Run it alone with -q so nothing competes with it, and give it the time this node's budget allows. Also record which individual tests are slowest, using pytest's --durations option, because a file that cannot finish in twenty minutes is itself a finding worth quantifying for whoever owns it. If it still does not finish, report the elapsed time it reached and the last progress marker rather than reporting it as passing. Do not fix anything and do not commit any source change, because this node's deliverable is the report.",
+          "estimated_hours": null,
+          "goal": "Measure the one test file that has never reached a final summary",
+          "id": "fluxstate-contract-measure",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T135807159327-fluxstate-contract-measure/manifest.md",
+          "plan": "flux-function-state-interface",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a71",
+          "spec_level": "exact",
+          "time_budget": "55m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-fluxstate-contract.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "s24-suite-finish",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T13:58:15Z",
+        "completed_at": "2026-09-01T14:45:23Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 2828,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 2828,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "aa75e4d9c53e71862d38139280da302285d93f40",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/fluxstate/test_consumer_contract.py -q --durations=0",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T135807159327-fluxstate-contract-measure/test-logs/tests__fluxstate__test_consumer_contract.py.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T135807159327-fluxstate-contract-measure/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05d18-2cdd-7520-93c1-98293e86299a",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 8220416,
+            "cached_input_tokens_cumulative": 20355072,
+            "input_tokens": 8289610,
+            "input_tokens_cumulative": 20636074,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 16134,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 4368
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest summary",
+          "override": false,
+          "role": "test",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 429
+    "_version": 430
   }
 }
