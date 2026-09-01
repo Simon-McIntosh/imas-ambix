@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T13:13:28",
+  "updated": "2026-09-01T13:40:37",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -15647,9 +15647,197 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T111350768094-glm53-bringup-final",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a72",
+        "node": "glm53-bringup-final",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-glm53-bringup-final.md records each item with its verbatim command and output. Two prior attempts failed for reasons now fixed at HEAD: job 1260688 died during tokenizer construction because the community INT4 checkpoint ships no tokenizer, and job 1260703 died importing the registration module because the serve script runs under the vLLM environment's Python 3.12 while that module used 3.14-only syntax. Before submitting, confirm in a dry run that the generated command carries the official tokenizer argument, and confirm the registration module imports cleanly under a 3.12-compatible parse. Then: (1) re-run the descending core ladder of 12, 10, 8, 6 then 4 with --gres=gpu:4 --mem=320G on partition betelgeuse with reservation gpu_0003_grpA, quoting each probe verbatim, and take the LARGEST count whose predicted start is immediate. (2) submit one keyless serve at that count on port 18801 and record the job id. (3) quote the engine's own startup KV-cache pool line verbatim and state the context ceiling it implies as a number, which is ground truth where the profile's 262144 is arithmetic. (4) show a successful anonymous GET http://98dci4-gpu-0003:18801/v1/models whose card carries served id glm-5.3 with an intact ambix block naming accelerator count 4 and precision int4. (5) show a REAL streaming POST /v1/messages returning non-empty assistant text, because a ready state is not evidence: the sparse-MLA kernel claims roughly 8 GiB per card lazily on the first real decode. (6) then show one tool-use round trip and one reasoning response against THIS engine, which uses different parsers from DeepSeek and whose result must not be carried over from it. Loading a 321 GiB checkpoint takes time, so poll the job log patiently rather than concluding failure early. If the engine dies, report the log excerpt as the finding rather than retrying blindly. Do not cancel, resize or requeue any job you did not submit, and leave DeepSeek job 1260660 RUNNING.",
+          "estimated_hours": null,
+          "goal": "Prove the four-card INT4 GLM-5.3 deployment serving on port 18801 with a real streaming generation now that both its tokenizer and its serving-interpreter defect are fixed",
+          "id": "glm53-bringup-final",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T111350768094-glm53-bringup-final/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "55m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-glm53-bringup-final.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "guided",
+        "member": "s24-glm-bringup",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T11:13:57Z",
+        "completed_at": "2026-09-01T11:40:15Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1578,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1578,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "90badec107dadbb5051dae969a5c8fe540863a48",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": {
+          "command": "uv run --no-sync imas-ambix agent serve glm-5-3 --gpus 4 --cpus 6 --port 18801 then anonymous GET /v1/models and streaming POST /v1/messages",
+          "exit_status": 1,
+          "log_path": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/s24-ship-01/glm53-bringup-final/glm-5-3-1260712.log",
+          "log_digest": null
+        },
+        "failure_classification": "negative-result",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T111350768094-glm53-bringup-final/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c82-d605-7472-9bb3-1d541a3193d7",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 3075584,
+            "cached_input_tokens_cumulative": 5308672,
+            "input_tokens": 3158219,
+            "input_tokens_cumulative": 5470872,
+            "output_tokens": 8646,
+            "output_tokens_cumulative": 21578,
+            "reasoning_output_tokens": 1385,
+            "reasoning_output_tokens_cumulative": 3902
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
+      },
+      {
+        "run_id": "r-20260901T111423344139-agent-suite-verification",
+        "plan": "serving-endpoint-indirection",
+        "section": "\u00a76",
+        "node": "agent-suite-verification",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-agent-suite-verification.md records four checks with their verbatim commands, exit statuses and summary lines. (1) uv run --no-sync pytest tests/ -q over the whole test tree, with the pass and fail counts quoted and every failing test named. (2) uv run --no-sync ruff check imas_ambix tests --no-cache, which the repository treats as a whole-tree gate that must exit 0. (3) every module under imas_ambix/agent parsed with ast.parse at feature_version 3.12, the vLLM serving environment's declared lower bound, reporting the count parsed and naming with its line any file that raises SyntaxError - the serve script imports repo modules under that interpreter even though the project targets 3.14, which already killed one serve. (4) uv run --no-sync imas-ambix agent serve glm-5-3 --gpus 4 --cpus 6 --port 18801 --dry-run, quoting its exit status and confirming the rendered command names both the INT4 weights directory and the official tokenizer directory. Report the results exactly as observed. Do not fix anything and do not commit any source change, because this node's deliverable is the report.",
+          "estimated_hours": null,
+          "goal": "Verify the whole agent surface at the integrated head, so no module regresses behind a passing focused test",
+          "id": "agent-suite-verification",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T111423344139-agent-suite-verification/manifest.md",
+          "plan": "serving-endpoint-indirection",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a76",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-agent-suite-verification.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "s24-router-test",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T11:14:28Z",
+        "completed_at": "2026-09-01T11:39:41Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1513,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1513,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "90badec107dadbb5051dae969a5c8fe540863a48",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": {
+          "command": "pytest tests/ -q ; ruff check imas_ambix tests ; ast.parse feature_version 3.12 over imas_ambix/agent ; serve dry-run",
+          "exit_status": 1,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T111423344139-agent-suite-verification/ast-python312.log",
+          "log_digest": null
+        },
+        "failure_classification": "negative-result",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T111423344139-agent-suite-verification/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c8b-3372-71e1-b506-e2ff2f281895",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 6530560,
+            "cached_input_tokens_cumulative": 8540672,
+            "input_tokens": 6592228,
+            "input_tokens_cumulative": 8726566,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 12519,
+            "reasoning_output_tokens": 1127,
+            "reasoning_output_tokens_cumulative": 4109
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/",
+          "override": false,
+          "role": "test",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 394
+    "_version": 396
   }
 }
