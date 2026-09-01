@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="19">
+<meta name="plan-version" content="20">
 <meta name="plan-commits" content="3dd736597952c097de5c997b0613b8b166a7558b,53b4fc31f7b7e609f8d14c4b051f1b3d12a4bc65,3bb3d7621b5afa74b3a8752a900966b18c19166e">
 <meta name="plan-artifacts" content="tests/test_agent_glm_5_3.py,docs/evidence/archive/glm-53-serve-and-wiring-landed.html">
 <meta name="plan-impl" content="0.5">
@@ -198,6 +198,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260901T114634550197-glm53-live-proof" data-who="s24-glm-bringup" data-when="2026-09-01T12:20:13Z">
     <div class="r-comment-body"><p>Engine is UP and healthy: job 1260720, 241 shards in 859s, 20.71 GiB KV pool, 240064-token cache, 1.83x concurrency at the configured 131072, Application startup complete, anonymous catalog returns glm-5.3 with intact ambix block naming count 4 and int4, and the first real decode survived the lazy sparse-MLA claim returning 128 non-empty tokens. But every decoded output is INCOHERENT and tool-use returns 0/2 tool_use blocks across two attempts, so the release is served and unusable. Both jobs 1260660 and 1260720 left RUNNING.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260901T134627155056-w4a8-proof-serve" data-who="s24-glm-bringup" data-when="2026-09-01T14:12:49Z">
+    <div class="r-comment-body"><p>W4A8 has a materially tighter budget than the release it replaced: at four cards the engine reported only 8.32 GiB of KV cache available against 11.31 GiB needed for the configured 131072, with its own estimated maximum at 96384 tokens, so job 1260770 aborted at KV init. The INT4 build had reported 20.71 GiB in the same topology, so the configured ceiling carried over from that measurement no longer fits and the profile needs a second sizing pass</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20260901-fp8-deferral" data-who="reckon-ship" data-when="2026-09-01T13:01:00+00:00">
     <div class="r-comment-body">Scope correction recorded by the lead: the fifth done-when item, a single-model quality measurement of the eight-card FP8 deployment, is deliberately NOT taken. That measurement needs the whole node, which would mean stopping the running keyless DeepSeek serve, and no multi-model result depends on it. FP8 stands recorded as a whole-node alternative to concurrency rather than a default deployment, which is the substance the item was for. The measurement itself belongs to a future single-model quality plan, not to this bring-up.</div>
