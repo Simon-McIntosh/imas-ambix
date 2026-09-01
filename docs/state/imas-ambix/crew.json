@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T15:57:44",
+  "updated": "2026-09-01T16:12:46",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -17564,9 +17564,103 @@
           "role": "test",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T135851940413-basin-window-census",
+        "plan": "force-balance-spine",
+        "section": "\u00a71",
+        "node": "basin-window-census",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-basin-window.md gives, for each declared-source field strength surveyed, the cold fixed-shape axis R and the warm scout axis R, and states whether any strength produces the contrast the test asserts: cold drifting outboard while warm stays inside R <= 1.4 m. The failing test is tests/latent/test_synthetic_truth.py::test_basin_scout_reaches_confined_where_fixed_shape_drifts. Two strengths are already measured and both fail: warm-axis R is 1.783625779 m at 4.4 kA and 1.783372381 m at 5.1 kA, so the warm branch is barely moving with drive and a wider survey is needed rather than another point near those two. Survey a bounded ladder across a materially wider range than 4.4 to 5.1 kA, choosing points that would reveal whether the warm branch responds to drive at all, and report every point measured rather than only the successful one. Two outcomes are equally acceptable and both must be stated plainly: either name a strength where the contrast holds with its two measured radii, or conclude with the evidence that no such window exists over the range surveyed, which would mean the fixture needs semantic redesign rather than retuning. Do not modify the test, do not change any physics threshold, and do not commit a source change, because this node's deliverable is the measurement. Keep each solve bounded so the survey completes inside the budget, and say how many points you managed.",
+          "estimated_hours": null,
+          "goal": "Find whether a measured field strength exists where the fixed-shape seed drifts but the warm scout stays confined",
+          "id": "basin-window-census",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T135851940413-basin-window-census/manifest.md",
+          "plan": "force-balance-spine",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a71",
+          "spec_level": "guided",
+          "time_budget": "55m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-basin-window.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "guided",
+        "member": "s24-latent-repair",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T13:58:57Z",
+        "completed_at": "2026-09-01T14:12:23Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 806,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 806,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "8fb8982ac21260511ac7313458caadab115165de",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "bounded field-strength census over 0-60 kA in three all_debug allocations",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T135851940413-basin-window-census/basin-census.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T135851940413-basin-window-census/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05d18-ea81-7520-8aaa-12032b7bea58",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 3462144,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 3606751,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 17149,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 6400
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 424
+    "_version": 425
   }
 }

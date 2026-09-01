@@ -21,7 +21,7 @@
 <meta name="plan-modified" content="2026-09-01">
 <meta name="plan-blocks" content="">
 <meta name="plan-informs" content="">
-<meta name="plan-version" content="11">
+<meta name="plan-version" content="12">
 <meta name="plan-impl" content="1.0">
 <meta name="plan-capability-version" content="1.0">
 <meta name="plan-capability-class" content="orchestrator">
@@ -531,7 +531,10 @@ Done-when
 
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s1" data-id="c-run-r-20260901T131139746205-latent-suite-failures" data-who="s24-latent-repair" data-when="2026-09-01T13:51:37Z">
-    <div class="r-comment-body"><p>42/43 in the three-file gate, up from 40/43. Two failures root-caused and fixed: a stale read of a private operator map removed when declared circuit metadata became authoritative, and a wall-clock measurement destabilised by fleet oversubscription now measured as single-thread CPU time against the same 50 ms bound. A real code defect surfaced too: synthetic and sidecar builders omitted active-circuit declarations, giving 29 passive columns against the operator&#x27;s 35. The basin contrast remains genuinely unmet — warm-axis R measures 1.7836 m at 4.4 kA and 1.7834 m at 5.1 kA against an unchanged 1.4 m threshold, so no field strength tested holds the warm branch. No threshold, skip or xfail was relaxed</p></div>
+    <div class="r-comment-body"><p>42/43 in the three-file gate, up from 40/43. Two failures root-caused and fixed: a stale read of a private operator map removed when declared circuit metadata became authoritative, and a wall-clock measurement destabilised by fleet oversubscription now measured as single-thread CPU time against the same 50 ms bound. A real code defect surfaced too: synthetic and sidecar builders omitted active-circuit declarations, giving 29 passive columns against the operator's 35. The basin contrast remains genuinely unmet — warm-axis R measures 1.7836 m at 4.4 kA and 1.7834 m at 5.1 kA against an unchanged 1.4 m threshold, so no field strength tested holds the warm branch. No threshold, skip or xfail was relaxed</p></div>
+</div>
+<div class="r-comment" data-section="s1" data-id="c-run-r-20260901T135851940413-basin-window-census" data-who="s24-latent-repair" data-when="2026-09-01T14:12:23Z">
+    <div class="r-comment-body"><p>13-point 0-60 kA census across three completed SLURM jobs. The declared source is responsive, not dead: scout R moves only 1.7853 to 1.7740 m from 0 to 25 kA, then jumps to the confined basin at 40 kA with R=0.965738423 m against cold R=1.790935870 m, and the contrast holds at 8 points from 40 through 54 kA. Critically, the test&#x27;s additional fragile-profile warm solve shows only NONCONVERGED inside-radius snapshots: at 50 kA an 80-step R=1.381 m snapshot carries residual 0.1475, while a bounded extended solve converges at iteration 153 to outboard R=1.787 m at residual 2.97e-4 — so retuning to 50 kA would encode a transient rather than a converged branch</p></div>
 </div>
 </section>
 </main>
