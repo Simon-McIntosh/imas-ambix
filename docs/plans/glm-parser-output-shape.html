@@ -21,6 +21,8 @@
   <title>GLM Parser Output Shape | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-01">
+<meta name="plan-version" content="1">
 </head>
 <body>
   <main class="plan-doc">
@@ -85,6 +87,11 @@
     <pre class="r-fu-prompt">/reckon-ship glm-parser-output-shape</pre>
     </article>
 </section>
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260901T183157329588-parser-framing-diagnosis" data-who="s24-agentic-probe" data-when="2026-09-01T18:41:56Z">
+    <div class="r-comment-body"><p>Both causes located. Defect 1 is a parser pass-through gap in vLLM, not our configuration: the MODEL emits token 154842, exactly the 8-byte closing think marker, immediately before its tool-call opener when tools are present and thinking is disabled; the same prompt without tools and a raw completion each contain zero occurrences. Disabled thinking returns model output unchanged and omits think terminals while the tool adapter parses from content, so nothing synthesises it and no launcher flag causes it. Defect 2 is truncation, not swallowing: a six-budget sweep shows caps through 1024 yield thinking only with stop=max_tokens, while 1536 and 2048 both stop=end_turn at 1484 total tokens with 1025 thinking tokens and non-empty final text</p></div>
+</div>
+</section>
+</main>
 </body>
 </html>

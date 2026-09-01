@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T20:22:11",
+  "updated": "2026-09-01T20:42:45",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -18999,9 +18999,103 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T183157329588-parser-framing-diagnosis",
+        "plan": "glm-parser-output-shape",
+        "section": "\u00a72",
+        "node": "parser-framing-diagnosis",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-parser-framing.md names the cause of each defect with the output that decides it. The live engine is job 1260907 on http://98dci4-gpu-0003:18801, keyless, serving glm-5.3, and it MUST BE LEFT RUNNING. Two defects were seen while proving it coherent. (1) A tool-use response carrying no thinking block still emits the literal closing marker of the reasoning parser in its adjacent text. Reproduce it, quote the exact bytes, and determine whether the marker originates from the reasoning parser emitting a close for a block it never opened, from the tool parser passing model output through unfiltered, or from the model itself producing the token as text. Distinguish those by comparing a tool request against a plain request and against a raw /v1/completions with no chat template. (2) A reasoning request consumed its whole output cap inside the thinking block and emitted no separate final text block. Establish whether a larger output budget yields a final text block, by sweeping the budget across at least four values and reporting the thinking-token count and whether a non-empty text block appeared at each. State for each defect whether the fix belongs in the engine's parser selection, in the launch configuration, or in what the launcher tells a caller to expect. Do not edit source, do not restart or resize any job, and quote every command.",
+          "estimated_hours": null,
+          "goal": "Locate why the served engine emits a stray closing think marker and swallows its final text block",
+          "id": "parser-framing-diagnosis",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T183157329588-parser-framing-diagnosis/manifest.md",
+          "plan": "glm-parser-output-shape",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "35m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-parser-framing.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "guided",
+        "member": "s24-agentic-probe",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T18:32:04Z",
+        "completed_at": "2026-09-01T18:41:56Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 592,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 592,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "57d56e083667770d675eac1d1b91a62763627263",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "live tool, no-tool and raw-completion probes with return_token_ids, plus a six-point reasoning budget sweep",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T183157329588-parser-framing-diagnosis/reasoning-budget-sweep.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T183157329588-parser-framing-diagnosis/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05cea-93e8-7fa1-976f-1a105e8abc45",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 4502272,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 4670436,
+            "output_tokens": 7041,
+            "output_tokens_cumulative": 22455,
+            "reasoning_output_tokens": 400,
+            "reasoning_output_tokens_cumulative": 6656
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 439
+    "_version": 440
   }
 }
