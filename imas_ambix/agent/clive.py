@@ -251,9 +251,41 @@ def launcher_item(entry, *, catalog_item=None):
 
 items = []
 release_ids = set()
+catalogs_by_origin = {}
+routing_origins = []
+
+
+def cached_catalog(origin):
+    if origin not in catalogs_by_origin:
+        catalogs_by_origin[origin] = fetch_catalog(origin)
+    return catalogs_by_origin[origin]
+
+
+def catalog_match(catalog, entry):
+    if not isinstance(catalog, dict) or not isinstance(catalog.get("data"), list):
+        return None
+    matches = [
+        item
+        for item in catalog["data"]
+        if isinstance(item, dict) and item.get("id") == entry["model_id"]
+    ]
+    if len(matches) != 1:
+        return None
+    match = matches[0]
+    metadata = match.get("ambix")
+    if not isinstance(metadata, dict) or (
+        metadata.get("accelerator_family") != entry["accelerator_family"]
+        or metadata.get("accelerator_count") != entry["accelerator_count"]
+        or metadata.get("checkpoint_precision") != entry["checkpoint_precision"]
+        or match.get("max_model_len") != entry["max_context"]
+    ):
+        return None
+    return match
+
+
 if legacy_origin:
     try:
-        payload = fetch_catalog(legacy_origin)
+        payload = cached_catalog(legacy_origin)
     except (OSError, urllib.error.URLError) as error:
         fail(f"global catalog is unreachable: {error}")
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
@@ -295,6 +327,27 @@ else:
         fail("endpoint document must contain an endpoints list")
     if not payload["endpoints"]:
         fail("endpoint document contains no endpoints")
+    published_routing_origins = payload.get("routing_origins", [])
+    if not isinstance(published_routing_origins, list):
+        fail("endpoint document contains an invalid routing origins list")
+    for published_origin in published_routing_origins:
+        if not isinstance(published_origin, dict) or set(published_origin) != {
+            "host",
+            "port",
+        }:
+            fail("endpoint document contains an invalid routing origin")
+        host = published_origin.get("host")
+        port = published_origin.get("port")
+        if (
+            not valid_text(host)
+            or any(character.isspace() or character in "/?#@" for character in host)
+            or type(port) is not int
+            or not 1 <= port <= 65535
+        ):
+            fail("endpoint document contains an invalid routing origin")
+        origin = f"http://{host}:{port}"
+        if origin not in routing_origins:
+            routing_origins.append(origin)
     entries = payload["endpoints"]
     for entry in entries:
         candidate = launcher_item(entry)
@@ -304,17 +357,11 @@ else:
     for entry in entries:
         origin = f'http://{entry["host"]}:{entry["port"]}'
         try:
-            catalog = fetch_catalog(origin)
-            if not isinstance(catalog, dict) or not isinstance(catalog.get("data"), list):
+            catalog = cached_catalog(origin)
+            match = catalog_match(catalog, entry)
+            if match is None:
                 continue
-            matches = [
-                item
-                for item in catalog["data"]
-                if isinstance(item, dict) and item.get("id") == entry["model_id"]
-            ]
-            if len(matches) != 1:
-                continue
-            items.append(launcher_item(entry, catalog_item=matches[0]))
+            items.append(launcher_item(entry, catalog_item=match))
         except (
             OSError,
             TypeError,
@@ -327,33 +374,22 @@ else:
     if not items:
         fail("endpoint discovery contains no reachable models")
 
+    for origin in routing_origins:
+        try:
+            cached_catalog(origin)
+        except (
+            OSError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            urllib.error.URLError,
+        ):
+            continue
+
 if list_only == "true":
     for item in items:
         print(f'{item["selector"]}\t{item["label"]}')
     raise SystemExit(0)
 
-picker_settings = {
-    "modelPicker": {
-        "options": [
-            {
-                "model": item["id"],
-                "label": item["id"],
-                "description": (
-                    f'{item["count"]}×{item["family"]} · '
-                    f'{item["precision"]} · '
-                    f'{item["max_context"] // 1024}k context'
-                    if item["max_context"] is not None
-                    else (
-                        f'{item["count"]}×{item["family"]} · '
-                        f'{item["precision"]} · context not reported'
-                    )
-                ),
-            }
-            for item in items
-        ],
-        "replaceBuiltInOptions": mode == "local",
-    }
-}
 primary_local = items[0]
 secondary_local = items[1] if len(items) > 1 else primary_local
 
@@ -395,8 +431,58 @@ elif chosen is None:
     available = ", ".join(item["selector"] for item in items)
     fail(f"multiple models are available; use --selector ({available})")
 
+
+def origin_releases(origin):
+    catalog = catalogs_by_origin.get(origin)
+    if catalog is None:
+        return set()
+    if legacy_origin:
+        catalog_ids = {
+            item.get("id") for item in catalog.get("data", []) if isinstance(item, dict)
+        }
+        return {item["id"] for item in items if item["id"] in catalog_ids}
+    entries_by_id = {entry["model_id"]: entry for entry in entries}
+    return {
+        item["id"]
+        for item in items
+        if catalog_match(catalog, entries_by_id[item["id"]]) is not None
+    }
+
+
+listed_releases = {item["id"] for item in items}
+candidate_origins = routing_origins + [item["origin"] for item in items]
+harness_origin = chosen["origin"]
+for origin in dict.fromkeys(candidate_origins):
+    if origin_releases(origin) == listed_releases:
+        harness_origin = origin
+        break
+reachable_releases = origin_releases(harness_origin)
+picker_settings = {
+    "modelPicker": {
+        "options": [
+            {
+                "model": item["id"],
+                "label": item["id"],
+                "description": (
+                    f'{item["count"]}×{item["family"]} · '
+                    f'{item["precision"]} · '
+                    f'{item["max_context"] // 1024}k context'
+                    if item["max_context"] is not None
+                    else (
+                        f'{item["count"]}×{item["family"]} · '
+                        f'{item["precision"]} · context not reported'
+                    )
+                ),
+            }
+            for item in items
+            if item["id"] in reachable_releases
+        ],
+        "replaceBuiltInOptions": mode == "local",
+    }
+}
+
 print(chosen["id"])
-print(chosen["origin"])
+print(harness_origin)
 print(chosen["max_context"] or "")
 print(chosen["family"])
 print(chosen["count"])

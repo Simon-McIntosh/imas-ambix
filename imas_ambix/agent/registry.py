@@ -118,6 +118,29 @@ class PublishedEndpoint:
         return f"http://{self.host}:{self.port}"
 
 
+@dataclass(frozen=True, slots=True)
+class PublishedOrigin:
+    """One anonymously reachable candidate for multi-release routing."""
+
+    host: str
+    port: int
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.host, str) or not self.host.strip():
+            raise ValueError("host must be a non-empty string")
+        if any(ord(character) < 32 or ord(character) == 127 for character in self.host):
+            raise ValueError("host contains control characters")
+        if not isinstance(self.port, int) or isinstance(self.port, bool):
+            raise ValueError("port must be an integer")
+        if not 1 <= self.port <= 65535:
+            raise ValueError("port must be between 1 and 65535")
+
+    @property
+    def origin(self) -> str:
+        """Direct HTTP origin for this routing candidate."""
+        return f"http://{self.host}:{self.port}"
+
+
 def registration_directory(base_dir: str | Path) -> Path:
     """Return the shared per-serve registry directory for a site base."""
     return Path(base_dir) / "agents" / "serve-registry"
@@ -222,9 +245,9 @@ def _endpoint_from_catalog(
             "endpoint catalog must contain the registered model exactly once"
         )
     item = matches[0]
-    metadata = validate_catalog_metadata(
-        {registration.model_id: item.get("ambix")}
-    )[registration.model_id]
+    metadata = validate_catalog_metadata({registration.model_id: item.get("ambix")})[
+        registration.model_id
+    ]
     if metadata["accelerator_count"] != registration.accelerator_count:
         raise ValueError("endpoint accelerator count disagrees with registration")
     if metadata["checkpoint_precision"] != registration.checkpoint_precision:
@@ -256,7 +279,7 @@ def build_endpoint_document(
             endpoint = _endpoint_from_catalog(
                 registration, fetch_catalog(registration.origin)
             )
-        except (OSError, TypeError, ValueError):
+        except OSError, TypeError, ValueError:
             continue
         if endpoint.model_id in seen_models:
             raise ValueError(f"multiple live endpoints publish {endpoint.model_id!r}")
@@ -266,7 +289,10 @@ def build_endpoint_document(
 
 
 def write_endpoint_document(
-    endpoints: Sequence[PublishedEndpoint], path: str | Path
+    endpoints: Sequence[PublishedEndpoint],
+    path: str | Path,
+    *,
+    routing_origins: Sequence[PublishedOrigin] = (),
 ) -> Path:
     """Atomically publish launcher endpoints as a world-readable document."""
     target = Path(path)
@@ -280,7 +306,10 @@ def write_endpoint_document(
         directory.chmod(0o755)
 
     payload = json.dumps(
-        {"endpoints": [asdict(endpoint) for endpoint in endpoints]},
+        {
+            "endpoints": [asdict(endpoint) for endpoint in endpoints],
+            "routing_origins": [asdict(origin) for origin in routing_origins],
+        },
         sort_keys=True,
         separators=(",", ":"),
     )
@@ -339,10 +368,13 @@ def publish_endpoint_document(
     path: str | Path,
     *,
     fetch_catalog: Callable[[str], object],
+    routing_origins: Sequence[PublishedOrigin] = (),
 ) -> Path:
     """Build and atomically write the current anonymous endpoint document."""
     return write_endpoint_document(
-        build_endpoint_document(registrations, fetch_catalog=fetch_catalog), path
+        build_endpoint_document(registrations, fetch_catalog=fetch_catalog),
+        path,
+        routing_origins=routing_origins,
     )
 
 
