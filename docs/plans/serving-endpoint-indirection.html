@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="serving-endpoint-indirection">
   <meta name="plan-title" content="Serving Endpoint Indirection — one origin in front of many engines">
   <meta name="plan-summary" content="A pass-through router giving consumers one origin, a union model catalog, and per-consumer log separation">
-  <meta name="plan-status" content="draft">
+  <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="6.0">
   <meta name="plan-capability-version" content="1.0">
@@ -24,8 +24,11 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="4">
 <meta name="plan-depends-on" content="glm-53-serve-and-wiring">
+<meta name="plan-commits" content="a1ebcaf193ebd31d3d220ef635bd8155574c0ffb">
+<meta name="plan-artifacts" content="imas_ambix/agent/router.py,tests/test_agent_router.py">
+<meta name="plan-impl" content="0.25">
 </head>
 <body>
   <main class="plan-doc">
@@ -199,17 +202,14 @@
         the two. Accepted cost, measured: no outbound internet from there, so a hosted
         provider leg needs one hop through a login node.</p>
     </div>
-<div class="r-dec" data-key="upstream-resolution" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="upstream-resolution" data-choice="file-with-scheduler-fallback" data-by="reckon-ship" data-when="2026-09-01T10:49:40+00:00">
     <p class="r-dec-q">Does the router resolve upstreams from a per-serve registration file, from scheduler discovery, or from both with the file preferred?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="file">file</button>
       <button class="r-opt" data-value="scheduler">scheduler</button>
-      <button class="r-opt" data-value="file-with-scheduler-fallback">file-with-scheduler-fallback</button>
+      <button class="r-opt chosen" data-value="file-with-scheduler-fallback">file-with-scheduler-fallback</button>
       </p>
-    <p class="r-dec-rat">Recommendation: file with scheduler fallback. The file is
-        user-independent and survives a scheduler outage; scheduler discovery already
-        exists and reconciles a stale file against reality. Scheduler-only inherits the
-        one-user limitation of squeue -u .</p>
+    <p class="r-dec-rat">Locked to the recommendation on execution. The per-serve registration record is user-independent and survives a scheduler outage, while the scheduler discovery already in the tree reconciles a stale record against reality. Scheduler-only would inherit the one-operator limitation of a per-user queue query. The record never establishes availability on its own: a reader still qualifies it with an endpoint probe, which is what keeps a stale file from becoming a phantom upstream.</p>
     </div>
 </section>
 
@@ -221,6 +221,14 @@
     <pre class="r-fu-prompt">/reckon-ship serving-endpoint-indirection</pre>
     </article>
 </section>
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s5" data-id="c-run-r-20260901T103651770239-router-passthrough" data-who="s24-router-test" data-when="2026-09-01T10:42:54Z">
+    <div class="r-comment-body"><p>Pass-through router lands: union catalog over two fixture upstreams with every ambix block and max_model_len preserved, 409 on cross-upstream duplicate id, 404 on unknown, degradation to the reachable upstream, byte-exact SSE thinking signature and tool_use id relay, upstream 429 and headers unchanged, disconnect cancels upstream</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20260901-router-passthrough" data-who="reckon-ship" data-when="2026-09-01T12:50:00+00:00">
+    <div class="r-comment-body">router-passthrough landed — commit a1ebcaf; gate 'router contract against fixture upstreams' passed; measure 4/4 tests in 0.41s over two fixture catalogs and every required protocol path. The union preserves each native card unchanged including engine-reported max_model_len and the complete metadata block, validated through the existing schema validator rather than a second one. A native id two upstreams both claim returns 409 rather than being resolved implicitly, an unknown id returns 404 rather than falling back to a default upstream, and one upstream being unreachable degrades the union to its reachable peer instead of failing outright. Streaming is byte-faithful: the fixture asserts an exact thinking signature and an exact tool-use identifier survive the relay, an upstream 429 and its headers pass through unchanged, and a downstream disconnect closes the upstream response. Upstreams arrive through an injected resolver, so the module never queries the scheduler itself — which is what lets the registration store and the existing discovery path supply it without either being duplicated here. No protocol translation anywhere, per the locked decision. Artifacts imas_ambix/agent/router.py, tests/test_agent_router.py.</div>
+</div>
+</section>
+</main>
 </body>
 </html>
