@@ -592,6 +592,73 @@ def test_running_jobs_reports_scheduler_failure(monkeypatch):
         cli_mod._running_jobs(SiteConfig())
 
 
+def test_endpoint_requires_key_reads_the_endpoint_not_the_key_file(monkeypatch):
+    """An open port must report open, whatever the shared key file holds."""
+    import io
+    import urllib.request
+
+    from imas_ambix.agent.cli import _endpoint_requires_key
+
+    class Response(io.BytesIO):
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.close()
+
+    def open_unauthenticated(request, timeout):
+        # The whole point is that no credential is offered.
+        assert request.get_header("Authorization") is None
+        return Response(b'{"data":[{"id":"m"}]}')
+
+    monkeypatch.setattr(urllib.request, "urlopen", open_unauthenticated)
+    assert _endpoint_requires_key("http://gpu-node:19123") is False
+
+
+@pytest.mark.parametrize("code", [401, 403])
+def test_endpoint_requires_key_detects_enforcement(monkeypatch, code):
+    """A rejected unauthenticated probe means the endpoint enforces a key."""
+    import urllib.error
+    import urllib.request
+
+    from imas_ambix.agent.cli import _endpoint_requires_key
+
+    def refuse(request, timeout):
+        raise urllib.error.HTTPError(
+            request.full_url, code, "denied", {}, None
+        )
+
+    monkeypatch.setattr(urllib.request, "urlopen", refuse)
+    assert _endpoint_requires_key("http://gpu-node:19123") is True
+
+
+def test_endpoint_requires_key_is_inconclusive_when_unreachable(monkeypatch):
+    """An unreachable endpoint yields no verdict rather than a false one."""
+    import urllib.request
+
+    from imas_ambix.agent.cli import _endpoint_requires_key
+
+    def unreachable(request, timeout):
+        raise OSError("connection refused")
+
+    monkeypatch.setattr(urllib.request, "urlopen", unreachable)
+    assert _endpoint_requires_key("http://gpu-node:19123") is None
+
+
+def test_engine_facts_report_the_allocated_card_count(monkeypatch):
+    """Engine facts follow the running allocation, not the profile default."""
+    from imas_ambix.agent.cli import _engine_facts, _scale_profile
+
+    base = load_profile("deepseek-v4-flash")
+    assert f"TP={base.slurm.gpus}" in _engine_facts(base)
+    resolved = _scale_profile(base, 2)
+    facts = _engine_facts(resolved)
+    assert "TP=2" in facts
+    assert f"TP={base.engine.tensor_parallel}" not in facts
+
+
 def test_probe_endpoint_authenticated_metadata(monkeypatch):
     """Authenticated probes retain model and context metadata in memory."""
     import io

@@ -509,8 +509,11 @@ def status(reveal: bool) -> None:
     reliable from there. (SSH port-forwarding to the compute node is
     administratively prohibited, so there is no tunnel.)
 
-    The key is read from the shared mode-640 ``agents/.env``; if you lack
-    read permission it shows ``(no access)`` — the filesystem is the gate.
+    Each endpoint is probed unauthenticated to establish whether it enforces
+    a key, because an open endpoint is the serve default and the shared key
+    file existing says nothing about what a given port requires. Where a key
+    IS enforced it is read from the shared mode-640 ``agents/.env``; if you
+    lack read permission it shows ``(no access)`` — the filesystem is the gate.
     """
     site = SiteConfig.from_env()
     jobs = _running_jobs(site)
@@ -546,16 +549,30 @@ def status(reveal: bool) -> None:
         job = jobs_by_id[route.job_id]
         try:
             profile = load_profile(route.job_name)
+            # Resolve to the card count this allocation actually holds. The
+            # base profile carries its own default sizing, so reporting it
+            # unresolved shows a tensor-parallel width and memory budget the
+            # running engine never used.
+            if route.gpu_count:
+                profile = _scale_profile(profile, route.gpu_count)
             facts = _engine_facts(profile)
         except FileNotFoundError:
             facts = ""
         compute = f"{route.node} · {route.topology}"
 
+        requires_key = _endpoint_requires_key(route.base_url)
+        if requires_key is False:
+            route_key_display = "(none — open endpoint)"
+        elif requires_key is None:
+            route_key_display = f"{key_display} [dim](unverified)[/]"
+        else:
+            route_key_display = key_display
+
         body = Table.grid(padding=(0, 2))
         body.add_column(style="cyan", no_wrap=True)
         body.add_column()
         body.add_row("URL", route.base_url)
-        body.add_row("Key", key_display)
+        body.add_row("Key", route_key_display)
         if facts:
             body.add_row("Engine", facts)
         body.add_row("Compute", compute)
@@ -742,6 +759,28 @@ def _serving_slugs(site: SiteConfig) -> set[str]:
     known = set(list_profiles())
     routes, _ = _discover_live_routes(site, _read_key_file(site.api_key_file))
     return {route.job_name for route in routes if route.job_name in known}
+
+
+def _endpoint_requires_key(url: str, timeout: float = 4.0) -> bool | None:
+    """Whether ``{url}/v1/models`` rejects an unauthenticated request.
+
+    The serve default is an open endpoint, so the shared key file existing says
+    nothing about what a given endpoint enforces. Reporting the file's key
+    beside an open port tells an operator the opposite of the truth, and the
+    endpoint can answer the question directly. ``None`` means the probe itself
+    was inconclusive.
+    """
+    import urllib.error
+    import urllib.request
+
+    request = urllib.request.Request(f"{url.rstrip('/')}/v1/models")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return response.status != 200
+    except urllib.error.HTTPError as error:
+        return error.code in {401, 403}
+    except OSError:
+        return None
 
 
 def _probe_endpoint(url: str, api_key: str | None, timeout: float = 4.0) -> ProbeResult:
