@@ -1039,16 +1039,120 @@ def _resolve_router_upstreams(site: SiteConfig, api_key: str | None) -> list[Ups
     default=None,
     help="Optional key forwarded to authenticated upstream engines.",
 )
-def router_command(host: str, port: int, api_key: str | None) -> None:
-    """Serve the local multi-engine pass-through router."""
-    from imas_ambix.agent.router import DynamicUpstreamResolver, serve_router
+@click.option(
+    "--submit",
+    is_flag=True,
+    help="Submit the router as a standing CPU-only SLURM service.",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Print the standing-service SLURM script without submitting it.",
+)
+@click.option(
+    "--cpus",
+    type=click.IntRange(1, 64),
+    default=2,
+    show_default=True,
+    help="Host cores for a submitted router allocation.",
+)
+@click.option(
+    "--memory",
+    default="8G",
+    show_default=True,
+    help="Host memory for a submitted router allocation.",
+)
+@click.option(
+    "--max-in-flight",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Concurrent requests admitted per consumer.",
+)
+@click.option(
+    "--max-queued",
+    type=click.IntRange(min=0),
+    default=None,
+    help="Waiting requests retained per consumer.",
+)
+@click.option(
+    "--retry-after-seconds",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Retry-After value returned when a consumer queue is full.",
+)
+def router_command(
+    host: str,
+    port: int,
+    api_key: str | None,
+    submit: bool,
+    dry_run: bool,
+    cpus: int,
+    memory: str,
+    max_in_flight: int | None,
+    max_queued: int | None,
+    retry_after_seconds: int | None,
+) -> None:
+    """Run or submit the multi-engine pass-through router."""
+    from imas_ambix.agent.router import (
+        AdmissionLimits,
+        DynamicUpstreamResolver,
+        serve_router,
+    )
 
     site = SiteConfig.from_env()
+    defaults = AdmissionLimits()
+    limits = AdmissionLimits(
+        max_in_flight=(
+            defaults.max_in_flight if max_in_flight is None else max_in_flight
+        ),
+        max_queued=defaults.max_queued if max_queued is None else max_queued,
+        retry_after_seconds=(
+            defaults.retry_after_seconds
+            if retry_after_seconds is None
+            else retry_after_seconds
+        ),
+    )
+    if submit or dry_run:
+        from imas_ambix.agent.slurm import generate_router_script, submit_script
+
+        if api_key is not None:
+            raise click.ClickException(
+                "--api-key cannot be embedded in a submitted router script; "
+                "use keyless upstreams or run the router in the foreground."
+            )
+        script = generate_router_script(
+            site,
+            port=port,
+            cpus=cpus,
+            memory=memory,
+            max_in_flight=limits.max_in_flight,
+            max_queued=limits.max_queued,
+            retry_after_seconds=limits.retry_after_seconds,
+        )
+        if dry_run:
+            console.print(script, markup=False, highlight=False, soft_wrap=True)
+            return
+        try:
+            job_id = submit_script(script)
+        except RuntimeError as exc:
+            raise click.ClickException(str(exc)) from exc
+        console.print(
+            f"Submitted keyless router job {job_id} on port {port} "
+            f"({cpus} CPU, {memory})."
+        )
+        return
+
     resolved_key = _resolve_api_key(api_key) if api_key else None
     resolver = DynamicUpstreamResolver(
         lambda: _resolve_router_upstreams(site, resolved_key)
     )
-    serve_router(resolver, host=host, port=port)
+    admission_was_set = any(
+        value is not None for value in (max_in_flight, max_queued, retry_after_seconds)
+    )
+    if admission_was_set:
+        serve_router(resolver, host=host, port=port, admission_limits=limits)
+    else:
+        serve_router(resolver, host=host, port=port)
 
 
 def _resolve_live_route(
