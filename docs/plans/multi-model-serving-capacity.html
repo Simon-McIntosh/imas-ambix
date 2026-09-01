@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
 <meta name="plan-impl" content="0.2">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="3">
 </head>
 <body>
   <main class="plan-doc">
@@ -147,28 +147,21 @@
         own endpoint. Where accounting matters it belongs on the router, which can hold a
         key without the consumer needing one.</p>
     </div>
-<div class="r-dec" data-key="concurrent-glm-variant" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="concurrent-glm-variant" data-choice="int4-concurrent" data-by="Simon McIntosh" data-when="2026-09-01T10:19:02+00:00">
     <p class="r-dec-q">Which GLM checkpoint is the concurrent deployment — the 4-card INT4 requant, or the 8-card vendor FP8 as a whole-node alternative?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="int4-concurrent">int4-concurrent</button>
+      <button class="r-opt chosen" data-value="int4-concurrent">int4-concurrent</button>
       <button class="r-opt" data-value="fp8-whole-node">fp8-whole-node</button>
       </p>
-    <p class="r-dec-rat">Recommendation: INT4 for the concurrent surface, because
-        multi-model is the point of this sprint and FP8 forecloses it by filling the node.
-        Measure FP8 separately for single-model quality; do not make it the default
-        deployment.</p>
+    <p class="r-dec-rat">Locked to the four-card INT4 requant as the concurrent deployment. The vendor FP8 release fills the node and so forecloses the multi-model surface this sprint exists for. Its single-model quality measurement is deliberately deferred rather than scheduled: taking that number means stopping the running keyless DeepSeek serve and a running physics job, and no multi-model result depends on it. FP8 is recorded as a whole-node alternative to concurrency, never a default deployment.</p>
     </div>
-<div class="r-dec" data-key="service-audience" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="service-audience" data-choice="group-best-effort" data-by="Simon McIntosh" data-when="2026-09-01T10:19:02+00:00">
     <p class="r-dec-q">Is the served endpoint a group-sized best-effort service, or a cluster-wide service with a reserved floor?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="group-best-effort">group-best-effort</button>
+      <button class="r-opt chosen" data-value="group-best-effort">group-best-effort</button>
       <button class="r-opt" data-value="cluster-wide-reserved">cluster-wide-reserved</button>
       </p>
-    <p class="r-dec-rat">This sizes the card budget, the admission limits and whether
-        a serve may be cancelled for a training campaign, so it should be answered before
-        the second engine is brought up rather than inferred from whoever starts using it.
-        A keyless endpoint on a routable port makes the wider audience the default outcome
-        unless the choice is made deliberately.</p>
+    <p class="r-dec-rat">Locked to a group-sized best-effort service. It serves the storage group on spare cards with no reserved floor, so a serve may be cancelled for a training campaign, and admission limits are sized for a handful of concurrent consumers rather than a published cluster-wide wait. This matches how the node is already shared. The service statement is written so widening later is a card-budget change rather than a redesign.</p>
     </div>
 </section>
 

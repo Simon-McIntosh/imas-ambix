@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-26T17:28:12",
+  "updated": "2026-09-01T12:19:19",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -460,6 +460,28 @@
         "created": "2026-08-26"
       },
       {
+        "id": "glm-matrix-evidence",
+        "harness": "codex",
+        "role": "documentation",
+        "session_id": "01a03ffd-87a5-7110-91ec-4d7d93b01b02",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a03ffd-87a5-7110-91ec-4d7d93b01b02"
+        },
+        "created": "2026-08-26"
+      },
+      {
+        "id": "glm-matrix-scout",
+        "harness": "codex",
+        "role": "investigate",
+        "session_id": "01a03fd8-ad3e-7f42-9568-a2f0abc95414",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a03fd8-ad3e-7f42-9568-a2f0abc95414"
+        },
+        "created": "2026-08-26"
+      },
+      {
         "id": "glm-mtp-live-probe",
         "harness": "codex",
         "role": "test",
@@ -769,6 +791,89 @@
         "role": "implement",
         "session_id": "01a00c2f-7c14-7571-bdc7-f32684478b1a",
         "created": "2026-08-16"
+      },
+      {
+        "id": "s24-agentic-probe",
+        "harness": "codex",
+        "role": "test",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-01"
+      },
+      {
+        "id": "s24-capacity-impl",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-01"
+      },
+      {
+        "id": "s24-catalog-metadata",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-01"
+      },
+      {
+        "id": "s24-clive-modes",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-01"
+      },
+      {
+        "id": "s24-docs",
+        "harness": "codex",
+        "role": "documentation",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-01"
+      },
+      {
+        "id": "s24-glm-bringup",
+        "harness": "codex",
+        "role": "test",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-01"
+      },
+      {
+        "id": "s24-reuse-scout",
+        "harness": "codex",
+        "role": "investigate",
+        "session_id": "01a05c78-e8a9-7582-96a8-ae726b37b147",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a05c78-e8a9-7582-96a8-ae726b37b147"
+        },
+        "created": "2026-09-01"
+      },
+      {
+        "id": "s24-router-impl",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-01"
+      },
+      {
+        "id": "s24-router-test",
+        "harness": "codex",
+        "role": "test",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-01"
       },
       {
         "id": "script-format",
@@ -13746,9 +13851,406 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260826T205230330579-glm-matrix-reuse-scout",
+        "plan": "glm-52-local-serve-performance",
+        "section": "\u00a74",
+        "node": "glm-matrix-reuse-scout",
+        "node_definition": {
+          "done_when": "The file /home/ITER/mcintos/.config/reckon/crew/reports/glm-matrix-reuse-map.md exists and lists at least 6 named candidates, each giving a repo-relative path, the symbol or convention it provides, and a one-line reuse-or-reject verdict; it must cover the saved-report reader in imas_ambix/agent/bench_report.py, the matrix JSON schema under _matrix/, any existing plotting or SVG helper, and the reckon evidence-document conventions",
+          "estimated_hours": null,
+          "goal": "Produce a reuse map of existing repository machinery a benchmark-matrix figure generator and evidence document would consume or extend",
+          "id": "glm-matrix-reuse-scout",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T205230330579-glm-matrix-reuse-scout/manifest.md",
+          "plan": "glm-52-local-serve-performance",
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a74",
+          "spec_level": "",
+          "time_budget": "15m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/glm-matrix-reuse-map.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "",
+        "member": "glm-matrix-scout",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-08-26T20:52:39Z",
+        "completed_at": "2026-08-26T20:59:26Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 407,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 407,
+        "stalled": false,
+        "time_budget": "15m",
+        "base_sha": "e1f7f6565276c82e2f21cfecbc75bda5dab078fc",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "grep -c '^| [0-9]' /home/ITER/mcintos/.config/reckon/crew/reports/glm-matrix-reuse-map.md  # candidate rows, >=6 required",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/glm-matrix-reuse-map.md",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T205230330579-glm-matrix-reuse-scout/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03fd8-ad3e-7f42-9568-a2f0abc95414",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 4123136,
+            "cached_input_tokens_cumulative": 4123136,
+            "input_tokens": 4294860,
+            "input_tokens_cumulative": 4294860,
+            "output_tokens": 14484,
+            "output_tokens_cumulative": 14484,
+            "reasoning_output_tokens": 4820,
+            "reasoning_output_tokens_cumulative": 4820
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        }
+      },
+      {
+        "run_id": "r-20260826T213245444628-glm-matrix-figures",
+        "plan": "glm-52-local-serve-performance",
+        "section": "\u00a74",
+        "node": "glm-matrix-figures",
+        "node_definition": {
+          "done_when": "Running 'python scripts/bench_matrix_figures.py --matrix-dir /home/ITER/mcintos/Code/imas-ambix/_matrix' exits 0 and writes at least 3 SVG files under docs/figures/glm-52-local-serve-performance that each parse with xml.etree.ElementTree; and 'uv run --no-sync pytest tests/agent/test_bench_matrix_figures.py' exits 0 with at least 5 tests passing",
+          "estimated_hours": null,
+          "goal": "A figure generator script that renders the benchmark matrix comparison as SVG figures under docs/figures/glm-52-local-serve-performance",
+          "id": "glm-matrix-figures",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T213245444628-glm-matrix-figures/manifest.md",
+          "plan": "glm-52-local-serve-performance",
+          "requires_decisions": [],
+          "role": "documentation",
+          "section": "\u00a74",
+          "spec_level": "guided",
+          "time_budget": "35m",
+          "write_paths": [
+            "scripts/bench_matrix_figures.py",
+            "tests/agent/test_bench_matrix_figures.py",
+            "docs/figures/glm-52-local-serve-performance"
+          ]
+        },
+        "role": "documentation",
+        "spec_level": "guided",
+        "member": "glm-matrix-evidence",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-26T21:32:54Z",
+        "completed_at": "2026-08-27T00:14:52Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": null,
+        "worker_seconds_source": "stalled",
+        "wall_seconds": 9718,
+        "stalled": true,
+        "time_budget": "35m",
+        "base_sha": "df713d1a2ef58fd882b164fa4936034f81f45c70",
+        "commits": [
+          "51952fc6fdb42676ae4ef22d316a1f8742f7e518"
+        ],
+        "changed_lines": {
+          "added": 980,
+          "removed": 0,
+          "files": 5
+        },
+        "tests_added": 6,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync python -m scripts.bench_matrix_figures --matrix-dir /home/ITER/mcintos/Code/imas-ambix/_matrix && uv run --no-sync pytest tests/agent/test_bench_matrix_figures.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T213245444628-glm-matrix-figures/pytest.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260826T213245444628-glm-matrix-figures/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03ffd-87a5-7110-91ec-4d7d93b01b02",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 3783040,
+            "cached_input_tokens_cumulative": 3783040,
+            "input_tokens": 3971143,
+            "input_tokens_cumulative": 3971143,
+            "output_tokens": 11940,
+            "output_tokens_cumulative": 11940,
+            "reasoning_output_tokens": 4673,
+            "reasoning_output_tokens_cumulative": 4673
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 2,
+        "attempt_kind": "resume",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/agent/test_bench_matrix_figures.py'",
+          "override": false,
+          "role": "documentation",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260827T120426053392-glm-matrix-evidence-doc",
+        "plan": "glm-52-local-serve-performance",
+        "section": "\u00a74",
+        "node": "glm-matrix-evidence-doc",
+        "node_definition": {
+          "done_when": "The command 'PYTHONPATH=/home/ITER/mcintos/Code/reckon python3 -m reckon.doccheck docs/evidence/archive/glm-52-local-serve-performance-landed.html' reports 0 error; and the file contains at least 3 img tags whose src begins /imas-ambix/figures/glm-52-local-serve-performance/ and at least 4 HTML table elements carrying the measured decode, TTFT, aggregate and KV-pool figures for all six runs",
+          "estimated_hours": null,
+          "goal": "A cumulative evidence record at docs/evidence/archive/glm-52-local-serve-performance-landed.html reporting the six measured serving configurations",
+          "id": "glm-matrix-evidence-doc",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260827T120426053392-glm-matrix-evidence-doc/manifest.md",
+          "plan": "glm-52-local-serve-performance",
+          "requires_decisions": [],
+          "role": "documentation",
+          "section": "\u00a74",
+          "spec_level": "guided",
+          "time_budget": "40m",
+          "write_paths": [
+            "docs/evidence/archive/glm-52-local-serve-performance-landed.html"
+          ]
+        },
+        "role": "documentation",
+        "spec_level": "guided",
+        "member": "glm-matrix-evidence",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-27T12:04:35Z",
+        "completed_at": "2026-08-27T12:13:17Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 522,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 522,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "c5999126479be3f747d5bdb34a7bbbd9dcd6f958",
+        "commits": [
+          "076553710202b6948e9a4c431d917ecaf8e0e868"
+        ],
+        "changed_lines": {
+          "added": 320,
+          "removed": 0,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "PYTHONPATH=/home/ITER/mcintos/Code/reckon python3 -m reckon.doccheck docs/evidence/archive/glm-52-local-serve-performance-landed.html",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260827T120426053392-glm-matrix-evidence-doc/doccheck-final.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260827T120426053392-glm-matrix-evidence-doc/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03ffd-87a5-7110-91ec-4d7d93b01b02",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 2700160,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 3059237,
+            "output_tokens": 8496,
+            "output_tokens_cumulative": 20436,
+            "reasoning_output_tokens": 811,
+            "reasoning_output_tokens_cumulative": 5484
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "documentation",
+          "status": "no-execution-measure"
+        }
+      },
+      {
+        "run_id": "r-20260828T020348477500-glm-matrix-figures-refresh",
+        "plan": "glm-52-local-serve-performance",
+        "section": "\u00a74",
+        "node": "glm-matrix-figures-refresh",
+        "node_definition": {
+          "done_when": "Running 'uv run --no-sync python -m scripts.bench_matrix_figures --matrix-dir /home/ITER/mcintos/Code/imas-ambix/_matrix' exits 0; each of the 3 SVG files under docs/figures/glm-52-local-serve-performance parses with xml.etree.ElementTree and names all 6 runs; and no SVG still carries a dagger or 256-token qualifier, since every active report now uses 1024 tokens per worker",
+          "estimated_hours": null,
+          "goal": "Regenerate the three benchmark figures from all six final reports so they include the no-drafting arm and drop the superseded output-length qualifier",
+          "id": "glm-matrix-figures-refresh",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260828T020348477500-glm-matrix-figures-refresh/manifest.md",
+          "plan": "glm-52-local-serve-performance",
+          "requires_decisions": [],
+          "role": "documentation",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "docs/figures/glm-52-local-serve-performance",
+            "scripts/bench_matrix_figures.py"
+          ]
+        },
+        "role": "documentation",
+        "spec_level": "exact",
+        "member": "glm-matrix-evidence",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-08-28T02:03:58Z",
+        "completed_at": "2026-08-28T02:10:41Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 403,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 403,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "c3eb7a7b368270be9fe760842eeb652f1e3d3bc7",
+        "commits": [
+          "4d70e12dec7f77283e0ef5f92254bfb401ca8292"
+        ],
+        "changed_lines": {
+          "added": 143,
+          "removed": 101,
+          "files": 4
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync python -m scripts.bench_matrix_figures --matrix-dir /home/ITER/mcintos/Code/imas-ambix/_matrix",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260828T020348477500-glm-matrix-figures-refresh/figure-generation.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260828T020348477500-glm-matrix-figures-refresh/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a03ffd-87a5-7110-91ec-4d7d93b01b02",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 667008,
+            "cached_input_tokens_cumulative": 3367168,
+            "input_tokens": 650182,
+            "input_tokens_cumulative": 3709419,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 14646,
+            "reasoning_output_tokens": 2243,
+            "reasoning_output_tokens_cumulative": 7727
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "documentation",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 355
+    "_version": 373
   }
 }
