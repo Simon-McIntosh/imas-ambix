@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T13:40:37",
+  "updated": "2026-09-01T13:46:12",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -15835,9 +15835,213 @@
           "role": "test",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T114053173120-glm53-context-ceiling",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a72",
+        "node": "glm53-context-ceiling",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_glm_5_3.py -q exits 0 with the four-card assertion updated. Measured on job 1260712 after loading all 241 shards at 94.38 GiB per card: available KV cache memory 20.74 GiB, the configured 262144 tokens require 22.61 GiB, and the engine's own estimated ceiling is 240384. Do NOT set 240384. That consumes essentially the whole pool, and this architecture's sparse-MLA attention kernel claims roughly 8 GiB per card lazily on the FIRST real decode, so a ceiling at the engine maximum reaches a ready state and then dies on its first request, which is the exact trap the plan warns about. Set max_total_tokens to 131072, which needs about 11.3 GiB by the measured 22.61 GiB per 262144 tokens and so leaves about 9.4 GiB for that lazy claim. Replace the profile comment's arithmetic prediction of a ceiling near 400K with the measured numbers and the reason for the headroom, naming no plan stage, ticket or version. Assert the four-card resolution now reports 131072 while the eight-card variant still reports 204800.",
+          "estimated_hours": null,
+          "goal": "Size the four-card context from the engine's measured pool instead of the arithmetic that has now been wrong twice",
+          "id": "glm53-context-ceiling",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T114053173120-glm53-context-ceiling/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/agent/profiles/glm-5-3.toml",
+            "tests/test_agent_glm_5_3.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-catalog-metadata",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T11:41:02Z",
+        "completed_at": "2026-09-01T11:43:12Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 130,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 130,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "d94abea3b207a50752d77ed40fe1f84e96536cab",
+        "commits": [
+          "6aba87634c77327990d87388f6c50c011d7da8eb"
+        ],
+        "changed_lines": {
+          "added": 9,
+          "removed": 8,
+          "files": 2
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_glm_5_3.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T114053173120-glm53-context-ceiling/pytest-focused.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T114053173120-glm53-context-ceiling/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c82-49c2-76f2-8235-735c7a23ac45",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 2336512,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 2543216,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 4552,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 718
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_glm_5_3.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260901T114119877308-agent-grammar-compatibility",
+        "plan": "serving-endpoint-indirection",
+        "section": "\u00a74",
+        "node": "agent-grammar-compatibility",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_serve_registry.py -q exits 0 and uv run --no-sync ruff check imas_ambix tests --no-cache exits 0. A grammar sweep at the integrated head found 3 of 16 modules under imas_ambix/agent failing an ast.parse at feature_version 3.12: bench.py line 831, cli.py line 821 and router.py line 101, each using the unparenthesized multi-exception form that Python 3.14 allows and 3.12 rejects. That is the same form that killed serve job 1260703. Parenthesize all three. Then widen the existing compatibility guard so it covers EVERY module under imas_ambix/agent rather than only those the generated serve script references, since the narrower scope is why these three survived the first pass. Keep deriving the feature version from the serving environment's own requires-python rather than hardcoding it. Assert the widened guard reports 16 of 16 modules parsed. Change no runtime behaviour.",
+          "estimated_hours": null,
+          "goal": "Make every module in the agent package parse under the serving environment's interpreter, not only the two the current guard covers",
+          "id": "agent-grammar-compatibility",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T114119877308-agent-grammar-compatibility/manifest.md",
+          "plan": "serving-endpoint-indirection",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/agent/bench.py",
+            "imas_ambix/agent/cli.py",
+            "imas_ambix/agent/router.py",
+            "tests/test_agent_serve_registry.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-router-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T11:41:27Z",
+        "completed_at": "2026-09-01T11:45:46Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 259,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 259,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "d94abea3b207a50752d77ed40fe1f84e96536cab",
+        "commits": [
+          "25b1be15de962c370731e481f5bf1b9ec14d84f3"
+        ],
+        "changed_lines": {
+          "added": 28,
+          "removed": 28,
+          "files": 4
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_serve_registry.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T114119877308-agent-grammar-compatibility/logs/pytest-agent-serve-registry-after-fix.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T114119877308-agent-grammar-compatibility/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c83-5de8-74c3-a1d9-db6b19b95c3e",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1462016,
+            "cached_input_tokens_cumulative": 2712832,
+            "input_tokens": 1516680,
+            "input_tokens_cumulative": 2856351,
+            "output_tokens": 2837,
+            "output_tokens_cumulative": 9407,
+            "reasoning_output_tokens": 752,
+            "reasoning_output_tokens_cumulative": 2050
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_serve_registry.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 396
+    "_version": 398
   }
 }
