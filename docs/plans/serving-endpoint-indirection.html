@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 <meta name="plan-depends-on" content="glm-53-serve-and-wiring">
 <meta name="plan-commits" content="a1ebcaf193ebd31d3d220ef635bd8155574c0ffb">
 <meta name="plan-artifacts" content="imas_ambix/agent/router.py,tests/test_agent_router.py">
@@ -233,6 +233,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260901T105925852851-router-upstream-resolution" data-who="s24-router-impl" data-when="2026-09-01T11:05:19Z">
     <div class="r-comment-body"><p>Upstreams resolve from registration records with scheduler reconciliation: a record becomes a candidate only after job liveness AND an anonymous probe returns the same native id; records win over scheduler rows for the same allocation with no duplicate engine; a stale allocation beside a running replacement resolves only the new port with no config edit; agent router command injects the resolver without rewriting dispatch</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260901T110740614775-serving-interpreter-compatibility" data-who="s24-router-impl" data-when="2026-09-01T11:11:18Z">
+    <div class="r-comment-body"><p>Serving-interpreter compatibility guarded: exception tuple parenthesized, and every module the generated script references is now parsed at the serving environment&#x27;s declared lower bound of 3.12, derived from its own requires-python, with an inline negative control proving the guard rejects the form that killed job 1260703. 7/7 focused, whole-tree lint 0 findings</p></div>
 </div>
 </section>
 </main>

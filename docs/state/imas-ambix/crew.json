@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T13:07:21",
+  "updated": "2026-09-01T13:13:28",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -15445,9 +15445,211 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T110740614775-serving-interpreter-compatibility",
+        "plan": "serving-endpoint-indirection",
+        "section": "\u00a74",
+        "node": "serving-interpreter-compatibility",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_serve_registry.py -q exits 0 and the whole-tree gate uv run --no-sync ruff check imas_ambix tests --no-cache still exits 0. The concrete failure: job 1260703 died two seconds in with SyntaxError at imas_ambix/agent/registry.py line 139, which writes 'except OSError, TypeError, ValueError, json.JSONDecodeError:'. That form is valid in the project's Python 3.14 and its unit tests pass there, but the generated serve script imports this module on the compute node under the vLLM environment interpreter, which imas_ambix/agent/envs/vllm/pyproject.toml pins to >=3.12,<3.13. Parenthesize that exception tuple. Then add a durable guard so the class of defect cannot recur silently: a test that reads every repository module the generated serve script imports and parses each with ast.parse at feature_version set to the serving environment's minor version, failing with the offending file and line when one uses newer syntax. Derive that minor version from the serving environment's own requires-python rather than hardcoding it in two places. Assert the guard actually catches the regression by parsing a small inline source using the unparenthesized form and confirming it is rejected at that feature version. Do not change any runtime behaviour of registration or launch.",
+          "estimated_hours": null,
+          "goal": "Keep every module the generated serve script imports parsable by the serving environment's interpreter, which is older than the project's",
+          "id": "serving-interpreter-compatibility",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T110740614775-serving-interpreter-compatibility/manifest.md",
+          "plan": "serving-endpoint-indirection",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/agent/registry.py",
+            "tests/test_agent_serve_registry.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-router-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T11:07:50Z",
+        "completed_at": "2026-09-01T11:11:18Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 208,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 208,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "ba159bb66fbc76facb619bd5d4396959fea6ce66",
+        "commits": [
+          "8cbc2f733d0c87b2e584ac1d1656315cf478ec5f"
+        ],
+        "changed_lines": {
+          "added": 83,
+          "removed": 1,
+          "files": 2
+        },
+        "tests_added": 2,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_serve_registry.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T110740614775-serving-interpreter-compatibility/logs/pytest-agent-serve-registry.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T110740614775-serving-interpreter-compatibility/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c83-5de8-74c3-a1d9-db6b19b95c3e",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 1250816,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 1339671,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 6570,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 1298
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_serve_registry.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260901T110812547382-clive-picker-presentation",
+        "plan": "clive-launch-modes",
+        "section": "\u00a73",
+        "node": "clive-picker-presentation",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_clive_picker.py -q exits 0. Two harness mechanisms are involved and they are not interchangeable, which the plan is explicit about: alias slots decide dispatch, curated picker rows decide presentation, and a row does NOT create an alias a delegated worker can be sent to, so both are needed. Generate curated rows from the catalog the launcher already fetches, one per release, each carrying its own model id, a label naming the real accelerator count and the engine-reported context, and a description. Set the declared supported capabilities on every alias slot the launcher sets, which it currently leaves unset so the harness has to guess. Tests assert, against a two-item fixture catalog: one row per release with the accelerator count and context taken from that release's own metadata block rather than from a shared default, so two releases of different width get different labels. Rows are emitted for a release the launcher has no built-in knowledge of. The number of rows is not capped by the number of alias slots. Every alias slot the launcher sets carries a capability declaration. Rows alone never change which model an alias resolves to. A launch in the default local mode still generates exactly what it generated before for the alias mapping itself. Extend the existing generator named in the reuse map at /home/ITER/mcintos/.config/reckon/crew/reports/s24-reuse-map.md and keep the single anonymous one-origin catalog fetch unchanged.",
+          "estimated_hours": null,
+          "goal": "Present every local release in the launcher with its real topology and context, and declare what each alias slot it sets supports",
+          "id": "clive-picker-presentation",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T110812547382-clive-picker-presentation/manifest.md",
+          "plan": "clive-launch-modes",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/agent/clive.py",
+            "tests/test_agent_clive_picker.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "s24-clive-modes",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T11:08:24Z",
+        "completed_at": "2026-09-01T11:13:02Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 278,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 278,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "ba159bb66fbc76facb619bd5d4396959fea6ce66",
+        "commits": [
+          "5fd71b1b1e2d12c0e160816e24f3ca7055f718cf"
+        ],
+        "changed_lines": {
+          "added": 228,
+          "removed": 5,
+          "files": 2
+        },
+        "tests_added": 3,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_clive_picker.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T110812547382-clive-picker-presentation/pytest-clive-picker.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T110812547382-clive-picker-presentation/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c99-a254-70b0-9b28-a7cdeedfa454",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2012928,
+            "cached_input_tokens_cumulative": 3817728,
+            "input_tokens": 2185216,
+            "input_tokens_cumulative": 4109105,
+            "output_tokens": 542,
+            "output_tokens_cumulative": 11162,
+            "reasoning_output_tokens": 38,
+            "reasoning_output_tokens_cumulative": 2976
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_clive_picker.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 392
+    "_version": 394
   }
 }

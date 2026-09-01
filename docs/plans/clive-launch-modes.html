@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="5">
+<meta name="plan-version" content="6">
 <meta name="plan-commits" content="526195c8c059efe5f73439ae1fed626407f11322">
 <meta name="plan-artifacts" content="imas_ambix/agent/clive.py,tests/test_agent_clive_modes.py">
 <meta name="plan-impl" content="0.34">
@@ -193,6 +193,9 @@ clive --mode hybrid      # local releases plus the hosted frontier slots</pre>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-20260901-clive-mode-axis" data-who="reckon-ship" data-when="2026-09-01T13:02:00+00:00">
     <div class="r-comment-body">clive-mode-axis landed — commit 526195c; gate 'launcher mode contract' passed; measure 7/7 focused tests in 0.92s. The load-bearing assertion is the negative one: an unqualified launch and an explicit local launch generate byte-identical content, and a well-formed hosted credential present on disk changes zero bytes of that output. That is the outage this plan exists to prevent, now fenced by a test rather than by intent — previously a route was selected by whether a personal credential happened to be readable, which made the default model hostage to one account and gave that file's holders dead picker slots. Only an explicit hybrid mode embeds any hosted slot or invokes proxy installation, an unrecognised value exits non-zero naming both valid values rather than falling back, and the axis parses independently of the existing harness selection it must not collide with. Artifacts imas_ambix/agent/clive.py, tests/test_agent_clive_modes.py.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260901T110812547382-clive-picker-presentation" data-who="s24-clive-modes" data-when="2026-09-01T11:13:02Z">
+    <div class="r-comment-body"><p>Curated rows derived from the catalog: two-item fixture emits two independently-labelled rows (2xH200 int4 512k vs 4xH200 fp8 256k), a 5-item catalog emits 5 rows against 4 alias slots, an unknown future id still gets a row, all 4 slots declare supported capabilities, and every alias still resolves to the selected native model</p></div>
 </div>
 </section>
 </main>
