@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="13">
+<meta name="plan-version" content="14">
 <meta name="plan-depends-on" content="glm-53-serve-and-wiring">
 <meta name="plan-commits" content="a1ebcaf193ebd31d3d220ef635bd8155574c0ffb,965f4e2f21e759a60efbd7ffa4dfec4f7c25fe38,892050cc9030b581379ac2a5c9739bf34a64655c,8cbc2f733d0c87b2e584ac1d1656315cf478ec5f,25b1be15de962c370731e481f5bf1b9ec14d84f3,b76d9cbfb26701fa98a54a2e34f7b74a327bbf0e">
 <meta name="plan-artifacts" content="imas_ambix/agent/router.py,imas_ambix/agent/registry.py,tests/test_agent_router.py,tests/test_agent_router_resolution.py,tests/test_agent_router_admission.py,tests/test_agent_serve_registry.py,docs/evidence/archive/serving-endpoint-indirection-landed.html">
@@ -260,6 +260,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20260901-router-live-union" data-who="reckon-ship" data-when="2026-09-01T18:30:00+00:00">
     <div class="r-comment-body">router-live-union landed — gate 'live union over two engines' PASSED; measure 6/6 checks against GLM-5.3 job 1260907 on four cards and DeepSeek job 1260660 on two. One origin at port 18802 returns both native cards with engine-reported max_model_len and complete metadata intact — glm-5.3 at 65536 with H200/4/w4a8, deepseek-v4-flash at 524288 with H200/2/fp4+fp8 — both validating through the existing schema validator rather than a second one. Each native id routes to its own engine and returns the checkably-correct answer 17, and an unknown id is refused 404 rather than served by a default upstream. Streaming through the router matches a direct request 43/43 events with identical sequence, thinking text, block types and tool JSON. count_tokens returns 200. The decisive check is the last one: clive --list shows glm-5.3@4xh200 and deepseek-v4-flash@2xh200 and both answer correctly using the launcher generated UNCHANGED from HEAD, which is the test that the indirection is faithful rather than merely functional. Resolution was genuinely exercised rather than assumed: DeepSeek's port was discovered from its scheduler comment, and only GLM had a registration record, so registration-preference with scheduler fallback both ran. Full record: docs/evidence/archive/serving-endpoint-indirection-landed.html</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260901T170457503349-router-durable-service" data-who="s24-router-impl" data-when="2026-09-01T17:10:24Z">
+    <div class="r-comment-body"><p>Router is now submittable as a long-lived CPU-only service: zero accelerators requested, ambix-router port comment for discovery, no finite time cap, the serving-environment interpreter rather than the project one, admission limits passed through at submission, keyless by default with explicit keys refused. 3/3 focused, 1/1 foreground regression, whole-tree lint clean</p></div>
 </div>
 </section>
 </main>

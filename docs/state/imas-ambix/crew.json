@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T19:04:38",
+  "updated": "2026-09-01T19:10:39",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -18498,9 +18498,111 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T170457503349-router-durable-service",
+        "plan": "serving-endpoint-indirection",
+        "section": "\u00a73",
+        "node": "router-durable-service",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_router_service.py -q exits 0 and the whole-tree gate uv run --no-sync ruff check imas_ambix tests --no-cache still exits 0. The router has been proven live twice but only as an ad-hoc process a test worker started, so no standing origin exists for a deployed launcher to point at, which is why the shared launcher still names a single engine port. Give the router the same submission shape a serve already has: a generated script submitted to the scheduler on the GPU node, keyless by default exactly as a serve is, stamping a scheduler comment that carries its port so the router endpoint is discoverable the same way an engine is, and requesting no finite time cap for the same reason a serve no longer does. It is CPU-only and needs no accelerator. Two constraints came from the live proofs and both are load-bearing: the script must invoke the serving environment's interpreter rather than the shared project environment, because that project environment does not install the ASGI server the router imports, and the admission limits must be settable at submission rather than baked in. Tests assert the generated script requests zero accelerators, carries the discoverable port comment, names the serving interpreter, requests no finite time cap, and passes through the admission limits it was given. Do not submit a job from this node and write nothing outside the repository.",
+          "estimated_hours": null,
+          "goal": "Make the router a submittable long-lived service so one origin can be the standing endpoint",
+          "id": "router-durable-service",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T170457503349-router-durable-service/manifest.md",
+          "plan": "serving-endpoint-indirection",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "guided",
+          "time_budget": "40m",
+          "write_paths": [
+            "imas_ambix/agent/slurm.py",
+            "imas_ambix/agent/cli.py",
+            "tests/test_agent_router_service.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "s24-router-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T17:05:12Z",
+        "completed_at": "2026-09-01T17:10:24Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 312,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 312,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "2d138bd1ddddeb9301f58422090346b7edcc3c80",
+        "commits": [
+          "ad192c30f8a7c0671240bf6162226a315d510c16"
+        ],
+        "changed_lines": {
+          "added": 264,
+          "removed": 4,
+          "files": 3
+        },
+        "tests_added": 3,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_router_service.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T170457503349-router-durable-service/logs/pytest-agent-router-service.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T170457503349-router-durable-service/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c83-5de8-74c3-a1d9-db6b19b95c3e",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 336896,
+            "cached_input_tokens_cumulative": 3049728,
+            "input_tokens": 379498,
+            "input_tokens_cumulative": 3235849,
+            "output_tokens": 3958,
+            "output_tokens_cumulative": 13365,
+            "reasoning_output_tokens": 3347,
+            "reasoning_output_tokens_cumulative": 5397
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_router_service.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 434
+    "_version": 435
   }
 }
