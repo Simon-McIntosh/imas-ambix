@@ -18,14 +18,15 @@ def _catalog_metadata(script: str) -> dict[str, object]:
     return json.loads(assignment.split("=", 1)[1])
 
 
-def test_four_card_int4_profile_and_serve_script() -> None:
+def test_four_card_w4a8_profile_and_serve_script() -> None:
     profile = load_profile("glm-5-3").for_gpus(4)
 
     assert profile.slurm.gpus == 4
     assert profile.slurm.cpus == 12
-    assert profile.model.checkpoint_precision == "int4"
-    assert profile.model.weights_slug == "glm-5-3-int4"
-    assert profile.model.tokenizer_source_slug == "glm-5-3"
+    assert profile.model.hf_repo == "camel-ai/GLM-5.3-W4A8"
+    assert profile.model.checkpoint_precision == "w4a8"
+    assert profile.model.weights_slug == "glm-5-3-w4a8"
+    assert profile.model.tokenizer_source_slug is None
     assert profile.model.served_name == "glm-5.3"
     assert profile.engine.tensor_parallel == 4
     assert profile.engine.kv_cache_dtype == "bfloat16"
@@ -37,8 +38,8 @@ def test_four_card_int4_profile_and_serve_script() -> None:
 
     assert "#SBATCH --gres=gpu:4" in script
     assert "#SBATCH --cpus-per-task=12" in script
-    assert "agents/glm-5-3-int4/model" in script
-    assert "--tokenizer /work/projects/imas_gpu/agents/glm-5-3/model" in script
+    assert "agents/glm-5-3-w4a8/model" in script
+    assert "--tokenizer " not in script
     assert "--served-model-name glm-5.3" in script
     assert "--tensor-parallel-size 4" in script
     assert "--kv-cache-dtype bfloat16" in script
@@ -51,7 +52,7 @@ def test_four_card_int4_profile_and_serve_script() -> None:
         "glm-5.3": {
             "accelerator_family": "H200",
             "accelerator_count": 4,
-            "checkpoint_precision": "int4",
+            "checkpoint_precision": "w4a8",
         }
     }
 

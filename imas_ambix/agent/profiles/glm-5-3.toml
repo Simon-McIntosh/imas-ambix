@@ -17,27 +17,23 @@
 #     released vLLM registers. Support is in flight upstream but unmerged and
 #     conflicted, so Flash cannot be served here yet at any card count.
 #   * The FP8 release is 703.7 GiB, which needs eight cards. The four-card
-#     deployment therefore uses a community INT4 requant of the SAME
-#     architecture, which the engine already registers.
+#     deployment therefore uses a compressed-tensors W4A8 release of the SAME
+#     architecture, which the serving engine registers.
 #
-# Weights: vikasclawd/GLM-5.3-Int4-Int8Mix, 320.3 GiB, compressed-tensors
-#   pack-quantized -- 4-bit group-wise experts, 8-bit group-wise linears, and
-#   an 8-bit channel-wise MTP head. Verified to be GLM-5.3 rather than a
-#   mislabelled 5.2 by `moe_router_dtype: float32` and by matching the official
-#   config on every non-quantization key.
+# Weights: camel-ai/GLM-5.3-W4A8, 154 files and 399754189403 bytes. Verified
+#   against the serving vLLM 0.28.0: GlmMoeDsaForCausalLM is registered and
+#   both compressed-tensors W4A8 loader classes import from that environment.
+#   The checkpoint ships tokenizer.json and tokenizer_config.json itself.
 
 [model]
 name = "GLM-5.3"
-hf_repo = "vikasclawd/GLM-5.3-Int4-Int8Mix"
+hf_repo = "camel-ai/GLM-5.3-W4A8"
 # The two card counts need different checkpoints, so each keeps its own
 # directory; the eight-card variant redirects to the official FP8 download.
-weights_slug = "glm-5-3-int4"
-# This requant carries weights only. Its tokenizer contract matches the
-# official release, so the engine loads tokenizer assets from that checkpoint.
-tokenizer_source_slug = "glm-5-3"
+weights_slug = "glm-5-3-w4a8"
 served_name = "glm-5.3"
-checkpoint_precision = "int4"
-size_gb = 344
+checkpoint_precision = "w4a8"
+size_gb = 400
 max_context = 1048576
 
 [engine]
@@ -54,12 +50,10 @@ mem_fraction_static = 0.90
 # REPLICATED on every rank rather than sharded -- so more cards buy room only
 # by shrinking weights-per-card.
 #
-# Four cards, measured after all 241 shards loaded at 94.38 GiB per card: the
-# engine reported 20.74 GiB available for KV, while 262144 tokens required
-# 22.61 GiB and its own maximum was 240384. The configured 131072 tokens need
-# about 11.3 GiB, leaving about 9.4 GiB for the sparse-MLA kernel's roughly
-# 8 GiB per-card allocation on the first real decode. Using the engine maximum
-# would consume the pool before that lazy allocation and can fail after ready.
+# At the previous four-card configuration, the engine reported a 20.71 GiB KV
+# cache and a 240064-token pool. The configured ceiling remains 131072 rather
+# than taking that engine maximum, preserving headroom for the sparse-MLA
+# kernel's roughly 8 GiB per-card allocation on the first real decode.
 max_total_tokens = 131072
 
 # The sparse attention has no FP8 KV kernel in vLLM, and "fp8" resolves to the
