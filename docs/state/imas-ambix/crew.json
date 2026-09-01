@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T20:15:00",
+  "updated": "2026-09-01T20:22:11",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -18899,9 +18899,109 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T181956399010-registration-precision-expectation",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a72",
+        "node": "registration-precision-expectation",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_serve_registry.py -q exits 0 and uv run --no-sync ruff check imas_ambix tests --no-cache still exits 0. tests/test_agent_serve_registry.py::test_generated_serve_script_owns_registration_lifecycle fails at the integrated head because it asserts the literal string '--checkpoint-precision int4' while the four-card GLM deployment now resolves to w4a8, the profile having been repointed at a different checkpoint after the previous one decoded garbage. The test's purpose is that the generated script registers the resolved precision, not that the precision is any particular value, so do not simply substitute one literal for another. Derive the expected value from the resolved profile the test already loads, so the assertion continues to hold when the deployment is repointed again. Change only that test file, and leave the other assertions in the same test intact.",
+          "estimated_hours": null,
+          "goal": "Stop the registration lifecycle test hard-coding a checkpoint precision that the profile owns",
+          "id": "registration-precision-expectation",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T181956399010-registration-precision-expectation/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "20m",
+          "write_paths": [
+            "tests/test_agent_serve_registry.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-router-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T18:20:07Z",
+        "completed_at": "2026-09-01T18:21:59Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 112,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 112,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "1ba4c850c45eeff394498ea76fcfa8b01ed9eb17",
+        "commits": [
+          "7580c7b3f66f8fa74d6d03c2229da488fb34495d"
+        ],
+        "changed_lines": {
+          "added": 1,
+          "removed": 1,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_serve_registry.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T181956399010-registration-precision-expectation/logs/serve-registry-pytest.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T181956399010-registration-precision-expectation/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c83-5de8-74c3-a1d9-db6b19b95c3e",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 1679872,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 1756119,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 3745,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 509
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_serve_registry.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 438
+    "_version": 439
   }
 }

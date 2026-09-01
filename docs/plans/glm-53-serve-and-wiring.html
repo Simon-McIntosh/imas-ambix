@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="25">
+<meta name="plan-version" content="26">
 <meta name="plan-commits" content="3dd736597952c097de5c997b0613b8b166a7558b,53b4fc31f7b7e609f8d14c4b051f1b3d12a4bc65,3bb3d7621b5afa74b3a8752a900966b18c19166e,6aba87634c77327990d87388f6c50c011d7da8eb,8b82a9747819a058744c79373abcc287e99cb6b1,7f70e653382227eb49476eab39167d4e51e7d9e4">
 <meta name="plan-artifacts" content="imas_ambix/agent/profiles/glm-5-3.toml,imas_ambix/agent/profile.py,tests/test_agent_glm_5_3.py,docs/evidence/archive/glm-53-serve-and-wiring-landed.html">
 <meta name="plan-impl" content="1.0">
@@ -222,6 +222,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260901T154602932739-w4a8-live-coherence" data-who="s24-glm-bringup" data-when="2026-09-01T16:16:19Z">
     <div class="r-comment-body"><p>GLM-5.3 serves coherently on four cards. Job 1260907, 141/141 shards in 832.66s at 102.46 GiB per card, engine reports 13.9 GiB KV and 160512 cached tokens at 2.45x concurrency for the configured 65536 — the 0.94 pairing confirmed by the engine, up from 8.32 GiB. Anonymous card shows glm-5.3 with accelerator_count 4 and precision w4a8. Every gate the previous checkpoint failed now passes: streaming decode coherent and correct at 391, raw no-template completion begins 391 with repeated_odesk=0, one real multiply tool_use block returning 391, and one real coherent thinking block proving 100</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260901T181956399010-registration-precision-expectation" data-who="s24-router-impl" data-when="2026-09-01T18:21:59Z">
+    <div class="r-comment-body"><p>Expectation now derives from the resolved profile instead of a literal, so it survives the next repoint. 7/7 and lint clean</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20260901-fp8-deferral" data-who="reckon-ship" data-when="2026-09-01T13:01:00+00:00">
     <div class="r-comment-body">Scope correction recorded by the lead: the fifth done-when item, a single-model quality measurement of the eight-card FP8 deployment, is deliberately NOT taken. That measurement needs the whole node, which would mean stopping the running keyless DeepSeek serve, and no multi-model result depends on it. FP8 stands recorded as a whole-node alternative to concurrency rather than a default deployment, which is the substance the item was for. The measurement itself belongs to a future single-model quality plan, not to this bring-up.</div>
