@@ -60,17 +60,16 @@ sbatch --partition=betelgeuse \
        your_script.sh        # do NOT pass --qos → defaults to normal → no 4-GPU cap
 ```
 
-**CPU sizing — the "30 cores" is nominal, not schedulable when a serve co-runs (confirmed 2026-06-21).**
-The node carries TWO overlapping 30-core reservations (grpA + grpB) and the DeepSeek serve runs on general
-cores, so the cores actually schedulable for a NEW grpA job while DeepSeek is up are **~12, not 30**. A
-`--cpus-per-task=30` request then pends forever on `Reason=Resources` even though all 6 GPUs are free — it is
-CPU, not GPU, that is short (incident: re-train job pended + cancelled, 2026-06-21). **Probe before sizing:**
+**CPU sizing — cores, not cards, bind concurrent work.** The Group A reservation
+contains 30 cores. In a live 2026-09-01 snapshot, the DeepSeek serve held 8 and
+a co-running CPU-only job held 16. Those two jobs alone left at most 6 reserved
+cores, so a new 12-core serve could not be admitted even while enough cards
+were free. The available core count is therefore live workload state, not a
+number to infer from the requested card count. **Probe before sizing:**
 `srun --test-only --reservation=gpu_0003_grpA --account=grpa --gres=gpu:6 --cpus-per-task=N --mem=… true`.
-Size `--cpus-per-task` (and the DataLoader `num_workers`) to leave room for the co-running serve — ~12 cores
-is ample for a token-DataLoader DDP run (tokens are tiny). The GPU burst itself is unaffected (node-wide
-under normal QOS). If you genuinely need the full core count, drop `--reservation` and run on the node's
-general free pool (~49 cores idle) instead. **When DSv4 is down the contention vanishes — the general core
-pool is free too, so an 8-GPU run can size cores up; still PROBE with `srun --test-only` before committing.**
+Size `--cpus-per-task` (and the DataLoader `num_workers`) to leave room for
+co-running jobs. The GPU burst itself is unaffected under normal QOS, but free
+cards do not imply that the reservation can admit the accompanying core request.
 
 **Design every training run for fast takedown (binding etiquette).** Preemption is OFF cluster-wide,
 so SLURM cannot evict us — bursting onto cards 6–7 without a fast give-back makes us a bad neighbour to
@@ -215,6 +214,13 @@ concurrent model is served on a **different port on the same host**. One vLLM
 process serves one model, so the origin above is one model's catalog, not the
 site's. `imas-ambix agent status` lists every live route with its port; `clive
 --list` lists what a consumer can select.
+
+**Service level:** the LLM endpoint is a group-sized, best-effort service for
+the storage group. It runs on spare cards with no reserved floor, so a serve may
+be cancelled when a training campaign needs the node. Admission limits and the
+bounded queue are sized for a handful of concurrent consumers, not a published
+cluster-wide wait. Widening the audience later requires a larger card budget and
+a reserved floor; it does not require a different endpoint or routing design.
 
 **LLM serving — paths that exist on the engine:**
 
@@ -407,8 +413,7 @@ itself requires explicit operator authority.
 | `minimax-m2-7` | MiniMax M2.7 (~220B MoE) | SGLang | 220 GB FP8 | 4 | 200K | Custom |
 | `glm-5-2` | GLM-5.2 (~744B MoE) | vLLM | 744 GB FP8 | 8 | 112K² | MIT |
 | `glm-5-2-int4` | GLM-5.2 (~744B MoE) | vLLM | ~447 GiB INT4 AWQ | 4 | 128K | MIT |
-| `glm-5-3` | GLM-5.3 (~744B MoE) | vLLM | FP8 | 8 | — | unconfirmed³ |
-| `glm-5-3-int4` | GLM-5.3 (~744B MoE) | vLLM | INT4 AWQ | 4 | — | unconfirmed³ |
+| `glm-5-3` | GLM-5.3 (~744B MoE) | vLLM | 321 GiB INT4 / 704 GiB FP8 | 4 / 8 | 262K / 200K | unconfirmed³ |
 
 ¹ The card count is the profile's default sizing, not part of its identity —
 `imas-ambix agent serve <slug> --gpus N` rescales tensor-parallel width, cores,
@@ -418,11 +423,13 @@ launched against the installed engine, because doing so needs all eight cards an
 is sequenced after the four-card serve. The 112K figure is the 224K that was
 measured with an FP8 KV pool, halved for the bf16 entry size the installed engine
 forces. Re-measure the startup KV line before quoting any ceiling.
-³ **GLM-5.3 is downloaded and servable.** Both checkpoints are on disk as of
-2026-09-01: the four-card INT4 requant at 321 GiB (248 files) and the vendor FP8
-release at 704 GiB (149 files). The FP8 release fills the node, so the INT4
-variant is the one that coexists with another serve. The upstream license is
-still unconfirmed — treat output accordingly — but nothing blocks a serve.
+³ **GLM-5.3 is downloaded and servable.** The four-card deployment uses the
+downloaded 321 GiB community INT4 requant; the eight-card deployment replaces
+it with the downloaded 704 GiB vendor FP8 release. Both resolve from the
+`glm-5-3` profile and inherit client-visible name `glm-5.3`; their explicit
+checkpoint precision is respectively `int4` and `fp8`. The FP8 release fills
+the node, so INT4 is the deployment that can coexist with another serve. The
+upstream license is still unconfirmed — treat output accordingly.
 
 **Kimi-K2.6** — CPU-offloaded via KTransformers. 5 tok/s, best code quality (SWE 65.8%).
 **DeepSeek V4-Flash** — Full GPU, FP4+FP8. 500–800 tok/s est., 1M context, MIT license.
@@ -443,12 +450,12 @@ node sizes: FP8 on eight cards, INT4 AWQ on four.
   Two DeepSeek cards are served from the plain `deepseek-v4-flash` slug that way,
   and that is the pattern to follow; a card-count-suffixed profile is only a thin
   topology override of its base, not a distinct model.
-- **Where two profiles are genuinely needed, the slug names the checkpoint
-  precision** (`-int4`), because the checkpoint is the real differentiator. GLM
-  needs two profiles because the two node sizes require different checkpoints —
-  INT4 at ~440 GB fits four cards, FP8 at ~744 GB needs eight. DeepSeek needs one
-  because both of its sizes load the same checkpoint and differ only in
-  tensor-parallel width.
+- **Where two top-level profiles are genuinely needed, the slug names the
+  checkpoint precision** (`glm-5-2-int4`), because the checkpoint is the real
+  differentiator. A single profile may instead declare a card-specific
+  checkpoint override: `glm-5-3` uses INT4 at four cards and replaces it with
+  vendor FP8 at eight. Both patterns name checkpoint differences rather than
+  topology; DeepSeek needs neither because both sizes load the same checkpoint.
 
 ### Kimi-K2.6 Deployment
 
