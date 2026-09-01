@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T23:01:34",
+  "updated": "2026-09-01T23:18:14",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -19744,9 +19744,198 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T210639514213-router-restart-durable-log",
+        "plan": "serving-endpoint-indirection",
+        "section": "\u00a73",
+        "node": "router-restart-durable-log",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-router-restart.md records each step with its verbatim command and output. Router job 1260928 is RUNNING but returns HTTP 500 on /v1/models while both engines return 200, and its log cannot be read because it was written into a worktree that has since been reclaimed. Two live engines exist and BOTH MUST BE LEFT RUNNING: DeepSeek job 1260660 on port 18800 and GLM job 1260990 on port 18801, and the serve registry holds exactly one current record for each with no stale entries. (1) Stop the existing router job 1260928, which is the thing being replaced. (2) Submit a fresh router, choosing a working directory OUTSIDE any reckon worktree so its log survives, and state the log path you chose. (3) Show it RUNNING and its log's first lines. (4) Show an anonymous GET on its /v1/models returning BOTH releases with native ids, engine-reported context and complete metadata. (5) Show a request naming each release reaching the right engine and returning a checkably-correct answer. If it returns 500 again, quote the traceback from the log, which is the whole reason this node exists, and report the cause rather than retrying blindly. Do not cancel, resize or requeue either engine job.",
+          "estimated_hours": null,
+          "goal": "Get a working router back with its log somewhere that survives cleanup",
+          "id": "router-restart-durable-log",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T210639514213-router-restart-durable-log/manifest.md",
+          "plan": "serving-endpoint-indirection",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a73",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-router-restart.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "s24-router-test",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T21:06:50Z",
+        "completed_at": "2026-09-01T21:14:58Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 488,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 488,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "7680521dafe8ef5c14d3579a82d3da1237aa4ccf",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "baseline reproduction, stop, resubmit, catalog and per-release inference",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T210639514213-router-restart-durable-log/new-router-catalog.txt",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T210639514213-router-restart-durable-log/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c8b-3372-71e1-b506-e2ff2f281895",
+        "budget": {
+          "cost_usd": null,
+          "detail": "",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
+      },
+      {
+        "run_id": "r-20260901T210712140208-harness-origin-serves-every-release",
+        "plan": "clive-launch-modes",
+        "section": "\u00a73",
+        "node": "harness-origin-serves-every-release",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_endpoint_discovery.py tests/test_agent_clive_picker.py tests/test_agent_clive_modes.py -q exits 0 with added assertions, and uv run --no-sync pytest tests/test_agent.py -q still exits 0. The defect, reproduced live: an unqualified launch selects a release and sets the harness base URL to that release's OWN engine origin, but that engine serves only that one release. The harness model picker changes the requested model name without changing the base URL, so selecting the other release sends its name to an engine that has never heard of it and the session fails with a model-does-not-exist error. Listing works and first-launch routing works; only in-session switching is broken, and it is broken by construction rather than by a bug. Fix it by choosing the harness base URL differently: when a discoverable origin serves EVERY release the launcher listed, use that as the base URL so every picker row is reachable; otherwise keep today's behaviour of pointing at the selected release's own origin, since one working model beats none. Discover that origin the same way engines are discovered rather than hardcoding a port. Tests assert: given a union origin carrying both releases, the generated launcher sets the harness base URL to it and every listed release is reachable from that one origin; given no union origin, the base URL is the selected release's own and the listing still shows every release; the selected model name is unchanged in both cases; and a release absent from the union origin never causes the launcher to advertise a row it cannot reach. Keep every existing guarantee: one anonymous request per endpoint, no credential, fail-closed on a malformed document, and no hosted fallback.",
+          "estimated_hours": null,
+          "goal": "Point the harness at an origin serving every release so switching model inside a session works",
+          "id": "harness-origin-serves-every-release",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T210712140208-harness-origin-serves-every-release/manifest.md",
+          "plan": "clive-launch-modes",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "guided",
+          "time_budget": "35m",
+          "write_paths": [
+            "imas_ambix/agent/clive.py",
+            "imas_ambix/agent/registry.py",
+            "tests/test_agent_endpoint_discovery.py",
+            "tests/test_agent_clive_picker.py",
+            "tests/test_agent_clive_modes.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "s24-clive-modes",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T21:07:30Z",
+        "completed_at": "2026-09-01T21:18:07Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 637,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 637,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "7680521dafe8ef5c14d3579a82d3da1237aa4ccf",
+        "commits": [
+          "4b49bcacfe724ee4dac1ffb994ed6e8650edf5dc"
+        ],
+        "changed_lines": {
+          "added": 325,
+          "removed": 51,
+          "files": 3
+        },
+        "tests_added": 5,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_endpoint_discovery.py tests/test_agent_clive_picker.py tests/test_agent_clive_modes.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T210712140208-harness-origin-serves-every-release/manifest.md",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T210712140208-harness-origin-serves-every-release/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c99-a254-70b0-9b28-a7cdeedfa454",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2411520,
+            "cached_input_tokens_cumulative": 5268736,
+            "input_tokens": 2575948,
+            "input_tokens_cumulative": 5620276,
+            "output_tokens": 8571,
+            "output_tokens_cumulative": 20844,
+            "reasoning_output_tokens": 2940,
+            "reasoning_output_tokens_cumulative": 7268
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_endpoint_discovery.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 447
+    "_version": 449
   }
 }

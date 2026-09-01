@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="17">
+<meta name="plan-version" content="18">
 <meta name="plan-depends-on" content="glm-53-serve-and-wiring">
 <meta name="plan-commits" content="a1ebcaf193ebd31d3d220ef635bd8155574c0ffb,965f4e2f21e759a60efbd7ffa4dfec4f7c25fe38,892050cc9030b581379ac2a5c9739bf34a64655c,8cbc2f733d0c87b2e584ac1d1656315cf478ec5f,25b1be15de962c370731e481f5bf1b9ec14d84f3,b76d9cbfb26701fa98a54a2e34f7b74a327bbf0e,ad192c30f8a7c0671240bf6162226a315d510c16,03bf0652e41fcf440c9254260e0f31221e132a89">
 <meta name="plan-artifacts" content="imas_ambix/agent/router.py,imas_ambix/agent/registry.py,tests/test_agent_router.py,tests/test_agent_router_resolution.py,tests/test_agent_router_admission.py,tests/test_agent_serve_registry.py,docs/evidence/archive/serving-endpoint-indirection-landed.html">
@@ -284,6 +284,9 @@ Where the document lives was decided by measurement, not preference: /work/proje
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20260901T171100306371-router-service-submit" data-who="s24-router-test" data-when="2026-09-01T17:21:05Z">
     <div class="r-comment-body"><p>Router runs as a standing service: job 1260928 RUNNING with TimeLimit=UNLIMITED on CPU and memory only, no accelerator, discoverable by its scheduler comment. Its anonymous catalog returns 2/2 native releases and inference for each id reaches the right engine with correct answers 42 and 51, alongside both engine jobs. Recorded as a capability rather than deployed as clive's origin: the lead's design call is that the launcher should discover endpoints from a file and route directly, keeping no always-on component on the request path</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260901T210639514213-router-restart-durable-log" data-who="s24-router-test" data-when="2026-09-01T21:14:58Z">
+    <div class="r-comment-body"><p>Router replaced and healthy: old job 1260928 stopped after reproducing its HTTP 500 with an unreadable log, fresh job 1261002 submitted with its working directory and log outside any reckon worktree so cleanup cannot destroy it again. Its anonymous catalog returns 2/2 native releases and inference for each id reaches the right engine, returning the correct answers 84 and 43. Registry stayed clean at current=2 stale=0 throughout, and both protected engines were left RUNNING. The 500&#x27;s cause remains unknown because its log was already gone, which is precisely the defect the durable path removes</p></div>
 </div>
 </section>
 </main>
