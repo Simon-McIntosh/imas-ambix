@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="glm-53-serve-and-wiring">
   <meta name="plan-title" content="GLM-5.3 Serve and Wiring — the second engine that makes the surface multi-model">
   <meta name="plan-summary" content="Bring GLM-5.3 up on its own port beside DeepSeek and wire it through the catalog, picker and alias slots">
-  <meta name="plan-status" content="draft">
+  <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="3.0">
   <meta name="plan-capability-version" content="1.0">
@@ -24,7 +24,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="6">
+<meta name="plan-commits" content="3dd736597952c097de5c997b0613b8b166a7558b,53b4fc31f7b7e609f8d14c4b051f1b3d12a4bc65">
+<meta name="plan-artifacts" content="tests/test_agent_glm_5_3.py,docs/evidence/archive/glm-53-serve-and-wiring-landed.html">
+<meta name="plan-impl" content="0.4">
 </head>
 <body>
   <main class="plan-doc">
@@ -156,6 +159,18 @@
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s3" data-id="c-run-r-20260901T101655047681-s24-reuse-scout" data-who="s24-reuse-scout" data-when="2026-09-01T10:25:17Z">
     <div class="r-comment-body"><p>Reuse map over 9 modules, 6 config files, 72 named tests: every launch/metadata/discovery/consumer seam already exists and must be extended; only a pass-through router and a per-serve registration record are genuinely missing; LiteLLM ruled unfit for the local inference path</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260901T102658284537-glm53-profile-tests" data-who="s24-catalog-metadata" data-when="2026-09-01T10:30:26Z">
+    <div class="r-comment-body"><p>GLM-5.3 four-card INT4 and eight-card FP8 resolutions pinned end to end: 4 GPU/12 core/int4/TP4/bf16 KV/262144 vs 8 GPU/16 core/fp8/TP8/204800, served name glm-5.3 both, generated ambix metadata carries matching per-variant precision</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260901-glm53-profile-tests" data-who="reckon-ship" data-when="2026-09-01T12:40:00+00:00">
+    <div class="r-comment-body">glm53-profile-tests landed — commit 3dd7365; gate 'focused GLM-5.3 profile contract' passed; measure 2/2 tests in 0.23s. The four-card base resolves to 4 GPUs, 12 cores, int4, glm-5-3-int4 weights, TP4, bfloat16 KV, 262144 tokens, glm47/glm45 parsers and no speculative flag; --gpus 8 resolves to the vendor FP8 checkpoint on 8 cards and 16 cores at 204800 tokens. Both keep served name glm-5.3, and generated AMBIX_VLLM_CATALOG_METADATA records H200 count 4 with int4 and count 8 with fp8. Per-variant precision is therefore proven at the launch boundary rather than assumed. Artifacts tests/test_agent_glm_5_3.py.</div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260901T102815510208-serve-operator-instructions" data-who="s24-router-impl" data-when="2026-09-01T10:34:05Z">
+    <div class="r-comment-body"><p>Prohibited ssh -N -L banner replaced by the direct node-and-port origin, and the --gpus help no longer claims host cores scale with cards; 183/183 agent tests pass</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-20260901-serve-operator-instructions" data-who="reckon-ship" data-when="2026-09-01T12:41:00+00:00">
+    <div class="r-comment-body">serve-operator-instructions landed — commit 53b4fc3; gate 'agent CLI suite' passed; measure 183/183 tests in 17.82s with two assertions added. The prior-art scout found two operator-facing strings contradicting the code: the generated serve banner recommended an ssh -N -L port forward that is administratively prohibited on compute nodes, and the --gpus help claimed host cores scale with the card count while the sizing path deliberately leaves them unchanged. The banner now prints the direct node-and-port origin the status command already reports, and the help names --cpus as the override. Sizing, submission and catalog metadata behaviour are unchanged. Artifacts imas_ambix/agent/slurm.py, imas_ambix/agent/cli.py.</div>
 </div>
 </section>
 </main>

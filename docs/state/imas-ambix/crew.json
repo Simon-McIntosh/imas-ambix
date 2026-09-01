@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T12:25:31",
+  "updated": "2026-09-01T12:36:08",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -814,9 +814,11 @@
         "id": "s24-catalog-metadata",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a05c82-49c2-76f2-8235-735c7a23ac45",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a05c82-49c2-76f2-8235-735c7a23ac45"
+        },
         "created": "2026-09-01"
       },
       {
@@ -841,9 +843,11 @@
         "id": "s24-glm-bringup",
         "harness": "codex",
         "role": "test",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a05c82-d605-7472-9bb3-1d541a3193d7",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a05c82-d605-7472-9bb3-1d541a3193d7"
+        },
         "created": "2026-09-01"
       },
       {
@@ -861,9 +865,11 @@
         "id": "s24-router-impl",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a05c83-5de8-74c3-a1d9-db6b19b95c3e",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a05c83-5de8-74c3-a1d9-db6b19b95c3e"
+        },
         "created": "2026-09-01"
       },
       {
@@ -14331,9 +14337,211 @@
           "role": "investigate",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T102658284537-glm53-profile-tests",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a73",
+        "node": "glm53-profile-tests",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_glm_5_3.py -q exits 0. The new file asserts, for the base four-card resolution: gpus 4, cpus 12, checkpoint_precision int4, weights_slug glm-5-3-int4, served_name glm-5.3, tensor_parallel 4, kv_cache_dtype bfloat16, max_total_tokens 262144, tool_call parser glm47, reasoning parser glm45, and no speculative-decoding flag in the generated command. For --gpus 8 it asserts gpus 8, cpus 16, checkpoint_precision fp8, weights_slug glm-5-3, tensor_parallel 8, max_total_tokens 204800, and served_name still glm-5.3. It also asserts the generated serve script's AMBIX_VLLM_CATALOG_METADATA block carries accelerator count 4 with precision int4 at four cards and count 8 with precision fp8 at eight cards, and that both generated scripts carry the ambix-serve port comment. Extend the existing profile loader and script generator named in the reuse map at /home/ITER/mcintos/.config/reckon/crew/reports/s24-reuse-map.md rather than authoring a second profile or launcher.",
+          "estimated_hours": null,
+          "goal": "Pin the GLM-5.3 profile's four-card INT4 and eight-card FP8 resolution through the existing loader and serve-script generator with focused tests",
+          "id": "glm53-profile-tests",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T102658284537-glm53-profile-tests/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "tests/test_agent_glm_5_3.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-catalog-metadata",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T10:27:16Z",
+        "completed_at": "2026-09-01T10:30:26Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 190,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 190,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "fd80138571391309f45f42bf4f208368801f1b07",
+        "commits": [
+          "3dd736597952c097de5c997b0613b8b166a7558b"
+        ],
+        "changed_lines": {
+          "added": 83,
+          "removed": 0,
+          "files": 1
+        },
+        "tests_added": 2,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_glm_5_3.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T102658284537-glm53-profile-tests/pytest-focused-postfix.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T102658284537-glm53-profile-tests/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c82-49c2-76f2-8235-735c7a23ac45",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1331968,
+            "cached_input_tokens_cumulative": 1331968,
+            "input_tokens": 1444402,
+            "input_tokens_cumulative": 1444402,
+            "output_tokens": 7455,
+            "output_tokens_cumulative": 7455,
+            "reasoning_output_tokens": 2104,
+            "reasoning_output_tokens_cumulative": 2104
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_glm_5_3.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260901T102815510208-serve-operator-instructions",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a72",
+        "node": "serve-operator-instructions",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent.py -q exits 0 with two added assertions. First: the script rendered by generate_serve_script no longer recommends an 'ssh -N -L' port forward, which is administratively prohibited on compute nodes, and instead names the direct http origin built from the allocated node name and the serve port, which is the same route the status command already reports. Second: the 'serve --gpus' help text no longer claims host cores scale proportionally with the card count, because _scale_profile deliberately leaves cores unchanged and --cpus is the documented override. Change only those two operator-facing strings and their assertions, with no behavioural change to sizing, submission or catalog metadata.",
+          "estimated_hours": null,
+          "goal": "Make the serve surface's operator-facing instructions state what the code actually does",
+          "id": "serve-operator-instructions",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T102815510208-serve-operator-instructions/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/agent/slurm.py",
+            "imas_ambix/agent/cli.py",
+            "tests/test_agent.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-router-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T10:28:27Z",
+        "completed_at": "2026-09-01T10:34:05Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 338,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 338,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "fd80138571391309f45f42bf4f208368801f1b07",
+        "commits": [
+          "53b4fc31f7b7e609f8d14c4b051f1b3d12a4bc65"
+        ],
+        "changed_lines": {
+          "added": 11,
+          "removed": 4,
+          "files": 3
+        },
+        "tests_added": 2,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T102815510208-serve-operator-instructions/logs/pytest-test-agent.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T102815510208-serve-operator-instructions/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c83-5de8-74c3-a1d9-db6b19b95c3e",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1203968,
+            "cached_input_tokens_cumulative": 1203968,
+            "input_tokens": 1303465,
+            "input_tokens_cumulative": 1303465,
+            "output_tokens": 5367,
+            "output_tokens_cumulative": 5367,
+            "reasoning_output_tokens": 1258,
+            "reasoning_output_tokens_cumulative": 1258
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 374
+    "_version": 379
   }
 }
