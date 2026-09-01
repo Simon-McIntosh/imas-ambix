@@ -41,7 +41,7 @@ type = "vllm"
 tensor_parallel = 4
 trust_remote_code = true
 enable_auto_tool_choice = true
-mem_fraction_static = 0.90
+mem_fraction_static = 0.94
 
 # Context sized from the measured cost of this architecture rather than from
 # the model's native window. The MLA cache holds a compressed latent of
@@ -50,11 +50,13 @@ mem_fraction_static = 0.90
 # REPLICATED on every rank rather than sharded -- so more cards buy room only
 # by shrinking weights-per-card.
 #
-# At the previous four-card configuration, the engine reported a 20.71 GiB KV
-# cache and a 240064-token pool. The configured ceiling remains 131072 rather
-# than taking that engine maximum, preserving headroom for the sparse-MLA
-# kernel's roughly 8 GiB per-card allocation on the first real decode.
-max_total_tokens = 131072
+# At four cards and 0.90 memory fraction, the W4A8 checkpoint left 8.32 GiB
+# for KV against 11.31 GiB required by 131072 tokens; the engine put its own
+# maximum at 96384. Raising the fraction to 0.94 returns roughly 5.6 GB per
+# 141 GB card to the pool, while 65536 tokens need about 5.7 GiB. That pairing
+# leaves roughly 8 GiB for the sparse-MLA kernel's lazy per-card allocation on
+# the first real decode instead of consuming the engine maximum before decode.
+max_total_tokens = 65536
 
 # The sparse attention has no FP8 KV kernel in vLLM, and "fp8" resolves to the
 # fp8_e4m3 those backends reject, so an FP8 entry cannot start at all.
