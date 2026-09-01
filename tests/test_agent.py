@@ -451,6 +451,12 @@ def test_generate_serve_script():
     assert "--moe-runner-backend triton" in script
     assert "--port" in script
     assert "#SBATCH --comment=ambix-serve;port=8000" in script
+    assert "ssh -N -L" not in script and "http://$(hostname):$PORT" in script
+
+
+def test_agent_serve_gpu_help_matches_core_scaling():
+    result = CliRunner().invoke(main, ["agent", "serve", "--help"])
+    assert result.exit_code == 0 and "Host cores do not scale with cards" in result.output
 
 
 def test_serve_script_launches_drain_sidecar():
