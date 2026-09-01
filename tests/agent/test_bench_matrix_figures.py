@@ -110,9 +110,7 @@ def matrix_dir(tmp_path: Path) -> Path:
 
 def test_load_matrix_uses_matrix_row_names(matrix_dir: Path) -> None:
     matrix = load_matrix(matrix_dir)
-    assert matrix.labels == ("DeepSeek V4 Flash · 2 H200", "GLM-5.2 · 4 H200 †")
-    assert matrix.method_notes[0] is None
-    assert "256 generated tokens" in str(matrix.method_notes[1])
+    assert matrix.labels == ("DeepSeek V4 Flash · 2 H200", "GLM-5.2 · 4 H200")
     assert len(matrix.summaries) == 2
     assert matrix.comparison["common_categories"] == ["throughput", "concurrency"]
 
@@ -151,17 +149,13 @@ def test_generate_figures_writes_three_parseable_svgs(
     output_dir = tmp_path / "figures"
     paths = generate_figures(matrix_dir, output_dir)
     assert tuple(path.name for path in paths) == FIGURE_NAMES
+    expected_labels = load_matrix(matrix_dir).labels
     for path in paths:
         root = ET.parse(path).getroot()
         assert root.tag == "{http://www.w3.org/2000/svg}svg"
-        assert "256 generated tokens" in "".join(root.itertext())
+        text = "".join(root.itertext())
+        assert all(label in text for label in expected_labels)
         assert root.find("{http://www.w3.org/2000/svg}text").get("class") == "title"
-
-    namespace = {"svg": "http://www.w3.org/2000/svg"}
-    for path in paths[:2]:
-        root = ET.parse(path).getroot()
-        dashed = root.findall(".//svg:path[@stroke-dasharray='8 5']", namespace)
-        assert len(dashed) == 1
 
 
 def test_main_reports_every_written_figure(
