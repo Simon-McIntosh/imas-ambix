@@ -101,14 +101,14 @@ done
 
 INTERACTIVE=false
 [[ -t 0 ]] && INTERACTIVE=true
-if _CATALOG_RESULT="$(python3 - "$GLOBAL_ORIGIN" "$SELECTOR" "$LIST_ONLY" "$INTERACTIVE" 3<&0 <<'PY'
+if _CATALOG_RESULT="$(python3 - "$GLOBAL_ORIGIN" "$SELECTOR" "$LIST_ONLY" "$INTERACTIVE" "$MODE" 3<&0 <<'PY'
 import json
 import os
 import sys
 import urllib.error
 import urllib.request
 
-origin, selector, list_only, interactive = sys.argv[1:]
+origin, selector, list_only, interactive, mode = sys.argv[1:]
 
 
 def fail(message):
@@ -203,6 +203,29 @@ if list_only == "true":
         print(f'{item["selector"]}\t{item["label"]}')
     raise SystemExit(0)
 
+picker_settings = {
+    "modelPicker": {
+        "options": [
+            {
+                "model": item["id"],
+                "label": item["label"],
+                "description": (
+                    f'{item["count"]}×{item["family"]} · '
+                    f'{item["precision"]} · '
+                    f'{item["max_context"] // 1024}k context'
+                    if item["max_context"] is not None
+                    else (
+                        f'{item["count"]}×{item["family"]} · '
+                        f'{item["precision"]} · context not reported'
+                    )
+                ),
+            }
+            for item in items
+        ],
+        "replaceBuiltInOptions": mode == "local",
+    }
+}
+
 chosen = None
 if selector:
     matches = [
@@ -239,6 +262,7 @@ print(chosen["max_context"] or "")
 print(chosen["family"])
 print(chosen["count"])
 print(chosen["precision"])
+print(json.dumps(picker_settings, ensure_ascii=False, separators=(",", ":")))
 PY
 )"; then
     :
@@ -252,7 +276,7 @@ if $LIST_ONLY; then
 fi
 
 mapfile -t _CATALOG_FIELDS <<< "$_CATALOG_RESULT"
-if [[ "${#_CATALOG_FIELDS[@]}" -ne 5 ]]; then
+if [[ "${#_CATALOG_FIELDS[@]}" -ne 6 ]]; then
     echo "clive: catalog selection returned invalid data." >&2
     exit 2
 fi
@@ -261,6 +285,7 @@ MAX_CONTEXT="${_CATALOG_FIELDS[1]}"
 ACCELERATOR_FAMILY="${_CATALOG_FIELDS[2]}"
 ACCELERATOR_COUNT="${_CATALOG_FIELDS[3]}"
 CHECKPOINT_PRECISION="${_CATALOG_FIELDS[4]}"
+PICKER_SETTINGS="${_CATALOG_FIELDS[5]}"
 RUNTIME_LABEL="${ACCELERATOR_COUNT}×${ACCELERATOR_FAMILY} · ${CHECKPOINT_PRECISION}"
 CONTEXT_LABEL="unknown"
 if [[ -n "$MAX_CONTEXT" ]]; then
@@ -273,6 +298,7 @@ fi
 # The global service is anonymous. Harnesses receive a fixed non-secret value
 # only because their client configuration requires an API-key variable.
 KEY="clive-no-auth"
+SUPPORTED_CAPABILITIES="thinking"
 
 if [[ "$HARNESS" == "codex" ]]; then
     command -v codex >/dev/null 2>&1 || { echo "clive: 'codex' not on PATH." >&2; exit 127; }
@@ -290,19 +316,23 @@ if [[ "$MODE" == "local" ]]; then
     ANTHROPIC_DEFAULT_OPUS_MODEL="$MODEL_ID" \
     ANTHROPIC_DEFAULT_OPUS_MODEL_NAME="$MODEL_ID" \
     ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION="$RUNTIME_LABEL, $CONTEXT_LABEL ctx" \
+    ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
     ANTHROPIC_DEFAULT_SONNET_MODEL="$MODEL_ID" \
     ANTHROPIC_DEFAULT_SONNET_MODEL_NAME="$MODEL_ID" \
     ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION="$RUNTIME_LABEL, $CONTEXT_LABEL ctx" \
+    ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
     ANTHROPIC_DEFAULT_HAIKU_MODEL="$MODEL_ID" \
     ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME="$MODEL_ID" \
     ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION="$RUNTIME_LABEL, $CONTEXT_LABEL ctx" \
+    ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
     ANTHROPIC_DEFAULT_FABLE_MODEL="$MODEL_ID" \
     ANTHROPIC_DEFAULT_FABLE_MODEL_NAME="$MODEL_ID" \
     ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION="$RUNTIME_LABEL, $CONTEXT_LABEL ctx" \
+    ANTHROPIC_DEFAULT_FABLE_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
     ANTHROPIC_SMALL_FAST_MODEL="$MODEL_ID" \
     ANTHROPIC_MODEL="$MODEL_ID" \
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
-    exec claude "${ARGS[@]}"
+    exec claude --settings "$PICKER_SETTINGS" "${ARGS[@]}"
 fi
 
 __HYBRID_BRANCH__
@@ -342,20 +372,25 @@ ANTHROPIC_DEFAULT_HAIKU_MODEL="$MODEL_ID" \
 ANTHROPIC_MODEL="$MODEL_ID" \
 ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME="$MODEL_ID" \
 ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION="$RUNTIME_LABEL, $CONTEXT_LABEL ctx" \
+ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
 ANTHROPIC_DEFAULT_OPUS_MODEL="or-opus-4.8" \
 ANTHROPIC_DEFAULT_OPUS_MODEL_NAME="or-opus-4.8" \
 ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION="Claude Opus 4.8 via OpenRouter — frontier" \
+ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
 ANTHROPIC_DEFAULT_SONNET_MODEL="or-sonnet-4.6" \
 ANTHROPIC_DEFAULT_SONNET_MODEL_NAME="or-sonnet-4.6" \
 ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION="Claude Sonnet 4.6 via OpenRouter — balanced" \
+ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
 ANTHROPIC_DEFAULT_FABLE_MODEL="or-glm-5.2" \
 ANTHROPIC_DEFAULT_FABLE_MODEL_NAME="or-glm-5.2" \
 ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION="GLM-5.2 via OpenRouter — open-weight frontier, 1M ctx" \
+ANTHROPIC_DEFAULT_FABLE_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
 ANTHROPIC_CUSTOM_MODEL_OPTION="or-gpt-5.5" \
 ANTHROPIC_CUSTOM_MODEL_OPTION_NAME="or-gpt-5.5" \
 ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION="GPT-5.5 via OpenRouter — coding model" \
+ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
-exec claude "${ARGS[@]}"
+exec claude --settings "$PICKER_SETTINGS" "${ARGS[@]}"
 """
     local_branch = r"""echo "clive: hybrid mode is not installed; redeploy with 'imas-ambix agent clive PROFILE --mode hybrid'." >&2
 exit 2
