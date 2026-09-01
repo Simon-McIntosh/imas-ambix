@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T13:46:12",
+  "updated": "2026-09-01T13:53:49",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -16039,9 +16039,211 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T114716249437-capacity-admission-control",
+        "plan": "multi-model-serving-capacity",
+        "section": "\u00a74",
+        "node": "capacity-admission-control",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_router_admission.py -q exits 0. The engine will not self-limit usefully: the DeepSeek serve runs a 1024-sequence ceiling against a compact KV cache, so it accepts far more concurrency than the node serves at acceptable latency, which is why admission belongs on the router. Extend the existing router rather than adding a second gateway. Tests assert: concurrent in-flight requests per consumer are capped at a configured limit, and a request arriving above the cap waits in a bounded queue rather than being rejected outright. Past the queue bound the router returns a retry directive naming a wait rather than queueing without limit. Two different consumers are accounted separately, so one saturating its own cap does not delay the other. The cap counts in-flight requests and releases a slot when a response completes, including when the client disconnects mid-stream, so a dropped connection does not leak capacity. Per-consumer accounting is written to the router's own log, which is the same mechanism that keeps consumer addresses out of the engine's job log. The service being sized is group best-effort on spare cards with no reserved floor, so pick defaults for a handful of concurrent consumers and make the limit configurable rather than baked in. Follow the reuse map at /home/ITER/mcintos/.config/reckon/crew/reports/s24-reuse-map.md.",
+          "estimated_hours": null,
+          "goal": "Cap what one consumer can take from the router so a heavy caller degrades its own latency rather than everyone's",
+          "id": "capacity-admission-control",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T114716249437-capacity-admission-control/manifest.md",
+          "plan": "multi-model-serving-capacity",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "guided",
+          "time_budget": "35m",
+          "write_paths": [
+            "imas_ambix/agent/router.py",
+            "tests/test_agent_router_admission.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "s24-capacity-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T11:47:22Z",
+        "completed_at": "2026-09-01T11:53:17Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 355,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 355,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "f2498eedaf47d55cfd3baae687a805e72cc422d3",
+        "commits": [
+          "b76d9cbfb26701fa98a54a2e34f7b74a327bbf0e"
+        ],
+        "changed_lines": {
+          "added": 414,
+          "removed": 5,
+          "files": 2
+        },
+        "tests_added": 3,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_router_admission.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T114716249437-capacity-admission-control/pytest-admission-release-final.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T114716249437-capacity-admission-control/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c9f-7fa0-7353-b56f-090a024d590c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2088448,
+            "cached_input_tokens_cumulative": 2911232,
+            "input_tokens": 2097586,
+            "input_tokens_cumulative": 2998015,
+            "output_tokens": 11322,
+            "output_tokens_cumulative": 15451,
+            "reasoning_output_tokens": 3780,
+            "reasoning_output_tokens_cumulative": 4787
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_router_admission.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260901T114750299760-clive-local-alias-statement",
+        "plan": "clive-launch-modes",
+        "section": "\u00a74",
+        "node": "clive-local-alias-statement",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_clive_dispatch_guidance.py -q exits 0. Routing already works and needs no harness change, because a delegated worker's model is requested by alias and the launcher already maps each alias slot to a concrete model id. The gap is knowledge: a session has no way to know which alias is local, what its topology and context are, or what belongs on it. The launcher is the right place to state it, being the only component that knows the mapping it just created. The locked choice is that the primary local release takes the sonnet slot and the second local release takes haiku. Emit a session-scoped statement through the mechanism the launcher already uses for session settings. Tests assert the statement names which alias is local, that alias's accelerator count and engine-reported context taken from the catalog card rather than a constant, and the division of labour that bulk, parallel and mechanical work goes to the local alias while adjudication and physics-critical judgement stay on the other slot. Assert it is present in the default local mode, that it names sonnet as the primary local alias when two local releases are present, and that it changes no alias mapping, because it describes the mapping rather than creating one and a description is not a name a worker can be dispatched onto. Extend the existing generator named in the reuse map at /home/ITER/mcintos/.config/reckon/crew/reports/s24-reuse-map.md.",
+          "estimated_hours": null,
+          "goal": "Tell a delegating session which alias reaches the local engine and what belongs there, without it having to ask",
+          "id": "clive-local-alias-statement",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T114750299760-clive-local-alias-statement/manifest.md",
+          "plan": "clive-launch-modes",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/agent/clive.py",
+            "tests/test_agent_clive_dispatch_guidance.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "s24-clive-modes",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T11:47:59Z",
+        "completed_at": "2026-09-01T11:53:09Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 310,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 310,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "f2498eedaf47d55cfd3baae687a805e72cc422d3",
+        "commits": [
+          "cb5c6e12775124169e3402065a87c5e920a912ed"
+        ],
+        "changed_lines": {
+          "added": 161,
+          "removed": 2,
+          "files": 2
+        },
+        "tests_added": 2,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_clive_dispatch_guidance.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T114750299760-clive-local-alias-statement/pytest-clive-dispatch-guidance-final.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T114750299760-clive-local-alias-statement/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c99-a254-70b0-9b28-a7cdeedfa454",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 1718016,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 1876587,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 10140,
+            "reasoning_output_tokens": 571,
+            "reasoning_output_tokens_cumulative": 3547
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_clive_dispatch_guidance.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 398
+    "_version": 400
   }
 }
