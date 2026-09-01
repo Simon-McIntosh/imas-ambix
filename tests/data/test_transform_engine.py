@@ -19,7 +19,11 @@ from imas_ambix.data.cocos_convention import (
     MAST_SOURCE_COCOS,
     MAST_TO_COCOS_17_FACTORS,
 )
-from imas_ambix.data.machine_map import ChannelBinding, load_packaged_machine_map
+from imas_ambix.data.machine_map import (
+    ChannelBinding,
+    load_packaged_machine_map,
+    map_for_shot,
+)
 from imas_ambix.data.transform_engine import (
     TRANSFORM_ENGINE_FORMATS,
     BindingTransformError,
@@ -216,16 +220,7 @@ def test_two_format_engines_emit_three_range_scoped_descriptions(tmp_path):
     for shot in TRANSITION_SHOTS:
         zarr_result = transform_machine_description(catalog, shot, "zarr", LEVEL2_ROOT)
         assert zarr_result.status == "emitted"
-        assert (
-            zarr_result.machine_map.first_shot
-            <= shot
-            <= zarr_result.machine_map.last_shot
-        )
-        if shot == 12_533:
-            assert (
-                zarr_result.machine_map.first_shot,
-                zarr_result.machine_map.last_shot,
-            ) == (12_417, 30_471)
+        assert zarr_result.machine_map == map_for_shot(catalog, shot)
 
         direct_store = zarr.open_group(LEVEL2_ROOT / f"{shot}.zarr", mode="r")
         declared_bindings = catalog.bindings_for(zarr_result.machine_map)
