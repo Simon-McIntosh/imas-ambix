@@ -95,7 +95,10 @@ class RouterApp:
             return
         try:
             payload = json.loads(body)
-        except UnicodeDecodeError, json.JSONDecodeError:
+        except (
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+        ):
             await self._json_error(send, 400, "request body must be valid JSON")
             return
         model_id = payload.get("model") if isinstance(payload, Mapping) else None
