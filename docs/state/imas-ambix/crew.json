@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T19:44:44",
+  "updated": "2026-09-01T19:56:20",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -18694,9 +18694,112 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T174521161626-launcher-endpoint-discovery",
+        "plan": "serving-endpoint-indirection",
+        "section": "\u00a74",
+        "node": "launcher-endpoint-discovery",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_endpoint_discovery.py -q exits 0 and uv run --no-sync pytest tests/test_agent.py -q still exits 0. The design decision is that the launcher discovers endpoints from a published file and sends inference DIRECTLY to the owning engine rather than through a proxy, so nothing must run continuously for two models to be selectable. The serve jobs already write per-serve registration records, so publish one consolidated endpoint document derived from them, carrying for each live release its native id, origin host and port, accelerator family and count, checkpoint precision and engine-reported context. A hard constraint decides where it goes: /work/projects/imas_gpu is mode drwxrws--- and grants no world execute bit, so a process running as a user outside the storage group cannot traverse into it at all and every path beneath it fails, the launcher included. The published document must therefore sit outside that tree at a path whose every parent directory grants world execute, and the launcher must read it from there. Make that path one site setting rather than a literal repeated in two places, and have a test assert the resolved default path has no ancestor under /work/projects/imas_gpu. The launcher merges what it finds into one listing and selects per release, keeping every existing consumer guarantee: exactly one anonymous request per endpoint with no credential, fail-closed on a malformed or incomplete entry, no fallback to a hosted provider when discovery fails, and no repository, scheduler or operator dependency. Tests assert a two-release document produces two rows carrying each release's own topology and context, a release whose endpoint does not answer is dropped rather than listed, a malformed entry fails closed, and selecting a release targets that release's own origin rather than a shared one. Write nothing outside the repository from this node, because publishing to the shared path is an operator action.",
+          "estimated_hours": null,
+          "goal": "Let the launcher list every live release and reach each engine directly, with no always-on component between them",
+          "id": "launcher-endpoint-discovery",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T174521161626-launcher-endpoint-discovery/manifest.md",
+          "plan": "serving-endpoint-indirection",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "guided",
+          "time_budget": "40m",
+          "write_paths": [
+            "imas_ambix/agent/registry.py",
+            "imas_ambix/agent/clive.py",
+            "imas_ambix/agent/profile.py",
+            "tests/test_agent_endpoint_discovery.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "s24-router-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T17:45:31Z",
+        "completed_at": "2026-09-01T17:56:03Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 632,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 632,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "3bd1f37242d7d7e506a4b94e8008c3612c5af448",
+        "commits": [
+          "03bf0652e41fcf440c9254260e0f31221e132a89"
+        ],
+        "changed_lines": {
+          "added": 640,
+          "removed": 54,
+          "files": 4
+        },
+        "tests_added": 5,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_endpoint_discovery.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T174521161626-launcher-endpoint-discovery/logs/endpoint-discovery-pytest-final.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T174521161626-launcher-endpoint-discovery/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c83-5de8-74c3-a1d9-db6b19b95c3e",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 406784,
+            "cached_input_tokens_cumulative": 3456512,
+            "input_tokens": 466019,
+            "input_tokens_cumulative": 3701868,
+            "output_tokens": 8914,
+            "output_tokens_cumulative": 22279,
+            "reasoning_output_tokens": 1072,
+            "reasoning_output_tokens_cumulative": 6469
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_endpoint_discovery.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 436
+    "_version": 437
   }
 }

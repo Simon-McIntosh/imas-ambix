@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="15">
+<meta name="plan-version" content="16">
 <meta name="plan-depends-on" content="glm-53-serve-and-wiring">
 <meta name="plan-commits" content="a1ebcaf193ebd31d3d220ef635bd8155574c0ffb,965f4e2f21e759a60efbd7ffa4dfec4f7c25fe38,892050cc9030b581379ac2a5c9739bf34a64655c,8cbc2f733d0c87b2e584ac1d1656315cf478ec5f,25b1be15de962c370731e481f5bf1b9ec14d84f3,b76d9cbfb26701fa98a54a2e34f7b74a327bbf0e">
 <meta name="plan-artifacts" content="imas_ambix/agent/router.py,imas_ambix/agent/registry.py,tests/test_agent_router.py,tests/test_agent_router_resolution.py,tests/test_agent_router_admission.py,tests/test_agent_serve_registry.py,docs/evidence/archive/serving-endpoint-indirection-landed.html">
@@ -249,6 +249,9 @@
 <div class="r-comment" data-section="s4" data-id="c-run-r-20260901T114119877308-agent-grammar-compatibility" data-who="s24-router-impl" data-when="2026-09-01T11:45:46Z">
     <div class="r-comment-body"><p>All 16 agent modules now parse at the serving environment's 3.12: four clauses parenthesized across three modules, and the guard widened from serve-script-referenced modules to the whole package, which immediately exposed a fourth clause ast.parse could not report while an earlier error stood. 7/7 focused, whole-tree lint clean</p></div>
 </div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260901T174521161626-launcher-endpoint-discovery" data-who="s24-router-impl" data-when="2026-09-01T17:56:03Z">
+    <div class="r-comment-body"><p>Launcher discovers endpoints from a published document and routes directly to each release&#x27;s own origin, no always-on component required. Default path is one site setting at a world-traversable location outside /work/projects/imas_gpu, which grants no world execute bit and is therefore unreachable for non-group users. Malformed or incomplete documents fail closed before probing, dead endpoints are dropped rather than listed. 5/5 new, 183/183 existing, lint clean</p></div>
+</div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20260901T111423344139-agent-suite-verification" data-who="s24-router-test" data-when="2026-09-01T11:39:41Z">
     <div class="r-comment-body"><p>Whole-tree lint 0 findings and the four-card dry-run renders both the INT4 weights and official tokenizer directories. Two real gaps found: 3 of 16 agent modules fail a Python 3.12 parse (bench.py:831, cli.py:821, router.py:101) with the same unparenthesized multi-exception form that killed a serve, and the whole-tree pytest was terminated at 22 minutes having shown 2 failures by 10% with no final counts</p></div>
 </div>
@@ -265,7 +268,7 @@
     <div class="r-comment-body"><p>Router is now submittable as a long-lived CPU-only service: zero accelerators requested, ambix-router port comment for discovery, no finite time cap, the serving-environment interpreter rather than the project one, admission limits passed through at submission, keyless by default with explicit keys refused. 3/3 focused, 1/1 foreground regression, whole-tree lint clean</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20260901T171100306371-router-service-submit" data-who="s24-router-test" data-when="2026-09-01T17:21:05Z">
-    <div class="r-comment-body"><p>Router runs as a standing service: job 1260928 RUNNING with TimeLimit=UNLIMITED on CPU and memory only, no accelerator, discoverable by its scheduler comment. Its anonymous catalog returns 2/2 native releases and inference for each id reaches the right engine with correct answers 42 and 51, alongside both engine jobs. Recorded as a capability rather than deployed as clive&#x27;s origin: the lead&#x27;s design call is that the launcher should discover endpoints from a file and route directly, keeping no always-on component on the request path</p></div>
+    <div class="r-comment-body"><p>Router runs as a standing service: job 1260928 RUNNING with TimeLimit=UNLIMITED on CPU and memory only, no accelerator, discoverable by its scheduler comment. Its anonymous catalog returns 2/2 native releases and inference for each id reaches the right engine with correct answers 42 and 51, alongside both engine jobs. Recorded as a capability rather than deployed as clive's origin: the lead's design call is that the launcher should discover endpoints from a file and route directly, keeping no always-on component on the request path</p></div>
 </div>
 </section>
 </main>
