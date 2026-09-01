@@ -25,6 +25,9 @@ _DRAIN_SIDECAR = (
 _MODEL_DIR_TOKEN = "__AMBIX_MODEL_DIR__"
 _PORT_TOKEN = "__AMBIX_PORT__"
 _CATALOG_MIDDLEWARE = "imas_ambix.agent.vllm_catalog.GlobalModelCatalogMiddleware"
+_THINK_MARKER_MIDDLEWARE = (
+    "imas_ambix.agent.vllm_think_marker.OrphanThinkMarkerMiddleware"
+)
 
 # Python one-liner that calls posix_fadvise(FADV_DONTNEED) on all
 # safetensor files in a directory, advising the kernel to drop their
@@ -196,6 +199,8 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
             _PORT_TOKEN,
             "--middleware",
             _CATALOG_MIDDLEWARE,
+            "--middleware",
+            _THINK_MARKER_MIDDLEWARE,
         ]
         _append_flag(args, "--trust-remote-code", engine.trust_remote_code)
         _append_option(args, "--tokenizer", site.tokenizer_dir(profile))
