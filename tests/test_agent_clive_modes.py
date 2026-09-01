@@ -54,9 +54,10 @@ def test_hybrid_is_the_only_generation_mode_with_hosted_slots(monkeypatch):
 
     assert local.exit_code == 0, local.output
     assert hybrid.exit_code == 0, hybrid.output
-    for hosted_slot in (b"or-opus-4.8", b"or-sonnet-4.6", b"or-gpt-5.5"):
+    for hosted_slot in (b"or-opus-4.8", b"or-glm-5.2", b"or-gpt-5.5"):
         assert hosted_slot not in local.output_bytes
         assert hosted_slot in hybrid.output_bytes
+    assert b"or-sonnet-4.6" not in hybrid.output_bytes
 
 
 def test_hybrid_installation_isolated_behind_explicit_mode(monkeypatch, tmp_path):
