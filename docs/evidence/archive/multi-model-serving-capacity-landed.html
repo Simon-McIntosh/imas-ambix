@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="multi-model-serving-capacity-landed">
+  <meta name="plan-title" content="Multi-Model Serving Capacity — Landed Record">
+  <meta name="plan-summary" content="Execution record for the corrected serving guidance, the group best-effort service statement, and the measured core budget that binds before cards do.">
+  <meta name="plan-evidence-for" content="multi-model-serving-capacity">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>Multi-Model Serving Capacity — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="summary">What landed</h2>
+    <table>
+      <thead><tr><th>Node</th><th>Commit</th><th>Measure</th></tr></thead>
+      <tbody>
+        <tr><td>Guidance + service statement</td><td><code>f63f3ba</code></td><td>14/14 content assertions</td></tr>
+        <tr><td>Per-consumer admission</td><td><code>b76d9cb</code></td><td>3/3 under deliberate overload</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="cores">Cores bind, and this sprint measured it rather than argued it</h2>
+    <p>The plan asserted that cores rather than cards are the scarce resource. A bring-up
+    attempt turned that from a claim into a measurement. Of the reservation's 30 cores, the
+    DeepSeek serve held 8 and a co-running CPU-only job held 16 — 24 of 30 — so a serve
+    requesting the profile's default 12 cores <strong>could not be admitted at all</strong>
+    even with four cards sitting free. The scheduler put its start nearly three hours
+    out.</p>
+    <p>The descending probe ladder is the practice that made this visible, and it is worth
+    keeping:</p>
+    <table>
+      <thead><tr><th>Cores requested</th><th>Scheduler verdict</th></tr></thead>
+      <tbody>
+        <tr><td>12</td><td>deferred, start 15:21:36</td></tr>
+        <tr><td>10</td><td>deferred, start 15:21:36</td></tr>
+        <tr><td>8</td><td>deferred, start 15:21:36</td></tr>
+        <tr><td>6</td><td><strong>immediate</strong></td></tr>
+        <tr><td>4</td><td>immediate</td></tr>
+      </tbody>
+    </table>
+    <p>Six cores were taken, and the engine subsequently loaded 241 shards and served. The
+    profile default would have idled four cards for three hours to no purpose. Sizing every
+    serve from a probe rather than from arithmetic on the profile default is therefore not
+    a precaution — it is the difference between running and not running.</p>
+
+    <h2 id="service">The service statement</h2>
+    <p>Locked to a <strong>group-sized best-effort service</strong>: it serves the storage
+    group on spare cards with no reserved floor, so a serve may be cancelled for a training
+    campaign, and admission limits are sized for a handful of concurrent consumers rather
+    than a published cluster-wide wait. That matches how the node is already shared. The
+    statement is written so widening the audience later is a card-budget change rather than
+    a redesign.</p>
+
+    <h2 id="guidance">The correction that mattered most</h2>
+    <p>The sub-tree guidance described both GLM profiles as unusable stubs whose weights
+    were unpublished. That was true when written and had become wrong in the way that
+    actually costs something: it would have stopped someone serving a model already sitting
+    on disk. It now records the four-card and eight-card deployments as they are, with
+    their sizes, shared served name and differing checkpoint precision, alongside the
+    core-budget rules it sits beside.</p>
+
+    <h2 id="admission">What can be promised</h2>
+    <p>Admission control landed on the router and is recorded in full in
+    <a href="/imas-ambix/evidence/archive/serving-endpoint-indirection-landed#admission">the
+    router record</a>. The honest limit stands: none of it manufactures capacity. Eight
+    cards is eight cards, and past the bound the router returns a retry directive rather
+    than queueing without end.</p>
+
+    <h2 id="open">What remains unproven</h2>
+    <p>Two engines have not yet served concurrently. The second engine's checkpoint was
+    substituted mid-sprint after the profiled one proved unusable, and the replacement's
+    own budget is tighter than the release it replaced: at four cards it reported
+    <strong>8.32 GiB</strong> of KV cache available against 11.31 GiB needed for the
+    configured ceiling, with an engine-estimated maximum of 96384 tokens. So the concurrent
+    demonstration, and the overload measurement against two live engines, remain open
+    behind a further sizing pass rather than behind any component built here.</p>
+
+  </main>
+</body>
+</html>

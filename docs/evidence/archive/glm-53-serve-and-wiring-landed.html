@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="glm-53-serve-and-wiring-landed">
+  <meta name="plan-title" content="GLM-5.3 Serve and Wiring — Landed Record">
+  <meta name="plan-summary" content="Execution record for four bring-up attempts, the three distinct defects they found, and the checkpoint substitution that followed.">
+  <meta name="plan-evidence-for" content="glm-53-serve-and-wiring">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>GLM-5.3 Serve and Wiring — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="summary">What landed, and what did not</h2>
+    <p>The wiring landed and is proven. The engine did not: four bring-up attempts each
+    found a <em>different</em> real defect, and the checkpoint the plan named turned out to
+    be unusable. Every attempt is recorded below, because the sequence is the result — each
+    failure was upstream of the trap the plan had warned about, and none repeated another.</p>
+
+    <table>
+      <thead><tr><th>Node</th><th>Commit</th><th>Measure</th></tr></thead>
+      <tbody>
+        <tr><td>Profile contract pinned</td><td><code>3dd7365</code></td><td>2/2; both variants, per-variant precision in generated metadata</td></tr>
+        <tr><td>Operator instructions corrected</td><td><code>53b4fc3</code></td><td>183/183; prohibited port-forward banner removed</td></tr>
+        <tr><td>Tokenizer source</td><td><code>3bb3d76</code></td><td>3/3; compatibility verified before the field was set</td></tr>
+        <tr><td>Context ceiling from measurement</td><td><code>6aba876</code></td><td>3/3; 262144 → 131072 against a measured 20.71 GiB pool</td></tr>
+        <tr><td>W4A8 substitution</td><td><code>8b82a97</code></td><td>3/3; broken requant no longer reachable</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="attempts">Four attempts, four distinct causes</h2>
+    <p><strong>Job 1260688 — no tokenizer.</strong> The community INT4 requant ships 241
+    weight shards and <em>no tokenizer assets at all</em>, while the official release on the
+    same disk carries <code>tokenizer.json</code> and <code>tokenizer_config.json</code>.
+    The engine died 59 s in during tokenizer construction, before any weight or KV
+    initialisation — upstream of the lazy first-decode trap the plan warned about. Fixed by
+    letting a deployment borrow a tokenizer from another released checkpoint, verified
+    rather than assumed: <code>vocab_size</code> 154880, pad 154820 and eos
+    <code>[154820, 154827, 154829]</code> identical across both configs, zero mismatches.</p>
+
+    <p><strong>Job 1260703 — the serving interpreter.</strong> Died two seconds in on a
+    <code>SyntaxError</code> in a repository module. Full account in
+    <a href="/imas-ambix/evidence/archive/serving-endpoint-indirection-landed#interpreter">the
+    router record</a>.</p>
+
+    <p><strong>Job 1260712 — the ceiling was arithmetic.</strong> Loaded all 241 shards in
+    861 s at 94.38 GiB per card, then aborted at KV init: the configured 262144 tokens need
+    22.61 GiB against 20.74 GiB available, with the engine putting its own ceiling at
+    240384. The profile comment had predicted "a ceiling near 400K". The configured value
+    became <strong>131072, deliberately not the engine's 240384</strong> — at the measured
+    cost per token that needs about 11.3 GiB and leaves about 9.4 GiB for the sparse-MLA
+    kernel's roughly 8 GiB per-card lazy claim on the first real decode. A ceiling at the
+    engine maximum would have reached ready and died on its first request.</p>
+
+    <p><strong>Job 1260720 — served, and useless.</strong> The headroom choice was right:
+    241 shards in 859 s, 20.71 GiB pool, GPU KV cache 240,064 tokens, 1.83× concurrency at
+    the configured ceiling, <code>Application startup complete</code>, an anonymous catalog
+    carrying <code>glm-5.3</code> with an intact metadata block naming count 4 and precision
+    int4, and a first real decode that <em>survived</em>. But every decoded output was
+    incoherent and two tool attempts produced zero <code>tool_use</code> blocks.</p>
+
+    <h2 id="diagnosis">The requant is at fault, and our own change is exonerated</h2>
+    <p>Diagnosed against the live engine before it was stopped, separating three
+    hypotheses:</p>
+    <table>
+      <thead><tr><th>Hypothesis</th><th>Test</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td>Tokenizer or vocabulary mismatch</td><td>official tokenizer against the live <code>/tokenize</code> and <code>/detokenize</code> on four diverse strings</td><td><strong>ruled out</strong> — 4/4 exact ids, 4/4 exact round-trips</td></tr>
+        <tr><td>Chat-template mismatch</td><td>the two <code>chat_template.jinja</code> files compared byte-wise</td><td><strong>ruled out</strong> — byte-identical, 10465 bytes, one SHA-256</td></tr>
+        <tr><td>Damaged or mislabelled requant</td><td>raw <code>/v1/completions</code> with no chat template applied</td><td><strong>supported</strong> — 32/32 generated tokens decoded as <code>odesk</code></td></tr>
+      </tbody>
+    </table>
+    <p>The borrowed tokenizer was therefore correct and necessary, and the fault lies in the
+    community requant's weights or their execution path. That checkpoint is no longer
+    reachable from the profile.</p>
+
+    <h2 id="substitution">Which GLM-5.3 artifact can be served</h2>
+    <p>Settled against the <strong>serving</strong> vLLM 0.28.0 rather than the project
+    virtualenv's 0.23.0 — an earlier answer used the wrong engine and had to be re-taken.</p>
+    <ul>
+      <li><strong>GLM-5.3-Flash: not serveable.</strong> The registry returns zero entries
+      for <code>Glm5NextForConditionalGeneration</code>, the architecture its config
+      declares.</li>
+      <li><strong><code>camel-ai/GLM-5.3-W4A8</code>: serveable.</strong> Its
+      <code>GlmMoeDsaForCausalLM</code> architecture is registered, both compressed-tensors
+      W4A8 loader classes import from the serving package, the complete manifest is 154
+      files totalling 399,754,189,403 bytes, it fits four 141 GB cards with about 164 GB
+      aggregate headroom, and it ships its own tokenizer — so the borrowed tokenizer source
+      was removed rather than carried over.</li>
+    </ul>
+    <p>Transferred as job <code>1260756</code> into its own weights directory, completing in
+    ten minutes.</p>
+
+    <h2 id="scope">Scope recorded by the lead</h2>
+    <p>The eight-card FP8 single-model quality measurement is deliberately not taken. It
+    needs the whole node, which would mean stopping the running keyless DeepSeek serve, and
+    no multi-model result depends on it. FP8 stands recorded as a whole-node alternative to
+    concurrency rather than a default deployment, which is the substance that done-when
+    item was for.</p>
+
+  </main>
+</body>
+</html>
