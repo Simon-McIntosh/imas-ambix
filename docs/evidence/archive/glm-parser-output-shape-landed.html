@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="glm-parser-output-shape-landed">
+  <meta name="plan-title" content="GLM Parser Output Shape — Landed Record">
+  <meta name="plan-summary" content="Execution record for two output-framing defects, both of which the diagnosis relocated from where the plan had guessed they were.">
+  <meta name="plan-evidence-for" content="glm-parser-output-shape">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <title>GLM Parser Output Shape — Landed Record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="summary">What landed</h2>
+    <p>Both defects are closed, and in both cases the measurement moved the problem away
+    from where the plan had placed it. Neither was a correctness fault — the engine called
+    tools correctly and reasoned correctly throughout — which is why they were split out of
+    a bring-up rather than allowed to hold it.</p>
+
+    <table>
+      <thead><tr><th>Defect</th><th>Commit</th><th>Measure</th></tr></thead>
+      <tbody>
+        <tr><td>Stray closing marker in tool responses</td><td><code>dfe0b8f</code></td><td>6/6 new, 21/21 catalog retained</td></tr>
+        <tr><td>Reasoning consuming the output budget</td><td><code>8bea195</code></td><td>closed by the per-release reservation</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="marker">The marker: not synthesised, emitted</h2>
+    <p>The plan offered two candidate owners — the reasoning parser closing a block it never
+    opened, or the tool path failing to filter. Probes against the live engine eliminated
+    both, and named a third:</p>
+    <table>
+      <thead><tr><th>Probe</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>tool request, thinking disabled</td><td>one <code>tool_use</code> block plus the exact 8-byte marker in adjacent text</td></tr>
+        <tr><td>same prompt, no tools</td><td><strong>zero</strong> occurrences</td></tr>
+        <tr><td>raw completion, no chat template</td><td><strong>zero</strong> occurrences</td></tr>
+        <tr><td>OpenAI probe with token ids</td><td>generated token <strong>154842</strong> maps exactly to the closing marker; <code>reasoning_tokens=0</code></td></tr>
+      </tbody>
+    </table>
+    <p>So <strong>the model emits the token itself</strong>, immediately before its tool-call
+    opener, and the engine's parser passes it through as content precisely because no block
+    was opened. Nothing can suppress a token the model produced, so the fix had to live
+    where the response is still shapeable.</p>
+    <p>That place already existed. Every serve loads our own ASGI middleware through the
+    generated script's <code>--middleware</code> argument — the same mechanism that injects
+    launch-owned metadata into the model catalog. A second layer now strips the orphan
+    marker from assistant content in buffered JSON and in incremental SSE, covering both LF
+    and CRLF event boundaries. The root cause remains upstream; this reaches every consumer
+    of our serves without waiting on it.</p>
+    <p>The guards matter more than the strip, because an over-eager filter would be worse
+    than the stray token: a genuine thinking block keeps its markers, a marker-free response
+    stays byte-identical, and a marker appearing in ordinary prose survives.</p>
+
+    <h2 id="budget">The budget: truncation, not swallowing</h2>
+    <p>The plan read this as reasoning consuming the cap so no final block was reachable. A
+    six-point sweep showed something simpler:</p>
+    <table>
+      <thead><tr><th>Output cap</th><th>Stop reason</th><th>Final text block</th></tr></thead>
+      <tbody>
+        <tr><td>256, 512, 768, 1024</td><td><code>max_tokens</code></td><td>absent</td></tr>
+        <tr><td>1536, 2048</td><td><code>end_turn</code></td><td><strong>present</strong>, at 1484 total tokens with 1025 thinking</td></tr>
+      </tbody>
+    </table>
+    <p>The response was being cut off, not withheld. No change was needed here: the
+    launcher's per-release reservation already derives from the selected card's own context
+    and emits 16,384 for this release — an order of magnitude above the 1,536-token
+    threshold — so the condition cannot arise at any budget it produces.</p>
+
+    <h2 id="deployment">Deployment note</h2>
+    <p>A running engine carries the middleware only from its next restart, since the layer
+    is registered by the generated serve script. The marker is cosmetic rather than a
+    correctness fault, so that restart is not urgent and was deliberately not forced on a
+    healthy endpoint.</p>
+
+  </main>
+</body>
+</html>

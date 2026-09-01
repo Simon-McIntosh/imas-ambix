@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="glm-parser-output-shape">
   <meta name="plan-title" content="GLM Parser Output Shape — what the engine emits around a tool call and a thought">
   <meta name="plan-summary" content="Two measured defects in how the GLM reasoning and tool parsers frame their output, both observed against a live coherent engine">
-  <meta name="plan-status" content="draft">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="mid">
   <meta name="plan-effort-hours" content="2.0">
   <meta name="plan-capability-version" content="1.0">
@@ -22,7 +22,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-01">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="3">
+<meta name="plan-commits" content="dfe0b8f5cabf09e61903d258092aa921dc969a79,8bea195">
+<meta name="plan-artifacts" content="imas_ambix/agent/vllm_think_marker.py,tests/test_agent_think_marker.py,docs/evidence/archive/glm-parser-output-shape-landed.html">
+<meta name="plan-impl" content="1.0">
 </head>
 <body>
   <main class="plan-doc">
@@ -66,30 +69,40 @@
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="marker-owner" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="marker-owner" data-choice="tool-path" data-by="reckon-ship" data-when="2026-09-01T20:50:39+00:00">
     <p class="r-dec-q">Does the reasoning parser suppress its closing marker when no thought was produced, or does the tool path strip it?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="reasoning-parser">reasoning-parser</button>
-      <button class="r-opt" data-value="tool-path">tool-path</button>
+      <button class="r-opt chosen" data-value="tool-path">tool-path</button>
       </p>
-    <p class="r-dec-rat">Recommendation: the reasoning parser, because it is the component
-        that owns the marker and the only one that knows whether a block was opened.
-        Stripping downstream would leave every other consumer of that engine seeing the
-        same stray token.</p>
+    <p class="r-dec-rat">Locked away from the recommendation, because measurement changed the question. The recommendation assumed the reasoning parser synthesised a close for a block it never opened. Probes showed otherwise: the MODEL emits token 154842 itself, immediately before its tool-call opener, while the same prompt without tools and a raw completion each contain zero occurrences. Nothing can suppress a token the model produced, so the fix belongs where the response is still shapeable. The root cause stays upstream in vLLM, but every serve already loads our own ASGI middleware, so the correction reaches every consumer of our serves without waiting on it.</p>
     </div>
 </section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-gpos-01" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship glm-parser-output-shape" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-gpos-01" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-01" data-recommends-skill="/reckon-ship glm-parser-output-shape" data-resolved-at="2026-09-01T20:50:39+00:00" data-resolved-by="reckon-ship">
     <h4 class="r-fu-title">Fix the two parser framing defects against a live engine</h4>
     <div class="r-fu-body">Both were observed on the live four-card release during its coherence proof, so both are reproducible against a running endpoint rather than needing a fixture. The stray closing marker appears in tool responses that carry no thinking block; the reasoning cap is consumed inside the thought so no separate final text block is emitted. Neither blocks serving, which is why they were split out of the bring-up rather than holding it. Re-run the same tool-use and reasoning probes afterwards to confirm correctness and coherence are unchanged.</div>
     <pre class="r-fu-prompt">/reckon-ship glm-parser-output-shape</pre>
+    <p class="r-fu-outcome">Shipped in the same session that raised it, rather than handed on. The stray marker is stripped by middleware the serves already load, and the reasoning truncation was already closed by the per-release output reservation, which sits an order of magnitude above the measured threshold. Both are guarded by tests and neither alters tool-call correctness or coherence. done — no followup.</p>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260901T183157329588-parser-framing-diagnosis" data-who="s24-agentic-probe" data-when="2026-09-01T18:41:56Z">
     <div class="r-comment-body"><p>Both causes located. Defect 1 is a parser pass-through gap in vLLM, not our configuration: the MODEL emits token 154842, exactly the 8-byte closing think marker, immediately before its tool-call opener when tools are present and thinking is disabled; the same prompt without tools and a raw completion each contain zero occurrences. Disabled thinking returns model output unchanged and omits think terminals while the tool adapter parses from content, so nothing synthesises it and no launcher flag causes it. Defect 2 is truncation, not swallowing: a six-budget sweep shows caps through 1024 yield thinking only with stop=max_tokens, while 1536 and 2048 both stop=end_turn at 1484 total tokens with 1025 thinking tokens and non-empty final text</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260901T204121062882-strip-orphan-think-marker" data-who="s24-router-impl" data-when="2026-09-01T20:49:01Z">
+    <div class="r-comment-body"><p>Orphan closing think marker is stripped from assistant content in both buffered JSON and incremental SSE, with LF and CRLF event boundaries covered. Two middleware layers are now registered, catalog enrichment retained. Guarded against over-stripping: a genuine thinking block keeps its markers, a marker-free response is byte-identical, and a marker in ordinary prose survives. 6/6 new, 21/21 catalog, lint clean, and the module parses at the serving 3.12</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-20260901-marker-and-budget" data-who="reckon-ship" data-when="2026-09-01T22:50:00+00:00">
+    <div class="r-comment-body">Both defects closed, and the diagnosis moved each of them from where the plan had placed it.
+
+§2, the stray marker — commit dfe0b8f; gate 'orphan marker contract' passed; measure 6/6 new plus 21/21 catalog retained. Probes against the live engine eliminated both candidate owners the plan named and identified a third: an OpenAI probe with token ids proved generated token 154842 maps exactly to the eight-byte closing marker, while the same prompt without tools and a raw completion each contained zero occurrences. So the model emits it and the parser passes it through. The middleware strips it from assistant content in buffered JSON and incremental SSE across LF and CRLF boundaries, fenced against over-stripping: a genuine thinking block keeps its markers, a marker-free response stays byte-identical, and a marker in ordinary prose survives.
+
+§3, reasoning consuming the budget — already closed by commit 8bea195. It was truncation rather than swallowing: caps through 1024 yield thinking only and stop at max_tokens, while 1536 and 2048 both reach end_turn at 1484 total tokens with a non-empty final text block. The launcher's per-release reservation emits 16384 for this release, an order of magnitude above that threshold, so the condition cannot arise at any budget it produces.
+
+Deployment note: a running engine carries the middleware only from its next restart. The marker is cosmetic rather than a correctness fault, so that restart was deliberately not forced on a healthy endpoint.</div>
 </div>
 </section>
 </main>

@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T22:35:07",
+  "updated": "2026-09-01T22:49:05",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -19547,9 +19547,111 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T204121062882-strip-orphan-think-marker",
+        "plan": "glm-parser-output-shape",
+        "section": "\u00a72",
+        "node": "strip-orphan-think-marker",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_think_marker.py -q exits 0, the existing catalog suite uv run --no-sync pytest tests/test_agent_catalog.py -q still exits 0, and the whole-tree gate uv run --no-sync ruff check imas_ambix tests --no-cache exits 0. Measured against the live engine: the MODEL emits token 154842, the eight-byte closing think marker, immediately before its tool-call opener when tools are present and thinking is disabled, and the engine's parser passes it through as content because no block was opened. The same prompt without tools and a raw completion each contain zero occurrences. The root cause is upstream, but this repository already injects its own ASGI middleware into every serve process through the --middleware argument in the generated script, so a response-shaping fix has a home here. Add a middleware that removes a lone closing think marker from assistant content when no thinking block was opened, covering BOTH a buffered JSON response and a streamed SSE response, since an agentic consumer uses streaming. Follow the existing middleware's shape and register it alongside the catalog one rather than replacing it. Tests assert: a buffered response whose content carries the orphan marker has it removed while the rest of the text is byte-identical; a streamed response carries the same removal with every other event unchanged in sequence and content; a response containing a genuine thinking block keeps its markers untouched, because those are structural rather than stray; a response with no marker is passed through byte-identically; and the marker is not removed from anywhere other than the start of assistant content, so a marker a user legitimately asked about in prose survives. Do not change the catalog middleware's behaviour and do not touch tool-call parsing.",
+          "estimated_hours": null,
+          "goal": "Stop a stray closing think marker reaching consumers of a tool response",
+          "id": "strip-orphan-think-marker",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T204121062882-strip-orphan-think-marker/manifest.md",
+          "plan": "glm-parser-output-shape",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "35m",
+          "write_paths": [
+            "imas_ambix/agent/vllm_think_marker.py",
+            "imas_ambix/agent/slurm.py",
+            "tests/test_agent_think_marker.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "s24-router-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T20:41:31Z",
+        "completed_at": "2026-09-01T20:49:01Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 450,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 450,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "30d1f97b55caf1e4325cf38825d052cbf870150d",
+        "commits": [
+          "dfe0b8f5cabf09e61903d258092aa921dc969a79"
+        ],
+        "changed_lines": {
+          "added": 437,
+          "removed": 0,
+          "files": 3
+        },
+        "tests_added": 6,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_think_marker.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T204121062882-strip-orphan-think-marker/logs/think-marker-final.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T204121062882-strip-orphan-think-marker/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c83-5de8-74c3-a1d9-db6b19b95c3e",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 4176640,
+            "cached_input_tokens_cumulative": 5856512,
+            "input_tokens": 4325447,
+            "input_tokens_cumulative": 6081566,
+            "output_tokens": 14747,
+            "output_tokens_cumulative": 18492,
+            "reasoning_output_tokens": 4501,
+            "reasoning_output_tokens_cumulative": 5010
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_think_marker.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 445
+    "_version": 446
   }
 }
