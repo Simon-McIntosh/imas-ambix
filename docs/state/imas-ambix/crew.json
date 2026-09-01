@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T15:23:10",
+  "updated": "2026-09-01T15:35:55",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -840,9 +840,11 @@
         "id": "s24-data-repair",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a05d18-8844-7713-93c0-58f08350ed7b",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a05d18-8844-7713-93c0-58f08350ed7b"
+        },
         "created": "2026-09-01"
       },
       {
@@ -922,9 +924,11 @@
         "id": "s24-w4a8-download",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a05d25-8783-74e0-a33c-9036ea78e405",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a05d25-8783-74e0-a33c-9036ea78e405"
+        },
         "created": "2026-09-01"
       },
       {
@@ -17163,9 +17167,205 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T131115768249-data-description-failures",
+        "plan": "machine-map-transform-engine",
+        "section": "\u00a71",
+        "node": "data-description-failures",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/data/test_description_identity.py tests/data/test_transform_engine.py -q exits 0. Three tests fail at the integrated head and predate this sprint: test_description_versions_partition_the_real_corpus_consistently, test_every_declared_boundary_has_a_visible_description_change, and test_two_format_engines_emit_three_range_scoped_descriptions. Their captured per-file output is under /home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T120524655239-whole-suite-verification/parts/ and the tracebacks are excerpted in failure-excerpts.md beside it - read those first rather than re-running the whole tree to rediscover them. All three are guarded by skipif conditions on mounted corpora, so they executed rather than skipped, which means the corpora are present and the failures are real. Diagnose each to its root cause and fix the cause. State in the manifest, per test, whether the defect was in the test's expectation or in the code it exercises, and which you changed. Do not delete a test, do not add a skip or xfail to get to green, and do not weaken an assertion to match current behaviour without saying explicitly why the previous expectation was wrong.",
+          "estimated_hours": null,
+          "goal": "Return the three failing description and transform-engine tests to green",
+          "id": "data-description-failures",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T131115768249-data-description-failures/manifest.md",
+          "plan": "machine-map-transform-engine",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a71",
+          "spec_level": "open",
+          "time_budget": "40m",
+          "write_paths": [
+            "tests/data/test_description_identity.py",
+            "tests/data/test_transform_engine.py",
+            "imas_ambix/data"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "open",
+        "member": "s24-data-repair",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T13:11:23Z",
+        "completed_at": "2026-09-01T13:34:42Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1399,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1399,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "24c27d5c40f28b5ef92a7ba5590d3e25341eaa8f",
+        "commits": [
+          "df82ba2c31fc65cea3dc7e1e4cae6ffaad18b16b"
+        ],
+        "changed_lines": {
+          "added": 56,
+          "removed": 38,
+          "files": 2
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/data/test_description_identity.py tests/data/test_transform_engine.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T131115768249-data-description-failures/targeted-tests.log",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T131115768249-data-description-failures/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05d18-8844-7713-93c0-58f08350ed7b",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 9580800,
+            "cached_input_tokens_cumulative": 9580800,
+            "input_tokens": 9794320,
+            "input_tokens_cumulative": 9794320,
+            "output_tokens": 18914,
+            "output_tokens_cumulative": 18914,
+            "reasoning_output_tokens": 7922,
+            "reasoning_output_tokens_cumulative": 7922
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/data/test_description_identity.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260901T132348450055-w4a8-download-launch",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a71",
+        "node": "w4a8-download-launch",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-w4a8-download.md records, with verbatim commands and outputs: (1) 'uv run --no-sync imas-ambix agent download glm-5-3 --gpus 4' or whichever exact invocation the CLI exposes for fetching the four-card checkpoint, with its returned scheduler job id. HEAD now resolves that deployment to camel-ai/GLM-5.3-W4A8 into its own glm-5-3-w4a8 weights directory, so confirm from a dry run or the CLI's own output that the repository and destination are those before submitting, since a wrong destination would overwrite the eight-card FP8 checkpoint. (2) the job's state a few minutes after submission, showing it RUNNING rather than merely queued, plus the first lines of its log showing the transfer has begun. (3) the destination directory's current size and file count, evidencing bytes are arriving. (4) the expected total, which the published manifest gives as 154 files and 399754189403 bytes, so a reader can judge progress against it. Do NOT wait for the transfer to finish and do not hold this node open for it: report the job id and the evidence it is progressing, and state plainly that completion is unverified. Do not cancel, resize or requeue any job you did not submit, and leave DeepSeek job 1260660 RUNNING.",
+          "estimated_hours": null,
+          "goal": "Start the W4A8 checkpoint transfer and confirm it is genuinely running",
+          "id": "w4a8-download-launch",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T132348450055-w4a8-download-launch/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a71",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-w4a8-download.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "s24-w4a8-download",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T13:25:30Z",
+        "completed_at": "2026-09-01T13:33:51Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 501,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 501,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "01633c9860a53835f5e5748553f357919e33b8dd",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync imas-ambix agent download glm-5-3 --dry-run then the real submission and a scheduler plus destination-size check",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/s24-w4a8-download.md",
+          "log_digest": null
+        },
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T132348450055-w4a8-download-launch/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05d25-8783-74e0-a33c-9036ea78e405",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1787648,
+            "cached_input_tokens_cumulative": 1787648,
+            "input_tokens": 1898561,
+            "input_tokens_cumulative": 1898561,
+            "output_tokens": 12366,
+            "output_tokens_cumulative": 12366,
+            "reasoning_output_tokens": 4226,
+            "reasoning_output_tokens_cumulative": 4226
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 416
+    "_version": 420
   }
 }
