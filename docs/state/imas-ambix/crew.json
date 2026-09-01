@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T23:18:14",
+  "updated": "2026-09-01T23:27:34",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -19933,9 +19933,111 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260901T211928336017-publish-discovers-routers",
+        "plan": "serving-endpoint-indirection",
+        "section": "\u00a74",
+        "node": "publish-discovers-routers",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_endpoint_discovery.py -q exits 0 with added assertions, and uv run --no-sync pytest tests/test_agent.py -q still exits 0. The published endpoint document already carries a routing_origins field and the publish API already accepts the argument, but the publish command never populates it, so the field is always empty and a consumer can never find the union origin. Without it the launcher falls back to per-engine routing and a model chosen from the harness picker is unreachable, which is the live failure this closes. A running router stamps its scheduler comment as ambix-router with its port, the same shape a serve uses for its own port, so discover routers that way and reuse the existing scheduler adapter and endpoint probe rather than writing new ones. Record a routing origin ONLY when its catalog actually covers every release the document lists, because publishing an origin serving a subset would let the launcher advertise a row it cannot reach. Tests assert: a running router whose catalog covers every listed release appears in routing_origins with its host and port; a router covering only some releases is omitted; a router that does not answer its catalog probe is omitted; and with no router running the field is an empty list and the document is otherwise unchanged. Do not alter the endpoint entries themselves and write nothing outside the repository, because publishing is an operator action.",
+          "estimated_hours": null,
+          "goal": "Record a running router in the published document so consumers can find the origin that serves every release",
+          "id": "publish-discovers-routers",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T211928336017-publish-discovers-routers/manifest.md",
+          "plan": "serving-endpoint-indirection",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/agent/registry.py",
+            "tests/test_agent_endpoint_discovery.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "s24-router-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T21:19:36Z",
+        "completed_at": "2026-09-01T21:27:22Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 466,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 466,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "bbf5db2e01b74a58a50efeeb92ce94650e0aa5d1",
+        "commits": [
+          "339d0e1768428de5a47af87d08b7d29f2c959036"
+        ],
+        "changed_lines": {
+          "added": 188,
+          "removed": 2,
+          "files": 2
+        },
+        "tests_added": 4,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_endpoint_discovery.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T211928336017-publish-discovers-routers/manifest.md",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T211928336017-publish-discovers-routers/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c83-5de8-74c3-a1d9-db6b19b95c3e",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 3827200,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 3996292,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 14763,
+            "reasoning_output_tokens": 219,
+            "reasoning_output_tokens_cumulative": 5229
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_endpoint_discovery.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 449
+    "_version": 450
   }
 }
