@@ -225,6 +225,8 @@ picker_settings = {
         "replaceBuiltInOptions": mode == "local",
     }
 }
+primary_local = items[0]
+secondary_local = items[1] if len(items) > 1 else primary_local
 
 chosen = None
 if selector:
@@ -263,19 +265,52 @@ print(chosen["family"])
 print(chosen["count"])
 print(chosen["precision"])
 print(json.dumps(picker_settings, ensure_ascii=False, separators=(",", ":")))
-context_description = (
-    f'{chosen["max_context"]:,}-token engine-reported context'
-    if chosen["max_context"] is not None
-    else "engine-reported context unavailable"
-)
-print(
-    "Clive dispatch guidance: the sonnet alias is the primary local worker "
-    f'and resolves to {chosen["id"]} '
-    f'({chosen["count"]}×{chosen["family"]}, {context_description}). '
-    "Send bulk, parallel, and mechanical work to sonnet. Keep adjudication "
-    "and physics-critical judgement on a frontier slot when one is available; "
-    "local-only mode does not provide a frontier slot."
-)
+
+
+def exact_context(item):
+    return (
+        f'{item["max_context"]:,}-token engine-reported context'
+        if item["max_context"] is not None
+        else "engine-reported context unavailable"
+    )
+
+
+def alias_description(item):
+    context = (
+        f'{item["max_context"] // 1024}k ctx'
+        if item["max_context"] is not None
+        else "unknown ctx"
+    )
+    return f'{item["count"]}×{item["family"]} · {item["precision"]}, {context}'
+
+
+if mode == "hybrid":
+    guidance = (
+        "Clive dispatch guidance: the sonnet alias is the primary local worker "
+        f'and resolves to {primary_local["id"]} '
+        f'({primary_local["count"]}×{primary_local["family"]}, '
+        f'{exact_context(primary_local)}). The haiku alias is the secondary '
+        f'local worker and resolves to {secondary_local["id"]} '
+        f'({secondary_local["count"]}×{secondary_local["family"]}, '
+        f'{exact_context(secondary_local)}). Send bulk, parallel, and mechanical '
+        "work to sonnet. Keep adjudication and physics-critical judgement on "
+        "the opus or fable frontier slots."
+    )
+else:
+    guidance = (
+        "Clive dispatch guidance: the sonnet alias is the primary local worker "
+        f'and resolves to {chosen["id"]} '
+        f'({chosen["count"]}×{chosen["family"]}, {exact_context(chosen)}). '
+        "Send bulk, parallel, and mechanical work to sonnet. Keep adjudication "
+        "and physics-critical judgement on a frontier slot when one is available; "
+        "local-only mode does not provide a frontier slot."
+    )
+
+print(guidance)
+print(primary_local["id"])
+print(alias_description(primary_local))
+print(secondary_local["id"])
+print(alias_description(secondary_local))
 PY
 )"; then
     :
@@ -289,7 +324,7 @@ if $LIST_ONLY; then
 fi
 
 mapfile -t _CATALOG_FIELDS <<< "$_CATALOG_RESULT"
-if [[ "${#_CATALOG_FIELDS[@]}" -ne 7 ]]; then
+if [[ "${#_CATALOG_FIELDS[@]}" -ne 11 ]]; then
     echo "clive: catalog selection returned invalid data." >&2
     exit 2
 fi
@@ -300,6 +335,10 @@ ACCELERATOR_COUNT="${_CATALOG_FIELDS[3]}"
 CHECKPOINT_PRECISION="${_CATALOG_FIELDS[4]}"
 PICKER_SETTINGS="${_CATALOG_FIELDS[5]}"
 DISPATCH_GUIDANCE="${_CATALOG_FIELDS[6]}"
+PRIMARY_LOCAL_MODEL="${_CATALOG_FIELDS[7]}"
+PRIMARY_LOCAL_DESCRIPTION="${_CATALOG_FIELDS[8]}"
+SECONDARY_LOCAL_MODEL="${_CATALOG_FIELDS[9]}"
+SECONDARY_LOCAL_DESCRIPTION="${_CATALOG_FIELDS[10]}"
 RUNTIME_LABEL="${ACCELERATOR_COUNT}×${ACCELERATOR_FAMILY} · ${CHECKPOINT_PRECISION}"
 CONTEXT_LABEL="unknown"
 if [[ -n "$MAX_CONTEXT" ]]; then
@@ -378,23 +417,23 @@ if ! $_PROXY_READY; then
     exit 1
 fi
 
-printf "\nClive — global + OpenRouter — picker: %s, or-opus-4.8, or-sonnet-4.6, or-gpt-5.5, or-glm-5.2\n\n" "$MODEL_ID" >&2
+printf "\nClive — global + OpenRouter — picker: %s, or-opus-4.8, or-gpt-5.5, or-glm-5.2\n\n" "$MODEL_ID" >&2
 ANTHROPIC_BASE_URL="http://127.0.0.1:$LITELLM_PORT" \
 ANTHROPIC_AUTH_TOKEN="clive" \
 ANTHROPIC_API_KEY="" \
-ANTHROPIC_DEFAULT_HAIKU_MODEL="$MODEL_ID" \
 ANTHROPIC_MODEL="$MODEL_ID" \
-ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME="$MODEL_ID" \
-ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION="$RUNTIME_LABEL, $CONTEXT_LABEL ctx" \
+ANTHROPIC_DEFAULT_SONNET_MODEL="$PRIMARY_LOCAL_MODEL" \
+ANTHROPIC_DEFAULT_SONNET_MODEL_NAME="$PRIMARY_LOCAL_MODEL" \
+ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION="$PRIMARY_LOCAL_DESCRIPTION" \
+ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
+ANTHROPIC_DEFAULT_HAIKU_MODEL="$SECONDARY_LOCAL_MODEL" \
+ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME="$SECONDARY_LOCAL_MODEL" \
+ANTHROPIC_DEFAULT_HAIKU_MODEL_DESCRIPTION="$SECONDARY_LOCAL_DESCRIPTION" \
 ANTHROPIC_DEFAULT_HAIKU_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
 ANTHROPIC_DEFAULT_OPUS_MODEL="or-opus-4.8" \
 ANTHROPIC_DEFAULT_OPUS_MODEL_NAME="or-opus-4.8" \
 ANTHROPIC_DEFAULT_OPUS_MODEL_DESCRIPTION="Claude Opus 4.8 via OpenRouter — frontier" \
 ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
-ANTHROPIC_DEFAULT_SONNET_MODEL="or-sonnet-4.6" \
-ANTHROPIC_DEFAULT_SONNET_MODEL_NAME="or-sonnet-4.6" \
-ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION="Claude Sonnet 4.6 via OpenRouter — balanced" \
-ANTHROPIC_DEFAULT_SONNET_MODEL_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
 ANTHROPIC_DEFAULT_FABLE_MODEL="or-glm-5.2" \
 ANTHROPIC_DEFAULT_FABLE_MODEL_NAME="or-glm-5.2" \
 ANTHROPIC_DEFAULT_FABLE_MODEL_DESCRIPTION="GLM-5.2 via OpenRouter — open-weight frontier, 1M ctx" \
@@ -404,7 +443,7 @@ ANTHROPIC_CUSTOM_MODEL_OPTION_NAME="or-gpt-5.5" \
 ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION="GPT-5.5 via OpenRouter — coding model" \
 ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES="$SUPPORTED_CAPABILITIES" \
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
-exec claude --settings "$PICKER_SETTINGS" "${ARGS[@]}"
+exec claude --settings "$PICKER_SETTINGS" --append-system-prompt "$DISPATCH_GUIDANCE" "${ARGS[@]}"
 """
     local_branch = r"""echo "clive: hybrid mode is not installed; redeploy with 'imas-ambix agent clive PROFILE --mode hybrid'." >&2
 exit 2

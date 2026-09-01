@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import os
+import socketserver
 import subprocess
 import threading
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from unittest.mock import patch
 
 from imas_ambix.agent.clive import generate_clive_script
 from imas_ambix.agent.profile import SiteConfig
@@ -56,7 +58,24 @@ def _serve_catalog(items: list[dict[str, object]]):
         thread.join(timeout=2)
 
 
-def _run_default_local_launcher(tmp_path, items, selected_model):
+@contextmanager
+def _serve_proxy_port():
+    class Handler(socketserver.BaseRequestHandler):
+        def handle(self):
+            return
+
+    server = socketserver.ThreadingTCPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server.server_address[1]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def _run_launcher(tmp_path, items, selected_model, *, mode="local"):
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     arguments_file = tmp_path / "claude-arguments"
@@ -70,14 +89,31 @@ def _run_default_local_launcher(tmp_path, items, selected_model):
         encoding="utf-8",
     )
     (fake_bin / "claude").chmod(0o755)
+    (fake_bin / "systemctl").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    (fake_bin / "systemctl").chmod(0o755)
 
-    with _serve_catalog(items) as site:
-        launcher.write_text(generate_clive_script(site), encoding="utf-8")
+    with ExitStack() as stack:
+        site = stack.enter_context(_serve_catalog(items))
+        generator_options = {}
+        arguments = [str(launcher), "--model", selected_model]
+        if mode == "hybrid":
+            proxy_port = stack.enter_context(_serve_proxy_port())
+            stack.enter_context(
+                patch("imas_ambix.agent.litellm_service.LITELLM_PORT", proxy_port)
+            )
+            generator_options = {
+                "mode": "hybrid",
+                "openrouter_native_release": selected_model,
+            }
+            arguments.extend(("--mode", "hybrid"))
+        launcher.write_text(
+            generate_clive_script(site, **generator_options), encoding="utf-8"
+        )
         launcher.chmod(0o755)
         environment = os.environ.copy()
         environment["PATH"] = f"{fake_bin}:{environment['PATH']}"
         result = subprocess.run(
-            [str(launcher), "--model", selected_model],
+            arguments,
             capture_output=True,
             text=True,
             check=False,
@@ -107,9 +143,7 @@ def test_default_local_session_names_the_primary_worker_and_its_catalog_card(tmp
         ),
     ]
 
-    result, arguments, _environment = _run_default_local_launcher(
-        tmp_path, items, "wide-release"
-    )
+    result, arguments, _environment = _run_launcher(tmp_path, items, "wide-release")
 
     assert result.returncode == 0, result.stderr
     guidance = arguments[arguments.index("--append-system-prompt") + 1]
@@ -135,11 +169,45 @@ def test_dispatch_statement_does_not_change_alias_mapping(tmp_path):
         ),
     ]
 
-    result, arguments, environment = _run_default_local_launcher(
-        tmp_path, items, "primary-release"
-    )
+    result, arguments, environment = _run_launcher(tmp_path, items, "primary-release")
 
     assert result.returncode == 0, result.stderr
     assert arguments.count("--append-system-prompt") == 1
     for alias in ("OPUS", "SONNET", "HAIKU", "FABLE"):
         assert environment[f"ANTHROPIC_DEFAULT_{alias}_MODEL"] == "primary-release"
+
+
+def test_hybrid_uses_both_local_aliases_and_matches_its_statement(tmp_path):
+    items = [
+        _catalog_item(
+            "primary-release",
+            accelerator_count=2,
+            max_model_len=524_288,
+        ),
+        _catalog_item(
+            "second-release",
+            accelerator_count=4,
+            max_model_len=262_144,
+        ),
+    ]
+
+    result, arguments, environment = _run_launcher(
+        tmp_path,
+        items,
+        "primary-release",
+        mode="hybrid",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert environment["ANTHROPIC_DEFAULT_SONNET_MODEL"] == "primary-release"
+    assert environment["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == "second-release"
+    assert environment["ANTHROPIC_DEFAULT_OPUS_MODEL"] == "or-opus-4.8"
+    assert environment["ANTHROPIC_DEFAULT_FABLE_MODEL"] == "or-glm-5.2"
+    for alias in ("SONNET", "HAIKU"):
+        assert not environment[f"ANTHROPIC_DEFAULT_{alias}_MODEL"].startswith("or-")
+
+    guidance = arguments[arguments.index("--append-system-prompt") + 1]
+    assert "sonnet alias is the primary local worker" in guidance
+    assert "sonnet-4.6" not in guidance
+    assert "haiku alias is the secondary local worker" in guidance
+    assert "opus or fable frontier slots" in guidance
