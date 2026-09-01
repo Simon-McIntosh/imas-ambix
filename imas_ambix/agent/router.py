@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import os
 from collections import Counter
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -16,6 +18,104 @@ from imas_ambix.agent.vllm_catalog import validate_catalog_metadata
 AsgiMessage = dict[str, Any]
 Receive = Callable[[], Awaitable[AsgiMessage]]
 Send = Callable[[AsgiMessage], Awaitable[None]]
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class AdmissionLimits:
+    """Bound active and waiting requests independently for each consumer."""
+
+    max_in_flight: int = 2
+    max_queued: int = 4
+    retry_after_seconds: int = 5
+
+    @classmethod
+    def from_environment(
+        cls, environment: Mapping[str, str] | None = None
+    ) -> AdmissionLimits:
+        """Read router limits while retaining group-sized defaults."""
+        source = os.environ if environment is None else environment
+        names = {
+            "max_in_flight": "AMBIX_ROUTER_MAX_IN_FLIGHT",
+            "max_queued": "AMBIX_ROUTER_MAX_QUEUED",
+            "retry_after_seconds": "AMBIX_ROUTER_RETRY_AFTER_SECONDS",
+        }
+        values: dict[str, int] = {}
+        for field, name in names.items():
+            raw = source.get(name)
+            if raw is None:
+                continue
+            try:
+                values[field] = int(raw)
+            except ValueError as error:
+                raise ValueError(f"{name} must be an integer") from error
+        return cls(**values)
+
+    def __post_init__(self) -> None:
+        if self.max_in_flight < 1:
+            raise ValueError("max_in_flight must be positive")
+        if self.max_queued < 0:
+            raise ValueError("max_queued must not be negative")
+        if self.retry_after_seconds < 1:
+            raise ValueError("retry_after_seconds must be positive")
+
+
+@dataclass(slots=True)
+class _ConsumerCapacity:
+    condition: asyncio.Condition
+    in_flight: int = 0
+    queued: int = 0
+
+
+class _AdmissionController:
+    def __init__(self, limits: AdmissionLimits) -> None:
+        self._limits = limits
+        self._consumers: dict[str, _ConsumerCapacity] = {}
+
+    async def acquire(self, consumer: str) -> bool:
+        capacity = self._consumers.setdefault(
+            consumer, _ConsumerCapacity(asyncio.Condition())
+        )
+        async with capacity.condition:
+            if capacity.in_flight < self._limits.max_in_flight:
+                capacity.in_flight += 1
+                self._log("admitted", consumer, capacity)
+                return True
+            if capacity.queued >= self._limits.max_queued:
+                self._log("retry", consumer, capacity)
+                return False
+
+            capacity.queued += 1
+            self._log("queued", consumer, capacity)
+            try:
+                await capacity.condition.wait_for(
+                    lambda: capacity.in_flight < self._limits.max_in_flight
+                )
+            except BaseException:
+                capacity.queued -= 1
+                self._log("queue-cancelled", consumer, capacity)
+                raise
+            capacity.queued -= 1
+            capacity.in_flight += 1
+            self._log("admitted-from-queue", consumer, capacity)
+            return True
+
+    async def release(self, consumer: str) -> None:
+        capacity = self._consumers[consumer]
+        async with capacity.condition:
+            capacity.in_flight -= 1
+            self._log("released", consumer, capacity)
+            capacity.condition.notify(1)
+
+    @staticmethod
+    def _log(action: str, consumer: str, capacity: _ConsumerCapacity) -> None:
+        logger.info(
+            "router admission action=%s consumer=%s in_flight=%d queued=%d",
+            action,
+            consumer,
+            capacity.in_flight,
+            capacity.queued,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,10 +166,13 @@ class RouterApp:
         resolver: UpstreamResolver,
         *,
         timeout: aiohttp.ClientTimeout | None = None,
+        admission_limits: AdmissionLimits | None = None,
     ) -> None:
         self._resolver = resolver
         self._timeout = timeout or aiohttp.ClientTimeout(total=None, connect=10)
         self._session: aiohttp.ClientSession | None = None
+        self._admission_limits = admission_limits or AdmissionLimits()
+        self._admission = _AdmissionController(self._admission_limits)
 
     async def __call__(
         self, scope: dict[str, Any], receive: Receive, send: Send
@@ -118,7 +221,15 @@ class RouterApp:
         if len(owners) != 1:
             await self._json_error(send, 409, f"duplicate model id: {model_id}")
             return
-        await self._relay(scope, receive, send, body, owners[0])
+
+        consumer = self._consumer_id(scope)
+        if not await self._admission.acquire(consumer):
+            await self._retry_later(send)
+            return
+        try:
+            await self._relay(scope, receive, send, body, owners[0])
+        finally:
+            await self._admission.release(consumer)
 
     async def _lifespan(self, receive: Receive, send: Send) -> None:
         while True:
@@ -302,16 +413,58 @@ class RouterApp:
             body,
         )
 
+    async def _retry_later(self, send: Send) -> None:
+        wait = self._admission_limits.retry_after_seconds
+        body = json.dumps(
+            {
+                "error": {
+                    "message": f"consumer queue full; retry after {wait} seconds",
+                    "retry_after_seconds": wait,
+                }
+            },
+            separators=(",", ":"),
+        ).encode()
+        await self._response(
+            send,
+            429,
+            [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode()),
+                (b"retry-after", str(wait).encode()),
+            ],
+            body,
+        )
 
-def create_router_app(resolver: UpstreamResolver) -> RouterApp:
+    @staticmethod
+    def _consumer_id(scope: Mapping[str, Any]) -> str:
+        client = scope.get("client")
+        if isinstance(client, Sequence) and client and isinstance(client[0], str):
+            return client[0]
+        return "unknown"
+
+
+def create_router_app(
+    resolver: UpstreamResolver,
+    *,
+    admission_limits: AdmissionLimits | None = None,
+) -> RouterApp:
     """Build the ASGI application around an injected upstream resolver."""
-    return RouterApp(resolver)
+    return RouterApp(resolver, admission_limits=admission_limits)
 
 
 def serve_router(
-    resolver: UpstreamResolver, *, host: str = "0.0.0.0", port: int
+    resolver: UpstreamResolver,
+    *,
+    host: str = "0.0.0.0",
+    port: int,
+    admission_limits: AdmissionLimits | None = None,
 ) -> None:
     """Run the router ASGI application with the serving runtime."""
     import uvicorn
 
-    uvicorn.run(create_router_app(resolver), host=host, port=port)
+    limits = admission_limits or AdmissionLimits.from_environment()
+    uvicorn.run(
+        create_router_app(resolver, admission_limits=limits),
+        host=host,
+        port=port,
+    )
