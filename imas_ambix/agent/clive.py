@@ -3,8 +3,9 @@
 """Generate the standalone shared ``clive`` consumer launcher.
 
 Plain ``clive`` discovers releases from one anonymous site catalog and points
-Claude Code or Codex back at that same origin. The explicit ``--openrouter``
-mode remains an isolated opt-in; catalog failure never enters it.
+Claude Code or Codex back at that same origin. Hosted frontier slots are
+compiled in only for the explicit ``hybrid`` launch mode; catalog failure never
+enters the hosted proxy path.
 """
 
 from __future__ import annotations
@@ -17,10 +18,20 @@ if TYPE_CHECKING:
 
 
 def generate_clive_script(
-    site: SiteConfig, *, openrouter_native_release: str | None = None
+    site: SiteConfig,
+    *,
+    mode: str = "local",
+    openrouter_native_release: str | None = None,
 ) -> str:
-    """Render a launcher with its site origin and optional proxy alias embedded."""
+    """Render a launcher for the explicitly selected model-scope mode."""
     from imas_ambix.agent.litellm_service import LITELLM_PORT
+
+    if mode not in {"local", "hybrid"}:
+        raise ValueError("mode must be one of: local, hybrid")
+    if mode == "hybrid" and not openrouter_native_release:
+        raise ValueError("hybrid mode requires an OpenRouter native release")
+    if mode == "local" and openrouter_native_release is not None:
+        raise ValueError("an OpenRouter native release requires hybrid mode")
 
     origin = site.global_origin
     proxy_native_release = openrouter_native_release or ""
@@ -31,31 +42,32 @@ def generate_clive_script(
 # generator and deploy it again.
 #
 # Usage:
-#   clive [--claude|--codex] [--openrouter] [--list]
+#   clive [--claude|--codex] [--mode local|hybrid] [--list]
 #         [--selector RELEASE[@NxFAMILY]|--model RELEASE] [agent-args...]
 
 set -euo pipefail
 
 GLOBAL_ORIGIN=__GLOBAL_ORIGIN__
 OPENROUTER_NATIVE_RELEASE=__OPENROUTER_NATIVE_RELEASE__
-CLIVE_OPENROUTER="${CLIVE_OPENROUTER:-0}"
 LITELLM_PORT="__LITELLM_PORT__"
 LITELLM_SERVICE="imas-ambix-llm.service"
 HARNESS="claude"
 SELECTOR=""
 LIST_ONLY=false
+MODE="local"
 
 usage() {
     cat >&2 <<'USAGE'
 clive — drive an agent CLI against the site model catalog.
 
-  clive [--claude|--codex] [--openrouter] [--list]
+  clive [--claude|--codex] [--mode local|hybrid] [--list]
         [--selector RELEASE[@NxFAMILY]|--model RELEASE] [agent-args...]
 
   --claude   Claude Code via the Anthropic Messages API (default).
   --codex    OpenAI Codex CLI via the OpenAI API.
-  --openrouter
-             Explicitly start the per-user proxy after global selection.
+  --mode MODE
+             Model scope: local or hybrid (default: local). Hybrid adds the
+             hosted frontier slots after global selection.
   --list     List the global catalog and exit.
   --selector RELEASE[@NxFAMILY]
              Select an exact release id or release-at-topology label.
@@ -69,7 +81,13 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --claude) HARNESS="claude"; shift ;;
         --codex) HARNESS="codex"; shift ;;
-        --openrouter) CLIVE_OPENROUTER=1; shift ;;
+        --mode)
+            [[ $# -ge 2 ]] || { echo "clive: --mode requires one of: local, hybrid." >&2; exit 2; }
+            case "$2" in
+                local|hybrid) MODE="$2" ;;
+                *) echo "clive: invalid mode '$2'; valid values: local, hybrid." >&2; exit 2 ;;
+            esac
+            shift 2 ;;
         --list) LIST_ONLY=true; shift ;;
         --selector|--model)
             [[ $# -ge 2 ]] || { echo "clive: $1 requires a value." >&2; exit 2; }
@@ -264,7 +282,7 @@ fi
 
 command -v claude >/dev/null 2>&1 || { echo "clive: 'claude' not on PATH." >&2; exit 127; }
 
-if [[ "$CLIVE_OPENROUTER" != "1" ]]; then
+if [[ "$MODE" == "local" ]]; then
     printf "\nClive — global only — serving: %s · %s\n\n" "$MODEL_ID" "$RUNTIME_LABEL" >&2
     ANTHROPIC_BASE_URL="$GLOBAL_ORIGIN" \
     ANTHROPIC_AUTH_TOKEN="$KEY" \
@@ -287,9 +305,11 @@ if [[ "$CLIVE_OPENROUTER" != "1" ]]; then
     exec claude "${ARGS[@]}"
 fi
 
-# OpenRouter is reached only by explicit opt-in after global catalog selection.
+__HYBRID_BRANCH__
+"""
+    hybrid_branch = r"""# Hosted providers are reached only by explicit hybrid selection after global catalog selection.
 if [[ -z "$OPENROUTER_NATIVE_RELEASE" ]]; then
-    echo "clive: OpenRouter proxy support is not installed; redeploy with 'imas-ambix agent clive PROFILE --openrouter'." >&2
+    echo "clive: hybrid mode is not installed; redeploy with 'imas-ambix agent clive PROFILE --mode hybrid'." >&2
     exit 2
 fi
 if [[ "$MODEL_ID" != "$OPENROUTER_NATIVE_RELEASE" ]]; then
@@ -337,8 +357,15 @@ ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION="GPT-5.5 via OpenRouter — coding mod
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
 exec claude "${ARGS[@]}"
 """
+    local_branch = r"""echo "clive: hybrid mode is not installed; redeploy with 'imas-ambix agent clive PROFILE --mode hybrid'." >&2
+exit 2
+"""
     return (
         template.replace("__GLOBAL_ORIGIN__", shlex.quote(origin))
         .replace("__OPENROUTER_NATIVE_RELEASE__", shlex.quote(proxy_native_release))
         .replace("__LITELLM_PORT__", str(LITELLM_PORT))
+        .replace(
+            "__HYBRID_BRANCH__",
+            hybrid_branch if mode == "hybrid" else local_branch,
+        )
     )
