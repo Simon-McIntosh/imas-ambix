@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T21:52:30",
+  "updated": "2026-09-01T22:35:07",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -19453,9 +19453,103 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260901T195250584793-context-120k-probe",
+        "plan": "glm-53-serve-and-wiring",
+        "section": "\u00a72",
+        "node": "context-120k-probe",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-context-120k.md answers whether 122880 tokens can be served dependably on four cards, and recommends a value. The measurement that makes this delicate: the identical 98304 configuration produced a 13.92 GiB KV pool on one launch and 10.42 GiB on another, so the non-KV footprint varies about 3.5 GiB between launches, and the smaller pool gave a cache of exactly 120768 tokens. A configured context above the cache cannot start, so 120k sits at or beyond the low-variance boundary. Launch 122880 at memory fraction 0.94 and record its startup KV pool line, whether it started, and if it did, a real streaming decode returning coherent correct text. Because variance is the question, launch it MORE THAN ONCE, at least three separate submissions, and report every pool figure, so the answer distinguishes always from sometimes from never rather than resting on one sample. If 122880 fails on any attempt, measure 114688 the same way. Report the pool figure for every launch in a table, state plainly which values started on every attempt, and recommend the largest context that started every time with its worst-case concurrency. Stop each engine before starting the next so you never hold more than four cards. Do not disturb DeepSeek job 1260660 or router job 1260928. Job 1260954 is the current GLM serve and you may stop it, since it is the thing being resized.",
+          "estimated_hours": null,
+          "goal": "Establish whether a 120k four-card context starts reliably or only sometimes",
+          "id": "context-120k-probe",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T195250584793-context-120k-probe/manifest.md",
+          "plan": "glm-53-serve-and-wiring",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "50m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-context-120k.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "guided",
+        "member": "s24-agentic-probe",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-01T19:52:58Z",
+        "completed_at": "2026-09-01T20:34:57Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 2519,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 2519,
+        "stalled": false,
+        "time_budget": "50m",
+        "base_sha": "0bd52e76226dab12646ad408663b97e2fc70325a",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": {
+          "command": "three fresh 122880 submissions at memory fraction 0.94, each recording its startup KV pool",
+          "exit_status": 1,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T195250584793-context-120k-probe/attempts.tsv",
+          "log_digest": null
+        },
+        "failure_classification": "negative-result",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260901T195250584793-context-120k-probe/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05cea-93e8-7fa1-976f-1a105e8abc45",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 12228352,
+            "cached_input_tokens_cumulative": 16730624,
+            "input_tokens": 12267063,
+            "input_tokens_cumulative": 16937499,
+            "output_tokens": 9337,
+            "output_tokens_cumulative": 31792,
+            "reasoning_output_tokens": 2899,
+            "reasoning_output_tokens_cumulative": 9555
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 444
+    "_version": 445
   }
 }
