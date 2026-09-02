@@ -190,7 +190,10 @@
     <p><strong>Negative finding: the fourth confounder cannot be measured as pre-registered.</strong>
     Mapping the eight held-out fast-D&alpha; events onto native rbb frames and requiring the brightness
     transient to reach 4 robust sigma within &plusmn;2 frames of the event leaves exactly two qualifying
-    frames (22260 frame-6338, 24451 frame-1549). Two frames cannot power the robustness measure. The
+    frames (22260 frame-6338, 24451 frame-1549) &mdash; both later shown by
+    <a href="#s4b-screen">the expanded screen</a> to sit beyond finite-equilibrium label support, so the
+    honest eligible count under the pre-registered predicate was zero, not two. Either way the measure
+    was unpowered. The
     census declined to relax the sigma or alignment bars after seeing that result, on the grounds that
     doing so tunes the judge around its own evidence — the precise failure §4b's referee framing exists
     to prevent. Recorded as an adverse census rather than passing evidence, and folded to
@@ -206,6 +209,88 @@
     that had to be measured, because conflating the three artifacts called &ldquo;decoder&rdquo; would
     have produced a false disjointness claim. Also surfaced rather than silently zeroed: shot 16333 has
     no readable gas array.</p>
+
+    <h2 id="s4b-screen">§4b — Divertor-bright screen expansion (landed 2026-09-02)</h2>
+    <p>Read-only codex investigate node <code>pcp-divertor-screen</code> (run
+    <code>r-20260902T151517148661-pcp-divertor-screen</code>, gate passed, no commit) resolved the
+    unpowered confounder. Census command exit 0 in 398 s (log
+    <code>sha256:497ed9c0</code>); report <code>divertor-bright-screen.md</code>
+    (<code>sha256:2d2262c9</code>) with per-candidate time, robust score, brightness proxy and native
+    index in <code>divertor-bright-screen.json</code>.</p>
+
+    <p><strong>What changed, and what deliberately did not.</strong> Every one of the 240,281
+    clean-test frames was presented to the screen with its bars <em>unaltered</em>: raw rbb pixels, the
+    proxy 0.5&thinsp;&times;&thinsp;whole-frame mean + 0.5&thinsp;&times;&thinsp;bottom-30-row mean, a
+    centred three-frame subtraction, a candidate-centred &plusmn;12-frame local median/MAD, and the
+    &ge;&thinsp;4.0 robust-sigma bar. The only removal was the D&alpha; &plusmn;2-frame
+    <em>event-alignment predicate</em> — a restriction on the candidate <em>pool</em>, not a detection
+    threshold. No D&alpha; data enter the expanded screen at all. This is the distinction that makes the
+    expansion legitimate where relaxing sigma would not have been: the bar that decides whether a frame
+    is divertor-bright is untouched.</p>
+
+    <table>
+      <thead><tr><th>Campaign</th><th>Candidate frames</th><th>Shots</th></tr></thead>
+      <tbody>
+        <tr><td>M6</td><td>818</td><td>35</td></tr>
+        <tr><td>M7</td><td>1,032</td><td>27</td></tr>
+        <tr><td>M8</td><td>192</td><td>17</td></tr>
+        <tr><td><strong>total</strong></td><td><strong>2,042</strong></td><td><strong>79 of 87</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>2,042 unique native frames = 0.850% of scoreable frames, at 90.8% shot coverage; 240,254 of
+    240,281 frames were scoreable and 27 boundary frames are unscoreable without altering the centred
+    statistic. <strong>Verdict: POWERED</strong> for the aggregate divertor-bright / clean error-growth
+    &le;&thinsp;1.50 measure under shot-clustered aggregation — and stated as exactly that, not as a
+    nominal 80%-power claim, because the plan pre-registers no alpha or effect size.</p>
+
+    <p><strong>Reconciliation that corrects the prior census.</strong> The two frames the earlier census
+    reported as qualifying, 22260 frame-6338 and 24451 frame-1549, lie 6 and 22 native frames beyond
+    finite-equilibrium clean-test support (which ends at 6332 and 1527). They were never label-bearing
+    eligible. They are excluded here without widening support, and those two shots still contribute 59
+    and 3 in-support candidates.</p>
+
+    <h2 id="s4b-labeller">§4b — Camera topology labeller, smoke receipt (landed 2026-09-02)</h2>
+    <p>Codex implement node <code>pcp-labeller-model</code> (run
+    <code>r-20260902T151525363961-pcp-labeller-model</code>) added
+    <code>imas_ambix/worldmodel/camera_topology_labeller.py</code> with its tests — commit
+    <code>a738471</code>, merged <code>ab605bf</code>. 5 tests pass, whole-tree ruff exit 0, training
+    entrypoint exit 0. A short-window rbb network regresses metre-valued axis, primary-null and
+    strike-point targets with a topology-class head, consuming <code>CameraTopologyTargets</code> joined
+    at identical frame times, with the cohort firewall parsed and enforced at whole-shot level
+    (472&thinsp;/&thinsp;58&thinsp;/&thinsp;87&thinsp;/&thinsp;101).</p>
+
+    <table>
+      <thead><tr><th>Measure</th><th>Labeller</th><th>Brightness centroid</th><th>§6 bar</th></tr></thead>
+      <tbody>
+        <tr><td>axis position error</td><td>1.312 cm</td><td>1.353 cm</td><td>&le; 3 cm</td></tr>
+        <tr><td>primary-null position error</td><td><strong>49.669 cm</strong></td><td>81.634 cm</td><td>&le; 3 cm</td></tr>
+        <tr><td>topology-class accuracy</td><td>75.0%</td><td>&mdash;</td><td>&ge; 95%</td></tr>
+        <tr><td>training loss</td><td>0.619945 &rarr; 0.237573</td><td>&mdash;</td><td>decreasing</td></tr>
+      </tbody>
+    </table>
+
+    <table>
+      <thead><tr><th>Class</th><th>Support</th><th>Accuracy</th></tr></thead>
+      <tbody>
+        <tr><td>limited</td><td>2</td><td>100%</td></tr>
+        <tr><td>single-null-lower</td><td>5</td><td>40%</td></tr>
+        <tr><td>single-null-upper</td><td>0</td><td>NA</td></tr>
+        <tr><td>connected-double-null</td><td>5</td><td>100%</td></tr>
+        <tr><td>disconnected-double-null</td><td>0</td><td>NA</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>This is a pipeline receipt, not a gate result, and the numbers say why.</strong> The fit
+    used 3 cohort-train shots (21983/21984/21985), 36 windows, a held-out validation shot (21989) of 12
+    windows, and a 17,677-parameter network. On that scale the labeller already beats the brightness
+    centroid on both position channels and decisively on the primary null — 49.669 cm against 81.634 cm,
+    39% lower — which is the first evidence that a learned camera judge outperforms the centroid this
+    plan set out to replace. It is also 16&times; the §6 position bar and 20 points short of the class
+    bar. Nothing here qualifies the labeller; it qualifies the machinery. Per-class support is reported
+    beside accuracy as the target census required, so the two zero-support classes read NA rather than
+    inflating an aggregate. Artifacts: <code>smoke-fit.json</code>, <code>smoke-fit.pt</code>,
+    <code>smoke-fit.log</code> in the run directory.</p>
 
   </main>
 </body>
