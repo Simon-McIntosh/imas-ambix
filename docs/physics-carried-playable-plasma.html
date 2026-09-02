@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="physics-carried-playable-plasma">
   <meta name="plan-title" content="Physics-Carried Playable Plasma — nova&#x27;s GS forward solve drives the MAST camera">
   <meta name="plan-summary" content="Edit a coil current and watch the MAST camera respond in-shot: nova GS solve gives flux surfaces, a flux-conditioned decoder renders the rbb frame.">
-  <meta name="plan-status" content="draft">
+  <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="36.0">
   <meta name="plan-capability-version" content="1.0">
@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-02">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="6">
 <meta name="plan-impl" content="0.25">
 </head>
 <body>
@@ -389,18 +389,18 @@
 <div class="r-dec" data-key="flux-conditioning" data-choice="nova-rect-grid-image" data-by="Simon McIntosh" data-when="2026-09-02">
     <p class="r-dec-q">How does the decoder see the solved flux geometry?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="nova-rect-grid-image">nova evaluates &psi; on a rectangular (R,Z) grid built once for the Biot operation; coil and plasma-filament currents map onto it directly, no interpolation; labels and O/X/strike points ride alongside</button>
+      <button class="r-opt chosen" data-value="nova-rect-grid-image">nova evaluates ψ on a rectangular (R,Z) grid built once for the Biot operation; coil and plasma-filament currents map onto it directly, no interpolation; labels and O/X/strike points ride alongside</button>
       <button class="r-opt" data-value="camera-projected">labelled flux map projected into rbb pixel space via calibration</button>
       <button class="r-opt" data-value="psi-raster-image">labelled flux map resampled in ambix from the hex mesh onto an (R,Z) raster</button>
       <button class="r-opt" data-value="geometry-vector">compact geometry vector only (LCFS moments, O/X-points, strike points)</button>
       </p>
-    <p class="r-dec-rat">Nova can define a rectangular grid once for the Biot operation, so the coil circuits and the plasma cell currents map onto that grid through their Green's functions exactly; ambix never resamples the hex mesh and no interpolation loss enters. Camera projection stays blocked on the missing rbb calibration (§4c); a geometry vector alone would discard the spatial map. Coordinated with the nova S19 coordinator as an addition to forward-solve-api §5 node C.</p>
+    <p class="r-dec-rat">Nova can define a rectangular grid once for the Biot operation, so the coil circuits and the plasma cell currents map onto that grid through their Green&#x27;s functions exactly; ambix never resamples the hex mesh and no interpolation loss enters. Camera projection stays blocked on the missing rbb calibration (§4c); a geometry vector alone would discard the spatial map. Coordinated with the nova S19 coordinator as an addition to forward-solve-api §5 node C.</p>
     </div>
 <div class="r-dec" data-key="label-source" data-choice="nova-only" data-by="Simon McIntosh" data-when="2026-09-02">
     <p class="r-dec-q">Where do the decoder&#x27;s training flux geometries come from?</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="efm-then-nova">efm EFIT flux surfaces for coverage now, re-label from nova when bulk solving is cheap</button>
-      <button class="r-opt" data-value="nova-only">nova solves only: a bulk nova label corpus at measured currents over the camera-corpus shots (§3b)</button>
+      <button class="r-opt chosen" data-value="nova-only">nova solves only: a bulk nova label corpus at measured currents over the camera-corpus shots (§3b)</button>
       </p>
     <p class="r-dec-rat">The decoder is trained on exactly the object it will be given at play time. No EFIT labels enter training; efm remains the held-out referee for the physics-fidelity gate only. Coverage comes from §3b, a bulk nova solve corpus batched on the H200 once traced currents land, not from the six frozen reference slices.</p>
     </div>
@@ -410,9 +410,9 @@
       <button class="r-opt" data-value="21983">21983</button>
       <button class="r-opt" data-value="21985">21985</button>
       <button class="r-opt" data-value="21986">21986</button>
-      <button class="r-opt" data-value="21989">21989</button>
+      <button class="r-opt chosen" data-value="21989">21989</button>
       </p>
-    <p class="r-dec-rat">Best-balanced converged carrier in the §2a census: saturation 5.72%, blank-like frames 0.8%, robust range 194, p90 frame motion 18.63 over 394 frames. 21983 is the bright runner-up. Nova's traced-current latency benchmark (node A) runs on 21989/55, so the same shot carries the physics-fidelity input.</p>
+    <p class="r-dec-rat">Best-balanced converged carrier in the §2a census: saturation 5.72%, blank-like frames 0.8%, robust range 194, p90 frame motion 18.63 over 394 frames. 21983 is the bright runner-up. Nova&#x27;s traced-current latency benchmark (node A) runs on 21989/55, so the same shot carries the physics-fidelity input.</p>
     </div>
 <div class="r-dec" data-key="profile-freeze" data-choice="frozen-efm-profiles" data-by="Simon McIntosh" data-when="2026-09-02">
     <p class="r-dec-q">What happens to p′, FF′ and plasma current when a coil is edited?</p>
@@ -434,10 +434,16 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-pcp-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-09-02" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-pcp-01" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-09-02" data-recommends-skill="" data-resolved-at="2026-09-02T13:10:38+00:00" data-resolved-by="">
     <h4 class="r-fu-title">Run the §2 survey nodes and lock the three open decisions on their findings</h4>
     <div class="r-fu-body"><p>Dispatch §2a and §2b as read-only investigate nodes; on their reuse maps, lock <code>flux-conditioning</code>, <code>label-source</code> and <code>demo-shot</code>, then cut the §3–§5 implementation nodes.</p></div>
     <pre class="r-fu-prompt">/reckon-ship physics-carried-playable-plasma §2</pre>
+    <p class="r-fu-outcome">Both §2 survey nodes landed (reuse map 23 candidates; nova seam census 25 symbols) and the three decisions are locked by the lead: flux-conditioning = nova rectangular Biot grid, label-source = nova only, demo-shot = 21989. Implementation nodes are cut in f-pcp-02 behind nova's traced-current SHA.</p>
+    </article>
+<article class="r-fu" data-id="f-pcp-02" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-02" data-recommends-skill="/reckon-ship physics-carried-playable-plasma §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Cut the §3, §3b, §4, §4b and §5 implementation nodes once nova&#x27;s traced-current SHA lands</h4>
+    <div class="r-fu-body"><p>Exemption <strong>foreign-owner</strong>: the first executable node (the §3 equilibrium-engine wrapper) is scheduled behind nova node A (<code>fsa-traced-current</code>, run r-20260902T130141772929) on nova:forward-solve-api §5; the nova S19 coordinator sends the merge SHA as it lands. On receipt: dispatch §3 wrapper against that SHA, §4b labeller (no nova dependency) immediately, §3b label corpus after the wrapper, §4 decoder after §3b, §5 loop after C2 and B.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship physics-carried-playable-plasma §3</pre>
     </article>
 </section>
 
