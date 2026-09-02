@@ -25,8 +25,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-02">
-<meta name="plan-version" content="2">
-<meta name="plan-impl" content="0.125">
+<meta name="plan-version" content="4">
+<meta name="plan-impl" content="0.25">
 </head>
 <body>
   <main class="plan-doc">
@@ -193,8 +193,15 @@
     flux, wall shadow; no scrape-off-layer class), so the consumer never re-derives topology from &psi;.
     These three are nova's <a href="/nova/forward-solve-api.html#s5">forward-solve-api §5</a>, which the
     lead has made critical path; this plan depends on that section specifically and waits for it rather
-    than building a precomputed-sweep substitute. Until (i) lands, the interactive lane in
-    §5 runs on precomputed sweeps; the moment it lands the same wrapper switches to live solves.</p>
+    than building a precomputed-sweep substitute. <strong>Nova's landing order (nova S19 coordinator,
+    2026-09-02, forward-solve-api now active):</strong> (A) traced prescribed current with replacement
+    semantics plus a per-edit latency benchmark on a converging frozen-six shot, first; (C) the receipt
+    topology (&psi;, &psi;<sub>N</sub>, O-point, X-points, LCFS, strike points, per-cell labels core /
+    private / wall shadow / open) in parallel with A; (B) the twenty-point warm-start coil sweep after A so
+    the sweep does not recompile per point. The ambix wrapper node is scheduled behind A's merge SHA, which
+    nova sends as it lands. Nova also confirmed that differentiability with respect to state is intact on
+    the MAST frozen-six carrier (the non-finite tangent seen in the Solov'ev certificate is a fixture
+    defect, not a solver property).</p>
 
     <p><strong>Ambix-side deliverable.</strong> A thin equilibrium-engine wrapper in
     <code>imas_ambix/physics/</code> that, for a MAST shot and time, assembles the nova operator from the
@@ -222,7 +229,19 @@
     so the conditioning lives in the same frame as the output.
     Recommendation: (c) if §2a finds a usable rbb calibration, because a projected boundary aligns
     spatially with the emission it explains and lets a small decoder learn a local mapping; otherwise (a)
-    with (b) as an auxiliary token. The decision is locked on §2a's finding, not before.</p>
+    with (b) as an auxiliary token. <strong>§2a finding (2026-09-02):</strong> no rbb pixel-to-(R,Z) or
+    line-of-sight calibration exists anywhere in code or data; the camera-boundary contract records that
+    the corpus carries no camera matrix. Option (c) is therefore blocked until a calibration is imported
+    and validated (§4c), and the scout recommends (a) with (b) as auxiliary. The existing scalar
+    conditioning projection broadcasts one vector over every cell and cannot carry a &psi; grid, so the
+    spatial adapter is new machinery whether (a) or (c) is chosen.</p>
+
+    <h3 id="s4c">§4c — Camera calibration import (trigger: lead chooses camera-projected conditioning)</h3>
+    <p>Not started unless the <code>flux-conditioning</code> decision selects camera projection. Import
+    the rbb Calcam calibration (intrinsics, extrinsics, vessel intersection) into the corpus metadata,
+    validate it by projecting the vessel and limiter outline onto real frames, and record the calibration
+    digest in the camera-boundary contract. Until this lands, both the decoder conditioning and the §4b
+    labeller work in image-frame coordinates with (R,Z) supplied only through the raster channels.</p>
 
     <p><strong>Training labels (decision <code>label-source</code>).</strong> The decoder needs
     (flux geometry, frame) pairs at scale. Efm EFIT flux surfaces exist for the whole camera corpus; nova
@@ -285,7 +304,9 @@
     the old demo used, is not in the carrier. §2a reports the candidates; the lead locks one.</p>
     <p>Done when a recorded screen capture shows a coil edit at time <em>t</em> followed by the camera
     stream moving within the §6 latency budget, on the locked shot, with the per-edit solve wall time and
-    cache-hit status logged beside each frame.</p>
+    cache-hit status logged beside each frame, and a receipt that pins the camera checkpoint, the VQ
+    decoder identity, the nova revision, the machine-artifact digest and the label source (the old 18502
+    demo receipt pinned none of the decoder identity, which §2a flagged).</p>
 
     <h2 id="s6">§6 — Pre-registered gates</h2>
     <p>Locked before any number is produced. Each is a measure that emits evidence; a gate that cannot be
@@ -399,6 +420,12 @@
 </div>
 <div class="r-comment" data-section="s2b" data-id="c-20260902T1445-s2b-landed" data-who="reckon-ship" data-when="2026-09-02T14:45:00+02:00">
     <div class="r-comment-body">pcp-nova-seam-survey landed — run r-20260902T122637508041-pcp-nova-seam-survey; measure: 25-symbol census at nova acce6b3c, production MAST 101-circuit current vector is a captured trace constant behind PrescribedCurrentField and the generic traced current= would double-count, warm start = previous ForwardEquilibrium.flux as initial_flux, carrier load corrected 12 ms to 62.65 ms, 21978/35 pure is a 2.45e-3 active-set cycle; artifacts: ~/.config/reckon/crew/reports/physics-carried-playable-plasma/nova-seam-survey.md, docs/evidence/archive/physics-carried-playable-plasma-landed.html#s2b</div>
+</div>
+<div class="r-comment" data-section="§2a" data-id="c-run-r-20260902T122628570480-pcp-ambix-reuse-map" data-who="pcp-ambix-scout" data-when="2026-09-02T12:45:46Z">
+    <div class="r-comment-body"><p>23 reuse candidates over six areas; no rbb camera calibration exists anywhere in code or data (camera-projected conditioning blocked); scalar conditioning path broadcasts and needs a spatial psi-grid adapter; existing Nova seam builds reconstruction not forward state; frozen-six rbb census recommends 21989 (sat 5.72%, blank 0.8%), 21983 runner-up, 22086 dark/blank</p></div>
+</div>
+<div class="r-comment" data-section="s2a" data-id="c-20260902T1450-s2a-landed" data-who="reckon-ship" data-when="2026-09-02T14:50:00+02:00">
+    <div class="r-comment-body">pcp-ambix-reuse-map landed — run r-20260902T122628570480-pcp-ambix-reuse-map; measure: 23 reuse candidates over six areas at 219a024; hard gap: no rbb camera calibration exists in code or data (camera_boundary.py records no camera matrix), so camera-projected conditioning is blocked until a calibration is imported; the camdyn scalar conditioning projection broadcasts one vector over all cells and cannot carry a psi grid; the existing ambix-to-nova seam builds reconstruction objects not ForwardProfile forward state; the old 18502 demo receipt does not pin the VQ decoder identity. Frozen-six rbb census: 21989 best-balanced (saturation 5.72%, blank-like 0.8%, robust range 194, p90 motion 18.63), 21983 runner-up (sat 9.33%), 21985 over-bright (sat 17%), 21986 good (blank 2.3%), 21978 good but nonconverged, 22086 dark/blank 39.8%. Scout recommends flux-conditioning=psi-raster-image + geometry-vector auxiliary, label-source=efm-then-nova, demo-shot=21989. Artifacts: ~/.config/reckon/crew/reports/physics-carried-playable-plasma/ambix-reuse-map.md, docs/evidence/archive/physics-carried-playable-plasma-landed.html#s2a</div>
 </div>
 </section>
 </main>

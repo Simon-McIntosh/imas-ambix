@@ -18,6 +18,54 @@
 <body>
   <main class="plan-doc">
 
+    <h2 id="s2a">§2a — Ambix reuse map (landed 2026-09-02)</h2>
+    <p>Read-only codex investigate node <code>pcp-ambix-reuse-map</code> (run
+    <code>r-20260902T122628570480-pcp-ambix-reuse-map</code>, gate passed) inspected imas-ambix at
+    <code>219a024</code> and produced 23 reuse candidates across the six capability areas, each with a
+    path, line and fitness verdict. Full report:
+    <code>~/.config/reckon/crew/reports/physics-carried-playable-plasma/ambix-reuse-map.md</code>.</p>
+
+    <table>
+      <thead><tr><th>Area</th><th>Reuse</th><th>Gap</th></tr></thead>
+      <tbody>
+        <tr><td>rbb corpus, tokeniser, decoder, history</td>
+            <td><code>tokenizer/frames.py</code> (OpenMAGVIT2 boundary), <code>tokenizer/finetune_decoder.py</code>, <code>worldmodel/playable_demo.py</code> (bounded knob sweeps, batched decode, GIF + centroid plots, 8-frame context), <code>worldmodel/history_bottleneck.py</code></td>
+            <td>the 18502 demo receipt does not pin the VQ decoder identity</td></tr>
+        <tr><td>Per-frame conditioning</td>
+            <td><code>camdyn/conditioning.py</code> temporal join, <code>camdyn/model.py</code> condition projection, <code>worldmodel/timescale_conditioning.py</code> (log-&Delta;t, camera id)</td>
+            <td>the projection broadcasts one vector over every cell; a spatial &psi;-grid adapter is new machinery</td></tr>
+        <tr><td>Equilibrium labels</td>
+            <td><code>worldmodel/equilibrium_labels.py</code> (efm axis, X-points, 8 LCFS radii on camera timestamps), <code>scripts/spine_label_factory.py</code> (physics-only &psi;, &psi;<sub>N</sub>, profiles; sequential warm starts), 12,590-shot eligibility census</td>
+            <td>efm gives the compact vector, not a &psi;<sub>N</sub> image; nova labels exist for six carriers only</td></tr>
+        <tr><td>Camera calibration</td>
+            <td>none</td>
+            <td><strong>hard gap:</strong> no rbb pixel-to-(R,Z) or line-of-sight map anywhere in code or data; <code>statespace/camera_boundary.py</code> records that the corpus carries no camera matrix; Calcam appears only in the plan text</td></tr>
+        <tr><td>Coil editing and decoded metrics</td>
+            <td><code>worldmodel/controllable_eval.py</code> bounded coil edit and decoded coil-dream evaluation (GIF, centroid trace, per-coil displacement JSON)</td>
+            <td>metrics are brightness-centroid based, which is what §4b replaces</td></tr>
+        <tr><td>Nova consumer wiring</td>
+            <td><code>gs/artifact_resolution.py</code>, <code>gs/artifact_geometry.py</code>, <code>gs/geometry_export.py</code>, revision-pinning pattern in <code>statespace/nova_ensemble_estimator.py</code></td>
+            <td><code>physics/equilibrium.py</code> builds reconstruction objects, not <code>ForwardProfile</code> forward state; a thin forward wrapper is new</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Frozen-six rbb census.</strong> All six shots have raw rbb arrays and OpenMAGVIT2 token
+    stores; upstream quality is "Not Checked", so these are the scout's screening metrics over every frame.</p>
+    <table>
+      <thead><tr><th>Shot</th><th>Frames</th><th>Saturated</th><th>Blank-like</th><th>Robust range</th><th>Motion p90</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td>21978</td><td>371</td><td>3.81%</td><td>0.0%</td><td>195</td><td>14.68</td><td>good image, but nova arm nonconverged</td></tr>
+        <tr><td>21983</td><td>363</td><td>9.33%</td><td>1.1%</td><td>184</td><td>13.91</td><td>very good, bright; runner-up</td></tr>
+        <tr><td>21985</td><td>350</td><td>17.03%</td><td>1.7%</td><td>172</td><td>22.24</td><td>over-bright</td></tr>
+        <tr><td>21986</td><td>311</td><td>9.78%</td><td>2.3%</td><td>190</td><td>14.66</td><td>good</td></tr>
+        <tr><td><strong>21989</strong></td><td>394</td><td>5.72%</td><td>0.8%</td><td>194</td><td>18.63</td><td><strong>best-balanced converged carrier; recommended</strong></td></tr>
+        <tr><td>22086</td><td>3,382</td><td>0.34%</td><td>39.8%</td><td>41</td><td>18.53</td><td>dark, 128&times;172, nonconverged; adverse case only</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Scout recommendations</strong> (decisions remain the lead's): flux-conditioning =
+    &psi;-raster image stack plus geometry-vector auxiliary, because camera projection would invent a
+    calibration the repository does not have; label-source = efm-then-nova; demo-shot = 21989.</p>
+
     <h2 id="s2b">§2b — Nova seam survey (landed 2026-09-02)</h2>
     <p>Read-only codex investigate node <code>pcp-nova-seam-survey</code> (run
     <code>r-20260902T122637508041-pcp-nova-seam-survey</code>, gate pass) surveyed nova at
