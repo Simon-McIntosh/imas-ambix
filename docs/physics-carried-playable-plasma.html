@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-02">
-<meta name="plan-version" content="18">
+<meta name="plan-version" content="19">
 <meta name="plan-impl" content="0.6">
 </head>
 <body>
@@ -525,6 +525,9 @@
 </div>
 <div class="r-comment" data-section="§4b" data-id="c-run-r-20260902T154704941649-pcp-labeller-train" data-who="pcp-labeller-train" data-when="2026-09-02T16:04:27Z">
     <div class="r-comment-body"><p>full-corpus launcher submitted as SLURM job 1261548, PENDING on Resources (1 H200, 6 CPU, 160G, reservation gpu_0003_grpA, 24h); cohort verified live at 472 train shots/1,163,812 frames and 58 validation shots/125,930 frames held out; 8 tests pass, whole-tree ruff 0; nothing cancelled or displaced</p></div>
+</div>
+<div class="r-comment" data-section="§4b" data-id="c-run-r-20260902T161407381245-pcp-label-reader-repair" data-who="pcp-labeller-train" data-when="2026-09-02T16:29:26Z">
+    <div class="r-comment-body"><p>reader repair delivered and verified, but the node&#x27;s done-when demanded a train-split pass its write scope could not reach: camera_topology_targets.py:449 independently indexes equilibrium[&#x27;x_point_r&#x27;] and was out of scope. Masked-absence reader done: census 1/472 train shots missing the pair (17275), 0/58 validation, 0 partial; 17275 now yields 93 finite axis and 744 finite LCFS with 4 NaN mask-false null coords; 21989 target and mask sha256 byte-identical after repair; required pytest 37 to 38 passing, ruff 0. Scoping error was mine, not the worker&#x27;s.</p></div>
 </div>
 <div class="r-comment" data-section="s4b" data-id="c-20260902T1715-s4b-targets-landed" data-who="reckon-ship" data-when="2026-09-02T17:15:00+02:00">
     <div class="r-comment-body">pcp-topology-targets landed — commit b7a0567 (merged 4a29600); gate passed, pytest tests/worldmodel/test_camera_topology_targets.py exit 0, 5 passed, whole-tree ruff check exit 0. Measure: census over 1,360 boundary-flux-defined rbb frames on the four converged carriers — 21983 349 frames (limited 58 / SN-lower 14 / SN-upper 15 / connected-DN 262), 21985 335 (55 / 119 / 19 / 142), 21986 292 (44 / 120 / 42 / 86), 21989 384 (54 / 183 / 16 / 131); aggregate primary-null and complete-two-strike yield 1,149/1,360 = 84.49%. Strong internal consistency: the non-yield count equals the limited-class count EXACTLY in all four shots (58/58, 55/55, 44/44, 54/54), so the class derivation and the null/strike derivation agree independently — limited configurations correctly carry no primary null and no strike points. Primary null is the supplied L2 null selected by latent.topology.boundary_flux against the L2 LCFS-derived boundary flux; class thresholds on XPOINT_BIND_TOL = 0.005 of the axis-to-boundary flux span; strikes are radially ordered separatrix-wall intersections in inner/outer slots; targets metre-valued with masks preserved, never imputed. FINDING: disconnected-double-null has ZERO support across all 1,360 frames (its branch needs exactly one binding null plus a second valid null plus a private region), while connected-DN carries 621. The class set the §6 accuracy measure can actually score is therefore four, not five, unless the wider 718-shot cohort supplies the fifth — pcp-labeller-model must report per-class support beside accuracy so a zero-support class is not silently averaged into a passing number. Artifacts: crew run dir frozen-six-topology-census.json; imas_ambix/worldmodel/camera_topology_targets.py, tests/worldmodel/test_camera_topology_targets.py.</div>

@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-02T18:20:26",
+  "updated": "2026-09-02T18:30:49",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -21088,9 +21088,107 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260902T161407381245-pcp-label-reader-repair",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74b",
+        "node": "pcp-label-reader-repair",
+        "node_definition": {
+          "done_when": "a regression test covers a level-2 equilibrium group with no x_point_r/x_point_z and asserts masked X-point slots with finite axis and LCFS components, tests/test_equilibrium_labels.py and tests/worldmodel/test_equilibrium_labels.py and tests/worldmodel/test_camera_topology_labeller.py and tests/worldmodel/test_camera_topology_targets.py all pass, uv run --no-sync ruff check imas_ambix tests exits 0, the measured count of the 472 train and 58 validation cohort shots lacking the null arrays is recorded, behaviour on shots that carry the arrays is byte-identical, and the train-split target-statistics pass that previously raised now completes over the cohort",
+          "estimated_hours": null,
+          "goal": "Make the equilibrium label reader mask an absent level-2 null-coordinate group instead of raising, returning NaN-filled finite-mask-False X-point slots alongside a usable axis and LCFS",
+          "id": "pcp-label-reader-repair",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T161407381245-pcp-label-reader-repair/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74b",
+          "spec_level": "guided",
+          "time_budget": "55m",
+          "write_paths": [
+            "imas_ambix/worldmodel/equilibrium_labels.py",
+            "tests/worldmodel/test_equilibrium_labels.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pcp-labeller-train",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-02T16:14:15Z",
+        "completed_at": "2026-09-02T16:29:26Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 911,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 911,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "922e95cf1481e090047d442edc1459e8399c8c5d",
+        "commits": [
+          "f0ebfcf25e772d0e5422aa02413115e198901320"
+        ],
+        "changed_lines": {
+          "added": 42,
+          "removed": 8,
+          "files": 2
+        },
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": null,
+        "suite_delta": null,
+        "failure_classification": "malformed-node",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T161407381245-pcp-label-reader-repair/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a062cd-98fe-76a2-bb63-0b41a38bb7bc",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 5169152,
+            "cached_input_tokens_cumulative": 5169152,
+            "input_tokens": 5433740,
+            "input_tokens_cumulative": 5433740,
+            "output_tokens": 15978,
+            "output_tokens_cumulative": 15978,
+            "reasoning_output_tokens": 4045,
+            "reasoning_output_tokens_cumulative": 4045
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 474
+    "_version": 475
   }
 }
