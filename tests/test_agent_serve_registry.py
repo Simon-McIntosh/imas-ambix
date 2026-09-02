@@ -119,6 +119,20 @@ def test_generated_serve_script_owns_registration_lifecycle(tmp_path):
     assert "-m imas_ambix.agent.registry remove" in script
     assert "trap cleanup_serve EXIT" in script
     assert "trap terminate_serve TERM INT" in script
+    # A serve republishes the endpoint document once it answers anonymously,
+    # and cleanup republishes again after withdrawing the registration, so a
+    # new model is launcher-discoverable without an operator republish.
+    write_pos = script.index("-m imas_ambix.agent.registry write")
+    cleanup_start = script.index("cleanup_serve()")
+    assert script.count("-m imas_ambix.agent.registry publish") == 2
+    # One republish lives in the cleanup path, defined before the server run…
+    cleanup_publish = script.index("-m imas_ambix.agent.registry publish")
+    assert cleanup_start < cleanup_publish < write_pos
+    # …and the other fires only after the write, once the engine is ready.
+    assert write_pos < script.index(
+        "-m imas_ambix.agent.registry publish", write_pos
+    )
+    assert "readiness poll expired" in script
 
 
 def test_agent_package_modules_parse_with_serving_python():

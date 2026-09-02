@@ -576,6 +576,11 @@ def generate_serve_script(
                     "$_REGISTRY_PYTHON" -m imas_ambix.agent.registry remove \
                     --directory "$_REGISTRY_DIR" \
                     --job-id "$SLURM_JOB_ID" || true
+                # Republish so the endpoint document stops advertising a
+                # release whose origin is exiting.
+                PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}} \
+                    "$_REGISTRY_PYTHON" -m imas_ambix.agent.registry publish \
+                    --directory "$_REGISTRY_DIR" || true
             fi
         }}
 
@@ -628,16 +633,39 @@ def generate_serve_script(
 
         {evictor_block}
 
-        sleep 10
-        if kill -0 "$SERVER_PID" 2>/dev/null; then
+        # Wait until the engine answers anonymously, then republish the
+        # endpoint document so this serve (and every other live serve) is
+        # discoverable by the launcher without an operator republish.
+        READINESS_URL="http://$(hostname):$PORT/v1/models"
+        _READY=0
+        for _attempt in $(seq 1 300); do
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+                echo "[$(date)] server process exited during startup" >&2
+                break
+            fi
+            if curl -fsS -m 5 "$READINESS_URL" >/dev/null 2>&1; then
+                _READY=1
+                break
+            fi
+            sleep 10
+        done
+        if [[ "$_READY" == 1 ]]; then
             echo "============================================="
-            echo "{profile.model.name} is starting on $(hostname):$PORT"
+            echo "{profile.model.name} is ready at http://$(hostname):$PORT"
             echo ""
             echo "Connect directly from a login or standard compute node:"
             echo "  http://$(hostname):$PORT"
             echo ""
             echo "Then verify with:"
             echo "  curl http://$(hostname):$PORT/v1/models"
+            echo "============================================="
+            PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}} \
+                "$_REGISTRY_PYTHON" -m imas_ambix.agent.registry publish \
+                --directory "$_REGISTRY_DIR" || true
+        else
+            echo "============================================="
+            echo "{profile.model.name} is still starting on $(hostname):$PORT"
+            echo "(readiness poll expired; endpoint document not republished)"
             echo "============================================="
         fi
 
