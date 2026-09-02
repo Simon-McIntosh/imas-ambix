@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-02T08:54:26",
+  "updated": "2026-09-02T09:05:58",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -20119,9 +20119,111 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260902T065726675723-bench-json-save-exit",
+        "plan": "multi-model-serving-capacity",
+        "section": "\u00a74",
+        "node": "bench-json-save-exit",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent.py -q exits 0 with an added assertion, and uv run --no-sync ruff check imas_ambix tests --no-cache exits 0. Reproduced during a live benchmark: the command completed 136 of 136 measurements with zero failures, wrote its complete JSON, and then exited 1. The cause is at imas_ambix/agent/cli.py line 1935, where the saved-results note is printed with console.print(..., err=True). The err keyword belongs to click.echo, not to a Rich Console, whose print does not accept it, so that call raises TypeError after all the work is done. The adjacent print at line 1941 makes the same announcement without the keyword, which is why only one path breaks. It fires only when JSON output and a save path are combined, so ordinary invocations never reach it. Do NOT fix it by simply deleting the keyword: it was there to keep the note off stdout so it cannot corrupt the JSON stream a caller is parsing. Send the note to standard error by the means Rich actually supports, keeping stdout carrying only the JSON. Add an assertion that a JSON run with a save path exits zero, writes its file, and emits nothing but valid JSON on stdout, so a caller scripting against the exit status or piping the output is protected.",
+          "estimated_hours": null,
+          "goal": "Stop the benchmark reporting failure after it has already succeeded",
+          "id": "bench-json-save-exit",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T065726675723-bench-json-save-exit/manifest.md",
+          "plan": "multi-model-serving-capacity",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "20m",
+          "write_paths": [
+            "imas_ambix/agent/cli.py",
+            "tests/test_agent.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-capacity-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-02T06:57:33Z",
+        "completed_at": "2026-09-02T07:05:48Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 495,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 495,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "88ee8f3005efd1a86bfc815c8d255c6b6100f846",
+        "commits": [
+          "07ea3e07a97ef1cc0ebdc9b456616bdb1cc8d63a"
+        ],
+        "changed_lines": {
+          "added": 57,
+          "removed": 6,
+          "files": 2
+        },
+        "tests_added": 1,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T065726675723-bench-json-save-exit/manifest.md",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T065726675723-bench-json-save-exit/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c9f-7fa0-7353-b56f-090a024d590c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 3307136,
+            "cached_input_tokens_cumulative": 3307136,
+            "input_tokens": 3575547,
+            "input_tokens_cumulative": 3575547,
+            "output_tokens": 9423,
+            "output_tokens_cumulative": 9423,
+            "reasoning_output_tokens": 3231,
+            "reasoning_output_tokens_cumulative": 3231
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 451
+    "_version": 452
   }
 }
