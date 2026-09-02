@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-02T18:32:21",
+  "updated": "2026-09-02T18:34:48",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -832,9 +832,11 @@
         "id": "pcp-robustness-harness",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a062e0-6034-7e50-8af1-d25e65944362",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a062e0-6034-7e50-8af1-d25e65944362"
+        },
         "created": "2026-09-02"
       },
       {
@@ -21298,9 +21300,101 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260902T160737543946-pcp-robustness-harness",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74b",
+        "node": "pcp-robustness-harness",
+        "node_definition": {
+          "done_when": "tests/worldmodel/test_camera_topology_robustness.py passes, uv run --no-sync ruff check imas_ambix tests exits 0, a recorded dry exercise against the existing smoke checkpoint emits every verdict field with each confounder subset resolved to its measured frame count (brightness 240281 source frames, gas-puff 124138, divertor-bright 2042, held-out campaign 107880) and labels its own numbers smoke-scale rather than gate results, with the held-out-campaign term reported separately from the emission confounders",
+          "estimated_hours": null,
+          "goal": "Emit the labeller robustness scoring harness that loads a labeller checkpoint, scores the clean split plus the four confounder subsets from labeller-cohort-census.md and divertor-bright-screen.md, and emits the position-error, class-accuracy, per-class-support and error-growth verdict beside the brightness-centroid baseline on identical frames",
+          "id": "pcp-robustness-harness",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T160737543946-pcp-robustness-harness/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74b",
+          "spec_level": "open",
+          "time_budget": "50m",
+          "write_paths": [
+            "imas_ambix/worldmodel/camera_topology_robustness.py",
+            "tests/worldmodel/test_camera_topology_robustness.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "open",
+        "member": "pcp-robustness-harness",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-02T16:07:46Z",
+        "completed_at": "2026-09-02T16:33:56Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1570,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1570,
+        "stalled": false,
+        "time_budget": "50m",
+        "base_sha": "f01ea76db8c4106c01a49aa3d7b48eb84dbbbd81",
+        "commits": [
+          "1319deb4717b0fc88393bfa992ed16ab93892106"
+        ],
+        "changed_lines": {
+          "added": 1351,
+          "removed": 0,
+          "files": 2
+        },
+        "tests_added": 7,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest -p no:cacheprovider tests/worldmodel/test_camera_topology_robustness.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T160737543946-pcp-robustness-harness/pytest-targeted-final.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T160737543946-pcp-robustness-harness/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a062e0-6034-7e50-8af1-d25e65944362",
+        "budget": {
+          "cost_usd": null,
+          "detail": "",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 477
+    "_version": 479
   }
 }
