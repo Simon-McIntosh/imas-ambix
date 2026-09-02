@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-02">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 <meta name="plan-impl" content="0.25">
 </head>
 <body>
@@ -459,6 +459,9 @@
 </div>
 <div class="r-comment" data-section="s2a" data-id="c-20260902T1450-s2a-landed" data-who="reckon-ship" data-when="2026-09-02T14:50:00+02:00">
     <div class="r-comment-body">pcp-ambix-reuse-map landed — run r-20260902T122628570480-pcp-ambix-reuse-map; measure: 23 reuse candidates over six areas at 219a024; hard gap: no rbb camera calibration exists in code or data (camera_boundary.py records no camera matrix), so camera-projected conditioning is blocked until a calibration is imported; the camdyn scalar conditioning projection broadcasts one vector over all cells and cannot carry a psi grid; the existing ambix-to-nova seam builds reconstruction objects not ForwardProfile forward state; the old 18502 demo receipt does not pin the VQ decoder identity. Frozen-six rbb census: 21989 best-balanced (saturation 5.72%, blank-like 0.8%, robust range 194, p90 motion 18.63), 21983 runner-up (sat 9.33%), 21985 over-bright (sat 17%), 21986 good (blank 2.3%), 21978 good but nonconverged, 22086 dark/blank 39.8%. Scout recommends flux-conditioning=psi-raster-image + geometry-vector auxiliary, label-source=efm-then-nova, demo-shot=21989. Artifacts: ~/.config/reckon/crew/reports/physics-carried-playable-plasma/ambix-reuse-map.md, docs/evidence/archive/physics-carried-playable-plasma-landed.html#s2a</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260902T1530-nova-a-partial" data-who="reckon-ship" data-when="2026-09-02T15:30:00+02:00">
+    <div class="r-comment-body">Nova node A partial landing (nova main dea56390, merge e464be9d): PrescribedCurrentField.flux(current) replaces the stored 101-circuit vector when supplied; ordinary and prescribed external paths kept independent (double-counting test 4/4); flux_map and flux_map_with_shadow take the replacement vector as traced data; un-supplied path bit-identical (referees 9/9). NOT yet on main: the solve-level keyword on ForwardProfile.solve (forward.py held by node C this hour) and the 21989/55 per-edit latency receipt (fsa-coil-edit-latency, runs when C merges). The §3 wrapper node stays unscheduled until the next SHA carries both; do not build against dea56390 alone.</div>
 </div>
 </section>
 </main>
