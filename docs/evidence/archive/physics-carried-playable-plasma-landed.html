@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="evidence">
+  <meta name="plan-slug"     content="physics-carried-playable-plasma-landed">
+  <meta name="plan-title"    content="Physics-Carried Playable Plasma — landed record">
+  <meta name="plan-summary"  content="Cumulative execution evidence for physics-carried-playable-plasma: survey findings, gate measures, commits.">
+  <meta name="plan-tags"     content="world-model,nova-consumer,equilibrium">
+  <meta name="plan-evidence-for" content="physics-carried-playable-plasma">
+  <meta name="plan-verifies" content="physics-carried-playable-plasma#s2b">
+  <title>Physics-Carried Playable Plasma — landed | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s2b">§2b — Nova seam survey (landed 2026-09-02)</h2>
+    <p>Read-only codex investigate node <code>pcp-nova-seam-survey</code> (run
+    <code>r-20260902T122637508041-pcp-nova-seam-survey</code>, gate pass) surveyed nova at
+    <code>acce6b3c</code>; the forward-solve paths are unchanged from the handover revision
+    <code>f0a785e7</code>. The full report with its 25-row symbol census is at
+    <code>~/.config/reckon/crew/reports/physics-carried-playable-plasma/nova-seam-survey.md</code>.
+    The findings that changed the plan:</p>
+
+    <table>
+      <thead><tr><th>Question</th><th>Finding</th><th>Citation</th></tr></thead>
+      <tbody>
+        <tr><td>Is the coil-current vector traced or a constant?</td>
+            <td>Both exist. The generic <code>ForwardProfile.solve(current=...)</code> argument is traced when supplied. The production MAST route zeros the ordinary external current and installs a <code>PrescribedCurrentField</code> holding the full 101-circuit vector (13 active, 88 passive) whose <code>flux()</code> takes no argument, so the vector is a captured trace constant; supplying the generic argument there would <em>add</em> an active-coil field on top of the frozen one and double-count.</td>
+            <td><code>forward_operator.py:324-353, 571-586, 1056-1071</code>; <code>efit_forward_parity_slice.py:2793-2888, 3385-3405</code></td></tr>
+        <tr><td>Warm-start entry</td>
+            <td>No separate object: pass the previous <code>ForwardEquilibrium.flux</code> as <code>initial_flux</code> to <code>solve</code> / <code>solve_branch</code>.</td>
+            <td><code>forward.py:1170-1180, 1290-1321</code>; precedent <code>diiid_batched_throughput.py:537-550</code></td></tr>
+        <tr><td>Topology outputs</td>
+            <td><code>ForwardEquilibrium</code> carries flux, cell current, <code>DomainMasks</code> (labels + &psi;<sub>N</sub>) and <code>ForwardTopologyState</code> (axis, boundary, limiter, saddles, diverted flag); separatrix branches come from <code>assemble_separatrix_branches</code>. Consume these, never re-derive contours in ambix.</td>
+            <td><code>forward.py:208-223, 700-718, 970-1012</code>; <code>domain.py:78-83</code>; <code>separatrix_branches.py:203-233</code></td></tr>
+        <tr><td>Compilation cache</td>
+            <td>Off unless the consumer calls <code>configure_persistent_compilation_cache</code>; the MAST benchmark only configures dtypes.</td>
+            <td><code>nova/jax/config.py:142-190</code></td></tr>
+        <tr><td>Carrier warm load</td>
+            <td>Handover said 12 ms; the committed receipt says 62.65 ms for the (1126, 101) carrier including digest and reference validation.</td>
+            <td><code>docs/figures/plateau-input-attribution/mast-response-carrier.json</code></td></tr>
+        <tr><td>Per-member costs</td>
+            <td>0.784 ms map application and 374–416 ms settled solve are width-1024 batched throughput, not single-member latency; 42.8 ms single-slice is a historical comparator with no current receipt.</td>
+            <td><code>docs/figures/single-grid-solver-cutover/h200-solve-profile.json</code>; <code>settled-exit-throughput.json</code></td></tr>
+        <tr><td>Marginal arms</td>
+            <td>22086/43 pure stagnates at 4.80&times;10<sup>-4</sup>; 21978/35 pure is primarily an active-set cycle at 2.45&times;10<sup>-3</sup>.</td>
+            <td><code>docs/figures/solver-convergence-regression/head-mechanism.json:40-72</code></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Consequences recorded.</strong> nova:forward-solve-api §5 (1) must expose the complete
+    prescribed-current vector as a traced solve argument with replacement semantics; the plan's §3 cost
+    table now carries the corrected figures; the minimal ambix wrapper exposes only <code>initial_flux</code>
+    and <code>target_current</code> as edit-time inputs until that seam lands. Relayed to the nova S19
+    coordinator on 2026-09-02.</p>
+
+  </main>
+</body>
+</html>

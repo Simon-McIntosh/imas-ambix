@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-02T14:26:27",
+  "updated": "2026-09-02T14:43:03",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -777,9 +777,11 @@
         "id": "pcp-nova-scout",
         "harness": "codex",
         "role": "investigate",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a06216-037c-7ac3-93cd-b9102e7fac5a",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a06216-037c-7ac3-93cd-b9102e7fac5a"
+        },
         "created": "2026-09-02"
       },
       {
@@ -20431,9 +20433,105 @@
           "role": "documentation",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260902T122637508041-pcp-nova-seam-survey",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a72b",
+        "node": "pcp-nova-seam-survey",
+        "node_definition": {
+          "done_when": "Report at the write path names every \u00a72b symbol with path and line at the current nova pin, states with a code citation whether external_current is a trace constant or traced argument, lists the warm-start entry point, and reconciles each of the six handover cost figures against a cited code path",
+          "estimated_hours": null,
+          "goal": "Deliver the \u00a72b nova seam survey for the forward-solve consumer wrapper",
+          "id": "pcp-nova-seam-survey",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T122637508041-pcp-nova-seam-survey/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a72b",
+          "spec_level": "",
+          "time_budget": "20m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/nova-seam-survey.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "",
+        "member": "pcp-nova-scout",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-09-02T12:26:44Z",
+        "completed_at": "2026-09-02T12:40:07Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 803,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 803,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "219a0243e9ed4250de3e035a45bca321b0f8c09c",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "test $(grep -c '^| `' /home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/nova-seam-survey.md) -ge 25 && grep -q 'captured trace constant' /home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/nova-seam-survey.md && grep -q 'initial_flux' /home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/nova-seam-survey.md && test $(grep -c '^| [1-6] |' /home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/nova-seam-survey.md) -eq 6",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T122637508041-pcp-nova-seam-survey/gate-check.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T122637508041-pcp-nova-seam-survey/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a06216-037c-7ac3-93cd-b9102e7fac5a",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 5945472,
+            "cached_input_tokens_cumulative": 5945472,
+            "input_tokens": 6215678,
+            "input_tokens_cumulative": 6215678,
+            "output_tokens": 19582,
+            "output_tokens_cumulative": 19582,
+            "reasoning_output_tokens": 4552,
+            "reasoning_output_tokens_cumulative": 4552
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "no_commit": "investigate role: read-only worktree; deliverable is the report at the write path",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 456
+    "_version": 458
   }
 }

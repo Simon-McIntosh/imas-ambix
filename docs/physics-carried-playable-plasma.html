@@ -4,26 +4,29 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="physics-carried-playable-plasma">
-  <meta name="plan-title"     content="Physics-Carried Playable Plasma — nova's GS forward solve drives the MAST camera">
-  <meta name="plan-summary"   content="Edit a coil current and watch the MAST camera respond in-shot: nova GS solve gives flux surfaces, a flux-conditioned decoder renders the rbb frame.">
-  <meta name="plan-status"    content="draft">
-  <meta name="plan-roi"       content="high">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="physics-carried-playable-plasma">
+  <meta name="plan-title" content="Physics-Carried Playable Plasma — nova&#x27;s GS forward solve drives the MAST camera">
+  <meta name="plan-summary" content="Edit a coil current and watch the MAST camera respond in-shot: nova GS solve gives flux surfaces, a flux-conditioned decoder renders the rbb frame.">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="36.0">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="orchestrator">
   <meta name="plan-capability-reasoning" content="deep">
   <meta name="plan-capability-verification" content="strict">
   <meta name="plan-milestone" content="M4">
-  <meta name="plan-sprint"    content="S19">
-  <meta name="plan-owner"     content="Simon McIntosh">
-  <meta name="plan-tags"      content="world-model,nova-consumer,equilibrium">
+  <meta name="plan-sprint" content="S19">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="world-model,nova-consumer,equilibrium">
   <meta name="plan-depends-on" content="playable-plasma-wm-v0,nova-physics-consumer-integration,nova:forward-solve-api#s5">
   <meta name="plan-graph-handle" content="play-the-plasma">
   <title>Physics-Carried Playable Plasma | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-02">
+<meta name="plan-version" content="2">
+<meta name="plan-impl" content="0.125">
 </head>
 <body>
   <main class="plan-doc">
@@ -156,20 +159,24 @@
       <tbody>
         <tr><td>One map application, width 1024</td><td>0.784 ms / member</td><td>the floor a warm-started edit can approach</td></tr>
         <tr><td>Full settled 16-trip solve</td><td>374–416 ms / member</td><td>cold-seeded live solve is not interactive</td></tr>
-        <tr><td>Single-slice solve (earlier)</td><td>42.8 ms</td><td>borderline interactive if per-edit compile is removed</td></tr>
+        <tr><td>Single-slice solve (historical comparator)</td><td>42.8 ms</td><td>no current receipt substantiates it; not an SLA input until re-measured</td></tr>
         <tr><td>Compile per distinct traced program</td><td>340–390 s cold, 63.7 s cache-warm</td><td>a coil edit that changes trace constants recompiles: fatal for interaction</td></tr>
-        <tr><td>Cached MAST carrier load</td><td>12 ms</td><td>never build the machine in the loop</td></tr>
-        <tr><td>Marginal diverted arms (22086/43, 21978/35 pure)</td><td>stagnate at residual ~5&times;10<sup>-4</sup></td><td>choose the demo shot from the converging set</td></tr>
+        <tr><td>Cached MAST carrier warm load (committed receipt)</td><td>62.65 ms</td><td>load once per session; never in the loop</td></tr>
+        <tr><td>Marginal diverted arms</td><td>22086/43 pure stagnates at 4.8&times;10<sup>-4</sup>; 21978/35 pure cycles at 2.45&times;10<sup>-3</sup></td><td>choose the demo shot from the converging set; a refused solve stays visible</td></tr>
       </tbody>
     </table>
 
     <p><strong>Why a current change costs anything at all.</strong> Coils do not move; only their currents
     change. The vacuum flux they produce is linear in the current vector — one precomputed Green's matrix
     times the currents, a matmul at microsecond cost — and nova's operator already holds it in that form.
-    Two things cost more. First, a JAX tracing artefact: at the current pin the current vector is a
-    field on the operator, so the jitted solve bakes it in as a program constant and a new value is a new
-    program with a 340–390 s compile. Nothing physical is being recomputed; making the current vector a
-    traced argument removes this cost entirely and is the first demand below. Second, the plasma
+    Two things cost more. First, a JAX tracing artefact: on the production MAST route the full
+    101-circuit current vector (13 active, 88 passive) is held by a prescribed-current field on the
+    operator whose flux is computed with no argument, so the jitted solve bakes it in as a program constant
+    and a new value is a new program with a 340–390 s compile. The generic solve does accept a traced
+    current argument, but on this route it would be added on top of the frozen field rather than replace
+    it, double-counting the active coils (§2b survey). Nothing physical is being recomputed; making the
+    complete prescribed-current vector a traced argument with replacement semantics removes this cost
+    entirely and is the first demand below. Second, the plasma
     response: when the vacuum field moves, the plasma current redistributes to restore force balance, and
     that is the nonlinear GS solve. Warm-started from the previous edit it is a handful of Newton–Krylov
     trips at ~0.8 ms each, which is the physical floor of an interactive edit and the reason the loop is
@@ -328,61 +335,69 @@
     </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="flux-conditioning" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">How does the decoder see the solved flux geometry?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="camera-projected">labelled flux map projected into rbb pixel space via calibration (recommended if a calibration exists)</button>
-          <button class="r-opt" data-value="psi-raster-image">labelled flux map resampled from the hex mesh onto an (R,Z) raster as an image stack, geometry vector as auxiliary token</button>
-          <button class="r-opt" data-value="geometry-vector">compact geometry vector only (LCFS moments, O/X-points, strike points)</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="label-source" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Where do the decoder's training flux geometries come from?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="efm-then-nova">efm EFIT flux surfaces for coverage now, physics gate proves nova is in-distribution, re-label from nova when bulk solving is cheap (recommended)</button>
-          <button class="r-opt" data-value="nova-only">nova solves only, restricted to the frozen-six carrier shots</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="demo-shot" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Which MAST shot carries the demo? Must be in the nova frozen-six carrier and the converging set; §2a reports rbb video quality per candidate.</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="21983">21983</button>
-          <button class="r-opt" data-value="21985">21985</button>
-          <button class="r-opt" data-value="21986">21986</button>
-          <button class="r-opt" data-value="21989">21989</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="profile-freeze" data-choice="frozen-efm-profiles" data-by="Simon McIntosh" data-when="2026-09-02">
-        <p class="r-dec-q">What happens to p&#8242;, FF&#8242; and plasma current when a coil is edited?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="frozen-efm-profiles">held at the shot's efm values for that time; measured plasma current as target_current</button>
-          <button class="r-opt" data-value="transport-response">evolved by a transport model</button>
-        </p>
-        <p class="r-dec-rat">Fixed flux functions with varying coil currents is the construction nova supports today and is the honest "what does this coil do" experiment; profile response belongs to the transport plans and is out of scope here.</p>
-      </div>
-      <div class="r-dec" data-key="camera" data-choice="rbb" data-by="Simon McIntosh" data-when="2026-09-02">
-        <p class="r-dec-q">Which camera stream is rendered?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="rbb">rbb only (the trained corpus and frozen decoder)</button>
-          <button class="r-opt" data-value="multi-camera">all tokenised cameras</button>
-        </p>
-        <p class="r-dec-rat">The rbb corpus, tokeniser and decoder already exist and were validated by the playable demo; adding cameras is a later plan.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="flux-conditioning" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">How does the decoder see the solved flux geometry?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="camera-projected">labelled flux map projected into rbb pixel space via calibration (recommended if a calibration exists)</button>
+      <button class="r-opt" data-value="psi-raster-image">labelled flux map resampled from the hex mesh onto an (R,Z) raster as an image stack, geometry vector as auxiliary token</button>
+      <button class="r-opt" data-value="geometry-vector">compact geometry vector only (LCFS moments, O/X-points, strike points)</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="label-source" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Where do the decoder&#x27;s training flux geometries come from?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="efm-then-nova">efm EFIT flux surfaces for coverage now, physics gate proves nova is in-distribution, re-label from nova when bulk solving is cheap (recommended)</button>
+      <button class="r-opt" data-value="nova-only">nova solves only, restricted to the frozen-six carrier shots</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="demo-shot" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Which MAST shot carries the demo? Must be in the nova frozen-six carrier and the converging set; §2a reports rbb video quality per candidate.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="21983">21983</button>
+      <button class="r-opt" data-value="21985">21985</button>
+      <button class="r-opt" data-value="21986">21986</button>
+      <button class="r-opt" data-value="21989">21989</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="profile-freeze" data-choice="frozen-efm-profiles" data-by="Simon McIntosh" data-when="2026-09-02">
+    <p class="r-dec-q">What happens to p′, FF′ and plasma current when a coil is edited?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="frozen-efm-profiles">held at the shot&#x27;s efm values for that time; measured plasma current as target_current</button>
+      <button class="r-opt" data-value="transport-response">evolved by a transport model</button>
+      </p>
+    <p class="r-dec-rat">Fixed flux functions with varying coil currents is the construction nova supports today and is the honest &quot;what does this coil do&quot; experiment; profile response belongs to the transport plans and is out of scope here.</p>
+    </div>
+<div class="r-dec" data-key="camera" data-choice="rbb" data-by="Simon McIntosh" data-when="2026-09-02">
+    <p class="r-dec-q">Which camera stream is rendered?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="rbb">rbb only (the trained corpus and frozen decoder)</button>
+      <button class="r-opt" data-value="multi-camera">all tokenised cameras</button>
+      </p>
+    <p class="r-dec-rat">The rbb corpus, tokeniser and decoder already exist and were validated by the playable demo; adding cameras is a later plan.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-pcp-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-09-02">
-        <h4 class="r-fu-title">Run the §2 survey nodes and lock the three open decisions on their findings</h4>
-        <div class="r-fu-body"><p>Dispatch §2a and §2b as read-only investigate nodes; on their reuse maps, lock <code>flux-conditioning</code>, <code>label-source</code> and <code>demo-shot</code>, then cut the §3–§5 implementation nodes.</p></div>
-        <pre class="r-fu-prompt">/reckon-ship physics-carried-playable-plasma §2</pre>
-      </article>
-    </section>
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-pcp-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-09-02" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Run the §2 survey nodes and lock the three open decisions on their findings</h4>
+    <div class="r-fu-body"><p>Dispatch §2a and §2b as read-only investigate nodes; on their reuse maps, lock <code>flux-conditioning</code>, <code>label-source</code> and <code>demo-shot</code>, then cut the §3–§5 implementation nodes.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship physics-carried-playable-plasma §2</pre>
+    </article>
+</section>
 
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="§2b" data-id="c-run-r-20260902T122637508041-pcp-nova-seam-survey" data-who="pcp-nova-scout" data-when="2026-09-02T12:40:07Z">
+    <div class="r-comment-body"><p>25-symbol census at nova acce6b3c; production MAST current vector is a captured trace constant behind PrescribedCurrentField (generic current= would double-count); warm start = previous flux as initial_flux; carrier load corrected 12 ms to 62.65 ms; 21978/35 is a 2.45e-3 cycle not 5e-4 stagnation</p></div>
+</div>
+<div class="r-comment" data-section="s2b" data-id="c-20260902T1445-s2b-landed" data-who="reckon-ship" data-when="2026-09-02T14:45:00+02:00">
+    <div class="r-comment-body">pcp-nova-seam-survey landed — run r-20260902T122637508041-pcp-nova-seam-survey; measure: 25-symbol census at nova acce6b3c, production MAST 101-circuit current vector is a captured trace constant behind PrescribedCurrentField and the generic traced current= would double-count, warm start = previous ForwardEquilibrium.flux as initial_flux, carrier load corrected 12 ms to 62.65 ms, 21978/35 pure is a 2.45e-3 active-set cycle; artifacts: ~/.config/reckon/crew/reports/physics-carried-playable-plasma/nova-seam-survey.md, docs/evidence/archive/physics-carried-playable-plasma-landed.html#s2b</div>
+</div>
+</section>
+</main>
 </body>
 </html>
