@@ -60,9 +60,11 @@
     physics cannot supply. The camera sees emission from all of these regions (divertor legs and strike
     points are the brightest features in the rbb view), so a decoder given only the LCFS would be asked to
     hallucinate the rest. Given the labelled map it renders what the physics determines and learns only
-    brightness. The map arrives on nova's hex mesh; any rasterisation or camera projection is ambix's job
-    and happens after the boundary, never inside nova. The decoder never sees a coil current, so it
-    cannot learn to ignore one.</p>
+    brightness. The solve lives on nova's hex mesh, but the map the decoder sees is evaluated by nova on
+    a rectangular (R,Z) grid built once for the Biot operation: coil circuits and plasma cell currents map
+    onto that grid through their Green's functions directly, so &psi; on the grid is exact and nothing is
+    interpolated in ambix (decision <code>flux-conditioning</code>). The decoder never sees a coil
+    current, so it cannot learn to ignore one.</p>
 
     <figure>
       <svg viewBox="0 0 980 190" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;font-family:system-ui;font-size:13px">
@@ -197,9 +199,17 @@
     2026-09-02, forward-solve-api now active):</strong> (A) traced prescribed current with replacement
     semantics plus a per-edit latency benchmark on a converging frozen-six shot, first; (C) the receipt
     topology (&psi;, &psi;<sub>N</sub>, O-point, X-points, LCFS, strike points, per-cell labels core /
-    private / wall shadow / open) in parallel with A; (B) the twenty-point warm-start coil sweep after A so
-    the sweep does not recompile per point. The ambix wrapper node is scheduled behind A's merge SHA, which
-    nova sends as it lands. Nova also confirmed that differentiability with respect to state is intact on
+    private / wall shadow / open) in parallel with A; (C2) the rectangular-grid receipt — a rect (R,Z)
+    flux target built once with the machine, static under edits, axes and shape in the receipt, &psi; and
+    &psi;<sub>N</sub> evaluated exactly from the same coil and cell currents through their Green's matrices,
+    65&times;65 to 129&times;129 over the MAST vessel at nova's discretion, raster labels where the authority
+    supplies them cheaply — after A and C merge, because the flux target lives in the file A holds;
+    (B) the twenty-point warm-start coil sweep after A so the sweep does not recompile per point. The
+    passive-inclusive response carrier is <strong>machine-era-wide</strong>, one (1126 &times; 101) response
+    matrix keyed on geometry and grid with the frozen six as banked inputs beside it, so one operator
+    serves every shot of the era for §3b and the per-shot inputs are exactly A's traced set (101-circuit
+    currents, p&#8242;/FF&#8242;, target current). The ambix wrapper node is scheduled behind A's merge SHA,
+    which nova sends as it lands. Nova also confirmed that differentiability with respect to state is intact on
     the MAST frozen-six carrier (the non-finite tangent seen in the Solov'ev certificate is a fixture
     defect, not a solver property).</p>
 
@@ -209,13 +219,26 @@
     frozen flux functions, and exposes one call: coil-current vector in, labelled flux map out — &psi; on
     the full hex mesh, &psi;<sub>N</sub>, the O-point, primary and secondary X-points, LCFS polygon, strike
     points, the per-cell domain labels (core, private flux, wall shadow, open), the interior flux-surface
-    contours at a fixed set of &psi;<sub>N</sub> levels, the topology class, and the nova receipt. The wrapper
-    also owns the resampling of the hex-mesh map onto whatever frame the decoder conditions on (§4), so
-    the mesh geometry stays a nova detail. It enables the
+    contours at a fixed set of &psi;<sub>N</sub> levels, the topology class, &psi; and &psi;<sub>N</sub> on nova's
+    fixed rectangular (R,Z) Biot grid with the grid axes, and the nova receipt. The wrapper does no
+    resampling: the rectangular map is nova's, evaluated from the same currents that solved the
+    equilibrium. It enables the
     persistent compilation cache and pins the nova revision at or above <code>588578a0</code>. It runs
     under <code>JAX_PLATFORMS=cuda,cpu</code> set inside the sbatch body. Done when, on the four
     converging frozen-six shots, the wrapper reproduces the efm LCFS at measured coil currents within the
     §6 physics tolerance and logs per-call cost.</p>
+
+    <h3 id="s3b">§3b — The nova label corpus</h3>
+    <p>With <code>label-source</code> locked to nova only, the decoder's training set is a bulk forward
+    solve: for every camera-corpus shot in the same MAST machine era as the persisted carrier, and every
+    rbb frame time with a measured plasma current and efm profile pair, solve the equilibrium at the
+    measured coil currents with frozen p&#8242;/FF&#8242; and write the labelled rectangular flux map, the
+    topology read, the convergence verdict and the receipt. Runs after nova's traced current (node A)
+    lands, because until then every shot is a recompile; batched at replicated width on the H200 with
+    sequential warm starts along each shot. Non-converged and stagnated slices are kept with their verdict
+    and excluded from training by verdict, never silently dropped. Done when the corpus covers every
+    eligible shot with a per-slice receipt, the converged fraction is reported per shot, and a held-out
+    subset reproduces the frozen-six reference slices bit-for-bit under the same operator.</p>
 
     <h2 id="s4">§4 — The flux-conditioned camera decoder</h2>
     <p><strong>Conditioning representation (decision <code>flux-conditioning</code>).</strong> The
@@ -243,14 +266,15 @@
     digest in the camera-boundary contract. Until this lands, both the decoder conditioning and the §4b
     labeller work in image-frame coordinates with (R,Z) supplied only through the raster channels.</p>
 
-    <p><strong>Training labels (decision <code>label-source</code>).</strong> The decoder needs
-    (flux geometry, frame) pairs at scale. Efm EFIT flux surfaces exist for the whole camera corpus; nova
-    solves at measured currents exist only where a machine carrier exists (six frozen shots today) and
-    cost ~0.4 s per slice until warm-started batching lands. Recommendation: train on efm geometry for
-    coverage, and make the §6 physics gate prove that nova-solved geometry at measured currents lies
-    inside the decoder's training tolerance, so a nova-rendered edit is in-distribution for the decoder.
-    Re-label from nova once traced <code>external_current</code> makes bulk solving cheap; the plan
-    records the swap as its own node, not as a rewrite.</p>
+    <p><strong>Training labels (decision <code>label-source</code>, locked nova-only).</strong> The
+    decoder is trained on exactly the object it receives at play time: nova-solved, nova-labelled flux
+    maps on nova's rectangular Biot grid at the measured coil currents of real shots, paired with the rbb
+    frame at that time. No EFIT geometry enters training; efm is the held-out referee for the
+    physics-fidelity gate only. Coverage comes from §3b: once traced currents land, one operator over the
+    machine era solves the camera-corpus shots at measured currents in replicated-width batches on the
+    H200 (nova measured 1.755 ms per slice at width 1024), so a corpus of order 10<sup>5</sup>–10<sup>6</sup>
+    labelled slices is hours, not weeks. Until §3b lands the decoder is prototyped on the frozen-six
+    carrier shots only and any number from that prototype is reported as such.</p>
 
     <p><strong>Architecture.</strong> Reuse the frozen rbb tokeniser and decoder from the playable demo
     (<a href="/imas-ambix/playable-plasma-wm-v0.html">playable-plasma-wm-v0</a> is an asset source, not a
@@ -299,9 +323,11 @@
     critical path and scheduled for immediate implementation. A solve that refuses (target-current band
     exceeded returns NaN by design) or stagnates is shown as a refusal on the surface, with the last
     good frame held, never papered over with an interpolated geometry.</p>
-    <p><strong>Shot selection (decision <code>demo-shot</code>).</strong> The shot must be in the nova
-    frozen-six carrier and in the converging set, and have a bright, dynamic rbb video. 18502, the shot
-    the old demo used, is not in the carrier. §2a reports the candidates; the lead locks one.</p>
+    <p><strong>Shot selection (decision <code>demo-shot</code>, locked 21989).</strong> 21989 is in the
+    nova frozen-six carrier and the converging set, and the §2a census rates it the best-balanced rbb
+    video (saturation 5.72%, blank-like 0.8%, robust range 194, p90 motion 18.63). Nova's traced-current
+    latency benchmark runs on 21989/55, so physics fidelity and latency are measured on the demo shot
+    itself. 18502, the old demo shot, is not in the carrier.</p>
     <p>Done when a recorded screen capture shows a coil edit at time <em>t</em> followed by the camera
     stream moving within the §6 latency budget, on the locked shot, with the per-edit solve wall time and
     cache-hit status logged beside each frame, and a receipt that pins the camera checkpoint, the VQ
@@ -360,24 +386,25 @@
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="flux-conditioning" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="flux-conditioning" data-choice="nova-rect-grid-image" data-by="Simon McIntosh" data-when="2026-09-02">
     <p class="r-dec-q">How does the decoder see the solved flux geometry?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="camera-projected">labelled flux map projected into rbb pixel space via calibration (recommended if a calibration exists)</button>
-      <button class="r-opt" data-value="psi-raster-image">labelled flux map resampled from the hex mesh onto an (R,Z) raster as an image stack, geometry vector as auxiliary token</button>
+      <button class="r-opt" data-value="nova-rect-grid-image">nova evaluates &psi; on a rectangular (R,Z) grid built once for the Biot operation; coil and plasma-filament currents map onto it directly, no interpolation; labels and O/X/strike points ride alongside</button>
+      <button class="r-opt" data-value="camera-projected">labelled flux map projected into rbb pixel space via calibration</button>
+      <button class="r-opt" data-value="psi-raster-image">labelled flux map resampled in ambix from the hex mesh onto an (R,Z) raster</button>
       <button class="r-opt" data-value="geometry-vector">compact geometry vector only (LCFS moments, O/X-points, strike points)</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">Nova can define a rectangular grid once for the Biot operation, so the coil circuits and the plasma cell currents map onto that grid through their Green's functions exactly; ambix never resamples the hex mesh and no interpolation loss enters. Camera projection stays blocked on the missing rbb calibration (§4c); a geometry vector alone would discard the spatial map. Coordinated with the nova S19 coordinator as an addition to forward-solve-api §5 node C.</p>
     </div>
-<div class="r-dec" data-key="label-source" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="label-source" data-choice="nova-only" data-by="Simon McIntosh" data-when="2026-09-02">
     <p class="r-dec-q">Where do the decoder&#x27;s training flux geometries come from?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="efm-then-nova">efm EFIT flux surfaces for coverage now, physics gate proves nova is in-distribution, re-label from nova when bulk solving is cheap (recommended)</button>
-      <button class="r-opt" data-value="nova-only">nova solves only, restricted to the frozen-six carrier shots</button>
+      <button class="r-opt" data-value="efm-then-nova">efm EFIT flux surfaces for coverage now, re-label from nova when bulk solving is cheap</button>
+      <button class="r-opt" data-value="nova-only">nova solves only: a bulk nova label corpus at measured currents over the camera-corpus shots (§3b)</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">The decoder is trained on exactly the object it will be given at play time. No EFIT labels enter training; efm remains the held-out referee for the physics-fidelity gate only. Coverage comes from §3b, a bulk nova solve corpus batched on the H200 once traced currents land, not from the six frozen reference slices.</p>
     </div>
-<div class="r-dec" data-key="demo-shot" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="demo-shot" data-choice="21989" data-by="Simon McIntosh" data-when="2026-09-02">
     <p class="r-dec-q">Which MAST shot carries the demo? Must be in the nova frozen-six carrier and the converging set; §2a reports rbb video quality per candidate.</p>
     <p class="r-dec-opts">
       <button class="r-opt" data-value="21983">21983</button>
@@ -385,7 +412,7 @@
       <button class="r-opt" data-value="21986">21986</button>
       <button class="r-opt" data-value="21989">21989</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">Best-balanced converged carrier in the §2a census: saturation 5.72%, blank-like frames 0.8%, robust range 194, p90 frame motion 18.63 over 394 frames. 21983 is the bright runner-up. Nova's traced-current latency benchmark (node A) runs on 21989/55, so the same shot carries the physics-fidelity input.</p>
     </div>
 <div class="r-dec" data-key="profile-freeze" data-choice="frozen-efm-profiles" data-by="Simon McIntosh" data-when="2026-09-02">
     <p class="r-dec-q">What happens to p′, FF′ and plasma current when a coil is edited?</p>
