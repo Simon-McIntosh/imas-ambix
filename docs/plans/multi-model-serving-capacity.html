@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-02">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="12">
+<meta name="plan-version" content="13">
 <meta name="plan-commits" content="f63f3bae5c97aef7bf852404630eecb5f560b71f,b76d9cbfb26701fa98a54a2e34f7b74a327bbf0e,560038df708e4df868636da894965e4714e0c66c">
 <meta name="plan-artifacts" content="imas_ambix/agent/AGENTS.md,imas_ambix/agent/router.py,tests/test_agent_router_admission.py">
 </head>
@@ -184,6 +184,9 @@
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s2" data-id="c-run-r-20260901T103716792349-capacity-service-statement" data-who="s24-docs" data-when="2026-09-01T10:44:13Z">
     <div class="r-comment-body"><p>Serving guidance now describes both GLM deployments as they are (321 GiB INT4 / 704 GiB FP8, one served name, explicit precision) and carries the group-best-effort service statement with the measured core budget: two jobs alone hold 24 of 30 reserved cores</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260902T161106901782-per-profile-default-port" data-who="s24-capacity-impl" data-when="2026-09-02T16:20:09Z">
+    <div class="r-comment-body"><p>Each profile declares its own port so a serve needs only a slug, with an explicit option still overriding. Declared ports are asserted distinct across the whole profile directory, and a serve whose resolved port is already held refuses and names the holder rather than colliding at bind time. The four new tests moved from 3 failed to 4 passed, so they pin the gap rather than the outcome. 191/191, lint clean</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20260901-capacity-service-statement" data-who="reckon-ship" data-when="2026-09-01T12:52:00+00:00">
     <div class="r-comment-body">capacity-service-statement landed — commit f63f3ba; gate 'documentation content check' passed; measure 14/14 assertions over the rewritten guidance. The sub-tree guidance no longer calls both GLM profiles unusable stubs with unpublished weights: it records the four-card community INT4 requant at 321 GiB and the eight-card vendor FP8 release at 704 GiB, both downloaded, sharing served name glm-5.3 and differing only in checkpoint precision. It carries the locked audience statement — group-sized best effort on spare cards, no reserved floor, cancellable for a training campaign, admission sized for a handful of consumers, widening later a card-budget change rather than a redesign. The core thesis of §3 is now measured rather than argued: at 12:38 the reservation's 30 cores were held 8 by the DeepSeek serve and 16 by a co-running CPU-only job, leaving at most 6, so a 12-core serve could not be admitted even with four cards free. Cards were never the constraint. Artifacts imas_ambix/agent/AGENTS.md.</div>
