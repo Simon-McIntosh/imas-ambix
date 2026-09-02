@@ -427,6 +427,62 @@ def test_serve_refuses_a_port_held_by_running_router(monkeypatch):
     assert not submitted
 
 
+def test_serve_dry_run_refuses_a_port_held_by_running_job(monkeypatch):
+    from imas_ambix.agent import cli as cli_mod
+
+    runner = _serve_cli(monkeypatch, None)
+    monkeypatch.setattr(
+        cli_mod,
+        "_running_jobs",
+        lambda site: [
+            _live_job(
+                job_id="316",
+                name="existing-model",
+                port=18801,
+                gpus=2,
+            )
+        ],
+    )
+
+    result = runner.invoke(main, ["agent", "serve", "glm-5-3", "--dry-run"])
+
+    assert result.exit_code != 0
+    assert "existing-model" in result.output
+    assert "316" in result.output
+    assert "18801" in result.output
+    assert "#!/bin/bash" not in result.output
+
+
+def test_restart_forwards_serve_walltime_and_speculative_override(monkeypatch):
+    from types import SimpleNamespace
+
+    from imas_ambix.agent import cli as cli_mod
+
+    runner = _serve_cli(monkeypatch, None)
+    monkeypatch.setattr(
+        cli_mod.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""),
+    )
+
+    result = runner.invoke(
+        main,
+        [
+            "agent",
+            "restart",
+            "glm-5-2",
+            "--time",
+            "1:23:45",
+            "--no-speculative",
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "#SBATCH --time=1:23:45" in result.output
+    assert "--speculative-config" not in result.output
+
+
 def test_generate_vllm_2x_serve_script():
     """2x serve script requests 2 GPUs and TP=2."""
     from imas_ambix.agent.slurm import generate_serve_script
@@ -1545,6 +1601,7 @@ def test_agent_serve_dry_run_deepseek(monkeypatch):
         "load_profile",
         lambda slug: _with_checkpoint_precision(real_load_profile(slug)),
     )
+    monkeypatch.setattr(cli_mod, "_running_jobs", lambda site: [])
     runner = CliRunner()
     result = runner.invoke(main, ["agent", "serve", "deepseek-v4-flash", "--dry-run"])
     assert result.exit_code == 0

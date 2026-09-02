@@ -482,18 +482,18 @@ def serve(
         profile, site, port=resolved_port, api_key=resolved_key
     )
 
-    if dry_run:
-        if resolved_key:
-            script = script.replace(resolved_key, "****")
-        console.print(script, markup=False, highlight=False, soft_wrap=True)
-        return
-
     holder = _running_ambix_job_on_port(site, resolved_port)
     if holder is not None:
         raise click.ClickException(
             f"Port {resolved_port} is already held by running Ambix job "
             f"{holder['name']} (job {holder['jobid']})."
         )
+
+    if dry_run:
+        if resolved_key:
+            script = script.replace(resolved_key, "****")
+        console.print(script, markup=False, highlight=False, soft_wrap=True)
+        return
 
     try:
         job_id = submit_script(script)
@@ -1757,6 +1757,22 @@ def _deploy_launcher(name: str, path, content: str, mode: int = 0o755) -> None:
     "a co-running job could use. Probe with `srun --test-only` before "
     "committing to a value.",
 )
+@click.option(
+    "--time",
+    "time_limit",
+    default=None,
+    help="SLURM walltime for this serve, e.g. 3:00:00. Declaring far more than "
+    "the work needs makes the scheduler plan the node as occupied for that "
+    "long, so short jobs from other users pend behind it. Set it for a "
+    "measurement run; the profile default suits a persistent service.",
+)
+@click.option(
+    "--no-speculative",
+    is_flag=True,
+    help="Serve without speculative decoding. Drafting only pays for itself "
+    "when acceptance is high and the batch is large enough to amortise the "
+    "draft pass; below that it costs decode rate, so measure both ways.",
+)
 def restart(
     slug: str | None,
     dry_run: bool,
@@ -1765,6 +1781,8 @@ def restart(
     auth: bool,
     gpus: int | None,
     cpus: int | None,
+    no_speculative: bool,
+    time_limit: str | None,
 ) -> None:
     """Restart a model serving job (shutdown + serve).
 
@@ -1782,6 +1800,24 @@ def restart(
     if cpus is not None:
         profile = profile.model_copy(
             update={"slurm": profile.slurm.model_copy(update={"cpus": cpus})}
+        )
+    if time_limit:
+        profile = profile.model_copy(
+            update={
+                "slurm": profile.slurm.model_copy(update={"time_serve": time_limit})
+            }
+        )
+    if no_speculative:
+        profile = profile.model_copy(
+            update={
+                "engine": profile.engine.model_copy(
+                    update={
+                        "speculative_method": None,
+                        "speculative_num_tokens": None,
+                        "speculative_model": None,
+                    }
+                )
+            }
         )
     site = SiteConfig.from_env()
     resolved_port = port if port is not None else site.default_port
