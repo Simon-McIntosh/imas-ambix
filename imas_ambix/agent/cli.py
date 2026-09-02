@@ -8,6 +8,7 @@ import re
 import secrets
 import shlex
 import subprocess
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -691,6 +692,132 @@ def status(reveal: bool) -> None:
         console.print()
         console.print("[dim]other jobs[/]")
         console.print(ptable)
+
+
+def _resolve_log_job(selector: str | None, site: SiteConfig) -> dict[str, str]:
+    """Resolve a job id directly or a profile slug to its newest serve job."""
+    if selector is not None and re.fullmatch(r"\d+(?:_\d+)?", selector):
+        jobs = _running_jobs(site, job_ids=(selector,))
+        match = next((job for job in jobs if job["jobid"] == selector), None)
+        if match is None:
+            raise click.ClickException(f"No such Ambix job: {selector}.")
+        return match
+
+    slug = _resolve_slug(selector)
+    matches = [
+        job
+        for job in _running_jobs(site)
+        if job["name"] == slug
+        and _serve_port(job.get("comment", "")) is not None
+    ]
+    if not matches:
+        raise click.ClickException(
+            f"No such Ambix job: no active serve for profile {slug!r}."
+        )
+    return max(matches, key=lambda job: int(job["jobid"].split("_", maxsplit=1)[0]))
+
+
+def _job_stdout_path(job_id: str) -> Path | None:
+    """Read a job's resolved standard-output path from scheduler metadata."""
+    result = subprocess.run(
+        ["scontrol", "show", "job", "-o", job_id],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise click.ClickException(
+            result.stderr.strip() or f"Could not read metadata for Ambix job {job_id}."
+        )
+    for field in shlex.split(result.stdout):
+        key, separator, value = field.partition("=")
+        if key == "StdOut" and separator:
+            if not value or value in {"(null)", "None", "/dev/null"}:
+                return None
+            return Path(value)
+    return None
+
+
+def _print_job_log(
+    job: dict[str, str], path: Path, *, lines: int, follow: bool
+) -> None:
+    """Print the end of *path* and optionally continue as it grows."""
+    try:
+        stream = path.open("r", encoding="utf-8", errors="replace")
+    except FileNotFoundError as exc:
+        if job["state"] == "PENDING":
+            raise click.ClickException(
+                f"Ambix job {job['jobid']} exists but has not produced a log yet "
+                f"at {path}."
+            ) from exc
+        raise click.ClickException(
+            f"Ambix job {job['jobid']}'s recorded log is no longer readable: {path}."
+        ) from exc
+    except OSError as exc:
+        raise click.ClickException(
+            f"Ambix job {job['jobid']}'s recorded log is no longer readable: "
+            f"{path} ({exc})."
+        ) from exc
+
+    with stream:
+        empty = os.fstat(stream.fileno()).st_size == 0
+        if lines:
+            selected = deque(stream, maxlen=lines)
+        else:
+            stream.seek(0, os.SEEK_END)
+            selected = ()
+        if not follow and empty:
+            raise click.ClickException(
+                f"Ambix job {job['jobid']} exists but has not produced a log yet "
+                f"at {path}."
+            )
+
+        click.echo(f"Log: {path}")
+        for line in selected:
+            click.echo(line, nl=False)
+
+        if not follow:
+            return
+
+        import time
+
+        try:
+            while True:
+                chunk = stream.read()
+                if chunk:
+                    click.echo(chunk, nl=False)
+                else:
+                    time.sleep(0.5)
+        except KeyboardInterrupt:
+            return
+
+
+@agent.command()
+@click.argument("selector", required=False, default=None)
+@click.option(
+    "--follow",
+    "-f",
+    is_flag=True,
+    help="Keep showing output as the log grows.",
+)
+@click.option(
+    "--lines",
+    "-n",
+    type=click.IntRange(0),
+    default=100,
+    show_default=True,
+    help="Number of trailing lines to show before returning or following.",
+)
+def logs(selector: str | None, follow: bool, lines: int) -> None:
+    """Show an Ambix job log by profile slug or scheduler job id."""
+    site = SiteConfig.from_env()
+    job = _resolve_log_job(selector, site)
+    path = _job_stdout_path(job["jobid"])
+    if path is None:
+        raise click.ClickException(
+            f"Ambix job {job['jobid']} exists but has not produced a log yet."
+        )
+    _print_job_log(job, path, lines=lines, follow=follow)
 
 
 @agent.command()
