@@ -292,6 +292,46 @@
     inflating an aggregate. Artifacts: <code>smoke-fit.json</code>, <code>smoke-fit.pt</code>,
     <code>smoke-fit.log</code> in the run directory.</p>
 
+    <h2 id="s4b-train">§4b — Full-corpus training submitted (landed 2026-09-02)</h2>
+    <p>Codex implement node <code>pcp-labeller-train</code> (run
+    <code>r-20260902T154704941649-pcp-labeller-train</code>, gate passed) scaled the training path and
+    submitted it — commit <code>3d3181b</code>, merged <code>5233af7</code>. 8 tests pass (up from 5),
+    whole-tree ruff exit 0, <code>bash -n</code> on the launcher exit 0. New launcher:
+    <code>scripts/slurm/camera_topology_labeller_train.sbatch</code>.</p>
+
+    <p><strong>SLURM job 1261548</strong> — partition <code>betelgeuse</code>, reservation
+    <code>gpu_0003_grpA</code>, 1&nbsp;H200, 6 CPUs, 160&nbsp;G, 24&nbsp;h limit. State
+    <code>PENDING</code>, reason <code>Resources</code>: all eight accelerators are held by the serving
+    stack (glm-5-3 ×4, deepseek-v4-flash ×2, nemotron ×1) and by nova's <code>coil-edit-latency</code>
+    benchmark. Per the plan's compute constraint that is a successful submission, and the manifest
+    records explicitly that no job was cancelled, requeued, preempted, resized or displaced to make
+    room.</p>
+
+    <p><strong>The cohort was verified live, not assumed.</strong> The launcher resolved exactly 472
+    train shots / 1,163,812 frames and held out exactly 58 validation shots / 125,930 frames, matching
+    <a href="#s4b-cohort">the census</a> rather than trusting it.</p>
+
+    <p><strong>Four design properties decide whether the eventual gate number is trustworthy</strong>,
+    so they are recorded before any number exists: the corpus streams one shot at a time, so the
+    1.16M-frame split need not fit in host memory; target normalisation statistics are computed from the
+    train split <em>only</em>, so no validation statistic leaks into the fit; the <em>complete</em>
+    validation split is evaluated at initialisation and after every epoch rather than a subsample; and a
+    checkpoint is written only when held-out loss is measured below its initialisation value, so the
+    saved artifact cannot be a non-improving network. Future artifacts:
+    <code>/work/projects/imas_gpu/mast-checkpoints/camera-topology-labeller/1261548/training.json</code>
+    and <code>training-epoch-*.pt</code>.</p>
+
+    <h2 id="s4b-state">§4b — Where the section stands</h2>
+    <p>Five nodes landed: the target derivation, the cohort and confounder census, the divertor-bright
+    screen expansion, the labeller model with its smoke receipt, and the scaled training submission. All
+    four §6 robustness confounders are now powered and the labeller beats the brightness centroid on
+    both position channels at smoke scale.</p>
+    <p><strong>What remains, and why it is not done here.</strong> The §6 labeller-robustness gate needs
+    a checkpoint from job 1261548, which is queued behind a fully-allocated shared accelerator. The
+    second half of §4b's done-when — scoring the counterfactual gate <em>with</em> the qualified
+    labeller — additionally needs the decoder, and therefore §4 &larr; §3b &larr; nova's traced-current
+    seam. Neither is a defect in this section's work; both are inputs it does not own.</p>
+
   </main>
 </body>
 </html>

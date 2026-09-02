@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-02T17:38:43",
+  "updated": "2026-09-02T18:04:51",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -803,6 +803,17 @@
         "session_model": "gpt-5.6-sol",
         "sessions": {
           "gpt-5.6-sol": "01a062b0-95be-70e2-bcd5-0112dce36c6f"
+        },
+        "created": "2026-09-02"
+      },
+      {
+        "id": "pcp-labeller-train",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a062cd-98fe-76a2-bb63-0b41a38bb7bc",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a062cd-98fe-76a2-bb63-0b41a38bb7bc"
         },
         "created": "2026-09-02"
       },
@@ -20869,9 +20880,102 @@
           "role": "investigate",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260902T154704941649-pcp-labeller-train",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74b",
+        "node": "pcp-labeller-train",
+        "node_definition": {
+          "done_when": "sbatch returns a job id, squeue shows that job RUNNING or PENDING for queue contention rather than a rejected request, the launcher writes a first held-out checkpoint whose validation loss is below its initialisation value or the job is still pending in which case the queue state is reported instead, tests/worldmodel/test_camera_topology_labeller.py passes, uv run --no-sync ruff check imas_ambix tests exits 0, no job the plan does not own is cancelled or displaced",
+          "estimated_hours": null,
+          "goal": "Submit the full-corpus camera-topology-labeller training to the reserved H200 through a new sbatch launcher scaled past the smoke configuration, sized for the 472-shot 1,163,812-frame cohort train split with the 58-shot validation split held out",
+          "id": "pcp-labeller-train",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T154704941649-pcp-labeller-train/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74b",
+          "spec_level": "open",
+          "time_budget": "55m",
+          "write_paths": [
+            "scripts/slurm/camera_topology_labeller_train.sbatch",
+            "imas_ambix/worldmodel/camera_topology_labeller.py",
+            "tests/worldmodel/test_camera_topology_labeller.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "open",
+        "member": "pcp-labeller-train",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-02T15:47:15Z",
+        "completed_at": "2026-09-02T16:04:27Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1032,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1032,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "0d3d2b2f16b8513bbb7208a347107cc46ce01c01",
+        "commits": [
+          "3d3181bfb978da11bbef509862232ad6ad880d39"
+        ],
+        "changed_lines": {
+          "added": 649,
+          "removed": 22,
+          "files": 3
+        },
+        "tests_added": 3,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest -q tests/worldmodel/test_camera_topology_labeller.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T154704941649-pcp-labeller-train/after-pytest.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T154704941649-pcp-labeller-train/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a062cd-98fe-76a2-bb63-0b41a38bb7bc",
+        "budget": {
+          "cost_usd": null,
+          "detail": "",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 469
+    "_version": 472
   }
 }
