@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T23:27:34",
+  "updated": "2026-09-02T08:54:26",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -20035,9 +20035,93 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260902T063135074212-two-release-throughput-benchmark",
+        "plan": "multi-model-serving-capacity",
+        "section": "\u00a74",
+        "node": "two-release-throughput-benchmark",
+        "node_definition": {
+          "done_when": "A written report at /home/ITER/mcintos/.config/reckon/crew/reports/s24-throughput.md gives, for EACH of the two live releases, its single-stream output tokens per second and its aggregate tokens per second under concurrency, with the command and raw figures for every measurement. Use the repository's existing benchmark suite, 'imas-ambix agent bench', rather than writing a new client - the reuse map at /home/ITER/mcintos/.config/reckon/crew/reports/s24-reuse-map.md records it as the established harness with throughput, prefill, context, tools, reasoning and concurrency categories. The two releases are glm-5.3 on four cards at 98304 context and deepseek-v4-flash on two cards at 524288 context, both keyless. Benchmark each against its OWN engine origin rather than through the router, so the numbers measure the engine rather than the hop, and say explicitly that is what they measure. Run at least the throughput and concurrency categories for both, and repeat each measurement so a single sample is never the reported figure. Report a comparison table carrying, per release: single-stream output tokens per second, aggregate output tokens per second at concurrency, the concurrency level that produced it, and time to first token if the harness reports it. Note each release's card count beside its numbers, since one has twice the cards of the other and a reader will otherwise compare them as equals. Do not stop, resize or requeue any job: engines 1260990 and 1260660 and router 1261002 must all still be RUNNING at the end, and benchmarking must not evict them.",
+          "estimated_hours": null,
+          "goal": "Measure the token rates both live releases actually sustain",
+          "id": "two-release-throughput-benchmark",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T063135074212-two-release-throughput-benchmark/manifest.md",
+          "plan": "multi-model-serving-capacity",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a74",
+          "spec_level": "guided",
+          "time_budget": "55m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/s24-throughput.md"
+          ]
+        },
+        "role": "test",
+        "spec_level": "guided",
+        "member": "s24-capacity-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-02T06:31:42Z",
+        "completed_at": "2026-09-02T06:54:17Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1355,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1355,
+        "stalled": false,
+        "time_budget": "55m",
+        "base_sha": "76297c31530d2ba86bb6354e683fc666d35be293",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync imas-ambix agent bench --category throughput --category concurrency --repeat 2 against each engine origin",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T063135074212-two-release-throughput-benchmark/report-validation.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T063135074212-two-release-throughput-benchmark/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c9f-7fa0-7353-b56f-090a024d590c",
+        "budget": {
+          "cost_usd": null,
+          "detail": "",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "test",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 450
+    "_version": 451
   }
 }

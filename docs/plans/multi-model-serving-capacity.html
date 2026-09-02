@@ -23,9 +23,9 @@
   <title>Multi-Model Serving Capacity | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-09-01">
+<meta name="plan-modified" content="2026-09-02">
 <meta name="plan-impl" content="1.0">
-<meta name="plan-version" content="10">
+<meta name="plan-version" content="11">
 <meta name="plan-commits" content="f63f3bae5c97aef7bf852404630eecb5f560b71f,b76d9cbfb26701fa98a54a2e34f7b74a327bbf0e,560038df708e4df868636da894965e4714e0c66c">
 <meta name="plan-artifacts" content="imas_ambix/agent/AGENTS.md,imas_ambix/agent/router.py,tests/test_agent_router_admission.py">
 </head>
@@ -206,6 +206,9 @@
 serve-time-limit landed — commit 560038d; gate 'agent suite' passed; measure 186/186. Every profile had requested a seven-day serve window while the partition reports an infinite time limit, so the cap was self-imposed and would have truncated a healthy endpoint for no scheduler reason. All nine resolved profiles now request no finite cap, verified by a test-only submission rather than assumed, with download limits untouched because transfers are bounded work.
 
 The §3 thesis is now measured rather than argued: two jobs alone held 24 of the 30 reserved cores, so a serve at the profile's default core count could not be admitted at all while four cards sat idle. Full record: docs/evidence/archive/multi-model-serving-capacity-landed.html</div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260902T063135074212-two-release-throughput-benchmark" data-who="s24-capacity-impl" data-when="2026-09-02T06:54:17Z">
+    <div class="r-comment-body"><p>272/272 measurements, all repeated, zero failed requests, measured against each engine directly so the router hop is excluded. GLM-5.3 on 4 cards sustains 66.0 output tok/s single-stream at 44 ms TTFT and 746 aggregate at 32 streams; DeepSeek-V4-Flash on 2 cards sustains 133.3 and 1667 — 2.02x and 2.24x GLM on half the cards, the expected shape for a smaller speed-oriented release against a large MoE. One caveat retained rather than smoothed: GLM&#x27;s 32-stream TTFT was 9169 ms on the first repeat and 192 ms on the second with aggregate moving 669 to 822, so its concurrency behaviour is unsettled between warmup and node contention and should be re-measured on a quiet node before being quoted</p></div>
 </div>
 </section>
 </main>
