@@ -41,9 +41,19 @@
     control-conditioning diagnosis found the model largely ignoring the actuator plan. The command
     &rarr; geometry sensitivity is exactly what GS force balance gives for free and exactly what a learned
     latent must be coaxed into. So the split is: <strong>nova carries the physics transfer</strong>
-    (coil currents, plasma current and flux-function profiles in; &psi;(R,Z), LCFS, magnetic axis and
-    X-points out), and <strong>ambix learns only the rendering</strong> (solved flux geometry plus a
-    short frame history in; the next rbb frame out). The decoder never sees a coil current, so it
+    (coil currents, plasma current and flux-function profiles in; the full solved flux map with its
+    plasma-relevant topology labels out), and <strong>ambix learns only the rendering</strong> (the
+    labelled flux map plus a short frame history in; the next rbb frame out).</p>
+
+    <p><strong>The transfer object is the whole labelled flux map, not a boundary curve.</strong> What
+    crosses from nova to the decoder is &psi;(R,Z) on the full solve grid and its normalised form, together
+    with the topology nova reads from it: the O-point (magnetic axis), the primary X-point and any
+    secondary X-point, the LCFS, the strike points where the separatrix legs meet the wall, and the domain
+    labels for every cell — core, scrape-off layer, private flux region, wall shadow — plus the nested
+    interior flux surfaces. The camera sees emission from all of these regions (divertor legs and strike
+    points are the brightest features in the rbb view), so a decoder given only the LCFS would be asked to
+    hallucinate the rest. Given the labelled map it renders what the physics determines and learns only
+    brightness. The decoder never sees a coil current, so it
     cannot learn to ignore one.</p>
 
     <figure>
@@ -59,7 +69,7 @@
         <g fill="#111" text-anchor="middle">
           <text x="85" y="78">coil / circuit</text><text x="85" y="96">currents (edited)</text>
           <text x="305" y="72" font-weight="600">nova GS forward</text><text x="305" y="90">free boundary, ms</text><text x="305" y="108">p&#8242;, FF&#8242; frozen</text>
-          <text x="530" y="78">&psi;(R,Z), LCFS,</text><text x="530" y="96">axis, X-points</text>
+          <text x="530" y="72">full &psi;(R,Z) map +</text><text x="530" y="90">O/X-points, strike pts,</text><text x="530" y="108">domain labels</text>
           <text x="745" y="72" font-weight="600">flux-conditioned</text><text x="745" y="90">camera decoder</text><text x="745" y="108">+ frame history</text>
           <text x="910" y="78">rbb frame</text><text x="910" y="96">at 30 fps</text>
         </g>
@@ -117,6 +127,11 @@
     declared-anchor operator with prescribed p&#8242; and FF&#8242; from efm); the cached MAST carrier at
     <code>/work/projects/imas_gpu/sophelio/mast_frozen_six_response_carriers/</code>; and the
     persistent compilation cache switch <code>nova.jax.config.configure_persistent_compilation_cache</code>.
+    Confirm the domain-label authority on main (flood, census, private-flux mask, wall shadow on plasma
+    cells, commits <code>32f16b3b</code> and <code>260a8b44</code>) and the census-selected null polish
+    with its <code>polish_receipt</code> (<code>588578a0</code>): which labels and points (O-point,
+    primary and secondary X-points, strike points, per-cell domain class) <code>operator.read</code>
+    produces today, in what container, and at what cost per read.
     State whether <code>external_current</code> is a trace constant or a traced argument of the jitted
     solve at the current pin, what the warm-start entry is, and what a minimal ambix wrapper must pass so
     that the S20 defaults (current pin, compilation cache, cached machine, production seam) are honoured
@@ -143,20 +158,36 @@
       </tbody>
     </table>
 
+    <p><strong>Why a current change costs anything at all.</strong> Coils do not move; only their currents
+    change. The vacuum flux they produce is linear in the current vector — one precomputed Green's matrix
+    times the currents, a matmul at microsecond cost — and nova's operator already holds it in that form.
+    Two things cost more. First, a JAX tracing artefact: at the current pin the current vector is a
+    field on the operator, so the jitted solve bakes it in as a program constant and a new value is a new
+    program with a 340–390 s compile. Nothing physical is being recomputed; making the current vector a
+    traced argument removes this cost entirely and is the first demand below. Second, the plasma
+    response: when the vacuum field moves, the plasma current redistributes to restore force balance, and
+    that is the nonlinear GS solve. Warm-started from the previous edit it is a handful of Newton–Krylov
+    trips at ~0.8 ms each, which is the physical floor of an interactive edit and the reason the loop is
+    milliseconds rather than microseconds.</p>
+
     <p><strong>What this plan asks of nova, recorded on
     <a href="/nova/forward-solve-api.html">nova:forward-solve-api</a> as a consumer-facing section.</strong>
     (i) <code>external_current</code> as a traced argument of the jitted solve with static geometry, so a
     coil edit hits the compilation cache instead of recompiling; measured warm per-edit cost for one
     member, target tens of milliseconds. (ii) A warm-start policy seeding each edit from the previous
-    edit's converged state, with convergence measured across a coil sweep. (iii) LCFS and X-point
-    extraction carried in the solve receipt at no extra compile. Until (i) lands, the interactive lane in
+    edit's converged state, with convergence measured across a coil sweep. (iii) The full topology read
+    carried in the solve receipt at no extra compile: O-point, primary and secondary X-points, LCFS,
+    strike points, and the per-cell domain labels (core, scrape-off layer, private flux, wall shadow),
+    so the consumer never re-derives topology from &psi;. Until (i) lands, the interactive lane in
     §5 runs on precomputed sweeps; the moment it lands the same wrapper switches to live solves.</p>
 
     <p><strong>Ambix-side deliverable.</strong> A thin equilibrium-engine wrapper in
     <code>imas_ambix/physics/</code> that, for a MAST shot and time, assembles the nova operator from the
     cached carrier, takes the measured plasma current and the shot's efm p&#8242;/FF&#8242; at that time as
-    frozen flux functions, and exposes one call: coil-current vector in, flux geometry out (&psi; on the
-    grid, &psi;<sub>N</sub>, LCFS polygon, axis, X-points, topology class, and the nova receipt). It enables the
+    frozen flux functions, and exposes one call: coil-current vector in, labelled flux map out — &psi; on
+    the full grid, &psi;<sub>N</sub>, the O-point, primary and secondary X-points, LCFS polygon, strike
+    points, the per-cell domain labels, the interior flux-surface contours at a fixed set of
+    &psi;<sub>N</sub> levels, the topology class, and the nova receipt. It enables the
     persistent compilation cache and pins the nova revision at or above <code>588578a0</code>. It runs
     under <code>JAX_PLATFORMS=cuda,cpu</code> set inside the sbatch body. Done when, on the four
     converging frozen-six shots, the wrapper reproduces the efm LCFS at measured coil currents within the
@@ -164,10 +195,14 @@
 
     <h2 id="s4">§4 — The flux-conditioned camera decoder</h2>
     <p><strong>Conditioning representation (decision <code>flux-conditioning</code>).</strong> The
-    decoder must see the geometry in a form that generalises across coil edits. Candidates: (a) the
-    &psi;<sub>N</sub> field rasterised on the (R,Z) grid as an image channel; (b) a compact geometry vector
-    (LCFS Fourier moments, axis, X-points, class); (c) flux surfaces and the LCFS drawn into rbb camera
-    pixel space through the camera calibration, so the conditioning lives in the same frame as the output.
+    decoder must see the labelled flux map in a form that generalises across coil edits. In every
+    candidate the map is carried whole: &psi;<sub>N</sub> as a continuous channel and the domain labels
+    (core, scrape-off layer, private flux, wall shadow) as categorical channels, with the O-point,
+    X-points and strike points as marked positions. The candidates differ in the frame: (a) the channels
+    rasterised on the (R,Z) solve grid as an image stack; (b) a compact geometry vector (LCFS Fourier
+    moments, O/X-point and strike-point coordinates, class) — the lossy option, kept only as an auxiliary
+    token; (c) the channel stack projected into rbb camera pixel space through the camera calibration,
+    so the conditioning lives in the same frame as the output.
     Recommendation: (c) if §2a finds a usable rbb calibration, because a projected boundary aligns
     spatially with the emission it explains and lets a small decoder learn a local mapping; otherwise (a)
     with (b) as an auxiliary token. The decision is locked on §2a's finding, not before.</p>
@@ -255,9 +290,9 @@
       <div class="r-dec" data-key="flux-conditioning" data-choice="" data-by="" data-when="">
         <p class="r-dec-q">How does the decoder see the solved flux geometry?</p>
         <p class="r-dec-opts">
-          <button class="r-opt" data-value="camera-projected">flux surfaces + LCFS drawn in rbb pixel space via calibration (recommended if a calibration exists)</button>
-          <button class="r-opt" data-value="psi-grid-image">&psi;<sub>N</sub>(R,Z) grid as an image channel, geometry vector as auxiliary token</button>
-          <button class="r-opt" data-value="geometry-vector">compact geometry vector only (LCFS moments, axis, X-points)</button>
+          <button class="r-opt" data-value="camera-projected">labelled flux map projected into rbb pixel space via calibration (recommended if a calibration exists)</button>
+          <button class="r-opt" data-value="psi-grid-image">labelled flux map on the (R,Z) grid as an image stack, geometry vector as auxiliary token</button>
+          <button class="r-opt" data-value="geometry-vector">compact geometry vector only (LCFS moments, O/X-points, strike points)</button>
         </p>
         <p class="r-dec-rat"></p>
       </div>
