@@ -198,6 +198,7 @@ class SlurmDefaults(BaseModel):
     gpus: int = 4
     cpus: int = 30
     memory: str = "640G"
+    port: int | None = Field(default=None, ge=1, le=65535)
     time_serve: str = "7-00:00:00"
     time_download: str = "24:00:00"
 

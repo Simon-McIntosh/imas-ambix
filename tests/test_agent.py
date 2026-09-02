@@ -323,6 +323,71 @@ def test_serve_rejects_the_retired_negative_flag(monkeypatch):
     assert result.exit_code != 0
 
 
+def test_serve_uses_profile_port_without_an_override(monkeypatch):
+    runner = _serve_cli(monkeypatch, None)
+
+    result = runner.invoke(main, ["agent", "serve", "glm-5-3", "--dry-run"])
+
+    assert result.exit_code == 0
+    assert "#SBATCH --comment=ambix-serve;port=18801" in result.output
+
+
+def test_explicit_serve_port_overrides_profile(monkeypatch):
+    runner = _serve_cli(monkeypatch, None)
+
+    result = runner.invoke(
+        main,
+        ["agent", "serve", "glm-5-3", "--port", "19999", "--dry-run"],
+    )
+
+    assert result.exit_code == 0
+    assert "#SBATCH --comment=ambix-serve;port=19999" in result.output
+
+
+def test_every_profile_declares_a_distinct_port():
+    profiles = [load_profile(slug) for slug in list_profiles()]
+    declared = {profile.slug: profile.slurm.port for profile in profiles}
+
+    assert all(port is not None for port in declared.values())
+    assert len(set(declared.values())) == len(declared), declared
+
+
+def test_serve_refuses_a_port_held_by_running_serve(monkeypatch):
+    from imas_ambix.agent import cli as cli_mod
+    from imas_ambix.agent import slurm as slurm_mod
+
+    runner = _serve_cli(monkeypatch, None)
+    monkeypatch.setattr(
+        cli_mod,
+        "_running_jobs",
+        lambda site: [
+            _live_job(
+                job_id="314",
+                name="existing-model",
+                port=18801,
+                gpus=2,
+            )
+        ],
+    )
+
+    submitted = False
+
+    def unexpected_submit(script):
+        nonlocal submitted
+        submitted = True
+        return "315"
+
+    monkeypatch.setattr(slurm_mod, "submit_script", unexpected_submit)
+
+    result = runner.invoke(main, ["agent", "serve", "glm-5-3"])
+
+    assert result.exit_code != 0
+    assert "existing-model" in result.output
+    assert "314" in result.output
+    assert "18801" in result.output
+    assert not submitted
+
+
 def test_generate_vllm_2x_serve_script():
     """2x serve script requests 2 GPUs and TP=2."""
     from imas_ambix.agent.slurm import generate_serve_script

@@ -469,7 +469,13 @@ def serve(
             }
         )
     site = SiteConfig.from_env()
-    resolved_port = port if port is not None else site.default_port
+    resolved_port = (
+        port
+        if port is not None
+        else profile.slurm.port
+        if profile.slurm.port is not None
+        else site.default_port
+    )
     resolved_key = _resolve_serve_auth(auth, api_key, site)
     script = generate_serve_script(
         profile, site, port=resolved_port, api_key=resolved_key
@@ -480,6 +486,13 @@ def serve(
             script = script.replace(resolved_key, "****")
         console.print(script, markup=False, highlight=False, soft_wrap=True)
         return
+
+    holder = _running_serve_on_port(site, resolved_port)
+    if holder is not None:
+        raise click.ClickException(
+            f"Port {resolved_port} is already held by running Ambix serve "
+            f"{holder['name']} (job {holder['jobid']})."
+        )
 
     try:
         job_id = submit_script(script)
@@ -868,6 +881,18 @@ def _serve_port(comment: str) -> int | None:
     except ValueError:
         return None
     return port if 1 <= port <= 65535 else None
+
+
+def _running_serve_on_port(
+    site: SiteConfig, port: int
+) -> dict[str, str] | None:
+    """Return the running Ambix serve that owns *port*, if one exists."""
+    for job in _running_jobs(site):
+        if job.get("state") != "RUNNING":
+            continue
+        if _serve_port(job.get("comment", "")) == port:
+            return job
+    return None
 
 
 def _batch_script_port(job_id: str) -> int | None:
