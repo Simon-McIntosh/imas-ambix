@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-02">
-<meta name="plan-version" content="7">
+<meta name="plan-version" content="8">
 <meta name="plan-impl" content="0.25">
 </head>
 <body>
@@ -311,6 +311,37 @@
     topology from video for any shot, including shots without magnetics, which is the observation the
     magnetics-free recovery plans lack. Done when the labeller gate in §6 passes and the counterfactual
     gate is scored with it.</p>
+
+    <p><strong>Currency findings against the tree (2026-09-02), which shape the nodes.</strong></p>
+    <ol>
+      <li><strong>The labels on disk are machine coordinates in metres, so the gate needs no
+      calibration.</strong> <code>imas_ambix/worldmodel/equilibrium_labels.py</code> returns a 14-D
+      target — <code>axis_R, axis_Z</code>, an order-invariant two-slot X-point set, and 8 LCFS control
+      radii — in metres, with a per-component finite mask and masked (never imputed) absences. The
+      labeller therefore regresses (R,Z) in metres and the §6 &ldquo;&le; 3 cm equivalent&rdquo; measure
+      is native. This <em>supersedes</em> the &ldquo;regressed as image-frame positions&rdquo; fallback
+      above: pixel-space outputs would have left the pre-registered gate unmeasurable.</li>
+      <li><strong>Strike points, the topology class and X-point ordering are absent, and all three are
+      derivable.</strong> Neither the reader nor the L2 <code>equilibrium</code> group carries a strike
+      point or a class, and the two X-point slots are unordered, so &ldquo;primary X-point&rdquo; is not
+      directly available either. What the group does carry — <code>psi</code>,
+      <code>lcfs_r</code>/<code>lcfs_z</code>, <code>x_point_r</code>/<code>x_point_z</code> and the
+      top-level <code>wall</code> group — is sufficient, reusing
+      <code>imas_ambix/latent/topology.py</code>: <code>read_topology</code> already returns this exact
+      14-D layout plus the boundary flux and the full O/X critical-point set with its &psi; values, and
+      <code>classify_regions</code> labels core/private/SOL cells by connectivity rather than by &psi;
+      height. Deriving the three is a target-derivation node ahead of the labeller, not new physics.</li>
+      <li><strong>The missing calibration makes one §6 confounder two-termed.</strong> An uncalibrated
+      (R,Z) regression learns the camera projection from the paired data, so the held-out-campaign
+      confounder varies camera pose and plasma appearance together. The gate stands exactly as
+      pre-registered; its evidence must report the campaign term separately from the brightness,
+      divertor-bright and puff confounders, so a camera that moved between campaigns is not recorded as
+      a labeller failure.</li>
+      <li><strong>The done-when has two halves and only one is executable now.</strong> The labeller and
+      its own §6 robustness gate need nothing from nova. Scoring the counterfactual gate with the
+      labeller needs the decoder (§4 &larr; §3b &larr; nova traced currents) and stays open behind that
+      chain.</li>
+    </ol>
 
     <h2 id="s5">§5 — The interaction loop</h2>
     <p><strong>One lane: live solves.</strong> The drive surface from the playable demo (edit a
