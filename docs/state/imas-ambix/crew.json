@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-02T18:43:39",
+  "updated": "2026-09-02T20:14:44",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -21495,9 +21495,112 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260902T164419659119-agent-logs-command",
+        "plan": "multi-model-serving-capacity",
+        "section": "\u00a72",
+        "node": "agent-logs-command",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_logs.py -q exits 0, uv run --no-sync pytest tests/test_agent.py -q still exits 0, and uv run --no-sync ruff check imas_ambix tests --no-cache exits 0. Reading a serve's output currently means asking the scheduler for a job's standard-output path by hand and hoping the file is still there, which is how a running router's entire log was lost when the directory it had been launched from was cleaned up. Add a logs command under the existing agent group, alongside status and shutdown, resolving a job the same way those already do: with no argument the default profile's serve, with a profile slug that model's serve, and accepting a job id for anything else including a router. It shows the log's path and its contents, supports following output as it grows, and takes an option to limit how many trailing lines are shown so a very large log does not flood a terminal. Failure modes must be distinguishable rather than collapsed into one message: no such job, a job that exists but has produced no log yet, and a log path that is recorded but no longer readable, each say which. Tests assert the command resolves a serve from a slug, resolves a router by job id, prints the resolved path, honours the trailing-line limit, and reports each of the three failure modes distinctly. Do not shell out to a pager and do not change any other command.",
+          "estimated_hours": null,
+          "goal": "Give the operator one command that finds and shows an ambix job's log",
+          "id": "agent-logs-command",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T164419659119-agent-logs-command/manifest.md",
+          "plan": "multi-model-serving-capacity",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "35m",
+          "write_paths": [
+            "imas_ambix/agent/cli.py",
+            "tests/test_agent_logs.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "s24-capacity-impl",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-02T16:44:40Z",
+        "completed_at": "2026-09-02T16:54:16Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 576,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 576,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "e653f464c4a082e67cac7c61b1051d44f80d574a",
+        "commits": [
+          "a52b7747e9db5b883e5b7524564ce539d9221b60"
+        ],
+        "changed_lines": {
+          "added": 323,
+          "removed": 0,
+          "files": 2
+        },
+        "tests_added": 9,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_logs.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T164419659119-agent-logs-command/manifest.md",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T164419659119-agent-logs-command/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c9f-7fa0-7353-b56f-090a024d590c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 540288,
+            "cached_input_tokens_cumulative": 3293184,
+            "input_tokens": 491980,
+            "input_tokens_cumulative": 3347183,
+            "output_tokens": 5208,
+            "output_tokens_cumulative": 16240,
+            "reasoning_output_tokens": 3557,
+            "reasoning_output_tokens_cumulative": 6215
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_logs.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 480
+    "_version": 481
   }
 }

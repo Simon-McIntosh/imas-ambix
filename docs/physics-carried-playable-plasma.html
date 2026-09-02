@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-02">
-<meta name="plan-version" content="22">
+<meta name="plan-version" content="23">
 <meta name="plan-impl" content="0.6">
 </head>
 <body>
@@ -519,6 +519,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20260902T1640-nova-a-c-landed" data-who="reckon-ship" data-when="2026-09-02T16:40:00+02:00">
     <div class="r-comment-body">Nova nodes A and C on main: 6af77248 adds ForwardProfile.solve(..., prescribed_current=101-circuit vector) and solve_branch with replacement semantics (None keeps the stored vector); 6fb07a40 adds ForwardEquilibrium.labelled_flux carrying psi, psi_norm, O/X points, LCFS polyline with lcfs_vertex_count, strike points and four-way core/private_flux/wall_shadow/open labels. Receipt docs/figures/forward-solve-api/coil-edit-latency.json (nova): a coil-current edit never recompiles (compile count 1, constant executable identity across 21 edits, cache hits after the first). BAD: on 21989/55 a warm re-solve costs 21 to 68 s per edit (2 to 16 active-set trips) and none of 21 edits converged; the regenerated bank classes 21989/55 as a stagnating limited row, contradicting the converging-set placement the demo-shot decision rested on. The raster path publishes zero LCFS vertices for now: use psi_norm plus labels for the boundary. Nova guidance: do not build the interactive loop against this latency; the millisecond regime is gated by the convergence decision on nova:solver-convergence-regression; 22086/43 mixed is a converging arm and P4/P5 are boundary-coupled circuits for integration work now. Demo-shot decision needs the lead's re-ruling.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20260902T1715-nova-handoff" data-who="reckon-ship" data-when="2026-09-02T17:15:00+02:00">
+    <div class="r-comment-body">Nova S19 coordinator session closed 2026-09-02; the lead relaunches nova S19 in a fresh session. The consumer promise is written for the successor at nova docs/research/convergence-stall-handoff.html (forward-solve-api followup f-fsa-002): imas-ambix receives a SHA when a converging arm plus warm start gives a per-edit latency worth wrapping, and the raster LCFS polyline when node C2 lands. Nova's standing guidance until then: build the wrapper against 6af77248 using psi_norm plus labels for the boundary, on a converging mixed arm (nova names 22086/43; 21978/35 mixed also converges and has the better rbb video), and do not build the interactive loop against the current trip-loop latency.</div>
 </div>
 <div class="r-comment" data-section="§4b" data-id="c-run-r-20260902T135140055700-pcp-topology-targets" data-who="pcp-topology-targets" data-when="2026-09-02T14:14:06Z">
     <div class="r-comment-body"><p>1,360 boundary-defined frames over 21983/21985/21986/21989; primary-null and complete-strike yield 84.49%, non-yield exactly equal to the limited-class count in every shot; 5 tests pass, whole-tree ruff 0</p></div>
