@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-02T09:05:58",
+  "updated": "2026-09-02T09:18:24",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -20221,9 +20221,111 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260902T071024756157-restore-serving-grammar-guard",
+        "plan": "serving-endpoint-indirection",
+        "section": "\u00a74",
+        "node": "restore-serving-grammar-guard",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent_serve_registry.py -q exits 0, uv run --no-sync ruff check imas_ambix tests --no-cache exits 0, and every module under imas_ambix/agent parses at feature_version 3.12. Two faults, and the second is the serious one. FIRST, imas_ambix/agent/registry.py line 285 has reintroduced the unparenthesized multi-exception form that only Python 3.14 accepts. That module is imported by the generated serve script ON THE COMPUTE NODE under the vLLM environment pinned to 3.12, where it is a hard SyntaxError, and this exact form already killed serve job 1260703. Parenthesize it. SECOND, the guard that should have caught this asserts an exact module count of 16 while the package now holds 17, and that assertion runs BEFORE the parse loop, so the count failure masked the real syntax defect entirely. Remove the brittle count and assert the property the guard is for: every module discovered under the package parses at the serving feature version, with any failure naming the file and line. Adding a module must never fail this test, and a module with newer syntax must always fail it. Keep deriving the feature version from the serving environment's own requires-python rather than hardcoding it, and keep the inline negative control proving the guard still rejects the offending form.",
+          "estimated_hours": null,
+          "goal": "Make the serving-grammar guard catch what it exists for instead of failing on a module count",
+          "id": "restore-serving-grammar-guard",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T071024756157-restore-serving-grammar-guard/manifest.md",
+          "plan": "serving-endpoint-indirection",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/agent/registry.py",
+            "tests/test_agent_serve_registry.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "s24-router-impl",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-02T07:10:40Z",
+        "completed_at": "2026-09-02T07:18:21Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 461,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 461,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "1d4f12706882356d8a8af18de591da56094c6c6d",
+        "commits": [
+          "262b93fc9d98ff4056566d88ad1ee099f277cdb0"
+        ],
+        "changed_lines": {
+          "added": 1,
+          "removed": 6,
+          "files": 2
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_serve_registry.py -q plus a derived-feature grammar sweep",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T071024756157-restore-serving-grammar-guard/manifest.md",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T071024756157-restore-serving-grammar-guard/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c83-5de8-74c3-a1d9-db6b19b95c3e",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 2120576,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 2322608,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 5971,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 1113
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent_serve_registry.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 452
+    "_version": 453
   }
 }
