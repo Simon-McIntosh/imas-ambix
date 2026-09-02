@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-02T09:18:24",
+  "updated": "2026-09-02T09:23:19",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -20323,9 +20323,99 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260902T071138548273-document-serving-interpreter-constraint",
+        "plan": "serving-endpoint-indirection",
+        "section": "\u00a74",
+        "node": "document-serving-interpreter-constraint",
+        "node_definition": {
+          "done_when": "imas_ambix/agent/AGENTS.md gains a section stating the constraint, and a check confirms every claim in it against the tree rather than restating this brief. The constraint has now been violated three separate times, and the reason is that every signal points the other way: the project pyproject declares requires-python at 3.14 and sets the ruff target to py314, while the sub-tree guidance mentions 3.12 only once, as an operating-system fact inside a hardware table. So a worker writing a module here has nothing telling them a subset of it runs under an older interpreter. Write that section. It must state: which interpreter the generated serve script runs modules under and where that pin is declared, determined by reading the serving environment's own project file rather than repeating a number from this brief; which repository modules are imported on the compute node, determined by reading what the generated script actually imports rather than guessing; that syntax newer than that interpreter is a hard failure at import time on the node even though the project targets a newer version and the whole-tree lint passes; the concrete form that has caused it three times, with a correct and an incorrect example; and the command that checks it, so a reader can verify before committing rather than after a serve dies. Keep it short and put it where someone editing these modules will meet it, not at the end. Name no plan, sprint, ticket or job id, and describe the rule and its mechanism rather than the history of who hit it.",
+          "estimated_hours": null,
+          "goal": "State the serving-interpreter constraint where someone editing these modules will actually see it",
+          "id": "document-serving-interpreter-constraint",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T071138548273-document-serving-interpreter-constraint/manifest.md",
+          "plan": "serving-endpoint-indirection",
+          "requires_decisions": [],
+          "role": "documentation",
+          "section": "\u00a74",
+          "spec_level": "guided",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/agent/AGENTS.md"
+          ]
+        },
+        "role": "documentation",
+        "spec_level": "guided",
+        "member": "s24-docs",
+        "backend": "codex",
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-02T07:11:45Z",
+        "completed_at": "2026-09-02T07:23:09Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 684,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 684,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "1d4f12706882356d8a8af18de591da56094c6c6d",
+        "commits": [
+          "4619a60d3aa1de93f58a71116fdcea54aa9ba9e2"
+        ],
+        "changed_lines": {
+          "added": 37,
+          "removed": 1,
+          "files": 1
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "inline tree-backed audit of every documentation claim",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T071138548273-document-serving-interpreter-constraint/after-doc-check.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T071138548273-document-serving-interpreter-constraint/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c8b-9816-73c1-9a1c-6c01b0721354",
+        "budget": {
+          "cost_usd": null,
+          "detail": "",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "documentation",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 453
+    "_version": 454
   }
 }
