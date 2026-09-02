@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-02">
-<meta name="plan-version" content="16">
+<meta name="plan-version" content="17">
 <meta name="plan-impl" content="0.6">
 </head>
 <body>
@@ -488,9 +488,15 @@
     <pre class="r-fu-prompt">/reckon-ship physics-carried-playable-plasma §2</pre>
     <p class="r-fu-outcome">Both §2 survey nodes landed (reuse map 23 candidates; nova seam census 25 symbols) and the three decisions are locked by the lead: flux-conditioning = nova rectangular Biot grid, label-source = nova only, demo-shot = 21989. Implementation nodes are cut in f-pcp-02 behind nova's traced-current SHA.</p>
     </article>
-<article class="r-fu" data-id="f-pcp-02" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-02" data-recommends-skill="/reckon-ship physics-carried-playable-plasma §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-pcp-02" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-02" data-recommends-skill="/reckon-ship physics-carried-playable-plasma §3" data-resolved-at="2026-09-02T16:08:29+00:00" data-resolved-by="">
     <h4 class="r-fu-title">Cut the §3, §3b, §4, §4b and §5 implementation nodes once nova&#x27;s traced-current SHA lands</h4>
     <div class="r-fu-body"><p>Exemption <strong>foreign-owner</strong>: the first executable node (the §3 equilibrium-engine wrapper) is scheduled behind nova node A (<code>fsa-traced-current</code>, run r-20260902T130141772929) on nova:forward-solve-api §5; the nova S19 coordinator sends the merge SHA as it lands. On receipt: dispatch §3 wrapper against that SHA, §4b labeller (no nova dependency) immediately, §3b label corpus after the wrapper, §4 decoder after §3b, §5 loop after C2 and B.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship physics-carried-playable-plasma §3</pre>
+    <p class="r-fu-outcome">Partially discharged: §4b is done and never waited on nova. Five §4b nodes landed 2026-09-02 — targets b7a0567, cohort census, divertor screen, labeller a738471, scaled training 3d3181b — all four §6 confounders are now powered, and the labeller beats the brightness centroid on both position channels at smoke scale (primary null 49.7 cm vs 81.6 cm). Remaining §4b work is the robustness gate scoring behind queued SLURM job 1261548, plus the counterfactual half that needs the decoder. The §3, §3b, §4 and §5 clauses remain foreign-owner behind nova and carry forward to f-pcp-03.</p>
+    </article>
+<article class="r-fu" data-id="f-pcp-03" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-02" data-recommends-skill="/reckon-ship physics-carried-playable-plasma §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Cut the §3, §3b, §4 and §5 nodes once nova&#x27;s traced-current SHA carries both the solve keyword and the latency receipt</h4>
+    <div class="r-fu-body"><p>Exemption <strong>foreign-owner</strong>: &sect;3 (equilibrium-engine wrapper), &sect;3b (label corpus), &sect;4 (decoder) and &sect;5 (interaction loop) are scheduled behind nova node A on nova:forward-solve-api &sect;5. The nova S19 coordinator sends the merge SHA; it must carry BOTH the solve-level keyword on <code>ForwardProfile.solve</code> and the 21989/55 per-edit latency receipt. Nova's <code>coil-edit-latency</code> benchmark was observed running on betelgeuse 2026-09-02 (job 1261545). Do not build against nova <code>dea56390</code> alone.</p><p>On receipt: dispatch &sect;3 wrapper against that SHA, &sect;3b label corpus after the wrapper, &sect;4 decoder after &sect;3b, &sect;5 loop after C2 and B.</p><p><strong>Constraint the &sect;4b census imposes on &sect;3b and &sect;4:</strong> the flux-conditioned decoder corpus must SUBTRACT the full 718-shot labeller cohort, because every one of those shots appears in the broad unified world-model manifest (<code>curated_windows_unified_6cam</code>, 7,664 rbb shots). Reusing that manifest unfiltered would train the decoder on the referee's shots and void the firewall. The frozen VQ decoder itself is baseline ImageNet OpenMAGVIT2 with no rbb fine-tuning and leaks nothing.</p></div>
     <pre class="r-fu-prompt">/reckon-ship physics-carried-playable-plasma §3</pre>
     </article>
 </section>
