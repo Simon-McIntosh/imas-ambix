@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-02T14:46:22",
+  "updated": "2026-09-02T17:12:58",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -774,6 +774,17 @@
         "created": "2026-09-02"
       },
       {
+        "id": "pcp-frame-census",
+        "harness": "codex",
+        "role": "investigate",
+        "session_id": "01a06264-3d91-7742-9cb7-df884f0f67d6",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a06264-3d91-7742-9cb7-df884f0f67d6"
+        },
+        "created": "2026-09-02"
+      },
+      {
         "id": "pcp-nova-scout",
         "harness": "codex",
         "role": "investigate",
@@ -781,6 +792,17 @@
         "session_model": "gpt-5.6-sol",
         "sessions": {
           "gpt-5.6-sol": "01a06216-037c-7ac3-93cd-b9102e7fac5a"
+        },
+        "created": "2026-09-02"
+      },
+      {
+        "id": "pcp-topology-targets",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a06264-1e57-7242-a9a8-e29ffeb9e9f2",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "gpt-5.6-sol": "01a06264-1e57-7242-a9a8-e29ffeb9e9f2"
         },
         "created": "2026-09-02"
       },
@@ -20625,9 +20647,209 @@
           "role": "investigate",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260902T135140055700-pcp-topology-targets",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74b",
+        "node": "pcp-topology-targets",
+        "node_definition": {
+          "done_when": "tests/worldmodel/test_camera_topology_targets.py passes, uv run --no-sync ruff check imas_ambix tests exits 0, a recorded census over converged frozen-six shots 21983/21985/21986/21989 reports per shot the topology-class distribution, the primary-X-point yield fraction, the strike-point yield fraction over frames whose L2 boundary flux is defined",
+          "estimated_hours": null,
+          "goal": "Emit a per-camera-frame topology target module carrying the ordered primary X-point, the strike points, the topology class, derived from the L2 equilibrium flux map, boundary contour, null coordinates, wall, by reusing latent/topology.py read_topology, classify_regions, lcfs_contour, boundary_flux",
+          "id": "pcp-topology-targets",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T135140055700-pcp-topology-targets/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74b",
+          "spec_level": "open",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/worldmodel/camera_topology_targets.py",
+            "tests/worldmodel/test_camera_topology_targets.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "open",
+        "member": "pcp-topology-targets",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-02T13:52:02Z",
+        "completed_at": "2026-09-02T14:14:06Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1324,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1324,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "ea7d764c646e7cd010035c1f20ce70a3ec3f6b3a",
+        "commits": [
+          "b7a0567e00c6b791e4bddcfdaca86f89a49f2bea"
+        ],
+        "changed_lines": {
+          "added": 648,
+          "removed": 0,
+          "files": 2
+        },
+        "tests_added": 5,
+        "gate": "passed",
+        "gate_check": {
+          "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=\"$PWD\" uv run --no-sync pytest tests/worldmodel/test_camera_topology_targets.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T135140055700-pcp-topology-targets/pytest-target.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T135140055700-pcp-topology-targets/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a06264-1e57-7242-a9a8-e29ffeb9e9f2",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 7397376,
+            "cached_input_tokens_cumulative": 7397376,
+            "input_tokens": 7571297,
+            "input_tokens_cumulative": 7571297,
+            "output_tokens": 33850,
+            "output_tokens_cumulative": 33850,
+            "reasoning_output_tokens": 9721,
+            "reasoning_output_tokens_cumulative": 9721
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
+      },
+      {
+        "run_id": "r-20260902T135147372409-pcp-frame-census",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74b",
+        "node": "pcp-frame-census",
+        "node_definition": {
+          "done_when": "the report exists at /home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/labeller-cohort-census.md carrying per-subset frame counts, the shot list for each split, the MAST campaign each listed shot belongs to, the measured selection rule behind each confounder subset, an explicit statement of which rbb shots overlap the decoder training corpus",
+          "estimated_hours": null,
+          "goal": "Write the labeller cohort census fixing the decoder-disjoint shot split, the four \u00a76 confounder subsets (brightness-scaled, divertor-bright, gas-puff, held-out-campaign), with per-subset frame counts measured from the rbb corpus",
+          "id": "pcp-frame-census",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T135147372409-pcp-frame-census/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "investigate",
+          "section": "\u00a74b",
+          "spec_level": "guided",
+          "time_budget": "20m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/labeller-cohort-census.md"
+          ]
+        },
+        "role": "investigate",
+        "spec_level": "guided",
+        "member": "pcp-frame-census",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "read-only"
+        },
+        "dispatched_at": "2026-09-02T13:52:09Z",
+        "completed_at": "2026-09-02T14:18:20Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1571,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1571,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "ea7d764c646e7cd010035c1f20ce70a3ec3f6b3a",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "python structural census validation: split disjointness, exact split frame totals, gas-puff membership and containment",
+          "exit_status": 0,
+          "log_path": null,
+          "log_digest": "sha256:90f58cab3da7d7874495f40355e5a7c6c3dd947aa1bd50d98e2f4f5bf606185f"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T135147372409-pcp-frame-census/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a06264-3d91-7742-9cb7-df884f0f67d6",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 6969472,
+            "cached_input_tokens_cumulative": 6969472,
+            "input_tokens": 7219209,
+            "input_tokens_cumulative": 7219209,
+            "output_tokens": 41638,
+            "output_tokens_cumulative": 41638,
+            "reasoning_output_tokens": 13874,
+            "reasoning_output_tokens_cumulative": 13874
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "no_commit": "investigate role in a read-only sandbox; the delivery is the census report, not a tracked repository change",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": false,
+          "matched_measure": null,
+          "override": false,
+          "role": "investigate",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 459
+    "_version": 465
   }
 }
