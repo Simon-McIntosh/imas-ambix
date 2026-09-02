@@ -19,7 +19,8 @@
   <meta name="plan-sprint"    content="S19">
   <meta name="plan-owner"     content="Simon McIntosh">
   <meta name="plan-tags"      content="world-model,nova-consumer,equilibrium">
-  <meta name="plan-depends-on" content="playable-plasma-wm-v0,nova-physics-consumer-integration,nova:forward-solve-api">
+  <meta name="plan-depends-on" content="playable-plasma-wm-v0,nova-physics-consumer-integration,nova:forward-solve-api#s5">
+  <meta name="plan-graph-handle" content="play-the-plasma">
   <title>Physics-Carried Playable Plasma | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
@@ -49,11 +50,15 @@
     crosses from nova to the decoder is &psi;(R,Z) on the full solve grid and its normalised form, together
     with the topology nova reads from it: the O-point (magnetic axis), the primary X-point and any
     secondary X-point, the LCFS, the strike points where the separatrix legs meet the wall, and the domain
-    labels for every cell — core, scrape-off layer, private flux region, wall shadow — plus the nested
-    interior flux surfaces. The camera sees emission from all of these regions (divertor legs and strike
+    labels the solve resolves on its unstructured hex mesh — core, private flux region, wall shadow, and
+    open field everywhere else outside the LCFS — plus the nested interior flux surfaces. The scrape-off
+    layer is deliberately not a label: it is thinner than a hex cell and the mesh cannot resolve it, so
+    the decoder learns edge emission from &psi;<sub>N</sub> and the boundary position, not from a class the
+    physics cannot supply. The camera sees emission from all of these regions (divertor legs and strike
     points are the brightest features in the rbb view), so a decoder given only the LCFS would be asked to
     hallucinate the rest. Given the labelled map it renders what the physics determines and learns only
-    brightness. The decoder never sees a coil current, so it
+    brightness. The map arrives on nova's hex mesh; any rasterisation or camera projection is ambix's job
+    and happens after the boundary, never inside nova. The decoder never sees a coil current, so it
     cannot learn to ignore one.</p>
 
     <figure>
@@ -177,17 +182,22 @@
     member, target tens of milliseconds. (ii) A warm-start policy seeding each edit from the previous
     edit's converged state, with convergence measured across a coil sweep. (iii) The full topology read
     carried in the solve receipt at no extra compile: O-point, primary and secondary X-points, LCFS,
-    strike points, and the per-cell domain labels (core, scrape-off layer, private flux, wall shadow),
-    so the consumer never re-derives topology from &psi;. Until (i) lands, the interactive lane in
+    strike points, and the per-cell domain labels the authority resolves on the hex mesh (core, private
+    flux, wall shadow; no scrape-off-layer class), so the consumer never re-derives topology from &psi;.
+    These three are nova's <a href="/nova/forward-solve-api.html#s5">forward-solve-api §5</a>, which the
+    lead has made critical path; this plan depends on that section specifically and waits for it rather
+    than building a precomputed-sweep substitute. Until (i) lands, the interactive lane in
     §5 runs on precomputed sweeps; the moment it lands the same wrapper switches to live solves.</p>
 
     <p><strong>Ambix-side deliverable.</strong> A thin equilibrium-engine wrapper in
     <code>imas_ambix/physics/</code> that, for a MAST shot and time, assembles the nova operator from the
     cached carrier, takes the measured plasma current and the shot's efm p&#8242;/FF&#8242; at that time as
     frozen flux functions, and exposes one call: coil-current vector in, labelled flux map out — &psi; on
-    the full grid, &psi;<sub>N</sub>, the O-point, primary and secondary X-points, LCFS polygon, strike
-    points, the per-cell domain labels, the interior flux-surface contours at a fixed set of
-    &psi;<sub>N</sub> levels, the topology class, and the nova receipt. It enables the
+    the full hex mesh, &psi;<sub>N</sub>, the O-point, primary and secondary X-points, LCFS polygon, strike
+    points, the per-cell domain labels (core, private flux, wall shadow, open), the interior flux-surface
+    contours at a fixed set of &psi;<sub>N</sub> levels, the topology class, and the nova receipt. The wrapper
+    also owns the resampling of the hex-mesh map onto whatever frame the decoder conditions on (§4), so
+    the mesh geometry stays a nova detail. It enables the
     persistent compilation cache and pins the nova revision at or above <code>588578a0</code>. It runs
     under <code>JAX_PLATFORMS=cuda,cpu</code> set inside the sbatch body. Done when, on the four
     converging frozen-six shots, the wrapper reproduces the efm LCFS at measured coil currents within the
@@ -197,9 +207,9 @@
     <p><strong>Conditioning representation (decision <code>flux-conditioning</code>).</strong> The
     decoder must see the labelled flux map in a form that generalises across coil edits. In every
     candidate the map is carried whole: &psi;<sub>N</sub> as a continuous channel and the domain labels
-    (core, scrape-off layer, private flux, wall shadow) as categorical channels, with the O-point,
-    X-points and strike points as marked positions. The candidates differ in the frame: (a) the channels
-    rasterised on the (R,Z) solve grid as an image stack; (b) a compact geometry vector (LCFS Fourier
+    (core, private flux, wall shadow, open) as categorical channels, with the O-point, X-points and
+    strike points as marked positions. The candidates differ in the frame: (a) the channels resampled
+    from the hex mesh onto a regular (R,Z) raster as an image stack; (b) a compact geometry vector (LCFS Fourier
     moments, O/X-point and strike-point coordinates, class) — the lossy option, kept only as an auxiliary
     token; (c) the channel stack projected into rbb camera pixel space through the camera calibration,
     so the conditioning lives in the same frame as the output.
@@ -223,26 +233,49 @@
     playable demo validated; classifier-free guidance on the flux condition so its weight is tunable at
     play time. Done when the held-out decoder gate in §6 passes.</p>
 
+    <h2 id="s4b">§4b — The camera topology labeller: a robust judge</h2>
+    <p><strong>The problem with the current judge.</strong> Every camera-side position measurement so far
+    has been a brightness centroid of the frame. It moves with divertor brightness, reflections, filaments
+    and gas-puff emission as much as with the plasma column, so a "the plasma moved" verdict built on it is
+    not robust, and a gate scored on it can pass or fail for the wrong reason. This plan builds the
+    label capability from the camera images themselves and makes it the judge.</p>
+    <p><strong>What it is.</strong> A camera topology labeller: an rbb frame (or a short frame window) in;
+    the plasma-relevant topology labels out — the O-point position projected into the camera frame, the
+    primary X-point, the strike points, the LCFS trace as seen by the camera, and the topology class
+    (limited, single-null upper/lower, connected or disconnected double-null). It is trained on frames
+    paired with the equilibrium labels already on disk (efm for coverage, nova where the carrier exists),
+    projected through the rbb camera calibration where §2a finds one and regressed as image-frame
+    positions where it does not. It is a separate model from the decoder, trained on a disjoint shot
+    split, and never sees a coil current or a decoded frame during training: it is the referee, and a
+    referee that shares weights with the player is no referee.</p>
+    <p><strong>Its own gate comes first.</strong> Before it judges anything, the labeller is scored on
+    held-out real frames against the equilibrium labels: O-point and X-point position error, strike-point
+    error, class accuracy, and a robustness sweep under the confounders that break centroids (brightness
+    scaling, divertor-only bright frames, puff emission, frames from a different campaign). The
+    counterfactual gate in §6 is then scored with this labeller, and the old brightness centroid is
+    reported beside it once, to show what it would have concluded.</p>
+    <p><strong>Reuse beyond this plan.</strong> The same labeller is an observation model: it reads
+    topology from video for any shot, including shots without magnetics, which is the observation the
+    magnetics-free recovery plans lack. Done when the labeller gate in §6 passes and the counterfactual
+    gate is scored with it.</p>
+
     <h2 id="s5">§5 — The interaction loop</h2>
-    <p><strong>Two lanes, one surface.</strong> The drive surface from the playable demo (edit a
-    waveform, watch the stream) is kept. Behind it:</p>
-    <ul>
-      <li><strong>Sweep lane (available now).</strong> For the demo shot, precompute nova solves over a
-      grid of coil perturbations around the measured trajectory (per coil: a small set of scaled offsets
-      at each of a set of times). At play time the edit selects the nearest precomputed geometry and the
-      decoder renders. Latency is decoder-bound; the sweep is a one-off batch job on the H200 using the
-      replicated-width batch path that compiles today.</li>
-      <li><strong>Live lane (after nova's traced-current and warm-start land).</strong> Each edit is one
-      warm-started solve on the resident operator followed by one decode. Target edit-to-frame latency
-      is set in §6; the sweep lane remains as the fallback when a solve refuses (target-current band
-      exceeded returns NaN by design) or stagnates.</li>
-    </ul>
+    <p><strong>One lane: live solves.</strong> The drive surface from the playable demo (edit a
+    waveform, watch the stream) is kept. Behind it, each coil edit is one warm-started nova solve on the
+    resident operator, with the coil currents passed as a traced argument so the compilation cache hits,
+    followed by one resample of the labelled map and one decode. The operator, the persisted carrier and
+    the compiled program are loaded once per session, never in the loop. Target edit-to-frame latency is
+    set in §6. This lane exists only once nova's forward-solve-api §5 has landed; the lead's decision
+    (2026-09-02) is to wait for it rather than ship a precomputed-sweep substitute, because §5 is
+    critical path and scheduled for immediate implementation. A solve that refuses (target-current band
+    exceeded returns NaN by design) or stagnates is shown as a refusal on the surface, with the last
+    good frame held, never papered over with an interpolated geometry.</p>
     <p><strong>Shot selection (decision <code>demo-shot</code>).</strong> The shot must be in the nova
     frozen-six carrier and in the converging set, and have a bright, dynamic rbb video. 18502, the shot
     the old demo used, is not in the carrier. §2a reports the candidates; the lead locks one.</p>
     <p>Done when a recorded screen capture shows a coil edit at time <em>t</em> followed by the camera
-    stream moving within the §6 latency budget, on the locked shot, from the sweep lane; and the same
-    capture on the live lane once nova's additions land.</p>
+    stream moving within the §6 latency budget, on the locked shot, with the per-edit solve wall time and
+    cache-hit status logged beside each frame.</p>
 
     <h2 id="s6">§6 — Pre-registered gates</h2>
     <p>Locked before any number is produced. Each is a measure that emits evidence; a gate that cannot be
@@ -256,12 +289,15 @@
         <tr><td><strong>Decoder skill</strong></td>
             <td>Held-out shots: decoded-frame pixel error and emission-centroid error vs (a) persistence and (b) the actuator-conditioned demo decoder</td>
             <td>beats both on pixel error and centroid error with a bootstrap CI clear of zero</td></tr>
+        <tr><td><strong>Labeller robustness</strong> (the judge is qualified before it judges)</td>
+            <td>§4b labeller on held-out real frames vs equilibrium labels: O-point, X-point and strike-point position error, class accuracy; repeated under brightness scaling, divertor-bright and puff frames, and a held-out campaign</td>
+            <td>O-point and X-point error &le; 3 cm equivalent and class accuracy &ge; 95% on the clean split; error grows by &le; 50% under every confounder, where the brightness centroid is shown to fail</td></tr>
         <tr><td><strong>Counterfactual response</strong> (the point of the plan)</td>
-            <td>Step a vertical-position coil by &plusmn;&delta; at time t; compare the decoded emission-centroid shift to the nova-predicted LCFS centroid shift, on &ge; 3 shots</td>
+            <td>Step a vertical-position coil by &plusmn;&delta; at time t; compare the §4b-labelled O-point and X-point shift in the decoded frames to the nova-solved shift, on &ge; 3 shots</td>
             <td>correct sign on every case; magnitude within a factor of 2 of the nova shift; the old actuator-conditioned model fails the same test on &ge; 2 of the shots</td></tr>
         <tr><td><strong>Latency</strong></td>
-            <td>Edit-to-first-changed-frame wall time on one H200, median over 50 edits</td>
-            <td>sweep lane &le; 100 ms; live lane &le; 100 ms once nova's traced current lands; stream holds 30 fps</td></tr>
+            <td>Edit-to-first-changed-frame wall time on one H200, median over 50 edits, with the nova per-edit solve time and cache-hit flag logged separately</td>
+            <td>&le; 100 ms end to end; nova solve &le; 50 ms per edit warm; compilation cache hits on every edit after the first; stream holds 30 fps</td></tr>
       </tbody>
     </table>
 
@@ -277,9 +313,15 @@
       <li><strong>Convergence on marginal arms.</strong> Stagnation at ~5&times;10<sup>-4</sup> residual on some
       pure diverted arms is under active repair in nova (solver-convergence-regression). The demo shot is
       chosen from the converging set and a refused or stagnated solve falls back to the sweep lane visibly.</li>
-      <li><strong>Interaction depends on a nova change not yet landed.</strong> Traced coil currents are the
-      single thing that decides whether the live lane exists. The sweep lane makes the capability
-      demonstrable without it, so the plan cannot be stranded by nova's schedule.</li>
+      <li><strong>Interaction depends on nova's forward-solve-api §5.</strong> Traced coil currents, warm
+      start and the receipt topology are the whole interaction path, and the lead has chosen to wait for
+      them rather than build a substitute. The dependency is declared at section granularity so the
+      cross-project roadmap shows exactly what this plan is waiting on; the physics wrapper, the
+      labeller and the decoder do not wait and are built in parallel.</li>
+      <li><strong>The judge can be wrong in the same direction as the player.</strong> The labeller and
+      the decoder are trained on disjoint shot splits with no shared weights and the labeller never sees
+      decoded frames in training; its own held-out gate is measured and reported before it scores the
+      counterfactual gate.</li>
       <li><strong>Label mismatch.</strong> Training on efm and playing on nova is safe only if the physics gate
       holds; if it fails, the decoder is retrained on nova labels and the gate is re-run, and that is
       recorded as a result rather than hidden.</li>
@@ -291,7 +333,7 @@
         <p class="r-dec-q">How does the decoder see the solved flux geometry?</p>
         <p class="r-dec-opts">
           <button class="r-opt" data-value="camera-projected">labelled flux map projected into rbb pixel space via calibration (recommended if a calibration exists)</button>
-          <button class="r-opt" data-value="psi-grid-image">labelled flux map on the (R,Z) grid as an image stack, geometry vector as auxiliary token</button>
+          <button class="r-opt" data-value="psi-raster-image">labelled flux map resampled from the hex mesh onto an (R,Z) raster as an image stack, geometry vector as auxiliary token</button>
           <button class="r-opt" data-value="geometry-vector">compact geometry vector only (LCFS moments, O/X-points, strike points)</button>
         </p>
         <p class="r-dec-rat"></p>
