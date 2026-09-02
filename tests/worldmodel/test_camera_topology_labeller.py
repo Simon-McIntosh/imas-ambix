@@ -15,9 +15,14 @@ from imas_ambix.worldmodel.camera_topology_labeller import (
     LoadedWindows,
     assemble_labeller_targets,
     evaluate_predictions,
+    fit_full_corpus_labeller,
     fit_labeller,
+    read_cohort_frame_counts,
     read_cohort_split,
+    read_fullshot_spans,
     run_training,
+    target_statistics,
+    validate_full_corpus_split,
 )
 from imas_ambix.worldmodel.camera_topology_targets import (
     TOPOLOGY_CLASS_NAMES,
@@ -189,3 +194,86 @@ def test_training_entrypoint_reports_model_and_centroid_on_same_frames(monkeypat
     assert "axis_error_cm" in report["model"]
     assert "axis_error_cm" in report["brightness_centroid_baseline"]
     assert report["model"]["per_class"]["disconnected-double-null"]["support"] == 0
+
+
+def test_corpus_authorities_preserve_frame_counts_and_plasma_spans(
+    tmp_path: Path, monkeypatch
+):
+    report = tmp_path / "cohort.md"
+    report.write_text(
+        "### Labeller train — counts\n```text\nM6 — 15276:12 21983:9\n```\n"
+        "### Labeller validation — counts\n```text\nM7 — 21989:8\n```\n"
+        "### Clean same-campaign test — counts\n```text\nM7 — 21986:7\n```\n"
+        "### Held-out campaign test — counts\n```text\nM9 — 28739:6\n```\n",
+        encoding="utf-8",
+    )
+    manifest = tmp_path / "fullshot.json"
+    manifest.write_text(
+        '{"windows": ['
+        '{"shot_id": 15276, "start_frame": 2, "end_frame": 14},'
+        '{"shot_id": 21983, "start_frame": 3, "end_frame": 12}'
+        "]}\n",
+        encoding="utf-8",
+    )
+    frame_counts = read_cohort_frame_counts(report)
+    monkeypatch.setattr(
+        "imas_ambix.worldmodel.camera_topology_labeller.FULL_CORPUS_COUNTS",
+        {"train": (2, 21), "validation": (1, 8)},
+    )
+
+    validate_full_corpus_split(frame_counts)
+
+    assert frame_counts["train"] == {15276: 12, 21983: 9}
+    assert read_fullshot_spans(manifest) == {15276: (2, 14), 21983: (3, 12)}
+
+
+def test_bounded_corpus_fit_writes_first_improving_heldout_checkpoint(tmp_path: Path):
+    train = _synthetic_windows(24, seed=7)
+    heldout = _synthetic_windows(24, seed=7)
+
+    def window_loader(shots, **_kwargs):
+        return train if shots == [1] else heldout
+
+    model = CameraTopologyLabeller(
+        LabellerConfig(window_frames=3, image_size=24, width=4, hidden=24)
+    )
+    output = tmp_path / "training.json"
+    report = fit_full_corpus_labeller(
+        model,
+        [1],
+        [2],
+        target_statistics(train.targets),
+        window_frames=3,
+        image_size=24,
+        windows_per_shot=0,
+        level1_root=tmp_path,
+        frame_spans={1: (0, 24), 2: (0, 24)},
+        batch_size=24,
+        epochs=8,
+        learning_rate=1.0e-2,
+        seed=0,
+        device="cpu",
+        output=output,
+        declared_frame_counts={"train": 24, "validation": 24},
+        window_loader=window_loader,
+    )
+
+    checkpoint = report["first_improving_checkpoint"]
+    assert checkpoint is not None
+    assert Path(checkpoint).is_file()
+    assert report["history"][0]["validation_loss"] < report["initial_validation_loss"]
+    assert report["declared_train_frames"] == 24
+
+
+def test_full_corpus_launcher_requests_reserved_h200_and_complete_split():
+    launcher = Path("scripts/slurm/camera_topology_labeller_train.sbatch").read_text(
+        encoding="utf-8"
+    )
+
+    assert "#SBATCH --partition=betelgeuse" in launcher
+    assert "#SBATCH --reservation=gpu_0003_grpA" in launcher
+    assert "#SBATCH --account=grpa" in launcher
+    assert "#SBATCH --gres=gpu:1" in launcher
+    assert "--full-corpus" in launcher
+    assert "--windows-per-shot 0" in launcher
+    assert "--device cuda" in launcher

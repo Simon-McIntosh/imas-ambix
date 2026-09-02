@@ -18,6 +18,10 @@ import json
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import numpy as np
 import torch
@@ -40,6 +44,13 @@ DEFAULT_COHORT_REPORT = Path(
     "/home/ITER/mcintos/.config/reckon/crew/reports/"
     "physics-carried-playable-plasma/labeller-cohort-census.md"
 )
+DEFAULT_FULLSHOT_MANIFEST = Path(
+    "/work/projects/imas_gpu/agents/excitation-corpus/curated_windows_fullshot.json"
+)
+FULL_CORPUS_COUNTS: dict[str, tuple[int, int]] = {
+    "train": (472, 1_163_812),
+    "validation": (58, 125_930),
+}
 REGRESSION_NAMES: tuple[str, ...] = (
     "axis_R",
     "axis_Z",
@@ -168,8 +179,10 @@ def assemble_labeller_targets(
     )
 
 
-def read_cohort_split(path: Path = DEFAULT_COHORT_REPORT) -> dict[str, list[int]]:
-    """Read the four shot partitions from the cohort census report."""
+def read_cohort_frame_counts(
+    path: Path = DEFAULT_COHORT_REPORT,
+) -> dict[str, dict[int, int]]:
+    """Read ordered shot-to-frame counts for all cohort partitions."""
     text = Path(path).read_text(encoding="utf-8")
     headings = {
         "train": "Labeller train",
@@ -177,7 +190,7 @@ def read_cohort_split(path: Path = DEFAULT_COHORT_REPORT) -> dict[str, list[int]
         "clean_test": "Clean same-campaign test",
         "campaign_test": "Held-out campaign test",
     }
-    result: dict[str, list[int]] = {}
+    result: dict[str, dict[int, int]] = {}
     for key, heading in headings.items():
         match = re.search(
             rf"^### {re.escape(heading)}\b.*?(?=^### |\Z)",
@@ -186,15 +199,19 @@ def read_cohort_split(path: Path = DEFAULT_COHORT_REPORT) -> dict[str, list[int]
         )
         if match is None:
             raise ValueError(f"cohort report is missing the {heading!r} section")
-        shots = [int(value) for value in re.findall(r"\b(\d{5}):\d+\b", match.group())]
-        if not shots:
+        entries = [
+            (int(shot), int(count))
+            for shot, count in re.findall(r"\b(\d{5}):(\d+)\b", match.group())
+        ]
+        if not entries:
             raise ValueError(f"cohort report contains no shots in {heading!r}")
+        shots = [shot for shot, _ in entries]
         if len(shots) != len(set(shots)):
             raise ValueError(f"cohort report repeats a shot in {heading!r}")
-        result[key] = shots
+        result[key] = dict(entries)
     owners: dict[int, str] = {}
-    for partition, shots in result.items():
-        for shot in shots:
+    for partition, entries in result.items():
+        for shot in entries:
             if shot in owners:
                 raise ValueError(
                     f"shot {shot} appears in both {owners[shot]} and {partition}"
@@ -203,21 +220,67 @@ def read_cohort_split(path: Path = DEFAULT_COHORT_REPORT) -> dict[str, list[int]
     return result
 
 
+def read_cohort_split(path: Path = DEFAULT_COHORT_REPORT) -> dict[str, list[int]]:
+    """Read the four whole-shot partitions from the cohort census report."""
+    return {
+        partition: list(entries)
+        for partition, entries in read_cohort_frame_counts(path).items()
+    }
+
+
+def read_fullshot_spans(
+    path: Path = DEFAULT_FULLSHOT_MANIFEST,
+) -> dict[int, tuple[int, int]]:
+    """Read the curated plasma-phase frame span for every available shot."""
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    spans: dict[int, tuple[int, int]] = {}
+    for row in payload.get("windows", []):
+        shot = int(row["shot_id"])
+        start = int(row["start_frame"])
+        end = int(row["end_frame"])
+        if shot in spans:
+            raise ValueError(f"full-shot manifest repeats shot {shot}")
+        if end <= start:
+            raise ValueError(f"full-shot manifest has an empty span for shot {shot}")
+        spans[shot] = (start, end)
+    if not spans:
+        raise ValueError("full-shot manifest contains no windows")
+    return spans
+
+
+def validate_full_corpus_split(
+    frame_counts: dict[str, dict[int, int]],
+) -> None:
+    """Refuse a cohort report that differs from the registered training census."""
+    for partition, (expected_shots, expected_frames) in FULL_CORPUS_COUNTS.items():
+        entries = frame_counts[partition]
+        observed = (len(entries), sum(entries.values()))
+        expected = (expected_shots, expected_frames)
+        if observed != expected:
+            raise ValueError(
+                f"{partition} cohort is {observed[0]} shots/{observed[1]} frames; "
+                f"expected {expected[0]} shots/{expected[1]} frames"
+            )
+
+
 def _select_evenly(indices: np.ndarray, count: int) -> np.ndarray:
+    if count <= 0:
+        return indices
     if indices.size <= count:
         return indices
     positions = np.linspace(0, indices.size - 1, count).round().astype(np.int64)
     return indices[positions]
 
 
-def _load_one_shot(
+def _select_one_shot_targets(
     shot_id: int,
     *,
     window_frames: int,
-    image_size: int,
     windows_per_shot: int,
     level1_root: Path,
-) -> LoadedWindows:
+    frame_span: tuple[int, int] | None = None,
+) -> tuple[Any, np.ndarray, np.ndarray, LabellerTargets]:
+    """Select complete window centres and derive their compact targets."""
     import zarr  # noqa: PLC0415
 
     if window_frames < 1 or window_frames % 2 != 1:
@@ -227,6 +290,9 @@ def _load_one_shot(
     geometry_all = load_equilibrium_geometry(shot_id, frame_times)
     half = window_frames // 2
     candidates = np.flatnonzero(geometry_all.finite_mask[:, :2].all(axis=1))
+    if frame_span is not None:
+        start, end = frame_span
+        candidates = candidates[(candidates >= start) & (candidates < end)]
     candidates = candidates[
         (candidates >= half) & (candidates < frame_times.size - half)
     ]
@@ -234,20 +300,57 @@ def _load_one_shot(
     if centers.size == 0:
         raise ValueError(f"shot {shot_id} has no label-bearing complete frame window")
 
-    offsets = np.arange(-half, half + 1, dtype=np.int64)
-    window_indices = centers[:, None] + offsets[None, :]
-    flat_indices = window_indices.ravel()
-    raw = np.asarray(group["data"].oindex[flat_indices, :, :], dtype=np.float32)
-    raw = raw.reshape(centers.size, window_frames, raw.shape[-2], raw.shape[-1])
-    frames = torch.from_numpy(raw / 255.0)
-    frames = nnf.interpolate(
-        frames, size=(image_size, image_size), mode="bilinear", align_corners=False
-    ).numpy()
-
     selected_times = frame_times[centers]
-    geometry = load_equilibrium_geometry(shot_id, selected_times)
+    geometry = EquilibriumGeometry(
+        shot_id=geometry_all.shot_id,
+        frame_times=selected_times,
+        target=geometry_all.target[centers],
+        finite_mask=geometry_all.finite_mask[centers],
+        names=geometry_all.names,
+        units=geometry_all.units,
+    )
     topology = load_camera_topology_targets(shot_id, selected_times)
     targets = assemble_labeller_targets(geometry, topology)
+    return group, centers, selected_times, targets
+
+
+def _load_one_shot(
+    shot_id: int,
+    *,
+    window_frames: int,
+    image_size: int,
+    windows_per_shot: int,
+    level1_root: Path,
+    frame_span: tuple[int, int] | None = None,
+) -> LoadedWindows:
+    group, centers, selected_times, targets = _select_one_shot_targets(
+        shot_id,
+        window_frames=window_frames,
+        windows_per_shot=windows_per_shot,
+        level1_root=level1_root,
+        frame_span=frame_span,
+    )
+
+    half = window_frames // 2
+    offsets = np.arange(-half, half + 1, dtype=np.int64)
+    window_indices = centers[:, None] + offsets[None, :]
+    frames = np.empty(
+        (centers.size, window_frames, image_size, image_size), dtype=np.float32
+    )
+    read_batch_size = 2048
+    for start in range(0, centers.size, read_batch_size):
+        stop = min(start + read_batch_size, centers.size)
+        flat_indices = window_indices[start:stop].ravel()
+        raw = np.asarray(group["data"].oindex[flat_indices, :, :], dtype=np.float32)
+        raw = raw.reshape(stop - start, window_frames, raw.shape[-2], raw.shape[-1])
+        resized = nnf.interpolate(
+            torch.from_numpy(raw / 255.0),
+            size=(image_size, image_size),
+            mode="bilinear",
+            align_corners=False,
+        )
+        frames[start:stop] = resized.numpy()
+
     return LoadedWindows(
         frames=frames.astype(np.float32, copy=False),
         targets=targets,
@@ -263,6 +366,7 @@ def load_camera_windows(
     image_size: int,
     windows_per_shot: int,
     level1_root: Path = DEFAULT_LEVEL1_ROOT,
+    frame_spans: dict[int, tuple[int, int]] | None = None,
 ) -> LoadedWindows:
     """Load evenly sampled labelled windows from each named whole shot."""
     loaded = [
@@ -272,6 +376,7 @@ def load_camera_windows(
             image_size=image_size,
             windows_per_shot=windows_per_shot,
             level1_root=level1_root,
+            frame_span=None if frame_spans is None else frame_spans.get(shot),
         )
         for shot in shot_ids
     ]
@@ -367,6 +472,280 @@ def fit_labeller(
         if device == "cpu":
             torch.set_num_threads(previous_threads)
     return stats, losses
+
+
+def target_statistics_from_shots(
+    shot_ids: list[int],
+    *,
+    window_frames: int,
+    windows_per_shot: int,
+    level1_root: Path,
+    frame_spans: dict[int, tuple[int, int]],
+) -> TargetStatistics:
+    """Compute training-only target statistics without loading camera pixels."""
+    total = np.zeros(len(REGRESSION_NAMES), dtype=np.float64)
+    total_squared = np.zeros(len(REGRESSION_NAMES), dtype=np.float64)
+    count = np.zeros(len(REGRESSION_NAMES), dtype=np.int64)
+    for shot in shot_ids:
+        _, _, _, targets = _select_one_shot_targets(
+            shot,
+            window_frames=window_frames,
+            windows_per_shot=windows_per_shot,
+            level1_root=level1_root,
+            frame_span=frame_spans[shot],
+        )
+        values = np.asarray(targets.values_m, dtype=np.float64)
+        mask = np.asarray(targets.finite_mask, dtype=bool)
+        total += np.where(mask, values, 0.0).sum(axis=0)
+        total_squared += np.where(mask, values * values, 0.0).sum(axis=0)
+        count += mask.sum(axis=0)
+    safe_count = np.maximum(count, 1)
+    mean = total / safe_count
+    variance = np.maximum(total_squared / safe_count - mean * mean, 0.0)
+    std = np.sqrt(variance)
+    mean = np.where(count > 0, mean, 0.0)
+    std = np.where((count > 0) & (std >= 1.0e-3), std, 1.0)
+    return TargetStatistics(mean.astype(np.float32), std.astype(np.float32))
+
+
+def _batch_loss(
+    model: CameraTopologyLabeller,
+    frames: np.ndarray,
+    targets: LabellerTargets,
+    statistics: TargetStatistics,
+    indices: np.ndarray,
+    *,
+    device: str,
+) -> torch.Tensor:
+    values = targets.values_m[indices]
+    mask = targets.finite_mask[indices]
+    safe_values = np.where(mask, values, statistics.mean_m)
+    normalised = (safe_values - statistics.mean_m) / statistics.std_m
+    x = torch.as_tensor(frames[indices], dtype=torch.float32, device=device)
+    y = torch.as_tensor(normalised, dtype=torch.float32, device=device)
+    finite = torch.as_tensor(mask, dtype=torch.bool, device=device)
+    classes = torch.as_tensor(
+        targets.topology_class[indices], dtype=torch.long, device=device
+    )
+    device_type = torch.device(device).type
+    with torch.autocast(
+        device_type=device_type,
+        dtype=torch.bfloat16,
+        enabled=device_type == "cuda",
+    ):
+        coordinates, logits = model(x)
+        return labeller_loss(coordinates, logits, y, finite, classes)
+
+
+def _loaded_validation_loss(
+    model: CameraTopologyLabeller,
+    loaded: LoadedWindows,
+    statistics: TargetStatistics,
+    *,
+    batch_size: int,
+    device: str,
+) -> tuple[float, int]:
+    model.eval()
+    weighted_loss = 0.0
+    sample_count = 0
+    with torch.no_grad():
+        for start in range(0, loaded.frames.shape[0], batch_size):
+            indices = np.arange(start, min(start + batch_size, loaded.frames.shape[0]))
+            loss = _batch_loss(
+                model,
+                loaded.frames,
+                loaded.targets,
+                statistics,
+                indices,
+                device=device,
+            )
+            weighted_loss += float(loss.detach().cpu()) * indices.size
+            sample_count += indices.size
+    return weighted_loss, sample_count
+
+
+def validation_loss_from_shots(
+    model: CameraTopologyLabeller,
+    shot_ids: list[int],
+    statistics: TargetStatistics,
+    *,
+    window_frames: int,
+    image_size: int,
+    windows_per_shot: int,
+    level1_root: Path,
+    frame_spans: dict[int, tuple[int, int]],
+    batch_size: int,
+    device: str,
+    window_loader: Callable[..., LoadedWindows] = load_camera_windows,
+) -> tuple[float, int]:
+    """Evaluate held-out loss with one bounded-memory shot resident at a time."""
+    weighted_loss = 0.0
+    sample_count = 0
+    for shot in shot_ids:
+        loaded = window_loader(
+            [shot],
+            window_frames=window_frames,
+            image_size=image_size,
+            windows_per_shot=windows_per_shot,
+            level1_root=level1_root,
+            frame_spans=frame_spans,
+        )
+        shot_loss, shot_count = _loaded_validation_loss(
+            model,
+            loaded,
+            statistics,
+            batch_size=batch_size,
+            device=device,
+        )
+        weighted_loss += shot_loss
+        sample_count += shot_count
+    if sample_count == 0:
+        raise ValueError("held-out split contains no complete camera windows")
+    return weighted_loss / sample_count, sample_count
+
+
+def fit_full_corpus_labeller(
+    model: CameraTopologyLabeller,
+    train_shots: list[int],
+    validation_shots: list[int],
+    statistics: TargetStatistics,
+    *,
+    window_frames: int,
+    image_size: int,
+    windows_per_shot: int,
+    level1_root: Path,
+    frame_spans: dict[int, tuple[int, int]],
+    batch_size: int,
+    epochs: int,
+    learning_rate: float,
+    seed: int,
+    device: str,
+    output: Path,
+    declared_frame_counts: dict[str, int],
+    window_loader: Callable[..., LoadedWindows] = load_camera_windows,
+) -> dict[str, object]:
+    """Train all cohort shots with bounded memory and checkpoint on held-out gain."""
+    if batch_size < 1 or epochs < 1:
+        raise ValueError("batch_size and epochs must both be positive")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    model.to(device)
+    optimiser = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    initial_validation_loss, initial_validation_windows = validation_loss_from_shots(
+        model,
+        validation_shots,
+        statistics,
+        window_frames=window_frames,
+        image_size=image_size,
+        windows_per_shot=windows_per_shot,
+        level1_root=level1_root,
+        frame_spans=frame_spans,
+        batch_size=batch_size,
+        device=device,
+        window_loader=window_loader,
+    )
+    report: dict[str, object] = {
+        "mode": "full-corpus",
+        "train_shots": len(train_shots),
+        "validation_shots": len(validation_shots),
+        "declared_train_frames": declared_frame_counts["train"],
+        "declared_validation_frames": declared_frame_counts["validation"],
+        "initial_validation_loss": initial_validation_loss,
+        "initial_validation_windows": initial_validation_windows,
+        "model_parameters": model.n_parameters(),
+        "epochs_requested": epochs,
+        "history": [],
+        "first_improving_checkpoint": None,
+    }
+    output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+
+    rng = np.random.default_rng(seed)
+    best_validation_loss = initial_validation_loss
+    for epoch in range(1, epochs + 1):
+        model.train()
+        epoch_loss = 0.0
+        epoch_windows = 0
+        shuffled_shots = np.asarray(train_shots, dtype=np.int64)
+        rng.shuffle(shuffled_shots)
+        for shot in shuffled_shots.tolist():
+            loaded = window_loader(
+                [shot],
+                window_frames=window_frames,
+                image_size=image_size,
+                windows_per_shot=windows_per_shot,
+                level1_root=level1_root,
+                frame_spans=frame_spans,
+            )
+            order = rng.permutation(loaded.frames.shape[0])
+            for start in range(0, order.size, batch_size):
+                indices = order[start : start + batch_size]
+                loss = _batch_loss(
+                    model,
+                    loaded.frames,
+                    loaded.targets,
+                    statistics,
+                    indices,
+                    device=device,
+                )
+                optimiser.zero_grad(set_to_none=True)
+                loss.backward()
+                optimiser.step()
+                epoch_loss += float(loss.detach().cpu()) * indices.size
+                epoch_windows += indices.size
+
+        validation_loss, validation_windows = validation_loss_from_shots(
+            model,
+            validation_shots,
+            statistics,
+            window_frames=window_frames,
+            image_size=image_size,
+            windows_per_shot=windows_per_shot,
+            level1_root=level1_root,
+            frame_spans=frame_spans,
+            batch_size=batch_size,
+            device=device,
+            window_loader=window_loader,
+        )
+        history_row: dict[str, object] = {
+            "epoch": epoch,
+            "train_loss": epoch_loss / max(epoch_windows, 1),
+            "train_windows": epoch_windows,
+            "validation_loss": validation_loss,
+            "validation_windows": validation_windows,
+            "improved_from_initialisation": validation_loss < initial_validation_loss,
+            "checkpoint": None,
+        }
+        if (
+            validation_loss < initial_validation_loss
+            and validation_loss < best_validation_loss
+        ):
+            checkpoint = output.parent / f"{output.stem}-epoch-{epoch:03d}.pt"
+            torch.save(
+                {
+                    "state_dict": model.state_dict(),
+                    "config": asdict(model.config),
+                    "target_mean_m": statistics.mean_m,
+                    "target_std_m": statistics.std_m,
+                    "regression_names": REGRESSION_NAMES,
+                    "class_names": TOPOLOGY_CLASS_NAMES,
+                    "epoch": epoch,
+                    "initial_validation_loss": initial_validation_loss,
+                    "validation_loss": validation_loss,
+                    "train_shots": train_shots,
+                    "validation_shots": validation_shots,
+                },
+                checkpoint,
+            )
+            history_row["checkpoint"] = str(checkpoint)
+            best_validation_loss = validation_loss
+            if report["first_improving_checkpoint"] is None:
+                report["first_improving_checkpoint"] = str(checkpoint)
+        history = report["history"]
+        assert isinstance(history, list)
+        history.append(history_row)
+        output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return report
 
 
 def predict_metres(
@@ -467,6 +846,61 @@ def _parse_shots(value: str) -> list[int]:
 
 
 def run_training(args: argparse.Namespace) -> dict[str, object]:
+    if getattr(args, "full_corpus", False):
+        frame_counts = read_cohort_frame_counts(args.cohort_report)
+        split = {
+            partition: list(entries) for partition, entries in frame_counts.items()
+        }
+        validate_full_corpus_split(frame_counts)
+        if args.output is None:
+            raise ValueError("full-corpus training requires --output")
+        frame_spans = read_fullshot_spans(args.fullshot_manifest)
+        train_shots = split["train"]
+        validation_shots = split["validation"]
+        missing = [
+            shot for shot in train_shots + validation_shots if shot not in frame_spans
+        ]
+        if missing:
+            raise ValueError(
+                f"full-shot manifest is missing {len(missing)} cohort shots: "
+                f"{missing[:8]}"
+            )
+        config = LabellerConfig(
+            window_frames=args.window_frames,
+            image_size=args.image_size,
+            width=args.width,
+            hidden=args.hidden,
+        )
+        statistics = target_statistics_from_shots(
+            train_shots,
+            window_frames=config.window_frames,
+            windows_per_shot=args.windows_per_shot,
+            level1_root=args.level1_root,
+            frame_spans=frame_spans,
+        )
+        model = CameraTopologyLabeller(config)
+        return fit_full_corpus_labeller(
+            model,
+            train_shots,
+            validation_shots,
+            statistics,
+            window_frames=config.window_frames,
+            image_size=config.image_size,
+            windows_per_shot=args.windows_per_shot,
+            level1_root=args.level1_root,
+            frame_spans=frame_spans,
+            batch_size=args.batch_size,
+            epochs=args.epochs,
+            learning_rate=args.learning_rate,
+            seed=args.seed,
+            device=args.device,
+            output=args.output,
+            declared_frame_counts={
+                partition: sum(frame_counts[partition].values())
+                for partition in ("train", "validation")
+            },
+        )
+
     split = read_cohort_split(args.cohort_report)
     train_shots = _parse_shots(args.train_shots)
     heldout_shots = _parse_shots(args.heldout_shots)
@@ -570,6 +1004,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cohort-report", type=Path, default=DEFAULT_COHORT_REPORT)
     parser.add_argument("--level1-root", type=Path, default=DEFAULT_LEVEL1_ROOT)
+    parser.add_argument(
+        "--fullshot-manifest", type=Path, default=DEFAULT_FULLSHOT_MANIFEST
+    )
+    parser.add_argument("--full-corpus", action="store_true")
     parser.add_argument("--train-shots", default="21983,21985")
     parser.add_argument("--heldout-shots", default="21989")
     parser.add_argument("--windows-per-shot", type=int, default=24)
@@ -578,6 +1016,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--width", type=int, default=12)
     parser.add_argument("--hidden", type=int, default=96)
     parser.add_argument("--steps", type=int, default=60)
+    parser.add_argument("--epochs", type=int, default=4)
+    parser.add_argument("--batch-size", type=int, default=512)
     parser.add_argument("--learning-rate", type=float, default=3.0e-3)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", default="cpu")
@@ -585,6 +1025,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     report = run_training(args)
     print(json.dumps(report, indent=2))
+    if args.full_corpus:
+        return 0 if report["first_improving_checkpoint"] is not None else 1
     return 0 if report["training_loss"]["decreased"] else 1
 
 
@@ -594,7 +1036,9 @@ if __name__ == "__main__":  # pragma: no cover
 
 __all__ = [
     "DEFAULT_COHORT_REPORT",
+    "DEFAULT_FULLSHOT_MANIFEST",
     "DEFAULT_LEVEL1_ROOT",
+    "FULL_CORPUS_COUNTS",
     "REGRESSION_NAMES",
     "CameraTopologyLabeller",
     "LabellerConfig",
@@ -605,12 +1049,18 @@ __all__ = [
     "brightness_centroid_features",
     "evaluate_predictions",
     "fit_centroid_baseline",
+    "fit_full_corpus_labeller",
     "fit_labeller",
     "labeller_loss",
     "load_camera_windows",
     "main",
     "predict_metres",
+    "read_cohort_frame_counts",
     "read_cohort_split",
+    "read_fullshot_spans",
     "run_training",
     "target_statistics",
+    "target_statistics_from_shots",
+    "validate_full_corpus_split",
+    "validation_loss_from_shots",
 ]
