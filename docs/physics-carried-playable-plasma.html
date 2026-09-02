@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="physics-carried-playable-plasma">
+  <meta name="plan-title"     content="Physics-Carried Playable Plasma — nova's GS forward solve drives the MAST camera">
+  <meta name="plan-summary"   content="Edit a coil current and watch the MAST camera respond in-shot: nova GS solve gives flux surfaces, a flux-conditioned decoder renders the rbb frame.">
+  <meta name="plan-status"    content="draft">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort-hours" content="36.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-milestone" content="M4">
+  <meta name="plan-sprint"    content="S19">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-tags"      content="world-model,nova-consumer,equilibrium">
+  <meta name="plan-depends-on" content="playable-plasma-wm-v0,nova-physics-consumer-integration,nova:forward-solve-api">
+  <title>Physics-Carried Playable Plasma | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — Objective and thesis</h2>
+    <p><strong>The capability.</strong> A person watching a replayed MAST shot changes a poloidal-field coil
+    current at time <em>t</em> and, with no perceptible delay, sees the rbb camera stream respond: the
+    plasma column moves, the boundary reshapes, the divertor legs swing, and the shot continues from the
+    edited state. The response is not a learned guess about what coils do; it is the Grad–Shafranov
+    (GS) force balance, solved by nova, rendered into the camera view.</p>
+
+    <p><strong>Why physics-carried.</strong> The learned actuator-conditioned camera world model
+    (<a href="/imas-ambix/playable-plasma-wm-v0.html">playable-plasma-wm-v0</a>,
+    <a href="/imas-ambix/camera-dynamics-wm-v0.html">camera-dynamics-wm-v0</a>) produced a coil-edit dream
+    that moved the plasma on one shot (18502, P6-upper edit) but was not cross-shot robust, and the
+    control-conditioning diagnosis found the model largely ignoring the actuator plan. The command
+    &rarr; geometry sensitivity is exactly what GS force balance gives for free and exactly what a learned
+    latent must be coaxed into. So the split is: <strong>nova carries the physics transfer</strong>
+    (coil currents, plasma current and flux-function profiles in; &psi;(R,Z), LCFS, magnetic axis and
+    X-points out), and <strong>ambix learns only the rendering</strong> (solved flux geometry plus a
+    short frame history in; the next rbb frame out). The decoder never sees a coil current, so it
+    cannot learn to ignore one.</p>
+
+    <figure>
+      <svg viewBox="0 0 980 190" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;font-family:system-ui;font-size:13px">
+        <defs><marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#333"/></marker></defs>
+        <g stroke="#333" stroke-width="1" fill="#fff">
+          <rect x="10" y="50" width="150" height="70" rx="3"/>
+          <rect x="220" y="50" width="170" height="70" rx="3" stroke="#0a5fb4" stroke-width="1.5"/>
+          <rect x="450" y="50" width="160" height="70" rx="3"/>
+          <rect x="670" y="50" width="150" height="70" rx="3" stroke="#0a5fb4" stroke-width="1.5"/>
+          <rect x="850" y="50" width="120" height="70" rx="3"/>
+        </g>
+        <g fill="#111" text-anchor="middle">
+          <text x="85" y="78">coil / circuit</text><text x="85" y="96">currents (edited)</text>
+          <text x="305" y="72" font-weight="600">nova GS forward</text><text x="305" y="90">free boundary, ms</text><text x="305" y="108">p&#8242;, FF&#8242; frozen</text>
+          <text x="530" y="78">&psi;(R,Z), LCFS,</text><text x="530" y="96">axis, X-points</text>
+          <text x="745" y="72" font-weight="600">flux-conditioned</text><text x="745" y="90">camera decoder</text><text x="745" y="108">+ frame history</text>
+          <text x="910" y="78">rbb frame</text><text x="910" y="96">at 30 fps</text>
+        </g>
+        <g stroke="#333" stroke-width="1.2" fill="none" marker-end="url(#arr)">
+          <path d="M160,85 L218,85"/><path d="M390,85 L448,85"/><path d="M610,85 L668,85"/><path d="M820,85 L848,85"/>
+        </g>
+        <g fill="#444" text-anchor="middle" font-size="12">
+          <text x="305" y="150">nova owns (S19/S20 seam)</text>
+          <text x="745" y="150">ambix owns (this plan)</text>
+          <text x="530" y="35">the transfer object</text>
+        </g>
+      </svg>
+      <figcaption>The interaction loop. Blue-bordered boxes are the two computations; the flux geometry
+      between them is the only thing that crosses the nova/ambix boundary, and the decoder is blind to
+      the coil currents by construction.</figcaption>
+    </figure>
+
+    <p><strong>What "physics transfer" buys, concretely.</strong> The same decoder renders any equilibrium
+    nova can solve. A coil edit the corpus never contained still produces a physically consistent frame,
+    because the geometry it is asked to render came from force balance rather than from interpolating
+    the training distribution of actuator vectors. This is the mechanism by which the demo becomes
+    cross-shot robust, and it is the mechanism that later carries to a different machine: a new device
+    changes the nova machine description, not the rendering model's relationship to flux geometry.</p>
+
+    <h2 id="s2">§2 — Survey: the reuse map and the nova seam</h2>
+    <p>Two read-only investigation nodes run before any implementation node is cut. Their single
+    deliverable each is a reuse map: what already exists that solves part of this plan, with a one-line
+    fitness verdict per candidate, so that §3–§5 cite machinery rather than rebuild it.</p>
+
+    <h3 id="s2a">§2a — Ambix reuse map</h3>
+    <p>Search capability-shaped across <code>imas_ambix/</code>, <code>docs/</code>, and the artifacts on
+    disk for: (i) the rbb camera corpus, its tokeniser and the frozen decoder used by the playable demo,
+    plus the frame-history conditioning path the demo already drives; (ii) any per-frame conditioning
+    hook the camera model exposes (the multi-timescale and camera-conditioning knobs, the
+    <code>camdyn</code> conditioning module) that could accept a flux-geometry channel; (iii) the
+    equilibrium labels already on disk with their shot coverage and time base — the EFIT
+    <code>efm</code> flux surfaces, the spine label factory over 12.6k shots, and the 4,301-slice
+    learned-operator corpus; (iv) any rbb camera calibration or line-of-sight geometry
+    (<code>tokenizer/geometry_reader.py</code>, <code>camdyn/masking.py</code>, Calcam exports) that would
+    let flux surfaces be drawn in camera pixel space; (v) the existing coil-edit dream tooling and
+    centroid-readout metrics on 18502 so the counterfactual gate reuses the same measurement;
+    (vi) the existing nova consumer wiring in <code>imas_ambix/statespace</code> and
+    <code>imas_ambix/gs</code> (machine artifact resolution, MAST geometry publishing). Report which
+    MAST shots have both a good rbb video and membership in the nova frozen-six carrier
+    (21978, 21983, 21985, 21986, 21989, 22086).</p>
+
+    <h3 id="s2b">§2b — Nova seam survey</h3>
+    <p>Read the sibling checkout at <code>../nova</code> (editable install <code>nova-stella</code>) and
+    confirm, with file and line, the entry point this plan consumes:
+    <code>nova.equilibrium.forward.ForwardProfile(...).solve(initial_flux, route="newton_krylov",
+    target_current=Ip)</code> returning a <code>ForwardEquilibrium</code>; the topology read
+    <code>operator.read(flux)</code>; separatrix extraction in
+    <code>nova/equilibrium/separatrix_branches.py</code>; the MAST construction in
+    <code>benchmarks/efit_forward_parity_slice.py</code> (<code>build_profile</code>, circuit drives,
+    declared-anchor operator with prescribed p&#8242; and FF&#8242; from efm); the cached MAST carrier at
+    <code>/work/projects/imas_gpu/sophelio/mast_frozen_six_response_carriers/</code>; and the
+    persistent compilation cache switch <code>nova.jax.config.configure_persistent_compilation_cache</code>.
+    State whether <code>external_current</code> is a trace constant or a traced argument of the jitted
+    solve at the current pin, what the warm-start entry is, and what a minimal ambix wrapper must pass so
+    that the S20 defaults (current pin, compilation cache, cached machine, production seam) are honoured
+    before <a href="/nova/solve-default-wiring.html">solve-default-wiring</a> lands. Done when the
+    reuse map names each symbol with a path, line and fitness verdict, and lists the exact per-edit
+    costs the handover quoted against what the code at the pin actually does.</p>
+
+    <h2 id="s3">§3 — The physics channel: nova as the equilibrium engine</h2>
+    <p><strong>What nova already provides (handover from the nova S19 coordinator, 2026-09-02, main
+    <code>f0a785e7</code>).</strong> Free-boundary forward solve on a cached 33&times;33 MAST grid with
+    37 wall nodes; coil and circuit currents enter as <code>external_current</code>; profiles are
+    p&#8242;(&psi;<sub>N</sub>) and FF&#8242;(&psi;<sub>N</sub>) as domain-profile functions, so
+    "fixed flux functions, varying coil currents" is exactly the supported construction. Measured on the
+    H200, cache-warm:</p>
+    <table>
+      <thead><tr><th>Quantity</th><th>Measured</th><th>Consequence for this plan</th></tr></thead>
+      <tbody>
+        <tr><td>One map application, width 1024</td><td>0.784 ms / member</td><td>the floor a warm-started edit can approach</td></tr>
+        <tr><td>Full settled 16-trip solve</td><td>374–416 ms / member</td><td>cold-seeded live solve is not interactive</td></tr>
+        <tr><td>Single-slice solve (earlier)</td><td>42.8 ms</td><td>borderline interactive if per-edit compile is removed</td></tr>
+        <tr><td>Compile per distinct traced program</td><td>340–390 s cold, 63.7 s cache-warm</td><td>a coil edit that changes trace constants recompiles: fatal for interaction</td></tr>
+        <tr><td>Cached MAST carrier load</td><td>12 ms</td><td>never build the machine in the loop</td></tr>
+        <tr><td>Marginal diverted arms (22086/43, 21978/35 pure)</td><td>stagnate at residual ~5&times;10<sup>-4</sup></td><td>choose the demo shot from the converging set</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>What this plan asks of nova, recorded on
+    <a href="/nova/forward-solve-api.html">nova:forward-solve-api</a> as a consumer-facing section.</strong>
+    (i) <code>external_current</code> as a traced argument of the jitted solve with static geometry, so a
+    coil edit hits the compilation cache instead of recompiling; measured warm per-edit cost for one
+    member, target tens of milliseconds. (ii) A warm-start policy seeding each edit from the previous
+    edit's converged state, with convergence measured across a coil sweep. (iii) LCFS and X-point
+    extraction carried in the solve receipt at no extra compile. Until (i) lands, the interactive lane in
+    §5 runs on precomputed sweeps; the moment it lands the same wrapper switches to live solves.</p>
+
+    <p><strong>Ambix-side deliverable.</strong> A thin equilibrium-engine wrapper in
+    <code>imas_ambix/physics/</code> that, for a MAST shot and time, assembles the nova operator from the
+    cached carrier, takes the measured plasma current and the shot's efm p&#8242;/FF&#8242; at that time as
+    frozen flux functions, and exposes one call: coil-current vector in, flux geometry out (&psi; on the
+    grid, &psi;<sub>N</sub>, LCFS polygon, axis, X-points, topology class, and the nova receipt). It enables the
+    persistent compilation cache and pins the nova revision at or above <code>588578a0</code>. It runs
+    under <code>JAX_PLATFORMS=cuda,cpu</code> set inside the sbatch body. Done when, on the four
+    converging frozen-six shots, the wrapper reproduces the efm LCFS at measured coil currents within the
+    §6 physics tolerance and logs per-call cost.</p>
+
+    <h2 id="s4">§4 — The flux-conditioned camera decoder</h2>
+    <p><strong>Conditioning representation (decision <code>flux-conditioning</code>).</strong> The
+    decoder must see the geometry in a form that generalises across coil edits. Candidates: (a) the
+    &psi;<sub>N</sub> field rasterised on the (R,Z) grid as an image channel; (b) a compact geometry vector
+    (LCFS Fourier moments, axis, X-points, class); (c) flux surfaces and the LCFS drawn into rbb camera
+    pixel space through the camera calibration, so the conditioning lives in the same frame as the output.
+    Recommendation: (c) if §2a finds a usable rbb calibration, because a projected boundary aligns
+    spatially with the emission it explains and lets a small decoder learn a local mapping; otherwise (a)
+    with (b) as an auxiliary token. The decision is locked on §2a's finding, not before.</p>
+
+    <p><strong>Training labels (decision <code>label-source</code>).</strong> The decoder needs
+    (flux geometry, frame) pairs at scale. Efm EFIT flux surfaces exist for the whole camera corpus; nova
+    solves at measured currents exist only where a machine carrier exists (six frozen shots today) and
+    cost ~0.4 s per slice until warm-started batching lands. Recommendation: train on efm geometry for
+    coverage, and make the §6 physics gate prove that nova-solved geometry at measured currents lies
+    inside the decoder's training tolerance, so a nova-rendered edit is in-distribution for the decoder.
+    Re-label from nova once traced <code>external_current</code> makes bulk solving cheap; the plan
+    records the swap as its own node, not as a rewrite.</p>
+
+    <p><strong>Architecture.</strong> Reuse the frozen rbb tokeniser and decoder from the playable demo.
+    Replace the actuator-conditioning path with a flux-geometry conditioning path, and keep the short
+    frame-history bottleneck so the decoder carries emission texture (filaments, divertor brightness)
+    that flux geometry does not determine. Train with the same context-corruption and sampling recipe the
+    playable demo validated; classifier-free guidance on the flux condition so its weight is tunable at
+    play time. Done when the held-out decoder gate in §6 passes.</p>
+
+    <h2 id="s5">§5 — The interaction loop</h2>
+    <p><strong>Two lanes, one surface.</strong> The drive surface from the playable demo (edit a
+    waveform, watch the stream) is kept. Behind it:</p>
+    <ul>
+      <li><strong>Sweep lane (available now).</strong> For the demo shot, precompute nova solves over a
+      grid of coil perturbations around the measured trajectory (per coil: a small set of scaled offsets
+      at each of a set of times). At play time the edit selects the nearest precomputed geometry and the
+      decoder renders. Latency is decoder-bound; the sweep is a one-off batch job on the H200 using the
+      replicated-width batch path that compiles today.</li>
+      <li><strong>Live lane (after nova's traced-current and warm-start land).</strong> Each edit is one
+      warm-started solve on the resident operator followed by one decode. Target edit-to-frame latency
+      is set in §6; the sweep lane remains as the fallback when a solve refuses (target-current band
+      exceeded returns NaN by design) or stagnates.</li>
+    </ul>
+    <p><strong>Shot selection (decision <code>demo-shot</code>).</strong> The shot must be in the nova
+    frozen-six carrier and in the converging set, and have a bright, dynamic rbb video. 18502, the shot
+    the old demo used, is not in the carrier. §2a reports the candidates; the lead locks one.</p>
+    <p>Done when a recorded screen capture shows a coil edit at time <em>t</em> followed by the camera
+    stream moving within the §6 latency budget, on the locked shot, from the sweep lane; and the same
+    capture on the live lane once nova's additions land.</p>
+
+    <h2 id="s6">§6 — Pre-registered gates</h2>
+    <p>Locked before any number is produced. Each is a measure that emits evidence; a gate that cannot be
+    measured is a recorded negative result, not a wave that proceeds.</p>
+    <table>
+      <thead><tr><th>Gate</th><th>Measure</th><th>Pass</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Physics fidelity</strong></td>
+            <td>On held-out time slices of the converging frozen-six shots, nova LCFS at measured coil currents vs efm LCFS: RMS boundary distance and axis offset</td>
+            <td>boundary RMS &le; 2.0 cm and axis &le; 2.0 cm on &ge; 90% of flat-top slices; per-slice cost logged</td></tr>
+        <tr><td><strong>Decoder skill</strong></td>
+            <td>Held-out shots: decoded-frame pixel error and emission-centroid error vs (a) persistence and (b) the actuator-conditioned demo decoder</td>
+            <td>beats both on pixel error and centroid error with a bootstrap CI clear of zero</td></tr>
+        <tr><td><strong>Counterfactual response</strong> (the point of the plan)</td>
+            <td>Step a vertical-position coil by &plusmn;&delta; at time t; compare the decoded emission-centroid shift to the nova-predicted LCFS centroid shift, on &ge; 3 shots</td>
+            <td>correct sign on every case; magnitude within a factor of 2 of the nova shift; the old actuator-conditioned model fails the same test on &ge; 2 of the shots</td></tr>
+        <tr><td><strong>Latency</strong></td>
+            <td>Edit-to-first-changed-frame wall time on one H200, median over 50 edits</td>
+            <td>sweep lane &le; 100 ms; live lane &le; 100 ms once nova's traced current lands; stream holds 30 fps</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s7">§7 — Risks and honesty</h2>
+    <ul>
+      <li><strong>Emission is not flux.</strong> The rbb camera sees edge and divertor emission, filaments and
+      reflections; flux geometry fixes where the boundary is, not how bright it is. The frame-history path
+      carries texture; the counterfactual gate scores position, not brightness, so the claim stays inside
+      what physics determines.</li>
+      <li><strong>Frozen profiles under a coil edit.</strong> Holding p&#8242;, FF&#8242; and plasma current fixed
+      while a coil moves is the honest "what does this coil do" experiment, not a prediction of the shot's
+      future; the plan says so in the surface and defers profile response to the transport plans.</li>
+      <li><strong>Convergence on marginal arms.</strong> Stagnation at ~5&times;10<sup>-4</sup> residual on some
+      pure diverted arms is under active repair in nova (solver-convergence-regression). The demo shot is
+      chosen from the converging set and a refused or stagnated solve falls back to the sweep lane visibly.</li>
+      <li><strong>Interaction depends on a nova change not yet landed.</strong> Traced coil currents are the
+      single thing that decides whether the live lane exists. The sweep lane makes the capability
+      demonstrable without it, so the plan cannot be stranded by nova's schedule.</li>
+      <li><strong>Label mismatch.</strong> Training on efm and playing on nova is safe only if the physics gate
+      holds; if it fails, the decoder is retrained on nova labels and the gate is re-run, and that is
+      recorded as a result rather than hidden.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="flux-conditioning" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">How does the decoder see the solved flux geometry?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="camera-projected">flux surfaces + LCFS drawn in rbb pixel space via calibration (recommended if a calibration exists)</button>
+          <button class="r-opt" data-value="psi-grid-image">&psi;<sub>N</sub>(R,Z) grid as an image channel, geometry vector as auxiliary token</button>
+          <button class="r-opt" data-value="geometry-vector">compact geometry vector only (LCFS moments, axis, X-points)</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="label-source" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Where do the decoder's training flux geometries come from?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="efm-then-nova">efm EFIT flux surfaces for coverage now, physics gate proves nova is in-distribution, re-label from nova when bulk solving is cheap (recommended)</button>
+          <button class="r-opt" data-value="nova-only">nova solves only, restricted to the frozen-six carrier shots</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="demo-shot" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Which MAST shot carries the demo? Must be in the nova frozen-six carrier and the converging set; §2a reports rbb video quality per candidate.</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="21983">21983</button>
+          <button class="r-opt" data-value="21985">21985</button>
+          <button class="r-opt" data-value="21986">21986</button>
+          <button class="r-opt" data-value="21989">21989</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+      <div class="r-dec" data-key="profile-freeze" data-choice="frozen-efm-profiles" data-by="Simon McIntosh" data-when="2026-09-02">
+        <p class="r-dec-q">What happens to p&#8242;, FF&#8242; and plasma current when a coil is edited?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="frozen-efm-profiles">held at the shot's efm values for that time; measured plasma current as target_current</button>
+          <button class="r-opt" data-value="transport-response">evolved by a transport model</button>
+        </p>
+        <p class="r-dec-rat">Fixed flux functions with varying coil currents is the construction nova supports today and is the honest "what does this coil do" experiment; profile response belongs to the transport plans and is out of scope here.</p>
+      </div>
+      <div class="r-dec" data-key="camera" data-choice="rbb" data-by="Simon McIntosh" data-when="2026-09-02">
+        <p class="r-dec-q">Which camera stream is rendered?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="rbb">rbb only (the trained corpus and frozen decoder)</button>
+          <button class="r-opt" data-value="multi-camera">all tokenised cameras</button>
+        </p>
+        <p class="r-dec-rat">The rbb corpus, tokeniser and decoder already exist and were validated by the playable demo; adding cameras is a later plan.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-pcp-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-create" data-written-at="2026-09-02">
+        <h4 class="r-fu-title">Run the §2 survey nodes and lock the three open decisions on their findings</h4>
+        <div class="r-fu-body"><p>Dispatch §2a and §2b as read-only investigate nodes; on their reuse maps, lock <code>flux-conditioning</code>, <code>label-source</code> and <code>demo-shot</code>, then cut the §3–§5 implementation nodes.</p></div>
+        <pre class="r-fu-prompt">/reckon-ship physics-carried-playable-plasma §2</pre>
+      </article>
+    </section>
+
+  </main>
+</body>
+</html>
