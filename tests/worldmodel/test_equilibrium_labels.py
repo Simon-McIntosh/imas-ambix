@@ -11,6 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from imas_ambix.worldmodel import equilibrium_labels as equilibrium_labels_module
 from imas_ambix.worldmodel.equilibrium_labels import (
     LCFS_ANGLES,
     N_LCFS_ANGLES,
@@ -18,6 +19,7 @@ from imas_ambix.worldmodel.equilibrium_labels import (
     TARGET_NAMES,
     XPOINT_SENTINEL,
     build_geometry_from_arrays,
+    load_equilibrium_geometry,
     resample_lcfs_radii,
     xpoint_null_set,
 )
@@ -246,6 +248,31 @@ def test_build_geometry_absent_null_slot_is_masked():
     assert not geo.finite_mask[0, 4:6].any()
     assert geo.finite_mask[0, :2].all()
     assert geo.finite_mask[0, 6:14].all()
+
+
+def test_load_geometry_masks_omitted_null_arrays(monkeypatch):
+    t_eq, axis_r, axis_z, _, _, lcfs_r, lcfs_z = _synthetic_equilibrium()
+    equilibrium_group = {
+        "time": t_eq,
+        "magnetic_axis_r": axis_r,
+        "magnetic_axis_z": axis_z,
+        "lcfs_r": lcfs_r,
+        "lcfs_z": lcfs_z,
+    }
+    monkeypatch.setattr(
+        equilibrium_labels_module,
+        "_read_equilibrium_group",
+        lambda _shot_id, _level2_root: equilibrium_group,
+    )
+
+    geometry = load_equilibrium_geometry(1, np.array([t_eq[5]]))
+
+    assert geometry.finite_mask[0, :2].all()
+    assert np.isfinite(geometry.target[0, :2]).all()
+    assert not geometry.finite_mask[0, 2:6].any()
+    assert np.isnan(geometry.target[0, 2:6]).all()
+    assert geometry.finite_mask[0, 6:14].all()
+    assert np.isfinite(geometry.target[0, 6:14]).all()
 
 
 def test_build_geometry_uses_nearest_native_null_set_without_interpolation():

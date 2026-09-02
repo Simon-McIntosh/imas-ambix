@@ -79,12 +79,15 @@ imas-python; the corpus is Zarr, not IMAS HDF5).  Keys (time is the LAST axis
 on >= 2-D fields):
 
   - ``magnetic_axis_r``/``magnetic_axis_z``  ``(nt,)``  metres, NaN when off
-  - ``x_point_r``/``x_point_z``              ``(2, nt)``  metres; ``-9.99``
-    sentinel for an undefined null.  MAST runs **double-null most of the time**
-    (e.g. shot 18504: 79/124 slices carry two real nulls) and switches topology.
-    No ordering / sign-of-Z meaning is read from the two rows — the valid nulls
-    are taken as an ORDER-INVARIANT SET (:func:`xpoint_null_set`); a swap of the
-    two rows is identical under the downstream permutation-invariant loss.
+  - ``x_point_r``/``x_point_z``              ``(2, nt)``  metres when present;
+    ``-9.99`` is the sentinel for an undefined null.  Some stores omit both
+    arrays; that represents an unavailable null set, so both output slots stay
+    NaN/masked while the independent axis and LCFS components remain usable.
+    MAST runs **double-null most of the time** (e.g. shot 18504: 79/124 slices
+    carry two real nulls) and switches topology.  No ordering / sign-of-Z
+    meaning is read from the two rows — the valid nulls are taken as an
+    ORDER-INVARIANT SET (:func:`xpoint_null_set`); a swap of the two rows is
+    identical under the downstream permutation-invariant loss.
   - ``lcfs_r``/``lcfs_z``                    ``(n_bdy, nt)``  metres, NaN-padded
   - ``n_boundary_coords``                    ``(n_bdy,)``  valid LCFS-point
     count per time slice (the contour uses the first ``n_boundary_coords[i]``
@@ -436,8 +439,12 @@ def load_equilibrium_geometry(
     t_eq = np.asarray(eq["time"], dtype=np.float64)
     axis_r = np.asarray(eq["magnetic_axis_r"], dtype=np.float64)
     axis_z = np.asarray(eq["magnetic_axis_z"], dtype=np.float64)
-    xpt_r2 = np.asarray(eq["x_point_r"], dtype=np.float64)  # (2, nt)
-    xpt_z2 = np.asarray(eq["x_point_z"], dtype=np.float64)
+    if "x_point_r" in eq and "x_point_z" in eq:
+        xpt_r2 = np.asarray(eq["x_point_r"], dtype=np.float64)  # (2, nt)
+        xpt_z2 = np.asarray(eq["x_point_z"], dtype=np.float64)
+    else:
+        xpt_r2 = np.empty((0, t_eq.size), dtype=np.float64)
+        xpt_z2 = np.empty((0, t_eq.size), dtype=np.float64)
     lcfs_r = np.asarray(eq["lcfs_r"], dtype=np.float64)  # (n_bdy, nt)
     lcfs_z = np.asarray(eq["lcfs_z"], dtype=np.float64)
 
