@@ -197,7 +197,43 @@ default follows `XDG_DATA_HOME` or `~/.local/share`. Setup requires at least
 32 GiB free by default, configurable with
 `AMBIX_AGENT_ENGINE_ENV_MIN_FREE_GB`.
 
-## 3a. Live endpoints — what to point a client at
+## 3a. Serving-interpreter compatibility (binding)
+
+The generated serve script runs repository modules with the selected engine's
+`SiteConfig.python_path(profile.engine.type)`, not the project interpreter. The
+pin is the `requires-python` entry in
+`imas_ambix/agent/envs/<engine>/pyproject.toml`; both serving environments
+currently require `>=3.12,<3.13`. Read the selected environment's project file
+as the authority. The repository root instead requires Python 3.14 and Ruff
+targets `py314`, so whole-tree lint does not prove serving-node compatibility.
+
+Every serve executes `imas_ambix.agent.registry` on the compute node. A vLLM
+serve also loads `imas_ambix.agent.vllm_catalog` and
+`imas_ambix.agent.vllm_think_marker` as middleware, and a generated router starts
+`imas_ambix.cli` under the vLLM interpreter. Any imported repository module must
+therefore parse at the serving environment's lower bound: newer syntax is a hard
+failure at import time, before the endpoint can start.
+
+The incompatibility has recurred three times as an unparenthesized exception
+tuple. Python 3.14 accepts the first form; the serving interpreter requires the
+second:
+
+```python
+# Incorrect for the serving interpreter
+except OSError, TypeError, ValueError:
+
+# Correct across both interpreters
+except (OSError, TypeError, ValueError):
+```
+
+Check the package grammar before committing:
+
+```bash
+uv run pytest tests/test_agent_serve_registry.py \
+  -k 'agent_package_modules_parse_with_serving_python or serving_python_guard_rejects_unparenthesized_exception_tuple' -q
+```
+
+## 3b. Live endpoints — what to point a client at
 
 Two services, two different shapes. Both are **keyless** and both are reached
 **directly** from login and standard compute nodes (measured: compute node to
