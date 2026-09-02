@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from imas_ambix.agent.router import Upstream
 
 console = Console()
+stderr_console = Console(stderr=True)
 
 # Engine types that have uv-managed environments
 ENGINE_TYPES = ("vllm", "sglang")
@@ -1845,6 +1846,7 @@ def bench(
     from imas_ambix.agent.bench import _auth_headers, run_benchmark
 
     resolved_key = _resolve_api_key(api_key)
+    status_console = stderr_console if json_output else console
 
     # Resolve base_url and model — try slug, then default profile, then url-only
     resolved_slug = slug or _default_profile()
@@ -1883,20 +1885,20 @@ def bench(
             models_data = json_mod.loads(resp.read())
             available = [m["id"] for m in models_data.get("data", [])]
             if model not in available and available:
-                console.print(
+                status_console.print(
                     f"[yellow]Warning:[/] '{model}' not in server models: {available}"
                 )
                 model = available[0]
-                console.print(f"Using '{model}' instead.")
+                status_console.print(f"Using '{model}' instead.")
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise click.ClickException(f"Cannot reach server at {base_url}: {exc}") from exc
 
     cats = list(category) if category else None
 
-    console.print(f"\n[bold]Benchmarking[/] {model} at {base_url}")
+    status_console.print(f"\n[bold]Benchmarking[/] {model} at {base_url}")
     if cats:
-        console.print(f"Categories: {', '.join(cats)}")
-    console.print()
+        status_console.print(f"Categories: {', '.join(cats)}")
+    status_console.print()
 
     report: BenchReport = run_benchmark(
         base_url,
@@ -1932,7 +1934,7 @@ def bench(
     if json_output:
         console.print(report.to_json(), markup=False, highlight=False, soft_wrap=True)
         if save_path:
-            console.print(f"[dim]Results saved to {save_path}[/]", err=True)
+            stderr_console.print(f"[dim]Results saved to {save_path}[/]")
         return
 
     # Rich per-category tables

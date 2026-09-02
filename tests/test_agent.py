@@ -1680,6 +1680,55 @@ def test_bench_cli_no_server_graceful_error():
     assert "Cannot reach server" in result.output
 
 
+def test_bench_json_save_is_machine_readable(monkeypatch, tmp_path):
+    """Saving a JSON report keeps stdout machine-readable."""
+    import io
+    import json
+    import urllib.request
+
+    from imas_ambix.agent import bench as bench_mod
+    from imas_ambix.agent import cli as cli_mod
+    from imas_ambix.agent.bench import BenchReport
+
+    class Response(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.close()
+
+    models = b'{"data":[{"id":"saved-model"}]}'
+    monkeypatch.setattr(
+        urllib.request, "urlopen", lambda request, timeout: Response(models)
+    )
+    monkeypatch.setattr(cli_mod, "_default_profile", lambda: None)
+    monkeypatch.setattr(cli_mod, "_resolve_api_key", lambda value: None)
+    report = BenchReport(timestamp="2026-09-02T00:00:00Z")
+    monkeypatch.setattr(bench_mod, "run_benchmark", lambda *args, **kwargs: report)
+
+    output_path = tmp_path / "benchmark.json"
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "agent",
+            "bench",
+            "--url",
+            "http://engine.test",
+            "--model",
+            "saved-model",
+            "--json",
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout) == json.loads(report.to_json())
+    assert json.loads(output_path.read_text()) == json.loads(report.to_json())
+    assert "Results saved to" in result.stderr
+
+
 # -- Default profile resolution ----------------------------------------------
 
 
