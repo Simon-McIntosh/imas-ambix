@@ -19,7 +19,7 @@
   <meta name="plan-sprint" content="S19">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="world-model,nova-consumer,equilibrium">
-  <meta name="plan-depends-on" content="playable-plasma-wm-v0,nova-physics-consumer-integration,nova:forward-solve-api#s5">
+  <meta name="plan-depends-on" content="nova-physics-consumer-integration,nova:forward-solve-api#s5">
   <meta name="plan-graph-handle" content="play-the-plasma">
   <title>Physics-Carried Playable Plasma | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -233,7 +233,10 @@
     Re-label from nova once traced <code>external_current</code> makes bulk solving cheap; the plan
     records the swap as its own node, not as a rewrite.</p>
 
-    <p><strong>Architecture.</strong> Reuse the frozen rbb tokeniser and decoder from the playable demo.
+    <p><strong>Architecture.</strong> Reuse the frozen rbb tokeniser and decoder from the playable demo
+    (<a href="/imas-ambix/playable-plasma-wm-v0.html">playable-plasma-wm-v0</a> is an asset source, not a
+    prerequisite: its checkpoints and drive surface exist on disk and this plan does not wait on its
+    remaining learned-dynamics work).
     Replace the actuator-conditioning path with a flux-geometry conditioning path, and keep the short
     frame-history bottleneck so the decoder carries emission texture (filaments, divertor brightness)
     that flux geometry does not determine. Train with the same context-corruption and sampling recipe the
