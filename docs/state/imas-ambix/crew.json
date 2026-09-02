@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-02T18:30:49",
+  "updated": "2026-09-02T18:32:21",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -830,6 +830,15 @@
       },
       {
         "id": "pcp-robustness-harness",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-02"
+      },
+      {
+        "id": "pcp-targets-mask-repair",
         "harness": "codex",
         "role": "implement",
         "session_id": null,
@@ -21186,9 +21195,112 @@
           "role": "implement",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260902T162109354960-router-visible-to-tooling",
+        "plan": "multi-model-serving-capacity",
+        "section": "\u00a72",
+        "node": "router-visible-to-tooling",
+        "node_definition": {
+          "done_when": "uv run --no-sync pytest tests/test_agent.py -q exits 0 with added assertions, and uv run --no-sync ruff check imas_ambix tests --no-cache exits 0. The router is the origin consumers actually connect through, yet the operator tooling does not know it exists: the string identifying a router job appears zero times in the CLI module. Two consequences, both real. FIRST, the port-collision guard added alongside per-profile ports inspects only serve jobs, so a profile whose declared port matches a running router is allowed to collide, and one profile now declares exactly the port the running router holds. Widen that guard to refuse against a running router as well, naming it as the holder, so the check covers every ambix job that binds a port. SECOND, the status command prints a full connection card for each engine while listing the router among unlabelled other jobs with no address, which inverts their importance to a consumer. Give the router its own entry carrying the URL a consumer should use, the releases reachable through it, and its state, and make clear that this origin is the one to prefer over an individual engine. Tests assert a serve refuses when its resolved port is held by a running router and names it, a serve still refuses against a running serve as before, and the status output carries the router's URL rather than only its job id. Take the router's port from the scheduler comment it already stamps rather than assuming a fixed value, and change no serve sizing or engine setting.",
+          "estimated_hours": null,
+          "goal": "Make the router visible to the tooling that already reasons about every other ambix job",
+          "id": "router-visible-to-tooling",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T162109354960-router-visible-to-tooling/manifest.md",
+          "plan": "multi-model-serving-capacity",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a72",
+          "spec_level": "guided",
+          "time_budget": "35m",
+          "write_paths": [
+            "imas_ambix/agent/cli.py",
+            "tests/test_agent.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "s24-capacity-impl",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "backend": "codex",
+          "effort": "medium",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-02T16:21:21Z",
+        "completed_at": "2026-09-02T16:31:47Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 626,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 626,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "9fbf71894d16b59ced7dd4801e05c974db0f86b7",
+        "commits": [
+          "130f9b7388acb3b31bcad2344fb1a98052e143f0"
+        ],
+        "changed_lines": {
+          "added": 156,
+          "removed": 10,
+          "files": 2
+        },
+        "tests_added": 3,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent.py -q",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T162109354960-router-visible-to-tooling/manifest.md",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T162109354960-router-visible-to-tooling/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a05c9f-7fa0-7353-b56f-090a024d590c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 4188800,
+            "cached_input_tokens_cumulative": 7838336,
+            "input_tokens": 4108466,
+            "input_tokens_cumulative": 7918551,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 13145,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 3564
+          },
+          "cost_usd": null,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/test_agent.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [],
-    "_version": 475
+    "_version": 477
   }
 }
