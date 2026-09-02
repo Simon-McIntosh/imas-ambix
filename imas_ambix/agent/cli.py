@@ -30,6 +30,7 @@ stderr_console = Console(stderr=True)
 ENGINE_TYPES = ("vllm", "sglang")
 
 _SERVE_COMMENT_PREFIX = "ambix-serve;"
+_ROUTER_COMMENT_PREFIX = "ambix-router;"
 _SUPPORTED_GPU_COUNTS = frozenset({2, 4, 6, 8})
 
 
@@ -487,10 +488,10 @@ def serve(
         console.print(script, markup=False, highlight=False, soft_wrap=True)
         return
 
-    holder = _running_serve_on_port(site, resolved_port)
+    holder = _running_ambix_job_on_port(site, resolved_port)
     if holder is not None:
         raise click.ClickException(
-            f"Port {resolved_port} is already held by running Ambix serve "
+            f"Port {resolved_port} is already held by running Ambix job "
             f"{holder['name']} (job {holder['jobid']})."
         )
 
@@ -554,16 +555,64 @@ def status(reveal: bool) -> None:
         key_display = "(no access — not key owner)"
 
     routes, rejected = _discover_live_routes(site, key, jobs=jobs)
+    router_jobs = [
+        job for job in jobs if _router_port(job.get("comment", "")) is not None
+    ]
     live_job_ids = {route.job_id for route in routes}
-    pending = [job for job in jobs if job["jobid"] not in live_job_ids]
+    represented_job_ids = live_job_ids | {job["jobid"] for job in router_jobs}
+    pending = [job for job in jobs if job["jobid"] not in represented_job_ids]
 
     # -- Header line -------------------------------------------------------
     summary = f"{len(routes)} serving"
+    if router_jobs:
+        summary += f" · {len(router_jobs)} router"
     if pending:
         summary += f" · {len(pending)} other"
     console.print(
         f"[bold]imas-ambix agents[/]  ·  {site.partition}    [dim]{summary}[/]"
     )
+
+    # -- Preferred consumer origin ----------------------------------------
+    for job in router_jobs:
+        port = _router_port(job.get("comment", ""))
+        node = _job_node(job)
+        base_url = f"http://{node}:{port}" if node is not None else "(not allocated)"
+        probe = (
+            _probe_endpoint(base_url, None)
+            if job["state"] == "RUNNING" and node is not None
+            else ProbeResult("not running")
+        )
+        releases = (
+            ", ".join(sorted({model.model_id for model in probe.models}))
+            if probe.models
+            else f"({probe.readiness})"
+        )
+
+        body = Table.grid(padding=(0, 2))
+        body.add_column(style="cyan", no_wrap=True)
+        body.add_column()
+        body.add_row("URL", base_url)
+        body.add_row("Releases", releases)
+        body.add_row("State", job["state"])
+
+        ready = probe.readiness == "ready"
+        console.print()
+        console.print(
+            Panel(
+                body,
+                title=(
+                    f"[bold]Preferred consumer origin[/] · {job['name']}   "
+                    f"[green]{job['state']}[/] {_fmt_uptime(job['time'])} "
+                    f"· job {job['jobid']}"
+                ),
+                title_align="left",
+                subtitle=f"[{('green' if ready else 'yellow')}]"
+                f"{probe.readiness.upper()}[/]",
+                subtitle_align="right",
+                border_style="green" if ready else "yellow",
+                padding=(0, 1),
+            )
+        )
 
     # -- One boxed panel per probe-qualified route -------------------------
     jobs_by_id = {job["jobid"]: job for job in jobs}
@@ -867,13 +916,13 @@ def _probe_endpoint(url: str, api_key: str | None, timeout: float = 4.0) -> Prob
         return ProbeResult("unreachable")
 
 
-def _serve_port(comment: str) -> int | None:
-    """Extract a validated port from an Ambix scheduler comment."""
-    if not comment.startswith(_SERVE_COMMENT_PREFIX):
+def _comment_port(comment: str, prefix: str) -> int | None:
+    """Extract a validated port from a recognized scheduler comment."""
+    if not comment.startswith(prefix):
         return None
     fields = dict(
         field.split("=", 1)
-        for field in comment[len(_SERVE_COMMENT_PREFIX) :].split(";")
+        for field in comment[len(prefix) :].split(";")
         if "=" in field
     )
     try:
@@ -883,14 +932,25 @@ def _serve_port(comment: str) -> int | None:
     return port if 1 <= port <= 65535 else None
 
 
-def _running_serve_on_port(
+def _serve_port(comment: str) -> int | None:
+    """Extract a serve port from an Ambix scheduler comment."""
+    return _comment_port(comment, _SERVE_COMMENT_PREFIX)
+
+
+def _router_port(comment: str) -> int | None:
+    """Extract a router port from an Ambix scheduler comment."""
+    return _comment_port(comment, _ROUTER_COMMENT_PREFIX)
+
+
+def _running_ambix_job_on_port(
     site: SiteConfig, port: int
 ) -> dict[str, str] | None:
-    """Return the running Ambix serve that owns *port*, if one exists."""
+    """Return the running Ambix job that owns *port*, if one exists."""
     for job in _running_jobs(site):
         if job.get("state") != "RUNNING":
             continue
-        if _serve_port(job.get("comment", "")) == port:
+        comment = job.get("comment", "")
+        if port in {_serve_port(comment), _router_port(comment)}:
             return job
     return None
 

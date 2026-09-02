@@ -388,6 +388,45 @@ def test_serve_refuses_a_port_held_by_running_serve(monkeypatch):
     assert not submitted
 
 
+def test_serve_refuses_a_port_held_by_running_router(monkeypatch):
+    from imas_ambix.agent import cli as cli_mod
+    from imas_ambix.agent import slurm as slurm_mod
+
+    runner = _serve_cli(monkeypatch, None)
+    monkeypatch.setattr(
+        cli_mod,
+        "_running_jobs",
+        lambda site: [
+            {
+                "jobid": "271",
+                "name": "ambix-router",
+                "state": "RUNNING",
+                "time": "4:20",
+                "node": "router-node",
+                "gres": "N/A",
+                "comment": "ambix-router;port=18801",
+            }
+        ],
+    )
+
+    submitted = False
+
+    def unexpected_submit(script):
+        nonlocal submitted
+        submitted = True
+        return "272"
+
+    monkeypatch.setattr(slurm_mod, "submit_script", unexpected_submit)
+
+    result = runner.invoke(main, ["agent", "serve", "glm-5-3"])
+
+    assert result.exit_code != 0
+    assert "ambix-router" in result.output
+    assert "271" in result.output
+    assert "18801" in result.output
+    assert not submitted
+
+
 def test_generate_vllm_2x_serve_script():
     """2x serve script requests 2 GPUs and TP=2."""
     from imas_ambix.agent.slurm import generate_serve_script
@@ -1139,6 +1178,53 @@ def test_status_running_serve_shows_connection(monkeypatch):
     assert "READY" in result.output.upper()  # endpoint probe verdict
     # Key is masked by default (full key absent).
     assert "supersecretkey1234" not in result.output
+
+
+def test_status_shows_router_as_preferred_consumer_origin(monkeypatch):
+    from imas_ambix.agent import cli as cli_mod
+
+    monkeypatch.setattr(
+        cli_mod,
+        "_running_jobs",
+        lambda site: [
+            {
+                "jobid": "271",
+                "name": "ambix-router",
+                "state": "RUNNING",
+                "time": "4:20",
+                "node": "router-node",
+                "gres": "N/A",
+                "comment": "ambix-router;port=18808",
+            }
+        ],
+    )
+    monkeypatch.setattr(cli_mod, "_read_key_file", lambda path: None)
+    monkeypatch.setattr(
+        cli_mod,
+        "_discover_live_routes",
+        lambda site, key, jobs: ([], []),
+    )
+    monkeypatch.setattr(
+        cli_mod,
+        "_probe_endpoint",
+        lambda url, key: cli_mod.ProbeResult(
+            "ready",
+            (
+                cli_mod.ModelMetadata("deepseek-v4-flash", 524288),
+                cli_mod.ModelMetadata("glm-5.3", 98304),
+            ),
+        ),
+    )
+
+    result = CliRunner().invoke(main, ["agent", "status"])
+
+    assert result.exit_code == 0
+    assert "Preferred consumer origin" in result.output
+    assert "http://router-node:18808" in result.output
+    assert "deepseek-v4-flash" in result.output
+    assert "glm-5.3" in result.output
+    assert "RUNNING" in result.output
+    assert "other jobs" not in result.output
 
 
 def test_status_reveal_shows_full_key(monkeypatch):
