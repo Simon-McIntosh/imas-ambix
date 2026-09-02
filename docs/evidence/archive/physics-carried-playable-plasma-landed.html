@@ -10,7 +10,7 @@
   <meta name="plan-summary"  content="Cumulative execution evidence for physics-carried-playable-plasma: survey findings, gate measures, commits.">
   <meta name="plan-tags"     content="world-model,nova-consumer,equilibrium">
   <meta name="plan-evidence-for" content="physics-carried-playable-plasma">
-  <meta name="plan-verifies" content="physics-carried-playable-plasma#s2b">
+  <meta name="plan-verifies" content="physics-carried-playable-plasma#s2b,physics-carried-playable-plasma#s4b">
   <title>Physics-Carried Playable Plasma — landed | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
@@ -106,6 +106,106 @@
     table now carries the corrected figures; the minimal ambix wrapper exposes only <code>initial_flux</code>
     and <code>target_current</code> as edit-time inputs until that seam lands. Relayed to the nova S19
     coordinator on 2026-09-02.</p>
+
+    <h2 id="s4b-targets">§4b — Camera topology targets (landed 2026-09-02)</h2>
+    <p>Codex implement node <code>pcp-topology-targets</code> (run
+    <code>r-20260902T135140055700-pcp-topology-targets</code>, gate passed) added
+    <code>imas_ambix/worldmodel/camera_topology_targets.py</code> with
+    <code>tests/worldmodel/test_camera_topology_targets.py</code> — commit <code>b7a0567</code>, merged
+    <code>4a29600</code>. 5 tests pass; the whole-tree <code>ruff check imas_ambix tests</code> gate
+    stays at exit 0.</p>
+
+    <p><strong>Why the node existed.</strong> §4b names strike-point error and topology-class accuracy
+    in its gate, and neither label is on disk: the level-2 <code>equilibrium</code> group carries no
+    strike point and no class, and its two null slots are order-invariant, so even the <em>primary</em>
+    null is not directly available. All three are derived here from what the group does carry — the flux
+    map, the boundary contour, the null coordinates and the wall — reusing the existing topology
+    authority (<code>read_topology</code>, <code>boundary_flux</code>, <code>lcfs_contour</code>,
+    <code>classify_regions</code>) rather than a second critical-point finder. Targets stay metre-valued
+    with masks preserved, never imputed.</p>
+
+    <table>
+      <thead><tr><th>Shot</th><th>Boundary-defined frames</th><th>limited</th><th>SN-lower</th>
+        <th>SN-upper</th><th>connected-DN</th><th>disconnected-DN</th><th>Primary-null + complete-strike yield</th></tr></thead>
+      <tbody>
+        <tr><td>21983</td><td>349</td><td>58</td><td>14</td><td>15</td><td>262</td><td>0</td><td>291/349 = 83.38%</td></tr>
+        <tr><td>21985</td><td>335</td><td>55</td><td>119</td><td>19</td><td>142</td><td>0</td><td>280/335 = 83.58%</td></tr>
+        <tr><td>21986</td><td>292</td><td>44</td><td>120</td><td>42</td><td>86</td><td>0</td><td>248/292 = 84.93%</td></tr>
+        <tr><td><strong>21989</strong></td><td>384</td><td>54</td><td>183</td><td>16</td><td>131</td><td>0</td><td>330/384 = 85.94%</td></tr>
+        <tr><td><strong>total</strong></td><td><strong>1,360</strong></td><td>211</td><td>436</td><td>92</td><td>621</td><td>0</td><td><strong>1,149/1,360 = 84.49%</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The derivation corroborates itself.</strong> In every one of the four shots the
+    non-yielding frame count equals the limited-class count <em>exactly</em> (58/58, 55/55, 44/44,
+    54/54). The class read and the null/strike read are computed by different routes, so their agreement
+    is independent evidence that limited configurations correctly carry no primary null and no strike
+    points, and that every diverted frame carries both. Class thresholds sit on
+    <code>XPOINT_BIND_TOL = 0.005</code> of the axis-to-boundary flux span; strike points are radially
+    ordered separatrix–wall intersections in inner/outer slots.</p>
+
+    <p><strong>Negative finding: one class has no support.</strong> <code>disconnected-double-null</code>
+    occurs in 0 of 1,360 frames while <code>connected-double-null</code> carries 621. Its branch requires
+    exactly one binding null, a second valid null, and a private region; the 0.5% binding tolerance is
+    tight, so this reads as a property of these four carriers rather than a mislabel. The consequence is
+    for the gate, not the module: the §6 class-accuracy measure can presently score four classes, not
+    five, so the labeller must report per-class support beside accuracy — a zero-support class averaged
+    into an aggregate is a passing number that means nothing. Artifact:
+    <code>frozen-six-topology-census.json</code> in the run directory.</p>
+
+    <h2 id="s4b-cohort">§4b — Labeller cohort and confounder census (landed 2026-09-02)</h2>
+    <p>Read-only codex investigate node <code>pcp-frame-census</code> (run
+    <code>r-20260902T135147372409-pcp-frame-census</code>, gate passed, no commit — the report is the
+    delivery, digest <code>sha256:90f58cab3da7d787</code>) fixed the labeller cohort and pre-registered
+    the four robustness subsets. Report:
+    <code>~/.config/reckon/crew/reports/physics-carried-playable-plasma/labeller-cohort-census.md</code>.</p>
+
+    <table>
+      <thead><tr><th>Partition</th><th>Shots</th><th>Label-bearing frames</th><th>Campaigns</th></tr></thead>
+      <tbody>
+        <tr><td>train</td><td>472</td><td>1,163,812</td><td>M6 92 / M7 220 / M8 160</td></tr>
+        <tr><td>validation</td><td>58</td><td>125,930</td><td>M6 11 / M7 27 / M8 20</td></tr>
+        <tr><td>clean same-campaign test</td><td>87</td><td>240,281</td><td>M6 38 / M7 29 / M8 20</td></tr>
+        <tr><td>held-out campaign test</td><td>101</td><td>107,880</td><td>M9 101</td></tr>
+        <tr><td><strong>total</strong></td><td><strong>718</strong></td><td><strong>1,637,903</strong></td><td>M6–M9</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The referee firewall is measured, not asserted.</strong> The cohort is drawn wholly from
+    the committed <code>camdyn_split_v0.held_out</code> partition: its intersection with that split's
+    7,535-shot train list is 0 shots, and with its 942-shot validation list is 0 shots. The unit of
+    independence is always the whole shot, and every eligible M9 shot is reserved for the held-out
+    campaign and may not be used to fit or tune.</p>
+
+    <table>
+      <thead><tr><th>§6 confounder</th><th>Shots</th><th>Frames</th><th>Evaluations</th><th>Readiness</th></tr></thead>
+      <tbody>
+        <tr><td>brightness-scaled (gains 0.50/0.75/1.25/1.50)</td><td>87</td><td>240,281</td><td>961,124</td><td>powered</td></tr>
+        <tr><td>gas-puff (held gas command above an adaptive floor)</td><td>53</td><td>124,138</td><td>124,138</td><td>powered</td></tr>
+        <tr><td>held-out campaign (M9)</td><td>101</td><td>107,880</td><td>107,880</td><td>powered; joint campaign + pose + appearance term</td></tr>
+        <tr><td><strong>divertor-bright</strong></td><td><strong>2</strong></td><td><strong>2</strong></td><td><strong>2</strong></td><td><strong>NOT powered — gate stays open</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Negative finding: the fourth confounder cannot be measured as pre-registered.</strong>
+    Mapping the eight held-out fast-D&alpha; events onto native rbb frames and requiring the brightness
+    transient to reach 4 robust sigma within &plusmn;2 frames of the event leaves exactly two qualifying
+    frames (22260 frame-6338, 24451 frame-1549). Two frames cannot power the robustness measure. The
+    census declined to relax the sigma or alignment bars after seeing that result, on the grounds that
+    doing so tunes the judge around its own evidence — the precise failure §4b's referee framing exists
+    to prevent. Recorded as an adverse census rather than passing evidence, and folded to
+    <code>pcp-divertor-screen</code>, which expands the candidate pool corpus-wide at unchanged
+    thresholds.</p>
+
+    <p><strong>Leakage constraint landed on §3b and §4, not §4b.</strong> All 718 cohort shots appear in
+    the broad unified world-model manifest (<code>curated_windows_unified_6cam</code>, 7,664 rbb shots),
+    so the future flux-conditioned decoder corpus must <em>subtract</em> the full cohort rather than reuse
+    that manifest unfiltered. The frozen VQ decoder this plan uses is the baseline ImageNet OpenMAGVIT2
+    with no rbb fine-tuning and leaks nothing; the two <em>rejected</em> plasma fine-tunes did overlap the
+    cohort (583 train, 134 validation, one discarded) and are not the accepted weights — a distinction
+    that had to be measured, because conflating the three artifacts called &ldquo;decoder&rdquo; would
+    have produced a false disjointness claim. Also surfaced rather than silently zeroed: shot 16333 has
+    no readable gas array.</p>
 
   </main>
 </body>
