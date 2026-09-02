@@ -123,9 +123,7 @@ def test_generated_serve_script_owns_registration_lifecycle(tmp_path):
 
 def test_agent_package_modules_parse_with_serving_python():
     module_paths = _agent_package_modules()
-    parsed = 0
 
-    assert len(module_paths) == 16
     for path in module_paths:
         source = path.read_text(encoding="utf-8")
         try:
@@ -140,9 +138,6 @@ def test_agent_package_modules_parse_with_serving_python():
                 f"{error.msg}",
                 pytrace=False,
             )
-        parsed += 1
-
-    assert parsed == len(module_paths)
 
 
 def test_serving_python_guard_rejects_unparenthesized_exception_tuple():

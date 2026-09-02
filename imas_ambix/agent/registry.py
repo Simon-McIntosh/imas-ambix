@@ -280,7 +280,7 @@ def build_endpoint_document(
             endpoint = _endpoint_from_catalog(
                 registration, fetch_catalog(registration.origin)
             )
-        except OSError, TypeError, ValueError:
+        except (OSError, TypeError, ValueError):
             continue
         if endpoint.model_id in seen_models:
             raise ValueError(f"multiple live endpoints publish {endpoint.model_id!r}")
