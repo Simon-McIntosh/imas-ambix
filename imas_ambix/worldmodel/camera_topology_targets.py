@@ -437,17 +437,24 @@ def load_camera_topology_targets(
         )
     equilibrium = store["equilibrium"]
     wall = store["wall"]
+    equilibrium_times = np.asarray(equilibrium["time"])
+    if "x_point_r" in equilibrium and "x_point_z" in equilibrium:
+        x_point_r = np.asarray(equilibrium["x_point_r"])
+        x_point_z = np.asarray(equilibrium["x_point_z"])
+    else:
+        x_point_r = np.empty((0, equilibrium_times.size), dtype=np.float64)
+        x_point_z = np.empty((0, equilibrium_times.size), dtype=np.float64)
     return build_camera_topology_targets_from_arrays(
         shot_id=int(shot_id),
         frame_times=frame_times,
-        equilibrium_times=np.asarray(equilibrium["time"]),
+        equilibrium_times=equilibrium_times,
         psi=np.asarray(equilibrium["psi"]),
         major_radius=np.asarray(equilibrium["major_radius"]),
         z=np.asarray(equilibrium["z"]),
         axis_r=np.asarray(equilibrium["magnetic_axis_r"]),
         axis_z=np.asarray(equilibrium["magnetic_axis_z"]),
-        x_point_r=np.asarray(equilibrium["x_point_r"]),
-        x_point_z=np.asarray(equilibrium["x_point_z"]),
+        x_point_r=x_point_r,
+        x_point_z=x_point_z,
         lcfs_r=np.asarray(equilibrium["lcfs_r"]),
         lcfs_z=np.asarray(equilibrium["lcfs_z"]),
         wall_r=np.asarray(wall["limiter_r"]),

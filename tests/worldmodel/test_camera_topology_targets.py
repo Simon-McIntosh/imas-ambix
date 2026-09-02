@@ -181,3 +181,38 @@ def test_loader_reads_equilibrium_and_wall_groups(tmp_path):
 
     assert result.shot_id == shot
     assert result.class_distribution()["limited"] == 1
+
+
+def test_loader_masks_omitted_null_arrays_but_keeps_defined_class(tmp_path):
+    shot = 13
+    rg = np.linspace(0.5, 1.5, 81)
+    zg = np.linspace(-0.5, 0.5, 81)
+    rr, zz = np.meshgrid(rg, zg)
+    psi = ((rr - 1.0) ** 2 + zz**2)[:, :, None]
+    wall = _circle(1.0, 0.0, 0.35, n=80)
+    store = zarr.open_group(str(tmp_path / f"{shot}.zarr"), mode="w")
+    equilibrium = store.create_group("equilibrium")
+    arrays = {
+        "time": np.array([0.0]),
+        "psi": psi,
+        "major_radius": rg,
+        "z": zg,
+        "magnetic_axis_r": np.array([1.0]),
+        "magnetic_axis_z": np.array([0.0]),
+        "lcfs_r": wall[0][:, None],
+        "lcfs_z": wall[1][:, None],
+    }
+    for name, values in arrays.items():
+        equilibrium.create_array(name, data=values)
+    wall_group = store.create_group("wall")
+    wall_group.create_array("limiter_r", data=wall[0])
+    wall_group.create_array("limiter_z", data=wall[1])
+
+    result = load_camera_topology_targets(shot, np.array([0.0]), level2_root=tmp_path)
+
+    assert np.isnan(result.primary_xpoint).all()
+    assert result.primary_xpoint_mask.tolist() == [False]
+    assert np.isnan(result.strike_points).all()
+    assert not result.strike_point_mask.any()
+    assert result.topology_class.tolist() == [TOPOLOGY_CLASS_NAMES.index("limited")]
+    assert result.boundary_flux_mask.tolist() == [True]
