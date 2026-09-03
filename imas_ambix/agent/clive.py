@@ -571,7 +571,6 @@ if [[ -n "$MAX_CONTEXT" ]]; then
         echo "clive: selected release '$MODEL_ID' has too little context for a prompt and response." >&2
         exit 2
     fi
-    export CLAUDE_CODE_MAX_CONTEXT_TOKENS="$MAX_CONTEXT"
     # Keep the harness default for large windows. Smaller windows reserve at
     # most one quarter for a response so prompt and tool history retain room.
     OUTPUT_RESERVATION=$(( MAX_CONTEXT / 4 ))
@@ -582,6 +581,12 @@ if [[ -n "$MAX_CONTEXT" ]]; then
     fi
     export CLAUDE_CODE_MAX_OUTPUT_TOKENS="$OUTPUT_RESERVATION"
     USABLE_INPUT_BUDGET=$(( MAX_CONTEXT - OUTPUT_RESERVATION ))
+    # The engine bounds prompt plus requested output by the served window, so
+    # the harness must be told the input ceiling, not the whole window. Given
+    # the whole window it would fill toward it and every request would then ask
+    # for prompt plus the reservation on top and be refused at the API. Telling
+    # it the ceiling turns that refusal into context pressure it can compact.
+    export CLAUDE_CODE_MAX_CONTEXT_TOKENS="$USABLE_INPUT_BUDGET"
     CONTEXT_LABEL="$(( MAX_CONTEXT / 1024 ))k"
     BUDGET_LABEL="${USABLE_INPUT_BUDGET}-token usable input budget · ${OUTPUT_RESERVATION}-token output reservation"
 else
