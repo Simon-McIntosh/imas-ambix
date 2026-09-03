@@ -244,6 +244,62 @@ def test_native_paths_route_with_auth_and_preserve_errors() -> None:
     asyncio.run(exercise())
 
 
+def test_requested_output_is_capped_to_a_quarter_of_the_model_window() -> None:
+    async def exercise() -> None:
+        seen: list[bytes] = []
+
+        async def catalog(_: web.Request) -> web.Response:
+            return web.json_response(
+                {"object": "list", "data": [_card("glm-5.3", context=98_304, count=4)]}
+            )
+
+        async def endpoint(request: web.Request) -> web.Response:
+            seen.append(await request.read())
+            return web.Response(
+                body=b'{"native":true}', content_type="application/json"
+            )
+
+        engine = web.Application()
+        engine.router.add_get("/v1/models", catalog)
+        engine.router.add_post("/{tail:.*}", endpoint)
+        async with (
+            _server(engine) as engine_url,
+            _router([Upstream(engine_url)]) as app,
+        ):
+                messages = json.dumps(
+                    {"model": "glm-5.3", "messages": [], "max_tokens": 32_000}
+                ).encode()
+                response = await _invoke(app, "POST", "/v1/messages", messages)
+                assert _status(response) == 200
+
+                chat = json.dumps(
+                    {
+                        "model": "glm-5.3",
+                        "messages": [],
+                        "max_completion_tokens": 98_304,
+                    }
+                ).encode()
+                response = await _invoke(app, "POST", "/v1/chat/completions", chat)
+                assert _status(response) == 200
+
+                within = json.dumps(
+                    {"model": "glm-5.3", "messages": [], "max_tokens": 4_096}
+                ).encode()
+                response = await _invoke(app, "POST", "/v1/messages", within)
+                assert _status(response) == 200
+
+                plain = b'{"model": "glm-5.3", "messages": []}'
+                response = await _invoke(app, "POST", "/v1/messages", plain)
+                assert _status(response) == 200
+
+        assert json.loads(seen[0])["max_tokens"] == 24_576
+        assert json.loads(seen[1])["max_completion_tokens"] == 24_576
+        assert json.loads(seen[2])["max_tokens"] == 4_096
+        assert seen[3] == plain
+
+    asyncio.run(exercise())
+
+
 def test_sse_bytes_are_identical_and_disconnect_closes_upstream() -> None:
     async def exercise() -> None:
         first_event = (

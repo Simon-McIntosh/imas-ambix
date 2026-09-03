@@ -1,4 +1,5 @@
-"""ASGI pass-through routing for native model-serving protocols."""
+"""ASGI pass-through routing for native model-serving protocols, with per-model
+output ceilings so a request can never overflow the owning engine's window."""
 
 from __future__ import annotations
 
@@ -211,9 +212,10 @@ class RouterApp:
 
         catalogs = await self._reachable_catalogs()
         owners = [
-            catalog.upstream
+            (catalog.upstream, card)
             for catalog in catalogs
-            if any(card["id"] == model_id for card in catalog.cards)
+            for card in catalog.cards
+            if card["id"] == model_id
         ]
         if not owners:
             await self._json_error(send, 404, f"unknown model id: {model_id}")
@@ -221,13 +223,15 @@ class RouterApp:
         if len(owners) != 1:
             await self._json_error(send, 409, f"duplicate model id: {model_id}")
             return
+        upstream, card = owners[0]
 
         consumer = self._consumer_id(scope)
         if not await self._admission.acquire(consumer):
             await self._retry_later(send)
             return
         try:
-            await self._relay(scope, receive, send, body, owners[0])
+            relay_body = self._clamp_output_tokens(payload, body, card)
+            await self._relay(scope, receive, send, relay_body, upstream)
         finally:
             await self._admission.release(consumer)
 
@@ -370,6 +374,38 @@ class RouterApp:
             finally:
                 disconnected.cancel()
                 await asyncio.gather(disconnected, return_exceptions=True)
+
+    @staticmethod
+    def _clamp_output_tokens(
+        payload: Mapping[str, Any], body: bytes, card: Mapping[str, Any]
+    ) -> bytes:
+        """Cap requested output so a prompt plus response fits the model window.
+
+        The engine rejects a request whose declared output exceeds what the
+        model window leaves after the prompt. Agent harnesses fix a large
+        output reservation at launch and do not re-derive it when the model is
+        switched mid-session, so a prompt that fits one engine can overflow a
+        narrower one merely because the old reservation was carried over.
+        Leaving a quarter of the window for the response mirrors the launcher
+        convention and bounds every request without tokenizing the prompt here;
+        a prompt beyond three quarters of the window is handled by the engine
+        as before. The body is re-encoded only when a cap actually applied, so
+        otherwise the request passes through byte-for-byte.
+        """
+        maximum = card.get("max_model_len")
+        if not isinstance(maximum, int) or maximum <= 0:
+            return body
+        ceiling = max(1, maximum // 4)
+        clamped: dict[str, Any] | None = None
+        for field in ("max_tokens", "max_completion_tokens"):
+            requested = payload.get(field)
+            if isinstance(requested, int) and requested > ceiling:
+                if clamped is None:
+                    clamped = dict(payload)
+                clamped[field] = ceiling
+        if clamped is None:
+            return body
+        return json.dumps(clamped, ensure_ascii=False, separators=(",", ":")).encode()
 
     @staticmethod
     async def _request_body(receive: Receive) -> tuple[bytes, bool]:
