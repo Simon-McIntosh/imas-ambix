@@ -174,8 +174,11 @@ def test_each_release_gets_its_own_topology_and_context(tmp_path):
             "description": "4×H200 · fp8 · 256k context",
         },
     ]
-    assert environment["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] == "524288"
+    # The exported context is the input ceiling, not the served window, so the
+    # harness plans against a budget the engine can actually accept.
+    assert environment["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] == "492288"
     assert environment["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] == "32000"
+    assert 492_288 + 32_000 <= 524_288
     assert "492288-token usable input budget" in result.stderr
     assert "32000-token output reservation" in result.stderr
 
@@ -199,14 +202,14 @@ def test_small_context_uses_its_own_safe_output_reservation(tmp_path):
     )
 
     assert result.returncode == 0, result.stderr
-    context = int(environment["CLAUDE_CODE_MAX_CONTEXT_TOKENS"])
+    usable_input = int(environment["CLAUDE_CODE_MAX_CONTEXT_TOKENS"])
     reservation = int(environment["CLAUDE_CODE_MAX_OUTPUT_TOKENS"])
-    usable_input = context - reservation
-    assert context == 65_536
     assert reservation == 16_384
     assert usable_input == 49_152
     assert usable_input > 33_537
-    assert reservation + 1 <= context
+    # A prompt filled to the declared ceiling still leaves the reservation
+    # inside the served window, which is what keeps the engine from refusing.
+    assert usable_input + reservation <= 65_536
     assert "49152-token usable input budget" in result.stderr
     assert "16384-token output reservation" in result.stderr
 
@@ -226,10 +229,11 @@ def test_output_reservation_always_leaves_a_minimal_prompt(tmp_path, max_model_l
     )
 
     assert result.returncode == 0, result.stderr
-    context = int(environment["CLAUDE_CODE_MAX_CONTEXT_TOKENS"])
+    usable_input = int(environment["CLAUDE_CODE_MAX_CONTEXT_TOKENS"])
     reservation = int(environment["CLAUDE_CODE_MAX_OUTPUT_TOKENS"])
     assert reservation >= 1
-    assert reservation + 1 <= context
+    assert usable_input >= 1
+    assert usable_input + reservation <= max_model_len
 
 
 def test_picker_rows_do_not_create_or_redirect_aliases(tmp_path):
