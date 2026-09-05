@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-05T16:14:27",
+  "updated": "2026-09-05T16:30:53",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -369,6 +369,24 @@
         "created": "2026-08-20"
       },
       {
+        "id": "dspark-bench-spec-names",
+        "harness": "claude",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-05"
+      },
+      {
+        "id": "dspark-endpoint-publish",
+        "harness": "claude-opus",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-05"
+      },
+      {
         "id": "dspark-engine-config",
         "harness": "claude-opus",
         "role": "implement",
@@ -391,6 +409,44 @@
       {
         "id": "dspark-serving-receipts",
         "harness": "claude",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-05"
+      },
+      {
+        "id": "dsv4-bench-spec-names",
+        "harness": "clive",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-05"
+      },
+      {
+        "id": "dsv4-context-budget",
+        "harness": "clive",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-05"
+      },
+      {
+        "id": "dsv4-endpoint-publish",
+        "harness": "clive",
+        "role": "implement",
+        "session_id": "cbf97d44-10ed-42ba-a7e3-74ccdb756c17",
+        "session_model": "deepseek-v4-flash",
+        "sessions": {
+          "{\"alias\":\"dsv4-flash\",\"backend\":\"clive\",\"effort\":\"high\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4-flash\",\"sandbox\":\"worktree-full\",\"usable_input_window\":492288}": "cbf97d44-10ed-42ba-a7e3-74ccdb756c17"
+        },
+        "created": "2026-09-05"
+      },
+      {
+        "id": "dsv4-router-catalog",
+        "harness": "clive",
         "role": "implement",
         "session_id": null,
         "session_model": null,
@@ -22629,9 +22685,198 @@
           "role": "implement",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260905T141702170033-dsv4-router-catalog",
+        "plan": "dsv4-flash-dspark-four-card-serve",
+        "section": "\u00a76",
+        "node": "dsv4-router-catalog",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 730,
+                "cached_input_tokens": 403967,
+                "input_tokens": 404699,
+                "output_tokens": 1243,
+                "reasoning_output_tokens": 572,
+                "total_tokens": 405942,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "63e4edeb-100f-45e8-9fac-7711f219bc18",
+            "session_id": "ambix-dspark"
+          },
+          "done_when": "a new test proves that GET /v1/models against two reachable upstreams advertising one model id returns HTTP 200 carrying exactly one card, the one whose ambix.accelerator_count is larger, with its own ambix block intact; a second new test proves a pair the preference cannot rank still returns 409; every existing test in tests/test_agent_router_topology_preference.py, tests/test_agent_router.py, tests/test_agent_router_resolution.py, tests/test_agent_router_service.py and tests/test_agent_router_admission.py passes unchanged; uv run --no-sync ruff check imas_ambix tests exits 0",
+          "estimated_hours": 1.0,
+          "goal": "Make the router's catalog path rank duplicate model ids the same way its relay path already does",
+          "id": "dsv4-router-catalog",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260905T141702170033-dsv4-router-catalog/manifest.md",
+          "plan": "dsv4-flash-dspark-four-card-serve",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a76",
+          "spec_level": "exact",
+          "time_budget": "60m",
+          "write_paths": [
+            "imas_ambix/agent/router.py",
+            "tests/test_agent_router_topology_preference.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "dsv4-router-catalog",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 492288
+        },
+        "dispatched_at": "2026-09-05T14:17:11Z",
+        "completed_at": "2026-09-05T14:29:34.283Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 732,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 743,
+        "stalled": false,
+        "time_budget": "60m",
+        "base_sha": "47be93ec970368de69546863911b535bada4fbf3",
+        "commits": [
+          "5a8ddcabd9976c87c140eeedda3858d168f853d3"
+        ],
+        "changed_lines": {
+          "added": 135,
+          "removed": 12,
+          "files": 2
+        },
+        "tests_added": 4,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_router_topology_preference.py tests/test_agent_router.py tests/test_agent_router_resolution.py tests/test_agent_router_service.py tests/test_agent_router_admission.py tests/test_agent_serving_receipts.py tests/test_agent_dspark_profile.py -q",
+          "exit_status": 0,
+          "log_path": "/run/user/39486/claude-39486/-home-ITER-mcintos-Code-imas-ambix/63e4edeb-100f-45e8-9fac-7711f219bc18/scratchpad/dsv4-gate1.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260905T141702170033-dsv4-router-catalog/manifest.md",
+        "scope_changed": false,
+        "session_id": "d694815f-e941-4f7c-b56f-36d653a7c522",
+        "budget": {
+          "cost_usd": null,
+          "detail": "no events yet",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "refusal": false,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": true,
+              "budget_overrun_seconds": 247686,
+              "budget_seconds": 3300,
+              "classification": "blocked",
+              "detail": "the worker manifest reports blocked: the required full 472-shot train-split target-statistics pass cannot complete because cohort shot 26767 has an equilibrium group but no wall group at /work/projects/imas_gpu/mast/level2/shots/26767.zarr; handling absent wall geometry is a distinct semantic decision and requires paths outside this node's null-pair repair scope",
+              "elapsed_seconds": 250986,
+              "external_wait": null,
+              "log_age_seconds": 249459,
+              "log_fresh": false,
+              "manifest_commits": [
+                "[\"fe03e6f33c737d1257a32db4af75dd53feb97f8d\"]"
+              ],
+              "manifest_derived": false,
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T163334178600-pcp-targets-mask-repair/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "blocked",
+              "manifest_status": "blocked",
+              "marker": "!",
+              "needs_help_complete": false,
+              "next_action": "read /home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T163334178600-pcp-targets-mask-repair/manifest.md; resolve the blocker before resuming the run",
+              "node": "pcp-targets-mask-repair",
+              "phase": "complete",
+              "plan": "physics-carried-playable-plasma",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260902T163334178600-pcp-targets-mask-repair",
+              "session": "pcp-s4b-01",
+              "session_resolution": {
+                "consulted": [
+                  "pointer",
+                  "stream",
+                  "ledger"
+                ],
+                "resolved": true,
+                "run_id": "r-20260902T163334178600-pcp-targets-mask-repair",
+                "session_id": "01a062f8-6b1c-7b92-9234-cf9375176910",
+                "source": "pointer"
+              },
+              "terminal_age_seconds": 249490,
+              "terminal_at": "2026-09-02T16:58:56Z",
+              "wait_age_seconds": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/pcp-s4b-01/pcp-targets-mask-repair"
+            }
+          ]
+        },
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-dspark/dsv4-router-catalog",
+          "session_id": "d694815f-e941-4f7c-b56f-36d653a7c522",
+          "session_source": "stream",
+          "retained_at": "2026-09-05T14:29:34.283Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
-    "holds": [],
-    "_version": 493
+    "holds": [
+      {
+        "hold_id": "hold-claude-20260905141613",
+        "backend": "claude",
+        "purpose": "dispatch",
+        "opened_at": "2026-09-05T14:16:13Z",
+        "closed_at": null,
+        "held_seconds": null,
+        "utilisation_pct": 95.0,
+        "resets_at": "2026-09-05T17:00:00Z",
+        "effective_ceiling_pct": 95.0,
+        "reason": "utilisation 95% with burn multiple unknown is at or above the 95.0% ceiling for a dispatch (ceiling 100.0% less reserve)",
+        "closed_by_purpose": null,
+        "resumption_fired": false
+      }
+    ],
+    "_version": 502
   }
 }
