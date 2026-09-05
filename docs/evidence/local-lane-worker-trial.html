@@ -58,7 +58,7 @@
         <tr><td>clive / dsv4-flash</td><td>mechanical implement, numeric target</td><td>2424 s <em>(nova)</em></td><td>53,426</td><td>22.0 wall / 23.1 API</td><td>$52.13 imputed</td></tr>
         <tr><td>clive / dsv4-flash</td><td>census slot-exhaustion repair</td><td>8128 s <em>(nova)</em></td><td>193,647</td><td>32.7</td><td>$162 imputed</td></tr>
         <tr><td>clive / dsv4-flash</td><td>one conditioning rule, 2 fixtures</td><td>7733 s <em>(nova)</em></td><td>159,122</td><td>27.8</td><td>$136 imputed</td></tr>
-        <tr><td>clive / dsv4-flash</td><td>stale test-pin re-expression, 5 file:line targets</td><td>5540 s <em>(nova)</em></td><td>pending extraction</td><td>—</td><td>imputed</td></tr>
+        <tr><td>clive / dsv4-flash</td><td>stale test-pin re-expression, 5 file:line targets</td><td>7192 s ledger / 7586 s stream <em>(nova)</em></td><td><strong>unavailable</strong></td><td><strong>unavailable</strong></td><td><strong>absent</strong></td></tr>
         <tr><td>claude-opus-5 high</td><td>reduced-Newton step, open-ended H200 measurement</td><td>6069 s <em>(nova)</em></td><td>130,159</td><td>69.9 API / <strong>21.4 wall</strong></td><td>$23.20</td></tr>
       </tbody>
     </table>
@@ -76,6 +76,18 @@
     and <code>crew complete</code> reads them, so the lane is measurable <em>at promotion</em> and
     blind <em>in flight</em> — a coordinator cannot see a running node's consumption while deciding
     whether to let it continue. The first version of this report called the gap absolute; it is not.</p>
+    <p><strong>But "measurable at promotion" has an exception, and it is not a rare one.</strong> A run
+    that ends while a background task is still live exits <em>without emitting the terminal
+    <code>result</code> record at all</em>. One node in this trial did exactly that: its ledger row
+    carries a passing gate and a 7192-second wall, and <code>null</code> for cost, generated tokens
+    and tok/s. Its only figures are stream-derived — 265 assistant turns, and 302,231 thinking
+    characters against 1,542 of text, 99.5% thinking, the highest of any node here. Its throughput is
+    recorded above as <strong>unavailable</strong> rather than estimated, which is the honest entry.</p>
+    <p>So the ledger's cost column on this lane is not merely <em>imputed</em> — it is sometimes
+    <em>absent</em>, and a router reading it would see a free node. That is the same
+    "a worker's process ends with its turn" failure the shared guidance already carries, now with a
+    bookkeeping consequence nobody had connected to it: the briefing error that loses a gate also loses
+    the accounting.</p>
     <p><strong>Client-side cache figures for that lane are wrong, and this correction reversed a
     conclusion.</strong> Client usage records report zero cache reads, from which imas-codex concluded
     the lane had <em>no prompt caching</em> and wrote a cost section on it. Sampling the live two-card
