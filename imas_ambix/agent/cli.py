@@ -21,6 +21,8 @@ from rich.table import Table
 from imas_ambix.agent.profile import SiteConfig, list_profiles, load_profile
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from imas_ambix.agent.bench import BenchReport
     from imas_ambix.agent.router import Upstream
 
@@ -511,6 +513,7 @@ def serve(
         f"on port {resolved_port}{key_note}."
     )
     console.print(message)
+    _republish_endpoint_document(site)
 
 
 def _job_node(job: dict[str, str]) -> str | None:
@@ -544,6 +547,7 @@ def status(reveal: bool) -> None:
 
     if not jobs:
         console.print("No imas-ambix agent jobs found.")
+        _print_endpoint_document_warnings(site, ())
         return
 
     try:
@@ -692,6 +696,111 @@ def status(reveal: bool) -> None:
         console.print()
         console.print("[dim]other jobs[/]")
         console.print(ptable)
+
+    _print_endpoint_document_warnings(site, routes)
+
+
+def _same_node(first: str, second: str) -> bool:
+    """Return whether two spellings name the same scheduler node.
+
+    The scheduler reports the short ``98dci4-gpu-0003`` while a serve
+    registration records the fully-qualified ``98dci4-gpu-0003.iter.org``;
+    accept both orders of one being a suffix of the other.
+    """
+    return (
+        first == second
+        or first.endswith("." + second)
+        or second.endswith("." + first)
+    )
+
+
+def _endpoint_document_warnings(
+    site: SiteConfig, routes: Sequence[LiveRoute]
+) -> tuple[str, ...]:
+    """Describe how the published endpoint document disagrees with live serves."""
+    from imas_ambix.agent.registry import PublishedEndpoint, read_endpoint_document
+
+    path = site.endpoint_document
+    if not path.is_file():
+        return ()
+    try:
+        published = read_endpoint_document(path)
+    except ValueError as error:
+        return (
+            f"the published endpoint document at {path} is unreadable "
+            f"({error}), so launchers cannot discover any release",
+        )
+
+    live_by_model: dict[str, list[LiveRoute]] = {}
+    for route in routes:
+        live_by_model.setdefault(route.model_id, []).append(route)
+    published_by_model: dict[str, list[PublishedEndpoint]] = {}
+    for endpoint in published:
+        published_by_model.setdefault(endpoint.model_id, []).append(endpoint)
+
+    warnings: list[str] = []
+    for model_id, entries in published_by_model.items():
+        for entry in entries:
+            serving = [
+                route
+                for route in live_by_model.get(model_id, ())
+                if route.port == entry.port
+                and route.gpu_count == entry.accelerator_count
+                and _same_node(route.node, entry.host)
+            ]
+            if serving:
+                continue
+            if live_by_model.get(model_id):
+                locations = ", ".join(
+                    f"{route.node}:{route.port} ({route.gpu_count}×GPU)"
+                    for route in live_by_model[model_id]
+                )
+                warnings.append(
+                    f"the published document names {model_id} at "
+                    f"{entry.host}:{entry.port} ({entry.accelerator_count}×GPU), "
+                    f"but the live serve is at {locations}"
+                )
+            else:
+                warnings.append(
+                    f"the published document names {model_id} at "
+                    f"{entry.host}:{entry.port} ({entry.accelerator_count}×GPU), "
+                    f"but no running serve is publishing it"
+                )
+    for model_id, routes_for_model in live_by_model.items():
+        published_entries = published_by_model.get(model_id, ())
+        for route in routes_for_model:
+            published_at = [
+                entry
+                for entry in published_entries
+                if entry.port == route.port
+                and entry.accelerator_count == route.gpu_count
+                and _same_node(entry.host, route.node)
+            ]
+            if not published_at:
+                warnings.append(
+                    f"live serve {model_id} at {route.node}:{route.port} "
+                    f"({route.gpu_count}×GPU) is absent from the published "
+                    f"endpoint document"
+                )
+    return tuple(warnings)
+
+
+def _print_endpoint_document_warnings(
+    site: SiteConfig, routes: Sequence[LiveRoute]
+) -> None:
+    """Print a visible warning when the published document diverges from live."""
+    warnings = _endpoint_document_warnings(site, routes)
+    if not warnings:
+        return
+    console.print()
+    console.print(
+        Panel(
+            "\n".join(f"[yellow]• {warning}[/]" for warning in warnings),
+            title="[yellow]Published endpoint document disagrees with live serves[/]",
+            border_style="yellow",
+            padding=(0, 1),
+        )
+    )
 
 
 def _resolve_log_job(selector: str | None, site: SiteConfig) -> dict[str, str]:
@@ -896,6 +1005,71 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
     if cancel_result.returncode != 0:
         raise click.ClickException(cancel_result.stderr.strip() or "scancel failed")
     console.print(f"[green]Cancelled {len(job_ids)} job(s).[/]")
+    _remove_cancelled_registrations(site, job_ids)
+    _republish_endpoint_document(site)
+
+
+# -- Published endpoint document ---------------------------------------------
+
+
+def _republish_endpoint_document(site: SiteConfig) -> Path | None:
+    """Rebuild the public endpoint document from the shared serve registry.
+
+    Reads every serve registration, retains only endpoints that answer an
+    anonymous catalog probe, qualifies router origins that cover the released
+    models, and atomically rewrites the document. Best-effort: a registry or
+    scheduler fault cannot undo a serve that has already been submitted or
+    cancelled, so the fault is reported as a warning and the command completes.
+    """
+    from imas_ambix.agent.registry import (
+        _fetch_anonymous_catalog,
+        build_endpoint_document,
+        discover_routing_origins,
+        read_registrations,
+        registration_directory,
+        write_endpoint_document,
+    )
+
+    try:
+        registrations = read_registrations(
+            registration_directory(site.base_dir),
+            job_is_running=lambda _job_id: True,
+        ).current
+        endpoints = build_endpoint_document(
+            registrations, fetch_catalog=_fetch_anonymous_catalog
+        )
+        return write_endpoint_document(
+            endpoints,
+            site.endpoint_document,
+            routing_origins=discover_routing_origins(
+                endpoints, _running_jobs(site)
+            ),
+        )
+    except (OSError, ValueError, click.ClickException) as error:
+        console.print(
+            f"[yellow]warning: could not republish the endpoint document: "
+            f"{error}[/]"
+        )
+        return None
+
+
+def _remove_cancelled_registrations(
+    site: SiteConfig, job_ids: Sequence[str]
+) -> None:
+    """Delete the shared registration records of the cancelled serve jobs.
+
+    A cancelled job's own EXIT trap removes its record when it runs, but a
+    hard kill or node drain can skip the trap; removing the record here too
+    (idempotently) guarantees the next republish drops the release.
+    """
+    from imas_ambix.agent.registry import (
+        registration_directory,
+        remove_registration,
+    )
+
+    directory = registration_directory(site.base_dir)
+    for job_id in job_ids:
+        remove_registration(job_id, directory)
 
 
 # -- Key management ----------------------------------------------------------

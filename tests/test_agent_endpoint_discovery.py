@@ -13,10 +13,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
+from click.testing import CliRunner
+
 from imas_ambix.agent import cli as agent_cli
 from imas_ambix.agent import registry as registry_mod
 from imas_ambix.agent.clive import generate_clive_script
 from imas_ambix.agent.profile import SiteConfig
+from imas_ambix.cli import main
 from imas_ambix.agent.registry import (
     PublishedEndpoint,
     PublishedOrigin,
@@ -596,3 +599,179 @@ def test_preferred_release_site_setting_reads_environment(monkeypatch):
     site = SiteConfig.from_env()
 
     assert site.preferred_release_id == "preferred-release"
+
+
+def test_serve_on_changed_port_republishes_document_naming_new_port_and_cards(
+    tmp_path, monkeypatch
+):
+    """A serve on a port the document does not name leaves it naming that port."""
+    from imas_ambix.agent import slurm as slurm_mod
+
+    site_dir = tmp_path / "site"
+    target = tmp_path / "public" / "endpoints.json"
+    monkeypatch.setenv("AMBIX_AGENT_BASE_DIR", str(site_dir))
+    monkeypatch.setenv("AMBIX_AGENT_ENDPOINT_DOCUMENT", str(target))
+    monkeypatch.setattr(agent_cli, "_running_jobs", lambda _site: [])
+
+    directory = registry_mod.registration_directory(site_dir)
+    original = ServeRegistration(
+        "deepseek-v4-flash", "node-a", 19001, "41", 2, "fp4+fp8"
+    )
+    write_registration(original, directory)
+    publish_endpoint_document(
+        [original],
+        target,
+        fetch_catalog=lambda _origin: _catalog(
+            "deepseek-v4-flash", "H200", 2, "fp4+fp8", 524288
+        ),
+    )
+    assert read_endpoint_document(target)[0].port == 19001
+
+    # The moved-in serve has registered on a different port with a different
+    # card count, and the original port has gone silent.
+    moved = ServeRegistration(
+        "deepseek-v4-flash", "node-a", 19002, "42", 4, "fp4+fp8"
+    )
+    write_registration(moved, directory)
+
+    def fetch(origin):
+        if origin == moved.origin:
+            return _catalog("deepseek-v4-flash", "H200", 4, "fp4+fp8", 524288)
+        raise OSError(f"unreachable: {origin}")
+
+    monkeypatch.setattr(registry_mod, "_fetch_anonymous_catalog", fetch)
+    monkeypatch.setattr(slurm_mod, "submit_script", lambda _script: "42")
+
+    result = CliRunner().invoke(
+        main,
+        ["agent", "serve", "deepseek-v4-flash", "--port", "19002"],
+    )
+
+    assert result.exit_code == 0
+    endpoint = read_endpoint_document(target)[0]
+    assert (endpoint.model_id, endpoint.host, endpoint.port) == (
+        "deepseek-v4-flash",
+        "node-a",
+        19002,
+    )
+    assert endpoint.accelerator_count == 4
+
+
+def test_shutdown_cancels_and_republishes_removing_the_release(
+    tmp_path, monkeypatch
+):
+    """`agent shutdown` drops the cancelled release from the published document."""
+    site_dir = tmp_path / "site"
+    target = tmp_path / "endpoints.json"
+    monkeypatch.setenv("AMBIX_AGENT_BASE_DIR", str(site_dir))
+    monkeypatch.setenv("AMBIX_AGENT_ENDPOINT_DOCUMENT", str(target))
+    monkeypatch.setattr(agent_cli, "_running_jobs", lambda _site: [])
+
+    directory = registry_mod.registration_directory(site_dir)
+    alpha = ServeRegistration("alpha", "node-a", 19001, "41", 2, "bf16")
+    beta = ServeRegistration("beta", "node-b", 19002, "42", 8, "fp8")
+    write_registration(alpha, directory)
+    write_registration(beta, directory)
+    catalogs = {
+        alpha.origin: _catalog("alpha", "H100", 2, "bf16", 131072),
+        beta.origin: _catalog("beta", "H200", 8, "fp8", 262144),
+    }
+    monkeypatch.setattr(
+        registry_mod, "_fetch_anonymous_catalog", catalogs.__getitem__
+    )
+    publish_endpoint_document(
+        [alpha, beta], target, fetch_catalog=catalogs.__getitem__
+    )
+    assert {endpoint.model_id for endpoint in read_endpoint_document(target)} == {
+        "alpha",
+        "beta",
+    }
+
+    def fake_subprocess(command, *args, **kwargs):
+        if command[0] == "squeue":
+            return subprocess.CompletedProcess(command, 0, "41|alpha\n", "")
+        if command[0] == "scancel":
+            return subprocess.CompletedProcess(command, 0, "", "")
+        raise AssertionError(f"unexpected subprocess call: {command}")
+
+    monkeypatch.setattr(agent_cli.subprocess, "run", fake_subprocess)
+
+    result = CliRunner().invoke(main, ["agent", "shutdown", "alpha", "--yes"])
+
+    assert result.exit_code == 0
+    assert "Cancelled 1 job(s)" in result.output
+    endpoints = read_endpoint_document(target)
+    assert [endpoint.model_id for endpoint in endpoints] == ["beta"]
+    remaining = registry_mod.read_registrations(
+        directory, job_is_running=lambda _job_id: True
+    ).current
+    assert [record.job_id for record in remaining] == ["42"]
+
+
+def test_status_warns_when_published_document_disagrees_with_live_serves(
+    tmp_path, monkeypatch
+):
+    """`agent status` surfaces document-vs-live drift instead of silence."""
+    document = tmp_path / "endpoints.json"
+    document.write_text(
+        json.dumps(
+            {
+                "endpoints": [
+                    {
+                        "model_id": "alpha",
+                        "host": "node-a",
+                        "port": 19001,
+                        "accelerator_family": "H100",
+                        "accelerator_count": 2,
+                        "checkpoint_precision": "bf16",
+                        "max_context": 131072,
+                    }
+                ],
+                "routing_origins": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("AMBIX_AGENT_ENDPOINT_DOCUMENT", str(document))
+    monkeypatch.setattr(
+        agent_cli,
+        "_running_jobs",
+        lambda _site: [
+            {
+                "jobid": "42",
+                "name": "deepseek-v4-flash",
+                "state": "RUNNING",
+                "time": "5:00",
+                "node": "node-b",
+            }
+        ],
+    )
+    monkeypatch.setattr(agent_cli, "_read_key_file", lambda _path: None)
+    monkeypatch.setattr(agent_cli, "_endpoint_requires_key", lambda _url: False)
+    monkeypatch.setattr(
+        agent_cli,
+        "_discover_live_routes",
+        lambda _site, _key, jobs: (
+            [
+                agent_cli.LiveRoute(
+                    model_id="alpha",
+                    node="node-b",
+                    port=19002,
+                    gpu_count=4,
+                    job_id="42",
+                    base_url="http://node-b:19002",
+                    max_context=131072,
+                    readiness="ready",
+                    job_name="deepseek-v4-flash",
+                )
+            ],
+            [],
+        ),
+    )
+
+    result = CliRunner().invoke(main, ["agent", "status"])
+
+    assert result.exit_code == 0
+    assert "disagrees with live serves" in result.output
+    assert "node-a:19001" in result.output
+    assert "node-b:19002" in result.output
