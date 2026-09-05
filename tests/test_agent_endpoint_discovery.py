@@ -19,7 +19,6 @@ from imas_ambix.agent import cli as agent_cli
 from imas_ambix.agent import registry as registry_mod
 from imas_ambix.agent.clive import generate_clive_script
 from imas_ambix.agent.profile import SiteConfig
-from imas_ambix.cli import main
 from imas_ambix.agent.registry import (
     PublishedEndpoint,
     PublishedOrigin,
@@ -29,6 +28,7 @@ from imas_ambix.agent.registry import (
     write_endpoint_document,
     write_registration,
 )
+from imas_ambix.cli import main
 
 
 def _catalog(model_id, family, count, precision, context):
