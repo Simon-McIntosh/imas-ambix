@@ -23,7 +23,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-05">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
+<meta name="plan-impl" content="0.2">
 </head>
 <body>
   <main class="plan-doc">
@@ -453,6 +454,11 @@ if len(owners) != 1:
     </article>
 </section>
 
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s5" data-id="c-20260905-s5" data-who="reckon-ship" data-when="2026-09-05">
+    <div class="r-comment-body">§5 landed — coordinator write, no crew run (host-layer config sits outside every repository, and reckon worker write paths are repository-scoped for every role). The <code>clive</code> backend in <code>~/.config/reckon/flight.yaml</code> now declares <code>sandbox: worktree-full</code>, <code>session_reuse: true</code>, <code>time_budget: 90m</code> and <code>usable_input_window: 492288</code>, each annotated with the measurement behind it. Gate: <code>reckon flight --project imas-ambix</code> resolves all four new keys from the host layer with an empty warnings list. The time budget is annotated advisory and deliberately left unenforced — that recommendation was withdrawn by the nova lead because the 129 and 135 minute walls were measured on the two-card deployment and are expected to move under four cards. The spec-level boundary (exact unsupervised, guided only with the measurement handed over, never open) has no schema key and is recorded as a comment for the routing coordinator.</div>
+</div>
+</section>
+</main>
 </body>
 </html>
