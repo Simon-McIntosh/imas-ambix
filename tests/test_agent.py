@@ -128,9 +128,11 @@ def test_load_deepseek_v4_flash_2x_inherits_base():
     assert variant.engine.type == base.engine.type
     assert variant.engine.kv_cache_dtype == base.engine.kv_cache_dtype
     assert variant.engine.enable_auto_tool_choice == base.engine.enable_auto_tool_choice
-    # -2x overrides context to the full 1M (KV is cheap on 2 cards); base is 512K.
+    # The full native 1M window is the base's own cap, so the variant inherits
+    # it from the base rather than overriding a narrower default. On two cards
+    # the single KV head still makes the full window cheap to serve.
     assert variant.engine.max_total_tokens == 1048576
-    assert base.engine.max_total_tokens == 524288
+    assert base.engine.max_total_tokens == 1048576
     assert variant.engine.parsers.tool_call == base.engine.parsers.tool_call
     assert variant.engine.parsers.reasoning == base.engine.parsers.reasoning
 
@@ -1514,7 +1516,7 @@ def test_generate_vllm_serve_script():
     assert "sglang.launch_server" not in script
     assert "--kt-method" not in script
     assert "engine: vllm" in script
-    assert "--max-model-len 524288" in script
+    assert "--max-model-len 1048576" in script
 
 
 def test_generate_minimax_serve_script():

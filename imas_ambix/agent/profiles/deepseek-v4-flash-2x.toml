@@ -18,7 +18,8 @@ _base = "deepseek-v4-flash"
 [engine]
 tensor_parallel = 2
 # Full 1M context on 2 cards — single KV head (~42 KB/token) makes KV cheap,
-# so there's no reason to cap. Overrides the base's 512K.
+# so there's no reason to cap. The base declares the same full native window,
+# so this matches it rather than raising a narrower cap.
 max_total_tokens = 1048576
 # Halved from base — at 2×H200 the KV pool sustains hundreds of concurrent
 # sequences at typical context before hitting the pool ceiling.
