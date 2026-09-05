@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-05T15:36:27",
+  "updated": "2026-09-05T16:14:27",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -22431,9 +22431,207 @@
           "role": "implement",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260905T135506769151-dspark-receipts-spec-names",
+        "plan": "dsv4-flash-dspark-four-card-serve",
+        "section": "\u00a73",
+        "node": "dspark-receipts-spec-names",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 912,
+                "cached_input_tokens": 360003,
+                "input_tokens": 360917,
+                "output_tokens": 694,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 361611,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "63e4edeb-100f-45e8-9fac-7711f219bc18",
+            "session_id": "ambix-dspark"
+          },
+          "done_when": "a receipts run of at least 60 seconds against the live four-card endpoint http://98dci4-gpu-0003:18801 writes rows under docs/evidence/dsv4-dspark-receipts/ in which spec_draft_tokens, spec_accepted_tokens and spec_acceptance_rate are all non-null and non-zero and spec_num_accepted_per_pos is a descending five-element list; a regression test asserts those fields against a fixture captured verbatim from that live endpoint's own /metrics scrape rather than a hand-written one, and the existing test pinning exclusion of the _created gauges and external_ counters still passes unchanged; uv run --no-sync ruff check imas_ambix tests exits 0 and tests/test_agent_serving_receipts.py passes",
+          "estimated_hours": 0.75,
+          "goal": "Make the receipts recorder read the speculative-decode counters the live vLLM 0.28.0 engine actually publishes",
+          "id": "dspark-receipts-spec-names",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260905T135506769151-dspark-receipts-spec-names/manifest.md",
+          "plan": "dsv4-flash-dspark-four-card-serve",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/agent/serving_receipts.py",
+            "tests/test_agent_serving_receipts.py",
+            "docs/evidence/dsv4-dspark-receipts"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "dspark-serving-receipts",
+        "backend": "claude",
+        "local": false,
+        "agent": {
+          "alias": "sonnet 5",
+          "backend": "claude",
+          "effort": "high",
+          "launch": "cli",
+          "model": "claude-sonnet-5",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-05T13:55:56Z",
+        "completed_at": "2026-09-05T14:11:13.045Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 901,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 917,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "80ac93a00da2a3f413579e86383d2fb8acd91c08",
+        "commits": [
+          "5e38bc37a71e92630aee251108942651cd80f45f"
+        ],
+        "changed_lines": {
+          "added": 349,
+          "removed": 22,
+          "files": 3
+        },
+        "tests_added": 2,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_serving_receipts.py -q",
+          "exit_status": 0,
+          "log_path": "/run/user/39486/claude-39486/-home-ITER-mcintos-Code-imas-ambix/63e4edeb-100f-45e8-9fac-7711f219bc18/scratchpad/receipts-gate.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260905T135506769151-dspark-receipts-spec-names/manifest.md",
+        "scope_changed": false,
+        "session_id": "864f83ae-0514-46e8-b524-cb601477a638",
+        "budget": {
+          "headroom": "known",
+          "utilisation_pct": 95.0,
+          "rate_limit_type": "five_hour",
+          "rate_limit_period_minutes": null,
+          "resets_at": "2026-09-05T17:00:00Z",
+          "threshold_status": "allowed_warning",
+          "surpassed_threshold": 0.9,
+          "tokens": {
+            "cache_creation_input_tokens": 207738,
+            "cache_creation_input_tokens_cumulative": 207738,
+            "cache_read_input_tokens": 12564635,
+            "cache_read_input_tokens_cumulative": 12564635,
+            "inference_geo": "not_available",
+            "input_tokens": 144,
+            "input_tokens_cumulative": 144,
+            "output_tokens": 64988,
+            "output_tokens_cumulative": 64988,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": 3.9940470000000006,
+          "refusal": false,
+          "detail": "backend reports utilisation and reset time",
+          "cost_usd_cumulative": 3.9940470000000006
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": true,
+              "budget_overrun_seconds": 246396,
+              "budget_seconds": 3300,
+              "classification": "blocked",
+              "detail": "the worker manifest reports blocked: the required full 472-shot train-split target-statistics pass cannot complete because cohort shot 26767 has an equilibrium group but no wall group at /work/projects/imas_gpu/mast/level2/shots/26767.zarr; handling absent wall geometry is a distinct semantic decision and requires paths outside this node's null-pair repair scope",
+              "elapsed_seconds": 249696,
+              "external_wait": null,
+              "log_age_seconds": 248169,
+              "log_fresh": false,
+              "manifest_commits": [
+                "[\"fe03e6f33c737d1257a32db4af75dd53feb97f8d\"]"
+              ],
+              "manifest_derived": false,
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T163334178600-pcp-targets-mask-repair/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "blocked",
+              "manifest_status": "blocked",
+              "marker": "!",
+              "needs_help_complete": false,
+              "next_action": "read /home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T163334178600-pcp-targets-mask-repair/manifest.md; resolve the blocker before resuming the run",
+              "node": "pcp-targets-mask-repair",
+              "phase": "complete",
+              "plan": "physics-carried-playable-plasma",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260902T163334178600-pcp-targets-mask-repair",
+              "session": "pcp-s4b-01",
+              "session_resolution": {
+                "consulted": [
+                  "pointer",
+                  "stream",
+                  "ledger"
+                ],
+                "resolved": true,
+                "run_id": "r-20260902T163334178600-pcp-targets-mask-repair",
+                "session_id": "01a062f8-6b1c-7b92-9234-cf9375176910",
+                "source": "pointer"
+              },
+              "terminal_age_seconds": 248199,
+              "terminal_at": "2026-09-02T16:58:56Z",
+              "wait_age_seconds": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/pcp-s4b-01/pcp-targets-mask-repair"
+            }
+          ]
+        },
+        "throughput": {
+          "detail": "generation and wall clock reported separately by the backend",
+          "elapsed_seconds": 904.886,
+          "generated_tokens": 64988,
+          "generation_seconds": 656.114,
+          "input_budget_tokens": 1000000,
+          "input_utilisation_pct": 23.2,
+          "machine_seconds": 248.772,
+          "peak_input_tokens": 232162,
+          "tokens_per_second": 99.05,
+          "wall_tokens_per_second": 71.82
+        },
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-dspark/dspark-receipts-spec-names",
+          "session_id": "864f83ae-0514-46e8-b524-cb601477a638",
+          "session_source": "stream",
+          "retained_at": "2026-09-05T14:11:13.045Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [],
-    "_version": 492
+    "_version": 493
   }
 }

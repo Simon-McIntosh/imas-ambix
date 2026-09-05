@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-05">
-<meta name="plan-version" content="8">
+<meta name="plan-version" content="9">
 <meta name="plan-impl" content="0.8">
 <meta name="plan-commits" content="3ced52c1cec4c34a5516fba97854b76e57191f6c,2e02201">
 </head>
@@ -409,6 +409,116 @@ if len(owners) != 1:
     reports the new keys resolving from the host layer, and each change carries an
     inline comment naming the measurement behind it.</p>
 
+    <h2 id="s6">&#167;6 &mdash; Defects this bring-up exposed</h2>
+
+    <p>Four defects surfaced only because the four-card serve was actually stood
+    up and driven. Each is recorded with what it cost, because in three of the
+    four the code was passing a test at the time.</p>
+
+    <h3 id="s6-endpoint-doc">The endpoint document does not follow the serve</h3>
+
+    <p><strong>This one caused a real outage.</strong> <code>clive</code> does not
+    discover through the router. It reads a published document at
+    <code>~/public/imas-ambix/endpoints.json</code>, fetches each listed
+    <code>host:port</code> directly, and fails with
+    <code>endpoint discovery contains no reachable models</code> when none
+    answers. Moving the serve to port 18801 and cancelling 18800 left that
+    document naming a dead port, so every <em>new</em> <code>clive</code> launch
+    failed while every <em>running</em> session kept working &mdash; the running
+    ones hold the routing origin and never re-read the document. A peer session
+    found it by dispatching, roughly ten minutes after the cutover was reported
+    healthy.</p>
+
+    <p>The mechanism is that <strong>nothing republishes it</strong>. No CLI
+    command calls <code>publish_endpoint_document</code> at all; restoring
+    service meant invoking the library function from a script. So the document is
+    hand-maintained state that silently drifts from reality on every port or
+    topology change, and the drift is invisible from the serving side because
+    engine and router are both healthy throughout.</p>
+
+    <p>Two properties make this worse than an ordinary staleness bug, and they
+    are the reason it is written up rather than just patched. The failure is
+    <strong>asymmetric</strong>: work in flight is unaffected and only growth
+    fails, so the fleet looks healthy right up to the moment it needs to scale.
+    And it is <strong>invisible to the obvious check</strong>: the router
+    catalog, a relayed completion, and the engine's own catalog were all
+    verified and all green while discovery was broken.</p>
+
+    <p><strong>Done when:</strong> <code>agent serve</code> and
+    <code>agent shutdown</code> republish the endpoint document from the live
+    catalog, so a port or card-count change updates discovery without an
+    operator remembering to; <code>agent status</code> reports disagreement
+    between the published document and live serves as a visible warning rather
+    than silence; and a test proves a serve on a changed port leaves the
+    document naming the new one. The cutover checklist gains a final gate that
+    is a <em>fresh</em> discovery &mdash; <code>clive --list</code> &mdash;
+    because a health check aimed only at the serving leg cannot see this class
+    of failure at all.</p>
+
+    <h3 id="s6-catalog-409">The router's catalog path still refuses duplicates</h3>
+
+    <p>The deterministic preference landed on the POST relay path only. A second
+    duplicate check lives in <code>_serve_catalog</code>, so during the overlap
+    <code>GET /v1/models</code> returned 409 while completions were being served
+    normally by the four-card upstream. The node's measure named the relay and
+    the worker satisfied it exactly; the gap is in the brief, not the work.</p>
+
+    <p><strong>Done when:</strong> a catalog request against two upstreams
+    advertising one model id returns 200 carrying exactly one card &mdash; the
+    preferred topology, with its own <code>ambix</code> block &mdash; and a pair
+    the preference cannot rank still returns 409; the existing relay-path tests
+    pass unchanged.</p>
+
+    <h3 id="s6-dryrun-port">A dry run is gated on a live port</h3>
+
+    <p>The serve command's port-collision check runs before the
+    <code>--dry-run</code> branch, so a read-only dry run fails when the
+    profile's port happens to be held. This is currently demonstrable:
+    <code>glm-5-3</code> declares port 18801, the four-card DSv4 serve was placed
+    there during the overlap, and
+    <code>tests/test_agent.py::test_serve_uses_profile_port_without_an_override</code>
+    now fails as a result. The same test with an explicit free port passes, which
+    isolates the cause. A unit test whose result depends on live cluster state is
+    the deeper defect; the ordering is what exposes it.</p>
+
+    <p><strong>Done when:</strong> <code>--dry-run</code> prints its script
+    without consulting live port state, that test passes with the port still
+    held, and the collision check still refuses a real submission.</p>
+
+    <h3 id="s6-port-claim">The four-card serve is squatting another profile's port</h3>
+
+    <p>Every port from 18800 to 18808 is claimed by some profile.
+    <code>deepseek-v4-flash</code> declares <strong>18800</strong>; it is on 18801
+    only because 18800 was occupied by the two-card serve during the overlap, and
+    18801 belongs to <code>glm-5-3</code>. The natural resting place is its own
+    declared port, which is now free.</p>
+
+    <p>Moving it needs a stop and restart rather than an overlap, because a
+    second four-card serve would need eight cards and only four are free, so this
+    is deferred to a quiet moment rather than done under live consumers. Note for
+    whoever does it that the router itself sits on 18802, which
+    <code>deepseek-v4-flash-2x</code> also claims &mdash; a pre-existing overlap
+    of the same kind, and worth resolving in the same pass.</p>
+
+    <p><strong>Done when:</strong> the four-card serve answers on 18800, the
+    endpoint document names it, <code>clive --list</code> resolves, and no
+    profile's declared port is held by a different release.</p>
+
+    <h3 id="s6-bench-substring">The benchmark's snapshot has the same substring defect</h3>
+
+    <p><code>bench.py</code>'s <code>_spec_decode_snapshot</code> still matches
+    metric names by substring, so it folds each counter's same-named
+    <code>_created</code> timestamp gauge into the absolute value it returns
+    &mdash; measured as a draft-token total of 1.7886e9 instead of a few
+    thousand. It survives today because <code>bench</code> reports
+    <em>deltas</em> across two scrapes and the constant cancels in subtraction,
+    but the per-scrape snapshot is wrong and the cancellation fails across an
+    engine restart. <code>serving_receipts.py</code> no longer calls it.</p>
+
+    <p><strong>Done when:</strong> the benchmark resolves the same exact bare
+    names the recorder now uses, and a test pins an absolute snapshot against a
+    scrape carrying both the counter and its <code>_created</code> sibling.</p>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="config-store-format" data-choice="" data-by="" data-when="">
@@ -472,13 +582,16 @@ if len(owners) != 1:
     <div class="r-comment-body"><strong>Correction to the bring-up step 2 instruction: <code>srun --test-only</code> is inert on this reservation and must not be read as an admission answer.</strong> Measured 2026-09-05 at 13:31Z. Every probe against <code>--reservation=gpu_0003_grpA</code> returns a start time of exactly now plus seven days, whatever is asked for: <code>--gres=gpu:4 --cpus-per-task=12</code>, <code>gpu:2/12</code>, <code>gpu:4/8</code> and <code>gpu:4/4</code> all reported <code>2026-09-12T15:31</code>, and so did a <strong>one-core, no-GPU, 1 GB</strong> request. A probe that answers identically for a trivial request and a four-card one is measuring nothing — most likely the reservation's <code>IGNORE_JOBS</code> flag. Read literally it says the serve cannot start for a week, which is false and would abandon the plan. Dropping the reservation instead fails with <code>Access/permission denied</code>, so the reservation is mandatory and cannot be probed around. <br/><br/>Size from the live core ledger instead, which is readable and correct: the reservation holds <code>CoreCnt=30</code> (CoreIDs 15-29, 47-61), and group A's live jobs at the time of writing were <code>nova-h200-tests</code> 7, <code>ambix-router</code> 2 and the live <code>deepseek-v4-flash</code> serve 8, so 17 held and 13 free — the profile's 12 fits with one to spare, and <code>nova-h200-tests</code> expires within the hour to leave 20. Confirm with <code>squeue -w 98dci4-gpu-0003 -o "%.10i %.9u %.18j %.4C %.22v"</code>, which shows each job's core count against its reservation, and note that <code>nemotron_embed_8b</code> is group <strong>B</strong> and does not draw on our 30. Submit and watch <code>squeue</code>; a job pending on <code>Resources</code> is the real signal, and cancelling it is cheap.</div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-20260905-s4-live" data-who="reckon-ship" data-when="2026-09-05">
-    <div class="r-comment-body"><strong>Four-card DSpark serve is LIVE and the cutover is complete.</strong> Router restarted onto the merged preference (job <code>1262920</code>, back in 8 s). Four-card serve submitted (job <code>1262921</code>, port 18801) and <strong>started immediately</strong> — confirming the <code>--test-only</code> probe above was inert, not reporting a real block. Engine ready after 408 s. The two-card serve (job 1260660) stayed live and serving throughout the load, and was cancelled only after the four-card engine was verified. Discovery recovered 4 s later, now advertising <code>accelerator_count: 4</code>. <br><br><strong>DSpark is drafting and is effective.</strong> Cumulative from the engine: 1,912 drafts, <strong>9,560 draft tokens, 4,418 accepted — 46.2%</strong>, mean acceptance length <strong>3.31 tokens per decode step</strong>. Per-position acceptance falls 0.744 / 0.580 / 0.443 / 0.320 / 0.223 across the five speculative positions, so all five earn their place and <code>num_speculative_tokens</code> above 5 is worth probing later. The engine's own log ranges 33.7% to 92.2% draft acceptance by window. Peak generation throughput measured 190.5 tok/s against the two-card serve's 120.5. A completion relayed through the router returns <code>system_fingerprint: vllm-0.28.0-tp4-ep-9b9304e5</code>, which is the direct proof the router selected the four-card upstream.</div>
+    <div class="r-comment-body"><strong>Four-card DSpark serve is LIVE and the cutover is complete.</strong> Router restarted onto the merged preference (job <code>1262920</code>, back in 8 s). Four-card serve submitted (job <code>1262921</code>, port 18801) and <strong>started immediately</strong> — confirming the <code>--test-only</code> probe above was inert, not reporting a real block. Engine ready after 408 s. The two-card serve (job 1260660) stayed live and serving throughout the load, and was cancelled only after the four-card engine was verified. Discovery recovered 4 s later, now advertising <code>accelerator_count: 4</code>. <br/><br/><strong>DSpark is drafting and is effective.</strong> Cumulative from the engine: 1,912 drafts, <strong>9,560 draft tokens, 4,418 accepted — 46.2%</strong>, mean acceptance length <strong>3.31 tokens per decode step</strong>. Per-position acceptance falls 0.744 / 0.580 / 0.443 / 0.320 / 0.223 across the five speculative positions, so all five earn their place and <code>num_speculative_tokens</code> above 5 is worth probing later. The engine's own log ranges 33.7% to 92.2% draft acceptance by window. Peak generation throughput measured 190.5 tok/s against the two-card serve's 120.5. A completion relayed through the router returns <code>system_fingerprint: vllm-0.28.0-tp4-ep-9b9304e5</code>, which is the direct proof the router selected the four-card upstream.</div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20260905T131922388297-dspark-serving-receipts" data-who="dspark-serving-receipts" data-when="2026-09-05T13:33:16.668Z">
     <div class="r-comment-body"><p>Serving receipts recorder samples vLLM metrics on an interval; 28 rows captured from the live two-card endpoint show decode throughput peaking at 120.5 tok/s under load and a prefix-cache hit rate of 0.3389, so automatic prefix caching is measurably active at the engine; 271 tests pass at the merged head</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20260905-s3-specnames" data-who="reckon-ship" data-when="2026-09-05">
-    <div class="r-comment-body"><strong>Defect found by running the recorder against the real thing: every speculative field reads zero while the engine publishes non-zero counters.</strong> The §3 recorder was validated against a fixture its own author wrote, because the two-card endpoint exposed no <code>spec_decode</code> counters at all to check against — so the fields passed their test and are wrong on the live four-card engine. This is the aimed-instrument failure in its purest form: the instrument agreed with the only thing it was ever pointed at.<br><br>The names the live vLLM 0.28.0 engine actually publishes, read from its own <code>/metrics</code> on 2026-09-05, are:<br><code>vllm:spec_decode_num_drafts_total</code><br><code>vllm:spec_decode_num_draft_tokens_total</code><br><code>vllm:spec_decode_num_accepted_tokens_total</code><br><code>vllm:spec_decode_num_accepted_tokens_per_pos_total{position="0".."4"}</code><br><br>Note the trap that makes this subtle: each of those has a sibling <code>..._created</code> <em>gauge</em> carrying a unix timestamp, which is exactly what the earlier substring matching summed in and what the exact-name fix was introduced to stop. The fix is to add these exact bare names to the alias set — <strong>not</strong> to revert to substring matching, which would reintroduce the <code>_created</code> and <code>external_</code> contamination the regression test already pins. Live values at the time of writing, for a fixture to be checked against: drafts 1912, draft tokens 9560, accepted 4418, per-position 1423/1108/848/612/427.</div>
+    <div class="r-comment-body"><strong>Defect found by running the recorder against the real thing: every speculative field reads zero while the engine publishes non-zero counters.</strong> The §3 recorder was validated against a fixture its own author wrote, because the two-card endpoint exposed no <code>spec_decode</code> counters at all to check against — so the fields passed their test and are wrong on the live four-card engine. This is the aimed-instrument failure in its purest form: the instrument agreed with the only thing it was ever pointed at.<br/><br/>The names the live vLLM 0.28.0 engine actually publishes, read from its own <code>/metrics</code> on 2026-09-05, are:<br/><code>vllm:spec_decode_num_drafts_total</code><br/><code>vllm:spec_decode_num_draft_tokens_total</code><br/><code>vllm:spec_decode_num_accepted_tokens_total</code><br/><code>vllm:spec_decode_num_accepted_tokens_per_pos_total{position="0".."4"}</code><br/><br/>Note the trap that makes this subtle: each of those has a sibling <code>..._created</code> <em>gauge</em> carrying a unix timestamp, which is exactly what the earlier substring matching summed in and what the exact-name fix was introduced to stop. The fix is to add these exact bare names to the alias set — <strong>not</strong> to revert to substring matching, which would reintroduce the <code>_created</code> and <code>external_</code> contamination the regression test already pins. Live values at the time of writing, for a fixture to be checked against: drafts 1912, draft tokens 9560, accepted 4418, per-position 1423/1108/848/612/427.</div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20260905T135506769151-dspark-receipts-spec-names" data-who="dspark-serving-receipts" data-when="2026-09-05T14:11:13.045Z">
+    <div class="r-comment-body"><p>Speculative fields now read the engine&#x27;s real counters: 12 of 14 live rows carry acceptance, sample 635 drafted / 381 accepted at 0.6 with a descending per-position list; found a second defect where the integer coercion raised on the string per-position label and returned null regardless of naming</p></div>
 </div>
 </section>
 </main>
