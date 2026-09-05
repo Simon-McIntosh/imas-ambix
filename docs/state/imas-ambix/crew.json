@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-05T16:58:09",
+  "updated": "2026-09-05T17:14:47",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -23461,6 +23461,207 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260905T141745440369-dsv4-endpoint-publish",
+        "plan": "dsv4-flash-dspark-four-card-serve",
+        "section": "\u00a76",
+        "node": "dsv4-endpoint-publish",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1746,
+                "cached_input_tokens": 404697,
+                "input_tokens": 406445,
+                "output_tokens": 642,
+                "reasoning_output_tokens": 56,
+                "total_tokens": 407087,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "63e4edeb-100f-45e8-9fac-7711f219bc18",
+            "session_id": "ambix-dspark"
+          },
+          "done_when": "a test proves that a serve submitted on a port different from the one the published endpoint document names leaves that document naming the new port and card count, and that a shutdown removes the cancelled release from it; a second test proves imas-ambix agent status reports disagreement between the published document and the live serves as a visible warning rather than silence; uv run --no-sync ruff check imas_ambix tests exits 0 and tests/test_agent_endpoint_discovery.py passes",
+          "estimated_hours": 1.5,
+          "goal": "Make the published endpoint document follow the live serves instead of being hand-maintained",
+          "id": "dsv4-endpoint-publish",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260905T141745440369-dsv4-endpoint-publish/manifest.md",
+          "plan": "dsv4-flash-dspark-four-card-serve",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a76",
+          "spec_level": "exact",
+          "time_budget": "60m",
+          "write_paths": [
+            "imas_ambix/agent/cli.py",
+            "imas_ambix/agent/registry.py",
+            "tests/test_agent_endpoint_discovery.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "dsv4-endpoint-publish",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 492288
+        },
+        "dispatched_at": "2026-09-05T14:17:53Z",
+        "completed_at": "2026-09-05T15:11:27.202Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 3203,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 3214,
+        "stalled": false,
+        "time_budget": "60m",
+        "base_sha": "47be93ec970368de69546863911b535bada4fbf3",
+        "commits": [
+          "d365ea9f4ca458330c157dbceefcfcd95f43d2ab"
+        ],
+        "changed_lines": {
+          "added": 353,
+          "removed": 0,
+          "files": 2
+        },
+        "tests_added": 3,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_endpoint_discovery.py -q",
+          "exit_status": 0,
+          "log_path": "/run/user/39486/claude-39486/-home-ITER-mcintos-Code-imas-ambix/63e4edeb-100f-45e8-9fac-7711f219bc18/scratchpad/publish-gate2.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260905T141745440369-dsv4-endpoint-publish/manifest.md",
+        "scope_changed": false,
+        "session_id": "cbf97d44-10ed-42ba-a7e3-74ccdb756c17",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 14650227,
+            "input_tokens_cumulative": 14650227,
+            "output_tokens": 77937,
+            "output_tokens_cumulative": 77937,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": true,
+              "budget_overrun_seconds": 247729,
+              "budget_seconds": 3300,
+              "classification": "blocked",
+              "detail": "the worker manifest reports blocked: the required full 472-shot train-split target-statistics pass cannot complete because cohort shot 26767 has an equilibrium group but no wall group at /work/projects/imas_gpu/mast/level2/shots/26767.zarr; handling absent wall geometry is a distinct semantic decision and requires paths outside this node's null-pair repair scope",
+              "elapsed_seconds": 251029,
+              "external_wait": null,
+              "log_age_seconds": 249502,
+              "log_fresh": false,
+              "manifest_commits": [
+                "[\"fe03e6f33c737d1257a32db4af75dd53feb97f8d\"]"
+              ],
+              "manifest_derived": false,
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T163334178600-pcp-targets-mask-repair/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "blocked",
+              "manifest_status": "blocked",
+              "marker": "!",
+              "needs_help_complete": false,
+              "next_action": "read /home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T163334178600-pcp-targets-mask-repair/manifest.md; resolve the blocker before resuming the run",
+              "node": "pcp-targets-mask-repair",
+              "phase": "complete",
+              "plan": "physics-carried-playable-plasma",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260902T163334178600-pcp-targets-mask-repair",
+              "session": "pcp-s4b-01",
+              "session_resolution": {
+                "consulted": [
+                  "pointer",
+                  "stream",
+                  "ledger"
+                ],
+                "resolved": true,
+                "run_id": "r-20260902T163334178600-pcp-targets-mask-repair",
+                "session_id": "01a062f8-6b1c-7b92-9234-cf9375176910",
+                "source": "pointer"
+              },
+              "terminal_age_seconds": 249532,
+              "terminal_at": "2026-09-02T16:58:56Z",
+              "wait_age_seconds": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/pcp-s4b-01/pcp-targets-mask-repair"
+            }
+          ]
+        },
+        "throughput": {
+          "detail": "generation and wall clock reported separately by the backend",
+          "elapsed_seconds": 3211.024,
+          "generated_tokens": 77937,
+          "generation_seconds": 3078.718,
+          "input_budget_tokens": 492288,
+          "input_utilisation_pct": 40.5,
+          "machine_seconds": 132.306,
+          "peak_input_tokens": 199580,
+          "tokens_per_second": 25.31,
+          "wall_tokens_per_second": 24.27
+        },
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-dspark/dsv4-endpoint-publish",
+          "session_id": "cbf97d44-10ed-42ba-a7e3-74ccdb756c17",
+          "session_source": "pointer",
+          "retained_at": "2026-09-05T15:11:27.202Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [
@@ -23479,6 +23680,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 506
+    "_version": 507
   }
 }
