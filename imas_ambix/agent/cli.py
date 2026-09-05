@@ -2192,6 +2192,102 @@ def bench(
         console.print(f"\n[dim]Results saved to {save_path}[/]")
 
 
+@agent.command()
+@click.argument("slug", required=False)
+@click.option(
+    "--url", default=None, help="Server base URL (default: from site config)."
+)
+@click.option(
+    "--api-key",
+    default=None,
+    help="API key for authenticated endpoints (or set AMBIX_AGENT_API_KEY).",
+)
+@click.option(
+    "--interval", type=float, default=5.0, help="Seconds between samples."
+)
+@click.option(
+    "--duration",
+    "duration_s",
+    type=float,
+    default=None,
+    help="Stop after N seconds (default: run until interrupted).",
+)
+@click.option(
+    "--output",
+    "output_path",
+    type=click.Path(),
+    default=None,
+    help="Receipts file path (default: ~/.local/share/ambix/receipts/<slug>.jsonl).",
+)
+def receipts(
+    slug: str | None,
+    url: str | None,
+    api_key: str | None,
+    interval: float,
+    duration_s: float | None,
+    output_path: str | None,
+) -> None:
+    """Continuously record serving throughput and speculative-decode receipts.
+
+    Samples the engine's ``/metrics`` on an interval and appends one JSON row
+    per sample to a durable, append-only file, so a serve's whole life is a
+    readable record rather than something reconstructed afterwards from a
+    terminal benchmark summary.
+
+    \b
+    Record against a running deployment for one minute:
+        imas-ambix agent receipts deepseek-v4-flash --duration 60
+
+    \b
+    Record against any endpoint:
+        imas-ambix agent receipts --url http://host:18800 --duration 60
+    """
+    from imas_ambix.agent.serving_receipts import record_receipts
+
+    resolved_key = _resolve_api_key(api_key)
+    resolved_slug = slug or _default_profile()
+    profile = None
+    serve_job: str | None = None
+    if resolved_slug:
+        profile = _load_profile(resolved_slug)
+        serve_gpus, serve_job = _running_serve_gpus(
+            resolved_slug, SiteConfig.from_env()
+        )
+        if serve_gpus:
+            profile = _scale_profile(profile, serve_gpus)
+        base_url = url or _default_url() or "http://localhost:18800"
+    elif url:
+        base_url = url
+    else:
+        raise click.ClickException(
+            "Provide a profile slug or --url. "
+            "Example: imas-ambix agent receipts deepseek-v4-flash"
+        )
+
+    if output_path:
+        receipts_path = Path(output_path)
+    else:
+        receipts_dir = Path.home() / ".local" / "share" / "ambix" / "receipts"
+        name = profile.slug if profile is not None else "endpoint"
+        receipts_path = receipts_dir / f"{name}.jsonl"
+    receipts_path.parent.mkdir(parents=True, exist_ok=True)
+
+    console.print(
+        f"[bold]Recording receipts[/] from {base_url}/metrics "
+        f"every {interval}s to {receipts_path}"
+    )
+    rows_written = record_receipts(
+        base_url,
+        receipts_path,
+        interval_s=interval,
+        duration_s=duration_s,
+        api_key=resolved_key,
+        profile=profile,
+        serve_job_id=serve_job,
+    )
+    console.print(f"Wrote {rows_written} receipt rows to {receipts_path}")
+
+
 def _render_report(report: BenchReport, model: str, repeat: int = 1) -> None:
     """Render benchmark results as rich tables to the console."""
     from rich.table import Table as RichTable
