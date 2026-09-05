@@ -459,6 +459,24 @@
       <li><strong>Nova's clive cost figures and imas-codex's differ by magnitude</strong> ($41–$162 against
       a $21.59 median over 619 rows) because the samples differ. Both are imputed. The direction is the
       only load-bearing part.</li>
+      <li><strong>One repeat measurement is void, and the reason generalises.</strong> A four-card
+      repeat of a brief already landed on the two-card engine reproduced the landed change <em>byte for
+      byte</em>, because the worker ran <code>git log</code> on main and <code>git show</code> on the
+      landed commit and transcribed it. Its manifest declares exactly that, so the worker scores clean
+      on honesty and the coordinator was wrong on measurement design. What it measured was discovery
+      plus transcription, so that two-card against four-card comparison is withdrawn. The rule:
+      <strong>a repeat measurement needs a brief whose answer is on no reachable ref.</strong> A
+      historical base does not isolate a worker from the future, because the worktree shares the object
+      store and the main ref &mdash; <em>worktree isolation bounds what a worker may write, not what it
+      can know</em>.</li>
+      <li><strong>The transcript-volume figure belongs to an engine, not to the lane.</strong> The
+      same brief produced 3,899 stream records on the four-card launch against 31,678 on the two-card
+      one, so the roughly 350 system records per turn were a deployment property that is now gone.</li>
+      <li><strong>A new open gap:</strong> one four-card run wrote no terminal <code>result</code>
+      record despite ending <em>normally</em>, so no usage totals reached the ledger. Distinct from the
+      earlier case where a background task was still live. If it recurs, "measurable at promotion"
+      fails even for a clean exit and this lane has no first-party throughput figure in any
+      circumstance.</li>
       <li><strong>Nova's rows carrying a scheduler leg report model turn time separately from job wait</strong>,
       so their tok/s is comparable with imas-codex's; rows without that separation are not.</li>
     </ul>
