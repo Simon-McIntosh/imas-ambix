@@ -100,6 +100,18 @@
     <p>Speculative decoding is live on the four-card serve and accepting: 46.4% (94,320 drafted /
     43,772 accepted), mean acceptance length 3.32 tokens per decode step, per-position 0.744 / 0.580 /
     0.443 / 0.320 / 0.223.</p>
+    <p><strong>And adding cards buys compute, not context.</strong> The live KV pool on the four-card
+    serve measures 1,313,935 tokens against 1,372,204 recorded for the two-card profile — the same,
+    because this model's single compressed KV head does not shard across tensor parallelism.
+    <code>max_model_len</code> is a per-request ceiling rather than a reservation, so raising it costs
+    nothing at rest; what it costs is headroom when a very large prompt actually arrives, with
+    concurrency at maximum length falling from about 2.51 to 1.25. Three concurrent agentic sessions
+    were using 19% of the pool, roughly 83K each — nowhere near it.</p>
+    <p><strong>So the routing conclusion, stated plainly because it is easy to expect the opposite:
+    more cards will not make an agentic node finish sooner.</strong> The lane's ceiling is turn count
+    and thinking volume, not generation, and the speculative-decoding gain shows up in the acceptance
+    counters far more clearly than in anyone's wall clock. Nobody should expect the card count to halve
+    a 130-minute node.</p>
     <p><strong>Ledger cost for an unmetered lane is imputed, and it inverts the comparison.</strong>
     Measured across 619 ledger rows by the reckon session: <code>clive</code> at a median
     <strong>$21.59</strong> per node against <code>claude</code>'s <strong>$1.61</strong> — the free
