@@ -129,15 +129,27 @@
     failing test alone and <strong>did</strong>, rather than adjusting an
     assertion to reach green and hide a different defect.</p>
 
-    <p>Two costs stand against that. Per-node ledger receipts are
-    <strong>structurally absent</strong> on this lane — no terminal
-    <code>result</code> record is emitted, so cost, tokens and throughput all
-    record null, and a null reads as <em>free</em> to a router ranking by cost per
-    durable node. And <strong>worktree isolation did not hold</strong>: two
-    unrelated workers left formatter edits in the shared main checkout, outside
-    their fences, each surfacing only as a refused merge. Both were AST-identical
-    to <code>HEAD</code>, which is the check that made discarding them safe —
-    a semantic edit arriving by the same route would announce itself neither way.</p>
+    <p>Two costs stand against that, and the first was initially recorded here
+    wrongly. <strong>Per-node ledger receipts are present, not absent.</strong>
+    Five of six runs carry generation rate and token totals — 16.2, 17.1, 25.3,
+    25.4 and 33.0 tok/s, inside the 22–33 band two peer sessions measured
+    independently. The sixth is null because it was promoted immediately on
+    completion, before its terminal <code>result</code> record had been written to
+    the stream. An earlier reading of "zero result records" here was taken while a
+    stream was still being flushed and generalised into a structural claim about
+    the lane; it was a mid-write measurement, which is the same error this record
+    catalogues elsewhere. <strong>The operational rule is ordering: let a run go
+    terminal, then <code>crew observe</code>, then <code>crew complete</code>.</strong>
+    What <em>is</em> genuinely absent is <code>cost_usd</code>, which is null on
+    every run of this unmetered lane, so a router ranking by cost per durable node
+    reads it as free.</p>
+
+    <p>The second cost is that <strong>worktree isolation did not hold</strong>:
+    two unrelated workers left formatter edits in the shared main checkout,
+    outside their fences, each surfacing only as a refused merge. Both were
+    AST-identical to <code>HEAD</code>, which is the check that made discarding
+    them safe — a semantic edit arriving by the same route would announce itself
+    neither way.</p>
 
     <h2 id="s6">§6 — Configuration as it now stands</h2>
 
