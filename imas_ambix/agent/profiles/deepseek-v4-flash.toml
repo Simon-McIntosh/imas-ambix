@@ -47,7 +47,17 @@ type = "vllm"
 tensor_parallel = 4
 trust_remote_code = true
 enable_auto_tool_choice = true
-max_total_tokens = 524288
+# Full native context window (1M) for the four-card base, matching the
+# two-card variant. This model's single compressed KV head does not shard
+# across tensor parallelism, so a four-card pool matches the two-card one:
+# the measured KV pool of 1313935 tokens is the same at either card count,
+# and comfortably holds the full window.
+max_total_tokens = 1048576
+# Above the 0.90 default so the full 1M window gets its pool. The single
+# compressed KV head does not shard across tensor parallelism, so the
+# four-card serve carries the measured 1313935-token pool of the two-card
+# serve at this fraction — a four-card pool matches the two-card one.
+mem_fraction_static = 0.92
 kv_cache_dtype = "fp8"
 # Upstream recipe flags for this checkpoint family (recipes.vllm.ai + the
 # DSpark model card). block_size and tokenizer_mode are the vendor-documented

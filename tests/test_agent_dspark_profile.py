@@ -59,6 +59,20 @@ def test_four_card_gpu_variant_selection_matches_gpus_flag() -> None:
     assert profile.engine.tensor_parallel == 4
 
 
+def test_four_card_serve_script_carries_full_native_context_window() -> None:
+    """The four-card serve sets the checkpoint's native 1M context at a memory
+    fraction that fits its measured KV pool. The single compressed KV head
+    does not shard across tensor parallelism, so the four-card pool matches
+    the two-card one.
+    """
+    profile = load_profile("deepseek-v4-flash").for_gpus(4)
+
+    script = generate_serve_script(profile, SiteConfig(), port=18800)
+
+    assert "--max-model-len 1048576" in script
+    assert "--gpu-memory-utilization 0.92" in script
+
+
 def test_speculative_config_dotted_form_survives_when_no_draft_sample_method() -> None:
     """The GLM-5.2 MTP path (no draft model, no draft-sample method) keeps the
     dotted ``--speculative-config.*`` flags rather than the compact JSON form.
