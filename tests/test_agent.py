@@ -429,30 +429,31 @@ def test_serve_refuses_a_port_held_by_running_router(monkeypatch):
     assert not submitted
 
 
-def test_serve_dry_run_refuses_a_port_held_by_running_job(monkeypatch):
+def test_serve_dry_run_prints_script_while_the_port_is_held(monkeypatch):
+    """A read-only dry run never consults live scheduler port state."""
     from imas_ambix.agent import cli as cli_mod
 
-    runner = _serve_cli(monkeypatch, None)
-    monkeypatch.setattr(
-        cli_mod,
-        "_running_jobs",
-        lambda site: [
+    calls = []
+
+    def fake_running_jobs(_site):
+        calls.append(True)
+        return [
             _live_job(
                 job_id="316",
                 name="existing-model",
                 port=18801,
                 gpus=2,
             )
-        ],
-    )
+        ]
+
+    monkeypatch.setattr(cli_mod, "_running_jobs", fake_running_jobs)
+    runner = _serve_cli(monkeypatch, None)
 
     result = runner.invoke(main, ["agent", "serve", "glm-5-3", "--dry-run"])
 
-    assert result.exit_code != 0
-    assert "existing-model" in result.output
-    assert "316" in result.output
-    assert "18801" in result.output
-    assert "#!/bin/bash" not in result.output
+    assert result.exit_code == 0
+    assert "#SBATCH --comment=ambix-serve;port=18801" in result.output
+    assert calls == []
 
 
 def test_restart_forwards_serve_walltime_and_speculative_override(monkeypatch):
