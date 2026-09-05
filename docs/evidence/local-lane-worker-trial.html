@@ -109,9 +109,14 @@
     on two, with a mean of 83.9 across three concurrent agentic nodes — beside the 22–33 tok/s
     <em>wall</em> rates in the table above. Most of an agentic node's wall clock is not generation, so
     more generation capacity moves it less than the cache does.</p>
-    <p>Speculative decoding is live on the four-card serve and accepting: 46.4% (94,320 drafted /
-    43,772 accepted), mean acceptance length 3.32 tokens per decode step, per-position 0.744 / 0.580 /
-    0.443 / 0.320 / 0.223.</p>
+    <p>Speculative decoding is live on the four-card serve and accepting. Three samples taken
+    independently across the day, on two engines: <strong>46.2%</strong>, <strong>46.4%</strong>
+    (94,320 drafted / 43,772 accepted, mean acceptance length 3.32 tokens per decode step,
+    per-position 0.744 / 0.580 / 0.443 / 0.320 / 0.223), and <strong>45.3%</strong> cumulative over one
+    engine's two-hour life (770,075 drafted / 348,971 accepted, 503,076 generated, five nodes, five of
+    five inside their fences with zero corrective redispatches). Counters reset when that engine was
+    replaced, so each figure belongs to the engine that produced it. <strong>The claim that survives
+    the restart is the stability, not any single number.</strong></p>
     <p><strong>And adding cards buys compute, not context.</strong> The live KV pool on the four-card
     serve measures 1,313,935 tokens against 1,372,204 recorded for the two-card profile — the same,
     because this model's single compressed KV head does not shard across tensor parallelism.
@@ -377,6 +382,9 @@
         <tr><td><strong>Member <code>--harness</code> does not route.</strong> A member registered <code>--harness claude-opus</code> ran on sonnet; dispatch falls through to <code>default_backend</code>. Hit independently by both coordinators, in different projects, on the same day.</td><td>Open</td></tr>
         <tr><td><strong>A time budget is advisory on this launch kind.</strong> Nodes carrying 60-minute budgets ran 129 and 135 minutes with nothing stopping them; another overran 2400 s until killed. Combined with the messaging finding: a local node can be neither steered nor time-boxed, so its only fence is a person watching.</td><td>Recorded in config as advisory, deliberately unenforced</td></tr>
         <tr><td><strong>Promoting an abandoned launch appends its ledger row but leaves the live pointer</strong>, which blocks that member permanently — the next dispatch refuses with <code>member-in-flight</code>. <code>crew discard</code> clears the pointer without touching the recorded row, so the sequence for an infrastructure-failed launch is <em>complete, then discard</em>. Neither command's help says so.</td><td>Open</td></tr>
+        <tr><td><strong>Worktree isolation did not hold for one node.</strong> A worker on the local lane ran a formatter and its edits landed in the <em>shared main checkout</em>, outside its declared worktree fence. Formatting only, and both files were verified AST-identical to HEAD before being discarded, so nothing was lost. The mechanism is the concern rather than the instance: formatting announces itself, and a semantic edit arriving by the same route would not. Two other main checkouts were checked and were clean.</td><td>Open — fleet-wide</td></tr>
+        <tr><td><strong>A dispatch with an unknown option exits 0 and launches nothing.</strong> Passing a flag that does not exist produced no output, no error and no run — the same shape as a message that reports success and expires.</td><td>Open</td></tr>
+        <tr><td><strong>Local-lane discovery reads a hand-published endpoint document that nothing republishes.</strong> A serve moved port and the document kept naming the dead one, so every new launch failed while established sessions kept working. Fixed during the trial: shutdown now empties the document, serve refills it, and status warns when document and live serves disagree. It worked unattended on its first live exercise — 352 s load, six minutes dark, <code>clive --list</code> resolving with no operator step.</td><td>Fixed and exercised</td></tr>
         <tr><td><strong>The dispatch validator refuses angle-bracket path templates</strong> as unresolved intent, costing a rewrite into prose that was longer and no clearer.</td><td>Open</td></tr>
       </tbody>
     </table>
