@@ -354,6 +354,19 @@
     escalated: cases where the checker was right resolve quietly and never enter the tally. There is a
     counter-instance from the same day, where a peer named a symptom precisely and attributed it to the
     wrong cause while the check was sound.</p>
+    <p><strong>The nastiest variant: the read that cuts off its own answer.</strong> A session checking
+    why <code>default_backend</code> named the contended lane ran <code>grep -n default_backend</code>
+    over the config, got the key line, and concluded from its file mtime that the value had just
+    changed. The authority was a comment block <em>three lines above the key</em> recording that the
+    value was set that morning by the lead, with the reason — and the grep pattern stripped exactly
+    that context. The mtime belonged to an unrelated repair by another session.</p>
+    <p>This is worse than the other instances in the class because <strong>the tool did precisely what
+    it was asked and the asking was the defect.</strong> Narrowing a read to the thing you are asking
+    about removes the thing that would have answered it. It nearly caused a deliberate lead decision to
+    be reverted, and the remedy is a habit rather than a check: <strong>when reading a config value,
+    read its neighbourhood</strong> — the lines around a key are where the reason lives, and a pattern
+    match returns the value while discarding the justification.</p>
+
     <p><strong>An eighth instance, and the authority was one call per project.</strong> The session that
     fixed the budget parser then reported "the fence is now live and telling the truth" — true of its
     own project's stored record, false as a statement about the workstation, because it had read one
