@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"      content="imas-ambix">
+  <meta name="reckon-type"       content="evidence">
+  <meta name="plan-slug"         content="dsv4-flash-dspark-four-card-serve-landed">
+  <meta name="plan-title"        content="DSv4-Flash DSpark Four-Card Serve — Landed">
+  <meta name="plan-summary"      content="Execution record: DSpark on four cards at the full native window, serving receipts, and what running it exposed">
+  <meta name="plan-evidence-for" content="dsv4-flash-dspark-four-card-serve">
+  <meta name="plan-tags"         content="agent-serving,gpu-deployment,benchmarking">
+  <title>DSv4-Flash DSpark Four-Card Serve — Landed | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — What is serving</h2>
+
+    <p>DeepSeek-V4-Flash-0731 on <strong>four H200 cards</strong>, tensor-parallel
+    4 with expert parallelism, FP8 weights with FP4 experts, serving the
+    checkpoint's <strong>full native 1,048,576-token window</strong> with DSpark
+    speculative decoding active. Job <code>1262952</code> on port 18800, behind the
+    unchanged consumer origin on 18802.</p>
+
+    <p>DSpark needed no download: the <code>dspark_*</code> block
+    (<code>dspark_block_size 5</code>, target layers 40–42) was already present in
+    the weights on disk, and vLLM 0.28.0 is above the 0.25.0 floor.
+    <code>num_speculative_tokens</code> is 5, taken from the checkpoint's own
+    declared block size rather than from a published example written for other
+    silicon.</p>
+
+    <h2 id="s2">§2 — Measured throughput and acceptance</h2>
+
+    <p>Three engine instances were sampled across the day. Acceptance is stable
+    enough across the first three samples to read as a property of the lane; the
+    fourth is an overlapping-window observation on a different workload and is not
+    yet part of that claim.</p>
+
+    <table>
+      <thead><tr><th>Window</th><th>Draft → accepted</th><th>Acceptance</th><th>Mean accept length</th></tr></thead>
+      <tbody>
+        <tr><td>4-card, first sample</td><td>9,560 → 4,418</td><td>46.2%</td><td>3.31</td></tr>
+        <tr><td>4-card, three concurrent agentic nodes</td><td>94,320 → 43,772</td><td>46.4%</td><td>3.32</td></tr>
+        <tr><td>4-card, cumulative over ~2 h</td><td>770,075 → 348,971</td><td>45.3%</td><td>3.31</td></tr>
+        <tr><td>4-card at 1M window, peer workload</td><td>264,715 → 131,878</td><td>49.8%</td><td>3.49</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>Per-position acceptance falls monotonically and the fifth position
+    still earns its place</strong> — 0.749 / 0.571 / 0.435 / 0.325 / 0.240 on the
+    two-hour window. The ordering has been stable in every sample taken, which
+    makes the curve the more robust claim of the two; a value above 5 for
+    <code>num_speculative_tokens</code> is worth probing on that basis.</p>
+
+    <p>Generation throughput peaked at <strong>418.5 tok/s</strong> against the
+    two-card serve's 120.5 on the same recorder. That figure should not be read as
+    a routing quantity: measured agentic wall throughput on this lane is 22–33
+    tok/s, so the ceiling is turn count and thinking volume, not generation. More
+    cards will not make an agentic node finish sooner.</p>
+
+    <p><strong>Prefix caching is active and settles near 30%</strong> — 33.9% on a
+    four-day-old two-card engine, 28.0% and 27.7% on two fresh four-card ones.
+    Consumer-side usage records report zero cache reads, so the ~46× input
+    amplification two peer sessions measured is substantially a reporting gap
+    rather than pure wasted compute, though the headroom against metered lanes at
+    97–99% is real and structural.</p>
+
+    <h2 id="s3">§3 — The constraint that shaped the cutover</h2>
+
+    <p>Both card counts publish one <code>served_name</code> by design, and the
+    router refused a duplicate model id with <strong>HTTP 409</strong>. A second
+    serve raised naively beside the first therefore breaks the endpoint rather
+    than joining it. The fix ranks candidates by <code>accelerator_count</code>
+    then start stamp, and <code>_fetch_catalog</code>'s reachability check becomes
+    the health gate: an engine still loading is simply absent, so traffic stays on
+    the incumbent until the new process genuinely answers.</p>
+
+    <p>That worked on the relay path and the overlap ran as designed — the
+    two-card serve answered throughout a 408-second weight load. The catalog path
+    carried a <strong>second duplicate check the fix had not covered</strong>, so
+    <code>GET /v1/models</code> returned 409 during the overlap while completions
+    were served normally. Closed separately.</p>
+
+    <h2 id="s4">§4 — What running it exposed</h2>
+
+    <p>Six defects surfaced only because the deployment was stood up and driven.
+    <strong>Four of the six were passing a test at the time.</strong></p>
+
+    <table>
+      <thead><tr><th>Defect</th><th>Why the gate missed it</th></tr></thead>
+      <tbody>
+        <tr><td>The published endpoint document did not follow the serve to a new port, and nothing republished it</td>
+            <td>Engine and router were both healthy throughout; only <em>new</em> consumer launches failed, so the fleet looked well right up to the moment it needed to grow</td></tr>
+        <tr><td>Speculative counters read zero against an engine publishing them</td>
+            <td>Validated against a fixture its own author wrote, because the two-card endpoint exposed no such counters to check against</td></tr>
+        <tr><td>The integer coercion raised on the per-position label, which arrives as a string</td>
+            <td>Masked by the naming defect above; both had to be fixed to see either</td></tr>
+        <tr><td>The benchmark folded each counter's <code>_created</code> timestamp gauge into its absolute value</td>
+            <td>Survived because deltas across two scrapes cancel a constant; the per-scrape snapshot read 1.788626e+09 where the counter held 9,560</td></tr>
+        <tr><td>A read-only dry run was gated on live scheduler port state</td>
+            <td>Latent until a serve occupied another profile's declared port, then a unit test's result depended on the cluster</td></tr>
+        <tr><td>The router's catalog path refused what its relay path ranked</td>
+            <td>The node's measure named the relay; the gap was in the brief, not the work</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>The common shape is an instrument agreeing with the only thing it
+    was ever pointed at.</strong> It applied to the recorder's fixture, to the
+    benchmark's cancelling delta, and to the coordinator's own cutover check,
+    which verified the router and a relayed completion — both healthy — while
+    discovery was broken for every new consumer.</p>
+
+    <h2 id="s5">§5 — The local lane as a worker backend</h2>
+
+    <p>Six nodes were dispatched to the deployed model, five of them fixing the
+    serving infrastructure it runs on. <strong>Six of six landed inside their
+    declared write fences with zero corrective redispatches</strong>, at walls of
+    7 to 53 minutes.</p>
+
+    <p>Three behaviours are worth recording because they are what a gate cannot
+    show. One node ran an adjacent suite it was not asked to run, found the two
+    assertions its own change broke, and attributed them to its commit by sha
+    while correctly separating a third failure as pre-existing. One proved its
+    defect empirically by loading the old function and running the new fixture
+    through it, rather than asserting the defect existed. One was told to leave a
+    failing test alone and <strong>did</strong>, rather than adjusting an
+    assertion to reach green and hide a different defect.</p>
+
+    <p>Two costs stand against that. Per-node ledger receipts are
+    <strong>structurally absent</strong> on this lane — no terminal
+    <code>result</code> record is emitted, so cost, tokens and throughput all
+    record null, and a null reads as <em>free</em> to a router ranking by cost per
+    durable node. And <strong>worktree isolation did not hold</strong>: two
+    unrelated workers left formatter edits in the shared main checkout, outside
+    their fences, each surfacing only as a refused merge. Both were AST-identical
+    to <code>HEAD</code>, which is the check that made discarding them safe —
+    a semantic edit arriving by the same route would announce itself neither way.</p>
+
+    <h2 id="s6">§6 — Configuration as it now stands</h2>
+
+    <p>Deployment config remains <strong>TOML</strong> under
+    <code>imas_ambix/agent/profiles/</code>; reckon's <code>flight.yaml</code> is
+    the YAML surface and carries the routing retune. The local backend now
+    declares <code>sandbox</code>, <code>session_reuse</code>, an advisory
+    <code>time_budget</code> and the endpoint's advertised
+    <code>usable_input_window</code>, each annotated with the measurement behind
+    it.</p>
+
+    <p><strong>The setting that matters has no schema key and is recorded as a
+    routing comment:</strong> trust <code>exact</code> unsupervised, allow
+    <code>guided</code> only when the measurement is handed over as established
+    fact, never route <code>open</code> here. The governing variable is brief
+    specificity rather than task difficulty, and the evidence is a controlled pair
+    hours apart on one model — a brief naming a field, a formula, a sign rule and
+    two fixtures produced an edit seventeen seconds in; one asking the worker to
+    decide when it had measured enough produced nothing in forty minutes, then
+    committed within minutes once handed the measurements.</p>
+
+  </main>
+</body>
+</html>
