@@ -619,3 +619,67 @@ def test_benchmark_frame_tokenizer_loader_returns_none(
     import math
 
     assert math.isnan(result.aggregate["mean_modality_coherence"])
+
+
+# ---------------------------------------------------------------------------
+# Serving-bench speculative-decode snapshot
+# ---------------------------------------------------------------------------
+
+
+def test_spec_snapshot_excludes_created_timestamp_siblings() -> None:
+    """An absolute snapshot reads the counters, not their same-named gauges.
+
+    vLLM's OpenMetrics exposition pairs every speculative-decode counter
+    with a ``_created`` gauge holding the engine's creation timestamp
+    (~1.79e9 in 2026), labelled with the counter. A matcher that read the
+    family name by substring summed that timestamp into the counter's
+    absolute value — a draft-token total of 1.7886e9 instead of a few
+    thousand. The snapshot is pinned to the counter values alone, across the
+    draft, accepted and per-position counters and their ``_created``
+    siblings, with live values read from the four-card DSpark engine.
+    """
+    from imas_ambix.agent.bench import _spec_decode_snapshot
+
+    text = "\n".join(
+        [
+            "# TYPE vllm:spec_decode_num_drafts_total counter",
+            'vllm:spec_decode_num_drafts_total{engine="0"} 1912.0',
+            "vllm:spec_decode_num_drafts_created 1.7886160770693e+09",
+            "# TYPE vllm:spec_decode_num_draft_tokens_total counter",
+            'vllm:spec_decode_num_draft_tokens_total{engine="0"} 9560.0',
+            "vllm:spec_decode_num_draft_tokens_created 1.788616077069351e+09",
+            "# TYPE vllm:spec_decode_num_accepted_tokens_total counter",
+            'vllm:spec_decode_num_accepted_tokens_total{engine="0"} 4418.0',
+            "vllm:spec_decode_num_accepted_tokens_created 1.7886160770694067e+09",
+            "# TYPE vllm:spec_decode_num_accepted_tokens_per_pos_total counter",
+            "vllm:spec_decode_num_accepted_tokens_per_pos_total"
+            '{engine="0",position="0"} 1423.0',
+            "vllm:spec_decode_num_accepted_tokens_per_pos_total"
+            '{engine="0",position="1"} 1108.0',
+            "vllm:spec_decode_num_accepted_tokens_per_pos_total"
+            '{engine="0",position="2"} 848.0',
+            "vllm:spec_decode_num_accepted_tokens_per_pos_total"
+            '{engine="0",position="3"} 612.0',
+            "vllm:spec_decode_num_accepted_tokens_per_pos_total"
+            '{engine="0",position="4"} 427.0',
+            "vllm:spec_decode_num_accepted_tokens_per_pos_created"
+            '{engine="0",position="0"} 1.788616077069438e+09',
+            "",
+        ]
+    )
+
+    snapshot = _spec_decode_snapshot(text)
+
+    # The counters alone — a folded ``_created`` timestamp would read ~1.79e9
+    # and a folded drafts-per-request counter would read 1912, not 9560.
+    assert snapshot["draft_tokens_total"] == 9560.0
+    assert snapshot["accepted_tokens_total"] == 4418.0
+    assert snapshot["num_accepted_per_pos"] == [
+        1423.0,
+        1108.0,
+        848.0,
+        612.0,
+        427.0,
+    ]
+    for value in (snapshot["draft_tokens_total"], snapshot["accepted_tokens_total"]):
+        assert value < 1.0e6
