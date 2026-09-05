@@ -270,6 +270,17 @@
     measurement. Propagating a wrong record costs whatever is built on it — and in the cache case it
     would have replaced a real zero with a figure belonging to another lane, inside a report already
     driving config changes.</p>
+    <p><strong>A seventh instance, and it says how the class is actually caught.</strong> About an hour
+    after this section was written, its author committed it again: checking whether a ledger row
+    existed, by looking for two plausible top-level key names, finding neither, and coming within one
+    call of reporting that a promotion succeeds while recording nothing. The row was there, one level
+    down. The defect did not exist.</p>
+    <p>What stopped it was not knowing about the class — the section was already written — but asking
+    its question at the moment of claiming: <em>what is the authority for this, and did I read it?</em>
+    Applying that to the check itself took one call. So the practical form of this finding is a habit
+    bound to an event, not an insight: <strong>the moment before you report a defect in someone else's
+    system is the moment to re-read your own instrument.</strong> Knowledge of the class did not prevent
+    the error; the question caught it before it left the session.</p>
 
     <h2 id="s6">§6 — Platform findings, with disposition</h2>
     <table>
@@ -282,6 +293,7 @@
         <tr><td><strong>Dispatch accepts source write paths on a verifier role; only promotion refuses.</strong> Probed: <code>--role test --write-path &lt;source&gt;</code> returns <code>ok: true</code> with no findings. The specification itself said "refused at promotion", so the guard does what was specified and the specification was one step late.</td><td>Confirmed by probe; queued</td></tr>
         <tr><td><strong>Member <code>--harness</code> does not route.</strong> A member registered <code>--harness claude-opus</code> ran on sonnet; dispatch falls through to <code>default_backend</code>. Hit independently by both coordinators, in different projects, on the same day.</td><td>Open</td></tr>
         <tr><td><strong>A time budget is advisory on this launch kind.</strong> Nodes carrying 60-minute budgets ran 129 and 135 minutes with nothing stopping them; another overran 2400 s until killed. Combined with the messaging finding: a local node can be neither steered nor time-boxed, so its only fence is a person watching.</td><td>Recorded in config as advisory, deliberately unenforced</td></tr>
+        <tr><td><strong>Promoting an abandoned launch appends its ledger row but leaves the live pointer</strong>, which blocks that member permanently — the next dispatch refuses with <code>member-in-flight</code>. <code>crew discard</code> clears the pointer without touching the recorded row, so the sequence for an infrastructure-failed launch is <em>complete, then discard</em>. Neither command's help says so.</td><td>Open</td></tr>
         <tr><td><strong>The dispatch validator refuses angle-bracket path templates</strong> as unresolved intent, costing a rewrite into prose that was longer and no clearer.</td><td>Open</td></tr>
       </tbody>
     </table>
