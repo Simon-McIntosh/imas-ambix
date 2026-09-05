@@ -151,6 +151,52 @@ class _Catalog:
     cards: tuple[dict[str, Any], ...]
 
 
+_Owner = tuple[Upstream, dict[str, Any]]
+
+
+def _routing_rank(card: Mapping[str, Any]) -> tuple[int, int | None]:
+    """Score one engine by how many accelerators it holds and when it started.
+
+    Every card the router accepts has passed catalog validation, so the
+    accelerator count is always an integer and always comparable. The start
+    stamp is the card's ``created`` field, which an engine may omit or report
+    in a form that cannot be ordered; ``None`` records that absence rather
+    than substituting a value, so a pair that only differs there stays
+    unranked instead of being separated by an invented default.
+    """
+    accelerators = card["ambix"]["accelerator_count"]
+    created = card.get("created")
+    return accelerators, created if type(created) is int else None
+
+
+def _preferred_owner(owners: Sequence[_Owner]) -> _Owner | None:
+    """Return the engine that outranks every peer, or None when two are level.
+
+    Several reachable engines advertising one model id is the normal state
+    while a serve is being replaced by a wider one: the incoming engine joins
+    the catalog the moment it answers, and both are healthy for the length of
+    the overlap. Routing to the widest engine keeps that window free of a
+    capacity regression, and the later start stamp breaks a tie towards the
+    engine that is replacing its peer rather than the one being retired. Where
+    the two leaders are indistinguishable on both terms there is no ground for
+    preferring either, and the caller refuses instead of choosing arbitrarily.
+    """
+    ranks = [_routing_rank(card) for _, card in owners]
+    widest = max(accelerators for accelerators, _ in ranks)
+    leaders = [
+        (owner, started)
+        for owner, (accelerators, started) in zip(owners, ranks, strict=True)
+        if accelerators == widest
+    ]
+    if len(leaders) == 1:
+        return leaders[0][0]
+    if any(started is None for _, started in leaders):
+        return None
+    newest = max(started for _, started in leaders)
+    latest = [owner for owner, started in leaders if started == newest]
+    return latest[0] if len(latest) == 1 else None
+
+
 class RouterApp:
     """Present a union catalog and relay native requests to their owning engine."""
 
@@ -211,7 +257,7 @@ class RouterApp:
             return
 
         catalogs = await self._reachable_catalogs()
-        owners = [
+        owners: list[_Owner] = [
             (catalog.upstream, card)
             for catalog in catalogs
             for card in catalog.cards
@@ -220,10 +266,19 @@ class RouterApp:
         if not owners:
             await self._json_error(send, 404, f"unknown model id: {model_id}")
             return
-        if len(owners) != 1:
+        selected = _preferred_owner(owners)
+        if selected is None:
             await self._json_error(send, 409, f"duplicate model id: {model_id}")
             return
-        upstream, card = owners[0]
+        upstream, card = selected
+        if len(owners) > 1:
+            logger.info(
+                "router preference model=%s candidates=%d origin=%s accelerators=%d",
+                model_id,
+                len(owners),
+                upstream.base_url,
+                card["ambix"]["accelerator_count"],
+            )
 
         consumer = self._consumer_id(scope)
         if not await self._admission.acquire(consumer):
