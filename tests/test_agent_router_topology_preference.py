@@ -87,7 +87,13 @@ async def _router(upstreams: Sequence[Upstream]):
             await app._session.close()
 
 
-async def _invoke(app: RouterApp, body: bytes) -> list[AsgiMessage]:
+async def _invoke(
+    app: RouterApp,
+    body: bytes,
+    *,
+    method: str = "POST",
+    path: str = "/v1/messages",
+) -> list[AsgiMessage]:
     incoming: asyncio.Queue[AsgiMessage] = asyncio.Queue()
     await incoming.put({"type": "http.request", "body": body})
     sent: list[AsgiMessage] = []
@@ -101,9 +107,9 @@ async def _invoke(app: RouterApp, body: bytes) -> list[AsgiMessage]:
     await app(
         {
             "type": "http",
-            "method": "POST",
-            "path": "/v1/messages",
-            "raw_path": b"/v1/messages",
+            "method": method,
+            "path": path,
+            "raw_path": path.encode(),
             "query_string": b"",
             "headers": [(b"content-type", b"application/json")],
         },
@@ -234,5 +240,92 @@ def test_a_single_reachable_engine_still_answers() -> None:
             relayed = await _invoke(app, _request())
             assert _status(relayed) == 200
             assert json.loads(_body(relayed)) == {"served_by": "only"}
+
+    asyncio.run(exercise())
+
+
+def test_catalog_keeps_only_the_wider_engine() -> None:
+    """The union catalog collapses a duplicate onto the wider engine's card."""
+
+    async def exercise() -> None:
+        narrow_card = _card(accelerators=2, created=1_757_009_999)
+        narrow_card["ambix"]["engine_extension"] = {"dspark": False}
+        wide_card = _card(accelerators=4, created=1_757_000_000)
+        wide_card["ambix"]["engine_extension"] = {"dspark": True}
+        narrow = _engine("two-card", narrow_card)
+        wide = _engine("four-card", wide_card)
+        async with _server(narrow) as narrow_url, _server(wide) as wide_url:
+            for upstreams in (
+                [Upstream(narrow_url), Upstream(wide_url)],
+                [Upstream(wide_url), Upstream(narrow_url)],
+            ):
+                async with _router(upstreams) as app:
+                    catalog = await _invoke(
+                        app, b"", method="GET", path="/v1/models"
+                    )
+                    assert _status(catalog) == 200
+                    assert json.loads(_body(catalog))["data"] == [wide_card]
+
+    asyncio.run(exercise())
+
+
+def test_catalog_breaks_a_tie_towards_the_later_start() -> None:
+    """Equal card counts collapse to the engine that started more recently."""
+
+    async def exercise() -> None:
+        older = _engine("older", _card(accelerators=4, created=1_757_000_000))
+        newer = _engine("newer", _card(accelerators=4, created=1_757_003_600))
+        async with _server(older) as older_url, _server(newer) as newer_url:
+            for upstreams in (
+                [Upstream(older_url), Upstream(newer_url)],
+                [Upstream(newer_url), Upstream(older_url)],
+            ):
+                async with _router(upstreams) as app:
+                    catalog = await _invoke(
+                        app, b"", method="GET", path="/v1/models"
+                    )
+                    assert _status(catalog) == 200
+                    cards = json.loads(_body(catalog))["data"]
+                    assert [card["created"] for card in cards] == [1_757_003_600]
+
+    asyncio.run(exercise())
+
+
+def test_catalog_refuses_a_pair_the_preference_cannot_rank() -> None:
+    """Identical cards still refuse the catalog instead of an arbitrary pick."""
+
+    async def exercise() -> None:
+        card = _card(accelerators=4, created=1_757_000_000)
+        first = _engine("first", card)
+        second = _engine("second", card)
+        async with (
+            _server(first) as first_url,
+            _server(second) as second_url,
+            _router([Upstream(first_url), Upstream(second_url)]) as app,
+        ):
+            catalog = await _invoke(
+                app, b"", method="GET", path="/v1/models"
+            )
+            assert _status(catalog) == 409
+            assert f"duplicate model id: {MODEL_ID}".encode() in _body(catalog)
+
+    asyncio.run(exercise())
+
+
+def test_catalog_refuses_an_unstamped_leader() -> None:
+    """A leader without a usable start stamp keeps the pair refused."""
+
+    async def exercise() -> None:
+        stamped = _engine("stamped", _card(accelerators=4, created=1_757_000_000))
+        unstamped = _engine("unstamped", _card(accelerators=4, created=None))
+        async with (
+            _server(stamped) as stamped_url,
+            _server(unstamped) as unstamped_url,
+            _router([Upstream(stamped_url), Upstream(unstamped_url)]) as app,
+        ):
+            catalog = await _invoke(
+                app, b"", method="GET", path="/v1/models"
+            )
+            assert _status(catalog) == 409
 
     asyncio.run(exercise())

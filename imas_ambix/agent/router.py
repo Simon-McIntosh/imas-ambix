@@ -7,7 +7,6 @@ import asyncio
 import json
 import logging
 import os
-from collections import Counter
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -197,6 +196,19 @@ def _preferred_owner(owners: Sequence[_Owner]) -> _Owner | None:
     return latest[0] if len(latest) == 1 else None
 
 
+def _by_model_id(owners: Sequence[_Owner]) -> dict[str, list[_Owner]]:
+    """Partition reachable engine cards by the native model id they advertise.
+
+    Insertion order preserves first-seen position, so a resolved duplicate
+    takes the slot of its first occurrence and the collapsed union keeps a
+    deterministic ordering across the source catalogs.
+    """
+    grouped: dict[str, list[_Owner]] = {}
+    for upstream, card in owners:
+        grouped.setdefault(card["id"], []).append((upstream, card))
+    return grouped
+
+
 class RouterApp:
     """Present a union catalog and relay native requests to their owning engine."""
 
@@ -344,17 +356,35 @@ class RouterApp:
         if not catalogs:
             await self._json_error(send, 503, "no upstream catalogs are reachable")
             return
-        cards = [card for catalog in catalogs for card in catalog.cards]
-        duplicates = sorted(
-            model_id
-            for model_id, count in Counter(card["id"] for card in cards).items()
-            if count > 1
-        )
+        owners = [
+            (catalog.upstream, card)
+            for catalog in catalogs
+            for card in catalog.cards
+        ]
+        cards: list[dict[str, Any]] = []
+        duplicates: list[str] = []
+        for model_id, peers in _by_model_id(owners).items():
+            if len(peers) == 1:
+                cards.append(peers[0][1])
+                continue
+            preferred = _preferred_owner(peers)
+            if preferred is None:
+                duplicates.append(model_id)
+                continue
+            upstream, card = preferred
+            logger.info(
+                "router preference model=%s candidates=%d origin=%s accelerators=%d",
+                model_id,
+                len(peers),
+                upstream.base_url,
+                card["ambix"]["accelerator_count"],
+            )
+            cards.append(card)
         if duplicates:
             await self._json_error(
                 send,
                 409,
-                f"duplicate model id: {', '.join(duplicates)}",
+                f"duplicate model id: {', '.join(sorted(duplicates))}",
             )
             return
         payload = dict(catalogs[0].payload)
