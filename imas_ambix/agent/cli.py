@@ -485,18 +485,18 @@ def serve(
         profile, site, port=resolved_port, api_key=resolved_key
     )
 
+    if dry_run:
+        if resolved_key:
+            script = script.replace(resolved_key, "****")
+        console.print(script, markup=False, highlight=False, soft_wrap=True)
+        return
+
     holder = _running_ambix_job_on_port(site, resolved_port)
     if holder is not None:
         raise click.ClickException(
             f"Port {resolved_port} is already held by running Ambix job "
             f"{holder['name']} (job {holder['jobid']})."
         )
-
-    if dry_run:
-        if resolved_key:
-            script = script.replace(resolved_key, "****")
-        console.print(script, markup=False, highlight=False, soft_wrap=True)
-        return
 
     try:
         job_id = submit_script(script)
