@@ -354,6 +354,17 @@
     escalated: cases where the checker was right resolve quietly and never enter the tally. There is a
     counter-instance from the same day, where a peer named a symptom precisely and attributed it to the
     wrong cause while the check was sound.</p>
+    <p><strong>An eighth instance, and the authority was one call per project.</strong> The session that
+    fixed the budget parser then reported "the fence is now live and telling the truth" — true of its
+    own project's stored record, false as a statement about the workstation, because it had read one
+    project's ledger as the state of all four. Reading the other three showed the same account at
+    95.0, 1.21 and 1.21 simultaneously. The honest form is narrower and is now recorded as such: the
+    parser is fixed everywhere; the fence becomes truthful <em>per project</em>, on that project's next
+    served run on that lane.</p>
+    <p>That correction is also what exposed the project-keyed budget defect above, so the instance was
+    worth more than the error cost. Both were caught by the same question applied to a claim someone
+    was about to act on.</p>
+
     <p>The rule survives on cost instead. Re-checking your own method when contradicted costs one
     measurement. Propagating a wrong record costs whatever is built on it — and in the cache case it
     would have replaced a real zero with a figure belonging to another lane, inside a report already
@@ -375,6 +386,7 @@
       <thead><tr><th>Finding</th><th>Status</th></tr></thead>
       <tbody>
         <tr><td><strong>The subscription lane's budget fence cannot fire at any utilisation.</strong> <code>_ClaudeDialect._budget</code> reads <code>info.get("utilization")</code> — a fraction — and assigns it into <code>utilisation_pct</code>, compared against a 95% ceiling. So 1.21 (121%) reads as <code>1.21%</code>, and a five-hour window at 99% reads <code>0.99%</code>. The gating field <code>unifiedWindows.five_hour.utilization</code> appears seven times in that repository and <em>every one is inside a test fixture</em> — the correct field sits in its own test data, unread by the parser that fixture feeds.</td><td>Confirmed at source; fix dispatched</td></tr>
+        <tr><td><strong>Budget state is keyed to the PROJECT, not the account — so a hold protects one project while the rest keep spending.</strong> Measured across all four mounted projects on one account at 16:07Z, after the parser fix: imas-ambix held at <code>95.0 / five_hour</code> observed 14:11:13; reckon clear at <code>83.0 / five_hour</code> observed 13:47:04; imas-codex clear at <code>1.21 / overage</code> observed 13:46:28; nova clear at <code>1.21 / overage</code> observed 07:47:03. The window was rising about a point every two minutes across three sessions. So the fence fired correctly for the first time on this lane — in the single project whose own run most recently observed the window — while the same account read clear in three others, two of them on records written by the pre-fix parser. <strong>Whichever project receives the observation is the only one that learns.</strong> Under-holding, and silent. Two halves to the fix: declare the account a backend belongs to, and store the observation against that account so every project reads one state.</td><td>Open — the consequential one</td></tr>
         <tr><td><strong>Two presets over one account keep two budget records.</strong> 47 rows for <code>claude</code> against 16 for <code>claude-opus</code>, both landing on the same figure nine minutes apart, so either can be cleared on the other's stale reading of a window they share.</td><td>Confirmed; fix dispatched</td></tr>
         <tr><td><strong>A coordinator's message to its own dispatched run is held for an approval nobody is present to give, then expires, while the send reports success.</strong> Measured across 37,995 and 13,670 stream records with zero plain-text user records in either, and six worker tool rounds after the send. The approval gate belongs to the host harness, not to crew dispatch.</td><td>Recorded as not reckon's to fix; boundary drawn deliberately</td></tr>
         <tr><td><strong>Reckon's worker-to-worker peer channel has no answering party in practice</strong> — two questions in one session, both unanswered forever, which are the only two cases it has ever exercised. So that premise is <em>unstarted</em> rather than regressed.</td><td>Recorded first-party</td></tr>
