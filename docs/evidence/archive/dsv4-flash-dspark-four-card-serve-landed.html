@@ -61,6 +61,26 @@
     tok/s, so the ceiling is turn count and thinking volume, not generation. More
     cards will not make an agentic node finish sooner.</p>
 
+    <p><strong>Per-request decode throughput did not improve, and this is the
+    number a coordinator reaches for first.</strong> A peer session ran one brief
+    byte-identically against both deployments: <strong>23.1 tok/s on API time and
+    22.0 on wall against two cards without speculation, and 23.3 / 22.2 against
+    four cards with DSpark at the full window</strong> — unchanged. So a single
+    agentic session feels no speed-up at all from doubling the cards and turning
+    on speculative decoding.</p>
+
+    <p>That is consistent with the rest of the record rather than in tension with
+    it. The KV pool does not shard across tensor parallelism here, so cards buy no
+    context; and the 418.5 tok/s peak above is <em>aggregate engine</em>
+    throughput under concurrent load, which is a different quantity from what one
+    request sees. The speculation gain is real — 3.3 to 3.5 tokens accepted per
+    decode step — but it lands as engine capacity rather than as single-stream
+    latency, because an agentic node's wall clock is dominated by turn count and
+    thinking volume, not by decode. <strong>State the deployment's gain as
+    capacity and context, never as speed.</strong> A routing decision made on
+    single-stream tok/s would find no reason to prefer four cards over two, and
+    would be right about that quantity and wrong about the deployment.</p>
+
     <p><strong>Prefix caching is active and settles near 30%</strong> — 33.9% on a
     four-day-old two-card engine, 28.0% and 27.7% on two fresh four-card ones.
     Consumer-side usage records report zero cache reads, so the ~46× input
