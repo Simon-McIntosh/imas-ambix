@@ -128,6 +128,17 @@ class EngineConfig(BaseModel):
     # ``--block-size 128`` on every platform (its MSA sparse/index cache);
     # vLLM-only.
     block_size: int | None = None
+    # Tokenizer mode override, e.g. DeepSeek-V4's dedicated fast tokenizer
+    # (``--tokenizer-mode deepseek_v4``). ``None`` keeps the vLLM default.
+    # vLLM-only.
+    tokenizer_mode: str | None = None
+    # Route MoE dispatch through vLLM's ``--moe-backend`` (distinct from
+    # ``moe_runner_backend`` above, which is SGLang's ``--moe-runner-backend``
+    # flag). ``None`` keeps the vLLM default. vLLM-only.
+    moe_backend: str | None = None
+    # Expert-parallel MoE dispatch (required alongside tensor parallelism for
+    # DeepSeek-V4's routed-expert layout). vLLM-only.
+    enable_expert_parallel: bool = False
     # vLLM scheduler caps. ``None`` keeps the vLLM default
     # (``max_num_seqs=256`` in recent releases, which becomes the hard
     # ceiling on in-flight requests and is the dominant throughput
@@ -156,6 +167,13 @@ class EngineConfig(BaseModel):
     # Mutually complementary with ``speculative_method``: set both
     # together when the draft lives in a different weight directory.
     speculative_model: str | None = None
+    # Draft-token sampling strategy for the speculative decoder (DSpark's
+    # fused module accepts ``"greedy"`` or ``"probabilistic"``). Forces the
+    # compact-JSON ``--speculative-config`` form below even when no separate
+    # ``speculative_model`` is set, because DSpark's module is fused into the
+    # checkpoint rather than loaded from a distinct draft-model path.
+    # vLLM-only.
+    speculative_draft_sample_method: str | None = None
     # Extra environment variables exported into the serve job before launch.
     # For engine/kernel quirks that are set via env, not CLI flags — e.g.
     # ``VLLM_USE_FLASHINFER_SAMPLER = "0"`` to route sampling around a broken
@@ -180,8 +198,11 @@ class EngineConfig(BaseModel):
             self.speculative_method = None
         if not self.speculative_num_tokens or self.speculative_num_tokens <= 0:
             self.speculative_num_tokens = None
+        if not self.speculative_draft_sample_method:
+            self.speculative_draft_sample_method = None
         if self.speculative_method is None:
             self.speculative_model = None
+            self.speculative_draft_sample_method = None
         return self
 
 

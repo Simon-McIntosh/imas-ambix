@@ -219,17 +219,25 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
             _append_option(args, "--kv-cache-dtype", engine.kv_cache_dtype)
         # KV block size (MiniMax M3 MSA requires --block-size 128).
         _append_option(args, "--block-size", engine.block_size)
+        _append_option(args, "--tokenizer-mode", engine.tokenizer_mode)
+        _append_option(args, "--moe-backend", engine.moe_backend)
+        _append_flag(args, "--enable-expert-parallel", engine.enable_expert_parallel)
         # MTP speculative decoding (GLM-5.2): draft several tokens per step.
-        if engine.speculative_method and engine.speculative_model:
-            # Separate draft-model checkpoint: emit as a compact JSON dict so
-            # vLLM loads the MTP head from a different weight directory.
+        if engine.speculative_method and (
+            engine.speculative_model or engine.speculative_draft_sample_method
+        ):
+            # A separate draft-model checkpoint, or a draft-sampling strategy
+            # (DSpark's module is fused into the checkpoint rather than a
+            # distinct draft-model path), forces the compact-JSON form.
             import json as _json
 
-            spec = {
-                "model": engine.speculative_model,
-                "method": engine.speculative_method,
-                "num_speculative_tokens": (engine.speculative_num_tokens or 3),
-            }
+            spec = {}
+            if engine.speculative_model:
+                spec["model"] = engine.speculative_model
+            spec["method"] = engine.speculative_method
+            spec["num_speculative_tokens"] = engine.speculative_num_tokens or 3
+            if engine.speculative_draft_sample_method:
+                spec["draft_sample_method"] = engine.speculative_draft_sample_method
             args.extend(["--speculative-config", _json.dumps(spec)])
         else:
             _append_option(

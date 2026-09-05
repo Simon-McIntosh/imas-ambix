@@ -49,6 +49,28 @@ trust_remote_code = true
 enable_auto_tool_choice = true
 max_total_tokens = 524288
 kv_cache_dtype = "fp8"
+# Upstream recipe flags for this checkpoint family (recipes.vllm.ai + the
+# DSpark model card). block_size and tokenizer_mode are the vendor-documented
+# values for DeepSeek-V4; moe_backend "auto" lets vLLM pick the routed-expert
+# kernel, and expert parallelism is required alongside tensor parallelism for
+# this model's routed-expert layout.
+block_size = 256
+tokenizer_mode = "deepseek_v4"
+moe_backend = "auto"
+enable_expert_parallel = true
+# DSpark is not a separate model -- the DeepSeek model card describes it as
+# "the same checkpoint with an additional speculative decoding module
+# attached", and our downloaded weights already carry the dspark_* config
+# block, so no draft checkpoint needs downloading or naming here.
+# num_speculative_tokens: the checkpoint declares dspark_block_size = 5;
+# start there per the recipe's own guidance rather than copying the SM120
+# example's 7. draft_sample_method "greedy" fits tool-calling and structured
+# output, where draft acceptance matters more than sample diversity, over the
+# SM120 recipe's "probabilistic". attention_config.use_fp4_indexer_cache is
+# Blackwell-oriented and left unset on these SM90 cards pending a measured win.
+speculative_method = "dspark"
+speculative_num_tokens = 5
+speculative_draft_sample_method = "greedy"
 # Scheduler caps — raise both to exploit the 4×H200 KV cache budget.
 # At the default ``max_num_seqs=256`` only ~12% of KV cache is in use
 # (live measurement 2026-05-17), so the scheduler is the throughput
