@@ -1031,42 +1031,56 @@ def _parse_prometheus_text(text: str) -> list[tuple[str, dict[str, str], float]]
     return samples
 
 
+def _bare_metric_name(name: str) -> str:
+    """Metric name with its ``vllm:``-style namespace prefix stripped."""
+    return name.rpartition(":")[2]
+
+
+# Speculative-decode counters are read by the exact bare name the engine
+# publishes. Every counter here carries a same-named ``_created`` gauge that
+# is its creation timestamp (~1.79e9), not a data point: matching the family
+# name by substring folds that timestamp straight into the token total it
+# labels, measured as a draft-token total of 1.7886e9 instead of a few
+# thousand. Two per-position spellings have been seen — ``..._per_pos`` on
+# older engines and the ``_total``-suffixed one on current engines — so both
+# are matched; each one's ``_created`` sibling is excluded by the exact
+# match.
+_SPEC_DECODE_COUNTER_NAMES = {
+    "draft_tokens_total": {"spec_decode_num_draft_tokens_total"},
+    "accepted_tokens_total": {"spec_decode_num_accepted_tokens_total"},
+}
+_SPEC_DECODE_PER_POSITION_NAMES = {
+    "spec_decode_num_accepted_tokens_per_pos_total",
+    "spec_decode_num_accepted_tokens_per_pos",
+}
+
+
 def _spec_decode_snapshot(text: str) -> dict[str, Any]:
     """Speculative-decode counters read out of one ``/metrics`` scrape.
 
-    Counter names move between engine versions, so the counters are found by
-    substring rather than by an exact name: among the speculative-decode
-    metrics, one mentioning ``draft`` carries the tokens the draft model
-    proposed and one mentioning ``accept`` carries the tokens the target
-    model kept. A name that also mentions tokens is a true token count and
-    is preferred; any other cumulative speculative counter is a fallback for
-    engines that omit the word. Values are summed across label sets so a
-    multi-engine scrape totals correctly.
+    The counters are found by their exact bare name rather than by a
+    substring test, because each of them pairs with a same-named ``_created``
+    gauge holding the engine's creation timestamp, and a substring match
+    would fold that timestamp into the token total it labels. Values are
+    summed across label sets so a multi-engine scrape totals correctly.
     """
-    # Index 0 holds counters whose name mentions tokens, index 1 the fallback.
-    tiers: list[dict[str, float]] = [{}, {}]
+    counters: dict[str, float] = {}
     per_position: dict[int, float] = {}
 
     for name, labels, value in _parse_prometheus_text(text):
-        lowered = name.lower()
-        if "spec" not in lowered:
-            continue
-        if "per_pos" in lowered:
+        bare = _bare_metric_name(name.lower())
+        if bare in _SPEC_DECODE_PER_POSITION_NAMES:
             pos = _coerce_int(labels.get("position"))
             if pos is not None:
                 per_position[pos] = per_position.get(pos, 0.0) + value
             continue
-        if "draft" in lowered:
-            role = "draft_tokens_total"
-        elif "accept" in lowered:
-            role = "accepted_tokens_total"
-        else:
-            continue
-        tier = tiers[0] if "token" in lowered else tiers[1]
-        tier[role] = tier.get(role, 0.0) + value
+        for key, names in _SPEC_DECODE_COUNTER_NAMES.items():
+            if bare in names:
+                counters[key] = counters.get(key, 0.0) + value
+                break
 
     snapshot: dict[str, Any] = {
-        role: tiers[0].get(role, tiers[1].get(role))
+        role: counters.get(role)
         for role in ("draft_tokens_total", "accepted_tokens_total")
     }
     snapshot["num_accepted_per_pos"] = (
