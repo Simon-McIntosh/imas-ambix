@@ -69,6 +69,85 @@ UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH="$PWD
 shared with the main checkout and any concurrent workers. It is not how to run
 in the main checkout.
 
+## Provision a dispatched worktree at creation, not by remembering
+
+The rule that a worktree reuses the main environment does not enforce itself, and
+neither does the rule that it needs credentials. Measured on imas-codex
+2026-09-05: eleven of eleven live worktrees carried `.env` **and** `.venv` as
+symlinks into the main checkout — correct, and achieved entirely by coordinator
+discipline. `reckon crew dispatch` creates the worktree and provisions neither; a
+search of the dispatch machinery finds no symlink of either resource. So the
+guarantee is one coordinator's memory, and the first forgetting costs either an
+auth failure that reads as a bad credential or a second ~70k-entry environment.
+
+**Bind provisioning to the moment that always happens.** Immediately after the
+worktree exists and before the worker's first turn:
+
+```bash
+W=<worktree>; ROOT=<main checkout>
+ln -s "$ROOT/.venv" "$W/.venv"                    # shared environment, never a copy
+while IFS= read -r rel; do                        # every .env in the checkout
+  mkdir -p "$W/$(dirname "$rel")"
+  ln -sfn "$ROOT/$rel" "$W/$rel"
+done < <(cd "$ROOT" && find . -name '.env' -not -path './.venv/*' -printf '%P\n')
+for f in <the repo's gitignored generated files>; do   # copy, never link
+  mkdir -p "$W/$(dirname "$f")"; cp -n "$ROOT/$f" "$W/$f"
+done
+```
+
+**A symlink to an owner-only file is the secure form, and `chmod` on the link
+does nothing.** A symlink carries no meaningful mode of its own; access is
+governed by the target. Linking every worktree at a single mode-600 `.env`
+therefore gives each worker the parameters it needs without asking, while
+leaving exactly one file on disk to protect — which is stronger than copying at
+600, because a reclaimed or abandoned worktree cannot leave a credential behind.
+Never copy, print, stage or commit the file.
+
+**Link what must be shared; copy what must diverge.**
+
+| Resource | Provision by | Why |
+|---|---|---|
+| every `.env` in the checkout | symlink | One owner-only secret on disk, identical everywhere, nothing left behind. |
+| `.venv` | symlink | ~70k filesystem entries and ~1.8 GiB per copy on GPFS. |
+| gitignored generated files | `cp -n` | Derived from *that tree's* own sources, so a worktree's copy is legitimately different. |
+
+**Never symlink a generated file.** It fails in both directions. Reading, the
+worktree sees the main checkout's copy rather than what its own edited sources
+imply, so its tests measure the wrong tree. Writing is worse: a regeneration in
+the worktree writes *through* the link and replaces every peer worker's copy with
+one node's in-progress change. That is the `uv sync`-from-a-worktree hazard in a
+new costume — a worktree mutating a shared resource under peers who did not ask.
+
+**Add a bare `.venv` to `.gitignore`, not only `.venv/`.** A trailing-slash
+pattern matches directories only, so the main checkout's real directory is
+ignored while the worktree symlink is not, and every provisioned worktree then
+reports one untracked entry. An identical dirt count across unrelated trees is
+the tell that it is provisioning rather than work.
+
+**Verify rather than assume, and sample late** — a worktree read seconds after
+dispatch has not finished being provisioned:
+
+```bash
+for w in <worktree-root>/*/*; do
+  printf '%-46s venv=%s env=%s\n' "$w" \
+    "$(readlink "$w/.venv" >/dev/null 2>&1 && echo link \
+       || (test -d "$w/.venv" && echo REAL-DIR-BAD) || echo none)" \
+    "$(readlink "$w/.env" 2>/dev/null \
+       || (test -f "$w/.env" && echo REAL-FILE-BAD) || echo none)"
+done
+```
+
+`REAL-DIR-BAD` and `REAL-FILE-BAD` are the two failures this check exists to
+catch: a duplicated environment, and a copied secret.
+
+**Sandbox tier decides what a worker can self-provision, so pre-placement is
+mandatory rather than belt-and-braces for read-only roles.** A `review` or
+`investigate` worktree resolves to a read-only sandbox and cannot run a
+provisioning step at all. On imas-codex those roles additionally cannot open a
+database session, so a live query routed there fails before it starts and the
+failure reads as a credential fault — which is exactly the symptom a missing
+`.env` link produces, and why the two must not be confusable.
+
 ## Whole-tree lint gate
 
 `uv run --no-sync ruff check imas_ambix tests` exits 0 and may be used as a
