@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="dsv4-flash-dspark-four-card-serve">
+  <meta name="plan-title" content="DSv4-Flash DSpark Four-Card Serve">
+  <meta name="plan-summary" content="Bring up a 4xH200 DSpark-accelerated DeepSeek-V4-Flash beside the live 2xH200, add serving-time receipts, and retune the local lane">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="6.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="elevated">
+  <meta name="plan-sprint" content="S24">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment,benchmarking">
+  <title>DSv4-Flash DSpark Four-Card Serve | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-05">
+<meta name="plan-version" content="1">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — What this plan does, and the constraint that shapes it</h2>
+
+    <p>The local lane currently serves <code>deepseek-v4-flash</code> from a
+    <strong>two-card</strong> vLLM process (job 1260660, TP=2, 512K context, port
+    18800), fronted by the <code>ambix-router</code> on port 18802 — the origin
+    every <code>clive</code> consumer is pointed at. Two peer sessions
+    (<em>nova</em> and <em>imas-codex</em>) put nine dispatched nodes through that
+    lane on 2026-09-05 and both report it landing usable work. The lane is worth
+    investing in, and it is running at a quarter of the card budget it was sized
+    for.</p>
+
+    <p>This plan raises it to <strong>four cards with DSpark speculative
+    decoding</strong>, adds the serving-time instrumentation both peers named as
+    the lane's biggest blind spot, and retunes the local backend's routing
+    configuration from what the two sessions actually measured.</p>
+
+    <h3 id="s1-constraint">The constraint: the router refuses duplicate model ids</h3>
+
+    <p>The obvious way to satisfy "keep the two-card serve live until the
+    four-card serve is healthy" is to start the second serve alongside the first.
+    <strong>Done naively that takes the live lane down.</strong>
+    <code>imas_ambix/agent/router.py</code> collects every reachable upstream that
+    advertises the requested model id and then refuses when the count is not
+    exactly one:</p>
+
+    <pre><code>owners = [(catalog.upstream, card)
+          for catalog in catalogs
+          for card in catalog.cards
+          if card["id"] == model_id]
+if not owners:
+    await self._json_error(send, 404, f"unknown model id: {model_id}")
+    return
+if len(owners) != 1:
+    await self._json_error(send, 409, f"duplicate model id: {model_id}")
+    return</code></pre>
+
+    <p>Both profiles publish the same <code>served_name</code> —
+    <code>deepseek-v4-flash</code> — precisely so a consumer never has to know
+    which card count answered. That deliberate naming choice and this duplicate
+    check are in direct conflict: the moment a second serve of the same release
+    becomes reachable, <em>every</em> request through the router returns 409,
+    including those the healthy two-card serve could have answered. The overlap
+    the AGENTS.md deployment notes describe is therefore not currently
+    executable.</p>
+
+    <p>So the ordering below is not ceremony. The router must learn a
+    deterministic preference <em>before</em> a second serve exists, and the fact
+    that <code>_fetch_catalog</code> only includes upstreams that actually answer
+    <code>/v1/models</code> is what turns that preference into a health-gated
+    cutover: a four-card engine still loading its weights is simply absent from
+    the catalog, so traffic stays on two cards until the new process is genuinely
+    answering.</p>
+
+    <figure>
+      <svg viewBox="0 0 720 232" width="100%" role="img"
+           aria-label="Cutover sequence: router preference lands first, then the four-card serve appears in the catalog and takes traffic, then the two-card serve is cancelled."
+           style="max-width:720px;font-family:system-ui,sans-serif">
+        <line x1="16" y1="150" x2="704" y2="150" stroke="#111" stroke-width="1"/>
+        <g font-size="13" fill="#111">
+          <text x="16" y="172">stage 1</text>
+          <text x="188" y="172">stage 2</text>
+          <text x="360" y="172">stage 3</text>
+          <text x="532" y="172">stage 4</text>
+        </g>
+        <g font-size="13" fill="#444">
+          <text x="16" y="190">router preference</text>
+          <text x="188" y="190">4-card submitted</text>
+          <text x="360" y="190">4-card answers</text>
+          <text x="532" y="190">2-card cancelled</text>
+          <text x="16" y="206">+ restart</text>
+          <text x="188" y="206">(loading, absent)</text>
+          <text x="360" y="206">/v1/models 200</text>
+          <text x="532" y="206">cards returned</text>
+        </g>
+        <g font-size="13">
+          <text x="16" y="30" fill="#111">consumer traffic</text>
+          <rect x="16" y="40" width="516" height="22" fill="none" stroke="#111" stroke-width="1"/>
+          <text x="24" y="56" fill="#111">served by 2×H200 · port 18800</text>
+          <rect x="532" y="40" width="172" height="22" fill="none" stroke="#111" stroke-width="1"/>
+          <text x="540" y="56" fill="#111">4×H200 only</text>
+          <rect x="360" y="72" width="344" height="22" fill="none" stroke="#111" stroke-width="1"
+                stroke-dasharray="3 2"/>
+          <text x="368" y="88" fill="#111">served by 4×H200 · port 18801 · DSpark</text>
+        </g>
+        <g font-size="13" fill="#444">
+          <text x="16" y="118">cards held</text>
+          <text x="120" y="118" fill="#111">2</text>
+          <text x="188" y="118" fill="#111">6</text>
+          <text x="360" y="118" fill="#111">6</text>
+          <text x="532" y="118" fill="#111">4</text>
+        </g>
+        <line x1="188" y1="144" x2="188" y2="156" stroke="#111" stroke-width="1"/>
+        <line x1="360" y1="144" x2="360" y2="156" stroke="#111" stroke-width="1"/>
+        <line x1="532" y1="144" x2="532" y2="156" stroke="#111" stroke-width="1"/>
+      </svg>
+      <figcaption>Cutover sequence. Consumers keep one origin (the router, port
+      18802) throughout. The overlap window costs six of eight cards; the handover
+      is triggered by the four-card engine becoming reachable, not by a
+      timer.</figcaption>
+    </figure>
+
+    <h3 id="s1-facts">Measured starting facts</h3>
+
+    <p>Verified on this workstation on 2026-09-05, before any node was cut. These
+    are the inputs the nodes below build on; a node that finds one of them false
+    should report that rather than working around it.</p>
+
+    <table>
+      <thead><tr><th>Fact</th><th>Value</th><th>How it was established</th></tr></thead>
+      <tbody>
+        <tr><td>DSpark is present in the weights we already hold</td>
+            <td><code>dspark_block_size: 5</code>, <code>dspark_markov_rank: 256</code>,
+                <code>dspark_noise_token_id: 128799</code>,
+                <code>dspark_target_layer_ids: [40, 41, 42]</code></td>
+            <td><code>config.json</code> of
+                <code>/work/projects/imas_gpu/agents/deepseek-v4-flash-0731/model/</code></td></tr>
+        <tr><td>Checkpoint precision</td>
+            <td><code>quant_method: fp8</code>, <code>fmt: e4m3</code>,
+                <code>scale_fmt: ue8m0</code>, weight block 128×128, with
+                <code>expert_dtype: fp4</code></td>
+            <td>same file — this <em>is</em> the FP8 release; no re-download needed</td></tr>
+        <tr><td>Engine version</td>
+            <td>vLLM <strong>0.28.0</strong>, flashinfer 0.6.16.post3, torch 2.13.0+cu126</td>
+            <td><code>importlib.metadata</code> in the vLLM serving environment.
+                DSpark needs ≥ 0.25.0, so the requirement is met</td></tr>
+        <tr><td>Live serve</td>
+            <td>job 1260660 · TP=2 · ctx 512K · fp8 KV · port 18800</td>
+            <td><code>imas-ambix agent status</code></td></tr>
+        <tr><td>Consumer origin</td>
+            <td><code>ambix-router</code> job 1261856 · port 18802</td>
+            <td>same — this is the URL embedded in deployed <code>clive</code></td></tr>
+        <tr><td>Card budget</td>
+            <td>8 configured; 2 held by the live serve, 2 by another group's
+                <code>nemotron_embed_8b</code></td>
+            <td><code>scontrol show node 98dci4-gpu-0003</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="s1-roe">What the two consumer sessions measured</h3>
+
+    <p>Both peer reports are first-hand execution data from 2026-09-05, and they
+    agree everywhere they overlap. Nine nodes total: five on nova (four landed,
+    one live at the time of writing), three on imas-codex, all promoted, and
+    <strong>zero corrective redispatches to a frontier lane</strong>. Every landed
+    node passed its gate on the target surface and survived a hunk-by-hunk read.
+    Two nodes corrected their coordinator's brief rather than executing it
+    faithfully, and one declared its own headline measure vacuous instead of
+    banking it.</p>
+
+    <p>The findings that bear on configuration:</p>
+
+    <ul>
+      <li><strong>Brief specificity, not task difficulty, is the governing
+      variable.</strong> Both sessions state this independently and it is the
+      single most useful result. A brief naming a field, a formula, a sign rule
+      and two fixtures produced an edit at assistant turn 6, seventeen seconds in.
+      A brief asking the worker to decide when it had measured enough produced no
+      edit in forty minutes on the same model — and committed within minutes once
+      the measurements were handed back to it as established fact.</li>
+      <li><strong>Whole-context re-read per turn, with no prompt caching.</strong>
+      Uncached input totals of 8M, 10M, 26M and 31M tokens on single nodes;
+      imas-codex measured 19,974,934 input tokens with <em>zero</em> cache reads
+      against 428,888 on a comparable codex node — roughly 46× the fresh input.
+      This is the lane's cost story and §4 must establish whether it is a vLLM
+      prefix-caching gap or only a usage-reporting gap.</li>
+      <li><strong>Mid-flight throughput is unreadable.</strong>
+      <code>output_tokens: 0</code> on every per-message usage record; totals
+      appear only in the terminal result record. Generation rate from those
+      totals: 22–33 tok/s across both sessions. This is what §3 fixes.</li>
+      <li><strong>The declared time budget is not enforced for this launch
+      kind.</strong> Nodes with a 60 m budget ran 129 and 135 minutes with nothing
+      stopping them; another overran 2400 s until killed. A coordinator cannot
+      time-box this lane today.</li>
+      <li><strong>Thinking dominates output</strong> — 83% of emitted characters
+      on one node, above 95% on two others — and reasoning effort is declared
+      rather than effective: the endpoint returns a thinking block at every
+      budget including none.</li>
+      <li><strong>Transcript volume is extreme</strong> — about 350
+      <code>system</code> stream records per assistant turn, 5–10 MB transcripts,
+      128k stream records on the 135-minute node.</li>
+      <li><strong>Ledger cost is imputed</strong> ($52–$162 per node), which ranks
+      the free lane as the most expensive one. A router reading cost inverts.</li>
+      <li>Not observed on any node: tool-call malformation, thinking-tag leakage
+      into text, truncated output, refusal to write, long-context degradation.
+      Peak per-turn input read was 356,574 tokens against an advertised 492,288
+      ceiling — 72%, never clamped.</li>
+    </ul>
+
+    <h2 id="s2">§2 — Engine configuration: DSpark and the recipe flags</h2>
+
+    <p>The profile at <code>imas_ambix/agent/profiles/deepseek-v4-flash.toml</code>
+    already declares <code>tensor_parallel = 4</code>, <code>gpus = 4</code>,
+    <code>kv_cache_dtype = "fp8"</code> and the <code>deepseek_v4</code> tool-call
+    and reasoning parsers. What it does not carry is DSpark, and several flags the
+    vLLM recipe treats as standard for this model family. The engine schema in
+    <code>imas_ambix/agent/profile.py</code> has no field for them, so they cannot
+    be expressed in a profile at all today.</p>
+
+    <p>The upstream recipe for this checkpoint (recipes.vllm.ai, and the model
+    card for the DSpark variant) gives this as the multi-GPU shape:</p>
+
+    <pre><code>vllm serve deepseek-ai/DeepSeek-V4-Flash-0731 \
+  --trust-remote-code --kv-cache-dtype fp8 --block-size 256 \
+  --enable-expert-parallel --tensor-parallel-size N \
+  --moe-backend auto \
+  --tokenizer-mode deepseek_v4 \
+  --tool-call-parser deepseek_v4 --enable-auto-tool-choice \
+  --reasoning-parser deepseek_v4 \
+  --attention_config.use_fp4_indexer_cache &lt;arch-dependent&gt; \
+  --speculative-config '{"method":"dspark","num_speculative_tokens":K,
+                         "draft_sample_method":"greedy"}'</code></pre>
+
+    <p><strong>DSpark is not a separate model.</strong> The DeepSeek model card is
+    explicit: "It is the same checkpoint with an additional speculative decoding
+    module attached." The fused release adds a <code>dspark_*</code> block to
+    <code>config.json</code>, and the weights we already hold carry exactly that
+    block. Nothing needs downloading; the module is loaded by naming the method.</p>
+
+    <p>Two parameters are genuinely uncertain and must be settled by measurement
+    rather than by copying an example, because the published examples target
+    different silicon:</p>
+
+    <ul>
+      <li><code>num_speculative_tokens</code> — the recipe's SM120 example uses 7
+      and states a floor of 5 with a direction to check the checkpoint. Our
+      checkpoint declares <code>dspark_block_size: 5</code>. Start at 5, which the
+      checkpoint itself names, and try 7 only if 5 loads and serves.</li>
+      <li><code>attention_config.use_fp4_indexer_cache</code> — Blackwell-oriented;
+      the SM120 recipe requires <code>False</code> and the H200 section does not
+      specify it. Our cards are SM90. Leave it unset (engine default) unless a
+      probe shows a measured win, and record which way it went.</li>
+      <li><code>draft_sample_method</code> — the model card uses
+      <code>greedy</code>, the SM120 recipe uses <code>probabilistic</code>.
+      Default to <code>greedy</code>; it is the better fit for tool-calling and
+      structured output, where draft acceptance matters more than sample
+      diversity.</li>
+    </ul>
+
+    <p><strong>Prefix caching is in scope here and is the highest-value item in
+    the plan.</strong> If vLLM automatic prefix caching is off, or is defeated by
+    how the Anthropic surface assembles each turn, the lane is re-reading tens of
+    millions of tokens per node for nothing. If it is on and only the usage
+    reporting is wrong, the compute is already being saved and the fix belongs in
+    §3. These are different defects with the same symptom, and the node must say
+    which one it found.</p>
+
+    <p><strong>Done when:</strong> the generated serve script for
+    <code>deepseek-v4-flash</code> at <code>--gpus 4</code> emits the DSpark
+    speculative config and each flag above, proven by
+    <code>imas-ambix agent serve deepseek-v4-flash --gpus 4 --dry-run</code>
+    output captured to a file; new unit tests assert each emitted flag; and the
+    whole-tree gate <code>uv run --no-sync ruff check imas_ambix tests</code>
+    exits 0. The serving-interpreter grammar test must pass, because every module
+    named here is imported on the compute node under Python 3.12.</p>
+
+    <h2 id="s3">§3 — Serving-time receipts</h2>
+
+    <p>The user requirement is that tok/s and related metadata are recordable
+    <em>while</em> models serve, so that experience receipts accumulate rather than
+    being reconstructed afterwards. Both peer sessions independently report the
+    same gap from the consumer side: throughput is unreadable mid-flight and only
+    appears in a terminal record.</p>
+
+    <p>Substantial machinery already exists and must be reused rather than
+    reimplemented. <code>imas_ambix/agent/bench.py</code> already carries a
+    Prometheus text parser (<code>_parse_prometheus_text</code>), a
+    speculative-decode counter snapshot (<code>_spec_decode_snapshot</code>,
+    <code>_scrape_spec_decode</code>, <code>_counter_delta</code>,
+    <code>_per_position_delta</code>, <code>_spec_decode_window</code>) and
+    provenance capture (<code>capture_provenance</code>). What it does not have is
+    a continuous sampler: it measures a benchmark window, not a serving lifetime.</p>
+
+    <p>The deliverable is a recorder that samples the live engine's
+    <code>/metrics</code> on an interval and appends one row per sample to a
+    durable, append-only receipts file, so that a serve's whole life is a readable
+    record. Each row should carry at least: timestamp, job id, profile slug,
+    served name, card count, generation and prompt throughput, running and waiting
+    sequence counts, KV-cache utilisation, prefix-cache queries and hits (the §2
+    question in continuous form), and — because DSpark is the point of this plan —
+    the speculative-decode acceptance counters per draft position, which is what
+    tells us whether DSpark is actually earning its cards.</p>
+
+    <p>This node develops and verifies against the <strong>live two-card
+    endpoint</strong>, which is already serving and must not be disturbed: scraping
+    <code>/metrics</code> is a read. It must not submit, cancel, or restart any
+    scheduler job — that authority belongs to §4 alone.</p>
+
+    <p><strong>Done when:</strong> the recorder runs against
+    <code>http://98dci4-gpu-0003:18800/metrics</code> for at least 60 seconds, and
+    the captured receipts file is committed as evidence showing a monotonically
+    advancing sample series with a non-null generation-throughput field and a
+    prefix-cache hit-rate field; unit tests cover the parse and the row shape
+    against a recorded fixture, not a live endpoint; the whole-tree ruff gate
+    exits 0.</p>
+
+    <h2 id="s4">§4 — Router preference, bring-up, and health-gated cutover</h2>
+
+    <p>This section is the operator work, and it carries the one irreversible
+    action in the plan. It runs only after §2 and §3 have landed.</p>
+
+    <p><strong>The router change comes first and is what makes the rest safe.</strong>
+    Given more than one reachable upstream advertising the same model id, the
+    router must select deterministically instead of returning 409. The preference
+    should be the larger accelerator count, with the more recently started job
+    breaking a tie; the <code>ambix</code> metadata block on each model card
+    already carries <code>accelerator_count</code>, so the information is present
+    without consulting the scheduler. A 409 should remain for the genuinely
+    ambiguous case the preference cannot resolve.</p>
+
+    <p>Then, in order:</p>
+
+    <ol>
+      <li>Restart <code>ambix-router</code> so it runs the new preference logic
+      while still resolving a single upstream. Verify the catalog still lists
+      <code>deepseek-v4-flash</code> and that a one-token completion through port
+      18802 succeeds.</li>
+      <li>Probe the card and core budget with
+      <code>srun --test-only --reservation=gpu_0003_grpA --account=grpa
+      --gres=gpu:4 --cpus-per-task=12 --mem=300G true</code> before submitting.
+      Cores, not cards, are what bind on this node.</li>
+      <li>Submit the four-card serve on <strong>port 18801</strong> — 18800 is the
+      live serve and 18802 is the router. Do not touch either.</li>
+      <li>Wait for the four-card engine to answer <code>/v1/models</code> on 18801,
+      then confirm through the router on 18802 that completions are being served
+      by the four-card upstream.</li>
+      <li>Record receipts from §3 against the four-card endpoint under a real
+      agentic load, and compare decode throughput against the two-card baseline of
+      22–33 tok/s. Capture the DSpark acceptance counters — a speculative
+      configuration that drafts and is never accepted is a regression wearing a
+      speedup's clothes.</li>
+      <li>Only then cancel job 1260660, returning two cards.</li>
+    </ol>
+
+    <p><strong>If the four-card serve fails to become healthy, stop and leave the
+    two-card serve running.</strong> That is a successful outcome for this section,
+    not a failure: the requirement is an overlap with a health gate, and a gate
+    that never opens has done its job. Cancel the failed four-card job to return
+    the cards and report what the engine said.</p>
+
+    <p><strong>Done when:</strong> a completion issued to the router on port 18802
+    is demonstrably answered by the four-card upstream, evidenced by a captured
+    <code>/v1/models</code> payload showing <code>accelerator_count: 4</code> and a
+    receipts sample from §3 taken against the four-card engine; the two-card job
+    is cancelled and the card budget is back to four held.</p>
+
+    <h2 id="s5">§5 — Retune the local lane from measured experience</h2>
+
+    <p>The host flight configuration at
+    <code>~/.config/reckon/flight.yaml</code> defines the <code>clive</code>
+    backend with only <code>launch</code>, <code>command</code>,
+    <code>model</code>, <code>effort</code> and <code>alias</code>. It is the least
+    completely specified backend on the workstation and, by node count today, the
+    highest-volume one. Both peer sessions converged on the same recommendations,
+    which §1 records in full.</p>
+
+    <p>The changes to make, each traceable to a measurement rather than a
+    preference: declare <code>sandbox: worktree-full</code> and
+    <code>session_reuse: true</code> so the lane matches every other CLI backend;
+    declare a <code>time_budget</code> longer than the metered lanes and annotate
+    it as advisory, because it is demonstrably not enforced for this launch kind;
+    do <strong>not</strong> make the launcher enforce it — that recommendation was
+    withdrawn by the nova lead on the grounds that the two-hour walls were
+    measured on the two-card deployment and are expected to move once four cards
+    and DSpark are serving, so a fence calibrated on them would be calibrated on a
+    configuration that no longer exists;
+    leave <code>effort</code> pinned and record that it is not a calibration axis
+    for this lane; and gate spec level so that <code>exact</code> is trusted
+    unsupervised, <code>guided</code> is allowed only when the measurement is
+    handed to the worker as established fact, and <code>open</code> never routes
+    here.</p>
+
+    <p>This file is user data outside every repository, so it is written by the
+    coordinator rather than a worker — reckon worker write paths are
+    repository-scoped for every role.</p>
+
+    <p><strong>Done when:</strong> <code>reckon flight --project imas-ambix</code>
+    reports the new keys resolving from the host layer, and each change carries an
+    inline comment naming the measurement behind it.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="config-store-format" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">Model deployment config is persisted as TOML profiles
+        under imas_ambix/agent/profiles/ today, and the request named
+        YAML. Keep TOML, or migrate the profile store?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="keep-toml">Keep TOML — nine profiles, CLI and tests already read it</button>
+      <button class="r-opt" data-value="migrate-yaml">Migrate the profile store to YAML</button>
+      </p>
+    <p class="r-dec-rat">Proceeding on TOML so the serve is not blocked behind
+        a format migration. The reading that makes both statements true is that
+        the request&#x27;s &quot;yaml files in this repo&quot; refers to reckon&#x27;s flight.yaml , which is genuinely YAML and is retuned in §5 —
+        while the deployment profiles are the repo-persisted, CLI-managed store
+        the request also describes, and those are TOML. A migration would touch
+        nine profiles, the loader, and the tests, and would buy no capability.</p>
+    </div>
+<div class="r-dec" data-key="duplicate-model-id" data-choice="prefer-larger-topology" data-by="reckon-ship" data-when="2026-09-05">
+    <p class="r-dec-q">The router returns 409 when two upstreams advertise one
+        model id, which makes the documented overlap impossible. How should the
+        cutover work?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="prefer-larger-topology">Give the router a deterministic preference for the larger card count</button>
+      <button class="r-opt" data-value="distinct-served-name">Bring the four-card serve up under a distinct served name</button>
+      <button class="r-opt" data-value="stop-then-start">Cancel the two-card serve first, then start the four-card one</button>
+      </p>
+    <p class="r-dec-rat">Locked. A distinct served name would break the
+        catalog&#x27;s design promise that one release keeps one client-visible name
+        across every card count, and would require every consumer to re-select.
+        Stop-then-start abandons the overlap the request explicitly asked for and
+        costs a hard outage across the weight-load window, which is minutes for a
+        284B checkpoint. The preference makes zero-downtime cutover a property of
+        the system rather than a manual dance, and reuses the reachability check
+        already in _fetch_catalog as the health gate.</p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-dsp-01" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-05" data-recommends-skill="/reckon-ship dsv4-flash-dspark-four-card-serve" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Land the DSpark four-card serve, its receipts, and the retuned local lane</h4>
+    <div class="r-fu-body">Execution order is fixed by the router's duplicate-model-id refusal documented in §1: the router preference in §4 must exist before a second serve of the same released name becomes reachable, or every request through port 18802 returns 409. §2 (engine configuration) and §3 (serving-time receipts) are independent of each other and run concurrently; §4 is operator work gated on both; §5 is a coordinator write to host-layer config outside every repository.</div>
+    <pre class="r-fu-prompt">/reckon-ship dsv4-flash-dspark-four-card-serve</pre>
+    </article>
+</section>
+
+  </main>
+</body>
+</html>
