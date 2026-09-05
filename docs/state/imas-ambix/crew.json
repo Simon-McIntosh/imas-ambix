@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-05T18:14:52",
+  "updated": "2026-09-05T18:23:11",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -23671,6 +23671,404 @@
           "session_source": "pointer",
           "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-dspark/dsv4-endpoint-publish"
         }
+      },
+      {
+        "run_id": "r-20260905T160558234233-dsv4-dryrun-port-order",
+        "plan": "dsv4-flash-dspark-four-card-serve",
+        "section": "\u00a76",
+        "node": "dsv4-dryrun-port-order",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 778,
+                "cached_input_tokens": 515985,
+                "input_tokens": 516765,
+                "output_tokens": 668,
+                "reasoning_output_tokens": 98,
+                "total_tokens": 517433,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "63e4edeb-100f-45e8-9fac-7711f219bc18",
+            "session_id": "ambix-dspark"
+          },
+          "done_when": "a new test in tests/test_agent.py proves that imas-ambix agent serve glm-5-3 --dry-run prints its script and exits 0 while a faked running job holds port 18801, so the outcome no longer depends on live cluster state; the same test file proves a real non-dry-run submission against a held port is still refused; tests/test_agent.py and tests/test_agent_endpoint_discovery.py both pass in full; uv run --no-sync ruff check imas_ambix tests exits 0",
+          "estimated_hours": 0.75,
+          "goal": "Stop the serve command's read-only dry run from consulting live scheduler port state",
+          "id": "dsv4-dryrun-port-order",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260905T160558234233-dsv4-dryrun-port-order/manifest.md",
+          "plan": "dsv4-flash-dspark-four-card-serve",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a76",
+          "spec_level": "exact",
+          "time_budget": "60m",
+          "write_paths": [
+            "imas_ambix/agent/cli.py",
+            "tests/test_agent.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "dsv4-endpoint-publish",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 492288
+        },
+        "dispatched_at": "2026-09-05T16:06:07Z",
+        "completed_at": "2026-09-05T16:18:18.717Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 699,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 731,
+        "stalled": false,
+        "time_budget": "60m",
+        "base_sha": "e5eba14aa960033fb68d8416d99d0c0038ed3607",
+        "commits": [
+          "c6a2bdf5a7cb9cd235b7453be9ba40200c652e5d"
+        ],
+        "changed_lines": {
+          "added": 20,
+          "removed": 19,
+          "files": 2
+        },
+        "tests_added": 1,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent.py tests/test_agent_endpoint_discovery.py tests/test_agent_serve_registry.py tests/test_agent_dspark_profile.py -q",
+          "exit_status": 0,
+          "log_path": "/run/user/39486/claude-39486/-home-ITER-mcintos-Code-imas-ambix/63e4edeb-100f-45e8-9fac-7711f219bc18/scratchpad/dryrun-gate.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260905T160558234233-dsv4-dryrun-port-order/manifest.md",
+        "scope_changed": false,
+        "session_id": "cbf97d44-10ed-42ba-a7e3-74ccdb756c17",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 0,
+            "input_tokens_cumulative": 7778368,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 20504,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": true,
+              "budget_overrun_seconds": 254223,
+              "budget_seconds": 3300,
+              "classification": "blocked",
+              "detail": "the worker manifest reports blocked: the required full 472-shot train-split target-statistics pass cannot complete because cohort shot 26767 has an equilibrium group but no wall group at /work/projects/imas_gpu/mast/level2/shots/26767.zarr; handling absent wall geometry is a distinct semantic decision and requires paths outside this node's null-pair repair scope",
+              "elapsed_seconds": 257523,
+              "external_wait": null,
+              "log_age_seconds": 255996,
+              "log_fresh": false,
+              "manifest_commits": [
+                "[\"fe03e6f33c737d1257a32db4af75dd53feb97f8d\"]"
+              ],
+              "manifest_derived": false,
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T163334178600-pcp-targets-mask-repair/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "blocked",
+              "manifest_status": "blocked",
+              "marker": "!",
+              "needs_help_complete": false,
+              "next_action": "read /home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T163334178600-pcp-targets-mask-repair/manifest.md; resolve the blocker before resuming the run",
+              "node": "pcp-targets-mask-repair",
+              "phase": "complete",
+              "plan": "physics-carried-playable-plasma",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260902T163334178600-pcp-targets-mask-repair",
+              "session": "pcp-s4b-01",
+              "session_resolution": {
+                "consulted": [
+                  "pointer",
+                  "stream",
+                  "ledger"
+                ],
+                "resolved": true,
+                "run_id": "r-20260902T163334178600-pcp-targets-mask-repair",
+                "session_id": "01a062f8-6b1c-7b92-9234-cf9375176910",
+                "source": "pointer"
+              },
+              "terminal_age_seconds": 256026,
+              "terminal_at": "2026-09-02T16:58:56Z",
+              "wait_age_seconds": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/pcp-s4b-01/pcp-targets-mask-repair"
+            }
+          ]
+        },
+        "throughput": {
+          "detail": "generation and wall clock reported separately by the backend",
+          "elapsed_seconds": 728.521,
+          "generated_tokens": 20504,
+          "generation_seconds": 620.844,
+          "input_budget_tokens": 1016576,
+          "input_utilisation_pct": 23.8,
+          "machine_seconds": 107.677,
+          "peak_input_tokens": 241530,
+          "tokens_per_second": 33.03,
+          "wall_tokens_per_second": 28.14
+        },
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-dspark/dsv4-dryrun-port-order",
+          "session_id": "cbf97d44-10ed-42ba-a7e3-74ccdb756c17",
+          "session_source": "pointer",
+          "retained_at": "2026-09-05T16:18:18.717Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
+      },
+      {
+        "run_id": "r-20260905T161611414560-ambix-serve-logging",
+        "plan": "dsv4-flash-dspark-four-card-serve",
+        "section": "\u00a73",
+        "node": "ambix-serve-logging",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 2267,
+                "cached_input_tokens": 535641,
+                "input_tokens": 537910,
+                "output_tokens": 1342,
+                "reasoning_output_tokens": 589,
+                "total_tokens": 539252,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "63e4edeb-100f-45e8-9fac-7711f219bc18",
+            "session_id": "ambix-dspark"
+          },
+          "done_when": "the generated serve script starts the receipts recorder as a background sidecar that samples the engine and appends rows for the life of the job, writing to a durable per-job path under the agents directory, and stops cleanly when the serve exits; a test asserts the generated script contains the sidecar launch and the per-job receipts path; a second test asserts the sidecar is not started when recording is disabled; tests/test_agent_serve_registry.py and tests/test_agent_serving_receipts.py pass; uv run --no-sync ruff check imas_ambix tests exits 0",
+          "estimated_hours": 1.25,
+          "goal": "Make every serve job record its own throughput receipts for its whole life without an operator starting a recorder",
+          "id": "ambix-serve-logging",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260905T161611414560-ambix-serve-logging/manifest.md",
+          "plan": "dsv4-flash-dspark-four-card-serve",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a73",
+          "spec_level": "exact",
+          "time_budget": "40m",
+          "write_paths": [
+            "imas_ambix/agent/slurm.py",
+            "imas_ambix/agent/serving_receipts.py",
+            "tests/test_agent_serving_receipts.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "ambix-serve-logging",
+        "backend": "claude",
+        "local": false,
+        "agent": {
+          "alias": "sonnet 5",
+          "backend": "claude",
+          "effort": "high",
+          "launch": "cli",
+          "model": "claude-sonnet-5",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-05T16:16:22Z",
+        "completed_at": "2026-09-05T16:21:30.705Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 299,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 308,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "7945b0f3a8e59750f08a99dd1488837181ab956a",
+        "commits": [
+          "65ea152ba1bae98e7b59068448e2c6a0af28df79"
+        ],
+        "changed_lines": {
+          "added": 196,
+          "removed": 4,
+          "files": 3
+        },
+        "tests_added": 2,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_serving_receipts.py tests/test_agent_serve_registry.py tests/test_agent.py -q",
+          "exit_status": 0,
+          "log_path": "/run/user/39486/claude-39486/-home-ITER-mcintos-Code-imas-ambix/63e4edeb-100f-45e8-9fac-7711f219bc18/scratchpad/logging-gate.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260905T161611414560-ambix-serve-logging/manifest.md",
+        "scope_changed": false,
+        "session_id": "1cfb4211-380f-4dec-8637-8ebad4fb87a4",
+        "budget": {
+          "headroom": "known",
+          "utilisation_pct": 35.0,
+          "rate_limit_type": "five_hour",
+          "rate_limit_period_minutes": null,
+          "resets_at": "2026-09-05T19:10:00Z",
+          "threshold_status": "allowed_warning",
+          "surpassed_threshold": 1,
+          "tokens": {
+            "cache_creation_input_tokens": 153224,
+            "cache_creation_input_tokens_cumulative": 153224,
+            "cache_read_input_tokens": 6415969,
+            "cache_read_input_tokens_cumulative": 6415969,
+            "inference_geo": "not_available",
+            "input_tokens": 94,
+            "input_tokens_cumulative": 94,
+            "output_tokens": 26988,
+            "output_tokens_cumulative": 26988,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": 2.1661578000000006,
+          "refusal": false,
+          "detail": "backend reports utilisation and reset time",
+          "cost_usd_cumulative": 2.1661578000000006
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": true,
+              "budget_overrun_seconds": 254837,
+              "budget_seconds": 3300,
+              "classification": "blocked",
+              "detail": "the worker manifest reports blocked: the required full 472-shot train-split target-statistics pass cannot complete because cohort shot 26767 has an equilibrium group but no wall group at /work/projects/imas_gpu/mast/level2/shots/26767.zarr; handling absent wall geometry is a distinct semantic decision and requires paths outside this node's null-pair repair scope",
+              "elapsed_seconds": 258137,
+              "external_wait": null,
+              "log_age_seconds": 256611,
+              "log_fresh": false,
+              "manifest_commits": [
+                "[\"fe03e6f33c737d1257a32db4af75dd53feb97f8d\"]"
+              ],
+              "manifest_derived": false,
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T163334178600-pcp-targets-mask-repair/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "blocked",
+              "manifest_status": "blocked",
+              "marker": "!",
+              "needs_help_complete": false,
+              "next_action": "read /home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T163334178600-pcp-targets-mask-repair/manifest.md; resolve the blocker before resuming the run",
+              "node": "pcp-targets-mask-repair",
+              "phase": "complete",
+              "plan": "physics-carried-playable-plasma",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260902T163334178600-pcp-targets-mask-repair",
+              "session": "pcp-s4b-01",
+              "session_resolution": {
+                "consulted": [
+                  "pointer",
+                  "stream",
+                  "ledger"
+                ],
+                "resolved": true,
+                "run_id": "r-20260902T163334178600-pcp-targets-mask-repair",
+                "session_id": "01a062f8-6b1c-7b92-9234-cf9375176910",
+                "source": "pointer"
+              },
+              "terminal_age_seconds": 256641,
+              "terminal_at": "2026-09-02T16:58:56Z",
+              "wait_age_seconds": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/pcp-s4b-01/pcp-targets-mask-repair"
+            }
+          ]
+        },
+        "throughput": {
+          "detail": "generation and wall clock reported separately by the backend",
+          "elapsed_seconds": 305.477,
+          "generated_tokens": 26988,
+          "generation_seconds": 295.949,
+          "input_budget_tokens": 1000000,
+          "input_utilisation_pct": 17.2,
+          "machine_seconds": 9.528,
+          "peak_input_tokens": 172493,
+          "tokens_per_second": 91.19,
+          "wall_tokens_per_second": 88.35
+        },
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-dspark/ambix-serve-logging",
+          "session_id": "1cfb4211-380f-4dec-8637-8ebad4fb87a4",
+          "session_source": "stream",
+          "retained_at": "2026-09-05T16:21:30.705Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [
@@ -23693,16 +24091,30 @@
         "backend": "claude",
         "purpose": "dispatch",
         "opened_at": "2026-09-05T16:14:11Z",
-        "closed_at": null,
-        "held_seconds": null,
+        "closed_at": "2026-09-05T16:16:17Z",
+        "held_seconds": 126,
         "utilisation_pct": 95.0,
         "resets_at": "2026-09-05T17:00:00Z",
         "effective_ceiling_pct": 95.0,
         "reason": "utilisation 95% with burn multiple unknown is at or above the 95.0% ceiling for a dispatch (ceiling 100.0% less reserve)",
-        "closed_by_purpose": null,
+        "closed_by_purpose": "dispatch",
+        "resumption_fired": false
+      },
+      {
+        "hold_id": "hold-claude-20260905162151",
+        "backend": "claude",
+        "purpose": "dispatch",
+        "opened_at": "2026-09-05T16:21:51Z",
+        "closed_at": "2026-09-05T16:23:11Z",
+        "held_seconds": 80,
+        "utilisation_pct": 95.0,
+        "resets_at": "2026-09-05T17:00:00Z",
+        "effective_ceiling_pct": 95.0,
+        "reason": "utilisation 95% with burn multiple unknown is at or above the 95.0% ceiling for a dispatch (ceiling 100.0% less reserve)",
+        "closed_by_purpose": "dispatch",
         "resumption_fired": false
       }
     ],
-    "_version": 509
+    "_version": 514
   }
 }
