@@ -23,8 +23,9 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-05">
-<meta name="plan-version" content="2">
-<meta name="plan-impl" content="0.2">
+<meta name="plan-version" content="5">
+<meta name="plan-impl" content="0.6">
+<meta name="plan-commits" content="3ced52c1cec4c34a5516fba97854b76e57191f6c,2e02201">
 </head>
 <body>
   <main class="plan-doc">
@@ -457,6 +458,15 @@ if len(owners) != 1:
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s5" data-id="c-20260905-s5" data-who="reckon-ship" data-when="2026-09-05">
     <div class="r-comment-body">§5 landed — coordinator write, no crew run (host-layer config sits outside every repository, and reckon worker write paths are repository-scoped for every role). The <code>clive</code> backend in <code>~/.config/reckon/flight.yaml</code> now declares <code>sandbox: worktree-full</code>, <code>session_reuse: true</code>, <code>time_budget: 90m</code> and <code>usable_input_window: 492288</code>, each annotated with the measurement behind it. Gate: <code>reckon flight --project imas-ambix</code> resolves all four new keys from the host layer with an empty warnings list. The time budget is annotated advisory and deliberately left unenforced — that recommendation was withdrawn by the nova lead because the 129 and 135 minute walls were measured on the two-card deployment and are expected to move under four cards. The spec-level boundary (exact unsupervised, guided only with the measurement handed over, never open) has no schema key and is recorded as a comment for the routing coordinator.</div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20260905T131726925452-dspark-engine-config" data-who="dspark-engine-config" data-when="2026-09-05T13:23:42.301Z">
+    <div class="r-comment-body"><p>Four-card serve command emits DSpark (method dspark, 5 tokens, greedy drafting) plus block-size 256, expert parallelism, deepseek_v4 tokenizer and moe-backend auto; 14 tests pass and whole-tree ruff exits 0</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20260905T131836478327-dspark-router-preference" data-who="dspark-router-preference" data-when="2026-09-05T13:24:07.483Z">
+    <div class="r-comment-body"><p>Duplicate model ids now rank by accelerator count then created stamp, so a four-card upstream wins over a two-card one in either resolver order; a level pair still refuses with 409; 37 tests pass at the merged head</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-20260905-s4-router" data-who="reckon-ship" data-when="2026-09-05">
+    <div class="r-comment-body">Router preference landed — commit <code>2e02201</code>, merged and verified at the combined head with §2. Gate passed: 37 tests across both nodes' surfaces at the merged head, whole-tree ruff exit 0. Candidates now rank by <code>ambix.accelerator_count</code> then the card's <code>created</code> stamp, so a four-card upstream is selected over a two-card one in either resolver order; a pair that is still level, or a leader with no usable stamp, still refuses with 409 rather than choosing arbitrarily. The worker recorded one honest limit: <code>created</code> is the only start-time signal reachable from the router, because <code>Upstream</code> carries no scheduler-derived stamp — populating one would mean editing <code>_resolve_router_upstreams</code> in <code>cli.py</code>, outside its fence. The bring-up half of §4 remains open and is gated on §3.</div>
 </div>
 </section>
 </main>
