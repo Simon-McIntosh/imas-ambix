@@ -65,11 +65,34 @@ contains 30 cores. In a live 2026-09-01 snapshot, the DeepSeek serve held 8 and
 a co-running CPU-only job held 16. Those two jobs alone left at most 6 reserved
 cores, so a new 12-core serve could not be admitted even while enough cards
 were free. The available core count is therefore live workload state, not a
-number to infer from the requested card count. **Probe before sizing:**
-`srun --test-only --reservation=gpu_0003_grpA --account=grpa --gres=gpu:6 --cpus-per-task=N --mem=… true`.
+number to infer from the requested card count.
 Size `--cpus-per-task` (and the DataLoader `num_workers`) to leave room for
 co-running jobs. The GPU burst itself is unaffected under normal QOS, but free
 cards do not imply that the reservation can admit the accompanying core request.
+
+**Do NOT size from `srun --test-only` — it is inert on these reservations and
+answers every request identically.** Measured 2026-09-05: against
+`--reservation=gpu_0003_grpA` it reported a start time of exactly *now plus
+seven days* for `--gres=gpu:4 --cpus-per-task=12`, for `gpu:2/12`, for `gpu:4/8`,
+for `gpu:4/4` — and for a **one-core, no-GPU, 1 GB** request. A probe that
+returns the same answer for a trivial request and a four-card one is measuring
+nothing; the likely cause is the reservation's `IGNORE_JOBS` flag. Read
+literally it says a serve cannot start for a week. It is wrong: the four-card
+DSpark serve submitted minutes later started **immediately**. Dropping the
+reservation to probe around it fails with `Access/permission denied`, so there
+is no unreserved control either.
+
+**Size from the live core ledger instead**, which is readable and correct:
+
+```bash
+scontrol show res gpu_0003_grpA | grep -E 'CoreCnt|CoreIDs'   # 30 cores, IDs 15-29,47-61
+squeue -w 98dci4-gpu-0003 -o "%.10i %.9u %.18j %.4C %.22v"    # cores per job, per reservation
+```
+
+Sum the `%C` column for jobs whose reservation is **grpA** and subtract from 30 —
+group B's jobs run on their own 30 and do not draw on ours, so counting
+node-wide `CPUAlloc` overstates what binds you. Then submit and watch: a job
+pending on `Resources` is the real signal, and cancelling it is cheap.
 
 **Design every training run for fast takedown (binding etiquette).** Preemption is OFF cluster-wide,
 so SLURM cannot evict us — bursting onto cards 6–7 without a fast give-back makes us a bad neighbour to
@@ -333,11 +356,11 @@ one API server, one engine core and one worker per rank, each mostly blocked on
 the device, so a full-GPU profile declares 12 cores at four cards and 16 at
 eight — not the 30-core reservation ceiling. The exception is mechanism, not
 preference: a KTransformers profile computes cold experts on the host, so
-`glm-5-1`, `kimi-k2-6` and `mimo-v2-5-pro` legitimately keep 30. Probe with
-`srun --test-only --reservation=gpu_0003_grpA --account=grpa --gres=gpu:N
---cpus-per-task=M --mem=… true` before raising any of them, and use `--cpus` for
-a one-off. Taking the ceiling is what leaves a co-running job pending on
-`Resources` while every GPU it wants sits idle.
+`glm-5-1`, `kimi-k2-6` and `mimo-v2-5-pro` legitimately keep 30. Before raising
+any of them, read the live core ledger as §2 describes — **not**
+`srun --test-only`, which is inert here — and use `--cpus` for a one-off. Taking
+the ceiling is what leaves a co-running job pending on `Resources` while every
+GPU it wants sits idle.
 
 **Operator authority (binding):** setup, download, serve, key rotation, global
 endpoint configuration, and deployment are operator work. Run those commands
