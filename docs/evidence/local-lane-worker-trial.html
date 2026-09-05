@@ -77,8 +77,20 @@
     and 99.0% on the claude node, this lane re-reads roughly <strong>two thirds</strong> of its context
     every turn rather than all of it. That still explains the throughput and why a long node does not
     accelerate as context accumulates — but the lever is <em>cache configuration</em>, not <em>cache
-    introduction</em>, and 34% cumulative is well short of what a properly cached agentic conversation
-    should reach, so the headroom is real.</p>
+    introduction</em>.</p>
+    <p><strong>And roughly a third is the steady state, not a warm-up artefact</strong> — which one
+    engine could not establish and had been left open here. A <em>freshly started</em> four-card engine
+    measured 28.0% (3.56M hits / 12.70M queries) and climbing, against 33.9% on a four-day-old
+    two-card one, both reported by the serving project. So the gap against the metered lanes' 97–99% is
+    structural rather than a matter of letting the cache settle, and the headroom is real.</p>
+    <p><strong>The lane's ceiling is not generation, and a router reading generation throughput would
+    read the wrong quantity.</strong> Peak generation on four cards measured 418.5 tok/s against 120.5
+    on two, with a mean of 83.9 across three concurrent agentic nodes — beside the 22–33 tok/s
+    <em>wall</em> rates in the table above. Most of an agentic node's wall clock is not generation, so
+    more generation capacity moves it less than the cache does.</p>
+    <p>Speculative decoding is live on the four-card serve and accepting: 46.4% (94,320 drafted /
+    43,772 accepted), mean acceptance length 3.32 tokens per decode step, per-position 0.744 / 0.580 /
+    0.443 / 0.320 / 0.223.</p>
     <p><strong>Ledger cost for an unmetered lane is imputed, and it inverts the comparison.</strong>
     Measured across 619 ledger rows by the reckon session: <code>clive</code> at a median
     <strong>$21.59</strong> per node against <code>claude</code>'s <strong>$1.61</strong> — the free
