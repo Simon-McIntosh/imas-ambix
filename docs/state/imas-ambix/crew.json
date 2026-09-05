@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-05T16:30:53",
+  "updated": "2026-09-05T16:48:04",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -428,9 +428,11 @@
         "id": "dsv4-context-budget",
         "harness": "clive",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "8620d9ae-5e31-4be8-9ef9-79d940f9af18",
+        "session_model": "deepseek-v4-flash",
+        "sessions": {
+          "{\"alias\":\"dsv4-flash\",\"backend\":\"clive\",\"effort\":\"high\",\"launch\":\"cli\",\"local\":true,\"model\":\"deepseek-v4-flash\",\"sandbox\":\"worktree-full\",\"usable_input_window\":492288}": "8620d9ae-5e31-4be8-9ef9-79d940f9af18"
+        },
         "created": "2026-09-05"
       },
       {
@@ -22859,6 +22861,206 @@
           "role": "implement",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260905T142627436842-dsv4-context-budget",
+        "plan": "dsv4-flash-dspark-four-card-serve",
+        "section": "\u00a76",
+        "node": "dsv4-context-budget",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 893,
+                "cached_input_tokens": 433339,
+                "input_tokens": 434234,
+                "output_tokens": 1579,
+                "reasoning_output_tokens": 700,
+                "total_tokens": 435813,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "63e4edeb-100f-45e8-9fac-7711f219bc18",
+            "session_id": "ambix-dspark"
+          },
+          "done_when": "imas_ambix/agent/profiles/deepseek-v4-flash.toml sets max_total_tokens to 1048576 and mem_fraction_static to 0.92 for the four-card base, each with a comment stating the measured KV pool of 1313935 tokens and that this model's single compressed KV head does not shard across tensor parallelism so a four-card pool matches the two-card one; a test in tests/test_agent_dspark_profile.py asserts the generated four-card serve command carries --max-model-len 1048576 and --gpu-memory-utilization 0.92; the eight-card gpu_variants entry is left unchanged; uv run --no-sync ruff check imas_ambix tests exits 0 and tests/test_agent_dspark_profile.py passes",
+          "estimated_hours": 0.5,
+          "goal": "Raise the four-card DeepSeek-V4-Flash profile to the checkpoint's full native context window",
+          "id": "dsv4-context-budget",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260905T142627436842-dsv4-context-budget/manifest.md",
+          "plan": "dsv4-flash-dspark-four-card-serve",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a76",
+          "spec_level": "exact",
+          "time_budget": "60m",
+          "write_paths": [
+            "imas_ambix/agent/profiles/deepseek-v4-flash.toml",
+            "tests/test_agent_dspark_profile.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "dsv4-context-budget",
+        "backend": "clive",
+        "local": true,
+        "agent": {
+          "alias": "dsv4-flash",
+          "backend": "clive",
+          "effort": "high",
+          "launch": "cli",
+          "local": true,
+          "model": "deepseek-v4-flash",
+          "sandbox": "worktree-full",
+          "usable_input_window": 492288
+        },
+        "dispatched_at": "2026-09-05T14:26:35Z",
+        "completed_at": "2026-09-05T14:47:19.165Z",
+        "completed_at_source": "terminal_event",
+        "worker_seconds": 1210,
+        "worker_seconds_source": "stream_events",
+        "wall_seconds": 1244,
+        "stalled": false,
+        "time_budget": "60m",
+        "base_sha": "8f376b9ead80428b5a62ce0b12ff0afc92330758",
+        "commits": [
+          "fac95126e921b83218031e42edd2f722ac0c6bf4"
+        ],
+        "changed_lines": {
+          "added": 25,
+          "removed": 1,
+          "files": 2
+        },
+        "tests_added": 1,
+        "gate": "passed",
+        "gate_check": {
+          "command": "uv run --no-sync pytest tests/test_agent_dspark_profile.py -v",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260905T142627436842-dsv4-context-budget/dspark_test.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260905T142627436842-dsv4-context-budget/manifest.md",
+        "scope_changed": false,
+        "session_id": "8620d9ae-5e31-4be8-9ef9-79d940f9af18",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_creation_input_tokens": 0,
+            "cache_creation_input_tokens_cumulative": 0,
+            "cache_read_input_tokens": 0,
+            "cache_read_input_tokens_cumulative": 0,
+            "inference_geo": "",
+            "input_tokens": 3162799,
+            "input_tokens_cumulative": 3162799,
+            "output_tokens": 19639,
+            "output_tokens_cumulative": 19639,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "no rate-limit event in the stream yet",
+          "cost_usd_cumulative": null,
+          "cost_usd_imputed": true
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": true,
+              "budget_overrun_seconds": 248251,
+              "budget_seconds": 3300,
+              "classification": "blocked",
+              "detail": "the worker manifest reports blocked: the required full 472-shot train-split target-statistics pass cannot complete because cohort shot 26767 has an equilibrium group but no wall group at /work/projects/imas_gpu/mast/level2/shots/26767.zarr; handling absent wall geometry is a distinct semantic decision and requires paths outside this node's null-pair repair scope",
+              "elapsed_seconds": 251551,
+              "external_wait": null,
+              "log_age_seconds": 250025,
+              "log_fresh": false,
+              "manifest_commits": [
+                "[\"fe03e6f33c737d1257a32db4af75dd53feb97f8d\"]"
+              ],
+              "manifest_derived": false,
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T163334178600-pcp-targets-mask-repair/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "blocked",
+              "manifest_status": "blocked",
+              "marker": "!",
+              "needs_help_complete": false,
+              "next_action": "read /home/ITER/mcintos/.config/reckon/crew/runs/r-20260902T163334178600-pcp-targets-mask-repair/manifest.md; resolve the blocker before resuming the run",
+              "node": "pcp-targets-mask-repair",
+              "phase": "complete",
+              "plan": "physics-carried-playable-plasma",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260902T163334178600-pcp-targets-mask-repair",
+              "session": "pcp-s4b-01",
+              "session_resolution": {
+                "consulted": [
+                  "pointer",
+                  "stream",
+                  "ledger"
+                ],
+                "resolved": true,
+                "run_id": "r-20260902T163334178600-pcp-targets-mask-repair",
+                "session_id": "01a062f8-6b1c-7b92-9234-cf9375176910",
+                "source": "pointer"
+              },
+              "terminal_age_seconds": 250055,
+              "terminal_at": "2026-09-02T16:58:56Z",
+              "wait_age_seconds": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/pcp-s4b-01/pcp-targets-mask-repair"
+            }
+          ]
+        },
+        "throughput": {
+          "detail": "generation and wall clock reported separately by the backend",
+          "elapsed_seconds": 1240.574,
+          "generated_tokens": 19639,
+          "generation_seconds": 1209.379,
+          "input_budget_tokens": 492288,
+          "input_utilisation_pct": 23.9,
+          "machine_seconds": 31.195,
+          "peak_input_tokens": 117575,
+          "tokens_per_second": 16.24,
+          "wall_tokens_per_second": 15.83
+        },
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-dspark/dsv4-context-budget",
+          "session_id": "8620d9ae-5e31-4be8-9ef9-79d940f9af18",
+          "session_source": "pointer",
+          "retained_at": "2026-09-05T14:47:19.165Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [
@@ -22877,6 +23079,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 502
+    "_version": 504
   }
 }
