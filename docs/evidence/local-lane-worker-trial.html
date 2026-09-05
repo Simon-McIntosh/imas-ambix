@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="local-lane-worker-trial">
+  <meta name="plan-title" content="Local Lane Worker Trial — reviewed code receipts from two projects">
+  <meta name="plan-summary" content="Nine locally-served worker nodes across imas-codex and nova, judged on diffs read line by line rather than on gate verdicts, with throughput, cache and cost measured from each run's own records">
+  <meta name="plan-tags" content="agent-serving,worker-routing,gpu-deployment">
+  <title>Local Lane Worker Trial | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — What was measured, and the standard applied</h2>
+    <p>Two coordinators ran the locally-served <code>deepseek-v4-flash</code> lane
+    (<code>clive</code>) inside real sprints on 2026-09-05 — nine nodes across
+    <strong>imas-codex</strong> and <strong>nova</strong> — and compared it against the two
+    metered lanes on the same kinds of work. The instruction that shaped the method was that
+    viability must be judged on <strong>reviewed code receipts, not exit or pass rates</strong>.</p>
+    <p>So every landed diff was read hunk by hunk before promotion, and each row records six
+    fields rather than a verdict:</p>
+    <ol>
+      <li>the diff read line by line, not the gate verdict;</li>
+      <li>whether any refusal was a <em>correct</em> refusal;</li>
+      <li>whether the worker separated its own failures from pre-existing ones;</li>
+      <li>throughput, taken from the run's own records;</li>
+      <li><strong>defects found by review that the node's own gate could not see</strong>, split into
+      <em>structural</em> (the gate could not reach the change — the orchestrator's error) and
+      <em>assertion</em> (it could have, with a better check — the worker's);</li>
+      <li><strong>gate ran on the target surface: yes/no</strong> — did the named gate exercise the
+      surface the change writes to (a backend, a device, an excluded marker).</li>
+    </ol>
+    <p>Two further columns were added once they proved to matter: <strong>reviewer provenance</strong>
+    (coordinator-read or independently-read) and <strong>manifest honesty</strong> (whether the
+    worker's own account of what it did survives checking).</p>
+    <p><strong>Every lane was reviewed to the same depth.</strong> Reviewing only the trial lane and
+    accepting the metered lanes on their gate verdicts would attribute review-detectable defects to
+    the trial that are not model-specific. That decision is what produced the trial's most useful
+    result, in §3.</p>
+
+    <h2 id="s2">§2 — Throughput, cache and cost</h2>
+    <p>Every figure below is from a run's own stream or promoted ledger record. Rows marked
+    <em>nova</em> were measured and reported by that project's coordinator.</p>
+    <table>
+      <thead><tr><th>Lane</th><th>Node shape</th><th>Wall</th><th>Output tokens</th><th>tok/s</th><th>Cost</th></tr></thead>
+      <tbody>
+        <tr><td>claude / sonnet-5 high</td><td>implement, schema + 118 Cypher edits</td><td>1857 s</td><td>97,328 (52,187 thinking)</td><td>52.4 wall / 86.7 API</td><td>$6.77</td></tr>
+        <tr><td>claude-opus-5 high</td><td>read-only diff review, 3 commits</td><td>859 s <em>(nova)</em></td><td>58,579</td><td>68.2 wall / 74.6 API</td><td>$6.51</td></tr>
+        <tr><td>claude-opus-5 high</td><td>open research + H200 legs</td><td>4975 s <em>(nova)</em></td><td>100,529</td><td>79.1</td><td>$11.73</td></tr>
+        <tr><td>claude-opus-5 high</td><td>compensator selection, 2 H200 jobs</td><td>4101 s <em>(nova)</em></td><td>94,403</td><td>77.9</td><td>$12.01</td></tr>
+        <tr><td>codex / gpt-5.6-sol high</td><td>attribution-only census</td><td>3040 s</td><td>55,704 (16,671 reasoning)</td><td>18.3</td><td>not reported in stream</td></tr>
+        <tr><td>clive / dsv4-flash</td><td>read-only stale-pin inventory</td><td>1774 s <em>(nova)</em></td><td>50,850</td><td>28.7 wall / 29.5 gen</td><td>$41.15 imputed</td></tr>
+        <tr><td>clive / dsv4-flash</td><td>mechanical implement, numeric target</td><td>2424 s <em>(nova)</em></td><td>53,426</td><td>22.0 wall / 23.1 API</td><td>$52.13 imputed</td></tr>
+        <tr><td>clive / dsv4-flash</td><td>census slot-exhaustion repair</td><td>8128 s <em>(nova)</em></td><td>193,647</td><td>32.7</td><td>$162 imputed</td></tr>
+        <tr><td>clive / dsv4-flash</td><td>one conditioning rule, 2 fixtures</td><td>7733 s <em>(nova)</em></td><td>159,122</td><td>27.8</td><td>$136 imputed</td></tr>
+      </tbody>
+    </table>
+
+    <h3 id="s2a">§2a — Three reporting defects that make these numbers hard to read</h3>
+    <p><strong>The local lane reports no per-message output usage.</strong> Every assistant message
+    carries <code>output_tokens: 0</code>. The terminal <code>result</code> record does carry totals
+    and <code>crew complete</code> reads them, so the lane is measurable <em>at promotion</em> and
+    blind <em>in flight</em> — a coordinator cannot see a running node's consumption while deciding
+    whether to let it continue. The first version of this report called the gap absolute; it is not.</p>
+    <p><strong>Client-side cache figures for that lane are wrong, and this correction reversed a
+    conclusion.</strong> Client usage records report zero cache reads, from which imas-codex concluded
+    the lane had <em>no prompt caching</em> and wrote a cost section on it. Sampling the live two-card
+    engine's own metrics gave <code>prefix_cache_hit_rate = 0.3389</code>: vLLM automatic prefix
+    caching is active and hitting about a third. So it is substantially a <strong>reporting gap</strong>
+    rather than a compute gap.</p>
+    <p>The comparison survives and the recommendation sharpens. Against 97.9% cached on the codex node
+    and 99.0% on the claude node, this lane re-reads roughly <strong>two thirds</strong> of its context
+    every turn rather than all of it. That still explains the throughput and why a long node does not
+    accelerate as context accumulates — but the lever is <em>cache configuration</em>, not <em>cache
+    introduction</em>, and 34% cumulative is well short of what a properly cached agentic conversation
+    should reach, so the headroom is real.</p>
+    <p><strong>Ledger cost for an unmetered lane is imputed, and it inverts the comparison.</strong>
+    Measured across 619 ledger rows by the reckon session: <code>clive</code> at a median
+    <strong>$21.59</strong> per node against <code>claude</code>'s <strong>$1.61</strong> — the free
+    lane ranks about thirteen times dearer. Reckon shipped a routing view whose routing quantity is
+    <em>cost per durable node</em>, so the surface built to make routing legible currently inverts it;
+    that section's implementation figure has been reduced rather than left reading as landed. A ledger
+    pricing an unmetered backend should write zero or flag the figure as imputed.</p>
+    <p><strong>Scraping caution, if any of this is re-measured.</strong> Matching vLLM metric names by
+    substring silently sums each counter's <code>_created</code> timestamp gauge and the
+    <code>external_</code> cross-instance counters into the real totals. Match exact bare names. On
+    this engine they are <code>vllm:kv_cache_usage_perc</code> — not
+    <code>gpu_cache_usage_perc</code> — <code>vllm:prefix_cache_queries_total</code> and
+    <code>vllm:prefix_cache_hits_total</code>.</p>
+
+    <h2 id="s3">§3 — Reviewed code receipts</h2>
+    <p><strong>Nine clive nodes, all promoted, zero corrective redispatches to a frontier lane.</strong>
+    One needed a stop-and-resume for a brief defect described in §4. That is the headline number, and
+    it is not the interesting one.</p>
+    <p><strong>The interesting one: the coordinator was wrong more often than the local lane was.</strong>
+    On imas-codex, six coordinator errors were caught during this trial — by workers on three different
+    lanes, and by one guard:</p>
+    <table>
+      <thead><tr><th>Error</th><th>Caught by</th></tr></thead>
+      <tbody>
+        <tr><td>Two of four reported defects in a diff misattributed, judged from a hunk that ended several lines before the statements did</td><td>the claude node being corrected</td></tr>
+        <tr><td>A whole brief aimed at the wrong function; the reported symptom came from a different call path entirely</td><td>a clive node, proved from an earlier release run's transcript</td></tr>
+        <tr><td>A "the graph is unreachable" diagnosis produced by probing a resolution path the application never uses</td><td>a clive node, via an ordinary client</td></tr>
+        <tr><td>A review objection to a file-suffix convention that is defined by a regex in the neighbouring module</td><td>the clive node being reviewed</td></tr>
+        <tr><td>A checkpoint brief that would have written the archive where the currency instrument does not look</td><td>a claude-opus node, which added an explicit output path rather than complying literally</td></tr>
+        <tr><td>A node dispatched with a verifier role and repository write paths</td><td>reckon's promotion guard — correctly, and late</td></tr>
+      </tbody>
+    </table>
+    <p><strong>The consequence for method: a control column built from coordinator review inherits the
+    coordinator's errors.</strong> Nova's independent read-only Opus reviewer, with no stake in the
+    nodes it graded, is the better instrument, and rows should carry reviewer provenance so the two are
+    not read as equivalent.</p>
+
+    <h3 id="s3a">§3a — What the metered lanes' green gates hid</h3>
+    <p>A sonnet node returned a green, mutation-proven gate on a change raising stamped write sites in
+    one module from 3 to 118. Reading the diff found three real defects its checker could not see,
+    because the checker's predicate asked whether a SET block mentioned the stamp <em>anywhere</em>
+    rather than per alias: the one statement in the file that provably modifies nothing was stamped
+    twice, and a genuinely modified alias was left unstamped by the same statement that stamped its
+    sibling. Alongside them, one structural hole owned by the orchestrator: the gate ran under default
+    markers that <em>exclude</em> the marker requiring a live database, so none of the 118 modified
+    statements was ever executed.</p>
+    <p>Nova's independent Opus review of three codex-merged commits, each with a green gate no human had
+    read, found <strong>one HIGH correctness defect, two LOW, and two coverage holes</strong> — and
+    judged that none of the three gates could structurally have seen any of them, because each gate is a
+    bit- or byte-identity comparison over inputs drawn from the regime the change preserves. The HIGH
+    one: a census takes the first <code>2*maxsize</code> admitted origins via
+    <code>jnp.where(size=)</code> and publishes <code>overflow False</code>, so a field admitting more
+    than 60 origins silently drops the rest. The gate's own fields admit 2 each; a probe on the gate's
+    own lattice admitted 147 and changed 31 of 39 published keys.</p>
+    <p>Nova's own disclosure belongs here: roughly thirty codex merges that day were audited from
+    manifest, gate log, diff stat and hygiene grep <em>without</em> line reads. Those rows carry no
+    measured error rate only because nobody has measured one; the review's roughly one-in-three defect
+    rate on the sample it did read is the honest prior for them.</p>
+
+    <h3 id="s3b">§3b — What the local lane returned</h3>
+    <p>Three behaviours are worth more than the pass count, because each is a worker declining to make
+    itself look better:</p>
+    <ul>
+      <li><strong>It declared its own headline measure vacuous rather than banking it.</strong> A node
+      asked to drive virtual-environment rows in a scan to zero measured 101 entries before and 101
+      after, and said plainly that the release dry run never executes the check in question, so neither
+      run could have surfaced such a row. Having lost its measure it built a replacement the brief had
+      not suggested: four fixture tests, one proving a genuine divergence is still reported and one
+      proving a nested environment file can never become a comparison authority, plus a counterfactual
+      probe confirming the first fails if the scan is narrowed to nothing.</li>
+      <li><strong>It refused to weaken a gate to pass it.</strong> Nova's census repair was asked for
+      byte identity in every case; it found the compiled path drifts from the eager authority by a last
+      ULP in one array on a marginal noise field, so it asserted byte identity on every structural and
+      telemetry key, a stated tolerance on the value arrays, kept the analytic test byte-exact, and
+      declared the split in both the manifest and a named key set in the test.</li>
+      <li><strong>It reported a base it was not given.</strong> Two nodes were handed a suite baseline
+      of 5 failures, measured 19 and 27 respectively at their own revisions, and said so instead of
+      adopting the figure. That is how the finding in §5c surfaced at all.</li>
+    </ul>
+    <p>Instruction adherence, scored separately from code quality: one node piped CLI output through
+    <code>tail</code> against an explicit repository ban in a file its brief told it to read; one left a
+    stub manifest at <code>in_progress</code> through termination, which did not recur once the rule was
+    stated; and one attempted harness-native sub-agent fan-out three times, <strong>each refused by the
+    crew guard</strong>, after which it did the work itself. That last is a guard-that-spoke datum: the
+    contract is enforced, not merely stated.</p>
+
+    <h2 id="s4">§4 — What decides whether the local lane succeeds</h2>
+    <p><strong>The governing variable is brief specificity, not task difficulty.</strong> Four nodes on
+    the same model make the case, two of them hours apart in one project:</p>
+    <table>
+      <thead><tr><th>Node</th><th>Brief shape</th><th>First materialisation</th><th>Outcome</th></tr></thead>
+      <tbody>
+        <tr><td>divergence scan</td><td>measure before and after, decide the file set</td><td><strong>never, in 40 min</strong></td><td>no edit; whole budget on baseline</td></tr>
+        <tr><td>the same node, resumed</td><td>measurements handed back as established fact; commit before measuring</td><td>within minutes</td><td>commit, honest measure, real cause found</td></tr>
+        <tr><td>stale-pin inventory <em>(nova)</em></td><td>read-only judgement over ~70 files</td><td>after a guard forced a sequential read</td><td>46 pins classified, verdicts checkable</td></tr>
+        <tr><td>class margin <em>(nova)</em></td><td>field name, formula, sign rule, two fixtures, all numeric</td><td><strong>assistant turn 6, 17 s</strong></td><td>+181/-1, gate 12 of 12, no defect on a hunk read</td></tr>
+      </tbody>
+    </table>
+    <p>It compounds with the cache finding: a lane that re-reads two thirds of its context every turn
+    gets dearer the longer it explores, so a brief inviting exploration is its worst fit and a fixed
+    target its best.</p>
+    <p><strong>The cost of the lever, stated honestly.</strong> A brief can only name the target when the
+    coordinator already knows the answer's shape, so it trades worker exploration for coordinator work —
+    and the six coordinator errors in §3 are that trade appearing on the other side of the ledger. A
+    brief specific enough to make this lane succeed is specific enough to be confidently wrong, and one
+    of them was. So the recommendation is not "write more specific briefs" alone: write the
+    target-naming brief, <em>and expect the worker to contradict it</em>. The nodes that corrected their
+    coordinator did so because their measures were checkable and their fences held.</p>
+
+    <h2 id="s5">§5 — Three defect classes both projects found independently</h2>
+
+    <h3 id="s5a">§5a — The regime-bound check</h3>
+    <p><strong>A check whose inputs never leave the regime its correctness assumes.</strong> It passes,
+    it is honestly written, and it is silent about everything outside that regime.</p>
+    <table>
+      <thead><tr><th>Severity</th><th>Defect</th><th>The regime it never left</th></tr></thead>
+      <tbody>
+        <tr><td>High</td><td>A census truncates admitted origins at a fixed size and publishes <code>overflow False</code></td><td>The gate's fields admit 2; a probe admitted 147 and changed 31 of 39 keys</td></tr>
+        <tr><td>Low</td><td>A Cypher SET-clause boundary scanner ends the clause at the first <code>WHERE</code>, including one inside a list comprehension, truncating the very statement holding the fault sought</td><td>Every statement it had run against had no list comprehension in its SET body</td></tr>
+        <tr><td>Latent</td><td>New code reads four keys off a live diagnostics dict; the tests monkeypatch that dict</td><td>The gate never reads the real host, so it cannot say the keys exist there</td></tr>
+      </tbody>
+    </table>
+    <p>The remedy is one question, and it found all three: <strong>before trusting a green gate, name
+    one input that leaves the regime and ask whether the gate would notice.</strong> None came from
+    reading the diff harder. This belongs beside the fail-open guard rule, which is its sibling: a
+    fail-open guard reports a protection it does not provide, and a regime-bound check reports a coverage
+    it does not have.</p>
+
+    <h3 id="s5b">§5b — Implicit test contracts on incidental structure</h3>
+    <p>A test can silently make something <em>incidental</em> into a contract, so a change that is
+    semantically free breaks it — or a change that is semantically real passes.</p>
+    <ul>
+      <li><strong>Query text.</strong> Tests that mock a graph client and dispatch on the literal leading
+      token of a <code>SET</code> clause. Comma-separated assignments to independent properties are
+      order-independent in Cypher, so <em>prepending</em> one is semantically free and cost 22 test
+      failures across a suite nothing had measured for hours.</li>
+      <li><strong>Field-name sets.</strong> Tests that monkeypatch a host diagnostics dict, making the
+      set of key names a contract: a renamed key passes the gate and fails in production.</li>
+    </ul>
+    <p>Opposite directions, same invisibility. The remedy is a line in the repository's own guidance
+    wherever it holds: <em>these tests pin query text</em> / <em>these tests pin key names</em>.</p>
+
+    <h3 id="s5c">§5c — A base that belongs to the run rather than the revision</h3>
+    <p>Three measurements of one suite disagreed: <strong>5, 19 and 27</strong> failures, the 5 a strict
+    subset of the 19 at the <em>same</em> revision with freshly generated models in both trees. The extra
+    14 concentrate in six export and catalog-ledger files.</p>
+    <p>This undermines the instrument every node is gated on. "Added failures against a stated base" is
+    only a measurement while the base is a property of the revision; where it is a property of the run, a
+    node handed a base of 5 that measures 19 cannot distinguish a regression from the weather. The rule
+    that follows: <strong>a base belongs to a revision only if it was measured at that revision in the
+    same session.</strong> Nova checked its own gates against this and found none quoting a carried
+    figure; its known non-determinism sources are timing tests and CPU-versus-GPU identity assertions,
+    both outside its gate sets, so the same rule protects against different things in the two projects.</p>
+
+    <h2 id="s6">§6 — Platform findings, with disposition</h2>
+    <table>
+      <thead><tr><th>Finding</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><strong>The subscription lane's budget fence cannot fire at any utilisation.</strong> <code>_ClaudeDialect._budget</code> reads <code>info.get("utilization")</code> — a fraction — and assigns it into <code>utilisation_pct</code>, compared against a 95% ceiling. So 1.21 (121%) reads as <code>1.21%</code>, and a five-hour window at 99% reads <code>0.99%</code>. The gating field <code>unifiedWindows.five_hour.utilization</code> appears seven times in that repository and <em>every one is inside a test fixture</em> — the correct field sits in its own test data, unread by the parser that fixture feeds.</td><td>Confirmed at source; fix dispatched</td></tr>
+        <tr><td><strong>Two presets over one account keep two budget records.</strong> 47 rows for <code>claude</code> against 16 for <code>claude-opus</code>, both landing on the same figure nine minutes apart, so either can be cleared on the other's stale reading of a window they share.</td><td>Confirmed; fix dispatched</td></tr>
+        <tr><td><strong>A coordinator's message to its own dispatched run is held for an approval nobody is present to give, then expires, while the send reports success.</strong> Measured across 37,995 and 13,670 stream records with zero plain-text user records in either, and six worker tool rounds after the send. The approval gate belongs to the host harness, not to crew dispatch.</td><td>Recorded as not reckon's to fix; boundary drawn deliberately</td></tr>
+        <tr><td><strong>Reckon's worker-to-worker peer channel has no answering party in practice</strong> — two questions in one session, both unanswered forever, which are the only two cases it has ever exercised. So that premise is <em>unstarted</em> rather than regressed.</td><td>Recorded first-party</td></tr>
+        <tr><td><strong>Dispatch accepts source write paths on a verifier role; only promotion refuses.</strong> Probed: <code>--role test --write-path &lt;source&gt;</code> returns <code>ok: true</code> with no findings. The specification itself said "refused at promotion", so the guard does what was specified and the specification was one step late.</td><td>Confirmed by probe; queued</td></tr>
+        <tr><td><strong>Member <code>--harness</code> does not route.</strong> A member registered <code>--harness claude-opus</code> ran on sonnet; dispatch falls through to <code>default_backend</code>. Hit independently by both coordinators, in different projects, on the same day.</td><td>Open</td></tr>
+        <tr><td><strong>A time budget is advisory on this launch kind.</strong> Nodes carrying 60-minute budgets ran 129 and 135 minutes with nothing stopping them; another overran 2400 s until killed. Combined with the messaging finding: a local node can be neither steered nor time-boxed, so its only fence is a person watching.</td><td>Recorded in config as advisory, deliberately unenforced</td></tr>
+        <tr><td><strong>The dispatch validator refuses angle-bracket path templates</strong> as unresolved intent, costing a rewrite into prose that was longer and no clearer.</td><td>Open</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s7">§7 — What the shared routing config should say</h2>
+    <p>Applied to this workstation's <code>flight.yaml</code> during the trial, from these measurements:</p>
+    <ul>
+      <li><code>sandbox: worktree-full</code> and <code>session_reuse: true</code> declared on the local
+      backend — their absence was an omission, not a decision; it had been the least completely specified
+      backend and, by node count that day, the highest-volume one.</li>
+      <li><code>usable_input_window: 492288</code>, the endpoint's own advertised figure, so nodes are
+      sized against what the server accepts. Peak per-turn input observed was 356,574 tokens, 72% of it,
+      never clamped.</li>
+      <li><code>time_budget: 90m</code>, <strong>advisory and deliberately not enforced.</strong> A
+      launcher fence was recommended and then withdrawn: the long walls were all measured on the two-card
+      deployment, and a fence calibrated on them would be calibrated on a configuration that is being
+      replaced. Plan waves on wall clock the coordinator keeps itself.</li>
+      <li><code>effort</code> stays pinned and is <strong>not</strong> a calibration axis here. The
+      endpoint returns a thinking block at every budget including none, so the value is declared rather
+      than effective, and a shadow run substituting it compares nothing. Thinking is 83–95%+ of emitted
+      characters regardless.</li>
+      <li><strong>Spec level is the setting that matters, and it has no schema key</strong>, so it is
+      recorded as a routing comment: <em>exact</em> — trust unsupervised; <em>guided</em> — only when the
+      measurement is handed over as established fact; <em>open</em> — never route here. Keep open design,
+      decide-when-measurement-is-done, and merged-diff review on a frontier lane.</li>
+      <li>Roles trusted unsupervised at <em>exact</em>: <code>implement</code>, and <code>test</code> or
+      measurement with a read-only fence, where the lane was strongest.</li>
+    </ul>
+    <p>Two further recommendations for the machinery rather than the file: <strong>fence on
+    <code>unifiedWindows.&lt;period&gt;</code> against its own reset, never on the overage line</strong>;
+    and <strong>declare the account a backend belongs to</strong>, so one observation serves every preset
+    over it.</p>
+
+    <h2 id="s8">§8 — Method, and what this report gets wrong</h2>
+    <p>Recorded because a trial that hides its own corrections is not evidence.</p>
+    <ul>
+      <li><strong>The cache claim was reversed.</strong> This report first stated the local lane has no
+      prompt caching, from a client-side zero read as a fact about the engine. It caches about a third.
+      The engine's metrics were one query away.</li>
+      <li><strong>The throughput gap was overstated.</strong> First called unmeasurable; the terminal
+      result record carries totals, so it is blind in flight and measurable at promotion.</li>
+      <li><strong>The messaging mechanism was wrong on the first reading</strong> — reported as a silently
+      lost message, which would have sent the fix to the delivery path. It is an approval gate with no
+      approver.</li>
+      <li><strong>Two of four review findings in one diff were misattributed</strong>, judged from a diff
+      hunk that ended before the statements did.</li>
+      <li><strong>Nova's clive cost figures and imas-codex's differ by magnitude</strong> ($41–$162 against
+      a $21.59 median over 619 rows) because the samples differ. Both are imputed. The direction is the
+      only load-bearing part.</li>
+      <li><strong>Nova's rows carrying a scheduler leg report model turn time separately from job wait</strong>,
+      so their tok/s is comparable with imas-codex's; rows without that separation are not.</li>
+    </ul>
+    <p>The single sentence this trial would leave behind: <strong>a green gate is a statement about the
+    inputs the gate was given, and on nine nodes the local lane's failures were more often the
+    coordinator's than the model's.</strong></p>
+
+  </main>
+</body>
+</html>
