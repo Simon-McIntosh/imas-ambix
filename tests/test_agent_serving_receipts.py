@@ -83,10 +83,13 @@ def _metrics_text(
         "# HELP vllm:spec_decode_num_accepted_tokens_total Tokens kept.",
         "# TYPE vllm:spec_decode_num_accepted_tokens_total counter",
         f'vllm:spec_decode_num_accepted_tokens_total{{engine="0"}} {accepted_tokens}',
-        "# TYPE vllm:spec_decode_num_accepted_tokens_per_pos counter",
+        "# TYPE vllm:spec_decode_num_accepted_tokens_per_pos_total counter",
     ]
     lines += [
-        f'vllm:spec_decode_num_accepted_tokens_per_pos{{engine="0",position="{i}"}} {v}'
+        (
+            "vllm:spec_decode_num_accepted_tokens_per_pos_total"
+            f'{{engine="0",position="{i}"}} {v}'
+        )
         for i, v in enumerate(per_pos)
     ]
     lines.append("")
@@ -121,6 +124,225 @@ SAMPLE_T1 = _metrics_text(
 
 T0 = _dt.datetime(2026, 9, 5, 12, 0, 0, tzinfo=_dt.UTC)
 T1 = T0 + _dt.timedelta(seconds=5)
+
+
+# ---------------------------------------------------------------------------
+# Verbatim scrapes captured from the live four-card DSpark endpoint
+# (http://98dci4-gpu-0003:18801/metrics, 2026-09-05T14:01-14:02Z), 15s apart.
+# Unlike SAMPLE_T0/SAMPLE_T1 above, these are the engine's own bytes, not a
+# hand-written approximation — the earlier hand-written fixture's per-position
+# metric name (``..._per_pos``, no ``_total``) never matched what the engine
+# actually publishes (``..._per_pos_total``), so it could not catch a naming
+# defect a live scrape exposes immediately.
+# ---------------------------------------------------------------------------
+
+def _live_sample(name: str, labels: str, value: str) -> str:
+    """One data line, in the engine's own exposition shape.
+
+    The ``# HELP``/``# TYPE`` comment lines a real scrape also carries are
+    pure prose that :func:`~imas_ambix.agent.bench._parse_prometheus_text`
+    never reads, so they are omitted here rather than wrapped to fit the
+    lint line-length gate; every value below is transcribed unchanged from
+    the live scrape.
+    """
+    return f'vllm:{name}{{{labels}}} {value}'
+
+
+_ENGINE_LABELS = 'engine="0",model_name="deepseek-v4-flash"'
+
+LIVE_METRICS_T0 = "\n".join(
+    [
+        _live_sample("spec_decode_num_drafts_total", _ENGINE_LABELS, "2739.0"),
+        _live_sample(
+            "spec_decode_num_drafts_created",
+            _ENGINE_LABELS,
+            "1.7886160770691342e+09",
+        ),
+        _live_sample("spec_decode_num_draft_tokens_total", _ENGINE_LABELS, "13695.0"),
+        _live_sample(
+            "spec_decode_num_draft_tokens_created",
+            _ENGINE_LABELS,
+            "1.7886160770691533e+09",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_total", _ENGINE_LABELS, "6425.0"
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_created",
+            _ENGINE_LABELS,
+            "1.7886160770691645e+09",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_total",
+            f'{_ENGINE_LABELS},position="0"',
+            "2048.0",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_total",
+            f'{_ENGINE_LABELS},position="1"',
+            "1588.0",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_total",
+            f'{_ENGINE_LABELS},position="2"',
+            "1235.0",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_total",
+            f'{_ENGINE_LABELS},position="3"',
+            "903.0",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_total",
+            f'{_ENGINE_LABELS},position="4"',
+            "651.0",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_created",
+            f'{_ENGINE_LABELS},position="0"',
+            "1.7886160770691786e+09",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_created",
+            f'{_ENGINE_LABELS},position="1"',
+            "1.7886160770691829e+09",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_created",
+            f'{_ENGINE_LABELS},position="2"',
+            "1.788616077069186e+09",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_created",
+            f'{_ENGINE_LABELS},position="3"',
+            "1.7886160770691888e+09",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_created",
+            f'{_ENGINE_LABELS},position="4"',
+            "1.788616077069193e+09",
+        ),
+        _live_sample("num_requests_running", _ENGINE_LABELS, "0.0"),
+        _live_sample("num_requests_waiting", _ENGINE_LABELS, "0.0"),
+        _live_sample("kv_cache_usage_perc", _ENGINE_LABELS, "0.0"),
+        _live_sample("prefix_cache_queries_total", _ENGINE_LABELS, "3.153518e+06"),
+        _live_sample(
+            "prefix_cache_queries_created",
+            _ENGINE_LABELS,
+            "1.7886160770693438e+09",
+        ),
+        _live_sample("prefix_cache_hits_total", _ENGINE_LABELS, "619520.0"),
+        _live_sample(
+            "prefix_cache_hits_created", _ENGINE_LABELS, "1.788616077069351e+09"
+        ),
+        _live_sample("prompt_tokens_total", _ENGINE_LABELS, "3.153518e+06"),
+        _live_sample(
+            "prompt_tokens_created", _ENGINE_LABELS, "1.7886160770694067e+09"
+        ),
+        _live_sample("generation_tokens_total", _ENGINE_LABELS, "9170.0"),
+        _live_sample(
+            "generation_tokens_created", _ENGINE_LABELS, "1.7886160770694497e+09"
+        ),
+        "",
+    ]
+)
+
+LIVE_METRICS_T1 = "\n".join(
+    [
+        _live_sample("spec_decode_num_drafts_total", _ENGINE_LABELS, "2780.0"),
+        _live_sample(
+            "spec_decode_num_drafts_created",
+            _ENGINE_LABELS,
+            "1.7886160770691342e+09",
+        ),
+        _live_sample("spec_decode_num_draft_tokens_total", _ENGINE_LABELS, "13900.0"),
+        _live_sample(
+            "spec_decode_num_draft_tokens_created",
+            _ENGINE_LABELS,
+            "1.7886160770691533e+09",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_total", _ENGINE_LABELS, "6535.0"
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_created",
+            _ENGINE_LABELS,
+            "1.7886160770691645e+09",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_total",
+            f'{_ENGINE_LABELS},position="0"',
+            "2083.0",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_total",
+            f'{_ENGINE_LABELS},position="1"',
+            "1618.0",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_total",
+            f'{_ENGINE_LABELS},position="2"',
+            "1255.0",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_total",
+            f'{_ENGINE_LABELS},position="3"',
+            "918.0",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_total",
+            f'{_ENGINE_LABELS},position="4"',
+            "661.0",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_created",
+            f'{_ENGINE_LABELS},position="0"',
+            "1.7886160770691786e+09",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_created",
+            f'{_ENGINE_LABELS},position="1"',
+            "1.7886160770691829e+09",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_created",
+            f'{_ENGINE_LABELS},position="2"',
+            "1.788616077069186e+09",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_created",
+            f'{_ENGINE_LABELS},position="3"',
+            "1.7886160770691888e+09",
+        ),
+        _live_sample(
+            "spec_decode_num_accepted_tokens_per_pos_created",
+            f'{_ENGINE_LABELS},position="4"',
+            "1.788616077069193e+09",
+        ),
+        _live_sample("num_requests_running", _ENGINE_LABELS, "1.0"),
+        _live_sample("num_requests_waiting", _ENGINE_LABELS, "0.0"),
+        _live_sample("kv_cache_usage_perc", _ENGINE_LABELS, "0.00593715239154613"),
+        _live_sample("prefix_cache_queries_total", _ENGINE_LABELS, "3.254449e+06"),
+        _live_sample(
+            "prefix_cache_queries_created",
+            _ENGINE_LABELS,
+            "1.7886160770693438e+09",
+        ),
+        _live_sample("prefix_cache_hits_total", _ENGINE_LABELS, "650496.0"),
+        _live_sample(
+            "prefix_cache_hits_created", _ENGINE_LABELS, "1.788616077069351e+09"
+        ),
+        _live_sample("prompt_tokens_total", _ENGINE_LABELS, "3.254449e+06"),
+        _live_sample(
+            "prompt_tokens_created", _ENGINE_LABELS, "1.7886160770694067e+09"
+        ),
+        _live_sample("generation_tokens_total", _ENGINE_LABELS, "9322.0"),
+        _live_sample(
+            "generation_tokens_created", _ENGINE_LABELS, "1.7886160770694497e+09"
+        ),
+        "",
+    ]
+)
 
 
 class _FakeResponse:
@@ -203,6 +425,58 @@ def test_serving_snapshot_ignores_created_gauges_and_external_counters() -> None
 
     assert snapshot["counters"]["prompt_tokens_total"] == 4.4481e08
     assert snapshot["counters"]["prefix_cache_queries_total"] == 4.4523e08
+
+
+def test_serving_snapshot_reads_live_four_card_spec_decode_names() -> None:
+    """Names verified against the live engine, not assumed from a fixture.
+
+    ``spec_decode_num_draft_tokens_total``,
+    ``spec_decode_num_accepted_tokens_total`` and
+    ``spec_decode_num_accepted_tokens_per_pos_total`` are what the live
+    four-card DSpark engine actually publishes; each also carries a
+    same-named ``_created`` gauge sibling (a creation timestamp, ~1.79e9),
+    which a correct reader must not fold into the token count.
+    """
+    snapshot = sr._serving_snapshot(LIVE_METRICS_T0)
+
+    assert snapshot["spec_decode"]["draft_tokens_total"] == 13695.0
+    assert snapshot["spec_decode"]["accepted_tokens_total"] == 6425.0
+    assert snapshot["spec_decode"]["num_accepted_per_pos"] == [
+        2048.0,
+        1588.0,
+        1235.0,
+        903.0,
+        651.0,
+    ]
+
+
+def test_receipt_row_over_live_four_card_window_is_nonzero_and_descending() -> None:
+    """The delta-derived receipt fields on a real 15s window from the engine.
+
+    This is the regression the plan named directly: reading these fields
+    against a hand-written fixture cannot catch a name the engine does not
+    actually publish, so this asserts against the engine's own bytes.
+    """
+    prev = sr._serving_snapshot(LIVE_METRICS_T0)
+    curr = sr._serving_snapshot(LIVE_METRICS_T1)
+    row = sr.build_receipt_row(
+        prev,
+        T0,
+        curr,
+        T0 + _dt.timedelta(seconds=15),
+        job_id="1262921",
+        profile_slug="deepseek-v4-flash",
+        served_name="deepseek-v4-flash",
+        gpus=4,
+    )
+
+    assert row.spec_draft_tokens == 205
+    assert row.spec_accepted_tokens == 110
+    assert row.spec_acceptance_rate == round(110 / 205, 4)
+    assert row.spec_num_accepted_per_pos == [35, 30, 20, 15, 10]
+    assert row.spec_num_accepted_per_pos == sorted(
+        row.spec_num_accepted_per_pos, reverse=True
+    )
 
 
 def test_sample_serving_metrics_returns_none_on_fetch_failure() -> None:

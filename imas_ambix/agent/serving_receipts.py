@@ -1,13 +1,18 @@
 """Continuous serving-time receipts for ``imas-ambix agent receipts``.
 
 :mod:`imas_ambix.agent.bench` already parses a Prometheus ``/metrics`` scrape
-(:func:`~imas_ambix.agent.bench._parse_prometheus_text`) and snapshots
-speculative-decode counters (:func:`~imas_ambix.agent.bench._spec_decode_snapshot`),
-but only across one benchmark window. This module reuses both to build a
-*continuous* recorder: it samples a live engine's ``/metrics`` on an interval
-and appends one JSON row per sample to a durable, append-only receipts file,
-so a serve's whole life is a readable record rather than something
-reconstructed afterwards from a terminal summary.
+(:func:`~imas_ambix.agent.bench._parse_prometheus_text`) and differences
+cumulative counters across a window
+(:func:`~imas_ambix.agent.bench._counter_delta`,
+:func:`~imas_ambix.agent.bench._per_position_delta`). This module reuses that
+parsing and differencing to build a *continuous* recorder: it samples a live
+engine's ``/metrics`` on an interval and appends one JSON row per sample to a
+durable, append-only receipts file, so a serve's whole life is a readable
+record rather than something reconstructed afterwards from a terminal
+summary. Speculative-decode counters are read here by exact bare name rather
+than reusing ``bench``'s substring-matching snapshot, because the substring
+match folds each counter's ``_created`` timestamp companion into its token
+total (see the alias-set comment below).
 """
 
 from __future__ import annotations
@@ -24,7 +29,6 @@ from imas_ambix.agent.bench import (
     _fetch_body,
     _parse_prometheus_text,
     _per_position_delta,
-    _spec_decode_snapshot,
 )
 
 if TYPE_CHECKING:
@@ -37,8 +41,9 @@ if TYPE_CHECKING:
 # rather than a substring is deliberate here: vLLM's OpenMetrics exposition
 # pairs every counter with a same-named ``_created`` gauge (its creation
 # timestamp, not a data point) and a cross-instance ``external_`` variant, and
-# a substring test like the spec-decode one below would silently fold either
-# into the real counter.
+# a substring test would silently fold either into the real counter — measured
+# on the live four-card engine, where a substring match on "draft"/"accept"
+# summed each counter's ``_created`` companion straight into its token total.
 _GAUGE_NAMES = {
     "num_requests_running": {"num_requests_running"},
     "num_requests_waiting": {"num_requests_waiting"},
@@ -56,6 +61,11 @@ _COUNTER_NAMES = {
         "gpu_prefix_cache_hits_total",
     },
 }
+_SPEC_DECODE_COUNTER_NAMES = {
+    "draft_tokens_total": {"spec_decode_num_draft_tokens_total"},
+    "accepted_tokens_total": {"spec_decode_num_accepted_tokens_total"},
+}
+_SPEC_DECODE_PER_POSITION_NAMES = {"spec_decode_num_accepted_tokens_per_pos_total"}
 
 
 def _bare_metric_name(name: str) -> str:
@@ -66,18 +76,32 @@ def _bare_metric_name(name: str) -> str:
 def _serving_snapshot(text: str) -> dict[str, Any]:
     """One scrape's serving-lifecycle gauges, counters, and spec-decode state.
 
-    Speculative-decode counters carry ``spec`` in every engine spelling seen
-    so far, so they are excluded here and left to
-    :func:`~imas_ambix.agent.bench._spec_decode_snapshot`, which already
-    knows how to read them.
+    Speculative-decode counters are matched by the same exact-bare-name
+    discipline as the gauges and counters above, against the names the live
+    vLLM 0.28.0 engine's own ``/metrics`` scrape was verified to publish:
+    ``spec_decode_num_draft_tokens_total``,
+    ``spec_decode_num_accepted_tokens_total``, and, labelled by draft
+    position, ``spec_decode_num_accepted_tokens_per_pos_total``.
     """
     gauges: dict[str, float] = {}
     counters: dict[str, float] = {}
-    for name, _labels, value in _parse_prometheus_text(text):
-        lowered = name.lower()
-        if "spec" in lowered or lowered.endswith("_created"):
+    spec_counters: dict[str, float] = {}
+    spec_per_position: dict[int, float] = {}
+    for name, labels, value in _parse_prometheus_text(text):
+        bare = _bare_metric_name(name.lower())
+        if bare in _SPEC_DECODE_PER_POSITION_NAMES:
+            pos = _coerce_int(labels.get("position"))
+            if pos is not None:
+                spec_per_position[pos] = spec_per_position.get(pos, 0.0) + value
             continue
-        bare = _bare_metric_name(lowered)
+        matched_spec = False
+        for key, names in _SPEC_DECODE_COUNTER_NAMES.items():
+            if bare in names:
+                spec_counters[key] = spec_counters.get(key, 0.0) + value
+                matched_spec = True
+                break
+        if matched_spec:
+            continue
         for key, names in _GAUGE_NAMES.items():
             if bare in names:
                 gauges[key] = gauges.get(key, 0.0) + value
@@ -87,10 +111,19 @@ def _serving_snapshot(text: str) -> dict[str, Any]:
                 if bare in names:
                     counters[key] = counters.get(key, 0.0) + value
                     break
+    spec_decode = {
+        "draft_tokens_total": spec_counters.get("draft_tokens_total"),
+        "accepted_tokens_total": spec_counters.get("accepted_tokens_total"),
+        "num_accepted_per_pos": (
+            [spec_per_position[pos] for pos in sorted(spec_per_position)]
+            if spec_per_position
+            else None
+        ),
+    }
     return {
         "gauges": gauges,
         "counters": counters,
-        "spec_decode": _spec_decode_snapshot(text),
+        "spec_decode": spec_decode,
     }
 
 
@@ -121,10 +154,16 @@ class ReceiptRow:
 
 
 def _coerce_int(value: Any) -> int | None:
+    """Convert *value* to ``int``, rounding a float or parsing a string.
+
+    Used both on scraped gauge values (floats) and on a Prometheus label's
+    ``position`` value (a string), so a bare ``round(value)`` is not enough —
+    ``round`` rejects a string outright.
+    """
     if value is None:
         return None
     try:
-        return int(round(value))
+        return int(round(float(value)))
     except (TypeError, ValueError):
         return None
 
