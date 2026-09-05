@@ -31,6 +31,8 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 from imas_ambix.agent import serving_receipts as sr
+from imas_ambix.agent.profile import SiteConfig, load_profile
+from imas_ambix.agent.slurm import generate_serve_script
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -682,3 +684,94 @@ def test_record_receipts_is_append_only_across_invocations(tmp_path: Path) -> No
     lines = second_pass.splitlines()
     assert len(lines) == 2
     assert lines[0] == first_pass.strip()
+
+
+# ---------------------------------------------------------------------------
+# Generated serve script — background sidecar wiring
+# ---------------------------------------------------------------------------
+
+
+def test_generated_serve_script_starts_receipts_sidecar_by_default(
+    tmp_path: Path,
+) -> None:
+    profile = load_profile("deepseek-v4-flash").for_gpus(4)
+    script = generate_serve_script(
+        profile, SiteConfig(base_dir=str(tmp_path)), port=18801
+    )
+
+    assert "-m imas_ambix.agent.serving_receipts" in script
+    assert '"$_RECEIPTS_DIR"' in script
+    receipts_dir = str(Path(tmp_path) / "agents" / "receipts")
+    assert receipts_dir in script
+    assert f"{profile.slug}-$SLURM_JOB_ID.jsonl" in script
+    assert "_RECEIPTS_PID=$!" in script
+    # Started right after the engine process, before the receipts recorder
+    # could be mistaken for the server itself.
+    assert script.index("SERVER_PID=$!") < script.index(
+        "-m imas_ambix.agent.serving_receipts"
+    )
+    # Killed on cleanup so it never outlives the job it is sampling.
+    cleanup_start = script.index("cleanup_serve()")
+    cleanup_end = script.index("terminate_serve()")
+    assert '"$_RECEIPTS_PID"' in script[cleanup_start:cleanup_end]
+
+
+def test_generated_serve_script_omits_receipts_sidecar_when_disabled(
+    tmp_path: Path,
+) -> None:
+    profile = load_profile("deepseek-v4-flash").for_gpus(4)
+    script = generate_serve_script(
+        profile,
+        SiteConfig(base_dir=str(tmp_path)),
+        port=18801,
+        receipts_enabled=False,
+    )
+
+    assert "-m imas_ambix.agent.serving_receipts" not in script
+    assert "_RECEIPTS_PID=$!" not in script
+    # The kill-on-cleanup guard stays present and harmless: _RECEIPTS_PID is
+    # declared but never assigned, so the guard is a no-op rather than an
+    # unbound-variable failure.
+    assert '_RECEIPTS_PID=""' in script
+
+
+def test_receipts_main_invokes_record_receipts_with_parsed_arguments(
+    tmp_path: Path,
+) -> None:
+    receipts_path = tmp_path / "receipts.jsonl"
+    captured: dict[str, Any] = {}
+
+    def _fake_record_receipts(base_url: str, path: Any, **kwargs: Any) -> int:
+        captured["base_url"] = base_url
+        captured["path"] = path
+        captured.update(kwargs)
+        return 3
+
+    with patch.object(sr, "record_receipts", _fake_record_receipts):
+        exit_code = sr.main(
+            [
+                "--base-url",
+                "http://98dci4-gpu-0003:18801",
+                "--receipts-path",
+                str(receipts_path),
+                "--interval",
+                "5",
+                "--job-id",
+                "1262921",
+                "--profile-slug",
+                "deepseek-v4-flash",
+                "--served-name",
+                "deepseek-v4-flash",
+                "--gpus",
+                "4",
+            ]
+        )
+
+    assert exit_code == 0
+    assert captured["base_url"] == "http://98dci4-gpu-0003:18801"
+    assert captured["path"] == str(receipts_path)
+    assert captured["interval_s"] == 5.0
+    assert captured["serve_job_id"] == "1262921"
+    assert captured["profile_slug"] == "deepseek-v4-flash"
+    assert captured["served_name"] == "deepseek-v4-flash"
+    assert captured["gpus"] == 4

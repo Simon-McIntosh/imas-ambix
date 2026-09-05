@@ -300,6 +300,8 @@ def generate_serve_script(
     site: SiteConfig,
     port: int = 18800,
     api_key: str | None = None,
+    *,
+    receipts_enabled: bool = True,
 ) -> str:
     """Generate a SLURM batch script for serving a model profile.
 
@@ -310,6 +312,11 @@ def generate_serve_script(
         on ``/v1/*`` endpoints.  Injected via ``VLLM_API_KEY`` env var
         (vLLM) or ``--api-key`` flag (SGLang) to avoid leaking in
         ``ps aux`` output.
+    receipts_enabled : bool
+        When true (the default), the generated script starts a background
+        receipts recorder against its own engine for the whole life of the
+        job, so throughput and speculative-decode receipts accumulate
+        without an operator starting one by hand.
     """
     model_dir = site.model_dir(profile)
     catalog_env_block = ""
@@ -373,6 +380,34 @@ def generate_serve_script(
         fi
         """
     ).strip()
+
+    # Serving receipts: a background sampler that scrapes this job's own
+    # /metrics on an interval and appends one row per sample to a durable,
+    # per-job file under the shared agents directory, so the job's whole
+    # throughput life is a readable record without an operator starting a
+    # recorder by hand (see imas_ambix/agent/serving_receipts.py). Started
+    # only when *receipts_enabled*, right after the engine process itself is
+    # launched so the very first samples (including the startup window) are
+    # captured; a failed scrape is skipped by the recorder rather than
+    # raised, so it tolerates the engine not answering /metrics yet.
+    receipts_dir = Path(site.base_dir) / "agents" / "receipts"
+    receipts_launch = ""
+    if receipts_enabled:
+        receipts_launch = "\n".join(
+            [
+                f'_RECEIPTS_PATH="$_RECEIPTS_DIR/{profile.slug}-$SLURM_JOB_ID.jsonl"',
+                f'PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}} \\',
+                '    "$_REGISTRY_PYTHON" -m imas_ambix.agent.serving_receipts \\',
+                '    --base-url "http://$(hostname):$PORT" \\',
+                '    --receipts-path "$_RECEIPTS_PATH" \\',
+                "    --interval 5 \\",
+                '    --job-id "$SLURM_JOB_ID" \\',
+                f"    --profile-slug {shlex.quote(profile.slug)} \\",
+                f"    --served-name {shlex.quote(profile.model.served_name)} \\",
+                f'    --gpus "${{SLURM_GPUS_ON_NODE:-{profile.slurm.gpus}}}" &',
+                "_RECEIPTS_PID=$!",
+            ]
+        )
 
     # KTransformers needs extra env vars and fadvise evictor
     kt_env_block = ""
@@ -574,10 +609,16 @@ def generate_serve_script(
         _REGISTRY_PYTHON={shlex.quote(str(registry_python))}
         _REGISTRATION_ACTIVE=0
         _EVICTOR_PID=""
+        _RECEIPTS_DIR={shlex.quote(str(receipts_dir))}
+        mkdir -p "$_RECEIPTS_DIR"
+        _RECEIPTS_PID=""
 
         cleanup_serve() {{
             if [[ -n "$_EVICTOR_PID" ]]; then
                 kill "$_EVICTOR_PID" 2>/dev/null || true
+            fi
+            if [[ -n "$_RECEIPTS_PID" ]]; then
+                kill "$_RECEIPTS_PID" 2>/dev/null || true
             fi
             if [[ "$_REGISTRATION_ACTIVE" == 1 ]]; then
                 PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}} \
@@ -627,6 +668,8 @@ def generate_serve_script(
         echo "[$(date)] Starting {profile.model.name} server"
         {launch_command} &
         SERVER_PID=$!
+
+        {receipts_launch}
 
         _REGISTRATION_ACTIVE=1
         PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}} \

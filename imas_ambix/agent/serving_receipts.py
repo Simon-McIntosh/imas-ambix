@@ -17,6 +17,7 @@ total (see the alias-set comment below).
 
 from __future__ import annotations
 
+import argparse
 import dataclasses
 import datetime as _dt
 import json
@@ -32,7 +33,7 @@ from imas_ambix.agent.bench import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from imas_ambix.agent.profile import ModelProfile
 
@@ -296,6 +297,9 @@ def record_receipts(
     api_key: str | None = None,
     profile: ModelProfile | None = None,
     serve_job_id: str | None = None,
+    profile_slug: str | None = None,
+    served_name: str | None = None,
+    gpus: int | None = None,
     sleep: Callable[[float], None] = time.sleep,
     monotonic: Callable[[], float] = time.monotonic,
     now: Callable[[], _dt.datetime] = _utcnow,
@@ -309,13 +313,20 @@ def record_receipts(
     records a single row rather than none. Rows are appended and flushed one
     at a time so the file is a durable record even if the recorder is killed
     mid-run. Returns the number of rows written.
+
+    *profile_slug*, *served_name*, and *gpus* label each row when no
+    :class:`~imas_ambix.agent.profile.ModelProfile` is available — a
+    generated serve script's own sidecar invocation knows these values
+    directly and has no reason to reconstruct a profile object for them.
+    *profile*, when given, takes precedence over the discrete fields.
     """
     path = Path(receipts_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    profile_slug = profile.slug if profile is not None else None
-    served_name = profile.model.served_name if profile is not None else None
-    gpus = profile.slurm.gpus if profile is not None else None
+    if profile is not None:
+        profile_slug = profile.slug
+        served_name = profile.model.served_name
+        gpus = profile.slurm.gpus
 
     previous: dict[str, Any] | None = None
     previous_at: _dt.datetime | None = None
@@ -347,3 +358,48 @@ def record_receipts(
             sleep(interval_s)
 
     return rows_written
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Sample a live engine's /metrics and append receipt rows"
+    )
+    parser.add_argument("--base-url", required=True)
+    parser.add_argument("--receipts-path", required=True)
+    parser.add_argument("--interval", type=float, default=5.0)
+    parser.add_argument("--duration", type=float, default=None)
+    parser.add_argument("--api-key", default=None)
+    parser.add_argument("--job-id", default=None)
+    parser.add_argument("--profile-slug", default=None)
+    parser.add_argument("--served-name", default=None)
+    parser.add_argument("--gpus", type=int, default=None)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the recorder as a standalone process.
+
+    This is what a generated serve script's background sidecar invokes
+    (``python -m imas_ambix.agent.serving_receipts``) — it knows the
+    engine's own URL, the job id, and the profile identity directly from
+    the script that launched it, with no scheduler lookup of its own.
+    """
+    args = _parser().parse_args(argv)
+    record_receipts(
+        args.base_url,
+        args.receipts_path,
+        interval_s=args.interval,
+        duration_s=args.duration,
+        api_key=args.api_key,
+        serve_job_id=args.job_id,
+        profile_slug=args.profile_slug,
+        served_name=args.served_name,
+        gpus=args.gpus,
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(main())
