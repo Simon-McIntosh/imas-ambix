@@ -124,6 +124,14 @@
     nothing at rest; what it costs is headroom when a very large prompt actually arrives, with
     concurrency at maximum length falling from about 2.51 to 1.25. Three concurrent agentic sessions
     were using 19% of the pool, roughly 83K each — nowhere near it.</p>
+    <p><strong>Measured directly, on the same brief run against both serves: per-request decode
+    throughput is unchanged.</strong> 23.3 tok/s API and 22.2 wall on four cards against 23.1 and 22.0
+    on two, at this concurrency. So the four-card gain is <em>capacity and context</em>, not
+    single-stream speed, and the speculative-decoding gain appears in acceptance length rather than in
+    anything one agentic session experiences. (That run's <em>content</em> is withdrawn as a
+    measurement — see §8 — but its rates are uncontaminated, since transcription and authorship consume
+    decode identically.)</p>
+
     <p><strong>So the routing conclusion, stated plainly because it is easy to expect the opposite:
     more cards will not make an agentic node finish sooner.</strong> The lane's ceiling is turn count
     and thinking volume, not generation, and the speculative-decoding gain shows up in the acceptance
@@ -472,11 +480,18 @@
       <li><strong>The transcript-volume figure belongs to an engine, not to the lane.</strong> The
       same brief produced 3,899 stream records on the four-card launch against 31,678 on the two-card
       one, so the roughly 350 system records per turn were a deployment property that is now gone.</li>
-      <li><strong>A new open gap:</strong> one four-card run wrote no terminal <code>result</code>
-      record despite ending <em>normally</em>, so no usage totals reached the ledger. Distinct from the
-      earlier case where a background task was still live. If it recurs, "measurable at promotion"
-      fails even for a clean exit and this lane has no first-party throughput figure in any
-      circumstance.</li>
+      <li><strong>Withdrawn, and replaced by an ordering rule.</strong> A claim that a normally-ending
+      run wrote no terminal <code>result</code> record: it wrote one, about two minutes <em>after</em>
+      the follower reported the run complete, and the reading preceded it. So missing usage totals are
+      a property only of runs that end with a background task still live. The rule that replaces it:
+      <strong>let the run go terminal, confirm the <code>result</code> record has landed, then
+      promote</strong> — the follower's <code>complete</code> transition precedes the record.</li>
+      <li><strong>A variant of that rule, measured on this project.</strong> Two of sixteen ledger rows
+      carry an empty <code>throughput</code> block. One is correct — an abandoned launch with no turn.
+      The other is a node stopped mid-flight and resumed: its <code>result</code> record exists,
+      carrying 7,948,981 input tokens, 27,871 output and $40.44, but it lives in
+      <code>resume-1.jsonl</code> and the promotion recorded nothing. <strong>The data exists and the
+      ledger is empty</strong>, so a resumed run's accounting needs reading from the resume stream.</li>
       <li><strong>Nova's rows carrying a scheduler leg report model turn time separately from job wait</strong>,
       so their tok/s is comparable with imas-codex's; rows without that separation are not.</li>
     </ul>
