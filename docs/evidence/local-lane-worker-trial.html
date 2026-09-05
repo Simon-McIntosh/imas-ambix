@@ -58,8 +58,17 @@
         <tr><td>clive / dsv4-flash</td><td>mechanical implement, numeric target</td><td>2424 s <em>(nova)</em></td><td>53,426</td><td>22.0 wall / 23.1 API</td><td>$52.13 imputed</td></tr>
         <tr><td>clive / dsv4-flash</td><td>census slot-exhaustion repair</td><td>8128 s <em>(nova)</em></td><td>193,647</td><td>32.7</td><td>$162 imputed</td></tr>
         <tr><td>clive / dsv4-flash</td><td>one conditioning rule, 2 fixtures</td><td>7733 s <em>(nova)</em></td><td>159,122</td><td>27.8</td><td>$136 imputed</td></tr>
+        <tr><td>clive / dsv4-flash</td><td>stale test-pin re-expression, 5 file:line targets</td><td>5540 s <em>(nova)</em></td><td>pending extraction</td><td>—</td><td>imputed</td></tr>
+        <tr><td>claude-opus-5 high</td><td>reduced-Newton step, open-ended H200 measurement</td><td>6069 s <em>(nova)</em></td><td>130,159</td><td>69.9 API / <strong>21.4 wall</strong></td><td>$23.20</td></tr>
       </tbody>
     </table>
+
+    <p><strong>The last row is why a scheduler-bearing node needs two rates, not one.</strong> Its
+    69.9 tok/s on API time against 21.4 on wall is not a slow model: the gap is two H200 jobs plus a
+    42-minute compute-node queue it waited on. A single wall figure would have made the frontier lane
+    look three times slower than the local one, which is the opposite of the truth. Any row carrying a
+    scheduler leg reports model turn time separately from job wait, or it is not comparable with a row
+    that has none.</p>
 
     <h3 id="s2a">§2a — Three reporting defects that make these numbers hard to read</h3>
     <p><strong>The local lane reports no per-message output usage.</strong> Every assistant message
@@ -170,12 +179,50 @@
       of 5 failures, measured 19 and 27 respectively at their own revisions, and said so instead of
       adopting the figure. That is how the finding in §5c surfaced at all.</li>
     </ul>
+    <p><strong>One new local-lane failure mode, and it is the orchestrator's.</strong> A pin
+    re-expression node landed a clean +42/-23 diff over two of its three declared paths — correctly
+    leaving the third alone because both its pins were green, as briefed — and its reasoning survived a
+    hunk read: it found <em>why</em> the old fixture broke (a wall offset put the inboard wall pole
+    above the axis value under the spline read), fixed the fixture rather than the pin, and re-derived
+    the value keeping the seam identity exact. But its three-file after-gate never completed: it
+    <strong>backgrounded the run and its process ended with its turn</strong>, so the log truncates
+    after two passes.</p>
+    <p>That is the documented hazard, and the guidance names the owner: a done-when that asks for a
+    long suite result <em>invites</em> the worker to background it and lose everything after it, which
+    is the orchestrator's error rather than the worker's. It scores against the model only lightly on
+    manifest honesty, because the manifest says <code>pending</code> rather than claiming a pass. The
+    repair is in the briefing — keep a long measure in the foreground under a bounded budget, or say in
+    the done-when that it may be backgrounded and that the manifest must be written first.</p>
+
     <p>Instruction adherence, scored separately from code quality: one node piped CLI output through
     <code>tail</code> against an explicit repository ban in a file its brief told it to read; one left a
     stub manifest at <code>in_progress</code> through termination, which did not recur once the rule was
     stated; and one attempted harness-native sub-agent fan-out three times, <strong>each refused by the
     crew guard</strong>, after which it did the work itself. That last is a guard-that-spoke datum: the
     contract is enforced, not merely stated.</p>
+
+    <h3 id="s3c">§3c — Defects surfaced incidentally by exercising a path</h3>
+    <p>Distinct from defects in a node's own output, and worth its own count: three nodes exposed
+    problems they were not looking for, simply by running code nobody had run that way recently.</p>
+    <ul>
+      <li><strong>A dry run that is not dry.</strong> Exercising the release path showed
+      <code>sn release --dry-run</code> mints a release-shaped roster into the repository and advances
+      the release-candidate counter, because the artifact freeze runs three steps before the dry-run
+      flag is consulted. It probably explains three earlier rosters sitting in that directory.</li>
+      <li><strong>A hard-coded gap kind in shared enforcement machinery.</strong> A preflight
+      compared against a literal <code>"self_contradiction"</code>, so it silently refused the graph
+      write for every resolution cohort that was not the one it had been exercised against. Found by
+      the first node to need a different kind.</li>
+      <li><strong>A production regression, on the parallel project.</strong> A pin node found that on
+      today's head the fixed-design class margin of an 81&times;81 persistent-saddle fixture reads
+      <code>NaN</code> with <code>diverted False</code> across all 17 sweep shifts, where the test
+      expects positive infinity — so that test now fails <em>upstream</em> of the pin the node was sent
+      to fix. Not yet bisected; two candidate merges. The node reported it and did not touch
+      production.</li>
+    </ul>
+    <p>None was in a brief. Two of the three came from the local lane. The pattern is that a lane cheap
+    enough to point at neglected paths finds things there, and that is worth counting separately from
+    whether the node's own gate went green.</p>
 
     <h2 id="s4">§4 — What decides whether the local lane succeeds</h2>
     <p><strong>The governing variable is brief specificity, not task difficulty.</strong> Four nodes on
