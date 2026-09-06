@@ -364,6 +364,29 @@ dispatched it. Three consequences that cost a night to learn:
   invited to set — and where it is set it is a coarse bound on how much work one
   fleet may hold *open* against the lane, not a model of this queue.
 
+**The conversion between the two units, measured 2026-09-06.** Joined samples
+across three fleets: **7-8 live clive runs produced 4-5 simultaneous requests**,
+so a live run is worth roughly **0.5 to 0.7 concurrent requests** — an agentic
+worker spends most of its wall clock between turns. Sixteen in flight therefore
+corresponds to something like 23-32 live runs. Treat that ratio as indicative
+rather than fixed: it rises with parallel tool calls in a turn and falls with
+thinking-heavy nodes.
+
+**A quiet endpoint is not evidence of headroom.** A deliberate pressure test on
+2026-09-06 told three fleets to run hot and the engine never exceeded **five**
+concurrent requests, with zero capacity waits, zero deferrals and zero
+preemptions. It would be wrong to conclude that sixteen is comfortable: the
+correct conclusion is that **not enough independent work existed to find out**.
+The roster was not the constraint either — 174 members with 3 holding runs, so
+171 free. What bound every fleet was **the width of its dependency graph**: the
+number of ready nodes that do not contend for the same files. That is a property
+of the plan, not of capacity, and no lifted limit moves it.
+
+**Those two conclusions look identical in a graph of engine metrics and are
+entirely different facts.** Before reporting headroom, establish that the offered
+load was actually there — a lane-wide live-run count beside the engine samples,
+at a shared wall-clock stamp.
+
 **Sixteen is a working ceiling on a shared best-effort endpoint, not a target.**
 The endpoint runs on spare cards with no reserved floor and competes with any
 training campaign on the same node.
