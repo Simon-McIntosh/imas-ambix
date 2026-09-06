@@ -18,6 +18,7 @@ from imas_ambix.worldmodel.flux_label_dataset import (
 )
 
 SHOT = 12345
+MISSING_SHOT = 12346
 
 
 def _surface_geometry(times: np.ndarray) -> xr.Dataset:
@@ -71,13 +72,18 @@ def _write_synthetic_session(tmp_path: Path) -> tuple[Path, Path, Path]:
     (session_root / ".cards").mkdir(parents=True)
     level1_root.mkdir()
 
-    ranked = [*range(12001, 12020), SHOT]
+    ranked = [
+        *range(12001, 12020),
+        SHOT,
+        *range(12021, 12040),
+        MISSING_SHOT,
+    ]
     for card, card_shots in enumerate((ranked[0::3], ranked[1::3], ranked[2::3])):
         (session_root / ".cards" / f"card-{card}.txt").write_text(
             "".join(f"{shot}\n" for shot in card_shots), encoding="utf-8"
         )
 
-    slice_times = np.asarray([0.041, 0.060, 0.105], dtype=np.float64)
+    slice_times = np.asarray([0.0412, 0.060, 0.105], dtype=np.float64)
     _surface_geometry(slice_times).to_netcdf(
         session_root / f"{SHOT}.nc", group="steering", engine="h5netcdf"
     )
@@ -138,19 +144,19 @@ def _write_synthetic_session(tmp_path: Path) -> tuple[Path, Path, Path]:
 
     token_path = token_root / "v1" / "frames" / str(SHOT) / "rbb.zarr"
     token_store = zarr.open_group(str(token_path), mode="w")
-    tokens = np.empty((10, 16, 16), dtype=np.int32)
+    tokens = np.empty((60, 16, 16), dtype=np.int32)
     for frame in range(tokens.shape[0]):
         tokens[frame].fill(REGISTRY_OFFSET + frame)
     token_store.create_array("tokens", data=tokens)
 
-    frame_times = np.arange(10, dtype=np.float64) * 0.01
+    frame_times = np.arange(60, dtype=np.float64) * 0.001
     level1_store = zarr.open_group(str(level1_root / f"{SHOT}.zarr"), mode="w")
     camera = level1_store.create_group("rbb")
     camera.create_array("time", data=frame_times)
     return session_root, token_root, level1_root
 
 
-def test_complete_session_pairs_geometry_and_native_token_history(
+def test_complete_session_pairs_geometry_and_slice_spaced_token_history(
     tmp_path: Path,
 ) -> None:
     session_root, token_root, level1_root = _write_synthetic_session(tmp_path)
@@ -168,16 +174,21 @@ def test_complete_session_pairs_geometry_and_native_token_history(
     assert item["rank"] == 20
     assert item["split"] == "validation"
     assert item["conditioned"] is True
-    assert item["frame_delta_s"] == pytest.approx(-0.001)
+    assert item["frame_delta_s"] == pytest.approx(-0.0002)
     assert item["conditioning"].shape == (6, 64, 64)
     assert np.isfinite(item["conditioning"]).all()
     assert item["geometry"].shape == (12,)
     assert np.isfinite(item["geometry"]).all()
     assert item["target_tokens"].shape == (16, 16)
     assert np.issubdtype(item["target_tokens"].dtype, np.integer)
-    assert np.all(item["target_tokens"] == 4)
+    assert np.all(item["target_tokens"] == 41)
     assert item["history_tokens"].shape == (4, 16, 16)
-    np.testing.assert_array_equal(item["history_tokens"][:, 0, 0], np.arange(4))
+    np.testing.assert_array_equal(
+        item["history_tokens"][:, 0, 0], np.asarray([21, 26, 31, 36])
+    )
+    requested_history_times = item["slice_time"] - 0.005 * np.arange(4, 0, -1)
+    actual_history_times = item["history_tokens"][:, 0, 0] * 0.001
+    assert np.max(np.abs(actual_history_times - requested_history_times)) <= 0.001
     assert not any("current" in key for key in item)
 
     receipt = dataset.receipt
@@ -188,11 +199,49 @@ def test_complete_session_pairs_geometry_and_native_token_history(
     assert receipt["counts"]["cohort_overlap"] == 0
     assert receipt["dropped_slices"]["unconverged"] == 1
     assert receipt["dropped_slices"]["outside_time_tolerance"] == 1
-    assert receipt["max_abs_delta_t_s"] == pytest.approx(0.001)
+    assert receipt["history_spacing_s"] == pytest.approx(0.005)
+    assert receipt["max_abs_delta_t_s"] == pytest.approx(0.0002)
     assert receipt["pins"] == {
         "policy_digest": EXPECTED_POLICY_DIGEST,
         "carrier_identity": EXPECTED_CARRIER_IDENTITY,
     }
+
+
+def test_complete_manifest_missing_session_file_is_counted_and_dropped(
+    tmp_path: Path,
+) -> None:
+    session_root, token_root, level1_root = _write_synthetic_session(tmp_path)
+    (session_root / f"{MISSING_SHOT}.manifest.json").write_text(
+        json.dumps(
+            {
+                "shot": MISSING_SHOT,
+                "status": "complete",
+                "policy_digest": EXPECTED_POLICY_DIGEST,
+                "carrier_identity": EXPECTED_CARRIER_IDENTITY,
+                "slices": [
+                    {
+                        "row": 0,
+                        "time": 0.04,
+                        "written": True,
+                        "converged": True,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    dataset = FluxLabelDataset(
+        session_root,
+        split="validation",
+        token_root=token_root,
+        level1_root=level1_root,
+        cohort_shots=set(),
+    )
+
+    assert len(dataset) == 1
+    assert dataset.receipt["counts"]["complete_sessions"] == 2
+    assert dataset.receipt["dropped_slices"]["missing_session_file"] == 1
 
 
 def test_corpus_pins_refuse_mismatch_and_cohort_filter_is_whole_shot(
