@@ -324,6 +324,123 @@ dimension 1024 reduced to 256 on output, L2-normalised.
 enforced it is `AMBIX_AGENT_API_KEY` in the shared `agents/.env`, and the engine
 accepts it **only** as `Authorization: Bearer` — never `x-api-key`.
 
+## 3c. Concurrency on the local lane — the router bounds it, not the model
+
+**The ceiling that agent fleets hit is `AdmissionLimits` in
+`imas_ambix/agent/router.py`, and for most of 2026 it was six.** The shipped
+defaults are `max_in_flight = 2` and `max_queued = 4`; **2 + 4 = 6** concurrent
+requests, after which the router answers **HTTP 429** with
+`consumer queue full; retry after N seconds`. Raised to **16 in flight and 48
+queued** on 2026-09-06 after that arithmetic was traced to a fleet-wide worker
+die-off. Set them at launch, never in code:
+
+```bash
+imas-ambix agent router --submit --port 18802 --max-in-flight 16 --max-queued 48
+```
+
+**The allowance is shared by every worker on a host, which is what makes it
+bite.** Admission is keyed on `_consumer_id(scope)`, which returns
+`scope["client"][0]` — the **source IP**. Every clive worker dispatched from the
+login node is therefore *one consumer* against one allowance, whatever project
+dispatched it. Three consequences that cost a night to learn:
+
+- **No project can see the binding quantity from its own ledger.** One session
+  measured its own maximum at four simultaneous runs and concluded the six-figure
+  could not apply, while another session's runs were consuming the same
+  allowance. Count clive runs *host-wide* or the number is meaningless.
+- **Sessions are not requests.** One turn issuing several parallel tool calls
+  bursts a limit of two on its own, so refusals were observed with as few as two
+  sessions live.
+- **A reckon-side concurrency ceiling and this one bound the same pool from
+  opposite ends.** If both are set, the tighter wins invisibly. Reckon's stays
+  unset by default; use it only to bound your own fleet *below* the deployment,
+  never as a second guess at the hardware.
+
+**Sixteen is a working ceiling on a shared best-effort endpoint, not a target.**
+The endpoint runs on spare cards with no reserved floor and competes with any
+training campaign on the same node.
+
+### The KV pool is a function of the profile, not a property of the cards
+
+**Do not copy a pool figure between engines, and never quote one without its job
+id.** Measured on two four-card serves of the same checkpoint on the same day:
+
+| Job | `max_model_len` | mem fraction | KV memory | **Pool** | KV per token |
+|---|---|---|---|---|---|
+| 1262921 | 524,288 | 0.90 | 67.18 GiB | 1,313,935 | 54.9 KB |
+| 1262952 | 1,048,576 | 0.92 | 70.01 GiB | **2,557,835** | 28.7 KB |
+
+The pool nearly **doubled** while the memory behind it grew 4.2%, so per-token
+KV cost halved. `kv_cache_dtype` was `fp8` on both, so the obvious explanation —
+a precision change — is **ruled out**; the only other delta is `max_model_len`,
+which points at this model's hybrid compressed attention accounting per-token KV
+against the declared window. The mechanism is not established and should not be
+asserted. **The operational rule stands regardless: re-measure after any profile
+change, because a limit sized to yesterday's pool silently stops being right.**
+
+Read the live figure rather than a document:
+
+```bash
+curl -s http://98dci4-gpu-0003:18800/metrics | grep '^vllm:cache_config_info' \
+  | tr ',' '\n' | grep -E 'kv_cache_size_tokens|kv_cache_max_concurrency'
+```
+
+At the ~83k tokens an agentic session was measured to hold, 2,557,835 divides
+into roughly thirty concurrent sessions — so at six the hardware was never
+close, and `max_num_seqs` is 1024.
+
+### Diagnosing a dead local-lane worker
+
+**`stderr.log` carries no status for any outcome.** Every clive run's stderr is
+byte-identical boilerplate — banner, connectors warning, and a
+`[claude-code:unrecognized_model]` line — whether the run succeeded or died.
+**That last line is benign and appears on healthy runs; three sessions
+misattributed deaths to it before measuring.** The status lives in the stream:
+
+```bash
+grep -c '"error_status":429' <run-dir>/stream.jsonl <run-dir>/resume-*.jsonl
+```
+
+**A 429 is recoverable until it is not.** The client honours `Retry-After`
+exactly, then escalates to about 40 s, and gives up after **ten retries on a
+single call** — roughly 200 s of patience — after which it emits a synthetic
+assistant message and an error result, and in print mode the turn ending is the
+process ending. Runs survive short bursts: nodes carrying seven and eighteen
+retry records completed and committed real work. Reckon passes no retry
+configuration, so that ten is not tunable from the dispatch side; the lever is
+this router's limits.
+
+**Two 429-and-`turn.completed` counts classify the death mechanically, before
+you read anything else.** Measured across four dead runs, the separation was
+exact:
+
+| `429` count | `turn.completed` | Diagnosis | Does the router limit fix it? |
+|---|---|---|---|
+| > 0 | 0 | admission exhaustion, died mid-turn | **yes** |
+| 0 | 1 | process ended with its turn, deliverable written, manifest missing | **no** |
+
+```bash
+for f in <run-dir>/stream.jsonl <run-dir>/resume-*.jsonl; do
+  printf '%-28s 429=%s turn.completed=%s\n' "$(basename $f)" \
+    "$(grep -c '"error_status":429' $f)" "$(grep -c 'turn.completed' $f)"
+done
+```
+
+**Only compare `turn.completed` across codex-format streams** — a claude-backend
+run does not emit that record at all, so its `0/0` is a format artefact rather
+than a diagnosis.
+
+**The 429s are lane pressure, not a property of the node.** One node's original
+stream carried zero; the 429s appeared only in its later resumes, when the
+fleet was busiest.
+
+**At least two distinct failures wear the label "process gone without a complete
+manifest", and a fix aimed at one will appear to half-work.** One is 429
+exhaustion mid-turn. The other is a worker whose stream contains
+`turn.completed` with its deliverable fully written and only the manifest
+missing — the process ending with its turn, one turn short, which has nothing to
+do with admission control.
+
 ## 4. Composable Agent CLI
 
 The `imas-ambix agent` CLI manages LLM deployments via TOML model profiles:
