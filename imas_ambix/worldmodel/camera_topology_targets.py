@@ -15,6 +15,7 @@ with the supplied wall polygon.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -45,6 +46,8 @@ TOPOLOGY_UNDEFINED = -1
 XPOINT_BIND_TOL = 0.005
 MIN_BOUNDARY_POINTS = 8
 MIN_FLUX_SPAN_WB = 1.0e-4
+MAST_WALL_SOURCE_SHOT = 15276
+"""Shot carrying the era-constant MAST wall when a store omits that group."""
 
 
 @dataclass
@@ -66,6 +69,8 @@ class CameraTopologyTargets:
     topology_class: np.ndarray
     boundary_psi: np.ndarray
     boundary_flux_mask: np.ndarray
+    wall_source_shot_id: int | None = None
+    wall_digest: str | None = None
     class_names: tuple[str, ...] = TOPOLOGY_CLASS_NAMES
     units: str = "m"
 
@@ -354,6 +359,8 @@ def build_camera_topology_targets_from_arrays(
     lcfs_z: np.ndarray,
     wall_r: np.ndarray,
     wall_z: np.ndarray,
+    wall_source_shot_id: int | None = None,
+    wall_digest: str | None = None,
 ) -> CameraTopologyTargets:
     """Derive native topology once, then sample it onto camera frame times."""
     ft = np.asarray(frame_times, dtype=np.float64).ravel()
@@ -416,7 +423,35 @@ def build_camera_topology_targets_from_arrays(
         topology_class=classes,
         boundary_psi=boundary,
         boundary_flux_mask=np.isfinite(boundary),
+        wall_source_shot_id=wall_source_shot_id,
+        wall_digest=wall_digest,
     )
+
+
+def _load_wall(
+    store: object,
+    root: Path,
+    shot_id: int,
+) -> tuple[np.ndarray, np.ndarray, int, str]:
+    """Load the shot wall or the fixed MAST-era wall when it is omitted."""
+    source_shot = shot_id
+    if "wall" in store:
+        wall = store["wall"]
+    else:
+        import zarr  # noqa: PLC0415
+
+        source_shot = MAST_WALL_SOURCE_SHOT
+        source_path = equilibrium_store_path(source_shot, root)
+        source_store = zarr.open_group(str(source_path), mode="r")
+        if "wall" not in source_store:
+            raise KeyError(
+                f"wall source shot {source_shot}: no wall group at {source_path}"
+            )
+        wall = source_store["wall"]
+    wall_r = np.asarray(wall["limiter_r"])
+    wall_z = np.asarray(wall["limiter_z"])
+    digest = hashlib.sha256(wall_r.tobytes() + wall_z.tobytes()).hexdigest()
+    return wall_r, wall_z, source_shot, digest
 
 
 def load_camera_topology_targets(
@@ -431,12 +466,12 @@ def load_camera_topology_targets(
     root = Path(level2_root) if level2_root is not None else DEFAULT_LEVEL2_ROOT
     path = equilibrium_store_path(int(shot_id), root)
     store = zarr.open_group(str(path), mode="r")
-    if "equilibrium" not in store or "wall" not in store:
-        raise KeyError(
-            f"shot {shot_id}: equilibrium and wall groups required at {path}"
-        )
+    if "equilibrium" not in store:
+        raise KeyError(f"shot {shot_id}: equilibrium group required at {path}")
     equilibrium = store["equilibrium"]
-    wall = store["wall"]
+    wall_r, wall_z, wall_source_shot_id, wall_digest = _load_wall(
+        store, root, int(shot_id)
+    )
     equilibrium_times = np.asarray(equilibrium["time"])
     if "x_point_r" in equilibrium and "x_point_z" in equilibrium:
         x_point_r = np.asarray(equilibrium["x_point_r"])
@@ -457,13 +492,16 @@ def load_camera_topology_targets(
         x_point_z=x_point_z,
         lcfs_r=np.asarray(equilibrium["lcfs_r"]),
         lcfs_z=np.asarray(equilibrium["lcfs_z"]),
-        wall_r=np.asarray(wall["limiter_r"]),
-        wall_z=np.asarray(wall["limiter_z"]),
+        wall_r=wall_r,
+        wall_z=wall_z,
+        wall_source_shot_id=wall_source_shot_id,
+        wall_digest=wall_digest,
     )
 
 
 __all__ = [
     "MAX_STRIKE_POINTS",
+    "MAST_WALL_SOURCE_SHOT",
     "TOPOLOGY_CLASS_NAMES",
     "TOPOLOGY_UNDEFINED",
     "CameraTopologyTargets",
