@@ -463,6 +463,16 @@ concurrent. The surviving candidate is the chunked-prefill token budget,
 worker sends — a single long prefill consumes the step's whole budget and the
 next request waits.
 
+**Capacity waits are transient at EVERY concurrency level, which is the strongest
+constraint on the explanation.** Later sampling caught `waiting=4` at
+`running=2` with KV 38% — more requests waiting than running — and it cleared
+within one poll while `generation_tokens_total` advanced 6,668 tokens in the
+following minute. A wait that appears at two concurrent requests is not a
+concurrency ceiling. Every such event so far has cleared in one or two polls
+with no preemptions, so **read a single-poll capacity wait as scheduler
+granularity, not as pressure**; only a wait that persists across several polls
+is worth investigating.
+
 **This is a candidate, not a finding.** It has been raised three times today and
 confirmed none of them; twice it was killed by reading the reason codes. Each
 event was one request waiting, which is marginal. **The testable prediction is
