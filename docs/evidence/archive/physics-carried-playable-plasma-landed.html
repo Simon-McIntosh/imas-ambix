@@ -364,6 +364,34 @@
       </tbody>
     </table>
 
+    <h2 id="s4d-dataset">§4d — Session dataset: nova labeller sessions paired with rbb tokens (landed 2026-09-06)</h2>
+    <p>Node <code>pcp-session-dataset</code>, run <code>r-20260906T201504947489</code>, commit <code>6327862</code> (merged
+    <code>cbe7709</code>), gate passed: pytest 3 passed in 73 s, whole-tree ruff 0.
+    <code>imas_ambix/worldmodel/flux_label_dataset.py</code> discovers only <code>status == complete</code> manifests, refuses any
+    session whose <code>policy_digest</code> or <code>carrier_identity</code> differs from the pins and never consults
+    <code>nova_revision</code>; admits written, converged slices and carries <code>conditioned</code> from the <code>.npz</code>
+    companion; joins each slice to the nearest native rbb token frame within 2.5 ms; subtracts the labeller cohort by whole shot
+    from all four census partitions (718 distinct shots); assigns every twentieth rank of the original 8,012-shot inventory to
+    validation (the three card walks are an order-preserving subset, 7,979 active plus 33 already complete); and yields
+    <code>conditioning</code>, <code>geometry</code>, <code>target_tokens</code>, <code>history_tokens</code>, the
+    <code>conditioned</code> flag and provenance keys, none containing a current.</p>
+    <table>
+      <thead><tr><th>Real shot 21858</th><th>Count</th></tr></thead>
+      <tbody>
+        <tr><td>manifest rows / written / converged</td><td>123 / 118 / 101</td></tr>
+        <tr><td>paired with a token frame</td><td>85 (16 conditioned)</td></tr>
+        <tr><td>dropped</td><td>38: 5 unwritten, 17 unconverged, 16 outside the camera's 0.5 s coverage</td></tr>
+        <tr><td>max |&Delta;t| paired</td><td>1e-5 s (native cadence 2e-5 s)</td></tr>
+        <tr><td>cohort overlap</td><td>0</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Two defects found at the coordinator's read and sent back as node <code>pcp-session-dataset-repair</code>.</strong>
+    (1) A complete manifest whose <code>.nc</code> or <code>.npz</code> is missing raises instead of being dropped; shot 17192 in
+    the live batch is exactly that case, so a whole-root scan would fail. (2) The history frames are the K immediately preceding
+    native frames, 20 &micro;s apart at this camera's cadence, so history[-1] is a near-copy of the target and a decoder trained
+    on it could ignore the flux condition. The repair spaces history at <code>history_spacing_s</code> (default one labeller
+    slice, 5 ms) and counts the missing-file case under <code>missing_session_file</code>.</p>
+
     <h2 id="s4b-state">§4b — Where the section stands</h2>
     <p>Five nodes landed: the target derivation, the cohort and confounder census, the divertor-bright
     screen expansion, the labeller model with its smoke receipt, and the scaled training submission. All

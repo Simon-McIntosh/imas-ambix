@@ -25,8 +25,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-06">
-<meta name="plan-version" content="29">
-<meta name="plan-impl" content="0.62">
+<meta name="plan-version" content="32">
+<meta name="plan-impl" content="0.66">
 </head>
 <body>
   <main class="plan-doc">
@@ -330,7 +330,9 @@
     <p><strong>Deliverable.</strong> <code>imas_ambix/worldmodel/flux_label_dataset.py</code> with
     <code>tests/worldmodel/test_flux_label_dataset.py</code>: a dataset that reads the nova labeller sessions of §3c and yields, per
     admitted slice, the conditioning tensor of §3c(3), the 16&times;16 rbb token grid at that time as the target, and the K previous token
-    frames of the same shot as history (K = 4 default, native cadence). <strong>Discovery.</strong> Scan <code>&lt;root&gt;/*.manifest.json</code>,
+    frames of the same shot as history (K = 4 default, spaced <code>history_spacing_s</code> apart, default one labeller
+    slice of 5 ms: at this camera's 20 &micro;s native cadence the immediately preceding frames are near-copies of the target and
+    would let the decoder learn persistence instead of the flux condition). <strong>Discovery.</strong> Scan <code>&lt;root&gt;/*.manifest.json</code>,
     admit <code>status == complete</code> only (writes are atomic per file, so a shot is ready exactly then); the ranked order the labeller
     walks is in <code>&lt;root&gt;/.cards/card-0.txt</code>, <code>card-1.txt</code>, <code>card-2.txt</code>. Pin the corpus on
     <code>policy_digest == b5f9ef456f665c593a40010b9756b16fb36abd4ebbd1fea4d83a3d628c77bc7d</code> and
@@ -702,11 +704,17 @@
 <div class="r-comment" data-section="§4d" data-id="c-run-r-20260906T195948545669-pcp-flux-renderer" data-who="pcp-flux-renderer" data-when="2026-09-06T20:12:47Z">
     <div class="r-comment-body"><p>Shared flux-conditioning renderer landed: (6,64,64) tensor and 12-value geometry vector from nova steering frames; synthetic ellipse area error 0.413 percent; real 21858 slice 50 finite with 633 inside-LCFS cells; pytest 4 passed, whole-tree ruff 0</p></div>
 </div>
+<div class="r-comment" data-section="§4d" data-id="c-run-r-20260906T201504947489-pcp-session-dataset" data-who="pcp-session-dataset" data-when="2026-09-06T20:49:38Z">
+    <div class="r-comment-body"><p>Flux label session dataset landed: pinned discovery, converged-slice admission with the conditioned flag, 2.5 ms nearest-frame join, whole-shot cohort subtraction (718 excluded), rank-based validation split; real shot 21858 pairs 85, dropped 38 (16 outside camera coverage), max abs delta t 1e-5 s, cohort overlap 0; pytest 3 passed, ruff 0. Two defects found at review and sent back as a corrective node: a complete manifest without its session file raises instead of dropping, and history frames are native-cadence neighbours 20 us apart</p></div>
+</div>
 <div class="r-comment" data-section="§3c" data-id="c-run-r-20260906T200033443313-pcp-seam-recheck" data-who="pcp-seam-recheck" data-when="2026-09-06T20:20:55.245Z">
     <div class="r-comment-body"><p>Nova session recheck: all seven items fit the plan at measured values (5 ms base, empty LCFS polyline, eleven 64-point surfaces, pins hold; npz row-aligned to manifest written rows; three ranked cards 2660/2660/2659 = 7979 shots; rbb tokens (30150,16,16) at 20 us cadence; frozen imagenet_256_L VQ ckpt sha256 a0e27c4a decoded under the open-magvit2 venv via bench/stream_worker; spacetime blocks and 2^18 LFQ head located); follow-up: shot 17192 manifest complete without .nc, reader must tolerate</p></div>
 </div>
 <div class="r-comment" data-section="s4d" data-id="c-20260906T2030-s4d-renderer-landed" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-06T20:30:00Z">
     <div class="r-comment-body">pcp-flux-renderer landed — commit fa73c14 (fast-forwarded onto main); gate passed: pytest tests/worldmodel/test_flux_conditioning.py 4 passed in 8.47 s, whole-tree ruff 0. Measure: synthetic concentric-ellipse inside-LCFS area 0.85599 m2 rendered against 0.85954 m2 analytic (0.413 percent, bound 5 percent); psi_norm monotone axis to LCFS with exactly 1.0 outside; Gaussian marks peak 1.0 at axis and X-point cells and are identically zero where finite_mask is false; real 21858 slice 50 gives a finite (6, 64, 64) float32 tensor with 633 inside-LCFS cells and a finite 12-value geometry vector. Artifacts: imas_ambix/worldmodel/flux_conditioning.py (FluxGrid, render_flux_conditioning, geometry_vector), grid receipt R 0.195 to 1.900 m and Z plus or minus 1.825 m. pcp-seam-recheck landed (read-only, report nova-session-recheck.md, digest recorded in the ledger): all seven items fit at measured values; rbb tokens for 21858 are (30150, 16, 16) int32 at 20 us native cadence, so the 2.5 ms join window drops nothing; the frozen imagenet_256_L VQ checkpoint (sha256 a0e27c4a) is decoded under the open-magvit2 environment through bench/stream_worker.py; follow-up for the section 4d reader: shot 17192 has a complete manifest with no .nc or .npz, so discovery must tolerate a missing session file by reporting and dropping it. impl 0.60 to 0.62: the denominator is now the 15 executable nodes of sections 2, 4b, 4d, 4e, 4f and 5b (sections 3, 3b and the 5 wrapper closed by decision label-corpus-source), of which 8 have landed; the fraction is held monotonic at the prior floor.</div>
+</div>
+<div class="r-comment" data-section="s4d" data-id="c-20260906T2055-s4d-dataset-landed" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-06T20:55:00Z">
+    <div class="r-comment-body">pcp-session-dataset landed — commit 6327862 (merged cbe7709); gate passed: pytest tests/worldmodel/test_flux_label_dataset.py 3 passed in 73 s, whole-tree ruff 0. Measure on real shot 21858: 123 manifest rows, 118 written, 101 converged, 85 paired (16 conditioned), 38 dropped (5 unwritten, 17 unconverged, 16 outside the camera's 0.5 s coverage), max abs delta t 1e-5 s, cohort overlap 0 over 718 excluded shots; validation = every twentieth rank of the original 8,012-shot inventory. Artifacts: imas_ambix/worldmodel/flux_label_dataset.py, tests/worldmodel/test_flux_label_dataset.py; evidence anchor s4d-dataset. Two defects found at the coordinator's read, sent back as corrective node pcp-session-dataset-repair on the same worker session: a complete manifest without its .nc/.npz raises instead of dropping (shot 17192 is live), and history frames are the K immediately preceding native frames 20 us apart, which would let the decoder ignore the flux condition; the repair spaces history at history_spacing_s defaulting to one 5 ms slice. Section 4d prose amended accordingly: history is at the slice cadence, not native cadence. impl 0.62 to 0.66 (9 of 15 nodes landed; monotonic floor).</div>
 </div>
 </section>
 </main>
