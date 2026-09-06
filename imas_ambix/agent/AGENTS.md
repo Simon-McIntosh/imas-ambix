@@ -364,13 +364,24 @@ dispatched it. Three consequences that cost a night to learn:
   invited to set — and where it is set it is a coarse bound on how much work one
   fleet may hold *open* against the lane, not a model of this queue.
 
-**The conversion between the two units, measured 2026-09-06.** Joined samples
-across three fleets: **7-8 live clive runs produced 4-5 simultaneous requests**,
-so a live run is worth roughly **0.5 to 0.7 concurrent requests** — an agentic
-worker spends most of its wall clock between turns. Sixteen in flight therefore
-corresponds to something like 23-32 live runs. Treat that ratio as indicative
-rather than fixed: it rises with parallel tool calls in a turn and falls with
-thinking-heavy nodes.
+**The conversion between the two units, measured 2026-09-06 — and it is not a
+constant.** Joined samples across three fleets: 7-8 live clive runs produced 4-5
+simultaneous requests (0.5-0.7), while 15 live runs coincided with 15 running
+(near 1.0). An agentic worker spends most of its wall clock between turns, so
+the ratio is low when the fleet is small and **rises toward 1.0 as it grows**,
+because overlapping turns become likelier.
+
+**Convert a ceiling at 1.0, never at the low-end figure.** The observed band is
+0.5 to 1.0, and the conversion **shrinks exactly when it is being relied upon** —
+the moment a fleet is large enough for the ceiling to matter is the moment a run
+is worth close to a whole request. Sixteen in flight is therefore about sixteen
+runs at saturation, not the 23-32 the low end implies. The band is measured; the
+mechanism is inferred.
+
+**Any single spot reading of concurrency is a draw from a distribution, not a
+level.** Eight reads five seconds apart spanned **10 to 14** with the fleet
+steady. Pair a series against a series; a synchronised pair of single values is
+no better than two adjacent ones.
 
 **A quiet endpoint is not evidence of headroom.** A deliberate pressure test on
 2026-09-06 told three fleets to run hot and the engine never exceeded **five**
