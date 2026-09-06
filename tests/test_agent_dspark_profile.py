@@ -84,3 +84,21 @@ def test_speculative_config_dotted_form_survives_when_no_draft_sample_method() -
     assert "--speculative-config.method mtp" in script
     assert "--speculative-config.num_speculative_tokens 5" in script
     assert "--speculative-config '" not in script
+
+
+def test_no_profile_declares_the_router_port():
+    """No serving profile may claim the port the router runs on.
+
+    A profile declaring the router's port makes a bare ``agent serve <slug>``
+    refuse at submit with a port-holder error naming ``ambix-router``, which
+    reads as a router fault rather than as a profile defect. The two-card
+    DeepSeek variant declared 18802 until 2026-09-06.
+    """
+    from imas_ambix.agent.profile import list_profiles, load_profile
+
+    router_port = 18802
+    for slug in list_profiles():
+        profile = load_profile(slug)
+        assert profile.slurm.port != router_port, (
+            f"profile {slug!r} declares the router port {router_port}"
+        )

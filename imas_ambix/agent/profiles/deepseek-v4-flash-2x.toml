@@ -30,4 +30,12 @@ max_num_seqs = 512
 gpus = 2
 cpus = 8
 memory = "200G"
-port = 18802
+# 18809, outside the 18800-18808 profile block, because 18802 is the ROUTER's
+# port. Declaring it here made a bare `serve deepseek-v4-flash-2x` refuse at
+# submit with a port-holder error naming ambix-router, which reads as a router
+# fault rather than a profile defect. Every profile must declare a DISTINCT
+# port (tests/test_agent.py::test_every_profile_declares_a_distinct_port), so
+# this cannot simply share the four-card base's 18800 even though the two are
+# never up together -- they share a served_name and the router refuses a
+# duplicate model id from two upstreams.
+port = 18809
