@@ -44,7 +44,7 @@ DEFAULT_ARTIFACT = DEFAULT_OUTPUT_DIR / "verdict.json"
 DEFAULT_FIGURE = DEFAULT_OUTPUT_DIR / "verdict.png"
 DEFAULT_REPORT = Path(
     "/home/ITER/mcintos/.config/reckon/crew/reports/"
-    "camera-dynamics-wm-v0/da-burst-verdict.md"
+    "camera-dynamics-wm-v0/da-burst-census.md"
 )
 
 RUN_DIRECTORIES = {
@@ -63,6 +63,8 @@ CONTROL_COMPARISONS = {
     "native_minus_shuffled": "shuffled",
     "native_minus_slow": "slow",
 }
+REGISTERED_MAX_CANDIDATES = 1_050
+REGISTERED_FRAME_COUNT = 59
 
 
 def _run_key(arm: str, variant: str) -> str:
@@ -166,6 +168,145 @@ def _frame_index(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             raise ValueError(f"duplicate ELM frame key {key!r}")
         index[key] = record
     return index
+
+
+def _within_horizon_tolerance(horizon_ms: float) -> bool:
+    return bool(
+        0.75 * ELM_MORPHOLOGY_HORIZON_MS
+        <= horizon_ms
+        <= 1.25 * ELM_MORPHOLOGY_HORIZON_MS
+    )
+
+
+def registered_frame_rows(
+    windows: list[morphology.SelectedWindow],
+) -> list[dict[str, Any]]:
+    """Describe the fixed held-out ELM population without model scores."""
+    return [
+        {
+            "shot_id": int(selected.window.shot_id),
+            "frame_key": (
+                f"{int(selected.window.shot_id)}:"
+                f"{float(selected.dalpha_burst_time_s):.9f}"
+            ),
+            "dalpha_burst_time_s": float(selected.dalpha_burst_time_s),
+            "actual_horizon_ms": float(selected.actual_horizon_ms),
+        }
+        for selected in windows
+    ]
+
+
+def build_census(
+    registered_frames: list[dict[str, Any]],
+    records: dict[str, list[dict[str, Any]]],
+) -> dict[str, Any]:
+    """Account for every registered frame and derive the six-way paired set."""
+    expected_runs = [
+        _run_key(arm, variant)
+        for arm, variants in RUN_DIRECTORIES.items()
+        for variant in variants
+    ]
+    indexed = {
+        run_key: _frame_index(records.get(run_key, [])) for run_key in expected_runs
+    }
+    rows: list[dict[str, Any]] = []
+    for registered in registered_frames:
+        frame_key = str(registered["frame_key"])
+        available_runs = [
+            run_key for run_key in expected_runs if frame_key in indexed[run_key]
+        ]
+        missing_runs = [
+            run_key for run_key in expected_runs if frame_key not in indexed[run_key]
+        ]
+        checkpoint_horizons_ms = {
+            run_key: float(indexed[run_key][frame_key]["actual_horizon_ms"])
+            for run_key in available_runs
+        }
+        registered_horizon_ms = float(registered["actual_horizon_ms"])
+        registered_horizon_ok = _within_horizon_tolerance(registered_horizon_ms)
+        checkpoint_horizon_ok = {
+            run_key: _within_horizon_tolerance(value)
+            for run_key, value in checkpoint_horizons_ms.items()
+        }
+        horizon_tolerance_failure = not registered_horizon_ok or any(
+            not ok for ok in checkpoint_horizon_ok.values()
+        )
+        six_way_paired = not missing_runs
+        support_disagreement = bool(available_runs and missing_runs)
+        horizon_values = list(checkpoint_horizons_ms.values())
+        horizon_disagreement = (
+            len(set(checkpoint_horizon_ok.values())) > 1
+            or bool(horizon_values)
+            and (
+                max(horizon_values + [registered_horizon_ms])
+                - min(horizon_values + [registered_horizon_ms])
+                > 1e-6
+            )
+        )
+        checkpoint_disagreement = support_disagreement or horizon_disagreement
+        if horizon_tolerance_failure:
+            disposition = "horizon_tolerance_failure"
+        elif not six_way_paired:
+            disposition = "six_way_pairing_failure"
+        elif checkpoint_disagreement:
+            disposition = "checkpoint_disagreement"
+        else:
+            disposition = "scored"
+        rows.append(
+            {
+                **registered,
+                "registered_horizon_within_tolerance": registered_horizon_ok,
+                "available_checkpoints": available_runs,
+                "missing_checkpoints": missing_runs,
+                "checkpoint_horizons_ms": checkpoint_horizons_ms,
+                "checkpoint_horizon_within_tolerance": checkpoint_horizon_ok,
+                "six_way_paired": six_way_paired,
+                "checkpoint_disagreement": checkpoint_disagreement,
+                "disposition": disposition,
+            }
+        )
+
+    disposition_counts = {
+        disposition: sum(row["disposition"] == disposition for row in rows)
+        for disposition in (
+            "scored",
+            "six_way_pairing_failure",
+            "horizon_tolerance_failure",
+            "checkpoint_disagreement",
+        )
+    }
+    scored_frame_keys = [
+        str(row["frame_key"]) for row in rows if row["disposition"] == "scored"
+    ]
+    return {
+        "population": (
+            "deterministic fast-Dalpha selection over all held-out shots, capped "
+            f"at the registered {REGISTERED_FRAME_COUNT} frames"
+        ),
+        "registered_frame_count": len(registered_frames),
+        "scored_frame_count": len(scored_frame_keys),
+        "disposition_counts": disposition_counts,
+        "checkpoint_scored_frame_counts": {
+            run_key: sum(
+                str(frame["frame_key"]) in indexed[run_key]
+                for frame in registered_frames
+            )
+            for run_key in expected_runs
+        },
+        "scored_frame_keys": scored_frame_keys,
+        "frames": rows,
+    }
+
+
+def paired_census_records(
+    records: dict[str, list[dict[str, Any]]], census: dict[str, Any]
+) -> dict[str, list[dict[str, Any]]]:
+    """Restrict every checkpoint to the census frames eligible for comparison."""
+    scored = set(census["scored_frame_keys"])
+    return {
+        run_key: [row for row in rows if str(row["frame_key"]) in scored]
+        for run_key, rows in records.items()
+    }
 
 
 def shot_clustered_delta(
@@ -380,15 +521,8 @@ def _decode_rescored_morphology(
 def _rescore_all_checkpoints(
     checkpoint_root: Path,
     *,
-    split_path: Path,
-    max_candidates: int,
-    max_windows: int,
+    windows: list[morphology.SelectedWindow],
 ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, str]]:
-    windows = morphology.select_dalpha_windows(
-        split_path=split_path,
-        max_candidates=max_candidates,
-        max_windows=max_windows,
-    )
     if len(windows) < 2:
         raise RuntimeError("fewer than two eligible held-out ELM frames")
 
@@ -528,6 +662,14 @@ def verdict_line(payload: dict[str, Any]) -> str:
     )
 
 
+def census_report_line(payload: dict[str, Any]) -> str:
+    """Place the widened verdict beside the earlier eight-frame result."""
+    return (
+        f"Widened census: {verdict_line(payload)} "
+        "Earlier result: NO under the same strict gate at 8 paired ELM frames."
+    )
+
+
 def run(
     *,
     checkpoint_root: Path = CHECKPOINT_ROOT,
@@ -535,30 +677,48 @@ def run(
     artifact_path: Path = DEFAULT_ARTIFACT,
     figure_path: Path = DEFAULT_FIGURE,
     report_path: Path = DEFAULT_REPORT,
-    max_candidates: int = morphology.DEFAULT_MAX_CANDIDATES,
-    max_windows: int = morphology.DEFAULT_MAX_WINDOWS,
+    max_candidates: int = REGISTERED_MAX_CANDIDATES,
+    max_windows: int = REGISTERED_FRAME_COUNT,
     seed: int = 0,
 ) -> dict[str, Any]:
     """Load frame evidence or rescore the six checkpoints and write the verdict."""
     checkpoint_root = Path(checkpoint_root)
+    windows = morphology.select_dalpha_windows(
+        split_path=Path(split_path),
+        max_candidates=max_candidates,
+        max_windows=max_windows,
+    )
+    if len(windows) != max_windows:
+        raise RuntimeError(
+            f"registered census requires {max_windows} frames; found {len(windows)}"
+        )
+    registered_frames = registered_frame_rows(windows)
+    registered_keys = {str(frame["frame_key"]) for frame in registered_frames}
     records, sources = _load_all_evaluation_records(checkpoint_root)
-    if records is None:
+    evaluation_is_complete = records is not None and all(
+        registered_keys.issubset(_frame_index(run_records))
+        for run_records in records.values()
+    )
+    if not evaluation_is_complete:
         evidence_mode = "checkpoint_cpu_rescore"
         records, sources = _rescore_all_checkpoints(
             checkpoint_root,
-            split_path=Path(split_path),
-            max_candidates=max_candidates,
-            max_windows=max_windows,
+            windows=windows,
         )
     else:
         evidence_mode = "evaluation_frame_records"
 
-    verdict = build_verdict(records, seed=seed)
-    first_records = next(iter(records.values()))
+    census = build_census(registered_frames, records)
+    paired_records = paired_census_records(records, census)
+    if census["scored_frame_count"] < 2:
+        raise RuntimeError("fewer than two six-way paired ELM frames in the census")
+    verdict = build_verdict(paired_records, seed=seed)
+    first_records = next(iter(paired_records.values()))
     indexed_records = {
-        run_key: _frame_index(run_records) for run_key, run_records in records.items()
+        run_key: _frame_index(run_records)
+        for run_key, run_records in paired_records.items()
     }
-    reference_run = next(iter(records))
+    reference_run = next(iter(paired_records))
     frame_keys = sorted(indexed_records[reference_run])
     payload: dict[str, Any] = {
         "task": "fast-Dalpha conditioning verdict on held-out ELM frames",
@@ -575,6 +735,7 @@ def run(
                 "token_nll": "negative",
             },
         },
+        "census": census,
         "sources": sources,
         "elm_frame_count": len(first_records),
         "shot_count": len({int(row["shot_id"]) for row in first_records}),
@@ -594,7 +755,7 @@ def run(
                             indexed_records[run_key][frame_key]["token_nll"]
                         ),
                     }
-                    for run_key in records
+                    for run_key in paired_records
                 },
             }
             for frame_key in frame_keys
@@ -608,7 +769,7 @@ def run(
     write_figure(payload, Path(figure_path))
     report_path = Path(report_path)
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(verdict_line(payload) + "\n", encoding="utf-8")
+    report_path.write_text(census_report_line(payload) + "\n", encoding="utf-8")
     return payload
 
 
@@ -619,12 +780,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--artifact", type=Path, default=DEFAULT_ARTIFACT)
     parser.add_argument("--figure", type=Path, default=DEFAULT_FIGURE)
     parser.add_argument("--report", type=Path, default=DEFAULT_REPORT)
-    parser.add_argument(
-        "--max-candidates", type=int, default=morphology.DEFAULT_MAX_CANDIDATES
-    )
-    parser.add_argument(
-        "--max-windows", type=int, default=morphology.DEFAULT_MAX_WINDOWS
-    )
+    parser.add_argument("--max-candidates", type=int, default=REGISTERED_MAX_CANDIDATES)
+    parser.add_argument("--max-windows", type=int, default=REGISTERED_FRAME_COUNT)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--log-level", default="INFO")
     args = parser.parse_args(argv)
