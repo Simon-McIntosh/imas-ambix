@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-06T23:02:13",
+  "updated": "2026-09-06T23:10:27",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -967,6 +967,15 @@
       },
       {
         "id": "pcp-gate-test",
+        "harness": "codex",
+        "role": "test",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-06"
+      },
+      {
+        "id": "pcp-gate-test-2",
         "harness": "codex",
         "role": "test",
         "session_id": null,
@@ -24829,6 +24838,274 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260906T205254885096-pcp-session-dataset-repair",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74d",
+        "node": "pcp-session-dataset-repair",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1414,
+                "cached_input_tokens": 481564,
+                "input_tokens": 483010,
+                "output_tokens": 720,
+                "reasoning_output_tokens": 256,
+                "total_tokens": 483730,
+                "uncached_input_tokens": 32
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "pytest tests/worldmodel/test_flux_label_dataset.py passes with a synthetic complete manifest lacking its session file counted as missing_session_file and not raising, with a synthetic token store whose history frames are asserted to sit at t minus 0.005 s times k within one native frame, with the real shot 21858 pair count still reported, and whole-tree ruff check imas_ambix tests exits 0",
+          "estimated_hours": null,
+          "goal": "Repair of imas_ambix/worldmodel/flux_label_dataset.py so that a complete manifest whose .nc or .npz session file is missing (shot 17192 in the live batch) is dropped and counted under a new dropped key missing_session_file instead of raising, and so that the K history token frames are the frames nearest t minus k times history_spacing_s for k = 1..K with history_spacing_s a constructor argument defaulting to 0.005 s (one labeller slice) rather than the K immediately preceding native frames, recorded in the receipt, with tests extended for both behaviours",
+          "id": "pcp-session-dataset-repair",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T205254885096-pcp-session-dataset-repair/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74d",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/worldmodel/flux_label_dataset.py",
+            "tests/worldmodel/test_flux_label_dataset.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "pcp-session-dataset",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-06T20:53:29Z",
+        "completed_at": "2026-09-06T21:01:38Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 489,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 489,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "34059eb2c26337b4f970cc14b2f924651c5b80fb",
+        "commits": [
+          "2c39870029540458ac7f962ed438af17969d6d6a"
+        ],
+        "changed_lines": {
+          "added": 112,
+          "removed": 30,
+          "files": 2
+        },
+        "tests_added": 1,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug --time=00:59:00 --cpus-per-task=4 --mem=32G bash -lc 'export TMPDIR=/tmp; UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD uv run --no-sync pytest tests/worldmodel/test_flux_label_dataset.py tests/worldmodel/test_flux_conditioning.py' (SLURM job 1263739, node 98dci4-clu-3141, run by test node pcp-dataset-gate-slurm)",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/dataset-gate-all-debug.log",
+          "log_digest": "sha256:748e0a9ff58086b1c8dae504bdbdeda6f4a22da677d2a1cbf95373ff2424df71"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T205254885096-pcp-session-dataset-repair/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 3085568,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 3211898,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 13711,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 3548
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 17259,
+          "peak_input_tokens": 6297466
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-session-dataset-repair",
+          "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+          "session_source": "pointer",
+          "retained_at": "2026-09-06T21:01:38Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_flux_label_dataset.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260906T210214381808-pcp-dataset-gate-slurm",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74d",
+        "node": "pcp-dataset-gate-slurm",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1945,
+                "cached_input_tokens": 515848,
+                "input_tokens": 517825,
+                "output_tokens": 2961,
+                "reasoning_output_tokens": 1128,
+                "total_tokens": 520786,
+                "uncached_input_tokens": 32
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "/home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/dataset-gate-all-debug.log ends with EXIT=0 and a pytest summary line reporting 8 passed (4 dataset, 4 renderer), and the manifest names the SLURM job id, the node and the partition that ran it",
+          "estimated_hours": null,
+          "goal": "Gate re-run on SLURM for the landed flux label dataset and renderer: pytest tests/worldmodel/test_flux_label_dataset.py tests/worldmodel/test_flux_conditioning.py executed once on the all_debug partition via srun --partition=all_debug --time=00:59:00 --cpus-per-task=4 --mem=32G with export TMPDIR=/tmp, UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv, PYTHONPATH set to the worktree and uv run --no-sync, the whole run captured to /home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/dataset-gate-all-debug.log followed by an EXIT line, never executed on the login node",
+          "id": "pcp-dataset-gate-slurm",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T210214381808-pcp-dataset-gate-slurm/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "test",
+          "section": "\u00a74d",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/dataset-gate-all-debug.log"
+          ]
+        },
+        "role": "test",
+        "spec_level": "exact",
+        "member": "pcp-gate-test",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-06T21:02:28Z",
+        "completed_at": "2026-09-06T21:08:04Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 336,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 336,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "a712a12f1a3494adb0851b1fee7cfe80c230b612",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug --time=00:59:00 --cpus-per-task=4 --mem=32G pytest tests/worldmodel/test_flux_label_dataset.py tests/worldmodel/test_flux_conditioning.py (job 1263739)",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/dataset-gate-all-debug.log",
+          "log_digest": "sha256:748e0a9ff58086b1c8dae504bdbdeda6f4a22da677d2a1cbf95373ff2424df71"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T210214381808-pcp-dataset-gate-slurm/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07887-9d42-76e3-81db-38c98b0b552b",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2827520,
+            "cached_input_tokens_cumulative": 2827520,
+            "input_tokens": 2957516,
+            "input_tokens_cumulative": 2957516,
+            "output_tokens": 12850,
+            "output_tokens_cumulative": 12850,
+            "reasoning_output_tokens": 4311,
+            "reasoning_output_tokens_cumulative": 4311
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 17161,
+          "peak_input_tokens": 5785036
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "no_commit": "test-role node: the SLURM log is the delivery",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-dataset-gate-slurm",
+          "session_id": "01a07887-9d42-76e3-81db-38c98b0b552b",
+          "session_source": "stream",
+          "retained_at": "2026-09-06T21:08:04Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest summary",
+          "override": false,
+          "role": "test",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -24875,6 +25152,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 530
+    "_version": 533
   }
 }

@@ -25,8 +25,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-06">
-<meta name="plan-version" content="33">
-<meta name="plan-impl" content="0.66">
+<meta name="plan-version" content="36">
+<meta name="plan-impl" content="0.72">
 </head>
 <body>
   <main class="plan-doc">
@@ -714,6 +714,12 @@
 <div class="r-comment" data-section="§4d" data-id="c-run-r-20260906T201504947489-pcp-session-dataset" data-who="pcp-session-dataset" data-when="2026-09-06T20:49:38Z">
     <div class="r-comment-body"><p>Flux label session dataset landed: pinned discovery, converged-slice admission with the conditioned flag, 2.5 ms nearest-frame join, whole-shot cohort subtraction (718 excluded), rank-based validation split; real shot 21858 pairs 85, dropped 38 (16 outside camera coverage), max abs delta t 1e-5 s, cohort overlap 0; pytest 3 passed, ruff 0. Two defects found at review and sent back as a corrective node: a complete manifest without its session file raises instead of dropping, and history frames are native-cadence neighbours 20 us apart</p></div>
 </div>
+<div class="r-comment" data-section="§4d" data-id="c-run-r-20260906T205254885096-pcp-session-dataset-repair" data-who="pcp-session-dataset" data-when="2026-09-06T21:01:38Z">
+    <div class="r-comment-body"><p>Dataset repair landed: a complete manifest without its session payload is dropped and counted as missing_session_file, and history frames are sampled at history_spacing_s (default 0.005 s) instead of native-cadence neighbours; gate re-run on all_debug (job 1263739): 8 passed in 6.48 s; real shot 21858 still pairs 85</p></div>
+</div>
+<div class="r-comment" data-section="§4d" data-id="c-run-r-20260906T210214381808-pcp-dataset-gate-slurm" data-who="pcp-gate-test" data-when="2026-09-06T21:08:04Z">
+    <div class="r-comment-body"><p>SLURM gate re-run for the dataset and renderer: job 1263739 on all_debug node 98dci4-clu-3141, 8 passed in 6.48 s, EXIT=0; note for other workers: the compute-shell uv wrapper function injects a second --no-sync and must be unset before the explicit flag</p></div>
+</div>
 <div class="r-comment" data-section="§3c" data-id="c-run-r-20260906T200033443313-pcp-seam-recheck" data-who="pcp-seam-recheck" data-when="2026-09-06T20:20:55.245Z">
     <div class="r-comment-body"><p>Nova session recheck: all seven items fit the plan at measured values (5 ms base, empty LCFS polyline, eleven 64-point surfaces, pins hold; npz row-aligned to manifest written rows; three ranked cards 2660/2660/2659 = 7979 shots; rbb tokens (30150,16,16) at 20 us cadence; frozen imagenet_256_L VQ ckpt sha256 a0e27c4a decoded under the open-magvit2 venv via bench/stream_worker; spacetime blocks and 2^18 LFQ head located); follow-up: shot 17192 manifest complete without .nc, reader must tolerate</p></div>
 </div>
@@ -722,6 +728,9 @@
 </div>
 <div class="r-comment" data-section="s4d" data-id="c-20260906T2055-s4d-dataset-landed" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-06T20:55:00Z">
     <div class="r-comment-body">pcp-session-dataset landed — commit 6327862 (merged cbe7709); gate passed: pytest tests/worldmodel/test_flux_label_dataset.py 3 passed in 73 s, whole-tree ruff 0. Measure on real shot 21858: 123 manifest rows, 118 written, 101 converged, 85 paired (16 conditioned), 38 dropped (5 unwritten, 17 unconverged, 16 outside the camera's 0.5 s coverage), max abs delta t 1e-5 s, cohort overlap 0 over 718 excluded shots; validation = every twentieth rank of the original 8,012-shot inventory. Artifacts: imas_ambix/worldmodel/flux_label_dataset.py, tests/worldmodel/test_flux_label_dataset.py; evidence anchor s4d-dataset. Two defects found at the coordinator's read, sent back as corrective node pcp-session-dataset-repair on the same worker session: a complete manifest without its .nc/.npz raises instead of dropping (shot 17192 is live), and history frames are the K immediately preceding native frames 20 us apart, which would let the decoder ignore the flux condition; the repair spaces history at history_spacing_s defaulting to one 5 ms slice. Section 4d prose amended accordingly: history is at the slice cadence, not native cadence. impl 0.62 to 0.66 (9 of 15 nodes landed; monotonic floor).</div>
+</div>
+<div class="r-comment" data-section="s4e" data-id="c-20260906T2110-s4d-repair-s4e-decoder" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-06T21:10:00Z">
+    <div class="r-comment-body">pcp-session-dataset-repair landed — commit 2c39870 (merged); both review findings fixed: a complete manifest without its session payload is dropped and counted as missing_session_file, and history frames are sampled at history_spacing_s (default 0.005 s) instead of native-cadence neighbours (synthetic check: history at t minus 20, 15, 10, 5 ms within one native frame). Gate re-run on SLURM by test node pcp-dataset-gate-slurm: job 1263739 on all_debug node 98dci4-clu-3141, pytest tests/worldmodel/test_flux_label_dataset.py plus test_flux_conditioning.py 8 passed in 6.48 s, EXIT=0, log dataset-gate-all-debug.log sha256 748e0a9f; the earlier login-node runs are not the evidence of record. Worker note for every later node: the compute-shell uv wrapper function injects a second --no-sync and must be unset before the explicit flag. pcp-flux-decoder landed — commit 6e3de31 (merged 7a0c01d): SpatialConditioningAdapter, FluxConditionedTokenModel (K=4 history through the reused _SpaceTimeBlock stack and the tied 2^18 LFQ head, condition dropout 0.1, sampled classifier-free guidance), FluxConditionedDecoder with exact DecodedFrame fields, reset(seed_frames), IMAS_AMBIX_FLUX_DECODER runtime JSON and a VQ stage that is either the frozen imagenet_256_L checkpoint through bench/stream_worker.load_model or an explicit stub; worker gate 4 passed on the login node is NOT accepted; promotion waits on pcp-decoder-gate-slurm (all_debug), which also answers whether the frozen VQ imports in the ambix interpreter or section 5b must take the magvit2 subprocess route. Dispatched: pcp-decoder-train (section 4f, smoke on all_debug, sbatch to betelgeuse) and pcp-decoder-video (section 5b). impl 0.66 to 0.72 (11 of 15 counted nodes landed).</div>
 </div>
 </section>
 </main>

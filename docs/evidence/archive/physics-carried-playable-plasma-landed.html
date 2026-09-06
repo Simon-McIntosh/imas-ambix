@@ -392,6 +392,20 @@
     on it could ignore the flux condition. The repair spaces history at <code>history_spacing_s</code> (default one labeller
     slice, 5 ms) and counts the missing-file case under <code>missing_session_file</code>.</p>
 
+    <h2 id="s4e-decoder">§4e — Flux-conditioned decoder behind nova's FrameDecoder protocol (landed 2026-09-06)</h2>
+    <p>Node <code>pcp-flux-decoder</code>, run <code>r-20260906T204231250040</code>, commit <code>6e3de31</code>, worker gate
+    pytest 4 passed in 26.6 s and whole-tree ruff 0 on the login node; <strong>promotion waits for the SLURM re-run</strong>
+    (node <code>pcp-decoder-gate-slurm</code> on <code>all_debug</code>) under the compute-placement rule.
+    <code>imas_ambix/worldmodel/flux_conditioned_decoder.py</code>: <code>SpatialConditioningAdapter</code> (64×64×6 to the
+    16×16 token positions), <code>FluxConditionedTokenModel</code> (one auxiliary geometry lane, K = 4 history frames through the
+    reused <code>_SpaceTimeBlock</code> stack and the weight-tied 2<sup>18</sup>-class LFQ head, condition dropout 0.1, decode-time
+    classifier-free guidance with sampling only), and <code>FluxConditionedDecoder</code> (exact <code>DecodedFrame</code> fields
+    <code>image</code>, <code>decode_wall</code>, <code>decoder_identity</code>; <code>reset(seed_frames=None)</code> seeding history
+    from real rbb tokens; runtime JSON from <code>IMAS_AMBIX_FLUX_DECODER</code>; VQ stage <code>open-magvit2</code> through
+    <code>bench/stream_worker.load_model</code> pinned to the frozen <code>imagenet_256_L</code> checkpoint, or <code>stub</code>).
+    The unit test used the stub stage because loading the 921 MB VQ checkpoint is compute-node work; whether the frozen VQ imports in
+    the ambix interpreter or needs the magvit2 subprocess route is the SLURM gate's question and §5b's dependency.</p>
+
     <h2 id="s4b-state">§4b — Where the section stands</h2>
     <p>Five nodes landed: the target derivation, the cohort and confounder census, the divertor-bright
     screen expansion, the labeller model with its smoke receipt, and the scaled training submission. All
