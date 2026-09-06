@@ -422,6 +422,25 @@
     environment. The dataset SLURM gate (job 1263739) and this one both hit the same compute-shell gotcha: a <code>uv</code>
     shell function on the nodes injects a second <code>--no-sync</code>; bypass it with <code>command uv</code>.</p>
 
+    <h2 id="s4f-training">§4f — Overnight training launcher and receipt (landed 2026-09-06)</h2>
+    <p>Node <code>pcp-decoder-train</code>, commit <code>a51b9ba</code> (merged <code>e37eaf6</code>).
+    <code>imas_ambix/worldmodel/flux_decoder_train.py</code> trains <code>FluxConditionedTokenModel</code> (d<sub>model</sub> 512, 8
+    factorised blocks, tied 2<sup>18</sup> LFQ head) on <code>FluxLabelDataset</code>, rescanning the session root every epoch so shots
+    landing overnight join, checkpointing every 30 minutes with a <code>receipt.json</code> that carries the policy digest, carrier
+    identity, the corpus digest (sorted admitted shot list with slice counts), the git revision, the decoder identity in nova's
+    three-part form, validation token NLL against the persistence baseline (repeat the last history frame) and, in production, decoded
+    pixel error through the magvit2 subprocess route (so the ambix-environment <code>einops</code> gap does not touch it).
+    <code>scripts/slurm/flux_decoder_train.sbatch</code>: betelgeuse, reservation <code>gpu_0003_grpA</code>, account grpa, one GPU,
+    4 CPUs, 160 GB, 10 h, no QOS, runs from the main checkout.</p>
+    <table>
+      <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Smoke, <code>all_debug</code> job 1263768 (CPU, tiny config)</td><td>274 shots and 16,385 slices admitted (5,078 conditioned) at 5 ms history spacing; 20 steps; checkpoint 13 MiB and receipt written; validation token NLL 12.476 over 256 tokens (uniform over 2<sup>18</sup> is 12.48, as expected untrained); persistence token error rate 1.0</td></tr>
+        <tr><td>Unit gate</td><td>pytest 4 passed in 7.29 s; <code>bash -n</code> launcher 0; whole-tree ruff 0</td></tr>
+        <tr><td>Production job</td><td>1263771 submitted once, PENDING (Priority) behind the allocated cards; log <code>/work/projects/imas_gpu/logs/flux-decoder-1263771.out</code>; run directory <code>/work/projects/imas_gpu/ambix/flux_decoder/overnight-20260906/</code></td></tr>
+      </tbody>
+    </table>
+
     <h2 id="s4b-state">§4b — Where the section stands</h2>
     <p>Five nodes landed: the target derivation, the cohort and confounder census, the divertor-bright
     screen expansion, the labeller model with its smoke receipt, and the scaled training submission. All

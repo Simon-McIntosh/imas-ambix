@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-06T23:18:40",
+  "updated": "2026-09-06T23:25:39",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -25558,6 +25558,225 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260906T210728206347-pcp-decoder-train",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74f",
+        "node": "pcp-decoder-train",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 2967,
+                "cached_input_tokens": 543850,
+                "input_tokens": 546849,
+                "output_tokens": 147,
+                "reasoning_output_tokens": 112,
+                "total_tokens": 546996,
+                "uncached_input_tokens": 32
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "pytest tests/worldmodel/test_flux_decoder_train.py passes on a synthetic dataset in seconds on the login node, a twenty-step smoke run on the landed sessions executed on the all_debug partition via srun (never the login node) writes a checkpoint and receipt.json under /work/projects/imas_gpu/ambix/flux_decoder/smoke-20260906/ with its log and SLURM job id recorded in the manifest, bash -n on the launcher exits 0, the sbatch is submitted to betelgeuse and its job id recorded (PENDING is a success and nothing is cancelled or displaced), and whole-tree ruff check imas_ambix tests exits 0",
+          "estimated_hours": null,
+          "goal": "Overnight training entry imas_ambix/worldmodel/flux_decoder_train.py with tests/worldmodel/test_flux_decoder_train.py and launcher scripts/slurm/flux_decoder_train.sbatch that trains FluxConditionedTokenModel from imas_ambix/worldmodel/flux_conditioned_decoder.py on FluxLabelDataset from imas_ambix/worldmodel/flux_label_dataset.py (converged slices, conditioned carried as a flag, history spacing 0.005 s), rescanning the session root every epoch so shots landing overnight join, saving a checkpoint every 30 minutes under a run directory named by the launcher as /work/projects/imas_gpu/ambix/flux_decoder/overnight-20260906/ beside receipt.json (policy digest, carrier identity, sorted admitted shot list with slice counts as corpus digest, git revision, decoder identity, validation token NLL against the persistence baseline of repeating the last history frame), with the sbatch header partition betelgeuse, reservation gpu_0003_grpA, account grpa, gres gpu:1, 4 CPUs, 160G, 10 hours, no QOS, never --mem=0, logs under /work/projects/imas_gpu/logs/",
+          "id": "pcp-decoder-train",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T210728206347-pcp-decoder-train/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74f",
+          "spec_level": "guided",
+          "time_budget": "45m",
+          "write_paths": [
+            "imas_ambix/worldmodel/flux_decoder_train.py",
+            "tests/worldmodel/test_flux_decoder_train.py",
+            "scripts/slurm/flux_decoder_train.sbatch"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pcp-decoder-train",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-06T21:07:46Z",
+        "completed_at": "2026-09-06T21:24:49Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1023,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1023,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "7a0c01d3d1692ac4e28f1de56f9829bcc8c67eac",
+        "commits": [
+          "a51b9ba42d8b6addaedda7fe9577b6ade7b2ce36"
+        ],
+        "changed_lines": {
+          "added": 991,
+          "removed": 0,
+          "files": 3
+        },
+        "tests_added": 4,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug twenty-step smoke of imas_ambix.worldmodel.flux_decoder_train over the landed sessions (SLURM job 1263768) plus pytest tests/worldmodel/test_flux_decoder_train.py (4 passed) and bash -n scripts/slurm/flux_decoder_train.sbatch",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T210728206347-pcp-decoder-train/smoke-all-debug.log",
+          "log_digest": "sha256:45c92e5488fad2588657c0b3347ef2bbee94b937f6b5d39084dcfe49605de1b8"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T210728206347-pcp-decoder-train/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0788c-7836-7cf0-8efe-261b753ac421",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 9039104,
+            "cached_input_tokens_cumulative": 9039104,
+            "input_tokens": 9214275,
+            "input_tokens_cumulative": 9214275,
+            "output_tokens": 36928,
+            "output_tokens_cumulative": 36928,
+            "reasoning_output_tokens": 10318,
+            "reasoning_output_tokens_cumulative": 10318
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 2700,
+              "classification": "completed_unpromoted",
+              "detail": "the worker manifest reports completion and the run is still a pointer; promoting it moves the delivered record into the repository ledger",
+              "elapsed_seconds": 1017,
+              "external_wait": null,
+              "log_age_seconds": 276,
+              "log_fresh": true,
+              "manifest_commits": [
+                "6e3de3178a03da239267e920d33ea37f1d0ece25\"]; changed_paths: [\"imas_ambix/worldmodel/flux_conditioned_decoder.py",
+                "tests/worldmodel/test_flux_conditioned_decoder.py"
+              ],
+              "manifest_derived": false,
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T204231250040-pcp-flux-decoder/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260906T204231250040-pcp-flux-decoder --gate <verdict> --commit 6e3de3178a03da239267e920d33ea37f1d0ece25\"]; changed_paths: [\"imas_ambix/worldmodel/flux_conditioned_decoder.py --commit tests/worldmodel/test_flux_conditioned_decoder.py",
+              "node": "pcp-flux-decoder",
+              "phase": "starting",
+              "plan": "physics-carried-playable-plasma",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260906T204231250040-pcp-flux-decoder",
+              "session": "ambix-s19-01",
+              "terminal_age_seconds": 316,
+              "terminal_at": "2026-09-06T21:02:24Z",
+              "wait_age_seconds": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-flux-decoder"
+            },
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 1500,
+              "classification": "completed_unpromoted",
+              "detail": "the worker manifest reports completion and the run is still a pointer; promoting it moves the delivered record into the repository ledger",
+              "elapsed_seconds": 489,
+              "external_wait": null,
+              "log_age_seconds": 362,
+              "log_fresh": true,
+              "manifest_commits": [
+                "2c39870029540458ac7f962ed438af17969d6d6a\"]; changed_paths: [\"imas_ambix/worldmodel/flux_label_dataset.py",
+                "tests/worldmodel/test_flux_label_dataset.py"
+              ],
+              "manifest_derived": false,
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T205254885096-pcp-session-dataset-repair/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260906T205254885096-pcp-session-dataset-repair --gate <verdict> --commit 2c39870029540458ac7f962ed438af17969d6d6a\"]; changed_paths: [\"imas_ambix/worldmodel/flux_label_dataset.py --commit tests/worldmodel/test_flux_label_dataset.py",
+              "node": "pcp-session-dataset-repair",
+              "phase": "starting",
+              "plan": "physics-carried-playable-plasma",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260906T205254885096-pcp-session-dataset-repair",
+              "session": "ambix-s19-01",
+              "terminal_age_seconds": 378,
+              "terminal_at": "2026-09-06T21:01:21Z",
+              "wait_age_seconds": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-session-dataset-repair"
+            }
+          ]
+        },
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 47246,
+          "peak_input_tokens": 18253379
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-decoder-train",
+          "session_id": "01a0788c-7836-7cf0-8efe-261b753ac421",
+          "session_source": "stream",
+          "retained_at": "2026-09-06T21:24:49Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_flux_decoder_train.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -25604,6 +25823,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 536
+    "_version": 537
   }
 }
