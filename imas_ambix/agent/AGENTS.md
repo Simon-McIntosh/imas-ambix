@@ -351,10 +351,18 @@ dispatched it. Three consequences that cost a night to learn:
 - **Sessions are not requests.** One turn issuing several parallel tool calls
   bursts a limit of two on its own, so refusals were observed with as few as two
   sessions live.
-- **A reckon-side concurrency ceiling and this one bound the same pool from
-  opposite ends.** If both are set, the tighter wins invisibly. Reckon's stays
-  unset by default; use it only to bound your own fleet *below* the deployment,
-  never as a second guess at the hardware.
+- **A reckon-side concurrency ceiling and this one bound the same resource in
+  DIFFERENT UNITS, so setting both to the same number does not align them.**
+  Reckon's per-backend ceiling counts **live runs**; this one counts
+  **simultaneous requests**, and the ratio is variable — four agentic sessions
+  were measured producing two concurrent requests, because a worker spends most
+  of its wall clock between turns. A reckon ceiling of sixteen *runs* might
+  therefore produce only eight simultaneous requests and silently throttle the
+  lane to half its allowance while appearing to match. If both are set, the
+  tighter wins invisibly and nobody can tell which. **Reckon's stays unset by
+  default** — a number an operator cannot convert is a number they should not be
+  invited to set — and where it is set it is a coarse bound on how much work one
+  fleet may hold *open* against the lane, not a model of this queue.
 
 **Sixteen is a working ceiling on a shared best-effort endpoint, not a target.**
 The endpoint runs on spare cards with no reserved floor and competes with any
