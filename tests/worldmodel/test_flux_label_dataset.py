@@ -83,7 +83,7 @@ def _write_synthetic_session(tmp_path: Path) -> tuple[Path, Path, Path]:
             "".join(f"{shot}\n" for shot in card_shots), encoding="utf-8"
         )
 
-    slice_times = np.asarray([0.0412, 0.060, 0.105], dtype=np.float64)
+    slice_times = np.asarray([0.0412, 0.060, 0.0502], dtype=np.float64)
     _surface_geometry(slice_times).to_netcdf(
         session_root / f"{SHOT}.nc", group="steering", engine="h5netcdf"
     )
@@ -91,7 +91,8 @@ def _write_synthetic_session(tmp_path: Path) -> tuple[Path, Path, Path]:
         session_root / f"{SHOT}.npz",
         row=np.arange(3, dtype=np.int32),
         time=slice_times,
-        conditioned=np.asarray([True, False, False]),
+        conditioned=np.asarray([True, False, True]),
+        conditioned_branch_guard_ok=np.asarray([True, True, False]),
     )
     manifest = {
         "schema": "nova-forward-labeller-shot",
@@ -174,6 +175,7 @@ def test_complete_session_pairs_geometry_and_slice_spaced_token_history(
     assert item["rank"] == 20
     assert item["split"] == "validation"
     assert item["conditioned"] is True
+    assert item["conditioned_branch_guard_ok"] is True
     assert item["frame_delta_s"] == pytest.approx(-0.0002)
     assert item["conditioning"].shape == (6, 64, 64)
     assert np.isfinite(item["conditioning"]).all()
@@ -196,9 +198,14 @@ def test_complete_session_pairs_geometry_and_slice_spaced_token_history(
     assert receipt["counts"]["complete_sessions"] == 1
     assert receipt["counts"]["paired_slices"] == 1
     assert receipt["counts"]["conditioned_slices"] == 1
+    assert receipt["counts"]["conditioned_branch_guard_ok_slices"] == 1
     assert receipt["counts"]["cohort_overlap"] == 0
     assert receipt["dropped_slices"]["unconverged"] == 1
-    assert receipt["dropped_slices"]["outside_time_tolerance"] == 1
+    assert receipt["dropped_slices"]["conditioned_guard_failed"] == 1
+    assert receipt["companion_flags"] == (
+        "conditioned",
+        "conditioned_branch_guard_ok",
+    )
     assert receipt["history_spacing_s"] == pytest.approx(0.005)
     assert receipt["max_abs_delta_t_s"] == pytest.approx(0.0002)
     assert receipt["pins"] == {
@@ -291,12 +298,15 @@ def test_real_shot_pairing_receipt_and_item_contract() -> None:
         "real shot 21858: "
         f"pairs={receipt['counts']['paired_slices']} "
         f"dropped={sum(dropped.values())} "
+        f"conditioned_guard_failed={dropped['conditioned_guard_failed']} "
         f"max_abs_delta_t_s={receipt['max_abs_delta_t_s']:.9g}"
     )
 
     assert len(dataset) == 85
     assert receipt["counts"]["cohort_overlap"] == 0
     assert receipt["counts"]["conditioned_slices"] == 16
+    assert receipt["counts"]["conditioned_branch_guard_ok_slices"] == 16
+    assert dropped["conditioned_guard_failed"] == 0
     assert dropped["outside_time_tolerance"] == 16
     assert receipt["max_abs_delta_t_s"] <= 0.0025
 
@@ -307,4 +317,6 @@ def test_real_shot_pairing_receipt_and_item_contract() -> None:
     assert item["target_tokens"].shape == (16, 16)
     assert np.issubdtype(item["target_tokens"].dtype, np.integer)
     assert item["history_tokens"].shape == (4, 16, 16)
+    assert "conditioned" in item
+    assert "conditioned_branch_guard_ok" in item
     assert not any("current" in key for key in item)

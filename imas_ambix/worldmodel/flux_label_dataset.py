@@ -92,6 +92,7 @@ class FluxLabelReference:
     frame_time: float
     frame_delta_s: float
     conditioned: bool
+    conditioned_branch_guard_ok: bool
     session_path: Path
     token_path: Path
 
@@ -198,26 +199,44 @@ def _nearest_frame_indices(
 
 def _load_companion(
     path: Path, slices: Sequence[Mapping[str, Any]]
-) -> tuple[NDArray[np.int32], NDArray[np.float64], NDArray[np.bool_]]:
+) -> tuple[
+    NDArray[np.int32],
+    NDArray[np.float64],
+    NDArray[np.bool_],
+    NDArray[np.bool_],
+]:
     written = [row for row in slices if bool(row.get("written", False))]
     expected_rows = np.asarray([int(row["row"]) for row in written], dtype=np.int32)
     expected_times = np.asarray(
         [float(row["time"]) for row in written], dtype=np.float64
     )
     with np.load(path, allow_pickle=False) as companion:
-        missing = {"row", "time", "conditioned"}.difference(companion.files)
+        missing = {
+            "row",
+            "time",
+            "conditioned",
+            "conditioned_branch_guard_ok",
+        }.difference(companion.files)
         if missing:
             raise ValueError(f"{path} is missing companion fields {sorted(missing)}")
         rows = np.asarray(companion["row"], dtype=np.int32).reshape(-1)
         times = np.asarray(companion["time"], dtype=np.float64).reshape(-1)
         conditioned = np.asarray(companion["conditioned"], dtype=bool).reshape(-1)
-    if not (rows.shape == times.shape == conditioned.shape):
+        conditioned_branch_guard_ok = np.asarray(
+            companion["conditioned_branch_guard_ok"], dtype=bool
+        ).reshape(-1)
+    if not (
+        rows.shape
+        == times.shape
+        == conditioned.shape
+        == conditioned_branch_guard_ok.shape
+    ):
         raise ValueError(f"{path} companion arrays do not have identical lengths")
     if not np.array_equal(rows, expected_rows):
         raise ValueError(f"{path} rows are not aligned to the manifest's written rows")
     if not np.allclose(times, expected_times, rtol=0.0, atol=1.0e-9):
         raise ValueError(f"{path} times are not aligned to the manifest's written rows")
-    return rows, times, conditioned
+    return rows, times, conditioned, conditioned_branch_guard_ok
 
 
 def _session_times(path: Path) -> NDArray[np.float64]:
@@ -317,6 +336,7 @@ class FluxLabelDataset:
             "cohort_shot": 0,
             "other_split": 0,
             "missing_session_file": 0,
+            "conditioned_guard_failed": 0,
             "missing_token_store": 0,
             "missing_frame_times": 0,
             "outside_time_tolerance": 0,
@@ -337,6 +357,7 @@ class FluxLabelDataset:
             "converged_slices": 0,
             "paired_slices": 0,
             "conditioned_slices": 0,
+            "conditioned_branch_guard_ok_slices": 0,
             "cohort_overlap": 0,
         }
         selected_shots: set[int] = set()
@@ -405,7 +426,9 @@ class FluxLabelDataset:
             if not companion_path.is_file() or not session_path.is_file():
                 dropped["missing_session_file"] += len(converged_rows)
                 continue
-            rows, companion_times, conditioned = _load_companion(companion_path, slices)
+            rows, companion_times, conditioned, conditioned_branch_guard_ok = (
+                _load_companion(companion_path, slices)
+            )
             session_times = _session_times(session_path)
             if session_times.shape != companion_times.shape or not np.allclose(
                 session_times, companion_times, rtol=0.0, atol=1.0e-9
@@ -414,6 +437,16 @@ class FluxLabelDataset:
                     f"{session_path} times are not aligned to its companion"
                 )
             row_to_session = {int(row): index for index, row in enumerate(rows)}
+            admitted_rows: list[Mapping[str, Any]] = []
+            for row in converged_rows:
+                session_index = row_to_session[int(row["row"])]
+                if (
+                    bool(conditioned[session_index])
+                    and not bool(conditioned_branch_guard_ok[session_index])
+                ):
+                    dropped["conditioned_guard_failed"] += 1
+                    continue
+                admitted_rows.append(row)
 
             token_path = frames_token_path(
                 shot,
@@ -421,7 +454,7 @@ class FluxLabelDataset:
                 DEFAULT_VOCAB_VERSION,
                 token_root=self._token_root,
             )
-            eligible_count = len(converged_rows)
+            eligible_count = len(admitted_rows)
             if not token_path.exists():
                 dropped["missing_token_store"] += eligible_count
                 continue
@@ -436,7 +469,7 @@ class FluxLabelDataset:
                 continue
             token_count = _token_frame_count(token_path)
             query_times = np.asarray(
-                [float(row["time"]) for row in converged_rows], dtype=np.float64
+                [float(row["time"]) for row in admitted_rows], dtype=np.float64
             )
             frame_indices, deltas = _nearest_frame_indices(frame_times, query_times)
             history_query_times = query_times[:, None] - self._history_spacing_s * (
@@ -449,7 +482,7 @@ class FluxLabelDataset:
                 query_times.size, self._history_frames
             )
             for row, frame_index, history_frames, delta, history_times in zip(
-                converged_rows,
+                admitted_rows,
                 frame_indices,
                 history_indices,
                 deltas,
@@ -486,6 +519,9 @@ class FluxLabelDataset:
                         frame_time=float(frame_times[frame]),
                         frame_delta_s=float(delta),
                         conditioned=bool(conditioned[session_index]),
+                        conditioned_branch_guard_ok=bool(
+                            conditioned_branch_guard_ok[session_index]
+                        ),
                         session_path=session_path,
                         token_path=token_path,
                     )
@@ -505,6 +541,9 @@ class FluxLabelDataset:
         counts["validation_shots"] = len(validation_shots)
         counts["paired_slices"] = len(references)
         counts["conditioned_slices"] = sum(item.conditioned for item in references)
+        counts["conditioned_branch_guard_ok_slices"] = sum(
+            item.conditioned_branch_guard_ok for item in references
+        )
         counts["cohort_overlap"] = len(selected_shots.intersection(excluded))
         self._references = references
         self.receipt: dict[str, object] = {
@@ -516,6 +555,10 @@ class FluxLabelDataset:
             "split": split,
             "history_frames": self._history_frames,
             "history_spacing_s": self._history_spacing_s,
+            "companion_flags": (
+                "conditioned",
+                "conditioned_branch_guard_ok",
+            ),
             "maximum_frame_delta_s": float(max_frame_delta_s),
             "max_abs_delta_t_s": maximum_delta,
             "token_id_space": "local",
@@ -600,6 +643,7 @@ class FluxLabelDataset:
             "target_tokens": target,
             "history_tokens": history,
             "conditioned": reference.conditioned,
+            "conditioned_branch_guard_ok": reference.conditioned_branch_guard_ok,
             "shot_id": reference.shot_id,
             "rank": reference.rank,
             "slice_time": reference.slice_time,
