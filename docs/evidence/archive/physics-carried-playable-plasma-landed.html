@@ -391,6 +391,14 @@
     native frames, 20 &micro;s apart at this camera's cadence, so history[-1] is a near-copy of the target and a decoder trained
     on it could ignore the flux condition. The repair spaces history at <code>history_spacing_s</code> (default one labeller
     slice, 5 ms) and counts the missing-file case under <code>missing_session_file</code>.</p>
+    <p><strong>Repair and extension landed (2026-09-06).</strong> <code>pcp-session-dataset-repair</code>, commit <code>2c39870</code>:
+    both fixes in place; SLURM gate job 1263739 on <code>all_debug</code>, 8 passed in 6.48 s (with the renderer tests); synthetic
+    history frames sit at t &minus; 20, 15, 10, 5 ms within one native frame. <code>pcp-dataset-guard-flag</code>, commit
+    <code>7fcc0de</code>: following nova's receipt (pin displacement median &minus;11.4 mm but p90 +108 mm, a quarter of governed
+    slices more than 50 mm further from the EFIT centroid than the free solve), a conditioned slice is admitted only when
+    <code>conditioned_branch_guard_ok</code>; both flags ride on every item and in the receipt and failures are counted under
+    <code>conditioned_guard_failed</code>. Gate run by the worker on <code>all_debug</code>: 4 passed in 4.83 s. Real shot 21858:
+    85 pairs, 16 conditioned admitted, 0 guard failures.</p>
 
     <h2 id="s4e-decoder">§4e — Flux-conditioned decoder behind nova's FrameDecoder protocol (landed 2026-09-06)</h2>
     <p>Node <code>pcp-flux-decoder</code>, run <code>r-20260906T204231250040</code>, commit <code>6e3de31</code>, worker gate

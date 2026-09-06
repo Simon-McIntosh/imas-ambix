@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-06T23:15:22",
+  "updated": "2026-09-06T23:18:40",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -25378,6 +25378,186 @@
           "role": "test",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260906T211210497333-pcp-dataset-guard-flag",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74d",
+        "node": "pcp-dataset-guard-flag",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 3356,
+                "cached_input_tokens": 558199,
+                "input_tokens": 561587,
+                "output_tokens": 86,
+                "reasoning_output_tokens": 35,
+                "total_tokens": 561673,
+                "uncached_input_tokens": 32
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "pytest tests/worldmodel/test_flux_label_dataset.py passes with a synthetic session whose conditioned slice with a false guard is dropped and counted as conditioned_guard_failed while a conditioned slice with a true guard is admitted carrying both flags, executed on the all_debug partition via srun --partition=all_debug --time=00:59:00 --cpus-per-task=4 --mem=32G with export TMPDIR=/tmp and the main environment (unset the compute-shell uv wrapper function before passing --no-sync) with the whole run captured to a log in the run directory ending in EXIT=0, the real shot 21858 receipt reporting its conditioned_guard_failed count, and whole-tree ruff check imas_ambix tests exiting 0",
+          "estimated_hours": null,
+          "goal": "Extension of imas_ambix/worldmodel/flux_label_dataset.py so that conditioned_branch_guard_ok is read from the .npz companion beside conditioned, a conditioned slice is admitted only when conditioned_branch_guard_ok is true (nova's receipt of 2026-09-06 found a quarter of governed slices more than 50 mm further from the EFIT centroid than the free solve, p90 +108 mm) and otherwise counted under a new dropped key conditioned_guard_failed, with both flags carried on every item and in the receipt, and the test file extended for the new admission rule",
+          "id": "pcp-dataset-guard-flag",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T211210497333-pcp-dataset-guard-flag/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74d",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/worldmodel/flux_label_dataset.py",
+            "tests/worldmodel/test_flux_label_dataset.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "pcp-session-dataset",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-06T21:12:21Z",
+        "completed_at": "2026-09-06T21:17:54Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 333,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 333,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "9175ab5d05226997ca40cc865d7da7ffbdcb3470",
+        "commits": [
+          "7fcc0defad25e3f1173051bcd0b1c91984fe180e"
+        ],
+        "changed_lines": {
+          "added": 67,
+          "removed": 11,
+          "files": 2
+        },
+        "tests_added": 1,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug --time=00:59:00 --cpus-per-task=4 --mem=32G bash -lc 'export TMPDIR=/tmp; UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider -s tests/worldmodel/test_flux_label_dataset.py'",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T211210497333-pcp-dataset-guard-flag/pytest-all-debug.log",
+          "log_digest": "sha256:5ce2c6baf805a4af6bf89d89698cbf39fe9a01e8af0c17b07d982d0d59cf19b8"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T211210497333-pcp-dataset-guard-flag/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1017472,
+            "cached_input_tokens_cumulative": 4103040,
+            "input_tokens": 966666,
+            "input_tokens_cumulative": 4178564,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 12576,
+            "reasoning_output_tokens": 520,
+            "reasoning_output_tokens_cumulative": 4068
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 2700,
+              "classification": "completed_unpromoted",
+              "detail": "the worker manifest reports completion and the run is still a pointer; promoting it moves the delivered record into the repository ledger",
+              "elapsed_seconds": 1017,
+              "external_wait": null,
+              "log_age_seconds": 552,
+              "log_fresh": true,
+              "manifest_commits": [
+                "6e3de3178a03da239267e920d33ea37f1d0ece25\"]; changed_paths: [\"imas_ambix/worldmodel/flux_conditioned_decoder.py",
+                "tests/worldmodel/test_flux_conditioned_decoder.py"
+              ],
+              "manifest_derived": false,
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T204231250040-pcp-flux-decoder/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260906T204231250040-pcp-flux-decoder --gate <verdict> --commit 6e3de3178a03da239267e920d33ea37f1d0ece25\"]; changed_paths: [\"imas_ambix/worldmodel/flux_conditioned_decoder.py --commit tests/worldmodel/test_flux_conditioned_decoder.py",
+              "node": "pcp-flux-decoder",
+              "phase": "starting",
+              "plan": "physics-carried-playable-plasma",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260906T204231250040-pcp-flux-decoder",
+              "session": "ambix-s19-01",
+              "terminal_age_seconds": 592,
+              "terminal_at": "2026-09-06T21:02:24Z",
+              "wait_age_seconds": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-flux-decoder"
+            }
+          ]
+        },
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 16644,
+          "peak_input_tokens": 8281604
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-dataset-guard-flag",
+          "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+          "session_source": "pointer",
+          "retained_at": "2026-09-06T21:17:54Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_flux_label_dataset.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -25424,6 +25604,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 535
+    "_version": 536
   }
 }
