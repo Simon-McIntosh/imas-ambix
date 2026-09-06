@@ -321,6 +321,49 @@
     <code>/work/projects/imas_gpu/mast-checkpoints/camera-topology-labeller/1261548/training.json</code>
     and <code>training-epoch-*.pt</code>.</p>
 
+    <h2 id="s3c-currency">§3c — Currency against nova and the coordination record (2026-09-06)</h2>
+    <p>Nova's <code>playable-forward-solve</code> reached 0.85 between 2026-09-02 and 2026-09-06: constrained
+    reduced route (warm trip ~50 ms), the <code>SteeringFrame</code> record and netCDF session store, the H200
+    serving launcher, the two-panel page with the <code>FrameDecoder</code> protocol, the labeller throughput
+    study (12 to 14 labels a second per H200), and the label corpus batch <code>76906a29</code> running on
+    three cards at about 100 shots an hour. Consequence: ambix's §3 wrapper and §3b bulk solve are superseded;
+    ambix ships the decoder behind nova's protocol and nova's app carries the interaction loop and the shape
+    (inverse boundary) controls. Coordination with the four-card serve owner and the nova S19 coordinator is
+    recorded on the plan (comment <code>c-20260906T2000-currency-coordination</code>); five decisions locked
+    (<code>label-corpus-source</code>, <code>conditioning-input</code>, <code>frame-decoder-interface</code>,
+    <code>slice-inclusion</code>, <code>absent-wall-contract</code>).</p>
+    <table>
+      <thead><tr><th>Fact read from the landed sessions</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Corpus root</td><td><code>/work/projects/imas_gpu/sophelio/labeller_sessions/76906a29/</code>, ready when <code>status == complete</code></td></tr>
+        <tr><td>Pins</td><td><code>policy_digest b5f9ef45…</code>, <code>carrier_identity 1d2c4a2b…</code> (never <code>nova_revision</code>)</td></tr>
+        <tr><td>Raster</td><td>absent by nova decision; eleven nested surfaces at ψ<sub>N</sub> 0.0 to 1.0 by 64 angles, axis, two X-point slots, <code>diverted</code></td></tr>
+        <tr><td>Slice base</td><td>5 ms; 21858: 123 slices, 118 written, 101 converged, 17 unconverged, 5 excluded</td></tr>
+        <tr><td>Landing rate</td><td>134 shots and 11,346 written slices between 20:34 and 21:53 local</td></tr>
+        <tr><td>GPU pool</td><td>no GPU reservation; 8 of 8 H200 allocated; 26 of 30 cores held; DSv4 two-card fallback 23.1 vs 23.3 tok/s, not taken</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s4d-renderer">§4d — Shared flux-conditioning renderer (landed 2026-09-06)</h2>
+    <p>Node <code>pcp-flux-renderer</code>, run <code>r-20260906T195948545669</code>, commit <code>fa73c14</code>,
+    gate passed. <code>imas_ambix/worldmodel/flux_conditioning.py</code> exposes <code>FluxGrid</code> (64×64,
+    R 0.195 to 1.900 m, Z ±1.825 m from the MAST era wall bounding box, receipted),
+    <code>render_flux_conditioning</code> (channels: piecewise ψ<sub>N</sub> from the nested surface polygons with
+    1.0 at and outside the LCFS, inside-LCFS mask, Gaussian marks at the axis and two X-point slots gated by
+    <code>finite_mask</code> in nova's component order, <code>diverted</code> broadcast) and
+    <code>geometry_vector</code> (12 values: three point pairs, elongation, upper and lower triangularity,
+    R<sub>major</sub>, a<sub>minor</sub>, diverted).</p>
+    <table>
+      <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Synthetic concentric ellipses, inside-LCFS area</td><td>0.85599 m² rendered vs 0.85954 m² analytic (0.413% error; bound 5%)</td></tr>
+        <tr><td>ψ<sub>N</sub> radial profile</td><td>monotone from axis to LCFS, exactly 1.0 outside</td></tr>
+        <tr><td>Point marks</td><td>peak 1.0 at the axis and X-point cells; identically zero where <code>finite_mask</code> is false</td></tr>
+        <tr><td>Real session 21858, slice 50</td><td>(6, 64, 64) float32 finite, 633 inside-LCFS cells, geometry vector finite (12,)</td></tr>
+        <tr><td>Gate</td><td>pytest 4 passed (8.47 s); whole-tree ruff 0</td></tr>
+      </tbody>
+    </table>
+
     <h2 id="s4b-state">§4b — Where the section stands</h2>
     <p>Five nodes landed: the target derivation, the cohort and confounder census, the divertor-bright
     screen expansion, the labeller model with its smoke receipt, and the scaled training submission. All

@@ -25,8 +25,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-06">
-<meta name="plan-version" content="26">
-<meta name="plan-impl" content="0.6">
+<meta name="plan-version" content="29">
+<meta name="plan-impl" content="0.62">
 </head>
 <body>
   <main class="plan-doc">
@@ -698,6 +698,15 @@
 </div>
 <div class="r-comment" data-section="s3c" data-id="c-20260906T2000-currency-coordination" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-06T20:00:00Z">
     <div class="r-comment-body">Coordination record. Asked the four-card serve owner (session ambix-dspark) and the nova S19 coordinator (nova-c6) as the lead directed. Serve owner: no GPU reservation exists, all eight H200s allocated, group A at 26 of 30 cores, two-card fallback measured 23.1 vs 23.3 tok/s, the -2x profile port defect fixed at 18809 (no outage was possible; the CLI refuses a held port at submit). Nova: accepted the four decoder answers, adding reset() to the protocol tonight, corpus root and ranked card lists confirmed, schema frozen at launch base 76906a29 (pin on policy_digest and carrier_identity, not nova_revision), include_raster false by locked nova decision, inclusion rule converged-only with conditioned as a flag, app serves 22086/43 and can serve 21978/35, asked us not to resize the serve; within about two hours nova relaunches the labeller as one two-card job and leaves one card for ambix training. Decision taken here: submit one 1-GPU 4-core training job and let it pend; no serve change.</div>
+</div>
+<div class="r-comment" data-section="§4d" data-id="c-run-r-20260906T195948545669-pcp-flux-renderer" data-who="pcp-flux-renderer" data-when="2026-09-06T20:12:47Z">
+    <div class="r-comment-body"><p>Shared flux-conditioning renderer landed: (6,64,64) tensor and 12-value geometry vector from nova steering frames; synthetic ellipse area error 0.413 percent; real 21858 slice 50 finite with 633 inside-LCFS cells; pytest 4 passed, whole-tree ruff 0</p></div>
+</div>
+<div class="r-comment" data-section="§3c" data-id="c-run-r-20260906T200033443313-pcp-seam-recheck" data-who="pcp-seam-recheck" data-when="2026-09-06T20:20:55.245Z">
+    <div class="r-comment-body"><p>Nova session recheck: all seven items fit the plan at measured values (5 ms base, empty LCFS polyline, eleven 64-point surfaces, pins hold; npz row-aligned to manifest written rows; three ranked cards 2660/2660/2659 = 7979 shots; rbb tokens (30150,16,16) at 20 us cadence; frozen imagenet_256_L VQ ckpt sha256 a0e27c4a decoded under the open-magvit2 venv via bench/stream_worker; spacetime blocks and 2^18 LFQ head located); follow-up: shot 17192 manifest complete without .nc, reader must tolerate</p></div>
+</div>
+<div class="r-comment" data-section="s4d" data-id="c-20260906T2030-s4d-renderer-landed" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-06T20:30:00Z">
+    <div class="r-comment-body">pcp-flux-renderer landed — commit fa73c14 (fast-forwarded onto main); gate passed: pytest tests/worldmodel/test_flux_conditioning.py 4 passed in 8.47 s, whole-tree ruff 0. Measure: synthetic concentric-ellipse inside-LCFS area 0.85599 m2 rendered against 0.85954 m2 analytic (0.413 percent, bound 5 percent); psi_norm monotone axis to LCFS with exactly 1.0 outside; Gaussian marks peak 1.0 at axis and X-point cells and are identically zero where finite_mask is false; real 21858 slice 50 gives a finite (6, 64, 64) float32 tensor with 633 inside-LCFS cells and a finite 12-value geometry vector. Artifacts: imas_ambix/worldmodel/flux_conditioning.py (FluxGrid, render_flux_conditioning, geometry_vector), grid receipt R 0.195 to 1.900 m and Z plus or minus 1.825 m. pcp-seam-recheck landed (read-only, report nova-session-recheck.md, digest recorded in the ledger): all seven items fit at measured values; rbb tokens for 21858 are (30150, 16, 16) int32 at 20 us native cadence, so the 2.5 ms join window drops nothing; the frozen imagenet_256_L VQ checkpoint (sha256 a0e27c4a) is decoded under the open-magvit2 environment through bench/stream_worker.py; follow-up for the section 4d reader: shot 17192 has a complete manifest with no .nc or .npz, so discovery must tolerate a missing session file by reporting and dropping it. impl 0.60 to 0.62: the denominator is now the 15 executable nodes of sections 2, 4b, 4d, 4e, 4f and 5b (sections 3, 3b and the 5 wrapper closed by decision label-corpus-source), of which 8 have landed; the fraction is held monotonic at the prior floor.</div>
 </div>
 </section>
 </main>
