@@ -368,6 +368,34 @@
     specified.</li>
   </ul>
 
+  <h2 id="da-burst-verdict">Conditioning matrix — scored: no CI-clear fast-D&alpha; win at 8 paired ELM frames (2026-09-06)</h2>
+  <p>Node <code>cdw-da-burst-verdict</code>, commit <code>5efd228</code>, gate passed (pytest 8, ruff 0). The six
+    production <code>evaluation.json</code> artifacts carry aggregates only, so <code>imas_ambix/camdyn/da_burst_verdict.py</code>
+    re-scored all six <code>final.pt</code> checkpoints on CPU (SLURM job 1263728) over one deterministic shared ELM-frame
+    census at the pre-registered 10 ms horizon, reusing the registered morphology metric and edge/divertor mask verbatim and
+    the registered bootstrap over paired shot means. Deltas are native minus control; positive morphology and negative NLL
+    favour native.</p>
+  <table>
+    <thead><tr><th>Arm</th><th>Control</th><th>&Delta; morphology [95% CI]</th><th>&Delta; token NLL [95% CI]</th></tr></thead>
+    <tbody>
+      <tr><td>baseline</td><td>shuffled</td><td>+0.0135 [&minus;0.0047, +0.0451]</td><td>&minus;0.047 [&minus;0.210, +0.146]</td></tr>
+      <tr><td>baseline</td><td>slow-only</td><td>&minus;0.0005 [&minus;0.118, +0.168]</td><td>&minus;0.187 [&minus;0.784, +0.388]</td></tr>
+      <tr><td>dynamics</td><td>shuffled</td><td><strong>+0.0357 [+0.0049, +0.0768]</strong></td><td>&minus;0.078 [&minus;0.290, +0.104]</td></tr>
+      <tr><td>dynamics</td><td>slow-only</td><td><strong>+0.0345 [+0.0030, +0.0733]</strong></td><td>+0.144 [&minus;0.353, +0.606]</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Verdict: strict NO.</strong> The dynamics arm's ELM morphology beats both controls with intervals clear of zero,
+    but every token-NLL interval and both baseline morphology intervals cross zero, so the pre-registered "beats both controls
+    on both measures in both arms" gate fails and FiLM promotion and the fast-Mirnov arm stay closed.
+    <strong>Caveat that bounds the claim:</strong> the shared census paired only 8 ELM frames from 8 held-out shots (the
+    six-way pairing plus the 0.75 to 1.25 &times; 10 ms horizon tolerance), against the 59 frames the ELM-fidelity study
+    pre-registered as the powered population. At n = 8 this is "not shown", not a powered negative; the census gap is the
+    open item.</p>
+  <figure>
+    <img src="/imas-ambix/figures/camera-dynamics-wm-v0/da-burst/verdict.png" alt="Six-arm fast-Dalpha conditioning matrix at 10 ms: per-arm ELM morphology fidelity and edge/divertor token NLL, with paired native-minus-control deltas and 95 percent intervals">
+    <figcaption>Six arms and the four paired deltas; only the dynamics-arm morphology intervals clear zero.</figcaption>
+  </figure>
+
   <h2 id="sampling-ceiling">ELM fidelity — a target-sampling ceiling, with the tokenizer exonerated</h2>
   <p><strong>Poor ELM reconstruction is predominantly a sampling ceiling in the camera itself, not
   a modelling or tokenization failure.</strong></p>

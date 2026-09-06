@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-06T22:30:52",
+  "updated": "2026-09-06T22:41:50",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -24428,6 +24428,145 @@
           "role": "investigate",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260906T200502194992-cdw-da-burst-verdict",
+        "plan": "camera-dynamics-wm-v0",
+        "section": "\u00a75",
+        "node": "cdw-da-burst-verdict",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 4588,
+                "cached_input_tokens": 372273,
+                "input_tokens": 376893,
+                "output_tokens": 2330,
+                "reasoning_output_tokens": 911,
+                "total_tokens": 379223,
+                "uncached_input_tokens": 32
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "docs/figures/camera-dynamics-wm-v0/da-burst/verdict.json exists carrying, per arm, the paired native-minus-shuffled and native-minus-slow deltas in ELM-frame morphology and token NLL at 10 ms with shot-clustered bootstrap 95 percent intervals and the ELM-frame count actually scored, a companion verdict.png with the six arms and both controls, a report at /home/ITER/mcintos/.config/reckon/crew/reports/camera-dynamics-wm-v0/da-burst-verdict.md stating in one line whether the fast-Dalpha channel beats both controls with intervals clear of zero, pytest tests/camdyn/test_da_burst_verdict.py passing on synthetic records, and whole-tree ruff check imas_ambix tests exiting 0",
+          "estimated_hours": null,
+          "goal": "The conditioning verdict for the six completed fast-Dalpha burst runs under /work/projects/imas_gpu/mast-checkpoints/camdyn/da_burst_* (SLURM jobs 1251899 to 1251904, 20,000 steps each, completed 2026-08-20): paired held-out ELM-frame morphology and token NLL at the pre-registered 10 ms horizon for native fast-Dalpha against the shuffled-Dalpha and slow-only controls within each arm (baseline and dynamics), computed by a new imas_ambix/camdyn/da_burst_verdict.py that reuses the pre-registered metric in imas_ambix/camdyn/elm_morphology.py and the bootstrap in imas_ambix/camdyn/metrics.py, reading the six evaluation.json artifacts where they carry per-window ELM-frame records and otherwise re-scoring the six final.pt checkpoints on the held-out ELM windows on CPU",
+          "id": "cdw-da-burst-verdict",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T200502194992-cdw-da-burst-verdict/manifest.md",
+          "plan": "camera-dynamics-wm-v0",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75",
+          "spec_level": "guided",
+          "time_budget": "45m",
+          "write_paths": [
+            "imas_ambix/camdyn/da_burst_verdict.py",
+            "tests/camdyn/test_da_burst_verdict.py",
+            "docs/figures/camera-dynamics-wm-v0/da-burst",
+            "/home/ITER/mcintos/.config/reckon/crew/reports/camera-dynamics-wm-v0/da-burst-verdict.md"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "cdw-elm-response",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-06T20:05:12Z",
+        "completed_at": "2026-09-06T20:33:21Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1689,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1689,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "827da2ddf56fd94d91f572964d72ef3259459e96",
+        "commits": [
+          "5efd2288a724d2565803713182c1c04f00327eb8"
+        ],
+        "changed_lines": {
+          "added": 1306,
+          "removed": 0,
+          "files": 4
+        },
+        "tests_added": 8,
+        "gate": "passed",
+        "gate_check": {
+          "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD uv run --no-sync pytest -p no:cacheprovider tests/camdyn/test_da_burst_verdict.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T200502194992-cdw-da-burst-verdict/pytest.log",
+          "log_digest": "sha256:c3b0a8d310b792ad557a021d9e83a3000c94acd5bcc4c8bf5b367604ff76a36c"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T200502194992-cdw-da-burst-verdict/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07853-309c-7a80-9173-79ff577ac306",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 13044352,
+            "cached_input_tokens_cumulative": 13044352,
+            "input_tokens": 13359115,
+            "input_tokens_cumulative": 13359115,
+            "output_tokens": 39485,
+            "output_tokens_cumulative": 39485,
+            "reasoning_output_tokens": 12111,
+            "reasoning_output_tokens_cumulative": 12111
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 51596,
+          "peak_input_tokens": 26403467
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/cdw-da-burst-verdict",
+          "session_id": "01a07853-309c-7a80-9173-79ff577ac306",
+          "session_source": "stream",
+          "retained_at": "2026-09-06T20:33:21Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/camdyn/test_da_burst_verdict.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -24474,6 +24613,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 525
+    "_version": 526
   }
 }
