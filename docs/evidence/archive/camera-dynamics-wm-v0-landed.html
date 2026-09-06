@@ -384,13 +384,27 @@
       <tr><td>dynamics</td><td>slow-only</td><td><strong>+0.0345 [+0.0030, +0.0733]</strong></td><td>+0.144 [&minus;0.353, +0.606]</td></tr>
     </tbody>
   </table>
-  <p><strong>Verdict: strict NO.</strong> The dynamics arm's ELM morphology beats both controls with intervals clear of zero,
-    but every token-NLL interval and both baseline morphology intervals cross zero, so the pre-registered "beats both controls
-    on both measures in both arms" gate fails and FiLM promotion and the fast-Mirnov arm stay closed.
-    <strong>Caveat that bounds the claim:</strong> the shared census paired only 8 ELM frames from 8 held-out shots (the
-    six-way pairing plus the 0.75 to 1.25 &times; 10 ms horizon tolerance), against the 59 frames the ELM-fidelity study
-    pre-registered as the powered population. At n = 8 this is "not shown", not a powered negative; the census gap is the
-    open item.</p>
+  <p><strong>First pass (8 frames): strict NO, unpowered.</strong> The shared census paired only 8 ELM frames from 8 held-out
+    shots against the 59 the ELM-fidelity study pre-registered, so that verdict was "not shown" rather than a powered negative.</p>
+  <p><strong>Widened census (node <code>cdw-burst-census-slurm</code>, commit <code>52584dc</code>, SLURM jobs 1263736, 1263740 and
+    1263762 on <code>all_debug</code>): all 59 registered frames scored by all six checkpoints</strong> (0 pairing failures, 0
+    horizon-tolerance failures, 0 checkpoint disagreements; the deterministic selector over the 1,050 held-out shots recovers exactly
+    the registered 59). <strong>Strict verdict NO</strong>, because the pre-registered rule requires both measures in both arms and
+    the baseline arm clears nothing. <strong>The dynamics arm, however, favours native fast-D&alpha; against both controls on both
+    measures with intervals clear of zero:</strong></p>
+  <table>
+    <thead><tr><th>Arm</th><th>Control</th><th>&Delta; morphology [95% CI]</th><th>&Delta; token NLL [95% CI]</th></tr></thead>
+    <tbody>
+      <tr><td>baseline</td><td>shuffled</td><td>+0.0015 [&minus;0.034, +0.031]</td><td>&minus;0.051 [&minus;0.142, +0.051]</td></tr>
+      <tr><td>baseline</td><td>slow-only</td><td>+0.0080 [&minus;0.030, +0.050]</td><td>+0.084 [&minus;0.209, +0.392]</td></tr>
+      <tr><td>dynamics</td><td>shuffled</td><td><strong>+0.0564 [+0.0327, +0.0837]</strong></td><td><strong>&minus;0.775 [&minus;1.100, &minus;0.486]</strong></td></tr>
+      <tr><td>dynamics</td><td>slow-only</td><td><strong>+0.0473 [+0.0217, +0.0767]</strong></td><td><strong>&minus;0.303 [&minus;0.528, &minus;0.086]</strong></td></tr>
+    </tbody>
+  </table>
+  <p>Reading: the fast-D&alpha; burst summary is informative only when temporal attention can use it; the per-frame baseline cannot.
+    Under the rule as pre-registered, FiLM promotion and the fast-Mirnov arm stay closed. Whether to re-register a dynamics-arm-only
+    promotion gate is the lead's decision, recorded as an open authority-required followup on the plan; the figure below is the
+    59-frame result.</p>
   <figure>
     <img src="/imas-ambix/figures/camera-dynamics-wm-v0/da-burst/verdict.png" alt="Six-arm fast-Dalpha conditioning matrix at 10 ms: per-arm ELM morphology fidelity and edge/divertor token NLL, with paired native-minus-control deltas and 95 percent intervals">
     <figcaption>Six arms and the four paired deltas; only the dynamics-arm morphology intervals clear zero.</figcaption>

@@ -394,8 +394,9 @@
     <p><strong>Repair and extension landed (2026-09-06).</strong> <code>pcp-session-dataset-repair</code>, commit <code>2c39870</code>:
     both fixes in place; SLURM gate job 1263739 on <code>all_debug</code>, 8 passed in 6.48 s (with the renderer tests); synthetic
     history frames sit at t &minus; 20, 15, 10, 5 ms within one native frame. <code>pcp-dataset-guard-flag</code>, commit
-    <code>7fcc0de</code>: following nova's receipt (pin displacement median &minus;11.4 mm but p90 +108 mm, a quarter of governed
-    slices more than 50 mm further from the EFIT centroid than the free solve), a conditioned slice is admitted only when
+    <code>7fcc0de</code>: following nova's receipt and its later cross-tab correction (the centroid errors are signed; a converged
+    conditioned solve sits essentially on the EFIT centroid, and converged implies the guard held in every decile-by-class cell, so
+    the filter loses nothing and no displacement threshold is applied), a conditioned slice is admitted only when
     <code>conditioned_branch_guard_ok</code>; both flags ride on every item and in the receipt and failures are counted under
     <code>conditioned_guard_failed</code>. Gate run by the worker on <code>all_debug</code>: 4 passed in 4.83 s. Real shot 21858:
     85 pairs, 16 conditioned admitted, 0 guard failures.</p>
@@ -440,6 +441,40 @@
         <tr><td>Production job</td><td>1263771 submitted once, PENDING (Priority) behind the allocated cards; log <code>/work/projects/imas_gpu/logs/flux-decoder-1263771.out</code>; run directory <code>/work/projects/imas_gpu/ambix/flux_decoder/overnight-20260906/</code></td></tr>
       </tbody>
     </table>
+
+    <h2 id="s4b-wall-repair">§4b — Topology target repairs: omitted nulls, absent wall, absent flux map (landed 2026-09-06)</h2>
+    <p>Node <code>pcp-targets-mask-repair</code> (resumed twice across two decisions), commits <code>fe03e6f</code>,
+    <code>2fab342</code>, <code>ed1d780</code>, merged. An omitted null-coordinate pair is an empty null set with the flux-derived
+    class kept; an absent wall group is filled from the era-constant MAST wall (census over 530 cohort shots: 528 carry a wall, one
+    distinct 37-node digest <code>4c86ca7c…</code>, source shot 15276, <code>wall_source_shot_id</code> and <code>wall_digest</code>
+    recorded; wall-less train shots 26767 and 26941); any unavailable required equilibrium array yields all-masked undefined topology
+    with an exact <code>exclusion_reason</code> and a shot-unique census (27121: <code>missing_flux_map</code>). Shot 21989's eight
+    target arrays are byte-identical to base.</p>
+    <table>
+      <thead><tr><th>Gate (evidence of record on SLURM)</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>472-shot train-split statistics pass, <code>sun_debug</code> job 1263750</td><td>exit 0; all 472 shots / 1,163,812 frames processed; exclusions: <code>missing_flux_map</code> 1 (27121)</td></tr>
+        <tr><td>Four-file pytest, <code>sun_debug</code> job 1263749</td><td>48 passed</td></tr>
+        <tr><td>Whole-tree ruff</td><td>0 findings</td></tr>
+      </tbody>
+    </table>
+    <p>The full-corpus labeller training (job 1261548, failed on 2026-09-02 at the very KeyError this chain repaired) can now be
+    resubmitted; it is the remaining half of §4b's done-when.</p>
+
+    <h2 id="s5b-video">§5b — Recorded-session video and the camera serve launcher (landed 2026-09-06)</h2>
+    <p>Node <code>pcp-decoder-video</code>, commits <code>3a7c275</code> and <code>4adc74f</code>, merged.
+    <code>imas_ambix/worldmodel/flux_decoder_video.py</code> renders a labeller session as real-beside-decoded frames or a recorded
+    steering session as decoded frames with the action and keyframe wall burned in; <code>scripts/slurm/playable_camera_serve.sbatch</code>
+    launches nova's playable app under the ambix interpreter with <code>--decoder</code> after <code>--args</code> (the form nova
+    adopted the same night). First video, from an <strong>untrained</strong> checkpoint, rendered on <code>all_debug</code> job 1263769
+    in 8 min 51 s: <code>docs/figures/physics-carried-playable-plasma/shot-21858-real-decoded.gif</code> (85 frames, 512×288, 10 fps)
+    with its receipt beside it. The VQ stage ran as a persistent subprocess under the magvit2 environment because the in-process import
+    needs <code>einops</code>; predictor decode wall 3.6 s per frame on CPU. No live serve was claimed: <code>bokeh</code> is also
+    absent from the ambix environment, so both go into §5c's durable dependency change.</p>
+    <figure>
+      <img src="/imas-ambix/figures/physics-carried-playable-plasma/shot-21858-real-decoded.gif" alt="Shot 21858: real rbb frame beside the frame decoded from nova's flux geometry by an untrained decoder, 85 paired slices">
+      <figcaption>Pipeline proof only: an untrained decoder renders noise beside the real frame; the trained overnight checkpoint replaces it.</figcaption>
+    </figure>
 
     <h2 id="s4b-state">§4b — Where the section stands</h2>
     <p>Five nodes landed: the target derivation, the cohort and confounder census, the divertor-bright
