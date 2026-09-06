@@ -49,6 +49,20 @@ MIN_FLUX_SPAN_WB = 1.0e-4
 MAST_WALL_SOURCE_SHOT = 15276
 """Shot carrying the era-constant MAST wall when a store omits that group."""
 
+REQUIRED_EQUILIBRIUM_ARRAYS: tuple[str, ...] = (
+    "time",
+    "psi",
+    "major_radius",
+    "z",
+    "magnetic_axis_r",
+    "magnetic_axis_z",
+    "lcfs_r",
+    "lcfs_z",
+)
+"""Arrays required to derive any flux-map topology for a shot."""
+
+_TOPOLOGY_EXCLUDED_SHOTS: dict[str, set[int]] = {}
+
 
 @dataclass
 class CameraTopologyTargets:
@@ -71,6 +85,7 @@ class CameraTopologyTargets:
     boundary_flux_mask: np.ndarray
     wall_source_shot_id: int | None = None
     wall_digest: str | None = None
+    exclusion_reason: str | None = None
     class_names: tuple[str, ...] = TOPOLOGY_CLASS_NAMES
     units: str = "m"
 
@@ -88,6 +103,55 @@ class CameraTopologyTargets:
             np.count_nonzero(self.topology_class == TOPOLOGY_UNDEFINED)
         )
         return counts
+
+
+def reset_camera_topology_exclusion_census() -> None:
+    """Clear shot exclusions before a complete corpus pass."""
+    _TOPOLOGY_EXCLUDED_SHOTS.clear()
+
+
+def camera_topology_exclusion_census() -> dict[str, dict[str, object]]:
+    """Return shot-unique exclusion counts and identifiers by reason."""
+    return {
+        reason: {"count": len(shots), "shot_ids": sorted(shots)}
+        for reason, shots in sorted(_TOPOLOGY_EXCLUDED_SHOTS.items())
+    }
+
+
+def _excluded_camera_topology_targets(
+    shot_id: int,
+    frame_times: np.ndarray,
+    reason: str,
+) -> CameraTopologyTargets:
+    """Return explicitly absent topology and count the excluded shot once."""
+    shot = int(shot_id)
+    _TOPOLOGY_EXCLUDED_SHOTS.setdefault(reason, set()).add(shot)
+    times = np.asarray(frame_times, dtype=np.float64).ravel()
+    return CameraTopologyTargets(
+        shot_id=shot,
+        frame_times=times,
+        primary_xpoint=np.full((times.size, 2), np.nan, dtype=np.float32),
+        primary_xpoint_mask=np.zeros(times.size, dtype=bool),
+        strike_points=np.full(
+            (times.size, MAX_STRIKE_POINTS, 2), np.nan, dtype=np.float32
+        ),
+        strike_point_mask=np.zeros((times.size, MAX_STRIKE_POINTS), dtype=bool),
+        topology_class=np.full(times.size, TOPOLOGY_UNDEFINED, dtype=np.int8),
+        boundary_psi=np.full(times.size, np.nan, dtype=np.float32),
+        boundary_flux_mask=np.zeros(times.size, dtype=bool),
+        exclusion_reason=reason,
+    )
+
+
+def _missing_equilibrium_reason(missing: tuple[str, ...]) -> str:
+    if missing == ("psi",):
+        return "missing_flux_map"
+    label = (
+        "missing_equilibrium_array"
+        if len(missing) == 1
+        else "missing_equilibrium_arrays"
+    )
+    return f"{label}:{','.join(missing)}"
 
 
 def _bilinear_points(
@@ -467,8 +531,17 @@ def load_camera_topology_targets(
     path = equilibrium_store_path(int(shot_id), root)
     store = zarr.open_group(str(path), mode="r")
     if "equilibrium" not in store:
-        raise KeyError(f"shot {shot_id}: equilibrium group required at {path}")
+        return _excluded_camera_topology_targets(
+            int(shot_id), frame_times, "missing_equilibrium_group"
+        )
     equilibrium = store["equilibrium"]
+    missing = tuple(
+        name for name in REQUIRED_EQUILIBRIUM_ARRAYS if name not in equilibrium
+    )
+    if missing:
+        return _excluded_camera_topology_targets(
+            int(shot_id), frame_times, _missing_equilibrium_reason(missing)
+        )
     wall_r, wall_z, wall_source_shot_id, wall_digest = _load_wall(
         store, root, int(shot_id)
     )
@@ -502,9 +575,12 @@ def load_camera_topology_targets(
 __all__ = [
     "MAX_STRIKE_POINTS",
     "MAST_WALL_SOURCE_SHOT",
+    "REQUIRED_EQUILIBRIUM_ARRAYS",
     "TOPOLOGY_CLASS_NAMES",
     "TOPOLOGY_UNDEFINED",
     "CameraTopologyTargets",
     "build_camera_topology_targets_from_arrays",
+    "camera_topology_exclusion_census",
     "load_camera_topology_targets",
+    "reset_camera_topology_exclusion_census",
 ]
