@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+import hashlib
+
 import numpy as np
+import pytest
 import zarr
 
 from imas_ambix.latent import topology
 from imas_ambix.worldmodel.camera_topology_targets import (
+    MAST_WALL_SOURCE_SHOT,
     TOPOLOGY_CLASS_NAMES,
     TOPOLOGY_UNDEFINED,
     build_camera_topology_targets_from_arrays,
+    camera_topology_exclusion_census,
     load_camera_topology_targets,
+    reset_camera_topology_exclusion_census,
 )
 
 
@@ -180,4 +186,133 @@ def test_loader_reads_equilibrium_and_wall_groups(tmp_path):
     result = load_camera_topology_targets(shot, np.array([0.0]), level2_root=tmp_path)
 
     assert result.shot_id == shot
+    assert result.wall_source_shot_id == shot
+    assert (
+        result.wall_digest
+        == hashlib.sha256(wall[0].tobytes() + wall[1].tobytes()).hexdigest()
+    )
     assert result.class_distribution()["limited"] == 1
+
+
+def test_loader_masks_omitted_null_arrays_but_keeps_defined_class(tmp_path):
+    shot = 13
+    rg = np.linspace(0.5, 1.5, 81)
+    zg = np.linspace(-0.5, 0.5, 81)
+    rr, zz = np.meshgrid(rg, zg)
+    psi = ((rr - 1.0) ** 2 + zz**2)[:, :, None]
+    wall = _circle(1.0, 0.0, 0.35, n=80)
+    store = zarr.open_group(str(tmp_path / f"{shot}.zarr"), mode="w")
+    equilibrium = store.create_group("equilibrium")
+    arrays = {
+        "time": np.array([0.0]),
+        "psi": psi,
+        "major_radius": rg,
+        "z": zg,
+        "magnetic_axis_r": np.array([1.0]),
+        "magnetic_axis_z": np.array([0.0]),
+        "lcfs_r": wall[0][:, None],
+        "lcfs_z": wall[1][:, None],
+    }
+    for name, values in arrays.items():
+        equilibrium.create_array(name, data=values)
+    wall_group = store.create_group("wall")
+    wall_group.create_array("limiter_r", data=wall[0])
+    wall_group.create_array("limiter_z", data=wall[1])
+
+    result = load_camera_topology_targets(shot, np.array([0.0]), level2_root=tmp_path)
+
+    assert np.isnan(result.primary_xpoint).all()
+    assert result.primary_xpoint_mask.tolist() == [False]
+    assert np.isnan(result.strike_points).all()
+    assert not result.strike_point_mask.any()
+    assert result.topology_class.tolist() == [TOPOLOGY_CLASS_NAMES.index("limited")]
+    assert result.boundary_flux_mask.tolist() == [True]
+
+
+def test_loader_uses_era_wall_when_shot_store_omits_wall(tmp_path):
+    shot = 14
+    rg = np.linspace(0.5, 1.5, 81)
+    zg = np.linspace(-0.5, 0.5, 81)
+    rr, zz = np.meshgrid(rg, zg)
+    psi = ((rr - 1.0) ** 2 + zz**2)[:, :, None]
+    wall = _circle(1.0, 0.0, 0.35, n=80)
+    store = zarr.open_group(str(tmp_path / f"{shot}.zarr"), mode="w")
+    equilibrium = store.create_group("equilibrium")
+    arrays = {
+        "time": np.array([0.0]),
+        "psi": psi,
+        "major_radius": rg,
+        "z": zg,
+        "magnetic_axis_r": np.array([1.0]),
+        "magnetic_axis_z": np.array([0.0]),
+        "x_point_r": np.full((2, 1), -9.99),
+        "x_point_z": np.full((2, 1), -9.99),
+        "lcfs_r": wall[0][:, None],
+        "lcfs_z": wall[1][:, None],
+    }
+    for name, values in arrays.items():
+        equilibrium.create_array(name, data=values)
+    source_store = zarr.open_group(
+        str(tmp_path / f"{MAST_WALL_SOURCE_SHOT}.zarr"), mode="w"
+    )
+    source_wall = source_store.create_group("wall")
+    source_wall.create_array("limiter_r", data=wall[0])
+    source_wall.create_array("limiter_z", data=wall[1])
+
+    result = load_camera_topology_targets(shot, np.array([0.0]), level2_root=tmp_path)
+
+    expected_digest = hashlib.sha256(wall[0].tobytes() + wall[1].tobytes()).hexdigest()
+    assert result.wall_source_shot_id == MAST_WALL_SOURCE_SHOT
+    assert result.wall_digest == expected_digest
+    assert result.class_distribution()["limited"] == 1
+    assert result.boundary_flux_mask.tolist() == [True]
+
+
+@pytest.mark.parametrize(
+    ("missing_name", "expected_reason"),
+    [
+        ("time", "missing_equilibrium_array:time"),
+        ("psi", "missing_flux_map"),
+        ("major_radius", "missing_equilibrium_array:major_radius"),
+        ("z", "missing_equilibrium_array:z"),
+        ("magnetic_axis_r", "missing_equilibrium_array:magnetic_axis_r"),
+        ("magnetic_axis_z", "missing_equilibrium_array:magnetic_axis_z"),
+        ("lcfs_r", "missing_equilibrium_array:lcfs_r"),
+        ("lcfs_z", "missing_equilibrium_array:lcfs_z"),
+    ],
+)
+def test_loader_counts_missing_required_array_as_topology_exclusion(
+    tmp_path, missing_name, expected_reason
+):
+    shot = 15
+    times = np.array([0.0, 0.1])
+    store = zarr.open_group(str(tmp_path / f"{shot}.zarr"), mode="w")
+    equilibrium = store.create_group("equilibrium")
+    arrays = {
+        "time": times,
+        "psi": np.zeros((3, 3, 2)),
+        "major_radius": np.linspace(0.5, 1.5, 3),
+        "z": np.linspace(-0.5, 0.5, 3),
+        "magnetic_axis_r": np.ones(2),
+        "magnetic_axis_z": np.zeros(2),
+        "lcfs_r": np.ones((8, 2)),
+        "lcfs_z": np.zeros((8, 2)),
+    }
+    arrays.pop(missing_name)
+    for name, values in arrays.items():
+        equilibrium.create_array(name, data=values)
+    reset_camera_topology_exclusion_census()
+
+    result = load_camera_topology_targets(shot, times, level2_root=tmp_path)
+
+    assert result.exclusion_reason == expected_reason
+    assert np.isnan(result.primary_xpoint).all()
+    assert not result.primary_xpoint_mask.any()
+    assert np.isnan(result.strike_points).all()
+    assert not result.strike_point_mask.any()
+    assert result.topology_class.tolist() == [TOPOLOGY_UNDEFINED, TOPOLOGY_UNDEFINED]
+    assert not result.boundary_flux_mask.any()
+    assert camera_topology_exclusion_census() == {
+        expected_reason: {"count": 1, "shot_ids": [shot]}
+    }
+    reset_camera_topology_exclusion_census()
