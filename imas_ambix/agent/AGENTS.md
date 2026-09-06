@@ -338,11 +338,22 @@ die-off. Set them at launch, never in code:
 imas-ambix agent router --submit --port 18802 --max-in-flight 16 --max-queued 48
 ```
 
-**The allowance is shared by every worker on a host, which is what makes it
-bite.** Admission is keyed on `_consumer_id(scope)`, which returns
-`scope["client"][0]` — the **source IP**. Every clive worker dispatched from the
-login node is therefore *one consumer* against one allowance, whatever project
-dispatched it. Three consequences that cost a night to learn:
+**The allowance is PER SOURCE IP — shared by every worker on one host, and
+multiplied by the number of hosts.** Admission is keyed on
+`_consumer_id(scope)`, which returns `scope["client"][0]`. Every clive worker
+dispatched from one login node is *one consumer* against one allowance, whatever
+project dispatched it — **but a second host gets its own full allowance.**
+Measured 2026-09-06: two client IPs (1,284 requests from one, 26 from another),
+and engine concurrency reached **17** against a configured 16, which is 16 from
+the busy host plus 1 from the other. **The lane-wide in-flight ceiling is
+therefore `max_in_flight × distinct client hosts`, not `max_in_flight`.** Check
+before sizing:
+
+```bash
+grep -oE 'INFO: +[0-9.]+:' ambix-router-<job>.log | grep -oE '[0-9.]+' | sort -u
+```
+
+Three further consequences that cost a night to learn:
 
 - **No project can see the binding quantity from its own ledger.** One session
   measured its own maximum at four simultaneous runs and concluded the six-figure
