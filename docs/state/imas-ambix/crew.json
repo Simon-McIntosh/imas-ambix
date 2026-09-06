@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-06T23:36:04",
+  "updated": "2026-09-06T23:45:04",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -26261,6 +26261,137 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260906T213831389093-pcp-labeller-train-resubmit",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74b",
+        "node": "pcp-labeller-train-resubmit",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 2237,
+                "cached_input_tokens": 637801,
+                "input_tokens": 640070,
+                "output_tokens": 1895,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 641965,
+                "uncached_input_tokens": 32
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "/home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/labeller-train-resubmit.md exists naming the new SLURM job id with state PENDING or RUNNING from squeue, bash -n on the launcher exits 0, no job is cancelled, requeued or displaced, and no training or data-touching step runs on the login node",
+          "estimated_hours": null,
+          "goal": "Resubmission receipt for the full-corpus camera topology labeller training now that the target loader repairs are on main: sbatch scripts/slurm/camera_topology_labeller_train.sbatch submitted once from the main checkout /home/ITER/mcintos/Code/imas-ambix (betelgeuse, reservation gpu_0003_grpA, account grpa, one GPU, 24 h, no QOS, never --mem=0) after bash -n and a dry read of its variables, with the receipt at /home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/labeller-train-resubmit.md recording the job id, submit time, squeue state and the head commit the job will run",
+          "id": "pcp-labeller-train-resubmit",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T213831389093-pcp-labeller-train-resubmit/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74b",
+          "spec_level": "exact",
+          "time_budget": "20m",
+          "write_paths": [
+            "/home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/labeller-train-resubmit.md"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "pcp-labeller-train",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-06T21:38:43Z",
+        "completed_at": "2026-09-06T21:43:54Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 311,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 311,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "2701ba621455e9ec8f3fac9f0eb0e185e84e411d",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "bash -n scripts/slurm/camera_topology_labeller_train.sbatch and a single sbatch from the main checkout; squeue shows job 1263778 PENDING Priority",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/labeller-train-resubmit.md",
+          "log_digest": "sha256:182147bcb95309634a0e8cf88ec0d528587eb348621e94d8cc351e73a86e59f4"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T213831389093-pcp-labeller-train-resubmit/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a078a8-ced0-7793-af3e-5b6e119417cd",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2806400,
+            "cached_input_tokens_cumulative": 2806400,
+            "input_tokens": 2932064,
+            "input_tokens_cumulative": 2932064,
+            "output_tokens": 12083,
+            "output_tokens_cumulative": 12083,
+            "reasoning_output_tokens": 4447,
+            "reasoning_output_tokens_cumulative": 4447
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 16530,
+          "peak_input_tokens": 5738464
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "no_commit": "submission node: the receipt is the delivery; no repository change",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-labeller-train-resubmit",
+          "session_id": "01a078a8-ced0-7793-af3e-5b6e119417cd",
+          "session_source": "stream",
+          "retained_at": "2026-09-06T21:43:54Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [
@@ -26307,6 +26438,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 540
+    "_version": 541
   }
 }
