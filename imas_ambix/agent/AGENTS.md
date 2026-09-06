@@ -80,11 +80,14 @@ sbatch --partition=betelgeuse \
 ```
 
 **CPU sizing — cores, not cards, bind concurrent work.** The Group A reservation
-contains 30 cores. In a live 2026-09-01 snapshot, the DeepSeek serve held 8 and
-a co-running CPU-only job held 16. Those two jobs alone left at most 6 reserved
-cores, so a new 12-core serve could not be admitted even while enough cards
-were free. The available core count is therefore live workload state, not a
-number to infer from the requested card count.
+contains 30 cores. Two snapshots, both real, and the point is that they differ:
+on **2026-09-01** the DeepSeek serve held 8 cores and a co-running CPU-only job
+held 16, leaving at most 6 reserved cores, so a new 12-core serve could not be
+admitted even while enough cards were free; on **2026-09-06** the serve holds 12
+cores and the router 2, leaving 16. **The available core count is live workload
+state, not a number to infer from the card count and not one to read out of this
+document** — the figures here are dated examples of the principle, and the
+current footprint is tabulated in §2 above from a reading taken the same day.
 Size `--cpus-per-task` (and the DataLoader `num_workers`) to leave room for
 co-running jobs. The GPU burst itself is unaffected under normal QOS, but free
 cards do not imply that the reservation can admit the accompanying core request.
