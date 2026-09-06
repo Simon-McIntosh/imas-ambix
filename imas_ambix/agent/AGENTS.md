@@ -40,12 +40,31 @@ utilise — use the free cards wherever possible (idle GPUs are capacity to use,
 A single Group A submit under `normal` QOS bursts onto any free cards node-wide (the reservation reserves
 only cores); `CUDA_VISIBLE_DEVICES` is remapped to `0..N`, so the job never knows which physical silicon
 it is on. **Check `squeue` for the live state and request what is free:**
-- **DSv4 down (its default state unless someone has started a serve) → all 8 cards are free → request them**
-  (`--gres=gpu:8`). This is the common case; size big runs for the full 8.
-- **DSv4 up → it holds 2 cards → a 6-card job coexists with it** (6 + 2 = 8/8) — confirmed 2026-06-19:
-  `--gres=gpu:6` started immediately on physical cards `0,1,2,3,6,7` (skipping the cards DSv4 held); an
-  8-GPU job is then accepted and queues until they free. Keep DSv4 up only when it is actually serving; do
-  not leave it occupying cards an active training campaign needs.
+- **DSv4 down → all 8 cards are free → request them** (`--gres=gpu:8`).
+- **DSv4 up → it holds 4 cards, so a 4-card job coexists with it** (4 + 4 = 8/8). The
+  serve was 2 cards until 2026-09-06 and any text quoting that figure is stale; **read
+  `squeue` rather than trusting a written card count**, because the deployment is
+  resized deliberately and this document has already been wrong about it once.
+  A 6-card job coexisted with the 2-card serve on 2026-06-19, starting immediately on
+  physical cards `0,1,2,3,6,7`. Keep DSv4 up only when it is actually serving; do not
+  leave it occupying cards an active training campaign needs.
+
+**Cores are the budget, and the serve's footprint is what the measurement lanes have
+to fit around.** The reservation reserves **30 cores and no cards**, so cards are
+node-wide under `normal` QOS while cores are the scarce, reserved quantity. Current
+footprint, measured 2026-09-06:
+
+| Job | cores | cards | memory |
+|---|---|---|---|
+| `deepseek-v4-flash` serve | 12 | 4 | 300G |
+| `ambix-router` | 2 | — | 8G |
+| **held of the 30** | **14** | | |
+| **free for measurement** | **16** | 4 | |
+
+Sixteen free cores is exactly **two 8-core single-card measurement jobs**
+(12 + 2 + 8 + 8 = 30). **A serve sized larger than 12 cores starves those lanes even
+with cards sitting idle**, which is the failure this whole section exists to prevent —
+so raise the serve's `cpus` only against a live reading, never to a round number.
 
 Mechanism + the cooperative-yield watcher: `docs/gpu-preemptible-scheduling.html`.
 
@@ -106,7 +125,7 @@ is no unreserved control either.
 
 ```bash
 scontrol show res gpu_0003_grpA | grep -E 'CoreCnt|CoreIDs'   # 30 cores, IDs 15-29,47-61
-squeue -w 98dci4-gpu-0003 -o "%.10i %.9u %.18j %.4C %.22v"    # cores per job, per reservation
+squeue -w 98dci4-gpu-0003 -o "%.10i %.9u %.18j %.4C %.8m %b %.22v"  # cores, memory, cards, reservation
 ```
 
 Sum the `%C` column for jobs whose reservation is **grpA** and subtract from 30 —
