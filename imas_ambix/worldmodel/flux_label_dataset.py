@@ -1,9 +1,9 @@
-"""Pair pinned Nova flux-label sessions with native-cadence rbb tokens.
+"""Pair pinned Nova flux-label sessions with rbb tokens.
 
 Only atomically completed shot sessions are discoverable.  Session geometry is
-joined to the nearest recorded camera-frame time, while token histories remain
-contiguous on that camera's native time axis.  The returned mappings deliberately
-contain geometry, image tokens, identity, and provenance but no actuator values.
+joined to the nearest recorded camera-frame time, while token histories sample
+the preceding labeller-slice cadence.  The returned mappings deliberately contain
+geometry, image tokens, identity, and provenance but no actuator values.
 """
 
 from __future__ import annotations
@@ -52,6 +52,7 @@ EXPECTED_CARRIER_IDENTITY = (
     "1d2c4a2b2f448ab8f1ae981031bbaf85fe4ee87f8ed9606fe6847d0fc9f1e994"
 )
 DEFAULT_HISTORY_FRAMES = 4
+DEFAULT_HISTORY_SPACING_SECONDS = 0.005
 MAX_FRAME_DELTA_SECONDS = 0.0025
 VALIDATION_INTERVAL = 20
 
@@ -87,6 +88,7 @@ class FluxLabelReference:
     session_index: int
     slice_time: float
     frame_index: int
+    history_frame_indices: tuple[int, ...]
     frame_time: float
     frame_delta_s: float
     conditioned: bool
@@ -266,6 +268,7 @@ class FluxLabelDataset:
         *,
         split: DatasetSplit = "train",
         history_frames: int = DEFAULT_HISTORY_FRAMES,
+        history_spacing_s: float = DEFAULT_HISTORY_SPACING_SECONDS,
         camera: str = DEFAULT_CAMERA,
         token_root: Path = TOKEN_ROOT,
         level1_root: Path = LEVEL1_DIR,
@@ -282,6 +285,8 @@ class FluxLabelDataset:
             raise ValueError("split must be 'train', 'validation', or 'all'")
         if history_frames < 1:
             raise ValueError("history_frames must be positive")
+        if not np.isfinite(history_spacing_s) or history_spacing_s <= 0.0:
+            raise ValueError("history_spacing_s must be finite and positive")
         if max_frame_delta_s <= 0.0:
             raise ValueError("max_frame_delta_s must be positive")
         if session_cache_size < 1:
@@ -290,6 +295,7 @@ class FluxLabelDataset:
         self._root = Path(session_root)
         self._split = split
         self._history_frames = int(history_frames)
+        self._history_spacing_s = float(history_spacing_s)
         self._camera = str(camera)
         self._token_root = Path(token_root)
         self._level1_root = Path(level1_root)
@@ -310,6 +316,7 @@ class FluxLabelDataset:
             "unconverged": 0,
             "cohort_shot": 0,
             "other_split": 0,
+            "missing_session_file": 0,
             "missing_token_store": 0,
             "missing_frame_times": 0,
             "outside_time_tolerance": 0,
@@ -396,9 +403,8 @@ class FluxLabelDataset:
             companion_path = self._root / f"{shot}.npz"
             session_path = self._root / f"{shot}.nc"
             if not companion_path.is_file() or not session_path.is_file():
-                raise FileNotFoundError(
-                    f"complete session {shot} is missing its netCDF or NPZ companion"
-                )
+                dropped["missing_session_file"] += len(converged_rows)
+                continue
             rows, companion_times, conditioned = _load_companion(companion_path, slices)
             session_times = _session_times(session_path)
             if session_times.shape != companion_times.shape or not np.allclose(
@@ -433,17 +439,34 @@ class FluxLabelDataset:
                 [float(row["time"]) for row in converged_rows], dtype=np.float64
             )
             frame_indices, deltas = _nearest_frame_indices(frame_times, query_times)
-            for row, frame_index, delta in zip(
-                converged_rows, frame_indices, deltas, strict=True
+            history_query_times = query_times[:, None] - self._history_spacing_s * (
+                np.arange(self._history_frames, 0, -1, dtype=np.float64)[None, :]
+            )
+            history_indices, _ = _nearest_frame_indices(
+                frame_times, history_query_times.reshape(-1)
+            )
+            history_indices = history_indices.reshape(
+                query_times.size, self._history_frames
+            )
+            for row, frame_index, history_frames, delta, history_times in zip(
+                converged_rows,
+                frame_indices,
+                history_indices,
+                deltas,
+                history_query_times,
+                strict=True,
             ):
                 frame = int(frame_index)
-                if frame >= token_count:
+                if frame >= token_count or np.any(history_frames >= token_count):
                     dropped["token_time_length_mismatch"] += 1
                     continue
                 if abs(float(delta)) > max_frame_delta_s + np.finfo(np.float64).eps:
                     dropped["outside_time_tolerance"] += 1
                     continue
-                if frame < self._history_frames:
+                if (
+                    history_times[0] < frame_times[0]
+                    or history_times[-1] > frame_times[-1]
+                ):
                     dropped["insufficient_history"] += 1
                     continue
                 manifest_row = int(row["row"])
@@ -457,6 +480,9 @@ class FluxLabelDataset:
                         session_index=session_index,
                         slice_time=float(row["time"]),
                         frame_index=frame,
+                        history_frame_indices=tuple(
+                            int(value) for value in history_frames
+                        ),
                         frame_time=float(frame_times[frame]),
                         frame_delta_s=float(delta),
                         conditioned=bool(conditioned[session_index]),
@@ -489,6 +515,7 @@ class FluxLabelDataset:
             },
             "split": split,
             "history_frames": self._history_frames,
+            "history_spacing_s": self._history_spacing_s,
             "maximum_frame_delta_s": float(max_frame_delta_s),
             "max_abs_delta_t_s": maximum_delta,
             "token_id_space": "local",
@@ -512,6 +539,10 @@ class FluxLabelDataset:
     def history_frames(self) -> int:
         return self._history_frames
 
+    @property
+    def history_spacing_s(self) -> float:
+        return self._history_spacing_s
+
     def _load_session(self, path: Path) -> Any:
         if path in self._session_cache:
             session = self._session_cache.pop(path)
@@ -532,11 +563,16 @@ class FluxLabelDataset:
         return session
 
     @staticmethod
-    def _local_tokens(path: Path, start: int, stop: int) -> IntegerArray:
+    def _local_token_frames(path: Path, frame_indices: Sequence[int]) -> IntegerArray:
         import zarr  # noqa: PLC0415
 
         store = zarr.open_group(str(path), mode="r")
-        values = np.asarray(store["tokens"][start:stop], dtype=np.int64)
+        values = np.stack(
+            [
+                np.asarray(store["tokens"][int(frame_index)], dtype=np.int64)
+                for frame_index in frame_indices
+            ]
+        )
         local = values - REGISTRY_OFFSET
         if np.any(local < 0) or np.any(local >= CAMERA_VOCAB):
             raise ValueError(
@@ -548,15 +584,11 @@ class FluxLabelDataset:
         reference = self._references[index]
         session = self._load_session(reference.session_path)
         fields = session.isel(time=reference.session_index)
-        history = self._local_tokens(
-            reference.token_path,
-            reference.frame_index - self._history_frames,
-            reference.frame_index,
+        history = self._local_token_frames(
+            reference.token_path, reference.history_frame_indices
         )
-        target = self._local_tokens(
-            reference.token_path,
-            reference.frame_index,
-            reference.frame_index + 1,
+        target = self._local_token_frames(
+            reference.token_path, (reference.frame_index,)
         )[0]
         if history.shape != (self._history_frames, *FRAME_GRID):
             raise RuntimeError("token history does not have the discovered frame count")
@@ -581,6 +613,7 @@ class FluxLabelDataset:
 __all__ = [
     "DEFAULT_COHORT_REPORT",
     "DEFAULT_HISTORY_FRAMES",
+    "DEFAULT_HISTORY_SPACING_SECONDS",
     "DEFAULT_SESSION_ROOT",
     "EXPECTED_CARRIER_IDENTITY",
     "EXPECTED_POLICY_DIGEST",
