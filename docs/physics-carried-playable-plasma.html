@@ -19,13 +19,13 @@
   <meta name="plan-sprint" content="S19">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="world-model,nova-consumer,equilibrium">
-  <meta name="plan-depends-on" content="nova-physics-consumer-integration,nova:forward-solve-api#s5">
+  <meta name="plan-depends-on" content="nova-physics-consumer-integration,nova:playable-forward-solve#s8">
   <meta name="plan-graph-handle" content="play-the-plasma">
   <title>Physics-Carried Playable Plasma | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-09-02">
-<meta name="plan-version" content="23">
+<meta name="plan-modified" content="2026-09-06">
+<meta name="plan-version" content="26">
 <meta name="plan-impl" content="0.6">
 </head>
 <body>
@@ -240,6 +240,46 @@
     eligible shot with a per-slice receipt, the converged fraction is reported per shot, and a held-out
     subset reproduces the frozen-six reference slices bit-for-bit under the same operator.</p>
 
+    <h3 id="s3c">§3c — Currency against nova, 2026-09-06: nova owns the loop and the labels; ambix ships the decoder</h3>
+    <p><strong>What nova landed between 2026-09-02 and 2026-09-06</strong> (plan <code>nova:playable-forward-solve</code>, impl 0.85, and
+    <code>nova:forward-solve-api</code> §5 in flight). The constrained reduced Newton route solves a warm keyframe on 22086/43 in three trips of
+    about 50 ms (§3 there). The per-frame record a steering session emits is <code>nova.equilibrium.steering_frames.SteeringFrame</code>, written
+    as a netCDF session under group <code>steering</code> with time as the last axis and the imas-ambix key vocabulary
+    (<code>magnetic_axis_r/z</code>, <code>x_point_r/z</code> primary first, <code>strike_points_r/z</code>, <code>lcfs_r/z</code>,
+    <code>finite_mask</code>), plus 101 driven circuit currents, the compensating current per constraint row, the action, and the flux-function
+    profiles (§5 there). The H200 serving launcher runs the Bokeh app as SLURM job <code>nova-playable</code> on port 18506 (§6). The two-panel page
+    carries a camera panel fed through a protocol nova owns, <code>apps/playable/camera.py</code>: <code>FrameDecoder.decode(frame: SteeringFrame)
+    -&gt; DecodedFrame(image, decode_wall, decoder_identity)</code> with <code>image</code> an RGB uint8 array of shape (height, width, 3), loaded once
+    per session by dotted path from <code>--decoder</code> (§7). The labeller throughput study measured 12 to 14 labels a second per H200 warm
+    (§8B), and <strong>the label corpus is being written now</strong> (§8C): batch <code>/work/projects/imas_gpu/sophelio/labeller_sessions/76906a29/</code>,
+    nova revision <code>0ceb27aa</code>, carrier <code>1d2c4a2b…</code>, three H200 cards, 134 shots and 11,346 written slices between 20:34 and 21:53
+    local on 2026-09-06 (about 100 shots an hour), one <code>&lt;shot&gt;.nc</code> + <code>&lt;shot&gt;.manifest.json</code> + <code>&lt;shot&gt;.npz</code>
+    per shot with per-slice <code>written</code>, <code>converged</code>, <code>qualified</code>, <code>conditioned</code> and <code>excluded</code> flags;
+    slices sit on a 5 ms base; the constraint mode is <code>diagnostic_branch_guard</code> on <code>efm/current_centrd_z</code> with
+    <code>condition_on_guard_failure</code>, so a conditioned slice inherits one EFIT scalar and is flagged as such.</p>
+    <p><strong>What the landed sessions actually carry, read from shot 21858.</strong> <code>include_raster</code> is <strong>false</strong> for
+    the running batch: there is no <code>psi</code>, <code>psi_norm</code>, <code>domain_label</code> or <code>separatrix</code> raster, the LCFS
+    polyline dimension is empty (<code>boundary_vertex</code> 0), the divertor legs are all non-finite and the strike-point component of
+    <code>finite_mask</code> is false on every slice. What is present on every converged slice: eleven nested flux surfaces at
+    <code>psi_norm</code> 0.0, 0.1, …, 1.0 sampled at 64 poloidal angles (<code>flux_surface_r/z</code>, shape (11, 64, nt); the level-1.0 surface
+    is the LCFS), the magnetic axis, two X-point slots (primary first), the <code>diverted</code> flag, the 101 coil currents and the profiles.
+    Finite fraction 0.88 of 118 slices on 21858 (101 converged, 17 unconverged, 5 excluded for no reconstruction).</p>
+    <p><strong>Consequences for this plan.</strong> (1) §3 (ambix equilibrium-engine wrapper) and §3b (ambix bulk solve) are
+    <strong>superseded</strong>: nova produces the labels and holds the resident operator inside its app; ambix builds no forward-solve wrapper.
+    (2) §5's interaction surface is nova's playable app: its key map steps bulk R and Z, elongation, upper and lower triangularity, X-point R
+    and Z and the two gaps, and the constrained reduced Newton solve returns the coil and compensating currents that realise the request. That
+    <em>is</em> the inverse boundary control the demo needs; ambix contributes the camera panel through the FrameDecoder protocol and runs the
+    app under the imas-ambix interpreter, which carries the nova editable install, so nova imports nothing from ambix. (3) The decoder's
+    conditioning input for tonight is <strong>the nested flux surfaces and marked points rendered onto a fixed (R,Z) grid in ambix</strong>
+    (decision <code>conditioning-input</code>): a deterministic drawing of nova's own geometry, not a resample of the hex mesh. The dataset reader
+    prefers nova's raster whenever a session carries one, so switching <code>--include-raster</code> on in a later batch changes nothing
+    downstream. (4) The §6 gates stand; latency is now measured on nova's app with our decoder loaded.</p>
+    <p><strong>Compute tonight (from the four-card serve owner, 2026-09-06 21:50).</strong> No GPU reservation exists: <code>gpu_0003_grpA</code>
+    is CPU-only (30 cores) and cards are node-wide under normal QOS. Submit with <code>--partition=betelgeuse --reservation=gpu_0003_grpA
+    --account=grpa --gres=gpu:1 --cpus-per-task=4</code>, never <code>--qos</code> and never <code>--mem=0</code>. All eight H200s are allocated
+    (DeepSeek-V4-Flash serve 4, nova labeller shards 3, one more) and group A holds 26 of 30 cores, so cores bind before cards; a pending job is
+    the correct outcome and nothing is displaced. The DSv4 two-card fallback costs no per-request speed (23.1 against 23.3 tok/s measured) and
+    would free two cards and four cores, but it touches nova's live worker lane and is taken only with the nova coordinator's agreement.</p>
     <h2 id="s4">§4 — The flux-conditioned camera decoder</h2>
     <p><strong>Conditioning representation (decision <code>flux-conditioning</code>).</strong> The
     decoder must see the labelled flux map in a form that generalises across coil edits. In every
@@ -286,6 +326,77 @@
     playable demo validated; classifier-free guidance on the flux condition so its weight is tunable at
     play time. Done when the held-out decoder gate in §6 passes.</p>
 
+    <h3 id="s4d">§4d — Session dataset: nova labeller sessions paired with rbb tokens</h3>
+    <p><strong>Deliverable.</strong> <code>imas_ambix/worldmodel/flux_label_dataset.py</code> with
+    <code>tests/worldmodel/test_flux_label_dataset.py</code>: a dataset that reads the nova labeller sessions of §3c and yields, per
+    admitted slice, the conditioning tensor of §3c(3), the 16&times;16 rbb token grid at that time as the target, and the K previous token
+    frames of the same shot as history (K = 4 default, native cadence). <strong>Discovery.</strong> Scan <code>&lt;root&gt;/*.manifest.json</code>,
+    admit <code>status == complete</code> only (writes are atomic per file, so a shot is ready exactly then); the ranked order the labeller
+    walks is in <code>&lt;root&gt;/.cards/card-0.txt</code>, <code>card-1.txt</code>, <code>card-2.txt</code>. Pin the corpus on
+    <code>policy_digest == b5f9ef456f665c593a40010b9756b16fb36abd4ebbd1fea4d83a3d628c77bc7d</code> and
+    <code>carrier_identity == 1d2c4a2b2f448ab8f1ae981031bbaf85fe4ee87f8ed9606fe6847d0fc9f1e994</code> and refuse a session that carries
+    anything else; never pin on <code>nova_revision</code>, which the writer stamps from a moving checkout HEAD (nova records this as a writer
+    defect). <strong>Slice inclusion</strong> (decision <code>slice-inclusion</code>, agreed with nova): <code>written</code> and
+    <code>converged == true</code>; <code>qualified</code> is a policy constant, never a gate; <code>conditioned</code> (from the
+    <code>&lt;shot&gt;.npz</code> companion, aligned to the manifest slice rows) is carried as a per-sample flag; unconverged and excluded
+    slices are filtered, never assumed absent. <strong>Pairing.</strong> Each slice time is joined to the rbb token frame at the nearest native
+    frame time within &plusmn;2.5 ms (half the 5 ms slice base) through the frame-time join the topology targets already use
+    (<code>camera_topology_targets.py</code>) and the token store the world model trained on (<code>tokenizer/store_v2.py</code>,
+    <code>spacetime_dataset.py</code>); a slice with no frame inside the window is dropped and counted. <strong>Firewall.</strong> The
+    718-shot labeller cohort of §4b is subtracted by whole shot using the cohort predicate the labeller enforces
+    (<code>camera_topology_labeller.py</code>), and the test asserts zero overlap; validation is every twentieth shot in ranked order; a
+    dataset item never carries a coil or compensating current (asserted). <strong>Renderer.</strong> One shared function draws the
+    conditioning from SteeringFrame-shaped fields so §4e's live decoder and this dataset see byte-identical inputs: a fixed 64&times;64
+    (R,Z) grid whose bounds are the era wall polygon's bounding box recorded in the receipt; channel 0 <code>psi_norm</code> piecewise from
+    the eleven nested closed surfaces (a pixel takes the smallest level whose polygon contains it, 1.0 at and outside the LCFS), channel 1
+    inside-LCFS mask, channels 2 to 4 Gaussian marks (one cell wide) at the axis and the two X-point slots gated by <code>finite_mask</code>,
+    channel 5 the <code>diverted</code> flag broadcast; plus a 12-value geometry vector (axis R and Z, both X-point slots, elongation,
+    upper and lower triangularity, R_major, a_minor, diverted, two padding zeros) as the auxiliary token. When a session does carry nova's
+    raster the renderer takes <code>psi_norm</code> from it instead and records which path it used.
+    <strong>Done when</strong> pytest passes on a synthetic three-slice session fixture and on real shot 21858 (pair count reported,
+    max |&Delta;t| &le; 2.5 ms, cohort overlap 0, conditioning tensor (6, 64, 64) finite, geometry vector length 12, no current key), and the
+    whole-tree ruff gate is 0.</p>
+    <h3 id="s4e">§4e — Conditioning adapter and decoder behind nova's FrameDecoder protocol</h3>
+    <p><strong>Deliverable.</strong> <code>imas_ambix/worldmodel/flux_conditioned_decoder.py</code> with
+    <code>tests/worldmodel/test_flux_conditioned_decoder.py</code>. <strong>Model.</strong> A spatial conditioning adapter (a small
+    convolutional stack from (6, 64, 64) to a 16&times;16 grid of d-dimensional embeddings added to the token positions, plus the geometry
+    vector as one auxiliary token) in front of the factorised spatiotemporal token predictor the camera world model already has
+    (<code>spacetime_model.py</code> blocks and the factorised 18-bit LFQ head, decision <code>vocab-head</code> on
+    camera-dynamics-wm-v0), consuming the K-frame token history and predicting the 16&times;16 token grid at t; the actuator path is not
+    wired. Classifier-free guidance on the flux condition: drop the condition with probability 0.1 in training, guidance weight a decode-time
+    argument; sample, never argmax (the playable-demo lesson). <strong>The protocol class.</strong> <code>FluxConditionedDecoder</code> with
+    <code>decoder_identity = "&lt;checkpoint sha256&gt;:&lt;vq decoder id&gt;:&lt;corpus digest&gt;"</code>,
+    <code>decode(frame) -&gt; DecodedFrame</code> returning a NamedTuple with exactly nova's field names <code>image</code>,
+    <code>decode_wall</code>, <code>decoder_identity</code>, where <code>image</code> is (256, 256, 3) uint8 from the frozen OpenMAGVIT2 VQ
+    decoder with the monochrome value replicated across channels, and <code>reset(seed_frames=None)</code> clearing the internal history or
+    seeding it from real rbb frames of the base shot and slice; the frame's fields are read by the imas-ambix key names and rendered by the
+    §4d function. Runtime configuration (checkpoint, VQ decoder path, seed shot and slice, guidance weight) is read from the JSON file named by
+    <code>IMAS_AMBIX_FLUX_DECODER</code>, so nova's <code>load_decoder</code> needs no arguments. <strong>Done when</strong> a forward pass
+    on a random batch has the expected shapes; <code>decode()</code> on a SteeringFrame-shaped record built from session 21858 returns
+    (256, 256, 3) uint8 with an untrained checkpoint and a positive <code>decode_wall</code>; the class exposes
+    <code>decoder_identity</code>, <code>decode</code> and <code>reset</code> and the returned tuple's field names equal nova's; the
+    whole-tree ruff gate is 0.</p>
+    <h3 id="s4f">§4f — Overnight training launcher and receipt</h3>
+    <p><strong>Deliverable.</strong> <code>imas_ambix/worldmodel/flux_decoder_train.py</code> and
+    <code>scripts/slurm/flux_decoder_train.sbatch</code>. The loop rescans the session root at every epoch so shots landing overnight join the
+    training set; checkpoints every 30 minutes under <code>/work/projects/imas_gpu/ambix/flux_decoder/&lt;run&gt;/</code> beside a
+    <code>receipt.json</code> carrying the policy digest, carrier identity, the corpus digest (sorted admitted shot list with slice counts),
+    the git revision, the decoder identity, and the held-out measure: validation token NLL and decoded pixel error against persistence
+    (repeat the last real frame), the cheap proxy for the §6 decoder-skill gate. SLURM header per §3c: betelgeuse, reservation
+    <code>gpu_0003_grpA</code>, account grpa, one GPU, four CPUs, 160 GB, ten hours, no QOS, no <code>--mem=0</code>, logs under
+    <code>/work/projects/imas_gpu/logs/</code>; a pending job is a success at submission and nothing is displaced. <strong>Done when</strong>
+    a twenty-step smoke run on the landed sessions writes a checkpoint and receipt (on a compute node, or on CPU if no card is reachable,
+    stated in the receipt) and the sbatch is submitted with its job id recorded.</p>
+    <h3 id="s5b">§5b — Integration: nova's app under the ambix interpreter, and the recorded-session video</h3>
+    <p><strong>Deliverable.</strong> <code>imas_ambix/worldmodel/flux_decoder_video.py</code>, a command that takes a session file and a
+    checkpoint and writes a video: for a labeller-corpus shot, the real rbb frame beside the decoded frame per slice; for a recorded steering
+    session, the decoded frames alone with the action name and keyframe wall burned in. And
+    <code>scripts/slurm/playable_camera_serve.sbatch</code>, which launches nova's <code>apps/playable</code> with
+    <code>--decoder imas_ambix.worldmodel.flux_conditioned_decoder:FluxConditionedDecoder</code> under
+    <code>/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m bokeh serve</code> on the same node as the solve, following nova's §6
+    launcher conventions (job name, port 18506, allocation record). <strong>Done when</strong> a real-versus-decoded video for shot 21858 from
+    the latest checkpoint is written under <code>docs/figures/physics-carried-playable-plasma/</code> with its receipt, and the serve launcher's
+    dry run resolves every path; the live serve receipt (edit-to-frame latency, §6) is recorded when a card is available.</p>
     <h2 id="s4b">§4b — The camera topology labeller: a robust judge</h2>
     <p><strong>The problem with the current judge.</strong> Every camera-side position measurement so far
     has been a brightness centroid of the frame. It moves with divertor brightness, reflections, filaments
@@ -478,6 +589,26 @@
       </p>
     <p class="r-dec-rat">The rbb corpus, tokeniser and decoder already exist and were validated by the playable demo; adding cameras is a later plan.</p>
     </div>
+<div class="r-dec" data-key="label-corpus-source" data-choice="nova-labeller-sessions" data-by="reckon-ship imas-ambix-1d" data-when="2026-09-06">
+    <p class="r-dec-q">label-corpus-source</p>
+    <p class="r-dec-rat">Nova is writing the corpus tonight on three H200 cards at about 100 shots an hour in the SteeringFrame session shape with per-slice convergence flags, pinned by policy digest and carrier identity; an ambix wrapper and bulk solve would duplicate a running producer and the plan&#x27;s reuse rule forbids that. §3 and §3b are superseded.</p>
+    </div>
+<div class="r-dec" data-key="conditioning-input" data-choice="ambix-rendered-surfaces" data-by="reckon-ship imas-ambix-1d" data-when="2026-09-06">
+    <p class="r-dec-q">conditioning-input</p>
+    <p class="r-dec-rat">The locked flux-conditioning decision forbids resampling the hex mesh in ambix; drawing nova&#x27;s own surface polylines onto a grid is a deterministic rendering of the labelled map, not a resample, and it keeps tonight&#x27;s training independent of a nova re-run. Nova has locked the raster out of the training contract, so waiting would have no end date.</p>
+    </div>
+<div class="r-dec" data-key="frame-decoder-interface" data-choice="one-frame-stateful-reset" data-by="reckon-ship imas-ambix-1d" data-when="2026-09-06">
+    <p class="r-dec-q">frame-decoder-interface</p>
+    <p class="r-dec-rat">The frame-history bottleneck belongs to the renderer, not to the physics record; a stateful decoder keeps nova&#x27;s protocol at one frame in and lets the app stay ignorant of K. Agreed with the nova S19 coordinator 2026-09-06, who is adding reset() to apps/playable/camera.py and pinning the dotted path imas_ambix.worldmodel.flux_conditioned_decoder:FluxConditionedDecoder.</p>
+    </div>
+<div class="r-dec" data-key="slice-inclusion" data-choice="converged-flagged" data-by="reckon-ship imas-ambix-1d" data-when="2026-09-06">
+    <p class="r-dec-q">slice-inclusion</p>
+    <p class="r-dec-rat">Matches nova&#x27;s locked decision conditioned-slices-for-demo. A conditioned slice inherits one EFIT scalar (the current-centroid height), which is admissible for a demo but not for evidence scored against the EFIT referee; the flag keeps the ablation possible and the firewall enforceable on data.</p>
+    </div>
+<div class="r-dec" data-key="absent-wall-contract" data-choice="era-constant-wall-else-mask" data-by="reckon-ship imas-ambix-1d" data-when="2026-09-06">
+    <p class="r-dec-q">absent-wall-contract</p>
+    <p class="r-dec-rat">The MAST wall did not move between shots; nova&#x27;s era carrier holds one 37-node wall for every shot. Reading it from a per-shot store is a storage convenience, so an absent group is a storage gap, not a missing measurement, provided identity across the cohort is measured rather than assumed. The census figure and the branch taken are part of the node&#x27;s evidence.</p>
+    </div>
 </section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
@@ -494,10 +625,16 @@
     <pre class="r-fu-prompt">/reckon-ship physics-carried-playable-plasma §3</pre>
     <p class="r-fu-outcome">Partially discharged: §4b is done and never waited on nova. Five §4b nodes landed 2026-09-02 — targets b7a0567, cohort census, divertor screen, labeller a738471, scaled training 3d3181b — all four §6 confounders are now powered, and the labeller beats the brightness centroid on both position channels at smoke scale (primary null 49.7 cm vs 81.6 cm). Remaining §4b work is the robustness gate scoring behind queued SLURM job 1261548, plus the counterfactual half that needs the decoder. The §3, §3b, §4 and §5 clauses remain foreign-owner behind nova and carry forward to f-pcp-03.</p>
     </article>
-<article class="r-fu" data-id="f-pcp-03" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-02" data-recommends-skill="/reckon-ship physics-carried-playable-plasma §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-pcp-03" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship" data-written-at="2026-09-02" data-recommends-skill="/reckon-ship physics-carried-playable-plasma §3" data-resolved-at="2026-09-06T19:57:35+00:00" data-resolved-by="reckon-ship imas-ambix-1d">
     <h4 class="r-fu-title">Cut the §3, §3b, §4 and §5 nodes once nova&#x27;s traced-current SHA carries both the solve keyword and the latency receipt</h4>
     <div class="r-fu-body"><p>Exemption <strong>foreign-owner</strong>: §3 (equilibrium-engine wrapper), §3b (label corpus), §4 (decoder) and §5 (interaction loop) are scheduled behind nova node A on nova:forward-solve-api §5. The nova S19 coordinator sends the merge SHA; it must carry BOTH the solve-level keyword on <code>ForwardProfile.solve</code> and the 21989/55 per-edit latency receipt. Nova's <code>coil-edit-latency</code> benchmark was observed running on betelgeuse 2026-09-02 (job 1261545). Do not build against nova <code>dea56390</code> alone.</p><p>On receipt: dispatch §3 wrapper against that SHA, §3b label corpus after the wrapper, §4 decoder after §3b, §5 loop after C2 and B.</p><p><strong>Constraint the §4b census imposes on §3b and §4:</strong> the flux-conditioned decoder corpus must SUBTRACT the full 718-shot labeller cohort, because every one of those shots appears in the broad unified world-model manifest (<code>curated_windows_unified_6cam</code>, 7,664 rbb shots). Reusing that manifest unfiltered would train the decoder on the referee's shots and void the firewall. The frozen VQ decoder itself is baseline ImageNet OpenMAGVIT2 with no rbb fine-tuning and leaks nothing.</p></div>
     <pre class="r-fu-prompt">/reckon-ship physics-carried-playable-plasma §3</pre>
+    <p class="r-fu-outcome">Superseded 2026-09-06: nova produces the labels (playable-forward-solve §8C, batch 76906a29 landing at about 100 shots an hour) and owns the interaction loop and the shape controls in its playable app; the traced-current SHA and 21989/55 latency receipt this followup waited on are no longer the seam. The ambix work is the decoder behind nova's FrameDecoder protocol: §4d dataset, §4e model and protocol class, §4f overnight training, §5b integration and video, cut as nodes in f-pcp-04.</p>
+    </article>
+<article class="r-fu" data-id="f-pcp-04" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-ship imas-ambix-1d" data-written-at="2026-09-06" data-recommends-skill="/reckon-ship physics-carried-playable-plasma §4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Train the flux-conditioned decoder overnight on nova&#x27;s labeller sessions and load it into nova&#x27;s playable app</h4>
+    <div class="r-fu-body"><p>Nodes: §4d session dataset (pcp-session-dataset) and §4e conditioning adapter plus FrameDecoder class (pcp-flux-decoder) run in parallel on disjoint files; §4f training launcher (pcp-decoder-train) after both, submitting one 1-GPU 4-core job on betelgeuse that pends until nova cedes a card; §5b video and serve launcher (pcp-decoder-video) after §4e, with the real-versus-decoded video for shot 21858 from the latest checkpoint. The wall-contract repair on the §4b targets (pcp-targets-mask-repair, commit fe03e6f3, resumed with decision absent-wall-contract) runs beside them. Demo shot: the lead's lock is 21989, which has no converging slice on today's solver; nova serves 22086/43 tonight and can serve 21978/35 (converging, best rbb video among converging carriers). The re-lock is the lead's and is surfaced in the session report.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship physics-carried-playable-plasma §4</pre>
     </article>
 </section>
 
@@ -558,6 +695,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-20260902T1700-demo-shot-convergence" data-who="reckon-ship" data-when="2026-09-02T17:00:00+02:00">
     <div class="r-comment-body">Regenerated nova bank (main 8678047a, docs/figures/primary-xpoint-evidence/efit-topology-corroboration.json; one slice per shot): converging rows, all mixed arm, 0 trips from the banked state, diverted: 21978/35 (residual 7.5e-12), 21985/51 (2.8e-16), 22086/43 (1.7e-14). Non-converging: 21983/35 pure 1.6e-3 and mixed 1.3e-3 budget-exhausted; 21986/46 pure 5.9e-3 limited, mixed raises NoQualifiedAxisError; 21989/55 pure 2.9e-3 and mixed 3.0e-3 budget-exhausted, limited (EFIT says diverted). The 21989 lock therefore has no converging slice on today's solver. Candidates that converge AND have usable rbb video: 21978 (census: saturation 3.81%, blank 0.0%, robust range 195, motion p90 14.68; the earlier exclusion was for its PURE arm, the MIXED arm converges) and 21985 (over-bright, saturation 17%). The frozen-six carrier is era-wide so any slice of these shots solves without a rebuild; pure/limited stagnation on 21983/21986/21989 is the pending convergence decision on nova:solver-convergence-regression. Recommendation to the lead: re-lock demo-shot to 21978 on the mixed arm; keep 21989 as the bright target once convergence lands.</div>
+</div>
+<div class="r-comment" data-section="s3c" data-id="c-20260906T2000-currency-coordination" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-06T20:00:00Z">
+    <div class="r-comment-body">Coordination record. Asked the four-card serve owner (session ambix-dspark) and the nova S19 coordinator (nova-c6) as the lead directed. Serve owner: no GPU reservation exists, all eight H200s allocated, group A at 26 of 30 cores, two-card fallback measured 23.1 vs 23.3 tok/s, the -2x profile port defect fixed at 18809 (no outage was possible; the CLI refuses a held port at submit). Nova: accepted the four decoder answers, adding reset() to the protocol tonight, corpus root and ranked card lists confirmed, schema frozen at launch base 76906a29 (pin on policy_digest and carrier_identity, not nova_revision), include_raster false by locked nova decision, inclusion rule converged-only with conditioned as a flag, app serves 22086/43 and can serve 21978/35, asked us not to resize the serve; within about two hours nova relaunches the labeller as one two-card job and leaves one card for ambix training. Decision taken here: submit one 1-GPU 4-core training job and let it pend; no serve change.</div>
 </div>
 </section>
 </main>
