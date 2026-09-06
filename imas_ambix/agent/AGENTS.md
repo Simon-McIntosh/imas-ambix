@@ -372,11 +372,31 @@ id.** Measured on two four-card serves of the same checkpoint on the same day:
 
 The pool nearly **doubled** while the memory behind it grew 4.2%, so per-token
 KV cost halved. `kv_cache_dtype` was `fp8` on both, so the obvious explanation —
-a precision change — is **ruled out**; the only other delta is `max_model_len`,
-which points at this model's hybrid compressed attention accounting per-token KV
-against the declared window. The mechanism is not established and should not be
-asserted. **The operational rule stands regardless: re-measure after any profile
-change, because a limit sized to yesterday's pool silently stops being right.**
+a precision change — is **ruled out**; the only other delta is `max_model_len`.
+
+**The strongest clue is the ratio the engines report themselves.**
+`kv_cache_max_concurrency` was **2.506** and **2.439** — near-constant across a
+doubling of the window. That figure is pool over `max_model_len`, so a constant
+means the reported pool tracks the declared window almost exactly. A physical
+capacity that merely happened to change would not hold that ratio. This model's
+hybrid compressed attention accounting per-token KV against the declared window
+predicts precisely this; a draft-model reservation predicts the opposite sign.
+**The mechanism is still not established and must not be asserted.**
+
+**The decisive experiment costs one restart** and has not been run: bring an
+engine up on the current checkpoint and memory fraction with `max_model_len`
+back at 524,288. A pool near 1.3M isolates the window as the cause with every
+other variable fixed; a pool near 2.56M means something else changed between the
+two serves and the window is a coincidence.
+
+**Name the assumption before dividing the pool by a session size.** Concurrency
+figures derived that way are valid only because vLLM's paged attention allocates
+KV per token *actually used* rather than per declared window. That holds here,
+but it is the load-bearing premise under every sizing number in this section and
+it was left unstated through two rounds of argument.
+
+**The operational rule stands regardless: re-measure after any profile change,
+because a limit sized to yesterday's pool silently stops being right.**
 
 Read the live figure rather than a document:
 
@@ -426,6 +446,14 @@ for f in <run-dir>/stream.jsonl <run-dir>/resume-*.jsonl; do
 done
 ```
 
+**Key on the structured field, never on the rejection sentence.** `api_retry`
+and `"error_status":429` are the same records — counted 16/16, 8/8, 5/5 and 0/0
+across six streams — so either works. But the literal text
+`Request rejected (429)` / `consumer queue full` returned **zero across 29 real
+429 records** on one session's runs while appearing as assistant turn text on
+another's. A grep for the sentence will report no rejections on a run that had
+twenty-nine.
+
 **Only compare `turn.completed` across codex-format streams** — a claude-backend
 run does not emit that record at all, so its `0/0` is a format artefact rather
 than a diagnosis.
@@ -439,7 +467,12 @@ manifest", and a fix aimed at one will appear to half-work.** One is 429
 exhaustion mid-turn. The other is a worker whose stream contains
 `turn.completed` with its deliverable fully written and only the manifest
 missing — the process ending with its turn, one turn short, which has nothing to
-do with admission control.
+do with admission control. That second shape has at least two measured causes of
+its own: a manifest written to the node's declared report path instead of the
+run directory, and a promotion that reads the stream before its writer has
+finished. **If manifest-missing rates fall after a concurrency change, suspect
+that the admission deaths were merely masking the other cause rather than that
+it was fixed.**
 
 ## 4. Composable Agent CLI
 
