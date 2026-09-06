@@ -451,6 +451,29 @@ entirely different facts.** Before reporting headroom, establish that the offere
 load was actually there — a lane-wide live-run count beside the engine samples,
 at a shared wall-clock stamp.
 
+**The settled conclusion, after a six-hour deliberate pressure test across three
+fleets, two engines and four withdrawn measurements:**
+
+> **Six was demonstrably killing workers. Sixteen demonstrably is not. Everything
+> past sixteen is unmeasured.**
+
+That is honest in both directions — it does not claim sixteen is sufficient, and
+it does not pretend the test found a ceiling. The two measurements that bound it:
+
+- **Three fleets running deliberately hot reached 21 live runs** against a
+  lane-wide allowance of 32 (16 per host, two hosts). The cap was never reached.
+- **Engine-side pressure across the whole day was one request waiting, once** —
+  `waiting_by_reason{capacity}=1` at `running=14`, KV 44%, 13:43:38Z. **The
+  hardware was never the constraint.**
+
+**Raising the cap further is a change with a cost and no measured benefit.** It
+requires a router restart, which kills in-flight requests, and the binding
+constraint is the width of the dependency graph rather than the lane. The
+evidence for 24 is assembled and 24 is the value to use *if* a future wave
+genuinely saturates — the arithmetic is peak KV of 45% at 16, so 24 sits near
+68% under a linear reading and better under a plateau one, while 32 approaches
+90% and is not supported.
+
 **Sixteen is a working ceiling on a shared best-effort endpoint, not a target.**
 The endpoint runs on spare cards with no reserved floor and competes with any
 training campaign on the same node.
