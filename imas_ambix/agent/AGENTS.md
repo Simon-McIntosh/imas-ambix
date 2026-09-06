@@ -451,6 +451,23 @@ entirely different facts.** Before reporting headroom, establish that the offere
 load was actually there — a lane-wide live-run count beside the engine samples,
 at a shared wall-clock stamp.
 
+**One open question, recorded with its testable prediction rather than a
+diagnosis.** Two *sustained* capacity waits were seen late in the test — each
+lasting at least three consecutive 20-second polls — at `running` 13 and 14 with
+KV at 44-45% and `num_preemptions_total` still zero. Neither KV (not full) nor
+`max_num_seqs` (1024) can explain admission being withheld at thirteen
+concurrent. The surviving candidate is the chunked-prefill token budget,
+`max_num_batched_tokens = 32768`, against the very large prompts an agentic
+worker sends — a single long prefill consumes the step's whole budget and the
+next request waits.
+
+**This is a candidate, not a finding.** It has been raised three times today and
+confirmed none of them; twice it was killed by reading the reason codes. Each
+event was one request waiting, which is marginal. **The testable prediction is
+that raising `max_num_batched_tokens` reduces sustained capacity waits at
+unchanged concurrency** — that needs an engine restart and has not been run, and
+one waiting request does not justify one.
+
 **The settled conclusion, after a six-hour deliberate pressure test across three
 fleets, two engines and four withdrawn measurements:**
 
