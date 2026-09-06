@@ -148,6 +148,36 @@ database session, so a live query routed there fails before it starts and the
 failure reads as a credential fault — which is exactly the symptom a missing
 `.env` link produces, and why the two must not be confusable.
 
+## Compute placement (binding): nothing heavy on the login node
+
+The user-global rule (`~/.agents/AGENTS.md`, "Compute Infrastructure") binds
+here in full and is restated because workers read this file first. **The login
+node (`98dci4-srv-1006`) runs editors, git, reckon, file reads and unit tests
+that finish in seconds. Every other run goes to SLURM.** Heavy means: any pytest
+that opens real corpus data under `/work/projects/imas_gpu/`, a statistics or
+census pass over shots, checkpoint scoring, training, benchmarks, corpus scans,
+video rendering, and anything expected to run longer than about ten seconds of
+CPU. Measured 2026-09-06: two worker nodes running such passes on the login node
+drove its load average to 16.9 and the lead stopped them.
+
+CPU work: a `*_debug` partition — `all_debug` by default, `sun_debug` for
+IO-heavy corpus reads — with `--time` at or under one hour (a longer request
+pends forever on `PartitionTimeLimit`), `export TMPDIR=/tmp` on the node, never
+`--mem=0`. GPU work: `betelgeuse` under the reservation rules in
+`imas_ambix/agent/AGENTS.md` and `imas_ambix/spine_bench/AGENTS.md`.
+
+```bash
+srun --partition=all_debug --time=00:59:00 --cpus-per-task=4 --mem=32G \
+  bash -lc 'export TMPDIR=/tmp; cd "$PWD"; \
+    UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD \
+    uv run --no-sync pytest -p no:cacheprovider <targets>' > <log> 2>&1; echo EXIT=$?
+```
+
+A worker whose done-when names no partition still runs its heavy gate this way
+and says so in the manifest. A coordinator names the partition in every heavy
+node's done-when, and treats a heavy gate that ran on the login node as a scope
+defect: stop, redispatch, never accept the evidence.
+
 ## Whole-tree lint gate
 
 `uv run --no-sync ruff check imas_ambix tests` exits 0 and may be used as a
