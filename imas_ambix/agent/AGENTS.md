@@ -70,6 +70,26 @@ Size `--cpus-per-task` (and the DataLoader `num_workers`) to leave room for
 co-running jobs. The GPU burst itself is unaffected under normal QOS, but free
 cards do not imply that the reservation can admit the accompanying core request.
 
+**Memory binds too, and `--mem=0` is an exclusive-node request in disguise.**
+Measured 2026-09-06: a one-card, eight-core job sat in `Resources` while three
+cards and sixteen group-A cores were free, because it requested
+`mem=1500G` — the node's entire `RealMemory` of 1,536,000 MB. `--mem=0` reads
+as "no limit" and means "reserve everything". Such a job **cannot start while
+anyone else holds memory**, including group B, so on a shared node it
+effectively never runs. Worse, it **head-of-line blocks**: a sensible 128G job
+behind it showed `Priority`, not `Resources`, so nothing in the queue state
+pointed at the real cause — `Resources` looks identical to genuine contention.
+
+Size `--mem` to actual need, and check before blaming contention:
+
+```bash
+scontrol show job <id> | grep -oE 'ReqTRES=[^ ]*'                # mem near 1500G?
+scontrol show node 98dci4-gpu-0003 | grep -E 'RealMemory|AllocMem'
+```
+
+A request above `RealMemory − AllocMem` cannot start now; one above
+`RealMemory` less whatever group B routinely holds will effectively never start.
+
 **Do NOT size from `srun --test-only` — it is inert on these reservations and
 answers every request identically.** Measured 2026-09-05: against
 `--reservation=gpu_0003_grpA` it reported a start time of exactly *now plus
