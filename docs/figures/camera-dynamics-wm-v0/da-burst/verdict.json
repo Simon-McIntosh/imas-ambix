@@ -1,0 +1,471 @@
+{
+  "task": "fast-Dalpha conditioning verdict on held-out ELM frames",
+  "horizon_ms": 10.0,
+  "evidence_mode": "checkpoint_cpu_rescore",
+  "metric_provenance": {
+    "morphology": "camdyn.metrics.elm_frame_morphology_fidelity",
+    "token_nll": "bitwise NLL on camdyn.metrics.elm_edge_divertor_mask",
+    "bootstrap": "camdyn.metrics.bootstrap_ci over paired shot means",
+    "metric_spec_sha256": "d6e950555460ccbf661e11be445dd8ad3327eb7bd097842de5f8f86d128e3b93",
+    "delta_orientation": "native_minus_control",
+    "win_directions": {
+      "morphology": "positive",
+      "token_nll": "negative"
+    }
+  },
+  "sources": {
+    "baseline_native": "/work/projects/imas_gpu/mast-checkpoints/camdyn/da_burst_baseline/final.pt",
+    "baseline_shuffled": "/work/projects/imas_gpu/mast-checkpoints/camdyn/da_burst_shuffled_baseline/final.pt",
+    "baseline_slow": "/work/projects/imas_gpu/mast-checkpoints/camdyn/da_burst_slow_baseline/final.pt",
+    "dynamics_native": "/work/projects/imas_gpu/mast-checkpoints/camdyn/da_burst_dynamics/final.pt",
+    "dynamics_shuffled": "/work/projects/imas_gpu/mast-checkpoints/camdyn/da_burst_shuffled_dynamics/final.pt",
+    "dynamics_slow": "/work/projects/imas_gpu/mast-checkpoints/camdyn/da_burst_slow_dynamics/final.pt"
+  },
+  "elm_frame_count": 8,
+  "shot_count": 8,
+  "per_frame": [
+    {
+      "shot_id": 21336,
+      "frame_key": "21336:0.448139995",
+      "actual_horizon_ms": 10.000000000000009,
+      "runs": {
+        "baseline_native": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 11.279334043499622
+        },
+        "baseline_shuffled": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 11.59416862142241
+        },
+        "baseline_slow": {
+          "morphology_fidelity": 0.23585977430419264,
+          "token_nll": 12.239354912278403
+        },
+        "dynamics_native": {
+          "morphology_fidelity": 0.1638439158178547,
+          "token_nll": 10.142353581270266
+        },
+        "dynamics_shuffled": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 10.495087600878849
+        },
+        "dynamics_slow": {
+          "morphology_fidelity": 0.05364638869440825,
+          "token_nll": 11.22646699327022
+        }
+      }
+    },
+    {
+      "shot_id": 22088,
+      "frame_key": "22088:0.397040009",
+      "actual_horizon_ms": 10.000000000000009,
+      "runs": {
+        "baseline_native": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 12.859491057775962
+        },
+        "baseline_shuffled": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 12.729856900668263
+        },
+        "baseline_slow": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 12.42936490412637
+        },
+        "dynamics_native": {
+          "morphology_fidelity": 0.008305976590416826,
+          "token_nll": 13.523085185967917
+        },
+        "dynamics_shuffled": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 13.729650491935539
+        },
+        "dynamics_slow": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 12.864925678801322
+        }
+      }
+    },
+    {
+      "shot_id": 22112,
+      "frame_key": "22112:0.440600008",
+      "actual_horizon_ms": 10.000000000000009,
+      "runs": {
+        "baseline_native": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 11.221995167551094
+        },
+        "baseline_shuffled": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 11.381548481009233
+        },
+        "baseline_slow": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 12.229330181544302
+        },
+        "dynamics_native": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 8.956705883971612
+        },
+        "dynamics_shuffled": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 8.942414120400755
+        },
+        "dynamics_slow": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 9.066818225066683
+        }
+      }
+    },
+    {
+      "shot_id": 22260,
+      "frame_key": "22260:0.381179988",
+      "actual_horizon_ms": 10.000000000000009,
+      "runs": {
+        "baseline_native": {
+          "morphology_fidelity": 0.5176073774881479,
+          "token_nll": 10.682539527325158
+        },
+        "baseline_shuffled": {
+          "morphology_fidelity": 0.5301898155126002,
+          "token_nll": 10.999076327689181
+        },
+        "baseline_slow": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 12.015310513130121
+        },
+        "dynamics_native": {
+          "morphology_fidelity": 0.1816307584931637,
+          "token_nll": 10.777931251551419
+        },
+        "dynamics_shuffled": {
+          "morphology_fidelity": 0.10068768632337474,
+          "token_nll": 11.422105926856645
+        },
+        "dynamics_slow": {
+          "morphology_fidelity": 0.04847686293363379,
+          "token_nll": 11.297683228093382
+        }
+      }
+    },
+    {
+      "shot_id": 22470,
+      "frame_key": "22470:0.363620013",
+      "actual_horizon_ms": 9.999999999999954,
+      "runs": {
+        "baseline_native": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 13.344077824613036
+        },
+        "baseline_shuffled": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 13.56773394596782
+        },
+        "baseline_slow": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 12.984298920068733
+        },
+        "dynamics_native": {
+          "morphology_fidelity": 0.04558549138625401,
+          "token_nll": 8.19097824219937
+        },
+        "dynamics_shuffled": {
+          "morphology_fidelity": 0.024251171308833714,
+          "token_nll": 8.176117453175587
+        },
+        "dynamics_slow": {
+          "morphology_fidelity": 0.050881650659816355,
+          "token_nll": 8.16750867344414
+        }
+      }
+    },
+    {
+      "shot_id": 24072,
+      "frame_key": "24072:0.437700003",
+      "actual_horizon_ms": 10.000000000000009,
+      "runs": {
+        "baseline_native": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 11.094436056870025
+        },
+        "baseline_shuffled": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 11.157395167745863
+        },
+        "baseline_slow": {
+          "morphology_fidelity": 0.08890020183677191,
+          "token_nll": 11.787537188834094
+        },
+        "dynamics_native": {
+          "morphology_fidelity": 0.20524820832563184,
+          "token_nll": 10.70317596075107
+        },
+        "dynamics_shuffled": {
+          "morphology_fidelity": 0.19465055156458014,
+          "token_nll": 10.541777583474373
+        },
+        "dynamics_slow": {
+          "morphology_fidelity": 0.18269117489142006,
+          "token_nll": 10.583491258079999
+        }
+      }
+    },
+    {
+      "shot_id": 24436,
+      "frame_key": "24436:0.341800004",
+      "actual_horizon_ms": 10.000000000000009,
+      "runs": {
+        "baseline_native": {
+          "morphology_fidelity": 0.12805855560400065,
+          "token_nll": 12.92873258466113
+        },
+        "baseline_shuffled": {
+          "morphology_fidelity": 0.00789244885342167,
+          "token_nll": 12.867859842010615
+        },
+        "baseline_slow": {
+          "morphology_fidelity": 0.23354912608928943,
+          "token_nll": 12.015634113762736
+        },
+        "dynamics_native": {
+          "morphology_fidelity": 0.0072397476771212275,
+          "token_nll": 15.329235977215637
+        },
+        "dynamics_shuffled": {
+          "morphology_fidelity": 0.008348344845304542,
+          "token_nll": 15.227960736002437
+        },
+        "dynamics_slow": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 14.227458131169346
+        }
+      }
+    },
+    {
+      "shot_id": 24451,
+      "frame_key": "24451:0.387259990",
+      "actual_horizon_ms": 10.000000000000009,
+      "runs": {
+        "baseline_native": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 13.08789276846885
+        },
+        "baseline_shuffled": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 12.573924624891788
+        },
+        "baseline_slow": {
+          "morphology_fidelity": 0.09133522561462334,
+          "token_nll": 12.29452068437885
+        },
+        "dynamics_native": {
+          "morphology_fidelity": 0.0013292299761905658,
+          "token_nll": 17.80437587847166
+        },
+        "dynamics_shuffled": {
+          "morphology_fidelity": 0.0,
+          "token_nll": 17.512902204341053
+        },
+        "dynamics_slow": {
+          "morphology_fidelity": 0.0016937846483677237,
+          "token_nll": 16.84459103594823
+        }
+      }
+    }
+  ],
+  "arms": {
+    "baseline": {
+      "comparisons": {
+        "native_minus_shuffled": {
+          "control": "shuffled",
+          "morphology": {
+            "orientation": "native_minus_control",
+            "mean": 0.013447958590765828,
+            "lo": -0.004718414259169634,
+            "hi": 0.04506229003146712,
+            "alpha": 0.05,
+            "clear_of_zero": false,
+            "favours_native": false,
+            "native_mean": 0.08070824163651857,
+            "control_mean": 0.06726028304575274,
+            "n_elm_frames": 8,
+            "n_shots": 8,
+            "bootstrap_unit": "shot mean"
+          },
+          "token_nll": {
+            "orientation": "native_minus_control",
+            "mean": -0.04663311008003701,
+            "lo": -0.21015203032313545,
+            "hi": 0.14576901649735638,
+            "alpha": 0.05,
+            "clear_of_zero": false,
+            "favours_native": false,
+            "native_mean": 12.062312378845611,
+            "control_mean": 12.108945488925647,
+            "n_elm_frames": 8,
+            "n_shots": 8,
+            "bootstrap_unit": "shot mean"
+          },
+          "native_beats_control": false
+        },
+        "native_minus_slow": {
+          "control": "slow",
+          "morphology": {
+            "orientation": "native_minus_control",
+            "mean": -0.0004972993440911025,
+            "lo": -0.11792988715209632,
+            "hi": 0.16773012393673326,
+            "alpha": 0.05,
+            "clear_of_zero": false,
+            "favours_native": false,
+            "native_mean": 0.08070824163651857,
+            "control_mean": 0.08120554098060967,
+            "n_elm_frames": 8,
+            "n_shots": 8,
+            "bootstrap_unit": "shot mean"
+          },
+          "token_nll": {
+            "orientation": "native_minus_control",
+            "mean": -0.18710654841984153,
+            "lo": -0.7838702290151334,
+            "hi": 0.387902604117489,
+            "alpha": 0.05,
+            "clear_of_zero": false,
+            "favours_native": false,
+            "native_mean": 12.062312378845611,
+            "control_mean": 12.249418927265452,
+            "n_elm_frames": 8,
+            "n_shots": 8,
+            "bootstrap_unit": "shot mean"
+          },
+          "native_beats_control": false
+        }
+      },
+      "fast_dalpha_beats_both_controls": false,
+      "n_elm_frames": 8,
+      "n_shots": 8
+    },
+    "dynamics": {
+      "comparisons": {
+        "native_minus_shuffled": {
+          "control": "shuffled",
+          "morphology": {
+            "orientation": "native_minus_control",
+            "mean": 0.03565569677806747,
+            "lo": 0.0049378872438016665,
+            "hi": 0.07675525037855406,
+            "alpha": 0.05,
+            "clear_of_zero": true,
+            "favours_native": true,
+            "native_mean": 0.0766479160333291,
+            "control_mean": 0.04099221925526164,
+            "n_elm_frames": 8,
+            "n_shots": 8,
+            "bootstrap_unit": "shot mean"
+          },
+          "token_nll": {
+            "orientation": "native_minus_control",
+            "mean": -0.07752176945828615,
+            "lo": -0.28967072980095,
+            "hi": 0.10377195201346878,
+            "alpha": 0.05,
+            "clear_of_zero": false,
+            "favours_native": false,
+            "native_mean": 11.92848024517487,
+            "control_mean": 12.006002014633156,
+            "n_elm_frames": 8,
+            "n_shots": 8,
+            "bootstrap_unit": "shot mean"
+          },
+          "native_beats_control": false
+        },
+        "native_minus_slow": {
+          "control": "slow",
+          "morphology": {
+            "orientation": "native_minus_control",
+            "mean": 0.03447418330487334,
+            "lo": 0.0029997734966402006,
+            "hi": 0.07325445321212001,
+            "alpha": 0.05,
+            "clear_of_zero": true,
+            "favours_native": true,
+            "native_mean": 0.0766479160333291,
+            "control_mean": 0.04217373272845577,
+            "n_elm_frames": 8,
+            "n_shots": 8,
+            "bootstrap_unit": "shot mean"
+          },
+          "token_nll": {
+            "orientation": "native_minus_control",
+            "mean": 0.1436123421907034,
+            "lo": -0.35316572110442923,
+            "hi": 0.6064879834891921,
+            "alpha": 0.05,
+            "clear_of_zero": false,
+            "favours_native": false,
+            "native_mean": 11.92848024517487,
+            "control_mean": 11.784867902984166,
+            "n_elm_frames": 8,
+            "n_shots": 8,
+            "bootstrap_unit": "shot mean"
+          },
+          "native_beats_control": false
+        }
+      },
+      "fast_dalpha_beats_both_controls": false,
+      "n_elm_frames": 8,
+      "n_shots": 8
+    }
+  },
+  "runs": {
+    "baseline_native": {
+      "arm": "baseline",
+      "conditioning": "native",
+      "morphology_mean": 0.08070824163651857,
+      "token_nll_mean": 12.062312378845611,
+      "n_elm_frames": 8,
+      "n_shots": 8
+    },
+    "baseline_shuffled": {
+      "arm": "baseline",
+      "conditioning": "shuffled",
+      "morphology_mean": 0.06726028304575274,
+      "token_nll_mean": 12.108945488925647,
+      "n_elm_frames": 8,
+      "n_shots": 8
+    },
+    "baseline_slow": {
+      "arm": "baseline",
+      "conditioning": "slow",
+      "morphology_mean": 0.08120554098060967,
+      "token_nll_mean": 12.249418927265452,
+      "n_elm_frames": 8,
+      "n_shots": 8
+    },
+    "dynamics_native": {
+      "arm": "dynamics",
+      "conditioning": "native",
+      "morphology_mean": 0.0766479160333291,
+      "token_nll_mean": 11.92848024517487,
+      "n_elm_frames": 8,
+      "n_shots": 8
+    },
+    "dynamics_shuffled": {
+      "arm": "dynamics",
+      "conditioning": "shuffled",
+      "morphology_mean": 0.04099221925526164,
+      "token_nll_mean": 12.006002014633156,
+      "n_elm_frames": 8,
+      "n_shots": 8
+    },
+    "dynamics_slow": {
+      "arm": "dynamics",
+      "conditioning": "slow",
+      "morphology_mean": 0.04217373272845577,
+      "token_nll_mean": 11.784867902984166,
+      "n_elm_frames": 8,
+      "n_shots": 8
+    }
+  },
+  "fast_dalpha_beats_both_controls": false
+}
