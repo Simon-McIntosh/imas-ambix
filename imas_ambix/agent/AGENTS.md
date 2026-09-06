@@ -452,9 +452,11 @@ load was actually there — a lane-wide live-run count beside the engine samples
 at a shared wall-clock stamp.
 
 **One open question, recorded with its testable prediction rather than a
-diagnosis.** Two *sustained* capacity waits were seen late in the test — each
-lasting at least three consecutive 20-second polls — at `running` 13 and 14 with
-KV at 44-45% and `num_preemptions_total` still zero. Neither KV (not full) nor
+diagnosis.** **Four** *sustained* capacity waits were seen late in the test — each
+lasting at least three consecutive 20-second polls — with a strikingly stable
+signature every time: `waiting=1`, `running` 13-14, KV **44-46%**, and
+`num_preemptions_total` zero throughout. The consistency suggests a structural
+steady state rather than noise. Neither KV (not full) nor
 `max_num_seqs` (1024) can explain admission being withheld at thirteen
 concurrent. The surviving candidate is the chunked-prefill token budget,
 `max_num_batched_tokens = 32768`, against the very large prompts an agentic
