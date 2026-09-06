@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-06T22:51:11",
+  "updated": "2026-09-06T22:59:20",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -24707,6 +24707,119 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260906T204406952298-cdw-burst-census",
+        "plan": "camera-dynamics-wm-v0",
+        "section": "\u00a75",
+        "node": "cdw-burst-census",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 699,
+                "cached_input_tokens": 460706,
+                "input_tokens": 461409,
+                "output_tokens": 47,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 461456,
+                "uncached_input_tokens": 4
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "verdict.json carries a census block with one disposition per pre-registered frame and the scored frame count, the paired native-minus-shuffled and native-minus-slow deltas in ELM morphology and token NLL with shot-clustered 95 percent intervals per arm at that count, verdict.png is regenerated, a report at /home/ITER/mcintos/.config/reckon/crew/reports/camera-dynamics-wm-v0/da-burst-census.md states the verdict at the widened count in one line beside the 8-frame result, pytest tests/camdyn/test_da_burst_verdict.py passes with the census block covered, and whole-tree ruff check imas_ambix tests exits 0",
+          "estimated_hours": null,
+          "goal": "Re-emitted fast-Dalpha verdict (docs/figures/camera-dynamics-wm-v0/da-burst/verdict.json plus verdict.png) scored by imas_ambix/camdyn/da_burst_verdict.py on a widened ELM census that scores every pre-registered held-out ELM frame each of the six checkpoints can score, whose census block accounts frame by frame for the 59 frames the ELM-fidelity study registered at 10 ms (which fail the six-way pairing, which fail the 0.75 to 1.25 x 10 ms horizon tolerance, which the checkpoints disagree on, which are scored), following the plan's followup f-cdw-burst-census",
+          "id": "cdw-burst-census",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T204406952298-cdw-burst-census/manifest.md",
+          "plan": "camera-dynamics-wm-v0",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75",
+          "spec_level": "guided",
+          "time_budget": "45m",
+          "write_paths": [
+            "imas_ambix/camdyn/da_burst_verdict.py",
+            "tests/camdyn/test_da_burst_verdict.py",
+            "docs/figures/camera-dynamics-wm-v0/da-burst",
+            "/home/ITER/mcintos/.config/reckon/crew/reports/camera-dynamics-wm-v0/da-burst-census.md"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "cdw-elm-response",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-06T20:47:49Z",
+        "completed_at": "2026-09-06T20:56:22Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 513,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 513,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "2447a618df9c57d9eabcfa0a18e34648ce7b83d3",
+        "commits": [],
+        "changed_lines": null,
+        "tests_added": null,
+        "gate": "failed",
+        "gate_check": null,
+        "suite_delta": null,
+        "failure_classification": "malformed-node",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260906T204406952298-cdw-burst-census/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0787a-5019-78d3-9bc4-810ab244f90a",
+        "budget": {
+          "cost_usd": null,
+          "detail": "no events yet",
+          "headroom": "unknown",
+          "rate_limit_period_minutes": null,
+          "rate_limit_type": null,
+          "refusal": false,
+          "resets_at": null,
+          "surpassed_threshold": null,
+          "threshold_status": null,
+          "tokens": null,
+          "utilisation_pct": null
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "no_commit": "stopped before any commit: the node's done-when named no partition and the worker began the checkpoint window census on the login node",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/cdw-burst-census",
+          "session_id": "01a0787a-5019-78d3-9bc4-810ab244f90a",
+          "session_source": "stream",
+          "retained_at": "2026-09-06T20:56:22Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/camdyn/test_da_burst_verdict.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -24753,6 +24866,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 528
+    "_version": 529
   }
 }
