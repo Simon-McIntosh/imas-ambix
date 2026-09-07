@@ -11,6 +11,7 @@ frame at a time while the model consumes four camera-token history frames.
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import os
 from collections.abc import Mapping, Sequence
@@ -55,11 +56,22 @@ ImageArray = NDArray[np.uint8]
 
 
 class DecodedFrame(NamedTuple):
-    """One image returned through Nova's camera protocol."""
+    """Fallback image result used when Nova is not installed."""
 
     image: object
     decode_wall: float
     decoder_identity: str
+
+
+def _decoded_frame_class() -> type[Any]:
+    """Resolve Nova's concrete result class without requiring Nova at import time."""
+    try:
+        camera = importlib.import_module("apps.playable.camera")
+    except ModuleNotFoundError as error:
+        if error.name not in {"apps", "apps.playable", "apps.playable.camera"}:
+            raise
+        return DecodedFrame
+    return camera.DecodedFrame
 
 
 class FluxDecoderOutput(NamedTuple):
@@ -505,9 +517,9 @@ class FluxConditionedDecoder:
             str(configuration.get("session_root", DEFAULT_SESSION_ROOT))
         )
         self.token_root = Path(str(configuration.get("token_root", TOKEN_ROOT)))
-        sample_seed = int(configuration.get("sample_seed", 0))
+        self._sample_seed = int(configuration.get("sample_seed", 0))
         self.generator = torch.Generator(device=self.device.type).manual_seed(
-            sample_seed
+            self._sample_seed
         )
 
         vq_stage = str(configuration.get("vq_stage", "open-magvit2"))
@@ -517,8 +529,10 @@ class FluxConditionedDecoder:
             self.vq_decoder = _StubVQDecoder()
         else:
             raise ValueError("vq_stage must be 'open-magvit2' or 'stub'")
+        self._decoded_frame_type = _decoded_frame_class()
+        self._configured_history = self._configured_seed_frames().copy()
         self._history: list[IntArray] = []
-        self.reset(self._configured_seed_frames())
+        self.reset()
 
     def _configured_seed_frames(self) -> IntArray:
         import xarray as xr  # noqa: PLC0415
@@ -557,16 +571,17 @@ class FluxConditionedDecoder:
         return local.astype(np.int64, copy=False)
 
     def reset(self, seed_frames: Sequence[object] | np.ndarray | None = None) -> None:
-        """Clear history, or replace it with four real-token seed frames.
+        """Restore deterministic configured state or install explicit seed frames.
 
-        Construction supplies the configured base-shot seed.  A caller may pass
-        another ``(4, 16, 16)`` local-token array; passing ``None`` or an empty
-        sequence clears the history.
+        With no argument, the configured base-shot history and sampling seed are
+        restored.  A caller may instead pass another ``(4, 16, 16)`` local-token
+        array; an explicitly empty sequence clears the history.
         """
+        self.generator.manual_seed(self._sample_seed)
         if seed_frames is None:
-            self._history = []
-            return
-        frames = np.asarray(seed_frames, dtype=np.int64)
+            frames = self._configured_history
+        else:
+            frames = np.asarray(seed_frames, dtype=np.int64)
         if frames.size == 0:
             self._history = []
             return
@@ -614,7 +629,7 @@ class FluxConditionedDecoder:
         monochrome = np.rint(rgb.astype(np.float32).mean(axis=2)).astype(np.uint8)
         image = np.repeat(monochrome[..., None], 3, axis=2)
         elapsed = max(perf_counter() - started, np.finfo(np.float64).eps)
-        return DecodedFrame(image, elapsed, self.decoder_identity)
+        return self._decoded_frame_type(image, elapsed, self.decoder_identity)
 
 
 def checkpoint_payload(
