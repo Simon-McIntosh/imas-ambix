@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T12:55:39",
+  "updated": "2026-09-07T13:05:39",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -31683,6 +31683,148 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260907T103542864247-pcp-rollout-degradation-figure",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a75b",
+        "node": "pcp-rollout-degradation-figure",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1474,
+                "cached_input_tokens": 506115,
+                "input_tokens": 507591,
+                "output_tokens": 2038,
+                "reasoning_output_tokens": 726,
+                "total_tokens": 509629,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "docs/figures/physics-carried-playable-plasma/seed-window/rollout-degradation.png exists committed, rendered from the receipt rather than from transcribed values, showing decoded and persistence per-frame error against transition index with the phase boundary, the knee and the two reference ratios annotated, and readable without the metric definition to hand. pytest tests/worldmodel/test_rollout_degradation_figure.py passes with a synthetic receipt proving the module derives its annotations from the file, including a case where a different phase boundary in the input moves the shading, and a case asserting a receipt missing the per_frame_error block raises rather than silently plotting nothing. Whole-tree ruff check imas_ambix tests exits 0. Both gates run on the all_debug partition via srun with TMPDIR=/tmp and command uv, and no betelgeuse job is submitted, modified or cancelled, since this node reads a committed JSON and touches no corpus data and no card",
+          "estimated_hours": null,
+          "goal": "A reusable figure in a new imas_ambix/worldmodel/rollout_degradation_figure.py that renders the decoder's autoregressive degradation curve from an already-committed render receipt, because that curve is the one decoder result measured over a whole window rather than sampled and is the only form in which the failure is legible to a reader not holding the metric definition. It reads docs/figures/physics-carried-playable-plasma/seed-window/full-window-22086.receipt.json, whose per_frame_error block carries the scored decoded and persistence errors with their target times, and plots decoded error against transition index with persistence on the same axes, marking the knee where the decoder leaves real-frame history at about the fourth transition, annotating the seeded short-horizon best case of ratio 2.156 over five transitions and the free-running aggregate of 3.696 over 41, and shading the early and late phases at the 0.150 s boundary whose ratios are 2.938 and 5.147. It takes the receipt path as an argument and derives every number from the file rather than hard-coding them, so the same figure regenerates unchanged against a future render once the model improves and the curve is re-measured",
+          "id": "pcp-rollout-degradation-figure",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T103542864247-pcp-rollout-degradation-figure/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75b",
+          "spec_level": "guided",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/worldmodel/rollout_degradation_figure.py",
+            "tests/worldmodel/test_rollout_degradation_figure.py",
+            "docs/figures/physics-carried-playable-plasma/seed-window/rollout-degradation.png"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pcp-decoder-video-2",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T10:35:59Z",
+        "completed_at": "2026-09-07T11:04:03Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1684,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1684,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "611b816a06313a418078b835018df64ff4981f45",
+        "commits": [
+          "4bc8c9aa14089f38d163687af5be970d4d2b05da"
+        ],
+        "changed_lines": {
+          "added": 504,
+          "removed": 0,
+          "files": 3
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug command uv run --no-sync pytest -p no:cacheprovider tests/worldmodel/test_rollout_degradation_figure.py plus whole-tree ruff and the render",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T103542864247-pcp-rollout-degradation-figure/all-debug-gates-formatted.log",
+          "log_digest": "7736224681f83813aa24331a10fa9d5b500af8cf288d49e97093797037ac425a"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T103542864247-pcp-rollout-degradation-figure/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07b70-6b76-7690-99fa-8cfbb03f3fcd",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 9881728,
+            "cached_input_tokens_cumulative": 9881728,
+            "input_tokens": 9984711,
+            "input_tokens_cumulative": 9984711,
+            "output_tokens": 28908,
+            "output_tokens_cumulative": 28908,
+            "reasoning_output_tokens": 9817,
+            "reasoning_output_tokens_cumulative": 9817
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 38725,
+          "peak_input_tokens": 19866439
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 2,
+        "attempt_kind": "resume",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-rollout-degradation-figure",
+          "session_id": "01a07b70-6b76-7690-99fa-8cfbb03f3fcd",
+          "session_source": "pointer",
+          "retained_at": "2026-09-07T11:04:03Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_rollout_degradation_figure.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -31729,6 +31871,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 591
+    "_version": 592
   }
 }
