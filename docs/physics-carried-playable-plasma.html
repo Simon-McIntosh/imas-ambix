@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="68">
+<meta name="plan-version" content="69">
 <meta name="plan-impl" content="0.9">
 </head>
 <body>
@@ -599,6 +599,53 @@
     §5d-ii have both landed. Done when the pair for the census winner is committed with its receipt, the
     identical-frame-count and identical-width identities hold, and the receipt names the winner and the
     census figures that selected it.</p>
+
+    <h3 id="s5d-carrier-cameras">§5d-iv — The frozen carrier's cameras, measured</h3>
+    <p><strong>The answer to the re-lock question above, from level-1 metadata on 2026-09-07.</strong>
+    Every frozen-carrier shot carries a full-frame continuous camera, so the premise that the carrier
+    might not is settled &mdash; and the ordering is the opposite of what was expected.</p>
+    <table>
+      <thead><tr><th>Shot</th><th><code>rbb</code></th><th>Cadence</th><th>Coverage</th>
+        <th>Thomson</th><th>Corpus session</th></tr></thead>
+      <tbody>
+        <tr><td>21978</td><td>512&times;512, 371 frames</td><td>667 &micro;s</td>
+            <td>0.085&ndash;0.376 s</td><td><code>atm</code></td><td>none</td></tr>
+        <tr><td>21983</td><td>512&times;512, 363 frames</td><td>667 &micro;s</td>
+            <td>0.085&ndash;0.371 s</td><td><code>atm</code></td><td>none</td></tr>
+        <tr><td>21985</td><td>512&times;512, 350 frames</td><td>667 &micro;s</td>
+            <td>0.085&ndash;0.362 s</td><td><code>atm</code></td><td>none</td></tr>
+        <tr><td>21986</td><td>512&times;512, 311 frames</td><td>667 &micro;s</td>
+            <td>0.085&ndash;0.336 s</td><td><code>atm</code></td><td>none</td></tr>
+        <tr><td><strong>21989</strong></td><td><strong>512&times;512, 394 frames</strong></td>
+            <td>667 &micro;s</td><td>0.085&ndash;0.400 s</td><td><code>atm</code></td><td>none</td></tr>
+        <tr><td>22086</td><td>128&times;172, 3,382 frames</td><td>20 &micro;s</td>
+            <td>0.000&ndash;0.342 s</td><td><code>atm</code></td><td>none</td></tr>
+        <tr><td>21858 (reference)</td><td>48&times;256, 30,150 frames</td><td>20 &micro;s</td>
+            <td>0.000&ndash;0.500 s</td><td><code>atm</code></td><td>101 converged</td></tr>
+      </tbody>
+    </table>
+    <p><strong>The lock is already on the best camera of the six, so the re-lock is a trade rather than
+    an upgrade.</strong> 21989 has the largest full-frame stream and the longest coverage in the carrier;
+    its problem is solver convergence, not the camera. 21978 is very nearly its equal &mdash; 371 frames
+    against 394, 0.085&ndash;0.376 s against 0.085&ndash;0.400 s &mdash; and is the cheap swap. 22086 is
+    the expensive one: it exchanges a 512&times;512 frame for 128&times;172, buying 33&times; the cadence
+    for a sixteenth of the pixels, which is the wrong direction for anything a person looks at. The
+    re-lock should be decided on these figures beside convergence, not on convergence alone.</p>
+    <p><strong>The labelled corpus and the operator carrier are disjoint sets today.</strong> None of the
+    six has a session or manifest under <code>labeller_sessions/76906a29</code>. That is the real reason
+    21858 is the pipeline reference, it is why §5d's presentation carrier is drawn from the corpus rather
+    than the carrier, and it means the live loop of §5 needs sessions produced for whichever carrier shot
+    is locked. Recorded because a plan reading as though the two sets overlap would send the next node
+    looking for labels that do not exist.</p>
+    <p><strong>§5d-iv node</strong> (<code>pcp-carrier-camera-report</code>). Deliverable: a committed
+    report under <code>docs/figures/physics-carried-playable-plasma/label-cartoon/carrier-cameras/</code>
+    turning the table above into measured picture quality over the real frames &mdash; per shot and per
+    camera group, the saturated and blank-like fractions, robust intensity range and frame-to-frame
+    motion, on the same definitions the earlier survey used for 21989 &mdash; beside the Thomson channel
+    count and the corpus-session status. IO-heavy frame reads, so it runs on <code>sun_debug</code>. Done
+    when the committed report ranks all six on measured picture quality with every figure shown, and says
+    which of them a label cartoon could be built on today and which could not. It informs the
+    <code>demo-shot</code> decision and settles nothing: the lock stays with the lead.</p>
 
     <h2 id="s6">§6 — Pre-registered gates</h2>
     <p>Locked before any number is produced. Each is a measure that emits evidence; a gate that cannot be
