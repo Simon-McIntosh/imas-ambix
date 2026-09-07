@@ -20,13 +20,13 @@ import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Protocol
+from typing import Any, NamedTuple, Protocol
 
 import numpy as np
 from numpy.typing import NDArray
 
-from imas_ambix.camdyn.dataset import level1_shot_path
-from imas_ambix.data.paths import LEVEL1_DIR
+from imas_ambix.camdyn.dataset import frames_token_path, level1_shot_path
+from imas_ambix.data.paths import LEVEL1_DIR, TOKEN_ROOT
 from imas_ambix.data.stream_encode import REGISTRY_OFFSET
 
 DEFAULT_SESSION_ROOT = Path(
@@ -44,9 +44,21 @@ VIDEO_HEIGHT = 256
 VIDEO_WIDTH = 256
 BANNER_HEIGHT = 32
 CONTACT_SHEET_FRAME_COUNT = 6
+HISTORY_FRAME_COUNT = 4
+HISTORY_SPACING_SECONDS = 0.005
+CAMERA_VOCAB_SIZE = 1 << 18
 
 ImageArray = NDArray[np.uint8]
 TokenArray = NDArray[np.int64]
+
+
+class _SeedWindow(NamedTuple):
+    selected: list[int]
+    query_times: NDArray[np.float64]
+    session_slice_indices: NDArray[np.int64]
+    camera_frame_indices: NDArray[np.int64]
+    camera_time_deltas: NDArray[np.float64]
+    leading_slices_skipped: int
 
 
 class FrameDecoder(Protocol):
@@ -136,6 +148,92 @@ def _nearest_indices(
     return indices, reference[indices] - query
 
 
+def _resolve_seed_window(
+    selected: Sequence[int],
+    render_session_times: NDArray[np.float64],
+    seed_session_times: NDArray[np.float64],
+    seed_camera_times: NDArray[np.float64],
+    *,
+    requested_start_slice: int,
+) -> _SeedWindow:
+    """Tie four real-token history frames to the first rendered slice."""
+    if not 0 <= requested_start_slice < render_session_times.size:
+        raise IndexError(
+            f"seed_slice {requested_start_slice} outside "
+            f"{render_session_times.size} session rows"
+        )
+    candidates = [index for index in selected if index >= requested_start_slice]
+    if not candidates:
+        raise ValueError("the session has no admitted slice at or after seed_slice")
+    if not seed_session_times.size or not seed_camera_times.size:
+        raise ValueError("seed session and camera times must be non-empty")
+
+    spacing = HISTORY_SPACING_SECONDS * np.arange(
+        HISTORY_FRAME_COUNT, 0, -1, dtype=np.float64
+    )
+    for position, first_rendered_slice in enumerate(candidates):
+        render_time = float(render_session_times[first_rendered_slice])
+        query_times = render_time - spacing
+        session_indices, session_deltas = _nearest_indices(
+            seed_session_times, query_times
+        )
+        camera_indices, camera_deltas = _nearest_indices(seed_camera_times, query_times)
+        full_history = bool(
+            query_times[0] >= seed_session_times[0]
+            and query_times[-1] <= seed_session_times[-1]
+            and query_times[0] >= seed_camera_times[0]
+            and query_times[-1] <= seed_camera_times[-1]
+            and np.all(np.abs(session_deltas) <= MAX_CAMERA_DELTA_SECONDS)
+            and np.all(np.abs(camera_deltas) <= MAX_CAMERA_DELTA_SECONDS)
+            and np.all(seed_session_times[session_indices] < render_time)
+            and np.all(seed_camera_times[camera_indices] < render_time)
+        )
+        if full_history:
+            return _SeedWindow(
+                selected=candidates[position:],
+                query_times=query_times,
+                session_slice_indices=session_indices,
+                camera_frame_indices=camera_indices,
+                camera_time_deltas=camera_deltas,
+                leading_slices_skipped=position,
+            )
+    raise ValueError(
+        "no admitted slice at or after seed_slice has four preceding history frames"
+    )
+
+
+def _camera_times(shot: int, *, level1_root: Path) -> NDArray[np.float64]:
+    import zarr  # noqa: PLC0415
+
+    path = level1_shot_path(shot, level1_dir=level1_root)
+    store = zarr.open_group(str(path), mode="r")
+    return np.asarray(store["rbb"]["time"], dtype=np.float64)
+
+
+def _load_seed_tokens(
+    shot: int,
+    frame_indices: NDArray[np.int64],
+    *,
+    token_root: Path,
+) -> TokenArray:
+    import zarr  # noqa: PLC0415
+
+    path = frames_token_path(shot, "rbb", token_root=token_root)
+    store = zarr.open_group(str(path), mode="r")
+    tokens = store["tokens"]
+    if frame_indices.size != HISTORY_FRAME_COUNT:
+        raise ValueError("seed history must contain four camera-frame indices")
+    if int(frame_indices[-1]) >= int(tokens.shape[0]):
+        raise ValueError("seed camera times and token frames have different lengths")
+    stored = np.stack(
+        [np.asarray(tokens[int(index)], dtype=np.int64) for index in frame_indices]
+    )
+    upper_bound = REGISTRY_OFFSET + CAMERA_VOCAB_SIZE
+    if np.any(stored < REGISTRY_OFFSET) or np.any(stored >= upper_bound):
+        raise ValueError("seed token history contains an out-of-range token id")
+    return (stored - REGISTRY_OFFSET).astype(np.int64, copy=False)
+
+
 def _load_real_frames(
     shot: int,
     times: NDArray[np.float64],
@@ -219,6 +317,38 @@ def _compose_frame(
     )
     draw.text((6, 9), banner, fill="white")
     return np.asarray(canvas, dtype=np.uint8)
+
+
+def _pixel_error_receipt(
+    real_frames: ImageArray | None, decoded_frames: Sequence[ImageArray]
+) -> dict[str, object] | None:
+    if real_frames is None or len(decoded_frames) < 2:
+        return None
+    real_rgb = _as_rgb_uint8(real_frames)
+    real = np.stack([_resize(frame) for frame in real_rgb]).astype(np.float64)
+    decoded = np.stack([_resize(frame) for frame in decoded_frames]).astype(np.float64)
+    if real.shape != decoded.shape:
+        raise ValueError(
+            f"real and decoded stacks must share a shape, got {real.shape} and "
+            f"{decoded.shape}"
+        )
+    decoded_per_frame = np.mean(np.abs(decoded - real), axis=(1, 2, 3))
+    persistence_per_frame = np.mean(np.abs(real[1:] - real[:-1]), axis=(1, 2, 3))
+    decoded_mae = float(np.mean(decoded_per_frame[1:]))
+    persistence_mae = float(np.mean(persistence_per_frame))
+    ratio = decoded_mae / persistence_mae if persistence_mae > 0.0 else None
+    return {
+        "definition": (
+            "Mean absolute error in uint8 intensity levels over resized 256x256 "
+            "frames. Frame zero is unscored so decoded and persistence means use "
+            "the same subsequent-frame population; persistence repeats the "
+            "previous admitted real frame."
+        ),
+        "decoded_frame_mae_u8": decoded_mae,
+        "persistence_frame_mae_u8": persistence_mae,
+        "decoded_to_persistence_ratio": ratio,
+        "scored_frame_count": len(decoded_frames) - 1,
+    }
 
 
 def _write_video(frames: Sequence[ImageArray], output: Path, fps: int) -> int | None:
@@ -330,8 +460,11 @@ def _runtime_decoder(
     vq_checkpoint: Path,
     seed_session: Path,
     seed_slice: int,
+    seed_frames: TokenArray,
     device: str,
     guidance_weight: float,
+    temperature: float,
+    sample_seed: int,
 ) -> tuple[FrameDecoder, _TokenCollector]:
     from imas_ambix.worldmodel.flux_conditioned_decoder import (  # noqa: PLC0415
         FluxConditionedDecoder,
@@ -345,6 +478,8 @@ def _runtime_decoder(
         "vq_decoder_id": f"imagenet_256_L:{_sha256(vq_checkpoint)}",
         "vq_stage": "stub",
         "guidance_weight": guidance_weight,
+        "temperature": temperature,
+        "sample_seed": sample_seed,
         "device": device,
         "seed_shot": int(seed_session.stem),
         "seed_slice": seed_slice,
@@ -365,6 +500,7 @@ def _runtime_decoder(
             else:
                 os.environ["IMAS_AMBIX_FLUX_DECODER"] = previous
     collector = _TokenCollector()
+    decoder.reset(seed_frames)
     decoder.vq_decoder = collector
     return decoder, collector
 
@@ -460,9 +596,12 @@ def render_session_video(
     vq_checkpoint: Path = DEFAULT_VQ_CHECKPOINT,
     seed_session: Path | None = None,
     seed_slice: int = 50,
+    token_root: Path = TOKEN_ROOT,
     level1_root: Path = LEVEL1_DIR,
     device: str = "cpu",
     guidance_weight: float = 1.0,
+    temperature: float = 1.0,
+    sample_seed: int = 0,
     fps: int = DEFAULT_FPS,
     max_frames: int | None = None,
 ) -> dict[str, object]:
@@ -476,11 +615,29 @@ def render_session_video(
     if fps <= 0:
         raise ValueError("fps must be positive")
     session = _read_session(session_path)
+    session_times = np.asarray(session["time"], dtype=np.float64)
     mode, shot, selected, manifest_slices = _manifest_selection(
         session_path, int(session.sizes["time"])
     )
     admitted_before_camera = len(selected)
-    times = np.asarray(session["time"].isel(time=selected), dtype=np.float64)
+    actual_seed: Path | None = None
+    seed_shot: int | None = None
+    seed_window: _SeedWindow | None = None
+    candidate_count_before_history = 0
+    if decoder is None:
+        actual_seed = seed_session or (
+            session_path
+            if session_path.stem.isdigit()
+            else DEFAULT_SESSION_ROOT / "21858.nc"
+        )
+        if not actual_seed.stem.isdigit():
+            raise ValueError("the seed session filename must be a numeric shot")
+        seed_shot = int(actual_seed.stem)
+        selected = [index for index in selected if index >= seed_slice]
+        candidate_count_before_history = len(selected)
+        if not selected:
+            raise ValueError("the session has no admitted slice at or after seed_slice")
+    times = session_times[selected]
     observed_deltas = frame_deltas
     if mode == "labeller":
         if real_frames is None:
@@ -499,6 +656,26 @@ def render_session_video(
             raise ValueError("real frame count must equal the admitted labeller slices")
     elif real_frames is not None:
         raise ValueError("real frames are only valid for a labeller session")
+    if decoder is None:
+        if actual_seed is None or seed_shot is None:
+            raise RuntimeError("runtime decoder seed source was not resolved")
+        seed_source = _read_session(actual_seed)
+        seed_session_times = np.asarray(seed_source["time"], dtype=np.float64)
+        seed_camera_times = _camera_times(seed_shot, level1_root=level1_root)
+        seed_window = _resolve_seed_window(
+            selected,
+            session_times,
+            seed_session_times,
+            seed_camera_times,
+            requested_start_slice=seed_slice,
+        )
+        selected = seed_window.selected
+        times = session_times[selected]
+        skipped = seed_window.leading_slices_skipped
+        if real_frames is not None:
+            real_frames = real_frames[skipped:]
+        if observed_deltas is not None:
+            observed_deltas = observed_deltas[skipped:]
     if max_frames is not None:
         if max_frames <= 0:
             raise ValueError("max_frames must be positive")
@@ -511,18 +688,23 @@ def render_session_video(
 
     collector = None
     if decoder is None:
-        actual_seed = seed_session or (
-            session_path
-            if session_path.stem.isdigit()
-            else DEFAULT_SESSION_ROOT / "21858.nc"
+        if actual_seed is None or seed_shot is None or seed_window is None:
+            raise RuntimeError("runtime decoder seed history was not resolved")
+        seed_frames = _load_seed_tokens(
+            seed_shot,
+            seed_window.camera_frame_indices,
+            token_root=token_root,
         )
         decoder, collector = _runtime_decoder(
             checkpoint,
             vq_checkpoint=vq_checkpoint,
             seed_session=actual_seed,
-            seed_slice=seed_slice,
+            seed_slice=int(seed_window.session_slice_indices[-1]),
+            seed_frames=seed_frames,
             device=device,
             guidance_weight=guidance_weight,
+            temperature=temperature,
+            sample_seed=sample_seed,
         )
 
     decoded: list[ImageArray] = []
@@ -551,6 +733,7 @@ def render_session_video(
         )
         decoded = [image for image in decoded_stack]
     vq_wall = perf_counter() - vq_started
+    pixel_error = _pixel_error_receipt(real_frames, decoded)
 
     frames = [
         _compose_frame(
@@ -596,6 +779,36 @@ def render_session_video(
         "written_frame_count": len(frames),
         "gif_frame_count": gif_frame_count,
         "max_abs_camera_delta_s": max_delta,
+        "guidance_weight": guidance_weight,
+        "temperature": temperature,
+        "sample_seed": sample_seed,
+        "requested_start_slice": seed_slice if seed_window is not None else None,
+        "first_rendered_slice": selected[0],
+        "first_rendered_time_s": float(times[0]),
+        "seed_provenance": (
+            {
+                "session": str(actual_seed.resolve()),
+                "shot": seed_shot,
+                "history_spacing_s": HISTORY_SPACING_SECONDS,
+                "session_slice_indices": seed_window.session_slice_indices.tolist(),
+                "slice_times_s": seed_window.query_times.tolist(),
+                "camera_frame_indices": seed_window.camera_frame_indices.tolist(),
+                "camera_frame_times_s": (
+                    seed_window.query_times + seed_window.camera_time_deltas
+                ).tolist(),
+                "camera_time_deltas_s": seed_window.camera_time_deltas.tolist(),
+                "seeded_short_frame_count": 0,
+                "leading_render_slices_skipped_for_full_history": (
+                    seed_window.leading_slices_skipped
+                ),
+                "candidate_render_slices_at_or_after_requested_start": (
+                    candidate_count_before_history
+                ),
+            }
+            if seed_window is not None and actual_seed is not None
+            else None
+        ),
+        "pixel_error": pixel_error,
         "actions": actions,
         "median_decode_wall_s": float(np.median(decode_walls)),
         "max_decode_wall_s": float(np.max(decode_walls)),
@@ -631,9 +844,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--seed-session", type=Path)
     parser.add_argument("--seed-slice", type=int, default=50)
+    parser.add_argument("--token-root", type=Path, default=TOKEN_ROOT)
     parser.add_argument("--level1-root", type=Path, default=LEVEL1_DIR)
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--guidance-weight", type=float, default=1.0)
+    parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--sample-seed", type=int, default=0)
     parser.add_argument("--fps", type=int, default=DEFAULT_FPS)
     parser.add_argument("--max-frames", type=int)
     return parser
@@ -650,9 +866,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         vq_checkpoint=args.vq_checkpoint,
         seed_session=args.seed_session,
         seed_slice=args.seed_slice,
+        token_root=args.token_root,
         level1_root=args.level1_root,
         device=args.device,
         guidance_weight=args.guidance_weight,
+        temperature=args.temperature,
+        sample_seed=args.sample_seed,
         fps=args.fps,
         max_frames=args.max_frames,
     )
