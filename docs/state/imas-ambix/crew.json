@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T06:39:09",
+  "updated": "2026-09-07T07:06:56",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -26803,6 +26803,142 @@
           "role": "implement",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260907T044946929401-pcp-video-second-checkpoint",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a75b",
+        "node": "pcp-video-second-checkpoint",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 476,
+                "cached_input_tokens": 776937,
+                "input_tokens": 777445,
+                "output_tokens": 2526,
+                "reasoning_output_tokens": 594,
+                "total_tokens": 779971,
+                "uncached_input_tokens": 32
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "the gif and receipt exist under docs/figures/physics-carried-playable-plasma/ committed in your worktree, the receipt reports the SLURM job id and partition all_debug, the checkpoint sha256 and step 17652, at least 80 frames, the mean decoded and persistence pixel errors against the real frames, and the manifest quotes those two numbers beside the step7644 figures (10.68 vs 2.79); no code files change and no betelgeuse job is touched",
+          "estimated_hours": null,
+          "goal": "The real-versus-decoded video of shot 21858 from the second trained checkpoint: run the landed imas_ambix.worldmodel.flux_decoder_video command on the all_debug partition via srun (never the login node, command uv to bypass the node uv shell function) against session /work/projects/imas_gpu/sophelio/labeller_sessions/76906a29/21858.nc and checkpoint /work/projects/imas_gpu/ambix/flux_decoder/overnight-20260907c/checkpoint-000017652.pt (step 17652 of training job 1263842, still running, so copy the checkpoint into your run directory first and decode from the copy) with --vq-route persistent-subprocess, writing docs/figures/physics-carried-playable-plasma/shot-21858-real-decoded-step17652.gif with its receipt json beside it exactly as the step7644 pair was produced",
+          "id": "pcp-video-second-checkpoint",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T044946929401-pcp-video-second-checkpoint/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75b",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "docs/figures/physics-carried-playable-plasma"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "pcp-decoder-video",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T04:50:04Z",
+        "completed_at": "2026-09-07T05:05:58Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 954,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 954,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "775da4e86c695f8879e9c9529d772bdfb602fd2f",
+        "commits": [
+          "dc4b919f4ec0c81bb20e8edb6faa3043f321c913"
+        ],
+        "changed_lines": {
+          "added": 301,
+          "removed": 0,
+          "files": 2
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug python -m imas_ambix.worldmodel.flux_decoder_video 21858.nc checkpoint-000017652.pt --vq-route persistent-subprocess (SLURM job 1263854, COMPLETED 0:0, 8 min 53 s)",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T044946929401-pcp-video-second-checkpoint/real-render-all-debug.log",
+          "log_digest": "sha256:c7a94067d58d84afc025d9b8796c5f00855b71a34926670b385be1c884cd54fa"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T044946929401-pcp-video-second-checkpoint/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07a33-bccd-7c32-8125-573d08d7b2d7",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 8745728,
+            "cached_input_tokens_cumulative": 8745728,
+            "input_tokens": 8940317,
+            "input_tokens_cumulative": 8940317,
+            "output_tokens": 18781,
+            "output_tokens_cumulative": 18781,
+            "reasoning_output_tokens": 4396,
+            "reasoning_output_tokens_cumulative": 4396
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 23177,
+          "peak_input_tokens": 17686045
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-video-second-checkpoint",
+          "session_id": "01a07a33-bccd-7c32-8125-573d08d7b2d7",
+          "session_source": "stream",
+          "retained_at": "2026-09-07T05:05:58Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [
@@ -26849,6 +26985,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 544
+    "_version": 545
   }
 }

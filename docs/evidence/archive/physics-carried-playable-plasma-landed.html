@@ -506,14 +506,21 @@
         <tr><td>untrained (step 0)</td><td>12.59 (uniform over 2<sup>18</sup> is 12.48)</td><td>&mdash;</td></tr>
         <tr><td>step 7,644 (06:17 local), receipt</td><td>10.97</td><td>8.94 vs 3.44 (4 samples)</td></tr>
         <tr><td>step 7,644, full 21858 video (84 scored frames)</td><td>&mdash;</td><td>10.68 vs 2.79</td></tr>
+        <tr><td>step 17,652 (06:47 local), receipt</td><td>10.66</td><td>4.14 vs 3.44 (4 samples)</td></tr>
+        <tr><td>step 17,652, full 21858 video (84 scored frames)</td><td>&mdash;</td><td>9.61 vs 2.75</td></tr>
       </tbody>
     </table>
     <p>The first video from a trained decoder, node <code>pcp-video-first-checkpoint</code> (commit <code>e87e598</code>,
     <code>all_debug</code> job 1263850): <code>docs/figures/physics-carried-playable-plasma/shot-21858-real-decoded-step7644.gif</code>,
     85 frames at 10 fps with its receipt (checkpoint sha256 <code>79f0b15d…</code>, decoder identity in nova's three-part form, VQ
     route persistent-subprocess). Honest reading: the token likelihood is learning, but at 30 minutes the decoded frames are still far
-    from beating persistence, which at 5 ms history spacing is a strong baseline for a camera that changes little between slices. Later
-    checkpoints and the §6 decoder-skill gate decide whether the flux condition becomes load-bearing.</p>
+    from beating persistence, which at 5 ms history spacing is a strong baseline for a camera that changes little between slices. The
+    second video (node <code>pcp-video-second-checkpoint</code>, commit <code>dc4b919</code>, job 1263854,
+    <code>shot-21858-real-decoded-step17652.gif</code>) shows what the improved likelihood bought: the decoder now renders a nearly
+    uniform dark frame, having suppressed the texture noise of step 7,644 but not yet producing the bright plasma column the real frame
+    carries, so the flux condition is not visibly load-bearing at 1 h 20 min of training. Later checkpoints and the §6 decoder-skill
+    gate decide whether it becomes so; if the run ends still predicting the mean, the design levers named in §4 (guidance weight,
+    history spacing, condition dropout) are the first things to revisit.</p>
     <figure>
       <img src="/imas-ambix/figures/physics-carried-playable-plasma/shot-21858-real-decoded-step7644.gif" alt="Shot 21858: real rbb frame beside the frame decoded from nova's flux geometry by the step 7,644 checkpoint">
       <figcaption>First trained checkpoint: real frame (left) beside the flux-conditioned decode (right), 85 paired slices.</figcaption>
