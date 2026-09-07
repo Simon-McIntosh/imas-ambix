@@ -10,6 +10,7 @@ import xarray as xr
 import zarr
 from PIL import Image, ImageSequence
 
+from imas_ambix.worldmodel import label_cartoon_video
 from imas_ambix.worldmodel.flux_label_dataset import (
     EXPECTED_CARRIER_IDENTITY,
     EXPECTED_POLICY_DIGEST,
@@ -192,7 +193,7 @@ def _animation_shape(path: Path) -> tuple[int, tuple[int, int]]:
 
 
 def test_renderer_writes_aligned_tight_clipped_gifs_and_receipt(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     session_root = tmp_path / "sessions"
     level1_root = tmp_path / "level1"
@@ -201,6 +202,14 @@ def test_renderer_writes_aligned_tight_clipped_gifs_and_receipt(
     level1_root.mkdir()
     session_path = _write_session(session_root)
     _write_level1(level1_root)
+    draw_nulls_calls: list[dict[str, object]] = []
+    draw_nulls = label_cartoon_video.poloidal.draw_nulls
+
+    def record_draw_nulls(*args: object, **kwargs: object) -> dict[str, int]:
+        draw_nulls_calls.append(kwargs)
+        return draw_nulls(*args, **kwargs)
+
+    monkeypatch.setattr(label_cartoon_video.poloidal, "draw_nulls", record_draw_nulls)
 
     receipt = render_label_cartoon_pair(
         session_path,
@@ -209,6 +218,7 @@ def test_renderer_writes_aligned_tight_clipped_gifs_and_receipt(
         geometry=_geometry(),
         width=120,
         fps=8,
+        caption="synthetic aligned pair",
     )
 
     label_frames, label_size = _animation_shape(output_dir / LABEL_FILENAME)
@@ -242,6 +252,7 @@ def test_renderer_writes_aligned_tight_clipped_gifs_and_receipt(
     assert len(receipt["camera_time_deltas_s"]) == 2
     assert receipt["policy_digest"] == EXPECTED_POLICY_DIGEST
     assert receipt["carrier_identity"] == EXPECTED_CARRIER_IDENTITY
+    assert receipt["caption"] == "synthetic aligned pair"
     assert receipt["percentile_intensity_limits"]["percentiles"] == [1.0, 99.5]
     recorded = json.loads((output_dir / RECEIPT_FILENAME).read_text())
     assert recorded["label_gif"]["pixel_size"] == list(label_size)
@@ -260,10 +271,26 @@ def test_renderer_writes_aligned_tight_clipped_gifs_and_receipt(
     assert recorded["label_provenance"]["free_guarded_frame_count"] == 3
     assert recorded["label_provenance"]["manifest_free_converged_frame_count"] == 3
     assert recorded["thomson_provenance"]["shot"] == SHOT
-    assert recorded["thomson_provenance"]["groups_present"] == ["atm", "rbb"]
+    assert recorded["thomson_provenance"]["era"] == "atm"
+    assert recorded["thomson_provenance"]["groups_present"] == ["atm"]
     assert recorded["thomson_provenance"]["chord"] == "drawn"
     assert recorded["thomson_provenance"]["systems"][0]["name"] == "core"
     assert recorded["thomson_provenance"]["systems"][0]["era"] == "atm"
+    assert recorded["null_rendering"]["containment"] == "shot limiter polygon"
+    assert recorded["null_rendering"]["strike_points"] == "omitted"
+    assert recorded["null_rendering"]["shot_totals"] == {
+        "strike_points_drawn": 0,
+        "x_points_drawn": 4,
+        "x_points_dropped_outside_wall": 0,
+    }
+    assert len(recorded["null_rendering"]["per_rendered_slot"]) == 2
+    assert len(draw_nulls_calls) == 2
+    expected_containment = np.column_stack(
+        (_geometry().limiter_r, _geometry().limiter_z)
+    )
+    for call in draw_nulls_calls:
+        assert "strike_points" not in call
+        assert np.array_equal(call["contain"], expected_containment)
     with Image.open(output_dir / LABEL_FILENAME) as animation:
         first_label = np.asarray(animation.convert("RGB"))
     white_fraction = np.mean(np.all(first_label == 255, axis=-1))
