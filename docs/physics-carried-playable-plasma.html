@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="95">
+<meta name="plan-version" content="97">
 <meta name="plan-impl" content="0.9">
 <meta name="plan-commits" content="f854455492b0103c5f64d7a6533a46f6059d3ab2,56ca74eeb4f34ac8955ec8553eba0b98d11bdbec,73f306341c327fb2add035765fcdc64d94a5e45a,a4fb3eaab244d481cc17c08ed196f7d8bb917171">
 <meta name="plan-artifacts" content="docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json,docs/figures/physics-carried-playable-plasma/label-cartoon/carrier-cameras/camera-picture-quality.json,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/receipt.json,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-census,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-carrier-cameras">
@@ -794,7 +794,7 @@
         <tr><td>24854</td><td><code>rbc</code> 480&times;512, 2,050 frames, full shot</td><td>58</td>
             <td>best-picture corpus shot</td></tr>
         <tr><td><strong>22086</strong></td><td><code>rbb</code> 128&times;172, 20 &micro;s</td><td>43</td>
-            <td><strong>the demo carrier</strong></td></tr>
+            <td><strong>the demo carrier, held out of decoder training</strong></td></tr>
       </tbody>
     </table>
     <p>22086's camera is a sixteenth of 24854's frame area, so its pair will look markedly poorer. That
@@ -802,6 +802,16 @@
     beside the best available picture is honest in a way that showing either alone is not. Both are
     outside the labeller cohort, so neither pair carries a leakage question; 22086 is outside it by the
     firewall of §5d-vii, and 24854 by being in the corpus at all.</p>
+    <p><strong>The firewall is now measured rather than argued, and the demo carrier is held out.</strong>
+    The running job's receipt at step 57,019 admits 756 shots and 42,646 slices — 717 train, 39
+    validation — with <em>zero</em> intersection against the cohort census's four split sections, and
+    21978, 21983, 21985, 21986 and 21989 are each explicitly not admitted while non-cohort 21858 is. So
+    the reader does subtract cohort shots that now exist on disk. 22086 is additionally held out by
+    decision <code>carrier-held-out</code>, at a cost of about 43 slices in 42,646 — a tenth of a per
+    cent — because a decoder trained on the very shot it renders would demonstrate recall rather than
+    this plan's claim. <strong>That makes the 22086 pair the stronger of the two for a presentation</strong>:
+    it is a held-out render on the carrier the demo actually runs on, which is the claim worth making,
+    where 24854 shows only the best picture available.</p>
     <p>One node renders both, after §5d-v lands, because both read the same module and a second node
     would contend for it. Free-slice counts are the free converged slices of §5d-vii, so the frame counts
     quoted above are what <code>read_labels</code> admits and not the converged totals.</p>
