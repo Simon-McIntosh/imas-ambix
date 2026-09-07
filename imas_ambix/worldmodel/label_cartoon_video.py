@@ -18,7 +18,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from nova.media.gif import write_contact_sheet
+from nova.media import poloidal
+from nova.media.gif import figure_frame, write_contact_sheet
+from nova.media.ink import DEFAULT_INK
+from nova.media.layout import poloidal_view
+from nova.media.sources.frame import MachineGeometry as MediaMachineGeometry
+from nova.media.sources.frame import Pulse
+from nova.media.sources.mast_thomson import ThomsonString, read_thomson
+from nova.media.sources.nova_labels import read_labels
 from numpy.typing import NDArray
 
 from imas_ambix.camdyn.dataset import level1_shot_path
@@ -28,9 +35,7 @@ from imas_ambix.worldmodel.flux_decoder_video import (
     DEFAULT_FPS,
     DEFAULT_SESSION_ROOT,
     _as_rgb_uint8,
-    _manifest_selection,
     _nearest_indices,
-    _read_session,
     _sha256,
     _source_revision,
     _write_video,
@@ -39,11 +44,12 @@ from imas_ambix.worldmodel.flux_label_dataset import (
     EXPECTED_CARRIER_IDENTITY,
     EXPECTED_POLICY_DIGEST,
     MAX_FRAME_DELTA_SECONDS,
-    _load_companion,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+
+    from nova.media.sources.frame import SurfaceFrame
 
     from imas_ambix.gs.machine_geometry import OperatorGeometry
 
@@ -56,7 +62,6 @@ LABEL_FILENAME = "label-cartoon.gif"
 CAMERA_FILENAME = "camera-stream.gif"
 RECEIPT_FILENAME = "receipt.json"
 MIN_PAIRING_FRACTION = 0.9
-RENDER_SCALE = 2
 CAMERA_TIMESTAMP_RESOLUTION_SECONDS = 1.0e-5
 CONTACT_SHEET_FRAME_COUNT = 6
 CONTACT_SHEET_COLUMNS = 2
@@ -64,7 +69,7 @@ CONTACT_SHEET_COLUMNS = 2
 
 @dataclass(frozen=True, slots=True)
 class _Selection:
-    session_indices: tuple[int, ...]
+    label_indices: tuple[int, ...]
     slice_times: FloatArray
     camera_indices: NDArray[np.int64]
     camera_times: FloatArray
@@ -74,14 +79,10 @@ class _Selection:
     converged_slice_count: int
     guard_eligible_slice_count: int
     guard_failed_slice_count: int
+    conditioned_slice_count: int
+    free_slice_count: int
     camera_span_slice_count: int
     outside_camera_span_count: int
-
-
-@dataclass(frozen=True, slots=True)
-class _ThomsonGeometry:
-    radius: FloatArray
-    scattering_length: FloatArray
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,64 +116,28 @@ def _load_manifest(session_path: Path, shot: int) -> tuple[dict[str, Any], Path]
     return manifest, manifest_path
 
 
-def _selected_session_rows(
-    session_path: Path,
-    session: Any,
-    manifest: Mapping[str, Any],
-) -> tuple[list[int], FloatArray, dict[str, int]]:
+def _manifest_counts(session_path: Path, manifest: Mapping[str, Any]) -> dict[str, int]:
     slices = manifest.get("slices")
     if not isinstance(slices, list):
         raise ValueError(f"{session_path.with_suffix('.manifest.json')} has no rows")
-
-    mode, _, base_selected, manifest_slice_count = _manifest_selection(
-        session_path, int(session.sizes["time"])
-    )
-    if mode != "labeller":
-        raise ValueError(f"{session_path} is not a labeller session")
-
-    companion_path = session_path.with_suffix(".npz")
-    if not companion_path.is_file():
-        raise FileNotFoundError(companion_path)
-    rows, companion_times, conditioned, guard_ok = _load_companion(
-        companion_path, slices
-    )
-    session_times = np.asarray(session["time"], dtype=np.float64).reshape(-1)
-    if session_times.shape != companion_times.shape or not np.allclose(
-        session_times, companion_times, rtol=0.0, atol=1.0e-9
-    ):
-        raise ValueError(f"{session_path} times are not aligned to its companion")
-
-    selected = [
-        index
-        for index in base_selected
-        if not (bool(conditioned[index]) and not bool(guard_ok[index]))
-    ]
-    base_set = set(base_selected)
-    guard_failed = sum(
-        index in base_set and bool(conditioned[index]) and not bool(guard_ok[index])
-        for index in range(len(rows))
-    )
     written = sum(bool(row.get("written", False)) for row in slices)
     converged = sum(
         bool(row.get("written", False)) and bool(row.get("converged", False))
         for row in slices
     )
-    counts = {
-        "manifest": manifest_slice_count,
+    return {
+        "manifest": len(slices),
         "written": written,
         "converged": converged,
-        "guard_eligible": len(selected),
-        "guard_failed": guard_failed,
     }
-    return selected, session_times[np.asarray(selected, dtype=np.int64)], counts
 
 
-def _load_level1_geometry(
+def _load_level1_camera(
     shot: int,
     camera_group: str,
     *,
     level1_root: Path,
-) -> tuple[Any, Any, FloatArray, _ThomsonGeometry, Path]:
+) -> tuple[Any, Any, FloatArray, Path]:
     import zarr  # noqa: PLC0415
 
     path = level1_shot_path(shot, level1_dir=level1_root)
@@ -193,39 +158,19 @@ def _load_level1_geometry(
     ):
         raise ValueError(f"{path}/{camera_group}/time must be finite and increasing")
 
-    if "atm" not in groups:
-        raise KeyError(f"{path} does not contain the atm Thomson group")
-    thomson = store["atm"]
-    if not {"radius", "scat_length"}.issubset(set(thomson.array_keys())):
-        raise KeyError(f"{path}/atm must contain radius and scat_length")
-    radius = np.asarray(thomson["radius"], dtype=np.float64).reshape(-1)
-    scattering_length = np.asarray(thomson["scat_length"], dtype=np.float64).reshape(-1)
-    if radius.shape != scattering_length.shape:
-        raise ValueError("Thomson radius and scat_length do not align")
-    finite = np.isfinite(radius) & np.isfinite(scattering_length)
-    if not finite.any():
-        raise ValueError("Thomson scattering-volume geometry is entirely non-finite")
-    return (
-        store,
-        camera["data"],
-        camera_times,
-        _ThomsonGeometry(radius[finite], np.abs(scattering_length[finite])),
-        path,
-    )
+    return store, camera["data"], camera_times, path
 
 
 def _pair_slices(
-    session_path: Path,
-    session: Any,
-    manifest: Mapping[str, Any],
+    label_frames: Sequence[SurfaceFrame],
+    label_provenance: Mapping[str, Any],
+    counts: Mapping[str, int],
     camera_times: FloatArray,
     *,
     max_delta_s: float,
     minimum_pairing_fraction: float,
 ) -> _Selection:
-    selected, slice_times, counts = _selected_session_rows(
-        session_path, session, manifest
-    )
+    slice_times = np.asarray([frame.time for frame in label_frames], dtype=np.float64)
     indices, deltas = _nearest_indices(camera_times, slice_times)
     edge_tolerance = min(max_delta_s, CAMERA_TIMESTAMP_RESOLUTION_SECONDS)
     epsilon = np.finfo(np.float64).eps
@@ -244,9 +189,8 @@ def _pair_slices(
             f"only {paired_count}/{span_count} camera-span slices pair within "
             f"{max_delta_s:.6g} s ({pairing_fraction:.3%})"
         )
-    selected_array = np.asarray(selected, dtype=np.int64)
     return _Selection(
-        session_indices=tuple(int(value) for value in selected_array[keep]),
+        label_indices=tuple(int(value) for value in np.flatnonzero(keep)),
         slice_times=slice_times[keep],
         camera_indices=indices[keep],
         camera_times=camera_times[indices[keep]],
@@ -254,8 +198,16 @@ def _pair_slices(
         manifest_slice_count=counts["manifest"],
         written_slice_count=counts["written"],
         converged_slice_count=counts["converged"],
-        guard_eligible_slice_count=counts["guard_eligible"],
-        guard_failed_slice_count=counts["guard_failed"],
+        guard_eligible_slice_count=int(label_provenance["free_guarded_frame_count"]),
+        guard_failed_slice_count=(
+            int(label_provenance["stored_frame_count"])
+            - int(label_provenance["guarded_frame_count"])
+        ),
+        conditioned_slice_count=int(label_provenance["conditioned_frame_count"]),
+        free_slice_count=(
+            int(label_provenance["stored_frame_count"])
+            - int(label_provenance["conditioned_frame_count"])
+        ),
         camera_span_slice_count=span_count,
         outside_camera_span_count=int((~in_span).sum()),
     )
@@ -401,221 +353,92 @@ def _write_gif(frames: Sequence[ImageArray], output: Path, fps: int) -> str:
     return route
 
 
-def _slice_array(session: Any, name: str, index: int) -> FloatArray:
-    value = session[name]
-    if "time" in value.dims:
-        value = value.isel(time=index)
-    return np.asarray(value, dtype=np.float64)
-
-
-def _rectangular_coils(geometry: OperatorGeometry) -> list[tuple[float, ...]]:
+def _coil_outlines(geometry: OperatorGeometry) -> tuple[NDArray[np.float64], ...]:
     polygon_circuits = {int(section.circuit) for section in geometry.polygon_sections}
-    return [
-        (
-            float(coil.r - abs(coil.width) / 2.0),
-            float(coil.z - abs(coil.height) / 2.0),
-            float(abs(coil.width)),
-            float(abs(coil.height)),
+    outlines = [
+        np.asarray(
+            (
+                (coil.r - abs(coil.width) / 2.0, coil.z - abs(coil.height) / 2.0),
+                (coil.r + abs(coil.width) / 2.0, coil.z - abs(coil.height) / 2.0),
+                (coil.r + abs(coil.width) / 2.0, coil.z + abs(coil.height) / 2.0),
+                (coil.r - abs(coil.width) / 2.0, coil.z + abs(coil.height) / 2.0),
+            ),
+            dtype=np.float64,
         )
         for coil in geometry.conductors
         if int(coil.circuit) not in polygon_circuits
     ]
-
-
-def _finite_points(*arrays: NDArray[Any]) -> tuple[FloatArray, FloatArray]:
-    r = np.concatenate(
-        [np.asarray(array[0], dtype=np.float64).reshape(-1) for array in arrays]
-    )
-    z = np.concatenate(
-        [np.asarray(array[1], dtype=np.float64).reshape(-1) for array in arrays]
-    )
-    finite = np.isfinite(r) & np.isfinite(z)
-    return r[finite], z[finite]
-
-
-def _data_window(
-    session: Any,
-    indices: Sequence[int],
-    geometry: OperatorGeometry,
-    thomson: _ThomsonGeometry,
-) -> tuple[float, float, float, float]:
-    point_sets: list[NDArray[Any]] = [
-        np.vstack((geometry.limiter_r, geometry.limiter_z)),
-        np.vstack(
-            (
-                thomson.radius - thomson.scattering_length / 2.0,
-                np.zeros_like(thomson.radius),
-            )
-        ),
-        np.vstack(
-            (
-                thomson.radius + thomson.scattering_length / 2.0,
-                np.zeros_like(thomson.radius),
-            )
-        ),
-    ]
-    for rectangle in _rectangular_coils(geometry):
-        r, z, width, height = rectangle
-        point_sets.append(
-            np.asarray(((r, r + width), (z, z + height)), dtype=np.float64)
-        )
-    point_sets.extend(
-        np.asarray(section.vertices, dtype=np.float64).T
+    outlines.extend(
+        np.asarray(section.vertices, dtype=np.float64)
         for section in geometry.polygon_sections
     )
-    for index in indices:
-        point_sets.extend(
+    return tuple(outlines)
+
+
+def _media_geometry(geometry: OperatorGeometry) -> MediaMachineGeometry:
+    return MediaMachineGeometry(
+        limiter=np.column_stack(
             (
-                np.vstack(
-                    (
-                        _slice_array(session, "flux_surface_r", index).reshape(-1),
-                        _slice_array(session, "flux_surface_z", index).reshape(-1),
-                    )
-                ),
-                np.asarray(
-                    (
-                        [_slice_array(session, "magnetic_axis_r", index).item()],
-                        [_slice_array(session, "magnetic_axis_z", index).item()],
-                    )
-                ),
-                np.vstack(
-                    (
-                        _slice_array(session, "x_point_r", index).reshape(-1),
-                        _slice_array(session, "x_point_z", index).reshape(-1),
-                    )
-                ),
+                np.asarray(geometry.limiter_r, dtype=np.float64),
+                np.asarray(geometry.limiter_z, dtype=np.float64),
             )
-        )
-    r_values, z_values = _finite_points(*point_sets)
-    if not r_values.size:
-        raise ValueError("label geometry has no finite R-Z points")
-    r_min, r_max = float(r_values.min()), float(r_values.max())
-    z_min, z_max = float(z_values.min()), float(z_values.max())
-    if r_max <= r_min or z_max <= z_min:
-        raise ValueError("label geometry has a degenerate R-Z data window")
-    return r_min, r_max, z_min, z_max
+        ),
+        coils=_coil_outlines(geometry),
+    )
+
+
+def _thomson_positions(
+    strings: Sequence[ThomsonString], time: float
+) -> tuple[NDArray[np.float64], NDArray[np.str_]]:
+    blocks: list[NDArray[np.float64]] = []
+    groups: list[NDArray[np.str_]] = []
+    for string in strings:
+        radius, _, _ = string.finite(time)
+        blocks.append(np.column_stack((radius, np.zeros(radius.size))))
+        groups.append(np.asarray([string.name] * radius.size, dtype=np.str_))
+    nonempty = [index for index, block in enumerate(blocks) if block.size]
+    if not nonempty:
+        return np.empty((0, 2), dtype=np.float64), np.empty(0, dtype=np.str_)
+    return (
+        np.vstack([blocks[index] for index in nonempty]),
+        np.concatenate([groups[index] for index in nonempty]),
+    )
 
 
 def _label_image(
-    session: Any,
-    index: int,
-    geometry: OperatorGeometry,
-    thomson: _ThomsonGeometry,
-    window: tuple[float, float, float, float],
+    frame: SurfaceFrame,
+    view: Any,
+    geometry: MediaMachineGeometry,
+    thomson: Sequence[ThomsonString],
     width: int,
 ) -> ImageArray:
-    from matplotlib import colormaps  # noqa: PLC0415
-    from matplotlib.backends.backend_agg import FigureCanvasAgg  # noqa: PLC0415
-    from matplotlib.figure import Figure  # noqa: PLC0415
-    from matplotlib.patches import Polygon, Rectangle  # noqa: PLC0415
-
-    r_min, r_max, z_min, z_max = window
+    r_min, r_max, z_min, z_max = view.extent
     height = max(1, int(round(width * (z_max - z_min) / (r_max - r_min))))
-    render_width = width * RENDER_SCALE
-    render_height = height * RENDER_SCALE
-    figure = Figure(
-        figsize=(render_width / 100.0, render_height / 100.0),
-        dpi=100,
-        facecolor="black",
+    view.clear()
+    poloidal.draw_surfaces(view.poloidal, frame.surfaces, style=DEFAULT_INK)
+    poloidal.draw_coils(view.poloidal, geometry.coils, style=DEFAULT_INK)
+    poloidal.draw_wall(
+        view.poloidal, geometry.limiter[:, 0], geometry.limiter[:, 1], style=DEFAULT_INK
     )
-    canvas = FigureCanvasAgg(figure)
-    axes = figure.add_axes((0.0, 0.0, 1.0, 1.0), facecolor="black")
-    axes.set_xlim(r_min, r_max)
-    axes.set_ylim(z_min, z_max)
-    axes.set_aspect("equal", adjustable="box")
-    axes.set_axis_off()
-    inferno = colormaps["inferno"]
-
-    for r, z, coil_width, coil_height in _rectangular_coils(geometry):
-        axes.add_patch(
-            Rectangle(
-                (r, z),
-                coil_width,
-                coil_height,
-                facecolor=inferno(0.24),
-                edgecolor=inferno(0.48),
-                linewidth=0.45 * RENDER_SCALE,
-                alpha=0.7,
-            )
-        )
-    for section in geometry.polygon_sections:
-        axes.add_patch(
-            Polygon(
-                np.asarray(section.vertices, dtype=np.float64),
-                closed=True,
-                facecolor=inferno(0.24),
-                edgecolor=inferno(0.48),
-                linewidth=0.45 * RENDER_SCALE,
-                alpha=0.7,
-            )
-        )
-    axes.plot(
-        geometry.limiter_r,
-        geometry.limiter_z,
-        color=inferno(0.72),
-        linewidth=0.75 * RENDER_SCALE,
+    poloidal.draw_boundary(
+        view.poloidal, frame.boundary[:, 0], frame.boundary[:, 1], style=DEFAULT_INK
     )
-    for radius, length in zip(thomson.radius, thomson.scattering_length, strict=True):
-        axes.plot(
-            (radius - length / 2.0, radius + length / 2.0),
-            (0.0, 0.0),
-            color=inferno(0.5),
-            linewidth=0.35 * RENDER_SCALE,
-            alpha=0.35,
-        )
-
-    surface_r = _slice_array(session, "flux_surface_r", index)
-    surface_z = _slice_array(session, "flux_surface_z", index)
-    levels = _slice_array(session, "flux_surface_psi_norm", index).reshape(-1)
-    if surface_r.shape != surface_z.shape or surface_r.shape[0] != levels.size:
-        raise ValueError("flux surfaces and psi_norm levels do not align")
-    finite_levels = levels[np.isfinite(levels)]
-    if not finite_levels.size:
-        raise ValueError("flux-surface levels are entirely non-finite")
-    level_min, level_max = float(finite_levels.min()), float(finite_levels.max())
-    span = level_max - level_min
-    for r_values, z_values, level in zip(surface_r, surface_z, levels, strict=True):
-        finite = np.isfinite(r_values) & np.isfinite(z_values)
-        if finite.sum() < 2 or not np.isfinite(level):
-            continue
-        fraction = 1.0 if span <= 0.0 else (float(level) - level_min) / span
-        axes.plot(
-            r_values[finite],
-            z_values[finite],
-            color=inferno(0.28 + 0.7 * fraction),
-            linewidth=(0.55 + 0.55 * fraction) * RENDER_SCALE,
-        )
-
-    axis_r = float(_slice_array(session, "magnetic_axis_r", index).item())
-    axis_z = float(_slice_array(session, "magnetic_axis_z", index).item())
-    if np.isfinite(axis_r) and np.isfinite(axis_z):
-        axes.plot(
-            axis_r,
-            axis_z,
-            marker="o",
-            markersize=2.4 * RENDER_SCALE,
-            markerfacecolor=inferno(0.98),
-            markeredgewidth=0.0,
-        )
-    x_r = _slice_array(session, "x_point_r", index).reshape(-1)
-    x_z = _slice_array(session, "x_point_z", index).reshape(-1)
-    finite_x = np.isfinite(x_r) & np.isfinite(x_z)
-    if finite_x.any():
-        axes.plot(
-            x_r[finite_x],
-            x_z[finite_x],
-            linestyle="none",
-            marker="x",
-            markersize=3.2 * RENDER_SCALE,
-            markeredgewidth=0.7 * RENDER_SCALE,
-            color=inferno(0.9),
-        )
-    canvas.draw()
-    image = np.asarray(canvas.buffer_rgba(), dtype=np.uint8)[..., :3]
+    poloidal.draw_nulls(
+        view.poloidal,
+        magnetic_axis=frame.magnetic_axis,
+        x_points=frame.x_points,
+        strike_points=frame.strike_points,
+        style=DEFAULT_INK,
+    )
+    positions, groups = _thomson_positions(thomson, frame.time)
+    poloidal.draw_thomson(
+        view.poloidal, positions, groups, style=DEFAULT_INK, chords=True
+    )
+    image = figure_frame(view.figure)
     from PIL import Image  # noqa: PLC0415
 
     return np.asarray(
-        Image.fromarray(image).resize((width, height), Image.Resampling.LANCZOS),
+        image.resize((width, height), Image.Resampling.LANCZOS),
         dtype=np.uint8,
     )
 
@@ -638,12 +461,14 @@ def _output_receipt(
     camera_contact_sheet: Mapping[str, object],
     gif_writer: str,
     geometry: OperatorGeometry,
+    label_provenance: Mapping[str, object],
+    thomson: Sequence[ThomsonString],
     fps: int,
 ) -> dict[str, object]:
     r_min, r_max, z_min, z_max = window
-    paired_fraction = len(selection.session_indices) / selection.camera_span_slice_count
+    paired_fraction = len(selection.label_indices) / selection.camera_span_slice_count
     full_coverage_fraction = (
-        len(selection.session_indices) / selection.guard_eligible_slice_count
+        len(selection.label_indices) / selection.guard_eligible_slice_count
     )
     return {
         "shot": shot,
@@ -660,10 +485,13 @@ def _output_receipt(
             "written": selection.written_slice_count,
             "converged": selection.converged_slice_count,
             "guard_eligible_converged": selection.guard_eligible_slice_count,
-            "conditioned_guard_failed": selection.guard_failed_slice_count,
+            "guard_failed": selection.guard_failed_slice_count,
+            "conditioned": selection.conditioned_slice_count,
+            "free": selection.free_slice_count,
+            "free_guarded": selection.guard_eligible_slice_count,
             "inside_camera_span": selection.camera_span_slice_count,
             "outside_camera_span": selection.outside_camera_span_count,
-            "paired": len(selection.session_indices),
+            "paired": len(selection.label_indices),
         },
         "pairing": {
             "maximum_allowed_abs_delta_s": MAX_FRAME_DELTA_SECONDS,
@@ -700,7 +528,22 @@ def _output_receipt(
             "contact_sheet": dict(camera_contact_sheet),
         },
         "gif_writer": gif_writer,
-        "thomson_geometry": "atm scattering-volume locus on the z=0 laser plane",
+        "label_rendering": {
+            "stack": "nova.media",
+            "figure_facecolor": DEFAULT_INK.figure_facecolor,
+            "coil_facecolor": DEFAULT_INK.coil_facecolor,
+            "surface_count": int(label_provenance["surface_count"]),
+            "boundary_source": str(label_provenance["boundary_source"]),
+        },
+        "label_provenance": dict(label_provenance),
+        "thomson_provenance": [
+            {
+                "name": string.name,
+                "fixed_position_count": int(string.positions.shape[0]),
+                **string.provenance,
+            }
+            for string in thomson
+        ],
         "machine_geometry_identity": {
             "representation_key": geometry.identity.representation_key,
             "representation_digest": geometry.identity.representation_digest,
@@ -739,15 +582,19 @@ def render_label_cartoon_pair(
         raise ValueError("minimum_pairing_fraction must be in (0, 1]")
     shot = int(session_path.stem)
     manifest, manifest_path = _load_manifest(session_path, shot)
-    session = _read_session(session_path)
-    store, camera_data, camera_times, thomson, level1_path = _load_level1_geometry(
+    counts = _manifest_counts(session_path, manifest)
+    label_source_frames, label_provenance = read_labels(
+        shot, dirname=session_path.parent
+    )
+    store, camera_data, camera_times, level1_path = _load_level1_camera(
         shot, camera_group, level1_root=level1_root
     )
     del store
+    thomson = read_thomson(shot, store=level1_root)
     selection = _pair_slices(
-        session_path,
-        session,
-        manifest,
+        label_source_frames,
+        label_provenance,
+        counts,
         camera_times,
         max_delta_s=max_frame_delta_s,
         minimum_pairing_fraction=minimum_pairing_fraction,
@@ -757,10 +604,19 @@ def render_label_cartoon_pair(
     )
     camera_frames, intensity_limits = _camera_images(frames, width)
     actual_geometry = geometry or MachineGeometryService().operator(shot)
-    window = _data_window(session, selection.session_indices, actual_geometry, thomson)
+    media_geometry = _media_geometry(actual_geometry)
+    label_pulse = Pulse(
+        machine="MAST",
+        identifier=str(shot),
+        geometry=media_geometry,
+        frames=tuple(label_source_frames),
+        provenance=dict(label_provenance),
+    )
+    window = label_pulse.extent()
+    view = poloidal_view(window, style=DEFAULT_INK)
     label_frames = [
-        _label_image(session, index, actual_geometry, thomson, window, width)
-        for index in selection.session_indices
+        _label_image(label_source_frames[index], view, media_geometry, thomson, width)
+        for index in selection.label_indices
     ]
     if len(label_frames) != len(camera_frames):
         raise RuntimeError("label and camera frame counts diverged")
@@ -871,6 +727,8 @@ def render_label_cartoon_pair(
         camera_contact_sheet=camera_contact_sheet,
         gif_writer=label_writer,
         geometry=actual_geometry,
+        label_provenance=label_provenance,
+        thomson=thomson,
         fps=fps,
     )
     receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
