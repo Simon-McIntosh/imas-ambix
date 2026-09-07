@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T11:50:13",
+  "updated": "2026-09-07T11:51:42",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -30800,6 +30800,157 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260907T091721056817-pcp-fidelity-gate-rescore",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a76",
+        "node": "pcp-fidelity-gate-rescore",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1300,
+                "cached_input_tokens": 236862,
+                "input_tokens": 238164,
+                "output_tokens": 1902,
+                "reasoning_output_tokens": 628,
+                "total_tokens": 240066,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "docs/figures/physics-carried-playable-plasma/physics-fidelity/verdict.json and verdict.png are regenerated and committed carrying the corrected-predicate counts alongside the superseded ones under distinct keys so neither overwrites the other, the per-arm denominators with the count of rows excluded for each distinct reason, and a one-line verdict naming whether the gate outcome changed. pytest tests/worldmodel/test_physics_fidelity_gate.py passes with an added test that fires the corrected predicate on a synthetic row recorded conditioned with an exception at zero trips and asserts it is admitted as free, and with the existing assertions retained. Whole-tree ruff check imas_ambix tests exits 0. Both gates run on the all_debug partition via srun with TMPDIR=/tmp and command uv, and no betelgeuse job is submitted, modified or cancelled",
+          "estimated_hours": null,
+          "goal": "A re-score of imas_ambix/worldmodel/physics_fidelity_gate.py under the corrected conditioned predicate, because the gate still applies the pre-correction filter and its published verdict therefore rests on a row classification the loader no longer uses. The corrected semantics, already locked in the plan and enforced in flux_label_dataset.py, reclassify a row recorded conditioned whose attempt raised at zero conditioning trips as free, which moved 119 rows on the six carriers. The re-score applies that same predicate, reports the resulting joint, boundary and axis counts beside the previously published 3 of 51, 24 of 51 and 3 of 51, and states explicitly for the axis arm that rows recovered by the correction cannot enlarge its denominator because all 117 of them carry non-finite nova magnetic_axis_r and magnetic_axis_z. It states whether the denominator moved at all and by how much, so a reader can tell filter honesty from a changed result",
+          "id": "pcp-fidelity-gate-rescore",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T091721056817-pcp-fidelity-gate-rescore/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a76",
+          "spec_level": "guided",
+          "time_budget": "35m",
+          "write_paths": [
+            "imas_ambix/worldmodel/physics_fidelity_gate.py",
+            "tests/worldmodel/test_physics_fidelity_gate.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pcp-flux-renderer-2",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T09:17:40Z",
+        "completed_at": "2026-09-07T09:50:27Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1967,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1967,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "663dbd8a7ce2e21624436675851a7f72f352c242",
+        "commits": [
+          "3a3b8e2e835593ad2eccd6a423b344197f4a4b9b"
+        ],
+        "changed_lines": {
+          "added": 7512,
+          "removed": 912,
+          "files": 4
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug command uv run --no-sync pytest -p no:cacheprovider tests/worldmodel/test_physics_fidelity_gate.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T091721056817-pcp-fidelity-gate-rescore/after-pytest-complete.log",
+          "log_digest": "6f13818294c17271041b151b1a904e49722522e4c4976a22b7c5ce52cdc059da"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T091721056817-pcp-fidelity-gate-rescore/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07b28-b8e8-7a63-8bfd-955008d488e3",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2623872,
+            "cached_input_tokens_cumulative": 2623872,
+            "input_tokens": 2692454,
+            "input_tokens_cumulative": 2692454,
+            "output_tokens": 11022,
+            "output_tokens_cumulative": 11022,
+            "reasoning_output_tokens": 2371,
+            "reasoning_output_tokens_cumulative": 2371
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 13393,
+          "peak_input_tokens": 5316326
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 2,
+        "attempt_kind": "resume",
+        "scope_acceptances": [
+          {
+            "path": "docs/figures/physics-carried-playable-plasma/physics-fidelity/verdict.json",
+            "reason": "Coordinator granted this exact file by resume advice after my own dispatch omitted the artifacts the done-when required; no other node held it"
+          },
+          {
+            "path": "docs/figures/physics-carried-playable-plasma/physics-fidelity/verdict.png",
+            "reason": "Same scope extension, granted as a single file rather than the directory because siblings there belong to other nodes"
+          }
+        ],
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-fidelity-gate-rescore",
+          "session_id": "01a07b28-b8e8-7a63-8bfd-955008d488e3",
+          "session_source": "pointer",
+          "retained_at": "2026-09-07T09:50:27Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_physics_fidelity_gate.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -30846,6 +30997,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 584
+    "_version": 585
   }
 }
