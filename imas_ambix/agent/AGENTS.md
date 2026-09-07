@@ -314,6 +314,25 @@ administratively prohibited.
 | LLM serving — one engine, internal | `http://98dci4-gpu-0003:<profile port>` | same | `imas-ambix agent serve` |
 | Text embeddings | `http://98dci4-gpu-0002:18765` | custom, **not** OpenAI-shaped | imas-codex |
 
+**A zero-downtime rotation is possible and was demonstrated 2026-09-07.** Bring
+the new topology up on its own port *while the old one still serves*, confirm the
+router prefers it, and only then stop the old one:
+
+```bash
+imas-ambix agent serve deepseek-v4-flash --gpus 4        # old serve still up
+# wait for /v1/models on the new port, then confirm the router:
+curl -s http://98dci4-gpu-0003:18802/v1/models           # expect ONE card, the wider one
+curl -s http://98dci4-gpu-0003:18802/v1/chat/completions -d @body   # expect a tp4 fingerprint
+imas-ambix agent shutdown deepseek-v4-flash-2x --yes     # only now
+```
+
+Two properties make it work, both landed 2026-09-06: the router **collapses a
+duplicate model id onto the widest topology** instead of refusing with 409, and
+the endpoint document **republishes on both serve and shutdown**. Measured across
+18800 → 18809 → 18800 with no operator step. **Traffic moves on health, not on a
+timer** — if the new engine never becomes reachable, the old one simply keeps
+serving and nothing is lost.
+
 **Never configure a consumer against a serve port. Use the router, always.**
 A serve port belongs to one profile at one topology, and **the deployment is
 rotated deliberately** — four cards to two and back within a day is normal, and
@@ -569,8 +588,11 @@ two-card serve:
 
 | Topology | pool (tokens) | `max_model_len` | `kv_cache_max_concurrency` |
 |---|---|---|---|
-| four-card | 2,557,835 | 1,048,576 | 2.44 |
+| four-card | 2,554,833 – 2,557,835 | 1,048,576 | 2.44 |
 | **two-card** | **1,173,125** | 1,048,576 | **1.12** |
+
+(The four-card pool differs by ~3,000 tokens between two launches of the same
+profile, so treat it as approximate rather than a constant to check against.)
 
 A single full-context request consumes **89%** of the two-card pool, and KV was
 observed at **79% with one request running**. That is not a fault — vLLM preempts
