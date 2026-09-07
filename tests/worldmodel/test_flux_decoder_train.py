@@ -196,7 +196,7 @@ def test_validation_reports_decoded_pixel_error_against_persistence(
     )
 
     def decode(tokens: np.ndarray) -> np.ndarray:
-        return np.repeat(np.repeat(tokens, 2, axis=0), 2, axis=1).astype(np.uint8)
+        return np.repeat(np.repeat(tokens, 2, axis=1), 2, axis=2).astype(np.uint8)
 
     metrics = evaluate_model(
         model,
@@ -217,6 +217,76 @@ def test_validation_reports_decoded_pixel_error_against_persistence(
         "persistence_mae_u8": 1.0,
         "model_minus_persistence_mae_u8": -1.0,
     }
+
+
+def test_pixel_validation_uses_persistent_subprocess_and_records_route(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from imas_ambix.worldmodel import flux_conditioned_decoder, flux_decoder_video
+
+    vq_checkpoint = tmp_path / "frozen-vq.ckpt"
+    vq_checkpoint.write_bytes(b"frozen decoder")
+
+    def reject_in_process_decoder(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("the in-process VQ decoder must not be constructed")
+
+    monkeypatch.setattr(
+        flux_conditioned_decoder,
+        "_OpenMagvitVQDecoder",
+        reject_in_process_decoder,
+    )
+    calls: list[dict[str, object]] = []
+
+    def decode_batch(
+        tokens: np.ndarray,
+        *,
+        route: str,
+        vq_checkpoint: Path,
+        device: str,
+        batch_size: int,
+    ) -> tuple[np.ndarray, str, str]:
+        calls.append(
+            {
+                "token_shape": tokens.shape,
+                "route": route,
+                "vq_checkpoint": vq_checkpoint,
+                "device": device,
+                "batch_size": batch_size,
+            }
+        )
+        values = np.bitwise_and(tokens, 255).astype(np.uint8)
+        images = np.repeat(np.repeat(values, 2, axis=1), 2, axis=2)
+        return images[..., None], route, "dedicated decoder interpreter"
+
+    monkeypatch.setattr(flux_decoder_video, "_decode_vq", decode_batch)
+    config = _config(
+        tmp_path,
+        max_steps=1,
+        pixel_validation_samples=1,
+        vq_checkpoint=vq_checkpoint,
+    )
+    pixel_decoder = training._pixel_decoder(vq_checkpoint, torch.device("cpu"))
+
+    result = train_flux_decoder(
+        config,
+        dataset_factory=lambda split: _SyntheticDataset(
+            split, (20001,) if split == "train" else (20020,)
+        ),
+        pixel_decoder=pixel_decoder,
+    )
+
+    assert calls == [
+        {
+            "token_shape": (3, 16, 16),
+            "route": "persistent-subprocess",
+            "vq_checkpoint": vq_checkpoint,
+            "device": "cpu",
+            "batch_size": 8,
+        }
+    ]
+    receipt = json.loads(result.receipt.read_text(encoding="utf-8"))
+    assert receipt["vq_route"] == "persistent-subprocess"
+    assert receipt["validation"]["decoded_pixel_error"]["available"] is True
 
 
 def test_training_config_rejects_invalid_checkpoint_cadence(tmp_path: Path) -> None:

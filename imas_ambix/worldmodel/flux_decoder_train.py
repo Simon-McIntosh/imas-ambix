@@ -47,6 +47,7 @@ DEFAULT_RUN_DIR = Path("/work/projects/imas_gpu/ambix/flux_decoder/overnight-202
 DEFAULT_VQ_CHECKPOINT = Path(
     "/work/projects/imas_gpu/mast-tokens/v1/open-magvit2/weights/imagenet_256_L.ckpt"
 )
+PERSISTENT_VQ_ROUTE = "persistent-subprocess"
 
 
 class DatasetLike(Protocol):
@@ -61,7 +62,7 @@ class DatasetLike(Protocol):
 
 
 class PixelDecoder(Protocol):
-    """Decode one local token grid to an image array."""
+    """Decode a batch of local token grids to image arrays."""
 
     def __call__(self, tokens: np.ndarray) -> np.ndarray: ...
 
@@ -275,8 +276,7 @@ def evaluate_model(
     token_mismatches = 0
     token_count = 0
     decoded_samples = 0
-    model_pixel_error = 0.0
-    persistence_pixel_error = 0.0
+    pixel_token_groups: list[np.ndarray] = []
     loader = _loader(
         dataset,
         batch_size=config.batch_size,
@@ -315,17 +315,14 @@ def evaluate_model(
         )
         remaining = config.pixel_validation_samples - decoded_samples
         for sample in range(min(batch_size, remaining)):
-            target_image = np.asarray(pixel_decoder(target[sample].cpu().numpy()))
-            model_image = np.asarray(pixel_decoder(predicted[sample].cpu().numpy()))
-            persistence_image = np.asarray(
-                pixel_decoder(persistence[sample].cpu().numpy())
-            )
-            target_float = target_image.astype(np.float32)
-            model_pixel_error += float(
-                np.mean(np.abs(model_image.astype(np.float32) - target_float))
-            )
-            persistence_pixel_error += float(
-                np.mean(np.abs(persistence_image.astype(np.float32) - target_float))
+            pixel_token_groups.append(
+                np.stack(
+                    (
+                        target[sample].cpu().numpy(),
+                        predicted[sample].cpu().numpy(),
+                        persistence[sample].cpu().numpy(),
+                    )
+                )
             )
             decoded_samples += 1
     if not total_samples:
@@ -338,8 +335,24 @@ def evaluate_model(
         "model_minus_persistence_mae_u8": None,
     }
     if decoded_samples:
-        model_mean = model_pixel_error / decoded_samples
-        persistence_mean = persistence_pixel_error / decoded_samples
+        token_batch = np.concatenate(pixel_token_groups, axis=0)
+        decoded_batch = np.asarray(pixel_decoder(token_batch))
+        expected_images = decoded_samples * 3
+        if decoded_batch.ndim < 2 or decoded_batch.shape[0] != expected_images:
+            raise ValueError(
+                "pixel decoder returned "
+                f"{decoded_batch.shape}; expected {expected_images} image arrays"
+            )
+        decoded_groups = decoded_batch.reshape(
+            (decoded_samples, 3, *decoded_batch.shape[1:])
+        ).astype(np.float32)
+        target_images = decoded_groups[:, 0]
+        model_images = decoded_groups[:, 1]
+        persistence_images = decoded_groups[:, 2]
+        model_mean = float(np.abs(model_images - target_images).mean(axis=None))
+        persistence_mean = float(
+            np.abs(persistence_images - target_images).mean(axis=None)
+        )
         pixel_metrics.update(
             {
                 "model_mae_u8": model_mean,
@@ -411,6 +424,9 @@ def _checkpoint_and_receipt(
             "git_revision": git_revision,
             "decoder_identity": decoder_identity,
             "vq_decoder_id": config.vq_decoder_id,
+            "vq_route": (
+                PERSISTENT_VQ_ROUTE if config.vq_checkpoint is not None else "disabled"
+            ),
             "device": str(device),
             "history_spacing_s": DEFAULT_HISTORY_SPACING_SECONDS,
             "model_config": asdict(config.model_config),
@@ -592,11 +608,27 @@ def train_flux_decoder(
 def _pixel_decoder(path: Path | None, device: torch.device) -> PixelDecoder | None:
     if path is None:
         return None
-    from imas_ambix.worldmodel.flux_conditioned_decoder import (  # noqa: PLC0415
-        _OpenMagvitVQDecoder,
-    )
 
-    return _OpenMagvitVQDecoder(path, str(device)).decode
+    def decode(tokens: np.ndarray) -> np.ndarray:
+        from imas_ambix.worldmodel.flux_decoder_video import (  # noqa: PLC0415
+            _decode_vq,
+        )
+
+        images, actual_route, detail = _decode_vq(
+            np.asarray(tokens, dtype=np.int64),
+            route=PERSISTENT_VQ_ROUTE,
+            vq_checkpoint=path,
+            device=str(device),
+            batch_size=8,
+        )
+        if actual_route != PERSISTENT_VQ_ROUTE:
+            raise RuntimeError(
+                f"pixel validation selected unexpected VQ route {actual_route!r}"
+            )
+        LOGGER.info("pixel validation VQ route %s: %s", actual_route, detail)
+        return images
+
+    return decode
 
 
 def _parser() -> argparse.ArgumentParser:
