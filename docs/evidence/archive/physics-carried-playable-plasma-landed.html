@@ -493,6 +493,32 @@
     qualified labeller. Two decisions are the lead's: the demo carrier (21989 has no converging slice; 21978/35 proposed, 22086/43 is
     nova's receipted fallback) and, on camera-dynamics-wm-v0, whether to re-register a dynamics-arm gate for fast-D&alpha; promotion.</p>
 
+    <h2 id="s4f-first-training">§4f — First training on nova's labels and the first trained video (2026-09-07)</h2>
+    <p>Four launches were needed. Jobs 1263771 and 1263813 died at start because pixel validation built the in-process OpenMAGVIT2
+    decoder (fixed: out-of-process decoding, commit <code>9b4aa7a</code>); job 1263819 died after 51 steps on shot 18462's token
+    store (fixed: invalid stores excluded at discovery, commit <code>c8ef0f4</code>, census over 795 stores found only that one).
+    <strong>Job 1263842</strong> trains from 05:46 local on the ambix card: 39,285 train and 2,085 validation slices over 733 shots,
+    about 4.7 steps per second at batch size 1, checkpoint and receipt every 30 minutes under
+    <code>/work/projects/imas_gpu/ambix/flux_decoder/overnight-20260907c/</code>.</p>
+    <table>
+      <thead><tr><th>Checkpoint</th><th>Validation token NLL (1,024 tokens)</th><th>Decoded pixel MAE (u8) vs persistence</th></tr></thead>
+      <tbody>
+        <tr><td>untrained (step 0)</td><td>12.59 (uniform over 2<sup>18</sup> is 12.48)</td><td>&mdash;</td></tr>
+        <tr><td>step 7,644 (06:17 local), receipt</td><td>10.97</td><td>8.94 vs 3.44 (4 samples)</td></tr>
+        <tr><td>step 7,644, full 21858 video (84 scored frames)</td><td>&mdash;</td><td>10.68 vs 2.79</td></tr>
+      </tbody>
+    </table>
+    <p>The first video from a trained decoder, node <code>pcp-video-first-checkpoint</code> (commit <code>e87e598</code>,
+    <code>all_debug</code> job 1263850): <code>docs/figures/physics-carried-playable-plasma/shot-21858-real-decoded-step7644.gif</code>,
+    85 frames at 10 fps with its receipt (checkpoint sha256 <code>79f0b15d…</code>, decoder identity in nova's three-part form, VQ
+    route persistent-subprocess). Honest reading: the token likelihood is learning, but at 30 minutes the decoded frames are still far
+    from beating persistence, which at 5 ms history spacing is a strong baseline for a camera that changes little between slices. Later
+    checkpoints and the §6 decoder-skill gate decide whether the flux condition becomes load-bearing.</p>
+    <figure>
+      <img src="/imas-ambix/figures/physics-carried-playable-plasma/shot-21858-real-decoded-step7644.gif" alt="Shot 21858: real rbb frame beside the frame decoded from nova's flux geometry by the step 7,644 checkpoint">
+      <figcaption>First trained checkpoint: real frame (left) beside the flux-conditioned decode (right), 85 paired slices.</figcaption>
+    </figure>
+
     <h2 id="s4b-state">§4b — Where the section stands</h2>
     <p>Five nodes landed: the target derivation, the cohort and confounder census, the divertor-bright
     screen expansion, the labeller model with its smoke receipt, and the scaled training submission. All
