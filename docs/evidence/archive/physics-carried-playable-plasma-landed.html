@@ -537,6 +537,95 @@
     labeller — additionally needs the decoder, and therefore §4 &larr; §3b &larr; nova's traced-current
     seam. Neither is a defect in this section's work; both are inputs it does not own.</p>
 
+    <h2 id="s5d-census">&#167;5d &mdash; Corpus carrier census: the presentation shot (landed 2026-09-07)</h2>
+    <p>Commit <code>f854455</code>, merged as <code>0d21c03</code>; gate passed on
+    <code>sun_debug</code> job 1263893 (2 tests, whole-tree ruff 0), the census itself on job 1263889.
+    Artifact <code>docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json</code>
+    (sha256 <code>e7fea448</code>, ranking payload digest <code>d7a8ce04</code>).</p>
+    <p><strong>848 sessions ranked, 605 eligible, 243 excluded with explicit reasons.</strong> Scoring is
+    the equal-factor geometric mean of <code>value/(value+scale)</code> over converged slices (scale 40),
+    frame area (100,000 px), temporal span (0.5 s) and frame count (1,000), shot ascending as the
+    deterministic tie-break. Eligibility requires a readable session and level-1 shot, a Thomson group,
+    at least 40 converged written slices, and a usable <code>rba</code>/<code>rbb</code>/<code>rbc</code>
+    stream.</p>
+    <table>
+      <thead><tr><th>Rank</th><th>Shot / camera</th><th>Converged</th><th>Frame</th><th>Frames</th>
+        <th>Span</th><th>Score</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><strong>24854 / <code>rbc</code></strong></td><td>72</td>
+            <td>480&times;512</td><td>2,050</td><td>0.4998 s</td><td>0.6260</td></tr>
+        <tr><td>2</td><td>24867 / <code>rbc</code></td><td>54</td><td>480&times;512</td><td>2,050</td>
+            <td>0.4998 s</td><td>0.6086</td></tr>
+        <tr><td>3</td><td>24713 / <code>rbc</code></td><td>69</td><td>448&times;512</td><td>1,864</td>
+            <td>0.4452 s</td><td>0.6063</td></tr>
+        <tr><td>4</td><td>27059 / <code>rbb</code></td><td>95</td><td>432&times;384</td><td>1,440</td>
+            <td>0.4983 s</td><td>0.5997</td></tr>
+        <tr><td>5</td><td>27073 / <code>rbb</code></td><td>95</td><td>432&times;384</td><td>1,440</td>
+            <td>0.4983 s</td><td>0.5997</td></tr>
+      </tbody>
+    </table>
+    <p><strong>The winner was checked against the data rather than taken from the ranking.</strong>
+    24854's <code>rbc</code> runs 0.0001&ndash;0.4999 s at 200 &micro;s, and all 72 of its converged
+    slices fall inside that window, so this pair has no out-of-window shortfall at all &mdash; against
+    85 of 101 for the reference shot 21858, whose session outlives its camera.</p>
+    <p><strong>Two shape findings that outlive this node.</strong> 24854's Thomson is <code>ayc</code>
+    and <code>aye</code>, not <code>atm</code>, and <code>ayc.radius</code> is two-dimensional
+    (time &times; 131 channels) where <code>atm.radius</code> is one value per channel &mdash; so Thomson
+    geometry is no more uniform across the corpus than camera geometry is, and a consumer assuming the
+    reference shot's shape will break. <code>aye</code>'s time base on that shot runs to 133 s and is not
+    a shot clock; prefer <code>ayc</code>. Separately, the reuse map was honoured and cited:
+    <code>level1_shot_path</code> and <code>flux_decoder_video._manifest_selection</code> are reused,
+    while <code>_read_session</code> is declined with a reason &mdash; it loads every flux array when only
+    the steering time dimension is needed.</p>
+
+    <h2 id="s5d-carrier-cameras">&#167;5d &mdash; The frozen carrier's cameras, measured (2026-09-07)</h2>
+    <p>Two questions were open: whether the operator carrier holds a camera good enough for a demo, and
+    which of the six to re-lock onto. Both are answered, and the answer inverts the expectation.</p>
+    <p><strong>Every carrier shot carries a full-frame continuous <code>rbb</code>, and the shot already
+    locked holds the best one.</strong> Level-1 metadata: 21978 512&times;512 / 371 frames, 21983
+    512&times;512 / 363, 21985 512&times;512 / 350, 21986 512&times;512 / 311, <strong>21989
+    512&times;512 / 394</strong>, all at 667 &micro;s over roughly 0.085&ndash;0.38 s; 22086 is the
+    outlier at 128&times;172 / 3,382 frames and 20 &micro;s. For comparison the pipeline reference 21858
+    is a 48&times;256 strip &mdash; which is why both the real and the decoded side of the 21858 videos
+    read as a dark band, and why the training corpus mixes strip and full-frame cameras, and cadence by
+    33&times;, under one 256&times;256 token grid.</p>
+    <p><strong>Measured picture quality agrees, and reproduces the earlier survey exactly.</strong>
+    Ranked on the common <code>rbb</code> stream over all frames, 6 shots and 35 camera groups on
+    <code>sun_debug</code>:</p>
+    <table>
+      <thead><tr><th>Rank</th><th>Shot</th><th>Saturated</th><th>Blank-like</th><th>Robust range</th>
+        <th>Motion median / p90</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><strong>21989</strong></td><td>5.72%</td><td>0.76%</td><td>194.00</td>
+            <td>9.16 / 18.63</td></tr>
+        <tr><td>2</td><td>21978</td><td>3.81%</td><td>0.00%</td><td>195.00</td><td>8.62 / 14.68</td></tr>
+        <tr><td>3</td><td>21986</td><td>9.78%</td><td>2.57%</td><td>190.00</td><td>10.42 / 14.66</td></tr>
+        <tr><td>4</td><td>21983</td><td>9.33%</td><td>1.10%</td><td>184.00</td><td>9.80 / 13.91</td></tr>
+        <tr><td>5</td><td>21985</td><td>17.03%</td><td>1.71%</td><td>172.00</td><td>11.26 / 22.24</td></tr>
+        <tr><td>6</td><td>22086</td><td>0.34%</td><td>46.92%</td><td>41.00</td><td>2.84 / 18.53</td></tr>
+      </tbody>
+    </table>
+    <p>21989's row reproduces the earlier &#167;2a survey to the digit (5.72%, 0.76%, 194.00, 18.63 p90),
+    which is what makes the rest of the table credible. One divergence is recorded rather than smoothed:
+    22086's blank-like fraction measures 46.92% here against 39.8% in the earlier prose, while every
+    other reproduced statistic agrees. This implementation applies the earlier report's written predicate
+    exactly &mdash; mean &lt; 10 <em>or</em> standard deviation &lt; 5 &mdash; and now pins it in a unit
+    test, so the predicate can no longer drift silently between reports.</p>
+    <p><strong>So the re-lock is a trade, not an upgrade.</strong> 21989's difficulty is solver
+    convergence, not its camera. 21978 is the cheap swap and is arguably the better <em>picture</em>
+    &mdash; less saturation, no blank-like frames, the same robust range &mdash; at 371 frames against
+    394. 22086 is the expensive one: it exchanges a 512&times;512 frame for 128&times;172 and posts a
+    46.92% blank-like fraction with a robust range of 41 against 194, so it buys 33&times; the cadence
+    for a sixteenth of the pixels and a mostly featureless stream. The lock remains the lead's; this
+    record only removes the excuse of not knowing.</p>
+    <p><strong>The finding with the longest reach: 0 of 6 could carry a label cartoon today.</strong>
+    None of the six has a session or manifest under
+    <code>labeller_sessions/76906a29</code>, so the labelled corpus and the operator carrier are disjoint
+    sets. That is the real reason 21858 is the pipeline reference, it is why &#167;5d's presentation
+    carrier is drawn from the corpus rather than the carrier, and it means the &#167;5 live loop needs
+    sessions <em>produced</em> for whichever shot is locked &mdash; a converging shot is not sufficient,
+    it must also be a labelled one.</p>
+
   </main>
 </body>
 </html>
