@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T10:20:57",
+  "updated": "2026-09-07T10:53:09",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -29321,6 +29321,376 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260907T081731252864-pcp-axis-offset-diagnostic",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a76",
+        "node": "pcp-axis-offset-diagnostic",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 3603,
+                "cached_input_tokens": 909977,
+                "input_tokens": 913582,
+                "output_tokens": 467,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 914049,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "docs/figures/physics-carried-playable-plasma/physics-fidelity/axis-offset.json and axis-offset.png exist committed in your worktree carrying the per-shot signed statistics in centimetres, the positive-dR fraction, the nova-axis-versus-current-centroid and referee-axis-versus-current-centroid distances, and a one-line verdict naming which of displacement, convention or mixture the signs support; pytest tests/worldmodel/test_axis_offset_diagnostic.py passes on synthetic geometry with a planted known offset recovering its sign and magnitude, executed on the all_debug partition via srun with TMPDIR=/tmp and command uv; and whole-tree ruff check imas_ambix tests exits 0 with no betelgeuse job touched",
+          "estimated_hours": null,
+          "goal": "A signed axis-offset diagnostic in a new imas_ambix/worldmodel/axis_offset_diagnostic.py that decides whether the physics-fidelity gate's near-uniform 4 to 6 cm magnetic-axis miss is an outboard displacement, a convention or resolution mismatch, or a mixture, by reporting per slice on the six carrier sessions the SIGNED dR and dZ of nova's magnetic axis minus EFIT's EFM_MAGNETIC_AXIS_R and _Z (read only through imas_ambix.worldmodel.equilibrium_labels, the evaluator-only referee whose level-2 attributes map to equilibrium.time_slice global_quantities.magnetic_axis), aggregated per shot as mean, median and standard deviation with the fraction of slices whose dR is positive, and additionally comparing nova's own current_centroid_r and _z against both axes as a third referent so a current-moment versus flux-extremum confusion would show",
+          "id": "pcp-axis-offset-diagnostic",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T081731252864-pcp-axis-offset-diagnostic/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a76",
+          "spec_level": "guided",
+          "time_budget": "40m",
+          "write_paths": [
+            "imas_ambix/worldmodel/axis_offset_diagnostic.py",
+            "tests/worldmodel/test_axis_offset_diagnostic.py",
+            "docs/figures/physics-carried-playable-plasma/physics-fidelity"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pcp-flux-renderer",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T08:17:54Z",
+        "completed_at": "2026-09-07T08:42:48Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1494,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1494,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "b475a46676081c788f80523fb94e08ef74dc7930",
+        "commits": [
+          "237dc1ecb028fd043fce5c1d6fa9225dfd361cb3"
+        ],
+        "changed_lines": {
+          "added": 9804,
+          "removed": 0,
+          "files": 4
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug uv run --no-sync pytest -p no:cacheprovider tests/worldmodel/test_axis_offset_diagnostic.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T081731252864-pcp-axis-offset-diagnostic/pytest-final-all-debug.log",
+          "log_digest": "0f8f7edca0a671c97538630ad43324e67f8051d0a82796049620759a60da3c89"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T081731252864-pcp-axis-offset-diagnostic/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0784e-75af-75e0-99a2-ce0e2184506c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 9718656,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 9973859,
+            "output_tokens": 5501,
+            "output_tokens_cumulative": 33269,
+            "reasoning_output_tokens": 2234,
+            "reasoning_output_tokens_cumulative": 7352
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 2700,
+              "classification": "completed_unpromoted",
+              "detail": "the worker manifest reports completion and the run is still a pointer; promoting it moves the delivered record into the repository ledger",
+              "elapsed_seconds": 1404,
+              "external_wait": null,
+              "liveness_proven": true,
+              "log_age_seconds": 2296,
+              "log_fresh": false,
+              "manifest_commits": [
+                "ac70893932f174850912d84d961596920483cfa1\"]; changed_paths: [\"imas_ambix/worldmodel/carrier_camera_census.py",
+                "tests/worldmodel/test_carrier_camera_census.py",
+                "docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "1dd69a75c876093adf8422773ac5ddc9b0e6a274c7c2eff451aa326369c30283",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T070926983354-pcp-camera-family-census/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260907T070926983354-pcp-camera-family-census --gate <verdict> --commit ac70893932f174850912d84d961596920483cfa1\"]; changed_paths: [\"imas_ambix/worldmodel/carrier_camera_census.py --commit tests/worldmodel/test_carrier_camera_census.py --commit docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json",
+              "node": "pcp-camera-family-census",
+              "phase": "working",
+              "plan": "physics-carried-playable-plasma",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260907T070926983354-pcp-camera-family-census",
+              "session": "ambix-s19-media",
+              "terminal_age_seconds": 2340,
+              "terminal_at": "2026-09-07T07:38:43Z",
+              "wait_age_seconds": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-media/pcp-camera-family-census"
+            }
+          ]
+        },
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 40621,
+          "peak_input_tokens": 19692515
+        },
+        "follow_on_paths": [
+          "physics_fidelity_gate.py",
+          "magnetic_axis_r/z"
+        ],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-axis-offset-diagnostic",
+          "session_id": "01a0784e-75af-75e0-99a2-ce0e2184506c",
+          "session_source": "pointer",
+          "retained_at": "2026-09-07T08:42:48Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_axis_offset_diagnostic.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260907T083009200428-pcp-conditioned-predicate",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74d",
+        "node": "pcp-conditioned-predicate",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 2747,
+                "cached_input_tokens": 947085,
+                "input_tokens": 949834,
+                "output_tokens": 537,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 950371,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "pytest tests/worldmodel/test_flux_label_dataset.py passes on the all_debug partition via srun with TMPDIR=/tmp and command uv, including a test that a synthetic row with an exception and zero conditioned trips is admitted as free and counted as reclassified while a row with trips above zero stays conditioned, and a test that a synthetic conditioned row whose conditioned and free centroid errors coincide is counted under conditioning_ineffective_rows, plus the real six carrier sessions reporting their reclassified and ineffective counts with the ineffective count zero, and whole-tree ruff check imas_ambix tests exits 0 with no betelgeuse job touched",
+          "estimated_hours": null,
+          "goal": "Apply the locked conditioned-semantics predicate in imas_ambix/worldmodel/flux_label_dataset.py, treating a row with conditioned true, a conditioning exception present and conditioned_trips zero as a FREE row rather than a conditioned one (the constrained solve never ran so no EFIT centroid scalar reached it), counting the reclassified rows in the receipt, and adding a data-integrity assertion that for every genuinely conditioned admitted row the conditioned_centroid_error_m is materially smaller than the free_centroid_error_m, counted as conditioning_ineffective_rows, because nova warns that a mis-chosen repair to their masked-conditioning branch would produce an engine that reports conditioned slices while imposing no constraint row, and today's baseline on the six carriers is a median improvement from 5.43 cm to 0.00 cm with 31 of 31 rows under half a centimetre",
+          "id": "pcp-conditioned-predicate",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T083009200428-pcp-conditioned-predicate/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74d",
+          "spec_level": "exact",
+          "time_budget": "35m",
+          "write_paths": [
+            "imas_ambix/worldmodel/flux_label_dataset.py",
+            "tests/worldmodel/test_flux_label_dataset.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "pcp-session-dataset",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T08:30:30Z",
+        "completed_at": "2026-09-07T08:50:05Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1175,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1175,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "75b5765e73d9e65781e582fe49e29918d058f72b",
+        "commits": [
+          "e77722367108d80ef680c9205a0eaf7c19901e14"
+        ],
+        "changed_lines": {
+          "added": 208,
+          "removed": 13,
+          "files": 2
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug command uv run --no-sync pytest -p no:cacheprovider -s tests/worldmodel/test_flux_label_dataset.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T083009200428-pcp-conditioned-predicate/pytest-all-debug-after-fix.log",
+          "log_digest": "c48e495065976ea6fe14464871ecbe17eb81913b744067aa47f9dd6c039bf4f3"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T083009200428-pcp-conditioned-predicate/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 4114688,
+            "cached_input_tokens_cumulative": 8665088,
+            "input_tokens": 4167929,
+            "input_tokens_cumulative": 8829574,
+            "output_tokens": 19352,
+            "output_tokens_cumulative": 29868,
+            "reasoning_output_tokens": 11467,
+            "reasoning_output_tokens_cumulative": 12957
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 2700,
+              "classification": "completed_unpromoted",
+              "detail": "the worker manifest reports completion and the run is still a pointer; promoting it moves the delivered record into the repository ledger",
+              "elapsed_seconds": 1404,
+              "external_wait": null,
+              "liveness_proven": true,
+              "log_age_seconds": 3055,
+              "log_fresh": false,
+              "manifest_commits": [
+                "ac70893932f174850912d84d961596920483cfa1\"]; changed_paths: [\"imas_ambix/worldmodel/carrier_camera_census.py",
+                "tests/worldmodel/test_carrier_camera_census.py",
+                "docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "1dd69a75c876093adf8422773ac5ddc9b0e6a274c7c2eff451aa326369c30283",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T070926983354-pcp-camera-family-census/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260907T070926983354-pcp-camera-family-census --gate <verdict> --commit ac70893932f174850912d84d961596920483cfa1\"]; changed_paths: [\"imas_ambix/worldmodel/carrier_camera_census.py --commit tests/worldmodel/test_carrier_camera_census.py --commit docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json",
+              "node": "pcp-camera-family-census",
+              "phase": "working",
+              "plan": "physics-carried-playable-plasma",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260907T070926983354-pcp-camera-family-census",
+              "session": "ambix-s19-media",
+              "terminal_age_seconds": 3099,
+              "terminal_at": "2026-09-07T07:38:43Z",
+              "wait_age_seconds": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-media/pcp-camera-family-census"
+            }
+          ]
+        },
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 42825,
+          "peak_input_tokens": 17494662
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-conditioned-predicate",
+          "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+          "session_source": "pointer",
+          "retained_at": "2026-09-07T08:50:05Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_flux_label_dataset.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -29367,6 +29737,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 573
+    "_version": 575
   }
 }
