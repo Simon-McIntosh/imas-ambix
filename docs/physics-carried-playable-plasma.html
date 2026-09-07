@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="86">
+<meta name="plan-version" content="91">
 <meta name="plan-impl" content="0.9">
 <meta name="plan-commits" content="f854455492b0103c5f64d7a6533a46f6059d3ab2,56ca74eeb4f34ac8955ec8553eba0b98d11bdbec,73f306341c327fb2add035765fcdc64d94a5e45a,a4fb3eaab244d481cc17c08ed196f7d8bb917171">
 <meta name="plan-artifacts" content="docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json,docs/figures/physics-carried-playable-plasma/label-cartoon/carrier-cameras/camera-picture-quality.json,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/receipt.json,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-census,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-carrier-cameras">
@@ -677,6 +677,65 @@
     which of them a label cartoon could be built on today and which could not. It informs the
     <code>demo-shot</code> decision and settles nothing: the lock stays with the lead.</p>
 
+    <h3 id="s5d-ink">§5d-v — Course correction: the label panel is drawn with nova's media stack</h3>
+    <p><strong>The reuse map was drawn at the wrong boundary, and this is the cost.</strong> §2a scoped
+    its search to <code>imas_ambix/</code> and §2b to nova's <em>solver</em> seam, so neither looked at
+    nova's media layer. The first label panel was therefore built from matplotlib primitives, and it
+    independently rediscovered two of that layer's design decisions and recorded them as findings: that
+    the surfaces are curves at known flux so nothing should be contoured into existence, and that level 1
+    publishes no collection optics so a Thomson chord must not imply instrument endpoints. Both are
+    already written in <code>nova.media.poloidal</code>'s docstrings for <code>draw_surfaces</code> and
+    <code>draw_thomson</code>. A reuse map bounded by one repository will keep producing this.</p>
+    <p><strong>The lead's direction (2026-09-07).</strong> Show only the labels passed to the model —
+    the 11 plasma contours, not a flux map, because there is no raster. Coils and vessel are
+    <em>context</em>. Same imas-ink style, white ground, no visual clutter. Use nova's machinery for the
+    base components rather than reinventing them. The earlier dark-framed panel is withdrawn.</p>
+    <p><strong>The stack, with what each piece settles.</strong>
+    <code>nova.media.ink.InkStyle</code> already encodes every choice that was being deliberated:
+    <code>figure_facecolor</code> white, coils unfilled at <code>#888888</code> linewidth 0.4 — an
+    outline and no fill precisely so a contour behind a coil stays visible — flux surfaces
+    <code>#3366cc</code> at 0.7, separatrix <code>#cc0000</code> at 1.5, Thomson chords at alpha 0.55.
+    <code>ink.poloidal_axes</code> gives equal aspect and no chrome at all.
+    <code>poloidal.draw_wall</code>, <code>draw_coils</code>, <code>draw_surfaces</code>,
+    <code>draw_boundary</code>, <code>draw_nulls</code>, <code>draw_thomson</code> and
+    <code>draw_legs</code> draw the scene; <code>draw_surfaces</code> is the rasterless counterpart to
+    <code>draw_flux_contours</code> and is the correct entry for a labeller session.
+    <code>gif.animate</code>, <code>write_gif</code> and <code>write_contact_sheet</code> carry the
+    output. <code>scripts/media/efit_pulse_gif.py</code> and <code>nova_thomson_gif.py</code> are the
+    reference callers.</p>
+    <p><strong>§5d-v node</strong> (<code>pcp-label-panel-ink</code>). Redraw the label panel through
+    that stack, deleting the local drawing code rather than layering over it. Done when no drawing
+    primitive is called directly from this module, the panel is white-ground imas-ink, and the reference
+    pair and its filmstrips are re-rendered.</p>
+
+    <h3 id="s5d-camera-family">§5d-vi — The carrier camera family is absent from the labelled corpus</h3>
+    <p><strong>Measured against the committed census, 2026-09-07: not one of the 848 sessions records
+    <code>rbb</code> at 512&times;512.</strong> The census records <code>rbb</code> for 432 shots,
+    <code>rba</code> for 329 and <code>rbc</code> for 87, and the 512&times;512 count in the
+    <code>rbb</code> column is zero. The frozen six all carry <code>rbb</code> at 512&times;512 and
+    667 &micro;s, and none of them has a session either (§5d-iv), so the camera the demo must run on and
+    the camera the labelled corpus contains may be disjoint <em>families</em>, not merely disjoint
+    shots.</p>
+    <p><strong>Why this is a lower bound and not yet a proof.</strong> The census stores one
+    <code>camera_group</code> per shot — the best-scoring stream — so a shot whose <code>rbb</code> is
+    512&times;512 while its <code>rbc</code> outranked it would be recorded under <code>rbc</code> and
+    would not appear in the query above. Settling it needs every group recorded per shot, which is the
+    node below. Stating the bound rather than the number is the point: &ldquo;zero found&rdquo; and
+    &ldquo;zero exist&rdquo; are different claims and only the first is measured.</p>
+    <p><strong>Why it matters beyond this section.</strong> A decoder trained on the corpus has learned
+    strip and small-frame cameras; asked to render a 512&times;512 whole-vessel carrier frame it has no
+    transfer, which is what the step-47,185 renders on 21978 and 21989 measured (decoded pixel MAE 87 and
+    102 against persistence 12 and 8.5). If the family is genuinely absent, &ldquo;train on that
+    family&rdquo; is not an available option and the choice is between camera-conditioned training and
+    producing labeller sessions for carrier-family shots. That is a decoder-plan decision, owned
+    elsewhere; this section owes it the measurement.</p>
+    <p><strong>§5d-vi node</strong> (<code>pcp-camera-family-census</code>). Record every available
+    camera group per shot rather than only the best-scoring one, and emit the shot list for the carrier
+    family — <code>rbb</code> at 512&times;512 near 667 &micro;s — with its count. IO-heavy metadata
+    reads, so <code>sun_debug</code>. Done when the committed list and count are derived from all groups
+    per shot, the existing ranking's winner and top five are unchanged, and the answer states plainly
+    whether the family is present in the corpus.</p>
+
     <h2 id="s6">§6 — Pre-registered gates</h2>
     <p>Locked before any number is produced. Each is a measure that emits evidence; a gate that cannot be
     measured is a recorded negative result, not a wave that proceeds.</p>
@@ -1017,6 +1076,12 @@
 <div class="r-comment" data-section="§5b" data-id="c-run-r-20260907T061634050612-pcp-video-frame-count-guard" data-who="pcp-decoder-video" data-when="2026-09-07T06:25:11Z">
     <div class="r-comment-body"><p>GIF frame-count guard: the video writer reopens each GIF and raises when PIL merged identical consecutive frames (probe: written 2, reopened 1), recording written_frame_count and gif_frame_count in the receipt; pytest 5 passed on all_debug, ruff 0</p></div>
 </div>
+<div class="r-comment" data-section="§5b" data-id="c-run-r-20260907T064309554203-pcp-video-carrier-21978" data-who="pcp-decoder-video" data-when="2026-09-07T07:04:39Z">
+    <div class="r-comment-body"><p>Carrier 21978 rendered from checkpoint step 47185 on all_debug: decoded pixel MAE 87.09 vs 12.02 over 33 frames, 34 paired of 46 admitted (job 1263962); the decoder trained on a strip-dominated corpus does not transfer to the 512x512 carrier camera at this checkpoint</p></div>
+</div>
+<div class="r-comment" data-section="§5b" data-id="c-run-r-20260907T064556643029-pcp-video-carrier-21989" data-who="pcp-decoder-video-2" data-when="2026-09-07T06:59:37Z">
+    <div class="r-comment-body"><p>Carrier 21989 rendered from checkpoint step 47185 on all_debug: decoded pixel MAE 102.11 vs 8.51 over 32 frames, 33 paired of 45 admitted (job 1263959); the decoder trained on a strip-dominated corpus does not transfer to the 512x512 carrier camera at this checkpoint</p></div>
+</div>
 <div class="r-comment" data-section="s5b" data-id="c-20260906T2136-s5b-video-landed" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-06T21:36:00Z">
     <div class="r-comment-body">pcp-decoder-video landed — commits 3a7c275 and 4adc74f (merged); gate: real render on all_debug job 1263769 (8 min 51 s) plus pytest 3 passed, bash -n and --dry-run of the serve launcher 0, ruff 0. Artifact: docs/figures/physics-carried-playable-plasma/shot-21858-real-decoded.gif (85 frames, 512x288, 10 fps, sha256 35f32699) from an UNTRAINED checkpoint, a pipeline proof only; VQ route persistent-subprocess under the magvit2 environment because in-process import needs einops; predictor decode wall 3.6 s per frame on CPU. Two findings folded: bokeh is absent from the ambix environment (added to section 5c's dependency list) and nova's app read the decoder only from a request argument; nova chose to accept --decoder after --args as the session default (their node in flight), so our launcher form stands. Correction from nova on the guard rationale recorded in evidence: centroid errors are signed and converged implies guard-ok in every cell, so the converged-and-guard-ok filter loses nothing and no displacement threshold applies. impl 0.81 to 0.85 (16 of 20 counted nodes landed; remaining: 4b labeller training rerun, 5c environment, 5b live serve receipt, section 6 gates).</div>
 </div>
@@ -1035,6 +1100,9 @@
 <div class="r-comment" data-section="s5b" data-id="c-20260907T0630-frame-guard-landed" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-07T06:30:00Z">
     <div class="r-comment-body">pcp-video-frame-count-guard landed — commit 2597935 (merged 1a43cdc); the video writer reopens each GIF after PIL saves it and raises when the reopened frame count differs from the frames written (probe: two byte-identical frames written, one reopened), recording written_frame_count and gif_frame_count in every receipt; gate on all_debug: pytest 5 passed, ruff 0. The three committed 21858 videos are unaffected (85 of 85). Two corpus notes from nova recorded for the reader: (1) every rasterless session has an empty LCFS polyline (lcfs_r shape (0, nt)) because the writer derives it from the omitted raster separatrix; our renderer already takes the boundary from the psi_norm 1.0 nested surface and nothing of ours reads lcfs_r or lcfs_z, so no change; a writer fix (nova f-pfs-051) applies at the next relaunch. (2) Shots 22475 to 22626 are a reversed-plasma-current campaign whose free solve fails at axis admission, so every manifest there has zero converged slices (70 complete, about 82 still unwritten); our converged-only admission already contributes nothing from them, and nova files the solver repair.</div>
 </div>
+<div class="r-comment" data-section="s5b" data-id="c-20260907T0710-carrier-renders-landed" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-07T07:10:00Z">
+    <div class="r-comment-body">pcp-video-carrier-21978 (commit 6d17550, all_debug job 1263962) and pcp-video-carrier-21989 (commit 4ab9698, job 1263959) landed and are merged (c6aa1fd): from the step 47,185 checkpoint, 21978 pairs 34 of 46 admitted slices with decoded pixel MAE 87.1 against persistence 12.0; 21989 pairs 33 of 45 with MAE 102.1 against 8.5. The coordinator viewed both contact sheets: the carrier cameras are the wide-angle whole-vessel rbb view (plasma filling the vessel brightly around the dark centre column), and the decoder emits ImageNet-texture output on the seeded first slices, decaying to a dark frame; nothing resembles the carrier view. Conclusion for section 4 and section 7: the corpus-trained decoder does not transfer to the demo carrier's camera, so the persistence comparison is moot there; the live-demo decoder must be trained on the carrier camera family (rbb 512x512 at 667 us) or conditioned on camera geometry, and the section 6 decoder-skill gate is scored on that camera. The six carrier sessions alone hold about 260 converged slices, too few by themselves; the count of corpus shots sharing the family (asked of the section 5d census) decides between a family-restricted fine-tune from the current checkpoint and a camera-conditioned decoder. The running job 1263842 continues to its ten hours as the strip-corpus baseline; no new training spend is committed until the count and the lead's re-lock are in.</div>
+</div>
 <div class="r-comment" data-section="s5c" data-id="c-20260906T2145-s5c-bokeh-landed" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-06T21:45:00Z">
     <div class="r-comment-body">Section 5c done by the coordinator as an environment operation from the main checkout (a worktree sync would repoint the shared environment): bokeh&gt;=3.6 declared in the viz extra (commit a1279d8, pyproject.toml plus uv.lock, which also caught up the pyarrow and mpmath pins resolution had moved), environment synced with --inexact so nothing installed was removed (bokeh 3.10.0 plus referencing, rpds-py, tornado, xyzservices added), editable installs verified still pointing at the main checkouts of imas-ambix, imas-ink and nova. Verified under the ambix interpreter: import bokeh, import apps.playable.camera (protocol carries reset()), import imas_ambix.worldmodel.flux_conditioned_decoder all succeed. Decision vq-route locks the magvit2 subprocess as the VQ route, so the in-process import is not pursued and einops is not needed on the ambix side. Remaining for the live serve: nova's --decoder launch argument (their node in flight), a trained checkpoint from job 1263771, and a card. impl 0.85 to 0.88 (17 of 20 counted nodes landed).</div>
 </div>
@@ -1046,6 +1114,9 @@
 </div>
 <div class="r-comment" data-section="§5d" data-id="c-run-r-20260907T054520000128-pcp-label-cartoon-video" data-who="pcp-label-cartoon" data-when="2026-09-07T06:24:02Z">
     <div class="r-comment-body"><p>Both GIFs 85 frames at width 512; label 512x1254 matches the R-Z window ratio to 0 px; in-window pairing 85/85 at max delta 10 us against a 2.5 ms ceiling; ffmpeg writer preserves duplicate frames</p></div>
+</div>
+<div class="r-comment" data-section="§5d" data-id="c-run-r-20260907T063738297775-pcp-label-cartoon-contact-sheet" data-who="pcp-label-cartoon" data-when="2026-09-07T06:50:10Z">
+    <div class="r-comment-body"><p>Filmstrips written via nova write_contact_sheet at columns=2: label 1032x3778, camera 1032x304, indices [0,17,34,50,67,84]</p></div>
 </div>
 <div class="r-comment" data-section="s5d" data-id="c-20260907-carrier-census" data-who="reckon-ship" data-when="2026-09-07T06:12:00Z">
     <div class="r-comment-body">Carrier census landed - commit f854455 (merged 0d21c03); gate passed on sun_debug job 1263893, 2 tests and whole-tree ruff 0; measure 848 sessions ranked, 605 eligible, winner 24854/rbc 480x512 over 2050 frames with all 72 converged slices inside the camera window; artifacts carrier-camera-ranking.json plus the s5d-census and s5d-carrier-cameras evidence anchors. impl deliberately left unchanged: this plan has two live coordinators and imas-ambix-1d owns the denominator while landing section 4, so section 5d's four executable nodes need folding into it rather than overwriting it. plan-commits and plan-artifacts are now in use on this plan - append to them rather than replacing.</div>
