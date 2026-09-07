@@ -9,7 +9,11 @@ import numpy as np
 import xarray as xr
 from PIL import Image
 
-from imas_ambix.worldmodel.flux_decoder_video import _write_video, render_session_video
+from imas_ambix.worldmodel.flux_decoder_video import (
+    _resolve_seed_window,
+    _write_video,
+    render_session_video,
+)
 
 
 class _Decoded(NamedTuple):
@@ -113,6 +117,49 @@ def test_gif_writer_rejects_or_preserves_identical_consecutive_frames(
         assert "gif_frame_count=1" in message
     else:
         assert _animation_shape(output)[0] == 2
+
+
+def test_seed_history_precedes_the_first_rendered_slice() -> None:
+    times = np.arange(10, dtype=np.float64) * 0.005
+
+    window = _resolve_seed_window(
+        [0, 2, 4, 5, 6, 7],
+        times,
+        times,
+        times,
+        requested_start_slice=4,
+    )
+
+    assert window.selected[0] == 4
+    assert window.session_slice_indices.tolist() == [0, 1, 2, 3]
+    assert window.camera_frame_indices.tolist() == [0, 1, 2, 3]
+    assert np.all(window.query_times < times[window.selected[0]])
+    assert window.leading_slices_skipped == 0
+
+
+def test_early_seed_window_advances_or_refuses_instead_of_using_distant_slice() -> None:
+    times = np.arange(10, dtype=np.float64) * 0.005
+
+    window = _resolve_seed_window(
+        [0, 1, 2, 3, 4, 5],
+        times,
+        times,
+        times,
+        requested_start_slice=0,
+    )
+
+    assert window.selected[0] == 4
+    assert window.session_slice_indices.tolist() == [0, 1, 2, 3]
+    assert window.leading_slices_skipped == 4
+
+    with np.testing.assert_raises_regex(ValueError, "four preceding history frames"):
+        _resolve_seed_window(
+            [0, 1, 2, 3],
+            times,
+            times,
+            times,
+            requested_start_slice=0,
+        )
 
 
 def test_labeller_video_writes_evenly_spaced_contact_sheet(tmp_path: Path) -> None:
