@@ -125,11 +125,32 @@ def _manifest_counts(session_path: Path, manifest: Mapping[str, Any]) -> dict[st
         bool(row.get("written", False)) and bool(row.get("converged", False))
         for row in slices
     )
+    conditioned_converged = sum(
+        bool(row.get("written", False))
+        and bool(row.get("converged", False))
+        and bool(row.get("conditioned", False))
+        for row in slices
+    )
     return {
         "manifest": len(slices),
         "written": written,
         "converged": converged,
+        "conditioned_converged": conditioned_converged,
+        "free_converged": converged - conditioned_converged,
     }
+
+
+def _free_converged_times(manifest: Mapping[str, Any]) -> FloatArray:
+    return np.asarray(
+        [
+            float(row["time"])
+            for row in manifest["slices"]
+            if bool(row.get("written", False))
+            and bool(row.get("converged", False))
+            and not bool(row.get("conditioned", False))
+        ],
+        dtype=np.float64,
+    )
 
 
 def _load_level1_camera(
@@ -200,14 +221,11 @@ def _pair_slices(
         converged_slice_count=counts["converged"],
         guard_eligible_slice_count=int(label_provenance["free_guarded_frame_count"]),
         guard_failed_slice_count=(
-            int(label_provenance["stored_frame_count"])
-            - int(label_provenance["guarded_frame_count"])
+            counts["free_converged"]
+            - int(label_provenance["manifest_free_converged_frame_count"])
         ),
-        conditioned_slice_count=int(label_provenance["conditioned_frame_count"]),
-        free_slice_count=(
-            int(label_provenance["stored_frame_count"])
-            - int(label_provenance["conditioned_frame_count"])
-        ),
+        conditioned_slice_count=counts["conditioned_converged"],
+        free_slice_count=counts["free_converged"],
         camera_span_slice_count=span_count,
         outside_camera_span_count=int((~in_span).sum()),
     )
@@ -485,9 +503,9 @@ def _output_receipt(
             "written": selection.written_slice_count,
             "converged": selection.converged_slice_count,
             "guard_eligible_converged": selection.guard_eligible_slice_count,
-            "guard_failed": selection.guard_failed_slice_count,
-            "conditioned": selection.conditioned_slice_count,
-            "free": selection.free_slice_count,
+            "free_guard_failed": selection.guard_failed_slice_count,
+            "conditioned_converged": selection.conditioned_slice_count,
+            "free_converged": selection.free_slice_count,
             "free_guarded": selection.guard_eligible_slice_count,
             "inside_camera_span": selection.camera_span_slice_count,
             "outside_camera_span": selection.outside_camera_span_count,
@@ -579,6 +597,16 @@ def render_label_cartoon_pair(
     label_source_frames, label_provenance = read_labels(
         shot, dirname=session_path.parent
     )
+    free_converged_times = _free_converged_times(manifest)
+    label_source_frames = tuple(
+        frame
+        for frame in label_source_frames
+        if np.any(np.isclose(frame.time, free_converged_times, rtol=0.0, atol=1.0e-9))
+    )
+    label_provenance = {
+        **label_provenance,
+        "manifest_free_converged_frame_count": len(label_source_frames),
+    }
     store, camera_data, camera_times, level1_path = _load_level1_camera(
         shot, camera_group, level1_root=level1_root
     )

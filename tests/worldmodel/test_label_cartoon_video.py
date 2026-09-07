@@ -110,8 +110,15 @@ def _write_session(root: Path) -> Path:
         coords={"time": np.asarray([0.01, 0.02, 0.03, 0.04])},
     )
     session.to_netcdf(session_path, group="steering", engine="h5netcdf")
+    conditioned = np.asarray([False, False, True, False])
     slices = [
-        {"row": index, "time": float(time), "written": True, "converged": True}
+        {
+            "row": index,
+            "time": float(time),
+            "written": True,
+            "converged": True,
+            "conditioned": bool(conditioned[index]),
+        }
         for index, time in enumerate(session.time.values)
     ]
     session_path.with_suffix(".manifest.json").write_text(
@@ -130,7 +137,7 @@ def _write_session(root: Path) -> Path:
         session_path.with_suffix(".npz"),
         row=np.arange(count, dtype=np.int32),
         time=np.asarray(session.time.values, dtype=np.float64),
-        conditioned=np.asarray([False, False, True, False]),
+        conditioned=conditioned,
         conditioned_branch_guard_ok=np.asarray([True, True, False, True]),
     )
     return session_path
@@ -143,8 +150,11 @@ def _write_level1(root: Path) -> None:
     frame = np.arange(72, dtype=np.float32).reshape(6, 12)
     camera.create_array("data", data=np.stack((frame, frame + 50.0, frame + 100.0)))
     thomson = store.create_group("atm")
+    thomson.create_array("time", data=np.asarray([0.01, 0.02, 0.04]))
     thomson.create_array("radius", data=np.asarray([0.75, 1.05, 1.35]))
     thomson.create_array("scat_length", data=np.asarray([0.03, 0.04, 0.03]))
+    thomson.create_array("te", data=np.full((3, 3), 100.0))
+    thomson.create_array("ne", data=np.full((3, 3), 1.0e19))
 
 
 def _geometry() -> SimpleNamespace:
@@ -217,9 +227,9 @@ def test_renderer_writes_aligned_tight_clipped_gifs_and_receipt(
         "written": 4,
         "converged": 4,
         "guard_eligible_converged": 3,
-        "guard_failed": 1,
-        "conditioned": 1,
-        "free": 3,
+        "free_guard_failed": 0,
+        "conditioned_converged": 1,
+        "free_converged": 3,
         "free_guarded": 3,
         "inside_camera_span": 2,
         "outside_camera_span": 1,
@@ -248,14 +258,12 @@ def test_renderer_writes_aligned_tight_clipped_gifs_and_receipt(
     }
     assert recorded["label_provenance"]["conditioned_frame_count"] == 1
     assert recorded["label_provenance"]["free_guarded_frame_count"] == 3
+    assert recorded["label_provenance"]["manifest_free_converged_frame_count"] == 3
     assert recorded["thomson_provenance"]["shot"] == SHOT
     assert recorded["thomson_provenance"]["groups_present"] == ["atm", "rbb"]
-    assert recorded["thomson_provenance"]["chord"] == "omitted"
-    assert recorded["thomson_provenance"]["systems"] == []
-    assert (
-        "accepting atm as a core Thomson system"
-        in recorded["thomson_provenance"]["reason"]
-    )
+    assert recorded["thomson_provenance"]["chord"] == "drawn"
+    assert recorded["thomson_provenance"]["systems"][0]["name"] == "core"
+    assert recorded["thomson_provenance"]["systems"][0]["era"] == "atm"
     with Image.open(output_dir / LABEL_FILENAME) as animation:
         first_label = np.asarray(animation.convert("RGB"))
     white_fraction = np.mean(np.all(first_label == 255, axis=-1))
