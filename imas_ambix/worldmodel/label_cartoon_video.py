@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from nova.media.gif import write_contact_sheet
 from numpy.typing import NDArray
 
 from imas_ambix.camdyn.dataset import level1_shot_path
@@ -57,6 +58,8 @@ RECEIPT_FILENAME = "receipt.json"
 MIN_PAIRING_FRACTION = 0.9
 RENDER_SCALE = 2
 CAMERA_TIMESTAMP_RESOLUTION_SECONDS = 1.0e-5
+CONTACT_SHEET_FRAME_COUNT = 6
+CONTACT_SHEET_COLUMNS = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -631,6 +634,8 @@ def _output_receipt(
     camera_path: Path,
     label_properties: _GifProperties,
     camera_properties: _GifProperties,
+    label_contact_sheet: Mapping[str, object],
+    camera_contact_sheet: Mapping[str, object],
     gif_writer: str,
     geometry: OperatorGeometry,
     fps: int,
@@ -685,12 +690,14 @@ def _output_receipt(
             "sha256": _sha256(label_path),
             "frame_count": label_properties.frame_count,
             "pixel_size": [label_properties.width, label_properties.height],
+            "contact_sheet": dict(label_contact_sheet),
         },
         "camera_gif": {
             "path": str(camera_path.resolve()),
             "sha256": _sha256(camera_path),
             "frame_count": camera_properties.frame_count,
             "pixel_size": [camera_properties.width, camera_properties.height],
+            "contact_sheet": dict(camera_contact_sheet),
         },
         "gif_writer": gif_writer,
         "thomson_geometry": "atm scattering-volume locus on the z=0 laser plane",
@@ -760,9 +767,19 @@ def render_label_cartoon_pair(
 
     label_path = output_dir / LABEL_FILENAME
     camera_path = output_dir / CAMERA_FILENAME
+    label_contact_path = label_path.with_name(f"{label_path.stem}-frames.png")
+    camera_contact_path = camera_path.with_name(f"{camera_path.stem}-frames.png")
     receipt_path = output_dir / RECEIPT_FILENAME
     collisions = [
-        path for path in (label_path, camera_path, receipt_path) if path.exists()
+        path
+        for path in (
+            label_path,
+            camera_path,
+            label_contact_path,
+            camera_contact_path,
+            receipt_path,
+        )
+        if path.exists()
     ]
     if collisions:
         raise FileExistsError(f"refusing to overwrite {collisions[0]}")
@@ -792,6 +809,51 @@ def render_label_cartoon_pair(
         )
     if label_properties.width != camera_properties.width:
         raise RuntimeError("written label and camera GIF widths are not identical")
+
+    label_contact_indices = np.unique(
+        np.linspace(0, len(label_frames) - 1, CONTACT_SHEET_FRAME_COUNT).round()
+    ).astype(int)
+    camera_contact_indices = np.unique(
+        np.linspace(0, len(camera_frames) - 1, CONTACT_SHEET_FRAME_COUNT).round()
+    ).astype(int)
+    from PIL import Image  # noqa: PLC0415
+
+    label_contact_writer_receipt = write_contact_sheet(
+        [Image.fromarray(frame) for frame in label_frames],
+        label_contact_path.resolve(),
+        columns=CONTACT_SHEET_COLUMNS,
+        count=CONTACT_SHEET_FRAME_COUNT,
+    )
+    camera_contact_writer_receipt = write_contact_sheet(
+        [Image.fromarray(frame) for frame in camera_frames],
+        camera_contact_path.resolve(),
+        columns=CONTACT_SHEET_COLUMNS,
+        count=CONTACT_SHEET_FRAME_COUNT,
+    )
+    if label_contact_writer_receipt["tile_indices"] != label_contact_indices.tolist():
+        raise RuntimeError("label contact-sheet frame selection diverged")
+    if camera_contact_writer_receipt["tile_indices"] != camera_contact_indices.tolist():
+        raise RuntimeError("camera contact-sheet frame selection diverged")
+    with Image.open(label_contact_path) as image:
+        if image.format != "PNG":
+            raise RuntimeError("label contact sheet is not a PNG")
+        label_contact_size = list(image.size)
+    with Image.open(camera_contact_path) as image:
+        if image.format != "PNG":
+            raise RuntimeError("camera contact sheet is not a PNG")
+        camera_contact_size = list(image.size)
+    label_contact_sheet = {
+        "writer_receipt": label_contact_writer_receipt,
+        "frame_indices": label_contact_indices.tolist(),
+        "pixel_size": label_contact_size,
+        "sha256": _sha256(label_contact_path),
+    }
+    camera_contact_sheet = {
+        "writer_receipt": camera_contact_writer_receipt,
+        "frame_indices": camera_contact_indices.tolist(),
+        "pixel_size": camera_contact_size,
+        "sha256": _sha256(camera_contact_path),
+    }
     receipt = _output_receipt(
         shot=shot,
         camera_group=camera_group,
@@ -805,6 +867,8 @@ def render_label_cartoon_pair(
         camera_path=camera_path,
         label_properties=label_properties,
         camera_properties=camera_properties,
+        label_contact_sheet=label_contact_sheet,
+        camera_contact_sheet=camera_contact_sheet,
         gif_writer=label_writer,
         geometry=actual_geometry,
         fps=fps,

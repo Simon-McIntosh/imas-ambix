@@ -190,6 +190,21 @@ def test_renderer_writes_aligned_tight_clipped_gifs_and_receipt(
     assert recorded["label_gif"]["frame_count"] == 2
     assert recorded["camera_gif"]["frame_count"] == 2
     assert recorded["gif_writer"] == "ffmpeg-palettegen-paletteuse"
+    for gif_key, sheet_name, tile_height in (
+        ("label_gif", "label-cartoon-frames.png", label_size[1]),
+        ("camera_gif", "camera-stream-frames.png", camera_size[1]),
+    ):
+        contact_sheet = recorded[gif_key]["contact_sheet"]
+        sheet_path = output_dir / sheet_name
+        assert contact_sheet["frame_indices"] == [0, 1]
+        assert contact_sheet["writer_receipt"]["tile_indices"] == [0, 1]
+        assert contact_sheet["writer_receipt"]["tiles"] == 2
+        assert contact_sheet["writer_receipt"]["columns"] == 2
+        assert contact_sheet["writer_receipt"]["rows"] == 1
+        assert contact_sheet["pixel_size"] == [2 * 120 + 8, tile_height]
+        with Image.open(sheet_path) as still:
+            assert still.format == "PNG"
+            assert list(still.size) == contact_sheet["pixel_size"]
 
 
 def test_pil_fallback_refuses_identical_consecutive_frames(
