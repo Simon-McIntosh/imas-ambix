@@ -102,7 +102,44 @@ def test_grid_receipt_records_mast_wall_bounds() -> None:
         "r_bounds_m": [0.19524440169334412, 1.899999976158142],
         "z_bounds_m": [-1.8250000476837158, 1.8250000476837158],
         "bounds_source": "MAST era wall polygon",
+        "limiter_vertex_count": 36,
+        "limiter_source": "shot machine geometry",
     }
+
+
+def test_finite_x_points_outside_wall_are_masked_and_counted() -> None:
+    fields = _ellipse_fields()
+    fields["x_point_r"] = np.asarray([0.17, 1.92])
+    fields["x_point_z"] = np.asarray([-0.8, 0.0])
+    receipt: dict[str, object] = {"shot_id": 21858}
+
+    conditioning = render_flux_conditioning(fields, receipt=receipt)
+    vector = geometry_vector(fields, receipt=receipt)
+
+    assert np.all(conditioning[3:5] == 0.0)
+    assert np.all(vector[2:6] == 0.0)
+    assert receipt == {
+        "shot_id": 21858,
+        "non_contained_x_point_slots": 2,
+    }
+
+
+def test_x_point_inside_bounds_but_outside_wall_is_masked() -> None:
+    fields = _ellipse_fields()
+    fields["x_point_r"] = np.asarray([1.2, 0.91])
+    fields["x_point_z"] = np.asarray([1.1, 0.61])
+    receipt: dict[str, object] = {"shot_id": 22086}
+
+    conditioning = render_flux_conditioning(fields, receipt=receipt)
+    vector = geometry_vector(fields, receipt=receipt)
+
+    assert FluxGrid().r_bounds[0] < 1.2 < FluxGrid().r_bounds[1]
+    assert FluxGrid().z_bounds[0] < 1.1 < FluxGrid().z_bounds[1]
+    assert np.all(conditioning[3] == 0.0)
+    assert conditioning[4].max() == 1.0
+    assert np.all(vector[2:4] == 0.0)
+    np.testing.assert_allclose(vector[4:6], [0.91, 0.61])
+    assert receipt["non_contained_x_point_slots"] == 1
 
 
 def test_real_steering_slice_renders_finite_conditioning() -> None:
