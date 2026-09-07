@@ -11,10 +11,7 @@ import numpy as np
 
 from imas_ambix.worldmodel import flux_decoder_video as video
 
-
-SESSION = Path(
-    "/work/projects/imas_gpu/sophelio/labeller_sessions/76906a29/22086.nc"
-)
+SESSION = Path("/work/projects/imas_gpu/sophelio/labeller_sessions/76906a29/22086.nc")
 CHECKPOINT = Path(
     "/work/projects/imas_gpu/ambix/flux_decoder/overnight-20260907c/"
     "checkpoint-000077258.pt"
@@ -60,6 +57,30 @@ def _summary(decoded: np.ndarray, persistence: np.ndarray) -> dict[str, Any]:
     }
 
 
+def write_eight_frame_contact_sheet() -> tuple[Path, list[int]]:
+    """Replace the default still with eight evenly spaced rendered frames."""
+    from PIL import Image
+
+    with Image.open(OUTPUT) as animation:
+        indices = np.rint(np.linspace(0, animation.n_frames - 1, 8)).astype(int)
+        frames = []
+        for index in indices:
+            animation.seek(int(index))
+            frames.append(animation.convert("RGB").copy())
+    width, height = frames[0].size
+    sheet = Image.new("RGB", (width, height * len(frames)))
+    for row, frame in enumerate(frames):
+        sheet.paste(frame, (0, row * height))
+    output = OUTPUT.with_name(f"{OUTPUT.stem}-frames.png")
+    sheet.quantize(colors=256, method=Image.Quantize.FASTOCTREE).save(
+        output,
+        format="PNG",
+        optimize=True,
+        compress_level=9,
+    )
+    return output, indices.tolist()
+
+
 def main() -> int:
     frame_times = _selected_frame_times()
     captured: dict[str, np.ndarray] = {}
@@ -74,12 +95,8 @@ def main() -> int:
         decoded = np.stack([video._resize(frame) for frame in decoded_frames]).astype(
             np.float64
         )
-        captured["decoded"] = np.mean(
-            np.abs(decoded - real), axis=(1, 2, 3)
-        )
-        captured["persistence"] = np.mean(
-            np.abs(real[1:] - real[:-1]), axis=(1, 2, 3)
-        )
+        captured["decoded"] = np.mean(np.abs(decoded - real), axis=(1, 2, 3))
+        captured["persistence"] = np.mean(np.abs(real[1:] - real[:-1]), axis=(1, 2, 3))
         return receipt
 
     video._pixel_error_receipt = pixel_error_with_arrays
@@ -99,6 +116,12 @@ def main() -> int:
         )
     finally:
         video._pixel_error_receipt = original_pixel_error
+
+    contact_sheet, contact_sheet_indices = write_eight_frame_contact_sheet()
+    receipt["contact_sheet"] = str(contact_sheet.resolve())
+    receipt["contact_sheet_frame_indices"] = contact_sheet_indices
+    receipt["contact_sheet_frame_count"] = len(contact_sheet_indices)
+    receipt["contact_sheet_sha256"] = video._sha256(contact_sheet)
 
     decoded_per_frame = captured["decoded"]
     persistence_per_transition = captured["persistence"]
