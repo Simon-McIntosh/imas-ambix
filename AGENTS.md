@@ -168,10 +168,21 @@ pends forever on `PartitionTimeLimit`), `export TMPDIR=/tmp` on the node, never
 
 ```bash
 srun --partition=all_debug --time=00:59:00 --cpus-per-task=4 --mem=32G \
-  bash -lc 'export TMPDIR=/tmp; cd "$PWD"; \
+  bash -lc 'export TMPDIR=/tmp; unset -f uv; cd "$PWD"; \
     UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD \
-    uv run --no-sync pytest -p no:cacheprovider <targets>' > <log> 2>&1; echo EXIT=$?
+    command uv run --no-sync pytest -p no:cacheprovider <targets>' > <log> 2>&1; echo EXIT=$?
 ```
+
+**`unset -f uv` and `command uv` are load-bearing, not decoration.** The compute
+node's login shell defines `uv` as a wrapper **function** that injects its own
+`--no-sync`, so an explicit `--no-sync` becomes the second one and uv exits 2
+before pytest collects anything. The error names a duplicated flag, which reads
+like a mistake in your own command line, so the usual reaction is to remove the
+flag you can see rather than to bypass the wrapper you cannot. Unsetting
+`UV_NO_SYNC` does nothing, because the injection is in a shell function and not
+in the environment. Measured 2026-09-07: a worker lost two attempts and hit its
+stop fence on exactly this, in a wave where four sibling nodes passed the same
+gate using the form above.
 
 A worker whose done-when names no partition still runs its heavy gate this way
 and says so in the manifest. A coordinator names the partition in every heavy
