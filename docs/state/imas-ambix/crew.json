@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T12:06:24",
+  "updated": "2026-09-07T12:28:20",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -31394,6 +31394,149 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260907T100733200969-pcp-full-window-render",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a75b",
+        "node": "pcp-full-window-render",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1482,
+                "cached_input_tokens": 453113,
+                "input_tokens": 454597,
+                "output_tokens": 2932,
+                "reasoning_output_tokens": 1638,
+                "total_tokens": 457529,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "docs/figures/physics-carried-playable-plasma/seed-window/full-window-22086.receipt.json exists committed carrying the aggregate decoded and persistence mean absolute errors with their ratio over every scored transition, the scored transition count, the same three figures computed separately for transitions before and after t=0.150 s so the early and late phases are separable, the per-frame arrays for both, the first rendered slice with its time and the seed provenance naming which camera frames seeded history, and the contaminated figures of 18.096, 6.253 and 2.894 over 45 transitions recorded beside them under distinct keys. A GIF and a contact sheet of at least eight evenly spaced frames are committed under the same directory. pytest tests/worldmodel/test_flux_decoder_video.py passes unchanged, since this node alters no module. Whole-tree ruff check imas_ambix tests exits 0. The render runs as ONE sbatch job on betelgeuse with --reservation=gpu_0003_grpA --account=grpa --gres=gpu:1 and at most 4 cores, never --qos and never --mem=0, and the OpenMAGVIT2 decode subprocess must be launched with its working directory set to the tokeniser checkpoint's own root, because that lookup is relative and the node has no egress so a miss hangs rather than failing. The pytest and ruff gates run on all_debug with TMPDIR=/tmp and command uv",
+          "estimated_hours": null,
+          "goal": "A full-window corrected render of held-out demo carrier 22086 that produces the one decoded-versus-persistence figure comparable to the contaminated publication, using the already-merged seed-aligned renderer without modifying it. The seeding repair landed and visibly improved the picture, but the render that demonstrated it starts at the carrier's own locked slice 43 at t=0.235 s and therefore covers six frames and five transitions in the fully formed, slowly varying late phase, while the contaminated figure of decoded 18.096 against persistence 6.253 at ratio 2.894 spanned forty-five transitions from t=0.025 s including the hard early formation phase. Comparing those two would confound the repair with window difficulty on a five-transition sample. This render therefore walks the earliest slice that has a full four-frame history through to the end of the session at guidance 2.0 and temperature 1.0 on checkpoint 77,258 with sampling seed 22086, and reports the error broken down by phase as well as in aggregate so window difficulty is visible rather than hidden",
+          "id": "pcp-full-window-render",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T100733200969-pcp-full-window-render/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75b",
+          "spec_level": "guided",
+          "time_budget": "40m",
+          "write_paths": [
+            "docs/figures/physics-carried-playable-plasma/seed-window"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pcp-decoder-video-2",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T10:07:49Z",
+        "completed_at": "2026-09-07T10:25:47Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1078,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1078,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "952481369286ff9191673897c369f64553becba9",
+        "commits": [
+          "09364be73ef3326fad1ebfbee8dac8fd0c7ee91c",
+          "53a93ab8309e8a36145dc9e3a9a8c9ae80435c37"
+        ],
+        "changed_lines": {
+          "added": 663,
+          "removed": 0,
+          "files": 7
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug command uv run --no-sync pytest -p no:cacheprovider tests/worldmodel/test_flux_decoder_video.py plus whole-tree ruff",
+          "exit_status": 0,
+          "log_path": "docs/figures/physics-carried-playable-plasma/seed-window/full-window-22086-gates.log",
+          "log_digest": "7f8d9467e2f24972346228745c10ae912b53566c65f4b58d3f7f7112ed6bb00a"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T100733200969-pcp-full-window-render/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07b56-a0dd-7ba1-b291-87a9fabb0ed1",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 7420288,
+            "cached_input_tokens_cumulative": 7420288,
+            "input_tokens": 7618253,
+            "input_tokens_cumulative": 7618253,
+            "output_tokens": 25386,
+            "output_tokens_cumulative": 25386,
+            "reasoning_output_tokens": 9347,
+            "reasoning_output_tokens_cumulative": 9347
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 34733,
+          "peak_input_tokens": 15038541
+        },
+        "follow_on_paths": [
+          "/work/projects/imas_gpu/mast-tokens/v1/open-magvit2"
+        ],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-full-window-render",
+          "session_id": "01a07b56-a0dd-7ba1-b291-87a9fabb0ed1",
+          "session_source": "stream",
+          "retained_at": "2026-09-07T10:25:47Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_flux_decoder_video.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -31440,6 +31583,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 588
+    "_version": 589
   }
 }
