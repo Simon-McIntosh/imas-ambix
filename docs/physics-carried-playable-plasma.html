@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="70">
+<meta name="plan-version" content="72">
 <meta name="plan-impl" content="0.9">
 </head>
 <body>
@@ -589,8 +589,22 @@
     variants, so this node runs beside the census rather than behind it. Done when both GIFs exist with
     identical frame counts and identical pixel widths, the receipt records shot, camera group, both
     pinned digests, slice count, frame times, camera time deltas, percentile limits and pixel dimensions,
-    at least 90% of converged slices paired, and the whole-tree ruff gate is 0. The gate reads corpus
-    data, so it runs on <code>sun_debug</code>.</p>
+    and at least 90% of the converged slices <em>whose time falls inside the camera's time span</em>
+    paired, and the whole-tree ruff gate is 0. That qualifier is a correction, made 2026-09-07 after the
+    first attempt measured against it: a session outlives its camera — 21858's runs to 0.595 s while
+    <code>rbb</code> ends at 0.500 s — so 16 of its 101 converged slices have no camera frame that could
+    exist, and a flat fraction of the whole session is an unreachable measure that reads as a pairing
+    defect. The receipt records both figures, in-window and whole-session, so the out-of-window shortfall
+    stays visible rather than being hidden by the qualifier. The gate reads corpus data, so it runs on
+    <code>sun_debug</code>.</p>
+    <p><strong>The GIF writer is owned here, not shared</strong> (finding, 2026-09-07). PIL's GIF plugin
+    merges a frame whose delta against its predecessor is empty into the previous frame's duration, so
+    two byte-identical consecutive frames silently become one and the two panels desynchronise in time —
+    which defeats the pair. This module therefore encodes through <code>ffmpeg</code>, which writes every
+    input frame, keeping PIL only as a fallback that fails loudly rather than merging, and it verifies by
+    re-opening both written GIFs and counting their frames rather than trusting the arrays it meant to
+    write. <code>flux_decoder_video.py</code>'s shared writer is deliberately left alone: peer renders
+    depend on it, and a fix there is its own node.</p>
 
     <p><strong>§5d-iii — The presentation pair</strong> (node
     <code>pcp-presentation-pair-render</code>). Deliverable: the two committed GIFs and their receipt for
@@ -983,6 +997,9 @@
 </div>
 <div class="r-comment" data-section="s5c" data-id="c-20260906T2145-s5c-bokeh-landed" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-06T21:45:00Z">
     <div class="r-comment-body">Section 5c done by the coordinator as an environment operation from the main checkout (a worktree sync would repoint the shared environment): bokeh&gt;=3.6 declared in the viz extra (commit a1279d8, pyproject.toml plus uv.lock, which also caught up the pyarrow and mpmath pins resolution had moved), environment synced with --inexact so nothing installed was removed (bokeh 3.10.0 plus referencing, rpds-py, tornado, xyzservices added), editable installs verified still pointing at the main checkouts of imas-ambix, imas-ink and nova. Verified under the ambix interpreter: import bokeh, import apps.playable.camera (protocol carries reset()), import imas_ambix.worldmodel.flux_conditioned_decoder all succeed. Decision vq-route locks the magvit2 subprocess as the VQ route, so the in-process import is not pursued and einops is not needed on the ambix side. Remaining for the live serve: nova's --decoder launch argument (their node in flight), a trained checkpoint from job 1263771, and a card. impl 0.85 to 0.88 (17 of 20 counted nodes landed).</div>
+</div>
+<div class="r-comment" data-section="§5d" data-id="c-run-r-20260907T054451440446-pcp-carrier-camera-census" data-who="pcp-carrier-census" data-when="2026-09-07T05:59:49Z">
+    <div class="r-comment-body"><p>848 sessions ranked, 605 eligible; winner 24854/rbc 480x512, 2050 frames, 0.4998 s, 72 converged slices, all 72 inside the camera window</p></div>
 </div>
 </section>
 </main>
