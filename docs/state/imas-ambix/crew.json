@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T11:27:42",
+  "updated": "2026-09-07T11:29:21",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -30236,6 +30236,190 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260907T085755991273-pcp-decode-guidance-sweep",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a75b",
+        "node": "pcp-decode-guidance-sweep",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 367,
+                "cached_input_tokens": 175444,
+                "input_tokens": 175813,
+                "output_tokens": 1206,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 177019,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "docs/figures/physics-carried-playable-plasma/guidance-sweep/verdict.json exists committed carrying one row per guidance and temperature cell with decoded mean absolute error, persistence mean absolute error, their ratio, and the count of frames whose decoded standard deviation falls below one quarter of the real frame standard deviation as a mean-collapse indicator, alongside a one-line verdict naming whether any cell beats ratio 1.0 and which cell is best, one contact sheet PNG per cell under that same directory, a passing pytest tests/worldmodel/test_decode_guidance_sweep.py whose synthetic-logit test proves the guidance arithmetic changes the sampled distribution and whose collapse indicator fires on a planted uniform frame while staying silent on a planted structured frame, and a whole-tree ruff check imas_ambix tests exiting 0. The sweep runs as ONE sbatch job on betelgeuse with --reservation=gpu_0003_grpA --account=grpa --gres=gpu:1 and at most 4 cores, never --qos and never --mem=0, because exactly one card is free. The pytest and ruff gates run on all_debug with TMPDIR=/tmp and command uv",
+          "estimated_hours": null,
+          "goal": "A guidance and temperature sweep in a new imas_ambix/worldmodel/decode_guidance_sweep.py that measures whether the flux-conditioned decoder's mean collapse is an inference-time artefact of weak classifier-free guidance rather than a training failure. It drives the existing renderer over guidance_weight 1.0, 2.0, 3.5 and 6.0 crossed with temperature 0.7 and 1.0, reading the existing checkpoint /work/projects/imas_gpu/ambix/flux_decoder/overnight-20260907c/checkpoint-000077258.pt for held-out demo carrier 22086, scoring full-video decoded pixel mean absolute error against the frame-to-frame persistence baseline in every cell and emitting one contact sheet per cell so the plasma column's presence or absence is visible rather than inferred from a scalar. The decoder already samples with torch.multinomial and already accepts both knobs, so this node adds no sampling machinery, changes no training code, and reports which cell if any renders a recognisable plasma column",
+          "id": "pcp-decode-guidance-sweep",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T085755991273-pcp-decode-guidance-sweep/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75b",
+          "spec_level": "guided",
+          "time_budget": "45m",
+          "write_paths": [
+            "imas_ambix/worldmodel/decode_guidance_sweep.py",
+            "tests/worldmodel/test_decode_guidance_sweep.py",
+            "docs/figures/physics-carried-playable-plasma/guidance-sweep"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pcp-decoder-video",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T08:58:33Z",
+        "completed_at": "2026-09-07T09:26:43Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1690,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1690,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "f2f6ff0250c761be7fbb741701d5bdffe21779dc",
+        "commits": [
+          "1d90624ce60923ae4fedfe32a2637a97d780deed"
+        ],
+        "changed_lines": {
+          "added": 885,
+          "removed": 0,
+          "files": 11
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug uv run --no-sync pytest -p no:cacheprovider tests/worldmodel/test_decode_guidance_sweep.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T085755991273-pcp-decode-guidance-sweep/all-debug-gates-final.log",
+          "log_digest": "6198b8ac659f7b30f833f205e6ba1f4aecd683e13d7958b6aa2275bbf5d712fb"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T085755991273-pcp-decode-guidance-sweep/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07b17-3a5a-7982-8fb1-88ff2cab6853",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 11596288,
+            "cached_input_tokens_cumulative": 11596288,
+            "input_tokens": 11996179,
+            "input_tokens_cumulative": 11996179,
+            "output_tokens": 29530,
+            "output_tokens_cumulative": 29530,
+            "reasoning_output_tokens": 8344,
+            "reasoning_output_tokens_cumulative": 8344
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 2700,
+              "classification": "completed_unpromoted",
+              "detail": "the worker manifest reports completion and the run is still a pointer; promoting it moves the delivered record into the repository ledger",
+              "elapsed_seconds": 1404,
+              "external_wait": null,
+              "liveness_proven": true,
+              "log_age_seconds": 4731,
+              "log_fresh": false,
+              "manifest_commits": [
+                "ac70893932f174850912d84d961596920483cfa1\"]; changed_paths: [\"imas_ambix/worldmodel/carrier_camera_census.py",
+                "tests/worldmodel/test_carrier_camera_census.py",
+                "docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "1dd69a75c876093adf8422773ac5ddc9b0e6a274c7c2eff451aa326369c30283",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T070926983354-pcp-camera-family-census/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260907T070926983354-pcp-camera-family-census --gate <verdict> --commit ac70893932f174850912d84d961596920483cfa1\"]; changed_paths: [\"imas_ambix/worldmodel/carrier_camera_census.py --commit tests/worldmodel/test_carrier_camera_census.py --commit docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json",
+              "node": "pcp-camera-family-census",
+              "phase": "working",
+              "plan": "physics-carried-playable-plasma",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260907T070926983354-pcp-camera-family-census",
+              "session": "ambix-s19-media",
+              "terminal_age_seconds": 4775,
+              "terminal_at": "2026-09-07T07:38:43Z",
+              "wait_age_seconds": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-media/pcp-camera-family-census"
+            }
+          ]
+        },
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 37874,
+          "peak_input_tokens": 23592467
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-decode-guidance-sweep",
+          "session_id": "01a07b17-3a5a-7982-8fb1-88ff2cab6853",
+          "session_source": "stream",
+          "retained_at": "2026-09-07T09:26:43Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_decode_guidance_sweep.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -30282,6 +30466,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 578
+    "_version": 579
   }
 }
