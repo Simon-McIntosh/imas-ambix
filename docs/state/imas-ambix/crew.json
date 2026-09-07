@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T08:26:15",
+  "updated": "2026-09-07T09:08:49",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -897,6 +897,15 @@
         "sessions": {}
       },
       {
+        "id": "pcp-camera-family",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-07"
+      },
+      {
         "id": "pcp-carrier-cameras",
         "harness": "codex",
         "role": "implement",
@@ -944,6 +953,15 @@
         "session_model": null,
         "sessions": {},
         "created": "2026-09-06"
+      },
+      {
+        "id": "pcp-decoder-video-2",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": null,
+        "session_model": null,
+        "sessions": {},
+        "created": "2026-09-07"
       },
       {
         "created": "2026-09-02",
@@ -27664,6 +27682,421 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260907T063738297775-pcp-label-cartoon-contact-sheet",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a75d",
+        "node": "pcp-label-cartoon-contact-sheet",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 881,
+                "cached_input_tokens": 333068,
+                "input_tokens": 333951,
+                "output_tokens": 1041,
+                "reasoning_output_tokens": 258,
+                "total_tokens": 334992,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "02234188-75f7-47b8-8ccb-365cad54d4c5",
+            "session_id": "ambix-s19-media"
+          },
+          "done_when": "the renderer writes a contact sheet beside every GIF it writes, named by appending -frames.png to that GIF's basename, holding evenly spaced frames including the first and the last; for the reference-21858 pair that is label-cartoon-frames.png and camera-stream-frames.png, both present, both opening as PNG, with their pixel sizes and the chosen frame indices recorded in receipt.json; reckon figure discovery lists both, proven by running reckon.figures.figure_rows over the docs directory and printing the two new slugs with non-empty dims and for_plan equal to physics-carried-playable-plasma; the new test passes; uv run --no-sync ruff check imas_ambix tests exits 0",
+          "estimated_hours": null,
+          "goal": "Emit a still contact sheet beside each label-cartoon GIF so the animations appear in the reckon figures index",
+          "id": "pcp-label-cartoon-contact-sheet",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T063738297775-pcp-label-cartoon-contact-sheet/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75d",
+          "spec_level": "guided",
+          "time_budget": "35m",
+          "write_paths": [
+            "imas_ambix/worldmodel/label_cartoon_video.py",
+            "tests/worldmodel/test_label_cartoon_video.py",
+            "docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pcp-label-cartoon",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T06:37:49Z",
+        "completed_at": "2026-09-07T06:50:10Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 741,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 741,
+        "stalled": false,
+        "time_budget": "35m",
+        "base_sha": "6dac1d59ec85611290a8bc48ba28059c13cad904",
+        "commits": [
+          "e21388bdcf786a155841ebc39da5baa7ab81d4c4",
+          "d0028b832c886e32bc8f97b0b93ef928d2535e90"
+        ],
+        "changed_lines": {
+          "added": 152,
+          "removed": 5,
+          "files": 5
+        },
+        "tests_added": 0,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun sun_debug FFmpeg/6.0: pytest tests/worldmodel/test_label_cartoon_video.py (3 passed) && ruff check imas_ambix tests (exit 0); committed-revision render; PIL artifact verification",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T063738297775-pcp-label-cartoon-contact-sheet/ruff-whole-tree-sun-debug.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T063738297775-pcp-label-cartoon-contact-sheet/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07a66-75fb-7670-a1b4-c8af61170fb5",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 3151616,
+            "cached_input_tokens_cumulative": 8277888,
+            "input_tokens": 3143908,
+            "input_tokens_cumulative": 8322078,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 18711,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 3346
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 22057,
+          "peak_input_tokens": 16599966
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 2,
+        "attempt_kind": "resume",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-media/pcp-label-cartoon-contact-sheet",
+          "session_id": "01a07a66-75fb-7670-a1b4-c8af61170fb5",
+          "session_source": "pointer",
+          "retained_at": "2026-09-07T06:50:10Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
+      },
+      {
+        "run_id": "r-20260907T064309554203-pcp-video-carrier-21978",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a75b",
+        "node": "pcp-video-carrier-21978",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 2590,
+                "cached_input_tokens": 857362,
+                "input_tokens": 859984,
+                "output_tokens": 286,
+                "reasoning_output_tokens": 197,
+                "total_tokens": 860270,
+                "uncached_input_tokens": 32
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "the gif, its -frames.png still and its receipt exist under docs/figures/physics-carried-playable-plasma/ committed with git add -f in your worktree, the receipt reports the SLURM job id and partition all_debug, the checkpoint sha256 and step 47185, the admitted and paired slice counts (the rbb window ends at 0.376 s so slices outside it drop), written_frame_count equal to gif_frame_count, and the mean decoded and persistence pixel errors against the real frames, and the manifest quotes those two numbers beside the 21858 step-17652 figures (9.61 vs 2.75); no code files change and no betelgeuse job is touched",
+          "estimated_hours": null,
+          "goal": "The real-versus-decoded video of frozen-carrier shot 21978 (the proposed re-lock carrier, 512x512 rbb at 667 us over 0.085 to 0.376 s, labelled tonight by nova side job 1263887 with 46 converged slices) from the latest trained checkpoint: run the landed imas_ambix.worldmodel.flux_decoder_video command on the all_debug partition via srun (never the login node, command uv to bypass the node uv shell function) against session /work/projects/imas_gpu/sophelio/labeller_sessions/76906a29/21978.nc and checkpoint /work/projects/imas_gpu/ambix/flux_decoder/overnight-20260907c/checkpoint-000047185.pt (step 47185 of training job 1263842, still running, so copy the checkpoint into your run directory first and decode from the copy) with --vq-route persistent-subprocess, writing docs/figures/physics-carried-playable-plasma/shot-21978-real-decoded-step47185.gif with its -frames.png still and receipt json beside it exactly as the 21858 pairs were produced",
+          "id": "pcp-video-carrier-21978",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T064309554203-pcp-video-carrier-21978/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75b",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "docs/figures/physics-carried-playable-plasma/shot-21978-real-decoded-step47185.gif",
+            "docs/figures/physics-carried-playable-plasma/shot-21978-real-decoded-step47185-frames.png",
+            "docs/figures/physics-carried-playable-plasma/shot-21978-real-decoded-step47185.receipt.json"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "pcp-decoder-video",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T06:43:23Z",
+        "completed_at": "2026-09-07T07:04:39Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1276,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1276,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "6dac1d59ec85611290a8bc48ba28059c13cad904",
+        "commits": [
+          "6d175505c47279ffdc2e90b9fb8aac9a003f4c32"
+        ],
+        "changed_lines": {
+          "added": 165,
+          "removed": 0,
+          "files": 3
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug python -m imas_ambix.worldmodel.flux_decoder_video 21978.nc checkpoint-000047185.pt --vq-route persistent-subprocess",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T064309554203-pcp-video-carrier-21978/real-render-all-debug.log",
+          "log_digest": "sha256:58683e77b8518cb3b1f61de7411f30fc8cf75192bc5c6c0b013edd19e0c85f9e"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T064309554203-pcp-video-carrier-21978/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07a9b-7605-7731-b1d8-547c6bb2de2e",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 10886912,
+            "cached_input_tokens_cumulative": 10886912,
+            "input_tokens": 11056695,
+            "input_tokens_cumulative": 11056695,
+            "output_tokens": 22409,
+            "output_tokens_cumulative": 22409,
+            "reasoning_output_tokens": 5905,
+            "reasoning_output_tokens_cumulative": 5905
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 28314,
+          "peak_input_tokens": 21943607
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-video-carrier-21978",
+          "session_id": "01a07a9b-7605-7731-b1d8-547c6bb2de2e",
+          "session_source": "stream",
+          "retained_at": "2026-09-07T07:04:39Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
+      },
+      {
+        "run_id": "r-20260907T064556643029-pcp-video-carrier-21989",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a75b",
+        "node": "pcp-video-carrier-21989",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 346,
+                "cached_input_tokens": 863166,
+                "input_tokens": 863544,
+                "output_tokens": 2460,
+                "reasoning_output_tokens": 504,
+                "total_tokens": 866004,
+                "uncached_input_tokens": 32
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "the gif, its -frames.png still and its receipt exist under docs/figures/physics-carried-playable-plasma/ committed with git add -f in your worktree, the receipt reports the SLURM job id and partition all_debug, the checkpoint sha256 and step 47185, the admitted and paired slice counts, written_frame_count equal to gif_frame_count, and the mean decoded and persistence pixel errors against the real frames, and the manifest quotes those two numbers beside the 21858 step-17652 figures (9.61 vs 2.75); no code files change and no betelgeuse job is touched",
+          "estimated_hours": null,
+          "goal": "The real-versus-decoded video of the locked demo carrier 21989 (512x512 rbb at 667 us over 0.085 to 0.400 s, labelled tonight by nova side job 1263887 with 45 converged slices of 73) from the latest trained checkpoint: run the landed imas_ambix.worldmodel.flux_decoder_video command on the all_debug partition via srun (never the login node, command uv to bypass the node uv shell function) against session /work/projects/imas_gpu/sophelio/labeller_sessions/76906a29/21989.nc and checkpoint /work/projects/imas_gpu/ambix/flux_decoder/overnight-20260907c/checkpoint-000047185.pt (step 47185 of training job 1263842, still running, so copy the checkpoint into your run directory first and decode from the copy) with --vq-route persistent-subprocess, writing docs/figures/physics-carried-playable-plasma/shot-21989-real-decoded-step47185.gif with its -frames.png still and receipt json beside it exactly as the 21858 pairs were produced",
+          "id": "pcp-video-carrier-21989",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T064556643029-pcp-video-carrier-21989/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75b",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "docs/figures/physics-carried-playable-plasma/shot-21989-real-decoded-step47185.gif",
+            "docs/figures/physics-carried-playable-plasma/shot-21989-real-decoded-step47185-frames.png",
+            "docs/figures/physics-carried-playable-plasma/shot-21989-real-decoded-step47185.receipt.json"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "pcp-decoder-video-2",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T06:46:09Z",
+        "completed_at": "2026-09-07T06:59:37Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 808,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 808,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "b3388069e38eac438cf31994f8ea799b27b60064",
+        "commits": [
+          "4ab9698b510e39d2396c1e253c27a911605af494"
+        ],
+        "changed_lines": {
+          "added": 160,
+          "removed": 0,
+          "files": 3
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug python -m imas_ambix.worldmodel.flux_decoder_video 21989.nc checkpoint-000047185.pt --vq-route persistent-subprocess",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T064556643029-pcp-video-carrier-21989/real-render-all-debug.log",
+          "log_digest": "sha256:d30b2016b948cf3afe3aec286fc304473656ca1906d0062fb1dc1bb10e82662f"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T064556643029-pcp-video-carrier-21989/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07a9d-fecb-7e80-b4fd-aa0d98a57d8b",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 8620800,
+            "cached_input_tokens_cumulative": 8620800,
+            "input_tokens": 8821981,
+            "input_tokens_cumulative": 8821981,
+            "output_tokens": 22132,
+            "output_tokens_cumulative": 22132,
+            "reasoning_output_tokens": 6769,
+            "reasoning_output_tokens_cumulative": 6769
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 28901,
+          "peak_input_tokens": 17442781
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-video-carrier-21989",
+          "session_id": "01a07a9d-fecb-7e80-b4fd-aa0d98a57d8b",
+          "session_source": "stream",
+          "retained_at": "2026-09-07T06:59:37Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [
@@ -27710,6 +28143,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 557
+    "_version": 562
   }
 }

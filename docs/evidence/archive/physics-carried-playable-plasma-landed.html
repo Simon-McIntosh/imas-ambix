@@ -534,6 +534,32 @@
       <figcaption>Step 17,652 contact sheet: the decoded column is nearly uniform dark while the real column carries the bright plasma streak.</figcaption>
     </figure>
 
+    <h2 id="s5b-carrier-renders">§5b — The carrier cameras: the decoder does not transfer (2026-09-07)</h2>
+    <p>Nova's side job 1263887 wrote labeller sessions for all six frozen-carrier shots (converged / slices: 21978 46/72, 21983 44/72,
+    21985 39/71, 21986 40/62, 21989 45/75, 22086 46/60). Nodes <code>pcp-video-carrier-21978</code> (commit <code>6d17550</code>,
+    <code>all_debug</code> job 1263962) and <code>pcp-video-carrier-21989</code> (commit <code>4ab9698</code>, job 1263959) rendered the
+    proposed and the locked carrier from the fifth checkpoint (step 47,185).</p>
+    <table>
+      <thead><tr><th>Shot, camera</th><th>Paired slices</th><th>Decoded MAE (u8)</th><th>Persistence MAE (u8)</th></tr></thead>
+      <tbody>
+        <tr><td>21858, rbb 48&times;256 strip at 20 &micro;s (reference)</td><td>84</td><td>9.61 (step 17,652)</td><td>2.75</td></tr>
+        <tr><td>21978, rbb 512&times;512 at 667 &micro;s</td><td>34 of 46 admitted</td><td><strong>87.1</strong></td><td>12.0</td></tr>
+        <tr><td>21989, rbb 512&times;512 at 667 &micro;s</td><td>33 of 45 admitted</td><td><strong>102.1</strong></td><td>8.5</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Reading.</strong> The carrier cameras are the wide-angle whole-vessel view: the real frames show the plasma filling the
+    vessel brightly around the dark centre column. The decoder, trained on a corpus dominated by other camera geometries, emits
+    ImageNet-texture output from the frozen VQ decoder on the first slices (seeded from the shot's own frames) and then decays toward a
+    dark frame; nothing it renders resembles the carrier view. This is the domain shift §5 warned about, and it is the demo blocker
+    ahead of any persistence comparison: <em>the decoder for the live demo must be trained on the carrier camera family (rbb 512&times;512
+    at 667 &micro;s) or conditioned on camera geometry</em>, and the §6 decoder-skill gate is scored on that camera. The six carrier
+    sessions alone hold about 260 converged slices, too few on their own; the count of corpus shots sharing the camera family is the
+    number that decides between a family-restricted fine-tune and a camera-conditioned decoder.</p>
+    <figure>
+      <img src="/imas-ambix/figures/physics-carried-playable-plasma/shot-21978-real-decoded-step47185-frames.png" alt="Shot 21978 contact sheet: real 512x512 rbb frames of the whole vessel beside the decoder's output, which is texture noise decaying to dark">
+      <figcaption>21978 from the step 47,185 checkpoint: real (left) beside decoded (right); the decoder has not seen this camera.</figcaption>
+    </figure>
+
     <h2 id="s4b-state">§4b — Where the section stands</h2>
     <p>Five nodes landed: the target derivation, the cohort and confounder census, the divertor-bright
     screen expansion, the labeller model with its smoke receipt, and the scaled training submission. All
