@@ -25,10 +25,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="108">
-<meta name="plan-impl" content="0.92">
+<meta name="plan-version" content="110">
+<meta name="plan-impl" content="0.95">
 <meta name="plan-commits" content="f854455492b0103c5f64d7a6533a46f6059d3ab2,56ca74eeb4f34ac8955ec8553eba0b98d11bdbec,73f306341c327fb2add035765fcdc64d94a5e45a,a4fb3eaab244d481cc17c08ed196f7d8bb917171,e21388bdcf786a155841ebc39da5baa7ab81d4c4,d0028b832c886e32bc8f97b0b93ef928d2535e90,aecc1ea8e735b7b6a9a69b98b756b4d117ae93e1">
-<meta name="plan-artifacts" content="docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json,docs/figures/physics-carried-playable-plasma/label-cartoon/carrier-cameras/camera-picture-quality.json,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/receipt.json,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-census,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-carrier-cameras">
+<meta name="plan-artifacts" content="docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json,docs/figures/physics-carried-playable-plasma/label-cartoon/carrier-cameras/camera-picture-quality.json,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/24854/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/24854/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/22086/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/22086/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/label-cartoon.gif,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-census,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-carrier-cameras">
 </head>
 <body>
   <main class="plan-doc">
@@ -1262,6 +1262,9 @@
 <div class="r-comment" data-section="§5d" data-id="c-run-r-20260907T070850134400-pcp-label-panel-ink" data-who="pcp-label-cartoon" data-when="2026-09-07T07:37:21Z">
     <div class="r-comment-body"><p>Panel redrawn entirely through nova.media on a white ground: 0 primitive calls, 69 free-slice frames, 85.84 percent white first frame, aspect exact to 0 px, atm Thomson chord drawn</p></div>
 </div>
+<div class="r-comment" data-section="§5d" data-id="c-run-r-20260907T074029292618-pcp-presentation-pair-render" data-who="pcp-label-cartoon" data-when="2026-09-07T07:57:07Z">
+    <div class="r-comment-body"><p>24854 58 frames 512x1209 label and 512x480 camera, nulls 114 drawn 2 dropped; 22086 43 frames 512x1209 and 512x381, nulls 72 drawn 14 dropped; strike points omitted, both aspects exact to 0 px, pairing 58/58 and 43/43</p></div>
+</div>
 <div class="r-comment" data-section="s5d" data-id="c-20260907-carrier-census" data-who="reckon-ship" data-when="2026-09-07T06:12:00Z">
     <div class="r-comment-body">Carrier census landed - commit f854455 (merged 0d21c03); gate passed on sun_debug job 1263893, 2 tests and whole-tree ruff 0; measure 848 sessions ranked, 605 eligible, winner 24854/rbc 480x512 over 2050 frames with all 72 converged slices inside the camera window; artifacts carrier-camera-ranking.json plus the s5d-census and s5d-carrier-cameras evidence anchors. impl deliberately left unchanged: this plan has two live coordinators and imas-ambix-1d owns the denominator while landing section 4, so section 5d's four executable nodes need folding into it rather than overwriting it. plan-commits and plan-artifacts are now in use on this plan - append to them rather than replacing.</div>
 </div>
@@ -1291,6 +1294,11 @@ The x-points are the contrast and the separation is an order of magnitude: 25 of
 The coarse-wall hypothesis is refuted rather than left open: nova's plasmawall at nwall=1 gives 36 nodes spanning R 0.1952 to 1.9000 and at nwall=2 gives 72 nodes spanning the identical range, so subdivision densifies sampling along the same outline without adding structural detail. There is no finer wall at any setting, and the polygon nova tests against is the one we tested against.
 
 Consequence for the panel: strike points remain omitted, but as BEYOND BRIEF and not under a cloud - the earlier wording implied a doubt that no longer exists. If they are ever wanted, the correct test is distance-to-wall within a tolerance rather than inclusion, and on this evidence all of them pass. Both my diagnosis and nova's assumed wall resolution when the actual problem was boundary degeneracy: the refusal to claim was right and the reason given for it was not.</div>
+</div>
+<div class="r-comment" data-section="s5d" data-id="c-20260907-pairs-landed" data-who="reckon-ship" data-when="2026-09-07T08:05:00Z">
+    <div class="r-comment-body">Presentation pairs LANDED for both carriers - commits 805dccb and 8c613d3, merged 2acff35; gate passed on sun_debug render job 1264037 with focused pytest and whole-tree ruff at 0. Measures: 24854 label 58 frames at 512x1209 beside camera 58 frames at 512x480, pairing 58/58 at a maximum camera delta of 0.894 ms, Thomson era ayc with groups ayc and aye, nulls 114 drawn and 2 dropped; 22086 label 43 frames at 512x1209 beside camera 43 frames at 512x381, pairing 43/43 at a maximum delta of 0.010 ms, Thomson era atm, nulls 72 drawn and 14 dropped. Both label aspect errors are 0 px, strike points omitted and recorded as omitted, and containment is nova's own draw_nulls(contain=limiter) with the drawn and dropped counts taken from the value that function returns rather than computed beside the figure. The local filter was removed rather than kept as a belt. The 14 dropped nulls on the demo carrier are the same defect measured in the comments above, now visible in the artefact's own receipt.
+
+Visual judgement still with the lead, and it is the one thing not settled by a measure: the atm Thomson channels render as markers at zorder above the flux surfaces, so on the demo carrier they read as a fairly prominent blue row crossing the plasma rather than as faint context, and where channels are dense they merge into a bar. That is nova's shared ink convention and was not changed unilaterally, since the brief asked for one consistent style. The alternative is a lower alpha or a zorder beneath the surfaces, which would depart from the shared convention on this one figure.</div>
 </div>
 </section>
 </main>
