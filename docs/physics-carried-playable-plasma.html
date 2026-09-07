@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="55">
+<meta name="plan-version" content="56">
 <meta name="plan-impl" content="0.9">
 </head>
 <body>
@@ -797,6 +797,9 @@
 </div>
 <div class="r-comment" data-section="s4f" data-id="c-20260907T0210-pixel-route-landed-resubmitted" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-07T02:10:00Z">
     <div class="r-comment-body">pcp-train-pixel-route landed — commit 9b4aa7a (merged 69253a1); pixel validation now decodes target, model and persistence token grids in one batch through the persistent magvit2 subprocess route (vq_route persistent-subprocess in the receipt) and never constructs the in-process VQ decoder, guarded by a unit test; gates on all_debug: pytest 5 passed (job 1263814), twenty-step smoke with one pixel sample (job 1263816, 6 min 32 s) admitted 660 shots and 37,519 slices (10,700 conditioned), receipt with decoded_pixel_error available (untrained model MAE 105.8 against persistence 3.4, a route check not a skill claim); ruff 0. Decoder training resubmitted from the fixed main checkout as job 1263819 into /work/projects/imas_gpu/ambix/flux_decoder/overnight-20260907b/. All eight cards were allocated when it queued (nova's two card writers returned), so the coordinator requeued our own labeller job 1263778 and chained it afterany:1263819: the decoder trains first on the card ambix holds, the labeller resumes after it; no peer job touched.</div>
+</div>
+<div class="r-comment" data-section="s4f" data-id="c-20260907T0212-training-running" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-07T02:12:00Z">
+    <div class="r-comment-body">Decoder training job 1263819 is RUNNING on 98dci4-gpu-0003 from 04:06 local: epoch 1 rescan admitted 36,300 train and 1,836 validation slices over 671 shots; step 1 token NLL 12.575, step 50 12.411 (uniform over 2^18 is 12.48); about 4.7 steps per second at batch size 1, so one epoch is roughly two hours and the ten-hour allocation covers four to five epochs with a checkpoint and receipt every 30 minutes under /work/projects/imas_gpu/ambix/flux_decoder/overnight-20260907b/. The labeller training 1263778 waits on afterany:1263819. Morning check: receipt.json validation token NLL against the persistence baseline, then the real-versus-decoded video for 21858 from the latest checkpoint (section 5b command) and, with nova's card and --decoder landing, the live camera panel.</div>
 </div>
 <div class="r-comment" data-section="§5b" data-id="c-run-r-20260906T210821148664-pcp-decoder-video" data-who="pcp-decoder-video" data-when="2026-09-06T21:33:14Z">
     <div class="r-comment-body"><p>Video command and serve launcher landed: shot 21858 real-versus-decoded GIF (85 frames, 512x288, 10 fps) rendered on all_debug job 1263769 from an untrained checkpoint; VQ route persistent subprocess under the magvit2 environment because src.Open_MAGVIT2 needs einops; predictor decode wall 3.6 s per frame on CPU. Follow-ons for section 5c and nova: bokeh is not installed in the ambix environment so no live serve was claimed, and nova's app reads the decoder from a request argument rather than --decoder after --args</p></div>
