@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -40,10 +39,14 @@ from imas_ambix.worldmodel.equilibrium_labels import (
 )
 
 DEFAULT_LEVEL1_ROOT = Path("/work/projects/imas_gpu/mast/level1/shots")
-DEFAULT_COHORT_REPORT = Path(
+DEFAULT_COHORT_FILE = Path(__file__).with_name("data") / "labeller_cohort.json"
+COHORT_REPORT_PROVENANCE = (
     "/home/ITER/mcintos/.config/reckon/crew/reports/"
     "physics-carried-playable-plasma/labeller-cohort-census.md"
 )
+# Compatibility name for consumers that imported the former default.  The
+# resolved authority is now the packaged JSON file, not the external report.
+DEFAULT_COHORT_REPORT = DEFAULT_COHORT_FILE
 DEFAULT_FULLSHOT_MANIFEST = Path(
     "/work/projects/imas_gpu/agents/excitation-corpus/curated_windows_fullshot.json"
 )
@@ -180,35 +183,35 @@ def assemble_labeller_targets(
 
 
 def read_cohort_frame_counts(
-    path: Path = DEFAULT_COHORT_REPORT,
+    path: Path = DEFAULT_COHORT_FILE,
 ) -> dict[str, dict[int, int]]:
-    """Read ordered shot-to-frame counts for all cohort partitions."""
-    text = Path(path).read_text(encoding="utf-8")
-    headings = {
-        "train": "Labeller train",
-        "validation": "Labeller validation",
-        "clean_test": "Clean same-campaign test",
-        "campaign_test": "Held-out campaign test",
-    }
+    """Read and validate the packaged shot-to-frame cohort authority."""
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    partitions = payload.get("partitions")
+    expected_partitions = ("train", "validation", "clean_test", "campaign_test")
+    if not isinstance(partitions, dict) or set(partitions) != set(expected_partitions):
+        raise ValueError("cohort file must contain exactly the four named partitions")
+
     result: dict[str, dict[int, int]] = {}
-    for key, heading in headings.items():
-        match = re.search(
-            rf"^### {re.escape(heading)}\b.*?(?=^### |\Z)",
-            text,
-            flags=re.MULTILINE | re.DOTALL,
-        )
-        if match is None:
-            raise ValueError(f"cohort report is missing the {heading!r} section")
-        entries = [
-            (int(shot), int(count))
-            for shot, count in re.findall(r"\b(\d{5}):(\d+)\b", match.group())
-        ]
-        if not entries:
-            raise ValueError(f"cohort report contains no shots in {heading!r}")
-        shots = [shot for shot, _ in entries]
-        if len(shots) != len(set(shots)):
-            raise ValueError(f"cohort report repeats a shot in {heading!r}")
-        result[key] = dict(entries)
+    for partition in expected_partitions:
+        section = partitions[partition]
+        raw_shots = section.get("shots") if isinstance(section, dict) else None
+        if not isinstance(raw_shots, dict) or not raw_shots:
+            raise ValueError(f"cohort file contains no shots in {partition!r}")
+        entries = {int(shot): int(count) for shot, count in raw_shots.items()}
+        if any(count <= 0 for count in entries.values()):
+            raise ValueError(
+                f"cohort file has a non-positive frame count in {partition}"
+            )
+        observed = (len(entries), sum(entries.values()))
+        declared = (section.get("shot_count"), section.get("frame_count"))
+        if observed != declared:
+            raise ValueError(
+                f"{partition} cohort data is {observed[0]} shots/{observed[1]} "
+                f"frames; file declares {declared[0]} shots/{declared[1]} frames"
+            )
+        result[partition] = entries
+
     owners: dict[int, str] = {}
     for partition, entries in result.items():
         for shot in entries:
@@ -220,12 +223,21 @@ def read_cohort_frame_counts(
     return result
 
 
-def read_cohort_split(path: Path = DEFAULT_COHORT_REPORT) -> dict[str, list[int]]:
-    """Read the four whole-shot partitions from the cohort census report."""
+def read_cohort_split(path: Path = DEFAULT_COHORT_FILE) -> dict[str, list[int]]:
+    """Read the four whole-shot partitions from the packaged cohort file."""
     return {
         partition: list(entries)
         for partition, entries in read_cohort_frame_counts(path).items()
     }
+
+
+def labeller_cohort_shot_ids(
+    path: Path = DEFAULT_COHORT_FILE,
+) -> frozenset[int]:
+    """Return every shot protected by the packaged labeller firewall."""
+    return frozenset(
+        shot for entries in read_cohort_frame_counts(path).values() for shot in entries
+    )
 
 
 def read_fullshot_spans(
@@ -846,8 +858,9 @@ def _parse_shots(value: str) -> list[int]:
 
 
 def run_training(args: argparse.Namespace) -> dict[str, object]:
+    cohort_file = getattr(args, "cohort_file", DEFAULT_COHORT_FILE)
     if getattr(args, "full_corpus", False):
-        frame_counts = read_cohort_frame_counts(args.cohort_report)
+        frame_counts = read_cohort_frame_counts(cohort_file)
         split = {
             partition: list(entries) for partition, entries in frame_counts.items()
         }
@@ -901,7 +914,7 @@ def run_training(args: argparse.Namespace) -> dict[str, object]:
             },
         )
 
-    split = read_cohort_split(args.cohort_report)
+    split = read_cohort_split(cohort_file)
     train_shots = _parse_shots(args.train_shots)
     heldout_shots = _parse_shots(args.heldout_shots)
     if not train_shots or any(shot not in split["train"] for shot in train_shots):
@@ -1002,7 +1015,13 @@ def run_training(args: argparse.Namespace) -> dict[str, object]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cohort-report", type=Path, default=DEFAULT_COHORT_REPORT)
+    parser.add_argument("--cohort-file", type=Path, default=DEFAULT_COHORT_FILE)
+    parser.add_argument(
+        "--cohort-report",
+        dest="cohort_report_provenance",
+        type=Path,
+        help=argparse.SUPPRESS,
+    )
     parser.add_argument("--level1-root", type=Path, default=DEFAULT_LEVEL1_ROOT)
     parser.add_argument(
         "--fullshot-manifest", type=Path, default=DEFAULT_FULLSHOT_MANIFEST
@@ -1035,6 +1054,8 @@ if __name__ == "__main__":  # pragma: no cover
 
 
 __all__ = [
+    "COHORT_REPORT_PROVENANCE",
+    "DEFAULT_COHORT_FILE",
     "DEFAULT_COHORT_REPORT",
     "DEFAULT_FULLSHOT_MANIFEST",
     "DEFAULT_LEVEL1_ROOT",
@@ -1052,6 +1073,7 @@ __all__ = [
     "fit_full_corpus_labeller",
     "fit_labeller",
     "labeller_loss",
+    "labeller_cohort_shot_ids",
     "load_camera_windows",
     "main",
     "predict_metres",
