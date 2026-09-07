@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="135">
+<meta name="plan-version" content="137">
 <meta name="plan-impl" content="0.94">
 <meta name="plan-commits" content="f854455492b0103c5f64d7a6533a46f6059d3ab2,56ca74eeb4f34ac8955ec8553eba0b98d11bdbec,73f306341c327fb2add035765fcdc64d94a5e45a,a4fb3eaab244d481cc17c08ed196f7d8bb917171,e21388bdcf786a155841ebc39da5baa7ab81d4c4,d0028b832c886e32bc8f97b0b93ef928d2535e90,aecc1ea8e735b7b6a9a69b98b756b4d117ae93e1">
 <meta name="plan-artifacts" content="docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json,docs/figures/physics-carried-playable-plasma/label-cartoon/carrier-cameras/camera-picture-quality.json,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/24854/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/24854/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/22086/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/22086/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/label-cartoon.gif,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-census,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-carrier-cameras">
@@ -725,7 +725,8 @@
     <p><strong>Why it matters beyond this section.</strong> A decoder trained on the corpus has learned
     strip and small-frame cameras; asked to render a 512&times;512 whole-vessel carrier frame it has no
     transfer, which is what the step-47,185 renders on 21978 and 21989 measured (decoded pixel MAE 87 and
-    102 against persistence 12 and 8.5). If the family is genuinely absent, &ldquo;train on that
+    102 against persistence 12 and 8.5 &mdash; <strong>WITHDRAWN 2026-09-07: contaminated by a renderer
+    seeding defect, not to be quoted; annotation below</strong>). If the family is genuinely absent, &ldquo;train on that
     family&rdquo; is not an available option and the choice is between camera-conditioned training and
     producing labeller sessions for carrier-family shots. That is a decoder-plan decision, owned
     elsewhere; this section owes it the measurement.</p>
@@ -1386,6 +1387,19 @@ Project-level live pointers read 5, every one of them in session ambix-s19-01 wi
 Worktrees: all seven of this session's are reclaimed, none dirty, none unintegrated, and every commit above is reachable from main. Cleanup verified rather than assumed.
 
 Media delivered: docs/figures/physics-carried-playable-plasma/label-cartoon/pair/22086 (demo carrier, held out of decoder training; label 43 frames 512x1209 beside camera 43 frames 512x381) and .../pair/24854 (best-picture corpus shot; 58 frames, 512x1209 beside 512x480). Both frame-for-frame aligned, aspect exact to 0 px, filmstrip beside each, all four GIF rows serving with a fetchable download href verified from the endpoint. One caption note for whoever presents the demo-carrier panel: 14 of its 86 nulls are dropped as outside the vessel, a sixth of that shot's total, which belongs in the speaker's text rather than on the figure since the brief forbids ink.</div>
+</div>
+<div class="r-comment" data-section="s5d" data-id="c-20260907-seeding-contamination" data-who="reckon-ship" data-when="2026-09-07T09:50:00Z">
+    <div class="r-comment-body">ANNOTATION, and it supersedes my own earlier characterisation of this defect. Every decoded-versus-real figure published from the flux-conditioned decoder is contaminated, and the mechanism is a RENDERER SEEDING defect, not the temporal pairing offset I described first. Read out of the renderer source rather than inferred: the render loop walks the admitted slices from the earliest, t = 0.025 s on carrier 22086, while the decoder's token history is seeded from an unrelated seed slice of the same session near t = 0.24 s (43 in the guidance sweep, 50 by default). So the opening frames carry a fully formed bright plasma in their history while their conditioning describes the start of the shot, and because the model is autoregressive over four history frames the contamination propagates through the whole video rather than decaying. That is precisely the bright structured blob at 25 ms against an almost black real frame, and it is why the pattern survived every guidance and temperature setting.
+
+Correction to what I recorded earlier: the pairing is NOT at fault. Both the training loader's join and the renderer's pairing are tight, at a maximum absolute delta of ten microseconds. Annotating these figures as a pairing offset would have aged badly and sent the next reader to the wrong code.
+
+WITHDRAWN and not to be quoted: decoded pixel MAE 87 and 102 against persistence 12 and 8.5 on 21978 and 21989; the transfer ratios 3.3 inside the demo carrier's family against 7.3 and 12.0 outside it; and 18.096 decoded against 6.253 persistence at the corrected best setting. All came from the same defective seeding path, so each measured a decoder handicapped by its own history rather than its capacity. The re-render will report the corrected ratio beside the contaminated one from the same checkpoint and setting, so the comparison is exact rather than approximate.
+
+NOT withdrawn, because they are not decoded-versus-real renders: the validation token NLL series (12.59 untrained, then 10.97 / 10.66 / 10.49 / 10.39 / 10.32 at steps 7,644 / 17,652 / 27,934 / 47,185 / 57,019). Those are training-side token losses and the seeding path does not touch them.
+
+One useful negative result arrived with it: the guidance sweep found no cell beating persistence. Best is guidance 2.0 at temperature 1.0 for a decoded-to-persistence ratio of 2.894 against 3.227 at the default guidance of 1.0, about a ten per cent gain, and raising guidance makes things worse rather than better - at guidance 6.0 and temperature 0.7, 32 of 45 frames trip the mean-collapse indicator against 1 frame at the default. So weak guidance was not the explanation and that hypothesis is withdrawn too.
+
+Nothing in this section's own media is affected: both presentation pairs are nova labels beside the real camera stream with no decoder in them, so no artefact this section published quotes a decoded figure.</div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20260907T072122163213-pcp-physics-fidelity-gate" data-who="pcp-flux-renderer" data-when="2026-09-07T08:05:55Z">
     <div class="r-comment-body"><p>Physics-fidelity gate measured and FAILED as a pre-registered negative result: 3 of 51 free converged flat-top slices meet both 2 cm bounds. Boundary alone 24 of 51 (47 percent, aggregate median 3.83 cm, per-shot medians 1.73 to 4.27 cm, with 21989 at 1.73 and demo carrier 22086 at 1.90); axis alone 3 of 51 (5.9 percent, median 4.56 cm, max 6.24 cm). Flat top is interpolated absolute efm plasma current at or above 80 percent of the shot peak (0.175 to 0.365 s); 27 conditioned flat-top slices excluded from evidence and reported. The boundary is close and the axis is systematically offset, which is a definition-versus-physics question the follow-on node resolves</p></div>
