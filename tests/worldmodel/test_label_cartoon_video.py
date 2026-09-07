@@ -145,22 +145,6 @@ def _write_level1(root: Path) -> None:
     thomson = store.create_group("atm")
     thomson.create_array("radius", data=np.asarray([0.75, 1.05, 1.35]))
     thomson.create_array("scat_length", data=np.asarray([0.03, 0.04, 0.03]))
-    core = store.create_group("ayc")
-    core.create_array("time", data=np.asarray([0.01, 0.02, 0.04]))
-    core.create_array(
-        "radius",
-        data=np.asarray([[0.74, 1.04, 1.34], [0.75, 1.05, 1.35], [0.76, 1.06, 1.36]]),
-    )
-    core.create_array("te", data=np.full((3, 3), 100.0))
-    core.create_array("ne", data=np.full((3, 3), 1.0e19))
-    edge = store.create_group("aye")
-    edge.create_array("time", data=np.asarray([0.01, 0.02, 0.04, 1.0]))
-    edge.create_array(
-        "r",
-        data=np.asarray([[1.3, 1.4], [1.31, 1.41], [1.32, 1.42], [1.33, 1.43]]),
-    )
-    edge.create_array("te", data=np.full((4, 2), 80.0))
-    edge.create_array("ne", data=np.full((4, 2), 8.0e18))
 
 
 def _geometry() -> SimpleNamespace:
@@ -264,10 +248,14 @@ def test_renderer_writes_aligned_tight_clipped_gifs_and_receipt(
     }
     assert recorded["label_provenance"]["conditioned_frame_count"] == 1
     assert recorded["label_provenance"]["free_guarded_frame_count"] == 3
-    assert [item["name"] for item in recorded["thomson_provenance"]] == [
-        "core",
-        "edge",
-    ]
+    assert recorded["thomson_provenance"]["shot"] == SHOT
+    assert recorded["thomson_provenance"]["groups_present"] == ["atm", "rbb"]
+    assert recorded["thomson_provenance"]["chord"] == "omitted"
+    assert recorded["thomson_provenance"]["systems"] == []
+    assert (
+        "accepting atm as a core Thomson system"
+        in recorded["thomson_provenance"]["reason"]
+    )
     with Image.open(output_dir / LABEL_FILENAME) as animation:
         first_label = np.asarray(animation.convert("RGB"))
     white_fraction = np.mean(np.all(first_label == 255, axis=-1))

@@ -462,7 +462,7 @@ def _output_receipt(
     gif_writer: str,
     geometry: OperatorGeometry,
     label_provenance: Mapping[str, object],
-    thomson: Sequence[ThomsonString],
+    thomson_provenance: Mapping[str, object],
     fps: int,
 ) -> dict[str, object]:
     r_min, r_max, z_min, z_max = window
@@ -536,14 +536,7 @@ def _output_receipt(
             "boundary_source": str(label_provenance["boundary_source"]),
         },
         "label_provenance": dict(label_provenance),
-        "thomson_provenance": [
-            {
-                "name": string.name,
-                "fixed_position_count": int(string.positions.shape[0]),
-                **string.provenance,
-            }
-            for string in thomson
-        ],
+        "thomson_provenance": dict(thomson_provenance),
         "machine_geometry_identity": {
             "representation_key": geometry.identity.representation_key,
             "representation_digest": geometry.identity.representation_digest,
@@ -589,8 +582,45 @@ def render_label_cartoon_pair(
     store, camera_data, camera_times, level1_path = _load_level1_camera(
         shot, camera_group, level1_root=level1_root
     )
+    level1_groups = sorted(store.group_keys())
     del store
-    thomson = read_thomson(shot, store=level1_root)
+    try:
+        thomson = read_thomson(shot, store=level1_root)
+    except ValueError as error:
+        unsupported_atm_era = (
+            "atm" in level1_groups
+            and "ayc" not in level1_groups
+            and "no core Thomson group" in str(error)
+        )
+        if not unsupported_atm_era:
+            raise
+        thomson = ()
+        thomson_provenance: dict[str, object] = {
+            "shot": shot,
+            "groups_present": level1_groups,
+            "chord": "omitted",
+            "reason": (
+                "pending nova.media.sources.mast_thomson accepting atm as a "
+                "core Thomson system"
+            ),
+            "reader_error": str(error),
+            "systems": [],
+        }
+    else:
+        thomson_provenance = {
+            "shot": shot,
+            "groups_present": level1_groups,
+            "chord": "drawn",
+            "reason": "nova Thomson source reader accepted this shot",
+            "systems": [
+                {
+                    "name": string.name,
+                    "fixed_position_count": int(string.positions.shape[0]),
+                    **string.provenance,
+                }
+                for string in thomson
+            ],
+        }
     selection = _pair_slices(
         label_source_frames,
         label_provenance,
@@ -728,7 +758,7 @@ def render_label_cartoon_pair(
         gif_writer=label_writer,
         geometry=actual_geometry,
         label_provenance=label_provenance,
-        thomson=thomson,
+        thomson_provenance=thomson_provenance,
         fps=fps,
     )
     receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
