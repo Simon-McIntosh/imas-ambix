@@ -7,6 +7,7 @@ from imas_ambix.worldmodel.boundary_wall_proximity import (
     FLOATING_DISTANCE_MM,
     BoundaryMeasurement,
     boundary_polygon_metrics,
+    compare_boundary_polygons,
     select_outermost_finite_surface,
     summarize_measurements,
 )
@@ -74,6 +75,8 @@ def test_shrunken_boundary_is_counted_as_floating() -> None:
         surface_category="nominal_outer_surface",
         selected_surface_index=2,
         selected_surface_psi_norm=1.0,
+        selected_surface_raw_vertex_count=4,
+        selected_surface_canonical_vertex_count=4,
         boundary_to_limiter_distance_mm=distance_mm,
         boundary_area_m2=float(metric["boundary_area_m2"]),
         boundary_points_inside_limiter=bool(metric["boundary_points_inside_limiter"]),
@@ -89,6 +92,30 @@ def test_shrunken_boundary_is_counted_as_floating() -> None:
     assert summary["all"]["floating_boundary_fraction"] == 1.0
     assert summary["diverted_false"]["admitted_slice_count"] == 1
     assert summary["diverted_true"]["admitted_slice_count"] == 0
+
+
+def test_duplicate_closing_vertex_is_zero_geometric_change() -> None:
+    limiter_r, limiter_z = _square(1.0)
+    boundary_r, boundary_z = _square(0.75)
+    closed_r = np.append(boundary_r, boundary_r[0])
+    closed_z = np.append(boundary_z, boundary_z[0])
+
+    result = compare_boundary_polygons(
+        boundary_r,
+        boundary_z,
+        closed_r,
+        closed_z,
+        limiter_r=limiter_r,
+        limiter_z=limiter_z,
+    )
+
+    assert result["baseline_raw_vertex_count"] == 4
+    assert result["repaired_raw_vertex_count"] == 5
+    assert result["baseline_canonical_vertex_count"] == 4
+    assert result["repaired_canonical_vertex_count"] == 4
+    assert result["boundary_to_limiter_distance_difference_mm"] == 0.0
+    assert result["boundary_area_difference_m2"] == 0.0
+    assert result["geometrically_identical"] is True
 
 
 def test_missing_outer_surface_uses_highest_finite_fallback() -> None:
