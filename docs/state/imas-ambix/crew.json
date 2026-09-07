@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T10:04:25",
+  "updated": "2026-09-07T10:07:34",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -28992,6 +28992,152 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260907T072122163213-pcp-physics-fidelity-gate",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a76",
+        "node": "pcp-physics-fidelity-gate",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 2849,
+                "cached_input_tokens": 794187,
+                "input_tokens": 797038,
+                "output_tokens": 473,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 797511,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "docs/figures/physics-carried-playable-plasma/physics-fidelity/verdict.json and verdict.png exist committed in your worktree carrying the per-shot and aggregate boundary RMS and axis offsets in centimetres, the flat-top slice definition used, the fraction meeting each bound, the conditioned flag per slice so pinned slices are separable from free ones, and an explicit pass or fail against the pre-registered rule; pytest tests/worldmodel/test_physics_fidelity_gate.py passes on synthetic geometry with a known offset plus one real carrier shot, executed on the all_debug partition via srun with TMPDIR=/tmp and command uv (never the login node); a one-line verdict is written to /home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/physics-fidelity-gate.md; and whole-tree ruff check imas_ambix tests exits 0 with no betelgeuse job touched",
+          "estimated_hours": null,
+          "goal": "The section 6 physics-fidelity gate scored for the first time, now that nova has labelled all six frozen-carrier shots: a new imas_ambix/worldmodel/physics_fidelity_gate.py compares, on the converged slices of the six carrier sessions under /work/projects/imas_gpu/sophelio/labeller_sessions/76906a29 (21978, 21983, 21985, 21986, 21989, 22086), nova's solved boundary and magnetic axis against the EFIT efm reconstruction read from the level-2 store through imas_ambix.worldmodel.equilibrium_labels (the evaluator-only referee), reporting per slice the RMS distance between nova's outermost nested flux surface at psi_norm 1.0 and the efm LCFS polyline plus the magnetic-axis offset, aggregated per shot and over flat-top slices, with the pre-registered pass rule boundary RMS at or under 2.0 cm and axis at or under 2.0 cm on at least 90 percent of flat-top slices, and the verdict emitted as JSON with per-shot and per-slice detail plus a figure",
+          "id": "pcp-physics-fidelity-gate",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T072122163213-pcp-physics-fidelity-gate/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a76",
+          "spec_level": "guided",
+          "time_budget": "45m",
+          "write_paths": [
+            "imas_ambix/worldmodel/physics_fidelity_gate.py",
+            "tests/worldmodel/test_physics_fidelity_gate.py",
+            "docs/figures/physics-carried-playable-plasma/physics-fidelity",
+            "/home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/physics-fidelity-gate.md"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pcp-flux-renderer",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T07:21:31Z",
+        "completed_at": "2026-09-07T08:05:55Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 2664,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 2664,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "e0c7e767faf714373ae995548a86721883298825",
+        "commits": [
+          "9139dc71fd59fa156af6f2c2990c5bc5d3f7f5eb"
+        ],
+        "changed_lines": {
+          "added": 5185,
+          "removed": 0,
+          "files": 4
+        },
+        "tests_added": 4,
+        "gate": "failed",
+        "gate_check": {
+          "command": "srun --partition=all_debug six-shot scoring (SLURM job 1264055) plus pytest tests/worldmodel/test_physics_fidelity_gate.py on all_debug (job 1264065, 4 passed) and whole-tree ruff",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T072122163213-pcp-physics-fidelity-gate/schema-inspection.log",
+          "log_digest": "sha256:5e3fc75feeaeca1bfed73d7c457312f2cc5638b1d014edfd60e7a8e8380ae9fc"
+        },
+        "suite_delta": null,
+        "failure_classification": "negative-result",
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T072122163213-pcp-physics-fidelity-gate/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0784e-75af-75e0-99a2-ce0e2184506c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 971904,
+            "cached_input_tokens_cumulative": 10010112,
+            "input_tokens": 896104,
+            "input_tokens_cumulative": 10096636,
+            "output_tokens": 1413,
+            "output_tokens_cumulative": 27768,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 5118
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 32886,
+          "peak_input_tokens": 20106748
+        },
+        "follow_on_paths": [
+          "4.355",
+          "3.180"
+        ],
+        "dispute_count": 0,
+        "attempt": 2,
+        "attempt_kind": "resume",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-physics-fidelity-gate",
+          "session_id": "01a0784e-75af-75e0-99a2-ce0e2184506c",
+          "session_source": "pointer",
+          "retained_at": "2026-09-07T08:05:55Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_physics_fidelity_gate.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -29038,6 +29184,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 571
+    "_version": 572
   }
 }
