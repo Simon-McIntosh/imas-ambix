@@ -19,6 +19,7 @@ from imas_ambix.worldmodel.flux_label_dataset import (
 
 SHOT = 12345
 MISSING_SHOT = 12346
+UNRANKED_SHOT = 12347
 
 
 def _surface_geometry(times: np.ndarray) -> xr.Dataset:
@@ -249,6 +250,79 @@ def test_complete_manifest_missing_session_file_is_counted_and_dropped(
     assert len(dataset) == 1
     assert dataset.receipt["counts"]["complete_sessions"] == 2
     assert dataset.receipt["dropped_slices"]["missing_session_file"] == 1
+
+
+def test_complete_unranked_session_is_counted_and_dropped(tmp_path: Path) -> None:
+    session_root, token_root, level1_root = _write_synthetic_session(tmp_path)
+    (session_root / f"{UNRANKED_SHOT}.manifest.json").write_text(
+        json.dumps(
+            {
+                "shot": UNRANKED_SHOT,
+                "status": "complete",
+                "policy_digest": EXPECTED_POLICY_DIGEST,
+                "carrier_identity": EXPECTED_CARRIER_IDENTITY,
+                "slices": [
+                    {
+                        "row": 0,
+                        "time": 0.04,
+                        "written": True,
+                        "converged": True,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    dataset = FluxLabelDataset(
+        session_root,
+        split="validation",
+        token_root=token_root,
+        level1_root=level1_root,
+        cohort_shots=set(),
+    )
+
+    assert len(dataset) == 1
+    assert dataset.receipt["counts"]["complete_sessions"] == 2
+    assert dataset.receipt["counts"]["unranked_session_shots"] == 1
+    assert dataset.receipt["counts"]["cohort_shots_excluded"] == 0
+    assert dataset.receipt["dropped_slices"]["missing_session_file"] == 0
+
+
+def test_unranked_cohort_session_uses_the_cohort_exclusion(tmp_path: Path) -> None:
+    session_root, token_root, level1_root = _write_synthetic_session(tmp_path)
+    (session_root / f"{UNRANKED_SHOT}.manifest.json").write_text(
+        json.dumps(
+            {
+                "shot": UNRANKED_SHOT,
+                "status": "complete",
+                "policy_digest": EXPECTED_POLICY_DIGEST,
+                "carrier_identity": EXPECTED_CARRIER_IDENTITY,
+                "slices": [
+                    {
+                        "row": 0,
+                        "time": 0.04,
+                        "written": True,
+                        "converged": True,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    dataset = FluxLabelDataset(
+        session_root,
+        split="validation",
+        token_root=token_root,
+        level1_root=level1_root,
+        cohort_shots={UNRANKED_SHOT},
+    )
+
+    assert len(dataset) == 1
+    assert dataset.receipt["counts"]["cohort_shots_excluded"] == 1
+    assert dataset.receipt["dropped_slices"]["cohort_shot"] == 1
+    assert dataset.receipt["counts"]["unranked_session_shots"] == 0
 
 
 def test_out_of_range_token_store_is_counted_and_dropped(tmp_path: Path) -> None:

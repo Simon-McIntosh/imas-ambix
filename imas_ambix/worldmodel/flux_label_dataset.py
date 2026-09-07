@@ -355,6 +355,7 @@ class FluxLabelDataset:
             "ranked_shots": len(ranks),
             "cohort_shots": len(excluded),
             "cohort_shots_excluded": 0,
+            "unranked_session_shots": 0,
             "selected_sessions": 0,
             "train_shots": 0,
             "validation_shots": 0,
@@ -399,11 +400,6 @@ class FluxLabelDataset:
                     f"{manifest_path} carrier_identity {observed_carrier!r} does not "
                     f"match the pinned identity {carrier_identity!r}"
                 )
-            if shot not in ranks:
-                raise ValueError(
-                    f"complete session shot {shot} is absent from ranked lists"
-                )
-
             slices = manifest.get("slices")
             if not isinstance(slices, list):
                 raise ValueError(f"{manifest_path} has no slice-row list")
@@ -420,6 +416,9 @@ class FluxLabelDataset:
             if shot in excluded:
                 counts["cohort_shots_excluded"] += 1
                 dropped["cohort_shot"] += len(converged_rows)
+                continue
+            if shot not in ranks:
+                counts["unranked_session_shots"] += 1
                 continue
             rank = ranks[shot]
             shot_split = _split_for_rank(rank)
