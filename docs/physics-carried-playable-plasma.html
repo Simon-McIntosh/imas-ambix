@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="66">
+<meta name="plan-version" content="67">
 <meta name="plan-impl" content="0.9">
 </head>
 <body>
@@ -508,6 +508,97 @@
     cache-hit status logged beside each frame, and a receipt that pins the camera checkpoint, the VQ
     decoder identity, the nova revision, the machine-artifact digest and the label source (the old 18502
     demo receipt pinned none of the decoder identity, which §2a flagged).</p>
+
+    <h2 id="s5d">§5d — Presentation media: the label cartoon above the camera stream</h2>
+    <p><strong>Why now.</strong> The decoder has not beaten persistence — validation token NLL
+    10.97 / 10.66 / 10.49 at steps 7,644 / 17,652 / 27,934 against 12.59 untrained, and the rendered
+    frames still lose the plasma column — so nothing in this section claims a working playable plasma.
+    What is already presentable is the pair either side of the model: nova's labels, which are the
+    cartoon, above the camera stream, which is the rich data the cartoon is a cartoon of. Two
+    tight-clipped GIFs, stacked one above the other, with no model in between.</p>
+
+    <p><strong>Composition (lead's decision, 2026-09-07).</strong> Both GIFs are rendered to one common
+    pixel width and each is tight-clipped to its own content with no padding, so the label panel keeps
+    undistorted R&ndash;Z scaling and comes out roughly twice as tall as it is wide while the camera panel
+    keeps its native shape. MAST's poloidal cross-section is portrait — wall R 0.195&ndash;1.900 m,
+    Z &plusmn;1.825 m, X-points reaching Z &plusmn;1.89 m — and no equal-aspect view of it is landscape,
+    so the two panels are deliberately different heights rather than one being distorted or cropped to
+    match the other. Every ornament is removed: no axes, frame, ticks, gridlines, labels, titles,
+    colourbar or banner, and zero figure margin.</p>
+
+    <p><strong>Carrier (lead's decision, 2026-09-07).</strong> The carrier is chosen by census over the
+    whole labeller corpus rather than inherited from the training pipeline. 21858 is the pipeline
+    reference shot, and its continuous camera is a 48&times;256 clipped strip that reads as a dark band;
+    its 512&times;512 <code>rba</code> stream covers only a 30 ms burst at t = 0.236&ndash;0.267 s. Other
+    corpus shots carry a full-frame continuous stream — 27063 has <code>rbb</code> at 432&times;384 over
+    0&ndash;0.498 s, 22500 and 22573 have <code>rbc</code> at 368&times;384 over the full shot — and the
+    census picks the best of them. This section's media is independent of the
+    <code>demo-shot</code> lock, which stays with the lead.</p>
+
+    <p><strong>Reuse map</strong> (coordinator scoping, 2026-09-07; every node below cites it, and states
+    why any named candidate it declines does not fit).</p>
+    <ul>
+      <li><code>imas_ambix/worldmodel/flux_decoder_video.py</code> — <code>_read_session</code>,
+      <code>_manifest_selection</code>, <code>_nearest_indices</code>, <code>_as_rgb_uint8</code>,
+      <code>_write_video</code> and <code>DEFAULT_SESSION_ROOT</code> are already the session read, the
+      converged-slice selection, the nearest-time camera pairing and the GIF writer, and are reused as
+      they stand. <code>_compose_frame</code> and <code>_resize</code> are declined: they burn a banner
+      into the frame and force 256&times;256, which is exactly the ink and the distortion this section
+      removes.</li>
+      <li><code>imas_ambix.gs.machine_geometry.MachineGeometryService.operator(shot)</code> is the
+      declared geometry source. <code>limiter_r</code>/<code>limiter_z</code> (37 points) is the wall;
+      <code>conductors</code> (70 <code>PFFilament</code>, carrying r, z, width, height, turns, circuit)
+      gives the coil cross-sections; <code>polygon_sections</code> (48) gives the slanted elements.
+      Reading an artifact geometry table directly is declined — the facade owns selection provenance.</li>
+      <li>The session <code>steering</code> group carries every label the cartoon needs:
+      <code>flux_surface_r</code>/<code>flux_surface_z</code> (11, 64, time) with
+      <code>flux_surface_psi_norm</code>, <code>magnetic_axis_r</code>/<code>_z</code> for the O-point,
+      <code>x_point_r</code>/<code>_z</code> (2, time), <code>strike_points_r</code>/<code>_z</code>, and
+      four 32-point separatrix legs. There is no raster, and <code>lcfs_r</code>/<code>lcfs_z</code> are
+      empty, so the outermost flux surface is the boundary that gets drawn.</li>
+      <li>Thomson geometry comes from the level-1 <code>atm</code> group (thomson_scattering_core):
+      <code>radius</code> (36 channels) with <code>scat_length</code>, on the z &asymp; 0 laser plane;
+      <code>ayc</code> and <code>aye</code> are the combined and edge systems. Level 1 publishes no
+      collection-optics geometry, so what is drawn is the scattering-volume locus along the laser plane,
+      and the receipt says exactly that rather than implying a viewing cone.</li>
+      <li><code>inferno</code> is the colormap ten existing figures in this repository already use for
+      this camera, so the pair keeps it and the media matches what has been shown before.</li>
+    </ul>
+
+    <p><strong>§5d-i — Carrier census</strong> (node <code>pcp-carrier-camera-census</code>).
+    Deliverable: <code>imas_ambix/worldmodel/carrier_camera_census.py</code> with its test, and one
+    committed ranking. Score every session in the corpus on converged-slice count, camera frame area,
+    temporal span and frame count; require the shot to carry a Thomson group and at least 40 converged
+    slices; emit the ranked top five with every figure that produced the ordering. The pass reads the
+    whole corpus and every candidate shot's level-1 metadata, so it runs on <code>sun_debug</code>.
+    Done when the committed ranking names the winner and the top five with their numbers, and the
+    whole-tree ruff gate is 0.</p>
+
+    <p><strong>§5d-ii — The renderer</strong> (node <code>pcp-label-cartoon-video</code>). Deliverable:
+    <code>imas_ambix/worldmodel/label_cartoon_video.py</code> with its test, writing two GIFs for one
+    shot at one common width. The label panel draws the 11 flux surfaces (outermost brightest, inner
+    surfaces fading with psi_norm), the O-point, both X-points wherever finite, the wall, the coil
+    cross-sections and the faint Thomson chord, on a data window computed once over every rendered frame
+    so the view never jitters. The camera panel draws the paired frames alone under one fixed intensity
+    scale taken from the 1st and 99.5th percentile of the whole selected stack, so brightness does not
+    flicker frame to frame. Slice selection is the manifest's <code>converged</code> rows, additionally
+    requiring <code>conditioned_branch_guard_ok</code> on conditioned slices, pinned on
+    <code>policy_digest</code> b5f9ef45 and <code>carrier_identity</code> 1d2c4a2b; a slice with no
+    camera frame within 2.5 ms is dropped from both panels so the two stay frame-for-frame aligned.
+    The renderer is proved on 21858, which carries <code>atm</code>, 101 converged slices and both camera
+    variants, so this node runs beside the census rather than behind it. Done when both GIFs exist with
+    identical frame counts and identical pixel widths, the receipt records shot, camera group, both
+    pinned digests, slice count, frame times, camera time deltas, percentile limits and pixel dimensions,
+    at least 90% of converged slices paired, and the whole-tree ruff gate is 0. The gate reads corpus
+    data, so it runs on <code>sun_debug</code>.</p>
+
+    <p><strong>§5d-iii — The presentation pair</strong> (node
+    <code>pcp-presentation-pair-render</code>). Deliverable: the two committed GIFs and their receipt for
+    the census winner, under
+    <code>docs/figures/physics-carried-playable-plasma/label-cartoon/pair/</code>. Runs once §5d-i and
+    §5d-ii have both landed. Done when the pair for the census winner is committed with its receipt, the
+    identical-frame-count and identical-width identities hold, and the receipt names the winner and the
+    census figures that selected it.</p>
 
     <h2 id="s6">§6 — Pre-registered gates</h2>
     <p>Locked before any number is produced. Each is a measure that emits evidence; a gate that cannot be
