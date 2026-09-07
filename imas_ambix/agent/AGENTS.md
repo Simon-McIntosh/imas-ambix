@@ -539,6 +539,28 @@ back at 524,288. A pool near 1.3M isolates the window as the cause with every
 other variable fixed; a pool near 2.56M means something else changed between the
 two serves and the window is a coincidence.
 
+**On two cards the pool holds barely ONE max-length request, and this is the
+concrete form of "cards buy capacity, not speed".** Measured 2026-09-07 on the
+two-card serve:
+
+| Topology | pool (tokens) | `max_model_len` | `kv_cache_max_concurrency` |
+|---|---|---|---|
+| four-card | 2,557,835 | 1,048,576 | 2.44 |
+| **two-card** | **1,173,125** | 1,048,576 | **1.12** |
+
+A single full-context request consumes **89%** of the two-card pool, and KV was
+observed at **79% with one request running**. That is not a fault — vLLM preempts
+gracefully rather than failing — but it means two simultaneous *max-length*
+requests cannot both be resident, where four cards could hold two.
+
+**Ordinary agentic load is nowhere near this.** The largest per-turn input ever
+measured from a worker is 356,574 tokens, about 30% of the two-card pool, and at
+the ~83k a typical session holds the pool still fits roughly fourteen concurrent
+workers. **The exposure is specific to genuinely long-context requests, not to
+concurrency in general** — so read a high KV reading together with
+`num_requests_running`: 79% at one request is one large context, while 79% at
+twelve is genuine crowding.
+
 **Name the assumption before dividing the pool by a session size.** Concurrency
 figures derived that way are valid only because vLLM's paged attention allocates
 KV per token *actually used* rather than per declared window. That holds here,
