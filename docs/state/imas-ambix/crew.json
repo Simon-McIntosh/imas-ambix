@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T11:31:11",
+  "updated": "2026-09-07T11:34:21",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -30422,6 +30422,229 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260907T090636856240-pcp-decode-alignment-audit",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a75b",
+        "node": "pcp-decode-alignment-audit",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1889,
+                "cached_input_tokens": 202903,
+                "input_tokens": 204794,
+                "output_tokens": 3151,
+                "reasoning_output_tokens": 1585,
+                "total_tokens": 207945,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "docs/figures/physics-carried-playable-plasma/alignment-audit/verdict.json exists committed carrying the full matrix of mean absolute error between decoded frame i and real frame j, the lag that minimises the mean over the diagonal with its error at that lag beside the error at lag zero, the per-lag curve, the brightness-centroid displacement in pixels between decoded and real at matched frames as mean and median, the least-squares intensity scale and offset mapping decoded onto real with the residual error after applying it, and a one-line verdict naming which of temporal lag, spatial translation, intensity scale or genuine content error accounts for the largest share of the 20.70 figure. A PNG shows the per-lag error curve beside the centroid displacement scatter. pytest tests/worldmodel/test_decode_alignment_audit.py passes with synthetic pairs proving each recovery independently: a planted three-frame lag recovered as three, a planted seven-pixel translation recovered in both sign and magnitude, and a planted intensity halving recovered as a scale near one half. Whole-tree ruff check imas_ambix tests exits 0. Both gates run on the all_debug partition via srun with TMPDIR=/tmp and command uv, and no betelgeuse job is submitted, modified or cancelled, because the single free card is held by a concurrent sweep",
+          "estimated_hours": null,
+          "goal": "An alignment audit in a new imas_ambix/worldmodel/decode_alignment_audit.py that measures how much of the flux-conditioned decoder's 20.70 pixel error on held-out demo carrier 22086 is explained by misalignment rather than by wrong content, using only the already-committed artifact docs/figures/physics-carried-playable-plasma/shot-22086-real-decoded-step57019.gif and its receipt so no card is needed. Reading the contact sheet by eye raises three specific suspicions worth separating. The decoded panel at t=0.025 s renders a bright structured blob where the real frame is almost black, while the decoded panel at t=0.115 s is nearly dark where the real frame is brightest, which is what a temporal offset between the conditioning slice and the target frame looks like. The decoded content also appears displaced toward the right of its panel relative to the real one, which is what a preprocessing mismatch between the token store's framing and the renderer's stretch-to-square would look like. And the decoded frames are systematically dimmer, which is what hedging toward the marginal distribution looks like. The audit splits the two 256-wide panels out of every GIF frame and reports which of a temporal lag, a spatial translation, and an intensity scale accounts for the error",
+          "id": "pcp-decode-alignment-audit",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T090636856240-pcp-decode-alignment-audit/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75b",
+          "spec_level": "guided",
+          "time_budget": "40m",
+          "write_paths": [
+            "imas_ambix/worldmodel/decode_alignment_audit.py",
+            "tests/worldmodel/test_decode_alignment_audit.py",
+            "docs/figures/physics-carried-playable-plasma/alignment-audit"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pcp-session-dataset",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T09:07:20Z",
+        "completed_at": "2026-09-07T09:33:21Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1561,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1561,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "81ec8467073f5c0878451dfd61e289c172cb4384",
+        "commits": [
+          "de141b98fb7515c4dc7fda2bd61cad5998730871"
+        ],
+        "changed_lines": {
+          "added": 3679,
+          "removed": 0,
+          "files": 4
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug command uv run --no-sync pytest -p no:cacheprovider tests/worldmodel/test_decode_alignment_audit.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T090636856240-pcp-decode-alignment-audit/gates-all-debug-final.log",
+          "log_digest": "2fc9da53a039bed99186bfd8dcc996fb8fe5a82ecbe8306736f792b959b2ca71"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T090636856240-pcp-decode-alignment-audit/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 7788160,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 7969281,
+            "output_tokens": 6773,
+            "output_tokens_cumulative": 36641,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 9068
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 2700,
+              "classification": "completed_unpromoted",
+              "detail": "the worker manifest reports completion and the run is still a pointer; promoting it moves the delivered record into the repository ledger",
+              "elapsed_seconds": 1404,
+              "external_wait": null,
+              "liveness_proven": true,
+              "log_age_seconds": 5255,
+              "log_fresh": false,
+              "manifest_commits": [
+                "ac70893932f174850912d84d961596920483cfa1\"]; changed_paths: [\"imas_ambix/worldmodel/carrier_camera_census.py",
+                "tests/worldmodel/test_carrier_camera_census.py",
+                "docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "1dd69a75c876093adf8422773ac5ddc9b0e6a274c7c2eff451aa326369c30283",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T070926983354-pcp-camera-family-census/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260907T070926983354-pcp-camera-family-census --gate <verdict> --commit ac70893932f174850912d84d961596920483cfa1\"]; changed_paths: [\"imas_ambix/worldmodel/carrier_camera_census.py --commit tests/worldmodel/test_carrier_camera_census.py --commit docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json",
+              "node": "pcp-camera-family-census",
+              "phase": "working",
+              "plan": "physics-carried-playable-plasma",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260907T070926983354-pcp-camera-family-census",
+              "session": "ambix-s19-media",
+              "terminal_age_seconds": 5299,
+              "terminal_at": "2026-09-07T07:38:43Z",
+              "wait_age_seconds": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-media/pcp-camera-family-census"
+            },
+            {
+              "budget_overrun": true,
+              "budget_overrun_seconds": 814,
+              "budget_seconds": 1800,
+              "classification": "completed_unpromoted",
+              "detail": "the worker manifest reports completion and the run is still a pointer; promoting it moves the delivered record into the repository ledger",
+              "elapsed_seconds": 2614,
+              "external_wait": null,
+              "liveness_proven": true,
+              "log_age_seconds": 736,
+              "log_fresh": true,
+              "manifest_commits": [
+                "19d5b5b9e252b3d174ba7cea439d23f9c3c56370"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "6e09a2be0a4dd78f58deb35128d081df275788eaa44a21270396a0b1187bda7c",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T081050876022-pcp-train-resume-checkpoint/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260907T081050876022-pcp-train-resume-checkpoint --gate <verdict> --commit 19d5b5b9e252b3d174ba7cea439d23f9c3c56370",
+              "node": "pcp-train-resume-checkpoint",
+              "phase": "starting",
+              "plan": "physics-carried-playable-plasma",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260907T081050876022-pcp-train-resume-checkpoint",
+              "session": "ambix-s19-01",
+              "terminal_age_seconds": 783,
+              "terminal_at": "2026-09-07T08:53:59Z",
+              "wait_age_seconds": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-train-resume-checkpoint"
+            }
+          ]
+        },
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 45709,
+          "peak_input_tokens": 15757441
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-decode-alignment-audit",
+          "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+          "session_source": "pointer",
+          "retained_at": "2026-09-07T09:33:21Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_decode_alignment_audit.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -30468,6 +30691,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 580
+    "_version": 581
   }
 }
