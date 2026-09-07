@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T10:07:34",
+  "updated": "2026-09-07T10:20:57",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -29138,6 +29138,189 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260907T080945905681-pcp-dataset-unranked-session",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74d",
+        "node": "pcp-dataset-unranked-session",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1012,
+                "cached_input_tokens": 879261,
+                "input_tokens": 880275,
+                "output_tokens": 62,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 880337,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "pytest tests/worldmodel/test_flux_label_dataset.py passes on the all_debug partition via srun with TMPDIR=/tmp and command uv, including a test with a synthetic complete session whose shot is in no card list asserting it is dropped and counted under a new receipt key unranked_session_shots rather than raising, and a test that a cohort shot absent from the ranks is reported under the cohort exclusion so the two reasons do not mask each other, plus the real shot 21858 pair count unchanged at 85, and whole-tree ruff check imas_ambix tests exits 0 with no betelgeuse job touched",
+          "estimated_hours": null,
+          "goal": "Handle a complete labeller session whose shot is absent from the ranked card lists as a counted exclusion rather than a raise in imas_ambix/worldmodel/flux_label_dataset.py, because the reader assumed every complete session appears in the ranked walk and that held only while nova's walk was the sole writer: nova's six-shot side job wrote sessions for the frozen carriers, which are labeller-cohort shots and therefore absent from the walk by construction, and the resulting ValueError at line 403 killed production training job 1263842 at step 79,780 after four and a half hours even though the cohort firewall would have excluded those very shots moments later",
+          "id": "pcp-dataset-unranked-session",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T080945905681-pcp-dataset-unranked-session/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74d",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/worldmodel/flux_label_dataset.py",
+            "tests/worldmodel/test_flux_label_dataset.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "pcp-session-dataset",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T08:10:07Z",
+        "completed_at": "2026-09-07T08:19:42Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 575,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 575,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "bba58ad212e87a24adcb3250d18306c386da48ba",
+        "commits": [
+          "5cf43b5ac6d1d449f8fd18339e4bf97f55097236"
+        ],
+        "changed_lines": {
+          "added": 78,
+          "removed": 5,
+          "files": 2
+        },
+        "tests_added": 2,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug pytest -p no:cacheprovider -s tests/worldmodel/test_flux_label_dataset.py (SLURM job 1264072, 7 passed) plus whole-tree ruff",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T080945905681-pcp-dataset-unranked-session/pytest-all-debug.log",
+          "log_digest": "sha256:5dc5a64cfe6f11bbb626d94161f4f304a54b8e8eb646ac19e815f5c978c4c024"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T080945905681-pcp-dataset-unranked-session/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 4550400,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 4661645,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 10516,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 1490
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 2700,
+              "classification": "completed_unpromoted",
+              "detail": "the worker manifest reports completion and the run is still a pointer; promoting it moves the delivered record into the repository ledger",
+              "elapsed_seconds": 1404,
+              "external_wait": null,
+              "liveness_proven": true,
+              "log_age_seconds": 1831,
+              "log_fresh": false,
+              "manifest_commits": [
+                "ac70893932f174850912d84d961596920483cfa1\"]; changed_paths: [\"imas_ambix/worldmodel/carrier_camera_census.py",
+                "tests/worldmodel/test_carrier_camera_census.py",
+                "docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "1dd69a75c876093adf8422773ac5ddc9b0e6a274c7c2eff451aa326369c30283",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T070926983354-pcp-camera-family-census/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260907T070926983354-pcp-camera-family-census --gate <verdict> --commit ac70893932f174850912d84d961596920483cfa1\"]; changed_paths: [\"imas_ambix/worldmodel/carrier_camera_census.py --commit tests/worldmodel/test_carrier_camera_census.py --commit docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json",
+              "node": "pcp-camera-family-census",
+              "phase": "working",
+              "plan": "physics-carried-playable-plasma",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260907T070926983354-pcp-camera-family-census",
+              "session": "ambix-s19-media",
+              "terminal_age_seconds": 1875,
+              "terminal_at": "2026-09-07T07:38:43Z",
+              "wait_age_seconds": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-media/pcp-camera-family-census"
+            }
+          ]
+        },
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 12006,
+          "peak_input_tokens": 9212045
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-dataset-unranked-session",
+          "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+          "session_source": "pointer",
+          "retained_at": "2026-09-07T08:19:42Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_flux_label_dataset.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -29184,6 +29367,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 572
+    "_version": 573
   }
 }
