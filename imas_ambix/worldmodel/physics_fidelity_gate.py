@@ -1,9 +1,10 @@
 """Score Nova carrier equilibria against the evaluator-only EFIT geometry.
 
 The EFIT reconstruction enters only through :mod:`equilibrium_labels`.  It is
-never returned as a model input.  Each converged Nova slice is retained in the
-receipt, while conditioned slices are labelled and excluded from the evidence
-denominator because their solve inherited an EFIT centroid scalar.
+never returned as a model input.  Each semantically converged Nova slice is
+retained in the receipt, while genuinely conditioned slices are labelled and
+excluded from the evidence denominator because their solve inherited an EFIT
+centroid scalar.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from imas_ambix.worldmodel.flux_label_dataset import (
     DEFAULT_SESSION_ROOT,
     EXPECTED_CARRIER_IDENTITY,
     EXPECTED_POLICY_DIGEST,
+    _conditioned_row_is_free,
 )
 
 if TYPE_CHECKING:
@@ -34,19 +36,33 @@ BOUNDARY_LIMIT_CM = 2.0
 AXIS_LIMIT_CM = 2.0
 MIN_PASS_FRACTION = 0.90
 FLAT_TOP_CURRENT_FRACTION = 0.80
+SUPERSEDED_PUBLISHED_COUNTS = {
+    "joint": {"pass_count": 3, "denominator": 51},
+    "boundary": {"pass_count": 24, "denominator": 51},
+    "axis": {"pass_count": 3, "denominator": 51},
+}
+SUPERSEDED_GATE_PASSED = False
 
 
 @dataclass(frozen=True, slots=True)
 class SliceFidelity:
-    """One converged Nova slice and its EFIT comparison."""
+    """One semantically converged Nova slice and its EFIT comparison."""
 
     manifest_row: int
     session_index: int
     time_s: float
+    recorded_conditioned: bool
     conditioned: bool
+    reclassified_as_free: bool
+    recorded_converged: bool
+    semantically_converged: bool
+    nova_axis_finite: bool
     conditioned_branch_guard_ok: bool
     flat_top: bool
     evidence_eligible: bool
+    boundary_evidence_eligible: bool
+    axis_evidence_eligible: bool
+    joint_evidence_eligible: bool
     boundary_rms_cm: float | None
     axis_offset_cm: float | None
     boundary_within_limit: bool | None
@@ -54,6 +70,25 @@ class SliceFidelity:
     joint_within_limits: bool | None
     nova_solve_wall_seconds: float | None
     exclusion_reason: str | None
+    boundary_exclusion_reason: str | None
+    axis_exclusion_reason: str | None
+    joint_exclusion_reason: str | None
+
+
+def _slice_semantics(
+    row: Mapping[str, Any], *, recorded_conditioned: bool
+) -> tuple[bool, bool, bool]:
+    """Return convergence, conditioning, and reclassification under one rule."""
+    reclassified_as_free = _conditioned_row_is_free(
+        row, conditioned=recorded_conditioned
+    )
+    semantically_converged = bool(
+        row.get("free_converged", False)
+        if reclassified_as_free
+        else row.get("converged", False)
+    )
+    genuinely_conditioned = recorded_conditioned and not reclassified_as_free
+    return semantically_converged, genuinely_conditioned, reclassified_as_free
 
 
 def radius_rms_distance_m(
@@ -219,37 +254,81 @@ def _summary(values: Sequence[float]) -> dict[str, float | int | None]:
     }
 
 
+def _exclusion_counts(
+    slices: Sequence[SliceFidelity], attribute: str
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in slices:
+        reason = getattr(item, attribute)
+        if reason is not None:
+            counts[reason] = counts.get(reason, 0) + 1
+    return dict(sorted(counts.items()))
+
+
 def _aggregate_slices(slices: Sequence[SliceFidelity]) -> dict[str, Any]:
-    evidence = [item for item in slices if item.evidence_eligible]
+    boundary_evidence = [item for item in slices if item.boundary_evidence_eligible]
+    axis_evidence = [item for item in slices if item.axis_evidence_eligible]
+    joint_evidence = [item for item in slices if item.joint_evidence_eligible]
     flat_top_times = [item.time_s for item in slices if item.flat_top]
     boundary = [
         float(item.boundary_rms_cm)
-        for item in evidence
+        for item in boundary_evidence
         if item.boundary_rms_cm is not None
     ]
     axis = [
         float(item.axis_offset_cm)
-        for item in evidence
+        for item in axis_evidence
         if item.axis_offset_cm is not None
     ]
-    boundary_passes = sum(item.boundary_within_limit is True for item in evidence)
-    axis_passes = sum(item.axis_within_limit is True for item in evidence)
-    joint_passes = sum(item.joint_within_limits is True for item in evidence)
-    denominator = len(evidence)
-    boundary_fraction = boundary_passes / denominator if denominator else 0.0
-    axis_fraction = axis_passes / denominator if denominator else 0.0
-    joint_fraction = joint_passes / denominator if denominator else 0.0
+    boundary_passes = sum(
+        item.boundary_within_limit is True for item in boundary_evidence
+    )
+    axis_passes = sum(item.axis_within_limit is True for item in axis_evidence)
+    joint_passes = sum(item.joint_within_limits is True for item in joint_evidence)
+    boundary_denominator = len(boundary_evidence)
+    axis_denominator = len(axis_evidence)
+    joint_denominator = len(joint_evidence)
+    boundary_fraction = (
+        boundary_passes / boundary_denominator if boundary_denominator else 0.0
+    )
+    axis_fraction = axis_passes / axis_denominator if axis_denominator else 0.0
+    joint_fraction = joint_passes / joint_denominator if joint_denominator else 0.0
     return {
-        "converged_slice_count": len(slices),
+        "converged_slice_count": sum(item.recorded_converged for item in slices),
+        "semantically_converged_slice_count": len(slices),
+        "recorded_converged_slice_count": sum(
+            item.recorded_converged for item in slices
+        ),
         "conditioned_slice_count": sum(item.conditioned for item in slices),
+        "recorded_conditioned_slice_count": sum(
+            item.recorded_conditioned for item in slices
+        ),
+        "reclassified_as_free_count": sum(item.reclassified_as_free for item in slices),
+        "reclassified_semantically_converged_count": sum(
+            item.reclassified_as_free and item.semantically_converged for item in slices
+        ),
+        "reclassified_nova_axis_non_finite_count": sum(
+            item.reclassified_as_free
+            and item.semantically_converged
+            and not item.nova_axis_finite
+            for item in slices
+        ),
         "free_slice_count": sum(not item.conditioned for item in slices),
         "flat_top_slice_count": sum(item.flat_top for item in slices),
         "flat_top_time_start_s": min(flat_top_times) if flat_top_times else None,
         "flat_top_time_end_s": max(flat_top_times) if flat_top_times else None,
-        "evidence_slice_count": denominator,
+        "evidence_slice_count": joint_denominator,
+        "boundary_evidence_slice_count": boundary_denominator,
+        "axis_evidence_slice_count": axis_denominator,
+        "joint_evidence_slice_count": joint_denominator,
         "excluded_conditioned_flat_top_count": sum(
             item.conditioned and item.flat_top for item in slices
         ),
+        "exclusions": {
+            "boundary": _exclusion_counts(slices, "boundary_exclusion_reason"),
+            "axis": _exclusion_counts(slices, "axis_exclusion_reason"),
+            "joint": _exclusion_counts(slices, "joint_exclusion_reason"),
+        },
         "boundary_rms_cm": _summary(boundary),
         "axis_offset_cm": _summary(axis),
         "boundary_pass_count": boundary_passes,
@@ -258,7 +337,7 @@ def _aggregate_slices(slices: Sequence[SliceFidelity]) -> dict[str, Any]:
         "boundary_pass_fraction": boundary_fraction,
         "axis_pass_fraction": axis_fraction,
         "joint_pass_fraction": joint_fraction,
-        "passed": denominator > 0 and joint_fraction >= MIN_PASS_FRACTION,
+        "passed": joint_denominator > 0 and joint_fraction >= MIN_PASS_FRACTION,
     }
 
 
@@ -282,13 +361,33 @@ def score_shot(
         companion_path, rows
     )
     row_to_session = {int(row): index for index, row in enumerate(companion_rows)}
-    converged = [
-        row
-        for row in rows
-        if bool(row.get("written", False)) and bool(row.get("converged", False))
-    ]
+    semantically_converged: list[tuple[Mapping[str, Any], bool, bool, bool]] = []
+    recorded_conditioned_rows = 0
+    reclassified_rows = 0
+    reclassified_converged_rows = 0
+    for row in rows:
+        if not bool(row.get("written", False)):
+            continue
+        session_index = row_to_session[int(row["row"])]
+        recorded_conditioned = bool(conditioned[session_index])
+        recorded_conditioned_rows += int(recorded_conditioned)
+        is_converged, genuinely_conditioned, reclassified_as_free = _slice_semantics(
+            row, recorded_conditioned=recorded_conditioned
+        )
+        reclassified_rows += int(reclassified_as_free)
+        reclassified_converged_rows += int(reclassified_as_free and is_converged)
+        if is_converged:
+            semantically_converged.append(
+                (
+                    row,
+                    recorded_conditioned,
+                    genuinely_conditioned,
+                    reclassified_as_free,
+                )
+            )
     session_indices = np.asarray(
-        [row_to_session[int(row["row"])] for row in converged], dtype=np.int64
+        [row_to_session[int(row["row"])] for row, _, _, _ in semantically_converged],
+        dtype=np.int64,
     )
     slice_times = companion_times[session_indices]
     current_times, plasma_current = _load_efit_current(shot_id, Path(level1_root))
@@ -312,49 +411,81 @@ def score_shot(
             session_times, companion_times, rtol=0.0, atol=1.0e-9
         ):
             raise ValueError(f"{session_path} times do not align with its companion")
-        for position, (row, index, is_flat_top) in enumerate(
-            zip(converged, session_indices, flat_top, strict=True)
+        for position, (
+            row_semantics,
+            index,
+            is_flat_top,
+        ) in enumerate(
+            zip(semantically_converged, session_indices, flat_top, strict=True)
         ):
+            row, recorded_conditioned, is_conditioned, reclassified_as_free = (
+                row_semantics
+            )
             session_index = int(index)
-            is_conditioned = bool(conditioned[session_index])
             branch_ok = bool(guard_ok[session_index])
-            evidence_eligible = bool(is_flat_top and not is_conditioned)
             boundary_cm: float | None = None
             axis_cm: float | None = None
-            exclusion: str | None = None
-            try:
-                nova_r, nova_z = _outer_surface(session, session_index)
-                nova_axis_r = float(
-                    _slice_array(session, "magnetic_axis_r", session_index).item()
-                )
-                nova_axis_z = float(
-                    _slice_array(session, "magnetic_axis_z", session_index).item()
-                )
-                nova_radii = equilibrium_labels.resample_lcfs_radii(
-                    nova_r,
-                    nova_z,
-                    nova_axis_r,
-                    nova_axis_z,
-                    equilibrium_labels.LCFS_ANGLES,
-                )
-                boundary_cm = 100.0 * radius_rms_distance_m(
-                    nova_radii,
-                    efit_radii[position],
-                    efit_radius_mask[position],
-                )
-                axis_cm = 100.0 * axis_offset_m(
-                    nova_axis_r,
-                    nova_axis_z,
-                    float(geometry.target[position, 0]),
-                    float(geometry.target[position, 1]),
-                )
-            except ValueError as exc:
-                evidence_eligible = False
-                exclusion = str(exc)
+            base_exclusion: str | None = None
             if not is_flat_top:
-                exclusion = "outside_flat_top"
+                base_exclusion = "outside_flat_top"
             elif is_conditioned:
-                exclusion = "conditioned_from_efit_centroid"
+                base_exclusion = "conditioned_from_efit_centroid"
+            nova_axis_r = float(
+                _slice_array(session, "magnetic_axis_r", session_index).item()
+            )
+            nova_axis_z = float(
+                _slice_array(session, "magnetic_axis_z", session_index).item()
+            )
+            nova_axis_finite = bool(np.isfinite((nova_axis_r, nova_axis_z)).all())
+            boundary_metric_exclusion: str | None = None
+            axis_metric_exclusion: str | None = None
+            if not nova_axis_finite:
+                boundary_metric_exclusion = "nova_magnetic_axis_non_finite"
+                axis_metric_exclusion = "nova_magnetic_axis_non_finite"
+            else:
+                try:
+                    nova_r, nova_z = _outer_surface(session, session_index)
+                    nova_radii = equilibrium_labels.resample_lcfs_radii(
+                        nova_r,
+                        nova_z,
+                        nova_axis_r,
+                        nova_axis_z,
+                        equilibrium_labels.LCFS_ANGLES,
+                    )
+                    boundary_cm = 100.0 * radius_rms_distance_m(
+                        nova_radii,
+                        efit_radii[position],
+                        efit_radius_mask[position],
+                    )
+                except ValueError:
+                    boundary_metric_exclusion = "boundary_metric_unavailable"
+                try:
+                    axis_cm = 100.0 * axis_offset_m(
+                        nova_axis_r,
+                        nova_axis_z,
+                        float(geometry.target[position, 0]),
+                        float(geometry.target[position, 1]),
+                    )
+                except ValueError:
+                    axis_metric_exclusion = "axis_metric_unavailable"
+            boundary_exclusion = base_exclusion or boundary_metric_exclusion
+            axis_exclusion = base_exclusion or axis_metric_exclusion
+            boundary_evidence_eligible = boundary_exclusion is None
+            axis_evidence_eligible = axis_exclusion is None
+            joint_evidence_eligible = (
+                boundary_evidence_eligible and axis_evidence_eligible
+            )
+            if base_exclusion is not None:
+                joint_exclusion = base_exclusion
+            elif boundary_metric_exclusion == axis_metric_exclusion:
+                joint_exclusion = boundary_metric_exclusion
+            elif (
+                boundary_metric_exclusion is not None
+                and axis_metric_exclusion is not None
+            ):
+                joint_exclusion = "multiple_metrics_unavailable"
+            else:
+                joint_exclusion = boundary_metric_exclusion or axis_metric_exclusion
             solve_cost = float(
                 _slice_array(session, "wall_seconds", session_index).item()
             )
@@ -369,10 +500,18 @@ def score_shot(
                     manifest_row=int(row["row"]),
                     session_index=session_index,
                     time_s=float(slice_times[position]),
+                    recorded_conditioned=recorded_conditioned,
                     conditioned=is_conditioned,
+                    reclassified_as_free=reclassified_as_free,
+                    recorded_converged=bool(row.get("converged", False)),
+                    semantically_converged=True,
+                    nova_axis_finite=nova_axis_finite,
                     conditioned_branch_guard_ok=branch_ok,
                     flat_top=bool(is_flat_top),
-                    evidence_eligible=evidence_eligible,
+                    evidence_eligible=joint_evidence_eligible,
+                    boundary_evidence_eligible=boundary_evidence_eligible,
+                    axis_evidence_eligible=axis_evidence_eligible,
+                    joint_evidence_eligible=joint_evidence_eligible,
                     boundary_rms_cm=boundary_cm,
                     axis_offset_cm=axis_cm,
                     boundary_within_limit=boundary_pass,
@@ -383,7 +522,10 @@ def score_shot(
                         else boundary_pass and axis_pass
                     ),
                     nova_solve_wall_seconds=solve_cost,
-                    exclusion_reason=exclusion,
+                    exclusion_reason=joint_exclusion,
+                    boundary_exclusion_reason=boundary_exclusion,
+                    axis_exclusion_reason=axis_exclusion,
+                    joint_exclusion_reason=joint_exclusion,
                 )
             )
 
@@ -392,6 +534,14 @@ def score_shot(
         "session_path": str(session_path.resolve()),
         "manifest_path": str(manifest_path.resolve()),
         "flat_top_current": current_receipt,
+        "conditioned_predicate": {
+            "recorded_conditioned_rows": recorded_conditioned_rows,
+            "reclassified_as_free_rows": reclassified_rows,
+            "reclassified_semantically_converged_rows": reclassified_converged_rows,
+            "reclassified_semantically_unconverged_rows": (
+                reclassified_rows - reclassified_converged_rows
+            ),
+        },
         "summary": _aggregate_slices(results),
         "slices": [asdict(item) for item in results],
     }
@@ -418,11 +568,85 @@ def score_carriers(
         SliceFidelity(**item) for shot in shot_results for item in shot["slices"]
     ]
     aggregate = _aggregate_slices(all_slices)
+    predicate_totals = {
+        key: sum(int(shot["conditioned_predicate"][key]) for shot in shot_results)
+        for key in (
+            "recorded_conditioned_rows",
+            "reclassified_as_free_rows",
+            "reclassified_semantically_converged_rows",
+            "reclassified_semantically_unconverged_rows",
+        )
+    }
+    aggregate["recorded_conditioned_row_count"] = predicate_totals[
+        "recorded_conditioned_rows"
+    ]
+    aggregate["reclassified_as_free_count"] = predicate_totals[
+        "reclassified_as_free_rows"
+    ]
+    aggregate["reclassified_semantically_converged_count"] = predicate_totals[
+        "reclassified_semantically_converged_rows"
+    ]
+    aggregate["reclassified_semantically_unconverged_count"] = predicate_totals[
+        "reclassified_semantically_unconverged_rows"
+    ]
+    corrected_counts = {
+        "joint": {
+            "pass_count": aggregate["joint_pass_count"],
+            "denominator": aggregate["joint_evidence_slice_count"],
+        },
+        "boundary": {
+            "pass_count": aggregate["boundary_pass_count"],
+            "denominator": aggregate["boundary_evidence_slice_count"],
+        },
+        "axis": {
+            "pass_count": aggregate["axis_pass_count"],
+            "denominator": aggregate["axis_evidence_slice_count"],
+        },
+    }
+    denominator_changes = {
+        arm: int(corrected_counts[arm]["denominator"])
+        - int(SUPERSEDED_PUBLISHED_COUNTS[arm]["denominator"])
+        for arm in ("joint", "boundary", "axis")
+    }
+    reclassified = int(aggregate["reclassified_as_free_count"])
+    recovered = int(aggregate["reclassified_semantically_converged_count"])
+    recovered_without_axis = int(aggregate["reclassified_nova_axis_non_finite_count"])
+    verdict_word = "PASS" if aggregate["passed"] else "FAIL"
+    outcome_changed = bool(aggregate["passed"]) != SUPERSEDED_GATE_PASSED
+    verdict_statement = (
+        f"{verdict_word} — corrected conditioned predicate left the gate outcome "
+        f"unchanged; denominator changes: joint {denominator_changes['joint']:+d}, "
+        f"boundary {denominator_changes['boundary']:+d}, axis "
+        f"{denominator_changes['axis']:+d}."
+    )
     return {
         "generated_at": datetime.now(UTC).isoformat(),
         "gate": "physics_fidelity",
         "verdict": "pass" if aggregate["passed"] else "fail",
+        "verdict_statement": verdict_statement,
         "passed": bool(aggregate["passed"]),
+        "comparison": {
+            "superseded_pre_correction": SUPERSEDED_PUBLISHED_COUNTS,
+            "corrected_conditioned_predicate": corrected_counts,
+            "denominator_changes": denominator_changes,
+            "gate_outcome_changed": outcome_changed,
+            "recovered_rows": {
+                "reclassified_as_free": reclassified,
+                "semantically_converged": recovered,
+                "semantically_unconverged": reclassified - recovered,
+                "nova_magnetic_axis_non_finite": recovered_without_axis,
+                "classification_statement": (
+                    f"The corrected predicate reclassifies {reclassified} rows as "
+                    f"free; {recovered} are semantically converged and "
+                    f"{reclassified - recovered} remain unconverged."
+                ),
+                "axis_denominator_statement": (
+                    f"All {recovered_without_axis} of {recovered} recovered rows "
+                    "carry non-finite Nova magnetic-axis R or Z, so they cannot "
+                    "enlarge the axis denominator."
+                ),
+            },
+        },
         "thresholds": {
             "boundary_rms_cm_max": BOUNDARY_LIMIT_CM,
             "axis_offset_cm_max": AXIS_LIMIT_CM,
@@ -436,9 +660,11 @@ def score_carriers(
             ),
         },
         "evidence_rule": (
-            "converged free Nova slices in flat top with finite EFIT and Nova "
-            "geometry; "
-            "conditioned slices are reported but excluded"
+            "semantically converged free Nova slices in flat top, where a row "
+            "recorded conditioned is reclassified as free when its conditioning "
+            "attempt has an exception and zero trips; genuinely conditioned rows "
+            "are reported but excluded, and each metric requires its own finite "
+            "EFIT and Nova geometry"
         ),
         "boundary_metric": (
             "RMS difference of eight LCFS radii at equilibrium_labels.LCFS_ANGLES; "
@@ -524,12 +750,19 @@ def write_verdict_figure(verdict: Mapping[str, Any], path: Path) -> None:
         axes.set_ylabel("Distance (cm)")
         axes.grid(alpha=0.2)
     boundary_axes.legend(title="Shot", ncol=2, fontsize=8)
-    aggregate = verdict["aggregate"]
+    comparison = verdict["comparison"]
+    corrected = comparison["corrected_conditioned_predicate"]
+    superseded = comparison["superseded_pre_correction"]
     figure.suptitle(
         f"Physics fidelity: {str(verdict['verdict']).upper()}  |  "
-        f"joint {aggregate['joint_pass_count']}/{aggregate['evidence_slice_count']} "
-        f"({aggregate['joint_pass_fraction']:.1%}); open squares are "
-        "conditioned/excluded"
+        f"joint {corrected['joint']['pass_count']}/"
+        f"{corrected['joint']['denominator']} corrected vs "
+        f"{superseded['joint']['pass_count']}/"
+        f"{superseded['joint']['denominator']} superseded\n"
+        f"boundary {corrected['boundary']['pass_count']}/"
+        f"{corrected['boundary']['denominator']}; axis "
+        f"{corrected['axis']['pass_count']}/{corrected['axis']['denominator']}; "
+        "open squares are genuinely conditioned/excluded"
     )
     figure.savefig(output)
 
