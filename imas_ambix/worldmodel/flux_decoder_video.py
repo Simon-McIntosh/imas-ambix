@@ -221,7 +221,7 @@ def _compose_frame(
     return np.asarray(canvas, dtype=np.uint8)
 
 
-def _write_video(frames: Sequence[ImageArray], output: Path, fps: int) -> None:
+def _write_video(frames: Sequence[ImageArray], output: Path, fps: int) -> int | None:
     if not frames:
         raise ValueError("cannot write an empty video")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -242,7 +242,16 @@ def _write_video(frames: Sequence[ImageArray], output: Path, fps: int) -> None:
             loop=0,
             optimize=False,
         )
-        return
+        with Image.open(output) as animation:
+            gif_frame_count = animation.n_frames
+        written_frame_count = len(frames)
+        if gif_frame_count != written_frame_count:
+            raise RuntimeError(
+                "GIF frame count mismatch: "
+                f"written_frame_count={written_frame_count}, "
+                f"gif_frame_count={gif_frame_count}"
+            )
+        return gif_frame_count
     if output.suffix.lower() != ".mp4":
         raise ValueError("output suffix must be .gif or .mp4")
     ffmpeg = shutil.which("ffmpeg")
@@ -272,6 +281,7 @@ def _write_video(frames: Sequence[ImageArray], output: Path, fps: int) -> None:
         str(output),
     ]
     subprocess.run(command, input=np.stack(frames).tobytes(), check=True)
+    return None
 
 
 def _contact_sheet_path(video_path: Path) -> Path:
@@ -558,7 +568,7 @@ def render_session_video(
     contact_sheet_path = _contact_sheet_path(output)
     if output.suffix.lower() == ".gif" and contact_sheet_path.exists():
         raise FileExistsError(f"refusing to overwrite {contact_sheet_path}")
-    _write_video(frames, output, fps)
+    gif_frame_count = _write_video(frames, output, fps)
     contact_sheet_indices: list[int] = []
     if output.suffix.lower() == ".gif":
         contact_sheet_path, contact_sheet_indices = write_video_contact_sheet(
@@ -583,6 +593,8 @@ def render_session_video(
         "manifest_slice_count": manifest_slices,
         "admitted_before_camera_join": admitted_before_camera,
         "frame_count": len(frames),
+        "written_frame_count": len(frames),
+        "gif_frame_count": gif_frame_count,
         "max_abs_camera_delta_s": max_delta,
         "actions": actions,
         "median_decode_wall_s": float(np.median(decode_walls)),
