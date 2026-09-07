@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T08:15:09",
+  "updated": "2026-09-07T08:26:15",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -27388,6 +27388,282 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260907T054520000128-pcp-label-cartoon-video",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a75d",
+        "node": "pcp-label-cartoon-video",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1397,
+                "cached_input_tokens": 221558,
+                "input_tokens": 222957,
+                "output_tokens": 712,
+                "reasoning_output_tokens": 38,
+                "total_tokens": 223669,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "02234188-75f7-47b8-8ccb-365cad54d4c5",
+            "session_id": "ambix-s19-media"
+          },
+          "done_when": "sun_debug SLURM log shows both GIFs written for shot 21858 under docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/; the two GIFs report identical frame counts and identical pixel widths; the label GIF height/width ratio equals the R-Z data-window ratio to within one pixel so the aspect is undistorted; the receipt records shot, camera group, policy_digest, carrier_identity, slice count, frame times, camera time deltas, percentile intensity limits and both GIF pixel sizes, with at least 90 percent of converged slices paired within 2.5 ms; the new test passes; uv run --no-sync ruff check imas_ambix tests exits 0",
+          "estimated_hours": null,
+          "goal": "Render the nova label cartoon and the paired camera stream as two tight-clipped GIFs at one common pixel width",
+          "id": "pcp-label-cartoon-video",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T054520000128-pcp-label-cartoon-video/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75d",
+          "spec_level": "guided",
+          "time_budget": "60m",
+          "write_paths": [
+            "imas_ambix/worldmodel/label_cartoon_video.py",
+            "tests/worldmodel/test_label_cartoon_video.py",
+            "docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pcp-label-cartoon",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T05:45:29Z",
+        "completed_at": "2026-09-07T06:24:02Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 2313,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 2313,
+        "stalled": false,
+        "time_budget": "60m",
+        "base_sha": "ff57597641a68e4feb5150fa19b92b61afca579f",
+        "commits": [
+          "73f306341c327fb2add035765fcdc64d94a5e45a",
+          "a4fb3eaab244d481cc17c08ed196f7d8bb917171"
+        ],
+        "changed_lines": {
+          "added": 1413,
+          "removed": 0,
+          "files": 5
+        },
+        "tests_added": 3,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun sun_debug FFmpeg/6.0: pytest -p no:cacheprovider tests/worldmodel/test_label_cartoon_video.py (3 passed) && ruff check imas_ambix tests; committed-revision 21858 render; independent PIL.ImageSequence artifact verification",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T054520000128-pcp-label-cartoon-video/focused-pytest-boundary-sun-debug.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T054520000128-pcp-label-cartoon-video/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07a66-75fb-7670-a1b4-c8af61170fb5",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 5126272,
+            "cached_input_tokens_cumulative": 5126272,
+            "input_tokens": 5178170,
+            "input_tokens_cumulative": 5178170,
+            "output_tokens": 23790,
+            "output_tokens_cumulative": 23790,
+            "reasoning_output_tokens": 7362,
+            "reasoning_output_tokens_cumulative": 7362
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 31152,
+          "peak_input_tokens": 10304442
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 3,
+        "attempt_kind": "resume",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-media/pcp-label-cartoon-video",
+          "session_id": "01a07a66-75fb-7670-a1b4-c8af61170fb5",
+          "session_source": "pointer",
+          "retained_at": "2026-09-07T06:24:02Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
+      },
+      {
+        "run_id": "r-20260907T061634050612-pcp-video-frame-count-guard",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a75b",
+        "node": "pcp-video-frame-count-guard",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1749,
+                "cached_input_tokens": 841857,
+                "input_tokens": 843638,
+                "output_tokens": 247,
+                "reasoning_output_tokens": 151,
+                "total_tokens": 843885,
+                "uncached_input_tokens": 32
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "pytest tests/worldmodel/test_flux_decoder_video.py passes on the all_debug partition via srun with TMPDIR=/tmp and command uv, including a test with two byte-identical consecutive frames whose outcome is either a preserved frame count or a raised error carrying both counts, the receipt schema gains written_frame_count and gif_frame_count, and whole-tree ruff check imas_ambix tests exits 0 with no betelgeuse job touched",
+          "estimated_hours": null,
+          "goal": "A frame-count guard in imas_ambix/worldmodel/flux_decoder_video.py that, after the GIF is written through PIL (whose encoder merges byte-identical consecutive frames into one and would silently desynchronise the paired real-versus-decoded stream), reopens the GIF, compares its frame count with the number of frames written, records both in the receipt, and raises with both figures when they differ, with a unit test that feeds two identical consecutive frames and asserts the guard fires or the writer preserves the frame",
+          "id": "pcp-video-frame-count-guard",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T061634050612-pcp-video-frame-count-guard/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75b",
+          "spec_level": "exact",
+          "time_budget": "20m",
+          "write_paths": [
+            "imas_ambix/worldmodel/flux_decoder_video.py",
+            "tests/worldmodel/test_flux_decoder_video.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "pcp-decoder-video",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T06:16:50Z",
+        "completed_at": "2026-09-07T06:25:11Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 501,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 501,
+        "stalled": false,
+        "time_budget": "20m",
+        "base_sha": "a27322d6fc1d6f79b52124dd99a03af9926a7ea5",
+        "commits": [
+          "2597935e3db7e1c781565df8982b1e34fd0380da"
+        ],
+        "changed_lines": {
+          "added": 36,
+          "removed": 4,
+          "files": 2
+        },
+        "tests_added": 1,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug pytest -p no:cacheprovider tests/worldmodel/test_flux_decoder_video.py (5 passed) plus whole-tree ruff",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T061634050612-pcp-video-frame-count-guard/pytest-all-debug-final.log",
+          "log_digest": "sha256:0c78988b9e4baa2b2d35a2053dfdba54bcd8066c457f57abcdf03656ce429a6b"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T061634050612-pcp-video-frame-count-guard/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07a83-2b91-7d82-ba96-4f850ea0655b",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 5593088,
+            "cached_input_tokens_cumulative": 5593088,
+            "input_tokens": 5753582,
+            "input_tokens_cumulative": 5753582,
+            "output_tokens": 15161,
+            "output_tokens_cumulative": 15161,
+            "reasoning_output_tokens": 5157,
+            "reasoning_output_tokens_cumulative": 5157
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 20318,
+          "peak_input_tokens": 11346670
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-video-frame-count-guard",
+          "session_id": "01a07a83-2b91-7d82-ba96-4f850ea0655b",
+          "session_source": "stream",
+          "retained_at": "2026-09-07T06:25:11Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_flux_decoder_video.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -27434,6 +27710,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 555
+    "_version": 557
   }
 }
