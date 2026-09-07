@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="62">
+<meta name="plan-version" content="63">
 <meta name="plan-impl" content="0.9">
 </head>
 <body>
@@ -812,6 +812,9 @@
 </div>
 <div class="r-comment" data-section="s4f" data-id="c-20260907T0420-first-trained-checkpoint" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-07T04:20:00Z">
     <div class="r-comment-body">FIRST TRAINED CHECKPOINT on nova's labels: job 1263842 (RUNNING since 05:46 local), epoch 1 rescan admitted 39,285 train and 2,085 validation slices over 733 shots; checkpoint-000007644.pt (2.0 GB) and receipt.json written at 06:17 local. Receipt validation: token NLL 10.968 over 1,024 tokens (12.59 at step 1; uniform over 2^18 is 12.48), persistence token error rate 0.999, decoded pixel error over 4 samples: model MAE 8.94 u8 against persistence 3.44 (persistence at 5 ms spacing is a strong baseline; the model does not beat it 30 minutes in). Training continues at about 4.7 steps per second; log token NLL 10.94 at step 7,740. Node pcp-video-first-checkpoint dispatched: first real-versus-decoded video of 21858 from this checkpoint on all_debug.</div>
+</div>
+<div class="r-comment" data-section="s4f" data-id="c-20260907T0450-second-checkpoint" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-07T04:50:00Z">
+    <div class="r-comment-body">Second checkpoint of job 1263842 at step 17,652 (06:47 local): validation token NLL 10.656 (10.968 at step 7,644; 12.59 untrained), decoded pixel MAE 4.14 u8 against persistence 3.44 over 4 samples (was 8.94), i.e. the model-minus-persistence gap closed from 5.50 to 0.70 in 30 minutes of training; not yet beating persistence. Node pcp-video-second-checkpoint dispatched to render 21858 from this checkpoint on all_debug. Queue: our labeller job 1263778 (now 4 cores) pends on group-A cores at 29 of 30 after nova released its held jobs; the decoder keeps its card.</div>
 </div>
 <div class="r-comment" data-section="§5b" data-id="c-run-r-20260906T210821148664-pcp-decoder-video" data-who="pcp-decoder-video" data-when="2026-09-06T21:33:14Z">
     <div class="r-comment-body"><p>Video command and serve launcher landed: shot 21858 real-versus-decoded GIF (85 frames, 512x288, 10 fps) rendered on all_debug job 1263769 from an untrained checkpoint; VQ route persistent subprocess under the magvit2 environment because src.Open_MAGVIT2 needs einops; predictor decode wall 3.6 s per frame on CPU. Follow-ons for section 5c and nova: bokeh is not installed in the ambix environment so no live serve was claimed, and nova's app reads the decoder from a request argument rather than --decoder after --args</p></div>
