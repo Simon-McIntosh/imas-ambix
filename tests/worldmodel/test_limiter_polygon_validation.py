@@ -69,8 +69,8 @@ def test_wall_loader_records_era_constant_fill_provenance(tmp_path: Path) -> Non
         str(tmp_path / f"{MAST_WALL_SOURCE_SHOT}.zarr"), mode="w"
     )
     wall = source_store.create_group("wall")
-    wall_r = np.asarray([0.0, 1.0, 1.0, 0.0, 0.0], dtype=np.float64)
-    wall_z = np.asarray([0.0, 0.0, 1.0, 1.0, 0.0], dtype=np.float64)
+    wall_r = np.asarray([0.0, 1.0, 1.0, 0.0, 0.0], dtype=np.float32)
+    wall_z = np.asarray([0.0, 0.0, 1.0, 1.0, 0.0], dtype=np.float32)
     wall.create_array("limiter_r", data=wall_r)
     wall.create_array("limiter_z", data=wall_z)
     wall.create_array(

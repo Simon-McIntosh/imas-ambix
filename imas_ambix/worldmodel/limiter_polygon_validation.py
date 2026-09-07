@@ -331,6 +331,11 @@ def load_machine_description_wall(
     wall_r, wall_z, source_shot, digest = _load_wall(
         store, root, int(requested_shot_id)
     )
+    expected_digest = hashlib.sha256(
+        np.asarray(wall_r).tobytes() + np.asarray(wall_z).tobytes()
+    ).hexdigest()
+    if expected_digest != digest:
+        raise ValueError("wall digest does not match loaded machine coordinates")
     source_store = equilibrium_store_path(source_shot, root)
     source_group = (
         store
@@ -373,9 +378,6 @@ def build_report(
         wall.z,
         dense_sample_count=dense_sample_count,
     )
-    expected_digest = hashlib.sha256(wall.r.tobytes() + wall.z.tobytes()).hexdigest()
-    if expected_digest != wall.digest:
-        raise ValueError("wall digest does not match loaded machine coordinates")
     return {
         "schema": "limiter-polygon-validation",
         "generated_at": datetime.now(UTC).isoformat(),
