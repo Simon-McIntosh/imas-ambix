@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="97">
+<meta name="plan-version" content="98">
 <meta name="plan-impl" content="0.9">
 <meta name="plan-commits" content="f854455492b0103c5f64d7a6533a46f6059d3ab2,56ca74eeb4f34ac8955ec8553eba0b98d11bdbec,73f306341c327fb2add035765fcdc64d94a5e45a,a4fb3eaab244d481cc17c08ed196f7d8bb917171">
 <meta name="plan-artifacts" content="docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json,docs/figures/physics-carried-playable-plasma/label-cartoon/carrier-cameras/camera-picture-quality.json,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/receipt.json,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-census,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-carrier-cameras">
@@ -812,6 +812,26 @@
     this plan's claim. <strong>That makes the 22086 pair the stronger of the two for a presentation</strong>:
     it is a held-out render on the carrier the demo actually runs on, which is the claim worth making,
     where 24854 shows only the best picture available.</p>
+    <p><strong>Two slice counts for one shot, and both are right — read this before comparing a deck
+    figure with a training receipt.</strong> The media counts <em>free</em> converged slices, because
+    <code>read_labels</code> excludes conditioned ones and a pinned slice is not a label the model could
+    have produced unaided (§5d-v). The decoder dataset counts <em>all</em> converged slices and carries
+    conditioned as a per-sample flag. So the same shot reads 58 here and 72 there for 24854, and 43 and
+    46 for 22086. Neither is wrong and neither should be reconciled by changing one: the media is showing
+    what the model was given as ground truth, the dataset is describing what it was trained on, and those
+    are different questions. 22086's 43 additionally coincides with its receipted keyframe slice by
+    accident, which is exactly the kind of agreement that invites a false inference.</p>
+    <p><strong>The per-epoch guard closes the shape this section kept running into.</strong> The receipt
+    that verified the firewall describes epoch 2 at step 57,019, written 06:54 UTC, while the session
+    root held 884 manifests when it was read — so it settles that epoch and no later one, the same
+    snapshot defect that forced the two withdrawals in §5d-vii. Node
+    <code>pcp-cohort-guard-per-epoch</code> moves the check into the code: every epoch rescan intersects
+    the admitted shot ids against the 718-shot cohort, raises naming the offending shots when it is
+    non-empty, and stamps the epoch, the session total scanned, the admitted count and the intersection
+    count into the receipt. It carries a test that injects a cohort shot into a synthetic root and asserts
+    the guard fires. That test is the load-bearing part: a guard nothing has exercised is
+    indistinguishable from one that cannot fire, so it is made to fire once on purpose, and production
+    then stamps a number every epoch instead of depending on somebody having looked.</p>
     <p>One node renders both, after §5d-v lands, because both read the same module and a second node
     would contend for it. Free-slice counts are the free converged slices of §5d-vii, so the frame counts
     quoted above are what <code>read_labels</code> admits and not the converged totals.</p>
