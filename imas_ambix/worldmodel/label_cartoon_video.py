@@ -429,7 +429,7 @@ def _label_image(
     geometry: MediaMachineGeometry,
     thomson: Sequence[ThomsonString],
     width: int,
-) -> ImageArray:
+) -> tuple[ImageArray, dict[str, int]]:
     r_min, r_max, z_min, z_max = view.extent
     height = max(1, int(round(width * (z_max - z_min) / (r_max - r_min))))
     view.clear()
@@ -441,12 +441,12 @@ def _label_image(
     poloidal.draw_boundary(
         view.poloidal, frame.boundary[:, 0], frame.boundary[:, 1], style=DEFAULT_INK
     )
-    poloidal.draw_nulls(
+    null_tally = poloidal.draw_nulls(
         view.poloidal,
         magnetic_axis=frame.magnetic_axis,
         x_points=frame.x_points,
-        strike_points=frame.strike_points,
         style=DEFAULT_INK,
+        contain=geometry.limiter,
     )
     positions, groups = _thomson_positions(thomson, frame.time)
     poloidal.draw_thomson(
@@ -455,9 +455,12 @@ def _label_image(
     image = figure_frame(view.figure)
     from PIL import Image  # noqa: PLC0415
 
-    return np.asarray(
-        image.resize((width, height), Image.Resampling.LANCZOS),
-        dtype=np.uint8,
+    return (
+        np.asarray(
+            image.resize((width, height), Image.Resampling.LANCZOS),
+            dtype=np.uint8,
+        ),
+        null_tally,
     )
 
 
@@ -481,6 +484,8 @@ def _output_receipt(
     geometry: OperatorGeometry,
     label_provenance: Mapping[str, object],
     thomson_provenance: Mapping[str, object],
+    null_rendering: Mapping[str, object],
+    caption: str | None,
     fps: int,
 ) -> dict[str, object]:
     r_min, r_max, z_min, z_max = window
@@ -491,6 +496,7 @@ def _output_receipt(
     return {
         "shot": shot,
         "camera_group": camera_group,
+        "caption": caption,
         "policy_digest": EXPECTED_POLICY_DIGEST,
         "carrier_identity": EXPECTED_CARRIER_IDENTITY,
         "session": str(session_path.resolve()),
@@ -555,6 +561,7 @@ def _output_receipt(
         },
         "label_provenance": dict(label_provenance),
         "thomson_provenance": dict(thomson_provenance),
+        "null_rendering": dict(null_rendering),
         "machine_geometry_identity": {
             "representation_key": geometry.identity.representation_key,
             "representation_digest": geometry.identity.representation_digest,
@@ -579,6 +586,7 @@ def render_label_cartoon_pair(
     fps: int = DEFAULT_FPS,
     max_frame_delta_s: float = MAX_FRAME_DELTA_SECONDS,
     minimum_pairing_fraction: float = MIN_PAIRING_FRACTION,
+    caption: str | None = None,
 ) -> dict[str, object]:
     """Write the aligned label and camera GIFs and their evidence receipt."""
     session_path = Path(session_path)
@@ -623,9 +631,13 @@ def render_label_cartoon_pair(
         if not unsupported_atm_era:
             raise
         thomson = ()
+        thomson_groups = [
+            group for group in ("atm", "ayc", "aye") if group in level1_groups
+        ]
         thomson_provenance: dict[str, object] = {
             "shot": shot,
-            "groups_present": level1_groups,
+            "era": "atm" if "atm" in thomson_groups else None,
+            "groups_present": thomson_groups,
             "chord": "omitted",
             "reason": (
                 "pending nova.media.sources.mast_thomson accepting atm as a "
@@ -635,9 +647,14 @@ def render_label_cartoon_pair(
             "systems": [],
         }
     else:
+        thomson_groups = sorted({str(string.provenance["group"]) for string in thomson})
+        thomson_eras = {str(string.provenance["era"]) for string in thomson}
+        if len(thomson_eras) != 1:
+            raise ValueError(f"shot {shot} has inconsistent Thomson eras")
         thomson_provenance = {
             "shot": shot,
-            "groups_present": level1_groups,
+            "era": thomson_eras.pop(),
+            "groups_present": thomson_groups,
             "chord": "drawn",
             "reason": "nova Thomson source reader accepted this shot",
             "systems": [
@@ -672,10 +689,35 @@ def render_label_cartoon_pair(
     )
     window = label_pulse.extent()
     view = poloidal_view(window, style=DEFAULT_INK)
-    label_frames = [
+    rendered_labels = [
         _label_image(label_source_frames[index], view, media_geometry, thomson, width)
         for index in selection.label_indices
     ]
+    label_frames = [image for image, _ in rendered_labels]
+    null_slots = [
+        {
+            "label_frame_index": int(label_index),
+            "time_s": float(label_source_frames[label_index].time),
+            "draw_nulls": tally,
+        }
+        for label_index, (_, tally) in zip(
+            selection.label_indices, rendered_labels, strict=True
+        )
+    ]
+    null_totals = {
+        key: sum(int(slot["draw_nulls"][key]) for slot in null_slots)
+        for key in (
+            "x_points_drawn",
+            "x_points_dropped_outside_wall",
+            "strike_points_drawn",
+        )
+    }
+    null_rendering = {
+        "containment": "shot limiter polygon",
+        "strike_points": "omitted",
+        "per_rendered_slot": null_slots,
+        "shot_totals": null_totals,
+    }
     if len(label_frames) != len(camera_frames):
         raise RuntimeError("label and camera frame counts diverged")
 
@@ -787,6 +829,8 @@ def render_label_cartoon_pair(
         geometry=actual_geometry,
         label_provenance=label_provenance,
         thomson_provenance=thomson_provenance,
+        null_rendering=null_rendering,
+        caption=caption,
         fps=fps,
     )
     receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
@@ -802,6 +846,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--camera", default=DEFAULT_CAMERA)
     parser.add_argument("--width", type=int, default=DEFAULT_WIDTH)
     parser.add_argument("--fps", type=int, default=DEFAULT_FPS)
+    parser.add_argument("--caption")
     return parser
 
 
@@ -815,6 +860,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         level1_root=args.level1_root,
         width=args.width,
         fps=args.fps,
+        caption=args.caption,
     )
     print(json.dumps(receipt, sort_keys=True))
     return 0
