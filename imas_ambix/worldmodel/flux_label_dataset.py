@@ -257,7 +257,7 @@ def _camera_times(path: Path, camera: str) -> NDArray[np.float64]:
     return np.asarray(store[camera]["time"], dtype=np.float64).reshape(-1)
 
 
-def _token_frame_count(path: Path) -> int:
+def _token_store_info(path: Path) -> tuple[int, bool]:
     import zarr  # noqa: PLC0415
 
     store = zarr.open_group(str(path), mode="r")
@@ -266,7 +266,12 @@ def _token_frame_count(path: Path) -> int:
     tokens = store["tokens"]
     if tuple(tokens.shape[1:]) != FRAME_GRID:
         raise ValueError(f"{path} token frames must have trailing shape {FRAME_GRID}")
-    return int(tokens.shape[0])
+    upper_bound = REGISTRY_OFFSET + CAMERA_VOCAB
+    for start in range(0, int(tokens.shape[0]), 1024):
+        values = np.asarray(tokens[start : start + 1024], dtype=np.int64)
+        if np.any(values < REGISTRY_OFFSET) or np.any(values >= upper_bound):
+            return int(tokens.shape[0]), False
+    return int(tokens.shape[0]), True
 
 
 def _split_for_rank(rank: int) -> str:
@@ -338,6 +343,7 @@ class FluxLabelDataset:
             "missing_session_file": 0,
             "conditioned_guard_failed": 0,
             "missing_token_store": 0,
+            "token_ids_out_of_range": 0,
             "missing_frame_times": 0,
             "outside_time_tolerance": 0,
             "insufficient_history": 0,
@@ -458,6 +464,10 @@ class FluxLabelDataset:
             if not token_path.exists():
                 dropped["missing_token_store"] += eligible_count
                 continue
+            token_count, token_ids_in_range = _token_store_info(token_path)
+            if not token_ids_in_range:
+                dropped["token_ids_out_of_range"] += eligible_count
+                continue
             level1_path = level1_shot_path(shot, level1_dir=self._level1_root)
             if not level1_path.exists():
                 dropped["missing_frame_times"] += eligible_count
@@ -467,7 +477,6 @@ class FluxLabelDataset:
             except KeyError, ValueError:
                 dropped["missing_frame_times"] += eligible_count
                 continue
-            token_count = _token_frame_count(token_path)
             query_times = np.asarray(
                 [float(row["time"]) for row in admitted_rows], dtype=np.float64
             )
