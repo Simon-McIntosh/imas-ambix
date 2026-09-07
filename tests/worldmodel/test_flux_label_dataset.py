@@ -20,6 +20,7 @@ from imas_ambix.worldmodel.flux_label_dataset import (
 SHOT = 12345
 MISSING_SHOT = 12346
 UNRANKED_SHOT = 12347
+CARRIER_SHOTS = (21978, 21983, 21985, 21986, 21989, 22086)
 
 
 def _surface_geometry(times: np.ndarray) -> xr.Dataset:
@@ -94,6 +95,8 @@ def _write_synthetic_session(tmp_path: Path) -> tuple[Path, Path, Path]:
         time=slice_times,
         conditioned=np.asarray([True, False, True]),
         conditioned_branch_guard_ok=np.asarray([True, True, False]),
+        free_centroid_error_m=np.asarray([-0.05, np.nan, -0.04]),
+        conditioned_centroid_error_m=np.asarray([0.0, np.nan, 0.0]),
     )
     manifest = {
         "schema": "nova-forward-labeller-shot",
@@ -213,6 +216,65 @@ def test_complete_session_pairs_geometry_and_slice_spaced_token_history(
         "policy_digest": EXPECTED_POLICY_DIGEST,
         "carrier_identity": EXPECTED_CARRIER_IDENTITY,
     }
+
+
+def test_conditioned_exception_without_trips_is_reclassified_as_free(
+    tmp_path: Path,
+) -> None:
+    session_root, token_root, level1_root = _write_synthetic_session(tmp_path)
+    manifest_path = session_root / f"{SHOT}.manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["slices"][0].update(
+        {
+            "conditioning_exception": "NoQualifiedAxisError: synthetic",
+            "conditioned_trips": 2,
+        }
+    )
+    manifest["slices"][2].update(
+        {
+            "converged": False,
+            "free_converged": True,
+            "conditioning_exception": "NoQualifiedAxisError: synthetic",
+            "conditioned_trips": 0,
+        }
+    )
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    dataset = FluxLabelDataset(
+        session_root,
+        split="validation",
+        token_root=token_root,
+        level1_root=level1_root,
+        cohort_shots=set(),
+    )
+
+    assert len(dataset) == 2
+    assert [item["conditioned"] for item in dataset] == [True, False]
+    assert dataset.receipt["counts"]["conditioned_slices"] == 1
+    assert dataset.receipt["counts"]["conditioned_reclassified_as_free_rows"] == 1
+    assert dataset.receipt["dropped_slices"]["conditioned_guard_failed"] == 0
+
+
+def test_conditioned_row_without_centroid_improvement_is_dropped(
+    tmp_path: Path,
+) -> None:
+    session_root, token_root, level1_root = _write_synthetic_session(tmp_path)
+    companion_path = session_root / f"{SHOT}.npz"
+    with np.load(companion_path, allow_pickle=False) as source:
+        companion = {name: source[name] for name in source.files}
+    companion["conditioned_centroid_error_m"][0] = companion["free_centroid_error_m"][0]
+    np.savez(companion_path, **companion)
+
+    dataset = FluxLabelDataset(
+        session_root,
+        split="validation",
+        token_root=token_root,
+        level1_root=level1_root,
+        cohort_shots=set(),
+    )
+
+    assert len(dataset) == 0
+    assert dataset.receipt["dropped_slices"]["conditioning_ineffective_rows"] == 1
 
 
 def test_complete_manifest_missing_session_file_is_counted_and_dropped(
@@ -371,6 +433,48 @@ def test_corpus_pins_refuse_mismatch_and_cohort_filter_is_whole_shot(
             level1_root=level1_root,
             cohort_shots=set(),
         )
+
+
+def test_real_carrier_conditioned_semantics_receipt(tmp_path: Path) -> None:
+    required = tuple(
+        DEFAULT_SESSION_ROOT / f"{shot}{suffix}"
+        for shot in CARRIER_SHOTS
+        for suffix in (".manifest.json", ".nc", ".npz")
+    )
+    if not all(path.exists() for path in required):
+        pytest.skip("real carrier session evidence is unavailable on this host")
+
+    session_root = tmp_path / "carrier-sessions"
+    cards = session_root / ".cards"
+    cards.mkdir(parents=True)
+    (cards / "card-0.txt").write_text(
+        "".join(f"{shot}\n" for shot in CARRIER_SHOTS), encoding="utf-8"
+    )
+    for path in required:
+        (session_root / path.name).symlink_to(path)
+
+    dataset = FluxLabelDataset(
+        session_root,
+        split="all",
+        cohort_shots=set(),
+        shot_ids=CARRIER_SHOTS,
+    )
+    reclassified = dataset.receipt["counts"]["conditioned_reclassified_as_free_rows"]
+    ineffective = dataset.receipt["dropped_slices"]["conditioning_ineffective_rows"]
+    unavailable = dataset.receipt["dropped_slices"][
+        "conditioning_comparison_unavailable_rows"
+    ]
+    print(
+        "real six carriers: "
+        f"reclassified={reclassified} "
+        f"conditioning_ineffective_rows={ineffective} "
+        f"conditioning_comparison_unavailable_rows={unavailable} "
+        f"pairs={dataset.receipt['counts']['paired_slices']}"
+    )
+
+    assert reclassified == 119
+    assert ineffective == 0
+    assert unavailable == 6
 
 
 def test_real_shot_pairing_receipt_and_item_contract() -> None:

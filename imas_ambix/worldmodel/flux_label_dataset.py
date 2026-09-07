@@ -204,6 +204,8 @@ def _load_companion(
     NDArray[np.float64],
     NDArray[np.bool_],
     NDArray[np.bool_],
+    NDArray[np.float64],
+    NDArray[np.float64],
 ]:
     written = [row for row in slices if bool(row.get("written", False))]
     expected_rows = np.asarray([int(row["row"]) for row in written], dtype=np.int32)
@@ -216,6 +218,8 @@ def _load_companion(
             "time",
             "conditioned",
             "conditioned_branch_guard_ok",
+            "free_centroid_error_m",
+            "conditioned_centroid_error_m",
         }.difference(companion.files)
         if missing:
             raise ValueError(f"{path} is missing companion fields {sorted(missing)}")
@@ -225,18 +229,55 @@ def _load_companion(
         conditioned_branch_guard_ok = np.asarray(
             companion["conditioned_branch_guard_ok"], dtype=bool
         ).reshape(-1)
+        free_centroid_error_m = np.asarray(
+            companion["free_centroid_error_m"], dtype=np.float64
+        ).reshape(-1)
+        conditioned_centroid_error_m = np.asarray(
+            companion["conditioned_centroid_error_m"], dtype=np.float64
+        ).reshape(-1)
     if not (
         rows.shape
         == times.shape
         == conditioned.shape
         == conditioned_branch_guard_ok.shape
+        == free_centroid_error_m.shape
+        == conditioned_centroid_error_m.shape
     ):
         raise ValueError(f"{path} companion arrays do not have identical lengths")
     if not np.array_equal(rows, expected_rows):
         raise ValueError(f"{path} rows are not aligned to the manifest's written rows")
     if not np.allclose(times, expected_times, rtol=0.0, atol=1.0e-9):
         raise ValueError(f"{path} times are not aligned to the manifest's written rows")
-    return rows, times, conditioned, conditioned_branch_guard_ok
+    return (
+        rows,
+        times,
+        conditioned,
+        conditioned_branch_guard_ok,
+        free_centroid_error_m,
+        conditioned_centroid_error_m,
+    )
+
+
+def _conditioned_row_is_free(row: Mapping[str, Any], *, conditioned: bool) -> bool:
+    exception = row.get("conditioning_exception")
+    trips = row.get("conditioned_trips")
+    return (
+        conditioned
+        and exception is not None
+        and bool(str(exception).strip())
+        and trips is not None
+        and int(trips) == 0
+    )
+
+
+def _conditioning_improved_centroid(
+    free_error_m: float, conditioned_error_m: float
+) -> bool:
+    return bool(
+        np.isfinite(free_error_m)
+        and np.isfinite(conditioned_error_m)
+        and abs(conditioned_error_m) < abs(free_error_m)
+    )
 
 
 def _session_times(path: Path) -> NDArray[np.float64]:
@@ -342,6 +383,8 @@ class FluxLabelDataset:
             "other_split": 0,
             "missing_session_file": 0,
             "conditioned_guard_failed": 0,
+            "conditioning_comparison_unavailable_rows": 0,
+            "conditioning_ineffective_rows": 0,
             "missing_token_store": 0,
             "token_ids_out_of_range": 0,
             "missing_frame_times": 0,
@@ -365,6 +408,7 @@ class FluxLabelDataset:
             "paired_slices": 0,
             "conditioned_slices": 0,
             "conditioned_branch_guard_ok_slices": 0,
+            "conditioned_reclassified_as_free_rows": 0,
             "cohort_overlap": 0,
         }
         selected_shots: set[int] = set()
@@ -431,9 +475,14 @@ class FluxLabelDataset:
             if not companion_path.is_file() or not session_path.is_file():
                 dropped["missing_session_file"] += len(converged_rows)
                 continue
-            rows, companion_times, conditioned, conditioned_branch_guard_ok = (
-                _load_companion(companion_path, slices)
-            )
+            (
+                rows,
+                companion_times,
+                conditioned,
+                conditioned_branch_guard_ok,
+                free_centroid_error_m,
+                conditioned_centroid_error_m,
+            ) = _load_companion(companion_path, slices)
             session_times = _session_times(session_path)
             if session_times.shape != companion_times.shape or not np.allclose(
                 session_times, companion_times, rtol=0.0, atol=1.0e-9
@@ -442,16 +491,52 @@ class FluxLabelDataset:
                     f"{session_path} times are not aligned to its companion"
                 )
             row_to_session = {int(row): index for index, row in enumerate(rows)}
-            admitted_rows: list[Mapping[str, Any]] = []
-            for row in converged_rows:
+            admitted_rows: list[tuple[Mapping[str, Any], bool]] = []
+            for row in written_rows:
                 session_index = row_to_session[int(row["row"])]
-                if (
-                    bool(conditioned[session_index])
-                    and not bool(conditioned_branch_guard_ok[session_index])
+                originally_conditioned = bool(conditioned[session_index])
+                reclassified_as_free = _conditioned_row_is_free(
+                    row, conditioned=originally_conditioned
+                )
+                semantically_converged = bool(
+                    row.get("free_converged", False)
+                    if reclassified_as_free
+                    else row.get("converged", False)
+                )
+                recorded_converged = bool(row.get("converged", False))
+                if semantically_converged != recorded_converged:
+                    adjustment = 1 if semantically_converged else -1
+                    counts["converged_slices"] += adjustment
+                    dropped["unconverged"] -= adjustment
+                if reclassified_as_free:
+                    counts["conditioned_reclassified_as_free_rows"] += 1
+                if not semantically_converged:
+                    continue
+                genuinely_conditioned = (
+                    originally_conditioned and not reclassified_as_free
+                )
+                if genuinely_conditioned and not bool(
+                    conditioned_branch_guard_ok[session_index]
                 ):
                     dropped["conditioned_guard_failed"] += 1
                     continue
-                admitted_rows.append(row)
+                if genuinely_conditioned:
+                    free_error_m = float(free_centroid_error_m[session_index])
+                    conditioned_error_m = float(
+                        conditioned_centroid_error_m[session_index]
+                    )
+                    if not (
+                        np.isfinite(free_error_m)
+                        and np.isfinite(conditioned_error_m)
+                    ):
+                        dropped["conditioning_comparison_unavailable_rows"] += 1
+                        continue
+                    if not _conditioning_improved_centroid(
+                        free_error_m, conditioned_error_m
+                    ):
+                        dropped["conditioning_ineffective_rows"] += 1
+                        continue
+                admitted_rows.append((row, genuinely_conditioned))
 
             token_path = frames_token_path(
                 shot,
@@ -477,7 +562,7 @@ class FluxLabelDataset:
                 dropped["missing_frame_times"] += eligible_count
                 continue
             query_times = np.asarray(
-                [float(row["time"]) for row in admitted_rows], dtype=np.float64
+                [float(row["time"]) for row, _ in admitted_rows], dtype=np.float64
             )
             frame_indices, deltas = _nearest_frame_indices(frame_times, query_times)
             history_query_times = query_times[:, None] - self._history_spacing_s * (
@@ -489,7 +574,13 @@ class FluxLabelDataset:
             history_indices = history_indices.reshape(
                 query_times.size, self._history_frames
             )
-            for row, frame_index, history_frames, delta, history_times in zip(
+            for (
+                (row, genuinely_conditioned),
+                frame_index,
+                history_frames,
+                delta,
+                history_times,
+            ) in zip(
                 admitted_rows,
                 frame_indices,
                 history_indices,
@@ -526,7 +617,7 @@ class FluxLabelDataset:
                         ),
                         frame_time=float(frame_times[frame]),
                         frame_delta_s=float(delta),
-                        conditioned=bool(conditioned[session_index]),
+                        conditioned=genuinely_conditioned,
                         conditioned_branch_guard_ok=bool(
                             conditioned_branch_guard_ok[session_index]
                         ),
