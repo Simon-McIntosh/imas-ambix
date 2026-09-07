@@ -43,6 +43,7 @@ MAX_CAMERA_DELTA_SECONDS = 0.0025
 VIDEO_HEIGHT = 256
 VIDEO_WIDTH = 256
 BANNER_HEIGHT = 32
+CONTACT_SHEET_FRAME_COUNT = 6
 
 ImageArray = NDArray[np.uint8]
 TokenArray = NDArray[np.int64]
@@ -271,6 +272,46 @@ def _write_video(frames: Sequence[ImageArray], output: Path, fps: int) -> None:
         str(output),
     ]
     subprocess.run(command, input=np.stack(frames).tobytes(), check=True)
+
+
+def _contact_sheet_path(video_path: Path) -> Path:
+    return video_path.with_name(f"{video_path.stem}-frames.png")
+
+
+def write_video_contact_sheet(
+    frames: Sequence[ImageArray], video_path: Path
+) -> tuple[Path, list[int]]:
+    """Write evenly spaced composed GIF frames as one vertically stacked PNG."""
+    if not frames:
+        raise ValueError("cannot write a contact sheet for an empty video")
+    video_path = Path(video_path)
+    if video_path.suffix.lower() != ".gif":
+        raise ValueError("contact sheets are written only for GIF output")
+    output = _contact_sheet_path(video_path)
+    if output.exists():
+        raise FileExistsError(f"refusing to overwrite {output}")
+
+    sample_count = CONTACT_SHEET_FRAME_COUNT
+    indices = np.rint(np.linspace(0, len(frames) - 1, sample_count)).astype(int)
+    selected = [np.asarray(frames[index], dtype=np.uint8) for index in indices]
+    first_shape = selected[0].shape
+    if any(frame.shape != first_shape for frame in selected):
+        raise ValueError("contact-sheet frames must have a common shape")
+
+    from PIL import Image  # noqa: PLC0415
+
+    height, width = first_shape[:2]
+    sheet = Image.new("RGB", (width, height * sample_count))
+    for row, frame in enumerate(selected):
+        sheet.paste(Image.fromarray(frame), (0, row * height))
+    output.parent.mkdir(parents=True, exist_ok=True)
+    sheet.quantize(colors=256, method=Image.Quantize.FASTOCTREE).save(
+        output,
+        format="PNG",
+        optimize=True,
+        compress_level=9,
+    )
+    return output, indices.tolist()
 
 
 def _runtime_decoder(
@@ -514,7 +555,15 @@ def render_session_video(
     receipt_path = output.with_suffix(".receipt.json")
     if receipt_path.exists():
         raise FileExistsError(f"refusing to overwrite {receipt_path}")
+    contact_sheet_path = _contact_sheet_path(output)
+    if output.suffix.lower() == ".gif" and contact_sheet_path.exists():
+        raise FileExistsError(f"refusing to overwrite {contact_sheet_path}")
     _write_video(frames, output, fps)
+    contact_sheet_indices: list[int] = []
+    if output.suffix.lower() == ".gif":
+        contact_sheet_path, contact_sheet_indices = write_video_contact_sheet(
+            frames, output
+        )
     max_delta = (
         float(np.max(np.abs(observed_deltas)))
         if observed_deltas is not None and observed_deltas.size
@@ -543,6 +592,13 @@ def render_session_video(
         "frame_shape": list(frames[0].shape),
         "output": str(output.resolve()),
         "output_sha256": _sha256(output),
+        "contact_sheet": (
+            str(contact_sheet_path.resolve()) if contact_sheet_indices else None
+        ),
+        "contact_sheet_sha256": (
+            _sha256(contact_sheet_path) if contact_sheet_indices else None
+        ),
+        "contact_sheet_frame_indices": contact_sheet_indices,
         "source_revision": _source_revision(),
         "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
     }
@@ -599,6 +655,7 @@ if __name__ == "__main__":
 __all__ = [
     "DEFAULT_SESSION_ROOT",
     "DEFAULT_VQ_CHECKPOINT",
+    "write_video_contact_sheet",
     "render_session_video",
     "main",
 ]
