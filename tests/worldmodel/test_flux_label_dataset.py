@@ -251,6 +251,24 @@ def test_complete_manifest_missing_session_file_is_counted_and_dropped(
     assert dataset.receipt["dropped_slices"]["missing_session_file"] == 1
 
 
+def test_out_of_range_token_store_is_counted_and_dropped(tmp_path: Path) -> None:
+    session_root, token_root, level1_root = _write_synthetic_session(tmp_path)
+    token_path = token_root / "v1" / "frames" / str(SHOT) / "rbb.zarr"
+    token_store = zarr.open_group(str(token_path), mode="a")
+    token_store["tokens"][10, 0, 0] = 0
+
+    dataset = FluxLabelDataset(
+        session_root,
+        split="validation",
+        token_root=token_root,
+        level1_root=level1_root,
+        cohort_shots=set(),
+    )
+
+    assert len(dataset) == 0
+    assert dataset.receipt["dropped_slices"]["token_ids_out_of_range"] == 1
+
+
 def test_corpus_pins_refuse_mismatch_and_cohort_filter_is_whole_shot(
     tmp_path: Path,
 ) -> None:
