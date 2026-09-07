@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="133">
+<meta name="plan-version" content="134">
 <meta name="plan-impl" content="0.94">
 <meta name="plan-commits" content="f854455492b0103c5f64d7a6533a46f6059d3ab2,56ca74eeb4f34ac8955ec8553eba0b98d11bdbec,73f306341c327fb2add035765fcdc64d94a5e45a,a4fb3eaab244d481cc17c08ed196f7d8bb917171,e21388bdcf786a155841ebc39da5baa7ab81d4c4,d0028b832c886e32bc8f97b0b93ef928d2535e90,aecc1ea8e735b7b6a9a69b98b756b4d117ae93e1">
 <meta name="plan-artifacts" content="docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json,docs/figures/physics-carried-playable-plasma/label-cartoon/carrier-cameras/camera-picture-quality.json,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/24854/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/24854/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/22086/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/22086/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/label-cartoon.gif,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-census,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-carrier-cameras">
@@ -1358,6 +1358,28 @@ Result: the square family (rbb 512x512 at 550-800 us) is EXACTLY the five cohort
 The consequence is sharper than the count. Because subtracting the labeller cohort empties the square family entirely, the decoder's poor transfer ratios on 512x512 cameras were never a statement about its capacity to learn that geometry - they were measured on a family with zero trainable members. Reading them as a capacity result was a live misreading in the plan until the count arrived, and it is the same shape as the two withdrawals in section 5d-vii: a true number answering a question nobody had asked. With 22086 held out, the demo family leaves about seven trainable shots, which cannot support a family-restricted rebuild, and no single family is worth restricting to when the largest is the strip geometry the decoder already overfits. Camera-conditioned across the bands is the only option the distribution supports; that decision is locked elsewhere and nothing is rebuilt on it tonight.
 
 One cross-cutting lesson worth keeping, because three instances of it landed in this project inside one day. The suspected temporal offset in the decoded frames was found by OPENING THE FILMSTRIP - a bright structured blob where the real frame is almost black, near-dark where the real frame is brightest - which no aggregate pixel metric could have shown. The filmstrip convention that surfaced it was nearly retired as a workaround once GIF indexing was fixed, and survived on a PDF-export argument. Alongside a guard that never fires and a session count recorded while the corpus was still growing, all three are the same defect: a measure that cannot see the thing it is trusted to report.</div>
+</div>
+<div class="r-comment" data-section="s5d" data-id="c-20260907-s5d-drain-ledger" data-who="reckon-ship" data-when="2026-09-07T09:35:00Z">
+    <div class="r-comment-body">DRAIN LEDGER - section 5d presentation media, session ambix-s19-media @ 2026-09-07T09:35Z
+
+  5d-i  carrier census                        folded -> pcp-carrier-camera-census (f854455, gate passed)
+  5d-ii renderer                              folded -> pcp-label-cartoon-video (73f3063 + a4fb3ea)
+  5d-ii filmstrips                            folded -> pcp-label-cartoon-contact-sheet (e21388b + d0028b8)
+  5d-iv carrier camera report                 folded -> pcp-carrier-camera-report (56ca74e, returned once in review)
+  5d-v  imas-ink panel rewrite                folded -> pcp-label-panel-ink (aecc1ea, zero drawing primitives)
+  5d-vi all-groups family census              folded -> pcp-camera-family-census (ac70893)
+  5d-iii presentation pairs, both carriers    folded -> pcp-presentation-pair-render (805dccb + 8c613d3)
+  Thomson marker prominence on the panel      authority-required -> the lead's judgement on their own slide; nova's shared ink convention was not departed from unilaterally
+  annotate the passages quoting decoder MAE and transfer ratios   foreign-owner -> the decode-alignment audit in session ambix-s19-01 owns the verdict and the corrected figures
+  f-pcp-04 decoder training and app load      foreign-owner -> sections 4, 5b and 6 are the co-coordinator's, with five runs live against them
+  ---
+  rows: 10   foldable-remaining: 0   unreconciled-runs (this session): 0
+
+Project-level live pointers read 5, every one of them in session ambix-s19-01 with a live process and a fresh log, and that coordinator has explicitly taken the remainder. They are not disposed here because disposing another session's runs would misrepresent who is answering for them.
+
+Worktrees: all seven of this session's are reclaimed, none dirty, none unintegrated, and every commit above is reachable from main. Cleanup verified rather than assumed.
+
+Media delivered: docs/figures/physics-carried-playable-plasma/label-cartoon/pair/22086 (demo carrier, held out of decoder training; label 43 frames 512x1209 beside camera 43 frames 512x381) and .../pair/24854 (best-picture corpus shot; 58 frames, 512x1209 beside 512x480). Both frame-for-frame aligned, aspect exact to 0 px, filmstrip beside each, all four GIF rows serving with a fetchable download href verified from the endpoint. One caption note for whoever presents the demo-carrier panel: 14 of its 86 nulls are dropped as outside the vessel, a sixth of that shot's total, which belongs in the speaker's text rather than on the figure since the brief forbids ink.</div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20260907T072122163213-pcp-physics-fidelity-gate" data-who="pcp-flux-renderer" data-when="2026-09-07T08:05:55Z">
     <div class="r-comment-body"><p>Physics-fidelity gate measured and FAILED as a pre-registered negative result: 3 of 51 free converged flat-top slices meet both 2 cm bounds. Boundary alone 24 of 51 (47 percent, aggregate median 3.83 cm, per-shot medians 1.73 to 4.27 cm, with 21989 at 1.73 and demo carrier 22086 at 1.90); axis alone 3 of 51 (5.9 percent, median 4.56 cm, max 6.24 cm). Flat top is interpolated absolute efm plasma current at or above 80 percent of the shot peak (0.175 to 0.365 s); 27 conditioned flat-top slices excluded from evidence and reported. The boundary is close and the axis is systematically offset, which is a definition-versus-physics question the follow-on node resolves</p></div>
