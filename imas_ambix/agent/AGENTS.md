@@ -482,6 +482,18 @@ level.** Eight reads five seconds apart spanned **10 to 14** with the fleet
 steady. Pair a series against a series; a synchronised pair of single values is
 no better than two adjacent ones.
 
+**Before pairing two readings, ask whether they are simultaneous — before asking
+what each counts.** Simultaneity is the cheaper test and the one that
+disqualifies, so it comes first. Measured 2026-09-06: a pointer count and an
+engine peak seven minutes apart were nearly recorded as a conversion ratio of
+1.13, above the range every valid pairing supports, and the population question
+that would have refined it never arose because the timing already voided it.
+Note also that a **peak-to-date is not an instantaneous reading** and cannot be
+paired with one at all. The only clean simultaneous pairing that day was 14 live
+runs against 10 concurrent requests, read within seconds — **0.71**, and no valid
+pairing above it exists. A range widened on an invalid pairing is worse than a
+narrow one, because it looks like more evidence.
+
 **A quiet endpoint is not evidence of headroom.** A deliberate pressure test on
 2026-09-06 told three fleets to run hot and the engine never exceeded **five**
 concurrent requests, with zero capacity waits, zero deferrals and zero
