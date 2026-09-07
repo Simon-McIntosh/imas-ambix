@@ -17,7 +17,7 @@ import math
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -26,10 +26,24 @@ from imas_ambix.data.paths import LEVEL1_DIR
 from imas_ambix.worldmodel.flux_decoder_video import _manifest_selection
 from imas_ambix.worldmodel.flux_label_dataset import DEFAULT_SESSION_ROOT
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 PLASMA_CAMERA_GROUPS = ("rba", "rbb", "rbc")
 THOMSON_GROUPS = ("atm", "ayc", "aye")
 MIN_CONVERGED_SLICES = 40
 DEFAULT_TOP_COUNT = 5
+DEMO_CAMERA_GROUP = "rbb"
+DEMO_FRAME_HEIGHT = 128
+DEMO_FRAME_WIDTH = 172
+DEMO_CADENCE_US = 20.0
+DEMO_CADENCE_TOLERANCE_US = 5.0
+SQUARE_CAMERA_GROUP = "rbb"
+SQUARE_FRAME_HEIGHT = 512
+SQUARE_FRAME_WIDTH = 512
+SQUARE_MIN_CADENCE_US = 550.0
+SQUARE_MAX_CADENCE_US = 800.0
+CADENCE_BAND_WIDTH_US = 10.0
 
 # Each scale is the point where that factor contributes one half.  Frame count
 # is intentionally saturating: beyond a thousand frames, more cadence has less
@@ -52,6 +66,7 @@ class CameraMetrics:
     frame_area: int
     frame_count: int
     temporal_span_s: float
+    cadence_us: float | None
 
 
 @dataclass(slots=True)
@@ -64,12 +79,14 @@ class SessionRanking:
     session_frame_count: int
     converged_slice_count: int
     thomson_groups: list[str] = field(default_factory=list)
+    available_cameras: list[CameraMetrics] = field(default_factory=list)
     camera_group: str | None = None
     frame_height: int | None = None
     frame_width: int | None = None
     frame_area: int | None = None
     frame_count: int | None = None
     temporal_span_s: float | None = None
+    cadence_us: float | None = None
     score: float = 0.0
     score_components: dict[str, float] = field(default_factory=dict)
     eligible: bool = False
@@ -144,6 +161,11 @@ def _camera_metrics(group: Any, camera_group: str) -> CameraMetrics:
     if not np.isfinite(times).all():
         raise ValueError(f"{camera_group}/time contains a non-finite value")
     span = float(times.max() - times.min()) if times.size > 1 else 0.0
+    cadence_us = (
+        float(np.median(np.abs(np.diff(times)))) * 1_000_000.0
+        if times.size > 1
+        else None
+    )
     return CameraMetrics(
         camera_group=camera_group,
         frame_height=height,
@@ -151,15 +173,23 @@ def _camera_metrics(group: Any, camera_group: str) -> CameraMetrics:
         frame_area=height * width,
         frame_count=frame_count,
         temporal_span_s=span,
+        cadence_us=cadence_us,
     )
 
 
 def _best_camera(
     store: Any,
     converged_slice_count: int,
-) -> tuple[CameraMetrics | None, float, dict[str, float], dict[str, str]]:
+) -> tuple[
+    list[CameraMetrics],
+    CameraMetrics | None,
+    float,
+    dict[str, float],
+    dict[str, str],
+]:
     groups = set(store.group_keys())
     candidates: list[tuple[float, CameraMetrics, dict[str, float]]] = []
+    available: list[CameraMetrics] = []
     errors: dict[str, str] = {}
     for camera_group in PLASMA_CAMERA_GROUPS:
         if camera_group not in groups:
@@ -175,14 +205,135 @@ def _best_camera(
         except (KeyError, TypeError, ValueError) as exc:
             errors[camera_group] = f"{type(exc).__name__}: {exc}"
             continue
+        available.append(metrics)
         candidates.append((score, metrics, components))
     if not candidates:
-        return None, 0.0, {}, errors
+        return available, None, 0.0, {}, errors
     score, metrics, components = min(
         candidates,
         key=lambda item: (-item[0], item[1].camera_group),
     )
-    return metrics, score, components, errors
+    return available, metrics, score, components, errors
+
+
+def _is_demo_camera(metrics: CameraMetrics) -> bool:
+    return (
+        metrics.camera_group == DEMO_CAMERA_GROUP
+        and metrics.frame_height == DEMO_FRAME_HEIGHT
+        and metrics.frame_width == DEMO_FRAME_WIDTH
+        and metrics.cadence_us is not None
+        and abs(metrics.cadence_us - DEMO_CADENCE_US) <= DEMO_CADENCE_TOLERANCE_US
+    )
+
+
+def _is_square_camera(metrics: CameraMetrics) -> bool:
+    return (
+        metrics.camera_group == SQUARE_CAMERA_GROUP
+        and metrics.frame_height == SQUARE_FRAME_HEIGHT
+        and metrics.frame_width == SQUARE_FRAME_WIDTH
+        and metrics.cadence_us is not None
+        and SQUARE_MIN_CADENCE_US <= metrics.cadence_us <= SQUARE_MAX_CADENCE_US
+    )
+
+
+def _cadence_band(cadence_us: float | None) -> tuple[float | None, float | None]:
+    if cadence_us is None:
+        return None, None
+    centre = (
+        math.floor(cadence_us / CADENCE_BAND_WIDTH_US + 0.5) * CADENCE_BAND_WIDTH_US
+    )
+    half_width = CADENCE_BAND_WIDTH_US / 2.0
+    return centre - half_width, centre + half_width
+
+
+def _rbb_geometry_distribution(
+    records: list[SessionRanking],
+    *,
+    session_total: int,
+    measured_at_utc: str,
+) -> list[dict[str, Any]]:
+    geometries: dict[tuple[int, int, float | None, float | None], list[int]] = {}
+    for record in records:
+        for camera in record.available_cameras:
+            if camera.camera_group != "rbb":
+                continue
+            lower, upper = _cadence_band(camera.cadence_us)
+            key = (camera.frame_height, camera.frame_width, lower, upper)
+            geometries.setdefault(key, []).append(record.shot)
+
+    rows = []
+    for (height, width, lower, upper), shots in geometries.items():
+        statuses = {
+            record.shot: record.manifest_status
+            for record in records
+            if record.shot in shots
+        }
+        complete_shots = sorted(
+            shot for shot in shots if statuses.get(shot) == "complete"
+        )
+        rows.append(
+            {
+                "frame_height": height,
+                "frame_width": width,
+                "cadence_band_lower_us": lower,
+                "cadence_band_upper_us": upper,
+                "cadence_band_upper_inclusive": False if upper is not None else None,
+                "shot_count": len(shots),
+                "shots": sorted(shots),
+                "complete_shot_count": len(complete_shots),
+                "complete_shots": complete_shots,
+                "session_total": session_total,
+                "measured_at_utc": measured_at_utc,
+            }
+        )
+    rows.sort(
+        key=lambda row: (
+            -row["shot_count"],
+            row["frame_height"],
+            row["frame_width"],
+            row["cadence_band_lower_us"] is None,
+            row["cadence_band_lower_us"] or 0.0,
+        )
+    )
+    return rows
+
+
+def _family_summary(
+    records: list[SessionRanking],
+    *,
+    family_name: str,
+    definition: dict[str, Any],
+    predicate: Callable[[CameraMetrics], bool],
+    session_total: int,
+    measured_at_utc: str,
+) -> dict[str, Any]:
+    shots = sorted(
+        record.shot
+        for record in records
+        if any(predicate(camera) for camera in record.available_cameras)
+    )
+    count = len(shots)
+    complete_shots = sorted(
+        record.shot
+        for record in records
+        if record.shot in shots and record.manifest_status == "complete"
+    )
+    shot_word = "shot" if count == 1 else "shots"
+    return {
+        "family": family_name,
+        "definition": definition,
+        "shot_count": count,
+        "shots": shots,
+        "complete_shot_count": len(complete_shots),
+        "complete_shots": complete_shots,
+        "present_in_measured_sessions": bool(shots),
+        "finding": (
+            f"{count} {shot_word} found among {session_total} sessions at "
+            f"{measured_at_utc}; {len(complete_shots)} had complete manifests"
+        ),
+        "session_total": session_total,
+        "measured_at_utc": measured_at_utc,
+    }
 
 
 def _read_session_ranking(manifest_path: Path, level1_root: Path) -> SessionRanking:
@@ -240,7 +391,10 @@ def _read_session_ranking(manifest_path: Path, level1_root: Path) -> SessionRank
         store = zarr.open_group(str(level1_path), mode="r")
         groups = set(store.group_keys())
         record.thomson_groups = [name for name in THOMSON_GROUPS if name in groups]
-        metrics, score, components, errors = _best_camera(store, converged_slice_count)
+        available, metrics, score, components, errors = _best_camera(
+            store, converged_slice_count
+        )
+        record.available_cameras = available
         record.camera_errors = errors
         if metrics is not None:
             record.camera_group = metrics.camera_group
@@ -249,6 +403,7 @@ def _read_session_ranking(manifest_path: Path, level1_root: Path) -> SessionRank
             record.frame_area = metrics.frame_area
             record.frame_count = metrics.frame_count
             record.temporal_span_s = metrics.temporal_span_s
+            record.cadence_us = metrics.cadence_us
             record.score = score
             record.score_components = components
 
@@ -318,12 +473,85 @@ def build_ranking_payload(
         "utf-8"
     )
     top = ranking[:top_count]
+    measured_at_utc = datetime.now(UTC).isoformat()
+    session_total = len(records)
+    available_camera_group_total = sum(
+        len(record.available_cameras) for record in records
+    )
+    camera_group_counts = {
+        camera_group: sum(
+            any(
+                camera.camera_group == camera_group
+                for camera in record.available_cameras
+            )
+            for record in records
+        )
+        for camera_group in PLASMA_CAMERA_GROUPS
+    }
+    manifest_status_counts = {
+        status: sum(record.manifest_status == status for record in records)
+        for status in sorted({record.manifest_status for record in records})
+    }
+    demo_family = _family_summary(
+        records,
+        family_name="demo-rbb",
+        definition={
+            "camera_group": DEMO_CAMERA_GROUP,
+            "frame_height": DEMO_FRAME_HEIGHT,
+            "frame_width": DEMO_FRAME_WIDTH,
+            "cadence_target_us": DEMO_CADENCE_US,
+            "cadence_tolerance_us": DEMO_CADENCE_TOLERANCE_US,
+            "cadence_minimum_us": DEMO_CADENCE_US - DEMO_CADENCE_TOLERANCE_US,
+            "cadence_maximum_us": DEMO_CADENCE_US + DEMO_CADENCE_TOLERANCE_US,
+            "cadence_bounds_inclusive": True,
+            "dimension_tolerance_pixels": 0,
+        },
+        predicate=_is_demo_camera,
+        session_total=session_total,
+        measured_at_utc=measured_at_utc,
+    )
+    square_family = _family_summary(
+        records,
+        family_name="square-rbb",
+        definition={
+            "camera_group": SQUARE_CAMERA_GROUP,
+            "frame_height": SQUARE_FRAME_HEIGHT,
+            "frame_width": SQUARE_FRAME_WIDTH,
+            "cadence_minimum_us": SQUARE_MIN_CADENCE_US,
+            "cadence_maximum_us": SQUARE_MAX_CADENCE_US,
+            "cadence_bounds_inclusive": True,
+            "dimension_tolerance_pixels": 0,
+        },
+        predicate=_is_square_camera,
+        session_total=session_total,
+        measured_at_utc=measured_at_utc,
+    )
     return {
         "schema": "carrier-camera-ranking",
-        "generated_at_utc": datetime.now(UTC).isoformat(),
+        "generated_at_utc": measured_at_utc,
+        "measurement": {
+            "session_total": session_total,
+            "available_camera_group_total": available_camera_group_total,
+            "available_camera_group_counts": camera_group_counts,
+            "manifest_status_counts": manifest_status_counts,
+            "measured_at_utc": measured_at_utc,
+            "scope": (
+                "All figures in this report use the manifest paths discovered "
+                "for this pass; the corpus remains under active production."
+            ),
+        },
         "session_root": str(Path(session_root)),
         "level1_root": str(Path(level1_root)),
         "camera_groups": list(PLASMA_CAMERA_GROUPS),
+        "camera_inventory_fields": [
+            "camera_group",
+            "frame_height",
+            "frame_width",
+            "frame_area",
+            "frame_count",
+            "temporal_span_s",
+            "cadence_us",
+        ],
         "thomson_groups": list(THOMSON_GROUPS),
         "minimum_converged_slices": MIN_CONVERGED_SLICES,
         "score_definition": {
@@ -331,12 +559,32 @@ def build_ranking_payload(
             "scales": SCORE_SCALES,
             "tie_break": "shot ascending",
         },
-        "session_count": len(records),
+        "session_count": session_total,
         "eligible_count": len(eligible),
         "excluded_count": len(records) - len(eligible),
         "ranking_sha256": hashlib.sha256(encoded_ranking).hexdigest(),
         "winner": top[0],
         "top_five": top,
+        "rbb_geometry_distribution": {
+            "cadence_band_width_us": CADENCE_BAND_WIDTH_US,
+            "cadence_band_rule": (
+                "nearest 10 microseconds; lower bound inclusive, upper bound exclusive"
+            ),
+            "rows": _rbb_geometry_distribution(
+                records,
+                session_total=session_total,
+                measured_at_utc=measured_at_utc,
+            ),
+            "session_total": session_total,
+            "measured_at_utc": measured_at_utc,
+        },
+        "demo_camera_family": demo_family,
+        "square_camera_family": square_family,
+        "trainability_scope": (
+            "Camera metadata does not encode camera-topology cohort membership. "
+            "This report measures geometry and counts only; cohort exclusion is "
+            "applied elsewhere and trainability is not inferred here."
+        ),
         "ranking": ranking,
     }
 
@@ -380,6 +628,13 @@ def main(argv: list[str] | None = None) -> int:
                 "winner": winner["shot"],
                 "winner_camera": winner["camera_group"],
                 "winner_score": winner["score"],
+                "demo_camera_family_shot_count": payload["demo_camera_family"][
+                    "shot_count"
+                ],
+                "square_camera_family_shot_count": payload["square_camera_family"][
+                    "shot_count"
+                ],
+                "measured_at_utc": payload["measurement"]["measured_at_utc"],
                 "output": str(args.output),
             },
             sort_keys=True,
@@ -394,9 +649,20 @@ if __name__ == "__main__":
 
 __all__ = [
     "DEFAULT_TOP_COUNT",
+    "CADENCE_BAND_WIDTH_US",
+    "DEMO_CADENCE_TOLERANCE_US",
+    "DEMO_CADENCE_US",
+    "DEMO_CAMERA_GROUP",
+    "DEMO_FRAME_HEIGHT",
+    "DEMO_FRAME_WIDTH",
     "MIN_CONVERGED_SLICES",
     "PLASMA_CAMERA_GROUPS",
     "SCORE_SCALES",
+    "SQUARE_CAMERA_GROUP",
+    "SQUARE_FRAME_HEIGHT",
+    "SQUARE_FRAME_WIDTH",
+    "SQUARE_MAX_CADENCE_US",
+    "SQUARE_MIN_CADENCE_US",
     "THOMSON_GROUPS",
     "CameraMetrics",
     "SessionRanking",
