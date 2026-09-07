@@ -1,10 +1,12 @@
 """Diagnose signed magnetic-axis offsets against evaluator-only EFIT geometry.
 
-The EFIT reconstruction enters exclusively through
-:mod:`imas_ambix.worldmodel.equilibrium_labels` and is never exposed as a
-training input.  The diagnostic keeps every converged slice in its receipt,
-then reports the free flat-top subset used to interpret the physics-fidelity
-axis miss.  Nova's current centroid is retained as a third geometric referent.
+The EFIT reconstruction enters only as evaluator evidence and is never exposed
+as a training input.  Magnetic-axis geometry is read through
+:mod:`imas_ambix.worldmodel.equilibrium_labels`; the EFIT current centroid is
+read from its level-one ``efm`` signal.  The diagnostic keeps every converged
+slice in its receipt, then reports the free flat-top subset used to interpret
+the physics-fidelity axis miss.  Nova's current centroid is retained as a third
+geometric referent, including signed radial and vertical components.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from imas_ambix.camdyn.dataset import level1_shot_path
 from imas_ambix.data.paths import LEVEL1_DIR
 from imas_ambix.worldmodel import equilibrium_labels
 from imas_ambix.worldmodel.physics_fidelity_gate import (
@@ -36,6 +39,12 @@ if TYPE_CHECKING:
 
 RADIAL_SIGN_COHERENCE = 0.90
 RADIAL_DOMINANCE_RATIO = 0.75
+CENTROID_AGREEMENT_CM = 3.0
+CENTROID_LARGE_DISAGREEMENT_CM = 7.5
+EFIT_CENTROID_R_SIGNAL_CANDIDATES = (
+    "current_centrd_r",
+    "current_centroid_r",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,9 +66,15 @@ class AxisOffsetSlice:
     efit_axis_z_m: float | None
     current_centroid_r_m: float | None
     current_centroid_z_m: float | None
+    efit_current_centroid_r_m: float | None
     d_r_cm: float | None
     d_z_cm: float | None
     axis_offset_cm: float | None
+    nova_minus_efit_current_centroid_d_r_cm: float | None
+    current_centroid_minus_nova_axis_d_r_cm: float | None
+    current_centroid_minus_nova_axis_d_z_cm: float | None
+    current_centroid_minus_efit_axis_d_r_cm: float | None
+    current_centroid_minus_efit_axis_d_z_cm: float | None
     nova_axis_to_current_centroid_cm: float | None
     efit_axis_to_current_centroid_cm: float | None
     exclusion_reason: str | None
@@ -72,16 +87,43 @@ def signed_axis_offset_cm(
     efit_axis_z_m: float,
 ) -> tuple[float, float]:
     """Return signed ``(Nova - EFIT)`` magnetic-axis components in centimetres."""
+    return signed_point_components_cm(
+        nova_axis_r_m,
+        nova_axis_z_m,
+        efit_axis_r_m,
+        efit_axis_z_m,
+    )
+
+
+def signed_point_components_cm(
+    point_r_m: float,
+    point_z_m: float,
+    reference_r_m: float,
+    reference_z_m: float,
+) -> tuple[float, float]:
+    """Return signed ``(point - reference)`` components in centimetres."""
     values = np.asarray(
-        (nova_axis_r_m, nova_axis_z_m, efit_axis_r_m, efit_axis_z_m),
-        dtype=np.float64,
+        (point_r_m, point_z_m, reference_r_m, reference_z_m), dtype=np.float64
     )
     if not np.isfinite(values).all():
-        raise ValueError("magnetic-axis coordinates must be finite")
+        raise ValueError("point coordinates must be finite")
     return (
-        100.0 * float(nova_axis_r_m - efit_axis_r_m),
-        100.0 * float(nova_axis_z_m - efit_axis_z_m),
+        100.0 * float(point_r_m - reference_r_m),
+        100.0 * float(point_z_m - reference_z_m),
     )
+
+
+def signed_centroid_radial_offset_cm(
+    nova_current_centroid_r_m: float,
+    efit_current_centroid_r_m: float,
+) -> float:
+    """Return signed ``Nova - EFIT`` current-centroid radius in centimetres."""
+    values = np.asarray(
+        (nova_current_centroid_r_m, efit_current_centroid_r_m), dtype=np.float64
+    )
+    if not np.isfinite(values).all():
+        raise ValueError("current-centroid radii must be finite")
+    return 100.0 * float(nova_current_centroid_r_m - efit_current_centroid_r_m)
 
 
 def point_distance_cm(
@@ -122,6 +164,98 @@ def _optional_scalar(value: Any) -> float | None:
     return scalar if np.isfinite(scalar) else None
 
 
+def _interpolate_finite_signal(
+    native_times: np.ndarray,
+    native_values: np.ndarray,
+    query_times: np.ndarray,
+) -> np.ndarray:
+    """Linearly interpolate a finite signal without extrapolation."""
+    times = np.asarray(native_times, dtype=np.float64).reshape(-1)
+    values = np.asarray(native_values, dtype=np.float64).reshape(-1)
+    query = np.asarray(query_times, dtype=np.float64).reshape(-1)
+    if times.shape != values.shape:
+        raise ValueError("EFIT signal values need a matching time axis")
+    finite = np.isfinite(times) & np.isfinite(values)
+    if np.count_nonzero(finite) < 2:
+        return np.full(query.shape, np.nan, dtype=np.float64)
+    times = times[finite]
+    values = values[finite]
+    order = np.argsort(times, kind="stable")
+    times = times[order]
+    values = values[order]
+    distinct = np.concatenate(([True], np.diff(times) > 0.0))
+    times = times[distinct]
+    values = values[distinct]
+    result = np.full(query.shape, np.nan, dtype=np.float64)
+    if times.size < 2:
+        return result
+    in_range = (query >= times[0]) & (query <= times[-1])
+    result[in_range] = np.interp(query[in_range], times, values)
+    return result
+
+
+def load_efit_current_centroid_r(
+    shot_id: int,
+    frame_times: np.ndarray,
+    *,
+    level1_root: Path = LEVEL1_DIR,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    """Load EFIT current-centroid R or return an explicit unavailable receipt.
+
+    The magnetic axis is deliberately not a candidate: absence remains absence
+    because substituting another physical quantity would invalidate the check.
+    """
+    import zarr  # noqa: PLC0415
+
+    path = level1_shot_path(shot_id, level1_dir=Path(level1_root))
+    store = zarr.open_group(str(path), mode="r")
+    searched = [f"level1 efm/{name}" for name in EFIT_CENTROID_R_SIGNAL_CANDIDATES]
+    if "efm" not in set(store.group_keys()):
+        return np.full(np.asarray(frame_times).shape, np.nan), {
+            "available": False,
+            "signal": None,
+            "searched_signals": searched,
+            "reason": "level1 shot store has no efm group",
+        }
+    group = store["efm"]
+    keys = set(group.array_keys())
+    selected = next(
+        (name for name in EFIT_CENTROID_R_SIGNAL_CANDIDATES if name in keys), None
+    )
+    if selected is None or "time" not in keys:
+        reason = (
+            "level1 efm group has no matching current-centroid major-radius signal"
+            if selected is None
+            else "level1 efm group has no time axis"
+        )
+        return np.full(np.asarray(frame_times).shape, np.nan), {
+            "available": False,
+            "signal": None,
+            "searched_signals": searched,
+            "reason": reason,
+        }
+    signal = group[selected]
+    units = str(signal.attrs.get("units", ""))
+    if units != "m":
+        raise ValueError(
+            f"shot {shot_id}: level1 efm/{selected} units are {units!r}, expected 'm'"
+        )
+    values = _interpolate_finite_signal(
+        np.asarray(group["time"], dtype=np.float64),
+        np.asarray(signal, dtype=np.float64),
+        np.asarray(frame_times, dtype=np.float64),
+    )
+    return values, {
+        "available": True,
+        "signal": f"level1 efm/{selected}",
+        "searched_signals": searched,
+        "units": units,
+        "description": str(signal.attrs.get("description", "")),
+        "interpolation": "linear on finite native samples without extrapolation",
+        "finite_interpolated_count": int(np.count_nonzero(np.isfinite(values))),
+    }
+
+
 def _signed_summary(values: Sequence[float]) -> dict[str, float | int | None]:
     array = np.asarray(values, dtype=np.float64)
     finite = array[np.isfinite(array)]
@@ -147,6 +281,21 @@ def _slice_receipt(item: AxisOffsetSlice) -> dict[str, Any]:
     receipt = asdict(item)
     receipt["dR_cm"] = receipt.pop("d_r_cm")
     receipt["dZ_cm"] = receipt.pop("d_z_cm")
+    receipt["nova_minus_efit_current_centroid_dR_cm"] = receipt.pop(
+        "nova_minus_efit_current_centroid_d_r_cm"
+    )
+    receipt["current_centroid_minus_nova_axis_dR_cm"] = receipt.pop(
+        "current_centroid_minus_nova_axis_d_r_cm"
+    )
+    receipt["current_centroid_minus_nova_axis_dZ_cm"] = receipt.pop(
+        "current_centroid_minus_nova_axis_d_z_cm"
+    )
+    receipt["current_centroid_minus_efit_axis_dR_cm"] = receipt.pop(
+        "current_centroid_minus_efit_axis_d_r_cm"
+    )
+    receipt["current_centroid_minus_efit_axis_dZ_cm"] = receipt.pop(
+        "current_centroid_minus_efit_axis_d_z_cm"
+    )
     return receipt
 
 
@@ -196,6 +345,45 @@ def aggregate_slices(slices: Sequence[AxisOffsetSlice]) -> dict[str, Any]:
                 if item.axis_offset_cm is not None
             ]
         ),
+        "nova_minus_efit_current_centroid_dR_cm": _signed_summary(
+            [
+                float(item.nova_minus_efit_current_centroid_d_r_cm)
+                for item in evidence
+                if item.nova_minus_efit_current_centroid_d_r_cm is not None
+            ]
+        ),
+        "current_centroid_minus_nova_axis": {
+            "dR_cm": _signed_summary(
+                [
+                    float(item.current_centroid_minus_nova_axis_d_r_cm)
+                    for item in evidence
+                    if item.current_centroid_minus_nova_axis_d_r_cm is not None
+                ]
+            ),
+            "dZ_cm": _signed_summary(
+                [
+                    float(item.current_centroid_minus_nova_axis_d_z_cm)
+                    for item in evidence
+                    if item.current_centroid_minus_nova_axis_d_z_cm is not None
+                ]
+            ),
+        },
+        "current_centroid_minus_efit_axis": {
+            "dR_cm": _signed_summary(
+                [
+                    float(item.current_centroid_minus_efit_axis_d_r_cm)
+                    for item in evidence
+                    if item.current_centroid_minus_efit_axis_d_r_cm is not None
+                ]
+            ),
+            "dZ_cm": _signed_summary(
+                [
+                    float(item.current_centroid_minus_efit_axis_d_z_cm)
+                    for item in evidence
+                    if item.current_centroid_minus_efit_axis_d_z_cm is not None
+                ]
+            ),
+        },
         "nova_axis_to_current_centroid_cm": _distance_summary(
             [
                 float(item.nova_axis_to_current_centroid_cm)
@@ -260,6 +448,43 @@ def classify_offset(summary: Mapping[str, Any]) -> tuple[str, str]:
     )
 
 
+def classify_centroid_radial(
+    summary: Mapping[str, Any], signal_receipt: Mapping[str, Any]
+) -> tuple[str, str]:
+    """Classify Nova-to-EFIT centroid-R agreement without a substitute signal."""
+    radial = summary["nova_minus_efit_current_centroid_dR_cm"]
+    if not bool(signal_receipt["available"]) or int(radial["count"]) == 0:
+        searched = ", ".join(signal_receipt["searched_signals"])
+        return (
+            "efit_current_centroid_r_unavailable",
+            "Unavailable: EFIT publishes no usable current-centroid major radius "
+            f"for these evidence slices; searched {searched}, and the magnetic "
+            "axis was not substituted.",
+        )
+    median = float(radial["median"])
+    magnitude = abs(median)
+    signal = str(signal_receipt["signals"][0])
+    if magnitude <= CENTROID_AGREEMENT_CM:
+        return (
+            "agree_within_few_centimetres",
+            f"Agreement: Nova and EFIT current-centroid R agree within a few "
+            f"centimetres (median Nova - EFIT {median:+.2f} cm) using {signal}.",
+        )
+    if magnitude >= CENTROID_LARGE_DISAGREEMENT_CM:
+        return (
+            "disagree_by_about_ten_centimetres",
+            f"Disagreement: Nova and EFIT current-centroid R differ by something "
+            f"like ten centimetres (median Nova - EFIT {median:+.2f} cm) using "
+            f"{signal}.",
+        )
+    return (
+        "intermediate_radial_disagreement",
+        f"Intermediate disagreement: Nova and EFIT current-centroid R differ by "
+        f"more than a few but less than about ten centimetres (median Nova - EFIT "
+        f"{median:+.2f} cm) using {signal}.",
+    )
+
+
 def score_shot(
     shot_id: int,
     *,
@@ -299,6 +524,9 @@ def score_shot(
     geometry = equilibrium_labels.load_equilibrium_geometry(
         shot_id, slice_times, level2_root=Path(level2_root)
     )
+    efit_centroid_r, centroid_r_receipt = load_efit_current_centroid_r(
+        shot_id, slice_times, level1_root=Path(level1_root)
+    )
 
     results: list[AxisOffsetSlice] = []
     with xr.open_dataset(session_path, group="steering", engine="h5netcdf") as session:
@@ -336,9 +564,15 @@ def score_shot(
             centroid_z = _optional_scalar(
                 _slice_array(session, "current_centroid_z", session_index)
             )
+            referee_centroid_r = _optional_scalar(efit_centroid_r[position])
             d_r: float | None = None
             d_z: float | None = None
             axis_distance: float | None = None
+            centroid_radial: float | None = None
+            centroid_from_nova_axis_r: float | None = None
+            centroid_from_nova_axis_z: float | None = None
+            centroid_from_efit_axis_r: float | None = None
+            centroid_from_efit_axis_z: float | None = None
             nova_centroid: float | None = None
             efit_centroid: float | None = None
             try:
@@ -346,6 +580,18 @@ def score_shot(
                 axis_distance = float(np.hypot(d_r, d_z))
             except TypeError, ValueError:
                 exclusion = "non_finite_axis"
+            with suppress(TypeError, ValueError):
+                centroid_radial = signed_centroid_radial_offset_cm(
+                    centroid_r, referee_centroid_r
+                )
+            with suppress(TypeError, ValueError):
+                centroid_from_nova_axis_r, centroid_from_nova_axis_z = (
+                    signed_point_components_cm(centroid_r, centroid_z, nova_r, nova_z)
+                )
+            with suppress(TypeError, ValueError):
+                centroid_from_efit_axis_r, centroid_from_efit_axis_z = (
+                    signed_point_components_cm(centroid_r, centroid_z, efit_r, efit_z)
+                )
             with suppress(TypeError, ValueError):
                 nova_centroid = point_distance_cm(
                     nova_r, nova_z, centroid_r, centroid_z
@@ -376,9 +622,15 @@ def score_shot(
                     efit_axis_z_m=efit_z,
                     current_centroid_r_m=centroid_r,
                     current_centroid_z_m=centroid_z,
+                    efit_current_centroid_r_m=referee_centroid_r,
                     d_r_cm=d_r,
                     d_z_cm=d_z,
                     axis_offset_cm=axis_distance,
+                    nova_minus_efit_current_centroid_d_r_cm=centroid_radial,
+                    current_centroid_minus_nova_axis_d_r_cm=(centroid_from_nova_axis_r),
+                    current_centroid_minus_nova_axis_d_z_cm=(centroid_from_nova_axis_z),
+                    current_centroid_minus_efit_axis_d_r_cm=(centroid_from_efit_axis_r),
+                    current_centroid_minus_efit_axis_d_z_cm=(centroid_from_efit_axis_z),
                     nova_axis_to_current_centroid_cm=nova_centroid,
                     efit_axis_to_current_centroid_cm=efit_centroid,
                     exclusion_reason=exclusion,
@@ -390,6 +642,7 @@ def score_shot(
         "session_path": str(session_path.resolve()),
         "manifest_path": str(manifest_path.resolve()),
         "flat_top_current": current_receipt,
+        "efit_current_centroid_r": centroid_r_receipt,
         "summary": aggregate_slices(results),
         "slices": [_slice_receipt(item) for item in results],
     }
@@ -412,16 +665,37 @@ def score_carriers(
         )
         for shot in shots
     ]
+    renamed_slice_keys = {
+        "dR_cm": "d_r_cm",
+        "dZ_cm": "d_z_cm",
+        "nova_minus_efit_current_centroid_dR_cm": (
+            "nova_minus_efit_current_centroid_d_r_cm"
+        ),
+        "current_centroid_minus_nova_axis_dR_cm": (
+            "current_centroid_minus_nova_axis_d_r_cm"
+        ),
+        "current_centroid_minus_nova_axis_dZ_cm": (
+            "current_centroid_minus_nova_axis_d_z_cm"
+        ),
+        "current_centroid_minus_efit_axis_dR_cm": (
+            "current_centroid_minus_efit_axis_d_r_cm"
+        ),
+        "current_centroid_minus_efit_axis_dZ_cm": (
+            "current_centroid_minus_efit_axis_d_z_cm"
+        ),
+    }
     all_slices = [
         AxisOffsetSlice(
             **{
                 **{
                     key: value
                     for key, value in item.items()
-                    if key not in {"dR_cm", "dZ_cm"}
+                    if key not in renamed_slice_keys
                 },
-                "d_r_cm": item["dR_cm"],
-                "d_z_cm": item["dZ_cm"],
+                **{
+                    destination: item[source]
+                    for source, destination in renamed_slice_keys.items()
+                },
             }
         )
         for shot in shot_results
@@ -429,15 +703,48 @@ def score_carriers(
     ]
     aggregate = aggregate_slices(all_slices)
     classification, verdict = classify_offset(aggregate)
+    centroid_signals = sorted(
+        {
+            str(shot["efit_current_centroid_r"]["signal"])
+            for shot in shot_results
+            if shot["efit_current_centroid_r"]["signal"] is not None
+        }
+    )
+    centroid_signal_receipt = {
+        "available": len(centroid_signals) > 0,
+        "available_shot_count": sum(
+            bool(shot["efit_current_centroid_r"]["available"]) for shot in shot_results
+        ),
+        "shot_count": len(shot_results),
+        "signals": centroid_signals,
+        "searched_signals": [
+            f"level1 efm/{name}" for name in EFIT_CENTROID_R_SIGNAL_CANDIDATES
+        ],
+        "magnetic_axis_substituted": False,
+    }
+    centroid_classification, centroid_verdict = classify_centroid_radial(
+        aggregate, centroid_signal_receipt
+    )
     return {
         "generated_at": datetime.now(UTC).isoformat(),
         "diagnostic": "signed_axis_offset",
         "classification": classification,
         "verdict": verdict,
+        "centroid_radial_classification": centroid_classification,
+        "centroid_radial_verdict": centroid_verdict,
         "offset_definition": {
             "dR_cm": "100 * (Nova magnetic_axis_r - EFIT magnetic_axis_r)",
             "dZ_cm": "100 * (Nova magnetic_axis_z - EFIT magnetic_axis_z)",
             "axis_offset_cm": "hypot(dR_cm, dZ_cm)",
+            "nova_minus_efit_current_centroid_dR_cm": (
+                "100 * (Nova current_centroid_r - EFIT current-centroid R)"
+            ),
+            "current_centroid_minus_nova_axis": (
+                "100 * (Nova current_centroid_r,z - Nova magnetic_axis_r,z)"
+            ),
+            "current_centroid_minus_efit_axis": (
+                "100 * (Nova current_centroid_r,z - EFIT magnetic axis R,Z)"
+            ),
         },
         "flat_top_definition": {
             "signal": "level1 efm/plasma_current_c",
@@ -459,6 +766,7 @@ def score_carriers(
             ),
             "nova_axis": "steering/magnetic_axis_r,z",
             "nova_current_centroid": "steering/current_centroid_r,z",
+            "efit_current_centroid_r": centroid_signal_receipt,
         },
         "shots": shot_results,
         "aggregate": aggregate,
@@ -560,6 +868,160 @@ def write_diagnostic(
     return json_path, figure_path
 
 
+def _centroid_radial_artifact(diagnostic: Mapping[str, Any]) -> dict[str, Any]:
+    """Promote the radial-centroid verdict while retaining full slice evidence."""
+    return {
+        **diagnostic,
+        "diagnostic": "current_centroid_radial_offset",
+        "classification": diagnostic["centroid_radial_classification"],
+        "verdict": diagnostic["centroid_radial_verdict"],
+        "axis_offset_interpretation": {
+            "classification": diagnostic["classification"],
+            "verdict": diagnostic["verdict"],
+        },
+    }
+
+
+def write_centroid_radial_figure(diagnostic: Mapping[str, Any], path: Path) -> None:
+    """Plot signed centroid-R evidence and both centroid-to-axis components."""
+    from matplotlib.backends.backend_agg import FigureCanvasAgg  # noqa: PLC0415
+    from matplotlib.figure import Figure  # noqa: PLC0415
+
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    figure = Figure(figsize=(13.0, 7.5), dpi=150, constrained_layout=True)
+    FigureCanvasAgg(figure)
+    radial_axes, nova_axes, efit_axes = figure.subplots(1, 3)
+    palette = ("#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00")
+    radial_point_count = 0
+    for color, shot in zip(palette, diagnostic["shots"], strict=False):
+        eligible = [item for item in shot["slices"] if item["evidence_eligible"]]
+        label = str(shot["shot_id"])
+        radial = [
+            (item["time_s"], item["nova_minus_efit_current_centroid_dR_cm"])
+            for item in eligible
+            if item["nova_minus_efit_current_centroid_dR_cm"] is not None
+        ]
+        if radial:
+            radial_point_count += len(radial)
+            radial_axes.plot(
+                [point[0] for point in radial],
+                [point[1] for point in radial],
+                "o-",
+                color=color,
+                linewidth=0.8,
+                markersize=3,
+                label=label,
+            )
+        nova_components = [
+            (
+                item["time_s"],
+                item["current_centroid_minus_nova_axis_dR_cm"],
+                item["current_centroid_minus_nova_axis_dZ_cm"],
+            )
+            for item in eligible
+            if item["current_centroid_minus_nova_axis_dR_cm"] is not None
+            and item["current_centroid_minus_nova_axis_dZ_cm"] is not None
+        ]
+        if nova_components:
+            nova_axes.plot(
+                [point[0] for point in nova_components],
+                [point[1] for point in nova_components],
+                "o",
+                color=color,
+                markersize=3,
+                label=label,
+            )
+            nova_axes.plot(
+                [point[0] for point in nova_components],
+                [point[2] for point in nova_components],
+                "x",
+                color=color,
+                markersize=4,
+            )
+        efit_components = [
+            (
+                item["time_s"],
+                item["current_centroid_minus_efit_axis_dR_cm"],
+                item["current_centroid_minus_efit_axis_dZ_cm"],
+            )
+            for item in eligible
+            if item["current_centroid_minus_efit_axis_dR_cm"] is not None
+            and item["current_centroid_minus_efit_axis_dZ_cm"] is not None
+        ]
+        if efit_components:
+            efit_axes.plot(
+                [point[0] for point in efit_components],
+                [point[1] for point in efit_components],
+                "o",
+                color=color,
+                markersize=3,
+                label=label,
+            )
+            efit_axes.plot(
+                [point[0] for point in efit_components],
+                [point[2] for point in efit_components],
+                "x",
+                color=color,
+                markersize=4,
+            )
+    if radial_point_count == 0:
+        searched = ", ".join(
+            diagnostic["sources"]["efit_current_centroid_r"]["searched_signals"]
+        )
+        radial_axes.text(
+            0.5,
+            0.5,
+            f"EFIT current-centroid R unavailable\nSearched: {searched}\n"
+            "No magnetic-axis substitution",
+            ha="center",
+            va="center",
+            transform=radial_axes.transAxes,
+        )
+    for axes in (radial_axes, nova_axes, efit_axes):
+        axes.axhline(0.0, color="#333333", linewidth=0.8)
+        axes.set_xlabel("Time (s)")
+        axes.set_ylabel("Signed component (cm)")
+        axes.grid(alpha=0.2)
+    radial_axes.set_title("Nova centroid R - EFIT centroid R")
+    nova_axes.set_title("Nova centroid - Nova axis")
+    efit_axes.set_title("Nova centroid - EFIT axis")
+    if radial_point_count:
+        radial_axes.legend(title="Shot", fontsize=7)
+    nova_axes.legend(title="Shot; circles dR, crosses dZ", fontsize=7)
+    aggregate = diagnostic["aggregate"]
+    radial_summary = aggregate["nova_minus_efit_current_centroid_dR_cm"]
+    median_text = (
+        "unavailable"
+        if radial_summary["median"] is None
+        else f"{float(radial_summary['median']):+.2f} cm"
+    )
+    display_classification = str(diagnostic["classification"]).replace("_", " ")
+    signals = diagnostic["sources"]["efit_current_centroid_r"].get("signals", [])
+    signal_text = signals[0] if signals else "no EFIT centroid-R signal"
+    figure.suptitle(
+        f"Current-centroid radial check: {display_classification.upper()}\n"
+        f"Median Nova - EFIT centroid R {median_text}; source {signal_text}"
+    )
+    figure.savefig(output)
+
+
+def write_centroid_radial_diagnostic(
+    diagnostic: Mapping[str, Any], output_dir: Path
+) -> tuple[Path, Path]:
+    """Write the radial-centroid JSON diagnostic and matching figure."""
+    directory = Path(output_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    artifact = _centroid_radial_artifact(diagnostic)
+    json_path = directory / "centroid-radial.json"
+    figure_path = directory / "centroid-radial.png"
+    json_path.write_text(
+        json.dumps(artifact, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    write_centroid_radial_figure(artifact, figure_path)
+    return json_path, figure_path
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--session-root", type=Path, default=DEFAULT_SESSION_ROOT)
@@ -570,6 +1032,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument(
         "--shots", nargs="+", type=int, default=list(FROZEN_CARRIER_SHOTS)
+    )
+    parser.add_argument(
+        "--artifact",
+        choices=("axis", "centroid-radial", "both"),
+        default="axis",
+        help="select which diagnostic artifact pair to write",
     )
     return parser
 
@@ -582,12 +1050,20 @@ def main(argv: list[str] | None = None) -> int:
         level2_root=args.level2_root,
         level1_root=args.level1_root,
     )
-    paths = write_diagnostic(diagnostic, args.output_dir)
+    paths: tuple[Path, ...] = ()
+    if args.artifact in {"axis", "both"}:
+        paths += write_diagnostic(diagnostic, args.output_dir)
+    if args.artifact in {"centroid-radial", "both"}:
+        paths += write_centroid_radial_diagnostic(diagnostic, args.output_dir)
     print(
         json.dumps(
             {
                 "classification": diagnostic["classification"],
                 "verdict": diagnostic["verdict"],
+                "centroid_radial_classification": diagnostic[
+                    "centroid_radial_classification"
+                ],
+                "centroid_radial_verdict": diagnostic["centroid_radial_verdict"],
                 "aggregate": diagnostic["aggregate"],
                 "shots": [
                     {"shot_id": shot["shot_id"], **shot["summary"]}
