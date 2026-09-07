@@ -81,12 +81,24 @@
     single-stream tok/s would find no reason to prefer four cards over two, and
     would be right about that quantity and wrong about the deployment.</p>
 
-    <p><strong>Prefix caching is active and settles near 30%</strong> — 33.9% on a
-    four-day-old two-card engine, 28.0% and 27.7% on two fresh four-card ones.
-    Consumer-side usage records report zero cache reads, so the ~46× input
-    amplification two peer sessions measured is substantially a reporting gap
-    rather than pure wasted compute, though the headroom against metered lanes at
-    97–99% is real and structural.</p>
+    <p><strong>Prefix caching is active, and the whole-window rate is 17.0%</strong>
+    — 306,316,544 hits over 1,800,920,281 queries, cumulative across the four-card
+    window of 2026-09-05T15:57Z to 2026-09-07T03:52Z.</p>
+
+    <p><strong>An earlier version of this record claimed it "settles near 30%", and
+    that was wrong by roughly a factor of two.</strong> The claim rested on three spot
+    readings — 33.9%, 28.0%, 27.7% — taken early in an engine's life on a warm working
+    set. They agree with each other, and <em>that agreement is what made the
+    generalisation feel safe</em>: samples drawn from the same unrepresentative window
+    converge, and convergence reads as reliability. Only the cumulative figure carries
+    a window, and it is the one to quote. Anything reasoned from ~30% needs revisiting
+    rather than adjusting, because 17.0% is not a refinement of it.</p>
+
+    <p>Consumer-side usage records report zero cache reads, so the ~46× input
+    amplification two peer sessions measured is substantially a reporting gap rather
+    than pure wasted compute — but at 17.0% rather than 30% the genuine headroom
+    against metered lanes at 97–99% is correspondingly larger than this record first
+    stated.</p>
 
     <h2 id="s3">§3 — The constraint that shaped the cutover</h2>
 
