@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T13:39:08",
+  "updated": "2026-09-07T13:48:12",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -31971,6 +31971,150 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260907T112417147871-pcp-repair-null-independent-check",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74d",
+        "node": "pcp-repair-null-independent-check",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1896,
+                "cached_input_tokens": 591726,
+                "input_tokens": 593624,
+                "output_tokens": 3470,
+                "reasoning_output_tokens": 1793,
+                "total_tokens": 597094,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "docs/figures/physics-carried-playable-plasma/label-quality/repair-null-check.json exists committed carrying, for each of the six carriers present in both roots, the per-slice boundary-to-limiter distance and enclosed area computed from each root with the paired difference and its maximum absolute value, the counts of slices admitted from each root and any that appear in one only, the same figures split by the diverted flag so the round-off-level control is visible separately from the targeted class, the index and time of the first admitted slice of each shot alongside the first slice our renderer would render and the four camera frames it would seed from, and a one-line verdict stating whether our instrument reproduces the null and how many unrepairable cold slices fall inside or adjacent to our seed window. It must state the vertex counts from each root, since the repaired side is reported to return the banked polyline plus a closing vertex, 64 points becoming 65, and a naive comparison would read that serialisation difference as geometry. A PNG shows the paired differences by class on a log scale so a round-off-level control and a zero are distinguishable. pytest tests/worldmodel/test_boundary_wall_proximity.py passes with an added synthetic pair proving a closing-vertex-only difference is reported as zero geometric change rather than as a change. Whole-tree ruff check imas_ambix tests exits 0. Both gates and the measurement run on the all_debug partition via srun with TMPDIR=/tmp, with unset -f uv and command uv because the node's shell wraps uv, and no betelgeuse job is submitted, modified or cancelled",
+          "estimated_hours": null,
+          "goal": "One artifact that checks nova's reported null through our own instrument and locates the unrepairable frames relative to where our decoder seeds, using the existing imas_ambix.worldmodel.boundary_wall_proximity measure against two corpus roots. nova relabelled seven shots at the repaired revision into /work/projects/imas_gpu/sophelio/labeller_sessions/boundary-repair-validation-20260907T1124Z, namely 27079, 21978, 21983, 21985, 21986, 21989 and 22086, so all six of our carriers are present in both roots. Their paired comparison over 363 frames reports the limited class bit-identical while the diverted control moved by 1.18e-13, which is round-off proving the solve genuinely re-ran, so the change is targeted code that reached nothing rather than a join that matched nothing. Ours is an independent confirmation because it reads the boundary through a different path, computing distance to the limiter and enclosed area rather than a shadow median. It also locates the residual: nova's repair deliberately excludes the first frame of each run, which their count of seven cold frames across seven shots indicates is one frame per shot, and our render seeds from the four camera frames preceding its first rendered slice, so the artifact reports where those cold slices sit relative to both our seed window and our admitted set",
+          "id": "pcp-repair-null-independent-check",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T112417147871-pcp-repair-null-independent-check/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74d",
+          "spec_level": "guided",
+          "time_budget": "40m",
+          "write_paths": [
+            "imas_ambix/worldmodel/boundary_wall_proximity.py",
+            "tests/worldmodel/test_boundary_wall_proximity.py",
+            "docs/figures/physics-carried-playable-plasma/label-quality/repair-null-check.json",
+            "docs/figures/physics-carried-playable-plasma/label-quality/repair-null-check.png"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pcp-session-dataset",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T11:24:28Z",
+        "completed_at": "2026-09-07T11:46:46Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1338,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1338,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "2903bbe902758eae401223107e018e83aa214ac8",
+        "commits": [
+          "3e95b1e33cae460f52f8c65b2920e92817978d8c",
+          "8de18532dc1fe79bb965c58dc95f32236e240b89"
+        ],
+        "changed_lines": {
+          "added": 11719,
+          "removed": 2,
+          "files": 4
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug unset -f uv; command uv run --no-sync pytest -p no:cacheprovider tests/worldmodel/test_boundary_wall_proximity.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T112417147871-pcp-repair-null-independent-check/final-gates.log",
+          "log_digest": "1142813ac991bfaf0900eefcbdea45f783773d404431d9e9420754cdefd7e34b"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T112417147871-pcp-repair-null-independent-check/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 8441728,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 8654817,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 31241,
+            "reasoning_output_tokens": 0,
+            "reasoning_output_tokens_cumulative": 8588
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 39829,
+          "peak_input_tokens": 17096545
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-repair-null-independent-check",
+          "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+          "session_source": "pointer",
+          "retained_at": "2026-09-07T11:46:46Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_boundary_wall_proximity.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -32017,6 +32161,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 593
+    "_version": 594
   }
 }
