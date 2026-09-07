@@ -559,6 +559,31 @@
       <img src="/imas-ambix/figures/physics-carried-playable-plasma/shot-21978-real-decoded-step47185-frames.png" alt="Shot 21978 contact sheet: real 512x512 rbb frames of the whole vessel beside the decoder's output, which is texture noise decaying to dark">
       <figcaption>21978 from the step 47,185 checkpoint: real (left) beside decoded (right); the decoder has not seen this camera.</figcaption>
     </figure>
+    <h2 id="s5b-demo-carrier">§5b — The demo carrier transfers: 22086 from the step 57,019 checkpoint (2026-09-07)</h2>
+    <p>Node <code>pcp-video-carrier-22086</code> (commit <code>1915aa1</code>, <code>all_debug</code> job 1263980) rendered the
+    carrier that decision <code>demo-carrier-firewall</code> locked: 46 of 46 admitted slices paired, and the decoder <strong>was
+    never trained on this shot</strong> (decision <code>carrier-held-out</code>; its session landed after the job's latest rescan).
+    Read the ratio column rather than the absolute error, because each camera has its own scale of frame-to-frame change:</p>
+    <table>
+      <thead><tr><th>Shot, camera</th><th>In training?</th><th>Decoded MAE</th><th>Persistence MAE</th><th>Ratio</th></tr></thead>
+      <tbody>
+        <tr><td>21858, rbb 48&times;256 at 20 &micro;s</td><td>yes</td><td>9.61</td><td>2.75</td><td>3.5</td></tr>
+        <tr><td><strong>22086, rbb 128&times;172 at 20 &micro;s (demo carrier)</strong></td><td><strong>no</strong></td><td><strong>20.70</strong></td><td><strong>6.30</strong></td><td><strong>3.3</strong></td></tr>
+        <tr><td>21978, rbb 512&times;512 at 667 &micro;s</td><td>no</td><td>87.09</td><td>12.02</td><td>7.3</td></tr>
+        <tr><td>21989, rbb 512&times;512 at 667 &micro;s</td><td>no</td><td>102.11</td><td>8.51</td><td>12.0</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Reading, and it is the first positive one.</strong> On the demo carrier the decoder reproduces the vessel outline, the
+    dark centre column and the bright inboard edges in roughly the right places, and its error relative to persistence (3.3) matches a
+    shot it actually trained on (3.5) while the unseen 512&times;512 cameras sit at 7.3 and 12.0. So the transfer failure measured
+    earlier is specific to camera geometry and cadence, not general: within the 20 &micro;s family the decoder generalises to a
+    held-out shot about as well as it fits a training one. It still does not beat persistence anywhere, which is what the §6
+    decoder-skill gate demands, and at 3 h 40 min of a 10 h run the gap is closing rather than closed.</p>
+    <figure>
+      <img src="/imas-ambix/figures/physics-carried-playable-plasma/shot-22086-real-decoded-step57019-frames.png" alt="Shot 22086 contact sheet: real 128x172 rbb frames beside the decoder's output, which reproduces the vessel outline and dark centre column">
+      <figcaption>Demo carrier 22086, held out of training, from the step 57,019 checkpoint: real (left) beside decoded (right).</figcaption>
+    </figure>
+
 
     <h2 id="s4b-state">§4b — Where the section stands</h2>
     <p>Five nodes landed: the target derivation, the cohort and confounder census, the divertor-bright

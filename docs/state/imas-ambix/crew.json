@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T09:08:49",
+  "updated": "2026-09-07T09:30:43",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -900,9 +900,11 @@
         "id": "pcp-camera-family",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a07ab3-7cc9-7982-af43-0ac0997edeea",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "{\"alias\":\"sol5.6\",\"backend\":\"codex\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-sol\",\"sandbox\":\"worktree-full\"}": "01a07ab3-7cc9-7982-af43-0ac0997edeea"
+        },
         "created": "2026-09-07"
       },
       {
@@ -1053,7 +1055,8 @@
         "session_id": "01a062cd-98fe-76a2-bb63-0b41a38bb7bc",
         "session_model": "gpt-5.6-sol",
         "sessions": {
-          "gpt-5.6-sol": "01a062cd-98fe-76a2-bb63-0b41a38bb7bc"
+          "gpt-5.6-sol": "01a062cd-98fe-76a2-bb63-0b41a38bb7bc",
+          "{\"alias\":\"sol5.6\",\"backend\":\"codex\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-sol\",\"sandbox\":\"worktree-full\"}": "01a07abd-8139-71e3-a42a-a1e67b45da0d"
         }
       },
       {
@@ -28097,6 +28100,281 @@
           "role": "implement",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260907T071958268026-pcp-cohort-guard-per-epoch",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74d",
+        "node": "pcp-cohort-guard-per-epoch",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 272,
+                "cached_input_tokens": 787792,
+                "input_tokens": 788066,
+                "output_tokens": 1048,
+                "reasoning_output_tokens": 16,
+                "total_tokens": 789114,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "pytest tests/worldmodel/test_flux_decoder_train.py passes on the all_debug partition via srun with TMPDIR=/tmp and command uv, including a test that injects a cohort shot into a synthetic session root and asserts the guard raises naming that shot id, and a test that a cohort-free root records cohort_intersection_count zero with the epoch and session total in the receipt, and whole-tree ruff check imas_ambix tests exits 0 with no betelgeuse job submitted or cancelled",
+          "estimated_hours": null,
+          "goal": "A per-epoch cohort-firewall guard in the training path: every epoch rescan in imas_ambix/worldmodel/flux_decoder_train.py computes the intersection of its admitted shot ids with the 718-shot camera-topology labeller cohort read through imas_ambix.worldmodel.camera_topology_labeller, raises with the offending shot ids when the intersection is non-empty, and records in receipt.json the epoch, the session total scanned, the admitted shot count and cohort_intersection_count so that a clean intersection is stamped per epoch rather than asserted once, because the corpus grows under the running job and a guard that has never had to fire is indistinguishable from one that cannot",
+          "id": "pcp-cohort-guard-per-epoch",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T071958268026-pcp-cohort-guard-per-epoch/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74d",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/worldmodel/flux_decoder_train.py",
+            "tests/worldmodel/test_flux_decoder_train.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "pcp-session-dataset",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T07:20:07Z",
+        "completed_at": "2026-09-07T07:29:14Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 547,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 547,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "13aa746f8cfa7f9a74a9b8c7b3b74485c451de64",
+        "commits": [
+          "8e218167016a59ea49eae45d155e13e019e567a0"
+        ],
+        "changed_lines": {
+          "added": 176,
+          "removed": 5,
+          "files": 2
+        },
+        "tests_added": 2,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug pytest -p no:cacheprovider tests/worldmodel/test_flux_decoder_train.py (SLURM job 1263995, 6 passed) plus whole-tree ruff",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T071958268026-pcp-cohort-guard-per-epoch/pytest-all-debug.log",
+          "log_digest": "sha256:7bc9fd3cebe1ecb65ea882497ad846193ede81bca9b3adfb3dfd0f16f3754ebc"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T071958268026-pcp-cohort-guard-per-epoch/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 0,
+            "cached_input_tokens_cumulative": 4594816,
+            "input_tokens": 0,
+            "input_tokens_cumulative": 4757583,
+            "output_tokens": 1211,
+            "output_tokens_cumulative": 21219,
+            "reasoning_output_tokens": 3904,
+            "reasoning_output_tokens_cumulative": 9373
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 30592,
+          "peak_input_tokens": 9352399
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-cohort-guard-per-epoch",
+          "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+          "session_source": "pointer",
+          "retained_at": "2026-09-07T07:29:14Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_flux_decoder_train.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
+      },
+      {
+        "run_id": "r-20260907T071513792529-pcp-video-carrier-22086",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a75b",
+        "node": "pcp-video-carrier-22086",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1766,
+                "cached_input_tokens": 767359,
+                "input_tokens": 769127,
+                "output_tokens": 2316,
+                "reasoning_output_tokens": 208,
+                "total_tokens": 771443,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "the gif, its -frames.png still and its receipt exist under docs/figures/physics-carried-playable-plasma/ committed with git add -f in your worktree, the receipt reports the SLURM job id and partition all_debug, the checkpoint sha256 and step 57019, the admitted and paired slice counts, written_frame_count equal to gif_frame_count, and the mean decoded and persistence pixel errors against the real frames, and the manifest quotes those two numbers beside the 21978 figures (87.09 vs 12.02) and the 21989 figures (102.11 vs 8.51) so the demo carrier's transfer is directly comparable; no code files change and no betelgeuse job is touched",
+          "estimated_hours": null,
+          "goal": "The real-versus-decoded video of the newly locked demo carrier 22086 (decision demo-carrier-firewall: the only frozen-six shot outside the labeller cohort, rbb 128x172 at 20 us, nova's receipted keyframe carrier, 46 converged slices of 60) from the latest trained checkpoint: run the landed imas_ambix.worldmodel.flux_decoder_video command on the all_debug partition via srun (never the login node, command uv to bypass the node uv shell function) against session /work/projects/imas_gpu/sophelio/labeller_sessions/76906a29/22086.nc and checkpoint /work/projects/imas_gpu/ambix/flux_decoder/overnight-20260907c/checkpoint-000057019.pt (step 57019 of training job 1263842, still running, so copy the checkpoint into your run directory first and decode from the copy) with --vq-route persistent-subprocess, writing docs/figures/physics-carried-playable-plasma/shot-22086-real-decoded-step57019.gif with its -frames.png still and receipt json beside it exactly as the 21978 and 21989 pairs were produced",
+          "id": "pcp-video-carrier-22086",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T071513792529-pcp-video-carrier-22086/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75b",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "docs/figures/physics-carried-playable-plasma/shot-22086-real-decoded-step57019.gif",
+            "docs/figures/physics-carried-playable-plasma/shot-22086-real-decoded-step57019-frames.png",
+            "docs/figures/physics-carried-playable-plasma/shot-22086-real-decoded-step57019.receipt.json"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "pcp-decoder-video",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T07:15:27Z",
+        "completed_at": "2026-09-07T07:29:33Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 846,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 846,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "73194a60e114e6eb6a85861ee5c5920ba2ed7171",
+        "commits": [
+          "1915aa158a95507f01d08a9c1e50faf64fbd6467"
+        ],
+        "changed_lines": {
+          "added": 201,
+          "removed": 0,
+          "files": 3
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug python -m imas_ambix.worldmodel.flux_decoder_video 22086.nc checkpoint-000057019.pt --vq-route persistent-subprocess (SLURM job 1263980)",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T071513792529-pcp-video-carrier-22086/real-render-all-debug.log",
+          "log_digest": "sha256:92d4eab5946307f90b40c235a19f6ae90ee57407b3addc591157f6319066132f"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T071513792529-pcp-video-carrier-22086/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07ab8-d0c7-7b90-b713-395a760b5542",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 7821440,
+            "cached_input_tokens_cumulative": 7821440,
+            "input_tokens": 8018245,
+            "input_tokens_cumulative": 8018245,
+            "output_tokens": 20571,
+            "output_tokens_cumulative": 20571,
+            "reasoning_output_tokens": 4550,
+            "reasoning_output_tokens_cumulative": 4550
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 25121,
+          "peak_input_tokens": 15839685
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-video-carrier-22086",
+          "session_id": "01a07ab8-d0c7-7b90-b713-395a760b5542",
+          "session_source": "stream",
+          "retained_at": "2026-09-07T07:29:33Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
       }
     ],
     "holds": [
@@ -28143,6 +28421,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 562
+    "_version": 566
   }
 }
