@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="72">
+<meta name="plan-version" content="73">
 <meta name="plan-impl" content="0.9">
 </head>
 <body>
@@ -612,7 +612,21 @@
     <code>docs/figures/physics-carried-playable-plasma/label-cartoon/pair/</code>. Runs once §5d-i and
     §5d-ii have both landed. Done when the pair for the census winner is committed with its receipt, the
     identical-frame-count and identical-width identities hold, and the receipt names the winner and the
-    census figures that selected it.</p>
+    census figures that selected it. The carrier is <strong>24854</strong>, <code>rbc</code> at
+    480&times;512, 2,050 frames at 200 &micro;s over 0.0001&ndash;0.4999 s, with 72 converged slices
+    <em>all 72 of which fall inside the camera window</em>, so this pair has no out-of-window shortfall
+    at all. Its Thomson is <code>ayc</code> and <code>aye</code>, not <code>atm</code>, and
+    <code>ayc.radius</code> is two-dimensional (time, 131 channels) where <code>atm.radius</code> is one
+    per channel — so the chord must be drawn from a per-slice radius row, and the node generalises the
+    renderer to both shapes rather than assuming the reference shot's. Prefer <code>ayc</code>:
+    <code>aye</code>'s time base runs to 133 s on this shot and is not a shot clock.</p>
+    <p><strong>A GIF is invisible in the figures index, so each one needs a still beside it</strong>
+    (measured 2026-09-07, confirmed in <code>reckon/figures.py:110</code> and
+    <code>reckon/serve.py:1096</code>, which glob <code>*.png</code> and <code>*.svg</code> only). All 47
+    GIFs under this repository's figures tree are fetchable by URL and absent when browsing. So the node
+    writes a contact sheet beside each GIF — <code>&lt;name&gt;-frames.png</code>, evenly spaced frames
+    including the first and the last — which is what makes the deliverable visible to whoever opens the
+    index rather than to whoever already knows the URL.</p>
 
     <h3 id="s5d-carrier-cameras">§5d-iv — The frozen carrier's cameras, measured</h3>
     <p><strong>The answer to the re-lock question above, from level-1 metadata on 2026-09-07.</strong>
