@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="92">
+<meta name="plan-version" content="93">
 <meta name="plan-impl" content="0.9">
 <meta name="plan-commits" content="f854455492b0103c5f64d7a6533a46f6059d3ab2,56ca74eeb4f34ac8955ec8553eba0b98d11bdbec,73f306341c327fb2add035765fcdc64d94a5e45a,a4fb3eaab244d481cc17c08ed196f7d8bb917171">
 <meta name="plan-artifacts" content="docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json,docs/figures/physics-carried-playable-plasma/label-cartoon/carrier-cameras/camera-picture-quality.json,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/receipt.json,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-census,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-carrier-cameras">
@@ -735,6 +735,54 @@
     reads, so <code>sun_debug</code>. Done when the committed list and count are derived from all groups
     per shot, the existing ranking's winner and top five are unchanged, and the answer states plainly
     whether the family is present in the corpus.</p>
+
+    <h3 id="s5d-stale">§5d-vii — Corrections: two of this section's own findings were snapshots</h3>
+    <p><strong>The corpus is under active production, and §5d-iv and §5d-vi recorded moving numbers as
+    standing facts.</strong> Session totals measured today: 839 at 07:47, 848 when the first census ran,
+    <strong>880 at 09:15</strong>. Both corrections below are the same defect, and it is the one a peer
+    had already warned about on a different count — a test or a record must not encode a snapshot of a
+    number that is still moving.</p>
+    <p><strong>Correction 1 &mdash; every frozen-carrier shot now has a complete session.</strong> §5d-iv
+    states that none of the six has a session or manifest, measured at 07:47. At 09:15 all six are
+    present and complete:</p>
+    <table>
+      <thead><tr><th>Shot</th><th>Rows</th><th>Converged</th><th>Conditioned</th><th>Free</th></tr></thead>
+      <tbody>
+        <tr><td>21978</td><td>72</td><td>46</td><td>3</td><td>43</td></tr>
+        <tr><td>21983</td><td>72</td><td>44</td><td>8</td><td>36</td></tr>
+        <tr><td>21985</td><td>71</td><td>39</td><td>6</td><td>33</td></tr>
+        <tr><td>21986</td><td>62</td><td>40</td><td>7</td><td>33</td></tr>
+        <tr><td>21989</td><td>75</td><td>45</td><td>3</td><td>42</td></tr>
+        <tr><td>22086</td><td>60</td><td>46</td><td>3</td><td><strong>43</strong></td></tr>
+      </tbody>
+    </table>
+    <p>So &ldquo;the labelled corpus and the operator carrier are disjoint sets&rdquo; is withdrawn: it
+    was true when measured and is false now. The consequence that survives is the one that mattered —
+    the §5 live loop needs sessions for whichever shot is locked — and it is now satisfied rather than
+    outstanding.</p>
+    <p><strong>Correction 2 &mdash; the missing 512&times;512 family was an artefact of when the census
+    ran, and its real absence has a different cause.</strong> §5d-vi reports zero sessions carrying
+    <code>rbb</code> at 512&times;512 across 848 rows. Five frozen carriers hold exactly that geometry
+    and their sessions landed after that census, so a re-run over 880 will very likely find them. The
+    lower-bound caveat in §5d-vi was the right instinct pointed at the wrong hazard: the census's
+    one-group-per-shot storage was a real limitation, but the reason the number was zero was that the
+    corpus had not finished being written.</p>
+    <p><strong>The durable constraint is a firewall, not an absence.</strong> Five of the six —
+    21978, 21983, 21985 as labeller train, 21989 as validation, 21986 as clean same-campaign test — are
+    members of the 718-shot camera-topology labeller cohort, and the flux-conditioned decoder's allowed
+    universe is the label corpus <em>minus</em> that cohort. So those cameras cannot be trained on even
+    where sessions exist, because a judge and a player sharing shots is leakage. 22086 is the only
+    frozen-six shot outside the cohort, which is why it is the carrier nova's app already seeds, and it
+    carries 43 free converged slices. <strong>Cohort membership is not visible in camera metadata</strong>,
+    so no geometry census can settle trainability and none of this section's reports claims to.</p>
+    <p><strong>What it changes here.</strong> The demo carrier is 22086 at <code>rbb</code> 128&times;172
+    and 20 &micro;s (decision <code>demo-carrier-firewall</code>). 24854 remains the presentation-media
+    carrier — it is outside the cohort, it has the best picture in the corpus, and its 72 converged
+    slices all pair — but <strong>a pair built on 24854 must not be captioned as the demo carrier</strong>,
+    because it is a labelled corpus shot chosen for its camera and not the shot the physics demo runs on.
+    §5d-vi's node now emits the ranked distribution of <code>rbb</code> geometries with counts, plus the
+    shot lists for 22086's family and the 512&times;512 family, every figure stamped with the session
+    total and the time it was measured.</p>
 
     <h2 id="s6">§6 — Pre-registered gates</h2>
     <p>Locked before any number is produced. Each is a measure that emits evidence; a gate that cannot be
