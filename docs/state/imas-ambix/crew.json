@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T12:28:20",
+  "updated": "2026-09-07T12:55:39",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -964,9 +964,11 @@
         "id": "pcp-decoder-video-2",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a07b70-6b76-7690-99fa-8cfbb03f3fcd",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "{\"alias\":\"sol5.6\",\"backend\":\"codex\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-sol\",\"sandbox\":\"worktree-full\"}": "01a07b70-6b76-7690-99fa-8cfbb03f3fcd"
+        },
         "created": "2026-09-07"
       },
       {
@@ -31537,6 +31539,150 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260907T100825513265-pcp-boundary-wall-proximity",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74d",
+        "node": "pcp-boundary-wall-proximity",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 3439,
+                "cached_input_tokens": 454595,
+                "input_tokens": 458036,
+                "output_tokens": 1686,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 459722,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "docs/figures/physics-carried-playable-plasma/label-quality/boundary-wall-proximity.json exists committed carrying, for each of the six carriers and in aggregate, the count of admitted slices split by the diverted flag, and for each group the minimum, median, ninetieth percentile and maximum of the boundary-to-limiter minimum distance in millimetres alongside the enclosed boundary area in square metres, the count and fraction of slices whose boundary-to-limiter distance exceeds 50 mm, and a one-line verdict naming what fraction of our trainable slices carry a floating boundary and whether the effect is confined to the non-diverted group as nova predicts. A PNG shows the distance distribution split by the flag beside a scatter of distance against boundary area. pytest tests/worldmodel/test_boundary_wall_proximity.py passes with a synthetic case planting a boundary at a known distance inside the limiter and recovering that distance, and a deliberately fired case where a shrunken boundary is detected as floating. Whole-tree ruff check imas_ambix tests exits 0. Both gates run on the all_debug partition via srun with TMPDIR=/tmp and command uv, and no betelgeuse job is submitted, modified or cancelled",
+          "estimated_hours": null,
+          "goal": "A geometric measurement in a new imas_ambix/worldmodel/boundary_wall_proximity.py of how many of the slices we train on carry a floating plasma boundary, because nova has found a solver defect that corrupts the very quantity our conditioning image is made of. Nova reports that on the limited topology class the boundary anchor lacks a reachability test, so the boundary can sit far from a limiter that EFIT touches: a median 143 mm and a maximum 392 mm on one shot, with an axis-to-boundary flux span 0.399 times EFIT's and a boundary area up to 24 times too small, while the solve still reports success because nothing in its guard compares the boundary to the wall. This is input corruption rather than label noise for us, since the flux surfaces are not an outline drawn beside our conditioning, they are the conditioning raster. The measurement detects the defect by evidence rather than by class label, computing per admitted slice the minimum distance from the outermost flux surface to the limiter polygon and the enclosed boundary area, and reporting their distributions split by the session's diverted flag, which nova states is recorded correctly and is trustworthy. It reuses the 36-vertex limiter and the point-in-polygon helper already in imas_ambix.worldmodel.flux_conditioning and imas_ambix.latent.wall_mask rather than introducing new geometry. It changes no admission behaviour: this node measures, and the decision about excluding frames follows from its numbers",
+          "id": "pcp-boundary-wall-proximity",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T100825513265-pcp-boundary-wall-proximity/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74d",
+          "spec_level": "guided",
+          "time_budget": "40m",
+          "write_paths": [
+            "imas_ambix/worldmodel/boundary_wall_proximity.py",
+            "tests/worldmodel/test_boundary_wall_proximity.py",
+            "docs/figures/physics-carried-playable-plasma/label-quality"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pcp-session-dataset",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T10:08:35Z",
+        "completed_at": "2026-09-07T10:53:49Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 2714,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 2714,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "952481369286ff9191673897c369f64553becba9",
+        "commits": [
+          "b8f6d8112567e763e9d9eaec31311fbf86c45786",
+          "6ce1875584d3b33e987a671b0f3826b360a04b5f",
+          "80c2cc1cab58c3e13e3776307fd058796272242c"
+        ],
+        "changed_lines": {
+          "added": 8869,
+          "removed": 0,
+          "files": 4
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug command uv run --no-sync pytest -p no:cacheprovider tests/worldmodel/test_boundary_wall_proximity.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T100825513265-pcp-boundary-wall-proximity/expanded-focused-pytest.log",
+          "log_digest": "edaa93bff3bad4e5ed1582d98a3a0c5bf2e2f5790f30a83efbdce72c9c66724d"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T100825513265-pcp-boundary-wall-proximity/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 1081344,
+            "cached_input_tokens_cumulative": 8869504,
+            "input_tokens": 976560,
+            "input_tokens_cumulative": 8945841,
+            "output_tokens": 0,
+            "output_tokens_cumulative": 34801,
+            "reasoning_output_tokens": 145,
+            "reasoning_output_tokens_cumulative": 9213
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 44014,
+          "peak_input_tokens": 17815345
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 2,
+        "attempt_kind": "resume",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-boundary-wall-proximity",
+          "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+          "session_source": "pointer",
+          "retained_at": "2026-09-07T10:53:49Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_boundary_wall_proximity.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -31583,6 +31729,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 589
+    "_version": 591
   }
 }
