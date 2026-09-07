@@ -484,6 +484,7 @@ def write_figure(report: Mapping[str, Any], output: Path) -> None:
 
     labels = ("constant → machine", "machine → constant")
     colors = ("#0072B2", "#D55E00")
+    plotted_deviations: list[np.ndarray] = []
     for direction, label, color in zip(directions, labels, colors, strict=True):
         samples = direction["samples"]
         fraction = np.asarray(
@@ -492,15 +493,23 @@ def write_figure(report: Mapping[str, Any], output: Path) -> None:
         signed_mm = np.asarray(
             [sample["signed_distance_mm"] for sample in samples], dtype=np.float64
         )
+        plotted_deviations.append(signed_mm)
         deviation_axis.plot(
             fraction, signed_mm, color=color, linewidth=1.2, label=label
         )
     deviation_axis.axhline(0.0, color="black", linewidth=0.8)
-    deviation_axis.axhline(
-        DEFECT_THRESHOLD_MM, color="#999999", linestyle=":", linewidth=1.0
+    maximum_plotted_mm = max(
+        float(np.max(np.abs(values))) for values in plotted_deviations
     )
-    deviation_axis.axhline(
-        -DEFECT_THRESHOLD_MM, color="#999999", linestyle=":", linewidth=1.0
+    display_half_range_mm = max(1.0e-3, 1.15 * maximum_plotted_mm)
+    deviation_axis.set_ylim(-display_half_range_mm, display_half_range_mm)
+    deviation_axis.text(
+        0.02,
+        0.03,
+        f"Zoomed mismatch scale; threshold is ±{DEFECT_THRESHOLD_MM:g} mm",
+        transform=deviation_axis.transAxes,
+        fontsize=8,
+        color="#555555",
     )
     deviation_axis.set_xlabel("Poloidal circuit fraction")
     deviation_axis.set_ylabel("Signed nearest-wall deviation (mm)")
