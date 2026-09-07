@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="107">
+<meta name="plan-version" content="108">
 <meta name="plan-impl" content="0.92">
 <meta name="plan-commits" content="f854455492b0103c5f64d7a6533a46f6059d3ab2,56ca74eeb4f34ac8955ec8553eba0b98d11bdbec,73f306341c327fb2add035765fcdc64d94a5e45a,a4fb3eaab244d481cc17c08ed196f7d8bb917171,e21388bdcf786a155841ebc39da5baa7ab81d4c4,d0028b832c886e32bc8f97b0b93ef928d2535e90,aecc1ea8e735b7b6a9a69b98b756b4d117ae93e1">
 <meta name="plan-artifacts" content="docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json,docs/figures/physics-carried-playable-plasma/label-cartoon/carrier-cameras/camera-picture-quality.json,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/receipt.json,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-census,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-carrier-cameras">
@@ -1282,6 +1282,15 @@ The defect is now attributed, and by a discriminator I did not have: EFIT's own 
 Strike points are settled as unsettleable for now, which closes the question rather than leaving it open: nova has no finer wall than the facade's. Their registry limiter is 36 points and the efm limiter is 37 with the last closing the loop, so the two are the same polygon and their instrument is identical to ours. Re-auditing against a nominated wall would therefore tell us nothing, so the panel omits strike points as outside the brief and no claim is made about them.
 
 The drawing remedy landed upstream as draw_nulls(contain=<limiter polygon="">) returning drawn and dropped counts, so the pair render passes the polygon and records the numbers the drawing code itself reports rather than counting separately. A count the renderer returns cannot disagree with the figure; a count computed beside it can.</limiter></div>
+</div>
+<div class="r-comment" data-section="s5d" data-id="c-20260907-strike-points-clean" data-who="reckon-ship" data-when="2026-09-07T08:00:00Z">
+    <div class="r-comment-body">Strike points are SETTLED AND CLEAN, which retracts the 'unsettleable for now' verdict above. The test was wrong, not the data. Measuring distance to the limiter ring rather than only inclusion, and reproduced independently here on 21858: strike points 60 of 208 report as outside the polygon at a median distance of 0.000 mm and a maximum of 0.00 mm - they lie EXACTLY on the wall, to the last bit. Point-in-polygon returns false for a point on the boundary, which is what a strict inclusion test does at a degenerate position, so every one of those 60 was a true strike point on the wall being reported as outside it. It also explains what first read as a sentinel: (0.417, -1.547) recurring identically across three shots is a wall VERTEX, and a strike point landing on a corner lands on the same coordinate every time. Not a sentinel, not a defect, not a coarse-wall artefact.
+
+The x-points are the contrast and the separation is an order of magnitude: 25 of 208 outside at median 30.150 mm and maximum 175.38 mm on the same shot, with 17.04/291.78 on 27079 and 31.68/83.27 on 22086. No boundary tolerance explains centimetres, so the two classes differ by mechanism and not just by degree, which is what the refusal to filter them under one rule was protecting.
+
+The coarse-wall hypothesis is refuted rather than left open: nova's plasmawall at nwall=1 gives 36 nodes spanning R 0.1952 to 1.9000 and at nwall=2 gives 72 nodes spanning the identical range, so subdivision densifies sampling along the same outline without adding structural detail. There is no finer wall at any setting, and the polygon nova tests against is the one we tested against.
+
+Consequence for the panel: strike points remain omitted, but as BEYOND BRIEF and not under a cloud - the earlier wording implied a doubt that no longer exists. If they are ever wanted, the correct test is distance-to-wall within a tolerance rather than inclusion, and on this evidence all of them pass. Both my diagnosis and nova's assumed wall resolution when the actual problem was boundary degeneracy: the refusal to claim was right and the reason given for it was not.</div>
 </div>
 </section>
 </main>
