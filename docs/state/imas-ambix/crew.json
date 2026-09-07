@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T07:06:56",
+  "updated": "2026-09-07T08:15:09",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -897,6 +897,28 @@
         "sessions": {}
       },
       {
+        "id": "pcp-carrier-cameras",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a07a6a-0c2f-7ed1-b451-132c6c21c82c",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "{\"alias\":\"sol5.6\",\"backend\":\"codex\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-sol\",\"sandbox\":\"worktree-full\"}": "01a07a6a-0c2f-7ed1-b451-132c6c21c82c"
+        },
+        "created": "2026-09-07"
+      },
+      {
+        "id": "pcp-carrier-census",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a07a66-0775-7b53-a1ab-0f68a175ebe4",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "{\"alias\":\"sol5.6\",\"backend\":\"codex\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-sol\",\"sandbox\":\"worktree-full\"}": "01a07a66-0775-7b53-a1ab-0f68a175ebe4"
+        },
+        "created": "2026-09-07"
+      },
+      {
         "id": "pcp-decoder-review",
         "harness": "clive",
         "role": "review",
@@ -982,6 +1004,17 @@
         "session_model": null,
         "sessions": {},
         "created": "2026-09-06"
+      },
+      {
+        "id": "pcp-label-cartoon",
+        "harness": "codex",
+        "role": "implement",
+        "session_id": "01a07a66-75fb-7670-a1b4-c8af61170fb5",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "{\"alias\":\"sol5.6\",\"backend\":\"codex\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-sol\",\"sandbox\":\"worktree-full\"}": "01a07a66-75fb-7670-a1b4-c8af61170fb5"
+        },
+        "created": "2026-09-07"
       },
       {
         "created": "2026-09-02",
@@ -26939,6 +26972,422 @@
           "role": "implement",
           "status": "no-execution-measure"
         }
+      },
+      {
+        "run_id": "r-20260907T054451440446-pcp-carrier-camera-census",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a75d",
+        "node": "pcp-carrier-camera-census",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1512,
+                "cached_input_tokens": 220046,
+                "input_tokens": 221560,
+                "output_tokens": 567,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 222127,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "02234188-75f7-47b8-8ccb-365cad54d4c5",
+            "session_id": "ambix-s19-media"
+          },
+          "done_when": "sun_debug SLURM log shows the census over all corpus sessions completing; the committed ranking JSON names the winner plus the top five with converged-slice count, camera group, frame height, frame width, frame count, temporal span and score for each, every candidate carrying a Thomson group and at least 40 converged slices; the new test passes; uv run --no-sync ruff check imas_ambix tests exits 0",
+          "estimated_hours": null,
+          "goal": "Rank every labeller-corpus session by camera richness and commit the carrier ranking that selects the presentation shot",
+          "id": "pcp-carrier-camera-census",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T054451440446-pcp-carrier-camera-census/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75d",
+          "spec_level": "guided",
+          "time_budget": "45m",
+          "write_paths": [
+            "imas_ambix/worldmodel/carrier_camera_census.py",
+            "tests/worldmodel/test_carrier_camera_census.py",
+            "docs/figures/physics-carried-playable-plasma/label-cartoon/census"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pcp-carrier-census",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T05:45:01Z",
+        "completed_at": "2026-09-07T05:59:49Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 888,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 888,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "ff57597641a68e4feb5150fa19b92b61afca579f",
+        "commits": [
+          "f854455492b0103c5f64d7a6533a46f6059d3ab2"
+        ],
+        "changed_lines": {
+          "added": 25276,
+          "removed": 0,
+          "files": 3
+        },
+        "tests_added": 2,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest -p no:cacheprovider tests/worldmodel/test_carrier_camera_census.py && ruff check imas_ambix tests (sun_debug job 1263893 at f854455)",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T054451440446-pcp-carrier-camera-census/committed-gates-sun-debug.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T054451440446-pcp-carrier-camera-census/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07a66-0775-7b53-a1ab-0f68a175ebe4",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 8811904,
+            "cached_input_tokens_cumulative": 8811904,
+            "input_tokens": 9013729,
+            "input_tokens_cumulative": 9013729,
+            "output_tokens": 30355,
+            "output_tokens_cumulative": 30355,
+            "reasoning_output_tokens": 12323,
+            "reasoning_output_tokens_cumulative": 12323
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 42678,
+          "peak_input_tokens": 17825633
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-media/pcp-carrier-camera-census",
+          "session_id": "01a07a66-0775-7b53-a1ab-0f68a175ebe4",
+          "session_source": "pointer",
+          "retained_at": "2026-09-07T05:59:49Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
+      },
+      {
+        "run_id": "r-20260907T054911147116-pcp-carrier-camera-report",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a75d",
+        "node": "pcp-carrier-camera-report",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 586,
+                "cached_input_tokens": 237980,
+                "input_tokens": 238568,
+                "output_tokens": 1176,
+                "reasoning_output_tokens": 502,
+                "total_tokens": 239744,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "02234188-75f7-47b8-8ccb-365cad54d4c5",
+            "session_id": "ambix-s19-media"
+          },
+          "done_when": "sun_debug SLURM log shows the measure completing over 21978, 21983, 21985, 21986, 21989 and 22086; the committed report ranks all six on measured picture quality with the saturated fraction, blank-like fraction, robust intensity range and frame-to-frame motion shown per shot and per camera group, beside Thomson channel count and corpus-session status, and states which shots a label cartoon could be built on today; the new test passes; uv run --no-sync ruff check imas_ambix tests exits 0",
+          "estimated_hours": null,
+          "goal": "Measure picture quality over the real frames of the six frozen-carrier shots and commit the ranked carrier-camera report",
+          "id": "pcp-carrier-camera-report",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T054911147116-pcp-carrier-camera-report/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75d",
+          "spec_level": "guided",
+          "time_budget": "45m",
+          "write_paths": [
+            "imas_ambix/worldmodel/camera_picture_quality.py",
+            "tests/worldmodel/test_camera_picture_quality.py",
+            "docs/figures/physics-carried-playable-plasma/label-cartoon/carrier-cameras"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pcp-carrier-cameras",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T05:49:25Z",
+        "completed_at": "2026-09-07T06:12:22Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 1377,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 1377,
+        "stalled": false,
+        "time_budget": "45m",
+        "base_sha": "43e61217c29eeb8fa6ca25036aa7811bad57764c",
+        "commits": [
+          "56ca74eeb4f34ac8955ec8553eba0b98d11bdbec"
+        ],
+        "changed_lines": {
+          "added": 1242,
+          "removed": 0,
+          "files": 3
+        },
+        "tests_added": 4,
+        "gate": "passed",
+        "gate_check": {
+          "command": "pytest -p no:cacheprovider tests/worldmodel/test_camera_picture_quality.py (4 passed) && ruff check imas_ambix tests; measurement on sun_debug node 98dci4-clu-3141 over 6 shots and 35 camera groups",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T054911147116-pcp-carrier-camera-report/pytest-camera-picture-quality.log",
+          "log_digest": null
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T054911147116-pcp-carrier-camera-report/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07a6a-0c2f-7ed1-b451-132c6c21c82c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 2761472,
+            "cached_input_tokens_cumulative": 2761472,
+            "input_tokens": 2782344,
+            "input_tokens_cumulative": 2782344,
+            "output_tokens": 9577,
+            "output_tokens_cumulative": 9577,
+            "reasoning_output_tokens": 2123,
+            "reasoning_output_tokens_cumulative": 2123
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 11700,
+          "peak_input_tokens": 5543816
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 2,
+        "attempt_kind": "resume",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-media/pcp-carrier-camera-report",
+          "session_id": "01a07a6a-0c2f-7ed1-b451-132c6c21c82c",
+          "session_source": "pointer",
+          "retained_at": "2026-09-07T06:12:22Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": null,
+          "override": false,
+          "role": "implement",
+          "status": "no-execution-measure"
+        }
+      },
+      {
+        "run_id": "r-20260907T060340947058-pcp-video-contact-sheet",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a75b",
+        "node": "pcp-video-contact-sheet",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1456,
+                "cached_input_tokens": 820394,
+                "input_tokens": 821882,
+                "output_tokens": 171,
+                "reasoning_output_tokens": 124,
+                "total_tokens": 822053,
+                "uncached_input_tokens": 32
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "pytest tests/worldmodel/test_flux_decoder_video.py passes with a test asserting the contact sheet is written beside the GIF under the -frames.png name with the first and last frames included, run on the all_debug partition via srun with TMPDIR=/tmp and command uv, the three backfilled stills exist under docs/figures/physics-carried-playable-plasma/ each under 2 MB and are committed with git add -f in your worktree, and whole-tree ruff check imas_ambix tests exits 0 with no betelgeuse job touched",
+          "estimated_hours": null,
+          "goal": "A contact-sheet still beside every decoder video, written by imas_ambix/worldmodel/flux_decoder_video.py as a PNG whose file name is the GIF's file name with the .gif suffix replaced by -frames.png (six to eight evenly spaced frames always including the first and the last, one row per real-versus-decoded panel pair, from the frames already in hand), applied by the same function to the three committed GIFs shot-21858-real-decoded.gif, shot-21858-real-decoded-step7644.gif and shot-21858-real-decoded-step17652.gif under docs/figures/physics-carried-playable-plasma/, because the reckon Figures index lists PNG and SVG only and silently omits GIF",
+          "id": "pcp-video-contact-sheet",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T060340947058-pcp-video-contact-sheet/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a75b",
+          "spec_level": "exact",
+          "time_budget": "25m",
+          "write_paths": [
+            "imas_ambix/worldmodel/flux_decoder_video.py",
+            "tests/worldmodel/test_flux_decoder_video.py",
+            "docs/figures/physics-carried-playable-plasma/shot-21858-real-decoded-frames.png",
+            "docs/figures/physics-carried-playable-plasma/shot-21858-real-decoded-step7644-frames.png",
+            "docs/figures/physics-carried-playable-plasma/shot-21858-real-decoded-step17652-frames.png"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "pcp-decoder-video",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T06:03:52Z",
+        "completed_at": "2026-09-07T06:13:50Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 598,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 598,
+        "stalled": false,
+        "time_budget": "25m",
+        "base_sha": "ed1849b9bf6ec48a72404e58b22a65826c15d6f6",
+        "commits": [
+          "3552259e739dd3141eb19f22e742a0336cfb09ac"
+        ],
+        "changed_lines": {
+          "added": 103,
+          "removed": 1,
+          "files": 5
+        },
+        "tests_added": 1,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug pytest -p no:cacheprovider tests/worldmodel/test_flux_decoder_video.py (4 passed) plus whole-tree ruff",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T060340947058-pcp-video-contact-sheet/pytest-before-final.log",
+          "log_digest": "sha256:cfad73792d40824e33dc0b484525205453de4c88d81ed7c7fe6e03fbb43da8ce"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T060340947058-pcp-video-contact-sheet/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07a77-476d-7a13-a756-d2a452c6dc70",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 4873088,
+            "cached_input_tokens_cumulative": 4873088,
+            "input_tokens": 5025969,
+            "input_tokens_cumulative": 5025969,
+            "output_tokens": 22159,
+            "output_tokens_cumulative": 22159,
+            "reasoning_output_tokens": 7735,
+            "reasoning_output_tokens_cumulative": 7735
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 29894,
+          "peak_input_tokens": 9899057
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-video-contact-sheet",
+          "session_id": "01a07a77-476d-7a13-a756-d2a452c6dc70",
+          "session_source": "stream",
+          "retained_at": "2026-09-07T06:13:50Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_flux_decoder_video.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -26985,6 +27434,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 545
+    "_version": 555
   }
 }
