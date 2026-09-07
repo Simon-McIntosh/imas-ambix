@@ -24,8 +24,8 @@
   <title>Physics-Carried Playable Plasma | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-modified" content="2026-09-06">
-<meta name="plan-version" content="51">
+<meta name="plan-modified" content="2026-09-07">
+<meta name="plan-version" content="52">
 <meta name="plan-impl" content="0.9">
 </head>
 <body>
@@ -785,6 +785,9 @@
 </div>
 <div class="r-comment" data-section="s4f" data-id="c-20260906T2125-s4f-training-landed" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-06T21:25:00Z">
     <div class="r-comment-body">pcp-decoder-train landed — commit a51b9ba (merged e37eaf6); gate: twenty-step smoke on all_debug SLURM job 1263768 over the landed sessions (274 shots, 16,385 slices admitted of which 5,078 conditioned, 5 ms history spacing) writing checkpoint-000000020.pt (sha256 0d5d8dc6) and receipt.json (validation token NLL 12.476 over 256 tokens, persistence token error rate 1.0, corpus sha256 22682736), pytest tests/worldmodel/test_flux_decoder_train.py 4 passed, bash -n 0, ruff 0. Production job 1263771 submitted to betelgeuse (1 GPU, 4 CPUs, 160 GB, 10 h, reservation gpu_0003_grpA, QOS auto), PENDING Priority behind the allocated cards; it runs from the main checkout (WorkDir), which now carries the merged code, so the main checkout's worldmodel modules must stay stable while the job runs; log /work/projects/imas_gpu/logs/flux-decoder-1263771.out, run directory /work/projects/imas_gpu/ambix/flux_decoder/overnight-20260906/. Pixel validation goes through the magvit2 subprocess route, so the einops gap of section 5c does not affect it. Tunable left at default: batch size 1. impl 0.78 to 0.81 (14 of 16 counted nodes landed).</div>
+</div>
+<div class="r-comment" data-section="s4f" data-id="c-20260906T2200-gpu-jobs-chained" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-06T22:00:00Z">
+    <div class="r-comment-body">GPU queue agreement with nova (nova-c6, 2026-09-06 late): nova relaunches its labeller as one two-card job and leaves one card for ambix, so the two ambix training jobs must share it. Applied scontrol update JobId=1263778 Dependency=afterany:1263771: the full-corpus labeller training (1263778) now runs after the decoder training (1263771) finishes or fails, on the same card. nova-dd's trip-quantum measurement holds the third card for about twenty more minutes, after which 1263771 starts. No job cancelled or displaced; the dependency is on our own pending job and reversible with scontrol update Dependency= (empty).</div>
 </div>
 <div class="r-comment" data-section="§5b" data-id="c-run-r-20260906T210821148664-pcp-decoder-video" data-who="pcp-decoder-video" data-when="2026-09-06T21:33:14Z">
     <div class="r-comment-body"><p>Video command and serve launcher landed: shot 21858 real-versus-decoded GIF (85 frames, 512x288, 10 fps) rendered on all_debug job 1263769 from an untrained checkpoint; VQ route persistent subprocess under the magvit2 environment because src.Open_MAGVIT2 needs einops; predictor decode wall 3.6 s per frame on CPU. Follow-ons for section 5c and nova: bokeh is not installed in the ambix environment so no live serve was claimed, and nova's app reads the decoder from a request argument rather than --decoder after --args</p></div>
