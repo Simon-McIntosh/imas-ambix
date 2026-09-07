@@ -9,7 +9,7 @@ import numpy as np
 import xarray as xr
 from PIL import Image
 
-from imas_ambix.worldmodel.flux_decoder_video import render_session_video
+from imas_ambix.worldmodel.flux_decoder_video import _write_video, render_session_video
 
 
 class _Decoded(NamedTuple):
@@ -89,10 +89,30 @@ def test_labeller_video_pairs_only_written_converged_slices(tmp_path: Path) -> N
     assert receipt["manifest_slice_count"] == 3
     assert receipt["admitted_before_camera_join"] == 2
     assert receipt["frame_count"] == 2
+    assert receipt["written_frame_count"] == 2
+    assert receipt["gif_frame_count"] == 2
     assert receipt["max_abs_camera_delta_s"] == 0.0002
     assert receipt["vq_route"] == "stub"
     recorded = json.loads(output.with_suffix(".receipt.json").read_text())
     assert recorded["output_sha256"] == receipt["output_sha256"]
+    assert recorded["written_frame_count"] == 2
+    assert recorded["gif_frame_count"] == 2
+
+
+def test_gif_writer_rejects_or_preserves_identical_consecutive_frames(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "identical.gif"
+    frame = np.zeros((8, 8, 3), dtype=np.uint8)
+
+    try:
+        _write_video([frame, frame.copy()], output, fps=10)
+    except RuntimeError as error:
+        message = str(error)
+        assert "written_frame_count=2" in message
+        assert "gif_frame_count=1" in message
+    else:
+        assert _animation_shape(output)[0] == 2
 
 
 def test_labeller_video_writes_evenly_spaced_contact_sheet(tmp_path: Path) -> None:
