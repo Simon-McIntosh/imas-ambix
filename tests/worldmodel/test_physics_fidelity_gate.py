@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -12,6 +13,7 @@ from imas_ambix.worldmodel.physics_fidelity_gate import (
     DEFAULT_SESSION_ROOT,
     SliceFidelity,
     _aggregate_slices,
+    _slice_semantics,
     axis_offset_m,
     flat_top_mask_from_current,
     radius_rms_distance_m,
@@ -62,24 +64,58 @@ def _slice(
     axis_cm: float,
 ) -> SliceFidelity:
     eligible = flat_top and not conditioned
+    exclusion = None
+    if not flat_top:
+        exclusion = "outside_flat_top"
+    elif conditioned:
+        exclusion = "conditioned_from_efit_centroid"
     boundary_pass = boundary_cm <= BOUNDARY_LIMIT_CM
     axis_pass = axis_cm <= AXIS_LIMIT_CM
     return SliceFidelity(
         manifest_row=0,
         session_index=0,
         time_s=0.2,
+        recorded_conditioned=conditioned,
         conditioned=conditioned,
+        reclassified_as_free=False,
+        recorded_converged=True,
+        semantically_converged=True,
+        nova_axis_finite=True,
         conditioned_branch_guard_ok=True,
         flat_top=flat_top,
         evidence_eligible=eligible,
+        boundary_evidence_eligible=eligible,
+        axis_evidence_eligible=eligible,
+        joint_evidence_eligible=eligible,
         boundary_rms_cm=boundary_cm,
         axis_offset_cm=axis_cm,
         boundary_within_limit=boundary_pass,
         axis_within_limit=axis_pass,
         joint_within_limits=boundary_pass and axis_pass,
         nova_solve_wall_seconds=0.25,
-        exclusion_reason=None if eligible else "excluded",
+        exclusion_reason=exclusion,
+        boundary_exclusion_reason=exclusion,
+        axis_exclusion_reason=exclusion,
+        joint_exclusion_reason=exclusion,
     )
+
+
+def test_zero_trip_conditioning_exception_is_admitted_as_free():
+    row = {
+        "written": True,
+        "converged": False,
+        "free_converged": True,
+        "conditioning_exception": "NoQualifiedAxisError",
+        "conditioned_trips": 0,
+    }
+
+    converged, conditioned, reclassified = _slice_semantics(
+        row, recorded_conditioned=True
+    )
+
+    assert converged is True
+    assert conditioned is False
+    assert reclassified is True
 
 
 def test_aggregate_excludes_conditioned_and_non_flat_top_slices():
@@ -98,11 +134,57 @@ def test_aggregate_excludes_conditioned_and_non_flat_top_slices():
     assert result["flat_top_time_start_s"] == 0.2
     assert result["flat_top_time_end_s"] == 0.2
     assert result["evidence_slice_count"] == 2
+    assert result["boundary_evidence_slice_count"] == 2
+    assert result["axis_evidence_slice_count"] == 2
+    assert result["joint_evidence_slice_count"] == 2
     assert result["excluded_conditioned_flat_top_count"] == 1
+    assert result["exclusions"] == {
+        "axis": {
+            "conditioned_from_efit_centroid": 1,
+            "outside_flat_top": 1,
+        },
+        "boundary": {
+            "conditioned_from_efit_centroid": 1,
+            "outside_flat_top": 1,
+        },
+        "joint": {
+            "conditioned_from_efit_centroid": 1,
+            "outside_flat_top": 1,
+        },
+    }
     assert result["boundary_pass_fraction"] == 0.5
     assert result["axis_pass_fraction"] == 1.0
     assert result["joint_pass_fraction"] == 0.5
     assert result["passed"] is False
+
+
+def test_aggregate_keeps_metric_denominators_independent():
+    complete = _slice(
+        conditioned=False,
+        flat_top=True,
+        boundary_cm=1.0,
+        axis_cm=1.0,
+    )
+    axis_only = replace(
+        complete,
+        evidence_eligible=False,
+        boundary_evidence_eligible=False,
+        joint_evidence_eligible=False,
+        boundary_rms_cm=None,
+        boundary_within_limit=None,
+        joint_within_limits=None,
+        exclusion_reason="boundary_metric_unavailable",
+        boundary_exclusion_reason="boundary_metric_unavailable",
+        joint_exclusion_reason="boundary_metric_unavailable",
+    )
+
+    result = _aggregate_slices([complete, axis_only])
+
+    assert result["boundary_evidence_slice_count"] == 1
+    assert result["axis_evidence_slice_count"] == 2
+    assert result["joint_evidence_slice_count"] == 1
+    assert result["exclusions"]["boundary"] == {"boundary_metric_unavailable": 1}
+    assert result["exclusions"]["axis"] == {}
 
 
 @pytest.mark.skipif(
@@ -114,6 +196,7 @@ def test_real_carrier_shot_has_finite_scored_geometry():
 
     summary = result["summary"]
     assert summary["converged_slice_count"] == 46
+    assert summary["semantically_converged_slice_count"] == 55
     assert summary["conditioned_slice_count"] == 3
     assert summary["evidence_slice_count"] > 0
     assert summary["flat_top_time_start_s"] is not None
