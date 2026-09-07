@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="93">
+<meta name="plan-version" content="94">
 <meta name="plan-impl" content="0.9">
 <meta name="plan-commits" content="f854455492b0103c5f64d7a6533a46f6059d3ab2,56ca74eeb4f34ac8955ec8553eba0b98d11bdbec,73f306341c327fb2add035765fcdc64d94a5e45a,a4fb3eaab244d481cc17c08ed196f7d8bb917171">
 <meta name="plan-artifacts" content="docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json,docs/figures/physics-carried-playable-plasma/label-cartoon/carrier-cameras/camera-picture-quality.json,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/receipt.json,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-census,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-carrier-cameras">
@@ -783,6 +783,37 @@
     §5d-vi's node now emits the ranked distribution of <code>rbb</code> geometries with counts, plus the
     shot lists for 22086's family and the 512&times;512 family, every figure stamped with the session
     total and the time it was measured.</p>
+
+    <h3 id="s5d-pairs">§5d-viii — The presentation renders two carriers, captioned for what each one is</h3>
+    <p><strong>Two pairs, not one, and the captions carry the distinction.</strong> A deck that showed
+    only the best-looking carrier would be quietly claiming the demo runs on it. So §5d-iii renders both
+    and each says what it is:</p>
+    <table>
+      <thead><tr><th>Carrier</th><th>Camera</th><th>Free slices</th><th>Caption</th></tr></thead>
+      <tbody>
+        <tr><td>24854</td><td><code>rbc</code> 480&times;512, 2,050 frames, full shot</td><td>58</td>
+            <td>best-picture corpus shot</td></tr>
+        <tr><td><strong>22086</strong></td><td><code>rbb</code> 128&times;172, 20 &micro;s</td><td>43</td>
+            <td><strong>the demo carrier</strong></td></tr>
+      </tbody>
+    </table>
+    <p>22086's camera is a sixteenth of 24854's frame area, so its pair will look markedly poorer. That
+    is the point rather than a defect: it is what the physics demo actually runs on, and showing it
+    beside the best available picture is honest in a way that showing either alone is not. Both are
+    outside the labeller cohort, so neither pair carries a leakage question; 22086 is outside it by the
+    firewall of §5d-vii, and 24854 by being in the corpus at all.</p>
+    <p>One node renders both, after §5d-v lands, because both read the same module and a second node
+    would contend for it. Free-slice counts are the free converged slices of §5d-vii, so the frame counts
+    quoted above are what <code>read_labels</code> admits and not the converged totals.</p>
+    <p><strong>A firewall that used to hold by accident now holds by construction, and only just.</strong>
+    Recorded here because it is a consequence of this section's session finding rather than of its media.
+    Before the carrier sessions landed, the cohort was simply absent from the corpus, so the
+    decoder-training firewall held through the shape of the production walk. Now that all 718 cohort
+    shots can appear in the session root, and the running training job rescans that root every epoch, the
+    firewall holds only because the reader subtracts the cohort by shot id. The whole-shot subtraction is
+    load-bearing in production for the first time, and it is being verified against the running job's own
+    corpus digest rather than assumed. The general shape is worth keeping: a guard that has never had to
+    fire is indistinguishable from one that cannot.</p>
 
     <h2 id="s6">§6 — Pre-registered gates</h2>
     <p>Locked before any number is produced. Each is a measure that emits evidence; a gate that cannot be
