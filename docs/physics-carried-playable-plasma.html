@@ -25,10 +25,10 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="75">
+<meta name="plan-version" content="77">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-commits" content="f854455492b0103c5f64d7a6533a46f6059d3ab2">
-<meta name="plan-artifacts" content="docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-census,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-carrier-cameras">
+<meta name="plan-commits" content="f854455492b0103c5f64d7a6533a46f6059d3ab2,56ca74eeb4f34ac8955ec8553eba0b98d11bdbec">
+<meta name="plan-artifacts" content="docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json,docs/figures/physics-carried-playable-plasma/label-cartoon/carrier-cameras/camera-picture-quality.json,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-census,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-carrier-cameras">
 </head>
 <body>
   <main class="plan-doc">
@@ -1020,8 +1020,14 @@
 <div class="r-comment" data-section="§5d" data-id="c-run-r-20260907T054451440446-pcp-carrier-camera-census" data-who="pcp-carrier-census" data-when="2026-09-07T05:59:49Z">
     <div class="r-comment-body"><p>848 sessions ranked, 605 eligible; winner 24854/rbc 480x512, 2050 frames, 0.4998 s, 72 converged slices, all 72 inside the camera window</p></div>
 </div>
+<div class="r-comment" data-section="§5d" data-id="c-run-r-20260907T054911147116-pcp-carrier-camera-report" data-who="pcp-carrier-cameras" data-when="2026-09-07T06:12:22Z">
+    <div class="r-comment-body"><p>Carrier picture quality ranked 21989/21978/21986/21983/21985/22086 on the common rbb stream; 21989 reproduces the earlier survey exactly; 0 of 6 can carry a label cartoon today</p></div>
+</div>
 <div class="r-comment" data-section="s5d" data-id="c-20260907-carrier-census" data-who="reckon-ship" data-when="2026-09-07T06:12:00Z">
     <div class="r-comment-body">Carrier census landed - commit f854455 (merged 0d21c03); gate passed on sun_debug job 1263893, 2 tests and whole-tree ruff 0; measure 848 sessions ranked, 605 eligible, winner 24854/rbc 480x512 over 2050 frames with all 72 converged slices inside the camera window; artifacts carrier-camera-ranking.json plus the s5d-census and s5d-carrier-cameras evidence anchors. impl deliberately left unchanged: this plan has two live coordinators and imas-ambix-1d owns the denominator while landing section 4, so section 5d's four executable nodes need folding into it rather than overwriting it. plan-commits and plan-artifacts are now in use on this plan - append to them rather than replacing.</div>
+</div>
+<div class="r-comment" data-section="s5d" data-id="c-20260907-carrier-cameras" data-who="reckon-ship" data-when="2026-09-07T06:15:00Z">
+    <div class="r-comment-body">Carrier camera report landed - commit 56ca74e (merged bf1a5df); gate passed, 4 tests and whole-tree ruff 0, measurement on sun_debug node 98dci4-clu-3141 over 6 shots and 35 camera groups; measure common-rbb rank 21989 / 21978 / 21986 / 21983 / 21985 / 22086, 21989 at saturated 5.72 pct, blank-like 0.76 pct, robust range 194.00, motion p90 18.63, reproducing the earlier survey to the digit, and 0 of 6 able to carry a label cartoon today; artifact camera-picture-quality.json, metrics digest d0ddccc6, file digest 3174cc84. Reviewed and sent back once before promotion: the node had also emitted a standalone camera-picture-quality.html under docs/figures, which failed audit-doc with missing plan-slug and plan-status and would have rendered unstyled because the SPA drops head style, with no precedent anywhere in the 78 figure directories. The HTML and its emitting code path are removed, the JSON is byte-identical across the amendment, and the readable table now lives in the cumulative evidence record where it renders and passes audit.</div>
 </div>
 </section>
 </main>
