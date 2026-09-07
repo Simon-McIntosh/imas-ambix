@@ -176,16 +176,10 @@ def _inspect_boundary_storage(path: Path, *, group: str) -> _StoredBoundary:
             (BOUNDARY_R_VARIABLE, r_variable),
             (BOUNDARY_Z_VARIABLE, z_variable),
         ):
-            raw = np.asarray(variable)
-            theta_axis = variable.dims.index("n_theta")
-            first_theta_row = np.take(raw, 0, axis=theta_axis)
-            last_theta_row = np.take(raw, -1, axis=theta_axis)
             coordinate_variables[name] = {
                 "dtype": str(variable.dtype),
                 "dimensions": list(variable.dims),
                 "full_shape": list(variable.shape),
-                "first_n_theta_row": _literal_values(first_theta_row),
-                "last_n_theta_row": _literal_values(last_theta_row),
             }
 
     count_frequency: dict[str, int] = {}
@@ -309,6 +303,12 @@ def build_report(
         for shot in shot_ids
     ]
     categories = {shot["comparison"]["category"] for shot in shots}
+    finite_differences = [
+        shot["comparison"]["maximum_absolute_finite_value_difference"]
+        for shot in shots
+        if shot["comparison"]["maximum_absolute_finite_value_difference"] is not None
+    ]
+    maximum_finite_difference = max(finite_differences, default=None)
     if categories == {"stored_length_differs"}:
         verdict = "The two roots differ in stored boundary-vertex length."
     elif (
@@ -325,8 +325,8 @@ def build_report(
         )
     elif categories == {"identical_vertex_storage_layout"}:
         verdict = (
-            "The two roots are identical in stored boundary-vertex length and "
-            "trailing-row finiteness."
+            "The two roots store identical boundary-vertex lengths and trailing-row "
+            "finiteness; their finite coordinates are identical within float tolerance."
         )
     else:
         verdict = "The compared shots have mixed boundary-storage categories."
@@ -354,6 +354,7 @@ def build_report(
         "root_group_has_no_variables_in_all_files": root_group_has_no_variables,
         "baseline_root": str(Path(baseline_root).resolve()),
         "repaired_root": str(Path(repaired_root).resolve()),
+        "maximum_absolute_finite_value_difference": maximum_finite_difference,
         "shots": shots,
         "verdict": verdict,
     }
