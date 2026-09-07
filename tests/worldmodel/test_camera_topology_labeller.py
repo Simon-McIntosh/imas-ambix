@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 from argparse import Namespace
 from pathlib import Path
 
@@ -9,6 +11,8 @@ import numpy as np
 import torch
 
 from imas_ambix.worldmodel.camera_topology_labeller import (
+    COHORT_REPORT_PROVENANCE,
+    DEFAULT_COHORT_FILE,
     CameraTopologyLabeller,
     LabellerConfig,
     LabellerTargets,
@@ -17,6 +21,7 @@ from imas_ambix.worldmodel.camera_topology_labeller import (
     evaluate_predictions,
     fit_full_corpus_labeller,
     fit_labeller,
+    labeller_cohort_shot_ids,
     read_cohort_frame_counts,
     read_cohort_split,
     read_fullshot_spans,
@@ -29,6 +34,45 @@ from imas_ambix.worldmodel.camera_topology_targets import (
     CameraTopologyTargets,
 )
 from imas_ambix.worldmodel.equilibrium_labels import EquilibriumGeometry
+
+
+def _write_cohort_file(path: Path, partitions: dict[str, dict[int, int]]) -> None:
+    payload = {
+        "schema_version": 1,
+        "provenance": {"source_report": "fixture"},
+        "partitions": {
+            partition: {
+                "shot_count": len(shots),
+                "frame_count": sum(shots.values()),
+                "shots": {str(shot): count for shot, count in shots.items()},
+            }
+            for partition, shots in partitions.items()
+        },
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _parse_census_report(path: Path) -> dict[str, dict[int, int]]:
+    text = path.read_text(encoding="utf-8")
+    headings = {
+        "train": "Labeller train",
+        "validation": "Labeller validation",
+        "clean_test": "Clean same-campaign test",
+        "campaign_test": "Held-out campaign test",
+    }
+    parsed = {}
+    for partition, heading in headings.items():
+        section = re.search(
+            rf"^### {re.escape(heading)}\b.*?(?=^### |\Z)",
+            text,
+            flags=re.MULTILINE | re.DOTALL,
+        )
+        assert section is not None
+        parsed[partition] = {
+            int(shot): int(count)
+            for shot, count in re.findall(r"\b(\d{5}):(\d+)\b", section.group())
+        }
+    return parsed
 
 
 def _synthetic_windows(n_samples: int = 18, *, seed: int = 3) -> LoadedWindows:
@@ -103,21 +147,41 @@ def test_assemble_targets_preserves_metres_and_absence_masks():
 
 
 def test_cohort_reader_preserves_whole_shot_firewall(tmp_path: Path):
-    report = tmp_path / "cohort.md"
-    report.write_text(
-        "### Labeller train — counts\n```text\nM6 — 15276:12 21983:9\n```\n"
-        "### Labeller validation — counts\n```text\nM7 — 21989:8\n```\n"
-        "### Clean same-campaign test — counts\n```text\nM7 — 21986:7\n```\n"
-        "### Held-out campaign test — counts\n```text\nM9 — 28739:6\n```\n",
-        encoding="utf-8",
+    cohort_file = tmp_path / "cohort.json"
+    _write_cohort_file(
+        cohort_file,
+        {
+            "train": {15276: 12, 21983: 9},
+            "validation": {21989: 8},
+            "clean_test": {21986: 7},
+            "campaign_test": {28739: 6},
+        },
     )
 
-    assert read_cohort_split(report) == {
+    assert read_cohort_split(cohort_file) == {
         "train": [15276, 21983],
         "validation": [21989],
         "clean_test": [21986],
         "campaign_test": [28739],
     }
+
+
+def test_packaged_cohort_matches_census_report():
+    frame_counts = read_cohort_frame_counts(DEFAULT_COHORT_FILE)
+    expected_sizes = {
+        "train": 472,
+        "validation": 58,
+        "clean_test": 87,
+        "campaign_test": 101,
+    }
+
+    assert {key: len(value) for key, value in frame_counts.items()} == expected_sizes
+    ordered_ids = [shot for shots in frame_counts.values() for shot in shots]
+    assert len(ordered_ids) == 718
+    assert len(set(ordered_ids)) == 718
+    assert labeller_cohort_shot_ids() == frozenset(ordered_ids)
+    assert frame_counts == _parse_census_report(Path(COHORT_REPORT_PROVENANCE))
+    validate_full_corpus_split(frame_counts)
 
 
 def test_model_forward_and_masked_fit_decrease_loss():
@@ -171,7 +235,7 @@ def test_training_entrypoint_reports_model_and_centroid_on_same_frames(monkeypat
         lambda shots, **_kwargs: train if shots == [21983, 21985] else heldout,
     )
     args = Namespace(
-        cohort_report=Path("unused.md"),
+        cohort_file=Path("unused.json"),
         level1_root=Path("unused"),
         train_shots="21983,21985",
         heldout_shots="21989",
@@ -199,13 +263,15 @@ def test_training_entrypoint_reports_model_and_centroid_on_same_frames(monkeypat
 def test_corpus_authorities_preserve_frame_counts_and_plasma_spans(
     tmp_path: Path, monkeypatch
 ):
-    report = tmp_path / "cohort.md"
-    report.write_text(
-        "### Labeller train — counts\n```text\nM6 — 15276:12 21983:9\n```\n"
-        "### Labeller validation — counts\n```text\nM7 — 21989:8\n```\n"
-        "### Clean same-campaign test — counts\n```text\nM7 — 21986:7\n```\n"
-        "### Held-out campaign test — counts\n```text\nM9 — 28739:6\n```\n",
-        encoding="utf-8",
+    cohort_file = tmp_path / "cohort.json"
+    _write_cohort_file(
+        cohort_file,
+        {
+            "train": {15276: 12, 21983: 9},
+            "validation": {21989: 8},
+            "clean_test": {21986: 7},
+            "campaign_test": {28739: 6},
+        },
     )
     manifest = tmp_path / "fullshot.json"
     manifest.write_text(
@@ -215,7 +281,7 @@ def test_corpus_authorities_preserve_frame_counts_and_plasma_spans(
         "]}\n",
         encoding="utf-8",
     )
-    frame_counts = read_cohort_frame_counts(report)
+    frame_counts = read_cohort_frame_counts(cohort_file)
     monkeypatch.setattr(
         "imas_ambix.worldmodel.camera_topology_labeller.FULL_CORPUS_COUNTS",
         {"train": (2, 21), "validation": (1, 8)},
