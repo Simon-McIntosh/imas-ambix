@@ -41,10 +41,13 @@ A single Group A submit under `normal` QOS bursts onto any free cards node-wide 
 only cores); `CUDA_VISIBLE_DEVICES` is remapped to `0..N`, so the job never knows which physical silicon
 it is on. **Check `squeue` for the live state and request what is free:**
 - **DSv4 down → all 8 cards are free → request them** (`--gres=gpu:8`).
-- **DSv4 up → it holds 4 cards, so a 4-card job coexists with it** (4 + 4 = 8/8). The
-  serve was 2 cards until 2026-09-06 and any text quoting that figure is stale; **read
-  `squeue` rather than trusting a written card count**, because the deployment is
-  resized deliberately and this document has already been wrong about it once.
+- **DSv4 up → read `squeue` for its card count; do not trust any figure written here.**
+  The serve was 2 cards before 2026-09-06, 4 cards through 2026-09-06, and **2 again
+  from 2026-09-07** when the node filled and the lead moved it back. Three values in
+  three days. The deployment is resized deliberately whenever load demands it, and
+  **this document has now been wrong about the count twice** — including in a passage
+  added to warn against exactly that. A written card count is a dated observation, not
+  a fact about the system.
   A 6-card job coexisted with the 2-card serve on 2026-06-19, starting immediately on
   physical cards `0,1,2,3,6,7`. Keep DSv4 up only when it is actually serving; do not
   leave it occupying cards an active training campaign needs.
@@ -54,17 +57,17 @@ to fit around.** The reservation reserves **30 cores and no cards**, so cards ar
 node-wide under `normal` QOS while cores are the scarce, reserved quantity. Current
 footprint, measured 2026-09-06:
 
-| Job | cores | cards | memory |
-|---|---|---|---|
-| `deepseek-v4-flash` serve | 12 | 4 | 300G |
-| `ambix-router` | 2 | — | 8G |
-| **held of the 30** | **14** | | |
-| **free for measurement** | **16** | 4 | |
+| Serve topology | serve cores | serve cards | router | held of 30 | free |
+|---|---|---|---|---|---|
+| four-card (2026-09-06) | 12 | 4 | 2 | 14 | 16 |
+| **two-card (2026-09-07)** | **8** | **2** | 2 | **10** | **20** |
 
-Sixteen free cores is exactly **two 8-core single-card measurement jobs**
-(12 + 2 + 8 + 8 = 30). **A serve sized larger than 12 cores starves those lanes even
-with cards sitting idle**, which is the failure this whole section exists to prevent —
-so raise the serve's `cpus` only against a live reading, never to a round number.
+**A serve sized larger than its topology needs starves the measurement lanes even
+with cards sitting idle**, which is the failure this section exists to prevent — so
+raise the serve's `cpus` only against a live reading, never to a round number. At the
+four-card footprint, sixteen free cores was exactly two 8-core single-card jobs
+(12 + 2 + 8 + 8 = 30); the two-card footprint leaves twenty, which is that plus a
+4-core job.
 
 Mechanism + the cooperative-yield watcher: `docs/gpu-preemptible-scheduling.html`.
 
