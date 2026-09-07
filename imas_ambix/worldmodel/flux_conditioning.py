@@ -8,15 +8,93 @@ X-point, secondary X-point, two strike points, then LCFS.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
 import numpy as np
 from numpy.typing import NDArray
 
+from imas_ambix.latent.wall_mask import _inside_polygon
+
 MAST_WALL_R_BOUNDS = (0.19524440169334412, 1.899999976158142)
 MAST_WALL_Z_BOUNDS = (-1.8250000476837158, 1.8250000476837158)
+MAST_LIMITER_R = (
+    0.19524,
+    0.19524,
+    0.28,
+    0.28,
+    0.4165,
+    0.58259,
+    0.7835,
+    0.7835,
+    0.56493,
+    0.56493,
+    1.9,
+    1.9,
+    1.03993,
+    1.03993,
+    1.40793,
+    1.40793,
+    1.5551,
+    1.5551,
+    1.9,
+    1.9,
+    1.5551,
+    1.5551,
+    1.40793,
+    1.40793,
+    1.03993,
+    1.03993,
+    1.9,
+    1.9,
+    0.56493,
+    0.56493,
+    0.7835,
+    0.7835,
+    0.58259,
+    0.4165,
+    0.28,
+    0.28,
+)
+MAST_LIMITER_Z = (
+    -1.0835,
+    1.0835,
+    1.22909,
+    1.6835,
+    1.547,
+    1.547,
+    1.71558,
+    1.72808,
+    1.72808,
+    1.825,
+    1.825,
+    1.195,
+    1.195,
+    1.033,
+    1.033,
+    0.8225,
+    0.8225,
+    0.405,
+    0.405,
+    -0.405,
+    -0.405,
+    -0.8225,
+    -0.8225,
+    -1.033,
+    -1.033,
+    -1.195,
+    -1.195,
+    -1.825,
+    -1.825,
+    -1.72808,
+    -1.72808,
+    -1.71558,
+    -1.547,
+    -1.547,
+    -1.6835,
+    -1.22909,
+)
 GRID_SHAPE = (64, 64)
 SURFACE_LEVELS = np.linspace(0.0, 1.0, 11, dtype=np.float64)
 SURFACE_COUNT = 11
@@ -28,19 +106,24 @@ FloatArray = NDArray[np.float32]
 
 @dataclass(frozen=True, slots=True)
 class FluxGrid:
-    """Fixed-size rectangular flux grid with MAST wall bounds by default.
+    """Fixed-size grid carrying the shot limiter and its bounds.
 
     Bounds are inclusive and expressed in metres.  Array rows follow increasing
-    Z and columns follow increasing R.
+    Z and columns follow increasing R.  The defaults are the era-constant MAST
+    limiter used by the current labeller sessions; callers for another machine
+    or wall era supply that shot's polygon together with its bounds.
     """
 
     r_bounds: tuple[float, float] = MAST_WALL_R_BOUNDS
     z_bounds: tuple[float, float] = MAST_WALL_Z_BOUNDS
+    limiter_r: tuple[float, ...] = MAST_LIMITER_R
+    limiter_z: tuple[float, ...] = MAST_LIMITER_Z
     shape: ClassVar[tuple[int, int]] = GRID_SHAPE
 
     def __post_init__(self) -> None:
         _validate_bounds("r_bounds", self.r_bounds)
         _validate_bounds("z_bounds", self.z_bounds)
+        _validate_limiter(self.limiter_r, self.limiter_z)
 
     @property
     def radius(self) -> NDArray[np.float64]:
@@ -60,6 +143,8 @@ class FluxGrid:
             "r_bounds_m": [float(value) for value in self.r_bounds],
             "z_bounds_m": [float(value) for value in self.z_bounds],
             "bounds_source": "MAST era wall polygon",
+            "limiter_vertex_count": len(self.limiter_r),
+            "limiter_source": "shot machine geometry",
         }
 
 
@@ -69,6 +154,20 @@ def _validate_bounds(name: str, bounds: tuple[float, float]) -> None:
         raise ValueError(f"{name} must contain two finite values")
     if values[0] >= values[1]:
         raise ValueError(f"{name} must be strictly increasing")
+
+
+def _validate_limiter(
+    limiter_r: tuple[float, ...], limiter_z: tuple[float, ...]
+) -> None:
+    radius = np.asarray(limiter_r, dtype=np.float64)
+    height = np.asarray(limiter_z, dtype=np.float64)
+    if radius.ndim != 1 or height.ndim != 1 or radius.shape != height.shape:
+        raise ValueError(
+            "limiter coordinates must be equal-length one-dimensional arrays"
+        )
+    vertices = np.column_stack((radius, height))
+    if not np.isfinite(vertices).all() or np.unique(vertices, axis=0).shape[0] < 3:
+        raise ValueError("limiter polygon must contain at least three finite vertices")
 
 
 def _field(fields: object, name: str) -> Any:
@@ -106,11 +205,32 @@ def _point_coordinates(fields: object) -> NDArray[np.float64]:
     )
 
 
-def _point_mask(fields: object) -> NDArray[np.bool_]:
+def _point_mask(
+    fields: object,
+    grid: FluxGrid,
+) -> tuple[NDArray[np.bool_], int]:
     mask = _array(fields, "finite_mask", dtype=np.dtype(np.bool_)).reshape(-1)
     if mask.size < POINT_COMPONENT_COUNT:
         raise ValueError("finite_mask must cover the axis and two X-point slots")
-    return mask[:POINT_COMPONENT_COUNT]
+    points = _point_coordinates(fields)
+    finite = mask[:POINT_COMPONENT_COUNT] & np.isfinite(points).all(axis=1)
+    x_points_inside = _inside_polygon(
+        points[1:, 0],
+        points[1:, 1],
+        np.asarray(grid.limiter_r, dtype=np.float64),
+        np.asarray(grid.limiter_z, dtype=np.float64),
+    )
+    non_contained = finite[1:] & ~x_points_inside
+    finite[1:] &= x_points_inside
+    return finite, int(non_contained.sum())
+
+
+def _record_point_containment(
+    receipt: MutableMapping[str, object] | None,
+    non_contained_count: int,
+) -> None:
+    if receipt is not None:
+        receipt["non_contained_x_point_slots"] = int(non_contained_count)
 
 
 def _polygon_contains(
@@ -200,14 +320,23 @@ def _profile_edge_scalar(fields: object, name: str) -> float:
     return result
 
 
-def geometry_vector(fields: object) -> FloatArray:
+def geometry_vector(
+    fields: object,
+    grid: FluxGrid | None = None,
+    *,
+    receipt: MutableMapping[str, object] | None = None,
+) -> FloatArray:
     """Return the 12-value geometry token for one steering frame.
 
-    Masked axis or X-point coordinates are zeroed so that an absent point never
-    injects a non-finite model input.  Shape profiles use their outermost value.
+    Masked axis coordinates and absent or out-of-limiter X-point coordinates are
+    zeroed so that an invalid point never enters the model.  When supplied,
+    ``receipt`` records the number of finite X-point slots rejected by the shot
+    limiter.  Shape profiles use their outermost value.
     """
+    target_grid = grid or FluxGrid()
     points = _point_coordinates(fields)
-    mask = _point_mask(fields)
+    mask, non_contained_count = _point_mask(fields, target_grid)
+    _record_point_containment(receipt, non_contained_count)
     points = np.where(mask[:, None] & np.isfinite(points), points, 0.0)
     diverted = _array(fields, "diverted", dtype=np.dtype(np.bool_))
     if diverted.size != 1:
@@ -233,12 +362,16 @@ def geometry_vector(fields: object) -> FloatArray:
 def render_flux_conditioning(
     fields: object,
     grid: FluxGrid | None = None,
+    *,
+    receipt: MutableMapping[str, object] | None = None,
 ) -> FloatArray:
     """Render one steering frame as a finite ``(6, 64, 64)`` tensor.
 
     The channels are piecewise normalised flux, strict inside-LCFS membership,
     Gaussian magnetic-axis, primary-X and secondary-X marks, and the diverted
-    flag.  Call :meth:`FluxGrid.receipt` on the same grid to record its bounds.
+    flag.  X-point marks are admitted only inside the shot limiter.  When
+    supplied, ``receipt`` records the rejected finite-slot count.  Call
+    :meth:`FluxGrid.receipt` on the same grid to record its wall identity.
     """
     target_grid = grid or FluxGrid()
     levels = _array(fields, "flux_surface_psi_norm", dtype=np.dtype(np.float64))
@@ -265,7 +398,8 @@ def render_flux_conditioning(
     inside_lcfs = membership[-1].astype(np.float32)
 
     points = _point_coordinates(fields)
-    mask = _point_mask(fields)
+    mask, non_contained_count = _point_mask(fields, target_grid)
+    _record_point_containment(receipt, non_contained_count)
     marks = [
         _gaussian_mark(point, target_grid)
         if present
