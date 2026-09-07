@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T10:53:09",
+  "updated": "2026-09-07T11:11:23",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -29691,6 +29691,190 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260907T081050876022-pcp-train-resume-checkpoint",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74f",
+        "node": "pcp-train-resume-checkpoint",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 1325,
+                "cached_input_tokens": 883226,
+                "input_tokens": 884553,
+                "output_tokens": 56,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 884609,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "pytest tests/worldmodel/test_flux_decoder_train.py passes on the all_debug partition via srun with TMPDIR=/tmp and command uv, including a test that trains a few steps on a synthetic corpus, stops, resumes from the written checkpoint and asserts the global step continues rather than restarting while the restored parameters match the checkpoint, and a test that resuming from a run directory selects the highest-step checkpoint, bash -n on the launcher exits 0 with RESUME_FROM passed through when set, and whole-tree ruff check imas_ambix tests exits 0 with no betelgeuse job submitted or cancelled",
+          "estimated_hours": null,
+          "goal": "Resume-from-checkpoint support in imas_ambix/worldmodel/flux_decoder_train.py and its launcher scripts/slurm/flux_decoder_train.sbatch, giving a --resume-from argument that accepts either a checkpoint path or a run directory (selecting the highest-step checkpoint inside it), restoring model state, optimiser state and the global step, and appending a resumed_from record to the receipt rather than overwriting its history, so that a training run dying mid-flight restarts from its latest checkpoint instead of from scratch, because production job 1263842 lost four hours twenty-one minutes and 79,780 steps to a data-reader exception with eight checkpoints on disk and no way to continue from any of them",
+          "id": "pcp-train-resume-checkpoint",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T081050876022-pcp-train-resume-checkpoint/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74f",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/worldmodel/flux_decoder_train.py",
+            "tests/worldmodel/test_flux_decoder_train.py",
+            "scripts/slurm/flux_decoder_train.sbatch"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "pcp-decoder-train",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T08:11:11Z",
+        "completed_at": "2026-09-07T08:54:45Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 2614,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 2614,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "bba58ad212e87a24adcb3250d18306c386da48ba",
+        "commits": [
+          "19d5b5b9e252b3d174ba7cea439d23f9c3c56370"
+        ],
+        "changed_lines": {
+          "added": 251,
+          "removed": 42,
+          "files": 3
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug uv run --no-sync pytest -p no:cacheprovider tests/worldmodel/test_flux_decoder_train.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T081050876022-pcp-train-resume-checkpoint/final-pytest-all-debug.log",
+          "log_digest": "84f648ee1e19825ff58351b64de3b6f2426a7d1c4dcacf0165134b12defc35c2"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T081050876022-pcp-train-resume-checkpoint/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07aeb-db3d-7ff3-b07e-debecccfcf60",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 15360896,
+            "cached_input_tokens_cumulative": 15360896,
+            "input_tokens": 15588876,
+            "input_tokens_cumulative": 15588876,
+            "output_tokens": 36369,
+            "output_tokens_cumulative": 36369,
+            "reasoning_output_tokens": 13112,
+            "reasoning_output_tokens_cumulative": 13112
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": [
+            {
+              "budget_overrun": false,
+              "budget_overrun_seconds": 0,
+              "budget_seconds": 2700,
+              "classification": "completed_unpromoted",
+              "detail": "the worker manifest reports completion and the run is still a pointer; promoting it moves the delivered record into the repository ledger",
+              "elapsed_seconds": 1404,
+              "external_wait": null,
+              "liveness_proven": true,
+              "log_age_seconds": 1897,
+              "log_fresh": false,
+              "manifest_commits": [
+                "ac70893932f174850912d84d961596920483cfa1\"]; changed_paths: [\"imas_ambix/worldmodel/carrier_camera_census.py",
+                "tests/worldmodel/test_carrier_camera_census.py",
+                "docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json"
+              ],
+              "manifest_derived": false,
+              "manifest_digest": "1dd69a75c876093adf8422773ac5ddc9b0e6a274c7c2eff451aa326369c30283",
+              "manifest_error": null,
+              "manifest_file_present": true,
+              "manifest_fresh": true,
+              "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T070926983354-pcp-camera-family-census/manifest.md",
+              "manifest_present": true,
+              "manifest_reported_status": "complete",
+              "manifest_status": "complete",
+              "marker": null,
+              "needs_help_complete": null,
+              "next_action": "reckon crew complete --run r-20260907T070926983354-pcp-camera-family-census --gate <verdict> --commit ac70893932f174850912d84d961596920483cfa1\"]; changed_paths: [\"imas_ambix/worldmodel/carrier_camera_census.py --commit tests/worldmodel/test_carrier_camera_census.py --commit docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json",
+              "node": "pcp-camera-family-census",
+              "phase": "working",
+              "plan": "physics-carried-playable-plasma",
+              "process_alive": false,
+              "project": "imas-ambix",
+              "run_id": "r-20260907T070926983354-pcp-camera-family-census",
+              "session": "ambix-s19-media",
+              "terminal_age_seconds": 1941,
+              "terminal_at": "2026-09-07T07:38:43Z",
+              "wait_age_seconds": null,
+              "wait_overdue": null,
+              "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-media/pcp-camera-family-census"
+            }
+          ]
+        },
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 49481,
+          "peak_input_tokens": 30949772
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-train-resume-checkpoint",
+          "session_id": "01a07aeb-db3d-7ff3-b07e-debecccfcf60",
+          "session_source": "stream",
+          "retained_at": "2026-09-07T08:54:45Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_flux_decoder_train.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -29737,6 +29921,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 575
+    "_version": 576
   }
 }
