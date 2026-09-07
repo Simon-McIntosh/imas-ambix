@@ -30,7 +30,13 @@ class _Reference:
 
 
 class _SyntheticDataset:
-    def __init__(self, split: str, shots: tuple[int, ...]) -> None:
+    def __init__(
+        self,
+        split: str,
+        shots: tuple[int, ...],
+        *,
+        session_total_scanned: int | None = None,
+    ) -> None:
         self.references = tuple(
             _Reference(shot, split, index % 2 == 0)
             for index, shot in enumerate(shots)
@@ -40,7 +46,14 @@ class _SyntheticDataset:
             "pins": {
                 "policy_digest": POLICY_DIGEST,
                 "carrier_identity": CARRIER_IDENTITY,
-            }
+            },
+            "counts": {
+                "manifest_files": (
+                    len(shots)
+                    if session_total_scanned is None
+                    else session_total_scanned
+                )
+            },
         }
 
     def __len__(self) -> int:
@@ -95,8 +108,25 @@ class _TinyTokenModel(nn.Module):
 
 
 def _config(tmp_path: Path, **overrides: object) -> FluxTrainingConfig:
+    cohort_report = tmp_path / "cohort.md"
+    cohort_report.write_text(
+        "\n".join(
+            (
+                "### Labeller train",
+                "30001:1",
+                "### Labeller validation",
+                "30002:1",
+                "### Clean same-campaign test",
+                "30003:1",
+                "### Held-out campaign test",
+                "30004:1",
+            )
+        ),
+        encoding="utf-8",
+    )
     values: dict[str, object] = {
         "run_dir": tmp_path / "run",
+        "cohort_report": cohort_report,
         "epochs": 2,
         "max_steps": 2,
         "batch_size": 1,
@@ -133,18 +163,31 @@ def test_training_rescans_each_epoch_and_writes_checkpoint_receipt(
 ) -> None:
     monkeypatch.setattr(training, "FluxConditionedTokenModel", _TinyTokenModel)
     calls = {"train": 0, "validation": 0}
+    session_root = tmp_path / "sessions"
+    session_root.mkdir()
+    for shot in (20001, 20020):
+        (session_root / f"{shot}.manifest.json").write_text("{}", encoding="utf-8")
 
     def factory(split: str) -> _SyntheticDataset:
         calls[split] += 1
         if split == "train":
-            shots = (20001,) if calls[split] == 1 else (20001, 20002)
+            if calls[split] == 1:
+                shots = (20001,)
+            else:
+                shots = (20001, 20002)
+                (session_root / "20002.manifest.json").write_text(
+                    "{}", encoding="utf-8"
+                )
         else:
             shots = (20020,)
-        return _SyntheticDataset(split, shots)
+        session_total = len(tuple(session_root.glob("*.manifest.json")))
+        return _SyntheticDataset(split, shots, session_total_scanned=session_total)
 
     ticks = iter((0.0, 1801.0, 1801.0, 3602.0, 3602.0))
     result = train_flux_decoder(
-        _config(tmp_path), dataset_factory=factory, clock=lambda: next(ticks)
+        _config(tmp_path, session_root=session_root),
+        dataset_factory=factory,
+        clock=lambda: next(ticks),
     )
 
     assert calls["train"] == 2
@@ -167,6 +210,26 @@ def test_training_rescans_each_epoch_and_writes_checkpoint_receipt(
     assert receipt["carrier_identity"] == CARRIER_IDENTITY
     assert receipt["history_spacing_s"] == pytest.approx(0.005)
     assert receipt["checkpoint_interval_seconds"] == pytest.approx(1800.0)
+    assert receipt["epoch"] == 2
+    assert receipt["session_total_scanned"] == 3
+    assert receipt["admitted_shot_count"] == 3
+    assert receipt["cohort_intersection_count"] == 0
+    assert receipt["cohort_firewall_epochs"] == [
+        {
+            "epoch": 1,
+            "session_total_scanned": 2,
+            "admitted_shot_count": 2,
+            "cohort_shot_count": 4,
+            "cohort_intersection_count": 0,
+        },
+        {
+            "epoch": 2,
+            "session_total_scanned": 3,
+            "admitted_shot_count": 3,
+            "cohort_shot_count": 4,
+            "cohort_intersection_count": 0,
+        },
+    ]
     assert [row["shot_id"] for row in receipt["corpus_digest"]["shots"]] == [
         20001,
         20002,
@@ -185,6 +248,47 @@ def test_training_rescans_each_epoch_and_writes_checkpoint_receipt(
     assert payload["policy_digest"] == POLICY_DIGEST
     assert payload["carrier_identity"] == CARRIER_IDENTITY
     assert payload["step"] == 2
+    assert payload["cohort_firewall_epochs"] == receipt["cohort_firewall_epochs"]
+
+
+def test_epoch_rescan_rejects_an_admitted_cohort_shot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(training, "FluxConditionedTokenModel", _TinyTokenModel)
+    session_root = tmp_path / "sessions"
+    session_root.mkdir()
+    for shot in (20020, 21978):
+        (session_root / f"{shot}.manifest.json").write_text("{}", encoding="utf-8")
+    cohort_report = tmp_path / "cohort-with-admitted-shot.md"
+    cohort_report.write_text(
+        "\n".join(
+            (
+                "### Labeller train",
+                "21978:1",
+                "### Labeller validation",
+                "21989:1",
+                "### Clean same-campaign test",
+                "21986:1",
+                "### Held-out campaign test",
+                "22260:1",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    def factory(split: str) -> _SyntheticDataset:
+        shots = (21978,) if split == "train" else (20020,)
+        return _SyntheticDataset(split, shots, session_total_scanned=2)
+
+    with pytest.raises(ValueError, match=r"cohort firewall.*21978"):
+        train_flux_decoder(
+            _config(
+                tmp_path,
+                session_root=session_root,
+                cohort_report=cohort_report,
+            ),
+            dataset_factory=factory,
+        )
 
 
 def test_validation_reports_decoded_pixel_error_against_persistence(
