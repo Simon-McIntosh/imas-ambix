@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import numpy as np
 
 from imas_ambix.latent.wall_mask import _inside_polygon
+from imas_ambix.worldmodel.camera_topology_targets import _segment_intersections
 from imas_ambix.worldmodel.flux_conditioning import (
     MAST_LIMITER_R,
     MAST_LIMITER_Z,
@@ -31,6 +32,14 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
 FROZEN_CARRIER_SHOTS = (21978, 21983, 21985, 21986, 21989, 22086)
+PROVIDED_MISSING_NOMINAL_COUNTS = {
+    21978: 22,
+    21983: 24,
+    21985: 22,
+    21986: 16,
+    21989: 25,
+    22086: 10,
+}
 FLOATING_DISTANCE_MM = 50.0
 DEFAULT_OUTPUT_DIR = Path("docs/figures/physics-carried-playable-plasma/label-quality")
 
@@ -129,9 +138,15 @@ def boundary_polygon_metrics(
     """Return minimum polyline distance, enclosed area, and containment."""
     boundary = _finite_polygon(boundary_r, boundary_z, name="boundary")
     limiter = _finite_polygon(limiter_r, limiter_z, name="limiter")
-    distance_m = min(
-        _vertices_to_segments_distance(boundary, limiter),
-        _vertices_to_segments_distance(limiter, boundary),
+    closed_boundary = np.vstack((boundary, boundary[0]))
+    intersections = _segment_intersections([closed_boundary], limiter)
+    distance_m = (
+        0.0
+        if intersections.size
+        else min(
+            _vertices_to_segments_distance(boundary, limiter),
+            _vertices_to_segments_distance(limiter, boundary),
+        )
     )
     area_m2 = 0.5 * abs(
         float(
@@ -271,6 +286,10 @@ def summarize_measurements(
                 "no_qualifying_surface",
             )
         }
+        category_fractions = {
+            category: value / count if count else 0.0
+            for category, value in category_counts.items()
+        }
         missing_outer_count = (
             category_counts["fallback_outermost_finite_surface"]
             + category_counts["no_qualifying_surface"]
@@ -280,6 +299,7 @@ def summarize_measurements(
             "measured_slice_count": len(measured),
             "measurement_unavailable_count": count - len(measured),
             "surface_category_counts": category_counts,
+            "surface_category_fractions": category_fractions,
             "finding_category_counts": {
                 "floating_boundary": floating_count,
                 "nominal_outer_surface_missing": missing_outer_count,
@@ -488,6 +508,14 @@ def build_report(
         f"({fallback_count} use a visible fallback and {unavailable} have no "
         f"qualifying level); {confinement}, and {missing_confinement}."
     )
+    observed_missing_counts = {
+        int(shot["shot_id"]): int(
+            shot["summary"]["all"]["nominal_outer_surface_missing_count"]
+        )
+        for shot in shots
+    }
+    supplied_total = sum(PROVIDED_MISSING_NOMINAL_COUNTS.values())
+    observed_total = sum(observed_missing_counts.values())
     return {
         "schema": "boundary-wall-proximity",
         "generated_at": datetime.now(UTC).isoformat(),
@@ -515,6 +543,26 @@ def build_report(
             "psi_norm level with at least three finite vertices and record it"
         ),
         "floating_boundary_threshold_mm": FLOATING_DISTANCE_MM,
+        "missing_nominal_surface_census_reconciliation": {
+            "provided_total": supplied_total,
+            "current_total": observed_total,
+            "total_delta": observed_total - supplied_total,
+            "provided_per_shot": {
+                str(shot): count
+                for shot, count in PROVIDED_MISSING_NOMINAL_COUNTS.items()
+            },
+            "current_per_shot": {
+                str(shot): count for shot, count in observed_missing_counts.items()
+            },
+            "per_shot_delta": {
+                str(shot): observed_missing_counts.get(shot, 0) - count
+                for shot, count in PROVIDED_MISSING_NOMINAL_COUNTS.items()
+            },
+            "statement": (
+                f"The supplied diagnostic counted {supplied_total} missing nominal "
+                f"surfaces; the pinned files currently contain {observed_total}."
+            ),
+        },
         "shots": shots,
         "aggregate": aggregate,
         "floating_confined_to_non_diverted": confined,

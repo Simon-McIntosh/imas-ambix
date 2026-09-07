@@ -35,6 +35,22 @@ def test_boundary_inside_limiter_recovers_known_distance_and_area() -> None:
     assert result["boundary_points_inside_limiter"] is True
 
 
+def test_boundary_crossing_limiter_has_zero_minimum_distance() -> None:
+    limiter_r, limiter_z = _square(1.0)
+    boundary_r = np.asarray([-1.5, 0.5, 0.5, -1.5])
+    boundary_z = np.asarray([-0.5, -0.5, 0.5, 0.5])
+
+    result = boundary_polygon_metrics(
+        boundary_r,
+        boundary_z,
+        limiter_r=limiter_r,
+        limiter_z=limiter_z,
+    )
+
+    assert result["boundary_to_limiter_distance_m"] == 0.0
+    assert result["boundary_points_inside_limiter"] is False
+
+
 def test_shrunken_boundary_is_counted_as_floating() -> None:
     limiter_r, limiter_z = _square(1.0)
     boundary_r, boundary_z = _square(0.2)
