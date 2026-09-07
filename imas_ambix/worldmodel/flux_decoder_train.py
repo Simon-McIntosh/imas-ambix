@@ -29,6 +29,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from imas_ambix.data.paths import LEVEL1_DIR, TOKEN_ROOT
+from imas_ambix.worldmodel.camera_topology_labeller import read_cohort_split
 from imas_ambix.worldmodel.flux_conditioned_decoder import (
     FluxConditionedTokenModel,
     FluxDecoderModelConfig,
@@ -217,6 +218,49 @@ def _pins(dataset: DatasetLike) -> tuple[str, str]:
     return policy_digest, carrier_identity
 
 
+def _session_total_scanned(*datasets: DatasetLike) -> int:
+    totals: list[int] = []
+    for dataset in datasets:
+        counts = dataset.receipt.get("counts")
+        if not isinstance(counts, Mapping):
+            raise ValueError("dataset receipt has no discovery counts")
+        value = counts.get("manifest_files")
+        if not isinstance(value, int) or value < 0:
+            raise ValueError("dataset receipt has no valid manifest_files count")
+        totals.append(value)
+    if len(set(totals)) != 1:
+        raise ValueError("training and validation rescans saw different session totals")
+    return totals[0]
+
+
+def _cohort_firewall_record(
+    train_dataset: DatasetLike,
+    validation_dataset: DatasetLike,
+    *,
+    cohort_report: Path,
+    corpus: Mapping[str, object],
+    epoch: int,
+) -> dict[str, int]:
+    split = read_cohort_split(cohort_report)
+    cohort_shots = {int(shot) for partition in split.values() for shot in partition}
+    admitted_shots = {int(row["shot_id"]) for row in corpus["shots"]}
+    intersection = sorted(admitted_shots.intersection(cohort_shots))
+    record = {
+        "epoch": epoch,
+        "session_total_scanned": _session_total_scanned(
+            train_dataset, validation_dataset
+        ),
+        "admitted_shot_count": len(admitted_shots),
+        "cohort_shot_count": len(cohort_shots),
+        "cohort_intersection_count": len(intersection),
+    }
+    if intersection:
+        raise ValueError(
+            f"epoch {epoch} cohort firewall admitted shot ids {intersection}"
+        )
+    return record
+
+
 def _device(requested: str) -> torch.device:
     selected = (
         "cuda" if requested == "auto" and torch.cuda.is_available() else requested
@@ -385,6 +429,7 @@ def _checkpoint_and_receipt(
     epoch: int,
     started_at: str,
     status: str,
+    cohort_firewall_epochs: Sequence[Mapping[str, int]],
 ) -> tuple[Path, Path, str]:
     corpus_digest = str(corpus["sha256"])
     checkpoint = config.run_dir / f"checkpoint-{step:09d}.pt"
@@ -398,6 +443,9 @@ def _checkpoint_and_receipt(
             "policy_digest": policy_digest,
             "carrier_identity": carrier_identity,
             "admitted_shots": corpus["shots"],
+            "cohort_firewall_epochs": [
+                dict(record) for record in cohort_firewall_epochs
+            ],
             "validation": dict(validation),
         }
     )
@@ -405,6 +453,7 @@ def _checkpoint_and_receipt(
     checkpoint_digest = _file_sha256(checkpoint)
     decoder_identity = f"{checkpoint_digest}:{config.vq_decoder_id}:{corpus_digest}"
     receipt = config.run_dir / "receipt.json"
+    latest_firewall = dict(cohort_firewall_epochs[-1])
     _atomic_json(
         receipt,
         {
@@ -415,6 +464,12 @@ def _checkpoint_and_receipt(
             "run_directory": str(config.run_dir),
             "step": step,
             "epoch": epoch,
+            "session_total_scanned": latest_firewall["session_total_scanned"],
+            "admitted_shot_count": latest_firewall["admitted_shot_count"],
+            "cohort_intersection_count": latest_firewall["cohort_intersection_count"],
+            "cohort_firewall_epochs": [
+                dict(record) for record in cohort_firewall_epochs
+            ],
             "checkpoint": str(checkpoint),
             "checkpoint_sha256": checkpoint_digest,
             "checkpoint_interval_seconds": config.checkpoint_interval_s,
@@ -475,6 +530,7 @@ def train_flux_decoder(
     latest_validation: Mapping[str, object] | None = None
     policy_digest = ""
     carrier_identity = ""
+    cohort_firewall_epochs: list[dict[str, int]] = []
     try:
         for epoch in range(1, config.epochs + 1):
             train_dataset = make_dataset("train")
@@ -487,6 +543,15 @@ def train_flux_decoder(
                 raise ValueError("training and validation corpus pins disagree")
             policy_digest, carrier_identity = train_pins
             latest_corpus = corpus_identity(train_dataset, validation_dataset)
+            cohort_firewall_epochs.append(
+                _cohort_firewall_record(
+                    train_dataset,
+                    validation_dataset,
+                    cohort_report=config.cohort_report,
+                    corpus=latest_corpus,
+                    epoch=epoch,
+                )
+            )
             LOGGER.info(
                 "epoch %d rescan: %d train slices, %d validation slices, %d shots",
                 epoch,
@@ -544,6 +609,7 @@ def train_flux_decoder(
                             epoch=epoch,
                             started_at=started_at,
                             status="training",
+                            cohort_firewall_epochs=cohort_firewall_epochs,
                         )
                     )
                     LOGGER.info(
@@ -583,6 +649,7 @@ def train_flux_decoder(
             epoch=completed_epochs,
             started_at=started_at,
             status="stopped" if stop_requested else "complete",
+            cohort_firewall_epochs=cohort_firewall_epochs,
         )
         LOGGER.info(
             "final checkpoint %s decoder_identity=%s",
