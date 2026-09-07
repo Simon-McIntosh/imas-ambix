@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="52">
+<meta name="plan-version" content="53">
 <meta name="plan-impl" content="0.9">
 </head>
 <body>
@@ -788,6 +788,9 @@
 </div>
 <div class="r-comment" data-section="s4f" data-id="c-20260906T2200-gpu-jobs-chained" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-06T22:00:00Z">
     <div class="r-comment-body">GPU queue agreement with nova (nova-c6, 2026-09-06 late): nova relaunches its labeller as one two-card job and leaves one card for ambix, so the two ambix training jobs must share it. Applied scontrol update JobId=1263778 Dependency=afterany:1263771: the full-corpus labeller training (1263778) now runs after the decoder training (1263771) finishes or fails, on the same card. nova-dd's trip-quantum measurement holds the third card for about twenty more minutes, after which 1263771 starts. No job cancelled or displaced; the dependency is on our own pending job and reversible with scontrol update Dependency= (empty).</div>
+</div>
+<div class="r-comment" data-section="s4f" data-id="c-20260907T0145-training-job-failures" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-07T01:45:00Z">
+    <div class="r-comment-body">Production training FAILED twice at start, never reaching a training step: job 1263771 (03:30 local, exit 1 after 1 min 57 s) and its resubmission 1263813 with PIXEL_VALIDATION_SAMPLES=0 (03:41 local, exit 1 after 1 min 44 s). Root cause read from both logs: flux_decoder_train.py:671 calls _pixel_decoder(config.vq_checkpoint, device) unconditionally whenever a VQ checkpoint path is configured, which constructs the in-process _OpenMagvitVQDecoder and imports src.Open_MAGVIT2, failing on ModuleNotFoundError einops (decision vq-route: the ambix environment does not and will not carry that stack); the sample count does not gate the construction, and the launcher exposes no --no-pixel-validation switch. Because 1263778 carried afterany:1263771 it took the freed card at 01:33Z and camera-topology-train is RUNNING; nova-c6 confirmed ambix keeps both cards tonight (their labeller relaunches single-card and scales in the morning). Corrective node pcp-train-pixel-route (same worker session) routes pixel validation through the subprocess VQ path and gates construction on the sample count; the launcher is resubmitted from the fixed main checkout when it lands, into a fresh run directory. The earlier comment claiming pixel validation already used the subprocess route was wrong and is corrected here.</div>
 </div>
 <div class="r-comment" data-section="§5b" data-id="c-run-r-20260906T210821148664-pcp-decoder-video" data-who="pcp-decoder-video" data-when="2026-09-06T21:33:14Z">
     <div class="r-comment-body"><p>Video command and serve launcher landed: shot 21858 real-versus-decoded GIF (85 frames, 512x288, 10 fps) rendered on all_debug job 1263769 from an untrained checkpoint; VQ route persistent subprocess under the magvit2 environment because src.Open_MAGVIT2 needs einops; predictor decode wall 3.6 s per frame on CPU. Follow-ons for section 5c and nova: bokeh is not installed in the ambix environment so no live serve was claimed, and nova's app reads the decoder from a request argument rather than --decoder after --args</p></div>
