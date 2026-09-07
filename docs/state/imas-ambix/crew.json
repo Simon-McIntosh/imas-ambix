@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T11:34:21",
+  "updated": "2026-09-07T11:50:13",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -953,9 +953,11 @@
         "id": "pcp-decoder-video",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a07b3b-bcbc-78f2-a8bf-51f8496f4505",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "{\"alias\":\"sol5.6\",\"backend\":\"codex\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-sol\",\"sandbox\":\"worktree-full\"}": "01a07b3b-bcbc-78f2-a8bf-51f8496f4505"
+        },
         "created": "2026-09-06"
       },
       {
@@ -1002,9 +1004,11 @@
         "id": "pcp-flux-renderer-2",
         "harness": "codex",
         "role": "implement",
-        "session_id": null,
-        "session_model": null,
-        "sessions": {},
+        "session_id": "01a07b28-b8e8-7a63-8bfd-955008d488e3",
+        "session_model": "gpt-5.6-sol",
+        "sessions": {
+          "{\"alias\":\"sol5.6\",\"backend\":\"codex\",\"effort\":\"high\",\"launch\":\"cli\",\"model\":\"gpt-5.6-sol\",\"sandbox\":\"worktree-full\"}": "01a07b28-b8e8-7a63-8bfd-955008d488e3"
+        },
         "created": "2026-09-07"
       },
       {
@@ -30645,6 +30649,157 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260907T091456249492-pcp-decoder-contract-conformance",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74e",
+        "node": "pcp-decoder-contract-conformance",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 863,
+                "cached_input_tokens": 230746,
+                "input_tokens": 231611,
+                "output_tokens": 1302,
+                "reasoning_output_tokens": 0,
+                "total_tokens": 232913,
+                "uncached_input_tokens": 2
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "pytest tests/worldmodel/test_nova_frame_decoder_contract.py passes on the all_debug partition via srun with TMPDIR=/tmp and command uv, with every assertion above exercised and with a skip rather than a silent pass only where the labeller session is genuinely absent from the host. The run prints and the manifest records the observed image shape and dtype, the median and maximum decode wall in seconds over at least three frames, the decoder_identity string, and whether isinstance against the protocol held, so an integration failure is distinguishable from a quality failure. Whole-tree ruff check imas_ambix tests exits 0. No betelgeuse job is submitted, modified or cancelled, because the single free card is held by a concurrent sweep, and any pixel decoding therefore runs the persistent magvit2 subprocess on CPU",
+          "estimated_hours": null,
+          "goal": "A conformance test in a new tests/worldmodel/test_nova_frame_decoder_contract.py that drives imas_ambix.worldmodel.flux_conditioned_decoder.FluxConditionedDecoder through nova's real protocol rather than a local stub, because the end-to-end path has never been exercised and a demo fails outright if the app cannot load the decoder, whatever the picture quality. It imports FrameDecoder, DecodedFrame and SteeringFrame from the installed nova at /home/ITER/mcintos/Code/nova/apps/playable/camera.py and nova.equilibrium.steering_frames, builds a real SteeringFrame from a labeller session slice rather than a hand-made object, and asserts the whole contract: that isinstance against the runtime-checkable FrameDecoder protocol holds, that decode returns a DecodedFrame whose image is a uint8 array of shape 256 by 256 by 3 with the three channels identical, that decode_wall is positive and finite, that decoder_identity is a non-empty string identical across successive calls on one instance, that reset is callable and discards history so a repeated first decode after reset matches the original first decode under a fixed seed, and that the decoder is reachable by the dotted path nova passes to its decoder flag. It changes no nova file and no production module",
+          "id": "pcp-decoder-contract-conformance",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T091456249492-pcp-decoder-contract-conformance/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74e",
+          "spec_level": "guided",
+          "time_budget": "40m",
+          "write_paths": [
+            "tests/worldmodel/test_nova_frame_decoder_contract.py"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "guided",
+        "member": "pcp-decoder-train",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T09:15:25Z",
+        "completed_at": "2026-09-07T09:48:50Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 2005,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 2005,
+        "stalled": false,
+        "time_budget": "40m",
+        "base_sha": "e200bda2ece19bd0d6add3bfc65376ab9ea3234f",
+        "commits": [
+          "f1d925e934ae382f3ca92a80211fc72cb17d7228",
+          "1bb4a35ca6af944692f9e7ceb6d0aab465832934"
+        ],
+        "changed_lines": {
+          "added": 260,
+          "removed": 27,
+          "files": 3
+        },
+        "tests_added": null,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug command uv run --no-sync pytest -s -p no:cacheprovider tests/worldmodel/test_flux_conditioned_decoder.py tests/worldmodel/test_nova_frame_decoder_contract.py",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T091456249492-pcp-decoder-contract-conformance/conformance-all-debug-after.log",
+          "log_digest": "72aaaceb239fded23b16979015f6932635bf2bbc371069b9560051e2722315b1"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T091456249492-pcp-decoder-contract-conformance/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a07b26-a7ef-77b2-9d70-914f1784d931",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 3475712,
+            "cached_input_tokens_cumulative": 3475712,
+            "input_tokens": 3576173,
+            "input_tokens_cumulative": 3576173,
+            "output_tokens": 20981,
+            "output_tokens_cumulative": 20981,
+            "reasoning_output_tokens": 7085,
+            "reasoning_output_tokens_cumulative": 7085
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": {
+          "grace": "5m",
+          "requested": true,
+          "waived_runs": []
+        },
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 28066,
+          "peak_input_tokens": 7051885
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 2,
+        "attempt_kind": "resume",
+        "scope_acceptances": [
+          {
+            "path": "imas_ambix/worldmodel/flux_conditioned_decoder.py",
+            "reason": "Coordinator extended the write scope by resume advice after the node found the reset defect and correctly reported the repair as out of scope; no other node held this path"
+          },
+          {
+            "path": "tests/worldmodel/test_flux_conditioned_decoder.py",
+            "reason": "Same scope extension: the focused test had to exercise the zero-argument reset path so the defect cannot regress into silence"
+          }
+        ],
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-decoder-contract-conformance",
+          "session_id": "01a07b26-a7ef-77b2-9d70-914f1784d931",
+          "session_source": "pointer",
+          "retained_at": "2026-09-07T09:48:50Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_nova_frame_decoder_contract.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -30691,6 +30846,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 581
+    "_version": 584
   }
 }
