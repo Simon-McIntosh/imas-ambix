@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="155">
+<meta name="plan-version" content="156">
 <meta name="plan-impl" content="0.94">
 <meta name="plan-commits" content="f854455492b0103c5f64d7a6533a46f6059d3ab2,56ca74eeb4f34ac8955ec8553eba0b98d11bdbec,73f306341c327fb2add035765fcdc64d94a5e45a,a4fb3eaab244d481cc17c08ed196f7d8bb917171,e21388bdcf786a155841ebc39da5baa7ab81d4c4,d0028b832c886e32bc8f97b0b93ef928d2535e90,aecc1ea8e735b7b6a9a69b98b756b4d117ae93e1">
 <meta name="plan-artifacts" content="docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json,docs/figures/physics-carried-playable-plasma/label-cartoon/carrier-cameras/camera-picture-quality.json,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/24854/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/24854/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/22086/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/22086/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/label-cartoon.gif,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-census,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-carrier-cameras">
@@ -1456,6 +1456,23 @@ NOT withdrawn, because they are not decoded-versus-real renders: the validation 
 One useful negative result arrived with it: the guidance sweep found no cell beating persistence. Best is guidance 2.0 at temperature 1.0 for a decoded-to-persistence ratio of 2.894 against 3.227 at the default guidance of 1.0, about a ten per cent gain, and raising guidance makes things worse rather than better - at guidance 6.0 and temperature 0.7, 32 of 45 frames trip the mean-collapse indicator against 1 frame at the default. So weak guidance was not the explanation and that hypothesis is withdrawn too.
 
 Nothing in this section's own media is affected: both presentation pairs are nova labels beside the real camera stream with no decoder in them, so no artefact this section published quotes a decoded figure.</div>
+</div>
+<div class="r-comment" data-section="s5d" data-id="c-20260907-corrected-rollout" data-who="reckon-ship" data-when="2026-09-07T10:10:00Z">
+    <div class="r-comment-body">CORRECTED FIGURES, and the correction goes the wrong way, which is the finding rather than an embarrassment. Repaired seeding, same checkpoint and setting, comparable window:
+
+  render                 decoded   persistence   ratio   transitions
+  contaminated            18.096         6.253   2.894            45
+  corrected, full window  24.952         6.750   3.696            41
+  corrected, early phase  25.419         8.653   2.938            21
+  corrected, late phase   24.461         4.752   5.147            20
+
+The contaminated render scored BETTER because its distant bright seed injected mid-tone content that partly matched the real frames. So the contamination flattered the metric while making the picture visibly wrong - a defect that improves a number is far more durable than one that worsens it, because nothing draws attention to it.
+
+The mechanism behind the corrected number is a rollout limit and it is the more useful result: reading the frames, the decoded panel goes near-black for most of the rollout, and a black frame against real frames whose own mean is 17.8 levels produces exactly this error. Per-frame decoded error rises from 8.4 at the first transition to 21 by the fifth, then sits between 13 and 46. THE DECODER HOLDS TOGETHER ABOUT FOUR FRAMES AFTER LEAVING REAL-FRAME HISTORY AND THEN EMPTIES OUT. That is a reproducible property measured over the whole window rather than sampled, and it is what decides what a viewer would actually experience, so it is the honest thing to show a reader instead of a ratio.
+
+The withdrawn 87 and 102 against persistence 12.0 and 8.5 on 21978 and 21989 came through the same defective seeding path. NO CORRECTED EQUIVALENT EXISTS OR IS PLANNED for those two, because the family census established that their camera family is exactly the five cohort carriers and therefore has no trainable members at all - so there is no version of that measurement worth producing.
+
+The guidance-sweep re-run is DEFERRED rather than owed, and I agreed with the reasoning rather than holding the promise. Guidance cannot fix an out-of-distribution rollout, so a re-run would name the marginally best guidance value for a panel already agreed not to show, while the training input is corrupted by an open solver defect that will change the model anyway. The number would be superseded before it was read. Running it to close a promise rather than to learn something is the wrong reason to spend a node, and a promise kept for its own sake is worse than a promise released with a reason.</div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20260907T072122163213-pcp-physics-fidelity-gate" data-who="pcp-flux-renderer" data-when="2026-09-07T08:05:55Z">
     <div class="r-comment-body"><p>Physics-fidelity gate measured and FAILED as a pre-registered negative result: 3 of 51 free converged flat-top slices meet both 2 cm bounds. Boundary alone 24 of 51 (47 percent, aggregate median 3.83 cm, per-shot medians 1.73 to 4.27 cm, with 21989 at 1.73 and demo carrier 22086 at 1.90); axis alone 3 of 51 (5.9 percent, median 4.56 cm, max 6.24 cm). Flat top is interpolated absolute efm plasma current at or above 80 percent of the shot peak (0.175 to 0.365 s); 27 conditioned flat-top slices excluded from evidence and reported. The boundary is close and the axis is systematically offset, which is a definition-versus-physics question the follow-on node resolves</p></div>
