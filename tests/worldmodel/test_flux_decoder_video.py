@@ -32,9 +32,13 @@ class _StubDecoder:
 
 
 def _write_session(path: Path, *, count: int) -> None:
+    action_names = ["prime", "elongation+", "gap-"]
     session = xr.Dataset(
         {
-            "action_name": ("time", ["prime", "elongation+", "gap-"][:count]),
+            "action_name": (
+                "time",
+                [action_names[index % len(action_names)] for index in range(count)],
+            ),
             "wall_seconds": ("time", np.arange(1, count + 1) / 100.0),
         },
         coords={"time": np.arange(count, dtype=np.float64) * 0.005},
@@ -89,6 +93,47 @@ def test_labeller_video_pairs_only_written_converged_slices(tmp_path: Path) -> N
     assert receipt["vq_route"] == "stub"
     recorded = json.loads(output.with_suffix(".receipt.json").read_text())
     assert recorded["output_sha256"] == receipt["output_sha256"]
+
+
+def test_labeller_video_writes_evenly_spaced_contact_sheet(tmp_path: Path) -> None:
+    session_path = tmp_path / "21858.nc"
+    checkpoint = tmp_path / "decoder.pt"
+    output = tmp_path / "comparison.gif"
+    checkpoint.write_bytes(b"synthetic checkpoint")
+    _write_session(session_path, count=8)
+    session_path.with_suffix(".manifest.json").write_text(
+        json.dumps(
+            {
+                "shot": 21858,
+                "slices": [
+                    {"row": index, "written": True, "converged": True}
+                    for index in range(8)
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    real = np.stack(
+        [np.full((48, 256), 10 + index, dtype=np.uint8) for index in range(8)]
+    )
+
+    receipt = render_session_video(
+        session_path,
+        checkpoint,
+        output,
+        decoder=_StubDecoder(),
+        real_frames=real,
+        frame_deltas=np.zeros(8),
+    )
+
+    contact_sheet = tmp_path / "comparison-frames.png"
+    assert receipt["contact_sheet"] == str(contact_sheet.resolve())
+    assert receipt["contact_sheet_frame_indices"] == [0, 1, 3, 4, 6, 7]
+    with Image.open(contact_sheet) as still:
+        assert still.size == (512, 6 * 288)
+        pixels = np.asarray(still.convert("RGB"))
+    assert np.all(pixels[32 + 100, 256 + 100] < 80)
+    assert np.all(pixels[5 * 288 + 32 + 100, 256 + 100] > 180)
 
 
 def test_steering_video_burns_action_and_wall_on_decoded_frames(tmp_path: Path) -> None:
