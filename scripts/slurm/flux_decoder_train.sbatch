@@ -48,6 +48,7 @@ fi
 : "${LEARNING_RATE:=3e-4}"
 : "${VALIDATION_BATCHES:=4}"
 : "${PIXEL_VALIDATION_SAMPLES:=4}"
+: "${RESUME_FROM:=}"
 
 mkdir -p "${RUN_DIR}"
 echo "[$(date --iso-8601=seconds)] flux-conditioned decoder training starting"
@@ -56,20 +57,29 @@ echo "  node: $(hostname)"
 echo "  source: ${REPO_ROOT}"
 echo "  sessions: ${SESSION_ROOT}"
 echo "  run-directory: ${RUN_DIR}"
+if [[ -n "${RESUME_FROM}" ]]; then
+    echo "  resume-from: ${RESUME_FROM}"
+fi
 nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader
 
 cd "${REPO_ROOT}"
+TRAIN_ARGS=(
+    --session-root "${SESSION_ROOT}"
+    --run-dir "${RUN_DIR}"
+    --batch-size "${BATCH_SIZE}"
+    --learning-rate "${LEARNING_RATE}"
+    --checkpoint-interval-seconds 1800
+    --validation-batches "${VALIDATION_BATCHES}"
+    --pixel-validation-samples "${PIXEL_VALIDATION_SAMPLES}"
+    --vq-checkpoint "${VQ_CHECKPOINT}"
+    --device cuda
+)
+if [[ -n "${RESUME_FROM}" ]]; then
+    TRAIN_ARGS+=(--resume-from "${RESUME_FROM}")
+fi
 set +e
 "${VENV}/bin/python" -m imas_ambix.worldmodel.flux_decoder_train \
-    --session-root "${SESSION_ROOT}" \
-    --run-dir "${RUN_DIR}" \
-    --batch-size "${BATCH_SIZE}" \
-    --learning-rate "${LEARNING_RATE}" \
-    --checkpoint-interval-seconds 1800 \
-    --validation-batches "${VALIDATION_BATCHES}" \
-    --pixel-validation-samples "${PIXEL_VALIDATION_SAMPLES}" \
-    --vq-checkpoint "${VQ_CHECKPOINT}" \
-    --device cuda
+    "${TRAIN_ARGS[@]}"
 TRAIN_EXIT=$?
 set -e
 

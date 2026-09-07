@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import random
+import re
 import signal
 import subprocess
 import time
@@ -95,6 +96,7 @@ class FluxTrainingConfig:
     guidance_weight: float = 1.0
     vq_checkpoint: Path | None = DEFAULT_VQ_CHECKPOINT
     vq_decoder_id: str = "imagenet_256_L"
+    resume_from: Path | None = None
     model_config: FluxDecoderModelConfig = FluxDecoderModelConfig()
 
     def __post_init__(self) -> None:
@@ -164,6 +166,94 @@ def _git_revision() -> str:
         text=True,
     )
     return completed.stdout.strip()
+
+
+def resolve_resume_checkpoint(resume_from: Path) -> Path:
+    """Resolve a checkpoint path or the highest-step checkpoint in a run directory."""
+    source = Path(resume_from).expanduser()
+    if source.is_file():
+        return source.resolve()
+    if not source.exists():
+        raise FileNotFoundError(f"resume source does not exist: {source}")
+    if not source.is_dir():
+        raise ValueError(f"resume source is neither a file nor directory: {source}")
+
+    candidates: list[tuple[int, Path]] = []
+    for candidate in source.iterdir():
+        match = re.fullmatch(r"checkpoint-(\d+)\.pt", candidate.name)
+        if match is not None and candidate.is_file():
+            candidates.append((int(match.group(1)), candidate))
+    if not candidates:
+        raise FileNotFoundError(f"run directory contains no checkpoints: {source}")
+    return max(candidates, key=lambda item: item[0])[1].resolve()
+
+
+def _resume_history(
+    checkpoint: Path, payload: Mapping[str, object]
+) -> list[dict[str, object]]:
+    raw_history = payload.get("resumed_from")
+    if raw_history is None:
+        receipt = checkpoint.parent / "receipt.json"
+        if receipt.is_file():
+            receipt_payload = json.loads(receipt.read_text(encoding="utf-8"))
+            if isinstance(receipt_payload, Mapping):
+                raw_history = receipt_payload.get("resumed_from")
+    if raw_history is None:
+        return []
+    if not isinstance(raw_history, list) or not all(
+        isinstance(record, Mapping) for record in raw_history
+    ):
+        raise ValueError("checkpoint resume history must be a list of records")
+    return [dict(record) for record in raw_history]
+
+
+def _restore_training_state(
+    model: FluxConditionedTokenModel,
+    optimizer: torch.optim.Optimizer,
+    *,
+    resume_from: Path,
+    device: torch.device,
+) -> tuple[int, int, list[dict[str, int]], list[dict[str, object]]]:
+    checkpoint = resolve_resume_checkpoint(resume_from)
+    payload = torch.load(checkpoint, map_location=device, weights_only=False)
+    if not isinstance(payload, Mapping):
+        raise ValueError("resume checkpoint must contain a mapping")
+    model_state = payload.get("model_state_dict")
+    optimizer_state = payload.get("optimizer_state_dict")
+    if not isinstance(model_state, Mapping):
+        raise ValueError("resume checkpoint contains no model state dictionary")
+    if not isinstance(optimizer_state, Mapping):
+        raise ValueError("resume checkpoint contains no optimizer state dictionary")
+    step = payload.get("step")
+    epoch = payload.get("epoch", 0)
+    if isinstance(step, bool) or not isinstance(step, int) or step < 0:
+        raise ValueError("resume checkpoint contains no valid global step")
+    if isinstance(epoch, bool) or not isinstance(epoch, int) or epoch < 0:
+        raise ValueError("resume checkpoint contains no valid epoch")
+
+    model.load_state_dict(model_state, strict=True)
+    optimizer.load_state_dict(optimizer_state)
+    raw_firewall_history = payload.get("cohort_firewall_epochs", [])
+    if not isinstance(raw_firewall_history, list) or not all(
+        isinstance(record, Mapping) for record in raw_firewall_history
+    ):
+        raise ValueError("checkpoint cohort firewall history must be a list of records")
+    firewall_history = [
+        {str(key): int(value) for key, value in record.items()}
+        for record in raw_firewall_history
+    ]
+    resume_history = _resume_history(checkpoint, payload)
+    resume_history.append(
+        {
+            "checkpoint": str(checkpoint),
+            "checkpoint_sha256": _file_sha256(checkpoint),
+            "step": step,
+            "epoch": epoch,
+            "resumed_at": _utc_now(),
+        }
+    )
+    LOGGER.info("resumed from %s at global step %d", checkpoint, step)
+    return step, epoch, firewall_history, resume_history
 
 
 def _dataset_factory(config: FluxTrainingConfig) -> DatasetFactory:
@@ -430,6 +520,7 @@ def _checkpoint_and_receipt(
     started_at: str,
     status: str,
     cohort_firewall_epochs: Sequence[Mapping[str, int]],
+    resume_history: Sequence[Mapping[str, object]],
 ) -> tuple[Path, Path, str]:
     corpus_digest = str(corpus["sha256"])
     checkpoint = config.run_dir / f"checkpoint-{step:09d}.pt"
@@ -446,6 +537,7 @@ def _checkpoint_and_receipt(
             "cohort_firewall_epochs": [
                 dict(record) for record in cohort_firewall_epochs
             ],
+            "resumed_from": [dict(record) for record in resume_history],
             "validation": dict(validation),
         }
     )
@@ -470,6 +562,7 @@ def _checkpoint_and_receipt(
             "cohort_firewall_epochs": [
                 dict(record) for record in cohort_firewall_epochs
             ],
+            "resumed_from": [dict(record) for record in resume_history],
             "checkpoint": str(checkpoint),
             "checkpoint_sha256": checkpoint_digest,
             "checkpoint_interval_seconds": config.checkpoint_interval_s,
@@ -509,6 +602,22 @@ def train_flux_decoder(
     )
     make_dataset = dataset_factory or _dataset_factory(config)
     config.run_dir.mkdir(parents=True, exist_ok=True)
+    step = 0
+    completed_epochs = 0
+    cohort_firewall_epochs: list[dict[str, int]] = []
+    resume_history: list[dict[str, object]] = []
+    if config.resume_from is not None:
+        (
+            step,
+            completed_epochs,
+            cohort_firewall_epochs,
+            resume_history,
+        ) = _restore_training_state(
+            model,
+            optimizer,
+            resume_from=config.resume_from,
+            device=device,
+        )
     git_revision = _git_revision()
     started_at = _utc_now()
     next_checkpoint = clock() + config.checkpoint_interval_s
@@ -522,17 +631,15 @@ def train_flux_decoder(
         signum: signal.signal(signum, request_stop)
         for signum in (signal.SIGINT, signal.SIGTERM)
     }
-    step = 0
-    completed_epochs = 0
     latest_checkpoint: Path | None = None
     latest_receipt: Path | None = None
     latest_corpus: Mapping[str, object] | None = None
     latest_validation: Mapping[str, object] | None = None
     policy_digest = ""
     carrier_identity = ""
-    cohort_firewall_epochs: list[dict[str, int]] = []
     try:
-        for epoch in range(1, config.epochs + 1):
+        first_epoch = completed_epochs + 1
+        for epoch in range(first_epoch, first_epoch + config.epochs):
             train_dataset = make_dataset("train")
             validation_dataset = make_dataset("validation")
             if not len(train_dataset):
@@ -610,6 +717,7 @@ def train_flux_decoder(
                             started_at=started_at,
                             status="training",
                             cohort_firewall_epochs=cohort_firewall_epochs,
+                            resume_history=resume_history,
                         )
                     )
                     LOGGER.info(
@@ -650,6 +758,7 @@ def train_flux_decoder(
             started_at=started_at,
             status="stopped" if stop_requested else "complete",
             cohort_firewall_epochs=cohort_firewall_epochs,
+            resume_history=resume_history,
         )
         LOGGER.info(
             "final checkpoint %s decoder_identity=%s",
@@ -724,6 +833,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--guidance-weight", type=float, default=1.0)
     parser.add_argument("--vq-checkpoint", type=Path, default=DEFAULT_VQ_CHECKPOINT)
     parser.add_argument("--no-pixel-validation", action="store_true")
+    parser.add_argument(
+        "--resume-from",
+        type=Path,
+        help="checkpoint path or run directory containing checkpoint-*.pt files",
+    )
     parser.add_argument("--model-width", type=int, default=512)
     parser.add_argument("--model-layers", type=int, default=8)
     parser.add_argument("--model-heads", type=int, default=8)
@@ -764,6 +878,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         loss_chunk=args.loss_chunk,
         guidance_weight=args.guidance_weight,
         vq_checkpoint=None if args.no_pixel_validation else args.vq_checkpoint,
+        resume_from=args.resume_from,
         model_config=model_config,
     )
     device = _device(config.device)
@@ -783,5 +898,6 @@ __all__ = [
     "corpus_identity",
     "evaluate_model",
     "main",
+    "resolve_resume_checkpoint",
     "train_flux_decoder",
 ]

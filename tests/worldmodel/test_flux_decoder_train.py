@@ -78,6 +78,7 @@ class _TinyTokenModel(nn.Module):
         super().__init__()
         self.config = config
         self.weight = nn.Parameter(torch.tensor(0.0))
+        self.observed_weights: list[float] = []
 
     def chunked_nll(
         self,
@@ -90,6 +91,7 @@ class _TinyTokenModel(nn.Module):
         generator: torch.Generator | None = None,
     ) -> torch.Tensor:
         del history, flux, geometry, chunk, generator
+        self.observed_weights.append(float(self.weight.detach()))
         return (self.weight - target.float().mean()).square()
 
     def sample_next_frame(
@@ -107,23 +109,41 @@ class _TinyTokenModel(nn.Module):
         return torch.ones_like(history[:, -1])
 
 
-def _config(tmp_path: Path, **overrides: object) -> FluxTrainingConfig:
-    cohort_report = tmp_path / "cohort.md"
-    cohort_report.write_text(
-        "\n".join(
-            (
-                "### Labeller train",
-                "30001:1",
-                "### Labeller validation",
-                "30002:1",
-                "### Clean same-campaign test",
-                "30003:1",
-                "### Held-out campaign test",
-                "30004:1",
-            )
+def _write_cohort_file(
+    path: Path,
+    *,
+    train: int = 30001,
+    validation: int = 30002,
+    clean_test: int = 30003,
+    campaign_test: int = 30004,
+) -> None:
+    partitions = {
+        "train": train,
+        "validation": validation,
+        "clean_test": clean_test,
+        "campaign_test": campaign_test,
+    }
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "partitions": {
+                    name: {
+                        "shot_count": 1,
+                        "frame_count": 1,
+                        "shots": {str(shot): 1},
+                    }
+                    for name, shot in partitions.items()
+                },
+            }
         ),
         encoding="utf-8",
     )
+
+
+def _config(tmp_path: Path, **overrides: object) -> FluxTrainingConfig:
+    cohort_report = tmp_path / "cohort.json"
+    _write_cohort_file(cohort_report)
     values: dict[str, object] = {
         "run_dir": tmp_path / "run",
         "cohort_report": cohort_report,
@@ -259,21 +279,13 @@ def test_epoch_rescan_rejects_an_admitted_cohort_shot(
     session_root.mkdir()
     for shot in (20020, 21978):
         (session_root / f"{shot}.manifest.json").write_text("{}", encoding="utf-8")
-    cohort_report = tmp_path / "cohort-with-admitted-shot.md"
-    cohort_report.write_text(
-        "\n".join(
-            (
-                "### Labeller train",
-                "21978:1",
-                "### Labeller validation",
-                "21989:1",
-                "### Clean same-campaign test",
-                "21986:1",
-                "### Held-out campaign test",
-                "22260:1",
-            )
-        ),
-        encoding="utf-8",
+    cohort_report = tmp_path / "cohort-with-admitted-shot.json"
+    _write_cohort_file(
+        cohort_report,
+        train=21978,
+        validation=21989,
+        clean_test=21986,
+        campaign_test=22260,
     )
 
     def factory(split: str) -> _SyntheticDataset:
@@ -396,3 +408,74 @@ def test_pixel_validation_uses_persistent_subprocess_and_records_route(
 def test_training_config_rejects_invalid_checkpoint_cadence(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="checkpoint_interval_s"):
         _config(tmp_path, checkpoint_interval_s=0.0)
+
+
+def test_resume_from_checkpoint_continues_model_optimizer_and_global_step(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    models: list[_TinyTokenModel] = []
+
+    def build_model(config: FluxDecoderModelConfig) -> _TinyTokenModel:
+        model = _TinyTokenModel(config)
+        models.append(model)
+        return model
+
+    def factory(split: str) -> _SyntheticDataset:
+        return _SyntheticDataset(split, (20001,) if split == "train" else (20020,))
+
+    monkeypatch.setattr(training, "FluxConditionedTokenModel", build_model)
+    first = train_flux_decoder(
+        _config(tmp_path, max_steps=2),
+        dataset_factory=factory,
+    )
+    saved = torch.load(first.checkpoint, map_location="cpu", weights_only=False)
+    saved_weight = float(saved["model_state_dict"]["weight"])
+
+    resumed = train_flux_decoder(
+        _config(tmp_path, max_steps=4, resume_from=first.checkpoint),
+        dataset_factory=factory,
+    )
+
+    assert resumed.steps == 4
+    assert models[1].observed_weights[0] == pytest.approx(saved_weight)
+    resumed_payload = torch.load(
+        resumed.checkpoint, map_location="cpu", weights_only=False
+    )
+    optimizer_steps = {
+        int(state["step"])
+        for state in resumed_payload["optimizer_state_dict"]["state"].values()
+    }
+    assert optimizer_steps == {4}
+    receipt = json.loads(resumed.receipt.read_text(encoding="utf-8"))
+    assert len(receipt["resumed_from"]) == 1
+    assert receipt["resumed_from"][0]["checkpoint"] == str(first.checkpoint.resolve())
+    assert receipt["resumed_from"][0]["step"] == 2
+    assert resumed_payload["resumed_from"] == receipt["resumed_from"]
+    assert [row["epoch"] for row in receipt["cohort_firewall_epochs"]] == [
+        1,
+        2,
+        3,
+        4,
+    ]
+
+    resumed_again = train_flux_decoder(
+        _config(tmp_path, max_steps=5, resume_from=resumed.checkpoint),
+        dataset_factory=factory,
+    )
+    updated_receipt = json.loads(resumed_again.receipt.read_text(encoding="utf-8"))
+    assert resumed_again.steps == 5
+    assert len(updated_receipt["resumed_from"]) == 2
+    assert updated_receipt["resumed_from"][0] == receipt["resumed_from"][0]
+    assert updated_receipt["resumed_from"][1]["step"] == 4
+
+
+def test_resume_from_run_directory_selects_highest_step(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    lower = run_dir / "checkpoint-000000009.pt"
+    higher = run_dir / "checkpoint-000000120.pt"
+    lower.touch()
+    higher.touch()
+    (run_dir / "checkpoint-current.pt").touch()
+
+    assert training.resolve_resume_checkpoint(run_dir) == higher.resolve()
