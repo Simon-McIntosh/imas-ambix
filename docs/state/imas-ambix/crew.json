@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-07T04:05:29",
+  "updated": "2026-09-07T05:44:54",
   "project": "imas-ambix",
   "doc": "crew",
   "data": {
@@ -26529,6 +26529,144 @@
           "role": "implement",
           "status": "compatible"
         }
+      },
+      {
+        "run_id": "r-20260907T033326008014-pcp-dataset-token-range",
+        "plan": "physics-carried-playable-plasma",
+        "section": "\u00a74d",
+        "node": "pcp-dataset-token-range",
+        "node_definition": {
+          "coordinator": {
+            "authoring_turn": {
+              "source": "claude-code-session-transcript",
+              "status": "measured",
+              "tokens": {
+                "cache_creation_input_tokens": 2381,
+                "cached_input_tokens": 730754,
+                "input_tokens": 733167,
+                "output_tokens": 2161,
+                "reasoning_output_tokens": 588,
+                "total_tokens": 735328,
+                "uncached_input_tokens": 32
+              }
+            },
+            "harness": "claude-code",
+            "runtime_session_id": "f64d2362-b9f5-4d99-ba4d-86d385338a09",
+            "session_id": "ambix-s19-01"
+          },
+          "done_when": "pytest tests/worldmodel/test_flux_label_dataset.py passes with a synthetic token store carrying out-of-range ids either dropped and counted as token_ids_out_of_range or masked per frame as the census dictates, executed on the all_debug partition via srun with TMPDIR=/tmp and command uv to bypass the node uv shell function, the census over every complete corpus shot's token store executed on all_debug (never the login node) and written to the report with shot ids, offending value ranges and counts, the SLURM job ids in the manifest, real shot 21858 still pairing 85, and whole-tree ruff check imas_ambix tests exiting 0",
+          "estimated_hours": null,
+          "goal": "Repair of imas_ambix/worldmodel/flux_label_dataset.py so that a camera token store carrying ids outside the registry range (shot 18462 killed production training job 1263819 at step 51 through _local_token_frames raising ValueError inside the DataLoader) is handled at discovery as a counted exclusion under dropped key token_ids_out_of_range instead of a raise, or, when the offending values are a documented fill value marking invalid frames, those frames alone are excluded from pairing and history and counted, whichever the census supports, with the corpus-wide census of offending shots and their distinct offending values written to /home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/token-range-census.md",
+          "id": "pcp-dataset-token-range",
+          "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T033326008014-pcp-dataset-token-range/manifest.md",
+          "plan": "physics-carried-playable-plasma",
+          "requires_decisions": [],
+          "role": "implement",
+          "section": "\u00a74d",
+          "spec_level": "exact",
+          "time_budget": "30m",
+          "write_paths": [
+            "imas_ambix/worldmodel/flux_label_dataset.py",
+            "tests/worldmodel/test_flux_label_dataset.py",
+            "/home/ITER/mcintos/.config/reckon/crew/reports/physics-carried-playable-plasma/token-range-census.md"
+          ]
+        },
+        "role": "implement",
+        "spec_level": "exact",
+        "member": "pcp-session-dataset",
+        "backend": "codex",
+        "local": false,
+        "agent": {
+          "alias": "sol5.6",
+          "backend": "codex",
+          "effort": "high",
+          "launch": "cli",
+          "model": "gpt-5.6-sol",
+          "sandbox": "worktree-full"
+        },
+        "dispatched_at": "2026-09-07T03:33:48Z",
+        "completed_at": "2026-09-07T03:43:43Z",
+        "completed_at_source": "stream_mtime",
+        "worker_seconds": 595,
+        "worker_seconds_source": "wall_fallback",
+        "wall_seconds": 595,
+        "stalled": false,
+        "time_budget": "30m",
+        "base_sha": "9b8c5639eebd8394e49a2262cf3b8e3ce102dc0e",
+        "commits": [
+          "c8ef0f4ea6421ca831b7767983b62b55f8559e93"
+        ],
+        "changed_lines": {
+          "added": 30,
+          "removed": 3,
+          "files": 2
+        },
+        "tests_added": 1,
+        "gate": "passed",
+        "gate_check": {
+          "command": "srun --partition=all_debug corpus token-range census over 795 stores (SLURM job 1263840) plus command uv run --no-sync pytest -p no:cacheprovider -s tests/worldmodel/test_flux_label_dataset.py on all_debug (job 1263841, 5 passed)",
+          "exit_status": 0,
+          "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T033326008014-pcp-dataset-token-range/pytest-all-debug.log",
+          "log_digest": "sha256:32084527e33ac70a6de85cac08c729e8d96e8cd3d95cdc201774eb65b5e1dfd8"
+        },
+        "suite_delta": null,
+        "failure_classification": null,
+        "outcome": "",
+        "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260907T033326008014-pcp-dataset-token-range/manifest.md",
+        "scope_changed": false,
+        "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+        "budget": {
+          "headroom": "unknown",
+          "utilisation_pct": null,
+          "rate_limit_type": null,
+          "rate_limit_period_minutes": null,
+          "resets_at": null,
+          "threshold_status": null,
+          "surpassed_threshold": null,
+          "tokens": {
+            "cache_write_input_tokens": 0,
+            "cache_write_input_tokens_cumulative": 0,
+            "cached_input_tokens": 931200,
+            "cached_input_tokens_cumulative": 5034240,
+            "input_tokens": 1134826,
+            "input_tokens_cumulative": 5313390,
+            "output_tokens": 7432,
+            "output_tokens_cumulative": 20008,
+            "reasoning_output_tokens": 1401,
+            "reasoning_output_tokens_cumulative": 5469
+          },
+          "cost_usd": null,
+          "refusal": false,
+          "detail": "backend reports token usage but no headroom"
+        },
+        "lineage": null,
+        "shadow_controlled": null,
+        "shadow_patch": "",
+        "unreconciled_override": null,
+        "throughput": {
+          "detail": "turn tokens recorded, but no span was supplied to rate them",
+          "generated_tokens": 25477,
+          "peak_input_tokens": 10347630
+        },
+        "follow_on_paths": [],
+        "dispute_count": 0,
+        "attempt": 1,
+        "attempt_kind": "dispatch",
+        "worktree_retention": {
+          "classification": "retained-for-resume",
+          "worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/ambix-s19-01/pcp-dataset-token-range",
+          "session_id": "01a0785e-ea6c-7b62-90de-d65384ba593c",
+          "session_source": "pointer",
+          "retained_at": "2026-09-07T03:43:43Z"
+        },
+        "execution_fit": {
+          "allowed": true,
+          "execution_capable": true,
+          "matched_measure": "pytest tests/worldmodel/test_flux_label_dataset.py",
+          "override": false,
+          "role": "implement",
+          "status": "compatible"
+        }
       }
     ],
     "holds": [
@@ -26575,6 +26713,6 @@
         "resumption_fired": false
       }
     ],
-    "_version": 542
+    "_version": 543
   }
 }

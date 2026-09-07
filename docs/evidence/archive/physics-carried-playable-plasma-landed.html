@@ -400,6 +400,12 @@
     <code>conditioned_branch_guard_ok</code>; both flags ride on every item and in the receipt and failures are counted under
     <code>conditioned_guard_failed</code>. Gate run by the worker on <code>all_debug</code>: 4 passed in 4.83 s. Real shot 21858:
     85 pairs, 16 conditioned admitted, 0 guard failures.</p>
+    <p><strong>Third follow-on (2026-09-07), <code>pcp-dataset-token-range</code>, commit <code>c8ef0f4</code>.</strong> Training job
+    1263819 died after 51 steps when the DataLoader met shot 18462's token store, whose ids fall outside the registry range, and the
+    loader raised. A corpus census on <code>all_debug</code> (job 1263840) over 809 complete manifests scanned 795 token stores and
+    8,453,716 frames: exactly one store offends (18462: 2,121,664 zero-valued elements mixed with valid ids on every frame, not a
+    documented fill), and 14 shots have no token store at all. Discovery now excludes an offending store whole under
+    <code>token_ids_out_of_range</code> before pairing; gate on <code>all_debug</code> (job 1263841): 5 passed, 21858 still 85 pairs.</p>
 
     <h2 id="s4e-decoder">§4e — Flux-conditioned decoder behind nova's FrameDecoder protocol (landed 2026-09-06)</h2>
     <p>Node <code>pcp-flux-decoder</code>, run <code>r-20260906T204231250040</code>, commit <code>6e3de31</code>, worker gate
