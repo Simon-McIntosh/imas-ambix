@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="131">
+<meta name="plan-version" content="132">
 <meta name="plan-impl" content="0.94">
 <meta name="plan-commits" content="f854455492b0103c5f64d7a6533a46f6059d3ab2,56ca74eeb4f34ac8955ec8553eba0b98d11bdbec,73f306341c327fb2add035765fcdc64d94a5e45a,a4fb3eaab244d481cc17c08ed196f7d8bb917171,e21388bdcf786a155841ebc39da5baa7ab81d4c4,d0028b832c886e32bc8f97b0b93ef928d2535e90,aecc1ea8e735b7b6a9a69b98b756b4d117ae93e1">
 <meta name="plan-artifacts" content="docs/figures/physics-carried-playable-plasma/label-cartoon/census/carrier-camera-ranking.json,docs/figures/physics-carried-playable-plasma/label-cartoon/carrier-cameras/camera-picture-quality.json,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/24854/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/24854/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/22086/label-cartoon.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/pair/22086/camera-stream.gif,docs/figures/physics-carried-playable-plasma/label-cartoon/reference-21858/label-cartoon.gif,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-census,docs/evidence/archive/physics-carried-playable-plasma-landed#s5d-carrier-cameras">
@@ -989,6 +989,16 @@
       <button class="r-opt" data-value="short-engine-is-the-blocker">short-engine-is-the-blocker</button>
       </p>
     <p class="r-dec-rat">We already train on 39,285 slices across 733 shots and the failure mode is not scarcity. The decoder emits a near-uniform frame with the plasma column absent, full-video pixel error 9.61 against a persistence baseline of 2.75, which is mean collapse and is unaffected by 13 per cent more of the same labels. The fingerprint of a data limit is validation loss separating from training loss and we have not seen it. Two riders given to nova: breadth across camera families is worth far more than depth per shot, since decoded-to-persistence ratios are 3.3 inside the demo carrier&#x27;s 20 microsecond family against 7.3 and 12.0 on unseen 512-by-512 cameras, and the decoder firewall subtracts the whole 718-shot camera-topology labeller cohort from our universe, so writing shots outside imas_ambix/worldmodel/data/labeller_cohort.json raises usable yield at no cost. This is a rough read by nova&#x27;s own framing and is revisited if the resumed run shows a train-validation gap.</p>
+    </div>
+<div class="r-dec" data-key="camera-family-restriction" data-choice="camera-conditioned" data-by="ambix-s19-01" data-when="">
+    <p class="r-dec-q">Rebuild the decoder on the demo carrier&#x27;s camera family, or condition on camera geometry</p>
+    <p class="r-dec-ctx">The corpus-trained decoder gives decoded-to-persistence ratios of 3.3 on the held-out demo carrier at 128 by 172 and 20 microseconds, against 7.3 and 12.0 on the 512 by 512 carriers at 550 to 800 microseconds, which raised the question of whether the next training run should be restricted to the demo carrier&#x27;s camera family. The census settles it with real counts over 888 sessions and 1887 camera-group records.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="family-restricted-rebuild">family-restricted-rebuild</button>
+      <button class="r-opt chosen" data-value="camera-conditioned">camera-conditioned</button>
+      <button class="r-opt" data-value="neither-transfer-as-is">neither-transfer-as-is</button>
+      </p>
+    <p class="r-dec-rat">A family-restricted rebuild is arithmetically impossible. The demo family holds 9 shots, 8 with complete manifests, and the carrier-held-out decision removes 22086, leaving about 7 trainable shots. The 512 by 512 square family is exactly the five cohort carriers and nothing else, so subtracting the labeller cohort empties that family completely, which also means the 7.3 and 12.0 ratios were measured on cameras with zero trainable members rather than on a family we merely trained too little on. Across 42 distinct rbb geometry and cadence bands the largest is 313 complete shots of 48 by 256 at 5 to 15 microseconds, which is the strip geometry the decoder already sees most of, so no single family is broad enough to be worth restricting to. Conditioning on camera geometry and cadence is the only option the distribution supports, and it would have to span 42 bands rather than a handful. For tonight nothing is rebuilt: the demo carrier already sits at 3.3 and the cheaper inference-side explanations are under test.</p>
     </div>
 </section>
 
