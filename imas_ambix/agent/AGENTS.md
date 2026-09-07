@@ -310,8 +310,31 @@ administratively prohibited.
 
 | Service | Origin | Shape | Owner |
 |---|---|---|---|
-| LLM serving (this repo) | `http://98dci4-gpu-0003:18800` | OpenAI **and** Anthropic native | `imas-ambix agent serve` |
+| **LLM serving — point every consumer here** | **`http://98dci4-gpu-0003:18802`** (the router) | OpenAI **and** Anthropic native | `imas-ambix agent router` |
+| LLM serving — one engine, internal | `http://98dci4-gpu-0003:<profile port>` | same | `imas-ambix agent serve` |
 | Text embeddings | `http://98dci4-gpu-0002:18765` | custom, **not** OpenAI-shaped | imas-codex |
+
+**Never configure a consumer against a serve port. Use the router, always.**
+A serve port belongs to one profile at one topology, and **the deployment is
+rotated deliberately** — four cards to two and back within a day is normal, and
+each topology has its own declared port (`deepseek-v4-flash` 18800,
+`deepseek-v4-flash-2x` 18809). A consumer pinned to a serve port therefore
+breaks on every rotation, silently, at a moment nobody associates with its own
+work.
+
+**Measured 2026-09-07, and this table caused it.** An earlier version of this row
+gave `:18800` as the LLM-serving origin under the heading "what to point a client
+at". A consuming repository configured `api-base` against it, the deployment
+rotated to two cards on 18809, and that consumer was down for hours — its
+generation gate treats an unreachable compose endpoint as fatal to the *whole*
+run, so unrelated pools refused to start and thirteen sources sat parked while
+the model was in fact serving normally the whole time. **The router existed and
+was answering throughout.**
+
+The router relays both dialects (`/v1/models`, `/v1/chat/completions`,
+`/v1/messages`), discovers upstreams itself, and prefers the widest topology when
+several serve one release — so a rotation, an overlap, and a cutover are all
+invisible to anything holding the router address.
 
 The serve port is a `SiteConfig` default (`AMBIX_AGENT_PORT`), so a second
 concurrent model is served on a **different port on the same host**. One vLLM
@@ -329,10 +352,11 @@ a reserved floor; it does not require a different endpoint or routing design.
 **LLM serving — paths that exist on the engine:**
 
 ```bash
-curl http://98dci4-gpu-0003:18800/v1/models                  # catalog + ambix metadata
-curl http://98dci4-gpu-0003:18800/v1/messages       -d @body  # Anthropic native, SSE-capable
-curl http://98dci4-gpu-0003:18800/v1/messages/count_tokens -d @body
-curl http://98dci4-gpu-0003:18800/v1/chat/completions -d @body # OpenAI
+# 18802 is the ROUTER — the address every consumer should hold
+curl http://98dci4-gpu-0003:18802/v1/models                  # catalog + ambix metadata
+curl http://98dci4-gpu-0003:18802/v1/messages       -d @body  # Anthropic native, SSE-capable
+curl http://98dci4-gpu-0003:18802/v1/messages/count_tokens -d @body
+curl http://98dci4-gpu-0003:18802/v1/chat/completions -d @body # OpenAI
 ```
 
 The Anthropic surface is complete — streaming emits real `thinking` content
