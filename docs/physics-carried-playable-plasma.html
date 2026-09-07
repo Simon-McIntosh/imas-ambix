@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-07">
-<meta name="plan-version" content="59">
+<meta name="plan-version" content="60">
 <meta name="plan-impl" content="0.9">
 </head>
 <body>
@@ -809,6 +809,9 @@
 </div>
 <div class="r-comment" data-section="s4f" data-id="c-20260907T0335-training-token-range-failure" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-07T03:35:00Z">
     <div class="r-comment-body">Training job 1263819 FAILED at 04:11 local after 51 steps (token NLL 12.57 to 12.41): the DataLoader raised ValueError from flux_label_dataset._local_token_frames because /work/projects/imas_gpu/mast-tokens/v1/frames/18462/rbb.zarr carries ids outside the registry range. Coordinator read of that store: shape (10201, 16, 16) int32, values 0 to 262,143, no attrs, i.e. raw LFQ local ids WITHOUT the registry offset of 4 that shot 21858's store carries, so the corpus token stores are in mixed id conventions and the loader must normalise per store rather than raise. No checkpoint was written (first due at 30 min). The labeller job 1263778 then took the card (afterany) and is running. Corrective node pcp-dataset-token-range (dataset worker session) censuses every complete shot's store on all_debug and either normalises or excludes with a counted reason; on landing the decoder job is resubmitted and our labeller job requeued behind it again. Status for the lead at 05:32 local: no trained decoder, no demo video from a trained model yet; the pipeline is complete and the blocker is this loader defect.</div>
+</div>
+<div class="r-comment" data-section="s4f" data-id="c-20260907T0420-first-trained-checkpoint" data-who="reckon-ship imas-ambix-1d" data-when="2026-09-07T04:20:00Z">
+    <div class="r-comment-body">FIRST TRAINED CHECKPOINT on nova's labels: job 1263842 (RUNNING since 05:46 local), epoch 1 rescan admitted 39,285 train and 2,085 validation slices over 733 shots; checkpoint-000007644.pt (2.0 GB) and receipt.json written at 06:17 local. Receipt validation: token NLL 10.968 over 1,024 tokens (12.59 at step 1; uniform over 2^18 is 12.48), persistence token error rate 0.999, decoded pixel error over 4 samples: model MAE 8.94 u8 against persistence 3.44 (persistence at 5 ms spacing is a strong baseline; the model does not beat it 30 minutes in). Training continues at about 4.7 steps per second; log token NLL 10.94 at step 7,740. Node pcp-video-first-checkpoint dispatched: first real-versus-decoded video of 21858 from this checkpoint on all_debug.</div>
 </div>
 <div class="r-comment" data-section="§5b" data-id="c-run-r-20260906T210821148664-pcp-decoder-video" data-who="pcp-decoder-video" data-when="2026-09-06T21:33:14Z">
     <div class="r-comment-body"><p>Video command and serve launcher landed: shot 21858 real-versus-decoded GIF (85 frames, 512x288, 10 fps) rendered on all_debug job 1263769 from an untrained checkpoint; VQ route persistent subprocess under the magvit2 environment because src.Open_MAGVIT2 needs einops; predictor decode wall 3.6 s per frame on CPU. Follow-ons for section 5c and nova: bokeh is not installed in the ambix environment so no live serve was claimed, and nova's app reads the decoder from a request argument rather than --decoder after --args</p></div>
