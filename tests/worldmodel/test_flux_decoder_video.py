@@ -85,6 +85,7 @@ def test_labeller_video_pairs_only_written_converged_slices(tmp_path: Path) -> N
         decoder=_StubDecoder(),
         real_frames=real,
         frame_deltas=np.array([0.0001, -0.0002]),
+        sample_seed=22086,
     )
 
     assert _animation_shape(output) == (2, (512, 288))
@@ -97,6 +98,7 @@ def test_labeller_video_pairs_only_written_converged_slices(tmp_path: Path) -> N
     assert receipt["gif_frame_count"] == 2
     assert receipt["max_abs_camera_delta_s"] == 0.0002
     assert receipt["vq_route"] == "stub"
+    assert receipt["sample_seed"] == 22086
     recorded = json.loads(output.with_suffix(".receipt.json").read_text())
     assert recorded["output_sha256"] == receipt["output_sha256"]
     assert recorded["written_frame_count"] == 2

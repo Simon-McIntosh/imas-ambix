@@ -464,6 +464,7 @@ def _runtime_decoder(
     device: str,
     guidance_weight: float,
     temperature: float,
+    sample_seed: int,
 ) -> tuple[FrameDecoder, _TokenCollector]:
     from imas_ambix.worldmodel.flux_conditioned_decoder import (  # noqa: PLC0415
         FluxConditionedDecoder,
@@ -478,6 +479,7 @@ def _runtime_decoder(
         "vq_stage": "stub",
         "guidance_weight": guidance_weight,
         "temperature": temperature,
+        "sample_seed": sample_seed,
         "device": device,
         "seed_shot": int(seed_session.stem),
         "seed_slice": seed_slice,
@@ -599,6 +601,7 @@ def render_session_video(
     device: str = "cpu",
     guidance_weight: float = 1.0,
     temperature: float = 1.0,
+    sample_seed: int = 0,
     fps: int = DEFAULT_FPS,
     max_frames: int | None = None,
 ) -> dict[str, object]:
@@ -701,6 +704,7 @@ def render_session_video(
             device=device,
             guidance_weight=guidance_weight,
             temperature=temperature,
+            sample_seed=sample_seed,
         )
 
     decoded: list[ImageArray] = []
@@ -777,6 +781,7 @@ def render_session_video(
         "max_abs_camera_delta_s": max_delta,
         "guidance_weight": guidance_weight,
         "temperature": temperature,
+        "sample_seed": sample_seed,
         "requested_start_slice": seed_slice if seed_window is not None else None,
         "first_rendered_slice": selected[0],
         "first_rendered_time_s": float(times[0]),
@@ -844,6 +849,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--guidance-weight", type=float, default=1.0)
     parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--sample-seed", type=int, default=0)
     parser.add_argument("--fps", type=int, default=DEFAULT_FPS)
     parser.add_argument("--max-frames", type=int)
     return parser
@@ -865,6 +871,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         device=args.device,
         guidance_weight=args.guidance_weight,
         temperature=args.temperature,
+        sample_seed=args.sample_seed,
         fps=args.fps,
         max_frames=args.max_frames,
     )
