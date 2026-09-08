@@ -531,6 +531,30 @@ with no preemptions, so **read a single-poll capacity wait as scheduler
 granularity, not as pressure**; only a wait that persists across several polls
 is worth investigating.
 
+**A sustained deep queue was finally observed on 2026-09-08, and it was a burst
+draining normally rather than a stall.** Demand of about fourteen simultaneous
+requests arrived at once; the engine admitted them progressively over roughly two
+minutes while `waiting` fell 8 → 5 → 4 → 3 → 2 → 0 and `running` climbed
+6 → 8 → 10 → 12 → 14 → 15:
+
+```
+run=8  wait=5  sum=13  kv=42%      run=12 wait=2  sum=14  kv=46%
+run=9  wait=4  sum=13  kv=44%      run=14 wait=0  sum=14  kv=47%
+run=10 wait=3  sum=13  kv=44%      run=15 wait=0  sum=15  kv=49%
+```
+
+**The discriminator is the sum.** `running + waiting` held at 13-14 throughout, so
+nothing was accumulating — a fixed burst was being absorbed. **A queue whose sum
+is constant while `running` climbs is draining; a queue whose sum grows, or whose
+`running` is flat while `waiting` rises, is a stall.** Generation advanced
+continuously, preemptions stayed at zero, and the router refused nothing.
+
+**KV was never the constraint** — it peaked at 49% with fifteen requests resident,
+so admission was limited by something other than cache space. That is consistent
+with the chunked-prefill budget above, and it is the closest thing to support the
+hypothesis has had, but admission rate was not measured against prompt size so it
+remains unconfirmed.
+
 **This is a candidate, not a finding.** It has been raised three times today and
 confirmed none of them; twice it was killed by reading the reason codes. Each
 event was one request waiting, which is marginal. **The testable prediction is
