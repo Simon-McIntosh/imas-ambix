@@ -704,13 +704,29 @@ two serves and the window is a coincidence.
 concrete form of "cards buy capacity, not speed".** Measured 2026-09-07 on the
 two-card serve:
 
-| Topology | pool (tokens) | `max_model_len` | `kv_cache_max_concurrency` |
-|---|---|---|---|
-| four-card | 2,554,833 – 2,557,835 | 1,048,576 | 2.44 |
-| **two-card** | **1,173,125** | 1,048,576 | **1.12** |
+**Every pool figure needs four attributes or it cannot be read**: topology,
+`max_model_len`, **`mem_fraction_static`**, and the date. All four have moved
+within a week, and a figure carrying fewer is not a fact about the system.
 
-(The four-card pool differs by ~3,000 tokens between two launches of the same
-profile, so treat it as approximate rather than a constant to check against.)
+| Date | Topology | `mem_fraction` | `max_model_len` | pool (tokens) | `max_concurrency` |
+|---|---|---|---|---|---|
+| **2026-09-14** | **four-card** | **0.85** | 1,048,576 | **2,200,283** | **2.098** |
+| 2026-09-07 | four-card | 0.92 | 1,048,576 | 2,554,833 – 2,557,835 | 2.44 |
+| 2026-09-07 | two-card | 0.92 | 1,048,576 | 1,173,125 | 1.12 |
+
+**The top row is current; the 0.92 rows are superseded and kept only for the
+comparison below.** The four-card pool also differed by ~3,000 tokens between two
+launches of one profile, so treat any of them as approximate rather than as a
+constant to assert against.
+
+**A bigger pool is not better, and this is the counter-intuitive part.** The
+reduction from 0.92 to 0.85 was a fix, not a concession. At 0.92 the pool ran at
+**3–7% occupancy** while the fused-MoE workspace — allocated lazily at generation
+time, **outside** the memory fraction — ran out of room and **killed the serve at
+256 concurrent**. Returning 9.8 GiB per card to that workspace also raised
+throughput **at unchanged width**: 1,451 → 2,483 tok/s at 128 concurrent. So an
+oversized pool is paid for in tokens per second everywhere, not only at the
+failure edge.
 
 A single full-context request consumes **89%** of the two-card pool, and KV was
 observed at **79% with one request running**. That is not a fault — vLLM preempts
