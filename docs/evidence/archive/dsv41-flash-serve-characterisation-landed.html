@@ -57,6 +57,61 @@
   300&ndash;507 tok/s per-client claim, and the gap is not closed by anything
   available here &mdash; see &sect;3 and the note on quantisation below.</p>
 
+  <h2 id="s2c">§2 — WITHDRAWN AS A CHARACTERISATION: measured through a caching defect</h2>
+
+  <p><strong>The curve above is real but it is not a property of this model on
+  this hardware.</strong> It was measured while the engine's prefix caching had
+  stopped working, so every number in it carries a per-turn cost that should not
+  have been there. Do not cite it as the deployment's capability.</p>
+
+  <p>The defect, counted from the serve's own log
+  (<code>deepseek-v4-1-flash-1270394.log</code>) and independently confirmed by a
+  peer session that found it first:</p>
+
+  <table>
+    <thead><tr><th>Measure</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Prefill batches with <code>#cached-token: 0</code></td><td><strong>1,364 of 1,464 (93.2%)</strong></td></tr>
+      <tr><td>Peak KV pool occupancy</td><td>0.10 &mdash; the pool was 90% empty</td></tr>
+      <tr><td>Cache hits by log decile</td><td>[0, 15, 53, 23, 2, 1, 0, 2, 4, 0]</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>It is not capacity eviction.</strong> The pool never rose above a
+  tenth, hits and misses shared the same median occupancy, and identical
+  back-to-back requests still cached at roughly 9.8&times; at the end of the
+  serve's life. Caching worked for the first third and then stopped honouring
+  reuse across turns, while continuing to work within a turn. A prefix that hit
+  after one second was gone after seventy-five seconds of live traffic.</p>
+
+  <p>The consequence is the whole throughput story: agent traffic re-prefilled
+  on the order of 100k tokens every turn, which is a fixed per-turn cost of
+  about 23 seconds. The fleet saw a median of 8.6 tok/s on this serve against
+  17.5&ndash;101.4 on the ten preceding days.</p>
+
+  <p><strong>This is the answer to a question this record previously left
+  open.</strong> The roofline argument in &sect;2 was right that the serve was
+  bound by fixed per-token cost rather than by bandwidth or arithmetic &mdash;
+  29&nbsp;ms per token against a ceiling in the high hundreds. Three candidate
+  causes were pursued from there: speculative decoding, MXFP4 dequantisation and
+  card count. The actual cause was in the serve's own log from the first minute,
+  and none of the three would have fixed it. The lesson is narrower than "measure
+  before optimising": the instrument that would have found this &mdash; counting
+  <code>#cached-token</code> in the log &mdash; cost one command and was never
+  run, while three restarts were spent on hypotheses.</p>
+
+  <p><strong>Attribution:</strong> most likely a defect in
+  <code>lmsysorg/sglang:dev-dsv41</code>, whose V4.1 support merged to sglang
+  main the same day this was deployed. Recorded as a suspected engine defect, not
+  as a tuning result, and not as a property of the checkpoint.</p>
+
+  <p>Peer-measured capability on the same serve while it was healthy, offered as
+  the honest curve: 44.5 tok/s at one stream, 39.7 each at four (144.8
+  aggregate), 37.3 each at eight (275.8 aggregate) &mdash; 84% batch efficiency
+  to eight streams, cold prefill 8,365 tok/s, and prefix caching demonstrably
+  working on demand at 41&times; on a repeated 116k-token prefix, correctly
+  invalidated by a single changed character.</p>
+
   <h2 id="s3">§3 — DSpark is not viable on this topology</h2>
 
   <p>Speculative decoding was enabled, measured, and withdrawn. It never
