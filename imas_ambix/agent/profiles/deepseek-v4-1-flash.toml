@@ -99,18 +99,21 @@ moe_runner_backend = "flashinfer_mxfp4"
 # 1.56x prefill throughput on 8xH200.
 enable_decoder_swa_bounded_replay = true
 cuda_graph_max_bs_decode = 64
-# The shared KV pool, which is NOT the per-request context window. Context is
-# capped separately at the model's native 1,048,576 and cannot usefully go
-# past it without RoPE rescaling; this is how many tokens the engine can hold
-# across all concurrent requests at once.
+# The shared KV pool -- NOT the per-request context window, which stays at the
+# model's native 1,048,576 and cannot usefully go past it without RoPE
+# rescaling. This is how many tokens the engine holds across all concurrent
+# requests at once, and leaving the two equal is the trap: one full-context
+# request would consume the whole pool, so agentic sessions at 100-300k would
+# fit only a handful.
 #
-# Leaving the two equal is the trap: one full-context request would then
-# consume the entire pool, and agentic sessions at 100-300k would fit only a
-# handful. Sized from the measured cost instead -- 16.94 GiB per card bought
-# 1,048,576 tokens, so the 59.3 GiB the 0.95 budget leaves after weights and
-# decode graphs buys roughly 3.67M. Held 3 GiB/card back from that and
-# page-aligned the result (page_size 256).
-max_total_tokens = 3485952
+# Left to the engine rather than pinned, because sizing it by hand means
+# extrapolating a per-token cost that is mostly a fixed base. Two measured
+# points here: 16.94 GiB bought 1,048,576 tokens and 21.51 GiB bought
+# 3,485,952, which is ~15 GiB fixed plus ~2 KiB/token -- an estimate built on
+# the first point alone was five times too small. The engine computes this
+# from its own allocator against the memory actually left after weights, which
+# is a better estimator than two points and a straight line.
+auto_size_kv_pool = true
 trust_remote_code = true
 
 # "auto" resolves to this architecture's own parsers rather than a generic
