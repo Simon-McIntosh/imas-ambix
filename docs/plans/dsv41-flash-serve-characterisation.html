@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="dsv41-flash-serve-characterisation">
+  <meta name="plan-title" content="DSv4.1-Flash Serve Characterisation">
+  <meta name="plan-summary" content="Characterise the four-card V4.1-Flash serve under concurrency, enable DSpark, and dogfood it through clive workers">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="5.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="moderate">
+  <meta name="plan-sprint" content="S24">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <title>DSv4.1-Flash Serve Characterisation | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-modified" content="2026-09-14">
+<meta name="plan-version" content="1">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <h2 id="s1">§1 — What is deployed, and the one number we have</h2>
+    <p>DeepSeek-V4.1-Flash serves on four H200 cards at TP4/EP4, port 18810,
+    behind the router on 18802, with the launcher listing it. The deployment
+    itself is settled and recorded in
+    <a href="/imas-ambix/plans/clive-global-endpoint-routing">clive-global-endpoint-routing</a>;
+    this plan is about what it actually delivers under load.</p>
+
+    <p>The single measurement taken so far is a single-stream decode sweep, and
+    it is the reason this plan exists:</p>
+
+    <table>
+      <thead><tr><th>Output tokens</th><th>Decode tok/s</th><th>TTFT (ms)</th></tr></thead>
+      <tbody>
+        <tr><td>128</td><td>34.7</td><td>131</td></tr>
+        <tr><td>512</td><td>34.4</td><td>131</td></tr>
+        <tr><td>1024</td><td>34.4</td><td>131</td></tr>
+        <tr><td>2048</td><td>34.3</td><td>132</td></tr>
+        <tr><td>2689</td><td>34.3</td><td>133</td></tr>
+      </tbody>
+    </table>
+
+    <p>Flat at <strong>34.4 tok/s</strong> with a 131 ms time-to-first-token.
+    The DeepSeek beta reported 300&ndash;507 tok/s, on their own serving stack.
+    A single-stream figure and an aggregate figure are not comparable, which is
+    precisely why §2 exists &mdash; but a 9&times; gap is large enough that it
+    should not be assumed away as a concurrency artefact before it is measured.</p>
+
+    <p>Three candidate causes, in the order they are cheap to test: speculative
+    decoding is off (§3), the MXFP4 experts run through a dequantisation path
+    rather than native FP4 tensor cores because H200 is SM90, and the Engram
+    tables are gathered from host memory rather than HBM. Only the first is a
+    setting; the other two are properties of running this checkpoint on Hopper.</p>
+
+    <h2 id="s2">§2 — Concurrency sweep</h2>
+    <p>Record decode tok/s, aggregate throughput, TTFT and p95 TTFT across a
+    range of concurrencies against the live endpoint. <code>imas-ambix agent
+    bench</code> already carries a <code>concurrency</code> category and writes
+    JSON to <code>~/.local/share/ambix/bench/</code>; use it rather than writing
+    a new harness.</p>
+
+    <p>The pool is sized at 20,000,000 tokens, so KV capacity should not bind
+    until concurrency times context approaches that. The scheduler caps are
+    <code>max_running_requests=256</code> and
+    <code>chunked_prefill_size=32768</code>; the sweep should reach far enough to
+    show whether the ceiling is the scheduler, the KV pool, or the GPUs.</p>
+
+    <p><strong>Done when:</strong> a table of concurrency against per-stream and
+    aggregate tok/s exists in the evidence record, the saturation point is named,
+    and the binding constraint at saturation is identified by measurement rather
+    than inference.</p>
+
+    <h2 id="s3">§3 — DSpark speculative decoding</h2>
+    <p>The serve currently reports <code>speculative_algorithm: None</code>. This
+    checkpoint ships DSpark, and the vendor's own four-GPU recipe enables it with
+    <code>--speculative-algorithm DSPARK --speculative-dspark-block-size 5</code>.
+    The V4-Flash profile in this repository already sets an equivalent under vLLM,
+    so the omission here is an oversight rather than a decision.</p>
+
+    <p>Speculative decoding helps single-stream latency most and can cost
+    throughput at high concurrency when acceptance is low, so it must be measured
+    on both sides of the §2 sweep rather than enabled on principle.</p>
+
+    <p><strong>Done when:</strong> single-stream and saturated throughput are
+    measured with and without DSpark, and the profile carries whichever wins with
+    the measurement recorded beside it.</p>
+
+    <h2 id="s4">§4 — Dogfood through clive workers</h2>
+    <p>Synthetic benchmarks measure token rates; they do not measure whether the
+    deployment is usable for the work it exists to do. Drive real agent
+    workloads through <code>clive</code> against this endpoint and record what
+    breaks.</p>
+
+    <p>Agent traffic differs from the benchmark in ways that matter: long and
+    growing contexts rather than a fixed 12-token prompt, tool calls in a loop,
+    structured output, and bursty concurrency. The tool-calling path has been
+    verified once by hand &mdash; a call and its result round trip correctly
+    &mdash; but never under sustained multi-turn load.</p>
+
+    <p><strong>Done when:</strong> several clive workers have completed real
+    tasks against the endpoint, with observed failure modes, context-growth
+    behaviour and tool-call reliability recorded; and any defect found is either
+    fixed or carried as a followup naming it.</p>
+
+    <h2 id="s5">§5 — Serving interpreter: split kt-kernel out, then move to 3.14</h2>
+    <p>The repository targets Python 3.14 and Ruff formats to it, which rewrites
+    exception tuples into PEP 758's unparenthesised form. The serving venv is
+    3.12, where that form is a <code>SyntaxError</code>. The repository's own
+    guidance records this as having recurred three times; it recurred a fourth
+    time on 2026-09-14 when a directory-scoped formatter run rewrote the vLLM
+    middleware modules, which would have broken every vLLM serve at import.</p>
+
+    <p>Moving the serving environment to 3.14 removes the whole class rather than
+    documenting it again. Upstream permits it: PyTorch publishes cp314 wheels,
+    SGLang requires only <code>&gt;=3.10</code>, and vLLM allows
+    <code>&lt;3.15</code>. The blocker is local &mdash; a 3.14 sync fails with:</p>
+
+    <pre>all versions of kt-kernel have no wheels with a matching Python version tag (e.g., `cp314`)
+hint: Wheels are available for `kt-kernel` (v0.7.0.post4) with ABI tag: `cp312`</pre>
+
+    <p><code>kt-kernel</code> belongs to KTransformers CPU offload, and
+    <code>SiteConfig._engine_key</code> maps the <code>ktransformers</code> engine
+    onto the <code>sglang</code> venv, so one environment must satisfy both. Plain
+    SGLang serving does not need the kernel at all.</p>
+
+    <p><strong>Done when:</strong> the decision below is locked, the split (or
+    its alternative) is implemented, a 3.14 environment builds and passes its
+    runtime verification, and no serving-loaded module fails to parse under the
+    interpreter that will run it.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="kt-kernel-split" data-choice="" data-by="" data-when="">
+    <p class="r-dec-q">How should the serving environment reach Python 3.14 when kt-kernel is cp312-only?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="separate-ktransformers-env">separate-ktransformers-env</button>
+      <button class="r-opt" data-value="kt-kernel-optional-extra">kt-kernel-optional-extra</button>
+      <button class="r-opt" data-value="stay-on-3-12">stay-on-3-12</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-dsc-001" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-14" data-recommends-skill="/reckon-ship dsv41-flash-serve-characterisation §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Sweep concurrency and settle DSpark</h4>
+    <div class="r-fu-body"><p>&sect;2 and &sect;3 together, because they share an instrument and each answers the other's question: the sweep is meaningless without knowing whether speculative decoding is on, and DSpark cannot be judged from a single-stream figure alone. Run <code>imas-ambix agent bench --category concurrency</code> against the live endpoint, then repeat with DSpark enabled, and keep whichever configuration wins at the concurrency the lane actually sees.</p><p>The single-stream baseline to beat is 34.4 tok/s at 131 ms TTFT.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv41-flash-serve-characterisation §2</pre>
+    </article>
+<article class="r-fu" data-id="f-dsc-002" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-tool-autonomy="autonomous" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-14" data-recommends-skill="/reckon-ship dsv41-flash-serve-characterisation §4" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Dogfood the endpoint with clive workers</h4>
+    <div class="r-fu-body"><p>&sect;4. Drive real agent tasks through <code>clive</code> against this endpoint rather than synthetic prompts, and record what breaks: context growth, tool-call reliability across many turns, structured output, and behaviour under bursty concurrency. The tool path is verified once by hand and never under sustained load.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv41-flash-serve-characterisation §4</pre>
+    </article>
+<article class="r-fu" data-id="f-dsc-003" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-verification="strict" data-written-by="reckon-create" data-written-at="2026-09-14" data-recommends-skill="/reckon-ship dsv41-flash-serve-characterisation §5" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Split kt-kernel out and move the serving venv to 3.14</h4>
+    <div class="r-fu-body"><p>&sect;5, gated on the <code>kt-kernel-split</code> decision. A 3.14 sync fails today because kt-kernel ships cp312 wheels only and the ktransformers engine shares the sglang venv. Upstream allows 3.14 across PyTorch, SGLang and vLLM, so the constraint is local.</p><p>This removes a defect class rather than a defect: the repository formats to py314 syntax that the 3.12 serving interpreter cannot parse, which has now bitten four times.</p></div>
+    <pre class="r-fu-prompt">/reckon-ship dsv41-flash-serve-characterisation §5</pre>
+    </article>
+</section>
+
+  </main>
+</body>
+</html>

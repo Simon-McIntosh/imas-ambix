@@ -489,8 +489,13 @@ def generate_serve_script(
     if is_kt:
         evictor_python = shlex.quote(str(site.python_path(profile.engine.type)))
         engine_venv = site.venv_path(profile.engine.type)
-        cu13_lib = shlex.quote(
-            str(engine_venv / "lib/python3.12/site-packages/nvidia/cu13/lib")
+        # Glob the interpreter directory rather than naming a version: the
+        # engine environment's Python follows its own requires-python, and a
+        # literal here silently pointed at a path that no longer existed after
+        # a version bump.
+        cu13_lib = (
+            f"$(echo {shlex.quote(str(engine_venv))}"
+            "/lib/python3.*/site-packages/nvidia/cu13/lib)"
         )
         fadvise_cmd = (
             f'{evictor_python} -c {shlex.quote(_FADVISE_DROP_CODE)} "$MODEL_DIR"'
@@ -628,8 +633,10 @@ def generate_serve_script(
     env_block = "\n".join(
         f"export {k}={shlex.quote(str(v))}" for k, v in profile.engine.env.items()
     )
-    site_packages = shlex.quote(
-        str(site.venv_path(profile.engine.type) / "lib/python3.12/site-packages")
+    # Resolved by the shell at run time, for the same reason as cu13_lib above.
+    site_packages = (
+        f"$(echo {shlex.quote(str(site.venv_path(profile.engine.type)))}"
+        "/lib/python3.*/site-packages)"
     )
 
     # The engine venv's vendored CUDA and torch libraries belong on

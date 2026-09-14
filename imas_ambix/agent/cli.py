@@ -2743,6 +2743,26 @@ def _engine_pyproject(engine: str) -> str:
     return pkg.read_text(encoding="utf-8")
 
 
+def _engine_python_version(engine: str) -> str:
+    """Return the Python minor version an engine environment declares.
+
+    The setup job must build the venv against the interpreter the engine's own
+    ``requires-python`` names. Pinning a literal version here instead meant the
+    declaration and the build could disagree silently -- raising the floor in
+    the pyproject changed nothing, because the sync still asked for the old
+    interpreter.
+    """
+    import re
+
+    source = _engine_pyproject(engine)
+    match = re.search(r'requires-python\s*=\s*"[^"]*?>=\s*(\d+\.\d+)', source)
+    if not match:
+        raise click.ClickException(
+            f"engine {engine!r} declares no parsable requires-python floor"
+        )
+    return match.group(1)
+
+
 def _metadata_version_command(package: str, label: str, *, ok: bool = False) -> str:
     """Return a shell command that reports installed package metadata."""
     values = f"{label!r}, m.version({package!r})"
@@ -2972,7 +2992,7 @@ def setup(engine: str, dry_run: bool) -> None:
 
     lines += [
         "# uv sync creates/updates .venv and installs all dependencies",
-        "uv sync --python 3.12 -v 2>&1 | tail -50",
+        f"uv sync --python {_engine_python_version(engine)} -v 2>&1 | tail -50",
     ]
 
     # vLLM: install the renamed wheel into the synced venv
