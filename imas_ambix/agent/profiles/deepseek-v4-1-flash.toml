@@ -81,10 +81,13 @@ type = "sglang"
 # parallelism rather than by widening TP.
 tensor_parallel = 4
 ep_size = 4
-# The cookbook's value for every verified layout. Lower than the 0.92 the
-# V4-Flash profile runs at, because the Engram gather and the ViT tower both
-# want headroom outside the static pool.
-mem_fraction_static = 0.8
+# The cookbook ships 0.8 for every verified layout, which left 45.13 GiB per
+# card idle on the first run here: sglang sized a 112.3 GiB budget and used
+# only 95.3 GiB, because the KV pool was capped well below what the budget
+# allowed. Raised to spend the reserved cards rather than hold them back. The
+# remaining 5% (~7 GiB/card) stays outside the budget for the CUDA context,
+# NCCL buffers and fragmentation, which are not drawn from it.
+mem_fraction_static = 0.95
 # This architecture's own attention kernel; "flashinfer" (the schema default,
 # and what V4-Flash uses) does not implement CSA2.
 attention_backend = "dsv4"
@@ -96,9 +99,18 @@ moe_runner_backend = "flashinfer_mxfp4"
 # 1.56x prefill throughput on 8xH200.
 enable_decoder_swa_bounded_replay = true
 cuda_graph_max_bs_decode = 64
-# Full native window. At 890 bytes/token the whole 1M context is under a
-# gigabyte of KV, so there is nothing to buy by capping it.
-max_total_tokens = 1048576
+# The shared KV pool, which is NOT the per-request context window. Context is
+# capped separately at the model's native 1,048,576 and cannot usefully go
+# past it without RoPE rescaling; this is how many tokens the engine can hold
+# across all concurrent requests at once.
+#
+# Leaving the two equal is the trap: one full-context request would then
+# consume the entire pool, and agentic sessions at 100-300k would fit only a
+# handful. Sized from the measured cost instead -- 16.94 GiB per card bought
+# 1,048,576 tokens, so the 59.3 GiB the 0.95 budget leaves after weights and
+# decode graphs buys roughly 3.67M. Held 3 GiB/card back from that and
+# page-aligned the result (page_size 256).
+max_total_tokens = 3485952
 trust_remote_code = true
 
 # "auto" resolves to this architecture's own parsers rather than a generic

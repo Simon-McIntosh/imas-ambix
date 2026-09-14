@@ -1856,7 +1856,9 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
         console.print(f"[yellow]Profile '{default}' not found — restart manually.[/]")
         return
 
-    port = site.default_port
+    # The profile's own port, as ``serve`` uses; the site default only when it
+    # declares none. Rotating a key must not also move the endpoint.
+    port = profile.slurm.port if profile.slurm.port is not None else site.default_port
     user = os.environ.get("USER") or getpass.getuser()
 
     # Before cancelling anything: a rotation that tears the serve down and then
@@ -2158,7 +2160,18 @@ def restart(
             }
         )
     site = SiteConfig.from_env()
-    resolved_port = port if port is not None else site.default_port
+    # Same precedence as ``serve``: an explicit flag, then the profile's own
+    # declared port, then the site default. Skipping the profile here put a
+    # restarted serve on a different port from the one ``serve`` had given it,
+    # so the registration, the router and the profile disagreed about where the
+    # model lived -- and on a site default that another profile already owns.
+    resolved_port = (
+        port
+        if port is not None
+        else profile.slurm.port
+        if profile.slurm.port is not None
+        else site.default_port
+    )
     resolved_key = _resolve_serve_auth(auth, api_key, site)
 
     # Before cancelling anything: a restart that stops the running serve and
