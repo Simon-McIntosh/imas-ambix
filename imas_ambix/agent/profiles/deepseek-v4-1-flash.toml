@@ -81,13 +81,19 @@ type = "sglang"
 # parallelism rather than by widening TP.
 tensor_parallel = 4
 ep_size = 4
-# The cookbook ships 0.8 for every verified layout, which left 45.13 GiB per
-# card idle on the first run here: sglang sized a 112.3 GiB budget and used
-# only 95.3 GiB, because the KV pool was capped well below what the budget
-# allowed. Raised to spend the reserved cards rather than hold them back. The
-# remaining 5% (~7 GiB/card) stays outside the budget for the CUDA context,
-# NCCL buffers and fragmentation, which are not drawn from it.
-mem_fraction_static = 0.95
+# 0.85, and DO NOT raise it to use apparently-idle memory. This fraction is
+# the engine's budget for weights plus KV pool; the FlashInfer MXFP4 fused-MoE
+# workspace is allocated LAZILY AT GENERATION and comes from what is left
+# OUTSIDE it. Raising this to 0.95 to spend idle memory is what removed that
+# reserve, and the serve then died twice on the same allocation -- 7.52 GiB
+# wanted against 6.91 GiB free at a 20M pool, and against 7.34 GiB free at 15M.
+#
+# The workspace also scales with prefill length, which is why a short-prompt
+# concurrency sweep can pass at 32 streams and the next agentic request can
+# kill the serve: a clive worker sends a large system prompt and tool
+# definitions, and that is the shape that allocates. Size this against a long
+# prefill, never against short completions.
+mem_fraction_static = 0.85
 # This architecture's own attention kernel; "flashinfer" (the schema default,
 # and what V4-Flash uses) does not implement CSA2.
 attention_backend = "dsv4"
@@ -99,15 +105,19 @@ moe_runner_backend = "flashinfer_mxfp4"
 # 1.56x prefill throughput on 8xH200.
 enable_decoder_swa_bounded_replay = true
 cuda_graph_max_bs_decode = 64
-# Speculative decoding. The decode is bound by fixed per-token cost, not by
-# bandwidth -- 29 ms per token against an HBM roofline in the high hundreds of
-# tok/s -- and speculation is the lever aimed at exactly that, since one
-# verification step carries a whole accepted block. The vendor's own four-GPU
-# recipe enables it, and the draft weights are already resident: the checkpoint
-# breakdown is "routed + DSpark experts", so this costs workspace rather than
-# another expert tower. Block size follows the vendor recipe.
-speculative_algorithm = "DSPARK"
-speculative_dspark_block_size = 5
+# Speculative decoding is NOT VIABLE on this four-card deployment, and the
+# reason is capacity rather than benefit. DSpark wants a ~12 GiB per-card
+# workspace on top of weights, Engram, KV pool and the TensorRT-LLM autotuner,
+# and it OOMed at every pool size worth running: at 14,999,808 tokens it asked
+# 12 GiB with 1.3 GiB free, and even at the smallest load-proven pool of
+# 3,485,952 it asked 12 GiB with 7.6 GiB free. Shrinking the pool further
+# cannot close a 4.4 GiB gap, because the pool's cost is ~16 GiB of fixed base
+# plus only ~1.6 KiB/token -- there is no room to buy.
+#
+# This matches prior experience on V4-Flash, where DSpark did not change
+# throughput materially. Do not re-enable it here without either more cards or
+# a checkpoint whose experts are small enough to leave the Engram tables in
+# HBM; on this topology it cannot start, let alone help.
 # The shared KV pool -- NOT the per-request context window, which stays at the
 # model's native 1,048,576 and cannot usefully go past it without RoPE
 # rescaling. This is how many tokens the engine holds across all concurrent
