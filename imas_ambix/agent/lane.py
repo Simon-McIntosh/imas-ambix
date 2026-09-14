@@ -173,6 +173,65 @@ def fetch_lane_capacity(origin: str, *, timeout: float = 10.0) -> LaneCapacity:
     return parse_lane_capacity(body)
 
 
+def write_unavailable_document(
+    reason: str, path: str | Path, *, model_id: str = ""
+) -> Path:
+    """Publish the fact that the lane could NOT be read, and why.
+
+    The headroom key is omitted rather than set to null: a present-but-null
+    field invites exactly one wrong reading, while a missing key raises on a
+    reader that assumed it, failing loudly at the layer that knows. ``reason``
+    is required because "unavailable" alone rebuilds the not-yet-published
+    versus gone ambiguity one field down.
+    """
+    from datetime import UTC, datetime
+
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    document = {
+        "observed_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "state": "unavailable",
+        "reason": reason,
+        "model_id": model_id,
+    }
+    scratch = target.with_suffix(".tmp")
+    scratch.write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")
+    scratch.replace(target)
+    target.chmod(0o644)
+    return target
+
+
+def classify_reading(
+    document: dict[str, object], *, now: object = None, shelf_life_seconds: int = 120
+) -> str:
+    """Return "measured", "stale" or "unavailable" for a published reading.
+
+    Staleness is the READER's classification, not the writer's -- a document is
+    always fresh at the moment it is written, and a producer that baked in a
+    constant would be right at one fleet age only. Provided here so every
+    reader does not reinvent it differently.
+
+    A stale reading KEEPS its figure and reports its age. "We measured 15 four
+    minutes ago" and "we could not measure" are different facts, and only the
+    first helps somebody debugging; a gate may treat stale as unknown while the
+    record retains the discriminating value.
+    """
+    from datetime import UTC, datetime
+
+    if document.get("state") == "unavailable":
+        return "unavailable"
+    stamp = document.get("observed_at")
+    if not isinstance(stamp, str):
+        return "unavailable"
+    try:
+        observed = datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+    except ValueError:
+        return "unavailable"
+    current = now if isinstance(now, datetime) else datetime.now(UTC)
+    age = (current - observed).total_seconds()
+    return "stale" if age > shelf_life_seconds else "measured"
+
+
 def write_lane_document(capacity: LaneCapacity, path: str | Path) -> Path:
     """Publish the reading so a session need not probe the engine to size work.
 
@@ -196,6 +255,34 @@ def write_lane_document(capacity: LaneCapacity, path: str | Path) -> Path:
         "concurrent_requests": capacity.concurrent_requests,
         "headroom": capacity.headroom,
         "binding_observed": capacity.binding_observed,
+        # Validity lives in its own field, never in the figure. `0` and `null`
+        # are both falsy, so a reader writing `if not headroom` collapses "the
+        # lane is full" into "we could not measure" -- opposite facts. Checking
+        # `state` first is the contract; zero headroom is then unmistakably
+        # {"state": "measured", "headroom": 0}.
+        "state": "measured",
+        # A number and its vintage is better than a number; a number, its
+        # vintage and its DENOMINATOR is the thing that cannot quietly become
+        # false. A utilisation figure computed against the wrong context window
+        # is arithmetically perfect and undetectable by inspection, so every
+        # derived figure here names what it was divided by.
+        "derived_from": {
+            "pool_tokens": capacity.pool_tokens,
+            "mean_context": capacity.mean_context,
+            "running_at_observation": capacity.running,
+            "formula": (
+                "concurrent_requests = pool_tokens // mean_context; "
+                "mean_context = pool_tokens * kv_occupancy / running; "
+                "headroom = concurrent_requests - running"
+            ),
+        },
+        # Declared, not enforced. The producer must not bake in a constant that
+        # is right at one fleet age: measured 2026-09-14 the budget moved from
+        # 143 to 38 in roughly twenty minutes as a fresh wave accumulated
+        # context, so a bound generous at the start of a wave is tight in the
+        # middle of one. The reader owns the decision; this is the default it
+        # should apply absent its own policy.
+        "suggested_shelf_life_seconds": 120,
     }
     scratch = target.with_suffix(".tmp")
     scratch.write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")

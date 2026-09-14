@@ -7,8 +7,10 @@ import json
 import pytest
 
 from imas_ambix.agent.lane import (
+    classify_reading,
     parse_lane_capacity,
     write_lane_document,
+    write_unavailable_document,
 )
 
 _POOL = 2_200_283
@@ -127,3 +129,87 @@ def test_published_document_carries_its_observation_time(tmp_path):
     assert document["concurrent_requests"] == 37
     assert document["binding_observed"] is False
     assert document["pool_tokens"] == _POOL
+
+
+def test_published_document_names_its_own_denominators(tmp_path):
+    """A derived figure must say what it was divided by.
+
+    A utilisation percentage computed against the wrong context window is
+    arithmetically perfect and cannot be caught by inspecting the number; only
+    the denominator travelling with it makes the error findable.
+    """
+    capacity = parse_lane_capacity(_metrics(running=10, occupancy=0.267))
+
+    path = write_lane_document(capacity, tmp_path / "lane.json")
+    document = json.loads(path.read_text(encoding="utf-8"))
+    derived = document["derived_from"]
+
+    assert derived["pool_tokens"] == _POOL
+    assert derived["mean_context"] == document["mean_context"]
+    assert derived["running_at_observation"] == 10
+    assert "pool_tokens // mean_context" in derived["formula"]
+
+
+def test_shelf_life_is_declared_for_the_reader_not_enforced_by_the_producer():
+    """The producer must not bake a constant that is right at one fleet age."""
+    capacity = parse_lane_capacity(_metrics(running=10, occupancy=0.267))
+
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as scratch:
+        path = write_lane_document(capacity, Path(scratch) / "lane.json")
+        document = json.loads(path.read_text(encoding="utf-8"))
+
+    assert document["suggested_shelf_life_seconds"] == 120
+    # Nothing in the reading refuses on age; staleness is the reader's call.
+    assert not hasattr(capacity, "expired")
+
+
+def test_zero_headroom_and_unmeasurable_are_distinguishable(tmp_path):
+    """The figure must never carry its own validity.
+
+    `0` and `null` are both falsy, so a reader writing `if not headroom: hold`
+    collapses "the lane is full" into "we could not measure" -- opposite facts
+    calling for opposite responses.
+    """
+    full = parse_lane_capacity(_metrics(running=37, occupancy=1.0, pool=_POOL))
+    measured = json.loads(
+        write_lane_document(full, tmp_path / "full.json").read_text(encoding="utf-8")
+    )
+    unavailable = json.loads(
+        write_unavailable_document(
+            "router unreachable", tmp_path / "gone.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert measured["state"] == "measured"
+    assert measured["headroom"] == 0
+    assert unavailable["state"] == "unavailable"
+    assert "headroom" not in unavailable, "a missing key must raise, not read false"
+    assert unavailable["reason"] == "router unreachable"
+
+
+def test_a_stale_reading_keeps_its_figure_rather_than_becoming_unavailable(tmp_path):
+    """"Measured 15 four minutes ago" and "could not measure" differ."""
+    from datetime import UTC, datetime, timedelta
+
+    capacity = parse_lane_capacity(_metrics(running=10, occupancy=0.267))
+    document = json.loads(
+        write_lane_document(capacity, tmp_path / "lane.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    fresh = classify_reading(document, now=datetime.now(UTC))
+    old = classify_reading(document, now=datetime.now(UTC) + timedelta(minutes=4))
+
+    assert fresh == "measured"
+    assert old == "stale"
+    assert document["concurrent_requests"] == 37, "the figure survives staleness"
+
+
+def test_an_unreadable_stamp_is_unavailable_not_silently_fresh():
+    """A record whose age cannot be established must not pass as current."""
+    assert classify_reading({"observed_at": "not-a-timestamp"}) == "unavailable"
+    assert classify_reading({}) == "unavailable"
