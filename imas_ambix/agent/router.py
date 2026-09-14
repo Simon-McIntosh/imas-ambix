@@ -28,6 +28,14 @@ class AdmissionLimits:
     max_in_flight: int = 2
     max_queued: int = 4
     retry_after_seconds: int = 5
+    # Ceiling on how long a queued request waits for a slot. Without one the
+    # wait is unbounded, and a caller that finds the bucket busy but the queue
+    # not yet full hangs until it gives up -- which is not a status code, is
+    # not loggable, and is indistinguishable from a slow model, so callers
+    # retry into it. Measured: completions hung past 45s against a healthy
+    # upstream answering in 0.28s, while long-lived agent sessions held the
+    # in-flight slots.
+    queue_wait_seconds: int = 30
 
     @classmethod
     def from_environment(
@@ -39,6 +47,7 @@ class AdmissionLimits:
             "max_in_flight": "AMBIX_ROUTER_MAX_IN_FLIGHT",
             "max_queued": "AMBIX_ROUTER_MAX_QUEUED",
             "retry_after_seconds": "AMBIX_ROUTER_RETRY_AFTER_SECONDS",
+            "queue_wait_seconds": "AMBIX_ROUTER_QUEUE_WAIT_SECONDS",
         }
         values: dict[str, int] = {}
         for field, name in names.items():
@@ -58,6 +67,8 @@ class AdmissionLimits:
             raise ValueError("max_queued must not be negative")
         if self.retry_after_seconds < 1:
             raise ValueError("retry_after_seconds must be positive")
+        if self.queue_wait_seconds < 1:
+            raise ValueError("queue_wait_seconds must be positive")
 
 
 @dataclass(slots=True)
@@ -72,7 +83,14 @@ class _AdmissionController:
         self._limits = limits
         self._consumers: dict[str, _ConsumerCapacity] = {}
 
-    async def acquire(self, consumer: str) -> bool:
+    async def acquire(self, consumer: str) -> str:
+        """Return "admitted", "queue-full", or "timed-out".
+
+        The three are deliberately distinct at the caller: a full queue is the
+        system declining promptly, while a timeout is the system having waited
+        and still not found room. Collapsing them would hide which of the two
+        a caller is actually hitting, and they call for different responses.
+        """
         capacity = self._consumers.setdefault(
             consumer, _ConsumerCapacity(asyncio.Condition())
         )
@@ -80,17 +98,24 @@ class _AdmissionController:
             if capacity.in_flight < self._limits.max_in_flight:
                 capacity.in_flight += 1
                 self._log("admitted", consumer, capacity)
-                return True
+                return "admitted"
             if capacity.queued >= self._limits.max_queued:
                 self._log("retry", consumer, capacity)
-                return False
+                return "queue-full"
 
             capacity.queued += 1
             self._log("queued", consumer, capacity)
             try:
-                await capacity.condition.wait_for(
-                    lambda: capacity.in_flight < self._limits.max_in_flight
+                await asyncio.wait_for(
+                    capacity.condition.wait_for(
+                        lambda: capacity.in_flight < self._limits.max_in_flight
+                    ),
+                    timeout=self._limits.queue_wait_seconds,
                 )
+            except TimeoutError:
+                capacity.queued -= 1
+                self._log("queue-timeout", consumer, capacity)
+                return "timed-out"
             except BaseException:
                 capacity.queued -= 1
                 self._log("queue-cancelled", consumer, capacity)
@@ -98,7 +123,7 @@ class _AdmissionController:
             capacity.queued -= 1
             capacity.in_flight += 1
             self._log("admitted-from-queue", consumer, capacity)
-            return True
+            return "admitted"
 
     async def release(self, consumer: str) -> None:
         capacity = self._consumers[consumer]
@@ -331,8 +356,12 @@ class RouterApp:
             )
 
         consumer = self._consumer_id(scope)
-        if not await self._admission.acquire(consumer):
+        admission = await self._admission.acquire(consumer)
+        if admission == "queue-full":
             await self._retry_later(send)
+            return
+        if admission == "timed-out":
+            await self._queue_timed_out(send)
             return
         try:
             relay_body = self._clamp_output_tokens(payload, body, card)
@@ -599,12 +628,75 @@ class RouterApp:
             body,
         )
 
+    async def _queue_timed_out(self, send: Send) -> None:
+        """Answer a queued request that waited out its ceiling.
+
+        503 rather than the 429 a full queue gets, because the two say
+        different things: a full queue declined immediately, while this one was
+        accepted, waited, and still found no slot. Both carry Retry-After, and
+        both are a status code in a log -- which is the whole point, since the
+        behaviour this replaces was an open connection that said nothing.
+        """
+        waited = self._admission_limits.queue_wait_seconds
+        wait = self._admission_limits.retry_after_seconds
+        body = json.dumps(
+            {
+                "error": {
+                    "message": (
+                        f"admission queue wait exceeded {waited} seconds; "
+                        f"retry after {wait} seconds"
+                    ),
+                    "queue_wait_seconds": waited,
+                    "retry_after_seconds": wait,
+                }
+            },
+            separators=(",", ":"),
+        ).encode()
+        await self._response(
+            send,
+            503,
+            [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode()),
+                (b"retry-after", str(wait).encode()),
+            ],
+            body,
+        )
+
     @staticmethod
     def _consumer_id(scope: Mapping[str, Any]) -> str:
+        """Identify the calling process, not merely the calling host.
+
+        Keying on the client IP alone collapsed every process on a shared
+        machine into one admission bucket, so long-lived agent sessions starved
+        unrelated callers on the same login node and the starvation was
+        invisible -- the victims queued rather than being refused.
+
+        An explicit ``x-ambix-consumer`` header wins, so a caller that knows
+        its own identity can declare it. Otherwise the user-agent joins the
+        host, which separates a harness from a benchmark from an operator's
+        curl without giving every TCP connection its own bucket -- keying on
+        the client PORT would do that and would disable admission control
+        entirely.
+        """
+        headers = scope.get("headers") or ()
+        declared = b""
+        agent = b""
+        for name, value in headers:
+            lowered = bytes(name).lower()
+            if lowered == b"x-ambix-consumer":
+                declared = bytes(value)
+            elif lowered == b"user-agent":
+                agent = bytes(value)
+        if declared.strip():
+            return declared.decode("utf-8", "replace")[:128]
         client = scope.get("client")
+        host = "unknown"
         if isinstance(client, Sequence) and client and isinstance(client[0], str):
-            return client[0]
-        return "unknown"
+            host = client[0]
+        if not agent.strip():
+            return host
+        return f"{host}|{agent.decode('utf-8', 'replace')[:96]}"
 
 
 def create_router_app(

@@ -254,3 +254,90 @@ def test_admission_limits_reject_invalid_configuration() -> None:
         max_queued=6,
         retry_after_seconds=11,
     )
+
+
+def test_queued_request_times_out_with_a_status_code_rather_than_hanging():
+    """A queued caller that never gets a slot must be told, not left waiting.
+
+    The unbounded wait this replaces produced no status code and no log line:
+    completions hung past 45 seconds against an upstream answering in 0.28s,
+    because long-lived agent sessions held the in-flight slots. A hang is
+    indistinguishable from a slow model, which is what drives callers into
+    retry loops.
+    """
+    from imas_ambix.agent.router import _AdmissionController
+
+    async def scenario() -> tuple[str, str]:
+        limits = AdmissionLimits(
+            max_in_flight=1, max_queued=4, retry_after_seconds=5, queue_wait_seconds=1
+        )
+        controller = _AdmissionController(limits)
+        first = await controller.acquire("consumer-a")
+        # The slot is held and never released, so the queued caller can only
+        # leave by timing out.
+        second = await controller.acquire("consumer-a")
+        return first, second
+
+    first, second = asyncio.run(scenario())
+    assert first == "admitted"
+    assert second == "timed-out"
+
+
+def test_a_full_queue_and_a_timeout_stay_distinguishable():
+    """Declining immediately and waiting-then-declining are different facts."""
+    from imas_ambix.agent.router import _AdmissionController
+
+    async def scenario() -> str:
+        limits = AdmissionLimits(
+            max_in_flight=1, max_queued=0, retry_after_seconds=5, queue_wait_seconds=30
+        )
+        controller = _AdmissionController(limits)
+        await controller.acquire("consumer-b")
+        return await controller.acquire("consumer-b")
+
+    # max_queued=0 leaves no room to wait, so this refuses promptly and must
+    # not be reported as a timeout.
+    assert asyncio.run(scenario()) == "queue-full"
+
+
+def test_two_processes_on_one_host_are_separate_consumers():
+    """Keying admission on the client IP starved unrelated callers.
+
+    Every process on a shared login node collapsed into one bucket, so a
+    long-lived agent session queued an operator's request behind it and the
+    starvation was invisible: the victim waited rather than being refused.
+    """
+    scope_agent = {
+        "client": ("10.154.100.16", 51001),
+        "headers": [(b"user-agent", b"claude-code/1.2")],
+    }
+    scope_bench = {
+        "client": ("10.154.100.16", 51002),
+        "headers": [(b"user-agent", b"imas-codex-bench/0.9")],
+    }
+    agent = RouterApp._consumer_id(scope_agent)
+    bench = RouterApp._consumer_id(scope_bench)
+    assert agent != bench
+    # ...but the port alone must not split them, or admission control would be
+    # disabled entirely: every connection would get its own bucket.
+    same_agent_again = RouterApp._consumer_id(
+        {
+            "client": ("10.154.100.16", 59999),
+            "headers": [(b"user-agent", b"claude-code/1.2")],
+        }
+    )
+    assert same_agent_again == agent
+
+
+def test_an_explicit_consumer_header_wins_over_the_derived_identity():
+    """A caller that knows its own identity may declare it."""
+    declared = RouterApp._consumer_id(
+        {
+            "client": ("10.154.100.16", 51003),
+            "headers": [
+                (b"x-ambix-consumer", b"reckon/node-17"),
+                (b"user-agent", b"claude-code/1.2"),
+            ],
+        }
+    )
+    assert declared == "reckon/node-17"
