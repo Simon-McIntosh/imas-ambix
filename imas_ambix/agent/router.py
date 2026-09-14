@@ -8,7 +8,7 @@ import json
 import logging
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 import aiohttp
 
@@ -17,6 +17,9 @@ from imas_ambix.agent.vllm_catalog import validate_catalog_metadata
 AsgiMessage = dict[str, Any]
 Receive = Callable[[], Awaitable[AsgiMessage]]
 Send = Callable[[AsgiMessage], Awaitable[None]]
+if TYPE_CHECKING:
+    from pathlib import Path
+
 logger = logging.getLogger(__name__)
 
 
@@ -166,8 +169,22 @@ class RouterApp:
         *,
         timeout: aiohttp.ClientTimeout | None = None,
         connection_limit: int = 2048,
+        lane_document: Path | None = None,
+        lane_interval: int = 30,
     ) -> None:
         self._resolver = resolver
+        # The shared lane budget is published from here rather than from its own
+        # allocation. A separate job spent a core of a 30-core GPU reservation
+        # on one HTTP read every thirty seconds, while a peer's GPU work pended
+        # on Resources with two cards idle -- the reservation binds on cores
+        # allocated, not on cores used. This process is already standing, is
+        # already blocked on IO, and already survives serve rotations, so the
+        # refresh costs nothing additional. It must not live in a session:
+        # a producer that dies with its coordinator stops silently and looks
+        # exactly like a quiet lane.
+        self._lane_document = lane_document
+        self._lane_interval = lane_interval
+        self._lane_task: asyncio.Task[None] | None = None
         self._timeout = timeout or aiohttp.ClientTimeout(total=None, connect=10)
         self._session: aiohttp.ClientSession | None = None
         # The engine schedules its own work -- continuous batching, a waiting
@@ -246,13 +263,58 @@ class RouterApp:
             message = await receive()
             if message["type"] == "lifespan.startup":
                 await self._client()
+                if self._lane_document is not None:
+                    self._lane_task = asyncio.create_task(self._publish_lane())
                 await send({"type": "lifespan.startup.complete"})
             elif message["type"] == "lifespan.shutdown":
+                if self._lane_task is not None:
+                    self._lane_task.cancel()
+                    self._lane_task = None
                 if self._session is not None:
                     await self._session.close()
                     self._session = None
                 await send({"type": "lifespan.shutdown.complete"})
                 return
+
+    async def _publish_lane(self) -> None:
+        """Republish the shared lane budget for as long as the router runs.
+
+        Never allowed to disturb routing: every failure publishes an explicit
+        unavailable state and the loop continues, because a relay that stopped
+        serving requests to keep a metrics file current would have inverted its
+        own purpose.
+        """
+        from imas_ambix.agent.lane import (
+            detect_settling,
+            parse_lane_capacity,
+            write_lane_document,
+            write_unavailable_document,
+        )
+
+        previous = None
+        while True:
+            try:
+                upstreams = await self._resolver.resolve()
+                if not upstreams:
+                    raise RuntimeError("no upstream is registered")
+                session = await self._client()
+                target = f"{upstreams[0].base_url.rstrip('/')}/metrics"
+                async with session.get(target) as response:
+                    body = await response.text()
+                capacity = parse_lane_capacity(body)
+            except (aiohttp.ClientError, OSError, RuntimeError, ValueError) as error:
+                write_unavailable_document(str(error), self._lane_document)
+                previous = None
+            except asyncio.CancelledError:
+                raise
+            else:
+                write_lane_document(
+                    capacity,
+                    self._lane_document,
+                    settling=detect_settling(previous, capacity),
+                )
+                previous = capacity
+            await asyncio.sleep(self._lane_interval)
 
     async def _client(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -480,9 +542,11 @@ class RouterApp:
         )
 
 
-def create_router_app(resolver: UpstreamResolver) -> RouterApp:
+def create_router_app(
+    resolver: UpstreamResolver, *, lane_document: Path | None = None
+) -> RouterApp:
     """Build the ASGI application around an injected upstream resolver."""
-    return RouterApp(resolver)
+    return RouterApp(resolver, lane_document=lane_document)
 
 
 def serve_router(
@@ -490,8 +554,13 @@ def serve_router(
     *,
     host: str = "0.0.0.0",
     port: int,
+    lane_document: Path | None = None,
 ) -> None:
     """Run the router ASGI application with the serving runtime."""
     import uvicorn
 
-    uvicorn.run(create_router_app(resolver), host=host, port=port)
+    uvicorn.run(
+        create_router_app(resolver, lane_document=lane_document),
+        host=host,
+        port=port,
+    )

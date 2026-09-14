@@ -1529,7 +1529,14 @@ def router_command(
     resolver = DynamicUpstreamResolver(
         lambda: _resolve_router_upstreams(site, resolved_key)
     )
-    serve_router(resolver, host=host, port=port)
+    from pathlib import Path as _Path
+
+    serve_router(
+        resolver,
+        host=host,
+        port=port,
+        lane_document=_Path(site.endpoint_document).with_name("lane.json"),
+    )
 
 
 def _resolve_live_route(
