@@ -530,27 +530,46 @@ to test*.
 
 **The short-request ceiling is NOT the agent-session ceiling, and the gap is two
 orders of magnitude.** The ladder above used 200-token completions, which barely
-touch the KV pool — 26 concurrent sat at 3.4% occupancy. Real agent traffic does
-not look like that. Measured 2026-09-14 from live fleet load on the same serve,
-passively from the engine's own counters:
+touch the KV pool — 26 concurrent sat at 3.4% occupancy. Real agent traffic is
+about a hundred times heavier per request, so the ladder establishes that
+nothing breaks and says nothing about how many real sessions fit.
 
-    Running: 11  Waiting: 0  KV 44.3%      -> ~89,000 tokens per request
-    Running: 11  Waiting: 0  KV 48.4%      -> ~97,000 tokens per request
-    Running: 10  Waiting: 1  KV 47.6%      -> ~105,000 tokens per request
+**The fleet ceiling is a function, not a constant. Write down the arithmetic,
+never one of its answers:**
 
-Against a 2,200,283-token pool that is **roughly 21-25 concurrent agent
-sessions** before KV saturates, against 1536 short requests. **Size a worker
-fleet off the KV arithmetic, never off the short-request ladder.** The ladder
-establishes that nothing breaks; it says nothing about how many real sessions
-fit.
+    requests  =  KV pool tokens  /  mean working context per request
+    sessions  =  requests  /  requests-per-live-run
 
-Saturation here degrades rather than fails — vLLM preempts and recomputes, which
-costs throughput and shows up as `num_preemptions_total` rising, so the symptom
-is a slow lane and not a refused request. Prefix caching offsets it to a degree
-that depends entirely on how much context the sessions share (31.5% hit rate
-under the traffic above), so treat the figure as an order of magnitude rather
-than a limit, and re-derive it from `Running` against KV occupancy whenever the
-pool size or the working context length changes.
+Both denominators move with the node mix, so any single figure is wrong the next
+time it changes. Two measurements from the same serve on the same afternoon,
+which bracket the range rather than disagreeing:
+
+| observed | mean context | ceiling in requests | in live runs |
+|---|---|---|---|
+| Running 10-11 at KV 44-48% | ~89,000-105,000 | ~21-25 | — |
+| Running 10 at KV 26.7%, 12 live runs | ~58,800 | ~37 | ~45 at 0.83 req/run |
+
+The operationally useful form is the order of magnitude: **tens of sessions, not
+thousands.** Re-derive from `Running` against KV occupancy whenever the pool
+size or the working context length changes.
+
+**Pair an engine counter only with a WORKSTATION-WIDE run count.** The engine
+counts every fleet on the lane, so a per-project count paired against it
+inflates the ratio by however many other projects are running. Measured
+2026-09-14: reckon's own five runs against `Running: 10` gives 1.43, which reads
+as "above the band" and is meaningless — the twelve live runs at that instant
+were four nova, five reckon, two more reckon and one imas-codex. **A ratio above
+1.0 is the tell**, since it requires one turn issuing several concurrent
+requests; treat it as a pairing error until proven otherwise.
+
+**Saturation degrades rather than failing.** vLLM preempts and recomputes, so
+the symptom is a lane that silently gets slower — no error, no status code, and
+nothing a worker manifest would attribute correctly. `num_preemptions_total` in
+the serve log is the instrument, and it is the first thing to read when a wave
+slows without explanation. Prefix-cache reuse offsets the arithmetic by however
+much context the sessions share; two sessions measured 30.4% and 31.5% hit rate
+on the same lane within minutes, which is close enough to serve as a cross-check
+that both are reading it the same way.
 
 **A request ceiling is not a fleet size, and the conversion is not a constant.**
 Reckon dispatches **live runs**; the engine counts **simultaneous requests**.
