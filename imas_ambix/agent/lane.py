@@ -194,6 +194,41 @@ def fetch_lane_capacity(origin: str, *, timeout: float = 10.0) -> LaneCapacity:
     return parse_lane_capacity(body)
 
 
+def detect_settling(
+    previous: LaneCapacity | None,
+    current: LaneCapacity,
+    *,
+    tolerance: float = 0.25,
+) -> bool | None:
+    """Is the measured quantity itself still moving, independent of its age?
+
+    Age and settling are orthogonal qualifiers and no age rule can express
+    this: a reading can be one second old and invalid, or ninety seconds old
+    and perfectly good. Age asks whether the world moved since we looked;
+    settling asks whether the thing we looked at was in a steady state when we
+    looked.
+
+    It is detectable only by a producer, because it needs consecutive samples.
+    A reader holding one sample cannot distinguish a fleet mid-settle from a
+    genuine steady state at the same value. Measured 2026-09-14 at unchanged
+    ``running`` of 19: mean context 15,586 then ~62,865 then 73,121 tokens, so
+    the budget read 141, 35, 30 within a minute -- a reader seeing only the
+    first could not have known.
+
+    Returns None when there is no previous sample, or when the running count
+    moved enough that a change in mean context is explained by the mix rather
+    than by settling. Unknown is reported as unknown rather than as settled.
+    """
+    if previous is None:
+        return None
+    if abs(current.running - previous.running) > 1:
+        return None
+    before, after = previous.mean_context, current.mean_context
+    if not before or not after:
+        return None
+    return abs(after - before) / before > tolerance
+
+
 def write_unavailable_document(
     reason: str, path: str | Path, *, model_id: str = ""
 ) -> Path:
@@ -253,7 +288,12 @@ def classify_reading(
     return "stale" if age > shelf_life_seconds else "measured"
 
 
-def write_lane_document(capacity: LaneCapacity, path: str | Path) -> Path:
+def write_lane_document(
+    capacity: LaneCapacity,
+    path: str | Path,
+    *,
+    settling: bool | None = None,
+) -> Path:
     """Publish the reading so a session need not probe the engine to size work.
 
     Published rather than configured, and stamped, because a record carrying no
@@ -307,6 +347,13 @@ def write_lane_document(capacity: LaneCapacity, path: str | Path) -> Path:
         # would naturally read it. Prefer a reading taken before a dispatch to
         # one taken after, and treat any reading whose age is under about a
         # minute on a just-widened fleet as provisional.
+        # Orthogonal to age. True means the denominator was still moving when
+        # this was taken, so headroom is an UPPER BOUND rather than a figure --
+        # the measured error runs one way, roughly eightfold and always
+        # generous. None means no previous sample to compare, reported as
+        # unknown rather than as settled.
+        "settling": settling,
+        "headroom_is_upper_bound": settling is True,
         "settling_caveat": (
             "a reading taken within ~60s of a dispatch reports the fleet at its "
             "lightest; prefer a pre-dispatch reading"

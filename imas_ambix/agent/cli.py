@@ -2850,6 +2850,7 @@ def lane(
     from pathlib import Path
 
     from imas_ambix.agent.lane import (
+        detect_settling,
         fetch_lane_capacity,
         write_lane_document,
         write_unavailable_document,
@@ -2913,6 +2914,10 @@ def lane(
     # looks exactly like a quiet lane.
     import time
 
+    # Held across polls so settling can be detected here rather than inferred
+    # by every reader separately. The producer is the only party that sees
+    # consecutive samples, so the qualifier belongs where the polling is.
+    previous = None
     while True:
         try:
             capacity = fetch_lane_capacity(resolved)
@@ -2921,17 +2926,21 @@ def lane(
             # age into a lie. A reader can distinguish "could not measure, here
             # is why" from a figure whose vintage merely slipped.
             write_unavailable_document(str(error), document_path)
+            previous = None
             console.print(
                 f"unavailable: {error}", markup=False, highlight=False
             )
         else:
-            write_lane_document(capacity, document_path)
+            settling = detect_settling(previous, capacity)
+            write_lane_document(capacity, document_path, settling=settling)
+            bound = " (upper bound, settling)" if settling else ""
             console.print(
-                f"{capacity.running} running · headroom {capacity.headroom} · "
-                f"binding {capacity.binding_observed}",
+                f"{capacity.running} running · headroom {capacity.headroom}"
+                f"{bound} · binding {capacity.binding_observed}",
                 markup=False,
                 highlight=False,
             )
+            previous = capacity
         time.sleep(refresh)
 
 

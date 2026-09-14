@@ -8,6 +8,7 @@ import pytest
 
 from imas_ambix.agent.lane import (
     classify_reading,
+    detect_settling,
     parse_lane_capacity,
     write_lane_document,
     write_unavailable_document,
@@ -226,3 +227,45 @@ def test_an_unreadable_stamp_is_unavailable_not_silently_fresh():
     """A record whose age cannot be established must not pass as current."""
     assert classify_reading({"observed_at": "not-a-timestamp"}) == "unavailable"
     assert classify_reading({}) == "unavailable"
+
+
+def test_settling_is_detected_from_consecutive_samples_not_from_age():
+    """A reader holding one sample cannot tell mid-settle from steady state.
+
+    Reproduces the measured sequence at unchanged running of 19: mean context
+    15,586 then ~62,865 tokens, a fourfold move with nothing joining or leaving.
+    """
+    first = parse_lane_capacity(_metrics(running=19, occupancy=0.1346))
+    second = parse_lane_capacity(_metrics(running=19, occupancy=0.5430))
+
+    assert detect_settling(None, first) is None, "no baseline is unknown"
+    assert detect_settling(first, second) is True
+    assert detect_settling(second, second) is False, "a steady lane has settled"
+
+
+def test_a_changed_running_count_makes_settling_unknowable():
+    """A moving mix explains a moving mean, so do not call it settling."""
+    before = parse_lane_capacity(_metrics(running=8, occupancy=0.20))
+    after = parse_lane_capacity(_metrics(running=19, occupancy=0.55))
+
+    assert detect_settling(before, after) is None
+
+
+def test_a_settling_reading_publishes_headroom_as_an_upper_bound(tmp_path):
+    """The measured error runs one way: always generous, by up to eightfold."""
+    capacity = parse_lane_capacity(_metrics(running=19, occupancy=0.1346))
+
+    settling = json.loads(
+        write_lane_document(
+            capacity, tmp_path / "s.json", settling=True
+        ).read_text(encoding="utf-8")
+    )
+    settled = json.loads(
+        write_lane_document(
+            capacity, tmp_path / "q.json", settling=False
+        ).read_text(encoding="utf-8")
+    )
+
+    assert settling["settling"] is True
+    assert settling["headroom_is_upper_bound"] is True
+    assert settled["headroom_is_upper_bound"] is False
