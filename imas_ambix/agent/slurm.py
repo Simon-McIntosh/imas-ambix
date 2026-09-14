@@ -104,9 +104,27 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
     """Build common SGLang launch_server arguments."""
     engine = profile.engine
     max_tokens = engine.max_total_tokens or profile.model.max_context
-    python = str(site.python_path(profile.engine.type))
+    if engine.container is not None:
+        # Serve from the vendor image. The interpreter is the container's, not
+        # the engine venv's, so none of the host venv/LD_LIBRARY_PATH plumbing
+        # applies. --nv exposes the driver; the binds cover the weights on GPFS
+        # and the job-scoped scratch that TMPDIR points at (apptainer mounts
+        # $HOME itself, but neither of these).
+        interpreter = [
+            "apptainer",
+            "exec",
+            "--nv",
+            "--bind",
+            f"{site.base_dir}:{site.base_dir}",
+            "--bind",
+            "/scratch_local:/scratch_local",
+            engine.container.sif_path,
+            "python3",
+        ]
+    else:
+        interpreter = [str(site.python_path(profile.engine.type))]
     args = [
-        python,
+        *interpreter,
         "-m",
         "sglang.launch_server",
         "--model",
@@ -153,7 +171,18 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
         "--fp8-gemm-backend",
         engine.fp8_gemm_runner_backend,
     )
+    _append_option(args, "--ep-size", engine.ep_size)
     _append_option(args, "--cuda-graph-max-bs", engine.cuda_graph_max_bs)
+    _append_option(
+        args,
+        "--cuda-graph-max-bs-decode",
+        engine.cuda_graph_max_bs_decode,
+    )
+    _append_flag(
+        args,
+        "--enable-decoder-swa-bounded-replay",
+        engine.enable_decoder_swa_bounded_replay,
+    )
     _append_flag(
         args,
         "--weight-loader-disable-mmap",
@@ -396,7 +425,7 @@ def generate_serve_script(
         receipts_launch = "\n".join(
             [
                 f'_RECEIPTS_PATH="$_RECEIPTS_DIR/{profile.slug}-$SLURM_JOB_ID.jsonl"',
-                f'PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}} \\',
+                f"PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}} \\",
                 '    "$_REGISTRY_PYTHON" -m imas_ambix.agent.serving_receipts \\',
                 '    --base-url "http://$(hostname):$PORT" \\',
                 '    --receipts-path "$_RECEIPTS_PATH" \\',

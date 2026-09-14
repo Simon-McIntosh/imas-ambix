@@ -1,0 +1,136 @@
+# DeepSeek-V4.1-Flash — 552B backbone MoE, 8B/16B activated, 1M context
+#
+# A different architecture from V4-Flash, not a point release of it, so none of
+# the V4-Flash deployment findings carry over:
+#   * Causal Encoder-Decoder — 40 layers as a 20-layer causal encoder feeding a
+#     20-layer decoder, where V4-Flash is decoder-only.
+#   * CSA2 attention (Full / Reindex / Reuse modes), 64 query heads, 1 KV head.
+#   * 1 shared + 384 routed experts per MoE layer, 6 routed active per token;
+#     8B activated during prefill, 16B during decode.
+#   * Native multimodal — a DeepSeek-ViT tower feeds the same backbone through
+#     a two-layer MLP projector, rather than the bolt-on vision pack V4 used.
+#
+# Weights: 48 shards, 510.3 GB, MIT. Verified against the published blob sizes
+# rather than the index metadata, which disagrees with them:
+#   routed + DSpark experts (MXFP4)         259.5 GiB
+#   Engram tables (FP8)                     183.1 GiB
+#   attention, dense projections, routers      6.9 GiB
+#   embedding + LM head (BF16), norms (FP32)   3.9 GiB
+#   UE8M0 block scales                        21.9 GiB
+#                                     total  475.3 GiB
+#
+# The Engram tables are the whole memory story and have nothing to do with the
+# MoE: layers 1 and 14 each own a hash table of ~384M rows x 256 dims, 196.6B
+# parameters between them. They are why a model activating 8-16B parameters per
+# token still needs half a terabyte resident, and why the host-table setting
+# below is load-bearing rather than a tuning knob.
+#
+# Memory budget on 4xH200 (140.4 GiB each, 561.6 GiB total):
+#   Engram tables resident:  475.3 GiB weights -> 86 GiB spare. Fits, but the
+#                            margin is thin once CUDA graphs and the ViT land.
+#   Engram tables on host:   292.2 GiB weights -> 269 GiB spare, and ~46 GiB
+#                            per card handed back to the KV pool.
+#   KV is a rounding error either way — the compressed latents are stored in
+#   FP4 at 890 bytes/token, so the full 1M window costs ~0.89 GB.
+#
+# Throughput: not yet measured here. The DeepSeek beta reported 300-507 tok/s
+# output; treat that as the vendor's number on their own serving stack, not a
+# prediction for this deployment.
+#
+# License: MIT (fully permissive)
+
+[model]
+name = "DeepSeek-V4.1-Flash"
+hf_repo = "deepseek-ai/DeepSeek-V4.1-Flash"
+# Its own directory rather than sharing with V4-Flash: a different architecture
+# and a different shard count, so a shared directory would leave one release's
+# shards beside the other's index with no way to tell afterwards which
+# checkpoint a run actually loaded.
+weights_slug = "deepseek-v4-1-flash"
+served_name = "deepseek-v4.1-flash"
+checkpoint_precision = "mxfp4+fp8"
+size_gb = 510
+max_context = 1048576
+
+[engine]
+type = "sglang"
+# TP4 is the shape the vendor recipes exercise (GB300 and B200 at --tp 4
+# --ep-size 4; NVIDIA Dynamo at TP4/EP4 per worker). The published H200 recipe
+# is TP8/EP8, so TP4 ON H200 is this deployment's own composition of a
+# supported topology with the memory arithmetic above — the first thing to
+# verify at launch, not an inherited guarantee.
+#
+# TP4 also divides cleanly: 64 query heads / 4 = 16 per card. This is why a
+# six-card deployment is not expressible at all — 64 does not divide by 6 —
+# and why adding cards beyond four has to come through expert or data
+# parallelism rather than by widening TP.
+tensor_parallel = 4
+ep_size = 4
+# The cookbook's value for every verified layout. Lower than the 0.92 the
+# V4-Flash profile runs at, because the Engram gather and the ViT tower both
+# want headroom outside the static pool.
+mem_fraction_static = 0.8
+# This architecture's own attention kernel; "flashinfer" (the schema default,
+# and what V4-Flash uses) does not implement CSA2.
+attention_backend = "dsv4"
+# MXFP4 routed experts run on Hopper through FlashInfer's MXFP4 path, so the
+# experts stay at their shipped precision on these SM90 cards — no FP8
+# up-conversion pass and no second checkpoint.
+moe_runner_backend = "flashinfer_mxfp4"
+# Vendor-documented Hopper prefill win: decoder-side bounded replay measured
+# 1.56x prefill throughput on 8xH200.
+enable_decoder_swa_bounded_replay = true
+cuda_graph_max_bs_decode = 64
+# Full native window. At 890 bytes/token the whole 1M context is under a
+# gigabyte of KV, so there is nothing to buy by capping it.
+max_total_tokens = 1048576
+trust_remote_code = true
+
+[engine.parsers]
+tool_call = "auto"
+reasoning = "auto"
+
+[engine.env]
+# Move the 183.1 GiB of Engram tables into one shared host-resident copy.
+# This is the setting that makes four cards comfortable rather than tight, and
+# it is close to free:
+#   * output is bitwise unchanged — the same FP8 values, gathered from host
+#     memory instead of HBM, so there is no quality question to evaluate;
+#   * it costs ~0.4-1.0% output throughput in the shared/local layout (the
+#     larger -1.4% to -7.7% figures belong to the Store-backed variant, which
+#     needs Mooncake and is not used here);
+#   * it removes the per-lookup all-reduce that row-sharding the tables across
+#     the TP group otherwise costs.
+# The price is ~200 GB of host RAM, which the [slurm] request below carries,
+# and a longer load. Huge-page backing keeps the gather cheap; without it the
+# ~1% figure will not reproduce.
+SGLANG_ENABLE_DSV41_ENGRAM_HOST_TABLE = "1"
+
+# Serving runs from the vendor preview container, not from the sglang engine
+# venv. V4.1 support merged to sglang main on 2026-09-14 (PR #38798) and is not
+# in any released wheel, so the 0.5.11 in the shared engine environment cannot
+# register this architecture at all. The image is the route the cookbook
+# documents, and pinning the digest keeps a re-pull from silently moving the
+# serving stack under a deployment that was measured against one build.
+[engine.container]
+image = "lmsysorg/sglang:dev-dsv41"
+sif_path = "/work/projects/imas_gpu/containers/sglang-dev-dsv41.sif"
+
+[slurm]
+gpus = 4
+# Matches the V4-Flash four-card serve. Cores do not scale with cards — one API
+# server, one engine core, one worker per rank, every worker mostly blocked on
+# the device — and the node carries two overlapping 30-core reservations, so a
+# request scaled off the card count strands co-running jobs on cores while the
+# cards they want sit idle.
+cpus = 12
+# Sized for the host-resident Engram tables: ~200 GB of tables plus the engine's
+# own working set and the shard-loading page cache. Above the 300G the V4-Flash
+# serve runs at, and deliberately well under the 650 GB group ceiling so a
+# co-running job can still be admitted. Never request the node's RealMemory —
+# that reads as "no limit" and reserves everything.
+memory = "420G"
+# 18800-18809 are taken by the other profiles and by the router at 18802.
+port = 18810
+time_serve = "0"
+time_download = "24:00:00"

@@ -80,6 +80,24 @@ class ParsersConfig(BaseModel):
     reasoning: str | None = None
 
 
+class ContainerConfig(BaseModel):
+    """Serve this model from a container image instead of an engine venv.
+
+    Some architectures land in an engine's main branch well before they reach a
+    released wheel, and the shared engine environments track releases. Declaring
+    an image here routes the serve through ``apptainer exec --nv`` against
+    :attr:`sif_path`, leaving every other profile on the venv path untouched.
+
+    :attr:`image` is the upstream reference the SIF was built from. It is
+    recorded so a deployment can say what it is running rather than only where
+    the file sits; the serve reads :attr:`sif_path` and never pulls, because the
+    GPU node has no egress.
+    """
+
+    image: str
+    sif_path: str
+
+
 class EngineConfig(BaseModel):
     """Inference engine configuration.
 
@@ -93,6 +111,11 @@ class EngineConfig(BaseModel):
 
     type: Literal["ktransformers", "sglang", "vllm"]
     tensor_parallel: int = 4
+    # Expert-parallel width for SGLang's ``--ep-size``. Distinct from
+    # ``enable_expert_parallel`` below, which is vLLM's boolean switch. A MoE
+    # layer with hundreds of routed experts is sharded by this rather than by
+    # tensor parallelism; ``None`` keeps the SGLang default. SGLang-only.
+    ep_size: int | None = None
     mem_fraction_static: float = 0.90
     attention_backend: str = "flashinfer"
     trust_remote_code: bool = True
@@ -100,11 +123,25 @@ class EngineConfig(BaseModel):
     enable_p2p_check: bool = True
     chunked_prefill_size: int = 32768
     cuda_graph_max_bs: int | None = None
+    # Separate decode-side CUDA-graph batch ceiling
+    # (``--cuda-graph-max-bs-decode``). Architectures that split prefill and
+    # decode into different graphs size them independently; ``None`` keeps the
+    # SGLang default. SGLang-only.
+    cuda_graph_max_bs_decode: int | None = None
+    # Bounded replay on the decoder half of an encoder-decoder stack
+    # (``--enable-decoder-swa-bounded-replay``). Measured by the vendor at 1.56x
+    # prefill throughput on 8xH200 for DeepSeek-V4.1. SGLang-only.
+    enable_decoder_swa_bounded_replay: bool = False
     disable_cuda_graph: bool = False
     disable_piecewise_cuda_graph: bool = False
     disable_custom_all_reduce: bool = False
     max_total_tokens: int | None = None
-    moe_runner_backend: Literal["auto", "triton", "triton_kernel"] | None = None
+    # ``flashinfer_mxfp4`` is what keeps MXFP4 routed experts at their shipped
+    # precision on SM90, where there are no FP4 tensor cores — without it the
+    # experts need an FP8 conversion pass and a second checkpoint.
+    moe_runner_backend: (
+        Literal["auto", "triton", "triton_kernel", "flashinfer_mxfp4"] | None
+    ) = None
     # CLI flag is `--fp8-gemm-backend` but the ServerArgs attribute
     # SGLang uses internally is `fp8_gemm_runner_backend`; mirror the
     # internal name here. Allowed values match SGLang's argparse.
@@ -180,6 +217,7 @@ class EngineConfig(BaseModel):
     # FlashInfer top-k kernel on this H200 + vLLM build. Values are stringified.
     env: dict[str, str] = {}
     ktransformers: KTransformersConfig | None = None
+    container: ContainerConfig | None = None
     parsers: ParsersConfig = ParsersConfig()
 
     @model_validator(mode="after")
