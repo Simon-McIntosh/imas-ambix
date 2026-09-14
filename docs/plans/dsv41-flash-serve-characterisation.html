@@ -23,8 +23,8 @@
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-modified" content="2026-09-14">
-<meta name="plan-version" content="3">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;deferred&quot;}">
+<meta name="plan-version" content="4">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -160,14 +160,14 @@ hint: Wheels are available for `kt-kernel` (v0.7.0.post4) with ABI tag: `cp312`<
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
-<div class="r-dec" data-key="kt-kernel-split" data-choice="" data-by="" data-when="">
+<div class="r-dec" data-key="kt-kernel-split" data-choice="separate-ktransformers-env" data-by="" data-when="2026-09-14T09:08:15+00:00">
     <p class="r-dec-q">How should the serving environment reach Python 3.14 when kt-kernel is cp312-only?</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="separate-ktransformers-env">separate-ktransformers-env</button>
+      <button class="r-opt chosen" data-value="separate-ktransformers-env">separate-ktransformers-env</button>
       <button class="r-opt" data-value="kt-kernel-optional-extra">kt-kernel-optional-extra</button>
       <button class="r-opt" data-value="stay-on-3-12">stay-on-3-12</button>
       </p>
-    <p class="r-dec-rat"></p>
+    <p class="r-dec-rat">Give the ktransformers engine its own environment so the sglang environment can move to Python 3.14 on its own schedule. The shared venv exists only because SiteConfig._engine_key maps ktransformers onto sglang, and that mapping now couples the engine actually serving production traffic to kt-kernel&#x27;s cp312-only wheels. Rejected kt-kernel-optional-extra: one environment would resolve at 3.14, but the KT profiles then need an install step outside the declared dependencies, which is the kind of thing that is forgotten and then diagnosed as a broken environment. Rejected stay-on-3-12: free today, and it leaves armed a trap that has fired four times -- the repository formats to PEP 758 syntax the 3.12 serving interpreter cannot parse, most recently rewriting the vLLM middleware modules in a way that would have broken every vLLM serve at import. Accepted cost: a second engine environment of roughly 9 GiB, which is the price of letting the live engine move without waiting on a legacy kernel&#x27;s wheel matrix.</p>
     </div>
 </section>
 
